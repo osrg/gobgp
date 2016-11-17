@@ -581,6 +581,42 @@ func (v AttributeComparison) Validate() error {
 	return nil
 }
 
+// typedef for identity rpol:route-disposition
+type RouteDisposition string
+
+const (
+	ROUTE_DISPOSITION_NONE         RouteDisposition = "none"
+	ROUTE_DISPOSITION_ACCEPT_ROUTE RouteDisposition = "accept-route"
+	ROUTE_DISPOSITION_REJECT_ROUTE RouteDisposition = "reject-route"
+)
+
+var RouteDispositionToIntMap = map[RouteDisposition]int{
+	ROUTE_DISPOSITION_NONE:         0,
+	ROUTE_DISPOSITION_ACCEPT_ROUTE: 1,
+	ROUTE_DISPOSITION_REJECT_ROUTE: 2,
+}
+
+func (v RouteDisposition) ToInt() int {
+	i, ok := RouteDispositionToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToRouteDispositionMap = map[int]RouteDisposition{
+	0: ROUTE_DISPOSITION_NONE,
+	1: ROUTE_DISPOSITION_ACCEPT_ROUTE,
+	2: ROUTE_DISPOSITION_REJECT_ROUTE,
+}
+
+func (v RouteDisposition) Validate() error {
+	if _, ok := RouteDispositionToIntMap[v]; !ok {
+		return fmt.Errorf("invalid RouteDisposition: %s", v)
+	}
+	return nil
+}
+
 // typedef for identity rpol:route-type
 type RouteType string
 
@@ -4011,29 +4047,6 @@ func (lhs *IgpActions) Equal(rhs *IgpActions) bool {
 	return true
 }
 
-//struct for container rpol:route-disposition
-type RouteDisposition struct {
-	// original -> rpol:accept-route
-	//rpol:accept-route's original type is empty
-	AcceptRoute bool `mapstructure:"accept-route" json:"accept-route,omitempty"`
-	// original -> rpol:reject-route
-	//rpol:reject-route's original type is empty
-	RejectRoute bool `mapstructure:"reject-route" json:"reject-route,omitempty"`
-}
-
-func (lhs *RouteDisposition) Equal(rhs *RouteDisposition) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AcceptRoute != rhs.AcceptRoute {
-		return false
-	}
-	if lhs.RejectRoute != rhs.RejectRoute {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:actions
 type Actions struct {
 	// original -> rpol:route-disposition
@@ -4048,7 +4061,7 @@ func (lhs *Actions) Equal(rhs *Actions) bool {
 	if lhs == nil || rhs == nil {
 		return false
 	}
-	if !lhs.RouteDisposition.Equal(&(rhs.RouteDisposition)) {
+	if lhs.RouteDisposition != rhs.RouteDisposition {
 		return false
 	}
 	if !lhs.IgpActions.Equal(&(rhs.IgpActions)) {

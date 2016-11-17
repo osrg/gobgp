@@ -1230,9 +1230,10 @@ func toStatementApi(s *config.Statement) *Statement {
 	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
 	as := &Actions{
 		RouteAction: func() RouteAction {
-			if s.Actions.RouteDisposition.AcceptRoute {
+			switch s.Actions.RouteDisposition {
+			case config.ROUTE_DISPOSITION_ACCEPT_ROUTE:
 				return RouteAction_ACCEPT
-			} else if s.Actions.RouteDisposition.RejectRoute {
+			case config.ROUTE_DISPOSITION_REJECT_ROUTE:
 				return RouteAction_REJECT
 			}
 			return RouteAction_NONE

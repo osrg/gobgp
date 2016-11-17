@@ -18,6 +18,7 @@ import optparse
 import StringIO
 import sys
 from pyang import plugin
+from collections import namedtuple
 
 _COPYRIGHT_NOTICE = """
 // DO NOT EDIT
@@ -207,6 +208,9 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         if is_case(child):
             continue
 
+        if is_choice(child) and is_enum_choice(child):
+            emit_type_name = val_name_go
+
         # case leaflist
         if is_leaflist(child):
             type_obj = child.search_one('type')
@@ -239,7 +243,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 emit_type_name = '[]'+t.golang_name
 
         # case container
-        elif is_container(child) or is_choice(child):
+        elif is_container(child) or (is_choice(child) and not is_enum_choice(child)):
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
             val_name_go = t.golang_name
@@ -380,7 +384,7 @@ def visit_children(ctx, module, children):
         t = c.search_one('type')
 
         # define container embeded enums
-        if is_leaf(c) and c.search_one('type').arg == 'enumeration':
+        def define_enum(c):
             prefix = module.i_prefix
             c.path = get_path(c)
             c.golang_name = convert_to_golang(c.arg)
@@ -389,12 +393,17 @@ def visit_children(ctx, module, children):
             else:
                 ctx.golang_typedef_map[prefix] = {c.arg: c}
 
-        if is_list(c) or is_container(c) or is_choice(c):
+        if is_leaf(c) and c.search_one('type').arg == 'enumeration':
+            define_enum(c)
+        elif is_list(c) or is_container(c) or is_choice(c):
             c.golang_name = convert_to_golang(c.uniq_name)
 
             if is_choice(c):
                 picks = pickup_choice(c)
                 c.i_children = picks
+                if is_enum_choice(c):
+                    define_enum(c)
+                    continue
 
             if ctx.golang_struct_names.get(prefix+':'+c.uniq_name):
                 ext_c = ctx.golang_struct_names.get(prefix+':'+c.uniq_name)
@@ -504,6 +513,12 @@ def emit_enum(prefix, name, stmt, substmts):
         const_prefix = convert_const_prefix(type_name_org)
         print >> o, 'const ('
         m = {}
+
+        if is_choice(stmt) and is_enum_choice(stmt):
+            n = namedtuple('Statement', ['arg'])
+            n.arg = 'none'
+            substmts = [n] + substmts
+
         for sub in substmts:
             enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
             m[sub.arg.lower()] = enum_name
@@ -580,7 +595,9 @@ def emit_typedef(ctx, module):
         t = stmt.search_one('type')
         o = StringIO.StringIO()
 
-        if t.arg == 'enumeration':
+        if not t and  is_choice(stmt):
+            emit_enum(prefix, type_name_org, stmt, stmt.i_children)
+        elif t.arg == 'enumeration':
             emit_enum(prefix, type_name_org, stmt, t.substmts)
         elif t.arg == 'union':
             print >> o, '// typedef for typedef %s:%s'\
@@ -641,6 +658,13 @@ def is_case(s):
 
 def is_choice(s):
     return s.keyword in ['choice']
+
+def is_enum_choice(s):
+    return all(e.search_one('type').arg in _type_enum_case for e in s.i_children)
+
+_type_enum_case = [
+    'empty',
+]
 
 
 def is_builtin_type(t):

@@ -156,10 +156,7 @@ func policy() config.RoutingPolicy {
 			},
 		},
 		Actions: config.Actions{
-			RouteDisposition: config.RouteDisposition{
-				AcceptRoute: false,
-				RejectRoute: true,
-			},
+			RouteDisposition: "reject-route",
 			BgpActions: config.BgpActions{
 				SetCommunity: config.SetCommunity{
 					SetCommunityMethod: config.SetCommunityMethod{

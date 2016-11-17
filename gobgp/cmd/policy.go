@@ -669,9 +669,9 @@ func modAction(name, op string, args []string) error {
 	args = args[1:]
 	switch typ {
 	case "reject":
-		stmt.Actions.RouteDisposition = config.RouteDisposition{RejectRoute: true}
+		stmt.Actions.RouteDisposition = config.ROUTE_DISPOSITION_REJECT_ROUTE
 	case "accept":
-		stmt.Actions.RouteDisposition = config.RouteDisposition{AcceptRoute: true}
+		stmt.Actions.RouteDisposition = config.ROUTE_DISPOSITION_ACCEPT_ROUTE
 	case "community":
 		if len(args) < 1 {
 			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)

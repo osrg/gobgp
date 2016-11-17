@@ -80,7 +80,7 @@ class GoBGPTestBase(unittest.TestCase):
         g1.set_prefix_set(ps0)
 
         st0 = {'conditions': {'match-prefix-set': {'prefix-set': 'ps0'}},
-               'actions': {'route-disposition': {'accept-route': True}}}
+               'actions': {'route-disposition': 'accept-route'}}
 
         pol0 = {'name': 'pol0', 'statements': [st0]}
 

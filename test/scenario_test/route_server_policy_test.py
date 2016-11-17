@@ -114,7 +114,7 @@ class ImportPolicy(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -180,7 +180,7 @@ class ExportPolicy(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -266,7 +266,7 @@ class ImportPolicyUpdate(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -313,7 +313,7 @@ class ImportPolicyUpdate(object):
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                               'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -393,7 +393,7 @@ class ExportPolicyUpdate(object):
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                               'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -440,7 +440,7 @@ class ExportPolicyUpdate(object):
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                               'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -536,7 +536,7 @@ class ImportPolicyIPV6(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -605,7 +605,7 @@ class ExportPolicyIPV6(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -687,7 +687,7 @@ class ImportPolicyIPV6Update(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -731,7 +731,7 @@ class ImportPolicyIPV6Update(object):
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {
-                   'route-disposition': {'reject-route': True}}}
+                   'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -808,7 +808,7 @@ class ExportPolicyIPv6Update(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -851,7 +851,7 @@ class ExportPolicyIPv6Update(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -902,7 +902,7 @@ class ImportPolicyAsPathLengthCondition(object):
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'as-path-length': {'operator': 'ge',
                                                                     'value': 10}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -962,7 +962,7 @@ class ImportPolicyAsPathCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1014,7 +1014,7 @@ class ImportPolicyAsPathAnyCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1066,7 +1066,7 @@ class ImportPolicyAsPathOriginCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1118,7 +1118,7 @@ class ImportPolicyAsPathOnlyCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1172,7 +1172,7 @@ class ImportPolicyAsPathMismatchCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1232,7 +1232,7 @@ class ImportPolicyCommunityCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1285,7 +1285,7 @@ class ImportPolicyCommunityRegexp(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1346,7 +1346,7 @@ class ImportPolicyCommunityAction(object):
 
         st0 = {'name': 'st0',
                 'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0', 'match-set-options': 'any'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'add',
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
@@ -1420,7 +1420,7 @@ class ImportPolicyCommunityReplace(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'REPLACE',
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
@@ -1486,7 +1486,7 @@ class ImportPolicyCommunityRemove(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'REMOVE',
                                                            'set-community-method': {'communities-list': ['65100:10', '65100:20']}}}}}
 
@@ -1570,7 +1570,7 @@ class ImportPolicyCommunityNull(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'REPLACE',
                                                              'set-community-method': {'communities-list': []}}}}}
 
@@ -1644,7 +1644,7 @@ class ExportPolicyCommunityAdd(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'add',
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
@@ -1717,7 +1717,7 @@ class ExportPolicyCommunityReplace(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'REPLACE',
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
@@ -1790,7 +1790,7 @@ class ExportPolicyCommunityRemove(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'REMOVE',
                                                            'set-community-method': {'communities-list': ['65100:20', '65100:30']}}}}}
 
@@ -1866,7 +1866,7 @@ class ExportPolicyCommunityNull(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-community': {'options': 'REPLACE',
                                                            'set-community-method': {'communities-list': []}}}}}
 
@@ -1944,7 +1944,7 @@ class ImportPolicyMedReplace(object):
         q1 = env.q1
         q2 = env.q2
         st0 = {'name': 'st0',
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-med': '100'}}}
 
         policy = {'name': 'policy0',
@@ -2005,7 +2005,7 @@ class ImportPolicyMedAdd(object):
         q1 = env.q1
         q2 = env.q2
         st0 = {'name': 'st0',
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-med': '+100'}}}
 
         policy = {'name': 'policy0',
@@ -2066,7 +2066,7 @@ class ImportPolicyMedSub(object):
         q1 = env.q1
         q2 = env.q2
         st0 = {'name': 'st0',
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-med': '-100'}}}
 
         policy = {'name': 'policy0',
@@ -2127,7 +2127,7 @@ class ExportPolicyMedReplace(object):
         q1 = env.q1
         q2 = env.q2
         st0 = {'name': 'st0',
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-med': '100'}}}
 
         policy = {'name': 'policy0',
@@ -2188,7 +2188,7 @@ class ExportPolicyMedAdd(object):
         q1 = env.q1
         q2 = env.q2
         st0 = {'name': 'st0',
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-med': '+100'}}}
 
         policy = {'name': 'policy0',
@@ -2249,7 +2249,7 @@ class ExportPolicyMedSub(object):
         q1 = env.q1
         q2 = env.q2
         st0 = {'name': 'st0',
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-med': '-100'}}}
 
         policy = {'name': 'policy0',
@@ -2314,7 +2314,7 @@ class InPolicyReject(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2373,7 +2373,7 @@ class InPolicyAccept(object):
 
         st0 = {'name': 'st0',
                'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions':{'route-disposition': {'accept-route': True}}}
+               'actions':{'route-disposition': 'accept-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2448,7 +2448,7 @@ class InPolicyUpdate(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2496,7 +2496,7 @@ class InPolicyUpdate(object):
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                           'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2556,7 +2556,7 @@ class ExportPolicyAsPathPrepend(object):
 
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "65005"}}}}
 
         policy = {'name': 'policy0',
@@ -2643,7 +2643,7 @@ class ImportPolicyAsPathPrependLastAS(object):
 
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "last-as"}}}}
 
         policy = {'name': 'policy0',
@@ -2720,7 +2720,7 @@ class ExportPolicyAsPathPrependLastAS(object):
 
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
-               'actions': {'route-disposition': {'accept-route': True},
+               'actions': {'route-disposition': 'accept-route',
                            'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "last-as"}}}}
 
         policy = {'name': 'policy0',
@@ -2795,7 +2795,7 @@ class ImportPolicyExCommunityOriginCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions':{'match-ext-community-set':{'ext-community-set': 'es0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2846,7 +2846,7 @@ class ImportPolicyExCommunityTargetCondition(object):
 
         st0 = {'name': 'st0',
                'conditions': {'bgp-conditions':{'match-ext-community-set':{'ext-community-set': 'es0'}}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2899,7 +2899,7 @@ class InPolicyPrefixCondition(object):
         st0 = {'name': 'st0',
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2971,7 +2971,7 @@ class ImportPolicyExCommunityAdd(object):
                     }
                 },
             'actions': {
-                'route-disposition': {'accept-route': True},
+                'route-disposition': 'accept-route',
                 'bgp-actions': {
                     'set-ext-community': {
                         'options': 'add',
@@ -3051,7 +3051,7 @@ class ImportPolicyExCommunityAdd2(object):
                     }
                 },
             'actions': {
-                'route-disposition': {'accept-route': True},
+                'route-disposition': 'accept-route',
                 'bgp-actions': {
                     'set-ext-community': {
                         'options': 'add',
@@ -3136,7 +3136,7 @@ class ImportPolicyExCommunityMultipleAdd(object):
                     }
                 },
             'actions': {
-                'route-disposition': {'accept-route': True},
+                'route-disposition': 'accept-route',
                 'bgp-actions': {
                     'set-ext-community': {
                         'options': 'add',
@@ -3221,7 +3221,7 @@ class ExportPolicyExCommunityAdd(object):
                     }
                 },
             'actions': {
-                'route-disposition': {'accept-route': True},
+                'route-disposition': 'accept-route',
                 'bgp-actions': {
                     'set-ext-community': {
                         'options': 'add',
@@ -3318,7 +3318,7 @@ class InPolicyUpdate2(object):
                'conditions': {
                 'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                 'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -3367,7 +3367,7 @@ class InPolicyUpdate2(object):
         st0 = {'name': 'st0',
                'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
                           'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': {'reject-route': True}}}
+               'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}

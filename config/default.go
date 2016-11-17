@@ -216,6 +216,23 @@ func SetDefaultConfigValues(b *BgpConfigSet) error {
 	return setDefaultConfigValuesWithViper(nil, b)
 }
 
+func setDefaultPolicyConfigValuesWithViper(v *viper.Viper, p *PolicyDefinition) error {
+	stmts, err := extractArray(v.Get("policy.statements"))
+	if err != nil {
+		return err
+	}
+	for i, _ := range p.Statements {
+		vv := viper.New()
+		if len(stmts) > i {
+			vv.Set("statement", stmts[i])
+		}
+		if !vv.IsSet("statement.actions.route-disposition") {
+			p.Statements[i].Actions.RouteDisposition = ROUTE_DISPOSITION_NONE
+		}
+	}
+	return nil
+}
+
 func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	if v == nil {
 		v = viper.New()
@@ -256,6 +273,22 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		if r.Config.Port == 0 {
 			r.Config.Port = rtr.RPKI_DEFAULT_PORT
 		}
+	}
+
+	list, err = extractArray(v.Get("policy-definitions"))
+	if err != nil {
+		return err
+	}
+
+	for idx, p := range b.PolicyDefinitions {
+		vv := viper.New()
+		if len(list) > idx {
+			vv.Set("policy", list[idx])
+		}
+		if err := setDefaultPolicyConfigValuesWithViper(vv, &p); err != nil {
+			return err
+		}
+		b.PolicyDefinitions[idx] = p
 	}
 
 	return nil

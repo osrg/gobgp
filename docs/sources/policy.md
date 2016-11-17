@@ -493,8 +493,8 @@ policy-definitions consists of condition and action. Condition part is used to e
       [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
         operator = "eq"
         value = 2
-      [policy-definitions.statements.actions.route-disposition]
-        accept-route = true
+      [policy-definitions.statements.actions]
+        route-disposition = "accept-route"
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "-200"
         [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
@@ -562,11 +562,11 @@ policy-definitions consists of condition and action. Condition part is used to e
  | operator | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used. <br> "eq" means that length of AS number is equal to Value element <br> "ge" means that length of AS number is equal or greater than the Value element <br> "le" means that length of AS number is equal or smaller than the Value element| "eq"    |
  | value    | value used to compare with the length of AS number in AS_PATH attribute                            | 2       |
 
-  - policy-definitions.statements.actions.route-disposition
+  - policy-definitions.statements.actions
 
- | Element      | Description                                                                       | Example |
- |--------------|-----------------------------------------------------------------------------------|---------|
- | accept-route | action to accept the route if matches conditions. If true, this route is accepted | true    |
+ | Element           | Description                                                                                                   | Example        |
+ |-------------------|---------------------------------------------------------------------------------------------------------------|----------------|
+ | route-disposition | stop following policy/statement evaluation and accept/reject the route:<br> "accept-route" or "reject-route"  | "accept-route" |
 
   - policy-definitions.statements.actions.bgp-actions
 
@@ -618,8 +618,8 @@ policy-definitions consists of condition and action. Condition part is used to e
        prefix-set = "ps1"
      [policy-definitions.statements.conditions.match-neighbor-set]
        neighbor-set = "ns1"
-     [policy-definitions.statements.actions.route-disposition]
-       reject-route = true
+     [policy-definitions.statements.actions]
+       route-disposition = "reject-route"
  ```
 
  - example 2
@@ -636,8 +636,8 @@ policy-definitions consists of condition and action. Condition part is used to e
        prefix-set = "ps1"
      [policy-definitions.statements.conditions.match-neighbor-set]
        neighbor-set = "ns1"
-     [policy-definitions.statements.actions.route-disposition]
-       reject-route = true
+     [policy-definitions.statements.actions]
+       route-disposition = "reject-route"
    # second statement - (2)
    [[policy-definitions.statements]]
      name = "statement2"
@@ -645,8 +645,8 @@ policy-definitions consists of condition and action. Condition part is used to e
        prefix-set = "ps2"
      [policy-definitions.statements.conditions.match-neighbor-set]
        neighbor-set = "ns2"
-     [policy-definitions.statements.actions.route-disposition]
-       reject-route = true
+     [policy-definitions.statements.actions]
+       route-disposition = "reject-route"
  ```
   - if a route matches the condition inside the first statement(1), GoBGP applies its action and quits the policy evaluation.
 
@@ -665,8 +665,8 @@ policy-definitions consists of condition and action. Condition part is used to e
         prefix-set = "ps1"
       [policy-definitions.statements.conditions.match-neighbor-set]
         neighbor-set = "ns1"
-      [policy-definitions.statements.actions.route-disposition]
-        reject-route = true
+      [policy-definitions.statements.actions]
+        route-disposition = "reject-route"
  # second policy
  [[policy-definitions]]
     name = "policy2"
@@ -676,8 +676,8 @@ policy-definitions consists of condition and action. Condition part is used to e
         prefix-set = "ps2"
       [policy-definitions.statements.conditions.match-neighbor-set]
         neighbor-set = "ns2"
-      [policy-definitions.statements.actions.route-disposition]
-        reject-route = true
+      [policy-definitions.statements.actions]
+        route-disposition = "reject-route"
  ```
 
  - example 4
@@ -710,8 +710,8 @@ policy-definitions consists of condition and action. Condition part is used to e
       [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
         operator = "eq"
         value = 2
-      [policy-definitions.statements.actions.route-disposition]
-        accept-route = true
+      [policy-definitions.statements.actions]
+        route-disposition = "accept-route"
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "-200"
         set-next-hop = "10.0.0.1"
@@ -724,6 +724,42 @@ policy-definitions consists of condition and action. Condition part is used to e
       [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
         communities-list = ["65100:20"]
  ```
+
+ - example 5
+    - example of multiple statement
+
+ ```toml
+ # example 5
+ [[policy-definitions]]
+    name = "policy1"
+    [[policy-definitions.statements]]
+    # statement without route-disposition continues to the next statement
+      [policy-definitions.statements.actions.bgp-actions]
+        set-med = "+100"
+    [[policy-definitions.statements]]
+    # if matched with "ps1", reject the route and stop evaluating
+    # following statements
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps1"
+      [policy-definitions.statements.actions]
+        route-disposition = "reject-route"
+    [[policy-definitions.statements]]
+    # if matched with "ps2", accept the route and stop evaluating
+    # following statements
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps2"
+      [policy-definitions.statements.actions]
+        route-disposition = "accept-route"
+    [[policy-definitions.statements]]
+    # since this is the last statement, if the route matched with "ps3",
+    # add 10 to MED value and continue to the next policy if exists.
+    # If not, default-policy is applied.
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps3"
+      [policy-definitions.statements.actions.bgp-actions]
+        set-med = "+10"
+ ```
+
 
 
 ---
@@ -749,8 +785,8 @@ default-export-policy = "accept-route"
 |-------------------------|---------------------------------------------------------------------------------------------|----------------|
 | import-policy           | policy-definitions.name for Import policy                                                   | "policy1"      |
 | export-policy           | policy-definitions.name for Export policy                                                   | "policy2"      |
-| default-import-policy   | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"        | "accept-route" |
-| default-export-policy   | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"       | "accept-route" |
+| default-import-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| default-export-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 
 
 #### <a name="rs-attachment"> 4.2. Attach policy to route-server-client
@@ -785,9 +821,9 @@ The apply-policy has 6 elements.
 | import-policy           | policy-definitions.name for Import policy                                                   | "policy1"      |
 | export-policy           | policy-definitions.name for Export policy                                                   | "policy2"      |
 | in-policy               | policy-definitions.name for In policy                                                       | "policy3"      |
-| default-import-policy   | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"        | "accept-route" |
-| default-export-policy   | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"       | "accept-route" |
-| default-in-policy       | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"                | "reject-route" |
+| default-import-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| default-export-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| default-in-policy       | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 
 
 
@@ -847,8 +883,8 @@ define an import policy for neighbor 10.0.255.2 that drops
     [policy-definitions.statements.conditions.match-neighbor-set]
       neighbor-set = "ns1"
       match-set-options = "any"
-    [policy-definitions.statements.actions.route-disposition]
-      reject-route = true
+    [policy-definitions.statements.actions]
+      route-disposition = "reject-route"
 ```
 
 Neighbor 10.0.255.2 has pd2 policy. The pd2 policy consists of ps2 prefix match and ns1 neighbor match. The ps2 specifies 10.33.0.0 and 10.50.0.0 address. The ps2 specifies the mask with **MASK** keyword. **masklength-range** keyword can specify the range of mask length like ```masklength-range 24..26```. The *ns1* specifies neighbor 10.0.255.1.
