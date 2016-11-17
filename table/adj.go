@@ -192,7 +192,7 @@ func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...Table
 
 func (adj *AdjRib) TableInfo(family bgp.RouteFamily) (*TableInfo, error) {
 	if _, ok := adj.table[family]; !ok {
-		return nil, fmt.Errorf("%s unsupported")
+		return nil, fmt.Errorf("%s unsupported", family)
 	}
 	c := adj.Count([]bgp.RouteFamily{family})
 	a := adj.Accepted([]bgp.RouteFamily{family})

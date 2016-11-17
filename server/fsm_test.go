@@ -309,7 +309,7 @@ func open() *bgp.BGPMessage {
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)})
-	g := &bgp.CapGracefulRestartTuple{4, 2, 3}
+	g := &bgp.CapGracefulRestartTuple{AFI: 4, SAFI: 2, Flags: 3}
 	p3 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(true, true, 100,
 			[]*bgp.CapGracefulRestartTuple{g})})

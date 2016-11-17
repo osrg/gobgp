@@ -450,11 +450,11 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 
 func Test_NotificationErrorCode(t *testing.T) {
 	// boundary check
-	NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE).String()
-	NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE+1).String()
-	NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, 0).String()
-	NewNotificationErrorCode(0, BGP_ERROR_SUB_BAD_MESSAGE_TYPE).String()
-	NewNotificationErrorCode(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR+1, 0).String()
+	t.Log(NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE).String())
+	t.Log(NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE+1).String())
+	t.Log(NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, 0).String())
+	t.Log(NewNotificationErrorCode(0, BGP_ERROR_SUB_BAD_MESSAGE_TYPE).String())
+	t.Log(NewNotificationErrorCode(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR+1, 0).String())
 }
 
 func Test_FlowSpecNlriVPN(t *testing.T) {

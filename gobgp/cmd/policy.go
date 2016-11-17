@@ -719,7 +719,7 @@ func modAction(name, op string, args []string) error {
 		}
 	case "med":
 		if len(args) < 2 {
-			return fmt.Errorf("%s med { add | sub | set } <value>")
+			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}
 		med, err := strconv.Atoi(args[1])
 		if err != nil {
@@ -733,7 +733,7 @@ func modAction(name, op string, args []string) error {
 		case "set":
 			stmt.Actions.BgpActions.SetMed = config.BgpSetMedType(fmt.Sprintf("%d", med))
 		default:
-			return fmt.Errorf("%s med { add | sub | set } <value>")
+			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}
 	case "local-pref":
 		if len(args) < 1 {

@@ -80,7 +80,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
 				default:
-					exitWithError(fmt.Errorf("unsupported subType: %s", subType))
+					exitWithError(fmt.Errorf("unsupported subType: %v", subType))
 				}
 
 				if peers == nil {

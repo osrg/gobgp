@@ -197,7 +197,7 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	isTransitive := true
 	o := bgp.NewOpaqueExtended(isTransitive)
 	o.SubType = bgp.EC_SUBTYPE_ENCAPSULATION
-	o.Value = &bgp.EncapExtended{typ}
+	o.Value = &bgp.EncapExtended{TunnelType: typ}
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
@@ -219,7 +219,7 @@ func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	isTransitive := false
 	o := bgp.NewOpaqueExtended(isTransitive)
 	o.SubType = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
-	o.Value = &bgp.ValidationExtended{typ}
+	o.Value = &bgp.ValidationExtended{Value: typ}
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 

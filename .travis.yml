@@ -44,6 +44,10 @@ matrix:
       script: test -z "$(go fmt ./...)"
     - go: 1.7
       before_install: true
+      install: true
+      script: test -z "$(go vet ./...)"
+    - go: 1.7
+      before_install: true
       install: go get ./...
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
     - env:

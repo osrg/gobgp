@@ -56,6 +56,18 @@ const (
 	ROUTE_TYPE_REJECT
 )
 
+func (t RouteType) String() string {
+	switch t {
+	case ROUTE_TYPE_NONE:
+		return "continue"
+	case ROUTE_TYPE_ACCEPT:
+		return "accept"
+	case ROUTE_TYPE_REJECT:
+		return "reject"
+	}
+	return fmt.Sprintf("unknown(%d)", t)
+}
+
 type PolicyDirection int
 
 const (

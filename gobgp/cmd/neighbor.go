@@ -655,7 +655,7 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	case "export":
 		assignment, err = client.GetRouteServerExportPolicy(remoteIP)
 	default:
-		fmt.Errorf("invalid policy type: choose from (in|import|export)")
+		return fmt.Errorf("invalid policy type: choose from (in|import|export)")
 	}
 
 	if err != nil {
@@ -669,7 +669,7 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	}
 
 	fmt.Printf("%s policy:\n", strings.Title(policyType))
-	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), assignment.Default)
+	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), assignment.Default.String())
 	for _, p := range assignment.Policies {
 		fmt.Printf("%sName %s:\n", strings.Repeat(" ", indent), p.Name)
 		printPolicy(indent+4, p)

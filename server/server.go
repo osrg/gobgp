@@ -2515,7 +2515,7 @@ func (w *Watcher) Generate(t WatchEventType) (err error) {
 			}
 			w.notify(&WatchEventTable{PathList: pathList, Neighbor: l})
 		default:
-			err = fmt.Errorf("unsupported type ", t)
+			err = fmt.Errorf("unsupported type %v", t)
 			return
 		}
 	}

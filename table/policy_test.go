@@ -2862,8 +2862,8 @@ func TestPrefixSetMatch(t *testing.T) {
 
 func TestLargeCommunityMatchAction(t *testing.T) {
 	coms := []*bgp.LargeCommunity{
-		&bgp.LargeCommunity{100, 100, 100},
-		&bgp.LargeCommunity{100, 200, 200},
+		&bgp.LargeCommunity{ASN: 100, LocalData1: 100, LocalData2: 100},
+		&bgp.LargeCommunity{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
 	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
@@ -2887,10 +2887,10 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	assert.Equal(t, m.Evaluate(p, nil), true)
 
 	a, err := NewLargeCommunityAction(config.SetLargeCommunity{
-		config.SetLargeCommunityMethod{
-			[]string{"100:100:100"},
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{"100:100:100"},
 		},
-		config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 	assert.Equal(t, err, nil)
 	p = a.Apply(p, nil)
@@ -2898,13 +2898,13 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	assert.Equal(t, m.Evaluate(p, nil), false)
 
 	a, err = NewLargeCommunityAction(config.SetLargeCommunity{
-		config.SetLargeCommunityMethod{
-			[]string{
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{
 				"100:300:100",
 				"200:100:100",
 			},
 		},
-		config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
 	})
 	assert.Equal(t, err, nil)
 	p = a.Apply(p, nil)
@@ -2912,10 +2912,10 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	assert.Equal(t, m.Evaluate(p, nil), true)
 
 	a, err = NewLargeCommunityAction(config.SetLargeCommunity{
-		config.SetLargeCommunityMethod{
-			[]string{"^100:"},
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{"^100:"},
 		},
-		config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 	assert.Equal(t, err, nil)
 	p = a.Apply(p, nil)
