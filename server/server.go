@@ -1618,7 +1618,7 @@ func (s *BgpServer) GetServer() (c *config.Global) {
 	return c
 }
 
-func (s *BgpServer) GetNeighbor() (l []*config.Neighbor) {
+func (s *BgpServer) GetNeighbor(getAdvertised bool) (l []*config.Neighbor) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
@@ -1627,7 +1627,7 @@ func (s *BgpServer) GetNeighbor() (l []*config.Neighbor) {
 
 		l = make([]*config.Neighbor, 0, len(s.neighborMap))
 		for _, peer := range s.neighborMap {
-			l = append(l, peer.ToConfig())
+			l = append(l, peer.ToConfig(getAdvertised))
 		}
 	}
 	return l
@@ -2511,7 +2511,7 @@ func (w *Watcher) Generate(t WatchEventType) (err error) {
 			}()
 			l := make([]*config.Neighbor, 0, len(w.s.neighborMap))
 			for _, peer := range w.s.neighborMap {
-				l = append(l, peer.ToConfig())
+				l = append(l, peer.ToConfig(false))
 			}
 			w.notify(&WatchEventTable{PathList: pathList, Neighbor: l})
 		default:

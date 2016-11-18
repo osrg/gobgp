@@ -188,7 +188,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*GetNeighborResponse, error) {
 	p := []*Peer{}
-	for _, e := range s.bgpServer.GetNeighbor() {
+	for _, e := range s.bgpServer.GetNeighbor(arg.EnableAdvertised) {
 		p = append(p, NewPeerFromConfigStruct(e))
 	}
 	return &GetNeighborResponse{Peers: p}, nil

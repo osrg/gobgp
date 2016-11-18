@@ -102,8 +102,8 @@ func showNeighbors(vrf string) error {
 	}
 	var format string
 	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
-	format += " %-11s |%11s %8s %8s\n"
-	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
+	format += " %-11s |%9s %9s\n"
+	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
 	format_fsm := func(admin config.AdminState, fsm config.SessionState) string {
 		switch admin {
 		case config.ADMIN_STATE_DOWN:
@@ -135,7 +135,7 @@ func showNeighbors(vrf string) error {
 		if n.Config.NeighborInterface != "" {
 			neigh = n.Config.NeighborInterface
 		}
-		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Advertised), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
+		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
 	}
 
 	return nil

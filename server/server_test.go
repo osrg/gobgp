@@ -107,7 +107,7 @@ func TestMonitor(test *testing.T) {
 
 	for {
 		time.Sleep(time.Second)
-		if t.GetNeighbor()[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
+		if t.GetNeighbor(false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
 			break
 		}
 	}

@@ -97,7 +97,7 @@ func (cli *GoBGPClient) GetServer() (*config.Global, error) {
 }
 
 func (cli *GoBGPClient) getNeighbor(name string, afi int, vrf string) ([]*config.Neighbor, error) {
-	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{})
+	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: name != ""})
 	if err != nil {
 		return nil, err
 	}

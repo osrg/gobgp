@@ -74,6 +74,7 @@ service GobgpApi {
 }
 
 message GetNeighborRequest {
+  bool enableAdvertised = 1;
 }
 
 message GetNeighborResponse {
