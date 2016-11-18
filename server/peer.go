@@ -502,7 +502,7 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 	}
 }
 
-func (peer *Peer) ToConfig() *config.Neighbor {
+func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 	// create copy which can be access to without mutex
 	conf := *peer.fsm.pConf
 
@@ -529,8 +529,12 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 
 	if peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
-		pathList, _ := peer.getBestFromLocal(rfList)
-		conf.State.AdjTable.Advertised = uint32(len(pathList))
+		if getAdvertised {
+			pathList, _ := peer.getBestFromLocal(rfList)
+			conf.State.AdjTable.Advertised = uint32(len(pathList))
+		} else {
+			conf.State.AdjTable.Advertised = 0
+		}
 		conf.State.AdjTable.Received = uint32(peer.adjRibIn.Count(rfList))
 		conf.State.AdjTable.Accepted = uint32(peer.adjRibIn.Accepted(rfList))
 
