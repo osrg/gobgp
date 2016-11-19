@@ -89,6 +89,12 @@ func (s *Server) Serve() error {
 }
 
 func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
+	var families []uint32
+	for _, f := range pconf.AfiSafis {
+		if family, ok := bgp.AddressFamilyValueMap[string(f.Config.AfiSafiName)]; ok {
+			families = append(families, uint32(family))
+		}
+	}
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	for _, family := range pconf.AfiSafis {
 		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
@@ -117,6 +123,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		localCap = append(localCap, c)
 	}
 	return &Peer{
+		Families: families,
 		Conf: &PeerConf{
 			NeighborAddress:   pconf.Config.NeighborAddress,
 			Id:                s.RemoteRouterId,
@@ -821,16 +828,6 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.State.RemoteCapabilityList = remoteCaps
 
 		pconf.State.RemoteRouterId = a.Conf.Id
-
-		for _, f := range a.Families {
-			family := bgp.RouteFamily(f)
-			pconf.AfiSafis = append(pconf.AfiSafis, config.AfiSafi{
-				Config: config.AfiSafiConfig{
-					AfiSafiName: config.AfiSafiType(family.String()),
-					Enabled:     true,
-				},
-			})
-		}
 
 		for _, pl := range a.Conf.PrefixLimits {
 			for _, f := range pconf.AfiSafis {
