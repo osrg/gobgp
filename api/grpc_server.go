@@ -829,6 +829,16 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 
 		pconf.State.RemoteRouterId = a.Conf.Id
 
+		for _, f := range a.Families {
+			family := bgp.RouteFamily(f)
+			pconf.AfiSafis = append(pconf.AfiSafis, config.AfiSafi{
+				Config: config.AfiSafiConfig{
+					AfiSafiName: config.AfiSafiType(family.String()),
+					Enabled:     true,
+				},
+			})
+		}
+
 		for _, pl := range a.Conf.PrefixLimits {
 			for _, f := range pconf.AfiSafis {
 				if f.Config.AfiSafiName == config.AfiSafiType(bgp.RouteFamily(pl.Family).String()) {
@@ -878,20 +888,6 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 			for _, p := range a.ApplyPolicy.InPolicy.Policies {
 				pconf.ApplyPolicy.Config.InPolicyList = append(pconf.ApplyPolicy.Config.InPolicyList, p.Name)
 			}
-		}
-	}
-	if a.Families != nil {
-		for _, family := range a.Families {
-			name, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(family)]
-			if !ok {
-				return pconf, fmt.Errorf("invalid address family: %d", family)
-			}
-			cAfiSafi := config.AfiSafi{
-				Config: config.AfiSafiConfig{
-					AfiSafiName: config.AfiSafiType(name),
-				},
-			}
-			pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
 		}
 	}
 	if a.Transport != nil {
