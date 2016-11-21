@@ -703,7 +703,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			}
 		}
 
-		peer.outgoing.Close()
+		cleanInfiniteChannel(peer.outgoing)
 		peer.outgoing = channels.NewInfiniteChannel()
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
@@ -1740,6 +1740,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 
 	n.fsm.sendNotification(code, subcode, nil, "")
 	n.stopPeerRestarting()
+	cleanInfiniteChannel(n.outgoing)
 
 	go func(addr string) {
 		t1 := time.AfterFunc(time.Minute*5, func() {
