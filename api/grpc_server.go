@@ -190,6 +190,10 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		RouteServer: &RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
 		},
+		Transport: &Transport{
+			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
+			LocalAddress: pconf.Transport.Config.LocalAddress,
+		},
 	}
 }
 
@@ -893,6 +897,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	if a.Transport != nil {
 		pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
+		pconf.Transport.Config.RemotePort = uint16(a.Transport.RemotePort)
 	}
 	if a.EbgpMultihop != nil {
 		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
