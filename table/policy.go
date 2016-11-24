@@ -3114,6 +3114,29 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	return nil
 }
 
+func (r *RoutingPolicy) GetAllDefinedSet() (*config.DefinedSets, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	sets := &config.DefinedSets{}
+	if p, _ := r.GetDefinedSet(DEFINED_TYPE_PREFIX); p != nil {
+		sets.PrefixSets = p.PrefixSets
+	}
+	if n, _ := r.GetDefinedSet(DEFINED_TYPE_NEIGHBOR); n != nil {
+		sets.NeighborSets = n.NeighborSets
+	}
+	if c, _ := r.GetDefinedSet(DEFINED_TYPE_COMMUNITY); c != nil {
+		sets.BgpDefinedSets.CommunitySets = c.BgpDefinedSets.CommunitySets
+	}
+	if e, _ := r.GetDefinedSet(DEFINED_TYPE_EXT_COMMUNITY); e != nil {
+		sets.BgpDefinedSets.ExtCommunitySets = e.BgpDefinedSets.ExtCommunitySets
+	}
+	if a, _ := r.GetDefinedSet(DEFINED_TYPE_AS_PATH); a != nil {
+		sets.BgpDefinedSets.AsPathSets = a.BgpDefinedSets.AsPathSets
+	}
+	return sets, nil
+}
+
 func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -3285,6 +3308,14 @@ func (r *RoutingPolicy) GetAllPolicy() []*config.PolicyDefinition {
 		l = append(l, p.ToConfig())
 	}
 	return l
+}
+
+func (r *RoutingPolicy) GetPolicy(name string) *config.PolicyDefinition {
+	p, ok := r.policyMap[name]
+	if ok {
+		return p.ToConfig()
+	}
+	return nil
 }
 
 func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {

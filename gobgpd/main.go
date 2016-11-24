@@ -189,94 +189,179 @@ func main() {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
-	var c *config.BgpConfigSet = nil
+	count := 0
+
 	for {
 		select {
-		case newConfig := <-configCh:
-			var added, deleted, updated []config.Neighbor
-			var updatePolicy bool
+		case new := <-configCh:
 
-			if c == nil {
-				c = newConfig
-				if err := bgpServer.Start(&newConfig.Global); err != nil {
-					log.Fatalf("failed to set global config: %s", err)
-				}
-				if newConfig.Zebra.Config.Enabled {
-					if err := bgpServer.StartZebraClient(&newConfig.Zebra.Config); err != nil {
-						log.Fatalf("failed to set zebra config: %s", err)
-					}
-				}
-				if len(newConfig.Collector.Config.Url) > 0 {
-					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
-						log.Fatalf("failed to set collector config: %s", err)
-					}
-				}
-				for _, c := range newConfig.RpkiServers {
-					if err := bgpServer.AddRpki(&c.Config); err != nil {
-						log.Fatalf("failed to set rpki config: %s", err)
-					}
-				}
-				for _, c := range newConfig.BmpServers {
-					if err := bgpServer.AddBmp(&c.Config); err != nil {
-						log.Fatalf("failed to set bmp config: %s", err)
-					}
-				}
-				for _, c := range newConfig.MrtDump {
-					if len(c.Config.FileName) == 0 {
+			softResetIn := false
+			gr := false
+			start := false
+			if count == 0 && opts.GracefulRestart {
+				gr = true
+			}
+
+			prev, _ := bgpServer.GetConfig()
+
+			if prev.Global.Config.As == 0 && new.Global.Config.As != 0 {
+				bgpServer.Start(&new.Global)
+				start = true
+			} else if prev.Global.Config.As != 0 && new.Global.Config.As == 0 {
+				log.Error("Removing global configuration is not supported. Configuration reload failed")
+				continue
+			}
+
+			// bgpServer.UpdatePolicy() must be called after bgpServer.Start() and
+			// before bgpServer.Update(), bgpServer.AddNeighbor() and bgpServer.UpdateNeighbor()
+			if config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(prev), config.ConfigSetToRoutingPolicy(new)) {
+				bgpServer.UpdatePolicy(config.ConfigSetToRoutingPolicy(new))
+				softResetIn = true
+			}
+
+			if !start {
+				g := new.Global
+				if !prev.Global.Equal(&g) {
+					if err := bgpServer.Update(&g); err != nil {
+						log.Errorf("Configuration reload failed: %s", err)
 						continue
 					}
-					if err := bgpServer.EnableMrt(&c.Config); err != nil {
-						log.Fatalf("failed to set mrt config: %s", err)
+					if !prev.Global.ApplyPolicy.Equal(&new.Global.ApplyPolicy) {
+						softResetIn = true
 					}
 				}
-				p := config.ConfigSetToRoutingPolicy(newConfig)
-				if err := bgpServer.UpdatePolicy(*p); err != nil {
-					log.Fatalf("failed to set routing policy: %s", err)
-				}
+			}
 
-				added = newConfig.Neighbors
-				if opts.GracefulRestart {
-					for i, n := range added {
-						if n.GracefulRestart.Config.Enabled {
-							added[i].GracefulRestart.State.LocalRestarting = true
-						}
+			inNSlice := func(n config.Neighbor, b []config.Neighbor) int {
+				for i, nb := range b {
+					if nb.Config.NeighborAddress == n.Config.NeighborAddress {
+						return i
 					}
 				}
-
-			} else {
-				added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
-				if updatePolicy {
-					log.Info("Policy config is updated")
-					p := config.ConfigSetToRoutingPolicy(newConfig)
-					bgpServer.UpdatePolicy(*p)
-				}
-				c = newConfig
+				return -1
 			}
 
-			for i, p := range added {
-				log.Infof("Peer %v is added", p.Config.NeighborAddress)
-				if err := bgpServer.AddNeighbor(&added[i]); err != nil {
-					log.Warn(err)
+			for _, n := range new.Neighbors {
+				neigh := n
+				if idx := inNSlice(neigh, prev.Neighbors); idx < 0 {
+					if gr && neigh.GracefulRestart.Config.Enabled {
+						neigh.GracefulRestart.State.LocalRestarting = true
+					}
+					bgpServer.AddNeighbor(&neigh)
+				} else if !n.Equal(&prev.Neighbors[idx]) {
+					bgpServer.UpdateNeighbor(&neigh)
+					if !neigh.ApplyPolicy.Equal(&prev.Neighbors[idx].ApplyPolicy) {
+						softResetIn = true
+					}
 				}
 			}
-			for i, p := range deleted {
-				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
-				if err := bgpServer.DeleteNeighbor(&deleted[i]); err != nil {
-					log.Warn(err)
+			for _, n := range prev.Neighbors {
+				neigh := n
+				if inNSlice(neigh, new.Neighbors) < 0 {
+					bgpServer.DeleteNeighbor(&neigh)
 				}
-			}
-			for i, p := range updated {
-				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				u, err := bgpServer.UpdateNeighbor(&updated[i])
-				if err != nil {
-					log.Warn(err)
-				}
-				updatePolicy = updatePolicy || u
 			}
 
-			if updatePolicy {
+			if !prev.Zebra.Config.Enabled && new.Zebra.Config.Enabled {
+				bgpServer.StartZebraClient(&new.Zebra.Config)
+			} else if prev.Zebra.Config.Enabled && !new.Zebra.Config.Enabled {
+				log.Error("Removing zebra configuration is not supported. Configuration reload failed")
+				continue
+			} else if !prev.Zebra.Config.Equal(&new.Zebra.Config) {
+				log.Error("Updating zebra configuration is not supported. Configuration reload failed")
+				continue
+			}
+
+			if prev.Collector.Config.Url == "" && new.Collector.Config.Url != "" {
+				bgpServer.StartCollector(&new.Collector.Config)
+			} else if prev.Collector.Config.Url != "" && new.Collector.Config.Url == "" {
+				log.Error("Removing collector configuration is not supported. Configuration reload failed")
+				continue
+			} else if !prev.Collector.Config.Equal(&new.Collector.Config) {
+				log.Error("Updating collector configuration is not supported. Configuration reload failed")
+				continue
+			}
+
+			inRPKISlice := func(n config.RpkiServer, b []config.RpkiServer) int {
+				for i, nb := range b {
+					if nb.Config.Address == n.Config.Address {
+						return i
+					}
+				}
+				return -1
+			}
+
+			for _, n := range new.RpkiServers {
+				rpki := n
+				if idx := inRPKISlice(rpki, prev.RpkiServers); idx < 0 {
+					bgpServer.AddRpki(&rpki.Config)
+				} else if !n.Equal(&prev.RpkiServers[idx]) {
+					bgpServer.DeleteRpki(&rpki.Config)
+					bgpServer.AddRpki(&rpki.Config)
+				}
+			}
+			for _, n := range prev.RpkiServers {
+				rpki := n
+				if inRPKISlice(rpki, new.RpkiServers) < 0 {
+					bgpServer.DeleteRpki(&rpki.Config)
+				}
+			}
+
+			inBMPSlice := func(n config.BmpServer, b []config.BmpServer) int {
+				for i, nb := range b {
+					if nb.Config.Address == n.Config.Address {
+						return i
+					}
+				}
+				return -1
+			}
+
+			for _, n := range new.BmpServers {
+				bmp := n
+				if idx := inBMPSlice(bmp, prev.BmpServers); idx < 0 {
+					bgpServer.AddBmp(&bmp.Config)
+				} else if !n.Equal(&prev.BmpServers[idx]) {
+					bgpServer.DeleteBmp(&bmp.Config)
+					bgpServer.AddBmp(&bmp.Config)
+				}
+			}
+			for _, n := range prev.BmpServers {
+				bmp := n
+				if inBMPSlice(bmp, new.BmpServers) < 0 {
+					bgpServer.DeleteBmp(&bmp.Config)
+				}
+			}
+
+			inMRTSlice := func(n config.Mrt, b []config.Mrt) int {
+				for i, nb := range b {
+					if nb.Config.FileName == n.Config.FileName {
+						return i
+					}
+				}
+				return -1
+			}
+
+			for _, n := range new.MrtDump {
+				mrt := n
+				if idx := inMRTSlice(mrt, prev.MrtDump); idx < 0 {
+					bgpServer.EnableMrt(&mrt.Config)
+				} else if !n.Equal(&prev.MrtDump[idx]) {
+					bgpServer.DisableMrt(&mrt.Config)
+					bgpServer.EnableMrt(&mrt.Config)
+				}
+			}
+			for _, n := range prev.MrtDump {
+				mrt := n
+				if inMRTSlice(mrt, new.MrtDump) < 0 {
+					bgpServer.DisableMrt(&mrt.Config)
+				}
+			}
+
+			if softResetIn && count > 0 {
 				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
+
+			count += 1
 		case sig := <-sigCh:
 			switch sig {
 			case syscall.SIGKILL, syscall.SIGTERM:

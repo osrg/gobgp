@@ -174,6 +174,21 @@ func (b *bmpClientManager) deleteServer(c *config.BmpServerConfig) error {
 	return nil
 }
 
+func (b *bmpClientManager) getServers() []*config.BmpServer {
+	servers := make([]*config.BmpServer, 0, len(b.clientMap))
+	for _, c := range b.clientMap {
+		addr, port, _ := net.SplitHostPort(c.host)
+		servers = append(servers, &config.BmpServer{
+			Config: config.BmpServerConfig{
+				Address: addr,
+				Port:    func() uint32 { p, _ := strconv.Atoi(port); return uint32(p) }(),
+				RouteMonitoringPolicy: c.typ,
+			},
+		})
+	}
+	return servers
+}
+
 type bmpClientManager struct {
 	s         *BgpServer
 	clientMap map[string]*bmpClient

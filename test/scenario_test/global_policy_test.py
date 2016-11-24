@@ -200,7 +200,7 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['q1']
         self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 0)
 
-        self.gobgp.add_route('10.20.0.0/24')
+        self.gobgp.local('gobgp global rib add 10.20.0.0/24')
 
         time.sleep(1)
 
@@ -231,7 +231,7 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['q1']
         num1 = len(self.gobgp.get_adj_rib_out(q1))
 
-        self.gobgp.add_route('10.40.0.0/24')
+        self.gobgp.local('gobgp global rib add 10.40.0.0/24')
         time.sleep(1)
         num2 = len(self.gobgp.get_adj_rib_out(q1))
         self.assertTrue(num1 == num2)
@@ -254,7 +254,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.local('gobgp policy add p3 st3 st4')
         self.gobgp.local('gobgp global policy import set p3 default accept')
 
-        self.gobgp.add_route('10.70.0.0/24')
+        self.gobgp.local('gobgp global rib add 10.70.0.0/24')
         time.sleep(1)
         rib = self.gobgp.get_global_rib('10.70.0.0/24')
         self.assertTrue(len(rib) == 1)
