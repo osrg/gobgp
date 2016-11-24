@@ -21,6 +21,7 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -138,4 +139,41 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(b.PathList[0].GetNlri().String(), "10.0.0.0/24")
 	assert.Equal(b.PathList[0].IsWithdraw, true)
 
+	if _, err := t.AddPath("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, attrs, time.Now(), false)}); err != nil {
+		log.Fatal(err)
+	}
+	//stop the watcher still having an item.
+	w.Stop()
+}
+
+func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.Start(&config.Global{
+		Config: config.GlobalConfig{
+			As:       1,
+			RouterId: "1.1.1.1",
+			Port:     -1,
+		},
+	})
+	assert.Nil(err)
+	n := &config.Neighbor{
+		Config: config.NeighborConfig{
+			NeighborAddress: "127.0.0.1",
+			PeerAs:          2,
+		},
+		Transport: config.Transport{
+			Config: config.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+	}
+	err = s.AddNeighbor(n)
+	assert.Nil(err)
+	num := runtime.NumGoroutine()
+
+	err = s.DeleteNeighbor(n)
+	assert.Nil(err)
+	assert.Equal(num, runtime.NumGoroutine())
 }
