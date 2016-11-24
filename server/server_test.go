@@ -21,6 +21,7 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -143,4 +144,41 @@ func TestMonitor(test *testing.T) {
 	}
 	//stop the watcher still having an item.
 	w.Stop()
+}
+
+func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.Start(&config.Global{
+		Config: config.GlobalConfig{
+			As:       1,
+			RouterId: "1.1.1.1",
+			Port:     -1,
+		},
+	})
+	assert.Nil(err)
+
+	num := runtime.NumGoroutine()
+
+	n := &config.Neighbor{
+		Config: config.NeighborConfig{
+			NeighborAddress: "127.0.0.1",
+			PeerAs:          2,
+		},
+		Transport: config.Transport{
+			Config: config.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+	}
+	err = s.AddNeighbor(n)
+	assert.Nil(err)
+
+	err = s.DeleteNeighbor(n)
+	assert.Nil(err)
+	// wait goroutines to finish (e.g. internal goroutine for
+	// InfiniteChannel)
+	time.Sleep(time.Second * 5)
+	assert.Equal(num, runtime.NumGoroutine())
 }
