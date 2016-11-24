@@ -138,4 +138,10 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(b.PathList[0].GetNlri().String(), "10.0.0.0/24")
 	assert.Equal(b.PathList[0].IsWithdraw, true)
 
+	if _, err := t.AddPath("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, attrs, time.Now(), false)}); err != nil {
+		log.Fatal(err)
+	}
+	//stop the watcher still having an item.
+	log.Info("stop watcher")
+	w.Stop()
 }

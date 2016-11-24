@@ -2554,17 +2554,11 @@ func (w *Watcher) Stop() {
 			}
 		}
 
-		w.ch.Close()
-		// make sure the loop function finishes
-		func() {
-			for {
-				select {
-				case <-w.realCh:
-				default:
-					return
-				}
-			}
-		}()
+		cleanInfiniteChannel(w.ch)
+		// the loop function goroutine might be blocked for
+		// writing to realCh. make sure it finishes.
+		for range w.realCh {
+		}
 	}
 }
 
