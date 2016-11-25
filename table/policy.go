@@ -2789,7 +2789,7 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	result := ROUTE_TYPE_NONE
 	after := before
 	for _, p := range r.getPolicy(id, dir) {
-		result, after = p.Apply(before, options)
+		result, after = p.Apply(after, options)
 		if result != ROUTE_TYPE_NONE {
 			break
 		}
