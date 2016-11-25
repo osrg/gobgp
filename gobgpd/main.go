@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
+	"github.com/osrg/gobgp/table"
 	"io/ioutil"
 	"log/syslog"
 	"net/http"
@@ -249,6 +250,40 @@ func main() {
 					log.Info("Policy config is updated")
 					p := config.ConfigSetToRoutingPolicy(newConfig)
 					bgpServer.UpdatePolicy(*p)
+				}
+				// global policy update
+				if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
+					a := newConfig.Global.ApplyPolicy.Config
+					toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
+						var def table.RouteType
+						switch r {
+						case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
+							def = table.ROUTE_TYPE_ACCEPT
+						case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
+							def = table.ROUTE_TYPE_REJECT
+						}
+						return def
+					}
+					toPolicyDefinitions := func(r []string) []*config.PolicyDefinition {
+						p := make([]*config.PolicyDefinition, 0, len(r))
+						for _, n := range r {
+							p = append(p, &config.PolicyDefinition{
+								Name: n,
+							})
+						}
+						return p
+					}
+
+					def := toDefaultTable(a.DefaultImportPolicy)
+					ps := toPolicyDefinitions(a.ImportPolicyList)
+					bgpServer.ReplacePolicyAssignment("", table.POLICY_DIRECTION_IMPORT, ps, def)
+
+					def = toDefaultTable(a.DefaultExportPolicy)
+					ps = toPolicyDefinitions(a.ExportPolicyList)
+					bgpServer.ReplacePolicyAssignment("", table.POLICY_DIRECTION_EXPORT, ps, def)
+
+					updatePolicy = true
+
 				}
 				c = newConfig
 			}
