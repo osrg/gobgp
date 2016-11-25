@@ -269,9 +269,9 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		b.Neighbors[idx] = n
 	}
 
-	for _, r := range b.RpkiServers {
+	for idx, r := range b.RpkiServers {
 		if r.Config.Port == 0 {
-			r.Config.Port = rtr.RPKI_DEFAULT_PORT
+			b.RpkiServers[idx].Config.Port = rtr.RPKI_DEFAULT_PORT
 		}
 	}
 
