@@ -493,7 +493,7 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
 	var as uint32
 
-	if len(asPath.Value) == 0 {
+	if asPath == nil || len(asPath.Value) == 0 {
 		as = ownAs
 	} else {
 		asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
