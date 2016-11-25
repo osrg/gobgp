@@ -1645,7 +1645,7 @@ func (c *RpkiValidationCondition) String() string {
 }
 
 func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidationCondition, error) {
-	if c == config.RPKI_VALIDATION_RESULT_TYPE_NONE {
+	if c == config.RpkiValidationResultType("") || c == config.RPKI_VALIDATION_RESULT_TYPE_NONE {
 		return nil, nil
 	}
 	return &RpkiValidationCondition{
