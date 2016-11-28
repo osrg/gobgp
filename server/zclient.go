@@ -76,11 +76,18 @@ func newIPRouteMessage(dst []*table.Path, version uint8, vrfId uint16) *zebra.Me
 	default:
 		return nil
 	}
-	flags := uint8(zebra.MESSAGE_NEXTHOP)
+	msgFlags := uint8(zebra.MESSAGE_NEXTHOP)
 	plen, _ := strconv.Atoi(l[1])
 	med, err := path.GetMed()
 	if err == nil {
-		flags |= zebra.MESSAGE_METRIC
+		msgFlags |= zebra.MESSAGE_METRIC
+	}
+	var flags zebra.FLAG
+	info := path.GetSource()
+	if info.AS == info.LocalAS {
+		flags = zebra.FLAG_IBGP | zebra.FLAG_INTERNAL
+	} else if info.MultihopTtl > 0 {
+		flags = zebra.FLAG_INTERNAL
 	}
 	return &zebra.Message{
 		Header: zebra.Header{
@@ -92,8 +99,9 @@ func newIPRouteMessage(dst []*table.Path, version uint8, vrfId uint16) *zebra.Me
 		},
 		Body: &zebra.IPRouteBody{
 			Type:         zebra.ROUTE_BGP,
+			Flags:        flags,
 			SAFI:         zebra.SAFI_UNICAST,
-			Message:      flags,
+			Message:      msgFlags,
 			Prefix:       prefix,
 			PrefixLength: uint8(plen),
 			Nexthops:     nexthops,
