@@ -73,6 +73,7 @@ type PeerInfo struct {
 	LocalAddress            net.IP
 	RouteReflectorClient    bool
 	RouteReflectorClusterID net.IP
+	MultihopTtl             uint8
 }
 
 func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
@@ -114,6 +115,7 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 		Address:                 net.ParseIP(p.Config.NeighborAddress),
 		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
 		RouteReflectorClusterID: id,
+		MultihopTtl:             p.EbgpMultihop.Config.MultihopTtl,
 	}
 }
 
