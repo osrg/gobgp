@@ -18,7 +18,7 @@ package table
 import (
 	"bytes"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/bgp"
 	"net"
 	"time"
