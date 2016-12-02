@@ -39,27 +39,36 @@ func defaultGRPCOptions() []grpc.DialOption {
 	return []grpc.DialOption{grpc.WithTimeout(time.Second), grpc.WithBlock(), grpc.WithInsecure()}
 }
 
-// NewClient returns a new GoBGPClient, using the given conn and cli for the
-// underlying connection. The given grpc.ClientConn connection is expected to be
-// initialized and paired with the api client. See NewGoBGPClient to have the
-// connection dialed for you.
-func NewClient(conn *grpc.ClientConn, cli api.GobgpApiClient) *GoBGPClient {
-	return &GoBGPClient{conn: conn, cli: cli}
+// New returns a new GoBGPClient using the given target and options for dialing
+// to the grpc server. If an error occurs during dialing it will be returned and
+// GoBGPClient will be nil.
+func New(target string, opts ...grpc.DialOption) (*GoBGPClient, error) {
+	return NewWith(context.Background(), target, opts...)
 }
 
-func NewGoBGPClient(target string, opts ...grpc.DialOption) (*GoBGPClient, error) {
+// NewWith is like New, but uses the given ctx to cancel or expire the current
+// attempt to connect if it becomes Done before the connection succeeds.
+func NewWith(ctx context.Context, target string, opts ...grpc.DialOption) (*GoBGPClient, error) {
 	if target == "" {
 		target = ":50051"
 	}
 	if len(opts) == 0 {
 		opts = defaultGRPCOptions()
 	}
-	conn, err := grpc.Dial(target, opts...)
+	conn, err := grpc.DialContext(ctx, target, opts...)
 	if err != nil {
 		return nil, err
 	}
 	cli := api.NewGobgpApiClient(conn)
 	return &GoBGPClient{conn: conn, cli: cli}, nil
+}
+
+// NewFrom returns a new GoBGPClient, using the given conn and cli for the
+// underlying connection. The given grpc.ClientConn connection is expected to be
+// initialized and paired with the api client. See NewGoBGPClient to have the
+// connection dialed for you.
+func NewFrom(conn *grpc.ClientConn, cli api.GobgpApiClient) *GoBGPClient {
+	return &GoBGPClient{conn: conn, cli: cli}
 }
 
 func (cli *GoBGPClient) Close() error {
