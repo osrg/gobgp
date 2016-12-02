@@ -39,6 +39,14 @@ func defaultGRPCOptions() []grpc.DialOption {
 	return []grpc.DialOption{grpc.WithTimeout(time.Second), grpc.WithBlock(), grpc.WithInsecure()}
 }
 
+// NewClient returns a new GoBGPClient, using the given conn and cli for the
+// underlying connection. The given grpc.ClientConn connection is expected to be
+// initialized and paired with the api client. See NewGoBGPClient to have the
+// connection dialed for you.
+func NewClient(conn *grpc.ClientConn, cli api.GobgpApiClient) *GoBGPClient {
+	return &GoBGPClient{conn: conn, cli: cli}
+}
+
 func NewGoBGPClient(target string, opts ...grpc.DialOption) (*GoBGPClient, error) {
 	if target == "" {
 		target = ":50051"
