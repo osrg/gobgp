@@ -353,13 +353,21 @@ class GoBGPTestBase(unittest.TestCase):
         e1 = ExaBGPContainer(name='e1', asn=65000, router_id='192.168.0.7')
         time.sleep(e1.run())
         e1.add_peer(g1)
+        self.quaggas['e1'] = e1
         n = e1.peers[g1]['local_addr'].split('/')[0]
         g1.local('gobgp n add {0} as 65000'.format(n))
         g1.add_peer(e1, reload_config=False)
 
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=e1)
 
-    def test_20_check_withdrawal_2(self):
+    def test_20_check_grpc_del_neighbor(self):
+        g1 = self.gobgp
+        e1 = self.quaggas['e1']
+        n = e1.peers[g1]['local_addr'].split('/')[0]
+        g1.local('gobgp n del {0}'.format(n))
+        g1.del_peer(e1, reload_config=False)
+
+    def test_21_check_withdrawal_2(self):
         g1 = self.gobgp
         g2 = self.quaggas['g2']
 
@@ -380,7 +388,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(ret[0]['nlri']['prefix'] == prefix)
         self.assertTrue('withdrawal' in ret[0])
 
-    def test_21_check_cli_sorted(self):
+    def test_22_check_cli_sorted(self):
         g1 = self.gobgp
         cnt = 0
 
@@ -406,7 +414,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         self.assertTrue(cnt == cnt2)
 
-    def test_22_check_withdrawal3(self):
+    def test_23_check_withdrawal3(self):
         gobgp_ctn_image_name = parser_option.gobgp_image
         g1 = self.gobgp
         g3 = GoBGPContainer(name='g3', asn=65006, router_id='192.168.0.8',
