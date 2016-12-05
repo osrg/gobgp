@@ -30,7 +30,7 @@ func TestGetNeighbor(test *testing.T) {
 	go s.Serve()
 	g := api.NewGrpcServer(s, ":50051")
 	go g.Serve()
-	cli, err := NewGoBGPClient("")
+	cli, err := New("")
 	err = cli.StartServer(&config.Global{
 		Config: config.GlobalConfig{
 			As:       1,

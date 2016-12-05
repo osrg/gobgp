@@ -223,7 +223,7 @@ func (v vrfs) Less(i, j int) bool {
 
 func newClient() *cli.GoBGPClient {
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
-	client, err := cli.NewGoBGPClient(target)
+	client, err := cli.New(target)
 	if err != nil {
 		exitWithError(err)
 	}
