@@ -1740,25 +1740,41 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 
 	n.fsm.sendNotification(code, subcode, nil, "")
 	n.stopPeerRestarting()
-	cleanInfiniteChannel(n.outgoing)
 
 	go func(addr string) {
+		failed := false
 		t1 := time.AfterFunc(time.Minute*5, func() {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 			}).Warnf("Failed to free the fsm.h.t for %s", addr)
+			failed = true
 		})
 		n.fsm.h.t.Kill(nil)
 		n.fsm.h.t.Wait()
 		t1.Stop()
+		if !failed {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Debug("freed fsm.h.t")
+			cleanInfiniteChannel(n.outgoing)
+		}
+		failed = false
 		t2 := time.AfterFunc(time.Minute*5, func() {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 			}).Warnf("Failed to free the fsm.t for %s", addr)
+			failed = true
 		})
 		n.fsm.t.Kill(nil)
 		n.fsm.t.Wait()
 		t2.Stop()
+		if !failed {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Debug("freed fsm.t")
+		}
 	}(addr)
 	delete(server.neighborMap, addr)
 	server.dropPeerAllRoutes(n, n.configuredRFlist())

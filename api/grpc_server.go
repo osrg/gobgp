@@ -95,6 +95,31 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			families = append(families, uint32(family))
 		}
 	}
+	applyPolicy := &ApplyPolicy{}
+	if len(pconf.ApplyPolicy.Config.ImportPolicyList) != 0 {
+		applyPolicy.ImportPolicy = &PolicyAssignment{
+			Type: PolicyType_IMPORT,
+		}
+		for _, pname := range pconf.ApplyPolicy.Config.ImportPolicyList {
+			applyPolicy.ImportPolicy.Policies = append(applyPolicy.ImportPolicy.Policies, &Policy{Name: pname})
+		}
+	}
+	if len(pconf.ApplyPolicy.Config.ExportPolicyList) != 0 {
+		applyPolicy.ExportPolicy = &PolicyAssignment{
+			Type: PolicyType_EXPORT,
+		}
+		for _, pname := range pconf.ApplyPolicy.Config.ExportPolicyList {
+			applyPolicy.ExportPolicy.Policies = append(applyPolicy.ExportPolicy.Policies, &Policy{Name: pname})
+		}
+	}
+	if len(pconf.ApplyPolicy.Config.InPolicyList) != 0 {
+		applyPolicy.InPolicy = &PolicyAssignment{
+			Type: PolicyType_IN,
+		}
+		for _, pname := range pconf.ApplyPolicy.Config.InPolicyList {
+			applyPolicy.InPolicy.Policies = append(applyPolicy.InPolicy.Policies, &Policy{Name: pname})
+		}
+	}
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	for _, family := range pconf.AfiSafis {
 		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
@@ -123,7 +148,8 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		localCap = append(localCap, c)
 	}
 	return &Peer{
-		Families: families,
+		Families:    families,
+		ApplyPolicy: applyPolicy,
 		Conf: &PeerConf{
 			NeighborAddress:   pconf.Config.NeighborAddress,
 			Id:                s.RemoteRouterId,
