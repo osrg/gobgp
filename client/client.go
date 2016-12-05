@@ -65,8 +65,8 @@ func NewWith(ctx context.Context, target string, opts ...grpc.DialOption) (*GoBG
 
 // NewFrom returns a new GoBGPClient, using the given conn and cli for the
 // underlying connection. The given grpc.ClientConn connection is expected to be
-// initialized and paired with the api client. See NewGoBGPClient to have the
-// connection dialed for you.
+// initialized and paired with the api client. See New to have the connection
+// dialed for you.
 func NewFrom(conn *grpc.ClientConn, cli api.GobgpApiClient) *GoBGPClient {
 	return &GoBGPClient{conn: conn, cli: cli}
 }
