@@ -1090,6 +1090,13 @@ func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	}, nil
 }
 
+func (s *ExtCommunitySet) Append(arg DefinedSet) error {
+	s.regExpSet.Append(arg)
+	sList := arg.(*ExtCommunitySet).subtypeList
+	s.subtypeList = append(s.subtypeList, sList...)
+	return nil
+}
+
 type LargeCommunitySet struct {
 	regExpSet
 }
