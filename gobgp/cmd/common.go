@@ -221,7 +221,7 @@ func (v vrfs) Less(i, j int) bool {
 	return v[i].Name < v[j].Name
 }
 
-func newClient() *cli.GoBGPClient {
+func newClient() *cli.Client {
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
 	client, err := cli.New(target)
 	if err != nil {
