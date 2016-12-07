@@ -1239,13 +1239,13 @@ func toStatementApi(s *config.Statement) *Statement {
 		}
 	}
 	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
-		cs.CommunitySet = &MatchSet{
+		cs.ExtCommunitySet = &MatchSet{
 			Type: MatchType(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
 			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet != "" {
-		cs.CommunitySet = &MatchSet{
+		cs.LargeCommunitySet = &MatchSet{
 			Type: MatchType(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
 			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
 		}
