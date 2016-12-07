@@ -110,6 +110,16 @@ func (o MatchOption) String() string {
 	}
 }
 
+func (o MatchOption) ConvertToMatchSetOptionsRestrictedType() config.MatchSetOptionsRestrictedType {
+	switch o {
+	case MATCH_OPTION_ANY:
+		return config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+	case MATCH_OPTION_INVERT:
+		return config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+	}
+	return "unknown"
+}
+
 type MedActionType int
 
 const (
@@ -2363,10 +2373,10 @@ func (s *Statement) ToConfig() *config.Statement {
 				switch c.(type) {
 				case *PrefixCondition:
 					v := c.(*PrefixCondition)
-					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsRestrictedTypeMap[int(v.option)]}
+					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *NeighborCondition:
 					v := c.(*NeighborCondition)
-					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsRestrictedTypeMap[int(v.option)]}
+					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *AsPathLengthCondition:
 					v := c.(*AsPathLengthCondition)
 					cond.BgpConditions.AsPathLength = config.AsPathLength{Operator: config.IntToAttributeComparisonMap[int(v.operator)], Value: v.length}

@@ -1209,14 +1209,16 @@ func NewAPIStatementFromTableStruct(t *table.Statement) *Statement {
 func toStatementApi(s *config.Statement) *Statement {
 	cs := &Conditions{}
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.MatchPrefixSet.MatchSetOptions)
 		cs.PrefixSet = &MatchSet{
-			Type: MatchType(s.Conditions.MatchPrefixSet.MatchSetOptions.ToInt()),
+			Type: MatchType(o),
 			Name: s.Conditions.MatchPrefixSet.PrefixSet,
 		}
 	}
 	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.MatchNeighborSet.MatchSetOptions)
 		cs.NeighborSet = &MatchSet{
-			Type: MatchType(s.Conditions.MatchNeighborSet.MatchSetOptions.ToInt()),
+			Type: MatchType(o),
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
