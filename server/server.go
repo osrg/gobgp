@@ -442,11 +442,7 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 		PostPolicy:   true,
 		PathList:     cloned,
 	}
-	for _, u := range table.CreateUpdateMsgFromPaths(cloned) {
-		payload, _ := u.Serialize()
-		ev.Payload = payload
-		server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
-	}
+	server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
 }
 
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
