@@ -27,6 +27,57 @@ import (
 	"time"
 )
 
+type ribout map[string][]*table.Path
+
+func newribout() ribout {
+	return make(map[string][]*table.Path)
+}
+
+// return true if we need to send the path to the BMP server
+func (r ribout) update(p *table.Path) bool {
+	key := p.GetNlri().String() // TODO expose (*Path).getPrefix()
+	l := r[key]
+	if p.IsWithdraw {
+		if len(l) == 0 {
+			return false
+		}
+		n := make([]*table.Path, 0, len(l))
+		for _, q := range l {
+			if p.GetSource() == q.GetSource() {
+				continue
+			}
+			n = append(n, q)
+		}
+		if len(n) == 0 {
+			delete(r, key)
+		} else {
+			r[key] = n
+		}
+		return true
+	}
+
+	if len(l) == 0 {
+		r[key] = []*table.Path{p}
+		return true
+	}
+
+	doAppend := true
+	for idx, q := range l {
+		if p.GetSource() == q.GetSource() {
+			// if we have sent the same path, don't send it again
+			if p.Equal(q) {
+				return false
+			}
+			l[idx] = p
+			doAppend = false
+		}
+	}
+	if doAppend {
+		r[key] = append(r[key], p)
+	}
+	return true
+}
+
 func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
@@ -93,8 +144,23 @@ func (b *bmpClient) loop() {
 							AS:      msg.PeerAS,
 							ID:      msg.PeerID,
 						}
-						if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
-							return false
+						if msg.Payload == nil {
+							pathList := make([]*table.Path, 0, len(msg.PathList))
+							for _, p := range msg.PathList {
+								if b.ribout.update(p) {
+									pathList = append(pathList, p)
+								}
+							}
+							for _, u := range table.CreateUpdateMsgFromPaths(pathList) {
+								payload, _ := u.Serialize()
+								if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), payload)); err != nil {
+									return false
+								}
+							}
+						} else {
+							if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
+								return false
+							}
 						}
 					case *WatchEventPeerState:
 						info := &table.PeerInfo{
@@ -124,10 +190,11 @@ func (b *bmpClient) loop() {
 }
 
 type bmpClient struct {
-	s    *BgpServer
-	dead chan struct{}
-	host string
-	typ  config.BmpRouteMonitoringPolicyType
+	s      *BgpServer
+	dead   chan struct{}
+	host   string
+	typ    config.BmpRouteMonitoringPolicyType
+	ribout ribout
 }
 
 func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
@@ -154,10 +221,11 @@ func (b *bmpClientManager) addServer(c *config.BmpServerConfig) error {
 		return fmt.Errorf("bmp client %s is already configured", host)
 	}
 	b.clientMap[host] = &bmpClient{
-		s:    b.s,
-		dead: make(chan struct{}),
-		host: host,
-		typ:  c.RouteMonitoringPolicy,
+		s:      b.s,
+		dead:   make(chan struct{}),
+		host:   host,
+		typ:    c.RouteMonitoringPolicy,
+		ribout: newribout(),
 	}
 	go b.clientMap[host].loop()
 	return nil
