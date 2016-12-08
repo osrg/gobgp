@@ -263,6 +263,17 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(path['med'] == 100)
         self.assertTrue(path['local-pref'] == 100)
 
+    def test_18_reject_policy(self):
+        self.gobgp.local('gobgp global policy import set default reject')
+        self.gobgp.local('gobgp neighbor all softresetin')
+
+        time.sleep(1)
+
+        # self-generated routes remain since softresetin doesn't re-evaluate
+        # them
+        for v in self.gobgp.get_global_rib():
+            for p in v['paths']:
+                self.assertTrue(p['nexthop'] == '0.0.0.0')
 
 
 if __name__ == '__main__':

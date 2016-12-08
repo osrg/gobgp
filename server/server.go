@@ -569,7 +569,11 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 		best, old, _ = rib.ProcessPaths(ids, append(pathList, moded...))
 	} else {
 		for idx, path := range pathList {
-			path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
+			if p := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil); p != nil {
+				path = p
+			} else {
+				path = path.Clone(true)
+			}
 			pathList[idx] = path
 			// RFC4684 Constrained Route Distribution 6. Operation
 			//
