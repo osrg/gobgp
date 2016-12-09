@@ -17,10 +17,11 @@ package cmd
 
 import (
 	"fmt"
-	cli "github.com/osrg/gobgp/client"
-	"github.com/spf13/cobra"
 	"net/http"
 	_ "net/http/pprof"
+
+	cli "github.com/osrg/gobgp/client"
+	"github.com/spf13/cobra"
 )
 
 var globalOpts struct {
@@ -35,7 +36,7 @@ var globalOpts struct {
 }
 
 var cmds []string
-var client *cli.GoBGPClient
+var client *cli.Client
 
 func NewRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
