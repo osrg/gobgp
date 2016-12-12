@@ -1091,7 +1091,10 @@ func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 }
 
 func (s *ExtCommunitySet) Append(arg DefinedSet) error {
-	s.regExpSet.Append(arg)
+	err := s.regExpSet.Append(arg)
+	if err != nil {
+		return err
+	}
 	sList := arg.(*ExtCommunitySet).subtypeList
 	s.subtypeList = append(s.subtypeList, sList...)
 	return nil
