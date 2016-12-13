@@ -58,7 +58,7 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 		}
 		for i, x := range l {
 			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
-				exp := regexp.MustCompile("\\^(\\S+)\\$")
+				exp := regexp.MustCompile("\\^\\^(\\S+)\\$\\$")
 				x = exp.ReplaceAllString(x, "$1")
 			}
 			if i == 0 {
