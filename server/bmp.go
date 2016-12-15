@@ -93,8 +93,32 @@ func (b *bmpClient) loop() {
 							AS:      msg.PeerAS,
 							ID:      msg.PeerID,
 						}
-						if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
-							return false
+						if msg.Payload == nil {
+							pathList := make([]*table.Path, 0, len(msg.PathList))
+							for _, p := range msg.PathList {
+								key := p.GetNlri().String() // TODO expose (*Path).getPrefix()
+								q := b.ribout[key]
+								if p.IsWithdraw {
+									delete(b.ribout, key)
+								} else {
+									// if we have sent the same path, don't send it again
+									if q != nil && p.Equal(q) {
+										continue
+									}
+									b.ribout[key] = p
+								}
+								pathList = append(pathList, p)
+							}
+							for _, u := range table.CreateUpdateMsgFromPaths(pathList) {
+								payload, _ := u.Serialize()
+								if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), payload)); err != nil {
+									return false
+								}
+							}
+						} else {
+							if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
+								return false
+							}
 						}
 					case *WatchEventPeerState:
 						info := &table.PeerInfo{
@@ -124,10 +148,11 @@ func (b *bmpClient) loop() {
 }
 
 type bmpClient struct {
-	s    *BgpServer
-	dead chan struct{}
-	host string
-	typ  config.BmpRouteMonitoringPolicyType
+	s      *BgpServer
+	dead   chan struct{}
+	host   string
+	typ    config.BmpRouteMonitoringPolicyType
+	ribout map[string]*table.Path
 }
 
 func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
@@ -154,10 +179,11 @@ func (b *bmpClientManager) addServer(c *config.BmpServerConfig) error {
 		return fmt.Errorf("bmp client %s is already configured", host)
 	}
 	b.clientMap[host] = &bmpClient{
-		s:    b.s,
-		dead: make(chan struct{}),
-		host: host,
-		typ:  c.RouteMonitoringPolicy,
+		s:      b.s,
+		dead:   make(chan struct{}),
+		host:   host,
+		typ:    c.RouteMonitoringPolicy,
+		ribout: make(map[string]*table.Path),
 	}
 	go b.clientMap[host].loop()
 	return nil
