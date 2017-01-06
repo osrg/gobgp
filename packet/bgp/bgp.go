@@ -4194,10 +4194,10 @@ type AsPathParamFormat struct {
 }
 
 var asPathParamFormatMap = map[uint8]*AsPathParamFormat{
-	BGP_ASPATH_ATTR_TYPE_SET:        &AsPathParamFormat{"{", "}", ","},
-	BGP_ASPATH_ATTR_TYPE_SEQ:        &AsPathParamFormat{"", "", " "},
-	BGP_ASPATH_ATTR_TYPE_CONFED_SET: &AsPathParamFormat{"(", ")", " "},
-	BGP_ASPATH_ATTR_TYPE_CONFED_SEQ: &AsPathParamFormat{"[", "]", ","},
+	BGP_ASPATH_ATTR_TYPE_SET:        {"{", "}", ","},
+	BGP_ASPATH_ATTR_TYPE_SEQ:        {"", "", " "},
+	BGP_ASPATH_ATTR_TYPE_CONFED_SET: {"(", ")", " "},
+	BGP_ASPATH_ATTR_TYPE_CONFED_SEQ: {"[", "]", ","},
 }
 
 type AsPathParamInterface interface {
