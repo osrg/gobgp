@@ -5032,7 +5032,6 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
-
 	value := p.PathAttribute.Value
 	if len(value) < 3 {
 		return NewMessageError(eCode, eSubCode, value, "mpreach header length is short")
@@ -5045,35 +5044,31 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
 	}
-	nexthopLen := value[3]
-	if len(value) < 4+int(nexthopLen) {
+	nexthoplen := int(value[3])
+	if len(value) < 4+nexthoplen {
 		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
 	}
-	nexthopbin := value[4 : 4+nexthopLen]
-	value = value[4+nexthopLen:]
-	if nexthopLen > 0 {
+	nexthopbin := value[4 : 4+nexthoplen]
+	if nexthoplen > 0 {
+		addrlen := 4
+		if afi == AFI_IP6 {
+			addrlen = 16
+		}
 		offset := 0
 		if safi == SAFI_MPLS_VPN {
 			offset = 8
 		}
-		addrlen := 4
-		hasLinkLocal := false
-
-		if afi == AFI_IP6 {
-			addrlen = 16
-			hasLinkLocal = len(nexthopbin) == offset+2*addrlen
-		}
-
-		isValid := len(nexthopbin) == offset+addrlen || hasLinkLocal
-
-		if !isValid {
+		switch nexthoplen {
+		case 2 * (offset + addrlen):
+			p.LinkLocalNexthop = nexthopbin[offset+addrlen+offset : 2*(offset+addrlen)]
+			fallthrough
+		case offset + addrlen:
+			p.Nexthop = nexthopbin[offset : offset+addrlen]
+		default:
 			return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is incorrect")
 		}
-		p.Nexthop = nexthopbin[offset : +offset+addrlen]
-		if hasLinkLocal {
-			p.LinkLocalNexthop = nexthopbin[offset+addrlen : offset+2*addrlen]
-		}
 	}
+	value = value[4+nexthoplen:]
 	// skip reserved
 	if len(value) == 0 {
 		return NewMessageError(eCode, eSubCode, value, "no skip byte")
@@ -5103,25 +5098,31 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	nexthoplen := 4
 	if afi == AFI_IP6 {
 		nexthoplen = 16
-		if p.LinkLocalNexthop != nil {
-			nexthoplen += 16
-		}
 	}
 	offset := 0
 	switch safi {
 	case SAFI_MPLS_VPN:
 		offset = 8
-		nexthoplen += 8
+		nexthoplen += offset
 	case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
 		nexthoplen = 0
+	}
+	if p.LinkLocalNexthop != nil {
+		nexthoplen *= 2
 	}
 	buf := make([]byte, 4+nexthoplen)
 	binary.BigEndian.PutUint16(buf[0:], afi)
 	buf[2] = safi
 	buf[3] = uint8(nexthoplen)
-	copy(buf[4+offset:], p.Nexthop)
-	if p.LinkLocalNexthop != nil {
-		copy(buf[4+offset+len(p.Nexthop):], p.LinkLocalNexthop)
+	if nexthoplen != 0 {
+		if afi == AFI_IP6 {
+			copy(buf[4+offset:], p.Nexthop.To16())
+			if p.LinkLocalNexthop != nil {
+				copy(buf[4+offset+16:], p.LinkLocalNexthop.To16())
+			}
+		} else {
+			copy(buf[4+offset:], p.Nexthop)
+		}
 	}
 	buf = append(buf, make([]byte, 1)...)
 	for _, prefix := range p.Value {
