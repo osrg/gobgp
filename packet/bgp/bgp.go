@@ -2427,7 +2427,7 @@ func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInter
 		return nil, fmt.Errorf("invalid flowspec dst/src prefix")
 	}
 	typ := args[0]
-	ip, net, err := net.ParseCIDR(args[1])
+	ip, nw, err := net.ParseCIDR(args[1])
 	if err != nil {
 		return nil, fmt.Errorf("invalid ip prefix")
 	}
@@ -2437,7 +2437,7 @@ func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInter
 	} else if afi == AFI_IP6 && !strings.Contains(ip.String(), ":") {
 		return nil, fmt.Errorf("invalid ipv6 prefix")
 	}
-	ones, _ := net.Mask.Size()
+	ones, _ := nw.Mask.Size()
 	var offset uint8
 	if len(args) > 2 {
 		o, err := strconv.Atoi(args[2])
