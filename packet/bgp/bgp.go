@@ -44,7 +44,7 @@ const (
 	SAFI_EVPN                     = 70
 	SAFI_MPLS_VPN                 = 128
 	SAFI_MPLS_VPN_MULTICAST       = 129
-	SAFI_ROUTE_TARGET_CONSTRTAINS = 132
+	SAFI_ROUTE_TARGET_CONSTRAINTS = 132
 	SAFI_FLOW_SPEC_UNICAST        = 133
 	SAFI_FLOW_SPEC_VPN            = 134
 	SAFI_KEY_VALUE                = 241
@@ -64,7 +64,7 @@ const (
 )
 
 // RFC7153 5.1. Registries for the "Type" Field
-// RANGE	REGISTRACTION PROCEDURES
+// RANGE	REGISTRATION PROCEDURES
 // 0x00-0x3F	Transitive First Come First Served
 // 0x40-0x7F	Non-Transitive First Come First Served
 // 0x80-0x8F	Transitive Experimental Use
@@ -92,8 +92,8 @@ const (
 	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3      ExtendedCommunityAttrType = 0x82 // RFC7674
 )
 
-// RFC7153 5.2. Registraction for the "Sub-Type" Field
-// RANGE	REGISTRACTION PROCEDURES
+// RFC7153 5.2. Registries for the "Sub-Type" Field
+// RANGE	REGISTRATION PROCEDURES
 // 0x00-0xBF	First Come First Served
 // 0xC0-0xFF	IETF Review
 type ExtendedCommunityAttrSubType uint8
@@ -1586,7 +1586,7 @@ func (n *RouteTargetMembershipNLRI) AFI() uint16 {
 }
 
 func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
-	return SAFI_ROUTE_TARGET_CONSTRTAINS
+	return SAFI_ROUTE_TARGET_CONSTRAINTS
 }
 
 func (n *RouteTargetMembershipNLRI) Len() int {
@@ -3686,7 +3686,7 @@ const (
 	RF_IPv6_MPLS   RouteFamily = AFI_IP6<<16 | SAFI_MPLS_LABEL
 	RF_VPLS        RouteFamily = AFI_L2VPN<<16 | SAFI_VPLS
 	RF_EVPN        RouteFamily = AFI_L2VPN<<16 | SAFI_EVPN
-	RF_RTC_UC      RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
+	RF_RTC_UC      RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRAINTS
 	RF_IPv4_ENCAP  RouteFamily = AFI_IP<<16 | SAFI_ENCAPSULATION
 	RF_IPv6_ENCAP  RouteFamily = AFI_IP6<<16 | SAFI_ENCAPSULATION
 	RF_FS_IPv4_UC  RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST
@@ -6417,12 +6417,12 @@ func (t *TunnelEncapSubTLVDefault) Serialize() ([]byte, error) {
 	return t.Value, nil
 }
 
-type TunnelEncapSubTLVEncapuslation struct {
+type TunnelEncapSubTLVEncapsulation struct {
 	Key    uint32 // this represent both SessionID for L2TPv3 case and GRE-key for GRE case (RFC5512 4.)
 	Cookie []byte
 }
 
-func (t *TunnelEncapSubTLVEncapuslation) Serialize() ([]byte, error) {
+func (t *TunnelEncapSubTLVEncapsulation) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, t.Key)
 	return append(buf, t.Cookie...), nil
@@ -6476,7 +6476,7 @@ func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
 			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
 		}
 		key := binary.BigEndian.Uint32(data[:4])
-		p.Value = &TunnelEncapSubTLVEncapuslation{
+		p.Value = &TunnelEncapSubTLVEncapsulation{
 			Key:    key,
 			Cookie: data[4:],
 		}
