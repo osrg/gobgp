@@ -3787,9 +3787,9 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_OPAQUE:
 		prefix = &OpaqueNLRI{}
 	default:
-		return nil, fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
+		err = fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}
-	return prefix, nil
+	return prefix, err
 }
 
 type BGPAttrFlag uint8
