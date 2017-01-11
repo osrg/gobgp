@@ -513,21 +513,25 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
 	prefixLen := uint8(ones)
-	_, b, _ := tree.LongestPrefix(table.IpToRadixkey(n.IP, prefixLen))
+	key := table.IpToRadixkey(n.IP, prefixLen)
+	_, b, _ := tree.LongestPrefix(key)
 	if b == nil {
 		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 	}
 
-	bucket, _ := b.(*roaBucket)
-	for _, r := range bucket.entries {
-		if prefixLen > r.MaxLen {
-			continue
+	result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+	fn := radix.WalkFn(func(k string, v interface{}) bool {
+		bucket, _ := v.(*roaBucket)
+		for _, r := range bucket.entries {
+			if prefixLen <= r.MaxLen && r.AS != 0 && r.AS == as {
+				result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
+				return true
+			}
 		}
-		if r.AS == as {
-			return config.RPKI_VALIDATION_RESULT_TYPE_VALID
-		}
-	}
-	return config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+		return false
+	})
+	tree.WalkPath(key, fn)
+	return result
 }
 
 func (c *roaManager) validate(pathList []*table.Path) {
