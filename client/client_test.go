@@ -17,6 +17,7 @@ package client
 
 import (
 	"testing"
+	"time"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
@@ -30,7 +31,9 @@ func TestGetNeighbor(test *testing.T) {
 	go s.Serve()
 	g := api.NewGrpcServer(s, ":50051")
 	go g.Serve()
+	time.Sleep(time.Second)
 	cli, err := New("")
+	assert.Nil(err)
 	err = cli.StartServer(&config.Global{
 		Config: config.GlobalConfig{
 			As:       1,
