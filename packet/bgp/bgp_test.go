@@ -578,3 +578,42 @@ func Test_NLRIwithIPv4MappedIPv6prefix(t *testing.T) {
 		t.Log(bytes.Equal(buf1, buf2))
 	}
 }
+
+func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
+	assert := assert.New(t)
+	bufin := []byte{
+		0x80, 0x0e, 0x1e, // flags(1), type(1), length(1)
+		0x00, 0x02, 0x01, 0x10, // afi(2), safi(1), nexthoplen(1)
+		0x00, 0x00, 0x00, 0x00, // nexthop(16)
+		0x00, 0x00, 0x00, 0x00, // = "::ffff:172.20.0.1"
+		0x00, 0x00, 0xff, 0xff,
+		0xac, 0x14, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x40, 0x20, 0x01, 0x0d, // nlri(9)
+		0xb8, 0x00, 0x01, 0x00, // = "2001:db8:1:1::/64"
+		0x01,
+	}
+	// Test DecodeFromBytes()
+	p := &PathAttributeMpReachNLRI{}
+	err := p.DecodeFromBytes(bufin)
+	assert.Nil(err)
+	// Test decoded values
+	assert.Equal(BGPAttrFlag(0x80), p.Flags)
+	assert.Equal(BGPAttrType(0xe), p.Type)
+	assert.Equal(uint16(0x1e), p.Length)
+	assert.Equal(uint16(AFI_IP6), p.AFI)
+	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
+	assert.Equal(net.ParseIP("::ffff:172.20.0.1"), p.Nexthop)
+	assert.Equal(net.ParseIP(""), p.LinkLocalNexthop)
+	value := []AddrPrefixInterface{
+		NewIPv6AddrPrefix(64, "2001:db8:1:1::"),
+	}
+	assert.Equal(value, p.Value)
+	// Set NextHop as IPv4 address (because IPv4 peering)
+	p.Nexthop = net.ParseIP("172.20.0.1")
+	// Test Serialize()
+	bufout, err := p.Serialize()
+	assert.Nil(err)
+	// Test serialised value
+	assert.Equal(bufin, bufout)
+}
