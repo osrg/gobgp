@@ -539,7 +539,7 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	assert.True(r < 0)
 }
 
-func Test_NLRIwithIPv4MappedIPv6prefix(t *testing.T) {
+func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert := assert.New(t)
 	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.1")
 	buf1, err := n1.Serialize()
@@ -611,6 +611,128 @@ func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
 	assert.Equal(value, p.Value)
 	// Set NextHop as IPv4 address (because IPv4 peering)
 	p.Nexthop = net.ParseIP("172.20.0.1")
+	// Test Serialize()
+	bufout, err := p.Serialize()
+	assert.Nil(err)
+	// Test serialised value
+	assert.Equal(bufin, bufout)
+}
+
+func Test_MpReachNLRIWithIPv6PrefixWithLinkLocalNexthop(t *testing.T) {
+	assert := assert.New(t)
+	bufin := []byte{
+		0x80, 0x0e, 0x2c, // flags(1), type(1), length(1)
+		0x00, 0x02, 0x01, 0x20, // afi(2), safi(1), nexthoplen(1)
+		0x20, 0x01, 0x0d, 0xb8, // nexthop(32)
+		0x00, 0x01, 0x00, 0x00, // = "2001:db8:1::1"
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01,
+		0xfe, 0x80, 0x00, 0x00, // + "fe80::1" (link local)
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x30, 0x20, 0x10, 0x0a, // nlri(7)
+		0xb8, 0x00, 0x01, // = "2010:ab8:1::/48"
+	}
+	// Test DecodeFromBytes()
+	p := &PathAttributeMpReachNLRI{}
+	err := p.DecodeFromBytes(bufin)
+	assert.Nil(err)
+	// Test decoded values
+	assert.Equal(BGPAttrFlag(0x80), p.Flags)
+	assert.Equal(BGPAttrType(0xe), p.Type)
+	assert.Equal(uint16(0x2c), p.Length)
+	assert.Equal(uint16(AFI_IP6), p.AFI)
+	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
+	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	assert.Equal(net.ParseIP("fe80::1"), p.LinkLocalNexthop)
+	value := []AddrPrefixInterface{
+		NewIPv6AddrPrefix(48, "2010:ab8:1::"),
+	}
+	assert.Equal(value, p.Value)
+	// Test Serialize()
+	bufout, err := p.Serialize()
+	assert.Nil(err)
+	// Test serialised value
+	assert.Equal(bufin, bufout)
+}
+
+func Test_MpReachNLRIWithVPNv4Prefix(t *testing.T) {
+	assert := assert.New(t)
+	bufin := []byte{
+		0x80, 0x0e, 0x20, // flags(1), type(1), length(1)
+		0x00, 0x01, 0x80, 0x0c, // afi(2), safi(1), nexthoplen(1)
+		0x00, 0x00, 0x00, 0x00, // nexthop(12)
+		0x00, 0x00, 0x00, 0x00, // = (rd:"0:0",) "172.20.0.1"
+		0xac, 0x14, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x70, 0x00, 0x01, 0x01, // nlri(15)
+		0x00, 0x00, 0xfd, 0xe8, // = label:16, rd:"65000:100", prefix:"10.1.1.0/24"
+		0x00, 0x00, 0x00, 0x64,
+		0x0a, 0x01, 0x01,
+	}
+	// Test DecodeFromBytes()
+	p := &PathAttributeMpReachNLRI{}
+	err := p.DecodeFromBytes(bufin)
+	assert.Nil(err)
+	// Test decoded values
+	assert.Equal(BGPAttrFlag(0x80), p.Flags)
+	assert.Equal(BGPAttrType(0xe), p.Type)
+	assert.Equal(uint16(0x20), p.Length)
+	assert.Equal(uint16(AFI_IP), p.AFI)
+	assert.Equal(uint8(SAFI_MPLS_VPN), p.SAFI)
+	assert.Equal(net.ParseIP("172.20.0.1").To4(), p.Nexthop)
+	assert.Equal(net.ParseIP(""), p.LinkLocalNexthop)
+	value := []AddrPrefixInterface{
+		NewLabeledVPNIPAddrPrefix(24, "10.1.1.0", *NewMPLSLabelStack(16),
+			NewRouteDistinguisherTwoOctetAS(65000, 100)),
+	}
+	assert.Equal(value, p.Value)
+	// Test Serialize()
+	bufout, err := p.Serialize()
+	assert.Nil(err)
+	// Test serialised value
+	assert.Equal(bufin, bufout)
+}
+
+func Test_MpReachNLRIWithVPNv6Prefix(t *testing.T) {
+	assert := assert.New(t)
+	bufin := []byte{
+		0x80, 0x0e, 0x39, // flags(1), type(1), length(1)
+		0x00, 0x02, 0x80, 0x18, // afi(2), safi(1), nexthoplen(1)
+		0x00, 0x00, 0x00, 0x00, // nexthop(24)
+		0x00, 0x00, 0x00, 0x00, // = (rd:"0:0",) "2001:db8:1::1"
+		0x20, 0x01, 0x0d, 0xb8,
+		0x00, 0x01, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0xd4, 0x00, 0x01, 0x01, // nlri(28)
+		0x00, 0x00, 0xfd, 0xe8, // = label:16, rd:"65000:100", prefix:"2001:1::/124"
+		0x00, 0x00, 0x00, 0x64,
+		0x20, 0x01, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+	}
+	// Test DecodeFromBytes()
+	p := &PathAttributeMpReachNLRI{}
+	err := p.DecodeFromBytes(bufin)
+	assert.Nil(err)
+	// Test decoded values
+	assert.Equal(BGPAttrFlag(0x80), p.Flags)
+	assert.Equal(BGPAttrType(0xe), p.Type)
+	assert.Equal(uint16(0x39), p.Length)
+	assert.Equal(uint16(AFI_IP6), p.AFI)
+	assert.Equal(uint8(SAFI_MPLS_VPN), p.SAFI)
+	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	assert.Equal(net.ParseIP(""), p.LinkLocalNexthop)
+	value := []AddrPrefixInterface{
+		NewLabeledVPNIPv6AddrPrefix(124, "2001:1::", *NewMPLSLabelStack(16),
+			NewRouteDistinguisherTwoOctetAS(65000, 100)),
+	}
+	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()
 	assert.Nil(err)
