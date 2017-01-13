@@ -79,6 +79,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 				case mrt.PEER_INDEX_TABLE:
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
+				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV6_UNICAST:
 				default:
 					exitWithError(fmt.Errorf("unsupported subType: %v", subType))
 				}
