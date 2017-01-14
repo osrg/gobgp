@@ -65,9 +65,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         # g1 as a route reflector
         g1.add_peer(q1, is_rr_client=True)
         q1.add_peer(g1)
@@ -80,7 +77,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3, 'q4': q4}
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -91,6 +87,9 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             # paths expected to exist in gobgp's global rib
             def f():
+                state = self.gobgp.get_neighbor_state(q)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
+
                 routes = q.routes.keys()
                 global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
                 for p in global_rib:

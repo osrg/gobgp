@@ -47,13 +47,16 @@ class GoBGPTestBase(unittest.TestCase):
         matchs2 = ['tcp-flags syn', 'protocol tcp udp', "packet-length '>1000&<2000'"]
         thens2 = ['rate-limit 9600', 'redirect 0.10:100', 'mark 20', 'action sample']
         g1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs2, thens=thens2)
+        matchs3 = ['destination 2001::/24/10', 'source 2002::/24/15']
+        thens3 = ['discard']
+        e1.add_route(route='flow2', rf='ipv6-flowspec', matchs=matchs3, thens=thens3)
+        matchs4 = ['destination 2001::/24 10', "label '=100'"]
+        thens4 = ['discard']
+        g1.add_route(route='flow2', rf='ipv6-flowspec', matchs=matchs4, thens=thens4)
 
         initial_wait_time = max(ctn.run() for ctn in ctns)
 
         time.sleep(initial_wait_time)
-
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24', self_ip=True)
-        [br01.addif(ctn) for ctn in ctns]
 
         # ibgp peer. loop topology
         for a, b in combinations(ctns, 2):
@@ -62,7 +65,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         cls.gobgp = g1
         cls.exabgp = e1
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -70,6 +72,9 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_gobgp_global_rib(self):
         self.assertTrue(len(self.gobgp.get_global_rib(rf='ipv4-flowspec')) == 2)
+
+    def test_03_check_gobgp_global_rib(self):
+        self.assertTrue(len(self.gobgp.get_global_rib(rf='ipv6-flowspec')) == 2)
 
 
 if __name__ == '__main__':

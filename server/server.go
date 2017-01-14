@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,389 +18,305 @@ package server
 import (
 	"bytes"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/armon/go-radix"
-	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/policy"
-	"github.com/osrg/gobgp/table"
-	"github.com/osrg/gobgp/zebra"
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
+	"github.com/satori/go.uuid"
 )
 
-const (
-	GLOBAL_RIB_NAME = "global"
-)
-
-type Direction string
-
-const (
-	POLICY_DIRECTION_IMPORT Direction = "import"
-	POLICY_DIRECTION_EXPORT           = "export"
-	POLICY_DIRECTION_IN               = "in"
-)
-
-type SenderMsg struct {
-	messages    []*bgp.BGPMessage
-	sendCh      chan *bgp.BGPMessage
-	destination string
-	twoBytesAs  bool
+type TCPListener struct {
+	l  *net.TCPListener
+	ch chan struct{}
 }
 
-type broadcastMsg interface {
-	send()
-}
-
-type broadcastGrpcMsg struct {
-	req    *GrpcRequest
-	result *GrpcResponse
-	done   bool
-}
-
-func (m *broadcastGrpcMsg) send() {
-	m.req.ResponseCh <- m.result
-	if m.done == true {
-		close(m.req.ResponseCh)
+func (l *TCPListener) Close() error {
+	if err := l.l.Close(); err != nil {
+		return err
 	}
-}
-
-type BgpServer struct {
-	bgpConfig     config.Bgp
-	globalTypeCh  chan config.Global
-	addedPeerCh   chan config.Neighbor
-	deletedPeerCh chan config.Neighbor
-	updatedPeerCh chan config.Neighbor
-	rpkiConfigCh  chan config.RpkiServers
-
-	GrpcReqCh      chan *GrpcRequest
-	listenPort     int
-	policyUpdateCh chan config.RoutingPolicy
-	policyMap      map[string]*policy.Policy
-	routingPolicy  config.RoutingPolicy
-	broadcastReqs  []*GrpcRequest
-	broadcastMsgs  []broadcastMsg
-	neighborMap    map[string]*Peer
-	localRibMap    map[string]*LocalRib
-	zclient        *zebra.Client
-	roaClient      *roaClient
-}
-
-func NewBgpServer(port int) *BgpServer {
-	b := BgpServer{}
-	b.globalTypeCh = make(chan config.Global)
-	b.addedPeerCh = make(chan config.Neighbor)
-	b.deletedPeerCh = make(chan config.Neighbor)
-	b.updatedPeerCh = make(chan config.Neighbor)
-	b.rpkiConfigCh = make(chan config.RpkiServers)
-	b.GrpcReqCh = make(chan *GrpcRequest, 1)
-	b.policyUpdateCh = make(chan config.RoutingPolicy)
-	b.localRibMap = make(map[string]*LocalRib)
-	b.neighborMap = make(map[string]*Peer)
-	b.listenPort = port
-	b.roaClient, _ = newROAClient(config.RpkiServers{})
-	return &b
+	t := time.NewTicker(time.Second)
+	select {
+	case <-l.ch:
+	case <-t.C:
+		return fmt.Errorf("close timeout")
+	}
+	return nil
 }
 
 // avoid mapped IPv6 address
-func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPListener, error) {
-	service := ":" + strconv.Itoa(port)
-	addr, _ := net.ResolveTCPAddr(proto, service)
+func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPListener, error) {
+	proto := "tcp4"
+	if ip := net.ParseIP(address); ip == nil {
+		return nil, fmt.Errorf("can't listen on %s", address)
+	} else if ip.To4() == nil {
+		proto = "tcp6"
+	}
+	addr, err := net.ResolveTCPAddr(proto, net.JoinHostPort(address, strconv.Itoa(int(port))))
+	if err != nil {
+		return nil, err
+	}
 
 	l, err := net.ListenTCP(proto, addr)
 	if err != nil {
-		log.Info(err)
 		return nil, err
 	}
-	go func() {
+	closeCh := make(chan struct{})
+	go func() error {
 		for {
 			conn, err := l.AcceptTCP()
 			if err != nil {
-				log.Info(err)
-				continue
+				close(closeCh)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Error": err,
+				}).Warn("Failed to AcceptTCP")
+				return err
 			}
 			ch <- conn
 		}
 	}()
-
-	return l, nil
+	return &TCPListener{
+		l:  l,
+		ch: closeCh,
+	}, nil
 }
 
-func (server *BgpServer) addLocalRib(rib *LocalRib) {
-	server.localRibMap[rib.OwnerName()] = rib
+type BgpServer struct {
+	bgpConfig     config.Bgp
+	fsmincomingCh *channels.InfiniteChannel
+	fsmStateCh    chan *FsmMsg
+	acceptCh      chan *net.TCPConn
+
+	mgmtCh      chan func()
+	policy      *table.RoutingPolicy
+	listeners   []*TCPListener
+	neighborMap map[string]*Peer
+	globalRib   *table.TableManager
+	roaManager  *roaManager
+	shutdown    bool
+	watcherMap  map[WatchEventType][]*Watcher
+	zclient     *zebraClient
+	bmpManager  *bmpClientManager
+	mrtManager  *mrtManager
+}
+
+func NewBgpServer() *BgpServer {
+	roaManager, _ := NewROAManager(0)
+	s := &BgpServer{
+		neighborMap: make(map[string]*Peer),
+		policy:      table.NewRoutingPolicy(),
+		roaManager:  roaManager,
+		mgmtCh:      make(chan func(), 1),
+		watcherMap:  make(map[WatchEventType][]*Watcher),
+	}
+	s.bmpManager = newBmpClientManager(s)
+	s.mrtManager = newMrtManager(s)
+	return s
+}
+
+func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
+	list := make([]*net.TCPListener, 0, len(server.listeners))
+	rhs := net.ParseIP(addr).To4() != nil
+	for _, l := range server.listeners {
+		host, _, _ := net.SplitHostPort(l.l.Addr().String())
+		lhs := net.ParseIP(host).To4() != nil
+		if lhs == rhs {
+			list = append(list, l.l)
+		}
+	}
+	return list
+}
+
+func (s *BgpServer) active() error {
+	if s.bgpConfig.Global.Config.As == 0 {
+		return fmt.Errorf("bgp server hasn't started yet")
+	}
+	return nil
 }
 
 func (server *BgpServer) Serve() {
-	g := <-server.globalTypeCh
-	server.bgpConfig.Global = g
+	server.listeners = make([]*TCPListener, 0, 2)
+	server.fsmincomingCh = channels.NewInfiniteChannel()
+	server.fsmStateCh = make(chan *FsmMsg, 4096)
 
-	senderCh := make(chan *SenderMsg, 1<<16)
-	go func(ch chan *SenderMsg) {
-		for {
-			// TODO: must be more clever. Slow peer makes other peers slow too.
-			m := <-ch
-			w := func(c chan *bgp.BGPMessage, msg *bgp.BGPMessage) {
-				// nasty but the peer could already become non established state before here.
-				defer func() { recover() }()
-				c <- msg
-			}
-
-			for _, b := range m.messages {
-				if m.twoBytesAs == false && b.Header.Type == bgp.BGP_MSG_UPDATE {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   m.destination,
-						"Data":  b,
-					}).Debug("update for 2byte AS peer")
-					table.UpdatePathAttrs2ByteAs(b.Body.(*bgp.BGPUpdate))
-				}
-				w(m.sendCh, b)
-			}
+	handleFsmMsg := func(e *FsmMsg) {
+		peer, found := server.neighborMap[e.MsgSrc]
+		if !found {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Warnf("Cant't find the neighbor %s", e.MsgSrc)
+			return
 		}
-	}(senderCh)
-
-	broadcastCh := make(chan broadcastMsg, 8)
-	go func(ch chan broadcastMsg) {
-		for {
-			m := <-ch
-			m.send()
+		if e.Version != peer.fsm.version {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Debug("FSM version inconsistent")
+			return
 		}
-	}(broadcastCh)
-
-	// FIXME
-	rfList := func(l []config.AfiSafi) []bgp.RouteFamily {
-		rfList := []bgp.RouteFamily{}
-		for _, rf := range l {
-			k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-			rfList = append(rfList, k)
-		}
-		return rfList
-	}(g.AfiSafis.AfiSafiList)
-
-	server.addLocalRib(NewLocalRib(GLOBAL_RIB_NAME, rfList, make(map[string]*policy.Policy)))
-
-	listenerMap := make(map[string]*net.TCPListener)
-	acceptCh := make(chan *net.TCPConn)
-	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
-	listenerMap["tcp4"] = l4
-	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
-	listenerMap["tcp6"] = l6
-	if err1 != nil && err2 != nil {
-		log.Fatal("can't listen either v4 and v6")
-		os.Exit(1)
+		server.handleFSMMessage(peer, e)
 	}
 
-	listener := func(addr net.IP) *net.TCPListener {
-		var l *net.TCPListener
-		if addr.To4() != nil {
-			l = listenerMap["tcp4"]
-		} else {
-			l = listenerMap["tcp6"]
-		}
-		return l
-	}
-
-	incoming := make(chan *fsmMsg, 4096)
-	var senderMsgs []*SenderMsg
-
-	var zapiMsgCh chan *zebra.Message
-	if server.zclient != nil {
-		zapiMsgCh = server.zclient.Recieve()
-	}
 	for {
-		var firstMsg *SenderMsg
-		var sCh chan *SenderMsg
-		if len(senderMsgs) > 0 {
-			sCh = senderCh
-			firstMsg = senderMsgs[0]
-		}
-		var firstBroadcastMsg broadcastMsg
-		var bCh chan broadcastMsg
-		if len(server.broadcastMsgs) > 0 {
-			bCh = broadcastCh
-			firstBroadcastMsg = server.broadcastMsgs[0]
+		passConn := func(conn *net.TCPConn) {
+			host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+			ipaddr, _ := net.ResolveIPAddr("ip", host)
+			remoteAddr := ipaddr.String()
+			peer, found := server.neighborMap[remoteAddr]
+			if found {
+				if peer.fsm.adminState != ADMIN_STATE_UP {
+					log.WithFields(log.Fields{
+						"Topic":       "Peer",
+						"Remote Addr": remoteAddr,
+						"Admin State": peer.fsm.adminState,
+					}).Debug("New connection for non admin-state-up peer")
+					conn.Close()
+					return
+				}
+				localAddrValid := func(laddr string) bool {
+					if laddr == "0.0.0.0" || laddr == "::" {
+						return true
+					}
+					l := conn.LocalAddr()
+					if l == nil {
+						// already closed
+						return false
+					}
+
+					host, _, _ := net.SplitHostPort(l.String())
+					if host != laddr {
+						log.WithFields(log.Fields{
+							"Topic":           "Peer",
+							"Key":             remoteAddr,
+							"Configured addr": laddr,
+							"Addr":            host,
+						}).Info("Mismatched local address")
+						return false
+					}
+					return true
+				}(peer.fsm.pConf.Transport.Config.LocalAddress)
+				if localAddrValid == false {
+					conn.Close()
+					return
+				}
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
+				peer.PassConn(conn)
+			} else {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Infof("Can't find configuration for a new passive connection from:%s", remoteAddr)
+				conn.Close()
+			}
 		}
 
 		select {
-		case c := <-server.rpkiConfigCh:
-			server.roaClient, _ = newROAClient(c)
-		case rmsg := <-server.roaClient.recieveROA():
-			server.roaClient.handleRTRMsg(rmsg)
-		case zmsg := <-zapiMsgCh:
-			m := handleZapiMsg(zmsg, server)
-			if len(m) > 0 {
-				senderMsgs = append(senderMsgs, m...)
+		case f := <-server.mgmtCh:
+			f()
+		case conn := <-server.acceptCh:
+			passConn(conn)
+		default:
+		}
+
+		for {
+			select {
+			case e := <-server.fsmStateCh:
+				handleFsmMsg(e)
+			default:
+				goto CONT
 			}
-		case conn := <-acceptCh:
-			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-			peer, found := server.neighborMap[remoteAddr]
-			if found {
-				log.Debug("accepted a new passive connection from ", remoteAddr)
-				peer.PassConn(conn)
-			} else {
-				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
-				conn.Close()
-			}
-		case config := <-server.addedPeerCh:
-			addr := config.NeighborConfig.NeighborAddress.String()
-			_, found := server.neighborMap[addr]
-			if found {
-				log.Warn("Can't overwrite the exising peer ", addr)
+		}
+	CONT:
+
+		select {
+		case f := <-server.mgmtCh:
+			f()
+		case rmsg := <-server.roaManager.ReceiveROA():
+			server.roaManager.HandleROAEvent(rmsg)
+		case conn := <-server.acceptCh:
+			passConn(conn)
+		case e, ok := <-server.fsmincomingCh.Out():
+			if !ok {
 				continue
 			}
+			handleFsmMsg(e.(*FsmMsg))
+		case e := <-server.fsmStateCh:
+			handleFsmMsg(e)
+		}
+	}
+}
 
-			SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, config.NeighborConfig.AuthPassword)
+func sendFsmOutgoingMsg(peer *Peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
+	peer.outgoing.In() <- &FsmOutgoingMsg{
+		Paths:        paths,
+		Notification: notification,
+		StayIdle:     stayIdle,
+	}
+}
 
-			peer := NewPeer(g, config)
-			name := config.NeighborConfig.NeighborAddress.String()
+func isASLoop(peer *Peer, path *table.Path) bool {
+	for _, as := range path.GetAsList() {
+		if as == peer.fsm.pConf.Config.PeerAs {
+			return true
+		}
+	}
+	return false
+}
 
-			if config.RouteServer.RouteServerConfig.RouteServerClient {
-				loc := NewLocalRib(name, peer.configuredRFlist(), make(map[string]*policy.Policy))
-				server.addLocalRib(loc)
-				loc.setPolicy(peer, server.policyMap)
-				// set in policy
-				peer.setPolicy(server.policyMap)
+func filterpath(peer *Peer, path, old *table.Path) *table.Path {
+	if path == nil {
+		return nil
+	}
+	if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; !ok {
+		return nil
+	}
 
-				pathList := make([]*table.Path, 0)
-				for _, p := range server.neighborMap {
-					if p.isRouteServerClient() == false {
-						continue
+	//iBGP handling
+	if peer.isIBGPPeer() {
+		ignore := false
+		//RFC4684 Constrained Route Distribution
+		if peer.fsm.rfMap[bgp.RF_RTC_UC] && path.GetRouteFamily() != bgp.RF_RTC_UC {
+			ignore = true
+			for _, ext := range path.GetExtCommunities() {
+				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
+					rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+					if rt == nil {
+						ignore = false
+					} else if ext.String() == rt.String() {
+						ignore = false
+						break
 					}
-					for _, rf := range peer.configuredRFlist() {
-						pathList = append(pathList, p.adjRib.GetInPathList(rf)...)
-					}
 				}
-				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_IMPORT, pathList)
-				if len(pathList) > 0 {
-					loc.rib.ProcessPaths(pathList)
+				if !ignore {
+					break
 				}
 			}
-			server.neighborMap[name] = peer
-			peer.outgoing = make(chan *bgp.BGPMessage, 128)
-			peer.startFSMHandler(incoming)
-			server.broadcastPeerState(peer)
-		case config := <-server.deletedPeerCh:
-			addr := config.NeighborConfig.NeighborAddress.String()
-			SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, "")
-			peer, found := server.neighborMap[addr]
-			if found {
-				log.Info("Delete a peer configuration for ", addr)
-				go func(addr string) {
-					t := time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h.t for ", addr) })
-					peer.fsm.h.t.Kill(nil)
-					peer.fsm.h.t.Wait()
-					t.Stop()
-					t = time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h for ", addr) })
-					peer.fsm.t.Kill(nil)
-					peer.fsm.t.Wait()
-					t.Stop()
-				}(addr)
-
-				m := server.dropPeerAllRoutes(peer)
-				if len(m) > 0 {
-					senderMsgs = append(senderMsgs, m...)
-				}
-				delete(server.neighborMap, addr)
-				if peer.isRouteServerClient() {
-					delete(server.localRibMap, addr)
-				}
-			} else {
-				log.Info("Can't delete a peer configuration for ", addr)
-			}
-		case config := <-server.updatedPeerCh:
-			addr := config.NeighborConfig.NeighborAddress.String()
-			peer := server.neighborMap[addr]
-			if peer.isRouteServerClient() {
-				peer.conf.ApplyPolicy = config.ApplyPolicy
-				loc := server.localRibMap[addr]
-				loc.setPolicy(peer, server.policyMap)
-				peer.setPolicy(server.policyMap)
-			}
-		case e := <-incoming:
-			peer, found := server.neighborMap[e.MsgSrc]
-			if !found {
-				log.Warn("Can't find the neighbor ", e.MsgSrc)
-				break
-			}
-			m := server.handleFSMMessage(peer, e, incoming)
-			if len(m) > 0 {
-				senderMsgs = append(senderMsgs, m...)
-			}
-		case sCh <- firstMsg:
-			senderMsgs = senderMsgs[1:]
-		case bCh <- firstBroadcastMsg:
-			server.broadcastMsgs = server.broadcastMsgs[1:]
-		case grpcReq := <-server.GrpcReqCh:
-			m := server.handleGrpc(grpcReq)
-			if len(m) > 0 {
-				senderMsgs = append(senderMsgs, m...)
-			}
-		case pl := <-server.policyUpdateCh:
-			server.handlePolicy(pl)
-		}
-	}
-}
-
-func dropSameAsPath(asnum uint32, p []*table.Path) []*table.Path {
-	pathList := []*table.Path{}
-	for _, path := range p {
-		asList := path.GetAsList()
-		send := true
-		for _, as := range asList {
-			if as == asnum {
-				send = false
-				break
-			}
-		}
-		if send {
-			pathList = append(pathList, path)
-		}
-	}
-	return pathList
-}
-
-func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
-	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-	return &SenderMsg{
-		messages:    messages,
-		sendCh:      peer.outgoing,
-		destination: peer.conf.NeighborConfig.NeighborAddress.String(),
-		twoBytesAs:  y,
-	}
-}
-
-func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
-	filtered := make([]*table.Path, 0)
-
-	for _, path := range pathList {
-		if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
-			continue
 		}
 
-		//iBGP handling
-		if !path.IsLocal() && peer.isIBGPPeer() {
-			ignore := true
+		if !path.IsLocal() {
+			ignore = true
 			info := path.GetSource()
-
 			//if the path comes from eBGP peer
-			if info.AS != peer.conf.NeighborConfig.PeerAs {
+			if info.AS != peer.fsm.pConf.Config.PeerAs {
 				ignore = false
 			}
 			// RFC4456 8. Avoiding Routing Information Loops
 			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
 			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-			if id := path.GetOriginatorID(); peer.gConf.GlobalConfig.RouterId.Equal(id) {
+			if id := path.GetOriginatorID(); peer.fsm.gConf.Config.RouterId == id.String() {
 				log.WithFields(log.Fields{
 					"Topic":        "Peer",
-					"Key":          peer.conf.NeighborConfig.NeighborAddress,
+					"Key":          peer.ID(),
 					"OriginatorID": id,
 					"Data":         path,
 				}).Debug("Originator ID is mine, ignore")
-				continue
+				return nil
 			}
 			if info.RouteReflectorClient {
 				ignore = false
@@ -410,422 +326,712 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 				// If the local CLUSTER_ID is found in the CLUSTER_LIST,
 				// the advertisement received SHOULD be ignored.
 				for _, clusterId := range path.GetClusterList() {
-					if clusterId.Equal(peer.peerInfo.RouteReflectorClusterID) {
+					if clusterId.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
 						log.WithFields(log.Fields{
 							"Topic":     "Peer",
-							"Key":       peer.conf.NeighborConfig.NeighborAddress,
+							"Key":       peer.ID(),
 							"ClusterID": clusterId,
 							"Data":      path,
 						}).Debug("cluster list path attribute has local cluster id, ignore")
-						continue
+						return nil
 					}
 				}
 				ignore = false
 			}
-
-			if ignore {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.NeighborConfig.NeighborAddress,
-					"Data":  path,
-				}).Debug("From same AS, ignore.")
-				continue
-			}
 		}
 
-		if peer.conf.NeighborConfig.NeighborAddress.Equal(path.GetSource().Address) {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
-				"Data":  path,
-			}).Debug("From me, ignore.")
-			continue
-		}
-
-		if peer.conf.NeighborConfig.PeerAs == path.GetSourceAs() {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
-				"Data":  path,
-			}).Debug("AS PATH loop, ignore.")
-			continue
-		}
-		filtered = append(filtered, path.Clone(path.IsWithdraw))
-	}
-	return filtered
-}
-
-func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
-	msgs := make([]*SenderMsg, 0)
-
-	for _, rf := range peer.configuredRFlist() {
-		if peer.isRouteServerClient() {
-			for _, loc := range server.localRibMap {
-				targetPeer := server.neighborMap[loc.OwnerName()]
-				if loc.isGlobal() || loc.OwnerName() == peer.conf.NeighborConfig.NeighborAddress.String() {
-					continue
-				}
-				pathList, _ := loc.rib.DeletePathsforPeer(peer.peerInfo, rf)
-				pathList = dropSameAsPath(targetPeer.conf.NeighborConfig.PeerAs, pathList)
-				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(pathList) == 0 {
-					continue
-				}
-				msgList := table.CreateUpdateMsgFromPaths(pathList)
-				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-				targetPeer.adjRib.UpdateOut(pathList)
-			}
-		} else {
-			loc := server.localRibMap[GLOBAL_RIB_NAME]
-			pathList, _ := loc.rib.DeletePathsforPeer(peer.peerInfo, rf)
-			if len(pathList) == 0 {
-				continue
-			}
-
-			server.broadcastBests(pathList)
-
-			msgList := table.CreateUpdateMsgFromPaths(pathList)
-			for _, targetPeer := range server.neighborMap {
-				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
-					continue
-				}
-				targetPeer.adjRib.UpdateOut(pathList)
-				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-			}
-		}
-	}
-	return msgs
-}
-
-func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Path) []*table.Path {
-	var defaultPolicy config.DefaultPolicyType
-	ret := make([]*table.Path, 0, len(pathList))
-
-	switch d {
-	case POLICY_DIRECTION_EXPORT:
-		defaultPolicy = loc.defaultExportPolicy
-	case POLICY_DIRECTION_IMPORT:
-		defaultPolicy = loc.defaultImportPolicy
-	case POLICY_DIRECTION_IN:
-		defaultPolicy = peer.defaultInPolicy
-	default:
-		log.WithFields(log.Fields{
-			"Topic": "Server",
-			"Key":   peer.conf.NeighborConfig.NeighborAddress,
-		}).Error("direction is not specified.")
-		return ret
-	}
-
-	for _, path := range pathList {
-		if !path.IsWithdraw {
-			var applied bool = false
-			switch d {
-			case POLICY_DIRECTION_IN:
-				applied, path = peer.applyPolicies(d, path)
-			case POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT:
-				applied, path = loc.applyPolicies(d, path)
-			}
-
-			if applied {
-				if path == nil {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.conf.NeighborConfig.NeighborAddress,
-						"Data":  path,
-					}).Debug("Policy applied and rejected.")
-					continue
-				}
-			} else if defaultPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.NeighborConfig.NeighborAddress,
-					"Data":  path,
-				}).Debug("Default policy applied and rejected.")
-				continue
-			}
-		}
-		// FIXME: probably we already clone.
-		ret = append(ret, path.Clone(path.IsWithdraw))
-	}
-	return ret
-}
-
-func (server *BgpServer) broadcastBests(bests []*table.Path) {
-	for _, path := range bests {
-		if !path.IsFromZebra {
-			z := newBroadcastZapiBestMsg(server.zclient, path)
-			if z != nil {
-				server.broadcastMsgs = append(server.broadcastMsgs, z)
-				log.WithFields(log.Fields{
-					"Topic":   "Server",
-					"Client":  z.client,
-					"Message": z.msg,
-				}).Debug("Default policy applied and rejected.")
-			}
-		}
-
-		result := &GrpcResponse{
-			Data: &api.Destination{
-				Prefix: path.GetNlri().String(),
-				Paths:  []*api.Path{path.ToApiStruct()},
-			},
-		}
-		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
-		for _, req := range server.broadcastReqs {
-			select {
-			case <-req.EndCh:
-				continue
-			default:
-			}
-			if req.RequestType != REQ_MONITOR_GLOBAL_BEST_CHANGED {
-				remainReqs = append(remainReqs, req)
-				continue
-			}
-			m := &broadcastGrpcMsg{
-				req:    req,
-				result: result,
-			}
-			server.broadcastMsgs = append(server.broadcastMsgs, m)
-			remainReqs = append(remainReqs, req)
-		}
-		server.broadcastReqs = remainReqs
-	}
-}
-
-func (server *BgpServer) broadcastPeerState(peer *Peer) {
-	result := &GrpcResponse{
-		Data: peer.ToApiStruct(),
-	}
-	remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
-	for _, req := range server.broadcastReqs {
-		select {
-		case <-req.EndCh:
-			continue
-		default:
-		}
-		ignore := req.RequestType != REQ_MONITOR_NEIGHBOR_PEER_STATE
-		ignore = ignore || (req.Name != "" && req.Name != peer.conf.NeighborConfig.NeighborAddress.String())
 		if ignore {
-			remainReqs = append(remainReqs, req)
-			continue
+			if old != nil {
+				// we advertise a route from ebgp,
+				// which is the old best. We got the
+				// new best from ibgp. We don't
+				// advertise the new best and need to
+				// withdraw the old.
+				return old.Clone(true)
+			}
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID(),
+				"Data":  path,
+			}).Debug("From same AS, ignore.")
+			return nil
 		}
-		m := &broadcastGrpcMsg{
-			req:    req,
-			result: result,
-		}
-		server.broadcastMsgs = append(server.broadcastMsgs, m)
-		remainReqs = append(remainReqs, req)
 	}
-	server.broadcastReqs = remainReqs
+
+	if peer.ID() == path.GetSource().Address.String() {
+		// Note: multiple paths having the same prefix could exist the
+		// withdrawals list in the case of Route Server setup with
+		// import policies modifying paths. In such case, gobgp sends
+		// duplicated update messages; withdraw messages for the same
+		// prefix.
+		if !peer.isRouteServerClient() {
+			// Say, peer A and B advertized same prefix P, and
+			// best path calculation chose a path from B as best.
+			// When B withdraws prefix P, best path calculation chooses
+			// the path from A as best.
+			// For peers other than A, this path should be advertised
+			// (as implicit withdrawal). However for A, we should advertise
+			// the withdrawal path.
+			// Thing is same when peer A and we advertized prefix P (as local
+			// route), then, we withdraws the prefix.
+			if old != nil {
+				return old.Clone(true)
+			}
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.ID(),
+			"Data":  path,
+		}).Debug("From me, ignore.")
+		return nil
+	}
+
+	if !peer.isRouteServerClient() && isASLoop(peer, path) {
+		return nil
+	}
+	return path
 }
 
-func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
-	msgs := make([]*SenderMsg, 0)
+func clonePathList(pathList []*table.Path) []*table.Path {
+	l := make([]*table.Path, 0, len(pathList))
+	for _, p := range pathList {
+		if p != nil {
+			l = append(l, p.Clone(p.IsWithdraw))
+		}
+	}
+	return l
+}
 
-	if peer != nil && peer.isRouteServerClient() {
-		newPathList := applyPolicies(peer, nil, POLICY_DIRECTION_IN, pathList)
-		for _, loc := range server.localRibMap {
-			targetPeer := server.neighborMap[loc.OwnerName()]
-			neighborAddress := peer.conf.NeighborConfig.NeighborAddress.String()
-			if loc.isGlobal() || loc.OwnerName() == neighborAddress {
+func (server *BgpServer) notifyBestWatcher(best map[string][]*table.Path, multipath [][]*table.Path) {
+	clonedM := make([][]*table.Path, len(multipath))
+	for i, pathList := range multipath {
+		clonedM[i] = clonePathList(pathList)
+	}
+	clonedB := clonePathList(best[table.GLOBAL_RIB_NAME])
+	for _, p := range clonedB {
+		switch p.GetRouteFamily() {
+		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+			for _, vrf := range server.globalRib.Vrfs {
+				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
+					p.VrfIds = append(p.VrfIds, uint16(vrf.Id))
+				}
+			}
+		}
+	}
+	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
+}
+
+func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*table.Path) {
+	if !server.isWatched(WATCH_EVENT_TYPE_POST_UPDATE) || peer == nil {
+		return
+	}
+	cloned := clonePathList(pathList)
+	if len(cloned) == 0 {
+		return
+	}
+	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	l, _ := peer.fsm.LocalHostPort()
+	ev := &WatchEventUpdate{
+		PeerAS:       peer.fsm.peerInfo.AS,
+		LocalAS:      peer.fsm.peerInfo.LocalAS,
+		PeerAddress:  peer.fsm.peerInfo.Address,
+		LocalAddress: net.ParseIP(l),
+		PeerID:       peer.fsm.peerInfo.ID,
+		FourBytesAs:  y,
+		Timestamp:    cloned[0].GetTimestamp(),
+		PostPolicy:   true,
+		PathList:     cloned,
+	}
+	server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
+}
+
+func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
+
+	families = peer.toGlobalFamilies(families)
+
+	ids := make([]string, 0, len(server.neighborMap))
+	if peer.isRouteServerClient() {
+		for _, targetPeer := range server.neighborMap {
+			if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
 			}
-			sendPathList, _ := loc.rib.ProcessPaths(applyPolicies(targetPeer, loc, POLICY_DIRECTION_IMPORT,
-				dropSameAsPath(targetPeer.conf.NeighborConfig.PeerAs, filterpath(targetPeer, newPathList))))
-			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
-				continue
-			}
-			sendPathList = applyPolicies(targetPeer, loc, POLICY_DIRECTION_EXPORT, sendPathList)
-			if len(sendPathList) == 0 {
-				continue
-			}
-			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
-			targetPeer.adjRib.UpdateOut(sendPathList)
-			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
+			ids = append(ids, targetPeer.TableID())
 		}
 	} else {
-		globalLoc := server.localRibMap[GLOBAL_RIB_NAME]
-		sendPathList, _ := globalLoc.rib.ProcessPaths(pathList)
-		if len(sendPathList) == 0 {
-			return msgs
+		ids = append(ids, table.GLOBAL_RIB_NAME)
+	}
+	for _, rf := range families {
+		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
+		if !peer.isRouteServerClient() {
+			server.notifyBestWatcher(best, multipath)
 		}
-
-		server.broadcastBests(sendPathList)
 
 		for _, targetPeer := range server.neighborMap {
-			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+			if peer.isRouteServerClient() != targetPeer.isRouteServerClient() || targetPeer == peer {
 				continue
 			}
-			f := filterpath(targetPeer, sendPathList)
-			if len(f) == 0 {
-				continue
+			if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], nil); len(paths) > 0 {
+				sendFsmOutgoingMsg(targetPeer, paths, nil, false)
 			}
-			for _, path := range f {
-				path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
-			}
-			targetPeer.adjRib.UpdateOut(f)
-			msgList := table.CreateUpdateMsgFromPaths(f)
-
-			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	}
-	return msgs
 }
 
-func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *fsmMsg) []*SenderMsg {
-	msgs := make([]*SenderMsg, 0)
+func createWatchEventPeerState(peer *Peer) *WatchEventPeerState {
+	_, rport := peer.fsm.RemoteHostPort()
+	laddr, lport := peer.fsm.LocalHostPort()
+	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
+	recvOpen := peer.fsm.recvOpen
+	return &WatchEventPeerState{
+		PeerAS:       peer.fsm.peerInfo.AS,
+		LocalAS:      peer.fsm.peerInfo.LocalAS,
+		PeerAddress:  peer.fsm.peerInfo.Address,
+		LocalAddress: net.ParseIP(laddr),
+		PeerPort:     rport,
+		LocalPort:    lport,
+		PeerID:       peer.fsm.peerInfo.ID,
+		SentOpen:     sentOpen,
+		RecvOpen:     recvOpen,
+		State:        peer.fsm.state,
+		AdminState:   peer.fsm.adminState,
+		Timestamp:    time.Now(),
+	}
+}
 
+func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
+	newState := peer.fsm.state
+	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
+		server.notifyWatcher(WATCH_EVENT_TYPE_PEER_STATE, createWatchEventPeerState(peer))
+	}
+}
+
+func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*table.Path {
+	moded := make([]*table.Path, 0, len(pathList)/2)
+	for _, before := range pathList {
+		if isASLoop(peer, before) {
+			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+			continue
+		}
+		after := server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, before, nil)
+		if after == nil {
+			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+		} else if after != before {
+			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+			for _, n := range server.neighborMap {
+				if n == peer {
+					continue
+				}
+				after.Filter(n.ID(), table.POLICY_DIRECTION_IMPORT)
+			}
+			moded = append(moded, after)
+		}
+	}
+	return moded
+}
+
+func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
+	rib := server.globalRib
+	var best, old map[string][]*table.Path
+
+	if peer != nil && peer.fsm.pConf.Config.Vrf != "" {
+		vrf := server.globalRib.Vrfs[peer.fsm.pConf.Config.Vrf]
+		for idx, path := range pathList {
+			pathList[idx] = path.ToGlobal(vrf)
+		}
+	}
+
+	if peer != nil && peer.isRouteServerClient() {
+		for _, path := range pathList {
+			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+			path.Filter(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
+		}
+		moded := make([]*table.Path, 0)
+		for _, targetPeer := range server.neighborMap {
+			if !targetPeer.isRouteServerClient() || peer == targetPeer {
+				continue
+			}
+			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
+		}
+		isTarget := func(p *Peer) bool {
+			return p.isRouteServerClient() && p.fsm.state == bgp.BGP_FSM_ESTABLISHED && !p.fsm.pConf.GracefulRestart.State.LocalRestarting
+		}
+
+		ids := make([]string, 0, len(server.neighborMap))
+		for _, targetPeer := range server.neighborMap {
+			if isTarget(targetPeer) {
+				ids = append(ids, targetPeer.TableID())
+			}
+		}
+		best, old, _ = rib.ProcessPaths(ids, append(pathList, moded...))
+	} else {
+		for idx, path := range pathList {
+			if p := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil); p != nil {
+				path = p
+			} else {
+				path = path.Clone(true)
+			}
+			pathList[idx] = path
+			// RFC4684 Constrained Route Distribution 6. Operation
+			//
+			// When a BGP speaker receives a BGP UPDATE that advertises or withdraws
+			// a given Route Target membership NLRI, it should examine the RIB-OUTs
+			// of VPN NLRIs and re-evaluate the advertisement status of routes that
+			// match the Route Target in question.
+			//
+			// A BGP speaker should generate the minimum set of BGP VPN route
+			// updates (advertisements and/or withdrawls) necessary to transition
+			// between the previous and current state of the route distribution
+			// graph that is derived from Route Target membership information.
+			if peer != nil && path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC {
+				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+				fs := make([]bgp.RouteFamily, 0, len(peer.configuredRFlist()))
+				for _, f := range peer.configuredRFlist() {
+					if f != bgp.RF_RTC_UC {
+						fs = append(fs, f)
+					}
+				}
+				var candidates []*table.Path
+				if path.IsWithdraw {
+					candidates, _ = peer.getBestFromLocal(peer.configuredRFlist())
+				} else {
+					candidates = rib.GetBestPathList(peer.TableID(), fs)
+				}
+				paths := make([]*table.Path, 0, len(candidates))
+				for _, p := range candidates {
+					for _, ext := range p.GetExtCommunities() {
+						if rt == nil || ext.String() == rt.String() {
+							if path.IsWithdraw {
+								p = p.Clone(true)
+							}
+							paths = append(paths, p)
+							break
+						}
+					}
+				}
+				if path.IsWithdraw {
+					paths = peer.processOutgoingPaths(nil, paths)
+				} else {
+					paths = peer.processOutgoingPaths(paths, nil)
+				}
+				sendFsmOutgoingMsg(peer, paths, nil, false)
+			}
+		}
+		server.notifyPostPolicyUpdateWatcher(peer, pathList)
+		var multipath [][]*table.Path
+		best, old, multipath = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+
+		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
+			return
+		}
+		server.notifyBestWatcher(best, multipath)
+	}
+
+	for _, targetPeer := range server.neighborMap {
+		if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
+			continue
+		}
+		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], old[targetPeer.TableID()]); len(paths) > 0 {
+			sendFsmOutgoingMsg(targetPeer, paths, nil, false)
+		}
+	}
+}
+
+func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 	switch e.MsgType {
 	case FSM_MSG_STATE_CHANGE:
 		nextState := e.MsgData.(bgp.FSMState)
-		oldState := bgp.FSMState(peer.conf.NeighborState.SessionState)
-		peer.conf.NeighborState.SessionState = uint32(nextState)
+		oldState := bgp.FSMState(peer.fsm.pConf.State.SessionState.ToInt())
+		peer.fsm.pConf.State.SessionState = config.IntToSessionStateMap[int(nextState)]
 		peer.fsm.StateChange(nextState)
-		globalRib := server.localRibMap[GLOBAL_RIB_NAME]
 
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
 			t := time.Now()
-			if t.Sub(time.Unix(peer.conf.Timers.TimersState.Uptime, 0)) < FLOP_THRESHOLD {
-				peer.conf.NeighborState.Flops++
+			if t.Sub(time.Unix(peer.fsm.pConf.Timers.State.Uptime, 0)) < FLOP_THRESHOLD {
+				peer.fsm.pConf.State.Flops++
 			}
-
-			for _, rf := range peer.configuredRFlist() {
-				peer.adjRib.DropAll(rf)
+			var drop []bgp.RouteFamily
+			if peer.fsm.reason == FSM_GRACEFUL_RESTART {
+				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
+				var p []bgp.RouteFamily
+				p, drop = peer.forwardingPreservedFamilies()
+				peer.StaleAll(p)
+			} else {
+				drop = peer.configuredRFlist()
 			}
+			peer.prefixLimitWarned = make(map[bgp.RouteFamily]bool)
+			peer.DropAll(drop)
+			server.dropPeerAllRoutes(peer, drop)
+		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
+			if peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled {
+				llgr, no_llgr := peer.llgrFamilies()
 
-			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)
+				peer.DropAll(no_llgr)
+				server.dropPeerAllRoutes(peer, no_llgr)
+
+				// attach LLGR_STALE community to paths in peer's adj-rib-in
+				// paths with NO_LLGR are deleted
+				pathList := peer.markLLGRStale(llgr)
+
+				// calculate again
+				// wheh path with LLGR_STALE chosen as best,
+				// peer which doesn't support LLGR will drop the path
+				// if it is in adj-rib-out, do withdrawal
+				server.propagateUpdate(peer, pathList)
+
+				for _, f := range llgr {
+					endCh := make(chan struct{})
+					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
+					go func(family bgp.RouteFamily, endCh chan struct{}) {
+						t := peer.llgrRestartTime(family)
+						timer := time.NewTimer(time.Second * time.Duration(t))
+
+						log.WithFields(log.Fields{
+							"Topic":  "Peer",
+							"Key":    peer.ID(),
+							"Family": family,
+						}).Debugf("start LLGR restart timer (%d sec) for %s", t, family)
+
+						select {
+						case <-timer.C:
+							ch := make(chan struct{})
+							defer func() { <-ch }()
+							server.mgmtCh <- func() {
+								log.WithFields(log.Fields{
+									"Topic":  "Peer",
+									"Key":    peer.ID(),
+									"Family": family,
+								}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
+								defer close(ch)
+								peer.DropAll([]bgp.RouteFamily{family})
+								server.dropPeerAllRoutes(peer, []bgp.RouteFamily{family})
+
+								// when all llgr restart timer expired, stop PeerRestarting
+								if peer.llgrRestartTimerExpired(family) {
+									peer.stopPeerRestarting()
+								}
+							}
+						case <-endCh:
+							log.WithFields(log.Fields{
+								"Topic":  "Peer",
+								"Key":    peer.ID(),
+								"Family": family,
+							}).Debugf("stop LLGR restart timer (%d sec) for %s", t, family)
+						}
+					}(f, endCh)
+				}
+			} else {
+				// RFC 4724 4.2
+				// If the session does not get re-established within the "Restart Time"
+				// that the peer advertised previously, the Receiving Speaker MUST
+				// delete all the stale routes from the peer that it is retaining.
+				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+				peer.DropAll(peer.configuredRFlist())
+				server.dropPeerAllRoutes(peer, peer.configuredRFlist())
+			}
 		}
 
-		close(peer.outgoing)
-		peer.outgoing = make(chan *bgp.BGPMessage, 128)
+		cleanInfiniteChannel(peer.outgoing)
+		peer.outgoing = channels.NewInfiniteChannel()
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
-			pathList := make([]*table.Path, 0)
-			if peer.isRouteServerClient() {
-				loc := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_EXPORT, peer.getBests(loc))
-			} else {
-				peer.conf.Transport.TransportConfig.LocalAddress = peer.fsm.LocalAddr()
-				for _, path := range filterpath(peer, peer.getBests(globalRib)) {
-					p := path.Clone(path.IsWithdraw)
-					p.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
-					pathList = append(pathList, p)
+			// update for export policy
+			laddr, _ := peer.fsm.LocalHostPort()
+			peer.fsm.pConf.Transport.State.LocalAddress = laddr
+			peer.fsm.peerInfo.LocalAddress = net.ParseIP(laddr)
+			deferralExpiredFunc := func(family bgp.RouteFamily) func() {
+				return func() {
+					ch := make(chan struct{})
+					defer func() { <-ch }()
+
+					server.mgmtCh <- func() {
+						defer close(ch)
+						server.softResetOut(peer.fsm.pConf.Config.NeighborAddress, family, true)
+					}
 				}
 			}
-			if len(pathList) > 0 {
-				peer.adjRib.UpdateOut(pathList)
-				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
+			if !peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+				// When graceful-restart cap (which means intention
+				// of sending EOR) and route-target address family are negotiated,
+				// send route-target NLRIs first, and wait to send others
+				// till receiving EOR of route-target address family.
+				// This prevents sending uninterested routes to peers.
+				//
+				// However, when the peer is graceful restarting, give up
+				// waiting sending non-route-target NLRIs since the peer won't send
+				// any routes (and EORs) before we send ours (or deferral-timer expires).
+				var pathList []*table.Path
+				if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); !peer.fsm.pConf.GracefulRestart.State.PeerRestarting && peer.fsm.rfMap[bgp.RF_RTC_UC] && c.RouteTargetMembership.Config.DeferralTime > 0 {
+					pathList, _ = peer.getBestFromLocal([]bgp.RouteFamily{bgp.RF_RTC_UC})
+					t := c.RouteTargetMembership.Config.DeferralTime
+					for _, f := range peer.configuredRFlist() {
+						if f != bgp.RF_RTC_UC {
+							time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(f))
+						}
+					}
+				} else {
+					pathList, _ = peer.getBestFromLocal(peer.configuredRFlist())
+				}
+
+				if len(pathList) > 0 {
+					sendFsmOutgoingMsg(peer, pathList, nil, false)
+				}
+			} else {
+				// RFC 4724 4.1
+				// Once the session between the Restarting Speaker and the Receiving
+				// Speaker is re-established, the Restarting Speaker will receive and
+				// process BGP messages from its peers.  However, it MUST defer route
+				// selection for an address family until it either (a) ...snip...
+				// or (b) the Selection_Deferral_Timer referred to below has expired.
+				deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.ID(),
+				}).Debugf("Now syncing, suppress sending updates. start deferral timer(%d)", deferral)
+				time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.RouteFamily(0)))
 			}
 		} else {
-			peer.conf.Timers.TimersState.Downtime = time.Now().Unix()
+			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
+				die := true
+				for _, p := range server.neighborMap {
+					if p.fsm.state != bgp.BGP_FSM_IDLE {
+						die = false
+						break
+					}
+				}
+				if die {
+					os.Exit(0)
+				}
+			}
+			peer.fsm.pConf.Timers.State.Downtime = time.Now().Unix()
 		}
 		// clear counter
 		if peer.fsm.adminState == ADMIN_STATE_DOWN {
-			peer.conf.NeighborState = config.NeighborState{}
-			peer.conf.Timers.TimersState = config.TimersState{}
+			peer.fsm.pConf.State = config.NeighborState{}
+			peer.fsm.pConf.Timers.State = config.TimersState{}
 		}
-		peer.startFSMHandler(incoming)
-		server.broadcastPeerState(peer)
-
+		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
+		server.broadcastPeerState(peer, oldState)
+	case FSM_MSG_ROUTE_REFRESH:
+		if paths := peer.handleRouteRefresh(e); len(paths) > 0 {
+			sendFsmOutgoingMsg(peer, paths, nil, false)
+			return
+		}
 	case FSM_MSG_BGP_MESSAGE:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
-			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}))
+			sendFsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
+			return
 		case *bgp.BGPMessage:
-			pathList, update, msgList := peer.handleBGPmessage(m)
-			if len(msgList) > 0 {
-				msgs = append(msgs, newSenderMsg(peer, msgList))
-				break
+			server.roaManager.validate(e.PathList)
+			pathList, eor, notification := peer.handleUpdate(e)
+			if notification != nil {
+				sendFsmOutgoingMsg(peer, nil, notification, true)
+				return
 			}
-			if update == false {
-				if len(pathList) > 0 {
-					msgList := table.CreateUpdateMsgFromPaths(pathList)
-					msgs = append(msgs, newSenderMsg(peer, msgList))
+			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.isWatched(WATCH_EVENT_TYPE_PRE_UPDATE) {
+				_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+				l, _ := peer.fsm.LocalHostPort()
+				ev := &WatchEventUpdate{
+					Message:      m,
+					PeerAS:       peer.fsm.peerInfo.AS,
+					LocalAS:      peer.fsm.peerInfo.LocalAS,
+					PeerAddress:  peer.fsm.peerInfo.Address,
+					LocalAddress: net.ParseIP(l),
+					PeerID:       peer.fsm.peerInfo.ID,
+					FourBytesAs:  y,
+					Timestamp:    e.timestamp,
+					Payload:      e.payload,
+					PostPolicy:   false,
+					PathList:     clonePathList(pathList),
 				}
-				break
-			} else {
-				if len(pathList) > 0 {
-					server.roaClient.validate(pathList)
+				server.notifyWatcher(WATCH_EVENT_TYPE_PRE_UPDATE, ev)
+			}
+
+			if len(pathList) > 0 {
+				server.propagateUpdate(peer, pathList)
+			}
+
+			if len(eor) > 0 {
+				rtc := false
+				for _, f := range eor {
+					if f == bgp.RF_RTC_UC {
+						rtc = true
+					}
+					for i, a := range peer.fsm.pConf.AfiSafis {
+						if g, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName)); f == g {
+							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+						}
+					}
+				}
+
+				// RFC 4724 4.1
+				// Once the session between the Restarting Speaker and the Receiving
+				// Speaker is re-established, ...snip... it MUST defer route
+				// selection for an address family until it either (a) receives the
+				// End-of-RIB marker from all its peers (excluding the ones with the
+				// "Restart State" bit set in the received capability and excluding the
+				// ones that do not advertise the graceful restart capability) or ...snip...
+				if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+					allEnd := func() bool {
+						for _, p := range server.neighborMap {
+							if !p.recvedAllEOR() {
+								return false
+							}
+						}
+						return true
+					}()
+					if allEnd {
+						for _, p := range server.neighborMap {
+							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+							if !p.isGracefulRestartEnabled() {
+								continue
+							}
+							paths, _ := p.getBestFromLocal(p.configuredRFlist())
+							if len(paths) > 0 {
+								sendFsmOutgoingMsg(p, paths, nil, false)
+							}
+						}
+						log.WithFields(log.Fields{
+							"Topic": "Server",
+						}).Info("sync finished")
+
+					}
+
+					// we don't delay non-route-target NLRIs when local-restarting
+					rtc = false
+				}
+				if peer.fsm.pConf.GracefulRestart.State.PeerRestarting {
+					if peer.recvedAllEOR() {
+						peer.stopPeerRestarting()
+						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.fsm.pConf.Config.NeighborAddress,
+						}).Debugf("withdraw %d stale routes", len(pathList))
+						server.propagateUpdate(peer, pathList)
+					}
+
+					// we don't delay non-route-target NLRIs when peer is restarting
+					rtc = false
+				}
+
+				// received EOR of route-target address family
+				// outbound filter is now ready, let's flash non-route-target NLRIs
+				if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); rtc && c != nil && c.RouteTargetMembership.Config.DeferralTime > 0 {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.ID(),
+					}).Debug("received route-target eor. flash non-route-target NLRIs")
+					families := make([]bgp.RouteFamily, 0, len(peer.configuredRFlist()))
+					for _, f := range peer.configuredRFlist() {
+						if f != bgp.RF_RTC_UC {
+							families = append(families, f)
+						}
+					}
+					if paths, _ := peer.getBestFromLocal(families); len(paths) > 0 {
+						sendFsmOutgoingMsg(peer, paths, nil, false)
+					}
 				}
 			}
-			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
 		default:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				"Key":   peer.fsm.pConf.Config.NeighborAddress,
 				"Data":  e.MsgData,
 			}).Panic("unknown msg type")
 		}
 	}
-	return msgs
+	return
 }
 
-func (server *BgpServer) SetGlobalType(g config.Global) {
-	server.globalTypeCh <- g
-}
+func (s *BgpServer) StartCollector(c *config.CollectorConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
 
-func (server *BgpServer) SetRpkiConfig(c config.RpkiServers) {
-	server.rpkiConfigCh <- c
-}
-
-func (server *BgpServer) PeerAdd(peer config.Neighbor) {
-	server.addedPeerCh <- peer
-}
-
-func (server *BgpServer) PeerDelete(peer config.Neighbor) {
-	server.deletedPeerCh <- peer
-}
-
-func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
-	server.updatedPeerCh <- peer
-}
-
-func (server *BgpServer) Shutdown() {
-	for _, p := range server.neighborMap {
-		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+	s.mgmtCh <- func() {
+		defer close(ch)
+		_, err = NewCollector(s, c.Url, c.DbName, c.TableDumpInterval)
 	}
+	return err
 }
 
-func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
-	server.policyUpdateCh <- policy
-}
+func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
 
-func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
-	pMap := make(map[string]*policy.Policy)
-	df := pl.DefinedSets
-	for _, p := range pl.PolicyDefinitions.PolicyDefinitionList {
-		pMap[p.Name] = policy.NewPolicy(p, df)
-	}
-	server.policyMap = pMap
-	server.routingPolicy = pl
-}
+	s.mgmtCh <- func() {
+		defer close(ch)
 
-func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
-	server.SetPolicy(pl)
-	for _, loc := range server.localRibMap {
-		if loc.isGlobal() {
-			continue
+		if s.zclient != nil {
+			err = fmt.Errorf("already connected to Zebra")
+		} else {
+			protos := make([]string, 0, len(c.RedistributeRouteTypeList))
+			for _, p := range c.RedistributeRouteTypeList {
+				protos = append(protos, string(p))
+			}
+			s.zclient, err = newZebraClient(s, c.Url, protos, c.Version)
 		}
-		targetPeer := server.neighborMap[loc.OwnerName()]
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   targetPeer.conf.NeighborConfig.NeighborAddress,
-		}).Info("call set policy")
-		loc.setPolicy(targetPeer, server.policyMap)
-		// set distribute policy
-		targetPeer.setPolicy(server.policyMap)
+	}
+	return err
+}
+
+func (s *BgpServer) AddBmp(c *config.BmpServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.bmpManager.addServer(c)
+	}
+	return err
+}
+
+func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.bmpManager.deleteServer(c)
+	}
+	return err
+}
+
+func (s *BgpServer) Shutdown() {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		s.shutdown = true
+		for _, p := range s.neighborMap {
+			p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+		}
+		// TODO: call fsmincomingCh.Close()
 	}
 }
 
-func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, error) {
-	remoteAddr := grpcReq.Name
-	peer, found := server.neighborMap[remoteAddr]
-	if !found {
-		result := &GrpcResponse{}
-		result.ResponseErr = fmt.Errorf("Neighbor that has %v doesn't exist.", remoteAddr)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return nil, result.ResponseErr
+func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		ap := make(map[string]config.ApplyPolicy, len(s.neighborMap)+1)
+		ap[table.GLOBAL_RIB_NAME] = s.bgpConfig.Global.ApplyPolicy
+		for _, peer := range s.neighborMap {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.fsm.pConf.Config.NeighborAddress,
+			}).Info("call set policy")
+			ap[peer.ID()] = peer.fsm.pConf.ApplyPolicy
+		}
+		err = s.policy.Reset(&policy, ap)
 	}
-	return peer, nil
+	return err
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -899,1450 +1105,1580 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 	return nil
 }
 
-func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Path {
-	var nlri bgp.AddrPrefixInterface
-	result := &GrpcResponse{}
-
-	pattr := make([]bgp.PathAttributeInterface, 0)
-	extcomms := make([]bgp.ExtendedCommunityInterface, 0)
-	var nexthop string
-	var rf bgp.RouteFamily
-	var path *api.Path
-	seen := make(map[bgp.BGPAttrType]bool)
-	var pi *table.PeerInfo
-
-	arg, ok := grpcReq.Data.(*api.ModPathArguments)
-	if !ok {
-		result.ResponseErr = fmt.Errorf("type assertion failed")
-		goto ERR
-	}
-	if arg.Asn != 0 {
-		pi = &table.PeerInfo{
-			AS:      arg.Asn,
-			LocalID: net.ParseIP(arg.Id),
-		}
-	} else {
-		pi = &table.PeerInfo{
-			AS:      server.bgpConfig.Global.GlobalConfig.As,
-			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
-		}
-	}
-	path = arg.Path
-
-	if len(path.Nlri) > 0 {
-		nlri = &bgp.NLRInfo{}
-		err := nlri.DecodeFromBytes(path.Nlri)
-		if err != nil {
-			result.ResponseErr = err
-			goto ERR
-		}
+func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
+	pi := &table.PeerInfo{
+		AS:      server.bgpConfig.Global.Config.As,
+		LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
 	}
 
-	for _, attr := range path.Pattrs {
-		p, err := bgp.GetPathAttribute(attr)
-		if err != nil {
-			result.ResponseErr = err
-			goto ERR
+	for _, path := range pathList {
+		if path.GetSource() == nil {
+			path.SetSource(pi)
 		}
 
-		err = p.DecodeFromBytes(attr)
-		if err != nil {
-			result.ResponseErr = err
-			goto ERR
-		}
-
-		if _, ok := seen[p.GetType()]; !ok {
-			seen[p.GetType()] = true
-		} else {
-			result.ResponseErr = fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
-			goto ERR
-		}
-		switch p.GetType() {
-		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-			nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
-		case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
-			value := p.(*bgp.PathAttributeExtendedCommunities).Value
-			if len(value) > 0 {
-				extcomms = append(extcomms, value...)
-			}
-		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-			if len(mpreach.Value) != 1 {
-				result.ResponseErr = fmt.Errorf("include only one route in mp_reach_nlri")
-				goto ERR
-			}
-			nlri = mpreach.Value[0]
-			nexthop = mpreach.Nexthop.String()
-		default:
-			pattr = append(pattr, p)
-		}
-	}
-
-	if nlri == nil || nexthop == "" {
-		result.ResponseErr = fmt.Errorf("not found nlri or nexthop")
-		goto ERR
-	}
-
-	rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
-
-	if arg.Resource == api.Resource_VRF {
-		vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
-		if _, ok := vrfs[arg.Name]; !ok {
-			result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
-			goto ERR
-		}
-		vrf := vrfs[arg.Name]
-
-		switch rf {
-		case bgp.RF_IPv4_UC:
-			n := nlri.(*bgp.NLRInfo)
-			nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
-		case bgp.RF_IPv6_UC:
-			n := nlri.(*bgp.IPv6AddrPrefix)
-			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
-		case bgp.RF_EVPN:
-			n := nlri.(*bgp.EVPNNLRI)
-			switch n.RouteType {
-			case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-				n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).RD = vrf.Rd
-			case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-				n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
-			}
-		default:
-			result.ResponseErr = fmt.Errorf("unsupported route family for vrf: %s", rf)
-			goto ERR
-		}
-		extcomms = append(extcomms, vrf.ExportRt...)
-	}
-
-	if arg.Resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
-		pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
-	} else {
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
-	}
-
-	if rf == bgp.RF_EVPN {
-		evpnNlri := nlri.(*bgp.EVPNNLRI)
-		if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
-			macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
-			etag := macIpAdv.ETag
-			mac := macIpAdv.MacAddress
-			paths := server.localRibMap[GLOBAL_RIB_NAME].rib.GetBestPathList(bgp.RF_EVPN)
-			if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
-				extcomms = append(extcomms, m)
+		if vrfId != "" {
+			vrf := server.globalRib.Vrfs[vrfId]
+			if err := vrf.ToGlobalPath(path); err != nil {
+				return err
 			}
 		}
+
+		if path.GetRouteFamily() == bgp.RF_EVPN {
+			nlri := path.GetNlri()
+			evpnNlri := nlri.(*bgp.EVPNNLRI)
+			if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
+				macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+				etag := macIpAdv.ETag
+				mac := macIpAdv.MacAddress
+				paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_EVPN})
+				if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
+					path.SetExtCommunities([]bgp.ExtendedCommunityInterface{m}, false)
+				}
+			}
+		}
+
 	}
-
-	if len(extcomms) > 0 {
-		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
-	}
-
-	return []*table.Path{table.NewPath(pi, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw)}
-ERR:
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-	return []*table.Path{}
-
+	return nil
 }
 
-func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, error) {
-	manager := server.localRibMap[GLOBAL_RIB_NAME].rib
-	var msgs []*table.Path
-	switch arg.Operation {
-	case api.Operation_ADD:
-		rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
-		f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
-			ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
-			for _, rt := range bufs {
-				r, err := bgp.ParseExtended(rt)
+func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []byte, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		if err = s.active(); err != nil {
+			return
+		}
+
+		if err = s.fixupApiPath(vrfId, pathList); err == nil {
+			if len(pathList) == 1 {
+				uuidBytes = uuid.NewV4().Bytes()
+				pathList[0].SetUUID(uuidBytes)
+			}
+			s.propagateUpdate(nil, pathList)
+		}
+	}
+	return uuidBytes, err
+}
+
+func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		deletePathList := make([]*table.Path, 0)
+		if len(uuid) > 0 {
+			path := func() *table.Path {
+				for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, s.globalRib.GetRFlist()) {
+					if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), uuid) {
+						return path
+					}
+				}
+				return nil
+			}()
+			if path != nil {
+				deletePathList = append(deletePathList, path.Clone(true))
+			} else {
+				err = fmt.Errorf("Can't find a specified path")
+			}
+		} else if len(pathList) == 0 {
+			// delete all paths
+			families := s.globalRib.GetRFlist()
+			if f != 0 {
+				families = []bgp.RouteFamily{f}
+			}
+			for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, families) {
+				deletePathList = append(deletePathList, path.Clone(true))
+			}
+		} else {
+			if err = s.fixupApiPath(vrfId, pathList); err != nil {
+				return
+			}
+			deletePathList = pathList
+		}
+		s.propagateUpdate(nil, deletePathList)
+	}
+	return err
+}
+
+func (s *BgpServer) Start(c *config.Global) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		if s.bgpConfig.Global.Config.As != 0 {
+			err = fmt.Errorf("gobgp is already started")
+			return
+		}
+
+		if err = config.SetDefaultGlobalConfigValues(c); err != nil {
+			return
+		}
+
+		if c.Config.Port > 0 {
+			acceptCh := make(chan *net.TCPConn, 4096)
+			for _, addr := range c.Config.LocalAddressList {
+				var l *TCPListener
+				l, err = NewTCPListener(addr, uint32(c.Config.Port), acceptCh)
 				if err != nil {
-					return nil, err
+					return
 				}
-				ret = append(ret, r)
+				s.listeners = append(s.listeners, l)
 			}
-			return ret, nil
+			s.acceptCh = acceptCh
 		}
-		importRt, err := f(arg.Vrf.ImportRt)
-		if err != nil {
-			return nil, err
+
+		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
+		s.globalRib = table.NewTableManager(rfs)
+
+		if err = s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
+			return
 		}
-		exportRt, err := f(arg.Vrf.ImportRt)
-		if err != nil {
-			return nil, err
+		s.bgpConfig.Global = *c
+		// update route selection options
+		table.SelectionOptions = c.RouteSelectionOptions.Config
+		table.UseMultiplePaths = c.UseMultiplePaths.Config
+
+		s.roaManager.SetAS(s.bgpConfig.Global.Config.As)
+	}
+	return nil
+}
+
+func (s *BgpServer) GetVrf() (l []*table.Vrf) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = make([]*table.Vrf, 0, len(s.globalRib.Vrfs))
+		for _, vrf := range s.globalRib.Vrfs {
+			l = append(l, vrf.Clone())
 		}
+	}
+	return l
+}
+
+func (s *BgpServer) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		if err = s.active(); err != nil {
+			return
+		}
+
 		pi := &table.PeerInfo{
-			AS:      server.bgpConfig.Global.GlobalConfig.As,
-			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
+			AS:      s.bgpConfig.Global.Config.As,
+			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
-		msgs, err = manager.AddVrf(arg.Vrf.Name, rd, importRt, exportRt, pi)
-		if err != nil {
-			return nil, err
+		if pathList, e := s.globalRib.AddVrf(name, id, rd, im, ex, pi); e != nil {
+			err = e
+		} else if len(pathList) > 0 {
+			s.propagateUpdate(nil, pathList)
 		}
-	case api.Operation_DEL:
-		var err error
-		msgs, err = manager.DeleteVrf(arg.Vrf.Name)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unknown operation:", arg.Operation)
 	}
-	return msgs, nil
+	return err
 }
 
-func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
-	var msgs []*table.Path
-	result := &GrpcResponse{}
+func (s *BgpServer) DeleteVrf(name string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
 
-	switch req.RequestType {
-	case REQ_VRF:
-		name := req.Name
-		rib := server.localRibMap[GLOBAL_RIB_NAME].rib
-		vrfs := rib.Vrfs
-		if _, ok := vrfs[name]; !ok {
-			result.ResponseErr = fmt.Errorf("vrf %s not found", name)
-			break
-		}
-		var rf bgp.RouteFamily
-		switch req.RouteFamily {
-		case bgp.RF_IPv4_UC:
-			rf = bgp.RF_IPv4_VPN
-		case bgp.RF_IPv6_UC:
-			rf = bgp.RF_IPv6_VPN
-		case bgp.RF_EVPN:
-			rf = bgp.RF_EVPN
-		default:
-			result.ResponseErr = fmt.Errorf("unsupported route family: %s", req.RouteFamily)
-			break
-		}
-		for _, path := range rib.GetPathList(rf) {
-			ok := policy.CanImportToVrf(vrfs[name], path)
-			if !ok {
-				continue
-			}
-			req.ResponseCh <- &GrpcResponse{
-				Data: &api.Destination{
-					Prefix: path.GetNlri().String(),
-					Paths:  []*api.Path{path.ToApiStruct()},
-				},
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		for _, n := range s.neighborMap {
+			if n.fsm.pConf.Config.Vrf == name {
+				err = fmt.Errorf("failed to delete VRF %s: neighbor %s is in use", name, n.ID())
+				return
 			}
 		}
-		goto END
-	case REQ_VRFS:
-		vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
-		for _, vrf := range vrfs {
-			req.ResponseCh <- &GrpcResponse{
-				Data: vrf.ToApiStruct(),
-			}
+
+		pathList, err := s.globalRib.DeleteVrf(name)
+		if err == nil && len(pathList) > 0 {
+			s.propagateUpdate(nil, pathList)
 		}
-		goto END
-	case REQ_VRF_MOD:
-		arg := req.Data.(*api.ModVrfArguments)
-		msgs, result.ResponseErr = server.handleVrfMod(arg)
-	default:
-		result.ResponseErr = fmt.Errorf("unknown request type:", req.RequestType)
 	}
-
-	req.ResponseCh <- result
-END:
-	close(req.ResponseCh)
-	return msgs
+	return err
 }
 
-func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
-	defer close(grpcReq.ResponseCh)
-	for _, r := range results {
-		select {
-		case grpcReq.ResponseCh <- r:
-		case <-grpcReq.EndCh:
-			return
+func (s *BgpServer) Stop() (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		for k, _ := range s.neighborMap {
+			if err = s.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
+				NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED); err != nil {
+				return
+			}
 		}
+		for _, l := range s.listeners {
+			l.Close()
+		}
+		s.bgpConfig.Global = config.Global{}
 	}
+	return nil
 }
 
-func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
-	var msgs []*SenderMsg
-
-	sortedDsts := func(t *table.Table) []*GrpcResponse {
-		results := make([]*GrpcResponse, len(t.GetDestinations()))
-
-		r := radix.New()
-		for _, dst := range t.GetDestinations() {
-			result := &GrpcResponse{}
-			result.Data = dst.ToApiStruct()
-			r.Insert(dst.RadixKey, result)
-		}
-		i := 0
-		r.Walk(func(s string, v interface{}) bool {
-			r, _ := v.(*GrpcResponse)
-			results[i] = r
-			i++
-			return false
-		})
-
-		return results
-	}
-
-	switch grpcReq.RequestType {
-	case REQ_GLOBAL_RIB:
-		var results []*GrpcResponse
-		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
-			results = make([]*GrpcResponse, len(t.GetDestinations()))
-			switch grpcReq.RouteFamily {
-			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily])
-			default:
-				i := 0
-				for _, dst := range t.GetDestinations() {
-					result := &GrpcResponse{}
-					result.Data = dst.ToApiStruct()
-					results[i] = result
-					i++
-				}
-			}
-		}
-		go sendMultipleResponses(grpcReq, results)
-
-	case REQ_MOD_PATH:
-		pathList := server.handleModPathRequest(grpcReq)
-		if len(pathList) > 0 {
-			msgs = server.propagateUpdate(nil, pathList)
-			grpcReq.ResponseCh <- &GrpcResponse{}
-			close(grpcReq.ResponseCh)
-		}
-
-	case REQ_NEIGHBORS:
-		results := make([]*GrpcResponse, len(server.neighborMap))
-		i := 0
-		for _, peer := range server.neighborMap {
-			result := &GrpcResponse{
-				Data: peer.ToApiStruct(),
-			}
-			results[i] = result
-			i++
-		}
-		go sendMultipleResponses(grpcReq, results)
-
-	case REQ_NEIGHBOR:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		result := &GrpcResponse{
-			Data: peer.ToApiStruct(),
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_LOCAL_RIB:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		var results []*GrpcResponse
-		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
-			remoteAddr := grpcReq.Name
-			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
-				results = make([]*GrpcResponse, len(t.GetDestinations()))
-				switch grpcReq.RouteFamily {
-				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily])
-				default:
-					i := 0
-					for _, dst := range t.GetDestinations() {
-						result := &GrpcResponse{}
-						result.Data = dst.ToApiStruct()
-						results[i] = result
-						i++
-					}
-				}
-			}
-		}
-		go sendMultipleResponses(grpcReq, results)
-
-	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		rf := grpcReq.RouteFamily
-		var paths []*table.Path
-
-		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
-			paths = peer.adjRib.GetInPathList(rf)
-			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
-		} else {
-			paths = peer.adjRib.GetOutPathList(rf)
-			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
-		}
-
-		toResult := func(p *table.Path) *GrpcResponse {
-			return &GrpcResponse{
-				Data: &api.Destination{
-					Prefix: p.GetNlri().String(),
-					Paths:  []*api.Path{p.ToApiStruct()},
-				},
-			}
-		}
-
-		results := make([]*GrpcResponse, len(paths))
-		switch rf {
-		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-			r := radix.New()
-			for _, p := range paths {
-				r.Insert(table.CidrToRadixkey(p.GetNlri().String()), toResult(p))
-			}
-			i := 0
-			r.Walk(func(s string, v interface{}) bool {
-				r, _ := v.(*GrpcResponse)
-				results[i] = r
-				i++
-				return false
-			})
-		default:
-			for i, p := range paths {
-				results[i] = toResult(p)
-			}
-		}
-		go sendMultipleResponses(grpcReq, results)
-
-	case REQ_NEIGHBOR_SHUTDOWN:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
-		grpcReq.ResponseCh <- &GrpcResponse{}
-		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_RESET:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		peer.fsm.idleHoldTime = peer.conf.Timers.TimersConfig.IdleHoldTimeAfterReset
-		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
-		grpcReq.ResponseCh <- &GrpcResponse{}
-		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
-		msgs = server.propagateUpdate(peer, pathList)
-
-		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
-			grpcReq.ResponseCh <- &GrpcResponse{}
-			close(grpcReq.ResponseCh)
-			break
-		}
-		fallthrough
-	case REQ_NEIGHBOR_SOFT_RESET_OUT:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		pathList := peer.adjRib.GetOutPathList(grpcReq.RouteFamily)
-		msgList := table.CreateUpdateMsgFromPaths(pathList)
-		msgs = []*SenderMsg{newSenderMsg(peer, msgList)}
-		grpcReq.ResponseCh <- &GrpcResponse{}
-		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE:
-		peer, err1 := server.checkNeighborRequest(grpcReq)
-		if err1 != nil {
-			break
-		}
-		var err api.Error
-		result := &GrpcResponse{}
-		if grpcReq.RequestType == REQ_NEIGHBOR_ENABLE {
-			select {
-			case peer.fsm.adminStateCh <- ADMIN_STATE_UP:
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.NeighborConfig.NeighborAddress,
-				}).Debug("ADMIN_STATE_UP requested")
-				err.Code = api.Error_SUCCESS
-				err.Msg = "ADMIN_STATE_UP"
-			default:
-				log.Warning("previous request is still remaining. : ", peer.conf.NeighborConfig.NeighborAddress)
-				err.Code = api.Error_FAIL
-				err.Msg = "previous request is still remaining"
-			}
-		} else {
-			select {
-			case peer.fsm.adminStateCh <- ADMIN_STATE_DOWN:
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.NeighborConfig.NeighborAddress,
-				}).Debug("ADMIN_STATE_DOWN requested")
-				err.Code = api.Error_SUCCESS
-				err.Msg = "ADMIN_STATE_DOWN"
-			default:
-				log.Warning("previous request is still remaining. : ", peer.conf.NeighborConfig.NeighborAddress)
-				err.Code = api.Error_FAIL
-				err.Msg = "previous request is still remaining"
-			}
-		}
-		result.Data = err
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_POLICY:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		loc := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-		if loc == nil {
-			result := &GrpcResponse{
-				ResponseErr: fmt.Errorf("no local rib for %s", peer.conf.NeighborConfig.NeighborAddress.String()),
-			}
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			break
-		}
-
-		extract := func(policyNames []string) []*api.PolicyDefinition {
-			pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-			df := server.routingPolicy.DefinedSets
-			extracted := []*api.PolicyDefinition{}
-			for _, policyName := range policyNames {
-				match := false
-				for _, pd := range pdList {
-					if policyName == pd.Name {
-						match = true
-						extracted = append(extracted, policy.PolicyDefinitionToApiStruct(pd, df))
-						break
-					}
-				}
-				if !match {
-					extracted = append(extracted, &api.PolicyDefinition{PolicyDefinitionName: policyName})
-				}
-			}
-			return extracted
-		}
-
-		// Add importpolies that has been set in the configuration file to the list.
-		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conImportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
-		resImportPolicies := extract(conImportPolicyNames)
-
-		// Add importpolies that has been set in the configuration file to the list.
-		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conExportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
-		resExportPolicies := extract(conExportPolicyNames)
-
-		inPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
-		resInPolicies := extract(inPolicyNames)
-
-		defaultImportPolicy := policy.ROUTE_REJECT
-		defaultExportPolicy := policy.ROUTE_REJECT
-		defaultInPolicy := policy.ROUTE_REJECT
-		if loc.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			defaultImportPolicy = policy.ROUTE_ACCEPT
-		}
-		if loc.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			defaultExportPolicy = policy.ROUTE_ACCEPT
-		}
-		if peer.defaultInPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			defaultInPolicy = policy.ROUTE_ACCEPT
-		}
-		result := &GrpcResponse{
-			Data: &api.ApplyPolicy{
-				DefaultImportPolicy: defaultImportPolicy,
-				ImportPolicies:      resImportPolicies,
-				DefaultExportPolicy: defaultExportPolicy,
-				ExportPolicies:      resExportPolicies,
-				DefaultInPolicy:     defaultInPolicy,
-				InPolicies:          resInPolicies,
-			},
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_ADD_IN,
-		REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT, REQ_NEIGHBOR_POLICY_DEL_IN:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		result := &GrpcResponse{}
-		reqApplyPolicy := grpcReq.Data.(*api.ApplyPolicy)
-		reqPolicyMap := server.policyMap
-		applyPolicy := &peer.conf.ApplyPolicy.ApplyPolicyConfig
-		var defInPolicy, defOutPolicy, defDistPolicy config.DefaultPolicyType
-		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IMPORT {
-			if reqApplyPolicy.DefaultImportPolicy != policy.ROUTE_ACCEPT {
-				defInPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
-			}
-			applyPolicy.DefaultImportPolicy = defInPolicy
-			applyPolicy.ImportPolicy = policy.PoliciesToString(reqApplyPolicy.ImportPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_EXPORT {
-			if reqApplyPolicy.DefaultExportPolicy != policy.ROUTE_ACCEPT {
-				defOutPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
-			}
-			applyPolicy.DefaultExportPolicy = defOutPolicy
-			applyPolicy.ExportPolicy = policy.PoliciesToString(reqApplyPolicy.ExportPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IN {
-			if reqApplyPolicy.DefaultInPolicy != policy.ROUTE_ACCEPT {
-				defDistPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
-			}
-			applyPolicy.DefaultInPolicy = defDistPolicy
-			applyPolicy.InPolicy = policy.PoliciesToString(reqApplyPolicy.InPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IMPORT {
-			applyPolicy.DefaultImportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.ImportPolicy = make([]string, 0)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_EXPORT {
-			applyPolicy.DefaultExportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.ExportPolicy = make([]string, 0)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IN {
-			applyPolicy.DefaultInPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.InPolicy = make([]string, 0)
-		}
-
-		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IN ||
-			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IN {
-			peer.setPolicy(reqPolicyMap)
-		} else {
-			loc, ok := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-			if ok {
-				loc.setPolicy(peer, reqPolicyMap)
-			} else {
-				result.ResponseErr = fmt.Errorf("no local rib for %s", peer.conf.NeighborConfig.NeighborAddress.String())
-			}
-		}
-
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS,
-		REQ_POLICY_COMMUNITIES, REQ_POLICY_EXTCOMMUNITIES, REQ_POLICY_ROUTEPOLICIES:
-		server.handleGrpcShowPolicies(grpcReq)
-	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ASPATH,
-		REQ_POLICY_COMMUNITY, REQ_POLICY_EXTCOMMUNITY, REQ_POLICY_ROUTEPOLICY:
-		server.handleGrpcShowPolicy(grpcReq)
-	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ASPATH_ADD,
-		REQ_POLICY_COMMUNITY_ADD, REQ_POLICY_EXTCOMMUNITY_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
-		server.handleGrpcAddPolicy(grpcReq)
-	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ASPATH_DELETE,
-		REQ_POLICY_COMMUNITY_DELETE, REQ_POLICY_EXTCOMMUNITY_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
-		server.handleGrpcDelPolicy(grpcReq)
-	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ASPATHS_DELETE,
-		REQ_POLICY_COMMUNITIES_DELETE, REQ_POLICY_EXTCOMMUNITIES_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
-		server.handleGrpcDelPolicies(grpcReq)
-	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
-		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
-	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
-		server.handleMrt(grpcReq)
-	case REQ_ROA, REQ_RPKI:
-		server.roaClient.handleGRPC(grpcReq)
-	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
-		pathList := server.handleVrfRequest(grpcReq)
-		if len(pathList) > 0 {
-			msgs = server.propagateUpdate(nil, pathList)
-		}
-	default:
-		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
-		result := &GrpcResponse{
-			ResponseErr: errmsg,
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-	}
-	return msgs
-}
-
-func (server *BgpServer) handleGrpcShowPolicies(grpcReq *GrpcRequest) {
-	result := &GrpcResponse{}
-	switch grpcReq.RequestType {
-	case REQ_POLICY_PREFIXES:
-		info := server.routingPolicy.DefinedSets.PrefixSets.PrefixSetList
-		if len(info) > 0 {
-			for _, ps := range info {
-				resPrefixSet := policy.PrefixSetToApiStruct(ps)
-				pd := &api.PolicyDefinition{}
-				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchPrefixSet: resPrefixSet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy prefix doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_NEIGHBORS:
-		info := server.routingPolicy.DefinedSets.NeighborSets.NeighborSetList
-		if len(info) > 0 {
-			for _, ns := range info {
-				resNeighborSet := policy.NeighborSetToApiStruct(ns)
-				pd := &api.PolicyDefinition{}
-				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchNeighborSet: resNeighborSet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy neighbor doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_ASPATHS:
-		info := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList
-		if len(info) > 0 {
-			for _, as := range info {
-				resAsPathSet := policy.AsPathSetToApiStruct(as)
-				pd := &api.PolicyDefinition{}
-				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchAsPathSet: resAsPathSet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy aspath doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_COMMUNITIES:
-		info := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList
-		if len(info) > 0 {
-			for _, cs := range info {
-				resCommunitySet := policy.CommunitySetToApiStruct(cs)
-				pd := &api.PolicyDefinition{}
-				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchCommunitySet: resCommunitySet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy community doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_EXTCOMMUNITIES:
-		info := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList
-		if len(info) > 0 {
-			for _, es := range info {
-				resExtcommunitySet := policy.ExtCommunitySetToApiStruct(es)
-				pd := &api.PolicyDefinition{}
-				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchExtCommunitySet: resExtcommunitySet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy extended community doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_ROUTEPOLICIES:
-		info := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-		df := server.routingPolicy.DefinedSets
-		result := &GrpcResponse{}
-		if len(info) > 0 {
-			for _, pd := range info {
-				resPolicyDefinition := policy.PolicyDefinitionToApiStruct(pd, df)
-				result = &GrpcResponse{
-					Data: resPolicyDefinition,
-				}
-				grpcReq.ResponseCh <- result
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Route Policy doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	}
-	close(grpcReq.ResponseCh)
-}
-func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
-	name := grpcReq.Data.(string)
-	result := &GrpcResponse{}
-	switch grpcReq.RequestType {
-	case REQ_POLICY_PREFIX:
-		info := server.routingPolicy.DefinedSets.PrefixSets.PrefixSetList
-		resPrefixSet := &api.PrefixSet{}
-		for _, ps := range info {
-			if ps.PrefixSetName == name {
-				resPrefixSet = policy.PrefixSetToApiStruct(ps)
-				break
-			}
-		}
-		if len(resPrefixSet.PrefixList) > 0 {
-			pd := &api.PolicyDefinition{}
-			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchPrefixSet: resPrefixSet}}}
-			result = &GrpcResponse{
-				Data: pd,
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("policy prefix that has %v doesn't exist.", name)
-		}
-	case REQ_POLICY_NEIGHBOR:
-		info := server.routingPolicy.DefinedSets.NeighborSets.NeighborSetList
-		resNeighborSet := &api.NeighborSet{}
-		for _, ns := range info {
-			if ns.NeighborSetName == name {
-				resNeighborSet = policy.NeighborSetToApiStruct(ns)
-				break
-			}
-		}
-		if len(resNeighborSet.NeighborList) > 0 {
-			pd := &api.PolicyDefinition{}
-			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchNeighborSet: resNeighborSet}}}
-			result = &GrpcResponse{
-				Data: pd,
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("policy neighbor that has %v doesn't exist.", name)
-		}
-	case REQ_POLICY_ASPATH:
-		info := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList
-		resAsPathSet := &api.AsPathSet{}
-		for _, as := range info {
-			if as.AsPathSetName == name {
-				resAsPathSet = policy.AsPathSetToApiStruct(as)
-				break
-			}
-		}
-		if len(resAsPathSet.AsPathMembers) > 0 {
-			pd := &api.PolicyDefinition{}
-			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchAsPathSet: resAsPathSet}}}
-			result = &GrpcResponse{
-				Data: pd,
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("policy aspath that has %v doesn't exist.", name)
-		}
-	case REQ_POLICY_COMMUNITY:
-		info := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList
-		resCommunitySet := &api.CommunitySet{}
-		for _, cs := range info {
-			if cs.CommunitySetName == name {
-				resCommunitySet = policy.CommunitySetToApiStruct(cs)
-				break
-			}
-		}
-		if len(resCommunitySet.CommunityMembers) > 0 {
-			pd := &api.PolicyDefinition{}
-			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchCommunitySet: resCommunitySet}}}
-			result = &GrpcResponse{
-				Data: pd,
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("policy community that has %v doesn't exist.", name)
-		}
-	case REQ_POLICY_EXTCOMMUNITY:
-		info := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList
-		resExtCommunitySet := &api.ExtCommunitySet{}
-		for _, es := range info {
-			if es.ExtCommunitySetName == name {
-				resExtCommunitySet = policy.ExtCommunitySetToApiStruct(es)
-				break
-			}
-		}
-		if len(resExtCommunitySet.ExtCommunityMembers) > 0 {
-			pd := &api.PolicyDefinition{}
-			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchExtCommunitySet: resExtCommunitySet}}}
-			result = &GrpcResponse{
-				Data: pd,
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("policy extended community that has %v doesn't exist.", name)
-		}
-	case REQ_POLICY_ROUTEPOLICY:
-		info := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-		df := server.routingPolicy.DefinedSets
-		resPolicyDefinition := &api.PolicyDefinition{}
-		for _, pd := range info {
-			if pd.Name == name {
-				resPolicyDefinition = policy.PolicyDefinitionToApiStruct(pd, df)
-				break
-			}
-		}
-		if len(resPolicyDefinition.StatementList) > 0 {
-			result = &GrpcResponse{
-				Data: resPolicyDefinition,
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Route Policy that has %v doesn't  exist.", name)
-		}
-	}
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-}
-
-func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
-	result := &GrpcResponse{}
-	switch grpcReq.RequestType {
-	case REQ_POLICY_PREFIX_ADD:
-		reqPrefixSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchPrefixSet
-		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSets.PrefixSetList
-		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
-		if !isReqPrefixSet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy prefix.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same PrefixSet is not set, add PrefixSet of request to the end.
-		// If only name of the PrefixSet is same, overwrite with PrefixSet of request
-		idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
-		if idxPrefixSet == -1 {
-			conPrefixSetList = append(conPrefixSetList, prefixSet)
-		} else {
-			if idxPrefix == -1 {
-				conPrefixSetList[idxPrefixSet].PrefixList =
-					append(conPrefixSetList[idxPrefixSet].PrefixList, prefixSet.PrefixList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.PrefixSets.PrefixSetList = conPrefixSetList
-	case REQ_POLICY_NEIGHBOR_ADD:
-		reqNeighborSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchNeighborSet
-		conNeighborSetList := server.routingPolicy.DefinedSets.NeighborSets.NeighborSetList
-		isReqNeighborSet, neighborSet := policy.NeighborSetToConfigStruct(reqNeighborSet)
-		if !isReqNeighborSet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy neighbor.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same NeighborSet is not set, add NeighborSet of request to the end.
-		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
-		idxNeighborSet, idxNeighbor := policy.IndexOfNeighborSet(conNeighborSetList, neighborSet)
-		if idxNeighborSet == -1 {
-			conNeighborSetList = append(conNeighborSetList, neighborSet)
-		} else {
-			if idxNeighbor == -1 {
-				conNeighborSetList[idxNeighborSet].NeighborInfoList =
-					append(conNeighborSetList[idxNeighborSet].NeighborInfoList, neighborSet.NeighborInfoList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.NeighborSets.NeighborSetList = conNeighborSetList
-	case REQ_POLICY_ASPATH_ADD:
-		reqAsPathSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchAsPathSet
-		conAsPathSetList := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList
-		isReqAsPathSet, asPathSet := policy.AsPathSetToConfigStruct(reqAsPathSet)
-		if !isReqAsPathSet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy aspath.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same AsPathSet is not set, add AsPathSet of request to the end.
-		// If only name of the AsPathSet is same, overwrite with AsPathSet of request
-		idxAsPathSet, idxAsPath := policy.IndexOfAsPathSet(conAsPathSetList, asPathSet)
-		if idxAsPathSet == -1 {
-			conAsPathSetList = append(conAsPathSetList, asPathSet)
-		} else {
-			if idxAsPath == -1 {
-				conAsPathSetList[idxAsPathSet].AsPathList =
-					append(conAsPathSetList[idxAsPathSet].AsPathList, asPathSet.AsPathList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList = conAsPathSetList
-	case REQ_POLICY_COMMUNITY_ADD:
-		reqCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchCommunitySet
-		conCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList
-		isReqCommunitySet, communitySet := policy.CommunitySetToConfigStruct(reqCommunitySet)
-		if !isReqCommunitySet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy community.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same CommunitySet is not set, add CommunitySet of request to the end.
-		// If only name of the CommunitySet is same, overwrite with CommunitySet of request
-		idxCommunitySet, idxCommunity := policy.IndexOfCommunitySet(conCommunitySetList, communitySet)
-		if idxCommunitySet == -1 {
-			conCommunitySetList = append(conCommunitySetList, communitySet)
-		} else {
-			if idxCommunity == -1 {
-				conCommunitySetList[idxCommunitySet].CommunityList =
-					append(conCommunitySetList[idxCommunitySet].CommunityList, communitySet.CommunityList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList = conCommunitySetList
-	case REQ_POLICY_EXTCOMMUNITY_ADD:
-		reqExtCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchExtCommunitySet
-		conExtCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList
-		isReqExtCommunitySet, extCommunitySet := policy.ExtCommunitySetToConfigStruct(reqExtCommunitySet)
-		if !isReqExtCommunitySet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy extended community.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same ExtCommunitySet is not set, add ExtCommunitySet of request to the end.
-		// If only name of the ExtCommunitySet is same, overwrite with ExtCommunitySet of request
-		idxExtCommunitySet, idxExtCommunity := policy.IndexOfExtCommunitySet(conExtCommunitySetList, extCommunitySet)
-		if idxExtCommunitySet == -1 {
-			conExtCommunitySetList = append(conExtCommunitySetList, extCommunitySet)
-		} else {
-			if idxExtCommunity == -1 {
-				conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList =
-					append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList, extCommunitySet.ExtCommunityList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList = conExtCommunitySetList
-	case REQ_POLICY_ROUTEPOLICY_ADD:
-		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
-		reqConditions := reqPolicy.StatementList[0].Conditions
-		reqActions := reqPolicy.StatementList[0].Actions
-		conPolicyList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-		_, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
-		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
-		if idxPolicy == -1 {
-			conPolicyList = append(conPolicyList, policyDef)
-		} else {
-			statement := policyDef.Statements.StatementList[0]
-			if idxStatement == -1 {
-				conPolicyList[idxPolicy].Statements.StatementList =
-					append(conPolicyList[idxPolicy].Statements.StatementList, statement)
-			} else {
-				conConditions := &conPolicyList[idxPolicy].Statements.StatementList[idxStatement].Conditions
-				conActions := &conPolicyList[idxPolicy].Statements.StatementList[idxStatement].Actions
-				if reqConditions.MatchPrefixSet != nil {
-					conConditions.MatchPrefixSet = statement.Conditions.MatchPrefixSet
-				}
-				if reqConditions.MatchNeighborSet != nil {
-					conConditions.MatchNeighborSet = statement.Conditions.MatchNeighborSet
-				}
-				if reqConditions.MatchAsPathSet != nil {
-					conConditions.BgpConditions.MatchAsPathSet = statement.Conditions.BgpConditions.MatchAsPathSet
-				}
-				if reqConditions.MatchCommunitySet != nil {
-					conConditions.BgpConditions.MatchCommunitySet = statement.Conditions.BgpConditions.MatchCommunitySet
-				}
-				if reqConditions.MatchExtCommunitySet != nil {
-					conConditions.BgpConditions.MatchExtCommunitySet = statement.Conditions.BgpConditions.MatchExtCommunitySet
-				}
-				if reqConditions.MatchAsPathLength != nil {
-					conConditions.BgpConditions.AsPathLength = statement.Conditions.BgpConditions.AsPathLength
-				}
-				if reqActions.RouteAction != "" {
-					conActions.RouteDisposition.AcceptRoute = statement.Actions.RouteDisposition.AcceptRoute
-					conActions.RouteDisposition.RejectRoute = statement.Actions.RouteDisposition.RejectRoute
-				}
-				if reqActions.Community != nil {
-					conActions.BgpActions.SetCommunity = statement.Actions.BgpActions.SetCommunity
-				}
-				if reqActions.Med != "" {
-					conActions.BgpActions.SetMed = statement.Actions.BgpActions.SetMed
-				}
-				if reqActions.AsPrepend != nil {
-					conActions.BgpActions.SetAsPathPrepend = statement.Actions.BgpActions.SetAsPathPrepend
-				}
-			}
-		}
-		server.routingPolicy.PolicyDefinitions.PolicyDefinitionList = conPolicyList
-	}
-	server.handlePolicy(server.routingPolicy)
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-}
-
-func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
-	result := &GrpcResponse{}
-	switch grpcReq.RequestType {
-	case REQ_POLICY_PREFIX_DELETE:
-		reqPrefixSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchPrefixSet
-		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSets.PrefixSetList
-		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
-		if isReqPrefixSet {
-			// If only name of the PrefixSet is same, delete all of the elements of the PrefixSet.
-			// If the same element PrefixSet, delete the it's element from PrefixSet.
-			idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
-			prefix := prefixSet.PrefixList[0]
-			if idxPrefixSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v %v doesn't exist.", prefixSet.PrefixSetName,
-					prefix.IpPrefix, prefix.MasklengthRange)
-			} else {
-				if idxPrefix == -1 {
-					result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v %v doesn't exist.", prefixSet.PrefixSetName,
-						prefix.IpPrefix, prefix.MasklengthRange)
-				} else {
-					conPrefixSetList[idxPrefixSet].PrefixList =
-						append(conPrefixSetList[idxPrefixSet].PrefixList[:idxPrefix], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:]...)
-				}
-			}
-		} else {
-			idxPrefixSet := -1
-			for i, conPrefixSet := range conPrefixSetList {
-				if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
-					idxPrefixSet = i
-					break
-				}
-			}
-			if idxPrefixSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy prefix that has %v doesn't exist.", prefixSet.PrefixSetName)
-			} else {
-				conPrefixSetList = append(conPrefixSetList[:idxPrefixSet], conPrefixSetList[idxPrefixSet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.PrefixSets.PrefixSetList = conPrefixSetList
-	case REQ_POLICY_NEIGHBOR_DELETE:
-		reqNeighborSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchNeighborSet
-		conNeighborSetList := server.routingPolicy.DefinedSets.NeighborSets.NeighborSetList
-		isReqNeighborSet, neighborSet := policy.NeighborSetToConfigStruct(reqNeighborSet)
-		if isReqNeighborSet {
-			// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
-			// If the same element NeighborSet, delete the it's element from NeighborSet.
-			idxNeighborSet, idxNeighbor := policy.IndexOfNeighborSet(conNeighborSetList, neighborSet)
-			if idxNeighborSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
-					neighborSet.NeighborInfoList[0].Address)
-			} else {
-				if idxNeighbor == -1 {
-					result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
-						neighborSet.NeighborInfoList[0].Address)
-				} else {
-					conNeighborSetList[idxNeighborSet].NeighborInfoList =
-						append(conNeighborSetList[idxNeighborSet].NeighborInfoList[:idxNeighbor],
-							conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:]...)
-				}
-			}
-		} else {
-			idxNeighborSet := -1
-			for i, conNeighborSet := range conNeighborSetList {
-				if conNeighborSet.NeighborSetName == reqNeighborSet.NeighborSetName {
-					idxNeighborSet = i
-					break
-				}
-			}
-			if idxNeighborSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy neighbor %v doesn't  exist.", neighborSet.NeighborSetName)
-			} else {
-				conNeighborSetList = append(conNeighborSetList[:idxNeighborSet], conNeighborSetList[idxNeighborSet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.NeighborSets.NeighborSetList = conNeighborSetList
-	case REQ_POLICY_ASPATH_DELETE:
-		reqAsPathSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchAsPathSet
-		conAsPathSetList := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList
-		result := &GrpcResponse{}
-		isReqAsPathSet, asPathSet := policy.AsPathSetToConfigStruct(reqAsPathSet)
-		// If only name of the AsPathSet is same, delete all of the elements of the AsPathSet.
-		// If the same element AsPathSet, delete the it's element from AsPathSet.
-		idxAsPathSet, idxAsPath := policy.IndexOfAsPathSet(conAsPathSetList, asPathSet)
-		if isReqAsPathSet {
-			if idxAsPathSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", asPathSet.AsPathSetName,
-					asPathSet.AsPathList[0].AsPath)
-			} else {
-				if idxAsPath == -1 {
-					result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", asPathSet.AsPathSetName,
-						asPathSet.AsPathList[0].AsPath)
-				} else {
-					conAsPathSetList[idxAsPathSet].AsPathList =
-						append(conAsPathSetList[idxAsPathSet].AsPathList[:idxAsPath],
-							conAsPathSetList[idxAsPathSet].AsPathList[idxAsPath+1:]...)
-				}
-			}
-		} else {
-			if idxAsPathSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy aspath %v doesn't  exist.", asPathSet.AsPathSetName)
-			} else {
-				conAsPathSetList = append(conAsPathSetList[:idxAsPathSet], conAsPathSetList[idxAsPathSet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList = conAsPathSetList
-	case REQ_POLICY_COMMUNITY_DELETE:
-		reqCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchCommunitySet
-		conCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList
-		isReqCommunitySet, CommunitySet := policy.CommunitySetToConfigStruct(reqCommunitySet)
-		// If only name of the CommunitySet is same, delete all of the elements of the CommunitySet.
-		// If the same element CommunitySet, delete the it's element from CommunitySet.
-		idxCommunitySet, idxCommunity := policy.IndexOfCommunitySet(conCommunitySetList, CommunitySet)
-		if isReqCommunitySet {
-			if idxCommunitySet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy community that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
-					CommunitySet.CommunityList[0].Community)
-			} else {
-				if idxCommunity == -1 {
-					result.ResponseErr = fmt.Errorf("Policy community that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
-						CommunitySet.CommunityList[0].Community)
-				} else {
-					conCommunitySetList[idxCommunitySet].CommunityList =
-						append(conCommunitySetList[idxCommunitySet].CommunityList[:idxCommunity],
-							conCommunitySetList[idxCommunitySet].CommunityList[idxCommunity+1:]...)
-				}
-			}
-		} else {
-			if idxCommunitySet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy community %v doesn't  exist.", CommunitySet.CommunitySetName)
-			} else {
-				conCommunitySetList = append(conCommunitySetList[:idxCommunitySet], conCommunitySetList[idxCommunitySet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList = conCommunitySetList
-	case REQ_POLICY_EXTCOMMUNITY_DELETE:
-		reqExtCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchExtCommunitySet
-		conExtCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList
-		isReqExtCommunitySet, ExtCommunitySet := policy.ExtCommunitySetToConfigStruct(reqExtCommunitySet)
-		// If only name of the ExtCommunitySet is same, delete all of the elements of the ExtCommunitySet.
-		// If the same element ExtCommunitySet, delete the it's element from ExtCommunitySet.
-		idxExtCommunitySet, idxExtCommunity := policy.IndexOfExtCommunitySet(conExtCommunitySetList, ExtCommunitySet)
-		if isReqExtCommunitySet {
-			if idxExtCommunitySet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy extended community that has %v %v doesn't exist.",
-					ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityList[0].ExtCommunity)
-			} else {
-				if idxExtCommunity == -1 {
-					result.ResponseErr = fmt.Errorf("Policy extended community that has %v %v doesn't exist.",
-						ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityList[0].ExtCommunity)
-				} else {
-					conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList =
-						append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList[:idxExtCommunity],
-							conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList[idxExtCommunity+1:]...)
-				}
-			}
-		} else {
-			if idxExtCommunitySet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy extended community %v doesn't  exist.",
-					ExtCommunitySet.ExtCommunitySetName)
-			} else {
-				conExtCommunitySetList =
-					append(conExtCommunitySetList[:idxExtCommunitySet], conExtCommunitySetList[idxExtCommunitySet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList = conExtCommunitySetList
-	case REQ_POLICY_ROUTEPOLICY_DELETE:
-		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
-		conPolicyList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-		isStatement, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
-		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
-		if isStatement {
-			if idxPolicy == -1 {
-				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
-			} else {
-				if idxStatement == -1 {
-					result.ResponseErr = fmt.Errorf("Policy Statment that has %v doesn't exist.", policyDef.Statements.StatementList[0].Name)
-				} else {
-					conPolicyList[idxPolicy].Statements.StatementList =
-						append(conPolicyList[idxPolicy].Statements.StatementList[:idxStatement], conPolicyList[idxPolicy].Statements.StatementList[idxStatement+1:]...)
-				}
-			}
-		} else {
-			idxPolicy := -1
-			for i, conPolicy := range conPolicyList {
-				if conPolicy.Name == reqPolicy.PolicyDefinitionName {
-					idxPolicy = i
-					break
-				}
-			}
-			if idxPolicy == -1 {
-				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
-			} else {
-				conPolicyList = append(conPolicyList[:idxPolicy], conPolicyList[idxPolicy+1:]...)
-			}
-		}
-		server.routingPolicy.PolicyDefinitions.PolicyDefinitionList = conPolicyList
-	}
-	server.handlePolicy(server.routingPolicy)
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-}
-
-func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
-	result := &GrpcResponse{}
-	definedSets := &server.routingPolicy.DefinedSets
-	switch grpcReq.RequestType {
-	case REQ_POLICY_PREFIXES_DELETE:
-		definedSets.PrefixSets.PrefixSetList = make([]config.PrefixSet, 0)
-	case REQ_POLICY_NEIGHBORS_DELETE:
-		definedSets.NeighborSets.NeighborSetList = make([]config.NeighborSet, 0)
-	case REQ_POLICY_ASPATHS_DELETE:
-		definedSets.BgpDefinedSets.AsPathSets.AsPathSetList = make([]config.AsPathSet, 0)
-	case REQ_POLICY_COMMUNITIES_DELETE:
-		definedSets.BgpDefinedSets.CommunitySets.CommunitySetList = make([]config.CommunitySet, 0)
-	case REQ_POLICY_EXTCOMMUNITIES_DELETE:
-		definedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList = make([]config.ExtCommunitySet, 0)
-	case REQ_POLICY_ROUTEPOLICIES_DELETE:
-		server.routingPolicy.PolicyDefinitions.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
-	}
-	server.handlePolicy(server.routingPolicy)
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-}
-
-func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
-	now := uint32(time.Now().Unix())
-	view := ""
-	result := &GrpcResponse{}
-	var manager *table.TableManager
-
-	switch grpcReq.RequestType {
-	case REQ_MRT_GLOBAL_RIB:
-		manager = server.localRibMap[GLOBAL_RIB_NAME].rib
-	case REQ_MRT_LOCAL_RIB:
-		_, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			return
-		}
-		loc, ok := server.localRibMap[grpcReq.Name]
-		if !ok {
-			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.Name)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return
-		}
-		manager = loc.rib
-		view = grpcReq.Name
-	}
-
-	msg, err := server.mkMrtPeerIndexTableMsg(now, view)
-	if err != nil {
-		result.ResponseErr = fmt.Errorf("failed to make new mrt peer index table message: %s", err)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-	data, err := msg.Serialize()
-	if err != nil {
-		result.ResponseErr = fmt.Errorf("failed to serialize table: %s", err)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-
-	tbl, ok := manager.Tables[grpcReq.RouteFamily]
-	if !ok {
-		result.ResponseErr = fmt.Errorf("unsupported route family: %s", grpcReq.RouteFamily)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-
-	msgs, err := server.mkMrtRibMsgs(tbl, now)
-	if err != nil {
-		result.ResponseErr = fmt.Errorf("failed to make new mrt rib message: %s", err)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-	for _, msg := range msgs {
-		d, err := msg.Serialize()
-		if err != nil {
-			result.ResponseErr = fmt.Errorf("failed to serialize rib msg: %s", err)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return
-		}
-		data = append(data, d...)
-	}
-
-	result.Data = &api.MrtMessage{
-		Data: data,
-	}
-
-	select {
-	case <-grpcReq.EndCh:
-		return
-	default:
-	}
-
-	m := &broadcastGrpcMsg{
-		req:    grpcReq,
-		result: result,
-	}
-
-	interval := int64(grpcReq.Data.(uint64))
-	if interval > 0 {
-		go func() {
-			t := time.NewTimer(time.Second * time.Duration(interval))
-			<-t.C
-			server.GrpcReqCh <- grpcReq
-		}()
-	} else {
-		m.done = true
-	}
-	server.broadcastMsgs = append(server.broadcastMsgs, m)
-
-	return
-}
-
-func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*bgp.MRTMessage, error) {
-	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
-	for _, peer := range server.neighborMap {
-		id := peer.peerInfo.ID.To4().String()
-		ipaddr := peer.conf.NeighborConfig.NeighborAddress.String()
-		asn := peer.conf.NeighborConfig.PeerAs
-		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
-	}
-	bgpid := server.bgpConfig.Global.GlobalConfig.RouterId.To4().String()
-	table := bgp.NewPeerIndexTable(bgpid, view, peers)
-	return bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, bgp.PEER_INDEX_TABLE, table)
-}
-
-func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMessage, error) {
-	getPeerIndex := func(info *table.PeerInfo) uint16 {
-		var idx uint16
-		for _, peer := range server.neighborMap {
-			if peer.peerInfo.Equal(info) {
-				return idx
-			}
-			idx++
-		}
-		return idx
-	}
-
-	var subtype bgp.MRTSubTypeTableDumpv2
-
-	switch tbl.GetRoutefamily() {
-	case bgp.RF_IPv4_UC:
-		subtype = bgp.RIB_IPV4_UNICAST
-	case bgp.RF_IPv4_MC:
-		subtype = bgp.RIB_IPV4_MULTICAST
-	case bgp.RF_IPv6_UC:
-		subtype = bgp.RIB_IPV6_UNICAST
-	case bgp.RF_IPv6_MC:
-		subtype = bgp.RIB_IPV6_MULTICAST
-	default:
-		subtype = bgp.RIB_GENERIC
-	}
-
-	var seq uint32
-	msgs := make([]*bgp.MRTMessage, 0, len(tbl.GetDestinations()))
-	for _, dst := range tbl.GetDestinations() {
-		l := dst.GetKnownPathList()
-		entries := make([]*bgp.RibEntry, 0, len(l))
-		for _, p := range l {
-			// mrt doesn't assume to dump locally generated routes
-			if p.IsLocal() {
-				continue
-			}
-			idx := getPeerIndex(p.GetSource())
-			e := bgp.NewRibEntry(idx, uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
-			entries = append(entries, e)
-		}
-		// if dst only contains locally generated routes, ignore it
-		if len(entries) == 0 {
-			continue
-		}
-		rib := bgp.NewRib(seq, dst.GetNlri(), entries)
-		seq++
-		msg, err := bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, subtype, rib)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, msg)
-	}
-	return msgs, nil
-}
-
-func (server *BgpServer) NewZclient(url string) error {
-	l := strings.SplitN(url, ":", 2)
-	if len(l) != 2 {
-		return fmt.Errorf("unsupported url: %s", url)
-	}
-	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP)
+func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
+	peers, err := s.addrToPeers(addr)
 	if err != nil {
 		return err
 	}
-	cli.SendHello()
-	cli.SendRouterIDAdd()
-	cli.SendInterfaceAdd()
-	cli.SendRedistribute()
-	server.zclient = cli
+	for _, peer := range peers {
+		pathList := []*table.Path{}
+		families := []bgp.RouteFamily{family}
+		if family == bgp.RouteFamily(0) {
+			families = peer.configuredRFlist()
+		}
+		for _, path := range peer.adjRibIn.PathList(families, false) {
+			exResult := path.Filtered(peer.ID())
+			path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
+			if s.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
+				pathList = append(pathList, path.Clone(false))
+				// this path still in rib's
+				// knownPathList. We can't
+				// drop
+				// table.POLICY_DIRECTION_IMPORT
+				// flag here. Otherwise, this
+				// path could be the old best
+				// path.
+				if peer.isRouteServerClient() {
+					path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+				}
+			} else {
+				path.Filter(peer.ID(), table.POLICY_DIRECTION_IN)
+				if exResult != table.POLICY_DIRECTION_IN {
+					pathList = append(pathList, path.Clone(true))
+				}
+			}
+		}
+		peer.adjRibIn.RefreshAcceptedNumber(families)
+		s.propagateUpdate(peer, pathList)
+	}
+	return err
+}
+
+func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral bool) error {
+	peers, err := s.addrToPeers(addr)
+	if err != nil {
+		return err
+	}
+	for _, peer := range peers {
+		if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+			continue
+		}
+
+		families := []bgp.RouteFamily{family}
+		if family == bgp.RouteFamily(0) {
+			families = peer.configuredRFlist()
+		}
+
+		if deferral {
+			if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+				log.WithFields(log.Fields{
+					"Topic":    "Peer",
+					"Key":      peer.ID(),
+					"Families": families,
+				}).Debug("deferral timer expired")
+			} else if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); peer.fsm.rfMap[bgp.RF_RTC_UC] && !c.MpGracefulRestart.State.EndOfRibReceived {
+				log.WithFields(log.Fields{
+					"Topic":    "Peer",
+					"Key":      peer.ID(),
+					"Families": families,
+				}).Debug("route-target deferral timer expired")
+			} else {
+				continue
+			}
+		}
+
+		pathList, filtered := peer.getBestFromLocal(families)
+		if len(pathList) > 0 {
+			sendFsmOutgoingMsg(peer, pathList, nil, false)
+		}
+		if deferral == false && len(filtered) > 0 {
+			withdrawnList := make([]*table.Path, 0, len(filtered))
+			for _, p := range filtered {
+				withdrawnList = append(withdrawnList, p.Clone(true))
+			}
+			sendFsmOutgoingMsg(peer, withdrawnList, nil, false)
+		}
+	}
 	return nil
+}
+
+func (s *BgpServer) SoftResetIn(addr string, family bgp.RouteFamily) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	log.WithFields(log.Fields{
+		"Topic": "Operation",
+		"Key":   addr,
+	}).Info("Neighbor soft reset in")
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		err = s.softResetIn(addr, family)
+	}
+	return err
+}
+
+func (s *BgpServer) SoftResetOut(addr string, family bgp.RouteFamily) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	log.WithFields(log.Fields{
+		"Topic": "Operation",
+		"Key":   addr,
+	}).Info("Neighbor soft reset out")
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		err = s.softResetOut(addr, family, false)
+	}
+	return err
+}
+
+func (s *BgpServer) SoftReset(addr string, family bgp.RouteFamily) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	log.WithFields(log.Fields{
+		"Topic": "Operation",
+		"Key":   addr,
+	}).Info("Neighbor soft reset")
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		err = s.softResetIn(addr, family)
+		err = s.softResetOut(addr, family, false)
+	}
+	return err
+}
+
+func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		m := s.globalRib
+		id := table.GLOBAL_RIB_NAME
+		if len(addr) > 0 {
+			peer, ok := s.neighborMap[addr]
+			if !ok {
+				err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+				return
+			}
+			if !peer.isRouteServerClient() {
+				err = fmt.Errorf("Neighbor %v doesn't have local rib", addr)
+				return
+			}
+			id = peer.ID()
+		}
+		af := bgp.RouteFamily(family)
+		tbl, ok := m.Tables[af]
+		if !ok {
+			err = fmt.Errorf("address family: %s not supported", af)
+			return
+		}
+		rib, err = tbl.Select(table.TableSelectOption{ID: id, LookupPrefixes: prefixes})
+	}
+	return
+}
+
+func (s *BgpServer) GetVrfRib(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		m := s.globalRib
+		vrfs := m.Vrfs
+		if _, ok := vrfs[name]; !ok {
+			err = fmt.Errorf("vrf %s not found", name)
+			return
+		}
+		var af bgp.RouteFamily
+		switch family {
+		case bgp.RF_IPv4_UC:
+			af = bgp.RF_IPv4_VPN
+		case bgp.RF_IPv6_UC:
+			af = bgp.RF_IPv6_VPN
+		case bgp.RF_EVPN:
+			af = bgp.RF_EVPN
+		}
+		tbl, ok := m.Tables[af]
+		if !ok {
+			err = fmt.Errorf("address family: %s not supported", af)
+			return
+		}
+		rib, err = tbl.Select(table.TableSelectOption{VRF: vrfs[name], LookupPrefixes: prefixes})
+	}
+	return
+}
+
+func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		peer, ok := s.neighborMap[addr]
+		if !ok {
+			err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return
+		}
+		id := peer.TableID()
+
+		var adjRib *table.AdjRib
+		if in {
+			adjRib = peer.adjRibIn
+		} else {
+			adjRib = table.NewAdjRib(peer.ID(), peer.configuredRFlist())
+			accepted, _ := peer.getBestFromLocal(peer.configuredRFlist())
+			adjRib.Update(accepted)
+		}
+		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, LookupPrefixes: prefixes})
+	}
+	return
+}
+
+func (s *BgpServer) GetRibInfo(addr string, family bgp.RouteFamily) (info *table.TableInfo, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		m := s.globalRib
+		id := table.GLOBAL_RIB_NAME
+		if len(addr) > 0 {
+			peer, ok := s.neighborMap[addr]
+			if !ok {
+				err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+				return
+			}
+			if !peer.isRouteServerClient() {
+				err = fmt.Errorf("Neighbor %v doesn't have local rib", addr)
+				return
+			}
+			id = peer.ID()
+		}
+		info, err = m.TableInfo(id, family)
+	}
+	return
+}
+
+func (s *BgpServer) GetAdjRibInfo(addr string, family bgp.RouteFamily, in bool) (info *table.TableInfo, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		peer, ok := s.neighborMap[addr]
+		if !ok {
+			err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return
+		}
+
+		var adjRib *table.AdjRib
+		if in {
+			adjRib = peer.adjRibIn
+		} else {
+			adjRib = table.NewAdjRib(peer.ID(), peer.configuredRFlist())
+			accepted, _ := peer.getBestFromLocal(peer.configuredRFlist())
+			adjRib.Update(accepted)
+		}
+		info, err = adjRib.TableInfo(family)
+	}
+	return
+}
+
+func (s *BgpServer) GetServer() (c *config.Global) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		g := s.bgpConfig.Global
+		c = &g
+	}
+	return c
+}
+
+func (s *BgpServer) GetNeighbor(getAdvertised bool) (l []*config.Neighbor) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = make([]*config.Neighbor, 0, len(s.neighborMap))
+		for _, peer := range s.neighborMap {
+			l = append(l, peer.ToConfig(getAdvertised))
+		}
+	}
+	return l
+}
+
+func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
+
+	if err := config.SetDefaultNeighborConfigValues(c, server.bgpConfig.Global.Config.As); err != nil {
+		return err
+	}
+
+	addr := c.Config.NeighborAddress
+	if _, y := server.neighborMap[addr]; y {
+		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
+	}
+
+	if vrf := c.Config.Vrf; vrf != "" {
+		if c.RouteServer.Config.RouteServerClient {
+			return fmt.Errorf("route server client can't be enslaved to VRF")
+		}
+		families, _ := config.AfiSafis(c.AfiSafis).ToRfList()
+		for _, f := range families {
+			if f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC {
+				return fmt.Errorf("%s is not supported for VRF enslaved neighbor", f)
+			}
+		}
+		_, y := server.globalRib.Vrfs[vrf]
+		if !y {
+			return fmt.Errorf("VRF not found: %s", vrf)
+		}
+	}
+
+	if c.RouteServer.Config.RouteServerClient && c.RouteReflector.Config.RouteReflectorClient {
+		return fmt.Errorf("can't be both route-server-client and route-reflector-client")
+	}
+
+	if server.bgpConfig.Global.Config.Port > 0 {
+		for _, l := range server.Listeners(addr) {
+			if err := SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword); err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("failed to set md5 %s %s", addr, err)
+			} else {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("successfully set md5 %s", addr)
+			}
+		}
+	}
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+	}).Infof("Add a peer configuration for:%s", addr)
+
+	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
+	server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
+	if peer.isRouteServerClient() {
+		pathList := make([]*table.Path, 0)
+		rfList := peer.configuredRFlist()
+		for _, p := range server.neighborMap {
+			if !p.isRouteServerClient() {
+				continue
+			}
+			pathList = append(pathList, p.getAccepted(rfList)...)
+		}
+		moded := server.RSimportPaths(peer, pathList)
+		if len(moded) > 0 {
+			server.globalRib.ProcessPaths(nil, moded)
+		}
+	}
+	server.neighborMap[addr] = peer
+	peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
+	server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE)
+	return nil
+}
+
+func (s *BgpServer) AddNeighbor(c *config.Neighbor) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		if err = s.active(); err != nil {
+			return
+		}
+		err = s.addNeighbor(c)
+	}
+	return err
+}
+
+func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
+	addr := c.Config.NeighborAddress
+	if intf := c.Config.NeighborInterface; intf != "" {
+		var err error
+		addr, err = config.GetIPv6LinkLocalNeighborAddress(intf)
+		if err != nil {
+			return err
+		}
+	}
+	n, y := server.neighborMap[addr]
+	if !y {
+		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
+	}
+	for _, l := range server.Listeners(addr) {
+		SetTcpMD5SigSockopts(l, addr, "")
+	}
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+	}).Infof("Delete a peer configuration for:%s", addr)
+
+	n.fsm.sendNotification(code, subcode, nil, "")
+	n.stopPeerRestarting()
+
+	go func(addr string) {
+		failed := false
+		t1 := time.AfterFunc(time.Minute*5, func() {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Warnf("Failed to free the fsm.h.t for %s", addr)
+			failed = true
+		})
+		n.fsm.h.t.Kill(nil)
+		n.fsm.h.t.Wait()
+		t1.Stop()
+		if !failed {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Debug("freed fsm.h.t")
+			cleanInfiniteChannel(n.outgoing)
+		}
+		failed = false
+		t2 := time.AfterFunc(time.Minute*5, func() {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Warnf("Failed to free the fsm.t for %s", addr)
+			failed = true
+		})
+		n.fsm.t.Kill(nil)
+		n.fsm.t.Wait()
+		t2.Stop()
+		if !failed {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Debug("freed fsm.t")
+		}
+	}(addr)
+	delete(server.neighborMap, addr)
+	server.dropPeerAllRoutes(n, n.configuredRFlist())
+	return nil
+}
+
+func (s *BgpServer) DeleteNeighbor(c *config.Neighbor) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
+	}
+	return err
+}
+
+func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		addr := c.Config.NeighborAddress
+		peer, ok := s.neighborMap[addr]
+		if !ok {
+			err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return
+		}
+
+		if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Info("Update ApplyPolicy")
+			s.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
+			peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
+			policyUpdated = true
+		}
+		original := peer.fsm.pConf
+
+		if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) || config.CheckAfiSafisChange(original.AfiSafis, c.AfiSafis) {
+			sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
+			if original.Config.AdminDown != c.Config.AdminDown {
+				sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
+				state := "Admin Down"
+				if c.Config.AdminDown == false {
+					state = "Admin Up"
+				}
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.ID(),
+					"State": state,
+				}).Info("update admin-state configuration")
+			} else if original.Config.PeerAs != c.Config.PeerAs {
+				sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
+			}
+			if err = s.deleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+				}).Error(err)
+				return
+			}
+			err = s.addNeighbor(c)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+				}).Error(err)
+			}
+			return
+		}
+
+		if !original.Timers.Config.Equal(&c.Timers.Config) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID(),
+			}).Info("update timer configuration")
+			peer.fsm.pConf.Timers.Config = c.Timers.Config
+		}
+
+		err = peer.updatePrefixLimitConfig(c.AfiSafis)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Error(err)
+			// rollback to original state
+			peer.fsm.pConf = original
+		}
+	}
+	return policyUpdated, err
+}
+
+func (s *BgpServer) addrToPeers(addr string) (l []*Peer, err error) {
+	if len(addr) == 0 {
+		for _, p := range s.neighborMap {
+			l = append(l, p)
+		}
+		return l, nil
+	}
+	peer, found := s.neighborMap[addr]
+	if !found {
+		return l, fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+	}
+	return []*Peer{peer}, nil
+}
+
+func (s *BgpServer) resetNeighbor(op, addr string, subcode uint8) error {
+	log.WithFields(log.Fields{
+		"Topic": "Operation",
+		"Key":   addr,
+	}).Info(op)
+
+	peers, err := s.addrToPeers(addr)
+	if err == nil {
+		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, nil)
+		for _, peer := range peers {
+			sendFsmOutgoingMsg(peer, nil, m, false)
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) ShutdownNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.resetNeighbor("Neighbor shutdown", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN)
+	}
+	return err
+}
+
+func (s *BgpServer) ResetNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.resetNeighbor("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET)
+		if err == nil {
+			peers, _ := s.addrToPeers(addr)
+			for _, peer := range peers {
+				peer.fsm.idleHoldTime = peer.fsm.pConf.Timers.Config.IdleHoldTimeAfterReset
+			}
+
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) setAdminState(addr string, enable bool) error {
+	peers, err := s.addrToPeers(addr)
+	if err == nil {
+		for _, peer := range peers {
+			f := func(state AdminState, message string) {
+				select {
+				case peer.fsm.adminStateCh <- state:
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.fsm.pConf.Config.NeighborAddress,
+					}).Debug(message)
+				default:
+					log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
+				}
+			}
+			if enable {
+				f(ADMIN_STATE_UP, "ADMIN_STATE_UP requested")
+			} else {
+				f(ADMIN_STATE_DOWN, "ADMIN_STATE_DOWN requested")
+			}
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) EnableNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.setAdminState(addr, true)
+	}
+	return err
+}
+
+func (s *BgpServer) DisableNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.setAdminState(addr, false)
+	}
+	return err
+}
+
+func (s *BgpServer) GetDefinedSet(typ table.DefinedType) (sets *config.DefinedSets, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		sets, err = s.policy.GetDefinedSet(typ)
+	}
+	return sets, err
+}
+
+func (s *BgpServer) AddDefinedSet(a table.DefinedSet) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.AddDefinedSet(a)
+	}
+	return err
+}
+
+func (s *BgpServer) DeleteDefinedSet(a table.DefinedSet, all bool) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.DeleteDefinedSet(a, all)
+	}
+	return err
+}
+
+func (s *BgpServer) ReplaceDefinedSet(a table.DefinedSet) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.ReplaceDefinedSet(a)
+	}
+	return err
+}
+
+func (s *BgpServer) GetStatement() (l []*config.Statement) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = s.policy.GetStatement()
+	}
+	return l
+}
+
+func (s *BgpServer) AddStatement(st *table.Statement) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.AddStatement(st)
+	}
+	return err
+}
+
+func (s *BgpServer) DeleteStatement(st *table.Statement, all bool) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.DeleteStatement(st, all)
+	}
+	return err
+}
+
+func (s *BgpServer) ReplaceStatement(st *table.Statement) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.ReplaceStatement(st)
+	}
+	return err
+}
+
+func (s *BgpServer) GetPolicy() (l []*config.PolicyDefinition) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = s.policy.GetAllPolicy()
+	}
+	return l
+}
+
+func (s *BgpServer) AddPolicy(x *table.Policy, refer bool) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.AddPolicy(x, refer)
+	}
+	return err
+}
+
+func (s *BgpServer) DeletePolicy(x *table.Policy, all, preserve bool) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l := make([]string, 0, len(s.neighborMap)+1)
+		for _, peer := range s.neighborMap {
+			l = append(l, peer.ID())
+		}
+		l = append(l, table.GLOBAL_RIB_NAME)
+
+		err = s.policy.DeletePolicy(x, all, preserve, l)
+
+	}
+	return err
+}
+
+func (s *BgpServer) ReplacePolicy(x *table.Policy, refer, preserve bool) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.policy.ReplacePolicy(x, refer, preserve)
+	}
+	return err
+}
+
+func (server *BgpServer) toPolicyInfo(name string, dir table.PolicyDirection) (string, error) {
+	if name == "" {
+		switch dir {
+		case table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT:
+			return table.GLOBAL_RIB_NAME, nil
+		}
+		return "", fmt.Errorf("invalid policy type")
+	} else {
+		peer, ok := server.neighborMap[name]
+		if !ok {
+			return "", fmt.Errorf("not found peer %s", name)
+		}
+		if !peer.isRouteServerClient() {
+			return "", fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", name)
+		}
+		return peer.ID(), nil
+	}
+}
+
+func (s *BgpServer) GetPolicyAssignment(name string, dir table.PolicyDirection) (rt table.RouteType, l []*config.PolicyDefinition, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		var id string
+		id, err = s.toPolicyInfo(name, dir)
+		if err != nil {
+			rt = table.ROUTE_TYPE_NONE
+		} else {
+			rt, l, err = s.policy.GetPolicyAssignment(id, dir)
+		}
+	}
+	return rt, l, err
+}
+
+func (s *BgpServer) AddPolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, def table.RouteType) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		var id string
+		id, err = s.toPolicyInfo(name, dir)
+		if err != nil {
+			return
+		}
+		err = s.policy.AddPolicyAssignment(id, dir, policies, def)
+	}
+	return err
+}
+
+func (s *BgpServer) DeletePolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, all bool) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		var id string
+		id, err = s.toPolicyInfo(name, dir)
+		if err != nil {
+			return
+		}
+		err = s.policy.DeletePolicyAssignment(id, dir, policies, all)
+	}
+	return err
+}
+
+func (s *BgpServer) ReplacePolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, def table.RouteType) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		var id string
+		id, err = s.toPolicyInfo(name, dir)
+		if err != nil {
+			return
+		}
+		err = s.policy.ReplacePolicyAssignment(id, dir, policies, def)
+	}
+	return err
+}
+
+func (s *BgpServer) EnableMrt(c *config.MrtConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.mrtManager.enable(c)
+	}
+	return err
+}
+
+func (s *BgpServer) DisableMrt(c *config.MrtConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.mrtManager.disable(c)
+	}
+	return err
+}
+
+func (s *BgpServer) ValidateRib(prefix string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		for _, rf := range s.globalRib.GetRFlist() {
+			if t, ok := s.globalRib.Tables[rf]; ok {
+				dsts := t.GetDestinations()
+				if prefix != "" {
+					_, p, _ := net.ParseCIDR(prefix)
+					if dst := t.GetDestination(p.String()); dst != nil {
+						dsts = map[string]*table.Destination{p.String(): dst}
+					}
+				}
+				for _, dst := range dsts {
+					s.roaManager.validate(dst.GetAllKnownPathList())
+				}
+			}
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) GetRpki() (l []*config.RpkiServer, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = s.roaManager.GetServers()
+	}
+	return l, err
+}
+
+func (s *BgpServer) GetRoa(family bgp.RouteFamily) (l []*table.ROA, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l, err = s.roaManager.GetRoa(family)
+	}
+	return l, err
+}
+
+func (s *BgpServer) AddRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.AddServer(net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))), c.RecordLifetime)
+	}
+	return err
+}
+
+func (s *BgpServer) DeleteRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.DeleteServer(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) EnableRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.Enable(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) DisableRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.Disable(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) ResetRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.Reset(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) SoftResetRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.SoftReset(c.Address)
+	}
+	return err
+}
+
+type WatchEventType string
+
+const (
+	WATCH_EVENT_TYPE_BEST_PATH   WatchEventType = "bestpath"
+	WATCH_EVENT_TYPE_PRE_UPDATE  WatchEventType = "preupdate"
+	WATCH_EVENT_TYPE_POST_UPDATE WatchEventType = "postupdate"
+	WATCH_EVENT_TYPE_PEER_STATE  WatchEventType = "peerstate"
+	WATCH_EVENT_TYPE_TABLE       WatchEventType = "table"
+)
+
+type WatchEvent interface {
+}
+
+type WatchEventUpdate struct {
+	Message      *bgp.BGPMessage
+	PeerAS       uint32
+	LocalAS      uint32
+	PeerAddress  net.IP
+	LocalAddress net.IP
+	PeerID       net.IP
+	FourBytesAs  bool
+	Timestamp    time.Time
+	Payload      []byte
+	PostPolicy   bool
+	PathList     []*table.Path
+}
+
+type WatchEventPeerState struct {
+	PeerAS       uint32
+	LocalAS      uint32
+	PeerAddress  net.IP
+	LocalAddress net.IP
+	PeerPort     uint16
+	LocalPort    uint16
+	PeerID       net.IP
+	SentOpen     *bgp.BGPMessage
+	RecvOpen     *bgp.BGPMessage
+	State        bgp.FSMState
+	AdminState   AdminState
+	Timestamp    time.Time
+}
+
+type WatchEventAdjIn struct {
+	PathList []*table.Path
+}
+
+type WatchEventTable struct {
+	RouterId string
+	PathList map[string][]*table.Path
+	Neighbor []*config.Neighbor
+}
+
+type WatchEventBestPath struct {
+	PathList      []*table.Path
+	MultiPathList [][]*table.Path
+}
+
+type watchOptions struct {
+	bestpath       bool
+	preUpdate      bool
+	postUpdate     bool
+	peerState      bool
+	initUpdate     bool
+	initPostUpdate bool
+	initPeerState  bool
+	tableName      string
+}
+
+type WatchOption func(*watchOptions)
+
+func WatchBestPath() WatchOption {
+	return func(o *watchOptions) {
+		o.bestpath = true
+	}
+}
+
+func WatchUpdate(current bool) WatchOption {
+	return func(o *watchOptions) {
+		o.preUpdate = true
+		if current {
+			o.initUpdate = true
+		}
+	}
+}
+
+func WatchPostUpdate(current bool) WatchOption {
+	return func(o *watchOptions) {
+		o.postUpdate = true
+		if current {
+			o.initPostUpdate = true
+		}
+	}
+}
+
+func WatchPeerState(current bool) WatchOption {
+	return func(o *watchOptions) {
+		o.peerState = true
+		if current {
+			o.initPeerState = true
+		}
+	}
+}
+
+func WatchTableName(name string) WatchOption {
+	return func(o *watchOptions) {
+		o.tableName = name
+	}
+}
+
+type Watcher struct {
+	opts   watchOptions
+	realCh chan WatchEvent
+	ch     *channels.InfiniteChannel
+	s      *BgpServer
+}
+
+func (w *Watcher) Event() <-chan WatchEvent {
+	return w.realCh
+}
+
+func (w *Watcher) Generate(t WatchEventType) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	w.s.mgmtCh <- func() {
+		defer close(ch)
+
+		switch t {
+		case WATCH_EVENT_TYPE_PRE_UPDATE:
+			pathList := make([]*table.Path, 0)
+			for _, peer := range w.s.neighborMap {
+				pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
+			}
+			w.notify(&WatchEventAdjIn{PathList: clonePathList(pathList)})
+		case WATCH_EVENT_TYPE_TABLE:
+			id := table.GLOBAL_RIB_NAME
+			if len(w.opts.tableName) > 0 {
+				peer, ok := w.s.neighborMap[w.opts.tableName]
+				if !ok {
+					err = fmt.Errorf("Neighbor that has %v doesn't exist.", w.opts.tableName)
+					break
+				}
+				if !peer.isRouteServerClient() {
+					err = fmt.Errorf("Neighbor %v doesn't have local rib", w.opts.tableName)
+					return
+				}
+				id = peer.ID()
+			}
+
+			pathList := func() map[string][]*table.Path {
+				pathList := make(map[string][]*table.Path)
+				for _, t := range w.s.globalRib.Tables {
+					for _, dst := range t.GetSortedDestinations() {
+						if paths := dst.GetKnownPathList(id); len(paths) > 0 {
+							pathList[dst.GetNlri().String()] = clonePathList(paths)
+						}
+					}
+				}
+				return pathList
+			}()
+			l := make([]*config.Neighbor, 0, len(w.s.neighborMap))
+			for _, peer := range w.s.neighborMap {
+				l = append(l, peer.ToConfig(false))
+			}
+			w.notify(&WatchEventTable{PathList: pathList, Neighbor: l})
+		default:
+			err = fmt.Errorf("unsupported type %v", t)
+			return
+		}
+	}
+	return err
+}
+
+func (w *Watcher) notify(v WatchEvent) {
+	w.ch.In() <- v
+}
+
+func (w *Watcher) loop() {
+	for {
+		select {
+		case ev, ok := <-w.ch.Out():
+			if !ok {
+				close(w.realCh)
+				return
+			}
+			w.realCh <- ev.(WatchEvent)
+		}
+	}
+}
+
+func (w *Watcher) Stop() {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+	w.s.mgmtCh <- func() {
+		defer close(ch)
+		for k, l := range w.s.watcherMap {
+			for i, v := range l {
+				if w == v {
+					w.s.watcherMap[k] = append(l[:i], l[i+1:]...)
+					break
+				}
+			}
+		}
+
+		cleanInfiniteChannel(w.ch)
+		// the loop function goroutine might be blocked for
+		// writing to realCh. make sure it finishes.
+		for range w.realCh {
+		}
+	}
+}
+
+func (s *BgpServer) isWatched(typ WatchEventType) bool {
+	return len(s.watcherMap[typ]) != 0
+}
+
+func (s *BgpServer) notifyWatcher(typ WatchEventType, ev WatchEvent) {
+	for _, w := range s.watcherMap[typ] {
+		w.notify(ev)
+	}
+}
+
+func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		w = &Watcher{
+			s:      s,
+			realCh: make(chan WatchEvent, 8),
+			ch:     channels.NewInfiniteChannel(),
+		}
+
+		for _, opt := range opts {
+			opt(&w.opts)
+		}
+
+		register := func(t WatchEventType, w *Watcher) {
+			s.watcherMap[t] = append(s.watcherMap[t], w)
+		}
+
+		if w.opts.bestpath {
+			register(WATCH_EVENT_TYPE_BEST_PATH, w)
+		}
+		if w.opts.preUpdate {
+			register(WATCH_EVENT_TYPE_PRE_UPDATE, w)
+		}
+		if w.opts.postUpdate {
+			register(WATCH_EVENT_TYPE_POST_UPDATE, w)
+		}
+		if w.opts.peerState {
+			register(WATCH_EVENT_TYPE_PEER_STATE, w)
+		}
+		if w.opts.initPeerState {
+			for _, peer := range s.neighborMap {
+				if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+					continue
+				}
+				w.notify(createWatchEventPeerState(peer))
+			}
+		}
+		if w.opts.initUpdate {
+			for _, peer := range s.neighborMap {
+				if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+					continue
+				}
+				for _, path := range peer.adjRibIn.PathList(peer.configuredRFlist(), false) {
+					msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
+					buf, _ := msgs[0].Serialize()
+					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+					l, _ := peer.fsm.LocalHostPort()
+					w.notify(&WatchEventUpdate{
+						Message:      msgs[0],
+						PeerAS:       peer.fsm.peerInfo.AS,
+						LocalAS:      peer.fsm.peerInfo.LocalAS,
+						PeerAddress:  peer.fsm.peerInfo.Address,
+						LocalAddress: net.ParseIP(l),
+						PeerID:       peer.fsm.peerInfo.ID,
+						FourBytesAs:  y,
+						Timestamp:    path.GetTimestamp(),
+						Payload:      buf,
+						PostPolicy:   false,
+					})
+				}
+			}
+		}
+		if w.opts.postUpdate {
+			for _, path := range s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, s.globalRib.GetRFlist()) {
+				msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
+				buf, _ := msgs[0].Serialize()
+				w.notify(&WatchEventUpdate{
+					PeerAS:      path.GetSource().AS,
+					PeerAddress: path.GetSource().Address,
+					PeerID:      path.GetSource().ID,
+					Message:     msgs[0],
+					Timestamp:   path.GetTimestamp(),
+					Payload:     buf,
+					PostPolicy:  true,
+				})
+			}
+
+		}
+
+		go w.loop()
+	}
+	return w
 }

@@ -7,7 +7,7 @@ Route Server), this example gives you the basics of GoBGP usage.
 
 ## Prerequisites
 
-You need to install [Go 1.3 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
+You need to install [Go 1.5 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
 
 ## Installing GoBGP
 
@@ -18,62 +18,91 @@ $ go get github.com/osrg/gobgp/gobgp
 
 Finished. No dependency hell (library, package, etc) thanks to Go.
 The first command installs GoBGP daemon (speaking BGP protocol). The
-second one installs GoBGP CLI. The CLI isn't a must but handy whey you
+second one installs GoBGP CLI. The CLI isn't a must but handy when you
 play with GoBGP.
 
 In addition, if you use Bash shell, you can enjoy CLI's tab completion:
 
 ```bash
 $ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-completion.bash
+$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-static-completion.bash
+$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-dynamic-completion.bash
 $ source gobgp-completion.bash
 ```
 
 ## Configuration
 
-Currently, GoBGP can be configured via a configuration file. This example
-uses the following very simple configuration file, `gobgpd.conf`:
+GoBGP can be configured via a configuration file or gRPC API. This example
+uses the following very simple configuration. All keys are case-insensitive.
+Default configuration format of GoBGP is [toml](https://github.com/toml-lang/toml).
+If you don't like `toml`, you can use `json`, `yaml` and `hcl` instead.
 
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.2"
+    peer-as = 65002
 ```
-$ cat gobgpd.conf
-[Global]
-  [Global.GlobalConfig]
-    As = 64512
-    RouterId = "192.168.255.1"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
-      NeighborAddress = "10.0.255.1"
-      PeerAs = 65001
-
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
-      NeighborAddress = "10.0.255.2"
-      PeerAs = 65002
-```
+see [here](https://github.com/osrg/gobgp/blob/master/docs/sources/configuration.md) for
+more complicated configuration.
 
 ## Starting GoBGP
 
-Let's start gobgpd:
+Save the configuration above as gobgpd.conf and start gobgpd:
 
-```
+```bash
 $ sudo -E gobgpd -f gobgpd.conf
+{"level":"info","msg":"Peer 10.0.255.1 is added","time":"2015-04-06T20:32:28+09:00"}
+{"level":"info","msg":"Peer 10.0.255.2 is added","time":"2015-04-06T20:32:28+09:00"}
+```
+
+If you use a configuration format other than `toml`, you must specify the format
+by `-t` option.
+
+equivalent yaml configuration.
+
+```yaml
+global:
+    config:
+        as: 64512
+        router-id: 192.168.255.1
+neighbors:
+    - config:
+        neighbor-address: 10.0.255.1
+        peer-as: 65001
+    - config:
+        neighbor-address: 10.0.255.2
+        peer-as: 65002
+```
+
+```bash
+$ sudo -E gobgpd -t yaml gobgpd.yml
 {"level":"info","msg":"Peer 10.0.255.1 is added","time":"2015-04-06T20:32:28+09:00"}
 {"level":"info","msg":"Peer 10.0.255.2 is added","time":"2015-04-06T20:32:28+09:00"}
 ```
 
 Let's show the information of all the peers.
 
-```
+```bash
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
 10.0.255.1 65001 00:00:14 Establ      |          1        5        5
 10.0.255.2 65002 00:00:14 Establ      |          5        2        2
 ```
 
-Want to the details of a particular peer?
+Want to see the details of a particular peer?
 
-```
+```bash
 $ gobgp neighbor 10.0.255.1
 BGP neighbor is 10.0.255.1, remote AS 65001
   BGP version 4, remote router ID 192.168.0.1
@@ -98,7 +127,7 @@ BGP neighbor is 10.0.255.1, remote AS 65001
 Note that the tab completion works for both peer names and commands.
 
 Check out the global table.
-```
+```bash
 $ gobgp global rib
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
@@ -112,7 +141,7 @@ $ gobgp global rib
 
 You also can look at adjacent rib-in and rib-out:
 
-```
+```bash
 $ gobgp neighbor 10.0.255.1 adj-in
    Network            Next Hop        AS_PATH    Age        Attrs
    10.3.0.0/16        10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]

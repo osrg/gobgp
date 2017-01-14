@@ -17,9 +17,9 @@ package table
 
 import (
 	//"fmt"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
-	//"net"
+	"net"
 	"testing"
 	"time"
 )
@@ -40,70 +40,273 @@ func TestDestinationNewIPv6(t *testing.T) {
 func TestDestinationSetRouteFamily(t *testing.T) {
 	dd := &Destination{}
 	dd.setRouteFamily(bgp.RF_IPv4_UC)
-	rf := dd.getRouteFamily()
+	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
 func TestDestinationGetRouteFamily(t *testing.T) {
 	dd := &Destination{}
 	dd.setRouteFamily(bgp.RF_IPv6_UC)
-	rf := dd.getRouteFamily()
+	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv6_UC)
 }
 func TestDestinationSetNlri(t *testing.T) {
 	dd := &Destination{}
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
+	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationGetNlri(t *testing.T) {
 	dd := &Destination{}
-	nlri := bgp.NewNLRInfo(24, "10.110.123.1")
+	nlri := bgp.NewIPAddrPrefix(24, "10.110.123.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
-func TestDestinationSetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason1"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
+
+func TestCalculate(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.101")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	path1.Filter("1", POLICY_DIRECTION_IMPORT)
+
+	action := &AsPathPrependAction{
+		asn:    100,
+		repeat: 10,
+	}
+
+	path2 := action.Apply(path1.Clone(false), nil)
+	path1.Filter("2", POLICY_DIRECTION_IMPORT)
+	path2.Filter("1", POLICY_DIRECTION_IMPORT)
+
+	d := NewDestination(nlri)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
+
+	d.Calculate([]string{"1", "2"})
+
+	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
+	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
+	assert.Equal(t, len(d.knownPathList), 2)
+
+	d.AddWithdraw(path1.Clone(true))
+
+	d.Calculate([]string{"1", "2"})
+
+	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
+	assert.Equal(t, len(d.GetKnownPathList("2")), 0)
+	assert.Equal(t, len(d.knownPathList), 0)
 }
-func TestDestinationGetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason2"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
+
+func TestCalculate2(t *testing.T) {
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	// peer1 sends normal update message 10.10.0.0/24
+	update1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(update1, peer1, time.Now())[0]
+
+	d := NewDestination(nlri)
+	d.AddNewPath(path1)
+	d.Calculate(nil)
+
+	// suppose peer2 sends grammaatically correct but semantically flawed update message
+	// which has a withdrawal nlri not advertised before
+	update2 := bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{nlri}, pathAttributes, nil)
+	peer2 := &PeerInfo{AS: 2, Address: net.IP{2, 2, 2, 2}}
+	path2 := ProcessMessage(update2, peer2, time.Now())[0]
+	assert.Equal(t, path2.IsWithdraw, true)
+
+	d.AddWithdraw(path2)
+	d.Calculate(nil)
+
+	// we have a path from peer1 here
+	assert.Equal(t, len(d.knownPathList), 1)
+
+	// after that, new update with the same nlri comes from peer2
+	update3 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	path3 := ProcessMessage(update3, peer2, time.Now())[0]
+	assert.Equal(t, path3.IsWithdraw, false)
+
+	d.AddNewPath(path3)
+	d.Calculate(nil)
+
+	// this time, we have paths from peer1 and peer2
+	assert.Equal(t, len(d.knownPathList), 2)
+
+	// now peer3 sends normal update message 10.10.0.0/24
+	peer3 := &PeerInfo{AS: 3, Address: net.IP{3, 3, 3, 3}}
+	update4 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	path4 := ProcessMessage(update4, peer3, time.Now())[0]
+
+	d.AddNewPath(path4)
+	d.Calculate(nil)
+
+	// we must have paths from peer1, peer2 and peer3
+	assert.Equal(t, len(d.knownPathList), 3)
 }
-func TestDestinationSetBestPath(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.GetBestPath()
-	assert.Equal(t, r_pathD, pathD[0])
+
+func TestImplicitWithdrawCalculate(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.101")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	path1.Filter("1", POLICY_DIRECTION_IMPORT)
+
+	// suppose peer2 has import policy to prepend as-path
+	action := &AsPathPrependAction{
+		asn:    100,
+		repeat: 1,
+	}
+
+	path2 := action.Apply(path1.Clone(false), nil)
+	path1.Filter("2", POLICY_DIRECTION_IMPORT)
+	path2.Filter("1", POLICY_DIRECTION_IMPORT)
+	path2.Filter("3", POLICY_DIRECTION_IMPORT)
+
+	d := NewDestination(nlri)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
+	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
+	assert.Equal(t, d.GetKnownPathList("2")[0].GetAsString(), "100 65001") // peer "2" has modified path {100, 65001}
+	assert.Equal(t, len(d.GetKnownPathList("3")), 1)
+	assert.Equal(t, d.GetKnownPathList("3")[0].GetAsString(), "65001") // peer "3" has original path {65001}
+	assert.Equal(t, len(d.knownPathList), 2)
+
+	// say, we removed peer2's import policy and
+	// peer1 advertised new path with the same prefix
+	aspathParam = []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001, 65002})}
+	aspath = bgp.NewPathAttributeAsPath(aspathParam)
+	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	path3 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	path3.Filter("1", POLICY_DIRECTION_IMPORT)
+
+	d.AddNewPath(path3)
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
+	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
+	assert.Equal(t, d.GetKnownPathList("2")[0].GetAsString(), "65001 65002") // peer "2" has new original path {65001, 65002}
+	assert.Equal(t, len(d.GetKnownPathList("3")), 1)
+	assert.Equal(t, d.GetKnownPathList("3")[0].GetAsString(), "65001 65002") // peer "3" has new original path {65001, 65002}
+	assert.Equal(t, len(d.knownPathList), 1)
 }
-func TestDestinationGetBestPath(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.GetBestPath()
-	assert.Equal(t, r_pathD, pathD[0])
+
+func TestMedTieBreaker(t *testing.T) {
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	p0 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003, 65004})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	p1 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003, 65005})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// same AS
+	assert.Equal(t, compareByMED(p0, p1), p0)
+
+	p2 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// different AS
+	assert.Equal(t, compareByMED(p0, p2), (*Path)(nil))
+
+	p3 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65003, 65004}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65003})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	p4 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65005, 65006})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// ignore confed
+	assert.Equal(t, compareByMED(p3, p4), p3)
+
+	p5 := func() *Path {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	p6 := func() *Path {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// no aspath
+	assert.Equal(t, compareByMED(p5, p6), p5)
 }
-func TestDestinationCalculate(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	//best path selection
-	ipv4d.addNewPath(pathD[0])
-	ipv4d.addNewPath(pathD[1])
-	ipv4d.addNewPath(pathD[2])
-	ipv4d.addWithdraw(pathD[2])
-	_, _, e := ipv4d.Calculate()
-	assert.Nil(t, e)
+
+func TestTimeTieBreaker(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{1, 1, 1, 1}, ID: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+
+	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}} // weaker router-id
+	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
+
+	d := NewDestination(nlri)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
+
+	// this option disables tie breaking by age
+	SelectionOptions.ExternalCompareRouterId = true
+	d = NewDestination(nlri)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
 }
 
 func DestCreatePeer() []*PeerInfo {
@@ -124,7 +327,7 @@ func DestCreatePath(peerD []*PeerInfo) []*Path {
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i] = NewPath(peerD[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
+		pathD[i] = NewPath(peerD[i], nlri_info, false, pathAttributes, time.Now(), false)
 	}
 	return pathD
 }
@@ -144,9 +347,8 @@ func updateMsgD1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
@@ -166,9 +368,8 @@ func updateMsgD2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "20.20.20.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
@@ -186,10 +387,104 @@ func updateMsgD3() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "30.30.30.0")}
-	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(23, "40.40.40.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{w1}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.30.30.0")}
+	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
+	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
+}
+
+func TestRadixkey(t *testing.T) {
+	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
+	assert.Equal(t, CidrToRadixkey("::ffff:0.0.0.0/96")+"000010100000001100100000", CidrToRadixkey("::ffff:10.3.32.0/120"))
+}
+
+func TestMultipath(t *testing.T) {
+	UseMultiplePaths.Enabled = true
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.150.1")
+	med := bgp.NewPathAttributeMultiExitDisc(100)
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}, ID: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	peer2 := &PeerInfo{AS: 2, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}}
+
+	med = bgp.NewPathAttributeMultiExitDisc(100)
+	nexthop = bgp.NewPathAttributeNextHop("192.168.150.2")
+	pathAttributes = []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
+
+	d := NewDestination(nlri[0])
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
+
+	best, old, multi := d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, old[GLOBAL_RIB_NAME], (*Path)(nil))
+	assert.Equal(t, len(multi), 2)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
+
+	path3 := path2.Clone(true)
+	d.AddWithdraw(path3)
+	best, old, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, old[GLOBAL_RIB_NAME], path1)
+	assert.Equal(t, len(multi), 1)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 1)
+
+	peer3 := &PeerInfo{AS: 3, Address: net.IP{3, 3, 3, 3}, ID: net.IP{3, 3, 3, 3}}
+	med = bgp.NewPathAttributeMultiExitDisc(50)
+	nexthop = bgp.NewPathAttributeNextHop("192.168.150.3")
+	pathAttributes = []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
+	d.AddNewPath(path4)
+
+	best, _, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, len(multi), 1)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
+
+	nexthop = bgp.NewPathAttributeNextHop("192.168.150.2")
+	pathAttributes = []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
+	d.AddNewPath(path5)
+
+	best, _, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, len(multi), 2)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 3)
+
+	UseMultiplePaths.Enabled = false
 }

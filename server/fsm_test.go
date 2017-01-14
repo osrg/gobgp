@@ -18,8 +18,10 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strconv"
@@ -32,7 +34,6 @@ type MockConnection struct {
 	recvCh    chan chan byte
 	sendBuf   [][]byte
 	currentCh chan byte
-	readBytes int
 	isClosed  bool
 	wait      int
 }
@@ -162,14 +163,15 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
 
-	state := h.opensent()
+	state, _ := h.opensent()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -187,13 +189,14 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 2
-	state := h.openconfirm()
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
+	state, _ := h.openconfirm()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -211,9 +214,10 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -226,11 +230,11 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.pConf.Timers.TimersConfig.HoldTime = 2
-	p.fsm.negotiatedHoldTime = 2
+	p.fsm.pConf.Timers.Config.HoldTime = 2
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
 
 	go pushPackets()
-	state := h.established()
+	state, _ := h.established()
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -248,11 +252,12 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 0
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
 	go h.openconfirm()
 
 	time.Sleep(100 * time.Millisecond)
@@ -270,12 +275,11 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
-
-	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.h = h
 
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 0
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
+
 	go h.established()
 
 	time.Sleep(100 * time.Millisecond)
@@ -284,24 +288,15 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {
-	gConf := config.Global{}
-	pConf := config.Neighbor{}
-
 	p := &Peer{
-		gConf:  gConf,
-		conf:   pConf,
-		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		fsm:      NewFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
+		outgoing: channels.NewInfiniteChannel(),
 	}
-
-	p.fsm = NewFSM(&gConf, &pConf)
-
-	incoming := make(chan *fsmMsg, 4096)
-	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{
 		fsm:      p.fsm,
-		errorCh:  make(chan bool, 2),
-		incoming: incoming,
+		errorCh:  make(chan FsmStateReason, 2),
+		incoming: channels.NewInfiniteChannel(),
 		outgoing: p.outgoing,
 	}
 
@@ -313,11 +308,11 @@ func open() *bgp.BGPMessage {
 	p1 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(3, 4)})
-	g := bgp.CapGracefulRestartTuples{4, 2, 3}
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)})
+	g := &bgp.CapGracefulRestartTuple{AFI: 4, SAFI: 2, Flags: 3}
 	p3 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(2, 100,
-			[]bgp.CapGracefulRestartTuples{g})})
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(true, true, 100,
+			[]*bgp.CapGracefulRestartTuple{g})})
 	p4 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(100000)})
 	return bgp.NewBGPOpenMessage(11033, 303, "100.4.10.3",

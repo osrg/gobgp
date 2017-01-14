@@ -16,7 +16,7 @@
 package table
 
 import (
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -107,7 +107,7 @@ func TableCreatePath(peerT []*PeerInfo) []*Path {
 		nlriList := updateMsgT.NLRI
 		pathAttributes := updateMsgT.PathAttributes
 		nlri_info := nlriList[0]
-		pathT[i] = NewPath(peerT[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
+		pathT[i] = NewPath(peerT[i], nlri_info, false, pathAttributes, time.Now(), false)
 	}
 	return pathT
 }
@@ -127,9 +127,8 @@ func updateMsgT1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
 
 func updateMsgT2() *bgp.BGPMessage {
@@ -147,9 +146,8 @@ func updateMsgT2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "20.20.20.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
 func updateMsgT3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
@@ -165,8 +163,8 @@ func updateMsgT3() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "30.30.30.0")}
-	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(23, "40.40.40.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{w1}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.30.30.0")}
+	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
+	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 }

@@ -29,7 +29,7 @@ func Test_Header(t *testing.T) {
 	buf := make([]byte, 6)
 	binary.BigEndian.PutUint16(buf[0:], 10)
 	buf[2] = HEADER_MARKER
-	buf[3] = VERSION
+	buf[3] = 2
 	binary.BigEndian.PutUint16(buf[4:], uint16(IPV4_ROUTE_ADD))
 	h := &Header{}
 	err := h.DecodeFromBytes(buf)
@@ -44,7 +44,7 @@ func Test_Header(t *testing.T) {
 	assert.Equal(h, h2)
 
 	// header_size mismatch
-	buf = make([]byte, HEADER_SIZE-1)
+	buf = make([]byte, HeaderSize(2)-1)
 	binary.BigEndian.PutUint16(buf[0:], 10)
 	buf[2] = 0xff
 	buf[3] = 0x02
@@ -79,13 +79,13 @@ func Test_InterfaceUpdateBody(t *testing.T) {
 	copy(buf[pos:pos+6], []byte(mac))
 	pos += 4
 	b := &InterfaceUpdateBody{}
-	err := b.DecodeFromBytes(buf)
+	err := b.DecodeFromBytes(buf, 2)
 	assert.Equal(nil, err)
 	assert.Equal("01:23:45:67:89:ab", b.HardwareAddr.String())
 
 	buf = make([]byte, INTERFACE_NAMSIZ+28)
 	b = &InterfaceUpdateBody{}
-	err = b.DecodeFromBytes(buf)
+	err = b.DecodeFromBytes(buf, 2)
 	assert.NotEqual(nil, err)
 }
 
@@ -107,7 +107,7 @@ func Test_InterfaceAddressUpdateBody(t *testing.T) {
 	buf[pos] = byte(24)
 
 	b := &InterfaceAddressUpdateBody{}
-	err := b.DecodeFromBytes(buf)
+	err := b.DecodeFromBytes(buf, 2)
 	assert.Equal(uint32(0), b.Index)
 	assert.Equal(uint8(1), b.Flags)
 	assert.Equal("192.168.100.1", b.Prefix.String())
@@ -117,7 +117,7 @@ func Test_InterfaceAddressUpdateBody(t *testing.T) {
 	buf[5] = 0x4
 	pos += 1
 	b = &InterfaceAddressUpdateBody{}
-	err = b.DecodeFromBytes(buf)
+	err = b.DecodeFromBytes(buf, 2)
 	assert.NotEqual(nil, err)
 }
 
@@ -135,7 +135,7 @@ func Test_RouterIDUpdateBody(t *testing.T) {
 	buf[pos] = byte(32)
 
 	b := &RouterIDUpdateBody{}
-	err := b.DecodeFromBytes(buf)
+	err := b.DecodeFromBytes(buf, 2)
 	assert.Equal(nil, err)
 	assert.Equal("192.168.100.1", b.Prefix.String())
 	assert.Equal(uint8(32), b.Length)
@@ -144,7 +144,7 @@ func Test_RouterIDUpdateBody(t *testing.T) {
 	buf[0] = 0x4
 	pos += 1
 	b = &RouterIDUpdateBody{}
-	err = b.DecodeFromBytes(buf)
+	err = b.DecodeFromBytes(buf, 2)
 	assert.NotEqual(nil, err)
 }
 
@@ -169,7 +169,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	buf[17] = 0 // distance
 	binary.BigEndian.PutUint32(buf[18:], 1)
 	r := &IPRouteBody{Api: IPV4_ROUTE_ADD}
-	err := r.DecodeFromBytes(buf)
+	err := r.DecodeFromBytes(buf, 2)
 
 	assert.Equal(nil, err)
 	assert.Equal("192.168.100.0", r.Prefix.String())
@@ -211,7 +211,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[13:], 1)
 
 	r = &IPRouteBody{Api: IPV4_ROUTE_ADD}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, 2)
 	assert.Equal("message length invalid", err.Error())
 
 	// no nexthop
@@ -225,7 +225,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	buf[7] = 1
 	binary.BigEndian.PutUint32(buf[8:], 0)
 	r = &IPRouteBody{Api: IPV6_ROUTE_ADD}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, 2)
 	assert.Equal(nil, err)
 
 }
@@ -252,7 +252,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	buf[34] = 0 // distance
 	binary.BigEndian.PutUint32(buf[35:], 1)
 	r := &IPRouteBody{Api: IPV6_ROUTE_ADD}
-	err := r.DecodeFromBytes(buf)
+	err := r.DecodeFromBytes(buf, 2)
 
 	assert.Equal(nil, err)
 	assert.Equal("2001:db8:0:f101::", r.Prefix.String())
@@ -301,7 +301,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[32:], 1)
 
 	r = &IPRouteBody{Api: IPV6_ROUTE_ADD}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, 2)
 	assert.Equal("message length invalid", err.Error())
 
 	// no nexthop
@@ -315,6 +315,132 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	buf[6] = 1
 	binary.BigEndian.PutUint32(buf[7:], 0)
 	r = &IPRouteBody{Api: IPV6_ROUTE_ADD}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, 2)
 	assert.Equal(nil, err)
+}
+
+func Test_NexthopLookupBody(t *testing.T) {
+	assert := assert.New(t)
+
+	//ipv4
+	//DecodeFromBytes
+	pos := 0
+	buf := make([]byte, 18)
+	ip := net.ParseIP("192.168.50.0").To4()
+	copy(buf[0:4], []byte(ip))
+	pos += 4
+	binary.BigEndian.PutUint32(buf[pos:], 10)
+	pos += 4
+	buf[pos] = byte(1)
+	pos += 1
+	buf[pos] = byte(4)
+	pos += 1
+	ip = net.ParseIP("172.16.1.101").To4()
+	copy(buf[pos:pos+4], []byte(ip))
+	pos += 4
+	binary.BigEndian.PutUint32(buf[pos:], 3)
+
+	b := &NexthopLookupBody{Api: IPV4_NEXTHOP_LOOKUP}
+	err := b.DecodeFromBytes(buf, 2)
+	assert.Equal(nil, err)
+	assert.Equal("192.168.50.0", b.Addr.String())
+	assert.Equal(uint32(10), b.Metric)
+	assert.Equal(uint32(3), b.Nexthops[0].Ifindex)
+	assert.Equal(NEXTHOP_FLAG(4), b.Nexthops[0].Type)
+	assert.Equal("172.16.1.101", b.Nexthops[0].Addr.String())
+
+	//Serialize
+	buf, err = b.Serialize()
+	ip = net.ParseIP("192.168.50.0").To4()
+	assert.Equal(nil, err)
+	assert.Equal([]byte(ip)[0:4], buf[0:4])
+
+	// length invalid
+	buf = make([]byte, 3)
+	b = &NexthopLookupBody{Api: IPV4_NEXTHOP_LOOKUP}
+	err = b.DecodeFromBytes(buf, 2)
+	assert.NotEqual(nil, err)
+
+	//ipv6
+	//DecodeFromBytes
+	pos = 0
+	buf = make([]byte, 46)
+	ip = net.ParseIP("2001:db8:0:f101::").To16()
+	copy(buf[0:16], []byte(ip))
+	pos += 16
+	binary.BigEndian.PutUint32(buf[pos:], 10)
+	pos += 4
+	buf[pos] = byte(1)
+	pos += 1
+	buf[pos] = byte(4)
+	pos += 1
+	ip = net.ParseIP("2001:db8:0:1111::1").To16()
+	copy(buf[pos:pos+16], []byte(ip))
+	pos += 16
+	binary.BigEndian.PutUint32(buf[pos:], 3)
+
+	b = &NexthopLookupBody{Api: IPV6_NEXTHOP_LOOKUP}
+	err = b.DecodeFromBytes(buf, 2)
+	assert.Equal(nil, err)
+	assert.Equal("2001:db8:0:f101::", b.Addr.String())
+	assert.Equal(uint32(10), b.Metric)
+	assert.Equal(uint32(3), b.Nexthops[0].Ifindex)
+	assert.Equal(NEXTHOP_FLAG(4), b.Nexthops[0].Type)
+	assert.Equal("2001:db8:0:1111::1", b.Nexthops[0].Addr.String())
+
+	//Serialize
+	buf, err = b.Serialize()
+	ip = net.ParseIP("2001:db8:0:f101::").To16()
+	assert.Equal(nil, err)
+	assert.Equal([]byte(ip)[0:16], buf[0:16])
+
+	// length invalid
+	buf = make([]byte, 15)
+	b = &NexthopLookupBody{Api: IPV6_NEXTHOP_LOOKUP}
+	err = b.DecodeFromBytes(buf, 2)
+	assert.NotEqual(nil, err)
+}
+
+func Test_ImportLookupBody(t *testing.T) {
+	assert := assert.New(t)
+
+	//DecodeFromBytes
+	pos := 0
+	buf := make([]byte, 18)
+	ip := net.ParseIP("192.168.50.0").To4()
+	copy(buf[0:4], []byte(ip))
+	pos += 4
+	binary.BigEndian.PutUint32(buf[pos:], 10)
+	pos += 4
+	buf[pos] = byte(1)
+	pos += 1
+	buf[pos] = byte(4)
+	pos += 1
+	ip = net.ParseIP("172.16.1.101").To4()
+	copy(buf[pos:pos+4], []byte(ip))
+	pos += 4
+	binary.BigEndian.PutUint32(buf[pos:], 3)
+
+	b := &ImportLookupBody{Api: IPV4_IMPORT_LOOKUP}
+	err := b.DecodeFromBytes(buf, 2)
+	assert.Equal(nil, err)
+	assert.Equal("192.168.50.0", b.Addr.String())
+	assert.Equal(uint32(10), b.Metric)
+	assert.Equal(uint32(3), b.Nexthops[0].Ifindex)
+	assert.Equal(NEXTHOP_FLAG(4), b.Nexthops[0].Type)
+	assert.Equal("172.16.1.101", b.Nexthops[0].Addr.String())
+
+	//Serialize
+	b.PrefixLength = uint8(24)
+	buf, err = b.Serialize()
+	ip = net.ParseIP("192.168.50.0").To4()
+	assert.Equal(nil, err)
+	assert.Equal(uint8(24), buf[0])
+	assert.Equal([]byte(ip)[0:4], buf[1:5])
+
+	// length invalid
+	buf = make([]byte, 3)
+	b = &ImportLookupBody{Api: IPV4_IMPORT_LOOKUP}
+	err = b.DecodeFromBytes(buf, 2)
+	assert.NotEqual(nil, err)
 }

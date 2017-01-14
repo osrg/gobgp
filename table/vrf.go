@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,30 +16,29 @@
 package table
 
 import (
-	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 type Vrf struct {
 	Name     string
+	Id       uint32
 	Rd       bgp.RouteDistinguisherInterface
 	ImportRt []bgp.ExtendedCommunityInterface
 	ExportRt []bgp.ExtendedCommunityInterface
 }
 
-func (v *Vrf) ToApiStruct() *api.Vrf {
-	f := func(rts []bgp.ExtendedCommunityInterface) [][]byte {
-		ret := make([][]byte, 0, len(rts))
-		for _, rt := range rts {
-			b, _ := rt.Serialize()
-			ret = append(ret, b)
+func (v *Vrf) Clone() *Vrf {
+	f := func(rt []bgp.ExtendedCommunityInterface) []bgp.ExtendedCommunityInterface {
+		l := make([]bgp.ExtendedCommunityInterface, 0, len(rt))
+		for _, v := range rt {
+			l = append(l, v)
 		}
-		return ret
+		return l
 	}
-	rd, _ := v.Rd.Serialize()
-	return &api.Vrf{
+	return &Vrf{
 		Name:     v.Name,
-		Rd:       rd,
+		Id:       v.Id,
+		Rd:       v.Rd,
 		ImportRt: f(v.ImportRt),
 		ExportRt: f(v.ExportRt),
 	}

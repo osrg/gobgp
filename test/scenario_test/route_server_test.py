@@ -28,7 +28,7 @@ from noseplugin import OptionParser, parser_option
 class GoBGPTestBase(unittest.TestCase):
 
     wait_per_retry = 5
-    retry_limit = 10
+    retry_limit = 15
 
     @classmethod
     def setUpClass(cls):
@@ -58,16 +58,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         for rs_client in rs_clients:
-            g1.add_peer(rs_client, is_rs_client=True)
-            rs_client.add_peer(g1)
+            g1.add_peer(rs_client, is_rs_client=True, passwd='passwd', passive=True, prefix_limit=10)
+            rs_client.add_peer(g1, passwd='passwd')
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3}
-        cls.bridges = {'br01': br01}
 
     def check_gobgp_local_rib(self):
         for rs_client in self.quaggas.itervalues():
@@ -77,6 +73,9 @@ class GoBGPTestBase(unittest.TestCase):
                     break
                 local_rib = self.gobgp.get_local_rib(rs_client)
                 local_rib = [p['prefix'] for p in local_rib]
+
+                state = self.gobgp.get_neighbor_state(rs_client)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 if len(local_rib) < len(self.quaggas)-1:
                     time.sleep(self.wait_per_retry)
                     continue
@@ -146,7 +145,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q4.run()
         time.sleep(initial_wait_time)
-        self.bridges['br01'].addif(q4)
         self.gobgp.add_peer(q4, is_rs_client=True)
         q4.add_peer(self.gobgp)
 
@@ -175,6 +173,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_09_check_rs_clients_rib(self):
         self.check_rs_client_rib()
 
+    @unittest.skip("med shouldn't work with different AS peers by default")
     def test_10_add_distant_relative(self):
         q1 = self.quaggas['q1']
         q2 = self.quaggas['q2']
@@ -184,14 +183,6 @@ class GoBGPTestBase(unittest.TestCase):
         initial_wait_time = q5.run()
         time.sleep(initial_wait_time)
 
-        br02 = Bridge(name='br02', subnet='192.168.20.0/24')
-        br02.addif(q5)
-        br02.addif(q2)
-
-        br03 = Bridge(name='br03', subnet='192.168.30.0/24')
-        br03.addif(q5)
-        br03.addif(q3)
-
         for q in [q2, q3]:
             q5.add_peer(q)
             q.add_peer(q5)
@@ -199,17 +190,15 @@ class GoBGPTestBase(unittest.TestCase):
         med200 = {'name': 'med200',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 200,
                   'priority': 10}
-        q2.add_policy(med200, self.gobgp)
+        q2.add_policy(med200, self.gobgp, 'out')
         med100 = {'name': 'med100',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 100,
                   'priority': 10}
-        q3.add_policy(med100, self.gobgp)
+        q3.add_policy(med100, self.gobgp, 'out')
 
         q5.add_route('10.0.6.0/24')
 
@@ -241,10 +230,9 @@ class GoBGPTestBase(unittest.TestCase):
         med300 = {'name': 'med300',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 300,
                   'priority': 5}
-        q3.add_policy(med300, self.gobgp)
+        q3.add_policy(med300, self.gobgp, 'out')
 
         time.sleep(self.wait_per_retry)
 

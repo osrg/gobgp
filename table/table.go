@@ -16,19 +16,50 @@
 package table
 
 import (
+	"fmt"
+	"net"
+	"sort"
+
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet"
+	"github.com/armon/go-radix"
+	"github.com/osrg/gobgp/packet/bgp"
 )
+
+type LookupOption uint8
+
+const (
+	LOOKUP_EXACT LookupOption = iota
+	LOOKUP_LONGER
+	LOOKUP_SHORTER
+)
+
+type LookupPrefix struct {
+	Prefix string
+	LookupOption
+}
+
+type TableSelectOption struct {
+	ID             string
+	LookupPrefixes []*LookupPrefix
+	VRF            *Vrf
+	adj            bool
+	Best           bool
+	MultiPath      bool
+}
 
 type Table struct {
 	routeFamily  bgp.RouteFamily
 	destinations map[string]*Destination
 }
 
-func NewTable(rf bgp.RouteFamily) *Table {
+func NewTable(rf bgp.RouteFamily, dsts ...*Destination) *Table {
+	destinations := make(map[string]*Destination)
+	for _, dst := range dsts {
+		destinations[dst.GetNlri().String()] = dst
+	}
 	return &Table{
 		routeFamily:  rf,
-		destinations: make(map[string]*Destination),
+		destinations: destinations,
 	}
 }
 
@@ -37,42 +68,40 @@ func (t *Table) GetRoutefamily() bgp.RouteFamily {
 }
 
 func (t *Table) insert(path *Path) *Destination {
-	var dest *Destination
-
 	t.validatePath(path)
-	dest = t.getOrCreateDest(path.GetNlri())
+	dest := t.getOrCreateDest(path.GetNlri())
 
 	if path.IsWithdraw {
 		// withdraw insert
-		dest.addWithdraw(path)
+		dest.AddWithdraw(path)
 	} else {
 		// path insert
-		dest.addNewPath(path)
+		dest.AddNewPath(path)
 	}
 	return dest
 }
 
 func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
-	changedDests := make([]*Destination, 0)
-	for _, dest := range t.destinations {
-		newKnownPathList := make([]*Path, 0)
-		for _, p := range dest.GetKnownPathList() {
-			if !p.GetSource().Equal(peerInfo) {
-				newKnownPathList = append(newKnownPathList, p)
+	dsts := []*Destination{}
+	for _, dst := range t.destinations {
+		match := false
+		for _, p := range dst.knownPathList {
+			if p.GetSource().Equal(peerInfo) {
+				dst.AddWithdraw(p)
+				match = true
 			}
 		}
-		if len(newKnownPathList) != len(dest.GetKnownPathList()) {
-			changedDests = append(changedDests, dest)
-			dest.setKnownPathList(newKnownPathList)
+		if match {
+			dsts = append(dsts, dst)
 		}
 	}
-	return changedDests
+	return dsts
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 	pathList := make([]*Path, 0)
 	for _, dest := range t.destinations {
-		for _, p := range dest.GetKnownPathList() {
+		for _, p := range dest.knownPathList {
 			var rd bgp.RouteDistinguisherInterface
 			nlri := p.GetNlri()
 			switch nlri.(type) {
@@ -86,8 +115,7 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 				return pathList
 			}
 			if p.IsLocal() && vrf.Rd.String() == rd.String() {
-				p.IsWithdraw = true
-				pathList = append(pathList, p)
+				pathList = append(pathList, p.Clone(true))
 				break
 			}
 		}
@@ -106,10 +134,9 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 			nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
 			rhs := nlri.RouteTarget.String()
 			if lhs == rhs && isLastTargetUser(vrfs, target) {
-				for _, p := range dest.GetKnownPathList() {
+				for _, p := range dest.knownPathList {
 					if p.IsLocal() {
-						p.IsWithdraw = true
-						pathList = append(pathList, p)
+						pathList = append(pathList, p.Clone(true))
 						break
 					}
 				}
@@ -124,6 +151,9 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 	dest := destinations[t.tableKey(nlri)]
 	if dest != nil {
 		delete(destinations, t.tableKey(nlri))
+		if len(destinations) == 0 {
+			t.destinations = make(map[string]*Destination)
+		}
 	}
 	return dest
 }
@@ -131,6 +161,9 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 func (t *Table) deleteDest(dest *Destination) {
 	destinations := t.GetDestinations()
 	delete(destinations, t.tableKey(dest.GetNlri()))
+	if len(destinations) == 0 {
+		t.destinations = make(map[string]*Destination)
+	}
 }
 
 func (t *Table) validatePath(path *Path) {
@@ -148,7 +181,7 @@ func (t *Table) validatePath(path *Path) {
 			"ReceivedRf": path.GetRouteFamily().String(),
 		}).Error("Invalid path. RouteFamily mismatch")
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
@@ -161,7 +194,7 @@ func (t *Table) validatePath(path *Path) {
 			}
 		}
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
@@ -190,6 +223,27 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 	return dest
 }
 
+func (t *Table) GetSortedDestinations() []*Destination {
+	results := make([]*Destination, 0, len(t.GetDestinations()))
+	switch t.routeFamily {
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+		r := radix.New()
+		for _, dst := range t.GetDestinations() {
+			r.Insert(dst.RadixKey, dst)
+		}
+		r.Walk(func(s string, v interface{}) bool {
+			results = append(results, v.(*Destination))
+			return false
+		})
+	default:
+		for _, dst := range t.GetDestinations() {
+			results = append(results, dst)
+		}
+		sort.Sort(destinations(results))
+	}
+	return results
+}
+
 func (t *Table) GetDestinations() map[string]*Destination {
 	return t.destinations
 }
@@ -205,10 +259,165 @@ func (t *Table) GetDestination(key string) *Destination {
 	}
 }
 
+func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) {
+	results := make([]*Destination, 0, len(t.GetDestinations()))
+	switch t.routeFamily {
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+		_, prefix, err := net.ParseCIDR(key)
+		if err != nil {
+			return nil, err
+		}
+		k := CidrToRadixkey(prefix.String())
+		r := radix.New()
+		for _, dst := range t.GetDestinations() {
+			r.Insert(dst.RadixKey, dst)
+		}
+		r.WalkPrefix(k, func(s string, v interface{}) bool {
+			results = append(results, v.(*Destination))
+			return false
+		})
+	default:
+		for _, dst := range t.GetDestinations() {
+			results = append(results, dst)
+		}
+	}
+	return results, nil
+}
+
 func (t *Table) setDestination(key string, dest *Destination) {
 	t.destinations[key] = dest
 }
 
 func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	return nlri.String()
+}
+
+func (t *Table) Bests(id string) []*Path {
+	paths := make([]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		path := dst.GetBestPath(id)
+		if path != nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+func (t *Table) GetKnownPathList(id string) []*Path {
+	paths := make([]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		paths = append(paths, dst.GetKnownPathList(id)...)
+	}
+	return paths
+}
+
+func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
+	id := GLOBAL_RIB_NAME
+	var vrf *Vrf
+	adj := false
+	prefixes := make([]*LookupPrefix, 0, len(option))
+	best := false
+	mp := false
+	for _, o := range option {
+		if o.ID != "" {
+			id = o.ID
+		}
+		if o.VRF != nil {
+			vrf = o.VRF
+		}
+		adj = o.adj
+		prefixes = append(prefixes, o.LookupPrefixes...)
+		best = o.Best
+		mp = o.MultiPath
+	}
+	dOption := DestinationSelectOption{ID: id, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
+	dsts := make(map[string]*Destination)
+
+	if len(prefixes) != 0 {
+		switch t.routeFamily {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+			f := func(key string) bool {
+				if dst := t.GetDestination(key); dst != nil {
+					if d := dst.Select(dOption); d != nil {
+						dsts[key] = d
+						return true
+					}
+				}
+				return false
+			}
+
+			for _, p := range prefixes {
+				key := p.Prefix
+				switch p.LookupOption {
+				case LOOKUP_LONGER:
+					ds, err := t.GetLongerPrefixDestinations(key)
+					if err != nil {
+						return nil, err
+					}
+					for _, dst := range ds {
+						if d := dst.Select(dOption); d != nil {
+							dsts[dst.GetNlri().String()] = d
+						}
+					}
+				case LOOKUP_SHORTER:
+					_, prefix, err := net.ParseCIDR(key)
+					if err != nil {
+						return nil, err
+					}
+					ones, bits := prefix.Mask.Size()
+					for i := ones; i > 0; i-- {
+						prefix.Mask = net.CIDRMask(i, bits)
+						f(prefix.String())
+					}
+				default:
+					if host := net.ParseIP(key); host != nil {
+						masklen := 32
+						if t.routeFamily == bgp.RF_IPv6_UC {
+							masklen = 128
+						}
+						for i := masklen; i > 0; i-- {
+							if f(fmt.Sprintf("%s/%d", key, i)) {
+								break
+							}
+						}
+					} else {
+						f(key)
+					}
+				}
+			}
+		default:
+			return nil, fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast/mpls routes")
+		}
+	} else {
+		for k, dst := range t.GetDestinations() {
+			if d := dst.Select(dOption); d != nil {
+				dsts[k] = d
+			}
+		}
+	}
+	return &Table{
+		routeFamily:  t.routeFamily,
+		destinations: dsts,
+	}, nil
+}
+
+type TableInfo struct {
+	NumDestination int
+	NumPath        int
+	NumAccepted    int
+}
+
+func (t *Table) Info(id string) *TableInfo {
+	var numD, numP int
+	for _, d := range t.destinations {
+		ps := d.GetKnownPathList(id)
+		if len(ps) > 0 {
+			numD += 1
+			numP += len(ps)
+		}
+	}
+	return &TableInfo{
+		NumDestination: numD,
+		NumPath:        numP,
+	}
 }

@@ -1,6 +1,7 @@
-# GoBGP: BGP implementation in Go <p align="right">[![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)</p>
+# GoBGP: BGP implementation in Go
 
-## Introduction
+[![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
+[![Slack Status](https://slackin-gobgp.mybluemix.net/badge.svg)](https://slackin-gobgp.mybluemix.net/)
 
 GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
@@ -27,15 +28,22 @@ No dependency hell (library, package, etc) thanks to Go.
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  * [Route Reflector](https://github.com/osrg/gobgp/blob/master/docs/sources/route-reflector.md)
  * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
- * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
+ * [FIB manipulation](https://github.com/osrg/gobgp/blob/master/docs/sources/zebra.md)
  * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
+ * [BMP](https://github.com/osrg/gobgp/blob/master/docs/sources/bmp.md)
+ * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
  * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
  * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
  * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
+ * [Using GoBGP as a Go Native BGP library](https://github.com/osrg/gobgp/blob/master/docs/sources/lib.md)
+ * [Graceful Restart](https://github.com/osrg/gobgp/blob/master/docs/sources/graceful-restart.md)
+
+### Externals
+ * [Tutorial: Using GoBGP as an IXP connecting router](http://www.slideshare.net/shusugimoto1986/tutorial-using-gobgp-as-an-ixp-connecting-router)
  
 ## Community, discussion and support
 
-We have the [the mailing
+We have the [Slack](https://slackin-gobgp.mybluemix.net/) and [mailing
 list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
 questions, discussion, suggestions, etc.
 

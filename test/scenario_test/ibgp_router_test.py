@@ -16,6 +16,7 @@
 import unittest
 from fabric.api import local
 from lib import base
+from lib.base import wait_for_completion
 from lib.gobgp import *
 from lib.quagga import *
 import sys
@@ -51,9 +52,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         # ibgp peer. loop topology
         for a, b in combinations(ctns, 2):
             a.add_peer(b)
@@ -61,7 +59,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2}
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -77,6 +74,8 @@ class GoBGPTestBase(unittest.TestCase):
             count = 0
             while True:
                 # gobgp's global rib
+                state = self.gobgp.get_neighbor_state(q)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
 
                 for p in global_rib:
@@ -104,7 +103,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
         self.assertTrue(path['nexthop'] == '0.0.0.0')
-        self.assertTrue(len(path['as_path']) == 0)
+        self.assertTrue(len(path['aspath']) == 0)
 
     def test_05_check_gobgp_adj_rib_out(self):
         for q in self.quaggas.itervalues():
@@ -115,7 +114,7 @@ class GoBGPTestBase(unittest.TestCase):
             peer_info = self.gobgp.peers[q]
             local_addr = peer_info['local_addr'].split('/')[0]
             self.assertTrue(path['nexthop'] == local_addr)
-            self.assertTrue(len(path['as_path']) == 0)
+            self.assertTrue(len(path['aspath']) == 0)
 
     # check routes are properly advertised to all BGP speaker
     def test_06_check_quagga_global_rib(self):
@@ -161,7 +160,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q3.run()
         time.sleep(initial_wait_time)
-        self.bridges['br01'].addif(q3)
         self.gobgp.add_peer(q3)
         q3.add_peer(self.gobgp)
 
@@ -181,7 +179,7 @@ class GoBGPTestBase(unittest.TestCase):
             peer_info = self.gobgp.peers[q3]
             local_addr = peer_info['local_addr'].split('/')[0]
             self.assertTrue(path['nexthop'] == local_addr)
-            self.assertTrue(path['as_path'] == [self.gobgp.asn])
+            self.assertTrue(path['aspath'] == [self.gobgp.asn])
 
     def test_10_check_gobgp_ibgp_adj_rib_out(self):
         q1 = self.quaggas['q1']
@@ -198,7 +196,7 @@ class GoBGPTestBase(unittest.TestCase):
             self.assertTrue(path['nexthop'] == neigh_addr)
             # bgp router mustn't change aspath of routes from eBGP peers
             # which are sent to iBGP peers
-            self.assertTrue(path['as_path'] == [q3.asn])
+            self.assertTrue(path['aspath'] == [q3.asn])
 
     # disable ebgp peer, check ebgp routes are removed
     def test_11_disable_ebgp_peer(self):
@@ -236,6 +234,53 @@ class GoBGPTestBase(unittest.TestCase):
             paths = self.gobgp.get_adj_rib_out(q)
             # only gobgp's locally generated routes must exists
             self.assertTrue(len(paths) == len(self.gobgp.routes))
+
+    def test_15_add_ebgp_peer(self):
+        q4 = QuaggaBGPContainer(name='q4', asn=65001, router_id='192.168.0.5')
+        self.quaggas['q4'] = q4
+
+        prefix = '10.0.4.0/24'
+        q4.add_route(prefix)
+
+        initial_wait_time = q4.run()
+        time.sleep(initial_wait_time)
+        self.gobgp.add_peer(q4)
+        q4.add_peer(self.gobgp)
+
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q4)
+
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+        for q in [q1, q2]:
+            def f():
+                return prefix in [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q)]
+            wait_for_completion(f)
+
+        def f():
+            return len(q2.get_global_rib(prefix)) == 1
+        wait_for_completion(f)
+
+    def test_16_add_best_path_from_ibgp(self):
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+
+        prefix = '10.0.4.0/24'
+        q1.add_route(prefix)
+
+        def f():
+            l = self.gobgp.get_global_rib(prefix)
+            return len(l) == 1 and len(l[0]['paths']) == 2
+        wait_for_completion(f)
+
+        def f():
+            return prefix not in [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q2)]
+        wait_for_completion(f)
+
+        def f():
+            l = q2.get_global_rib(prefix)
+            # route from ibgp so aspath should be empty
+            return len(l) == 1 and len(l[0]['aspath']) == 0
+        wait_for_completion(f)
 
 
 if __name__ == '__main__':

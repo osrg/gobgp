@@ -1,4 +1,4 @@
-module bgp-gobgp {
+module gobgp {
 
   yang-version "1";
 
@@ -8,10 +8,14 @@ module bgp-gobgp {
   prefix "gobgp";
 
   // import some basic types
-  import bgp { prefix bgp; }
-  import routing-policy {prefix rpol; }
-  import bgp-policy {prefix bgp-pol; }
+  import openconfig-bgp { prefix bgp; }
+  import openconfig-bgp-types { prefix bgp-types; }
+  import openconfig-bgp-multiprotocol { prefix bgp-mp; }
+  import openconfig-routing-policy {prefix rpol; }
+  import openconfig-policy-types {prefix ptypes; }
+  import openconfig-bgp-policy {prefix bgp-pol; }
   import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
 
   // meta
   organization
@@ -30,21 +34,110 @@ module bgp-gobgp {
     reference "TBD";
   }
 
-  typedef bgp-origin-attr-type {
+  typedef bmp-route-monitoring-policy-type {
     type enumeration {
-      enum IGP {
+      enum PRE-POLICY {
         value 0;
-        description "Origin of the NLRI is internal";
+        description "send pre-policy routes";
       }
-      enum EGP {
+      enum POST-POLICY {
         value 1;
-        description "Origin of the NLRI is EGP";
+        description "send post-policy routes";
       }
-      enum INCOMPLETE {
+      enum BOTH {
         value 2;
-        description "Origin of the NLRI is neither IGP or EGP";
+        description "send both pre and post-policy routes";
       }
     }
+  }
+
+  identity eq {
+      base ptypes:attribute-comparison;
+  }
+
+  identity ge {
+      base ptypes:attribute-comparison;
+  }
+
+  identity le {
+      base ptypes:attribute-comparison;
+  }
+
+  identity IPV4-MULTICAST {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 multicast (AFI,SAFI = 1,2)";
+    reference "RFC4760";
+  }
+
+  identity IPV6-MULTICAST {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 multicast (AFI,SAFI = 1,2)";
+    reference "RFC4760";
+  }
+
+  identity RTC {
+    base bgp-types:afi-safi-type;
+    description
+      "Route target membership (AFI,SAFI = 1,132)";
+    reference "RFC4684";
+  }
+
+  identity IPV4-ENCAP {
+    base bgp-types:afi-safi-type;
+    description
+      "Encapsulation (AFI,SAFI = 1,7)";
+    reference "RFC5512";
+  }
+
+  identity IPV6-ENCAP {
+    base bgp-types:afi-safi-type;
+    description
+      "Encapsulation (AFI,SAFI = 2,7)";
+    reference "RFC5512";
+  }
+
+  identity IPV4-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 flowspec (AFI,SAFI = 1,133)";
+    reference "RFC5575";
+  }
+
+  identity L3VPN-IPV4-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L3VPN IPv4 flowspec (AFI,SAFI = 1,134)";
+    reference "RFC5575";
+  }
+
+  identity IPV6-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv6 flowspec (AFI,SAFI = 1,133)";
+    reference "RFC5575";
+  }
+
+  identity L3VPN-IPV6-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L3VPN IPv6 flowspec (AFI,SAFI = 1,134)";
+    reference "RFC5575";
+  }
+
+  identity L2VPN-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L2VPN flowspec (AFI,SAFI = 25,134)";
+    reference "draft-ietf-idr-flowspec-l2vpn-03";
+  }
+
+  identity OPAQUE {
+    base bgp-types:afi-safi-type;
+    description
+      "Opaque (AFI,SAFI = 16397,241)";
+    reference "https://tools.ietf.org/html/draft-lapukhov-bgp-opaque-signaling-01";
   }
 
   grouping gobgp-message-counter {
@@ -91,6 +184,23 @@ module bgp-gobgp {
       description
         "Number of total messages indicating an
         error condition has occurred exchanged.";
+    }
+  }
+
+
+  grouping gobgp-adjacent-table {
+    container adj-table {
+      leaf ADVERTISED {
+        type uint32;
+      }
+
+      leaf RECEIVED {
+        type uint32;
+      }
+
+      leaf ACCEPTED {
+        type uint32;
+      }
     }
   }
 
@@ -302,6 +412,24 @@ module bgp-gobgp {
   grouping gobgp-rpki-server-state {
     description "additional RPKI state";
 
+    leaf up {
+      type boolean;
+    }
+    leaf serial-number {
+      type uint32;
+    }
+    leaf records-v4 {
+      type uint32;
+    }
+    leaf records-v6 {
+      type uint32;
+    }
+    leaf prefixes-v4 {
+      type uint32;
+    }
+    leaf prefixes-v6 {
+      type uint32;
+    }
     leaf uptime {
       type int64;
       description
@@ -385,14 +513,106 @@ module bgp-gobgp {
     description "additional RPKI structure";
 
     container rpki-servers {
-      description
-        "List of RPKI servers configured on the local system";
       list rpki-server {
-        container rpki-server {
-          uses gobgp-rpki-server-set;
+        key "address";
+        description
+          "List of RPKI servers configured on the local system";
+        leaf address {
+          type leafref {
+            path "../config/address";
+          }
         }
+        uses gobgp-rpki-server-set;
       }
     }
+  }
+
+  grouping gobgp-bmp-server-config {
+    description "additional BMP config";
+
+    leaf address {
+      type inet:ip-address;
+      description
+        "Reference to the address of the BMP server used as
+         a key in the BMP server list";
+    }
+    leaf port {
+      type uint32;
+      description
+        "Reference to the port of the BMP server";
+    }
+    leaf route-monitoring-policy {
+      type bmp-route-monitoring-policy-type;
+      default PRE-POLICY;
+    }
+  }
+
+  grouping gobgp-bmp-server-state {
+    description "additional BMP state";
+  }
+
+  grouping gobgp-bmp-server-set {
+    description "additional BMP configuration and state";
+
+    container config {
+      description
+        "Configuration parameters relating to BMP server";
+      uses gobgp-bmp-server-config;
+    }
+
+    container state {
+      description
+        "Configuration parameters relating to BMP server";
+      uses gobgp-bmp-server-state;
+    }
+  }
+
+  grouping gobgp-bmp-servers {
+    description "BGP Monitoring Protocol servers";
+
+    container bmp-servers {
+      list bmp-server {
+        key "address";
+        description
+          "List of BMP servers configured on the local system";
+        leaf address {
+          type leafref {
+            path "../config/address";
+          }
+        }
+        uses gobgp-bmp-server-set;
+      }
+    }
+  }
+
+  grouping long-lived-graceful-restart {
+      container long-lived-graceful-restart {
+	  container config {
+	      leaf enabled {
+		  type boolean;
+	      }
+	      leaf restart-time {
+		  type uint32;
+	      }
+	  }
+	  container state {
+	      leaf enabled {
+		  type boolean;
+	      }
+	      leaf received {
+		  type boolean;
+	      }
+	      leaf advertised {
+		  type boolean;
+	      }
+	      leaf peer-restart-time {
+		  type uint32;
+	      }
+	      leaf peer-restart-timer-expired {
+		  type boolean;
+	      }
+	  }
+      }
   }
 
   // augment statements
@@ -407,12 +627,62 @@ module bgp-gobgp {
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    description "additional counters";
+    uses gobgp-adjacent-table;
+  }
+
+  typedef bgp-capability {
+      type uint8;
+  }
+
+  typedef bgp-open-message {
+      type uint8;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf-list remote-capability {
+      type bgp-capability;
+    }
+    leaf-list local-capability {
+      type bgp-capability;
+    }
+
+    leaf received-open-message {
+      type bgp-open-message;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    description "additional state elements";
+
+    leaf admin-down {
+      type boolean;
+      description
+        "The config of administrative operation. If state, indicates the neighbor is disabled by the administrator";
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     description "additional state elements";
 
     leaf admin-down {
       type boolean;
       description
         "The state of administrative operation. If the state is true, it indicates the neighbor is disabled by the administrator";
+    }
+
+    leaf admin-state {
+      type enumeration {
+        enum UP {
+          description "admin state is up";
+        }
+        enum DOWN {
+          description "admin state is down";
+        }
+        enum PFX_CT {
+          description "prefix counter over limit";
+        }
+      }
     }
 
     leaf established-count {
@@ -425,6 +695,38 @@ module bgp-gobgp {
       type uint32;
       description
         "The number of flip-flops";
+    }
+
+
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    leaf neighbor-interface {
+      type string;
+    }
+    leaf vrf {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf neighbor-interface {
+      type string;
+    }
+    leaf vrf {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf remote-router-id {
+        type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+    leaf remote-port {
+      type inet:port-number;
     }
   }
 
@@ -439,6 +741,42 @@ module bgp-gobgp {
     uses gobgp-neighbor-timer;
    }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:afi-safis/bgp:afi-safi/bgp:graceful-restart/bgp:state" {
+    description "additional graceful-restart status";
+    leaf end-of-rib-received {
+      type boolean;
+    }
+    leaf end-of-rib-sent {
+      type boolean;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:config" {
+    description "additional graceful-restart status";
+    leaf deferral-time {
+      type uint16;
+    }
+    leaf notification-enabled {
+      type boolean;
+    }
+    leaf long-lived-enabled {
+      type boolean;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
+    description "additional graceful-restart status";
+    leaf deferral-time {
+      type uint16;
+    }
+    leaf notification-enabled {
+      type boolean;
+    }
+    leaf long-lived-enabled {
+      type boolean;
+    }
+  }
+
   augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
     description "route server configuration for peer-group";
     uses gobgp-route-server-config-set;
@@ -447,20 +785,6 @@ module bgp-gobgp {
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
     description "route server configuration for neighbor";
     uses gobgp-route-server-config-set;
-  }
-
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
-    description "neighbor's local ip address, whose type is inet:ip-address";
-    leaf local-address {
-        type inet:ip-address;
-    }
-  }
-
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state" {
-    description "neighbor's local ip address, whose type is inet:ip-address";
-    leaf local-address {
-      type inet:ip-address;
-    }
   }
 
   augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
@@ -496,12 +820,10 @@ module bgp-gobgp {
   augment "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set" {
     description "alternative for the existing neighbor element";
 
-    list neighbor-info {
-      leaf address {
-        type inet:ip-address;
-        description
+    leaf-list neighbor-info {
+      description
             "neighbor ip address";
-       }
+      type inet:ip-address;
     }
   }
 
@@ -509,12 +831,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
     description "alternative for the existing community-member";
 
-    list community {
-      leaf community {
-        type string;
-        description
-            "community set member";
-       }
+    leaf-list community {
+      description
+        "community set member";
+      type string;
     }
   }
 
@@ -522,12 +842,28 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set" {
     description "alternative for the existing ext-community-member";
 
-    list ext-community {
-      leaf ext-community {
-        type string;
-        description
+    leaf-list ext-community {
+      type string;
+      description
+        "extended community set member";
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/" +
+    "bgp-pol:bgp-defined-sets" {
+    container large-community-sets {
+      list large-community-set {
+        key "large-community-set-name";
+
+        leaf large-community-set-name {
+          type string;
+        }
+        leaf-list large-community {
+          type string;
+          description
             "extended community set member";
-       }
+        }
+      }
     }
   }
 
@@ -535,12 +871,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
     description "alternative for the existing as-path-set-member";
 
-    list as-path {
-      leaf as-path {
-        type string;
-        description
-            "AS path expression";
-       }
+    leaf-list as-path {
+      type string;
+      description
+        "AS path expression";
     }
   }
 
@@ -551,10 +885,223 @@ module bgp-gobgp {
     uses gobgp-rpki-validation-result;
   }
 
+  deviation "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:conditions/bgp-pol:bgp-conditions/bgp-pol:route-type" {
+    description "alternative route-type condition";
+    deviate replace {
+        type enumeration {
+          enum NONE {
+            description "route type is none";
+          }
+          enum INTERNAL {
+            description "route type is internal";
+          }
+          enum EXTERNAL {
+            description "route type is external";
+          }
+          enum LOCAL {
+            description "route type is local";
+          }
+        }
+
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+      "rpol:policy-definition/rpol:statements/rpol:statement/" +
+      "rpol:conditions/bgp-pol:bgp-conditions" {
+    container match-large-community-set {
+      leaf large-community-set {
+        type string;
+      }
+      uses rpol:match-set-options-group;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:actions/bgp-pol:bgp-actions" {
+    container set-large-community {
+      container set-large-community-method {
+        leaf-list communities {
+          type string;
+        }
+      }
+      leaf options {
+        type bgp-pol:bgp-set-community-option-type;
+      }
+    }
+  }
+
   augment "/bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;
-
   }
 
+  augment "/bgp:bgp" {
+    description "additional bmp configuration";
+    uses gobgp-bmp-servers;
+  }
+
+  typedef mrt-type {
+    type enumeration {
+      enum UPDATES {
+        description "RPKI disabled";
+      }
+      enum TABLE {
+        description "If the origin AS, prefix, maximum prefix length is
+        exist in the range of ROA";
+      }
+    }
+  }
+
+  grouping gobgp-mrt-set {
+    container config {
+      leaf dump-type {
+        type mrt-type;
+      }
+      leaf file-name {
+        type string;
+        description
+          "Configures a file name to be written";
+      }
+      leaf table-name {
+        type string;
+        description
+          "specify the table name with route server setup";
+      }
+      leaf dump-interval {
+        type uint64;
+      }
+      leaf rotation-interval {
+        type uint64;
+      }
+    }
+  }
+
+  grouping gobgp-mrt {
+    description "additional mrt configuration";
+    container mrt-dump {
+      list mrt {
+        key "file-name";
+        leaf file-name {
+          type leafref {
+            path "../config/file-name";
+          }
+        }
+        uses gobgp-mrt-set;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    description "additional mrt configuration";
+    uses gobgp-mrt;
+  }
+
+  grouping zebra-config {
+    leaf enabled {
+      type boolean;
+      description
+        "Configure enabling to connect to zebra.";
+    }
+    leaf url {
+      type string;
+      description
+        "Configure url for zebra.";
+    }
+    leaf-list redistribute-route-type {
+      type identityref {
+        base ptypes:install-protocol-type;
+      }
+    }
+    leaf version {
+      type uint8;
+      description
+        "Configure version of zebra protocol.  Default is 2. Supported up to 3.";
+    }
+  }
+
+  grouping zebra-set {
+    container zebra {
+      container config {
+        uses zebra-config;
+      }
+      container state {
+        uses zebra-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses zebra-set;
+  }
+
+  grouping collector-config {
+    leaf url {
+      type string;
+    }
+    leaf db-name {
+      type string;
+    }
+    leaf table-dump-interval {
+      type uint64;
+    }
+  }
+
+  grouping collector-set {
+    container collector {
+      container config {
+        uses collector-config;
+      }
+      container state {
+        uses collector-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses collector-set;
+  }
+
+  grouping listen-config {
+    leaf port {
+        type int32;
+    }
+    leaf-list local-address {
+        type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:config" {
+      uses listen-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:state" {
+      uses listen-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
+      uses bgp-mp:all-afi-safi-common;
+  }
+
+  grouping route-target-membership-config {
+      leaf deferral-time {
+        type uint16;
+      }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
+    container route-target-membership {
+      container config {
+          uses route-target-membership-config;
+      }
+      container state {
+          uses route-target-membership-config;
+      }
+    }
+    
+    uses long-lived-graceful-restart;
+  }
 }

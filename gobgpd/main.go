@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,32 +19,42 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
+	p "github.com/kr/pretty"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
+	"github.com/osrg/gobgp/table"
 	"io/ioutil"
 	"log/syslog"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 )
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGUSR1)
 
 	var opts struct {
-		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
-		LogLevel      string `short:"l" long:"log-level" description:"specifying log level"`
-		LogPlain      bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
-		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
-		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
-		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
-		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
-		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
-		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
+		ConfigType      string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
+		LogLevel        string `short:"l" long:"log-level" description:"specifying log level"`
+		LogPlain        bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
+		UseSyslog       string `short:"s" long:"syslog" description:"use syslogd"`
+		Facility        string `long:"syslog-facility" description:"specify syslog facility"`
+		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
+		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
+		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
+		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
+		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
+		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -59,6 +69,12 @@ func main() {
 			os.Exit(1)
 		}
 		runtime.GOMAXPROCS(opts.CPUs)
+	}
+
+	if !opts.PProfDisable {
+		go func() {
+			log.Println(http.ListenAndServe(opts.PProfHost, nil))
+		}()
 	}
 
 	switch opts.LogLevel {
@@ -138,83 +154,171 @@ func main() {
 		}
 	}
 
-	if opts.LogPlain == false {
+	if opts.LogPlain {
+		if opts.DisableStdlog {
+			log.SetFormatter(&log.TextFormatter{
+				DisableColors: true,
+			})
+		}
+	} else {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	if opts.ConfigFile == "" {
-		opts.ConfigFile = "gobgpd.conf"
+	configCh := make(chan *config.BgpConfigSet)
+	if opts.Dry {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+		c := <-configCh
+		if opts.LogLevel == "debug" {
+			p.Println(c)
+		}
+		os.Exit(0)
 	}
 
-	configCh := make(chan config.BgpConfigSet)
-	reloadCh := make(chan bool)
-	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
-	reloadCh <- true
-	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
+	log.Info("gobgpd started")
+	bgpServer := server.NewBgpServer()
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
-	go grpcServer.Serve()
+	grpcServer := api.NewGrpcServer(bgpServer, opts.GrpcHosts)
+	go func() {
+		if err := grpcServer.Serve(); err != nil {
+			log.Fatalf("failed to listen grpc port: %s", err)
+		}
+	}()
 
-	if opts.EnableZapi == true {
-		if opts.ZapiURL == "" {
-			opts.ZapiURL = "unix:/var/run/quagga/zserv.api"
-		}
-		err := bgpServer.NewZclient(opts.ZapiURL)
-		if err != nil {
-			log.Error(err)
-			os.Exit(1)
-		}
+	if opts.ConfigFile != "" {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
-	var bgpConfig *config.Bgp = nil
-	var policyConfig *config.RoutingPolicy = nil
+	var c *config.BgpConfigSet = nil
 	for {
 		select {
 		case newConfig := <-configCh:
 			var added, deleted, updated []config.Neighbor
+			var updatePolicy bool
 
-			if bgpConfig == nil {
-				bgpServer.SetGlobalType(newConfig.Bgp.Global)
-				bgpConfig = &newConfig.Bgp
-				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
-				added = newConfig.Bgp.Neighbors.NeighborList
-				deleted = []config.Neighbor{}
-				updated = []config.Neighbor{}
+			if c == nil {
+				c = newConfig
+				if err := bgpServer.Start(&newConfig.Global); err != nil {
+					log.Fatalf("failed to set global config: %s", err)
+				}
+				if newConfig.Zebra.Config.Enabled {
+					if err := bgpServer.StartZebraClient(&newConfig.Zebra.Config); err != nil {
+						log.Fatalf("failed to set zebra config: %s", err)
+					}
+				}
+				if len(newConfig.Collector.Config.Url) > 0 {
+					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
+						log.Fatalf("failed to set collector config: %s", err)
+					}
+				}
+				for _, c := range newConfig.RpkiServers {
+					if err := bgpServer.AddRpki(&c.Config); err != nil {
+						log.Fatalf("failed to set rpki config: %s", err)
+					}
+				}
+				for _, c := range newConfig.BmpServers {
+					if err := bgpServer.AddBmp(&c.Config); err != nil {
+						log.Fatalf("failed to set bmp config: %s", err)
+					}
+				}
+				for _, c := range newConfig.MrtDump {
+					if len(c.Config.FileName) == 0 {
+						continue
+					}
+					if err := bgpServer.EnableMrt(&c.Config); err != nil {
+						log.Fatalf("failed to set mrt config: %s", err)
+					}
+				}
+				p := config.ConfigSetToRoutingPolicy(newConfig)
+				if err := bgpServer.UpdatePolicy(*p); err != nil {
+					log.Fatalf("failed to set routing policy: %s", err)
+				}
+
+				added = newConfig.Neighbors
+				if opts.GracefulRestart {
+					for i, n := range added {
+						if n.GracefulRestart.Config.Enabled {
+							added[i].GracefulRestart.State.LocalRestarting = true
+						}
+					}
+				}
+
 			} else {
-				bgpConfig, added, deleted, updated = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
+				added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
+				if updatePolicy {
+					log.Info("Policy config is updated")
+					p := config.ConfigSetToRoutingPolicy(newConfig)
+					bgpServer.UpdatePolicy(*p)
+				}
+				// global policy update
+				if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
+					a := newConfig.Global.ApplyPolicy.Config
+					toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
+						var def table.RouteType
+						switch r {
+						case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
+							def = table.ROUTE_TYPE_ACCEPT
+						case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
+							def = table.ROUTE_TYPE_REJECT
+						}
+						return def
+					}
+					toPolicyDefinitions := func(r []string) []*config.PolicyDefinition {
+						p := make([]*config.PolicyDefinition, 0, len(r))
+						for _, n := range r {
+							p = append(p, &config.PolicyDefinition{
+								Name: n,
+							})
+						}
+						return p
+					}
+
+					def := toDefaultTable(a.DefaultImportPolicy)
+					ps := toPolicyDefinitions(a.ImportPolicyList)
+					bgpServer.ReplacePolicyAssignment("", table.POLICY_DIRECTION_IMPORT, ps, def)
+
+					def = toDefaultTable(a.DefaultExportPolicy)
+					ps = toPolicyDefinitions(a.ExportPolicyList)
+					bgpServer.ReplacePolicyAssignment("", table.POLICY_DIRECTION_EXPORT, ps, def)
+
+					updatePolicy = true
+
+				}
+				c = newConfig
 			}
 
-			if policyConfig == nil {
-				policyConfig = &newConfig.Policy
-				bgpServer.SetPolicy(newConfig.Policy)
-			} else {
-				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
-					log.Info("Policy config is updated")
-					bgpServer.UpdatePolicy(newConfig.Policy)
+			for i, p := range added {
+				log.Infof("Peer %v is added", p.Config.NeighborAddress)
+				if err := bgpServer.AddNeighbor(&added[i]); err != nil {
+					log.Warn(err)
 				}
 			}
+			for i, p := range deleted {
+				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
+				if err := bgpServer.DeleteNeighbor(&deleted[i]); err != nil {
+					log.Warn(err)
+				}
+			}
+			for i, p := range updated {
+				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
+				u, err := bgpServer.UpdateNeighbor(&updated[i])
+				if err != nil {
+					log.Warn(err)
+				}
+				updatePolicy = updatePolicy || u
+			}
 
-			for _, p := range added {
-				log.Infof("Peer %v is added", p.NeighborConfig.NeighborAddress)
-				bgpServer.PeerAdd(p)
-			}
-			for _, p := range deleted {
-				log.Infof("Peer %v is deleted", p.NeighborConfig.NeighborAddress)
-				bgpServer.PeerDelete(p)
-			}
-			for _, p := range updated {
-				log.Infof("Peer %v is updated", p.NeighborConfig.NeighborAddress)
-				bgpServer.PeerUpdate(p)
+			if updatePolicy {
+				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
 		case sig := <-sigCh:
 			switch sig {
-			case syscall.SIGHUP:
-				log.Info("reload the config file")
-				reloadCh <- true
 			case syscall.SIGKILL, syscall.SIGTERM:
 				bgpServer.Shutdown()
+			case syscall.SIGUSR1:
+				runtime.GC()
+				debug.FreeOSMemory()
 			}
 		}
 	}
