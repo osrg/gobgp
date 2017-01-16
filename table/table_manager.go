@@ -164,6 +164,9 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 }
 
 func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
+	if manager == nil {
+		return nil, fmt.Errorf("vrf %s not found", name)
+	}
 	if _, ok := manager.Vrfs[name]; !ok {
 		return nil, fmt.Errorf("vrf %s not found", name)
 	}
