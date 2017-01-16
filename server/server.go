@@ -1257,9 +1257,11 @@ func (s *BgpServer) GetVrf() (l []*table.Vrf) {
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		l = make([]*table.Vrf, 0, len(s.globalRib.Vrfs))
-		for _, vrf := range s.globalRib.Vrfs {
-			l = append(l, vrf.Clone())
+		if s.globalRib != nil {
+			l = make([]*table.Vrf, 0, len(s.globalRib.Vrfs))
+			for _, vrf := range s.globalRib.Vrfs {
+				l = append(l, vrf.Clone())
+			}
 		}
 	}
 	return l
