@@ -25,6 +25,9 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP)
 
+	// Update config file type, if detectable
+	format = detectConfigFileType(path, format)
+
 	cnt := 0
 	for {
 		c := &BgpConfigSet{}
