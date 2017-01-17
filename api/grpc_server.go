@@ -224,6 +224,9 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 }
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*GetNeighborResponse, error) {
+	if arg == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	p := []*Peer{}
 	for _, e := range s.bgpServer.GetNeighbor(arg.EnableAdvertised) {
 		p = append(p, NewPeerFromConfigStruct(e))
@@ -264,6 +267,9 @@ func ToPathApi(path *table.Path) *Path {
 }
 
 func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibResponse, error) {
+	if arg == nil || arg.Table == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	f := func() []*table.LookupPrefix {
 		l := make([]*table.LookupPrefix, 0, len(arg.Table.Destinations))
 		for _, p := range arg.Table.Destinations {
@@ -334,6 +340,9 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 }
 
 func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error {
+	if arg == nil {
+		return fmt.Errorf("invalid request")
+	}
 	w, err := func() (*server.Watcher, error) {
 		switch arg.Type {
 		case Resource_GLOBAL:
@@ -405,6 +414,9 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 }
 
 func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerStateServer) error {
+	if arg == nil {
+		return fmt.Errorf("invalid request")
+	}
 	return func() error {
 		w := s.bgpServer.Watch(server.WatchPeerState(false))
 		defer func() { w.Stop() }()
@@ -793,6 +805,9 @@ func (s *Server) GetVrf(ctx context.Context, arg *GetVrfRequest) (*GetVrfRespons
 }
 
 func (s *Server) AddVrf(ctx context.Context, arg *AddVrfRequest) (r *AddVrfResponse, err error) {
+	if arg == nil || arg.Vrf == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
 	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
 		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
@@ -817,6 +832,9 @@ func (s *Server) AddVrf(ctx context.Context, arg *AddVrfRequest) (r *AddVrfRespo
 }
 
 func (s *Server) DeleteVrf(ctx context.Context, arg *DeleteVrfRequest) (*DeleteVrfResponse, error) {
+	if arg == nil || arg.Vrf == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	return &DeleteVrfResponse{}, s.bgpServer.DeleteVrf(arg.Vrf.Name)
 }
 
@@ -1179,6 +1197,9 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (
 }
 
 func (s *Server) AddDefinedSet(ctx context.Context, arg *AddDefinedSetRequest) (*AddDefinedSetResponse, error) {
+	if arg == nil || arg.Set == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
@@ -1187,6 +1208,9 @@ func (s *Server) AddDefinedSet(ctx context.Context, arg *AddDefinedSetRequest) (
 }
 
 func (s *Server) DeleteDefinedSet(ctx context.Context, arg *DeleteDefinedSetRequest) (*DeleteDefinedSetResponse, error) {
+	if arg == nil || arg.Set == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
@@ -1195,6 +1219,9 @@ func (s *Server) DeleteDefinedSet(ctx context.Context, arg *DeleteDefinedSetRequ
 }
 
 func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *ReplaceDefinedSetRequest) (*ReplaceDefinedSetResponse, error) {
+	if arg == nil || arg.Set == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
@@ -1697,6 +1724,9 @@ func (s *Server) GetStatement(ctx context.Context, arg *GetStatementRequest) (*G
 }
 
 func (s *Server) AddStatement(ctx context.Context, arg *AddStatementRequest) (*AddStatementResponse, error) {
+	if arg == nil || arg.Statement == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
 		err = s.bgpServer.AddStatement(st)
@@ -1705,6 +1735,9 @@ func (s *Server) AddStatement(ctx context.Context, arg *AddStatementRequest) (*A
 }
 
 func (s *Server) DeleteStatement(ctx context.Context, arg *DeleteStatementRequest) (*DeleteStatementResponse, error) {
+	if arg == nil || arg.Statement == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
 		err = s.bgpServer.DeleteStatement(st, arg.All)
@@ -1713,6 +1746,9 @@ func (s *Server) DeleteStatement(ctx context.Context, arg *DeleteStatementReques
 }
 
 func (s *Server) ReplaceStatement(ctx context.Context, arg *ReplaceStatementRequest) (*ReplaceStatementResponse, error) {
+	if arg == nil || arg.Statement == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
 		err = s.bgpServer.ReplaceStatement(st)
@@ -1807,6 +1843,9 @@ func (s *Server) GetPolicy(ctx context.Context, arg *GetPolicyRequest) (*GetPoli
 }
 
 func (s *Server) AddPolicy(ctx context.Context, arg *AddPolicyRequest) (*AddPolicyResponse, error) {
+	if arg == nil || arg.Policy == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
@@ -1815,6 +1854,9 @@ func (s *Server) AddPolicy(ctx context.Context, arg *AddPolicyRequest) (*AddPoli
 }
 
 func (s *Server) DeletePolicy(ctx context.Context, arg *DeletePolicyRequest) (*DeletePolicyResponse, error) {
+	if arg == nil || arg.Policy == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
@@ -1823,6 +1865,9 @@ func (s *Server) DeletePolicy(ctx context.Context, arg *DeletePolicyRequest) (*D
 }
 
 func (s *Server) ReplacePolicy(ctx context.Context, arg *ReplacePolicyRequest) (*ReplacePolicyResponse, error) {
+	if arg == nil || arg.Policy == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
@@ -1859,6 +1904,9 @@ func toPolicyAssignmentName(a *PolicyAssignment) (string, table.PolicyDirection,
 }
 
 func (s *Server) GetPolicyAssignment(ctx context.Context, arg *GetPolicyAssignmentRequest) (*GetPolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1904,6 +1952,9 @@ func toPolicyDefinition(policies []*Policy) []*config.PolicyDefinition {
 }
 
 func (s *Server) AddPolicyAssignment(ctx context.Context, arg *AddPolicyAssignmentRequest) (*AddPolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1912,6 +1963,9 @@ func (s *Server) AddPolicyAssignment(ctx context.Context, arg *AddPolicyAssignme
 }
 
 func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *DeletePolicyAssignmentRequest) (*DeletePolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1920,6 +1974,9 @@ func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *DeletePolicyAs
 }
 
 func (s *Server) ReplacePolicyAssignment(ctx context.Context, arg *ReplacePolicyAssignmentRequest) (*ReplacePolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1941,6 +1998,9 @@ func (s *Server) GetServer(ctx context.Context, arg *GetServerRequest) (*GetServ
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*StartServerResponse, error) {
+	if arg == nil || arg.Global == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	g := arg.Global
 	if net.ParseIP(g.RouterId) == nil {
 		return nil, fmt.Errorf("invalid router-id format: %s", g.RouterId)
@@ -1982,6 +2042,9 @@ func (s *Server) StopServer(ctx context.Context, arg *StopServerRequest) (*StopS
 }
 
 func (s *Server) GetRibInfo(ctx context.Context, arg *GetRibInfoRequest) (*GetRibInfoResponse, error) {
+	if arg == nil || arg.Info == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	family := bgp.RouteFamily(arg.Info.Family)
 	var in bool
 	var err error
