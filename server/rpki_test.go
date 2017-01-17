@@ -55,7 +55,8 @@ func strToASParam(str string) *bgp.PathAttributeAsPath {
 }
 
 func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidationResultType {
-	return ValidatePath(65500, tree, cidr, strToASParam(aspathStr))
+	r, _ := ValidatePath(65500, tree, cidr, strToASParam(aspathStr))
+	return r
 }
 
 func TestValidate0(t *testing.T) {

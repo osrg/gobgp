@@ -494,7 +494,7 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 	return l, nil
 }
 
-func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
+func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) (config.RpkiValidationResultType, *RoaBucket) {
 	var as uint32
 
 	if asPath == nil || len(asPath.Value) == 0 {
@@ -511,7 +511,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 			as = ownAs
 		default:
-			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, nil
 		}
 	}
 	_, n, _ := net.ParseCIDR(cidr)
@@ -520,12 +520,13 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	key := table.IpToRadixkey(n.IP, prefixLen)
 	_, b, _ := tree.LongestPrefix(key)
 	if b == nil {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, nil
 	}
 
 	result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+	var bucket *RoaBucket
 	fn := radix.WalkFn(func(k string, v interface{}) bool {
-		bucket, _ := v.(*RoaBucket)
+		bucket, _ = v.(*RoaBucket)
 		for _, r := range bucket.entries {
 			if prefixLen <= r.MaxLen && r.AS != 0 && r.AS == as {
 				result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
@@ -535,7 +536,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 		return false
 	})
 	tree.WalkPath(key, fn)
-	return result
+	return result, bucket
 }
 
 func (c *roaManager) validate(pathList []*table.Path) {
@@ -549,7 +550,7 @@ func (c *roaManager) validate(pathList []*table.Path) {
 			continue
 		}
 		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
-			r := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			r, _ := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 			path.SetValidation(config.RpkiValidationResultType(r))
 		}
 	}
