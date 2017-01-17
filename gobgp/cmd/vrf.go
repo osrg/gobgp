@@ -96,7 +96,8 @@ func modVrf(typ string, args []string) error {
 			return fmt.Errorf("Usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 		}
 		name := a[""][0]
-		rd, err := bgp.ParseRouteDistinguisher(a["rd"][0])
+		var rd bgp.RouteDistinguisherInterface
+		rd, err = bgp.ParseRouteDistinguisher(a["rd"][0])
 		if err != nil {
 			return err
 		}

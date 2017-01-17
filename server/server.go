@@ -980,6 +980,9 @@ func (s *BgpServer) AddBmp(c *config.BmpServerConfig) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.bmpManager.addServer(c)
 	}
@@ -992,6 +995,9 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.bmpManager.deleteServer(c)
 	}
@@ -1169,6 +1175,9 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		deletePathList := make([]*table.Path, 0)
 		if len(uuid) > 0 {
@@ -1212,7 +1221,7 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		if s.bgpConfig.Global.Config.As != 0 {
+		if err = s.active(); err == nil {
 			err = fmt.Errorf("gobgp is already started")
 			return
 		}
@@ -1298,6 +1307,9 @@ func (s *BgpServer) DeleteVrf(name string) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		for _, n := range s.neighborMap {
 			if n.fsm.pConf.Config.Vrf == name {
@@ -1320,6 +1332,9 @@ func (s *BgpServer) Stop() (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		for k, _ := range s.neighborMap {
 			if err = s.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
@@ -1434,6 +1449,9 @@ func (s *BgpServer) SoftResetIn(addr string, family bgp.RouteFamily) (err error)
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 		err = s.softResetIn(addr, family)
 	}
 	return err
@@ -1450,6 +1468,9 @@ func (s *BgpServer) SoftResetOut(addr string, family bgp.RouteFamily) (err error
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 		err = s.softResetOut(addr, family, false)
 	}
 	return err
@@ -1466,7 +1487,13 @@ func (s *BgpServer) SoftReset(addr string, family bgp.RouteFamily) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 		err = s.softResetIn(addr, family)
+		if err != nil {
+			return
+		}
 		err = s.softResetOut(addr, family, false)
 	}
 	return err
@@ -1478,6 +1505,9 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*tabl
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		m := s.globalRib
 		id := table.GLOBAL_RIB_NAME
@@ -1510,6 +1540,9 @@ func (s *BgpServer) GetVrfRib(name string, family bgp.RouteFamily, prefixes []*t
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		m := s.globalRib
 		vrfs := m.Vrfs
@@ -1542,6 +1575,9 @@ func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		peer, ok := s.neighborMap[addr]
 		if !ok {
@@ -1569,6 +1605,9 @@ func (s *BgpServer) GetRibInfo(addr string, family bgp.RouteFamily) (info *table
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		m := s.globalRib
 		id := table.GLOBAL_RIB_NAME
@@ -1595,6 +1634,9 @@ func (s *BgpServer) GetAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		peer, ok := s.neighborMap[addr]
 		if !ok {
@@ -1797,6 +1839,9 @@ func (s *BgpServer) DeleteNeighbor(c *config.Neighbor) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 	}
@@ -1809,6 +1854,9 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		addr := c.Config.NeighborAddress
 		peer, ok := s.neighborMap[addr]
@@ -1918,6 +1966,9 @@ func (s *BgpServer) ShutdownNeighbor(addr string) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.resetNeighbor("Neighbor shutdown", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN)
 	}
@@ -1930,6 +1981,9 @@ func (s *BgpServer) ResetNeighbor(addr string) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.resetNeighbor("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET)
 		if err == nil {
@@ -1974,6 +2028,9 @@ func (s *BgpServer) EnableNeighbor(addr string) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.setAdminState(addr, true)
 	}
@@ -1986,6 +2043,9 @@ func (s *BgpServer) DisableNeighbor(addr string) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
 
 		err = s.setAdminState(addr, false)
 	}
