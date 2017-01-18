@@ -193,13 +193,13 @@ func (cli *Client) DeleteNeighbor(c *config.Neighbor) error {
 //func (cli *Client) UpdateNeighbor(c *config.Neighbor) (bool, error) {
 //}
 
-func (cli *Client) ShutdownNeighbor(addr string) error {
-	_, err := cli.cli.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: addr})
+func (cli *Client) ShutdownNeighbor(addr, communication string) error {
+	_, err := cli.cli.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: addr, Communication: communication})
 	return err
 }
 
-func (cli *Client) ResetNeighbor(addr string) error {
-	_, err := cli.cli.ResetNeighbor(context.Background(), &api.ResetNeighborRequest{Address: addr})
+func (cli *Client) ResetNeighbor(addr, communication string) error {
+	_, err := cli.cli.ResetNeighbor(context.Background(), &api.ResetNeighborRequest{Address: addr, Communication: communication})
 	return err
 }
 

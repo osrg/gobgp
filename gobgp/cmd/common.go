@@ -82,6 +82,7 @@ var subOpts struct {
 }
 
 var neighborsOpts struct {
+	Reason    string `short:"r" long:"reason" description:"specifying communication field on Cease NOTIFICATION message with Administrative Shutdown subcode"`
 	Transport string `short:"t" long:"transport" description:"specifying a transport protocol"`
 }
 
