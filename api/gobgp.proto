@@ -124,6 +124,7 @@ message DeleteNeighborResponse {
 
 message ResetNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message ResetNeighborResponse {
@@ -144,6 +145,7 @@ message SoftResetNeighborResponse {
 
 message ShutdownNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message ShutdownNeighborResponse {

@@ -617,9 +617,12 @@ func showNeighborRib(r string, name string, args []string) error {
 
 func resetNeighbor(cmd string, remoteIP string, args []string) error {
 	family := bgp.RouteFamily(0)
+	if reasonLen := len(neighborsOpts.Reason); reasonLen > bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX {
+		return fmt.Errorf("Too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
+	}
 	switch cmd {
 	case CMD_RESET:
-		return client.ResetNeighbor(remoteIP)
+		return client.ResetNeighbor(remoteIP, neighborsOpts.Reason)
 	case CMD_SOFT_RESET:
 		return client.SoftReset(remoteIP, family)
 	case CMD_SOFT_RESET_IN:
@@ -631,10 +634,13 @@ func resetNeighbor(cmd string, remoteIP string, args []string) error {
 }
 
 func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
+	if reasonLen := len(neighborsOpts.Reason); reasonLen > bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX {
+		return fmt.Errorf("Too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
+	}
 	switch cmd {
 	case CMD_SHUTDOWN:
-		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead", CMD_SHUTDOWN, CMD_DISABLE)
-		return client.ShutdownNeighbor(remoteIP)
+		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead\n", CMD_SHUTDOWN, CMD_DISABLE)
+		return client.ShutdownNeighbor(remoteIP, neighborsOpts.Reason)
 	case CMD_ENABLE:
 		return client.EnableNeighbor(remoteIP)
 	case CMD_DISABLE:
@@ -957,6 +963,7 @@ func NewNeighborCmd() *cobra.Command {
 	}
 
 	neighborCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	neighborCmd.PersistentFlags().StringVarP(&neighborsOpts.Reason, "reason", "", "", "specifying communication field on Cease NOTIFICATION message with Administrative Shutdown subcode")
 	neighborCmd.PersistentFlags().StringVarP(&neighborsOpts.Transport, "transport", "t", "", "specifying a transport protocol")
 	return neighborCmd
 }

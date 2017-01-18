@@ -459,7 +459,7 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 }
 
 func (s *Server) ResetNeighbor(ctx context.Context, arg *ResetNeighborRequest) (*ResetNeighborResponse, error) {
-	return &ResetNeighborResponse{}, s.bgpServer.ResetNeighbor(arg.Address)
+	return &ResetNeighborResponse{}, s.bgpServer.ResetNeighbor(arg.Address, arg.Communication)
 }
 
 func (s *Server) SoftResetNeighbor(ctx context.Context, arg *SoftResetNeighborRequest) (*SoftResetNeighborResponse, error) {
@@ -481,7 +481,7 @@ func (s *Server) SoftResetNeighbor(ctx context.Context, arg *SoftResetNeighborRe
 }
 
 func (s *Server) ShutdownNeighbor(ctx context.Context, arg *ShutdownNeighborRequest) (*ShutdownNeighborResponse, error) {
-	return &ShutdownNeighborResponse{}, s.bgpServer.ShutdownNeighbor(arg.Address)
+	return &ShutdownNeighborResponse{}, s.bgpServer.ShutdownNeighbor(arg.Address, arg.Communication)
 }
 
 func (s *Server) EnableNeighbor(ctx context.Context, arg *EnableNeighborRequest) (*EnableNeighborResponse, error) {

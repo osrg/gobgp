@@ -1765,7 +1765,7 @@ func (s *BgpServer) addrToPeers(addr string) (l []*Peer, err error) {
 	return []*Peer{peer}, nil
 }
 
-func (s *BgpServer) resetNeighbor(op, addr string, subcode uint8) error {
+func (s *BgpServer) resetNeighbor(op, addr string, subcode uint8, data []byte) error {
 	log.WithFields(log.Fields{
 		"Topic": "Operation",
 		"Key":   addr,
@@ -1773,7 +1773,7 @@ func (s *BgpServer) resetNeighbor(op, addr string, subcode uint8) error {
 
 	peers, err := s.addrToPeers(addr)
 	if err == nil {
-		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, nil)
+		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, data)
 		for _, peer := range peers {
 			sendFsmOutgoingMsg(peer, nil, m, false)
 		}
@@ -1781,15 +1781,15 @@ func (s *BgpServer) resetNeighbor(op, addr string, subcode uint8) error {
 	return err
 }
 
-func (s *BgpServer) ShutdownNeighbor(addr string) error {
+func (s *BgpServer) ShutdownNeighbor(addr, communication string) error {
 	return s.mgmtOperation(func() error {
-		return s.resetNeighbor("Neighbor shutdown", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN)
+		return s.resetNeighbor("Neighbor shutdown", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, newAdministrativeCommunication(communication))
 	}, true)
 }
 
-func (s *BgpServer) ResetNeighbor(addr string) error {
+func (s *BgpServer) ResetNeighbor(addr, communication string) error {
 	return s.mgmtOperation(func() error {
-		err := s.resetNeighbor("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET)
+		err := s.resetNeighbor("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, newAdministrativeCommunication(communication))
 		if err != nil {
 			return err
 		}
