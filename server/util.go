@@ -43,3 +43,19 @@ func newAdministrativeCommunication(communication string) (data []byte) {
 	}
 	return data
 }
+
+// Parses the given NOTIFICATION message data as a binary value and returns
+// the Administrative Shutdown Communication in string and the rest binary.
+func decodeAdministrativeCommunication(data []byte) (string, []byte) {
+	if len(data) == 0 {
+		return "", data
+	}
+	communicationLen := int(data[0])
+	if communicationLen > bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX {
+		communicationLen = bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX
+	}
+	if communicationLen > len(data)+1 {
+		communicationLen = len(data) + 1
+	}
+	return string(data[1 : communicationLen+1]), data[communicationLen+1:]
+}

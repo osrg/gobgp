@@ -696,13 +696,26 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 				}
 			case bgp.BGP_MSG_NOTIFICATION:
 				body := m.Body.(*bgp.BGPNotification)
-				log.WithFields(log.Fields{
-					"Topic":   "Peer",
-					"Key":     h.fsm.pConf.Config.NeighborAddress,
-					"Code":    body.ErrorCode,
-					"Subcode": body.ErrorSubcode,
-					"Data":    body.Data,
-				}).Warn("received notification")
+				if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+					communication, rest := decodeAdministrativeCommunication(body.Data)
+					log.WithFields(log.Fields{
+						"Topic":               "Peer",
+						"Key":                 h.fsm.pConf.Config.NeighborAddress,
+						"Code":                body.ErrorCode,
+						"Subcode":             body.ErrorSubcode,
+						"Communicated-Reason": communication,
+						"Data":                rest,
+					}).Warn("received notification")
+				} else {
+					log.WithFields(log.Fields{
+						"Topic":   "Peer",
+						"Key":     h.fsm.pConf.Config.NeighborAddress,
+						"Code":    body.ErrorCode,
+						"Subcode": body.ErrorSubcode,
+						"Data":    body.Data,
+					}).Warn("received notification")
+				}
+
 				if s := h.fsm.pConf.GracefulRestart.State; s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
 					sendToErrorCh(FSM_HARD_RESET)
 				} else {
@@ -1097,13 +1110,28 @@ func (h *FSMHandler) sendMessageloop() error {
 
 		switch m.Header.Type {
 		case bgp.BGP_MSG_NOTIFICATION:
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state.String(),
-				"Data":  m,
-			}).Warn("sent notification")
 			body := m.Body.(*bgp.BGPNotification)
+			if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+				communication, rest := decodeAdministrativeCommunication(body.Data)
+				log.WithFields(log.Fields{
+					"Topic":               "Peer",
+					"Key":                 fsm.pConf.Config.NeighborAddress,
+					"State":               fsm.state.String(),
+					"Code":                body.ErrorCode,
+					"Subcode":             body.ErrorSubcode,
+					"Communicated-Reason": communication,
+					"Data":                rest,
+				}).Warn("sent notification")
+			} else {
+				log.WithFields(log.Fields{
+					"Topic":   "Peer",
+					"Key":     fsm.pConf.Config.NeighborAddress,
+					"State":   fsm.state.String(),
+					"Code":    body.ErrorCode,
+					"Subcode": body.ErrorSubcode,
+					"Data":    body.Data,
+				}).Warn("sent notification")
+			}
 			h.errorCh <- FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_SENT, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String()))
 			conn.Close()
 			return fmt.Errorf("closed")
