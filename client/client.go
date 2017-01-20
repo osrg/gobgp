@@ -113,6 +113,18 @@ func (cli *Client) GetServer() (*config.Global, error) {
 	}, nil
 }
 
+func (cli *Client) EnableZebra(c *config.Zebra) error {
+	req := &api.EnableZebraRequest{
+		Url:     c.Config.Url,
+		Version: uint32(c.Config.Version),
+	}
+	for _, t := range c.Config.RedistributeRouteTypeList {
+		req.RouteTypes = append(req.RouteTypes, string(t))
+	}
+	_, err := cli.cli.EnableZebra(context.Background(), req)
+	return err
+}
+
 func (cli *Client) getNeighbor(name string, afi int, vrf string) ([]*config.Neighbor, error) {
 	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: name != ""})
 	if err != nil {
