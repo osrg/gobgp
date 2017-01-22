@@ -28,7 +28,6 @@ import (
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	"github.com/satori/go.uuid"
 )
 
 type TCPListener struct {
@@ -1138,8 +1137,7 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 			return err
 		}
 		if len(pathList) == 1 {
-			uuidBytes = uuid.NewV4().Bytes()
-			pathList[0].SetUUID(uuidBytes)
+			pathList[0].AssignNewUUID()
 		}
 		s.propagateUpdate(nil, pathList)
 		return nil
@@ -1153,7 +1151,7 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 		if len(uuid) > 0 {
 			path := func() *table.Path {
 				for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, s.globalRib.GetRFlist()) {
-					if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), uuid) {
+					if len(path.UUID()) > 0 && bytes.Equal(path.UUID().Bytes(), uuid) {
 						return path
 					}
 				}

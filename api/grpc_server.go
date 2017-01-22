@@ -257,6 +257,7 @@ func ToPathApi(path *table.Path) *Path {
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
+		Uuid:               path.UUID().Bytes(),
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS

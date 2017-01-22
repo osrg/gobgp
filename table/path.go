@@ -27,6 +27,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/satori/go.uuid"
 )
 
 const (
@@ -59,7 +60,7 @@ type originInfo struct {
 	validation         config.RpkiValidationResultType
 	isFromExternal     bool
 	key                string
-	uuid               []byte
+	uuid               uuid.UUID
 	eor                bool
 	stale              bool
 }
@@ -313,12 +314,16 @@ func (path *Path) SetIsFromExternal(y bool) {
 	path.OriginInfo().isFromExternal = y
 }
 
-func (path *Path) UUID() []byte {
+func (path *Path) UUID() uuid.UUID {
 	return path.OriginInfo().uuid
 }
 
-func (path *Path) SetUUID(uuid []byte) {
-	path.OriginInfo().uuid = uuid
+func (path *Path) SetUUID(id []byte) {
+	path.OriginInfo().uuid = uuid.FromBytesOrNil(id)
+}
+
+func (path *Path) AssignNewUUID() {
+	path.OriginInfo().uuid = uuid.NewV4()
 }
 
 func (path *Path) Filter(id string, reason PolicyDirection) {
@@ -889,6 +894,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
 		Stale      bool                         `json:"stale,omitempty"`
 		Filtered   bool                         `json:"filtered,omitempty"`
+		UUID       string                       `json:"uuid,omitempty"`
 	}{
 		Nlri:       path.GetNlri(),
 		PathAttrs:  path.GetPathAttrs(),
@@ -899,6 +905,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		NeighborIP: path.GetSource().Address,
 		Stale:      path.IsStale(),
 		Filtered:   path.Filtered("") > POLICY_DIRECTION_NONE,
+		UUID:       path.UUID().String(),
 	})
 }
 
