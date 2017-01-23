@@ -34,6 +34,16 @@ matrix:
       install: go get -t ./...
       script: go test ./...
     - go: 1.7
+      install: go get -t ./...
+      script: cd gobgpd && go build
+      env:
+        - GOOS=windows
+    - go: 1.7
+      install: go get -t ./...
+      script: cd gobgpd && go build
+      env:
+        - GOOS=freebsd
+    - go: 1.7
       os: osx
       before_install: true
       install: go get -t ./...

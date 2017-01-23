@@ -1,4 +1,4 @@
-// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2017 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package main
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
 	api "github.com/osrg/gobgp/api"
@@ -26,20 +25,17 @@ import (
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
 	"io/ioutil"
-	"log/syslog"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/debug"
-	"strings"
 	"syscall"
 )
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGUSR1)
+	signal.Notify(sigCh, syscall.SIGTERM)
 
 	var opts struct {
 		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
@@ -93,64 +89,8 @@ func main() {
 	}
 
 	if opts.UseSyslog != "" {
-		dst := strings.SplitN(opts.UseSyslog, ":", 2)
-		network := ""
-		addr := ""
-		if len(dst) == 2 {
-			network = dst[0]
-			addr = dst[1]
-		}
-
-		facility := syslog.Priority(0)
-		switch opts.Facility {
-		case "kern":
-			facility = syslog.LOG_KERN
-		case "user":
-			facility = syslog.LOG_USER
-		case "mail":
-			facility = syslog.LOG_MAIL
-		case "daemon":
-			facility = syslog.LOG_DAEMON
-		case "auth":
-			facility = syslog.LOG_AUTH
-		case "syslog":
-			facility = syslog.LOG_SYSLOG
-		case "lpr":
-			facility = syslog.LOG_LPR
-		case "news":
-			facility = syslog.LOG_NEWS
-		case "uucp":
-			facility = syslog.LOG_UUCP
-		case "cron":
-			facility = syslog.LOG_CRON
-		case "authpriv":
-			facility = syslog.LOG_AUTHPRIV
-		case "ftp":
-			facility = syslog.LOG_FTP
-		case "local0":
-			facility = syslog.LOG_LOCAL0
-		case "local1":
-			facility = syslog.LOG_LOCAL1
-		case "local2":
-			facility = syslog.LOG_LOCAL2
-		case "local3":
-			facility = syslog.LOG_LOCAL3
-		case "local4":
-			facility = syslog.LOG_LOCAL4
-		case "local5":
-			facility = syslog.LOG_LOCAL5
-		case "local6":
-			facility = syslog.LOG_LOCAL6
-		case "local7":
-			facility = syslog.LOG_LOCAL7
-		}
-
-		hook, err := logrus_syslog.NewSyslogHook(network, addr, syslog.LOG_INFO|facility, "bgpd")
-		if err != nil {
+		if err := addSyslogHook(opts.UseSyslog, opts.Facility); err != nil {
 			log.Error("Unable to connect to syslog daemon, ", opts.UseSyslog)
-			os.Exit(1)
-		} else {
-			log.AddHook(hook)
 		}
 	}
 
@@ -312,14 +252,8 @@ func main() {
 			if updatePolicy {
 				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
-		case sig := <-sigCh:
-			switch sig {
-			case syscall.SIGKILL, syscall.SIGTERM:
-				bgpServer.Shutdown()
-			case syscall.SIGUSR1:
-				runtime.GC()
-				debug.FreeOSMemory()
-			}
+		case <-sigCh:
+			bgpServer.Shutdown()
 		}
 	}
 }
