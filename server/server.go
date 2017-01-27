@@ -2323,41 +2323,78 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				for _, path := range peer.adjRibIn.PathList(peer.configuredRFlist(), false) {
-					msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
-					buf, _ := msgs[0].Serialize()
+				for _, rf := range peer.configuredRFlist() {
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
+					for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false) {
+						msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
+						buf, _ := msgs[0].Serialize()
+						w.notify(&WatchEventUpdate{
+							Message:      msgs[0],
+							PeerAS:       peer.fsm.peerInfo.AS,
+							LocalAS:      peer.fsm.peerInfo.LocalAS,
+							PeerAddress:  peer.fsm.peerInfo.Address,
+							LocalAddress: net.ParseIP(l),
+							PeerID:       peer.fsm.peerInfo.ID,
+							FourBytesAs:  y,
+							Timestamp:    path.GetTimestamp(),
+							Payload:      buf,
+							PostPolicy:   false,
+						})
+					}
+					eor := bgp.NewEndOfRib(rf)
+					eorBuf, _ := eor.Serialize()
 					w.notify(&WatchEventUpdate{
-						Message:      msgs[0],
+						Message:      eor,
 						PeerAS:       peer.fsm.peerInfo.AS,
 						LocalAS:      peer.fsm.peerInfo.LocalAS,
 						PeerAddress:  peer.fsm.peerInfo.Address,
 						LocalAddress: net.ParseIP(l),
 						PeerID:       peer.fsm.peerInfo.ID,
 						FourBytesAs:  y,
-						Timestamp:    path.GetTimestamp(),
-						Payload:      buf,
+						Timestamp:    time.Now(),
+						Payload:      eorBuf,
 						PostPolicy:   false,
 					})
 				}
 			}
 		}
-		if w.opts.postUpdate {
-			for _, path := range s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, s.globalRib.GetRFlist()) {
-				msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
-				buf, _ := msgs[0].Serialize()
-				w.notify(&WatchEventUpdate{
-					PeerAS:      path.GetSource().AS,
-					PeerAddress: path.GetSource().Address,
-					PeerID:      path.GetSource().ID,
-					Message:     msgs[0],
-					Timestamp:   path.GetTimestamp(),
-					Payload:     buf,
-					PostPolicy:  true,
-				})
+		if w.opts.initPostUpdate {
+			for _, rf := range s.globalRib.GetRFlist() {
+				if len(s.globalRib.Tables[rf].GetDestinations()) == 0 {
+					continue
+				}
+				pathsByPeer := make(map[*table.PeerInfo][]*table.Path)
+				for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{rf}) {
+					pathsByPeer[path.GetSource()] = append(pathsByPeer[path.GetSource()], path)
+				}
+				for peerInfo, paths := range pathsByPeer {
+					for _, path := range paths {
+						msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
+						buf, _ := msgs[0].Serialize()
+						w.notify(&WatchEventUpdate{
+							Message:     msgs[0],
+							PeerAS:      peerInfo.AS,
+							PeerAddress: peerInfo.Address,
+							PeerID:      peerInfo.ID,
+							Timestamp:   path.GetTimestamp(),
+							Payload:     buf,
+							PostPolicy:  true,
+						})
+					}
+					eor := bgp.NewEndOfRib(rf)
+					eorBuf, _ := eor.Serialize()
+					w.notify(&WatchEventUpdate{
+						Message:     eor,
+						PeerAS:      peerInfo.AS,
+						PeerAddress: peerInfo.Address,
+						PeerID:      peerInfo.ID,
+						Timestamp:   time.Now(),
+						Payload:     eorBuf,
+						PostPolicy:  true,
+					})
+				}
 			}
-
 		}
 
 		go w.loop()

@@ -7202,7 +7202,9 @@ func (msg *BGPUpdate) IsEndOfRib() (bool, RouteFamily) {
 			return true, RF_IPv4_UC
 		} else if len(msg.PathAttributes) == 1 && msg.PathAttributes[0].GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 			unreach := msg.PathAttributes[0].(*PathAttributeMpUnreachNLRI)
-			return true, AfiSafiToRouteFamily(unreach.AFI, unreach.SAFI)
+			if len(unreach.Value) == 0 {
+				return true, AfiSafiToRouteFamily(unreach.AFI, unreach.SAFI)
+			}
 		}
 	}
 	return false, RouteFamily(0)
@@ -7225,7 +7227,7 @@ func NewEndOfRib(family RouteFamily) *BGPMessage {
 			PathAttribute: PathAttribute{
 				Flags:  PathAttrFlags[t],
 				Type:   t,
-				Length: 0,
+				Length: 3,
 			},
 			AFI:  afi,
 			SAFI: safi,
