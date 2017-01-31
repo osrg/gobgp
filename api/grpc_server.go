@@ -489,7 +489,7 @@ func (s *Server) EnableNeighbor(ctx context.Context, arg *EnableNeighborRequest)
 }
 
 func (s *Server) DisableNeighbor(ctx context.Context, arg *DisableNeighborRequest) (*DisableNeighborResponse, error) {
-	return &DisableNeighborResponse{}, s.bgpServer.DisableNeighbor(arg.Address)
+	return &DisableNeighborResponse{}, s.bgpServer.DisableNeighbor(arg.Address, arg.Communication)
 }
 
 func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.Path, error) {
