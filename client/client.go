@@ -208,8 +208,8 @@ func (cli *Client) EnableNeighbor(addr string) error {
 	return err
 }
 
-func (cli *Client) DisableNeighbor(addr string) error {
-	_, err := cli.cli.DisableNeighbor(context.Background(), &api.DisableNeighborRequest{Address: addr})
+func (cli *Client) DisableNeighbor(addr, communication string) error {
+	_, err := cli.cli.DisableNeighbor(context.Background(), &api.DisableNeighborRequest{Address: addr, Communication: communication})
 	return err
 }
 

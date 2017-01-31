@@ -644,7 +644,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	case CMD_ENABLE:
 		return client.EnableNeighbor(remoteIP)
 	case CMD_DISABLE:
-		return client.DisableNeighbor(remoteIP)
+		return client.DisableNeighbor(remoteIP, neighborsOpts.Reason)
 	}
 	return nil
 }

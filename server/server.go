@@ -1001,8 +1001,9 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) error {
 func (s *BgpServer) Shutdown() {
 	s.mgmtOperation(func() error {
 		s.shutdown = true
+		stateOp := AdminStateOperation{ADMIN_STATE_DOWN, nil}
 		for _, p := range s.neighborMap {
-			p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+			p.fsm.adminStateCh <- stateOp
 		}
 		// TODO: call fsmincomingCh.Close()
 		return nil
@@ -1801,15 +1802,15 @@ func (s *BgpServer) ResetNeighbor(addr, communication string) error {
 	}, true)
 }
 
-func (s *BgpServer) setAdminState(addr string, enable bool) error {
+func (s *BgpServer) setAdminState(addr, communication string, enable bool) error {
 	peers, err := s.addrToPeers(addr)
 	if err != nil {
 		return err
 	}
 	for _, peer := range peers {
-		f := func(state AdminState, message string) {
+		f := func(stateOp *AdminStateOperation, message string) {
 			select {
-			case peer.fsm.adminStateCh <- state:
+			case peer.fsm.adminStateCh <- *stateOp:
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   peer.fsm.pConf.Config.NeighborAddress,
@@ -1819,9 +1820,9 @@ func (s *BgpServer) setAdminState(addr string, enable bool) error {
 			}
 		}
 		if enable {
-			f(ADMIN_STATE_UP, "ADMIN_STATE_UP requested")
+			f(&AdminStateOperation{ADMIN_STATE_UP, nil}, "ADMIN_STATE_UP requested")
 		} else {
-			f(ADMIN_STATE_DOWN, "ADMIN_STATE_DOWN requested")
+			f(&AdminStateOperation{ADMIN_STATE_DOWN, newAdministrativeCommunication(communication)}, "ADMIN_STATE_DOWN requested")
 		}
 	}
 	return nil
@@ -1829,13 +1830,13 @@ func (s *BgpServer) setAdminState(addr string, enable bool) error {
 
 func (s *BgpServer) EnableNeighbor(addr string) error {
 	return s.mgmtOperation(func() error {
-		return s.setAdminState(addr, true)
+		return s.setAdminState(addr, "", true)
 	}, true)
 }
 
-func (s *BgpServer) DisableNeighbor(addr string) error {
+func (s *BgpServer) DisableNeighbor(addr, communication string) error {
 	return s.mgmtOperation(func() error {
-		return s.setAdminState(addr, false)
+		return s.setAdminState(addr, communication, false)
 	}, true)
 }
 

@@ -102,6 +102,11 @@ func (s AdminState) String() string {
 	}
 }
 
+type AdminStateOperation struct {
+	State         AdminState
+	Communication []byte
+}
+
 var fsmVersion uint
 
 type FSM struct {
@@ -115,7 +120,7 @@ type FSM struct {
 	idleHoldTime         float64
 	opensentHoldTime     float64
 	adminState           AdminState
-	adminStateCh         chan AdminState
+	adminStateCh         chan AdminStateOperation
 	getActiveCh          chan struct{}
 	h                    *FSMHandler
 	rfMap                map[bgp.RouteFamily]bool
@@ -192,7 +197,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		connCh:               make(chan net.Conn, 1),
 		opensentHoldTime:     float64(HOLDTIME_OPENSENT),
 		adminState:           adminState,
-		adminStateCh:         make(chan AdminState, 1),
+		adminStateCh:         make(chan AdminStateOperation, 1),
 		getActiveCh:          make(chan struct{}),
 		rfMap:                make(map[bgp.RouteFamily]bool),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
@@ -441,10 +446,10 @@ func (h *FSMHandler) idle() (bgp.FSMState, FsmStateReason) {
 				log.WithFields(log.Fields{"Topic": "Peer"}).Debug("IdleHoldTimer expired, but stay at idle because the admin state is DOWN")
 			}
 
-		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+		case stateOp := <-fsm.adminStateCh:
+			err := h.changeAdminState(stateOp.State)
 			if err == nil {
-				switch s {
+				switch stateOp.State {
 				case ADMIN_STATE_DOWN:
 					// stop idle hold timer
 					idleHoldTimer.Stop()
@@ -492,10 +497,10 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 			}
 		case err := <-h.errorCh:
 			return bgp.BGP_FSM_IDLE, err
-		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+		case stateOp := <-fsm.adminStateCh:
+			err := h.changeAdminState(stateOp.State)
 			if err == nil {
-				switch s {
+				switch stateOp.State {
 				case ADMIN_STATE_DOWN:
 					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
 				case ADMIN_STATE_UP:
@@ -503,7 +508,7 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
 						"State":      fsm.state.String(),
-						"AdminState": s.String(),
+						"AdminState": stateOp.State.String(),
 					}).Panic("code logic bug")
 				}
 			}
@@ -932,10 +937,10 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 			fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
-		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+		case stateOp := <-fsm.adminStateCh:
+			err := h.changeAdminState(stateOp.State)
 			if err == nil {
-				switch s {
+				switch stateOp.State {
 				case ADMIN_STATE_DOWN:
 					h.conn.Close()
 					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
@@ -944,7 +949,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
 						"State":      fsm.state.String(),
-						"AdminState": s.String(),
+						"AdminState": stateOp.State.String(),
 					}).Panic("code logic bug")
 				}
 			}
@@ -1043,10 +1048,10 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 			fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
-		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+		case stateOp := <-fsm.adminStateCh:
+			err := h.changeAdminState(stateOp.State)
 			if err == nil {
-				switch s {
+				switch stateOp.State {
 				case ADMIN_STATE_DOWN:
 					h.conn.Close()
 					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
@@ -1055,7 +1060,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
 						"State":      fsm.state.String(),
-						"AdminState": s.String(),
+						"AdminState": stateOp.State.String(),
 					}).Panic("code logic bug")
 				}
 			}
@@ -1253,12 +1258,12 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
 				holdTimer.Reset(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
 			}
-		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+		case stateOp := <-fsm.adminStateCh:
+			err := h.changeAdminState(stateOp.State)
 			if err == nil {
-				switch s {
+				switch stateOp.State {
 				case ADMIN_STATE_DOWN:
-					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
+					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
 					h.outgoing.In() <- &FsmOutgoingMsg{Notification: m}
 				}
 			}
