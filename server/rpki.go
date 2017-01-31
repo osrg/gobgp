@@ -251,6 +251,7 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is connected", ev.Src)
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
+		client.state.Up = true
 		client.t = tomb.Tomb{}
 		client.t.Go(client.established)
 	case RTR:
