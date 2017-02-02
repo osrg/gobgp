@@ -432,15 +432,6 @@ func (c *roaManager) GetServers() []*config.RpkiServer {
 	for _, client := range c.clientMap {
 		state := &client.state
 
-		addr, port, _ := net.SplitHostPort(client.host)
-		l = append(l, &config.RpkiServer{
-			Config: config.RpkiServerConfig{
-				Address: addr,
-				Port:    func() uint32 { p, _ := strconv.Atoi(port); return uint32(p) }(),
-			},
-			State: client.state,
-		})
-
 		if client.conn == nil {
 			state.Up = false
 		} else {
@@ -457,6 +448,15 @@ func (c *roaManager) GetServers() []*config.RpkiServer {
 		state.PrefixesV4 = f(prefixesV4, client.host)
 		state.PrefixesV6 = f(prefixesV6, client.host)
 		state.SerialNumber = client.serialNumber
+
+		addr, port, _ := net.SplitHostPort(client.host)
+		l = append(l, &config.RpkiServer{
+			Config: config.RpkiServerConfig{
+				Address: addr,
+				Port:    func() uint32 { p, _ := strconv.Atoi(port); return uint32(p) }(),
+			},
+			State: client.state,
+		})
 	}
 	return l
 }
