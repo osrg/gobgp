@@ -540,9 +540,15 @@ const (
 	BMP_MSG_TERMINATION
 )
 
-func ParseBMPMessage(data []byte) (*BMPMessage, error) {
-	msg := &BMPMessage{}
-	err := msg.Header.DecodeFromBytes(data)
+func ParseBMPMessage(data []byte) (msg *BMPMessage, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("not all data bytes are available")
+		}
+	}()
+
+	msg = &BMPMessage{}
+	err = msg.Header.DecodeFromBytes(data)
 	if err != nil {
 		return nil, err
 	}
