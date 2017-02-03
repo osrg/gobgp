@@ -17,8 +17,10 @@ from fabric.api import local, lcd
 from fabric import colors
 from fabric.utils import indent
 from fabric.state import env, output
-from docker import Client
-
+try:
+    from docker import Client
+except ImportError:
+    from docker import APIClient as Client
 import netaddr
 import os
 import time

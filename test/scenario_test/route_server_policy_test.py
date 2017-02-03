@@ -3397,6 +3397,155 @@ class InPolicyUpdate2(object):
         lookup_scenario("InPolicyUpdate2").check2(env)
 
 
+@register_scenario
+class InPolicyRejectImplicitWithdraw(object):
+    """
+    No.48 in-policy reject test
+    g2 (asn: 65002)
+    g3 (asn: 65003)
+
+    g2's in-policy only accepts routes with origin asn 65002
+
+    r1:192.168.10.0/24
+
+    1.
+
+         r1
+          |                                  g1(rs)
+          v                             ----------------
+    g3 - g2 ->(r1(aspath=[65002]))->  o | -> g4-rib -> | -> r1(aspath=[65002]) --> g4
+                                        ----------------
+
+    2. g3 also sends prefix r1 (the prefix from g2 is still the best for the prefix)
+
+    r1   r1
+    |     |                                  g1(rs)
+    v     v                             ----------------
+    g3 - g2 ->(r1(aspath=[65002]))->  o | -> g4-rib -> | -> r1(aspath=[65002]) --> g4
+                                        ----------------
+
+    3. g2 withdraws r1, then the path from g3 becomes the best (implicit withdrawal happens).
+       Since g2's in-policy only accepts routes with origin asn 2, rs must send withdrawal to g4.
+
+    r1   r1
+    |     x                                        g1(rs)
+    v                                         ----------------
+    g3 - g2 ->(r1(aspath=[65002,65003]))->  x | -> g4-rib -> | -> r1(withdrawal) --> g4
+                                              ----------------
+    """
+    @staticmethod
+    def boot(env):
+        gobgp_ctn_image_name = env.parser_option.gobgp_image
+        log_level = env.parser_option.gobgp_log_level
+        g1 = GoBGPContainer(name='g1', asn=65001, router_id='192.168.0.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        g2 = GoBGPContainer(name='g2', asn=65002, router_id='192.168.0.2',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        g3 = GoBGPContainer(name='g3', asn=65003, router_id='192.168.0.3',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        g4 = GoBGPContainer(name='g4', asn=65004, router_id='192.168.0.4',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+
+        ctns = [g1, g2, g3, g4]
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+        time.sleep(initial_wait_time)
+
+        for cli in [g2, g4]:
+            g1.add_peer(cli, is_rs_client=True)
+            cli.add_peer(g1)
+
+        g3.add_peer(g2)
+        g2.add_peer(g3)
+
+        env.g1 = g1
+        env.g2 = g2
+        env.g3 = g3
+        env.g4 = g4
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        g2 = env.g2
+        g3 = env.g3
+        g4 = env.g4
+
+        as0 = {'as-path-sets': [{'as-path-set-name': 'as0', 'as-path-list': ['_65002$']}]}
+
+        g1.set_bgp_defined_set(as0)
+
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
+               'actions': {'route-disposition': 'accept-route'}}
+
+        policy = {'name': 'policy0',
+                  'statements': [st0]}
+        g1.add_policy(policy, g2, 'in', 'reject')
+
+        g2.add_route('192.168.0.0/24')
+
+        for c in [g2, g4]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+        g2.wait_for(BGP_FSM_ESTABLISHED, g1)
+
+
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        g2 = env.g2
+        g4 = env.g4
+        wait_for(lambda: len(g1.get_local_rib(g4)) == 1)
+        wait_for(lambda: len(g1.get_local_rib(g4)[0]['paths']) == 1)
+        wait_for(lambda: len(g4.get_global_rib()) == 1)
+        wait_for(lambda: len(g4.get_global_rib()[0]['paths']) == 1)
+
+    @staticmethod
+    def setup2(env):
+        env.g3.add_route('192.168.0.0/24')
+
+    @staticmethod
+    def check2(env):
+        g1 = env.g1
+        g2 = env.g2
+        g4 = env.g4
+        wait_for(lambda: len(g2.get_global_rib()) == 1)
+        wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 2)
+        wait_for(lambda: len(g1.get_local_rib(g4)) == 1)
+        wait_for(lambda: len(g1.get_local_rib(g4)[0]['paths']) == 1)
+        wait_for(lambda: len(g4.get_global_rib()) == 1)
+        wait_for(lambda: len(g4.get_global_rib()[0]['paths']) == 1)
+
+    @staticmethod
+    def setup3(env):
+        env.g2.local('gobgp global rib del 192.168.0.00/24')
+
+    @staticmethod
+    def check3(env):
+        g1 = env.g1
+        g2 = env.g2
+        g4 = env.g4
+        wait_for(lambda: len(g2.get_global_rib()) == 1)
+        wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
+        wait_for(lambda: len(g1.get_local_rib(g4)) == 0)
+        wait_for(lambda: len(g4.get_global_rib()) == 0)
+
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyRejectImplicitWithdraw").boot(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").setup(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").check(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").setup2(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").check2(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").setup3(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").check3(env)
+
+
 class TestGoBGPBase():
 
     wait_per_retry = 5

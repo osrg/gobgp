@@ -475,6 +475,8 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			}
 			if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
 				paths = append(paths, path)
+			} else {
+				paths = append(paths, path.Clone(true))
 			}
 		}
 		return paths, eor, nil
