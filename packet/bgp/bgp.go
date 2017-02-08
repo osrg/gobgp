@@ -2488,35 +2488,6 @@ func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 	return doFlowSpecNumericParser(0, args, validationFunc)
 }
 
-// func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-// 	ss := make([]string, 0, len(TCPFlagNameMap))
-// 	for _, v := range TCPFlagNameMap {
-// 		ss = append(ss, v)
-// 	}
-// 	protos := strings.Join(ss, "|")
-// 	exp := regexp.MustCompile(fmt.Sprintf("^%s (not )?(match )?((((%s)\\&)*(%s) )*(((%s)\\&)*(%s)))$", FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG], protos, protos, protos, protos))
-// 	elems := exp.FindStringSubmatch(strings.Join(args, " "))
-// 	if len(elems) < 1 {
-// 		return nil, fmt.Errorf("invalid flag format")
-// 	}
-// 	items := make([]*FlowSpecComponentItem, 0)
-// 	op := 0
-// 	if elems[2] != "" {
-// 		op |= 0x1
-// 	}
-// 	if elems[1] != "" {
-// 		op |= 0x2
-// 	}
-// 	for _, v := range strings.Split(elems[3], " ") {
-// 		flag := 0
-// 		for _, e := range strings.Split(v, "&") {
-// 			flag |= int(TCPFlagValueMap[e])
-// 		}
-// 		items = append(items, NewFlowSpecComponentItem(op, flag))
-// 	}
-// 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
-// }
-
 func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	args = append(args[:0], args[1:]...) // removing tcp-flags string
 	fullCmd := strings.Join(args, " ") // rebuiling tcp filters
