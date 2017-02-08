@@ -2488,34 +2488,171 @@ func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 	return doFlowSpecNumericParser(0, args, validationFunc)
 }
 
+// func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+// 	ss := make([]string, 0, len(TCPFlagNameMap))
+// 	for _, v := range TCPFlagNameMap {
+// 		ss = append(ss, v)
+// 	}
+// 	protos := strings.Join(ss, "|")
+// 	exp := regexp.MustCompile(fmt.Sprintf("^%s (not )?(match )?((((%s)\\&)*(%s) )*(((%s)\\&)*(%s)))$", FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG], protos, protos, protos, protos))
+// 	elems := exp.FindStringSubmatch(strings.Join(args, " "))
+// 	if len(elems) < 1 {
+// 		return nil, fmt.Errorf("invalid flag format")
+// 	}
+// 	items := make([]*FlowSpecComponentItem, 0)
+// 	op := 0
+// 	if elems[2] != "" {
+// 		op |= 0x1
+// 	}
+// 	if elems[1] != "" {
+// 		op |= 0x2
+// 	}
+// 	for _, v := range strings.Split(elems[3], " ") {
+// 		flag := 0
+// 		for _, e := range strings.Split(v, "&") {
+// 			flag |= int(TCPFlagValueMap[e])
+// 		}
+// 		items = append(items, NewFlowSpecComponentItem(op, flag))
+// 	}
+// 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
+// }
+
 func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	ss := make([]string, 0, len(TCPFlagNameMap))
-	for _, v := range TCPFlagNameMap {
-		ss = append(ss, v)
-	}
-	protos := strings.Join(ss, "|")
-	exp := regexp.MustCompile(fmt.Sprintf("^%s (not )?(match )?((((%s)\\&)*(%s) )*(((%s)\\&)*(%s)))$", FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG], protos, protos, protos, protos))
-	elems := exp.FindStringSubmatch(strings.Join(args, " "))
-	if len(elems) < 1 {
-		return nil, fmt.Errorf("invalid flag format")
-	}
-	items := make([]*FlowSpecComponentItem, 0)
-	op := 0
-	if elems[2] != "" {
-		op |= 0x1
-	}
-	if elems[1] != "" {
-		op |= 0x2
-	}
-	for _, v := range strings.Split(elems[3], " ") {
-		flag := 0
-		for _, e := range strings.Split(v, "&") {
-			flag |= int(TCPFlagValueMap[e])
-		}
-		items = append(items, NewFlowSpecComponentItem(op, flag))
-	}
-	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
+	args = append(args[:0], args[1:]...) // removing tcp-flags string
+	fullCmd := strings.Join(args, " ") // rebuiling tcp filters
+    err, flags, ops := parseTcpFlagCmd(fullCmd)
+    if (err != nil) {
+        return nil, err
+    }
+    items := make([]*FlowSpecComponentItem, 0)
+    for index := 0; index < len(flags); index++ {
+        items = append(items, NewFlowSpecComponentItem(ops[index], flags[index]))
+    }
+    return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
 }
+
+func parseTcpFlagCmd(myCmd string) (error, []int, []int) {
+    var tcpFlagBitMap = map[string]bool{
+        TCPFlagNameMap[TCP_FLAG_FIN]:    false,
+        TCPFlagNameMap[TCP_FLAG_SYN]:    false,
+        TCPFlagNameMap[TCP_FLAG_RST]:    false,
+        TCPFlagNameMap[TCP_FLAG_PUSH]:   false,
+        TCPFlagNameMap[TCP_FLAG_ACK]:    false,
+        TCPFlagNameMap[TCP_FLAG_URGENT]: false,
+        TCPFlagNameMap[TCP_FLAG_CWR]:    false,
+        TCPFlagNameMap[TCP_FLAG_ECE]:    false,
+    }
+    var tcpFlagOpBitMap = map[string]bool{
+        TCPFlagOpNameMap[TCP_FLAG_OP_OR]:    false,
+        TCPFlagOpNameMap[TCP_FLAG_OP_AND]:   false,
+        TCPFlagOpNameMap[TCP_FLAG_OP_END]:   false,
+        TCPFlagOpNameMap[TCP_FLAG_OP_NOT]:   false,
+        TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]: false,
+    }
+    var index int = 0
+    var tcpFlagsValues []int
+    var tcpFlowSpecOps []int
+    var tcpFlagsValue int = 0
+    var tcpFlowSpecOp int = 0
+    for index < len(myCmd) {
+        myCmdChar := myCmd[index:index+1]
+        switch myCmdChar {
+        case TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]:
+            if(tcpFlagOpBitMap[myCmdChar] == false) {
+                tcpFlagOpBitMap[myCmdChar] = true
+                index++
+            } else {
+                err := fmt.Errorf("Match flag appears multiple time")
+                return err, tcpFlagsValues, tcpFlowSpecOps
+            }
+        case TCPFlagOpNameMap[TCP_FLAG_OP_NOT]:
+            if(tcpFlagOpBitMap[myCmdChar] == false) {
+                tcpFlagOpBitMap[myCmdChar] = true
+                index++
+            } else {
+                err := fmt.Errorf("Not flag appears multiple time")
+                return err, tcpFlagsValues, tcpFlowSpecOps
+            }
+        case TCPFlagOpNameMap[TCP_FLAG_OP_AND], TCPFlagOpNameMap[TCP_FLAG_OP_OR]:
+            if(tcpFlagOpBitMap[myCmdChar] == false) {
+                tcpFlagOpBitMap[myCmdChar] = true
+                tcpFlagsValue, tcpFlowSpecOp = setTcpOpsBitmapWithMap(tcpFlagBitMap, tcpFlagOpBitMap)
+                tcpFlagsValues = append(tcpFlagsValues, tcpFlagsValue)
+                tcpFlowSpecOps = append(tcpFlowSpecOps, tcpFlowSpecOp)
+                resetAllFlagsToFalse(tcpFlagBitMap, tcpFlagOpBitMap)
+                index++
+            } else {
+                err := fmt.Errorf("AND or OR (space) operator appears multiple time")
+                return err, tcpFlagsValues, tcpFlowSpecOps
+            }
+        case TCPFlagNameMap[TCP_FLAG_ACK], TCPFlagNameMap[TCP_FLAG_SYN], TCPFlagNameMap[TCP_FLAG_FIN],
+        TCPFlagNameMap[TCP_FLAG_URGENT], TCPFlagNameMap[TCP_FLAG_ECE], TCPFlagNameMap[TCP_FLAG_RST],
+        TCPFlagNameMap[TCP_FLAG_CWR], TCPFlagNameMap[TCP_FLAG_PUSH]:
+            myLoopChar := myCmdChar
+            loopIndex := index
+            // we loop till we reach the end of TCP flags description
+            // exit conditions : we reach the end of tcp flags (we found & or ' ') or we reach the end of the line
+            for (loopIndex < len(myCmd) &&
+                (myLoopChar != TCPFlagOpNameMap[TCP_FLAG_OP_AND] && myLoopChar != TCPFlagOpNameMap[TCP_FLAG_OP_OR])) {
+                // we check if inspected charater is a well known tcp flag and if it doesn't appear twice
+                if (TCPFlagValueMap[myLoopChar]!= 0 && tcpFlagBitMap[myLoopChar] == false) {
+                    tcpFlagBitMap[myLoopChar] = true            // we set this flag to true
+                    loopIndex++                                 // we move to next character
+                    if(loopIndex < len(myCmd)) {
+                        myLoopChar = myCmd[loopIndex:loopIndex+1]   // we move to the next character only if we didn't reach the end of cmd
+                    }
+                } else {
+                    err := fmt.Errorf("flag %s appears multiple time or is not part of TCP flags", myLoopChar)
+                    return err, tcpFlagsValues, tcpFlowSpecOps
+                }
+            }
+            // we are done with flags, we give back the next cooming charater to the main loop
+            index = loopIndex
+        default:
+            err := fmt.Errorf("flag %s not part of tcp flags", myCmdChar)
+            return err, tcpFlagsValues, tcpFlowSpecOps
+        }
+    }
+    tcpFlagOpBitMap["E"] = true
+    tcpFlagsValue, tcpFlowSpecOp = setTcpOpsBitmapWithMap(tcpFlagBitMap, tcpFlagOpBitMap)
+    tcpFlagsValues = append(tcpFlagsValues, tcpFlagsValue)
+    tcpFlowSpecOps = append(tcpFlowSpecOps, tcpFlowSpecOp)
+    resetAllFlagsToFalse(tcpFlagBitMap, tcpFlagOpBitMap)
+    return nil, tcpFlagsValues, tcpFlowSpecOps
+}
+
+func resetAllFlagsToFalse(myTcpFlagBitMap map[string]bool, myTcpFlagOpBitMap map[string]bool) {
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_FIN]]     = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_SYN]]     = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_RST]]     = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_PUSH]]    = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_ACK]]     = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_URGENT]]  = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_CWR]]     = false
+    myTcpFlagBitMap[TCPFlagNameMap[TCP_FLAG_ECE]]     = false
+    myTcpFlagOpBitMap[TCPFlagOpNameMap[TCP_FLAG_OP_AND]]   = false
+    myTcpFlagOpBitMap[TCPFlagOpNameMap[TCP_FLAG_OP_OR]]    = false
+    myTcpFlagOpBitMap[TCPFlagOpNameMap[TCP_FLAG_OP_END]]   = false
+    myTcpFlagOpBitMap[TCPFlagOpNameMap[TCP_FLAG_OP_NOT]]   = false
+    myTcpFlagOpBitMap[TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]] = false
+}
+
+func setTcpOpsBitmapWithMap(myTcpFlagBitMap map[string]bool, myTcpFlagOpBitMap map[string]bool) (int, int) {
+    var myFlags int = 0
+    var myOps int = 0
+    for flagString, flagSetUnset := range myTcpFlagBitMap {
+        if (flagSetUnset) {
+            myFlags |= int(TCPFlagValueMap[flagString])
+        }
+    }
+    for opString, opSetUnset := range myTcpFlagOpBitMap {
+        if (opSetUnset) {
+            myOps |= int(TCPFlagOpValueMap[opString])
+        }
+    }
+    return myFlags, myOps
+}
+
 
 func flowSpecEtherTypeParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_ETHERNET_TYPE] {
@@ -3084,21 +3221,24 @@ func formatProto(op int, value int) string {
 }
 
 func formatFlag(op int, value int) string {
-	and := " "
-	ss := make([]string, 0, 2)
-	if op&0x40 > 0 {
-		and = "&"
-	}
-	if op&0x1 > 0 {
-		ss = append(ss, "match")
-	}
-	if op&0x2 > 0 {
-		ss = append(ss, "not")
-	}
-	if len(ss) > 0 {
-		return fmt.Sprintf("%s(%s)%s", and, strings.Join(ss, "|"), TCPFlag(value).String())
-	}
-	return fmt.Sprintf("%s%s", and, TCPFlag(value).String())
+    var retString string
+    if op&TCP_FLAG_OP_MATCH > 0 {
+        retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_MATCH])
+    }
+    if op&TCP_FLAG_OP_NOT > 0 {
+        retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_NOT])
+    }
+    for flag, valueFlag := range TCPFlagValueMap {
+        if value&int(valueFlag) > 0 {
+            retString = fmt.Sprintf("%s%s", retString, flag)
+        }
+    }
+    if op&TCP_FLAG_OP_AND > 0 {
+        retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_AND])
+    } else { // default is or
+        retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_OR])
+    }
+    return retString
 }
 
 func formatFragment(op int, value int) string {
