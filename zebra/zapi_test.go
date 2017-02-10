@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"syscall"
 	"testing"
 )
 
@@ -449,4 +450,36 @@ func Test_ImportLookupBody(t *testing.T) {
 	b = &ImportLookupBody{Api: IPV4_IMPORT_LOOKUP}
 	err = b.DecodeFromBytes(buf, 2)
 	assert.NotEqual(nil, err)
+}
+
+func Test_NexthopUpdateBody(t *testing.T) {
+	assert := assert.New(t)
+
+	// Input binary
+	bufIn := []byte{
+		0x00, 0x02, 0x20, // afi(2 bytes)=AF_INET, prefix_len(1 byte)=32
+		0xc0, 0xa8, 0x01, 0x01, // prefix(4 bytes)="192.168.1.1"
+		0x00, 0x00, 0x00, 0x01, // metric(4 bytes)=1
+		0x01,                   // nexthops(1 byte)=1
+		0x04,                   // nexthop_type(1 byte)=NEXTHOP_IPV4_IFINDEX
+		0xc0, 0xa8, 0x01, 0x01, // nexthop_ip(4 bytes)="192.168.0.1"
+		0x00, 0x00, 0x00, 0x02, // nexthop_ifindex(4 byte)=2
+	}
+
+	// Test DecodeFromBytes()
+	b := &NexthopUpdateBody{Api: NEXTHOP_UPDATE}
+	err := b.DecodeFromBytes(bufIn, 2)
+	assert.Nil(err)
+
+	// Test decoded values
+	assert.Equal(uint16(syscall.AF_INET), b.Family)
+	assert.Equal(net.ParseIP("192.168.1.1").To4(), b.Prefix)
+	assert.Equal(uint32(1), b.Metric)
+	nexthop := &Nexthop{
+		Type:    NEXTHOP_FLAG(NEXTHOP_IPV4_IFINDEX),
+		Addr:    net.ParseIP("192.168.1.1").To4(),
+		Ifindex: uint32(2),
+	}
+	assert.Equal(1, len(b.Nexthops))
+	assert.Equal(nexthop, b.Nexthops[0])
 }
