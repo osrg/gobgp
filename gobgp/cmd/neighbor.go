@@ -135,7 +135,7 @@ func showNeighbors(vrf string) error {
 		if n.Config.NeighborInterface != "" {
 			neigh = n.Config.NeighborInterface
 		}
-		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
+		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted-n.State.AdjTable.NotImported))
 	}
 
 	return nil

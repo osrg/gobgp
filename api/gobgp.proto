@@ -614,6 +614,7 @@ message PeerState {
   uint32 advertised = 19;
   uint32 out_q = 20;
   uint32 flops = 21;
+  uint32 not_imported = 22; // only valid when peer is not rs-client
 }
 
 message Messages {

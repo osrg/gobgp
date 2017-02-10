@@ -40,6 +40,7 @@ type Peer struct {
 	localRib          *table.TableManager
 	prefixLimitWarned map[bgp.RouteFamily]bool
 	llgrEndChs        []chan struct{}
+	numImportFiltered int
 }
 
 func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
@@ -539,6 +540,7 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 		}
 		conf.State.AdjTable.Received = uint32(peer.adjRibIn.Count(rfList))
 		conf.State.AdjTable.Accepted = uint32(peer.adjRibIn.Accepted(rfList))
+		conf.State.AdjTable.NotImported = uint32(peer.numImportFiltered)
 
 		conf.Transport.State.LocalAddress, conf.Transport.State.LocalPort = peer.fsm.LocalHostPort()
 		_, conf.Transport.State.RemotePort = peer.fsm.RemoteHostPort()
@@ -550,5 +552,6 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 }
 
 func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
+	peer.numImportFiltered = 0
 	peer.adjRibIn.Drop(rfList)
 }

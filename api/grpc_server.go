@@ -192,9 +192,10 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 					TOTAL:        s.Messages.Sent.Total,
 				},
 			},
-			Received:   s.AdjTable.Received,
-			Accepted:   s.AdjTable.Accepted,
-			Advertised: s.AdjTable.Advertised,
+			Received:    s.AdjTable.Received,
+			Accepted:    s.AdjTable.Accepted,
+			Advertised:  s.AdjTable.Advertised,
+			NotImported: s.AdjTable.NotImported,
 		},
 		Timers: &Timers{
 			Config: &TimersConfig{
@@ -957,6 +958,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.State.AdjTable.Received = a.Info.Received
 		pconf.State.AdjTable.Accepted = a.Info.Accepted
 		pconf.State.AdjTable.Advertised = a.Info.Advertised
+		pconf.State.AdjTable.NotImported = a.Info.NotImported
 
 		if a.Info.Messages != nil {
 			if a.Info.Messages.Sent != nil {
