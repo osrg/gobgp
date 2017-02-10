@@ -102,8 +102,8 @@ const (
 	TCP_FLAG_PUSH   = 0x08
 	TCP_FLAG_ACK    = 0x10
 	TCP_FLAG_URGENT = 0x20
-	TCP_FLAG_CWR    = 0x40
-	TCP_FLAG_ECE    = 0x80
+	TCP_FLAG_ECE    = 0x40
+	TCP_FLAG_CWR    = 0x80
 )
 
 var TCPFlagNameMap = map[TCPFlag]string{
