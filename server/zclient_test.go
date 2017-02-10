@@ -38,7 +38,7 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 	b := &zebra.IPRouteBody{
 		Type:         zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
 		Flags:        zebra.FLAG(zebra.FLAG_SELECTED),
-		Message:      zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC,
+		Message:      zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
 		SAFI:         zebra.SAFI(zebra.SAFI_UNICAST),
 		Prefix:       net.ParseIP("192.168.100.0"),
 		PrefixLength: uint8(24),
@@ -46,6 +46,7 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 		Ifindexs:     []uint32{1},
 		Distance:     uint8(0),
 		Metric:       uint32(100),
+		Mtu:          uint32(0),
 		Api:          zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
 	}
 

@@ -211,6 +211,7 @@ const (
 	MESSAGE_IFINDEX  = 0x02
 	MESSAGE_DISTANCE = 0x04
 	MESSAGE_METRIC   = 0x08
+	MESSAGE_MTU      = 0x10
 )
 
 // Message Flags
@@ -662,6 +663,7 @@ type IPRouteBody struct {
 	Ifindexs     []uint32
 	Distance     uint8
 	Metric       uint32
+	Mtu          uint32
 	Api          API_TYPE
 }
 
@@ -714,6 +716,11 @@ func (b *IPRouteBody) Serialize() ([]byte, error) {
 	if b.Message&MESSAGE_METRIC > 0 {
 		bbuf := make([]byte, 4)
 		binary.BigEndian.PutUint32(bbuf, b.Metric)
+		buf = append(buf, bbuf...)
+	}
+	if b.Message&MESSAGE_MTU > 0 {
+		bbuf := make([]byte, 4)
+		binary.BigEndian.PutUint32(bbuf, b.Mtu)
 		buf = append(buf, bbuf...)
 	}
 	return buf, nil
@@ -769,6 +776,11 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		rest += 4
 	}
 
+	if b.Message&MESSAGE_MTU > 0 {
+		// mtu(4)
+		rest += 4
+	}
+
 	if len(data[pos:]) != rest {
 		return fmt.Errorf("message length invalid")
 	}
@@ -803,13 +815,17 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		pos += 1
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 	}
+	if b.Message&MESSAGE_MTU > 0 {
+		pos += 4
+		b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
+	}
 
 	return nil
 }
 
 func (b *IPRouteBody) String() string {
-	s := fmt.Sprintf("type: %s, flags: %s, message: %d, prefix: %s, length: %d, nexthop: %s, distance: %d, metric: %d",
-		b.Type.String(), b.Flags.String(), b.Message, b.Prefix.String(), b.PrefixLength, b.Nexthops[0].String(), b.Distance, b.Metric)
+	s := fmt.Sprintf("type: %s, flags: %s, message: %d, prefix: %s, length: %d, nexthop: %s, distance: %d, metric: %d, mtu: %d",
+		b.Type.String(), b.Flags.String(), b.Message, b.Prefix.String(), b.PrefixLength, b.Nexthops[0].String(), b.Distance, b.Metric, b.Mtu)
 	return s
 }
 
