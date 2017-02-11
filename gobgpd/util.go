@@ -19,15 +19,18 @@ package main
 
 import (
 	"log/syslog"
+	"net"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus/hooks/syslog"
+	"github.com/evalphobia/logrus_fluent"
 )
 
 func init() {
@@ -98,6 +101,28 @@ func addSyslogHook(host, facility string) error {
 	if err != nil {
 		return err
 	}
+	log.AddHook(hook)
+	return nil
+}
+
+func addFluentHook(hostport, tag string) error {
+	var err error
+	host := "127.0.0.1"
+	port := "24244"
+	host, port, err = net.SplitHostPort(hostport)
+	if err != nil {
+		return err
+	}
+	var p int
+	p, err = strconv.Atoi(port)
+	if err != nil {
+		return err
+	}
+	hook, err := logrus_fluent.New(host, p)
+	if err != nil {
+		return err
+	}
+	hook.SetTag(tag)
 	log.AddHook(hook)
 	return nil
 }
