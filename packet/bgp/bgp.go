@@ -2531,7 +2531,6 @@ func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
 				tcpOperatorsFlagsValues = append(tcpOperatorsFlagsValues, operatorValue)
 				operatorValue[0] = 0
 				operatorValue[1] = 0
-				// resetAllFlagsToFalse(tcpFlagBitMap, tcpFlagOpBitMap)
 				index++
 			} else {
 				err := fmt.Errorf("AND or OR (space) operator appears multiple time")
@@ -2543,7 +2542,7 @@ func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
 			myLoopChar := myCmdChar
 			loopIndex := index
 			// we loop till we reach the end of TCP flags description
-			// exit conditions : we reach the end of tcp flags (we found & or ' ') or we reach the end of the line
+			// exit conditions : we reach the end of tcp flags (we find & or ' ') or we reach the end of the line
 			for loopIndex < len(myCmd) &&
 				(myLoopChar != TCPFlagOpNameMap[TCP_FLAG_OP_AND] && myLoopChar != TCPFlagOpNameMap[TCP_FLAG_OP_OR]) {
 				// we check if inspected charater is a well known tcp flag and if it doesn't appear twice
