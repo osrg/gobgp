@@ -2470,7 +2470,7 @@ func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 
 func flowSpecPortParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	f := func(i int) error {
-		if 0 < i && i < 65536 {
+		if 0 <= i && i < 65536 {
 			return nil
 		}
 		return fmt.Errorf("port range exceeded")
