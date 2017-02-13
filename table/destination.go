@@ -182,6 +182,24 @@ func (dd *Destination) GetBestPath(id string) *Path {
 	return nil
 }
 
+func (dd *Destination) GetMultiBestPath(id string) []*Path {
+	list := make([]*Path, 0, len(dd.knownPathList))
+	var best *Path
+	for _, p := range dd.knownPathList {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE {
+			if best == nil {
+				best = p
+				list = append(list, p)
+			} else if best.Compare(p) == 0 {
+				list = append(list, p)
+			} else {
+				return list
+			}
+		}
+	}
+	return nil
+}
+
 func (dd *Destination) AddWithdraw(withdraw *Path) {
 	dd.validatePath(withdraw)
 	dd.withdrawList = append(dd.withdrawList, withdraw)

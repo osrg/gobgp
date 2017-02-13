@@ -303,6 +303,17 @@ func (t *Table) Bests(id string) []*Path {
 	return paths
 }
 
+func (t *Table) MultiBests(id string) [][]*Path {
+	paths := make([][]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		path := dst.GetMultiBestPath(id)
+		if path != nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 func (t *Table) GetKnownPathList(id string) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {

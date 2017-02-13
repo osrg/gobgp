@@ -113,7 +113,7 @@ func TestMonitor(test *testing.T) {
 		}
 	}
 
-	w := s.Watch(WatchBestPath())
+	w := s.Watch(WatchBestPath(false))
 
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),

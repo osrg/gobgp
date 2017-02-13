@@ -2133,6 +2133,7 @@ type watchOptions struct {
 	preUpdate      bool
 	postUpdate     bool
 	peerState      bool
+	initBest       bool
 	initUpdate     bool
 	initPostUpdate bool
 	initPeerState  bool
@@ -2141,9 +2142,12 @@ type watchOptions struct {
 
 type WatchOption func(*watchOptions)
 
-func WatchBestPath() WatchOption {
+func WatchBestPath(current bool) WatchOption {
 	return func(o *watchOptions) {
 		o.bestpath = true
+		if current {
+			o.initBest = true
+		}
 	}
 }
 
@@ -2318,6 +2322,12 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				}
 				w.notify(createWatchEventPeerState(peer))
 			}
+		}
+		if w.opts.initBest {
+			w.notify(&WatchEventBestPath{
+				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, nil),
+				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
+			})
 		}
 		if w.opts.initUpdate {
 			for _, peer := range s.neighborMap {
