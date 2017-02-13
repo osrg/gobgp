@@ -340,21 +340,22 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 	}, err
 }
 
-func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error {
-	if arg == nil {
+func (s *Server) MonitorRib(arg *MonitorRibRequest, stream GobgpApi_MonitorRibServer) error {
+	if arg == nil || arg.Table == nil {
 		return fmt.Errorf("invalid request")
 	}
+	t := arg.Table
 	w, err := func() (*server.Watcher, error) {
-		switch arg.Type {
+		switch t.Type {
 		case Resource_GLOBAL:
-			return s.bgpServer.Watch(server.WatchBestPath(false)), nil
+			return s.bgpServer.Watch(server.WatchBestPath(arg.Current)), nil
 		case Resource_ADJ_IN:
-			if arg.PostPolicy {
-				return s.bgpServer.Watch(server.WatchPostUpdate(false)), nil
+			if t.PostPolicy {
+				return s.bgpServer.Watch(server.WatchPostUpdate(arg.Current)), nil
 			}
-			return s.bgpServer.Watch(server.WatchUpdate(false)), nil
+			return s.bgpServer.Watch(server.WatchUpdate(arg.Current)), nil
 		default:
-			return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
+			return nil, fmt.Errorf("unsupported resource type: %v", t.Type)
 		}
 	}()
 	if err != nil {
@@ -367,7 +368,7 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 		sendPath := func(pathList []*table.Path) error {
 			dsts := make(map[string]*Destination)
 			for _, path := range pathList {
-				if path == nil || (arg.Family != 0 && bgp.RouteFamily(arg.Family) != path.GetRouteFamily()) {
+				if path == nil || (t.Family != 0 && bgp.RouteFamily(t.Family) != path.GetRouteFamily()) {
 					continue
 				}
 				if dst, y := dsts[path.GetNlri().String()]; y {

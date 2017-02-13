@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// monitor new routes
-	w := s.Watch(gobgp.WatchBestPath())
+	w := s.Watch(gobgp.WatchBestPath(false))
 	for {
 		select {
 		case ev := <-w.Event():

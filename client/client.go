@@ -912,10 +912,13 @@ func (c *MonitorRIBClient) Recv() (*table.Destination, error) {
 	return d.ToNativeDestination()
 }
 
-func (cli *Client) MonitorRIB(family bgp.RouteFamily) (*MonitorRIBClient, error) {
-	stream, err := cli.cli.MonitorRib(context.Background(), &api.Table{
-		Type:   api.Resource_GLOBAL,
-		Family: uint32(family),
+func (cli *Client) MonitorRIB(family bgp.RouteFamily, current bool) (*MonitorRIBClient, error) {
+	stream, err := cli.cli.MonitorRib(context.Background(), &api.MonitorRibRequest{
+		Table: &api.Table{
+			Type:   api.Resource_GLOBAL,
+			Family: uint32(family),
+		},
+		Current: current,
 	})
 	if err != nil {
 		return nil, err
@@ -923,11 +926,14 @@ func (cli *Client) MonitorRIB(family bgp.RouteFamily) (*MonitorRIBClient, error)
 	return &MonitorRIBClient{stream}, nil
 }
 
-func (cli *Client) MonitorAdjRIBIn(name string, family bgp.RouteFamily) (*MonitorRIBClient, error) {
-	stream, err := cli.cli.MonitorRib(context.Background(), &api.Table{
-		Type:   api.Resource_ADJ_IN,
-		Name:   name,
-		Family: uint32(family),
+func (cli *Client) MonitorAdjRIBIn(name string, family bgp.RouteFamily, current bool) (*MonitorRIBClient, error) {
+	stream, err := cli.cli.MonitorRib(context.Background(), &api.MonitorRibRequest{
+		Table: &api.Table{
+			Type:   api.Resource_ADJ_IN,
+			Name:   name,
+			Family: uint32(family),
+		},
+		Current: current,
 	})
 	if err != nil {
 		return nil, err
