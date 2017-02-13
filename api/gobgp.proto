@@ -35,7 +35,7 @@ service GobgpApi {
   rpc ValidateRib(ValidateRibRequest) returns (ValidateRibResponse) {}
   rpc AddPath(AddPathRequest) returns (AddPathResponse) {}
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse) {}
-  rpc MonitorRib(Table) returns (stream Destination) {}
+  rpc MonitorRib(MonitorRibRequest) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc EnableMrt(EnableMrtRequest) returns (EnableMrtResponse) {}
   rpc DisableMrt(DisableMrtRequest) returns (DisableMrtResponse) {}
@@ -210,6 +210,11 @@ message DeleteBmpRequest {
 }
 
 message DeleteBmpResponse {
+}
+
+message MonitorRibRequest {
+    Table table = 1;
+    bool current = 2;
 }
 
 message RPKIConf {
