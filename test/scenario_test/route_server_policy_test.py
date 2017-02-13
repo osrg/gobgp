@@ -3516,6 +3516,8 @@ class InPolicyRejectImplicitWithdraw(object):
         wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 2)
         wait_for(lambda: len(g1.get_local_rib(g4)) == 1)
         wait_for(lambda: len(g1.get_local_rib(g4)[0]['paths']) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
+        wait_for(lambda: g1.get_neighbor(g2)['state'].get('adj-table', {}).get('accepted', 0) == 1)
         wait_for(lambda: len(g4.get_global_rib()) == 1)
         wait_for(lambda: len(g4.get_global_rib()[0]['paths']) == 1)
 
@@ -3531,6 +3533,7 @@ class InPolicyRejectImplicitWithdraw(object):
         wait_for(lambda: len(g2.get_global_rib()) == 1)
         wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 1)
         wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
+        wait_for(lambda: g1.get_neighbor(g2)['state'].get('adj-table', {}).get('accepted', 0) == 0)
         wait_for(lambda: len(g1.get_local_rib(g4)) == 0)
         wait_for(lambda: len(g4.get_global_rib()) == 0)
 

@@ -60,7 +60,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				o := old.Filtered(adj.id)
 				if o == POLICY_DIRECTION_IN && n == POLICY_DIRECTION_NONE {
 					adj.accepted[rf]++
-				} else if o == POLICY_DIRECTION_NONE && n == POLICY_DIRECTION_IN {
+				} else if o != POLICY_DIRECTION_IN && n == POLICY_DIRECTION_IN {
 					adj.accepted[rf]--
 				}
 			} else {
