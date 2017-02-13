@@ -539,7 +539,9 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 		}
 		conf.State.AdjTable.Received = uint32(peer.adjRibIn.Count(rfList))
 		conf.State.AdjTable.Accepted = uint32(peer.adjRibIn.Accepted(rfList))
-
+		if !peer.isRouteServerClient() {
+			conf.State.AdjTable.Accepted -= uint32(peer.adjRibIn.ImportFiltered(rfList))
+		}
 		conf.Transport.State.LocalAddress, conf.Transport.State.LocalPort = peer.fsm.LocalHostPort()
 		_, conf.Transport.State.RemotePort = peer.fsm.RemoteHostPort()
 		buf, _ := peer.fsm.recvOpen.Serialize()

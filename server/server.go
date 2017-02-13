@@ -594,6 +594,9 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 			if p := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil); p != nil {
 				path = p
 			} else {
+				if peer != nil {
+					peer.adjRibIn.ImportFilter(path)
+				}
 				path = path.Clone(true)
 			}
 			pathList[idx] = path
