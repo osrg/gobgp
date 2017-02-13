@@ -347,7 +347,7 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 	w, err := func() (*server.Watcher, error) {
 		switch arg.Type {
 		case Resource_GLOBAL:
-			return s.bgpServer.Watch(server.WatchBestPath()), nil
+			return s.bgpServer.Watch(server.WatchBestPath(false)), nil
 		case Resource_ADJ_IN:
 			if arg.PostPolicy {
 				return s.bgpServer.Watch(server.WatchPostUpdate(false)), nil

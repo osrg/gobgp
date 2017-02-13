@@ -177,7 +177,7 @@ func (z *zebraClient) stop() {
 }
 
 func (z *zebraClient) loop() {
-	w := z.server.Watch(WatchBestPath())
+	w := z.server.Watch(WatchBestPath(true))
 	defer func() { w.Stop() }()
 
 	for {

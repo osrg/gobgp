@@ -299,38 +299,53 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	return dsts
 }
 
+func (manager *TableManager) tables(list ...bgp.RouteFamily) []*Table {
+	l := make([]*Table, 0, len(manager.Tables))
+	if len(list) == 0 {
+		for _, v := range manager.Tables {
+			l = append(l, v)
+		}
+		return l
+	}
+	for _, f := range list {
+		if t, ok := manager.Tables[f]; ok {
+			l = append(l, t)
+		}
+	}
+	return l
+}
+
 func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	count := 0
-	for _, rf := range rfList {
-		if _, ok := manager.Tables[rf]; ok {
-			count += len(manager.Tables[rf].GetDestinations())
-		}
+	for _, t := range manager.tables(rfList...) {
+		count += len(t.GetDestinations())
 	}
 	return count
 }
 
 func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			paths = append(paths, t.Bests(id)...)
-		}
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.Bests(id)...)
+	}
+	return paths
+}
+
+func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
+	if !UseMultiplePaths.Enabled {
+		return nil
+	}
+	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.MultiBests(id)...)
 	}
 	return paths
 }
 
 func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []*Path {
-	c := 0
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			c += len(t.destinations)
-		}
-	}
-	paths := make([]*Path, 0, c)
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			paths = append(paths, t.GetKnownPathList(id)...)
-		}
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.GetKnownPathList(id)...)
 	}
 	return paths
 }
