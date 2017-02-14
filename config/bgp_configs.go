@@ -31,10 +31,10 @@ func mapkey(index int, name string) string {
 	return fmt.Sprintf("%v", index)
 }
 
-// typedef for typedef openconfig-types:std-regexp
+// typedef for typedef oc-types:std-regexp
 type StdRegexp string
 
-// typedef for typedef openconfig-types:percentage
+// typedef for typedef oc-types:percentage
 type Percentage uint8
 
 // typedef for typedef bgp-types:rr-cluster-id-type
@@ -2077,6 +2077,8 @@ type AdjTable struct {
 	Received uint32 `mapstructure:"received" json:"received,omitempty"`
 	// original -> gobgp:ACCEPTED
 	Accepted uint32 `mapstructure:"accepted" json:"accepted,omitempty"`
+	// original -> gobgp:NOT-IMPORTED
+	NotImported uint32 `mapstructure:"not-imported" json:"not-imported,omitempty"`
 }
 
 func (lhs *AdjTable) Equal(rhs *AdjTable) bool {
@@ -2090,6 +2092,9 @@ func (lhs *AdjTable) Equal(rhs *AdjTable) bool {
 		return false
 	}
 	if lhs.Accepted != rhs.Accepted {
+		return false
+	}
+	if lhs.NotImported != rhs.NotImported {
 		return false
 	}
 	return true

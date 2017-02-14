@@ -201,6 +201,10 @@ module gobgp {
       leaf ACCEPTED {
         type uint32;
       }
+
+      leaf NOT-IMPORTED {
+        type uint32;
+      }
     }
   }
 

@@ -595,6 +595,9 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 				path = p
 			} else {
 				path = path.Clone(true)
+				if peer != nil {
+					peer.numImportFiltered += 1
+				}
 			}
 			pathList[idx] = path
 			// RFC4684 Constrained Route Distribution 6. Operation
@@ -1311,6 +1314,7 @@ func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
 			}
 		}
 		peer.adjRibIn.RefreshAcceptedNumber(families)
+		peer.numImportFiltered = 0
 		s.propagateUpdate(peer, pathList)
 	}
 	return err
