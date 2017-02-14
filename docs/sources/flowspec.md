@@ -45,7 +45,7 @@ CLI syntax to add ipv4/ipv6 flowspec rule is
 ```shell
 % global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
    <MATCH_EXPR> : { destination <PREFIX> [<OFFSET>] | source <PREFIX> [<OFFSET>] |
-                    protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags [not] [match] <TCPFLAG>... |
+                    protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags [!] [=] <TCPFLAG>... |
                     { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp | label } <ITEM>... }...
    <PROTO> : ospf, pim, igp, udp, igmp, tcp, egp, rsvp, gre, ipip, unknown, icmp, sctp, <VALUE>
    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
