@@ -1026,6 +1026,127 @@ func (b *ImportLookupBody) String() string {
 	return s
 }
 
+type RegisteredNexthop struct {
+	Connected uint8
+	Family    uint16
+	// Note: Ignores PrefixLength (uint8),
+	// because this field should be always:
+	// - 32 if Address Family is AF_INET
+	// - 128 if Address Family is AF_INET6
+	Prefix net.IP
+}
+
+func (n *RegisteredNexthop) Len() int {
+	// Connected (1 byte) + Address Family (2 bytes) + Prefix Length (1 byte) + Prefix (variable)
+	if n.Family == uint16(syscall.AF_INET) {
+		return 4 + net.IPv4len
+	} else {
+		return 4 + net.IPv6len
+	}
+}
+
+func (n *RegisteredNexthop) Serialize() ([]byte, error) {
+	// Connected (1 byte)
+	buf := make([]byte, 4)
+	buf[0] = byte(n.Connected)
+
+	// Address Family (2 bytes)
+	binary.BigEndian.PutUint16(buf[1:3], n.Family)
+
+	// Prefix Length (1 byte) + Prefix (variable)
+	switch n.Family {
+	case uint16(syscall.AF_INET):
+		buf[3] = byte(net.IPv4len * 8)
+		buf = append(buf, n.Prefix.To4()...)
+	case uint16(syscall.AF_INET6):
+		buf[3] = byte(net.IPv6len * 8)
+		buf = append(buf, n.Prefix.To16()...)
+	default:
+		return nil, fmt.Errorf("invalid address family: %d", n.Family)
+	}
+
+	return buf, nil
+}
+
+func (n *RegisteredNexthop) DecodeFromBytes(data []byte) error {
+	// Connected (1 byte)
+	n.Connected = uint8(data[0])
+	offset := 1
+
+	// Address Family (2 bytes)
+	n.Family = binary.BigEndian.Uint16(data[offset : offset+2])
+	isV4 := n.Family == uint16(syscall.AF_INET)
+	addrLen := int(net.IPv4len)
+	if !isV4 {
+		addrLen = net.IPv6len
+	}
+	// Note: Ignores Prefix Length (1 byte)
+	offset += 3
+
+	// Prefix (variable)
+	if isV4 {
+		n.Prefix = net.IP(data[offset : offset+addrLen]).To4()
+	} else {
+		n.Prefix = net.IP(data[offset : offset+addrLen]).To16()
+	}
+
+	return nil
+}
+
+func (n *RegisteredNexthop) String() string {
+	return fmt.Sprintf("connected: %d, family: %d, prefix: %s", n.Connected, n.Family, n.Prefix.String())
+}
+
+type NexthopRegisterBody struct {
+	Api      API_TYPE
+	Nexthops []*RegisteredNexthop
+}
+
+func (b *NexthopRegisterBody) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+
+	// List of Registered Nexthops
+	for _, nh := range b.Nexthops {
+		nhBuf, err := nh.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, nhBuf...)
+	}
+
+	return buf, nil
+}
+
+func (b *NexthopRegisterBody) DecodeFromBytes(data []byte, version uint8) error {
+	offset := 0
+
+	// List of Registered Nexthops
+	b.Nexthops = []*RegisteredNexthop{}
+	for len(data[offset:]) > 0 {
+		nh := new(RegisteredNexthop)
+		err := nh.DecodeFromBytes(data[offset:])
+		if err != nil {
+			return err
+		}
+		b.Nexthops = append(b.Nexthops, nh)
+
+		offset += nh.Len()
+		if len(data) < offset {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (b *NexthopRegisterBody) String() string {
+	s := make([]string, 0)
+	for _, nh := range b.Nexthops {
+		s = append(s, fmt.Sprintf("nexthop:{%s}", nh.String()))
+	}
+	return strings.Join(s, ", ")
+}
+
 type NexthopUpdateBody struct {
 	Api    API_TYPE
 	Family uint16

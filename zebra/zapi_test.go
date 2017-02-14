@@ -452,6 +452,41 @@ func Test_ImportLookupBody(t *testing.T) {
 	assert.NotEqual(nil, err)
 }
 
+func Test_NexthopRegisterBody(t *testing.T) {
+	assert := assert.New(t)
+
+	// Input binary
+	bufIn := []byte{
+		0x01, 0x00, 0x02, 0x20, // connected(1 byte)=1, afi(2 bytes)=AF_INET, prefix_len(1 byte)=32
+		0xc0, 0xa8, 0x01, 0x01, // prefix(4 bytes)="192.168.1.1"
+		0x00, 0x00, 0x0a, 0x80, // connected(1 byte)=0, afi(2 bytes)=AF_INET6, prefix_len(1 byte)=128
+		0x20, 0x01, 0x0d, 0xb8, // prefix(16 bytes)="2001:db8:1:1::1"
+		0x00, 0x01, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01,
+	}
+
+	// Test DecodeFromBytes()
+	b := &NexthopRegisterBody{Api: NEXTHOP_REGISTER}
+	err := b.DecodeFromBytes(bufIn, 3)
+	assert.Nil(err)
+
+	// Test decoded values
+	assert.Equal(uint8(1), b.Nexthops[0].Connected)
+	assert.Equal(uint16(syscall.AF_INET), b.Nexthops[0].Family)
+	assert.Equal(net.ParseIP("192.168.1.1").To4(), b.Nexthops[0].Prefix)
+	assert.Equal(uint8(0), b.Nexthops[1].Connected)
+	assert.Equal(uint16(syscall.AF_INET6), b.Nexthops[1].Family)
+	assert.Equal(net.ParseIP("2001:db8:1:1::1").To16(), b.Nexthops[1].Prefix)
+
+	// Test Serialize()
+	bufOut, err := b.Serialize()
+	assert.Nil(err)
+
+	// Test serialised value
+	assert.Equal(bufIn, bufOut)
+}
+
 func Test_NexthopUpdateBody(t *testing.T) {
 	assert := assert.New(t)
 
