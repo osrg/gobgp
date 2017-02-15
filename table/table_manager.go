@@ -350,6 +350,20 @@ func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []
 	return paths
 }
 
+func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.RouteFamily, nexthop net.IP) []*Path {
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	for _, rf := range rfList {
+		if t, ok := manager.Tables[rf]; ok {
+			for _, path := range t.GetKnownPathList(id) {
+				if path.GetNexthop().Equal(nexthop) {
+					paths = append(paths, path)
+				}
+			}
+		}
+	}
+	return paths
+}
+
 func (manager *TableManager) GetDestination(path *Path) *Destination {
 	if path == nil {
 		return nil
