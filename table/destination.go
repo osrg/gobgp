@@ -173,31 +173,37 @@ func (dd *Destination) GetKnownPathList(id string) []*Path {
 	return list
 }
 
-func (dd *Destination) GetBestPath(id string) *Path {
-	for _, p := range dd.knownPathList {
-		if p.Filtered(id) == POLICY_DIRECTION_NONE {
+func getBestPath(id string, pathList *paths) *Path {
+	for _, p := range *pathList {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE && !p.IsNexthopInvalid {
 			return p
 		}
 	}
 	return nil
 }
 
-func (dd *Destination) GetMultiBestPath(id string) []*Path {
-	list := make([]*Path, 0, len(dd.knownPathList))
+func (dd *Destination) GetBestPath(id string) *Path {
+	return getBestPath(id, &dd.knownPathList)
+}
+
+func getMultiBestPath(id string, pathList *paths) []*Path {
+	list := make([]*Path, 0, len(*pathList))
 	var best *Path
-	for _, p := range dd.knownPathList {
-		if p.Filtered(id) == POLICY_DIRECTION_NONE {
+	for _, p := range *pathList {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE && !p.IsNexthopInvalid {
 			if best == nil {
 				best = p
 				list = append(list, p)
 			} else if best.Compare(p) == 0 {
 				list = append(list, p)
-			} else {
-				return list
 			}
 		}
 	}
-	return nil
+	return list
+}
+
+func (dd *Destination) GetMultiBestPath(id string) []*Path {
+	return getMultiBestPath(id, &dd.knownPathList)
 }
 
 func (dd *Destination) AddWithdraw(withdraw *Path) {
@@ -242,14 +248,7 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, map[string]*
 	dest.computeKnownBestPath()
 
 	f := func(id string) (*Path, *Path) {
-		old := func() *Path {
-			for _, p := range oldKnownPathList {
-				if p.Filtered(id) == POLICY_DIRECTION_NONE {
-					return p
-				}
-			}
-			return nil
-		}()
+		old := getBestPath(id, &oldKnownPathList)
 		best := dest.GetBestPath(id)
 		if best != nil && best.Equal(old) {
 			// RFC4684 3.2. Intra-AS VPN Route Distribution
@@ -258,6 +257,11 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, map[string]*
 			// given RT prefix, for building the outbound route filter, and not just
 			// the best path.
 			if best.GetRouteFamily() == bgp.RF_RTC_UC {
+				return best, old
+			}
+			// For BGP Nexthop Tracking, checks if the nexthop reachability
+			// was changed or not.
+			if best.IsNexthopInvalid != old.IsNexthopInvalid {
 				return best, old
 			}
 			return nil, old
@@ -275,21 +279,6 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, map[string]*
 	for _, id := range ids {
 		bestList[id], oldList[id] = f(id)
 		if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
-			multipath := func(paths []*Path) []*Path {
-				mp := make([]*Path, 0, len(paths))
-				var best *Path
-				for _, path := range paths {
-					if path.Filtered(id) == POLICY_DIRECTION_NONE {
-						if best == nil {
-							best = path
-							mp = append(mp, path)
-						} else if best.Compare(path) == 0 {
-							mp = append(mp, path)
-						}
-					}
-				}
-				return mp
-			}
 			diff := func(lhs, rhs []*Path) bool {
 				if len(lhs) != len(rhs) {
 					return true
@@ -301,8 +290,8 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, map[string]*
 				}
 				return false
 			}
-			oldM := multipath(oldKnownPathList)
-			newM := multipath(dest.knownPathList)
+			oldM := getMultiBestPath(id, &oldKnownPathList)
+			newM := dest.GetMultiBestPath(id)
 			if diff(oldM, newM) {
 				multi = newM
 				if len(newM) == 0 {
@@ -446,10 +435,20 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 	// tie between two new paths learned in one cycle for which best-path
 	// calculation steps lead to tie.
 	if len(dest.knownPathList) == 1 {
+		// If the first path has the invalidated next-hop, which evaluated by
+		// IGP, returns no path with the reason of the next-hop reachability.
+		if dest.knownPathList[0].IsNexthopInvalid {
+			return nil, BPR_REACHABLE_NEXT_HOP, nil
+		}
 		return dest.knownPathList[0], BPR_ONLY_PATH, nil
 	}
 	sort.Sort(dest.knownPathList)
 	newBest := dest.knownPathList[0]
+	// If the first path has the invalidated next-hop, which evaluated by IGP,
+	// returns no path with the reason of the next-hop reachability.
+	if dest.knownPathList[0].IsNexthopInvalid {
+		return nil, BPR_REACHABLE_NEXT_HOP, nil
+	}
 	return newBest, newBest.reason, nil
 }
 
@@ -586,11 +585,18 @@ func compareByLLGRStaleCommunity(path1, path2 *Path) *Path {
 func compareByReachableNexthop(path1, path2 *Path) *Path {
 	//	Compares given paths and selects best path based on reachable next-hop.
 	//
-	//	If no path matches this criteria, return None.
-	//  However RouteServer doesn't need to check reachability, so return nil.
+	//	If no path matches this criteria, return nil.
+	//	For BGP Nexthop Tracking, evaluates next-hop is validated by IGP.
 	log.WithFields(log.Fields{
 		"Topic": "Table",
 	}).Debugf("enter compareByReachableNexthop -- path1: %s, path2: %s", path1, path2)
+
+	if path1.IsNexthopInvalid && !path2.IsNexthopInvalid {
+		return path2
+	} else if !path1.IsNexthopInvalid && path2.IsNexthopInvalid {
+		return path1
+	}
+
 	return nil
 }
 
