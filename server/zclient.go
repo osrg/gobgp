@@ -284,6 +284,40 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	return path
 }
 
+func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.TableManager) (pathList, error) {
+	body := m.Body.(*zebra.NexthopUpdateBody)
+	isNexthopInvalid := len(body.Nexthops) == 0
+
+	var rfList []bgp.RouteFamily
+	switch body.Family {
+	case uint16(syscall.AF_INET):
+		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN}
+	case uint16(syscall.AF_INET6):
+		rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
+	default:
+		return nil, fmt.Errorf("invalid address family: %d", body.Family)
+	}
+
+	paths := manager.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix)
+	updatedPathList := make(pathList, 0, len(paths))
+	for _, path := range paths {
+		newPath := path.Clone(false)
+		if isNexthopInvalid {
+			// If NEXTHOP_UPDATE message does NOT contain any nexthop,
+			// invalidates the nexthop reachability.
+			newPath.IsNexthopInvalid = true
+		} else {
+			// If NEXTHOP_UPDATE message contains valid nexthops,
+			// copies Metric into MED.
+			newPath.IsNexthopInvalid = false
+			newPath.SetMed(int64(body.Metric), true)
+		}
+		updatedPathList = append(updatedPathList, newPath)
+	}
+
+	return updatedPathList, nil
+}
+
 type zebraClient struct {
 	client *zebra.Client
 	server *BgpServer
@@ -311,6 +345,13 @@ func (z *zebraClient) loop() {
 					if _, err := z.server.AddPath("", pathList{p}); err != nil {
 						log.Errorf("failed to add path from zebra: %s", p)
 					}
+				}
+			case *zebra.NexthopUpdateBody:
+				body := msg.Body.(*zebra.NexthopUpdateBody)
+				if paths, err := createPathListFromNexthopUpdateMessage(msg, z.server.globalRib); err != nil {
+					log.Errorf("failed to create updated path list related to nexthop %s", body.Prefix.String())
+				} else if err = z.server.UpdatePath("", paths); err != nil {
+					log.Errorf("failed to update path related to nexthop %s", body.Prefix.String())
 				}
 			}
 		case ev := <-w.Event():

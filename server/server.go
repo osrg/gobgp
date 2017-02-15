@@ -1183,6 +1183,18 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 	}, true)
 }
 
+func (s *BgpServer) UpdatePath(vrfId string, pathList []*table.Path) error {
+	err := s.mgmtOperation(func() error {
+		if err := s.fixupApiPath(vrfId, pathList); err != nil {
+			return err
+		}
+
+		s.propagateUpdate(nil, pathList)
+		return nil
+	}, true)
+	return err
+}
+
 func (s *BgpServer) Start(c *config.Global) error {
 	return s.mgmtOperation(func() error {
 		if err := config.SetDefaultGlobalConfigValues(c); err != nil {
