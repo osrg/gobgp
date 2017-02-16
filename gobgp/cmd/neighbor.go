@@ -382,7 +382,7 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 			best += "I"
 		}
 		if showBest {
-			if idx == 0 {
+			if idx == 0 && !p.IsNexthopInvalid {
 				best += "*>"
 			} else {
 				best += "* "
