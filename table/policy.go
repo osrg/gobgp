@@ -3526,7 +3526,12 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 		}
 		err = r.setDefaultPolicy(id, dir, ROUTE_TYPE_NONE)
 	} else {
-		n := make([]*Policy, 0, len(cur)-len(ps))
+		l := len(cur) - len(ps)
+		if l < 0 {
+			// try to remove more than the assigned policies...
+			l = len(cur)
+		}
+		n := make([]*Policy, 0, l)
 		for _, y := range cur {
 			found := false
 			for _, x := range ps {
