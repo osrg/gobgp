@@ -1,6 +1,6 @@
 # BGP Monitoring Protocol
 
-GoBGP supports [BGP Monitoring Protocol](https://datatracker.ietf.org/doc/draft-ietf-grow-bmp/).
+GoBGP supports [BGP Monitoring Protocol (RFC 7854)](https://tools.ietf.org/html/rfc7854), which provides a convenient interface for obtaining route views.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 
 ## <a name="config"> Configuration
 
-Add `[bmp-servers]` session to enable BMP like below.
+Add `[bmp-servers]` session to enable BMP. 
 
 ```toml
 [global.config]
@@ -24,6 +24,17 @@ Add `[bmp-servers]` session to enable BMP like below.
     address = "127.0.0.1"
     port=11019
 ```
+
+Flows can be post or pre-policy. Pre-policy flows are the default. To enable post-policy support change the configuration as follows.
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    route-monitoring-policy = "post-policy"
+```
+
 
 ## <a name="verify"> Verification
 
