@@ -45,11 +45,11 @@ CLI syntax to add ipv4/ipv6 flowspec rule is
 ```shell
 % global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
    <MATCH_EXPR> : { destination <PREFIX> [<OFFSET>] | source <PREFIX> [<OFFSET>] |
-                    protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags [not] [match] <TCPFLAG>... |
+                    protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags [!] [=] <TCPFLAG>... |
                     { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp | label } <ITEM>... }...
    <PROTO> : ospf, pim, igp, udp, igmp, tcp, egp, rsvp, gre, ipip, unknown, icmp, sctp, <VALUE>
    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
-   <TCPFLAG> : rst, push, ack, urgent, fin, syn
+   <TCPFLAG> : U, C, E, F, S, R, P, A
    <ITEM> : &?{<|>|=}<value>
    <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
    <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
@@ -71,6 +71,9 @@ that for l2vpn flowspec rule is
 ```shell
 # add a flowspec rule which redirect flows with dst 10.0.0.0/24 and src 20.0.0.0/24 to VRF with RT 10:10
 % gobgp global rib -a ipv4-flowspec add match destination 10.0.0.0/24 source 20.0.0.0/24 then redirect 10:10
+
+# add a flowspec rule wich discard flows with dst 2001::2/128 and port equals 80 and with TCP flags not match SA (SYN/ACK) and not match U (URG)
+% gobgp global rib -a ipv6-flowspec add match destination 2001::2/128 port '=80' tcp-flags '=!SA&=!U' then discard
 
 # show flowspec table
 % gobgp global rib -a ipv4-flowspec
