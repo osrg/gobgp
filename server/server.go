@@ -2323,7 +2323,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				w.notify(createWatchEventPeerState(peer))
 			}
 		}
-		if w.opts.initBest {
+		if w.opts.initBest && s.active() == nil {
 			w.notify(&WatchEventBestPath{
 				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, nil),
 				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
@@ -2370,7 +2370,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				}
 			}
 		}
-		if w.opts.initPostUpdate {
+		if w.opts.initPostUpdate && s.active() == nil {
 			for _, rf := range s.globalRib.GetRFlist() {
 				if len(s.globalRib.Tables[rf].GetDestinations()) == 0 {
 					continue
