@@ -9,14 +9,11 @@ modern environment and implemented in a modern programming language,
 
 ## Getting started
 
-Installing GoBGP is quite easy (only two commands!):
+Installing GoBGP is quite easy (just one command!):
 
 ```bash
-$ go get github.com/osrg/gobgp/gobgpd
-$ go get github.com/osrg/gobgp/gobgp
+$ go get github.com/osrg/gobgp/...
 ```
-
-No dependency hell (library, package, etc) thanks to Go.
 
 ## Documentation
 
