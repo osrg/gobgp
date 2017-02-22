@@ -136,7 +136,7 @@ func (cli *Client) getNeighbor(name string, afi int, vrf string) ([]*config.Neig
 	neighbors := make([]*config.Neighbor, 0, len(ret.Peers))
 
 	for _, p := range ret.Peers {
-		if name != "" && name != p.Conf.NeighborAddress {
+		if name != "" && name != p.Conf.NeighborAddress && name != p.Conf.NeighborInterface {
 			continue
 		}
 		if vrf != "" && name != p.Conf.Vrf {
