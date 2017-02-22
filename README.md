@@ -34,6 +34,8 @@ $ go get github.com/osrg/gobgp/...
  * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
  * [Using GoBGP as a Go Native BGP library](https://github.com/osrg/gobgp/blob/master/docs/sources/lib.md)
  * [Graceful Restart](https://github.com/osrg/gobgp/blob/master/docs/sources/graceful-restart.md)
+ * Data Center Networking
+  * [Unnumbered BGP](https://github.com/osrg/gobgp/blob/master/docs/sources/unnumbered-bgp.md)
 
 ### Externals
  * [Tutorial: Using GoBGP as an IXP connecting router](http://www.slideshare.net/shusugimoto1986/tutorial-using-gobgp-as-an-ixp-connecting-router)
