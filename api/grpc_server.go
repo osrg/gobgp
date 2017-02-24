@@ -777,6 +777,8 @@ func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*Ena
 		Url: arg.Url,
 		RedistributeRouteTypeList: l,
 		Version:                   uint8(arg.Version),
+		NexthopTriggerEnable:      arg.NexthopTriggerEnable,
+		NexthopTriggerDelay:       uint8(arg.NexthopTriggerDelay),
 	})
 }
 

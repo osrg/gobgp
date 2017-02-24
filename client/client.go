@@ -115,8 +115,10 @@ func (cli *Client) GetServer() (*config.Global, error) {
 
 func (cli *Client) EnableZebra(c *config.Zebra) error {
 	req := &api.EnableZebraRequest{
-		Url:     c.Config.Url,
-		Version: uint32(c.Config.Version),
+		Url:                  c.Config.Url,
+		Version:              uint32(c.Config.Version),
+		NexthopTriggerEnable: c.Config.NexthopTriggerEnable,
+		NexthopTriggerDelay:  uint32(c.Config.NexthopTriggerDelay),
 	}
 	for _, t := range c.Config.RedistributeRouteTypeList {
 		req.RouteTypes = append(req.RouteTypes, string(t))

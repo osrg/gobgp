@@ -252,6 +252,12 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	if b.Zebra.Config.Url == "" {
 		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
 	}
+	if !v.IsSet("zebra.config.nexthop-trigger-enable") && !b.Zebra.Config.NexthopTriggerEnable && b.Zebra.Config.Version > 2 {
+		b.Zebra.Config.NexthopTriggerEnable = true
+	}
+	if b.Zebra.Config.NexthopTriggerDelay == 0 {
+		b.Zebra.Config.NexthopTriggerDelay = 5
+	}
 
 	list, err := extractArray(v.Get("neighbors"))
 	if err != nil {

@@ -1024,6 +1024,10 @@ type ZebraState struct {
 	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
+	// original -> gobgp:nexthop-trigger-enable
+	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
+	// original -> gobgp:nexthop-trigger-delay
+	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
 }
 
 //struct for container gobgp:config
@@ -1037,6 +1041,10 @@ type ZebraConfig struct {
 	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
+	// original -> gobgp:nexthop-trigger-enable
+	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
+	// original -> gobgp:nexthop-trigger-delay
+	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
 }
 
 func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
@@ -1058,6 +1066,12 @@ func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
 		}
 	}
 	if lhs.Version != rhs.Version {
+		return false
+	}
+	if lhs.NexthopTriggerEnable != rhs.NexthopTriggerEnable {
+		return false
+	}
+	if lhs.NexthopTriggerDelay != rhs.NexthopTriggerDelay {
 		return false
 	}
 	return true
