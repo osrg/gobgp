@@ -179,7 +179,7 @@ prefix-sets and neighbor-sets section are prefix match part and neighbor match p
   ----
 
  #### prefix-sets
- prefix-sets has prefix-set-list, and prefix-set-list has prefix-set-name and prefix-list as its element. prefix-set-list is used as a condition.
+ prefix-sets has prefix-set-list, and prefix-set-list has prefix-set-name and prefix-list as its element. prefix-set-list is used as a condition. Note that prefix-sets has either v4 or v6 addresses.
 
  **prefix-set-list** has 1 element and list of subelement.
 
