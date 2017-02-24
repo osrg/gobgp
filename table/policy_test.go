@@ -17,16 +17,17 @@ package table
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"net"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPrefixCalcurateNoRange(t *testing.T) {
@@ -2804,6 +2805,38 @@ func createAs4Value(s string) uint32 {
 	return uint32(upper)<<16 + uint32(lower)
 }
 
+func TestPrefixSetOperation(t *testing.T) {
+	// tryp to create prefixset with multiple families
+	p1 := config.Prefix{
+		IpPrefix:        "0.0.0.0/0",
+		MasklengthRange: "0..7",
+	}
+	p2 := config.Prefix{
+		IpPrefix:        "0::/25",
+		MasklengthRange: "25..128",
+	}
+	_, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1, p2},
+	})
+	assert.NotNil(t, err)
+	m1, _ := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	m2, err := NewPrefixSet(config.PrefixSet{PrefixSetName: "ps2"})
+	assert.Nil(t, err)
+	err = m1.Append(m2)
+	assert.Nil(t, err)
+	err = m2.Append(m1)
+	assert.Nil(t, err)
+	assert.Equal(t, bgp.RF_IPv4_UC, m2.family)
+	p3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
+	p4, _ := NewPrefix(config.Prefix{IpPrefix: "0::/25", MasklengthRange: ""})
+	_, err = NewPrefixSetFromApiStruct("ps3", []*Prefix{p3, p4})
+	assert.NotNil(t, err)
+}
+
 func TestPrefixSetMatch(t *testing.T) {
 	p1 := config.Prefix{
 		IpPrefix:        "0.0.0.0/0",
@@ -2858,6 +2891,24 @@ func TestPrefixSetMatch(t *testing.T) {
 	assert.Nil(t, err)
 
 	path = NewPath(nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+}
+
+func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
+	p1 := config.Prefix{
+		IpPrefix:        "c000::/3",
+		MasklengthRange: "3..128",
+	}
+	ps, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	assert.Nil(t, err)
+	m := &PrefixCondition{
+		set: ps,
+	}
+
+	path := NewPath(nil, bgp.NewIPAddrPrefix(6, "192.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
