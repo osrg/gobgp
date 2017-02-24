@@ -981,7 +981,7 @@ func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 			protos = append(protos, string(p))
 		}
 		var err error
-		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version)
+		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay)
 		return err
 	}, false)
 }
