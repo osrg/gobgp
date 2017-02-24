@@ -14,8 +14,6 @@ env:
 matrix:
   allow_failures:
     - go: tip
-    - go: 1.7
-      os: osx
   include:
     - go: 1.5
       before_install: true
@@ -48,10 +46,10 @@ matrix:
       env:
         - GOOS=freebsd
     - go: 1.7
-      os: osx
-      before_install: true
       install: go get -t ./...
-      script: go test ./...
+      script: cd gobgpd && go build
+      env:
+        - GOOS=darwin
     - go: 1.7
       before_install: true
       install: true
