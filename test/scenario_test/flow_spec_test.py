@@ -44,13 +44,13 @@ class GoBGPTestBase(unittest.TestCase):
         matchs = ['destination 10.0.0.0/24', 'source 20.0.0.0/24']
         thens = ['discard']
         e1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs, thens=thens)
-        matchs2 = ['tcp-flags S', 'protocol tcp udp', "packet-length '>1000&<2000'"]
+        matchs2 = ['tcp-flags S', 'protocol ==tcp ==udp', "packet-length '>1000&<2000'"]
         thens2 = ['rate-limit 9600', 'redirect 0.10:100', 'mark 20', 'action sample']
         g1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs2, thens=thens2)
         matchs3 = ['destination 2001::/24/10', 'source 2002::/24/15']
         thens3 = ['discard']
         e1.add_route(route='flow2', rf='ipv6-flowspec', matchs=matchs3, thens=thens3)
-        matchs4 = ['destination 2001::/24 10', "label '=100'"]
+        matchs4 = ['destination 2001::/24 10', "label '==100'"]
         thens4 = ['discard']
         g1.add_route(route='flow2', rf='ipv6-flowspec', matchs=matchs4, thens=thens4)
 
