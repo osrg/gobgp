@@ -518,6 +518,9 @@ func (path *Path) String() string {
 	s.WriteString(fmt.Sprintf("{ %s | ", path.getPrefix()))
 	s.WriteString(fmt.Sprintf("src: %s", path.GetSource()))
 	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
+	if path.IsNexthopInvalid {
+		s.WriteString(" (not reachable)")
+	}
 	if path.IsWithdraw {
 		s.WriteString(", withdraw")
 	}
