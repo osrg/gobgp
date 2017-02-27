@@ -3187,18 +3187,27 @@ func formatNumericOp(op int) string {
 	return opstr
 }
 
+func formatNumericOpFrontQty(op int) string {
+	gtlteqOnly := op & 0x07
+	return fmt.Sprintf("%s", DECNumOpNameMap[DECNumOp(gtlteqOnly)])
+}
+
+func formatNumericOpBackLogic(op int) string {
+	andOrOnly := op & 0x40 // let's ignore the END bit to avoid having an E at the end of the string
+	return fmt.Sprintf("%s", DECLogicOpNameMap[DECLogicOp(andOrOnly)])
+}
+
 func formatNumeric(op int, value int) string {
 	gtlteqOnly := op & 0x07
-	andOrOnly := op & 0x40 // let's ignore the END bit to avoid having an E at the end of the string
 	if DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_FALSE]] || DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_TRUE]] {
-		return fmt.Sprintf("%s%s", DECNumOpNameMap[DECNumOp(gtlteqOnly)], DECLogicOpNameMap[DECLogicOp(andOrOnly)])
+		return fmt.Sprintf("%s%s", formatNumericOpFrontQty(op), formatNumericOpBackLogic(op))
 	} else {
-		return fmt.Sprintf("%s%d%s", DECNumOpNameMap[DECNumOp(gtlteqOnly)], value, DECLogicOpNameMap[DECLogicOp(andOrOnly)])
+		return fmt.Sprintf("%s%d%s", formatNumericOpFrontQty(op), value, formatNumericOpBackLogic(op))
 	}
 }
 
 func formatProto(op int, value int) string {
-	return fmt.Sprintf("%s", formatNumeric(op, value))
+	return fmt.Sprintf("%s%s%s", formatNumericOpFrontQty(op), Protocol(value).String(), formatNumericOpBackLogic(op))
 }
 
 func formatFlag(op int, value int) string {
