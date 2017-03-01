@@ -854,6 +854,87 @@ func (n *Nexthop) String() string {
 	return s
 }
 
+func serializeNexthops(nexthops []*Nexthop, isV4 bool) ([]byte, error) {
+	buf := make([]byte, 0)
+	if len(nexthops) == 0 {
+		return buf, nil
+	}
+	buf = append(buf, byte(len(nexthops)))
+
+	for _, nh := range nexthops {
+		buf = append(buf, byte(nh.Type))
+
+		switch nh.Type {
+		case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+			buf = append(buf, bbuf...)
+
+		case NEXTHOP_IPV4, NEXTHOP_IPV6:
+			if isV4 {
+				buf = append(buf, nh.Addr.To4()...)
+			} else {
+				buf = append(buf, nh.Addr.To16()...)
+			}
+
+		case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV4_IFNAME, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
+			if isV4 {
+				buf = append(buf, nh.Addr.To4()...)
+			} else {
+				buf = append(buf, nh.Addr.To16()...)
+			}
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+			buf = append(buf, bbuf...)
+		}
+	}
+
+	return buf, nil
+}
+
+func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool) (int, error) {
+	addrLen := net.IPv4len
+	if !isV4 {
+		addrLen = net.IPv6len
+	}
+
+	numNexthop := int(data[0])
+	offset := 1
+
+	for i := 0; i < numNexthop; i++ {
+		nh := &Nexthop{}
+		nh.Type = NEXTHOP_FLAG(data[offset])
+		offset += 1
+
+		switch nh.Type {
+		case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
+			nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
+			offset += 4
+
+		case NEXTHOP_IPV4, NEXTHOP_IPV6:
+			if isV4 {
+				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
+			} else {
+				nh.Addr = net.IP(data[offset : offset+addrLen]).To16()
+			}
+			offset += addrLen
+
+		case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV4_IFNAME, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
+			if isV4 {
+				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
+			} else {
+				nh.Addr = net.IP(data[offset : offset+addrLen]).To16()
+			}
+			offset += addrLen
+			nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
+			offset += 4
+		}
+		*nexthops = append(*nexthops, nh)
+	}
+
+	return offset, nil
+}
+
 func (b *NexthopLookupBody) Serialize() ([]byte, error) {
 
 	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
@@ -870,12 +951,12 @@ func (b *NexthopLookupBody) Serialize() ([]byte, error) {
 func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
-	var addrLen uint8 = net.IPv4len
+	addrLen := net.IPv4len
 	if !isV4 {
 		addrLen = net.IPv6len
 	}
 
-	if len(data) < int(addrLen) {
+	if len(data) < addrLen {
 		return fmt.Errorf("message length invalid")
 	}
 
@@ -892,45 +973,11 @@ func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 	if len(data[pos:]) > int(1+addrLen) {
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
-		nexthopNum := int(data[pos])
 		b.Nexthops = []*Nexthop{}
-
-		if nexthopNum > 0 {
-			pos += 1
-			for i := 0; i < nexthopNum; i++ {
-				nh := &Nexthop{}
-				nh.Type = NEXTHOP_FLAG(data[pos])
-				pos += 1
-
-				switch nh.Type {
-				case NEXTHOP_IPV4, NEXTHOP_IPV6:
-					b := make([]byte, addrLen)
-					copy(b, data[pos:pos+addrLen])
-					if isV4 {
-						nh.Addr = net.IP(b).To4()
-					} else {
-						nh.Addr = net.IP(b).To16()
-					}
-					pos += addrLen
-
-				case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
-					b := make([]byte, addrLen)
-					copy(b, data[pos:pos+addrLen])
-					if isV4 {
-						nh.Addr = net.IP(b).To4()
-					} else {
-						nh.Addr = net.IP(b).To16()
-					}
-					pos += addrLen
-					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
-					pos += 4
-
-				case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
-					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
-					pos += 4
-				}
-				b.Nexthops = append(b.Nexthops, nh)
-			}
+		if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[pos:], isV4); err != nil {
+			return err
+		} else {
+			pos += nexthopsByteLen
 		}
 	}
 
@@ -964,10 +1011,13 @@ func (b *ImportLookupBody) Serialize() ([]byte, error) {
 }
 
 func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8) error {
+	isV4 := b.Api == IPV4_IMPORT_LOOKUP
+	addrLen := net.IPv4len
+	if !isV4 {
+		addrLen = net.IPv6len
+	}
 
-	var addrLen uint8 = net.IPv4len
-
-	if len(data) < int(addrLen) {
+	if len(data) < addrLen {
 		return fmt.Errorf("message length invalid")
 	}
 
@@ -980,36 +1030,11 @@ func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 	if len(data[pos:]) > int(1+addrLen) {
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
-		nexthopNum := int(data[pos])
 		b.Nexthops = []*Nexthop{}
-		if nexthopNum > 0 {
-			pos += 1
-			for i := 0; i < nexthopNum; i++ {
-				nh := &Nexthop{}
-				nh.Type = NEXTHOP_FLAG(data[pos])
-				pos += 1
-
-				switch nh.Type {
-				case NEXTHOP_IPV4:
-					b := make([]byte, addrLen)
-					copy(b, data[pos:pos+addrLen])
-					nh.Addr = net.IP(b).To4()
-					pos += addrLen
-
-				case NEXTHOP_IPV4_IFINDEX:
-					b := make([]byte, addrLen)
-					copy(b, data[pos:pos+addrLen])
-					nh.Addr = net.IP(b).To4()
-					pos += addrLen
-					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
-					pos += 4
-
-				case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
-					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
-					pos += 4
-				}
-				b.Nexthops = append(b.Nexthops, nh)
-			}
+		if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[pos:], isV4); err != nil {
+			return err
+		} else {
+			pos += nexthopsByteLen
 		}
 	}
 
@@ -1205,40 +1230,13 @@ func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 	}
 	b.Metric = binary.BigEndian.Uint32(data[offset : offset+4])
 	offset += 4
-	nexthopsNum := int(data[offset])
-	offset += 1
 
 	// List of Nexthops
 	b.Nexthops = []*Nexthop{}
-	for i := 0; i < nexthopsNum; i++ {
-		nh := &Nexthop{}
-		nh.Type = NEXTHOP_FLAG(data[offset])
-		offset += 1
-
-		switch nh.Type {
-		case NEXTHOP_IPV4, NEXTHOP_IPV6:
-			if isV4 {
-				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
-			} else {
-				nh.Addr = net.IP(data[offset : offset+addrLen]).To16()
-			}
-			offset += addrLen
-
-		case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV4_IFNAME, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
-			if isV4 {
-				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
-			} else {
-				nh.Addr = net.IP(data[offset : offset+addrLen]).To16()
-			}
-			offset += addrLen
-			nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
-			offset += 4
-
-		case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
-			nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
-			offset += 4
-		}
-		b.Nexthops = append(b.Nexthops, nh)
+	if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[offset:], isV4); err != nil {
+		return err
+	} else {
+		offset += nexthopsByteLen
 	}
 
 	return nil
