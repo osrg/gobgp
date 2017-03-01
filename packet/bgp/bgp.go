@@ -2696,9 +2696,9 @@ func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, 
 				return nil, err
 			}
 			// we check if we found any operator, if not we set default as ==
-            if (operatorValue[0] == 0) {
-                operatorValue[0] = DEC_NUM_OP_EQ
-            }
+			if operatorValue[0] == 0 {
+				operatorValue[0] = DEC_NUM_OP_EQ
+			}
 			// we are done with decimal value, we give back the next cooming charater to the main loop
 			index = loopIndex
 		default:
