@@ -2591,60 +2591,124 @@ func doFlowSpecNumericParser(rf RouteFamily, args []string, validationFunc func(
 	if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP && FlowSpecValueMap[args[0]] == FLOW_SPEC_TYPE_LABEL {
 		return nil, fmt.Errorf("flow label spec is only allowed for ipv6")
 	}
-	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])?(\\d+)$")
-	items := make([]*FlowSpecComponentItem, 0)
-
-	f := func(and bool, o, v string) (*FlowSpecComponentItem, error) {
-		op := 0
-		if and {
-			op |= 0x40
-		}
-		if len(o) == 0 {
-			op |= 0x1
-		}
-		for _, oo := range o {
-			switch oo {
-			case '>':
-				op |= 0x2
-			case '<':
-				op |= 0x4
-			case '=':
-				op |= 0x1
-			}
-		}
-		value, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		err = validationFunc(value)
-		if err != nil {
-			return nil, err
-		}
-		return NewFlowSpecComponentItem(op, value), nil
+	cmdType := args[0]
+	args = append(args[:0], args[1:]...) // removing command string
+	fullCmd := strings.Join(args, " ")   // rebuiling tcp filters
+	opsFlags, err := parseDecValuesCmd(fullCmd, validationFunc)
+	if err != nil {
+		return nil, err
 	}
+	items := make([]*FlowSpecComponentItem, 0)
+	for _, opFlag := range opsFlags {
+		items = append(items, NewFlowSpecComponentItem(opFlag[0], opFlag[1]))
+	}
+	return NewFlowSpecComponent(FlowSpecValueMap[cmdType], items), nil
+}
 
-	for _, arg := range args[1:] {
-		var and bool
-		elems := exp.FindStringSubmatch(arg)
-		if len(elems) == 0 {
-			return nil, fmt.Errorf("invalid flowspec numeric item")
-		}
-		if elems[1] != "" {
-			and = true
-			item, err := f(false, elems[2], elems[3])
+func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, error) {
+	var index int = 0
+	var decOperatorsAndValues [][2]int
+	var operatorValue [2]int
+	var errorNum error
+	for index < len(myCmd) {
+		myCmdChar := myCmd[index : index+1]
+		switch myCmdChar {
+		case DECNumOpNameMap[DEC_NUM_OP_GT], DECNumOpNameMap[DEC_NUM_OP_LT]:
+			// We found a < or > let's check if we face >= or <=
+			if myCmd[index+1:index+2] == "=" {
+				myCmdChar = myCmd[index : index+2]
+				index++
+			}
+			if bit := DECNumOpValueMap[myCmdChar]; bit&DECNumOp(operatorValue[0]) == 0 {
+				operatorValue[0] |= int(bit)
+				index++
+			} else {
+				err := fmt.Errorf("Operator > < or >= <= appears multiple times")
+				return nil, err
+			}
+		case "!", "=":
+			// we found the beginning of a not let's check secong character
+			if myCmd[index+1:index+2] == "=" {
+				myCmdChar = myCmd[index : index+2]
+				if bit := DECNumOpValueMap[myCmdChar]; bit&DECNumOp(operatorValue[0]) == 0 {
+					operatorValue[0] |= int(bit)
+					index += 2
+				} else {
+					err := fmt.Errorf("Not or Equal operator appears multiple time")
+					return nil, err
+				}
+			} else {
+				err := fmt.Errorf("Malformated not or equal operator")
+				return nil, err
+			}
+		case "t", "f": // we could be facing true or false, let's check
+			if myCmd == DECNumOpNameMap[DEC_NUM_OP_FALSE] || myCmd == DECNumOpNameMap[DEC_NUM_OP_TRUE] {
+				if bit := DECNumOpValueMap[myCmd]; bit&DECNumOp(operatorValue[0]) == 0 {
+					operatorValue[0] |= int(bit)
+					index = index + len(myCmd)
+				} else {
+					err := fmt.Errorf("Boolean operator appears multiple times")
+					return nil, err
+				}
+			} else {
+				err := fmt.Errorf("Boolean operator %s badly formatted", myCmd)
+				return nil, err
+			}
+		case DECLogicOpNameMap[DEC_LOGIC_OP_AND], DECLogicOpNameMap[DEC_LOGIC_OP_OR]:
+			if bit := DECLogicOpValueMap[myCmdChar]; bit&DECLogicOp(operatorValue[0]) == 0 {
+				if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
+					operatorValue[0] |= int(bit)
+				}
+				decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
+				operatorValue[0] = 0
+				operatorValue[1] = 0
+				index++
+			} else {
+				err := fmt.Errorf("AND or OR (space) operator appears multiple time")
+				return nil, err
+			}
+		case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			myLoopChar := myCmdChar
+			loopIndex := index
+			// we loop till we reach the end of decimal value
+			// exit conditions : we reach the end of decimal value (we found & or ' ') or we reach the end of the line
+			for loopIndex < len(myCmd) &&
+				(myLoopChar != DECLogicOpNameMap[DEC_LOGIC_OP_AND] && myLoopChar != DECLogicOpNameMap[DEC_LOGIC_OP_OR]) {
+				// we check if inspected charater is a number
+				if _, err := strconv.Atoi(myLoopChar); err == nil {
+					// we move to next character
+					loopIndex++
+					if loopIndex < len(myCmd) {
+						myLoopChar = myCmd[loopIndex : loopIndex+1] // we move to the next character only if we didn't reach the end of cmd
+					}
+				} else {
+					err := fmt.Errorf("Decimal value badly formatted: %s", myLoopChar)
+					return nil, err
+				}
+			}
+			decimalValueString := myCmd[index:loopIndex]
+			operatorValue[1], errorNum = strconv.Atoi(decimalValueString)
+			if errorNum != nil {
+				return nil, errorNum
+			}
+			err := validationFunc(operatorValue[1])
 			if err != nil {
 				return nil, err
 			}
-			items = append(items, item)
-		}
-		item, err := f(and, elems[4], elems[5])
-		if err != nil {
+			// we check if we found any operator, if not we set default as ==
+			if operatorValue[0] == 0 {
+				operatorValue[0] = DEC_NUM_OP_EQ
+			}
+			// we are done with decimal value, we give back the next cooming charater to the main loop
+			index = loopIndex
+		default:
+			err := fmt.Errorf("%s not part of flowspec decimal value or operators", myCmdChar)
 			return nil, err
 		}
-		items = append(items, item)
 	}
-
-	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
+	operatorValue[0] |= int(DECLogicOpValueMap["E"])
+	decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
+	return decOperatorsAndValues, nil
 }
 
 func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
@@ -3127,12 +3191,27 @@ func formatNumericOp(op int) string {
 	return opstr
 }
 
+func formatNumericOpFrontQty(op int) string {
+	gtlteqOnly := op & 0x07
+	return fmt.Sprintf("%s", DECNumOpNameMap[DECNumOp(gtlteqOnly)])
+}
+
+func formatNumericOpBackLogic(op int) string {
+	andOrOnly := op & 0x40 // let's ignore the END bit to avoid having an E at the end of the string
+	return fmt.Sprintf("%s", DECLogicOpNameMap[DECLogicOp(andOrOnly)])
+}
+
 func formatNumeric(op int, value int) string {
-	return fmt.Sprintf("%s%d", formatNumericOp(op), value)
+	gtlteqOnly := op & 0x07
+	if DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_FALSE]] || DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_TRUE]] {
+		return fmt.Sprintf("%s%s", formatNumericOpFrontQty(op), formatNumericOpBackLogic(op))
+	} else {
+		return fmt.Sprintf("%s%d%s", formatNumericOpFrontQty(op), value, formatNumericOpBackLogic(op))
+	}
 }
 
 func formatProto(op int, value int) string {
-	return fmt.Sprintf("%s%s", formatNumericOp(op), Protocol(value).String())
+	return fmt.Sprintf("%s%s%s", formatNumericOpFrontQty(op), Protocol(value).String(), formatNumericOpBackLogic(op))
 }
 
 func formatFlag(op int, value int) string {
