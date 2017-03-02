@@ -500,6 +500,18 @@ func showRibInfo(r, name string) error {
 
 }
 
+func parseCIDRorIP(str string) (net.IP, *net.IPNet, error) {
+	ip, n, err := net.ParseCIDR(str)
+	if err == nil {
+		return ip, n, nil
+	}
+	ip = net.ParseIP(str)
+	if ip == nil {
+		return ip, nil, fmt.Errorf("invalid CIDR/IP")
+	}
+	return ip, nil, nil
+}
+
 func showNeighborRib(r string, name string, args []string) error {
 	showBest := false
 	showAge := true
@@ -527,6 +539,9 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	var filter []*table.LookupPrefix
 	if len(args) > 0 {
+		if _, _, err = parseCIDRorIP(args[0]); err != nil {
+			return err
+		}
 		var option table.LookupOption
 		if len(args) > 1 {
 			if args[1] == "longer-prefixes" {
