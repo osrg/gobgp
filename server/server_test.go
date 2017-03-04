@@ -21,6 +21,7 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
+	"net"
 	"runtime"
 	"testing"
 	"time"
@@ -181,4 +182,56 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	// InfiniteChannel)
 	time.Sleep(time.Second * 5)
 	assert.Equal(num, runtime.NumGoroutine())
+}
+
+func TestFilterpath(t *testing.T) {
+	p1As := uint32(65001)
+	p2As := uint32(65002)
+	rib := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
+	newPeerandInfo := func(as uint32, address string) (*Peer, *table.PeerInfo) {
+		p := NewPeer(
+			&config.Global{Config: config.GlobalConfig{As: 65000}},
+			&config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}},
+			rib,
+			&table.RoutingPolicy{})
+		p.fsm.rfMap[bgp.RF_IPv4_UC] = true
+		return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address)}
+	}
+	p1, pi1 := newPeerandInfo(p1As, "192.168.0.1")
+	p2, pi2 := newPeerandInfo(p2As, "192.168.0.2")
+
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
+	pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p2As})})}
+
+	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
+	path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
+
+	cal := func(l []*table.Path) (*table.Path, *table.Path) {
+		news, olds, _ := rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, l)
+		assert.Equal(t, len(news), 1)
+		for idx, path := range news[table.GLOBAL_RIB_NAME] {
+			var old *table.Path
+			if olds != nil {
+				old = olds[table.GLOBAL_RIB_NAME][idx]
+			}
+			return path, old
+		}
+		return nil, nil
+	}
+
+	new, old := cal([]*table.Path{path1, path2})
+	assert.Equal(t, new, path1)
+	filterpath(p1, new, old)
+	filterpath(p2, new, old)
+
+	new, old = cal([]*table.Path{path1.Clone(true)})
+	assert.Equal(t, new, path2)
+	// p1 and p2 advertized the same prefix and p1's was best. Then p1 withdraw it, so p2 must get withdawal.
+	path := filterpath(p2, new, old)
+	assert.NotNil(t, path)
+	assert.True(t, path.IsWithdraw)
+
+	// p1 should get the new best (from p2)
+	assert.Equal(t, filterpath(p1, new, old), path2)
 }
