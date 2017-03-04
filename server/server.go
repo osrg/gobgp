@@ -400,7 +400,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 			// the withdrawal path.
 			// Thing is same when peer A and we advertized prefix P (as local
 			// route), then, we withdraws the prefix.
-			if old != nil {
+			if path.IsWithdraw == false && old != nil {
 				return old.Clone(true)
 			}
 		}

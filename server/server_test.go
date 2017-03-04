@@ -234,4 +234,14 @@ func TestFilterpath(t *testing.T) {
 
 	// p1 should get the new best (from p2)
 	assert.Equal(t, filterpath(p1, new, old), path2)
+
+	new, old = cal([]*table.Path{path2.Clone(true)})
+	assert.True(t, new.IsWithdraw)
+	// p2 withdraw so p1 should get withdrawal.
+	path = filterpath(p1, new, old)
+	assert.True(t, path.IsWithdraw)
+
+	// p2 withdraw so p2 should get nothing.
+	path = filterpath(p2, new, old)
+	assert.Nil(t, path)
 }
