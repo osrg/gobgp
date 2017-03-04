@@ -17,10 +17,11 @@ package zebra
 
 import (
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"syscall"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_Header(t *testing.T) {
@@ -465,6 +466,8 @@ func Test_NexthopRegisterBody(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x01,
 	}
+	binary.BigEndian.PutUint16(bufIn[1:], syscall.AF_INET)
+	binary.BigEndian.PutUint16(bufIn[9:], syscall.AF_INET6)
 
 	// Test DecodeFromBytes()
 	b := &NexthopRegisterBody{Api: NEXTHOP_REGISTER}
