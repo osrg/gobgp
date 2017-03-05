@@ -184,21 +184,40 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func TestFilterpath(t *testing.T) {
+func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*Peer, *table.PeerInfo) {
+	p := NewPeer(
+		&config.Global{Config: config.GlobalConfig{As: myAs}},
+		&config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}},
+		rib,
+		&table.RoutingPolicy{})
+	for _, f := range rib.GetRFlist() {
+		p.fsm.rfMap[f] = true
+	}
+	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address)}
+}
+
+func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
+	news, olds, _ := rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, l)
+	if len(news) != 1 {
+		panic("can't handle multiple paths")
+	}
+	for idx, path := range news[table.GLOBAL_RIB_NAME] {
+		var old *table.Path
+		if olds != nil {
+			old = olds[table.GLOBAL_RIB_NAME][idx]
+		}
+		return path, old
+	}
+	return nil, nil
+}
+
+func TestFilterpathWitheBGP(t *testing.T) {
+	as := uint32(65000)
 	p1As := uint32(65001)
 	p2As := uint32(65002)
 	rib := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
-	newPeerandInfo := func(as uint32, address string) (*Peer, *table.PeerInfo) {
-		p := NewPeer(
-			&config.Global{Config: config.GlobalConfig{As: 65000}},
-			&config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}},
-			rib,
-			&table.RoutingPolicy{})
-		p.fsm.rfMap[bgp.RF_IPv4_UC] = true
-		return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address)}
-	}
-	p1, pi1 := newPeerandInfo(p1As, "192.168.0.1")
-	p2, pi2 := newPeerandInfo(p2As, "192.168.0.2")
+	p1, pi1 := newPeerandInfo(as, p1As, "192.168.0.1", rib)
+	p2, pi2 := newPeerandInfo(as, p2As, "192.168.0.2", rib)
 
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
@@ -207,25 +226,12 @@ func TestFilterpath(t *testing.T) {
 	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
 	path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
 
-	cal := func(l []*table.Path) (*table.Path, *table.Path) {
-		news, olds, _ := rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, l)
-		assert.Equal(t, len(news), 1)
-		for idx, path := range news[table.GLOBAL_RIB_NAME] {
-			var old *table.Path
-			if olds != nil {
-				old = olds[table.GLOBAL_RIB_NAME][idx]
-			}
-			return path, old
-		}
-		return nil, nil
-	}
-
-	new, old := cal([]*table.Path{path1, path2})
+	new, old := process(rib, []*table.Path{path1, path2})
 	assert.Equal(t, new, path1)
 	filterpath(p1, new, old)
 	filterpath(p2, new, old)
 
-	new, old = cal([]*table.Path{path1.Clone(true)})
+	new, old = process(rib, []*table.Path{path1.Clone(true)})
 	assert.Equal(t, new, path2)
 	// p1 and p2 advertized the same prefix and p1's was best. Then p1 withdraw it, so p2 must get withdawal.
 	path := filterpath(p2, new, old)
@@ -235,7 +241,7 @@ func TestFilterpath(t *testing.T) {
 	// p1 should get the new best (from p2)
 	assert.Equal(t, filterpath(p1, new, old), path2)
 
-	new, old = cal([]*table.Path{path2.Clone(true)})
+	new, old = process(rib, []*table.Path{path2.Clone(true)})
 	assert.True(t, new.IsWithdraw)
 	// p2 withdraw so p1 should get withdrawal.
 	path = filterpath(p1, new, old)
@@ -244,4 +250,34 @@ func TestFilterpath(t *testing.T) {
 	// p2 withdraw so p2 should get nothing.
 	path = filterpath(p2, new, old)
 	assert.Nil(t, path)
+}
+
+func TestFilterpathWithiBGP(t *testing.T) {
+	as := uint32(65000)
+
+	rib := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
+	p1, pi1 := newPeerandInfo(as, as, "192.168.0.1", rib)
+	//p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
+	p2, _ := newPeerandInfo(as, as, "192.168.0.2", rib)
+
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}), bgp.NewPathAttributeLocalPref(200)}
+	//pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})})}
+
+	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
+	//path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
+
+	new, old := process(rib, []*table.Path{path1})
+	assert.Equal(t, new, path1)
+	path := filterpath(p1, new, old)
+	assert.Nil(t, path)
+	path = filterpath(p2, new, old)
+	assert.Nil(t, path)
+
+	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	path = filterpath(p1, new, old)
+	assert.Nil(t, path)
+	path = filterpath(p2, new, old)
+	assert.Nil(t, path)
+
 }

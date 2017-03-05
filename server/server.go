@@ -367,7 +367,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		}
 
 		if ignore {
-			if old != nil {
+			if path.IsWithdraw == false && old != nil {
 				// we advertise a route from ebgp,
 				// which is the old best. We got the
 				// new best from ibgp. We don't
