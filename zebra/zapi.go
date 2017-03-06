@@ -514,6 +514,7 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 type Body interface {
 	DecodeFromBytes([]byte, uint8) error
 	Serialize() ([]byte, error)
+	String() string
 }
 
 type HelloBody struct {
@@ -529,6 +530,10 @@ func (b *HelloBody) Serialize() ([]byte, error) {
 	return []byte{uint8(b.RedistDefault)}, nil
 }
 
+func (b *HelloBody) String() string {
+	return fmt.Sprintf("route_type: %d", b.RedistDefault)
+}
+
 type RedistributeBody struct {
 	Redist ROUTE_TYPE
 }
@@ -540,6 +545,10 @@ func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8) error {
 
 func (b *RedistributeBody) Serialize() ([]byte, error) {
 	return []byte{uint8(b.Redist)}, nil
+}
+
+func (b *RedistributeBody) String() string {
+	return fmt.Sprintf("route_type: %d", b.Redist)
 }
 
 type InterfaceUpdateBody struct {
