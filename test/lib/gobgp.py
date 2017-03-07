@@ -53,7 +53,7 @@ class GoBGPContainer(BGPContainer):
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='toml',
-                 zapi_version=2):
+                 zapi_version=2, ospfd_config=None):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -67,6 +67,19 @@ class GoBGPContainer(BGPContainer):
         self.zebra = zebra
         self.zapi_version = zapi_version
         self.config_format = config_format
+
+        # To start OSPFd in GoBGP container, specify 'ospfd_config' as a dict
+        # type value.
+        # Example:
+        # ospfd_config = {
+        #     'redistributes': [
+        #         'connected',
+        #     ],
+        #     'networks': {
+        #         '192.168.1.0/24': '0.0.0.0',  # <network>: <area>
+        #     },
+        # }
+        self.ospfd_config = ospfd_config or {}
 
     def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
@@ -92,10 +105,21 @@ class GoBGPContainer(BGPContainer):
             cmd = 'zebra -u root -g root -f {0}/zebra.conf'.format(self.SHARED_VOLUME)
         self.local(cmd, detach=True)
 
+    def _start_ospfd(self):
+        if self.zapi_version == 2:
+            cmd = 'cp {0}/ospfd.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
+            self.local(cmd)
+            cmd = '/usr/lib/quagga/ospfd -f {0}/ospfd.conf'.format(self.QUAGGA_VOLUME)
+        else:
+            cmd = 'ospfd -u root -g root -f {0}/ospfd.conf'.format(self.SHARED_VOLUME)
+        self.local(cmd, detach=True)
+
     def run(self):
         super(GoBGPContainer, self).run()
         if self.zebra:
             self._start_zebra()
+            if self.ospfd_config:
+                self._start_ospfd()
         self._start_gobgp()
         return self.WAIT_FOR_BOOT
 
@@ -269,6 +293,8 @@ class GoBGPContainer(BGPContainer):
         self._create_config_bgp()
         if self.zebra:
             self._create_config_zebra()
+            if self.ospfd_config:
+                self._create_config_ospfd()
 
     def _create_config_bgp(self):
         config = {
@@ -434,10 +460,29 @@ class GoBGPContainer(BGPContainer):
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
+    def _create_config_ospfd(self):
+        c = CmdBuffer()
+        c << 'hostname ospfd'
+        c << 'password zebra'
+        c << 'router ospf'
+        for redistribute in self.ospfd_config.get('redistributes', []):
+            c << ' redistribute {0}'.format(redistribute)
+        for network, area in self.ospfd_config.get('networks', {}).items():
+            c << ' network {0} area {1}'.format(network, area)
+        c << 'log file {0}/ospfd.log'.format(self.SHARED_VOLUME)
+        c << ''
+
+        with open('{0}/ospfd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new ospfd.conf]'.format(self.name))
+            print colors.yellow(indent(str(c)))
+            f.writelines(str(c))
+
     def reload_config(self):
         daemon = ['gobgpd']
         if self.zebra:
             daemon.append('zebra')
+            if self.ospfd_config:
+                daemon.append('ospfd')
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
             self.local(cmd)
