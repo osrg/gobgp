@@ -13,7 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from base import *
+from __future__ import absolute_import
+
+import time
+
+from fabric import colors
+from fabric.api import local
+from fabric.utils import indent
+
+from lib.base import (
+    BGPContainer,
+    CmdBuffer,
+    try_several_times,
+)
+
 
 class BirdContainer(BGPContainer):
 

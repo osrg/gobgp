@@ -13,7 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from base import *
+from __future__ import absolute_import
+
+from fabric import colors
+from fabric.api import local
+
+from lib.base import (
+    BGPContainer,
+    CmdBuffer,
+)
 
 
 class BagpipeContainer(BGPContainer):
@@ -41,7 +49,7 @@ class BagpipeContainer(BGPContainer):
         c << '[BGP]'
         if len(self.ip_addrs) > 0:
             c << 'local_address={0}'.format(self.ip_addrs[0][1].split('/')[0])
-        for peer, info in self.peers.iteritems():
+        for info in self.peers.values():
             c << 'peers={0}'.format(info['neigh_addr'].split('/')[0])
         c << 'my_as={0}'.format(self.asn)
         c << 'enable_rtc=True'

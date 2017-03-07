@@ -13,18 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+
+import os
+import time
+import itertools
+
 from fabric.api import local, lcd
 from fabric import colors
-from fabric.utils import indent
 from fabric.state import env, output
 try:
     from docker import Client
 except ImportError:
     from docker import APIClient as Client
 import netaddr
-import os
-import time
-import itertools
 
 DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
@@ -49,6 +51,7 @@ BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 env.abort_exception = RuntimeError
 output.stderr = False
 
+
 def wait_for_completion(f, timeout=120):
     interval = 1
     count = 0
@@ -63,8 +66,8 @@ def wait_for_completion(f, timeout=120):
 
 
 def try_several_times(f, t=3, s=1):
-    e = None
-    for i in range(t):
+    e = Exception
+    for _ in range(t):
         try:
             r = f()
         except RuntimeError as e:
@@ -75,11 +78,11 @@ def try_several_times(f, t=3, s=1):
 
 
 def get_bridges():
-    return try_several_times(lambda : local("docker network ls | awk 'NR > 1{print $2}'", capture=True)).split('\n')
+    return try_several_times(lambda: local("docker network ls | awk 'NR > 1{print $2}'", capture=True)).split('\n')
 
 
 def get_containers():
-    return try_several_times(lambda : local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
+    return try_several_times(lambda: local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
 
 
 class CmdBuffer(list):
@@ -126,10 +129,10 @@ class Bridge(object):
         if with_ip:
             self.subnet = netaddr.IPNetwork(subnet)
 
-            def f():
+            def _f():
                 for host in self.subnet:
                     yield host
-            self._ip_generator = f()
+            self._ip_generator = _f()
             # throw away first network address
             self.next_ip_address()
 
@@ -145,7 +148,7 @@ class Bridge(object):
         self.self_ip = self_ip
         if self_ip:
             self.ip_addr = self.next_ip_address()
-            try_several_times(lambda :local("ip addr add {0} dev {1}".format(self.ip_addr, self.name)))
+            try_several_times(lambda: local("ip addr add {0} dev {1}".format(self.ip_addr, self.name)))
         self.ctns = []
 
     def next_ip_address(self):
@@ -153,7 +156,7 @@ class Bridge(object):
                                 self.subnet.prefixlen)
 
     def addif(self, ctn):
-        name = ctn.next_if_name()
+        _name = ctn.next_if_name()
         self.ctns.append(ctn)
         local("docker network connect {0} {1}".format(self.name, ctn.docker_name()))
         i = [x for x in Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values() if x['Name'] == ctn.docker_name()][0]
@@ -164,7 +167,7 @@ class Bridge(object):
         ctn.ip_addrs.append(('eth1', addr, self.name))
 
     def delete(self):
-        try_several_times(lambda : local("docker network rm {0}".format(self.name)))
+        try_several_times(lambda: local("docker network rm {0}".format(self.name)))
 
 
 class Container(object):
@@ -187,7 +190,7 @@ class Container(object):
         return '{0}_{1}'.format(TEST_PREFIX, self.name)
 
     def next_if_name(self):
-        name = 'eth{0}'.format(len(self.eths)+1)
+        name = 'eth{0}'.format(len(self.eths) + 1)
         self.eths.append(name)
         return name
 
@@ -197,7 +200,7 @@ class Container(object):
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
         c << "--name {0} -id {1}".format(self.docker_name(), self.image)
-        self.id = try_several_times(lambda : local(str(c), capture=True))
+        self.id = try_several_times(lambda: local(str(c), capture=True))
         self.is_running = True
         self.local("ip li set up dev lo")
         for line in self.local("ip a show dev eth0", capture=True).split('\n'):
@@ -210,12 +213,12 @@ class Container(object):
         return 0
 
     def stop(self):
-        ret = try_several_times(lambda : local("docker stop -t 0 " + self.docker_name(), capture=True))
+        ret = try_several_times(lambda: local("docker stop -t 0 " + self.docker_name(), capture=True))
         self.is_running = False
         return ret
 
     def remove(self):
-        ret = try_several_times(lambda : local("docker rm -f " + self.docker_name(), capture=True))
+        ret = try_several_times(lambda: local("docker rm -f " + self.docker_name(), capture=True))
         self.is_running = False
         return ret
 
@@ -232,7 +235,7 @@ class Container(object):
             intf_name = "eth1"
         c << "{0} {1}".format(self.docker_name(), ip_addr)
         self.ip_addrs.append((intf_name, ip_addr, bridge.name))
-        try_several_times(lambda :local(str(c)))
+        try_several_times(lambda: local(str(c)))
 
     def local(self, cmd, capture=False, stream=False, detach=False, tty=True):
         if stream:
@@ -283,7 +286,7 @@ class BGPContainer(Container):
         super(BGPContainer, self).__init__(name, ctn_image_name)
 
     def __repr__(self):
-        return str({'name':self.name, 'asn':self.asn, 'router_id':self.router_id})
+        return str({'name': self.name, 'asn': self.asn, 'router_id': self.router_id})
 
     def run(self):
         self.create_config()
@@ -368,7 +371,7 @@ class BGPContainer(Container):
                               'local-pref': local_pref,
                               'extended-community': extendedcommunity,
                               'matchs': matchs,
-                              'thens' : thens}
+                              'thens': thens}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
@@ -410,27 +413,27 @@ class BGPContainer(Container):
         raise Exception('implement get_neighbor() method')
 
     def get_reachablily(self, prefix, timeout=20):
-            version = netaddr.IPNetwork(prefix).version
-            addr = prefix.split('/')[0]
-            if version == 4:
-                ping_cmd = 'ping'
-            elif version == 6:
-                ping_cmd = 'ping6'
-            else:
-                raise Exception('unsupported route family: {0}'.format(version))
-            cmd = '/bin/bash -c "/bin/{0} -c 1 -w 1 {1} | xargs echo"'.format(ping_cmd, addr)
-            interval = 1
-            count = 0
-            while True:
-                res = self.local(cmd, capture=True)
-                print colors.yellow(res)
-                if '1 packets received' in res and '0% packet loss':
-                    break
-                time.sleep(interval)
-                count += interval
-                if count >= timeout:
-                    raise Exception('timeout')
-            return True
+        version = netaddr.IPNetwork(prefix).version
+        addr = prefix.split('/')[0]
+        if version == 4:
+            ping_cmd = 'ping'
+        elif version == 6:
+            ping_cmd = 'ping6'
+        else:
+            raise Exception('unsupported route family: {0}'.format(version))
+        cmd = '/bin/bash -c "/bin/{0} -c 1 -w 1 {1} | xargs echo"'.format(ping_cmd, addr)
+        interval = 1
+        count = 0
+        while True:
+            res = self.local(cmd, capture=True)
+            print colors.yellow(res)
+            if '1 packets received' in res and '0% packet loss':
+                break
+            time.sleep(interval)
+            count += interval
+            if count >= timeout:
+                raise Exception('timeout')
+        return True
 
     def wait_for(self, expected_state, peer, timeout=120):
         interval = 1

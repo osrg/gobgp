@@ -13,8 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from base import *
-from nsenter import Namespace
+from __future__ import absolute_import
+
+from fabric import colors
+from fabric.utils import indent
+import netaddr
+
+from lib.base import (
+    BGPContainer,
+    CmdBuffer,
+    BGP_FSM_IDLE,
+    BGP_FSM_ACTIVE,
+    BGP_FSM_ESTABLISHED,
+    BGP_ATTR_TYPE_MULTI_EXIT_DISC,
+    BGP_ATTR_TYPE_LOCAL_PREF,
+)
 
 
 class QuaggaBGPContainer(BGPContainer):
@@ -44,6 +57,7 @@ class QuaggaBGPContainer(BGPContainer):
         read_next = False
 
         for line in out.split('\n'):
+            ibgp = False
             if line[:2] == '*>':
                 line = line[2:]
                 ibgp = False
@@ -121,10 +135,10 @@ class QuaggaBGPContainer(BGPContainer):
 
         idx1 = info[0].index('BGP neighbor is ')
         idx2 = info[0].index(',')
-        n_addr = info[0][idx1+len('BGP neighbor is '):idx2]
+        n_addr = info[0][idx1 + len('BGP neighbor is '):idx2]
         if n_addr == neigh_addr:
             idx1 = info[2].index('= ')
-            state = info[2][idx1+len('= '):]
+            state = info[2][idx1 + len('= '):]
             if state.startswith('Idle'):
                 return BGP_FSM_IDLE
             elif state.startswith('Active'):
@@ -228,7 +242,7 @@ class QuaggaBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def vtysh(self, cmd, config=True):
-        if type(cmd) is not list:
+        if not isinstance(cmd, list):
             cmd = [cmd]
         cmd = ' '.join("-c '{0}'".format(c) for c in cmd)
         if config:
@@ -237,8 +251,7 @@ class QuaggaBGPContainer(BGPContainer):
             return self.local("vtysh -d bgpd {0}".format(cmd), capture=True)
 
     def reload_config(self):
-        daemon = []
-        daemon.append('bgpd')
+        daemon = ['bgpd']
         if self.zebra:
             daemon.append('zebra')
         for d in daemon:
