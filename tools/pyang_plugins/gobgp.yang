@@ -1021,6 +1021,12 @@ module gobgp {
       description
         "Configure version of zebra protocol.  Default is 2. Supported up to 3.";
     }
+    leaf nexthop-trigger-enable {
+      type boolean;
+    }
+    leaf nexthop-trigger-delay {
+      type uint8;
+    }
   }
 
   grouping zebra-set {

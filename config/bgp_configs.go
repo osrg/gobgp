@@ -1025,6 +1025,7 @@ type ZebraState struct {
 	// original -> gobgp:version
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 	// original -> gobgp:nexthop-trigger-enable
+	//gobgp:nexthop-trigger-enable's original type is boolean
 	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
 	// original -> gobgp:nexthop-trigger-delay
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
@@ -1042,6 +1043,7 @@ type ZebraConfig struct {
 	// original -> gobgp:version
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 	// original -> gobgp:nexthop-trigger-enable
+	//gobgp:nexthop-trigger-enable's original type is boolean
 	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
 	// original -> gobgp:nexthop-trigger-delay
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
