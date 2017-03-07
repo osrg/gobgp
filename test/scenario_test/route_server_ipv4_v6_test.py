@@ -165,13 +165,7 @@ class GoBGPIPv6Test(unittest.TestCase):
             self.assertTrue(len(q.get_global_rib(rf='ipv6')) == len(q.routes))
 
 
-
-
-
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"
