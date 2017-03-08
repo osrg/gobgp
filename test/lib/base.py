@@ -465,3 +465,31 @@ class BGPContainer(Container):
 
     def reload_config(self):
         raise Exception('implement reload_config() method')
+
+
+class OSPFContainer(Container):
+    WAIT_FOR_BOOT = 1
+
+    def __init__(self, name, ctn_image_name):
+        self.config_dir = '/'.join((TEST_BASE_DIR, TEST_PREFIX, name))
+        local('if [ -e {0} ]; then rm -rf {0}; fi'.format(self.config_dir))
+        local('mkdir -p {0}'.format(self.config_dir))
+        local('chmod 777 {0}'.format(self.config_dir))
+
+        # Example:
+        # networks = {
+        #     '192.168.1.0/24': '0.0.0.0',  # <network>: <area>
+        # }
+        self.networks = {}
+        super(OSPFContainer, self).__init__(name, ctn_image_name)
+
+    def __repr__(self):
+        return str({'name': self.name, 'networks': self.networks})
+
+    def run(self):
+        self.create_config()
+        super(OSPFContainer, self).run()
+        return self.WAIT_FOR_BOOT
+
+    def create_config(self):
+        raise NotImplementedError
