@@ -272,7 +272,7 @@ class BGPContainer(Container):
 
     def __init__(self, name, asn, router_id, ctn_image_name):
         self.config_dir = '/'.join((TEST_BASE_DIR, TEST_PREFIX, name))
-        local('if [ -e {0} ]; then rm -r {0}; fi'.format(self.config_dir))
+        local('if [ -e {0} ]; then rm -rf {0}; fi'.format(self.config_dir))
         local('mkdir -p {0}'.format(self.config_dir))
         local('chmod 777 {0}'.format(self.config_dir))
         self.asn = asn

@@ -16,7 +16,7 @@ if [ "${BUILD_TAG}" != "" ]; then
     sudo sh -c ": > /var/log/upstart/docker.log"
 fi
 
-rm -r ${WS}/nosetest*.xml
+rm -f ${WS}/nosetest*.xml
 cp -r ../workspace $GOBGP
 pwd
 cd $GOBGP
