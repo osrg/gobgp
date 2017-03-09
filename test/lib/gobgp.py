@@ -407,7 +407,7 @@ class GoBGPContainer(BGPContainer):
                                           'version': self.zapi_version}}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new gobgpd.conf]'.format(self.name))
             if self.config_format is 'toml':
                 raw = toml.dumps(config)
             elif self.config_format is 'yaml':
@@ -430,7 +430,7 @@ class GoBGPContainer(BGPContainer):
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
@@ -481,6 +481,6 @@ class RawGoBGPContainer(GoBGPContainer):
 
     def create_config(self):
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new gobgpd.conf]'.format(self.name))
             print colors.yellow(indent(self.config))
             f.write(self.config)

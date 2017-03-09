@@ -222,7 +222,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'log file {0}/bgpd.log'.format(self.SHARED_VOLUME)
 
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new bgpd.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
@@ -237,7 +237,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
@@ -279,6 +279,6 @@ class RawQuaggaBGPContainer(QuaggaBGPContainer):
 
     def create_config(self):
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new bgpd.conf]'.format(self.name))
             print colors.yellow(indent(self.config))
             f.writelines(self.config)

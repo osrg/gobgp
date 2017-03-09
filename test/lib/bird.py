@@ -65,7 +65,7 @@ class BirdContainer(BGPContainer):
             c << '}'
 
         with open('{0}/bird.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new bird.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
@@ -111,6 +111,6 @@ class RawBirdContainer(BirdContainer):
 
     def create_config(self):
         with open('{0}/bird.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new bird.conf]'.format(self.name))
             print colors.yellow(indent(self.config))
             f.writelines(self.config)

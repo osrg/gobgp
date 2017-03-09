@@ -151,7 +151,7 @@ class ExaBGPContainer(BGPContainer):
             cmd << '}'
 
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
             print colors.yellow(str(cmd))
             f.write(str(cmd))
 
@@ -199,6 +199,6 @@ class RawExaBGPContainer(ExaBGPContainer):
 
     def create_config(self):
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
             print colors.yellow(self.config)
             f.write(self.config)
