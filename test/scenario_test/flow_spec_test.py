@@ -13,17 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.exabgp import *
-import sys
-import os
-import time
-import nose
-from noseplugin import OptionParser, parser_option
+from __future__ import absolute_import
+
 from itertools import combinations
+import sys
+import time
+import unittest
+
+from fabric.api import local
+import nose
+
+from noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):

@@ -2,6 +2,7 @@ import sys
 import os
 from subprocess import call
 
+
 def cut(filename, out):
     with open(filename, 'r') as f:
         flag = False
@@ -15,6 +16,7 @@ def cut(filename, out):
                 return
             elif flag:
                 codes.append(line)
+
 
 if __name__ == '__main__':
     filename = sys.argv[1]

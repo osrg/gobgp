@@ -13,16 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.exabgp import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
+
 from noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -87,8 +92,8 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
         info = self.gobgp.get_neighbor(self.clients['g2'])['state']['adj-table']
         self.assertTrue(info['advertised'] == 1)
-        self.assertTrue('accepted' not in info) # means info['accepted'] == 0
-        self.assertTrue('received' not in info) # means info['received'] == 0
+        self.assertTrue('accepted' not in info)  # means info['accepted'] == 0
+        self.assertTrue('received' not in info)  # means info['received'] == 0
 
 
 if __name__ == '__main__':

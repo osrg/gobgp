@@ -13,23 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+
 import json
-import unittest
-from fabric.api import local
-from lib import base
-from lib.base import wait_for_completion
-from lib.gobgp import *
-from lib.quagga import *
-from lib.exabgp import *
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
+
 from noseplugin import OptionParser, parser_option
-from itertools import chain
-import ryu.lib.pcaplib as pcap
-from ryu.lib.packet.packet import Packet
-from ryu.lib.packet.bgp import BGPMessage, BGPUpdate
+
+from lib import base
+from lib.base import (
+    BGP_FSM_IDLE,
+    BGP_FSM_ACTIVE,
+    BGP_FSM_ESTABLISHED,
+    BGP_ATTR_TYPE_MULTI_EXIT_DISC,
+    BGP_ATTR_TYPE_LOCAL_PREF,
+    wait_for_completion,
+)
+from lib.gobgp import (
+    GoBGPContainer,
+    extract_path_attribute,
+)
+from lib.quagga import QuaggaBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -51,7 +61,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         # advertise a route from q1, q2, q3
         for idx, q in enumerate(qs):
-            route = '10.0.{0}.0/24'.format(idx+1)
+            route = '10.0.{0}.0/24'.format(idx + 1)
             q.add_route(route)
 
         initial_wait_time = max(ctn.run() for ctn in ctns)
@@ -109,7 +119,7 @@ class GoBGPTestBase(unittest.TestCase):
     # check routes are properly advertised to all BGP speaker
     def test_04_check_quagga_global_rib(self):
         interval = 1
-        timeout = int(120/interval)
+        timeout = int(120 / interval)
         for q in self.quaggas.itervalues():
             done = False
             for _ in range(timeout):
@@ -130,7 +140,7 @@ class GoBGPTestBase(unittest.TestCase):
             if done:
                 continue
             # should not reach here
-            self.assertTrue(False)
+            raise AssertionError
 
     def test_05_add_quagga(self):
         q4 = QuaggaBGPContainer(name='q4', asn=65004, router_id='192.168.0.5')

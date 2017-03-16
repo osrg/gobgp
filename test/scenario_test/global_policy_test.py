@@ -13,17 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.exabgp import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
+
 from noseplugin import OptionParser, parser_option
-from itertools import chain
+
+from lib import base
+from lib.base import (
+    BGP_FSM_IDLE,
+    BGP_FSM_ESTABLISHED,
+    BGP_ATTR_TYPE_COMMUNITIES,
+)
+from lib.gobgp import GoBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 def community_exists(path, com):
@@ -55,7 +63,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         # advertise a route from q1, q2, q3
         for idx, q in enumerate(qs):
-            route = '10.0.{0}.0/24'.format(idx+1)
+            route = '10.0.{0}.0/24'.format(idx + 1)
             q.add_route(route)
 
         initial_wait_time = max(ctn.run() for ctn in ctns)
@@ -184,7 +192,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_13_check_adj_rib_out(self):
         q1 = self.quaggas['q1']
         for path in self.gobgp.get_adj_rib_out(q1):
-            self.assertTrue(path['local-pref'] == None)
+            self.assertTrue(path['local-pref'] is None)
         q5 = self.quaggas['q5']
         for path in self.gobgp.get_adj_rib_out(q5):
             self.assertTrue(path['local-pref'] == 300)

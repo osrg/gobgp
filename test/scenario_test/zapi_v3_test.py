@@ -13,17 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
+
 from noseplugin import OptionParser, parser_option
-from itertools import chain
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -34,14 +37,14 @@ class GoBGPTestBase(unittest.TestCase):
         base.TEST_PREFIX = parser_option.test_prefix
 
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
-                               ctn_image_name=gobgp_ctn_image_name,
-                               log_level=parser_option.gobgp_log_level,
-                               zebra=True, zapi_version=3)
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level,
+                            zebra=True, zapi_version=3)
 
         g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2',
-                               ctn_image_name=gobgp_ctn_image_name,
-                               log_level=parser_option.gobgp_log_level,
-                               zebra=True, zapi_version=3)
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level,
+                            zebra=True, zapi_version=3)
 
         initial_wait_time = max(ctn.run() for ctn in [g1, g2])
 

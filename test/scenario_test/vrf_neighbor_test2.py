@@ -13,17 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.base import wait_for_completion
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
+
 from noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    BGP_FSM_ACTIVE,
+    BGP_FSM_ESTABLISHED,
+    wait_for_completion,
+)
+from lib.gobgp import GoBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
