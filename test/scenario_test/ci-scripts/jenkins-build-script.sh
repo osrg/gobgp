@@ -1,3 +1,5 @@
+#!/usr/bin/env sh
+
 # renew GOPATH
 rm -rf /usr/local/jenkins/{bin,pkg,src}
 mkdir /usr/local/jenkins/{bin,pkg,src}
