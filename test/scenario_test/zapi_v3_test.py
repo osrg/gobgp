@@ -70,10 +70,10 @@ class GoBGPTestBase(unittest.TestCase):
         self.g2.local('ip netns exec ns01 ip li set up dev lo')
         self.g2.local('ip netns exec ns02 ip li set up dev lo')
 
-        self.g1.local("vtysh -c 'en' -c 'conf t' -c 'vrf 1 netns ns01'")
-        self.g1.local("vtysh -c 'en' -c 'conf t' -c 'vrf 2 netns ns02'")
-        self.g2.local("vtysh -c 'en' -c 'conf t' -c 'vrf 1 netns ns01'")
-        self.g2.local("vtysh -c 'en' -c 'conf t' -c 'vrf 2 netns ns02'")
+        self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 1 netns ns01'")
+        self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 2 netns ns02'")
+        self.g2.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 1 netns ns01'")
+        self.g2.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 2 netns ns02'")
 
         self.g1.local("gobgp vrf add vrf01 id 1 rd 1:1 rt both 1:1")
         self.g1.local("gobgp vrf add vrf02 id 2 rd 2:2 rt both 2:2")
