@@ -22,7 +22,7 @@ import unittest
 from fabric.api import local
 import nose
 
-from noseplugin import OptionParser, parser_option
+from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (

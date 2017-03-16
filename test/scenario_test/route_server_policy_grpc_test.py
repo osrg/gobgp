@@ -27,7 +27,7 @@ from nose.tools import (
     assert_false,
 )
 
-from noseplugin import OptionParser, parser_option
+from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
