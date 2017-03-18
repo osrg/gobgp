@@ -286,13 +286,13 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 }
 
 func NewPrefix(c config.Prefix) (*Prefix, error) {
-	addr, prefix, err := net.ParseCIDR(c.IpPrefix)
+	_, prefix, err := net.ParseCIDR(c.IpPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	rf := bgp.RF_IPv4_UC
-	if addr.To4() == nil {
+	if strings.Contains(c.IpPrefix, ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	p := &Prefix{
