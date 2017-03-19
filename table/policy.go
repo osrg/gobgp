@@ -285,14 +285,32 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 	return lhs.Prefix.String() == rhs.Prefix.String() && lhs.MasklengthRangeMin == rhs.MasklengthRangeMin && lhs.MasklengthRangeMax == rhs.MasklengthRangeMax
 }
 
+func (p *Prefix) PrefixString() string {
+	isZeros := func(p net.IP) bool {
+		for i := 0; i < len(p); i++ {
+			if p[i] != 0 {
+				return false
+			}
+		}
+		return true
+	}
+
+	ip := p.Prefix.IP
+	if p.AddressFamily == bgp.RF_IPv6_UC && isZeros(ip[0:10]) && ip[10] == 0xff && ip[11] == 0xff {
+		m, _ := p.Prefix.Mask.Size()
+		return fmt.Sprintf("::FFFF:%s/%d", ip.To16(), m)
+	}
+	return p.Prefix.String()
+}
+
 func NewPrefix(c config.Prefix) (*Prefix, error) {
-	addr, prefix, err := net.ParseCIDR(c.IpPrefix)
+	_, prefix, err := net.ParseCIDR(c.IpPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	rf := bgp.RF_IPv4_UC
-	if addr.To4() == nil {
+	if strings.Contains(c.IpPrefix, ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	p := &Prefix{
@@ -420,7 +438,7 @@ func (s *PrefixSet) List() []string {
 	s.tree.Walk(func(s string, v interface{}) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
-			list = append(list, fmt.Sprintf("%s %d..%d", p.Prefix.String(), p.MasklengthRangeMin, p.MasklengthRangeMax))
+			list = append(list, fmt.Sprintf("%s %d..%d", p.PrefixString(), p.MasklengthRangeMin, p.MasklengthRangeMax))
 		}
 		return false
 	})
@@ -432,7 +450,7 @@ func (s *PrefixSet) ToConfig() *config.PrefixSet {
 	s.tree.Walk(func(s string, v interface{}) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
-			list = append(list, config.Prefix{IpPrefix: p.Prefix.String(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
+			list = append(list, config.Prefix{IpPrefix: p.PrefixString(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
 		}
 		return false
 	})

@@ -1001,12 +1001,12 @@ func (s *Server) DeleteNeighbor(ctx context.Context, arg *DeleteNeighborRequest)
 }
 
 func NewPrefixFromApiStruct(a *Prefix) (*table.Prefix, error) {
-	addr, prefix, err := net.ParseCIDR(a.IpPrefix)
+	_, prefix, err := net.ParseCIDR(a.IpPrefix)
 	if err != nil {
 		return nil, err
 	}
 	rf := bgp.RF_IPv4_UC
-	if addr.To4() == nil {
+	if strings.Contains(a.IpPrefix, ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	return &table.Prefix{
