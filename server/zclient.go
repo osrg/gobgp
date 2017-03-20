@@ -31,32 +31,20 @@ import (
 type pathList []*table.Path
 
 type nexthopTrackingManager struct {
-	dead              chan struct{}
-	nexthopCache      []*net.IP
-	server            *BgpServer
-	delay             int
-	isScheduled       bool
-	scheduledPathList map[string]pathList
-	trigger           chan struct{}
-	pathListCh        chan pathList
+	nexthopCache            []*net.IP
+	server                  *BgpServer
+	delay                   int
+	isScheduled             bool
+	scheduledNexthopUpdates []*zebra.NexthopUpdateBody
 }
 
 func newNexthopTrackingManager(server *BgpServer, delay int) *nexthopTrackingManager {
 	return &nexthopTrackingManager{
-		dead:              make(chan struct{}),
-		nexthopCache:      make([]*net.IP, 0),
-		server:            server,
-		delay:             delay,
-		scheduledPathList: make(map[string]pathList, 0),
-		trigger:           make(chan struct{}),
-		pathListCh:        make(chan pathList),
+		nexthopCache: make([]*net.IP, 0),
+		server:       server,
+		delay:        delay,
+		scheduledNexthopUpdates: make([]*zebra.NexthopUpdateBody, 0),
 	}
-}
-
-func (s *nexthopTrackingManager) stop() {
-	close(s.pathListCh)
-	close(s.trigger)
-	close(s.dead)
 }
 
 func (m *nexthopTrackingManager) isRegisteredNexthop(nexthop net.IP) bool {
@@ -76,15 +64,6 @@ func (m *nexthopTrackingManager) registerNexthop(nexthop net.IP) bool {
 	return true
 }
 
-func (m *nexthopTrackingManager) appendPathList(paths pathList) {
-	if len(paths) == 0 {
-		return
-	}
-	path := paths[0]
-
-	m.scheduledPathList[path.GetNexthop().String()] = paths
-}
-
 func (m *nexthopTrackingManager) calculateDelay(penalty int) int {
 	if penalty <= 950 {
 		return m.delay
@@ -96,85 +75,6 @@ func (m *nexthopTrackingManager) calculateDelay(penalty int) int {
 		penalty /= 2
 	}
 	return delay
-}
-
-func (m *nexthopTrackingManager) triggerUpdatePathAfter(delay int) {
-	time.Sleep(time.Duration(delay) * time.Second)
-
-	m.trigger <- struct{}{}
-}
-
-func (m *nexthopTrackingManager) loop() {
-	t := time.NewTicker(8 * time.Second)
-	defer t.Stop()
-
-	penalty := 0
-
-	for {
-		select {
-		case <-m.dead:
-			return
-
-		case <-t.C:
-			penalty /= 2
-
-		case paths := <-m.pathListCh:
-			penalty += 500
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-				"Event": "Nexthop Tracking",
-			}).Debug("penalty 500 chrged: penalty: %d", penalty)
-
-			m.appendPathList(paths)
-
-			isScheduled := m.isScheduled
-			if isScheduled {
-				log.WithFields(log.Fields{
-					"Topic": "Zebra",
-					"Event": "Nexthop Tracking",
-				}).Debug("nexthop tracking event already scheduled")
-				continue
-			} else {
-				m.isScheduled = true
-			}
-
-			delay := m.calculateDelay(penalty)
-			go m.triggerUpdatePathAfter(delay)
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-				"Event": "Nexthop Tracking",
-			}).Debug("nexthop tracking event scheduled in %d secs", delay)
-
-		case <-m.trigger:
-			paths := make(pathList, 0)
-			for _, pList := range m.scheduledPathList {
-				for _, p := range pList {
-					paths = append(paths, p)
-				}
-			}
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-				"Event": "Nexthop Tracking",
-			}).Debug("update nexthop reachability: %s", paths)
-
-			if err := m.server.UpdatePath("", paths); err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Zebra",
-					"Event": "Nexthop Tracking",
-				}).Error("failed to update nexthop reachability")
-			}
-
-			m.isScheduled = false
-			m.scheduledPathList = make(map[string]pathList, 0)
-		}
-	}
-}
-
-func (m *nexthopTrackingManager) scheduleUpdate(paths pathList) {
-	if len(paths) == 0 {
-		return
-	}
-	m.pathListCh <- paths
 }
 
 func filterOutNilPath(paths pathList) pathList {
@@ -380,7 +280,7 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 		"Distance":     body.Distance,
 		"Mtu":          body.Mtu,
 		"api":          header.Command.String(),
-	}).Debugf("create path from ip route message.")
+	}).Debug("create path from ip route message.")
 
 	switch family {
 	case bgp.RF_IPv4_UC:
@@ -406,8 +306,7 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	return path
 }
 
-func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.TableManager) (pathList, error) {
-	body := m.Body.(*zebra.NexthopUpdateBody)
+func createPathListFromNexthopUpdateMessage(body *zebra.NexthopUpdateBody, manager *table.TableManager) ([]*table.Path, error) {
 	isNexthopInvalid := len(body.Nexthops) == 0
 
 	var rfList []bgp.RouteFamily
@@ -423,47 +322,72 @@ func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.Tab
 	paths := manager.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix)
 	updatedPathList := make(pathList, 0, len(paths))
 	for _, path := range paths {
-		newPath := path.Clone(false)
 		if isNexthopInvalid {
 			// If NEXTHOP_UPDATE message does NOT contain any nexthop,
 			// invalidates the nexthop reachability.
-			newPath.IsNexthopInvalid = true
+			path.IsNexthopInvalid = true
 		} else {
 			// If NEXTHOP_UPDATE message contains valid nexthops,
 			// copies Metric into MED.
-			newPath.IsNexthopInvalid = false
-			newPath.SetMed(int64(body.Metric), true)
+			path.IsNexthopInvalid = false
+			path.SetMed(int64(body.Metric), true)
 		}
-		updatedPathList = append(updatedPathList, newPath)
+		updatedPathList = append(updatedPathList, path)
 	}
 
 	return updatedPathList, nil
 }
 
+type zebraEvent struct {
+	nexthopUpdates []*zebra.NexthopUpdateBody
+}
+
 type zebraClient struct {
 	client     *zebra.Client
 	server     *BgpServer
-	dead       chan struct{}
 	nhtManager *nexthopTrackingManager
+	EventCh    chan *zebraEvent
 }
 
-func (z *zebraClient) stop() {
-	close(z.dead)
+func (z *zebraClient) HandleUpdatedPath(event *zebraEvent) []*table.Path {
+	list := make([]*table.Path, 0)
+	for _, update := range event.nexthopUpdates {
+		if l, err := createPathListFromNexthopUpdateMessage(update, z.server.globalRib); err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+				"Event": "Nexthop Tracking",
+			}).Error("failed to update nexthop reachability")
+		} else {
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+				"Event": "Nexthop Tracking",
+			}).Debugf("update nexthop reachability: %s", l)
+			list = append(list, l...)
+		}
+	}
+	return list
 }
 
 func (z *zebraClient) loop() {
 	w := z.server.Watch(WatchBestPath(true))
 	defer w.Stop()
+	t := &time.Ticker{}
 
 	if z.nhtManager != nil {
-		go z.nhtManager.loop()
-		defer z.nhtManager.stop()
+		t = time.NewTicker(8 * time.Second)
+		defer t.Stop()
 	}
+
+	penalty := 0
+	dampeningCh := make(chan struct{})
 
 	for {
 		select {
-		case <-z.dead:
-			return
+		case <-t.C:
+			penalty /= 2
+		case <-dampeningCh:
+			z.EventCh <- &zebraEvent{nexthopUpdates: z.nhtManager.scheduledNexthopUpdates}
+			z.nhtManager.scheduledNexthopUpdates = make([]*zebra.NexthopUpdateBody, 0)
 		case msg := <-z.client.Receive():
 			switch msg.Body.(type) {
 			case *zebra.IPRouteBody:
@@ -474,12 +398,23 @@ func (z *zebraClient) loop() {
 				}
 			case *zebra.NexthopUpdateBody:
 				if z.nhtManager != nil {
+					penalty += 500
+					log.WithFields(log.Fields{
+						"Topic": "Zebra",
+						"Event": "Nexthop Tracking",
+					}).Debugf("penalty 500 charged: penalty: %d", penalty)
 					body := msg.Body.(*zebra.NexthopUpdateBody)
-					if paths, err := createPathListFromNexthopUpdateMessage(msg, z.server.globalRib); err != nil {
-						log.Errorf("failed to create updated path list related to nexthop %s", body.Prefix.String())
+					if len(z.nhtManager.scheduledNexthopUpdates) != 0 {
+						// already scheduled
 					} else {
-						z.nhtManager.scheduleUpdate(paths)
+						delay := z.nhtManager.calculateDelay(penalty)
+						time.AfterFunc(time.Second*time.Duration(delay), func() { dampeningCh <- struct{}{} })
+						log.WithFields(log.Fields{
+							"Topic": "Zebra",
+							"Event": "Nexthop Tracking",
+						}).Debugf("nexthop tracking event scheduled in %d secs", delay)
 					}
+					z.nhtManager.scheduledNexthopUpdates = append(z.nhtManager.scheduledNexthopUpdates, body)
 				}
 			}
 		case ev := <-w.Event():
@@ -512,14 +447,17 @@ func (z *zebraClient) loop() {
 	}
 }
 
-func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8) (*zebraClient, error) {
+func (z *zebraClient) Start(url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8) error {
+	if z.client != nil {
+		return fmt.Errorf("already started")
+	}
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
-		return nil, fmt.Errorf("unsupported url: %s", url)
+		return fmt.Errorf("unsupported url: %s", url)
 	}
 	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, version)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	cli.SendHello()
 	cli.SendRouterIDAdd()
@@ -527,20 +465,21 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	for _, typ := range protos {
 		t, err := zebra.RouteTypeFromString(typ)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		cli.SendRedistribute(t, zebra.VRF_DEFAULT)
 	}
-	var nhtManager *nexthopTrackingManager = nil
 	if nhtEnable {
-		nhtManager = newNexthopTrackingManager(s, int(nhtDelay))
+		z.nhtManager = newNexthopTrackingManager(z.server, int(nhtDelay))
 	}
-	w := &zebraClient{
-		dead:       make(chan struct{}),
-		client:     cli,
-		server:     s,
-		nhtManager: nhtManager,
+	z.client = cli
+	go z.loop()
+	return nil
+}
+
+func newZebraClient(s *BgpServer) *zebraClient {
+	return &zebraClient{
+		server:  s,
+		EventCh: make(chan *zebraEvent, 16),
 	}
-	go w.loop()
-	return w, nil
 }

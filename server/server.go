@@ -116,6 +116,7 @@ func NewBgpServer() *BgpServer {
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
+	s.zclient = newZebraClient(s)
 	return s
 }
 
@@ -265,6 +266,36 @@ func (server *BgpServer) Serve() {
 			server.handleMGMTOp(op)
 		case rmsg := <-server.roaManager.ReceiveROA():
 			server.roaManager.HandleROAEvent(rmsg)
+		case zmsg := <-server.zclient.EventCh:
+			dmap := make(map[string]*table.Destination)
+			for _, path := range server.zclient.HandleUpdatedPath(zmsg) {
+				key := path.GetNlri().String()
+				_, ok := dmap[key]
+				if !ok {
+					log.Debugf("add key %s", key)
+					dmap[key] = server.globalRib.GetDestination(path)
+				} else {
+					log.Debugf("already added key %s", key)
+				}
+			}
+			best := make([]*table.Path, 0, len(dmap))
+			old := make([]*table.Path, 0, len(dmap))
+			for _, d := range dmap {
+				b, o, _ := d.Calculate([]string{table.GLOBAL_RIB_NAME})
+				best = append(best, b[table.GLOBAL_RIB_NAME])
+				old = append(old, o[table.GLOBAL_RIB_NAME])
+			}
+
+			if len(best) > 0 {
+				for _, targetPeer := range server.neighborMap {
+					if targetPeer.isRouteServerClient() {
+						continue
+					}
+					if paths := targetPeer.processOutgoingPaths(best, old); len(paths) > 0 {
+						sendFsmOutgoingMsg(targetPeer, paths, nil, false)
+					}
+				}
+			}
 		case conn := <-server.acceptCh:
 			passConn(conn)
 		case e, ok := <-server.fsmincomingCh.Out():
@@ -973,16 +1004,11 @@ func (s *BgpServer) StartCollector(c *config.CollectorConfig) error {
 
 func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 	return s.mgmtOperation(func() error {
-		if s.zclient != nil {
-			return fmt.Errorf("already connected to Zebra")
-		}
 		protos := make([]string, 0, len(c.RedistributeRouteTypeList))
 		for _, p := range c.RedistributeRouteTypeList {
 			protos = append(protos, string(p))
 		}
-		var err error
-		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay)
-		return err
+		return s.zclient.Start(c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay)
 	}, false)
 }
 
@@ -1181,18 +1207,6 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 		s.propagateUpdate(nil, deletePathList)
 		return nil
 	}, true)
-}
-
-func (s *BgpServer) UpdatePath(vrfId string, pathList []*table.Path) error {
-	err := s.mgmtOperation(func() error {
-		if err := s.fixupApiPath(vrfId, pathList); err != nil {
-			return err
-		}
-
-		s.propagateUpdate(nil, pathList)
-		return nil
-	}, true)
-	return err
 }
 
 func (s *BgpServer) Start(c *config.Global) error {
