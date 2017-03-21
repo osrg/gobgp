@@ -387,7 +387,11 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 							masklen = 128
 						}
 						for i := masklen; i > 0; i-- {
-							if f(fmt.Sprintf("%s/%d", key, i)) {
+							_, prefix, err := net.ParseCIDR(fmt.Sprintf("%s/%d", key, i))
+							if err != nil {
+								return nil, err
+							}
+							if f(prefix.String()) {
 								break
 							}
 						}
