@@ -519,10 +519,23 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	}
 	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, version)
 	if err != nil {
-		return nil, err
+		// Retry with another Zebra message version
+		var retry_version uint8 = 2
+		if version == 2 {
+			retry_version = 3
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Warnf("cannot connect to Zebra with message version %d. retry with version %d", version, retry_version)
+		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, retry_version)
+		if err != nil {
+			return nil, err
+		}
 	}
-	cli.SendHello()
-	cli.SendRouterIDAdd()
+	// Note: HELLO/ROUTER_ID_ADD messages are automatically sent to negotiate
+	// the Zebra message version in zebra.NewClient().
+	// cli.SendHello()
+	// cli.SendRouterIDAdd()
 	cli.SendInterfaceAdd()
 	for _, typ := range protos {
 		t, err := zebra.RouteTypeFromString(typ)

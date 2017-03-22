@@ -332,46 +332,71 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 		}
 	}()
 
+	// Send HELLO/ROUTER_ID_ADD messages to negotiate the Zebra message version.
+	c.SendHello()
+	c.SendRouterIDAdd()
+
+	receiveSingleMsg := func() (*Message, error) {
+		headerBuf, err := readAll(conn, int(HeaderSize(version)))
+		if err != nil {
+			err = fmt.Errorf("failed to read header: %s", err)
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Error(err)
+			return nil, err
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("read header from zebra: %v", headerBuf)
+		hd := &Header{}
+		err = hd.DecodeFromBytes(headerBuf)
+		if err != nil {
+			err = fmt.Errorf("failed to decode header: %s", err)
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Error(err)
+			return nil, err
+		}
+
+		bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
+		if err != nil {
+			err = fmt.Errorf("failed to read body: %s", err)
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Error(err)
+			return nil, err
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("read body from zebra: %v", bodyBuf)
+		m, err := ParseMessage(hd, bodyBuf)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Warnf("failed to parse message: %s", err)
+			return nil, nil
+		}
+
+		return m, nil
+	}
+
+	// Try to receive the first message from Zebra.
+	if m, err := receiveSingleMsg(); err != nil {
+		c.Close()
+		// Return error explicitly in order to retry connection.
+		return nil, err
+	} else if m != nil {
+		incoming <- m
+	}
+
+	// Start receive loop only when the first message successfully received.
 	go func() {
 		for {
-			headerBuf, err := readAll(conn, int(HeaderSize(version)))
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Zebra",
-				}).Errorf("failed to read header:%s", err)
+			if m, err := receiveSingleMsg(); err != nil {
 				return
+			} else if m != nil {
+				incoming <- m
 			}
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Debugf("read header from zebra: %v", headerBuf)
-			hd := &Header{}
-			err = hd.DecodeFromBytes(headerBuf)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Zebra",
-				}).Errorf("failed to decode header:%s", err)
-				return
-			}
-
-			bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Zebra",
-				}).Errorf("failed to read body:%s", err)
-				return
-			}
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Debugf("read body from zebra: %v", bodyBuf)
-			m, err := ParseMessage(hd, bodyBuf)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Zebra",
-				}).Warnf("failed to parse message:%s", err)
-				continue
-			}
-
-			incoming <- m
 		}
 	}()
 
