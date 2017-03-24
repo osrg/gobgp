@@ -850,14 +850,15 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	if b.Message&MESSAGE_DISTANCE > 0 {
 		b.Distance = data[pos]
+		pos += 1
 	}
 	if b.Message&MESSAGE_METRIC > 0 {
-		pos += 1
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
+		pos += 4
 	}
 	if b.Message&MESSAGE_MTU > 0 {
-		pos += 4
 		b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
+		pos += 4
 	}
 
 	return nil
