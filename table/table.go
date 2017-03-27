@@ -371,13 +371,13 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						}
 					}
 				case LOOKUP_SHORTER:
-					_, prefix, err := net.ParseCIDR(key)
+					addr, prefix, err := net.ParseCIDR(key)
 					if err != nil {
 						return nil, err
 					}
-					ones, bits := prefix.Mask.Size()
+					ones, _ := prefix.Mask.Size()
 					for i := ones; i > 0; i-- {
-						prefix.Mask = net.CIDRMask(i, bits)
+						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
 						f(prefix.String())
 					}
 				default:
