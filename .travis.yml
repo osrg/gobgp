@@ -15,10 +15,6 @@ matrix:
   allow_failures:
     - go: tip
   include:
-    - go: 1.5
-      before_install: true
-      install: go get -t ./...
-      script: go test ./...
     - go: 1.6
       before_install: true
       install: go get -t ./...
