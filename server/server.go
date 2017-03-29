@@ -1431,7 +1431,7 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*tabl
 			return fmt.Errorf("address family: %s not supported", af)
 		}
 		rib, err = tbl.Select(table.TableSelectOption{ID: id, LookupPrefixes: prefixes})
-		return nil
+		return err
 	}, true)
 	return
 }
