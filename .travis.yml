@@ -8,8 +8,7 @@ script: test/scenario_test/ci-scripts/travis-build-script.sh
 
 env:
   global:
-    - DOCKER_IMAGE=gobgp
-    - FROM_IMAGE=osrg/quagga
+    - DOCKER_IMAGE=osrg/quagga
 
 matrix:
   allow_failures:
@@ -69,7 +68,7 @@ matrix:
       services:
         - docker
     - env:
-        - TEST=bgp_zebra_nht_test.py FROM_IMAGE=osrg/quagga:v1.0
+        - TEST=bgp_zebra_nht_test.py DOCKER_IMAGE=osrg/quagga:v1.0
       sudo: required
       services:
         - docker
@@ -144,7 +143,7 @@ matrix:
       services:
         - docker
     - env:
-        - TEST=zapi_v3_test.py FROM_IMAGE=osrg/quagga:v1.0
+        - TEST=zapi_v3_test.py DOCKER_IMAGE=osrg/quagga:v1.0
       sudo: required
       services:
         - docker
