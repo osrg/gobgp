@@ -56,9 +56,11 @@ Execute the following commands inside the VM to install the dependencies:
  Download docker images pertaining to GoBGP testing.
 
  ```shell
- $ sudo docker pull golang:1.5
- $ sudo docker pull osrg/quagga
+ $ sudo docker pull golang:1.7
  $ sudo docker pull osrg/gobgp
+ $ sudo docker pull osrg/quagga
+ $ sudo docker pull osrg/quagga:v1.0
+ $ sudo docker pull osrg/exabgp
  ```
  <br>
 
