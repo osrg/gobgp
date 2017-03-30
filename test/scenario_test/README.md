@@ -96,8 +96,8 @@ all tests passed successfully
 ```
 
 2. Run each test.
- Gobgp have a scenario test shown in the following.
  You can run scenario tests individually with each test file.
+ See `test/scenario_test/*.py`, for the individual test files.
 
 ```shell
 $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
@@ -105,20 +105,6 @@ $ sudo -E PYTHONPATH=$GOBGP/test python <scenario test name>.py
 ...
 OK
 ```
-
- what kind of scenaio tests:
- - bgp_router_test
- - bgp_zebra_test
- - evpn_test
- - flow_spec_test
- - global_policy_test
- - ibgp_router_test
- - route_reflector_test
- - route_server_ipv4_v6_test
- - route_server_malformed_test
- - route_server_policy_grpc_test
- - route_server_policy_test
- - route_server_test
 
 ## <a name="section4"> Clean up
 A lot of containers are created during the test.
