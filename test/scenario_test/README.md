@@ -107,9 +107,11 @@ OK
 ```
 
 ## <a name="section4"> Clean up
-A lot of containers are created during the test.
+A lot of containers, networks temporary files are created during the test.
 Let's clean up.
 
 ```shell
 $ sudo docker rm -f $(sudo docker ps -a -q)
+$ sudo docker network prune -f
+$ sudo rm -rf /tmp/gobgp
 ```
