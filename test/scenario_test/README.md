@@ -77,7 +77,8 @@ You also need this operation at every modification to the source code.
 
 ```shell
 $ cd $GOPATH/src/github.com/osrg/gobgp
-$ sudo fab -f ./test/lib/base.py make_gobgp_ctn --set tag=gobgp
+$ go install ./gobgp/
+$ go install ./gobgpd/
 ```
 
 ## <a name="section3"> Run test

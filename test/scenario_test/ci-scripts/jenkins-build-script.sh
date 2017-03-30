@@ -33,11 +33,10 @@ do
 done
 
 sudo docker rmi $GOBGP_IMAGE
-sudo fab -f $GOBGP/test/lib/base.py make_gobgp_ctn:tag=$GOBGP_IMAGE
-[ "$?" != 0 ] && exit "$?"
 
-cd $GOBGP/gobgpd
-$GOROOT/bin/go get -v
+cd $GOBGP
+$GOROOT/bin/go get -v ./gobgp/
+$GOROOT/bin/go get -v ./gobgpd/
 
 cd $GOBGP/test/scenario_test
 ./run_all_tests.sh
