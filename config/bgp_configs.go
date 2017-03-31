@@ -2496,6 +2496,57 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 }
 
 //struct for container gobgp:state
+type DynamicNeighborState struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:auto-deletion
+	//gobgp:auto-deletion's original type is boolean
+	AutoDeletion bool `mapstructure:"auto-deletion" json:"auto-deletion,omitempty"`
+}
+
+//struct for container gobgp:config
+type DynamicNeighborConfig struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:auto-deletion
+	//gobgp:auto-deletion's original type is boolean
+	AutoDeletion bool `mapstructure:"auto-deletion" json:"auto-deletion,omitempty"`
+}
+
+func (lhs *DynamicNeighborConfig) Equal(rhs *DynamicNeighborConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	if lhs.AutoDeletion != rhs.AutoDeletion {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:dynamic-neighbor
+type DynamicNeighbor struct {
+	// original -> gobgp:dynamic-neighbor-config
+	Config DynamicNeighborConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:dynamic-neighbor-state
+	State DynamicNeighborState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *DynamicNeighbor) Equal(rhs *DynamicNeighbor) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:state
 type LongLivedGracefulRestartState struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
@@ -3672,6 +3723,8 @@ type Global struct {
 	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis,omitempty"`
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
+	// original -> gobgp:dynamic-neighbor
+	DynamicNeighbor DynamicNeighbor `mapstructure:"dynamic-neighbor" json:"dynamic-neighbor,omitempty"`
 }
 
 func (lhs *Global) Equal(rhs *Global) bool {
@@ -3713,6 +3766,9 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		}
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
+		return false
+	}
+	if !lhs.DynamicNeighbor.Equal(&(rhs.DynamicNeighbor)) {
 		return false
 	}
 	return true

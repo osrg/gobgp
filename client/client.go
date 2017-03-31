@@ -83,6 +83,10 @@ func (cli *Client) StartServer(c *config.Global) error {
 			ListenPort:       c.Config.Port,
 			ListenAddresses:  c.Config.LocalAddressList,
 			UseMultiplePaths: c.UseMultiplePaths.Config.Enabled,
+			DynamicNeighbor: &api.DynamicNeighbor{
+				Enabled:      c.DynamicNeighbor.Config.Enabled,
+				AutoDeletion: c.DynamicNeighbor.Config.AutoDeletion,
+			},
 		},
 	})
 	return err
@@ -98,7 +102,7 @@ func (cli *Client) GetServer() (*config.Global, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &config.Global{
+	global := &config.Global{
 		Config: config.GlobalConfig{
 			As:               ret.Global.As,
 			RouterId:         ret.Global.RouterId,
@@ -110,7 +114,12 @@ func (cli *Client) GetServer() (*config.Global, error) {
 				Enabled: ret.Global.UseMultiplePaths,
 			},
 		},
-	}, nil
+	}
+	if d := ret.Global.DynamicNeighbor; d != nil {
+		global.DynamicNeighbor.Config.Enabled = d.Enabled
+		global.DynamicNeighbor.Config.AutoDeletion = d.AutoDeletion
+	}
+	return global, nil
 }
 
 func (cli *Client) EnableZebra(c *config.Zebra) error {
@@ -136,7 +145,7 @@ func (cli *Client) getNeighbor(name string, afi int, vrf string) ([]*config.Neig
 	neighbors := make([]*config.Neighbor, 0, len(ret.Peers))
 
 	for _, p := range ret.Peers {
-		if name != "" && name != p.Conf.NeighborAddress && name != p.Conf.NeighborInterface {
+		if name != "" && name != p.Info.NeighborAddress && name != p.Conf.NeighborInterface {
 			continue
 		}
 		if vrf != "" && name != p.Conf.Vrf {

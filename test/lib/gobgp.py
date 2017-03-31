@@ -53,7 +53,7 @@ class GoBGPContainer(BGPContainer):
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='toml',
-                 zapi_version=2, ospfd_config=None):
+                 zapi_version=2, ospfd_config=None, dynamic_neighbor=False):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -67,6 +67,7 @@ class GoBGPContainer(BGPContainer):
         self.zebra = zebra
         self.zapi_version = zapi_version
         self.config_format = config_format
+        self.dynamic_neighbor = dynamic_neighbor
 
         # To start OSPFd in GoBGP container, specify 'ospfd_config' as a dict
         # type value.
@@ -242,6 +243,9 @@ class GoBGPContainer(BGPContainer):
     def get_adj_rib_out(self, peer, prefix='', rf='ipv4'):
         return self._get_adj_rib('out', peer, prefix, rf)
 
+    def list_neighbor(self):
+        return json.loads(self.local('gobgp -j neighbor', capture=True))
+
     def get_neighbor(self, peer):
         cmd = 'gobgp -j neighbor {0}'.format(self.peer_name(peer))
         return json.loads(self.local(cmd, capture=True))
@@ -302,6 +306,13 @@ class GoBGPContainer(BGPContainer):
             },
             'neighbors': [],
         }
+        if self.dynamic_neighbor:
+            config['global']['dynamic-neighbor'] = {
+                'config': {
+                    'enabled': True,
+                    'auto-deletion': True,
+                },
+            }
 
         if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}

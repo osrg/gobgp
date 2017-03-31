@@ -172,6 +172,11 @@ matrix:
       sudo: required
       services:
         - docker
+    - env:
+        - TEST=bgp_dynamic_test.py
+      sudo: required
+      services:
+        - docker
 
 cache:
   pip: true

@@ -106,6 +106,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	n.State.PeerAs = n.Config.PeerAs
+	n.State.NeighborAddress = n.Config.NeighborAddress
 
 	if !v.IsSet("neighbor.timers.config.connect-retry") && n.Timers.Config.ConnectRetry == 0 {
 		n.Timers.Config.ConnectRetry = float64(DEFAULT_CONNECT_RETRY)
@@ -128,14 +129,14 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 		if err != nil {
 			return err
 		}
-		n.Config.NeighborAddress = addr
+		n.State.NeighborAddress = addr
 	}
 
 	if n.Transport.Config.LocalAddress == "" {
-		if n.Config.NeighborAddress == "" {
+		if n.State.NeighborAddress == "" {
 			return fmt.Errorf("no neighbor address/interface specified")
 		}
-		ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress)
+		ipAddr, err := net.ResolveIPAddr("ip", n.State.NeighborAddress)
 		if err != nil {
 			return err
 		}
@@ -158,8 +159,8 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 				defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true),
 				defaultAfiSafi(AFI_SAFI_TYPE_IPV6_UNICAST, true),
 			}
-		} else if ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress); err != nil {
-			return fmt.Errorf("invalid neighbor address: %s", n.Config.NeighborAddress)
+		} else if ipAddr, err := net.ResolveIPAddr("ip", n.State.NeighborAddress); err != nil {
+			return fmt.Errorf("invalid neighbor address: %s", n.State.NeighborAddress)
 		} else if ipAddr.IP.To4() != nil {
 			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
 		} else {

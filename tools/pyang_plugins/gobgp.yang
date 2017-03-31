@@ -1088,6 +1088,33 @@ module gobgp {
       uses listen-config;
   }
 
+  grouping dynamic-neighbor-config {
+    leaf enabled {
+      description "enable dynamic neighbor support";
+      type boolean;
+    }
+    leaf auto-deletion {
+      description "delete dynamic neighbor when disconnected";
+      type boolean;
+    }
+  }
+
+  grouping dynamic-neighbor-set {
+    container dynamic-neighbor {
+      container config {
+        uses dynamic-neighbor-config;
+      }
+      container state {
+        uses dynamic-neighbor-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    description "dynamic neighbor configuration";
+    uses dynamic-neighbor-set;
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }

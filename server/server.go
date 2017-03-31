@@ -176,7 +176,7 @@ func (server *BgpServer) Serve() {
 		if !found {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-			}).Warnf("Cant't find the neighbor %s", e.MsgSrc)
+			}).Warnf("Can't find the neighbor %s", e.MsgSrc)
 			return
 		}
 		if e.Version != peer.fsm.version {
@@ -233,6 +233,15 @@ func (server *BgpServer) Serve() {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
+				peer.PassConn(conn)
+			} else if server.bgpConfig.Global.DynamicNeighbor.Config.Enabled {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Infof("New dynamic neighbor: %s", remoteAddr)
+				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, server.globalRib, server.policy)
+				server.neighborMap[remoteAddr] = peer
+				peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
+				server.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE)
 				peer.PassConn(conn)
 			} else {
 				log.WithFields(log.Fields{
@@ -692,6 +701,11 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				peer.fsm.pConf.State.PeerAs = 0
 				peer.fsm.peerInfo.AS = 0
 			}
+			if peer.isDynamicNeighbor() && server.bgpConfig.Global.DynamicNeighbor.Config.AutoDeletion {
+				peer.stopPeerRestarting()
+				go peer.stopFSM()
+				delete(server.neighborMap, peer.fsm.pConf.State.NeighborAddress)
+			}
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
 			if peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled {
 				llgr, no_llgr := peer.llgrFamilies()
@@ -772,7 +786,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			deferralExpiredFunc := func(family bgp.RouteFamily) func() {
 				return func() {
 					server.mgmtOperation(func() error {
-						server.softResetOut(peer.fsm.pConf.Config.NeighborAddress, family, true)
+						server.softResetOut(peer.fsm.pConf.State.NeighborAddress, family, true)
 						return nil
 					}, false)
 				}
@@ -834,7 +848,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 		}
 		// clear counter
 		if peer.fsm.adminState == ADMIN_STATE_DOWN {
-			peer.fsm.pConf.State = config.NeighborState{}
+			peer.fsm.pConf.State = config.NeighborState{
+				PeerAs:          peer.fsm.pConf.Config.PeerAs,
+				NeighborAddress: peer.fsm.pConf.Config.NeighborAddress,
+			}
 			peer.fsm.pConf.Timers.State = config.TimersState{}
 		}
 		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
@@ -934,7 +951,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
-							"Key":   peer.fsm.pConf.Config.NeighborAddress,
+							"Key":   peer.fsm.pConf.State.NeighborAddress,
 						}).Debugf("withdraw %d stale routes", len(pathList))
 						server.propagateUpdate(peer, pathList)
 					}
@@ -964,7 +981,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 		default:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.fsm.pConf.Config.NeighborAddress,
+				"Key":   peer.fsm.pConf.State.NeighborAddress,
 				"Data":  e.MsgData,
 			}).Panic("unknown msg type")
 		}
@@ -1025,7 +1042,7 @@ func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) error {
 		for _, peer := range s.neighborMap {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.fsm.pConf.Config.NeighborAddress,
+				"Key":   peer.fsm.pConf.State.NeighborAddress,
 			}).Info("call set policy")
 			ap[peer.ID()] = peer.fsm.pConf.ApplyPolicy
 		}
@@ -1559,7 +1576,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		return err
 	}
 
-	addr := c.Config.NeighborAddress
+	addr := c.State.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
 		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
 	}
@@ -1651,42 +1668,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 
 	n.fsm.sendNotification(code, subcode, nil, "")
 	n.stopPeerRestarting()
-
-	go func(addr string) {
-		failed := false
-		t1 := time.AfterFunc(time.Minute*5, func() {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-			}).Warnf("Failed to free the fsm.h.t for %s", addr)
-			failed = true
-		})
-		n.fsm.h.t.Kill(nil)
-		n.fsm.h.t.Wait()
-		t1.Stop()
-		if !failed {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   addr,
-			}).Debug("freed fsm.h.t")
-			cleanInfiniteChannel(n.outgoing)
-		}
-		failed = false
-		t2 := time.AfterFunc(time.Minute*5, func() {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-			}).Warnf("Failed to free the fsm.t for %s", addr)
-			failed = true
-		})
-		n.fsm.t.Kill(nil)
-		n.fsm.t.Wait()
-		t2.Stop()
-		if !failed {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   addr,
-			}).Debug("freed fsm.t")
-		}
-	}(addr)
+	go n.stopFSM()
 	delete(server.neighborMap, addr)
 	server.dropPeerAllRoutes(n, n.configuredRFlist())
 	return nil
@@ -1700,7 +1682,7 @@ func (s *BgpServer) DeleteNeighbor(c *config.Neighbor) error {
 
 func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err error) {
 	err = s.mgmtOperation(func() error {
-		addr := c.Config.NeighborAddress
+		addr := c.State.NeighborAddress
 		peer, ok := s.neighborMap[addr]
 		if !ok {
 			return fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
@@ -1833,10 +1815,10 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 			case peer.fsm.adminStateCh <- *stateOp:
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.Config.NeighborAddress,
+					"Key":   peer.fsm.pConf.State.NeighborAddress,
 				}).Debug(message)
 			default:
-				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
+				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.State.NeighborAddress)
 			}
 		}
 		if enable {

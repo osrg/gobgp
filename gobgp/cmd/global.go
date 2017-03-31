@@ -949,17 +949,25 @@ func showGlobalConfig(args []string) error {
 		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.Config.Port, strings.Join(g.Config.LocalAddressList, ", "))
 	}
 	if g.UseMultiplePaths.Config.Enabled {
-		fmt.Printf("Multipath: enabled")
+		fmt.Printf("Multipath: enabled\n")
+	}
+	if g.DynamicNeighbor.Config.Enabled {
+		fmt.Printf("Dynamic neighbor: enabled")
+		if g.DynamicNeighbor.Config.AutoDeletion {
+			fmt.Printf(", Auto-deletion: enabled\n")
+		} else {
+			fmt.Printf("\n")
+		}
 	}
 	return nil
 }
 
 func modGlobalConfig(args []string) error {
 	m := extractReserved(args, []string{"as", "router-id", "listen-port",
-		"listen-addresses", "use-multipath"})
+		"listen-addresses", "use-multipath", "dynamic-neighbor", "auto-deletion"})
 
 	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
-		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
+		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...] [dynamic-neighbor] [auto-deletion]")
 	}
 	asn, err := strconv.Atoi(m["as"][0])
 	if err != nil {
@@ -980,6 +988,17 @@ func modGlobalConfig(args []string) error {
 	if _, ok := m["use-multipath"]; ok {
 		useMultipath = true
 	}
+	dynamicNeighbor := false
+	if _, ok := m["dynamic-neighbor"]; ok {
+		dynamicNeighbor = true
+	}
+	autoDeletion := false
+	if _, ok := m["auto-deletion"]; ok {
+		if !dynamicNeighbor {
+			return fmt.Errorf("auto-deletion must be configured with dynamic-neighbor")
+		}
+		autoDeletion = true
+	}
 	return client.StartServer(&config.Global{
 		Config: config.GlobalConfig{
 			As:               uint32(asn),
@@ -990,6 +1009,12 @@ func modGlobalConfig(args []string) error {
 		UseMultiplePaths: config.UseMultiplePaths{
 			Config: config.UseMultiplePathsConfig{
 				Enabled: useMultipath,
+			},
+		},
+		DynamicNeighbor: config.DynamicNeighbor{
+			Config: config.DynamicNeighborConfig{
+				Enabled:      dynamicNeighbor,
+				AutoDeletion: autoDeletion,
 			},
 		},
 	})
