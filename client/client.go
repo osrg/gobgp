@@ -127,8 +127,8 @@ func (cli *Client) EnableZebra(c *config.Zebra) error {
 	return err
 }
 
-func (cli *Client) getNeighbor(name string, afi int, vrf string) ([]*config.Neighbor, error) {
-	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: name != ""})
+func (cli *Client) getNeighbor(name string, afi int, vrf string, enableAdvertised bool) ([]*config.Neighbor, error) {
+	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: enableAdvertised})
 	if err != nil {
 		return nil, err
 	}
@@ -158,19 +158,23 @@ func (cli *Client) getNeighbor(name string, afi int, vrf string) ([]*config.Neig
 }
 
 func (cli *Client) ListNeighbor() ([]*config.Neighbor, error) {
-	return cli.getNeighbor("", 0, "")
+	return cli.getNeighbor("", 0, "", false)
 }
 
 func (cli *Client) ListNeighborByTransport(afi int) ([]*config.Neighbor, error) {
-	return cli.getNeighbor("", afi, "")
+	return cli.getNeighbor("", afi, "", false)
 }
 
 func (cli *Client) ListNeighborByVRF(vrf string) ([]*config.Neighbor, error) {
-	return cli.getNeighbor("", 0, vrf)
+	return cli.getNeighbor("", 0, vrf, false)
 }
 
-func (cli *Client) GetNeighbor(name string) (*config.Neighbor, error) {
-	ns, err := cli.getNeighbor(name, 0, "")
+func (cli *Client) GetNeighbor(name string, options ...bool) (*config.Neighbor, error) {
+	enableAdvertised := false
+	if len(options) > 0 && options[0] {
+		enableAdvertised = true
+	}
+	ns, err := cli.getNeighbor(name, 0, "", enableAdvertised)
 	if err != nil {
 		return nil, err
 	}
