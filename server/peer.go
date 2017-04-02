@@ -51,7 +51,7 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
 	if peer.isRouteServerClient() {
-		peer.tableId = conf.Config.NeighborAddress
+		peer.tableId = conf.State.NeighborAddress
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
@@ -61,7 +61,7 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 }
 
 func (peer *Peer) ID() string {
-	return peer.fsm.pConf.Config.NeighborAddress
+	return peer.fsm.pConf.State.NeighborAddress
 }
 
 func (peer *Peer) TableID() string {
@@ -69,7 +69,7 @@ func (peer *Peer) TableID() string {
 }
 
 func (peer *Peer) isIBGPPeer() bool {
-	return peer.fsm.pConf.Config.PeerAs == peer.fsm.gConf.Config.As
+	return peer.fsm.pConf.State.PeerAs == peer.fsm.gConf.Config.As
 }
 
 func (peer *Peer) isRouteServerClient() bool {
@@ -82,6 +82,10 @@ func (peer *Peer) isRouteReflectorClient() bool {
 
 func (peer *Peer) isGracefulRestartEnabled() bool {
 	return peer.fsm.pConf.GracefulRestart.State.Enabled
+}
+
+func (peer *Peer) isDynamicNeighbor() bool {
+	return peer.fsm.pConf.Config.NeighborAddress == "" && peer.fsm.pConf.Config.NeighborInterface == ""
 }
 
 func (peer *Peer) recvedAllEOR() bool {
@@ -272,7 +276,7 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	}
 
 	path = path.Clone(path.IsWithdraw)
-	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo)
 
 	options := &table.PolicyOptions{
 		Info: peer.fsm.peerInfo,
@@ -328,7 +332,7 @@ func (peer *Peer) processOutgoingPaths(paths, olds []*table.Path) []*table.Path 
 	if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
-			"Key":   peer.fsm.pConf.Config.NeighborAddress,
+			"Key":   peer.fsm.pConf.State.NeighborAddress,
 		}).Debug("now syncing, suppress sending updates")
 		return nil
 	}
@@ -446,7 +450,7 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	update := m.Body.(*bgp.BGPUpdate)
 	log.WithFields(log.Fields{
 		"Topic":       "Peer",
-		"Key":         peer.fsm.pConf.Config.NeighborAddress,
+		"Key":         peer.fsm.pConf.State.NeighborAddress,
 		"nlri":        update.NLRI,
 		"withdrawals": update.WithdrawnRoutes,
 		"attributes":  update.PathAttributes,
@@ -551,4 +555,53 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 
 func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
 	peer.adjRibIn.Drop(rfList)
+}
+
+func newDynamicPeer(g *config.Global, neighborAddress string, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
+	var conf config.Neighbor
+	config.SetDefaultNeighborConfigValues(&conf, g.Config.As)
+	conf.State.NeighborAddress = neighborAddress
+	conf.Transport.Config.PassiveMode = true
+	peer := NewPeer(g, &conf, loc, policy)
+	peer.fsm.state = bgp.BGP_FSM_ACTIVE
+	return peer
+}
+
+func (peer *Peer) stopFSM() error {
+	failed := false
+	addr := peer.fsm.pConf.State.NeighborAddress
+	t1 := time.AfterFunc(time.Minute*5, func() {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+		}).Warnf("Failed to free the fsm.h.t for %s", addr)
+		failed = true
+	})
+	peer.fsm.h.t.Kill(nil)
+	peer.fsm.h.t.Wait()
+	t1.Stop()
+	if !failed {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Debug("freed fsm.h.t")
+		cleanInfiniteChannel(peer.outgoing)
+	}
+	failed = false
+	t2 := time.AfterFunc(time.Minute*5, func() {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+		}).Warnf("Failed to free the fsm.t for %s", addr)
+		failed = true
+	})
+	peer.fsm.t.Kill(nil)
+	peer.fsm.t.Wait()
+	t2.Stop()
+	if !failed {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Debug("freed fsm.t")
+		return nil
+	}
+	return fmt.Errorf("Failed to free FSM for %s", addr)
 }

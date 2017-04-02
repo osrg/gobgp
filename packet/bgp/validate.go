@@ -230,9 +230,9 @@ func ValidateBGPMessage(m *BGPMessage) error {
 	return nil
 }
 
-func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) error {
+func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) (uint32, error) {
 	if m.Version != 4 {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("upsuppored version %d", m.Version))
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("upsuppored version %d", m.Version))
 	}
 
 	as := uint32(m.MyAS)
@@ -248,12 +248,12 @@ func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) error {
 			}
 		}
 	}
-	if as != expectedAS {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_PEER_AS, nil, fmt.Sprintf("as number mismatch expected %d, received %d", expectedAS, as))
+	if expectedAS != 0 && as != expectedAS {
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_PEER_AS, nil, fmt.Sprintf("as number mismatch expected %d, received %d", expectedAS, as))
 	}
 
 	if m.HoldTime < 3 && m.HoldTime != 0 {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME, nil, fmt.Sprintf("unacceptable hold time %d", m.HoldTime))
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME, nil, fmt.Sprintf("unacceptable hold time %d", m.HoldTime))
 	}
-	return nil
+	return as, nil
 }

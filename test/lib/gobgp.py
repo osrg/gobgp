@@ -53,7 +53,7 @@ class GoBGPContainer(BGPContainer):
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='toml',
-                 zapi_version=2, ospfd_config=None):
+                 zapi_version=2, ospfd_config=None, dynamic_neighbor=False):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -67,6 +67,7 @@ class GoBGPContainer(BGPContainer):
         self.zebra = zebra
         self.zapi_version = zapi_version
         self.config_format = config_format
+        self.dynamic_neighbor = dynamic_neighbor
 
         # To start OSPFd in GoBGP container, specify 'ospfd_config' as a dict
         # type value.
@@ -152,9 +153,7 @@ class GoBGPContainer(BGPContainer):
         return None
 
     def _trigger_peer_cmd(self, cmd, peer):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} {1}'.format(peer_addr, cmd)
         self.local(cmd)
 
@@ -171,9 +170,7 @@ class GoBGPContainer(BGPContainer):
         self._trigger_peer_cmd('softreset{0} -a {1}'.format(type, rf), peer)
 
     def get_local_rib(self, peer, prefix='', rf='ipv4'):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
         output = self.local(cmd, capture=True)
         ret = json.loads(output)
@@ -226,9 +223,7 @@ class GoBGPContainer(BGPContainer):
         t.start()
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} adj-{1} {2} -a {3} -j'.format(peer_addr,
                                                                 adj_type,
                                                                 prefix, rf)
@@ -248,11 +243,11 @@ class GoBGPContainer(BGPContainer):
     def get_adj_rib_out(self, peer, prefix='', rf='ipv4'):
         return self._get_adj_rib('out', peer, prefix, rf)
 
+    def list_neighbor(self):
+        return json.loads(self.local('gobgp -j neighbor', capture=True))
+
     def get_neighbor(self, peer):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        cmd = 'gobgp -j neighbor {0}'.format(peer_addr)
+        cmd = 'gobgp -j neighbor {0}'.format(self.peer_name(peer))
         return json.loads(self.local(cmd, capture=True))
 
     def get_neighbor_state(self, peer):
@@ -311,19 +306,30 @@ class GoBGPContainer(BGPContainer):
             },
             'neighbors': [],
         }
+        if self.dynamic_neighbor:
+            config['global']['dynamic-neighbor'] = {
+                'config': {
+                    'enabled': True,
+                    'auto-deletion': True,
+                },
+            }
 
         if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
 
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
-            version = netaddr.IPNetwork(info['neigh_addr']).version
-            if version == 4:
-                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
-            elif version == 6:
-                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-unicast'}})
+            if info['interface'] != '':
+                afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
             else:
-                Exception('invalid ip address version. {0}'.format(version))
+                version = netaddr.IPNetwork(info['neigh_addr']).version
+                if version == 4:
+                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                elif version == 6:
+                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                else:
+                    Exception('invalid ip address version. {0}'.format(version))
 
             if info['vpn']:
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
@@ -337,9 +343,16 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-flowspec'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-flowspec'}})
 
+            neigh_addr = None
+            interface = None
+            if info['interface'] == '':
+                neigh_addr = info['neigh_addr'].split('/')[0]
+            else:
+                interface = info['interface']
             n = {
                 'config': {
-                    'neighbor-address': info['neigh_addr'].split('/')[0],
+                    'neighbor-address': neigh_addr,
+                    'neighbor-interface': interface,
                     'peer-as': peer.asn,
                     'auth-password': info['passwd'],
                     'vrf': info['vrf'],

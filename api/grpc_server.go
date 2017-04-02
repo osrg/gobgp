@@ -192,9 +192,12 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 					TOTAL:        s.Messages.Sent.Total,
 				},
 			},
-			Received:   s.AdjTable.Received,
-			Accepted:   s.AdjTable.Accepted,
-			Advertised: s.AdjTable.Advertised,
+			Received:        s.AdjTable.Received,
+			Accepted:        s.AdjTable.Accepted,
+			Advertised:      s.AdjTable.Advertised,
+			PeerAs:          s.PeerAs,
+			PeerType:        uint32(s.PeerType.ToInt()),
+			NeighborAddress: pconf.State.NeighborAddress,
 		},
 		Timers: &Timers{
 			Config: &TimersConfig{
@@ -429,15 +432,16 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 			case ev := <-w.Event():
 				switch msg := ev.(type) {
 				case *server.WatchEventPeerState:
-					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() {
+					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() && arg.Name != msg.PeerInterface {
 						continue
 					}
 					if err := stream.Send(&Peer{
 						Conf: &PeerConf{
-							PeerAs:          msg.PeerAS,
-							LocalAs:         msg.LocalAS,
-							NeighborAddress: msg.PeerAddress.String(),
-							Id:              msg.PeerID.String(),
+							PeerAs:            msg.PeerAS,
+							LocalAs:           msg.LocalAS,
+							NeighborAddress:   msg.PeerAddress.String(),
+							Id:                msg.PeerID.String(),
+							NeighborInterface: msg.PeerInterface,
 						},
 						Info: &PeerState{
 							PeerAs:          msg.PeerAS,
@@ -846,7 +850,6 @@ func (s *Server) DeleteVrf(ctx context.Context, arg *DeleteVrfRequest) (*DeleteV
 func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	pconf := &config.Neighbor{}
 	if a.Conf != nil {
-		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.PeerAs = a.Conf.PeerAs
 		pconf.Config.LocalAs = a.Conf.LocalAs
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
@@ -961,6 +964,9 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.State.AdjTable.Received = a.Info.Received
 		pconf.State.AdjTable.Accepted = a.Info.Accepted
 		pconf.State.AdjTable.Advertised = a.Info.Advertised
+		pconf.State.PeerAs = a.Info.PeerAs
+		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
+		pconf.State.NeighborAddress = a.Info.NeighborAddress
 
 		if a.Info.Messages != nil {
 			if a.Info.Messages.Sent != nil {
@@ -1998,6 +2004,10 @@ func (s *Server) GetServer(ctx context.Context, arg *GetServerRequest) (*GetServ
 			ListenPort:       g.Config.Port,
 			ListenAddresses:  g.Config.LocalAddressList,
 			UseMultiplePaths: g.UseMultiplePaths.Config.Enabled,
+			DynamicNeighbor: &DynamicNeighbor{
+				Enabled:      g.DynamicNeighbor.Config.Enabled,
+				AutoDeletion: g.DynamicNeighbor.Config.AutoDeletion,
+			},
 		},
 	}, nil
 }
@@ -2038,6 +2048,10 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 				},
 			},
 		},
+	}
+	if d := g.DynamicNeighbor; d != nil {
+		b.Global.DynamicNeighbor.Config.Enabled = d.Enabled
+		b.Global.DynamicNeighbor.Config.AutoDeletion = d.AutoDeletion
 	}
 	return &StartServerResponse{}, s.bgpServer.Start(&b.Global)
 }

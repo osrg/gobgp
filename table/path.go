@@ -163,7 +163,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) {
+func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInfo) {
 	if peer.RouteServer.Config.RouteServerClient {
 		return
 	}
@@ -176,12 +176,12 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		}
 	}
 
-	localAddress := net.ParseIP(peer.Transport.State.LocalAddress)
+	localAddress := info.LocalAddress
 	isZero := func(ip net.IP) bool {
 		return ip.Equal(net.ParseIP("0.0.0.0")) || ip.Equal(net.ParseIP("::"))
 	}
 	nexthop := path.GetNexthop()
-	if peer.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+	if peer.State.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
 		if !path.IsLocal() || isZero(nexthop) {
 			path.SetNexthop(localAddress)
@@ -195,7 +195,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 			path.delPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		}
 
-	} else if peer.Config.PeerType == config.PEER_TYPE_INTERNAL {
+	} else if peer.State.PeerType == config.PEER_TYPE_INTERNAL {
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
@@ -255,7 +255,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.Config.NeighborAddress,
-		}).Warnf("invalid peer type: %d", peer.Config.PeerType)
+		}).Warnf("invalid peer type: %d", peer.State.PeerType)
 	}
 }
 
@@ -394,6 +394,12 @@ func (path *Path) GetNexthop() net.IP {
 }
 
 func (path *Path) SetNexthop(nexthop net.IP) {
+	if path.GetRouteFamily() == bgp.RF_IPv4_UC && nexthop.To4() == nil {
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), []bgp.AddrPrefixInterface{path.GetNlri()})
+		path.setPathAttr(mpreach)
+		return
+	}
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
 		path.setPathAttr(bgp.NewPathAttributeNextHop(nexthop.String()))

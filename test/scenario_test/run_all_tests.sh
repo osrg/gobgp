@@ -75,6 +75,10 @@ PIDS=("${PIDS[@]}" $!)
 PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gr -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_gr.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# bgp unnumbered test
+sudo -E PYTHONPATH=$GOBGP/test python bgp_unnumbered_test.py --gobgp-image $GOBGP_IMAGE --test-prefix un -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_un.xml &
+PIDS=("${PIDS[@]}" $!)
+
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
 do
     wait ${PIDS[$i]}

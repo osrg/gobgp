@@ -53,6 +53,14 @@ func getNeighbor(name string, enableAdvertised bool) (*config.Neighbor, error) {
 	return client.GetNeighbor(name, enableAdvertised)
 }
 
+func getASN(p *config.Neighbor) string {
+	asn := "*"
+	if p.State.PeerAs > 0 {
+		asn = fmt.Sprint(p.State.PeerAs)
+	}
+	return asn
+}
+
 func showNeighbors(vrf string) error {
 	m, err := getNeighbors(vrf)
 	if err != nil {
@@ -66,12 +74,12 @@ func showNeighbors(vrf string) error {
 
 	if globalOpts.Quiet {
 		for _, p := range m {
-			fmt.Println(p.Config.NeighborAddress)
+			fmt.Println(p.State.NeighborAddress)
 		}
 		return nil
 	}
 	maxaddrlen := 0
-	maxaslen := 0
+	maxaslen := 2
 	maxtimelen := len("Up/Down")
 	timedelta := []string{}
 
@@ -81,11 +89,11 @@ func showNeighbors(vrf string) error {
 	for _, n := range m {
 		if i := len(n.Config.NeighborInterface); i > maxaddrlen {
 			maxaddrlen = i
-		} else if j := len(n.Config.NeighborAddress); j > maxaddrlen {
+		} else if j := len(n.State.NeighborAddress); j > maxaddrlen {
 			maxaddrlen = j
 		}
-		if len(fmt.Sprint(n.Config.PeerAs)) > maxaslen {
-			maxaslen = len(fmt.Sprint(n.Config.PeerAs))
+		if l := len(getASN(n)); l > maxaslen {
+			maxaslen = l
 		}
 		timeStr := "never"
 		if n.Timers.State.Uptime != 0 {
@@ -131,11 +139,11 @@ func showNeighbors(vrf string) error {
 	}
 
 	for i, n := range m {
-		neigh := n.Config.NeighborAddress
+		neigh := n.State.NeighborAddress
 		if n.Config.NeighborInterface != "" {
 			neigh = n.Config.NeighborInterface
 		}
-		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
+		fmt.Printf(format, neigh, getASN(n), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
 	}
 
 	return nil
@@ -152,7 +160,7 @@ func showNeighbor(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("BGP neighbor is %s, remote AS %d", p.Config.NeighborAddress, p.Config.PeerAs)
+	fmt.Printf("BGP neighbor is %s, remote AS %s", p.State.NeighborAddress, getASN(p))
 
 	if p.RouteReflector.Config.RouteReflectorClient {
 		fmt.Printf(", route-reflector-client\n")
@@ -292,7 +300,37 @@ func showNeighbor(args []string) error {
 					fmt.Printf("        Remote:\n%s", s)
 				}
 			}
-
+		case bgp.BGP_CAP_EXTENDED_NEXTHOP:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			exnhStr := func(e *bgp.CapExtendedNexthop) string {
+				lines := make([]string, 0, len(e.Tuples))
+				for _, t := range e.Tuples {
+					var nhafi string
+					switch int(t.NexthopAFI) {
+					case bgp.AFI_IP:
+						nhafi = "ipv4"
+					case bgp.AFI_IP6:
+						nhafi = "ipv6"
+					default:
+						nhafi = fmt.Sprintf("%d", t.NexthopAFI)
+					}
+					line := fmt.Sprintf("nlri: %s, nexthop: %s", bgp.AfiSafiToRouteFamily(t.NLRIAFI, uint8(t.NLRISAFI)), nhafi)
+					lines = append(lines, line)
+				}
+				return strings.Join(lines, "\n")
+			}
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
+				e := m.(*bgp.CapExtendedNexthop)
+				if s := exnhStr(e); len(s) > 0 {
+					fmt.Printf("        Local:  %s\n", s)
+				}
+			}
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
+				e := m.(*bgp.CapExtendedNexthop)
+				if s := exnhStr(e); len(s) > 0 {
+					fmt.Printf("        Remote: %s\n", s)
+				}
+			}
 		default:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
@@ -819,13 +857,15 @@ func modNeighbor(cmdType string, args []string) error {
 	var err error
 	switch cmdType {
 	case CMD_ADD:
-		if len(m["as"]) != 1 {
+		if len(m[""]) > 0 && len(m["as"]) != 1 {
 			return fmt.Errorf("%s", usage)
 		}
 		var as int
-		as, err = strconv.Atoi(m["as"][0])
-		if err != nil {
-			return err
+		if len(m["as"]) > 0 {
+			as, err = strconv.Atoi(m["as"][0])
+			if err != nil {
+				return err
+			}
 		}
 		err = client.AddNeighbor(getConf(as))
 	case CMD_DEL:
@@ -866,7 +906,7 @@ func NewNeighborCmd() *cobra.Command {
 						if err != nil {
 							exitWithError(err)
 						}
-						addr = peer.Config.NeighborAddress
+						addr = peer.State.NeighborAddress
 					}
 					err := f(cmd.Use, addr, args[:len(args)-1])
 					if err != nil {
@@ -897,7 +937,7 @@ func NewNeighborCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			remoteIP := peer.Config.NeighborAddress
+			remoteIP := peer.State.NeighborAddress
 			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
 					exitWithError(err)
@@ -914,7 +954,7 @@ func NewNeighborCmd() *cobra.Command {
 				if err != nil {
 					exitWithError(err)
 				}
-				remoteIP := peer.Config.NeighborAddress
+				remoteIP := peer.State.NeighborAddress
 				err = showNeighborPolicy(remoteIP, cmd.Use, 0)
 				if err != nil {
 					exitWithError(err)
@@ -930,7 +970,7 @@ func NewNeighborCmd() *cobra.Command {
 					if err != nil {
 						exitWithError(err)
 					}
-					remoteIP := peer.Config.NeighborAddress
+					remoteIP := peer.State.NeighborAddress
 					args = args[:len(args)-1]
 					if err = modNeighborPolicy(remoteIP, cmd.Use, subcmd.Use, args); err != nil {
 						exitWithError(err)

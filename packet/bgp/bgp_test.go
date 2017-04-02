@@ -514,6 +514,25 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 		t.Error(len(buf2), n2, buf2)
 		t.Log(bytes.Equal(buf1, buf2))
 	}
+}
+
+func Test_CapExtendedNexthop(t *testing.T) {
+	assert := assert.New(t)
+	tuple := NewCapExtendedNexthopTuple(RF_IPv4_UC, AFI_IP6)
+	n1 := NewCapExtendedNexthop([]*CapExtendedNexthopTuple{tuple})
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := DecodeCapability(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
 
 }
 
@@ -731,6 +750,40 @@ func Test_MpReachNLRIWithVPNv6Prefix(t *testing.T) {
 	value := []AddrPrefixInterface{
 		NewLabeledVPNIPv6AddrPrefix(124, "2001:1::", *NewMPLSLabelStack(16),
 			NewRouteDistinguisherTwoOctetAS(65000, 100)),
+	}
+	assert.Equal(value, p.Value)
+	// Test Serialize()
+	bufout, err := p.Serialize()
+	assert.Nil(err)
+	// Test serialised value
+	assert.Equal(bufin, bufout)
+}
+
+func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
+	assert := assert.New(t)
+	bufin := []byte{
+		0x80, 0x0e, 0x19, // flags(1), type(1), length(1)
+		0x00, 0x01, 0x01, 0x10, // afi(1), safi(1), nexthoplen(1)
+		0x20, 0x01, 0x0d, 0xb8, // nexthop(32)
+		0x00, 0x01, 0x00, 0x00, // = "2001:db8:1::1"
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x18, 0xc0, 0xa8, 0x0a, // nlri(7)
+	}
+	// Test DecodeFromBytes()
+	p := &PathAttributeMpReachNLRI{}
+	err := p.DecodeFromBytes(bufin)
+	assert.Nil(err)
+	// Test decoded values
+	assert.Equal(BGPAttrFlag(0x80), p.Flags)
+	assert.Equal(BGPAttrType(0xe), p.Type)
+	assert.Equal(uint16(0x19), p.Length)
+	assert.Equal(uint16(AFI_IP), p.AFI)
+	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
+	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	value := []AddrPrefixInterface{
+		NewIPAddrPrefix(24, "192.168.10.0"),
 	}
 	assert.Equal(value, p.Value)
 	// Test Serialize()

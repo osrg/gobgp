@@ -208,6 +208,7 @@ const (
 	BGP_CAP_MULTIPROTOCOL               BGPCapabilityCode = 1
 	BGP_CAP_ROUTE_REFRESH               BGPCapabilityCode = 2
 	BGP_CAP_CARRYING_LABEL_INFO         BGPCapabilityCode = 4
+	BGP_CAP_EXTENDED_NEXTHOP            BGPCapabilityCode = 5
 	BGP_CAP_GRACEFUL_RESTART            BGPCapabilityCode = 64
 	BGP_CAP_FOUR_OCTET_AS_NUMBER        BGPCapabilityCode = 65
 	BGP_CAP_ADD_PATH                    BGPCapabilityCode = 69
@@ -221,6 +222,7 @@ var CapNameMap = map[BGPCapabilityCode]string{
 	BGP_CAP_ROUTE_REFRESH:               "route-refresh",
 	BGP_CAP_CARRYING_LABEL_INFO:         "carrying-label-info",
 	BGP_CAP_GRACEFUL_RESTART:            "graceful-restart",
+	BGP_CAP_EXTENDED_NEXTHOP:            "extended-nexthop",
 	BGP_CAP_FOUR_OCTET_AS_NUMBER:        "4-octet-as",
 	BGP_CAP_ADD_PATH:                    "add-path",
 	BGP_CAP_ENHANCED_ROUTE_REFRESH:      "enhanced-route-refresh",
@@ -334,6 +336,85 @@ func NewCapRouteRefresh() *CapRouteRefresh {
 
 type CapCarryingLabelInfo struct {
 	DefaultParameterCapability
+}
+
+type CapExtendedNexthopTuple struct {
+	NLRIAFI    uint16
+	NLRISAFI   uint16
+	NexthopAFI uint16
+}
+
+func (c *CapExtendedNexthopTuple) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		NLRIAddressFamily    RouteFamily `json:"nlri_address_family"`
+		NexthopAddressFamily uint16      `json:"nexthop_address_family"`
+	}{
+		NLRIAddressFamily:    AfiSafiToRouteFamily(c.NLRIAFI, uint8(c.NLRISAFI)),
+		NexthopAddressFamily: c.NexthopAFI,
+	})
+}
+
+func NewCapExtendedNexthopTuple(af RouteFamily, nexthop uint16) *CapExtendedNexthopTuple {
+	afi, safi := RouteFamilyToAfiSafi(af)
+	return &CapExtendedNexthopTuple{
+		NLRIAFI:    afi,
+		NLRISAFI:   uint16(safi),
+		NexthopAFI: nexthop,
+	}
+}
+
+type CapExtendedNexthop struct {
+	DefaultParameterCapability
+	Tuples []*CapExtendedNexthopTuple
+}
+
+func (c *CapExtendedNexthop) DecodeFromBytes(data []byte) error {
+	c.DefaultParameterCapability.DecodeFromBytes(data)
+	data = data[2:]
+	if len(data) < 6 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityExtendedNexthop bytes available")
+	}
+	c.Tuples = []*CapExtendedNexthopTuple{}
+	for len(data) >= 6 {
+		t := &CapExtendedNexthopTuple{
+			binary.BigEndian.Uint16(data[0:2]),
+			binary.BigEndian.Uint16(data[2:4]),
+			binary.BigEndian.Uint16(data[4:6]),
+		}
+		c.Tuples = append(c.Tuples, t)
+		data = data[6:]
+	}
+	return nil
+}
+
+func (c *CapExtendedNexthop) Serialize() ([]byte, error) {
+	buf := make([]byte, len(c.Tuples)*6)
+	for i, t := range c.Tuples {
+		binary.BigEndian.PutUint16(buf[i*6:i*6+2], t.NLRIAFI)
+		binary.BigEndian.PutUint16(buf[i*6+2:i*6+4], t.NLRISAFI)
+		binary.BigEndian.PutUint16(buf[i*6+4:i*6+6], t.NexthopAFI)
+	}
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapExtendedNexthop) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code   BGPCapabilityCode          `json:"code"`
+		Tuples []*CapExtendedNexthopTuple `json:"tuples"`
+	}{
+		Code:   c.Code(),
+		Tuples: c.Tuples,
+	})
+}
+
+func NewCapExtendedNexthop(tuples []*CapExtendedNexthopTuple) *CapExtendedNexthop {
+	return &CapExtendedNexthop{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_EXTENDED_NEXTHOP,
+		},
+		tuples,
+	}
 }
 
 type CapGracefulRestartTuple struct {
@@ -687,6 +768,8 @@ func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 		c = &CapRouteRefresh{}
 	case BGP_CAP_CARRYING_LABEL_INFO:
 		c = &CapCarryingLabelInfo{}
+	case BGP_CAP_EXTENDED_NEXTHOP:
+		c = &CapExtendedNexthop{}
 	case BGP_CAP_GRACEFUL_RESTART:
 		c = &CapGracefulRestart{}
 	case BGP_CAP_FOUR_OCTET_AS_NUMBER:
@@ -5189,20 +5272,20 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	nexthopbin := value[4 : 4+nexthoplen]
 	if nexthoplen > 0 {
-		addrlen := 4
-		if afi == AFI_IP6 {
-			addrlen = 16
-		}
+		v4addrlen := 4
+		v6addrlen := 16
 		offset := 0
 		if safi == SAFI_MPLS_VPN {
 			offset = 8
 		}
 		switch nexthoplen {
-		case 2 * (offset + addrlen):
-			p.LinkLocalNexthop = nexthopbin[offset+addrlen+offset : 2*(offset+addrlen)]
+		case 2 * (offset + v6addrlen):
+			p.LinkLocalNexthop = nexthopbin[offset+v6addrlen+offset : 2*(offset+v6addrlen)]
 			fallthrough
-		case offset + addrlen:
-			p.Nexthop = nexthopbin[offset : offset+addrlen]
+		case offset + v6addrlen:
+			p.Nexthop = nexthopbin[offset : offset+v6addrlen]
+		case offset + v4addrlen:
+			p.Nexthop = nexthopbin[offset : offset+v4addrlen]
 		default:
 			return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is incorrect")
 		}
@@ -5235,7 +5318,7 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	afi := p.AFI
 	safi := p.SAFI
 	nexthoplen := 4
-	if afi == AFI_IP6 {
+	if afi == AFI_IP6 || p.Nexthop.To4() == nil {
 		nexthoplen = 16
 	}
 	offset := 0
@@ -5254,7 +5337,7 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	buf[2] = safi
 	buf[3] = uint8(nexthoplen)
 	if nexthoplen != 0 {
-		if afi == AFI_IP6 {
+		if p.Nexthop.To4() == nil {
 			copy(buf[4+offset:], p.Nexthop.To16())
 			if p.LinkLocalNexthop != nil {
 				copy(buf[4+offset+16:], p.LinkLocalNexthop.To16())

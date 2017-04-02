@@ -3,6 +3,7 @@ language: go
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1; fi
 install: test/scenario_test/ci-scripts/travis-install-script.sh
 script: test/scenario_test/ci-scripts/travis-build-script.sh
 
@@ -32,16 +33,19 @@ matrix:
       install: go get -t ./...
       script: go test ./...
     - go: 1.7
+      before_install: true
       install: go get -t ./...
       script: cd gobgpd && go build
       env:
         - GOOS=windows
     - go: 1.7
+      before_install: true
       install: go get -t ./...
       script: cd gobgpd && go build
       env:
         - GOOS=freebsd
     - go: 1.7
+      before_install: true
       install: go get -t ./...
       script: cd gobgpd && go build
       env:
@@ -160,6 +164,16 @@ matrix:
         - docker
     - env:
         - TEST=vrf_neighbor_test2.py
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=bgp_unnumbered_test.py
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=bgp_dynamic_test.py
       sudo: required
       services:
         - docker

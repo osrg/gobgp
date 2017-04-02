@@ -293,36 +293,46 @@ class BGPContainer(Container):
         super(BGPContainer, self).run()
         return self.WAIT_FOR_BOOT
 
+    def peer_name(self, peer):
+        if peer not in self.peers:
+            raise Exception('not found peer {0}'.format(peer.router_id))
+        name = self.peers[peer]['interface']
+        if name == '':
+            name = self.peers[peer]['neigh_addr'].split('/')[0]
+        return name
+
     def add_peer(self, peer, passwd=None, vpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
                  flowspec=False, bridge='', reload_config=True, as2=False,
                  graceful_restart=None, local_as=None, prefix_limit=None,
-                 v6=False, llgr=None, vrf=''):
+                 v6=False, llgr=None, vrf='', interface=''):
         neigh_addr = ''
         local_addr = ''
         it = itertools.product(self.ip_addrs, peer.ip_addrs)
         if v6:
             it = itertools.product(self.ip6_addrs, peer.ip6_addrs)
 
-        for me, you in it:
-            if bridge != '' and bridge != me[2]:
-                continue
-            if me[2] == you[2]:
-                neigh_addr = you[1]
-                local_addr = me[1]
-                if v6:
-                    addr, mask = local_addr.split('/')
-                    local_addr = "{0}%{1}/{2}".format(addr, me[0], mask)
-                break
+        if interface == '':
+            for me, you in it:
+                if bridge != '' and bridge != me[2]:
+                    continue
+                if me[2] == you[2]:
+                    neigh_addr = you[1]
+                    local_addr = me[1]
+                    if v6:
+                        addr, mask = local_addr.split('/')
+                        local_addr = "{0}%{1}/{2}".format(addr, me[0], mask)
+                    break
 
-        if neigh_addr == '':
-            raise Exception('peer {0} seems not ip reachable'.format(peer))
+            if neigh_addr == '':
+                raise Exception('peer {0} seems not ip reachable'.format(peer))
 
         if not policies:
             policies = {}
 
         self.peers[peer] = {'neigh_addr': neigh_addr,
+                            'interface': interface,
                             'passwd': passwd,
                             'vpn': vpn,
                             'flowspec': flowspec,
