@@ -16,6 +16,14 @@
 package main
 
 import (
+	"io/ioutil"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
@@ -24,13 +32,8 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
-	"io/ioutil"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"runtime"
-	"syscall"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -51,6 +54,9 @@ func main() {
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
 		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
+		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
+		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
+		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -118,10 +124,18 @@ func main() {
 	bgpServer := server.NewBgpServer()
 	go bgpServer.Serve()
 
+	var grpcOpts []grpc.ServerOption
+	if opts.TLS {
+		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
+		if err != nil {
+			log.Fatalf("Failed to generate credentials: %v", err)
+		}
+		grpcOpts = []grpc.ServerOption{grpc.Creds(creds)}
+	}
 	// start grpc Server
-	grpcServer := api.NewGrpcServer(bgpServer, opts.GrpcHosts)
+	apiServer := api.NewServer(bgpServer, grpc.NewServer(grpcOpts...), opts.GrpcHosts)
 	go func() {
-		if err := grpcServer.Serve(); err != nil {
+		if err := apiServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
 		}
 	}()
