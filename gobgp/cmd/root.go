@@ -33,6 +33,8 @@ var globalOpts struct {
 	GenCmpl      bool
 	BashCmplFile string
 	PprofPort    int
+	TLS          bool
+	CaFile       string
 }
 
 var cmds []string
@@ -77,6 +79,8 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.GenCmpl, "gen-cmpl", "c", false, "generate completion file")
 	rootCmd.PersistentFlags().StringVarP(&globalOpts.BashCmplFile, "bash-cmpl-file", "", "gobgp-completion.bash", "bash cmpl filename")
 	rootCmd.PersistentFlags().IntVarP(&globalOpts.PprofPort, "pprof-port", "r", 0, "pprof port")
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.TLS, "tls", "", false, "connection uses TLS if true, else plain TCP")
+	rootCmd.PersistentFlags().StringVarP(&globalOpts.CaFile, "tls-ca-file", "", "", "The file containing the CA root cert file")
 
 	globalCmd := NewGlobalCmd()
 	neighborCmd := NewNeighborCmd()
