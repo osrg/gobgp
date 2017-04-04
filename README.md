@@ -20,8 +20,8 @@ $ go get github.com/osrg/gobgp/...
 ### Using GoBGP
  * [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
  * CLI
-  * [Typical operation examples](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
-  * [Complete syntax](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-command-syntax.md)
+   * [Typical operation examples](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
+   * [Complete syntax](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-command-syntax.md)
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  * [Route Reflector](https://github.com/osrg/gobgp/blob/master/docs/sources/route-reflector.md)
  * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
@@ -31,11 +31,11 @@ $ go get github.com/osrg/gobgp/...
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
  * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
  * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
- * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
+ * [Managing GoBGP with your favorite language with GRPC](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
  * [Using GoBGP as a Go Native BGP library](https://github.com/osrg/gobgp/blob/master/docs/sources/lib.md)
  * [Graceful Restart](https://github.com/osrg/gobgp/blob/master/docs/sources/graceful-restart.md)
  * Data Center Networking
-  * [Unnumbered BGP](https://github.com/osrg/gobgp/blob/master/docs/sources/unnumbered-bgp.md)
+   * [Unnumbered BGP](https://github.com/osrg/gobgp/blob/master/docs/sources/unnumbered-bgp.md)
 
 ### Externals
  * [Tutorial: Using GoBGP as an IXP connecting router](http://www.slideshare.net/shusugimoto1986/tutorial-using-gobgp-as-an-ixp-connecting-router)
