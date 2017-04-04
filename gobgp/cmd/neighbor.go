@@ -61,6 +61,14 @@ func getASN(p *config.Neighbor) string {
 	return asn
 }
 
+func getASN(p *config.Neighbor) string {
+	asn := "*"
+	if p.State.PeerAs > 0 {
+		asn = fmt.Sprint(p.State.PeerAs)
+	}
+	return asn
+}
+
 func showNeighbors(vrf string) error {
 	m, err := getNeighbors(vrf)
 	if err != nil {
