@@ -48,6 +48,10 @@ module gobgp {
         value 2;
         description "send both pre and post-policy routes";
       }
+      enum LOCAL-RIB {
+        value 3;
+        description "send local rib routes";
+      }
     }
   }
 
