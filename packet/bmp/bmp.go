@@ -71,26 +71,22 @@ func (h *BMPHeader) Serialize() ([]byte, error) {
 
 type BMPPeerHeader struct {
 	PeerType          uint8
-	IsPostPolicy      bool
+	Flags             uint8
 	PeerDistinguisher uint64
 	PeerAddress       net.IP
 	PeerAS            uint32
 	PeerBGPID         net.IP
 	Timestamp         float64
-	Flags             uint8
 }
 
-func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint32, id string, stamp float64) *BMPPeerHeader {
+func NewBMPPeerHeader(t uint8, flags uint8, dist uint64, address string, as uint32, id string, stamp float64) *BMPPeerHeader {
 	h := &BMPPeerHeader{
 		PeerType:          t,
-		IsPostPolicy:      policy,
+		Flags:             flags,
 		PeerDistinguisher: dist,
 		PeerAS:            as,
 		PeerBGPID:         net.ParseIP(id).To4(),
 		Timestamp:         stamp,
-	}
-	if policy == true {
-		h.Flags |= BMP_PEER_FLAG_POST_POLICY
 	}
 	if net.ParseIP(address).To4() != nil {
 		h.PeerAddress = net.ParseIP(address).To4()
@@ -101,14 +97,17 @@ func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint
 	return h
 }
 
+func (h *BMPPeerHeader) IsPostPolicy() bool {
+	if h.Flags&BMP_PEER_FLAG_POST_POLICY != 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
 func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 	h.PeerType = data[0]
 	h.Flags = data[1]
-	if h.Flags&BMP_PEER_FLAG_POST_POLICY != 0 {
-		h.IsPostPolicy = true
-	} else {
-		h.IsPostPolicy = false
-	}
 	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
 	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
 		h.PeerAddress = net.IP(data[10:26]).To16()

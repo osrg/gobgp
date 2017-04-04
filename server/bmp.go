@@ -198,17 +198,29 @@ type bmpClient struct {
 }
 
 func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
-	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	var flags uint8 = 0
+	if policy {
+		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
+	}
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	return bmp.NewBMPPeerUpNotification(*ph, laddr, lport, rport, sent, recv)
 }
 
 func bmpPeerDown(reason uint8, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
-	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	var flags uint8 = 0
+	if policy {
+		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
+	}
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	return bmp.NewBMPPeerDownNotification(*ph, reason, nil, []byte{})
 }
 
 func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {
-	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	var flags uint8 = 0
+	if policy {
+		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
+	}
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	m := bmp.NewBMPRouteMonitoring(*ph, nil)
 	body := m.Body.(*bmp.BMPRouteMonitoring)
 	body.BGPUpdatePayload = payload
