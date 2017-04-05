@@ -42,6 +42,13 @@ const (
 const (
 	BMP_PEER_TYPE_GLOBAL uint8 = iota
 	BMP_PEER_TYPE_L3VPN
+	BMP_PEER_TYPE_LOCAL
+)
+
+const (
+	BMP_PEER_FLAG_IPV6        = 1 << 7
+	BMP_PEER_FLAG_POST_POLICY = 1 << 6
+	BMP_PEER_FLAG_TWO_AS      = 1 << 5
 )
 
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
@@ -83,13 +90,13 @@ func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint
 		Timestamp:         stamp,
 	}
 	if policy == true {
-		h.Flags |= (1 << 6)
+		h.Flags |= BMP_PEER_FLAG_POST_POLICY
 	}
 	if net.ParseIP(address).To4() != nil {
 		h.PeerAddress = net.ParseIP(address).To4()
 	} else {
 		h.PeerAddress = net.ParseIP(address).To16()
-		h.Flags |= (1 << 7)
+		h.Flags |= BMP_PEER_FLAG_IPV6
 	}
 	return h
 }
@@ -97,13 +104,13 @@ func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint
 func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 	h.PeerType = data[0]
 	h.Flags = data[1]
-	if h.Flags&(1<<6) != 0 {
+	if h.Flags&BMP_PEER_FLAG_POST_POLICY != 0 {
 		h.IsPostPolicy = true
 	} else {
 		h.IsPostPolicy = false
 	}
 	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
-	if h.Flags&(1<<7) != 0 {
+	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
 		h.PeerAddress = net.IP(data[10:26]).To16()
 	} else {
 		h.PeerAddress = net.IP(data[22:26]).To4()
@@ -122,7 +129,7 @@ func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 	buf[0] = h.PeerType
 	buf[1] = h.Flags
 	binary.BigEndian.PutUint64(buf[2:10], h.PeerDistinguisher)
-	if h.Flags&(1<<7) != 0 {
+	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
 		copy(buf[10:26], h.PeerAddress)
 	} else {
 		copy(buf[22:26], h.PeerAddress.To4())
@@ -180,6 +187,11 @@ const (
 	BMP_STAT_TYPE_INV_UPDATE_DUE_TO_AS_CONFED_LOOP
 	BMP_STAT_TYPE_ADJ_RIB_IN
 	BMP_STAT_TYPE_LOC_RIB
+	BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN
+	BMP_STAT_TYPE_PER_AFI_SAFI_LOC_RIB
+	BMP_STAT_TYPE_WITHDRAW_UPDATE
+	BMP_STAT_TYPE_WITHDRAW_PREFIX
+	BMP_STAT_TYPE_DUPLICATE_UPDATE
 )
 
 type BMPStatsTLV struct {
@@ -199,6 +211,7 @@ const (
 	BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
 	BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
 	BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
+	BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
 )
 
 type BMPPeerDownNotification struct {
@@ -295,7 +308,7 @@ func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16
 }
 
 func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error {
-	if msg.PeerHeader.Flags&(1<<7) != 0 {
+	if msg.PeerHeader.Flags&BMP_PEER_FLAG_IPV6 != 0 {
 		body.LocalAddress = net.IP(data[:16]).To16()
 	} else {
 		body.LocalAddress = net.IP(data[12:16]).To4()
@@ -373,6 +386,22 @@ func (body *BMPStatisticsReport) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+const (
+	BMP_INIT_TLV_TYPE_STRING = iota
+	BMP_INIT_TLV_TYPE_SYS_DESCR
+	BMP_INIT_TLV_TYPE_SYS_NAME
+)
+
+const (
+	BMP_TERM_TLV_TYPE_STRING = iota
+	BMP_TERM_TLV_TYPE_REASON
+)
+
+const (
+	BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG = iota
+	BMP_ROUTE_MIRRORING_TLV_TYPE_INFO
+)
+
 type BMPTLV struct {
 	Type   uint16
 	Length uint16
@@ -448,6 +477,14 @@ func (body *BMPInitiation) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+const (
+	BMP_TERM_REASON_ADMIN = iota
+	BMP_TERM_REASON_UNSPEC
+	BMP_TERM_REASON_OUT_OF_RESOURCES
+	BMP_TERM_REASON_REDUNDANT_CONNECTION
+	BMP_TERM_REASON_PERMANENTLY_ADMIN
+)
+
 type BMPTermination struct {
 	Info []BMPTLV
 }
@@ -485,6 +522,11 @@ func (body *BMPTermination) Serialize() ([]byte, error) {
 	}
 	return buf, nil
 }
+
+const (
+	BMP_ROUTE_MIRRORING_INFO_ERR_PDU = iota
+	BMP_ROUTE_MIRRORING_INFO_MSG_LOST
+)
 
 type BMPBody interface {
 	// Sigh, some body messages need a BMPHeader to parse the body
@@ -538,6 +580,7 @@ const (
 	BMP_MSG_PEER_UP_NOTIFICATION
 	BMP_MSG_INITIATION
 	BMP_MSG_TERMINATION
+	BMP_MSG_ROUTE_MIRRORING
 )
 
 func ParseBMPMessage(data []byte) (msg *BMPMessage, err error) {
