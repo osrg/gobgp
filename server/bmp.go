@@ -113,10 +113,12 @@ func (b *bmpClient) loop() {
 
 		if func() bool {
 			ops := []WatchOption{WatchPeerState(true)}
-			if b.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
+			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				ops = append(ops, WatchUpdate(true))
-			} else if b.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
+			} else if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				ops = append(ops, WatchPostUpdate(true))
+			} else if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB {
+				ops = append(ops, WatchBestPath(true))
 			}
 			w := b.s.Watch(ops...)
 			defer w.Stop()
@@ -159,6 +161,15 @@ func (b *bmpClient) loop() {
 							}
 						} else {
 							if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
+								return false
+							}
+						}
+					case *WatchEventBestPath:
+						for _, p := range msg.PathList {
+							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
+							if payload, err := u.Serialize(); err != nil {
+								return false
+							} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, p.GetSource(), p.GetTimestamp().Unix(), payload)); err != nil {
 								return false
 							}
 						}

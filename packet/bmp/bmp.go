@@ -43,12 +43,14 @@ const (
 	BMP_PEER_TYPE_GLOBAL uint8 = iota
 	BMP_PEER_TYPE_L3VPN
 	BMP_PEER_TYPE_LOCAL
+	BMP_PEER_TYPE_LOCAL_RIB
 )
 
 const (
 	BMP_PEER_FLAG_IPV6        = 1 << 7
 	BMP_PEER_FLAG_POST_POLICY = 1 << 6
 	BMP_PEER_FLAG_TWO_AS      = 1 << 5
+	BMP_PEER_FLAG_FILTERED    = 1 << 6
 )
 
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
