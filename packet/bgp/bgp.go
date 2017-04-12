@@ -5391,22 +5391,22 @@ func (p *PathAttributeMpReachNLRI) String() string {
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
-	ip := net.ParseIP(nexthop)
-	if ip.To4() != nil {
-		ip = ip.To4()
-	}
 	p := &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{
 			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
-		Nexthop: ip,
-		Value:   nlri,
+		Value: nlri,
 	}
 	if len(nlri) > 0 {
 		p.AFI = nlri[0].AFI()
 		p.SAFI = nlri[0].SAFI()
 	}
+	nh := net.ParseIP(nexthop)
+	if nh.To4() != nil && p.AFI != AFI_IP6 {
+		nh = nh.To4()
+	}
+	p.Nexthop = nh
 	return p
 }
 
