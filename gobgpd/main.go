@@ -16,6 +16,14 @@
 package main
 
 import (
+	"io/ioutil"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
@@ -24,13 +32,6 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
-	"io/ioutil"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"runtime"
-	"syscall"
 )
 
 func main() {
@@ -45,6 +46,8 @@ func main() {
 		UseSyslog       string `short:"s" long:"syslog" description:"use syslogd"`
 		Facility        string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
+		UseFluent       string `long:"fluent" description:"use fluentd"`
+		UseFluentTag    string `long:"fluent-tag" description:"specify the tag for fluentd" default:"gobgpd"`
 		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
 		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
@@ -102,6 +105,12 @@ func main() {
 		}
 	} else {
 		log.SetFormatter(&log.JSONFormatter{})
+	}
+
+	if opts.UseFluent != "" {
+		if err := addFluentHook(opts.UseFluent, opts.UseFluentTag); err != nil {
+			log.Error("Unable to connect to fluent daemon, ", opts.UseFluent)
+		}
 	}
 
 	configCh := make(chan *config.BgpConfigSet)
