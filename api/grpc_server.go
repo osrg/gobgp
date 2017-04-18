@@ -896,12 +896,11 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 				},
 			})
 		}
-
 		for _, pl := range a.Conf.PrefixLimits {
-			for _, f := range pconf.AfiSafis {
+			for i, f := range pconf.AfiSafis {
 				if f.Config.AfiSafiName == config.AfiSafiType(bgp.RouteFamily(pl.Family).String()) {
-					f.PrefixLimit.Config.MaxPrefixes = pl.MaxPrefixes
-					f.PrefixLimit.Config.ShutdownThresholdPct = config.Percentage(pl.ShutdownThresholdPct)
+					pconf.AfiSafis[i].PrefixLimit.Config.MaxPrefixes = pl.MaxPrefixes
+					pconf.AfiSafis[i].PrefixLimit.Config.ShutdownThresholdPct = config.Percentage(pl.ShutdownThresholdPct)
 				}
 			}
 		}
