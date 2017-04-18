@@ -330,11 +330,16 @@ func (path *Path) AssignNewUUID() {
 }
 
 func (path *Path) Filter(id string, reason PolicyDirection) {
-	path.filtered[id] = reason
+	if path.eor == false {
+		path.filtered[id] = reason
+	}
 }
 
 func (path *Path) Filtered(id string) PolicyDirection {
-	return path.filtered[id]
+	if path.eor == false {
+		return path.filtered[id]
+	}
+	return POLICY_DIRECTION_NONE
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {
