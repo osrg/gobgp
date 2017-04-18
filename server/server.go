@@ -367,7 +367,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		}
 
 		if ignore {
-			if path.IsWithdraw == false && old != nil {
+			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
 				// we advertise a route from ebgp,
 				// which is the old best. We got the
 				// new best from ibgp. We don't
@@ -400,7 +400,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 			// the withdrawal path.
 			// Thing is same when peer A and we advertized prefix P (as local
 			// route), then, we withdraws the prefix.
-			if path.IsWithdraw == false && old != nil {
+			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
 				return old.Clone(true)
 			}
 		}

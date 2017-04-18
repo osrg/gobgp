@@ -101,8 +101,10 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 
 	if n.Config.PeerAs != n.Config.LocalAs {
 		n.Config.PeerType = PEER_TYPE_EXTERNAL
+		n.State.PeerType = PEER_TYPE_EXTERNAL
 	} else {
 		n.Config.PeerType = PEER_TYPE_INTERNAL
+		n.State.PeerType = PEER_TYPE_INTERNAL
 	}
 
 	n.State.PeerAs = n.Config.PeerAs

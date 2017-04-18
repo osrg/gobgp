@@ -187,11 +187,13 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*Peer, *table.PeerInfo) {
 	nConf := &config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}}
 	config.SetDefaultNeighborConfigValues(nConf, myAs)
+	policy := table.NewRoutingPolicy()
+	policy.Reset(&config.RoutingPolicy{}, nil)
 	p := NewPeer(
 		&config.Global{Config: config.GlobalConfig{As: myAs}},
 		nConf,
 		rib,
-		&table.RoutingPolicy{})
+		policy)
 	for _, f := range rib.GetRFlist() {
 		p.fsm.rfMap[f] = true
 	}
@@ -281,5 +283,63 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	assert.Nil(t, path)
 	path = filterpath(p2, new, old)
 	assert.Nil(t, path)
+
+}
+
+func TestFilterpathWithRejectPolicy(t *testing.T) {
+	rib1 := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
+	_, pi1 := newPeerandInfo(1, 2, "192.168.0.1", rib1)
+	rib2 := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
+	p2, _ := newPeerandInfo(1, 3, "192.168.0.2", rib2)
+
+	comSet1 := config.CommunitySet{
+		CommunitySetName: "comset1",
+		CommunityList:    []string{"100:100"},
+	}
+	s, _ := table.NewCommunitySet(comSet1)
+	p2.policy.AddDefinedSet(s)
+
+	statement := config.Statement{
+		Name: "stmt1",
+		Conditions: config.Conditions{
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: config.MatchCommunitySet{
+					CommunitySet: "comset1",
+				},
+			},
+		},
+		Actions: config.Actions{
+			RouteDisposition: config.ROUTE_DISPOSITION_REJECT_ROUTE,
+		},
+	}
+	policy := config.PolicyDefinition{
+		Name:       "policy1",
+		Statements: []config.Statement{statement},
+	}
+	p, _ := table.NewPolicy(policy)
+	p2.policy.AddPolicy(p, false)
+	policies := []*config.PolicyDefinition{
+		&config.PolicyDefinition{
+			Name: "policy1",
+		},
+	}
+	p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
+
+	for _, addCommunity := range []bool{false, true, false, true} {
+		nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+		pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{1})}), bgp.NewPathAttributeLocalPref(200)}
+		if addCommunity {
+			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
+		}
+		path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
+		new, old := process(rib2, []*table.Path{path1})
+		assert.Equal(t, new, path1)
+		path2 := p2.filterpath(new, old)
+		if addCommunity {
+			assert.True(t, path2.IsWithdraw)
+		} else {
+			assert.False(t, path2.IsWithdraw)
+		}
+	}
 
 }

@@ -278,6 +278,14 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		Info: peer.fsm.peerInfo,
 	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	// When 'path' is filetered (path == nil), check 'old' has been sent to this peer.
+	// If it has, send withdrawal to the peer.
+	if path == nil && old != nil {
+		o := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
+		if o != nil {
+			path = old.Clone(true)
+		}
+	}
 
 	// draft-uttaro-idr-bgp-persistence-02
 	// 4.3.  Processing LLGR_STALE Routes
