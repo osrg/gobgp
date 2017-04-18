@@ -2,7 +2,6 @@
 
 echo "travis-install-script.sh"
 
-pip --quiet install -r test/pip-requires.txt
+sudo -H pip --quiet install -r test/pip-requires.txt
 
-go get -v ./gobgp/
-go get -v ./gobgpd/
+sudo fab -f test/lib/base.py make_gobgp_ctn:tag=$DOCKER_IMAGE,from_image=$FROM_IMAGE

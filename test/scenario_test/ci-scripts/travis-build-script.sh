@@ -2,4 +2,4 @@
 
 echo "travis-build-script.sh"
 
-PYTHONPATH=test python test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
+sudo PYTHONPATH=test python test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s

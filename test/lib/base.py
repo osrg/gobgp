@@ -97,6 +97,29 @@ class CmdBuffer(list):
         return self.delim.join(self)
 
 
+def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
+    if local_gobgp_path == '':
+        local_gobgp_path = os.getcwd()
+
+    c = CmdBuffer()
+    c << 'FROM {0}'.format(from_image)
+    c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
+    c << 'RUN go get github.com/osrg/gobgp/gobgpd'
+    c << 'RUN go install github.com/osrg/gobgp/gobgpd'
+    c << 'RUN go get github.com/osrg/gobgp/gobgp'
+    c << 'RUN go install github.com/osrg/gobgp/gobgp'
+
+    rindex = local_gobgp_path.rindex('gobgp')
+    if rindex < 0:
+        raise Exception('{0} seems not gobgp dir'.format(local_gobgp_path))
+
+    workdir = local_gobgp_path[:rindex]
+    with lcd(workdir):
+        local('echo \'{0}\' > Dockerfile'.format(str(c)))
+        local('docker build -t {0} .'.format(tag))
+        local('rm Dockerfile')
+
+
 class Bridge(object):
     def __init__(self, name, subnet='', with_ip=True, self_ip=False):
         self.name = name

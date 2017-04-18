@@ -47,8 +47,7 @@ def extract_path_attribute(path, typ):
 
 
 class GoBGPContainer(BGPContainer):
-    LOCAL_GOPATH = os.environ['GOPATH']
-    CONTAINER_GOPATH = '/go'
+
     SHARED_VOLUME = '/root/shared_volume'
     QUAGGA_VOLUME = '/etc/quagga'
 
@@ -57,11 +56,6 @@ class GoBGPContainer(BGPContainer):
                  zapi_version=2, ospfd_config=None):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
-        # Add volume to export local GoBGP executables into container.
-        self.shared_volumes.append(
-            (self.LOCAL_GOPATH + '/bin/', self.CONTAINER_GOPATH + '/bin/'))
-
-        # Add volume to export config files into container.
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
 
         self.log_level = log_level
