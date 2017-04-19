@@ -1810,7 +1810,7 @@ type EVPNEthernetAutoDiscoveryRoute struct {
 	RD    RouteDistinguisherInterface
 	ESI   EthernetSegmentIdentifier
 	ETag  uint32
-	Label uint32
+	Label MPLSLabelStack
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
@@ -1823,7 +1823,10 @@ func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	data = data[10:]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	data = data[4:]
-	er.Label = labelDecode(data)
+	err = er.Label.DecodeFromBytes(data)
+	if err != nil {
+		return err
+        }
 	return nil
 }
 
@@ -1849,7 +1852,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	buf = append(buf, tbuf...)
 
 	tbuf = make([]byte, 3)
-	labelSerialize(er.Label, tbuf)
+	tbuf, err = er.Label.Serialize()
 	buf = append(buf, tbuf...)
 
 	return buf, nil
@@ -1864,12 +1867,12 @@ func (er *EVPNEthernetAutoDiscoveryRoute) MarshalJSON() ([]byte, error) {
 		RD    RouteDistinguisherInterface `json:"rd"`
 		ESI   string                      `json:"esi"`
 		Etag  uint32                      `json:"etag"`
-		Label uint32                      `json:"label"`
+		Label []uint32                    `json:"label"`
 	}{
 		RD:    er.RD,
 		ESI:   er.ESI.String(),
 		Etag:  er.ETag,
-		Label: er.Label,
+		Label: er.Label.Labels,
 	})
 }
 
@@ -1885,7 +1888,7 @@ type EVPNMacIPAdvertisementRoute struct {
 	MacAddress       net.HardwareAddr
 	IPAddressLength  uint8
 	IPAddress        net.IP
-	Labels           []uint32
+	Labels           MPLSLabelStack
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
@@ -1908,13 +1911,9 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 	data = data[(er.IPAddressLength / 8):]
-	label1 := labelDecode(data)
-	er.Labels = append(er.Labels, label1)
-	data = data[3:]
-	if len(data) == 3 {
-		label2 := labelDecode(data)
-		er.Labels = append(er.Labels, label2)
-
+	err = er.Labels.DecodeFromBytes(data)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -1957,11 +1956,9 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 
-	for _, l := range er.Labels {
-		tbuf = make([]byte, 3)
-		labelSerialize(l, tbuf)
-		buf = append(buf, tbuf...)
-	}
+	tbuf = make([]byte, 3)
+	tbuf, err = er.Labels.Serialize()
+	buf = append(buf, tbuf...)
 	return buf, nil
 }
 
@@ -1983,7 +1980,7 @@ func (er *EVPNMacIPAdvertisementRoute) MarshalJSON() ([]byte, error) {
 		Etag:       er.ETag,
 		MacAddress: er.MacAddress.String(),
 		IPAddress:  er.IPAddress.String(),
-		Labels:     er.Labels,
+		Labels:     er.Labels.Labels,
 	})
 }
 
