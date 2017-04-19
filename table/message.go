@@ -204,23 +204,31 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 }
 
 func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {
-	as := uint32(0)
-	var addr string
+	ps := msg.PathAttributes
+	msg.PathAttributes = make([]bgp.PathAttributeInterface, len(ps))
+	copy(msg.PathAttributes, ps)
+
+	var aggAttr *bgp.PathAttributeAggregator
+	idx := 0
+
 	for i, attr := range msg.PathAttributes {
-		switch attr.(type) {
-		case *bgp.PathAttributeAggregator:
-			agg := attr.(*bgp.PathAttributeAggregator)
-			addr = agg.Value.Address.String()
-			if agg.Value.AS > (1<<16)-1 {
-				as = agg.Value.AS
-				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
-			} else {
-				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(agg.Value.AS), addr)
-			}
+		if a, ok := attr.(*bgp.PathAttributeAggregator); ok {
+			aggAttr = a
+			idx = i
+			break
 		}
 	}
-	if as != 0 {
-		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Aggregator(as, addr))
+
+	if aggAttr == nil {
+		return
+	}
+
+	addr := aggAttr.Value.Address.String()
+	if aggAttr.Value.AS > (1<<16)-1 {
+		msg.PathAttributes[idx] = bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Aggregator(aggAttr.Value.AS, addr))
+	} else {
+		msg.PathAttributes[idx] = bgp.NewPathAttributeAggregator(uint16(aggAttr.Value.AS), addr)
 	}
 }
 
