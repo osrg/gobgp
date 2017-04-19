@@ -94,11 +94,8 @@ type Path struct {
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
 	if !isWithdraw && pattrs == nil {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   nlri.String(),
-		}).Error("Need to provide patattrs for the path that is not withdraw.")
-		return nil
+		pattrs = append(pattrs, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE))
+		pattrs = append(pattrs, bgp.NewPathAttributeNexthop("0.0.0.0"))
 	}
 
 	if nlri != nil && (nlri.SAFI() == bgp.SAFI_FLOW_SPEC_UNICAST || nlri.SAFI() == bgp.SAFI_FLOW_SPEC_VPN) {

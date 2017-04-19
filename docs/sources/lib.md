@@ -57,6 +57,11 @@ func main() {
 	}
 
 	// add routes
+	if _, err := s.AddPath("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), false, nil, time.Now(), false)}); err != nil {
+		log.Fatal(err)
+	}
+
+	// add routes with specific path attributes
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("10.0.255.254"),
