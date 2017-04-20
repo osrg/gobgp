@@ -230,7 +230,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 		return nil, fmt.Errorf("invalid request")
 	}
 	p := []*Peer{}
-	for _, e := range s.bgpServer.GetNeighbor(arg.EnableAdvertised) {
+	for _, e := range s.bgpServer.GetNeighbor(arg.Address, arg.EnableAdvertised) {
 		p = append(p, NewPeerFromConfigStruct(e))
 	}
 	return &GetNeighborResponse{Peers: p}, nil

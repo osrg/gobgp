@@ -1542,10 +1542,13 @@ func (s *BgpServer) GetServer() (c *config.Global) {
 	return c
 }
 
-func (s *BgpServer) GetNeighbor(getAdvertised bool) (l []*config.Neighbor) {
+func (s *BgpServer) GetNeighbor(address string, getAdvertised bool) (l []*config.Neighbor) {
 	s.mgmtOperation(func() error {
 		l = make([]*config.Neighbor, 0, len(s.neighborMap))
-		for _, peer := range s.neighborMap {
+		for k, peer := range s.neighborMap {
+			if address != "" && address != k {
+				continue
+			}
 			l = append(l, peer.ToConfig(getAdvertised))
 		}
 		return nil

@@ -128,7 +128,7 @@ func (cli *Client) EnableZebra(c *config.Zebra) error {
 }
 
 func (cli *Client) getNeighbor(name string, afi int, vrf string, enableAdvertised bool) ([]*config.Neighbor, error) {
-	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: enableAdvertised})
+	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: enableAdvertised, Address: name})
 	if err != nil {
 		return nil, err
 	}
