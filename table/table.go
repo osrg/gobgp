@@ -376,7 +376,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						return nil, err
 					}
 					ones, _ := prefix.Mask.Size()
-					for i := ones; i > 0; i-- {
+					for i := ones; i >= 0; i-- {
 						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
 						f(prefix.String())
 					}
@@ -386,7 +386,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						if t.routeFamily == bgp.RF_IPv6_UC {
 							masklen = 128
 						}
-						for i := masklen; i > 0; i-- {
+						for i := masklen; i >= 0; i-- {
 							_, prefix, err := net.ParseCIDR(fmt.Sprintf("%s/%d", key, i))
 							if err != nil {
 								return nil, err
