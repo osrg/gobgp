@@ -84,7 +84,7 @@ BGP neighbor is fe80::42:acff:fe11:3%eth0, remote AS 65001
     Notifications:          0          0
     Updates:                1          0
     Keepalives:             1          1
-    Route Refesh:           0          0
+    Route Refresh:          0          0
     Discarded:              0          0
     Total:                  3          2
   Route statistics:
