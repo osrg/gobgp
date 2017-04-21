@@ -55,7 +55,7 @@ BGP neighbor is 10.0.255.1, remote AS 65001
     Notifications:          0          0
     Updates:                2          1
     Keepalives:             2          2
-    Route Refesh:           0          0
+    Route Refresh:          0          0
     Discarded:              0          0
     Total:                  5          4
   Route statistics:
@@ -127,7 +127,7 @@ BGP neighbor is 10.0.255.1, remote AS 65001
     Notifications:          0          0
     Updates:                2          1
     Keepalives:             1          1
-    Route Refesh:           0          0
+    Route Refresh:          0          0
     Discarded:              0          0
     Total:                  4          3
   Route statistics:
