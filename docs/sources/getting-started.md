@@ -119,7 +119,7 @@ BGP neighbor is 10.0.255.1, remote AS 65001
     Notifications:          0          0
     Updates:                1          1
     Keepalives:             4          5
-    Route Refesh:           0          0
+    Route Refresh:          0          0
     Discarded:              0          0
     Total:                  7          7
 ```
