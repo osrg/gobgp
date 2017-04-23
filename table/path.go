@@ -163,10 +163,11 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInfo) {
+func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInfo, original *Path) *Path {
 	if peer.RouteServer.Config.RouteServerClient {
-		return
+		return original
 	}
+	path := original.Clone(original.IsWithdraw)
 
 	for _, a := range path.GetPathAttrs() {
 		if _, y := bgp.PathAttrFlags[a.GetType()]; !y {
@@ -257,6 +258,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, 
 			"Key":   peer.Config.NeighborAddress,
 		}).Warnf("invalid peer type: %d", peer.State.PeerType)
 	}
+	return path
 }
 
 func (path *Path) GetTimestamp() time.Time {
