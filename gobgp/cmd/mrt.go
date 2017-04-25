@@ -110,7 +110,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 					for _, p := range paths {
 						dst.AddNewPath(p)
 					}
-					best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME})
+					best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME}, false)
 					if best[table.GLOBAL_RIB_NAME] == nil {
 						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
 					}

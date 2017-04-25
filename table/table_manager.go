@@ -185,7 +185,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, map[string][]*Path, [][]*Path) {
+func (manager *TableManager) calculate(ids []string, destinations []*Destination, peerDown bool) (map[string][]*Path, map[string][]*Path, [][]*Path) {
 	best := make(map[string][]*Path, len(ids))
 	old := make(map[string][]*Path, len(ids))
 
@@ -200,7 +200,7 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 			"Topic": "table",
 			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, olds, m := dst.Calculate(ids)
+		paths, olds, m := dst.Calculate(ids, peerDown)
 		for id, path := range paths {
 			best[id] = append(best[id], path)
 			old[id] = append(old[id], olds[id])
@@ -224,7 +224,7 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, map[string][]*Path, [][]*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		return manager.calculate(ids, dsts)
+		return manager.calculate(ids, dsts, true)
 	}
 	return nil, nil, nil
 }
@@ -255,7 +255,7 @@ func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[s
 			}
 		}
 	}
-	return manager.calculate(ids, dsts)
+	return manager.calculate(ids, dsts, false)
 }
 
 // EVPN MAC MOBILITY HANDLING
