@@ -792,3 +792,47 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	// Test serialised value
 	assert.Equal(bufin, bufout)
 }
+
+func Test_FlowSpecNlriVPNv4(t *testing.T) {
+	assert := assert.New(t)
+	mpls := NewMPLSLabelStack(1, 2, 3)
+	cmp := []FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(NewLabeledVPNIPAddrPrefix(24, "192.168.0.0", *mpls, NewRouteDistinguisherTwoOctetAS(10, 10)))}
+	n1 := NewFlowSpecIPv4VPN(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_VPN))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
+
+func Test_FlowSpecNlriVPNv6(t *testing.T) {
+	assert := assert.New(t)
+	mpls := NewMPLSLabelStack(1, 2, 3)
+	cmp := []FlowSpecComponentInterface{NewFlowSpecDestinationPrefix6(NewLabeledVPNIPv6AddrPrefix(64, "2001::", *mpls, NewRouteDistinguisherTwoOctetAS(10, 10)), 0)}
+	n1 := NewFlowSpecIPv6VPN(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv6_VPN))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
