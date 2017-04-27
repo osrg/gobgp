@@ -840,6 +840,9 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer, oldState)
 	case FSM_MSG_ROUTE_REFRESH:
+		if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED || e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime {
+			return
+		}
 		if paths := peer.handleRouteRefresh(e); len(paths) > 0 {
 			sendFsmOutgoingMsg(peer, paths, nil, false)
 			return
@@ -850,6 +853,9 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			sendFsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
 			return
 		case *bgp.BGPMessage:
+			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED || e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime {
+				return
+			}
 			server.roaManager.validate(e.PathList)
 			pathList, eor, notification := peer.handleUpdate(e)
 			if notification != nil {
