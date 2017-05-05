@@ -81,6 +81,40 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
         self.assertTrue(len(self.g2.get_global_rib()) == 1)
 
+    def test_05_check_remove_private_as_peer_all(self):
+        g3 = GoBGPContainer(name='g3', asn=100, router_id='192.168.0.4',
+                            ctn_image_name=parser_option.gobgp_image,
+                            log_level=parser_option.gobgp_log_level)
+        g4 = GoBGPContainer(name='g4', asn=200, router_id='192.168.0.5',
+                            ctn_image_name=parser_option.gobgp_image,
+                            log_level=parser_option.gobgp_log_level)
+        time.sleep(max(ctn.run() for ctn in [g3, g4]))
+
+        self.ctns['g3'] = g3
+        self.ctns['g4'] = g4
+
+        self.g2.add_peer(g3)
+        g3.add_peer(self.g2)
+
+        g3.add_peer(g4, remove_private_as='all')
+        g4.add_peer(g3)
+
+        self.g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g3)
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
+
+        time.sleep(1)
+        self.assertTrue(g4.get_global_rib()[0]['paths'][0]['aspath'] == [100])
+
+    def test_06_check_remove_private_as_peer_replace(self):
+        g3 = self.ctns['g3']
+        g4 = self.ctns['g4']
+        g3.update_peer(g4, remove_private_as='replace')
+
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
+
+        time.sleep(1)
+        self.assertTrue(g4.get_global_rib()[0]['paths'][0]['aspath'] == [100, 100, 100, 100])
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)

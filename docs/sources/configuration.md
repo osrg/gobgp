@@ -49,6 +49,7 @@
         neighbor-address = "192.168.10.2"
         # override global.config.as value
         local-as = 1000
+        remove-private-as = "all"
     [neighbors.as-path-options.config]
         allow-own-as = 1
     [neighbors.timers.config]

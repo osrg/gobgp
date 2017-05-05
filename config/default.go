@@ -102,9 +102,13 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	if n.Config.PeerAs != n.Config.LocalAs {
 		n.Config.PeerType = PEER_TYPE_EXTERNAL
 		n.State.PeerType = PEER_TYPE_EXTERNAL
+		n.State.RemovePrivateAs = n.Config.RemovePrivateAs
 	} else {
 		n.Config.PeerType = PEER_TYPE_INTERNAL
 		n.State.PeerType = PEER_TYPE_INTERNAL
+		if string(n.Config.RemovePrivateAs) != "" {
+			return fmt.Errorf("can't set remove-private-as for iBGP peer")
+		}
 	}
 
 	n.State.PeerAs = n.Config.PeerAs

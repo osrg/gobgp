@@ -345,6 +345,7 @@ class GoBGPContainer(BGPContainer):
                     'peer-as': peer.asn,
                     'auth-password': info['passwd'],
                     'vrf': info['vrf'],
+                    'remove-private-as': info['remove_private_as'],
                 },
                 'afi-safis': afi_safi_list,
                 'timers': {

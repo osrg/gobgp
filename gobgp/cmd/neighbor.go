@@ -182,9 +182,19 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.State.Queues.Output, p.State.Flops)
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.State.NegotiatedHoldTime), int(p.Timers.State.KeepaliveInterval))
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
+
+	elems := make([]string, 0, 2)
 	if as := p.AsPathOptions.Config.AllowOwnAs; as > 0 {
-		fmt.Printf("  Allow Own AS: %d\n", as)
+		elems = append(elems, fmt.Sprintf("Allow Own AS: %d\n", as))
 	}
+	switch p.Config.RemovePrivateAs {
+	case config.REMOVE_PRIVATE_AS_OPTION_ALL:
+		elems = append(elems, "Remove private AS: all")
+	case config.REMOVE_PRIVATE_AS_OPTION_REPLACE:
+		elems = append(elems, "Remove private AS: replace")
+	}
+
+	fmt.Println("  %s", strings.Join(elems, ", "))
 
 	fmt.Printf("  Neighbor capabilities:\n")
 	caps := capabilities{}
@@ -815,13 +825,13 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "allow-own-as"})
+	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "allow-own-as", "remove-private-as"})
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
 	if cmdType == CMD_ADD {
-		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> ]"
+		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) ]"
 	}
 
-	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["allow-own-as"]) > 1 {
+	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["allow-own-as"]) > 1 || len(m["remove-private-as"]) > 1 {
 		return fmt.Errorf("%s", usage)
 	}
 	unnumbered := len(m["interface"]) > 0
@@ -864,6 +874,16 @@ func modNeighbor(cmdType string, args []string) error {
 				return nil, err
 			}
 			peer.AsPathOptions.Config.AllowOwnAs = uint8(as)
+		}
+		if option, ok := m["remove-private-as"]; ok {
+			switch option[0] {
+			case "all":
+				peer.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
+			case "replace":
+				peer.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
+			default:
+				return nil, fmt.Errorf("invalid remove-private-as value: all or replace")
+			}
 		}
 		return peer, nil
 	}

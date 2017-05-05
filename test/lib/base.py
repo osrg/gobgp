@@ -310,7 +310,8 @@ class BGPContainer(Container):
                  is_rr_client=False, cluster_id=None,
                  flowspec=False, bridge='', reload_config=True, as2=False,
                  graceful_restart=None, local_as=None, prefix_limit=None,
-                 v6=False, llgr=None, vrf='', interface='', allow_as_in=0):
+                 v6=False, llgr=None, vrf='', interface='', allow_as_in=0,
+                 remove_private_as=None):
         neigh_addr = ''
         local_addr = ''
         it = itertools.product(self.ip_addrs, peer.ip_addrs)
@@ -352,7 +353,8 @@ class BGPContainer(Container):
                             'prefix_limit': prefix_limit,
                             'llgr': llgr,
                             'vrf': vrf,
-                            'allow_as_in': allow_as_in}
+                            'allow_as_in': allow_as_in,
+                            'remove_private_as': remove_private_as}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
