@@ -182,12 +182,17 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.State.Queues.Output, p.State.Flops)
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.State.NegotiatedHoldTime), int(p.Timers.State.KeepaliveInterval))
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
+	elems := make([]string, 0, 2)
 	switch p.Config.RemovePrivateAs {
 	case config.REMOVE_PRIVATE_AS_OPTION_ALL:
-		fmt.Println("  Remove private AS: all")
+		elems = append(elems, "Remove private AS: all")
 	case config.REMOVE_PRIVATE_AS_OPTION_REPLACE:
-		fmt.Println("  Remove private AS: replace")
+		elems = append(elems, "Remove private AS: replace")
 	}
+	if p.AsPathOptions.Config.ReplacePeerAs {
+		elems = append(elems, "Replace peer AS: enabled")
+	}
+	fmt.Printf("  %s\n", strings.Join(elems, ", "))
 
 	fmt.Printf("  Neighbor capabilities:\n")
 	caps := capabilities{}
@@ -818,10 +823,10 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "remove-private-as"})
+	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "remove-private-as", "replace-peer-as"})
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
 	if cmdType == CMD_ADD {
-		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | remove-private-as (all|replace) ]"
+		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | remove-private-as (all|replace) | replace-peer-as ]"
 	}
 
 	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["remove-private-as"]) > 1 {
@@ -871,9 +876,11 @@ func modNeighbor(cmdType string, args []string) error {
 				return nil, fmt.Errorf("invalid remove-private-as value: all or replace")
 			}
 		}
+		if _, ok := m["replace-peer-as"]; ok {
+			peer.AsPathOptions.Config.ReplacePeerAs = true
+		}
 		return peer, nil
 	}
-	var err error
 	switch cmdType {
 	case CMD_ADD:
 		if len(m[""]) > 0 && len(m["as"]) != 1 {
@@ -881,6 +888,7 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		var as int
 		if len(m["as"]) > 0 {
+			var err error
 			as, err = strconv.Atoi(m["as"][0])
 			if err != nil {
 				return err
@@ -890,15 +898,15 @@ func modNeighbor(cmdType string, args []string) error {
 		if err != nil {
 			return err
 		}
-		err = client.AddNeighbor(n)
+		return client.AddNeighbor(n)
 	case CMD_DEL:
 		n, err := getConf(0)
 		if err != nil {
 			return err
 		}
-		err = client.DeleteNeighbor(n)
+		return client.DeleteNeighbor(n)
 	}
-	return err
+	return nil
 }
 
 func NewNeighborCmd() *cobra.Command {

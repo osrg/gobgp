@@ -171,6 +171,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
 			RemovePrivateAs:   removePrivateAs,
+			ReplacePeerAs:     pconf.AsPathOptions.Config.ReplacePeerAs,
 		},
 		Info: &PeerState{
 			BgpState:   string(s.SessionState),
@@ -856,18 +857,13 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.Config.PeerAs = a.Conf.PeerAs
 		pconf.Config.LocalAs = a.Conf.LocalAs
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
-		switch a.Conf.RemovePrivateAs {
-		case PeerConf_ALL:
-			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
-		case PeerConf_REPLACE:
-			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
-		}
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
+		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAs
 
 		switch a.Conf.RemovePrivateAs {
 		case PeerConf_ALL:

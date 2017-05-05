@@ -50,6 +50,8 @@
         # override global.config.as value
         local-as = 1000
         remove-private-as = "all"
+    [neighbors.as-path-options.config]
+        replace-peer-as = true
     [neighbors.timers.config]
         connect-retry = 5
         hold-time = 9

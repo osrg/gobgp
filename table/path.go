@@ -713,6 +713,26 @@ func (path *Path) RemovePrivateAS(localAS uint32, option config.RemovePrivateAsO
 	return
 }
 
+func (path *Path) ReplacePeerAS(localAS, peerAS uint32) {
+	original := path.GetAsPath()
+	if original == nil {
+		return
+	}
+	newASParams := make([]bgp.AsPathParamInterface, 0, len(original.Value))
+	for _, param := range original.Value {
+		asParam := param.(*bgp.As4PathParam)
+		newASParam := make([]uint32, 0, len(asParam.AS))
+		for _, as := range asParam.AS {
+			if as == peerAS {
+				as = localAS
+			}
+			newASParam = append(newASParam, as)
+		}
+		newASParams = append(newASParams, bgp.NewAs4PathParam(asParam.Type, newASParam))
+	}
+	path.setPathAttr(bgp.NewPathAttributeAsPath(newASParams))
+}
+
 func (path *Path) GetCommunities() []uint32 {
 	communityList := []uint32{}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES); attr != nil {

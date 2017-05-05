@@ -590,6 +590,7 @@ message PeerConf {
   string local_address = 15;
   string neighbor_interface = 16;
   string vrf = 17;
+  bool replace_peer_as = 18;
 }
 
 message EbgpMultihop {
