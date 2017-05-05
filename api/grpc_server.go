@@ -96,29 +96,26 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		}
 	}
 	applyPolicy := &ApplyPolicy{}
-	if len(pconf.ApplyPolicy.Config.ImportPolicyList) != 0 {
-		applyPolicy.ImportPolicy = &PolicyAssignment{
-			Type: PolicyType_IMPORT,
-		}
-		for _, pname := range pconf.ApplyPolicy.Config.ImportPolicyList {
-			applyPolicy.ImportPolicy.Policies = append(applyPolicy.ImportPolicy.Policies, &Policy{Name: pname})
-		}
+	applyPolicy.ImportPolicy = &PolicyAssignment{
+		Type:    PolicyType_IMPORT,
+		Default: RouteAction(pconf.ApplyPolicy.Config.DefaultImportPolicy.ToInt()),
 	}
-	if len(pconf.ApplyPolicy.Config.ExportPolicyList) != 0 {
-		applyPolicy.ExportPolicy = &PolicyAssignment{
-			Type: PolicyType_EXPORT,
-		}
-		for _, pname := range pconf.ApplyPolicy.Config.ExportPolicyList {
-			applyPolicy.ExportPolicy.Policies = append(applyPolicy.ExportPolicy.Policies, &Policy{Name: pname})
-		}
+	for _, pname := range pconf.ApplyPolicy.Config.ImportPolicyList {
+		applyPolicy.ImportPolicy.Policies = append(applyPolicy.ImportPolicy.Policies, &Policy{Name: pname})
 	}
-	if len(pconf.ApplyPolicy.Config.InPolicyList) != 0 {
-		applyPolicy.InPolicy = &PolicyAssignment{
-			Type: PolicyType_IN,
-		}
-		for _, pname := range pconf.ApplyPolicy.Config.InPolicyList {
-			applyPolicy.InPolicy.Policies = append(applyPolicy.InPolicy.Policies, &Policy{Name: pname})
-		}
+	applyPolicy.ExportPolicy = &PolicyAssignment{
+		Type:    PolicyType_EXPORT,
+		Default: RouteAction(pconf.ApplyPolicy.Config.DefaultExportPolicy.ToInt()),
+	}
+	for _, pname := range pconf.ApplyPolicy.Config.ExportPolicyList {
+		applyPolicy.ExportPolicy.Policies = append(applyPolicy.ExportPolicy.Policies, &Policy{Name: pname})
+	}
+	applyPolicy.InPolicy = &PolicyAssignment{
+		Type:    PolicyType_IN,
+		Default: RouteAction(pconf.ApplyPolicy.Config.DefaultInPolicy.ToInt()),
+	}
+	for _, pname := range pconf.ApplyPolicy.Config.InPolicyList {
+		applyPolicy.InPolicy.Policies = append(applyPolicy.InPolicy.Policies, &Policy{Name: pname})
 	}
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	for _, family := range pconf.AfiSafis {
@@ -157,9 +154,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			LocalAs:           pconf.Config.LocalAs,
 			PeerType:          uint32(pconf.Config.PeerType.ToInt()),
 			AuthPassword:      pconf.Config.AuthPassword,
-			RemovePrivateAs:   uint32(pconf.Config.RemovePrivateAs.ToInt()),
 			RouteFlapDamping:  pconf.Config.RouteFlapDamping,
-			SendCommunity:     uint32(pconf.Config.SendCommunity.ToInt()),
 			Description:       pconf.Config.Description,
 			PeerGroup:         pconf.Config.PeerGroup,
 			RemoteCap:         remoteCap,
@@ -853,9 +848,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.Config.PeerAs = a.Conf.PeerAs
 		pconf.Config.LocalAs = a.Conf.LocalAs
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
-		pconf.Config.RemovePrivateAs = config.RemovePrivateAsOption(a.Conf.RemovePrivateAs)
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
-		pconf.Config.SendCommunity = config.CommunityType(a.Conf.SendCommunity)
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
@@ -929,19 +922,19 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	}
 	if a.ApplyPolicy != nil {
 		if a.ApplyPolicy.ImportPolicy != nil {
-			pconf.ApplyPolicy.Config.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
+			pconf.ApplyPolicy.Config.DefaultImportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ApplyPolicy.ImportPolicy.Default)]
 			for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
 				pconf.ApplyPolicy.Config.ImportPolicyList = append(pconf.ApplyPolicy.Config.ImportPolicyList, p.Name)
 			}
 		}
 		if a.ApplyPolicy.ExportPolicy != nil {
-			pconf.ApplyPolicy.Config.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
+			pconf.ApplyPolicy.Config.DefaultExportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ApplyPolicy.ExportPolicy.Default)]
 			for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
 				pconf.ApplyPolicy.Config.ExportPolicyList = append(pconf.ApplyPolicy.Config.ExportPolicyList, p.Name)
 			}
 		}
 		if a.ApplyPolicy.InPolicy != nil {
-			pconf.ApplyPolicy.Config.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
+			pconf.ApplyPolicy.Config.DefaultInPolicy = config.IntToDefaultPolicyTypeMap[int(a.ApplyPolicy.InPolicy.Default)]
 			for _, p := range a.ApplyPolicy.InPolicy.Policies {
 				pconf.ApplyPolicy.Config.InPolicyList = append(pconf.ApplyPolicy.Config.InPolicyList, p.Name)
 			}
