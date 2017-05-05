@@ -144,6 +144,13 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		c, _ := cap.Serialize()
 		localCap = append(localCap, c)
 	}
+	var removePrivateAs PeerConf_RemovePrivateAs
+	switch pconf.Config.RemovePrivateAs {
+	case config.REMOVE_PRIVATE_AS_OPTION_ALL:
+		removePrivateAs = PeerConf_ALL
+	case config.REMOVE_PRIVATE_AS_OPTION_REPLACE:
+		removePrivateAs = PeerConf_REPLACE
+	}
 	return &Peer{
 		Families:    families,
 		ApplyPolicy: applyPolicy,
@@ -163,6 +170,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			LocalAddress:      localAddress,
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
+			RemovePrivateAs:   removePrivateAs,
 		},
 		Info: &PeerState{
 			BgpState:   string(s.SessionState),
@@ -848,12 +856,25 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.Config.PeerAs = a.Conf.PeerAs
 		pconf.Config.LocalAs = a.Conf.LocalAs
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
+		switch a.Conf.RemovePrivateAs {
+		case PeerConf_ALL:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
+		case PeerConf_REPLACE:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
+		}
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
+
+		switch a.Conf.RemovePrivateAs {
+		case PeerConf_ALL:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
+		case PeerConf_REPLACE:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
+		}
 
 		f := func(bufs [][]byte) ([]bgp.ParameterCapabilityInterface, error) {
 			var caps []bgp.ParameterCapabilityInterface

@@ -49,6 +49,7 @@
         neighbor-address = "192.168.10.2"
         # override global.config.as value
         local-as = 1000
+        remove-private-as = "all"
     [neighbors.timers.config]
         connect-retry = 5
         hold-time = 9
