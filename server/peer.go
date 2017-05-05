@@ -267,6 +267,11 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		}
 	}
 
+	// replace-peer-as handling
+	if path != nil && !path.IsWithdraw && peer.fsm.pConf.AsPathOptions.State.ReplacePeerAs {
+		path = path.ReplaceAS(peer.fsm.pConf.Config.LocalAs, peer.fsm.pConf.Config.PeerAs)
+	}
+
 	if path = filterpath(peer, path, old); path == nil {
 		return nil
 	}

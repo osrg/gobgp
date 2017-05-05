@@ -361,6 +361,8 @@ class GoBGPContainer(BGPContainer):
             n['as-path-options'] = {'config': {}}
             if info['allow_as_in'] > 0:
                 n['as-path-options']['config']['allow-own-as'] = info['allow_as_in']
+            if info['replace_peer_as']:
+                n['as-path-options']['config']['replace-peer-as'] = info['replace_peer_as']
 
             if ':' in info['local_addr']:
                 n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]

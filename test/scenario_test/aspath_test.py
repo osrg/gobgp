@@ -115,6 +115,21 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
         self.assertTrue(g4.get_global_rib()[0]['paths'][0]['aspath'] == [100, 100, 100, 100])
 
+    def test_07_check_replace_peer_as(self):
+        g5 = GoBGPContainer(name='g5', asn=100, router_id='192.168.0.6',
+                            ctn_image_name=parser_option.gobgp_image,
+                            log_level=parser_option.gobgp_log_level)
+        time.sleep(g5.run())
+
+        g4 = self.ctns['g4']
+        g4.add_peer(g5, replace_peer_as=True)
+        g5.add_peer(g4)
+
+        g4.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g5)
+
+        time.sleep(1)
+        self.assertTrue(g5.get_global_rib()[0]['paths'][0]['aspath'] == [200, 200, 200, 200, 200])
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
