@@ -3184,7 +3184,7 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	return nil
 }
 
-func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, error) {
+func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*config.DefinedSets, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -3203,6 +3203,9 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, err
 		},
 	}
 	for _, s := range set {
+		if name != "" && s.Name() != name {
+			continue
+		}
 		switch s.(type) {
 		case *PrefixSet:
 			sets.PrefixSets = append(sets.PrefixSets, *s.(*PrefixSet).ToConfig())

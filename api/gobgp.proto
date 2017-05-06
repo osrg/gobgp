@@ -335,6 +335,7 @@ message DeleteVrfResponse {
 
 message GetDefinedSetRequest {
   DefinedType type = 1;
+  string name = 2;
 }
 
 message GetDefinedSetResponse {

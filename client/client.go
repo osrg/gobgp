@@ -535,8 +535,11 @@ func (cli *Client) DeleteVRF(name string) error {
 	return err
 }
 
-func (cli *Client) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, error) {
-	ret, err := cli.cli.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{Type: api.DefinedType(typ)})
+func (cli *Client) getDefinedSet(typ table.DefinedType, name string) ([]table.DefinedSet, error) {
+	ret, err := cli.cli.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{
+		Type: api.DefinedType(typ),
+		Name: name,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -549,6 +552,23 @@ func (cli *Client) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, err
 		ds = append(ds, d)
 	}
 	return ds, nil
+}
+
+func (cli *Client) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, error) {
+	return cli.getDefinedSet(typ, "")
+}
+
+func (cli *Client) GetDefinedSetByName(typ table.DefinedType, name string) (table.DefinedSet, error) {
+	sets, err := cli.getDefinedSet(typ, name)
+	if err != nil {
+		return nil, err
+	}
+	if len(sets) == 0 {
+		return nil, fmt.Errorf("not found defined set: %s", name)
+	} else if len(sets) > 1 {
+		return nil, fmt.Errorf("invalid response for GetDefinedSetByName")
+	}
+	return sets[0], nil
 }
 
 func (cli *Client) AddDefinedSet(d table.DefinedSet) error {

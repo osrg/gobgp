@@ -1136,7 +1136,7 @@ func NewDefinedSetFromApiStruct(a *DefinedSet) (table.DefinedSet, error) {
 }
 
 func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (*GetDefinedSetResponse, error) {
-	cd, err := s.bgpServer.GetDefinedSet(table.DefinedType(arg.Type))
+	cd, err := s.bgpServer.GetDefinedSet(table.DefinedType(arg.Type), arg.Name)
 	if err != nil {
 		return nil, err
 	}
