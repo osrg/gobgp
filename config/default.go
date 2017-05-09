@@ -102,12 +102,21 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	if n.Config.PeerAs != n.Config.LocalAs {
 		n.Config.PeerType = PEER_TYPE_EXTERNAL
 		n.State.PeerType = PEER_TYPE_EXTERNAL
+		n.State.RemovePrivateAs = n.Config.RemovePrivateAs
+		n.AsPathOptions.State.ReplacePeerAs = n.AsPathOptions.Config.ReplacePeerAs
 	} else {
 		n.Config.PeerType = PEER_TYPE_INTERNAL
 		n.State.PeerType = PEER_TYPE_INTERNAL
+		if string(n.Config.RemovePrivateAs) != "" {
+			return fmt.Errorf("can't set remove-private-as for iBGP peer")
+		}
+		if n.AsPathOptions.Config.ReplacePeerAs {
+			return fmt.Errorf("can't set replace-peer-as for iBGP peer")
+		}
 	}
 
 	n.State.PeerAs = n.Config.PeerAs
+	n.AsPathOptions.State.AllowOwnAs = n.AsPathOptions.Config.AllowOwnAs
 
 	if !v.IsSet("neighbor.timers.config.connect-retry") && n.Timers.Config.ConnectRetry == 0 {
 		n.Timers.Config.ConnectRetry = float64(DEFAULT_CONNECT_RETRY)

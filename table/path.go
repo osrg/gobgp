@@ -188,6 +188,9 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 			path.SetNexthop(localAddress)
 		}
 
+		// remove-private-as handling
+		path.RemovePrivateAS(peer.Config.LocalAs, peer.State.RemovePrivateAs)
+
 		// AS_PATH handling
 		path.PrependAsn(peer.Config.LocalAs, 1)
 
@@ -675,6 +678,59 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8) {
 		asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
 	}
 	path.setPathAttr(asPath)
+}
+
+func isPrivateAS(as uint32) bool {
+	return (64512 <= as && as <= 65534) || (4200000000 <= as && as <= 4294967294)
+}
+
+func (path *Path) RemovePrivateAS(localAS uint32, option config.RemovePrivateAsOption) {
+	original := path.GetAsPath()
+	if original == nil {
+		return
+	}
+	switch option {
+	case config.REMOVE_PRIVATE_AS_OPTION_ALL, config.REMOVE_PRIVATE_AS_OPTION_REPLACE:
+		newASParams := make([]bgp.AsPathParamInterface, 0, len(original.Value))
+		for _, param := range original.Value {
+			asParam := param.(*bgp.As4PathParam)
+			newASParam := make([]uint32, 0, len(asParam.AS))
+			for _, as := range asParam.AS {
+				if isPrivateAS(as) {
+					if option == config.REMOVE_PRIVATE_AS_OPTION_REPLACE {
+						newASParam = append(newASParam, localAS)
+					}
+				} else {
+					newASParam = append(newASParam, as)
+				}
+			}
+			if len(newASParam) > 0 {
+				newASParams = append(newASParams, bgp.NewAs4PathParam(asParam.Type, newASParam))
+			}
+		}
+		path.setPathAttr(bgp.NewPathAttributeAsPath(newASParams))
+	}
+	return
+}
+
+func (path *Path) ReplacePeerAS(localAS, peerAS uint32) {
+	original := path.GetAsPath()
+	if original == nil {
+		return
+	}
+	newASParams := make([]bgp.AsPathParamInterface, 0, len(original.Value))
+	for _, param := range original.Value {
+		asParam := param.(*bgp.As4PathParam)
+		newASParam := make([]uint32, 0, len(asParam.AS))
+		for _, as := range asParam.AS {
+			if as == peerAS {
+				as = localAS
+			}
+			newASParam = append(newASParam, as)
+		}
+		newASParams = append(newASParams, bgp.NewAs4PathParam(asParam.Type, newASParam))
+	}
+	path.setPathAttr(bgp.NewPathAttributeAsPath(newASParams))
 }
 
 func (path *Path) GetCommunities() []uint32 {
