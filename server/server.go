@@ -1317,7 +1317,17 @@ func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
 		for _, path := range peer.adjRibIn.PathList(families, false) {
 			exResult := path.Filtered(peer.ID())
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
-			if s.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
+
+			// RFC4271 9.1.2 Phase 2: Route Selection
+			//
+			// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
+			// route should be excluded from the Phase 2 decision function.
+			var asLoop bool
+			if aspath := path.GetAsPath(); aspath != nil {
+				asLoop = hasOwnASLoop(peer.fsm.peerInfo.LocalAS, int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs), aspath)
+			}
+
+			if !asLoop && s.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
 				pathList = append(pathList, path.Clone(false))
 				// this path still in rib's
 				// knownPathList. We can't
@@ -1482,13 +1492,13 @@ func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 		if !ok {
 			return fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
 		}
-		id := peer.TableID()
+		id := peer.ID()
 
 		var adjRib *table.AdjRib
 		if in {
 			adjRib = peer.adjRibIn
 		} else {
-			adjRib = table.NewAdjRib(peer.ID(), peer.configuredRFlist())
+			adjRib = table.NewAdjRib(id, peer.configuredRFlist())
 			accepted, _ := peer.getBestFromLocal(peer.configuredRFlist())
 			adjRib.Update(accepted)
 		}
@@ -1707,7 +1717,7 @@ func (s *BgpServer) DeleteNeighbor(c *config.Neighbor) error {
 	}, true)
 }
 
-func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err error) {
+func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, err error) {
 	err = s.mgmtOperation(func() error {
 		addr := c.Config.NeighborAddress
 		peer, ok := s.neighborMap[addr]
@@ -1722,9 +1732,18 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 			}).Info("Update ApplyPolicy")
 			s.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
 			peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
-			policyUpdated = true
+			needsSoftResetIn = true
 		}
 		original := peer.fsm.pConf
+
+		if !original.AsPathOptions.Config.Equal(&c.AsPathOptions.Config) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID(),
+			}).Info("Update aspath options")
+			peer.fsm.pConf.AsPathOptions = c.AsPathOptions
+			needsSoftResetIn = true
+		}
 
 		if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) || config.CheckAfiSafisChange(original.AfiSafis, c.AfiSafis) {
 			sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
@@ -1738,7 +1757,7 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 					"Topic": "Peer",
 					"Key":   peer.ID(),
 					"State": state,
-				}).Info("update admin-state configuration")
+				}).Info("Update admin-state configuration")
 			} else if original.Config.PeerAs != c.Config.PeerAs {
 				sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
 			}
@@ -1763,7 +1782,7 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.ID(),
-			}).Info("update timer configuration")
+			}).Info("Update timer configuration")
 			peer.fsm.pConf.Timers.Config = c.Timers.Config
 		}
 
@@ -1778,7 +1797,7 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 		}
 		return err
 	}, true)
-	return policyUpdated, err
+	return needsSoftResetIn, err
 }
 
 func (s *BgpServer) addrToPeers(addr string) (l []*Peer, err error) {

@@ -116,6 +116,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	n.State.PeerAs = n.Config.PeerAs
+	n.AsPathOptions.State.AllowOwnAs = n.AsPathOptions.Config.AllowOwnAs
 
 	if !v.IsSet("neighbor.timers.config.connect-retry") && n.Timers.Config.ConnectRetry == 0 {
 		n.Timers.Config.ConnectRetry = float64(DEFAULT_CONNECT_RETRY)

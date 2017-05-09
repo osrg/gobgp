@@ -192,6 +192,9 @@ func showNeighbor(args []string) error {
 	if p.AsPathOptions.Config.ReplacePeerAs {
 		elems = append(elems, "Replace peer AS: enabled")
 	}
+	if as := p.AsPathOptions.Config.AllowOwnAs; as > 0 {
+		elems = append(elems, fmt.Sprintf("Allow Own AS: %d", as))
+	}
 	fmt.Printf("  %s\n", strings.Join(elems, ", "))
 
 	fmt.Printf("  Neighbor capabilities:\n")
@@ -823,13 +826,13 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "remove-private-as", "replace-peer-as"})
+	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "remove-private-as", "replace-peer-as", "allow-own-as"})
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
 	if cmdType == CMD_ADD {
-		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | remove-private-as (all|replace) | replace-peer-as ]"
+		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | remove-private-as (all|replace) | replace-peer-as | allow-own-as <num> ]"
 	}
 
-	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["remove-private-as"]) > 1 {
+	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["remove-private-as"]) > 1 || len(m["allow-own-as"]) > 1 {
 		return fmt.Errorf("%s", usage)
 	}
 	unnumbered := len(m["interface"]) > 0
@@ -878,6 +881,13 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		if _, ok := m["replace-peer-as"]; ok {
 			peer.AsPathOptions.Config.ReplacePeerAs = true
+		}
+		if option, ok := m["allow-own-as"]; ok {
+			as, err := strconv.Atoi(option[0])
+			if err != nil {
+				return nil, err
+			}
+			peer.AsPathOptions.Config.AllowOwnAs = uint8(as)
 		}
 		return peer, nil
 	}

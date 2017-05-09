@@ -51,6 +51,7 @@
         local-as = 1000
         remove-private-as = "all"
     [neighbors.as-path-options.config]
+        allow-own-as = 1
         replace-peer-as = true
     [neighbors.timers.config]
         connect-retry = 5
