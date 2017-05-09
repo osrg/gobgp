@@ -797,7 +797,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		return nil, err
 	}
 
-	if rf == bgp.RF_IPv4_UC {
+	if rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})

@@ -573,7 +573,7 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			return nil, fmt.Errorf("not found nlri or nexthop")
 		}
 
-		if resource != Resource_VRF && bgp.RouteFamily(path.Family) == bgp.RF_IPv4_UC {
+		if resource != Resource_VRF && bgp.RouteFamily(path.Family) == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
 		} else {
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
