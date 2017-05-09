@@ -163,6 +163,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			LocalAddress:      localAddress,
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
+			AllowOwnAs:        uint32(pconf.AsPathOptions.Config.AllowOwnAs),
 		},
 		Info: &PeerState{
 			BgpState:   string(s.SessionState),
@@ -854,6 +855,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
+		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAs)
 
 		f := func(bufs [][]byte) ([]bgp.ParameterCapabilityInterface, error) {
 			var caps []bgp.ParameterCapabilityInterface

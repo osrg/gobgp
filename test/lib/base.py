@@ -300,12 +300,17 @@ class BGPContainer(Container):
             name = self.peers[peer]['neigh_addr'].split('/')[0]
         return name
 
+    def update_peer(self, peer, **kwargs):
+        if peer not in self.peers:
+            raise Exception('peer not exists')
+        self.add_peer(peer, **kwargs)
+
     def add_peer(self, peer, passwd=None, vpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
                  flowspec=False, bridge='', reload_config=True, as2=False,
                  graceful_restart=None, local_as=None, prefix_limit=None,
-                 v6=False, llgr=None, vrf='', interface=''):
+                 v6=False, llgr=None, vrf='', interface='', allow_as_in=0):
         neigh_addr = ''
         local_addr = ''
         it = itertools.product(self.ip_addrs, peer.ip_addrs)
@@ -346,7 +351,8 @@ class BGPContainer(Container):
                             'local_as': local_as,
                             'prefix_limit': prefix_limit,
                             'llgr': llgr,
-                            'vrf': vrf}
+                            'vrf': vrf,
+                            'allow_as_in': allow_as_in}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()

@@ -287,6 +287,15 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	assert.Equal(0, len(m.sendBuf))
 }
 
+func TestCheckOwnASLoop(t *testing.T) {
+	assert := assert.New(t)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	assert.False(hasOwnASLoop(65100, 10, aspath))
+	assert.True(hasOwnASLoop(65100, 0, aspath))
+	assert.False(hasOwnASLoop(65200, 0, aspath))
+}
+
 func makePeerAndHandler() (*Peer, *FSMHandler) {
 	p := &Peer{
 		fsm:      NewFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
