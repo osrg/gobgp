@@ -345,6 +345,7 @@ class GoBGPContainer(BGPContainer):
                     'peer-as': peer.asn,
                     'auth-password': info['passwd'],
                     'vrf': info['vrf'],
+                    'remove-private-as': info['remove_private_as'],
                 },
                 'afi-safis': afi_safi_list,
                 'timers': {
@@ -356,6 +357,12 @@ class GoBGPContainer(BGPContainer):
                     'config': {},
                 },
             }
+
+            n['as-path-options'] = {'config': {}}
+            if info['allow_as_in'] > 0:
+                n['as-path-options']['config']['allow-own-as'] = info['allow_as_in']
+            if info['replace_peer_as']:
+                n['as-path-options']['config']['replace-peer-as'] = info['replace_peer_as']
 
             if ':' in info['local_addr']:
                 n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]
