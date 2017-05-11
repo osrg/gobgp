@@ -2742,11 +2742,10 @@ func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, 
 			}
 		case DECLogicOpNameMap[DEC_LOGIC_OP_AND], DECLogicOpNameMap[DEC_LOGIC_OP_OR]:
 			if bit := DECLogicOpValueMap[myCmdChar]; bit&DECLogicOp(operatorValue[0]) == 0 {
-				if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
-					operatorValue[0] |= int(bit)
-				}
 				decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
-				operatorValue[0] = 0
+				if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
+					operatorValue[0] = int(bit)
+				}
 				operatorValue[1] = 0
 				index++
 			} else {
