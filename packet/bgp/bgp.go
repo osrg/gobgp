@@ -1258,9 +1258,9 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 }
 
 func parseRdAndRt(input string) ([]string, error) {
-	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)):(\\d+)$")
+	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)|([\\w]+:[\\w:]*:[\\w]+)):(\\d+)$")
 	elems := exp.FindStringSubmatch(input)
-	if len(elems) != 10 {
+	if len(elems) != 11 {
 		return nil, fmt.Errorf("failed to parse")
 	}
 	return elems, nil
@@ -5759,12 +5759,14 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 	if err != nil {
 		return nil, err
 	}
-	localAdmin, _ := strconv.Atoi(elems[9])
+	localAdmin, _ := strconv.Atoi(elems[10])
 	ip := net.ParseIP(elems[1])
 	isTransitive := true
 	switch {
 	case ip.To4() != nil:
 		return NewIPv4AddressSpecificExtended(subtype, elems[1], uint16(localAdmin), isTransitive), nil
+	case ip.To16() != nil:
+		return NewIPv6AddressSpecificExtended(subtype, elems[1], uint16(localAdmin), isTransitive), nil
 	case elems[6] == "" && elems[7] == "":
 		asn, _ := strconv.Atoi(elems[8])
 		return NewTwoOctetAsSpecificExtended(subtype, uint16(asn), uint32(localAdmin), isTransitive), nil

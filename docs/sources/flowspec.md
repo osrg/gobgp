@@ -52,7 +52,7 @@ CLI syntax to add ipv4/ipv6 flowspec rule is
    <TCPFLAG> : U, C, E, F, S, R, P, A
    <ITEM> : &?{<|>|>=|<=|==|!=}<value>
    <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
-   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
+   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy, <ipv6_address>:yyy
 ```
 
 that for l2vpn flowspec rule is
@@ -63,7 +63,7 @@ that for l2vpn flowspec rule is
    <ETHER_TYPE> : arp, vmtp, ipx, snmp, net-bios, xtp, pppoe-discovery, ipv4, rarp, ipv6, pppoe-session, loopback, apple-talk, aarp
    <ITEM> : &?{<|>|>=|<=|==|!=}<value>
    <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
-   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
+   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy, <ipv6_address>:yyy
 ```
 ### Decimal values and Operators
 
