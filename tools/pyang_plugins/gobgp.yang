@@ -52,6 +52,10 @@ module gobgp {
         value 3;
         description "send local rib routes";
       }
+      enum ALL {
+        value 4;
+        description "send pre-policy, post-policy, and local rib routes";
+      }
     }
   }
 

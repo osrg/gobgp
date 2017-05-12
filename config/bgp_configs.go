@@ -859,6 +859,7 @@ const (
 	BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY BmpRouteMonitoringPolicyType = "post-policy"
 	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH        BmpRouteMonitoringPolicyType = "both"
 	BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB   BmpRouteMonitoringPolicyType = "local-rib"
+	BMP_ROUTE_MONITORING_POLICY_TYPE_ALL         BmpRouteMonitoringPolicyType = "all"
 )
 
 var BmpRouteMonitoringPolicyTypeToIntMap = map[BmpRouteMonitoringPolicyType]int{
@@ -866,6 +867,7 @@ var BmpRouteMonitoringPolicyTypeToIntMap = map[BmpRouteMonitoringPolicyType]int{
 	BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY: 1,
 	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH:        2,
 	BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB:   3,
+	BMP_ROUTE_MONITORING_POLICY_TYPE_ALL:         4,
 }
 
 func (v BmpRouteMonitoringPolicyType) ToInt() int {
@@ -881,6 +883,7 @@ var IntToBmpRouteMonitoringPolicyTypeMap = map[int]BmpRouteMonitoringPolicyType{
 	1: BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY,
 	2: BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH,
 	3: BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB,
+	4: BMP_ROUTE_MONITORING_POLICY_TYPE_ALL,
 }
 
 func (v BmpRouteMonitoringPolicyType) Validate() error {
