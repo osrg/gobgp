@@ -367,7 +367,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		}
 
 		if ignore {
-			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
+			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() && old.GetSource().AS != peer.fsm.pConf.State.PeerAs {
 				// we advertise a route from ebgp,
 				// which is the old best. We got the
 				// new best from ibgp. We don't
