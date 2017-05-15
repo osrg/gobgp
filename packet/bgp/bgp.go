@@ -125,6 +125,7 @@ const (
 	EC_SUBTYPE_FLOWSPEC_REDIRECT       ExtendedCommunityAttrSubType = 0x08 // EC_TYPE: 0x80
 	EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK ExtendedCommunityAttrSubType = 0x09 // EC_TYPE: 0x80
 	EC_SUBTYPE_L2_INFO                 ExtendedCommunityAttrSubType = 0x0A // EC_TYPE: 0x80
+	EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6   ExtendedCommunityAttrSubType = 0x0B // EC_TYPE: 0x80
 
 	EC_SUBTYPE_MAC_MOBILITY ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x06
 	EC_SUBTYPE_ESI_LABEL    ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x06
@@ -6316,6 +6317,38 @@ func NewRedirectIPv4AddressSpecificExtended(ipv4 string, localAdmin uint16) *Red
 	return &RedirectIPv4AddressSpecificExtended{*NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv4, localAdmin, false)}
 }
 
+type RedirectIPv6AddressSpecificExtended struct {
+	IPv6AddressSpecificExtended
+}
+
+func (e *RedirectIPv6AddressSpecificExtended) Serialize() ([]byte, error) {
+	buf, err := e.IPv6AddressSpecificExtended.Serialize()
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6)
+	return buf, err
+}
+
+func (e *RedirectIPv6AddressSpecificExtended) String() string {
+	return fmt.Sprintf("redirect: %s", e.IPv6AddressSpecificExtended.String())
+}
+
+func (e *RedirectIPv6AddressSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{t, s, e.IPv6AddressSpecificExtended.String()})
+}
+
+func (e *RedirectIPv6AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6
+}
+
+func NewRedirectIPv6AddressSpecificExtended(ipv6 string, localAdmin uint16) *RedirectIPv6AddressSpecificExtended {
+	return &RedirectIPv6AddressSpecificExtended{*NewIPv6AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv6, localAdmin, false)}
+}
+
 type RedirectFourOctetAsSpecificExtended struct {
 	FourOctetAsSpecificExtended
 }
@@ -6416,10 +6449,36 @@ func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 	case EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK:
 		dscp := data[7]
 		return NewTrafficRemarkExtended(dscp), nil
+	case EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6:
+		ipv6 := net.IP(data[2:18]).String()
+		localAdmin := binary.BigEndian.Uint16(data[18:20])
+		return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin), nil
 	}
 	return &UnknownExtended{
 		Type:  ExtendedCommunityAttrType(data[0]),
 		Value: data[1:8],
+	}, nil
+}
+
+func parseIP6FlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
+	typ := ExtendedCommunityAttrType(data[0])
+	if typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 {
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_FLOWSPEC: %d", data[0]))
+	}
+	subType := ExtendedCommunityAttrSubType(data[1])
+	switch subType {
+	case EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6:
+		// RFC7674
+		switch typ {
+		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL:
+			ipv6 := net.IP(data[2:18]).String()
+			localAdmin := binary.BigEndian.Uint16(data[18:20])
+			return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin), nil
+		}
+	}
+	return &UnknownExtended{
+		Type:  ExtendedCommunityAttrType(data[0]),
+		Value: data[1:20],
 	}, nil
 }
 
@@ -7159,16 +7218,11 @@ func (p *PathAttributeIP6ExtendedCommunities) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeIP6ExtendedCommunities) String() string {
-	buf := bytes.NewBuffer(make([]byte, 0, 32))
-	for idx, v := range p.Value {
-		buf.WriteString("[")
-		buf.WriteString(v.String())
-		buf.WriteString("]")
-		if idx < len(p.Value)-1 {
-			buf.WriteString(", ")
-		}
+	var buf []string
+	for _, v := range p.Value {
+		buf = append(buf, fmt.Sprintf("[%s]", v.String()))
 	}
-	return fmt.Sprintf("{Extcomms: %s}", buf.String())
+	return fmt.Sprintf("{Extcomms: %s}", strings.Join(buf, ","))
 }
 
 func (p *PathAttributeIP6ExtendedCommunities) MarshalJSON() ([]byte, error) {
@@ -7871,6 +7925,10 @@ func (e *TrafficRemarkExtended) Flat() map[string]string {
 }
 
 func (e *RedirectIPv4AddressSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *RedirectIPv6AddressSpecificExtended) Flat() map[string]string {
 	return map[string]string{}
 }
 
