@@ -353,6 +353,26 @@ func Test_FlowSpecExtended(t *testing.T) {
 	}
 }
 
+func Test_IP6FlowSpecExtended(t *testing.T) {
+	assert := assert.New(t)
+	exts := make([]ExtendedCommunityInterface, 0)
+	exts = append(exts, NewRedirectIPv6AddressSpecificExtended("2001:db8::68", 1000))
+	m1 := NewPathAttributeIP6ExtendedCommunities(exts)
+	buf1, err := m1.Serialize()
+	assert.Nil(err)
+	m2 := NewPathAttributeIP6ExtendedCommunities(nil)
+	err = m2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := m2.Serialize()
+	if reflect.DeepEqual(m1, m2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), m1, buf1)
+		t.Error(len(buf2), m2, buf2)
+	}
+}
+
 func Test_FlowSpecNlriv6(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
