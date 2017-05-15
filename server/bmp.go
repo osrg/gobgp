@@ -167,11 +167,16 @@ func (b *bmpClient) loop() {
 							}
 						}
 					case *WatchEventBestPath:
+						info := &table.PeerInfo{
+							Address: net.ParseIP("0.0.0.0").To4(),
+							AS:      b.s.bgpConfig.Global.Config.As,
+							ID:      net.ParseIP(b.s.bgpConfig.Global.Config.RouterId).To4(),
+						}
 						for _, p := range msg.PathList {
 							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
 							if payload, err := u.Serialize(); err != nil {
 								return false
-							} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, p.GetSource(), p.GetTimestamp().Unix(), payload)); err != nil {
+							} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, info, p.GetTimestamp().Unix(), payload)); err != nil {
 								return false
 							}
 						}
