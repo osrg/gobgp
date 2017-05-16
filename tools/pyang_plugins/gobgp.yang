@@ -46,7 +46,7 @@ module gobgp {
       }
       enum BOTH {
         value 2;
-        description "send both pre and post-policy routes";
+        description "!OBSOLETED! send both pre and post-policy routes";
       }
       enum LOCAL-RIB {
         value 3;

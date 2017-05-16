@@ -25,7 +25,12 @@ Add `[bmp-servers]` session to enable BMP.
     port=11019
 ```
 
-Flows can be post-policy, pre-policy, or both. Pre-policy flows are the default. 
+The supported route monitoring policy types are:
+- pre-policy (Default)
+- post-policy
+- both (Obsoleted)
+- local-rib
+- all
 
 Enable post-policy support as follows:
 
@@ -37,14 +42,14 @@ Enable post-policy support as follows:
     route-monitoring-policy = "post-policy"
 ```
 
-Enable both pre-policy and post-policy support as follows:
+Enable all policies support as follows:
 
 ```toml
 [[bmp-servers]]
   [bmp-servers.config]
     address = "127.0.0.1"
     port=11019
-    route-monitoring-policy = "both"
+    route-monitoring-policy = "all"
 ```
 
 
