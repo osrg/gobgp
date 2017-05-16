@@ -113,10 +113,15 @@ func (b *bmpClient) loop() {
 
 		if func() bool {
 			ops := []WatchOption{WatchPeerState(true)}
-			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
+			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
+				log.WithFields(
+					log.Fields{"Topic": "bmp"},
+				).Warn("both option for route-monitoring-policy is obsoleted")
+			}
+			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchUpdate(true))
 			}
-			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
+			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchPostUpdate(true))
 			}
 			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
