@@ -553,6 +553,11 @@ module gobgp {
       type bmp-route-monitoring-policy-type;
       default PRE-POLICY;
     }
+    leaf statistics-timeout {
+      type uint16;
+      description
+        "Interval seconds of statistics messages sent to BMP server";
+    }
   }
 
   grouping gobgp-bmp-server-state {

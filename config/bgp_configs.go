@@ -1169,6 +1169,8 @@ type BmpServerConfig struct {
 	Port uint32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:route-monitoring-policy
 	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy" json:"route-monitoring-policy,omitempty"`
+	// original -> gobgp:statistics-timeout
+	StatisticsTimeout uint16 `mapstructure:"statistics-timeout" json:"statistics-timeout,omitempty"`
 }
 
 func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
@@ -1182,6 +1184,9 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 		return false
 	}
 	if lhs.RouteMonitoringPolicy != rhs.RouteMonitoringPolicy {
+		return false
+	}
+	if lhs.StatisticsTimeout != rhs.StatisticsTimeout {
 		return false
 	}
 	return true

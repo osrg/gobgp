@@ -30,6 +30,8 @@
     [bmp-servers.config]
         address = "127.0.0.1"
         port = 11019
+        route-monitoring-policy = "pre-policy"
+        statistics-timeout = 3600
 
 [[mrt-dump]]
     dump-type = "updates"

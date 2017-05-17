@@ -52,6 +52,17 @@ Enable all policies support as follows:
     route-monitoring-policy = "all"
 ```
 
+To enable BMP stats reports, specify the interval seconds to send statistics messages.
+The default value is 0 and no statistics messages are sent.
+Please note the range of this interval is 15 though 65535 seconds.
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    statistics-timeout = 3600
+```
 
 ## <a name="verify"> Verification
 

@@ -267,6 +267,10 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		if server.Config.Port == 0 {
 			server.Config.Port = bmp.BMP_DEFAULT_PORT
 		}
+		// statistics-timeout is uint16 value and implicitly less than 65536
+		if server.Config.StatisticsTimeout != 0 && server.Config.StatisticsTimeout < 15 {
+			return fmt.Errorf("too small statistics-timeout value: %d", server.Config.StatisticsTimeout)
+		}
 		b.BmpServers[idx] = server
 	}
 
