@@ -543,8 +543,9 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 	if peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
 		if getAdvertised {
-			pathList, _ := peer.getBestFromLocal(rfList)
+			pathList, filtered := peer.getBestFromLocal(rfList)
 			conf.State.AdjTable.Advertised = uint32(len(pathList))
+			conf.State.AdjTable.Filtered = uint32(len(filtered))
 		} else {
 			conf.State.AdjTable.Advertised = 0
 		}

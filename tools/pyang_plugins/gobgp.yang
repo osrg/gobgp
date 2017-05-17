@@ -202,6 +202,10 @@ module gobgp {
         type uint32;
       }
 
+      leaf FILTERED {
+        type uint32;
+      }
+
       leaf RECEIVED {
         type uint32;
       }

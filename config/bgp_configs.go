@@ -2100,6 +2100,8 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 type AdjTable struct {
 	// original -> gobgp:ADVERTISED
 	Advertised uint32 `mapstructure:"advertised" json:"advertised,omitempty"`
+	// original -> gobgp:FILTERED
+	Filtered uint32 `mapstructure:"filtered" json:"filtered,omitempty"`
 	// original -> gobgp:RECEIVED
 	Received uint32 `mapstructure:"received" json:"received,omitempty"`
 	// original -> gobgp:ACCEPTED
@@ -2111,6 +2113,9 @@ func (lhs *AdjTable) Equal(rhs *AdjTable) bool {
 		return false
 	}
 	if lhs.Advertised != rhs.Advertised {
+		return false
+	}
+	if lhs.Filtered != rhs.Filtered {
 		return false
 	}
 	if lhs.Received != rhs.Received {
