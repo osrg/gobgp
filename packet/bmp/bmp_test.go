@@ -67,6 +67,19 @@ func Test_RouteMonitoring(t *testing.T) {
 	verify(t, NewBMPRouteMonitoring(*p0, m))
 }
 
+func Test_StatisticsReport(t *testing.T) {
+	p0 := NewBMPPeerHeader(0, 0, 1000, "10.0.0.1", 70000, "10.0.0.2", 1)
+	s0 := NewBMPStatisticsReport(
+		*p0,
+		[]BMPStatsTLVInterface{
+			NewBMPStatsTLV32(BMP_STAT_TYPE_REJECTED, 100),
+			NewBMPStatsTLV64(BMP_STAT_TYPE_ADJ_RIB_IN, 200),
+			NewBMPStatsTLVPerAfiSafi64(BMP_STAT_TYPE_PER_AFI_SAFI_LOC_RIB, bgp.AFI_IP, bgp.SAFI_UNICAST, 300),
+		},
+	)
+	verify(t, s0)
+}
+
 func Test_BogusHeader(t *testing.T) {
 	h, err := ParseBMPMessage(make([]byte, 10))
 	assert.Nil(t, h)

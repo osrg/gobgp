@@ -195,15 +195,181 @@ const (
 	BMP_STAT_TYPE_DUPLICATE_UPDATE
 )
 
+type BMPStatsTLVInterface interface {
+	ParseValue([]byte) error
+	Serialize() ([]byte, error)
+}
+
 type BMPStatsTLV struct {
 	Type   uint16
 	Length uint16
-	Value  uint64
+}
+
+type BMPStatsTLV32 struct {
+	BMPStatsTLV
+	Value uint32
+}
+
+func NewBMPStatsTLV32(t uint16, v uint32) *BMPStatsTLV32 {
+	return &BMPStatsTLV32{
+		BMPStatsTLV: BMPStatsTLV{
+			Type:   t,
+			Length: 4,
+		},
+		Value: v,
+	}
+}
+
+func (s *BMPStatsTLV32) ParseValue(data []byte) error {
+	if s.Length != 4 {
+		return fmt.Errorf("invalid lengh: %d bytes (%d bytes expected)", s.Length, 4)
+	}
+	s.Value = binary.BigEndian.Uint32(data[:8])
+	return nil
+}
+
+func (s *BMPStatsTLV32) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], 4)
+	binary.BigEndian.PutUint32(buf[4:8], s.Value)
+	return buf, nil
+}
+
+type BMPStatsTLV64 struct {
+	BMPStatsTLV
+	Value uint64
+}
+
+func NewBMPStatsTLV64(t uint16, v uint64) *BMPStatsTLV64 {
+	return &BMPStatsTLV64{
+		BMPStatsTLV: BMPStatsTLV{
+			Type:   t,
+			Length: 8,
+		},
+		Value: v,
+	}
+}
+
+func (s *BMPStatsTLV64) ParseValue(data []byte) error {
+	if s.Length != 8 {
+		return fmt.Errorf("invalid lengh: %d bytes (%d bytes expected)", s.Length, 8)
+	}
+	s.Value = binary.BigEndian.Uint64(data[:8])
+	return nil
+}
+
+func (s *BMPStatsTLV64) Serialize() ([]byte, error) {
+	buf := make([]byte, 12)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], 8)
+	binary.BigEndian.PutUint64(buf[4:12], s.Value)
+	return buf, nil
+}
+
+type BMPStatsTLVPerAfiSafi64 struct {
+	BMPStatsTLV
+	AFI   uint16
+	SAFI  uint8
+	Value uint64
+}
+
+func NewBMPStatsTLVPerAfiSafi64(t uint16, afi uint16, safi uint8, v uint64) *BMPStatsTLVPerAfiSafi64 {
+	return &BMPStatsTLVPerAfiSafi64{
+		BMPStatsTLV: BMPStatsTLV{
+			Type:   t,
+			Length: 11,
+		},
+		AFI:   afi,
+		SAFI:  safi,
+		Value: v,
+	}
+}
+
+func (s *BMPStatsTLVPerAfiSafi64) ParseValue(data []byte) error {
+	if s.Length != 11 {
+		return fmt.Errorf("invalid lengh: %d bytes (%d bytes expected)", s.Length, 11)
+	}
+	s.AFI = binary.BigEndian.Uint16(data[0:2])
+	s.SAFI = data[2]
+	s.Value = binary.BigEndian.Uint64(data[3:11])
+	return nil
+}
+
+func (s *BMPStatsTLVPerAfiSafi64) Serialize() ([]byte, error) {
+	buf := make([]byte, 15)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], 11)
+	binary.BigEndian.PutUint16(buf[4:6], s.AFI)
+	buf[6] = s.SAFI
+	binary.BigEndian.PutUint64(buf[7:15], s.Value)
+	return buf, nil
 }
 
 type BMPStatisticsReport struct {
 	Count uint32
-	Stats []BMPStatsTLV
+	Stats []BMPStatsTLVInterface
+}
+
+func NewBMPStatisticsReport(p BMPPeerHeader, stats []BMPStatsTLVInterface) *BMPMessage {
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_STATISTICS_REPORT,
+		},
+		PeerHeader: p,
+		Body: &BMPStatisticsReport{
+			Count: uint32(len(stats)),
+			Stats: stats,
+		},
+	}
+}
+
+func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
+	body.Count = binary.BigEndian.Uint32(data[0:4])
+	data = data[4:]
+	for len(data) >= 4 {
+		tl := BMPStatsTLV{
+			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Length: binary.BigEndian.Uint16(data[2:4]),
+		}
+		data = data[4:]
+		if len(data) < int(tl.Length) {
+			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+		}
+		var s BMPStatsTLVInterface
+		var err error = nil
+		if tl.Type == BMP_STAT_TYPE_ADJ_RIB_IN || tl.Type == BMP_STAT_TYPE_LOC_RIB {
+			s = &BMPStatsTLV64{BMPStatsTLV: tl}
+			err = s.ParseValue(data)
+		} else if tl.Type == BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN || tl.Type == BMP_STAT_TYPE_PER_AFI_SAFI_LOC_RIB {
+			s = &BMPStatsTLVPerAfiSafi64{BMPStatsTLV: tl}
+			err = s.ParseValue(data)
+		} else {
+			s = &BMPStatsTLV32{BMPStatsTLV: tl}
+			err = s.ParseValue(data)
+		}
+		if err != nil {
+			return err
+		}
+		body.Stats = append(body.Stats, s)
+		data = data[tl.Length:]
+	}
+	return nil
+}
+
+func (body *BMPStatisticsReport) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	body.Count = uint32(len(body.Stats))
+	binary.BigEndian.PutUint32(buf[0:4], body.Count)
+	for _, tlv := range body.Stats {
+		tlvBuf, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, tlvBuf...)
+	}
+	return buf, nil
 }
 
 const (
@@ -347,43 +513,6 @@ func (body *BMPPeerUpNotification) Serialize() ([]byte, error) {
 	buf = append(buf, m...)
 	m, _ = body.ReceivedOpenMsg.Serialize()
 	buf = append(buf, m...)
-	return buf, nil
-}
-
-func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
-	body.Count = binary.BigEndian.Uint32(data[0:4])
-	data = data[4:]
-	for len(data) >= 4 {
-		s := BMPStatsTLV{}
-		s.Type = binary.BigEndian.Uint16(data[0:2])
-		s.Length = binary.BigEndian.Uint16(data[2:4])
-		data = data[4:]
-		if len(data) < int(s.Length) {
-			break
-		}
-		if s.Type == BMP_STAT_TYPE_ADJ_RIB_IN || s.Type == BMP_STAT_TYPE_LOC_RIB {
-			if s.Length < 8 {
-				break
-			}
-			s.Value = binary.BigEndian.Uint64(data[:8])
-		} else {
-			if s.Length < 4 {
-				break
-			}
-			s.Value = uint64(binary.BigEndian.Uint32(data[:4]))
-		}
-		body.Stats = append(body.Stats, s)
-		data = data[s.Length:]
-	}
-	return nil
-}
-
-func (body *BMPStatisticsReport) Serialize() ([]byte, error) {
-	// TODO
-	buf := make([]byte, 4)
-	body.Count = uint32(len(body.Stats))
-	binary.BigEndian.PutUint32(buf[0:4], body.Count)
-
 	return buf, nil
 }
 
