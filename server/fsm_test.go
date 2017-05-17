@@ -16,30 +16,35 @@
 package server
 
 import (
-	"fmt"
+	"errors"
+	"net"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
-	"net"
-	"strconv"
-	"testing"
-	"time"
 )
 
 type MockConnection struct {
+	*testing.T
 	net.Conn
 	recvCh    chan chan byte
 	sendBuf   [][]byte
 	currentCh chan byte
 	isClosed  bool
 	wait      int
+	mtx       sync.Mutex
 }
 
-func NewMockConnection() *MockConnection {
+func NewMockConnection(t *testing.T) *MockConnection {
 	m := &MockConnection{
+		T:        t,
 		recvCh:   make(chan chan byte, 128),
 		sendBuf:  make([][]byte, 0),
 		isClosed: false,
@@ -61,9 +66,11 @@ func (m *MockConnection) setData(data []byte) int {
 }
 
 func (m *MockConnection) Read(buf []byte) (int, error) {
-
-	if m.isClosed {
-		return 0, fmt.Errorf("already closed")
+	m.mtx.Lock()
+	closed := m.isClosed
+	m.mtx.Unlock()
+	if closed {
+		return 0, errors.New("already closed")
 	}
 
 	if m.currentCh == nil {
@@ -83,7 +90,7 @@ func (m *MockConnection) Read(buf []byte) (int, error) {
 		}
 	}
 
-	fmt.Printf("%d bytes read from peer\n", length)
+	m.Logf("%d bytes read from peer", length)
 	return length, nil
 }
 
@@ -91,7 +98,8 @@ func (m *MockConnection) Write(buf []byte) (int, error) {
 	time.Sleep(time.Duration(m.wait) * time.Millisecond)
 	m.sendBuf = append(m.sendBuf, buf)
 	msg, _ := bgp.ParseBGPMessage(buf)
-	fmt.Printf("%d bytes written by gobgp  message type : %s\n", len(buf), showMessageType(msg.Header.Type))
+	m.Logf("%d bytes written by gobgp  message type : %s",
+		len(buf), showMessageType(msg.Header.Type))
 	return len(buf), nil
 }
 
@@ -112,7 +120,8 @@ func showMessageType(t uint8) string {
 }
 
 func (m *MockConnection) Close() error {
-	fmt.Printf("close called\n")
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	if !m.isClosed {
 		close(m.recvCh)
 		m.isClosed = true
@@ -128,17 +137,17 @@ func (m *MockConnection) LocalAddr() net.Addr {
 
 func TestReadAll(t *testing.T) {
 	assert := assert.New(t)
-	m := NewMockConnection()
+	m := NewMockConnection(t)
 	msg := open()
 	expected1, _ := msg.Header.Serialize()
 	expected2, _ := msg.Body.Serialize()
 
 	pushBytes := func() {
-		fmt.Println("push 5 bytes")
+		m.Log("push 5 bytes")
 		m.setData(expected1[0:5])
-		fmt.Println("push rest")
+		m.Log("push rest")
 		m.setData(expected1[5:])
-		fmt.Println("push bytes at once")
+		m.Log("push bytes at once")
 		m.setData(expected2)
 	}
 
@@ -146,18 +155,18 @@ func TestReadAll(t *testing.T) {
 
 	var actual1 []byte
 	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH)
-	fmt.Println(actual1)
+	m.Log(actual1)
 	assert.Equal(expected1, actual1)
 
 	var actual2 []byte
 	actual2, _ = readAll(m, len(expected2))
-	fmt.Println(actual2)
+	m.Log(actual2)
 	assert.Equal(expected2, actual2)
 }
 
 func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
-	m := NewMockConnection()
+	m := NewMockConnection(t)
 
 	p, h := makePeerAndHandler()
 
@@ -183,7 +192,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 
 func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
-	m := NewMockConnection()
+	m := NewMockConnection(t)
 
 	p, h := makePeerAndHandler()
 
@@ -208,7 +217,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 
 func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
-	m := NewMockConnection()
+	m := NewMockConnection(t)
 
 	p, h := makePeerAndHandler()
 
@@ -237,7 +246,9 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	state, _ := h.established()
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
+	m.mtx.Lock()
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	m.mtx.Unlock()
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
@@ -246,7 +257,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
-	m := NewMockConnection()
+	m := NewMockConnection(t)
 
 	p, h := makePeerAndHandler()
 
@@ -269,7 +280,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
-	m := NewMockConnection()
+	m := NewMockConnection(t)
 
 	p, h := makePeerAndHandler()
 
