@@ -113,22 +113,31 @@ func (b *bmpClient) loop() {
 
 		if func() bool {
 			ops := []WatchOption{WatchPeerState(true)}
-			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
+			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				log.WithFields(
 					log.Fields{"Topic": "bmp"},
 				).Warn("both option for route-monitoring-policy is obsoleted")
 			}
-			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
+			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchUpdate(true))
 			}
-			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
+			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchPostUpdate(true))
 			}
-			if b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.typ == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
+			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchBestPath(true))
 			}
 			w := b.s.Watch(ops...)
 			defer w.Stop()
+
+			var tickerCh <-chan time.Time
+			if b.c.StatisticsTimeout == 0 {
+				log.WithFields(log.Fields{"Topic": "bmp"}).Debug("statistics reports disabled")
+			} else {
+				t := time.NewTicker(time.Duration(b.c.StatisticsTimeout) * time.Second)
+				defer t.Stop()
+				tickerCh = t.C
+			}
 
 			write := func(msg *bmp.BMPMessage) error {
 				buf, _ := msg.Serialize()
@@ -201,6 +210,16 @@ func (b *bmpClient) loop() {
 							}
 						}
 					}
+				case <-tickerCh:
+					neighborList := b.s.GetNeighbor("", true)
+					for _, n := range neighborList {
+						if n.State.SessionState != config.SESSION_STATE_ESTABLISHED {
+							continue
+						}
+						if err := write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, 0, n)); err != nil {
+							return false
+						}
+					}
 				case <-b.dead:
 					conn.Close()
 					return true
@@ -216,7 +235,7 @@ type bmpClient struct {
 	s      *BgpServer
 	dead   chan struct{}
 	host   string
-	typ    config.BmpRouteMonitoringPolicyType
+	c      *config.BmpServerConfig
 	ribout ribout
 }
 
@@ -250,6 +269,18 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timest
 	return m
 }
 
+func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, neighConf *config.Neighbor) *bmp.BMPMessage {
+	var peerFlags uint8 = 0
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, neighConf.Config.NeighborAddress, neighConf.State.PeerAs, neighConf.State.RemoteRouterId, float64(timestamp))
+	return bmp.NewBMPStatisticsReport(
+		*ph,
+		[]bmp.BMPStatsTLVInterface{
+			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_ADJ_RIB_IN, uint64(neighConf.State.AdjTable.Accepted)),
+			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_LOC_RIB, uint64(neighConf.State.AdjTable.Advertised+neighConf.State.AdjTable.Filtered)),
+		},
+	)
+}
+
 func (b *bmpClientManager) addServer(c *config.BmpServerConfig) error {
 	host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
 	if _, y := b.clientMap[host]; y {
@@ -259,7 +290,7 @@ func (b *bmpClientManager) addServer(c *config.BmpServerConfig) error {
 		s:      b.s,
 		dead:   make(chan struct{}),
 		host:   host,
-		typ:    c.RouteMonitoringPolicy,
+		c:      c,
 		ribout: newribout(),
 	}
 	go b.clientMap[host].loop()
