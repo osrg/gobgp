@@ -343,3 +343,84 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	}
 
 }
+
+func TestPeerGroup(test *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	s := NewBgpServer()
+	go s.Serve()
+	s.Start(&config.Global{
+		Config: config.GlobalConfig{
+			As:       1,
+			RouterId: "1.1.1.1",
+			Port:     10180,
+		},
+	})
+	g := &config.PeerGroup{
+		Config: config.PeerGroupConfig{
+			PeerAs:        2,
+			PeerGroupName: "g",
+		},
+	}
+	if err := s.AddPeerGroup(g); err != nil {
+		log.Fatal(err)
+	}
+	n := &config.Neighbor{
+		Config: config.NeighborConfig{
+			NeighborAddress: "127.0.0.1",
+			PeerGroup:       "g",
+		},
+		Transport: config.Transport{
+			Config: config.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+	}
+	configured := map[string]interface{}{
+		"config": map[string]interface{}{
+			"neigbor-address": "127.0.0.1",
+			"peer-group":      "g",
+		},
+		"transport": map[string]interface{}{
+			"config": map[string]interface{}{
+				"passive-mode": true,
+			},
+		},
+	}
+	config.RegisterConfiguredFields("127.0.0.1", configured)
+
+	if err := s.AddNeighbor(n); err != nil {
+		log.Fatal(err)
+	}
+
+	t := NewBgpServer()
+	go t.Serve()
+	t.Start(&config.Global{
+		Config: config.GlobalConfig{
+			As:       2,
+			RouterId: "2.2.2.2",
+			Port:     -1,
+		},
+	})
+
+	m := &config.Neighbor{
+		Config: config.NeighborConfig{
+			NeighborAddress: "127.0.0.1",
+			PeerAs:          1,
+		},
+		Transport: config.Transport{
+			Config: config.TransportConfig{
+				RemotePort: 10180,
+			},
+		},
+	}
+	if err := t.AddNeighbor(m); err != nil {
+		log.Fatal(err)
+	}
+
+	for {
+		time.Sleep(time.Second)
+		if t.GetNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
+			break
+		}
+	}
+}

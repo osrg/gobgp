@@ -149,6 +149,7 @@ func main() {
 		select {
 		case newConfig := <-configCh:
 			var added, deleted, updated []config.Neighbor
+			var addedPg, deletedPg, updatedPg []config.PeerGroup
 			var updatePolicy bool
 
 			if c == nil {
@@ -190,6 +191,7 @@ func main() {
 				}
 
 				added = newConfig.Neighbors
+				addedPg = newConfig.PeerGroups
 				if opts.GracefulRestart {
 					for i, n := range added {
 						if n.GracefulRestart.Config.Enabled {
@@ -199,7 +201,10 @@ func main() {
 				}
 
 			} else {
-				added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
+				addedPg, deletedPg, updatedPg = config.UpdatePeerGroupConfig(c, newConfig)
+				added, deleted, updated = config.UpdateNeighborConfig(c, newConfig)
+				updatePolicy = config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
+
 				if updatePolicy {
 					log.Info("Policy config is updated")
 					p := config.ConfigSetToRoutingPolicy(newConfig)
@@ -241,7 +246,26 @@ func main() {
 				}
 				c = newConfig
 			}
-
+			for i, pg := range addedPg {
+				log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
+				if err := bgpServer.AddPeerGroup(&addedPg[i]); err != nil {
+					log.Warn(err)
+				}
+			}
+			for i, pg := range deletedPg {
+				log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
+				if err := bgpServer.DeletePeerGroup(&deletedPg[i]); err != nil {
+					log.Warn(err)
+				}
+			}
+			for i, pg := range updatedPg {
+				log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
+				u, err := bgpServer.UpdatePeerGroup(&updatedPg[i])
+				if err != nil {
+					log.Warn(err)
+				}
+				updatePolicy = updatePolicy || u
+			}
 			for i, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
 				if err := bgpServer.AddNeighbor(&added[i]); err != nil {
