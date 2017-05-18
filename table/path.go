@@ -92,6 +92,28 @@ type Path struct {
 	IsNexthopInvalid bool
 }
 
+// reset is just like Clone except it reuses the same backing slices and map for
+// use in places where a copy isn't needed, but rather a derivative that leaves
+// the original discarded.
+func (path *Path) reset(isWithdraw bool) {
+	vrfIds := path.VrfIds[0:0]
+	pathAttrs := path.pathAttrs[0:0]
+	filtered := path.filtered
+	if filtered != nil {
+		for k := range filtered {
+			delete(filtered, k)
+		}
+	}
+	*path = Path{
+		parent:           path,
+		IsWithdraw:       isWithdraw,
+		IsNexthopInvalid: path.IsNexthopInvalid,
+		pathAttrs:        pathAttrs,
+		VrfIds:           vrfIds,
+		filtered:         filtered,
+	}
+}
+
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
 	if !isWithdraw && pattrs == nil {
 		log.WithFields(log.Fields{
