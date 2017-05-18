@@ -3290,7 +3290,7 @@ func formatNumeric(op int, value int) string {
 	if DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_FALSE]] || DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_TRUE]] {
 		return fmt.Sprintf("%s%s", formatNumericOpFrontQty(op), formatNumericOpBackLogic(op))
 	} else {
-		return fmt.Sprintf("%s%d%s", formatNumericOpFrontQty(op), value, formatNumericOpBackLogic(op))
+		return fmt.Sprintf("%s%s%d", formatNumericOpBackLogic(op), formatNumericOpFrontQty(op), value)
 	}
 }
 
