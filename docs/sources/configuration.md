@@ -52,6 +52,8 @@
         # override global.config.as value
         local-as = 1000
         remove-private-as = "all"
+        # To enable peer group setting, uncomment the following
+        #peer-group = "my-peer-group"
     [neighbors.as-path-options.config]
         allow-own-as = 1
         replace-peer-as = true
@@ -129,6 +131,14 @@
         default-in-policy = "reject-route"
     [neighbors.route-server.config]
         route-server-client = true
+
+[[peer-groups]]
+  [peer-groups.config]
+    peer-group-name = "my-peer-group"
+    peer-as = 65000
+  [[peer-groups.afi-safis]]
+    [peer-groups.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
 
 [[defined-sets.prefix-sets]]
     prefix-set-name = "ps0"

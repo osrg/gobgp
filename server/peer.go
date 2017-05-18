@@ -31,6 +31,26 @@ const (
 	MIN_CONNECT_RETRY = 10
 )
 
+type PeerGroup struct {
+	Conf    *config.PeerGroup
+	members map[string]config.Neighbor
+}
+
+func NewPeerGroup(c *config.PeerGroup) *PeerGroup {
+	return &PeerGroup{
+		Conf:    c,
+		members: make(map[string]config.Neighbor, 0),
+	}
+}
+
+func (pg *PeerGroup) AddMember(c config.Neighbor) {
+	pg.members[c.Config.NeighborAddress] = c
+}
+
+func (pg *PeerGroup) DeleteMember(c config.Neighbor) {
+	delete(pg.members, c.Config.NeighborAddress)
+}
+
 type Peer struct {
 	tableId           string
 	fsm               *FSM
