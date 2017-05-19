@@ -50,27 +50,23 @@ const (
 	BPR_NON_LLGR_STALE     BestPathReason = "no LLGR Stale"
 )
 
-func byteToBase2Buf(byt byte, buf []byte) {
-	i := len(buf)
-	for byt >= 2 {
-		i--
-		buf[i] = byte('0' + byt&1)
-		byt >>= 1
-	}
-	i--
-	buf[i] = byte('0' + byt)
-	for i > 0 {
-		i--
-		buf[i] = '0'
-	}
-}
-
 func IpToRadixkey(b []byte, max uint8) string {
-	buf := make([]byte, max)
+	var backing [128]byte
+	buf := backing[:max]
 	for y, i := 8, 0; y <= len(buf); y, i = y+8, i+1 {
-		byteToBase2Buf(b[i], buf[y-8:y])
+		n, byt, cur := 8, b[i], buf[y-8:y]
+		for byt > 0 {
+			n--
+			cur[n] = byte('0' + byt&1)
+			byt >>= 1
+		}
 	}
-	return string(buf[:max])
+	for i := 0; i < len(buf); i++ {
+		if buf[i] == 0 {
+			buf[i] = '0'
+		}
+	}
+	return string(buf)
 }
 
 func CidrToRadixkey(cidr string) string {
@@ -87,10 +83,10 @@ func AddrToRadixkey(addr bgp.AddrPrefixInterface) string {
 	switch T := addr.(type) {
 	case *bgp.IPAddrPrefix:
 		mask := net.CIDRMask(int(T.Length), net.IPv4len*8)
-		ip, size = T.Prefix.Mask(mask), uint8(T.Length)
+		ip, size = T.Prefix.Mask(mask).To4(), uint8(T.Length)
 	case *bgp.IPv6AddrPrefix:
 		mask := net.CIDRMask(int(T.Length), net.IPv6len*8)
-		ip, size = T.Prefix.Mask(mask), uint8(T.Length)
+		ip, size = T.Prefix.Mask(mask).To16(), uint8(T.Length)
 	default:
 		return CidrToRadixkey(addr.String())
 	}
