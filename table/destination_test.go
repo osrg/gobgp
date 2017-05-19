@@ -17,11 +17,13 @@ package table
 
 import (
 	//"fmt"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/stretchr/testify/assert"
+	"fmt"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDestinationNewIPv4(t *testing.T) {
@@ -400,6 +402,28 @@ func TestRadixkey(t *testing.T) {
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 	assert.Equal(t, CidrToRadixkey("::ffff:0.0.0.0/96")+"000010100000001100100000", CidrToRadixkey("::ffff:10.3.32.0/120"))
+}
+
+func TestIpToRadixkey(t *testing.T) {
+	for i := byte(0); i < 255; i += 3 {
+		for y := byte(1); y < 128; y *= 2 {
+			ip := net.IPv4(i, i+2, i+3, i-y)
+			for n := uint8(16); n <= 32; n += 2 {
+				exp := CidrToRadixkey(fmt.Sprintf("%v/%d", ip.To4(), n))
+				got := IpToRadixkey(ip.To4(), n)
+				if exp != got {
+					t.Fatalf(`exp %v; got %v`, exp, got)
+				}
+			}
+			for n := uint8(116); n <= 128; n += 2 {
+				exp := CidrToRadixkey(fmt.Sprintf("::ffff:%v/%d", ip.To16(), n))
+				got := IpToRadixkey(ip.To16(), n)
+				if exp != got {
+					t.Fatalf(`exp %v; got %v`, exp, got)
+				}
+			}
+		}
+	}
 }
 
 func TestMultipath(t *testing.T) {
