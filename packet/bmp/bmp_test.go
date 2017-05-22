@@ -41,8 +41,10 @@ func verify(t *testing.T, m1 *BMPMessage) {
 
 func Test_Initiation(t *testing.T) {
 	verify(t, NewBMPInitiation(nil))
-	tlv := NewBMPTLV(1, []byte{0x3, 0xb, 0x0, 0x0, 0x0, 0xf, 0x42, 0x40})
-	m := NewBMPInitiation([]BMPTLV{*tlv})
+	m := NewBMPInitiation([]BMPInfoTLVInterface{
+		NewBMPInfoTLVString(BMP_INIT_TLV_TYPE_STRING, "free-form UTF-8 string"),
+		NewBMPInfoTLVUnknown(0xff, []byte{0x01, 0x02, 0x03, 0x04}),
+	})
 	verify(t, m)
 }
 
