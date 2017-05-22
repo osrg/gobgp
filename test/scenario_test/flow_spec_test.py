@@ -49,7 +49,7 @@ class GoBGPTestBase(unittest.TestCase):
         matchs = ['destination 10.0.0.0/24', 'source 20.0.0.0/24']
         thens = ['discard']
         e1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs, thens=thens)
-        matchs2 = ['tcp-flags S', 'protocol ==tcp ==udp', "packet-length '>1000&<2000'"]
+        matchs2 = ['tcp-flags S', 'protocol ==tcp ==udp', "packet-length '>1000&<2000'", "source-port '!=2&!=22&!=222'"]
         thens2 = ['rate-limit 9600', 'redirect 0.10:100', 'mark 20', 'action sample']
         g1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs2, thens=thens2)
         matchs3 = ['destination 2001::/24/10', 'source 2002::/24/15']
