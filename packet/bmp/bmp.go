@@ -338,18 +338,15 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
 			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
 		}
 		var s BMPStatsTLVInterface
-		var err error = nil
-		if tl.Type == BMP_STAT_TYPE_ADJ_RIB_IN || tl.Type == BMP_STAT_TYPE_LOC_RIB {
+		switch tl.Type {
+		case BMP_STAT_TYPE_ADJ_RIB_IN, BMP_STAT_TYPE_LOC_RIB:
 			s = &BMPStatsTLV64{BMPStatsTLV: tl}
-			err = s.ParseValue(data)
-		} else if tl.Type == BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN || tl.Type == BMP_STAT_TYPE_PER_AFI_SAFI_LOC_RIB {
+		case BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN, BMP_STAT_TYPE_PER_AFI_SAFI_LOC_RIB:
 			s = &BMPStatsTLVPerAfiSafi64{BMPStatsTLV: tl}
-			err = s.ParseValue(data)
-		} else {
+		default:
 			s = &BMPStatsTLV32{BMPStatsTLV: tl}
-			err = s.ParseValue(data)
 		}
-		if err != nil {
+		if err := s.ParseValue(data); err != nil {
 			return err
 		}
 		body.Stats = append(body.Stats, s)
