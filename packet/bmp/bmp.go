@@ -519,58 +519,73 @@ const (
 	BMP_INIT_TLV_TYPE_SYS_NAME
 )
 
-const (
-	BMP_TERM_TLV_TYPE_STRING = iota
-	BMP_TERM_TLV_TYPE_REASON
-)
-
-const (
-	BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG = iota
-	BMP_ROUTE_MIRRORING_TLV_TYPE_INFO
-)
-
-type BMPTLV struct {
-	Type   uint16
-	Length uint16
-	Value  []byte
+type BMPInfoTLVInterface interface {
+	ParseValue([]byte) error
+	Serialize() ([]byte, error)
 }
 
-func NewBMPTLV(t uint16, v []byte) *BMPTLV {
-	return &BMPTLV{
-		Type:   t,
-		Length: uint16(len(v)),
-		Value:  v,
+type BMPInfoTLV struct {
+	Type   uint16
+	Length uint16
+}
+
+type BMPInfoTLVString struct {
+	BMPInfoTLV
+	Value string
+}
+
+func NewBMPInfoTLVString(t uint16, v string) *BMPInfoTLVString {
+	return &BMPInfoTLVString{
+		BMPInfoTLV: BMPInfoTLV{Type: t},
+		Value:      v,
 	}
 }
 
-func (tlv *BMPTLV) DecodeFromBytes(data []byte) error {
-	//TODO: check data length
-	tlv.Type = binary.BigEndian.Uint16(data[0:2])
-	tlv.Length = binary.BigEndian.Uint16(data[2:4])
-	tlv.Value = data[4 : 4+tlv.Length]
+func (s *BMPInfoTLVString) ParseValue(data []byte) error {
+	s.Value = string(data[:s.Length])
 	return nil
 }
 
-func (tlv *BMPTLV) Serialize() ([]byte, error) {
-	if tlv.Length == 0 {
-		tlv.Length = uint16(len(tlv.Value))
-	}
-	buf := make([]byte, 4+tlv.Length)
-	binary.BigEndian.PutUint16(buf[0:2], tlv.Type)
-	binary.BigEndian.PutUint16(buf[2:4], tlv.Length)
-	copy(buf[4:], tlv.Value)
+func (s *BMPInfoTLVString) Serialize() ([]byte, error) {
+	s.Length = uint16(len([]byte(s.Value)))
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	buf = append(buf, []byte(s.Value)...)
 	return buf, nil
 }
 
-func (tlv *BMPTLV) Len() int {
-	return 4 + int(tlv.Length)
+type BMPInfoTLVUnknown struct {
+	BMPInfoTLV
+	Value []byte
+}
+
+func NewBMPInfoTLVUnknown(t uint16, v []byte) *BMPInfoTLVUnknown {
+	return &BMPInfoTLVUnknown{
+		BMPInfoTLV: BMPInfoTLV{Type: t},
+		Value:      v,
+	}
+}
+
+func (s *BMPInfoTLVUnknown) ParseValue(data []byte) error {
+	s.Value = data[:s.Length]
+	return nil
+}
+
+func (s *BMPInfoTLVUnknown) Serialize() ([]byte, error) {
+	s.Length = uint16(len([]byte(s.Value)))
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	buf = append(buf, s.Value...)
+	return buf, nil
 }
 
 type BMPInitiation struct {
-	Info []BMPTLV
+	Info []BMPInfoTLVInterface
 }
 
-func NewBMPInitiation(info []BMPTLV) *BMPMessage {
+func NewBMPInitiation(info []BMPInfoTLVInterface) *BMPMessage {
 	return &BMPMessage{
 		Header: BMPHeader{
 			Version: BMP_VERSION,
@@ -583,11 +598,27 @@ func NewBMPInitiation(info []BMPTLV) *BMPMessage {
 }
 
 func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
-	for len(data) > 0 {
-		tlv := BMPTLV{}
-		tlv.DecodeFromBytes(data)
+	for len(data) >= 4 {
+		tl := BMPInfoTLV{
+			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Length: binary.BigEndian.Uint16(data[2:4]),
+		}
+		data = data[4:]
+		if len(data) < int(tl.Length) {
+			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+		}
+		var tlv BMPInfoTLVInterface
+		switch tl.Type {
+		case BMP_INIT_TLV_TYPE_STRING, BMP_INIT_TLV_TYPE_SYS_DESCR, BMP_INIT_TLV_TYPE_SYS_NAME:
+			tlv = &BMPInfoTLVString{BMPInfoTLV: tl}
+		default:
+			tlv = &BMPInfoTLVUnknown{BMPInfoTLV: tl}
+		}
+		if err := tlv.ParseValue(data); err != nil {
+			return err
+		}
 		body.Info = append(body.Info, tlv)
-		data = data[tlv.Len():]
+		data = data[tl.Length:]
 	}
 	return nil
 }
@@ -603,6 +634,11 @@ func (body *BMPInitiation) Serialize() ([]byte, error) {
 	}
 	return buf, nil
 }
+
+const (
+	BMP_TERM_TLV_TYPE_STRING = iota
+	BMP_TERM_TLV_TYPE_REASON
+)
 
 const (
 	BMP_TERM_REASON_ADMIN = iota
@@ -649,6 +685,11 @@ func (body *BMPTermination) Serialize() ([]byte, error) {
 	}
 	return buf, nil
 }
+
+const (
+	BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG = iota
+	BMP_ROUTE_MIRRORING_TLV_TYPE_INFO
+)
 
 const (
 	BMP_ROUTE_MIRRORING_INFO_ERR_PDU = iota
