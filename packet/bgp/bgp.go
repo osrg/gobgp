@@ -2738,19 +2738,15 @@ func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, 
 				return nil, err
 			}
 		case DECLogicOpNameMap[DEC_LOGIC_OP_AND], DECLogicOpNameMap[DEC_LOGIC_OP_OR]:
-			if bit := DECLogicOpValueMap[myCmdChar]; bit&DECLogicOp(operatorValue[0]) == 0 {
-				decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
-				if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
-					operatorValue[0] = int(bit)
-				} else {
-					operatorValue[0] = 0
-				}
-				operatorValue[1] = 0
-				index++
+			bit := DECLogicOpValueMap[myCmdChar]
+			decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
+			if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
+				operatorValue[0] = int(bit)
 			} else {
-				err := fmt.Errorf("AND or OR (space) operator appears multiple time")
-				return nil, err
+				operatorValue[0] = 0
 			}
+			operatorValue[1] = 0
+			index++
 		case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			myLoopChar := myCmdChar
 			loopIndex := index
