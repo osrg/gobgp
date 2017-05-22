@@ -174,13 +174,6 @@ func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
 	return d
 }
 
-// reset this destinations paths but reuse the same underlying nlri and radixkey
-func (dd *Destination) reset() {
-	dd.newPathList = dd.newPathList[0:0]
-	dd.withdrawList = dd.withdrawList[0:0]
-	dd.knownPathList = dd.knownPathList[0:0]
-}
-
 func (dd *Destination) Family() bgp.RouteFamily {
 	return dd.routeFamily
 }
@@ -971,8 +964,7 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 	}
 	var paths []*Path
 	if adj {
-		paths = make([]*Path, len(old.knownPathList))
-		copy(paths, old.knownPathList)
+		paths = old.knownPathList
 	} else {
 		paths = old.GetKnownPathList(id)
 		if vrf != nil {
@@ -1005,19 +997,13 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 			}
 		}
 	}
+	new := NewDestination(old.nlri)
 	for _, path := range paths {
-		v := path.Filtered(id)
-		path.reset(path.IsWithdraw)
-		path.Filter("", v)
+		p := path.Clone(path.IsWithdraw)
+		p.Filter("", path.Filtered(id))
+		new.knownPathList = append(new.knownPathList, p)
 	}
-	out := &Destination{
-		routeFamily:   old.routeFamily,
-		nlri:          old.nlri,
-		knownPathList: paths,
-		withdrawList:  make([]*Path, 0),
-		newPathList:   make([]*Path, 0),
-	}
-	return out
+	return new
 }
 
 type destinations []*Destination
