@@ -48,6 +48,16 @@ func Test_Initiation(t *testing.T) {
 	verify(t, m)
 }
 
+func Test_Termination(t *testing.T) {
+	verify(t, NewBMPTermination(nil))
+	m := NewBMPTermination([]BMPTermTLVInterface{
+		NewBMPTermTLVString(BMP_TERM_TLV_TYPE_STRING, "free-form UTF-8 string"),
+		NewBMPTermTLV16(BMP_TERM_TLV_TYPE_REASON, BMP_TERM_REASON_ADMIN),
+		NewBMPTermTLVUnknown(0xff, []byte{0x01, 0x02, 0x03, 0x04}),
+	})
+	verify(t, m)
+}
+
 func Test_PeerUpNotification(t *testing.T) {
 	m := bgp.NewTestBGPOpenMessage()
 	p0 := NewBMPPeerHeader(0, 0, 1000, "10.0.0.1", 70000, "10.0.0.2", 1)

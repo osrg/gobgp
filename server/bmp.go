@@ -221,6 +221,12 @@ func (b *bmpClient) loop() {
 						}
 					}
 				case <-b.dead:
+					term := bmp.NewBMPTermination([]bmp.BMPTermTLVInterface{
+						bmp.NewBMPTermTLV16(bmp.BMP_TERM_TLV_TYPE_REASON, bmp.BMP_TERM_REASON_PERMANENTLY_ADMIN),
+					})
+					if err := write(term); err != nil {
+						return false
+					}
 					conn.Close()
 					return true
 				}

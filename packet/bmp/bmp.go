@@ -648,11 +648,99 @@ const (
 	BMP_TERM_REASON_PERMANENTLY_ADMIN
 )
 
-type BMPTermination struct {
-	Info []BMPTLV
+type BMPTermTLVInterface interface {
+	ParseValue([]byte) error
+	Serialize() ([]byte, error)
 }
 
-func NewBMPTermination(info []BMPTLV) *BMPMessage {
+type BMPTermTLV struct {
+	Type   uint16
+	Length uint16
+}
+
+type BMPTermTLVString struct {
+	BMPTermTLV
+	Value string
+}
+
+func NewBMPTermTLVString(t uint16, v string) *BMPTermTLVString {
+	return &BMPTermTLVString{
+		BMPTermTLV: BMPTermTLV{Type: t},
+		Value:      v,
+	}
+}
+
+func (s *BMPTermTLVString) ParseValue(data []byte) error {
+	s.Value = string(data[:s.Length])
+	return nil
+}
+
+func (s *BMPTermTLVString) Serialize() ([]byte, error) {
+	s.Length = uint16(len([]byte(s.Value)))
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	buf = append(buf, []byte(s.Value)...)
+	return buf, nil
+}
+
+type BMPTermTLV16 struct {
+	BMPTermTLV
+	Value uint16
+}
+
+func NewBMPTermTLV16(t uint16, v uint16) *BMPTermTLV16 {
+	return &BMPTermTLV16{
+		BMPTermTLV: BMPTermTLV{Type: t},
+		Value:      v,
+	}
+}
+
+func (s *BMPTermTLV16) ParseValue(data []byte) error {
+	s.Value = binary.BigEndian.Uint16(data[:2])
+	return nil
+}
+
+func (s *BMPTermTLV16) Serialize() ([]byte, error) {
+	s.Length = 2
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	binary.BigEndian.PutUint16(buf[4:6], s.Value)
+	return buf, nil
+}
+
+type BMPTermTLVUnknown struct {
+	BMPTermTLV
+	Value []byte
+}
+
+func NewBMPTermTLVUnknown(t uint16, v []byte) *BMPTermTLVUnknown {
+	return &BMPTermTLVUnknown{
+		BMPTermTLV: BMPTermTLV{Type: t},
+		Value:      v,
+	}
+}
+
+func (s *BMPTermTLVUnknown) ParseValue(data []byte) error {
+	s.Value = data[:s.Length]
+	return nil
+}
+
+func (s *BMPTermTLVUnknown) Serialize() ([]byte, error) {
+	s.Length = uint16(len([]byte(s.Value)))
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	buf = append(buf, s.Value...)
+	return buf, nil
+}
+
+type BMPTermination struct {
+	Info []BMPTermTLVInterface
+}
+
+func NewBMPTermination(info []BMPTermTLVInterface) *BMPMessage {
 	return &BMPMessage{
 		Header: BMPHeader{
 			Version: BMP_VERSION,
@@ -665,11 +753,29 @@ func NewBMPTermination(info []BMPTLV) *BMPMessage {
 }
 
 func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte) error {
-	for len(data) > 0 {
-		tlv := BMPTLV{}
-		tlv.DecodeFromBytes(data)
+	for len(data) >= 4 {
+		tl := BMPTermTLV{
+			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Length: binary.BigEndian.Uint16(data[2:4]),
+		}
+		data = data[4:]
+		if len(data) < int(tl.Length) {
+			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+		}
+		var tlv BMPTermTLVInterface
+		switch tl.Type {
+		case BMP_TERM_TLV_TYPE_STRING:
+			tlv = &BMPTermTLVString{BMPTermTLV: tl}
+		case BMP_TERM_TLV_TYPE_REASON:
+			tlv = &BMPTermTLV16{BMPTermTLV: tl}
+		default:
+			tlv = &BMPTermTLVUnknown{BMPTermTLV: tl}
+		}
+		if err := tlv.ParseValue(data); err != nil {
+			return err
+		}
 		body.Info = append(body.Info, tlv)
-		data = data[tlv.Len():]
+		data = data[tl.Length:]
 	}
 	return nil
 }
@@ -712,7 +818,7 @@ type BMPMessage struct {
 
 func (msg *BMPMessage) Serialize() ([]byte, error) {
 	buf := make([]byte, 0)
-	if msg.Header.Type != BMP_MSG_INITIATION {
+	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_TERMINATION {
 		p, err := msg.PeerHeader.Serialize()
 		if err != nil {
 			return nil, err
@@ -780,7 +886,7 @@ func ParseBMPMessage(data []byte) (msg *BMPMessage, err error) {
 		msg.Body = &BMPTermination{}
 	}
 
-	if msg.Header.Type != BMP_MSG_INITIATION {
+	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_TERMINATION {
 		msg.PeerHeader.DecodeFromBytes(data)
 		data = data[BMP_PEER_HEADER_SIZE:]
 	}
