@@ -53,7 +53,7 @@ const (
 func IpToRadixkey(b []byte, max uint8) string {
 	var buffer bytes.Buffer
 	for i := 0; i < len(b) && i < int(max); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", b[i]))
+		fmt.Fprintf(&buffer, "%08b", b[i])
 	}
 	return buffer.String()[:max]
 }
