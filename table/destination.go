@@ -50,18 +50,51 @@ const (
 	BPR_NON_LLGR_STALE     BestPathReason = "no LLGR Stale"
 )
 
-func IpToRadixkey(b []byte, max uint8) string {
-	var buffer bytes.Buffer
-	for i := 0; i < len(b) && i < int(max); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", b[i]))
+func byteToBase2Buf(byt byte, buf []byte) {
+	i := len(buf)
+	for byt >= 2 {
+		i--
+		buf[i] = byte('0' + byt&1)
+		byt >>= 1
 	}
-	return buffer.String()[:max]
+	i--
+	buf[i] = byte('0' + byt)
+	for i > 0 {
+		i--
+		buf[i] = '0'
+	}
+}
+
+func IpToRadixkey(b []byte, max uint8) string {
+	buf := make([]byte, max)
+	for y, i := 8, 0; y <= len(buf); y, i = y+8, i+1 {
+		byteToBase2Buf(b[i], buf[y-8:y])
+	}
+	return string(buf[:max])
 }
 
 func CidrToRadixkey(cidr string) string {
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
 	return IpToRadixkey(n.IP, uint8(ones))
+}
+
+func AddrToRadixkey(addr bgp.AddrPrefixInterface) string {
+	var (
+		ip   net.IP
+		size uint8
+	)
+	switch T := addr.(type) {
+	case *bgp.IPAddrPrefix:
+		mask := net.CIDRMask(int(T.Length), net.IPv4len*8)
+		ip, size = T.Prefix.Mask(mask), uint8(T.Length)
+	case *bgp.IPv6AddrPrefix:
+		mask := net.CIDRMask(int(T.Length), net.IPv6len*8)
+		ip, size = T.Prefix.Mask(mask), uint8(T.Length)
+	default:
+		return CidrToRadixkey(addr.String())
+	}
+	return IpToRadixkey(ip, size)
 }
 
 type PeerInfo struct {
@@ -140,7 +173,7 @@ func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
 	}
 	switch d.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
-		d.RadixKey = CidrToRadixkey(nlri.String())
+		d.RadixKey = AddrToRadixkey(nlri)
 	}
 	return d
 }
