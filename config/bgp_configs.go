@@ -2168,6 +2168,10 @@ type Received struct {
 	Keepalive uint64 `mapstructure:"keepalive" json:"keepalive,omitempty"`
 	// original -> gobgp:DYNAMIC-CAP
 	DynamicCap uint64 `mapstructure:"dynamic-cap" json:"dynamic-cap,omitempty"`
+	// original -> gobgp:WITHDRAW-UPDATE
+	WithdrawUpdate uint32 `mapstructure:"withdraw-update" json:"withdraw-update,omitempty"`
+	// original -> gobgp:WITHDRAW-PREFIX
+	WithdrawPrefix uint32 `mapstructure:"withdraw-prefix" json:"withdraw-prefix,omitempty"`
 	// original -> gobgp:DISCARDED
 	Discarded uint64 `mapstructure:"discarded" json:"discarded,omitempty"`
 	// original -> gobgp:TOTAL
@@ -2196,6 +2200,12 @@ func (lhs *Received) Equal(rhs *Received) bool {
 	if lhs.DynamicCap != rhs.DynamicCap {
 		return false
 	}
+	if lhs.WithdrawUpdate != rhs.WithdrawUpdate {
+		return false
+	}
+	if lhs.WithdrawPrefix != rhs.WithdrawPrefix {
+		return false
+	}
 	if lhs.Discarded != rhs.Discarded {
 		return false
 	}
@@ -2219,6 +2229,10 @@ type Sent struct {
 	Keepalive uint64 `mapstructure:"keepalive" json:"keepalive,omitempty"`
 	// original -> gobgp:DYNAMIC-CAP
 	DynamicCap uint64 `mapstructure:"dynamic-cap" json:"dynamic-cap,omitempty"`
+	// original -> gobgp:WITHDRAW-UPDATE
+	WithdrawUpdate uint32 `mapstructure:"withdraw-update" json:"withdraw-update,omitempty"`
+	// original -> gobgp:WITHDRAW-PREFIX
+	WithdrawPrefix uint32 `mapstructure:"withdraw-prefix" json:"withdraw-prefix,omitempty"`
 	// original -> gobgp:DISCARDED
 	Discarded uint64 `mapstructure:"discarded" json:"discarded,omitempty"`
 	// original -> gobgp:TOTAL
@@ -2245,6 +2259,12 @@ func (lhs *Sent) Equal(rhs *Sent) bool {
 		return false
 	}
 	if lhs.DynamicCap != rhs.DynamicCap {
+		return false
+	}
+	if lhs.WithdrawUpdate != rhs.WithdrawUpdate {
+		return false
+	}
+	if lhs.WithdrawPrefix != rhs.WithdrawPrefix {
 		return false
 	}
 	if lhs.Discarded != rhs.Discarded {

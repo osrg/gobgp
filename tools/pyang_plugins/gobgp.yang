@@ -180,6 +180,18 @@ module gobgp {
         error condition has occurred exchanged.";
     }
 
+    leaf WITHDRAW-UPDATE {
+      type uint32;
+      description
+        "Number of updates subjected to treat-as-withdraw treatment.";
+    }
+
+    leaf WITHDRAW-PREFIX {
+      type uint32;
+      description
+        "Number of prefixes subjected to treat-as-withdraw treatment.";
+    }
+
     leaf DISCARDED {
       type uint64;
       description
@@ -194,7 +206,6 @@ module gobgp {
         error condition has occurred exchanged.";
     }
   }
-
 
   grouping gobgp-adjacent-table {
     container adj-table {
