@@ -20,6 +20,7 @@ import (
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/tomb.v2"
@@ -179,6 +180,18 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 		} else {
 			state.Sent.Discarded++
 		}
+	}
+}
+
+func (fsm *FSM) bmpStatsUpdate(statType uint16, increment int) {
+	stats := &fsm.pConf.State.Messages.Received
+	switch statType {
+	// TODO
+	// Support other stat types.
+	case bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE:
+		stats.WithdrawUpdate += uint32(increment)
+	case bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX:
+		stats.WithdrawPrefix += uint32(increment)
 	}
 }
 
@@ -710,6 +723,17 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					}).Warn("malformed BGP update message")
 					fmsg.MsgData = err
 					return fmsg, err
+				}
+
+				if routes := len(body.WithdrawnRoutes); routes > 0 {
+					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
+					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+				} else if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
+					mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
+					if routes = len(mpUnreach.Value); routes > 0 {
+						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
+						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+					}
 				}
 
 				table.UpdatePathAttrs4ByteAs(body)

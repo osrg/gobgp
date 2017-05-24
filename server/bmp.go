@@ -295,6 +295,8 @@ func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, neighConf *c
 		[]bmp.BMPStatsTLVInterface{
 			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_ADJ_RIB_IN, uint64(neighConf.State.AdjTable.Accepted)),
 			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_LOC_RIB, uint64(neighConf.State.AdjTable.Advertised+neighConf.State.AdjTable.Filtered)),
+			bmp.NewBMPStatsTLV32(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, neighConf.State.Messages.Received.WithdrawUpdate),
+			bmp.NewBMPStatsTLV32(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, neighConf.State.Messages.Received.WithdrawPrefix),
 		},
 	)
 }
