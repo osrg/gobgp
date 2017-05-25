@@ -802,6 +802,159 @@ const (
 	BMP_ROUTE_MIRRORING_INFO_MSG_LOST
 )
 
+type BMPRouteMirrTLVInterface interface {
+	ParseValue([]byte) error
+	Serialize() ([]byte, error)
+}
+
+type BMPRouteMirrTLV struct {
+	Type   uint16
+	Length uint16
+}
+
+type BMPRouteMirrTLVBGPMsg struct {
+	BMPRouteMirrTLV
+	Value *bgp.BGPMessage
+}
+
+func NewBMPRouteMirrTLVBGPMsg(t uint16, v *bgp.BGPMessage) *BMPRouteMirrTLVBGPMsg {
+	return &BMPRouteMirrTLVBGPMsg{
+		BMPRouteMirrTLV: BMPRouteMirrTLV{Type: t},
+		Value:           v,
+	}
+}
+
+func (s *BMPRouteMirrTLVBGPMsg) ParseValue(data []byte) error {
+	v, err := bgp.ParseBGPMessage(data)
+	if err != nil {
+		return err
+	}
+	s.Value = v
+	return nil
+}
+
+func (s *BMPRouteMirrTLVBGPMsg) Serialize() ([]byte, error) {
+	m, err := s.Value.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	s.Length = uint16(len(m))
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	buf = append(buf, m...)
+	return buf, nil
+}
+
+type BMPRouteMirrTLV16 struct {
+	BMPRouteMirrTLV
+	Value uint16
+}
+
+func NewBMPRouteMirrTLV16(t uint16, v uint16) *BMPRouteMirrTLV16 {
+	return &BMPRouteMirrTLV16{
+		BMPRouteMirrTLV: BMPRouteMirrTLV{Type: t},
+		Value:           v,
+	}
+}
+
+func (s *BMPRouteMirrTLV16) ParseValue(data []byte) error {
+	s.Value = binary.BigEndian.Uint16(data[:2])
+	return nil
+}
+
+func (s *BMPRouteMirrTLV16) Serialize() ([]byte, error) {
+	s.Length = 2
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	binary.BigEndian.PutUint16(buf[4:6], s.Value)
+	return buf, nil
+}
+
+type BMPRouteMirrTLVUnknown struct {
+	BMPRouteMirrTLV
+	Value []byte
+}
+
+func NewBMPRouteMirrTLVUnknown(t uint16, v []byte) *BMPRouteMirrTLVUnknown {
+	return &BMPRouteMirrTLVUnknown{
+		BMPRouteMirrTLV: BMPRouteMirrTLV{Type: t},
+		Value:           v,
+	}
+}
+
+func (s *BMPRouteMirrTLVUnknown) ParseValue(data []byte) error {
+	s.Value = data[:s.Length]
+	return nil
+}
+
+func (s *BMPRouteMirrTLVUnknown) Serialize() ([]byte, error) {
+	s.Length = uint16(len([]byte(s.Value)))
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[2:4], s.Length)
+	buf = append(buf, s.Value...)
+	return buf, nil
+}
+
+type BMPRouteMirroring struct {
+	Info []BMPRouteMirrTLVInterface
+}
+
+func NewBMPRouteMirroring(p BMPPeerHeader, info []BMPRouteMirrTLVInterface) *BMPMessage {
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_ROUTE_MIRRORING,
+		},
+		PeerHeader: p,
+		Body: &BMPRouteMirroring{
+			Info: info,
+		},
+	}
+}
+
+func (body *BMPRouteMirroring) ParseBody(msg *BMPMessage, data []byte) error {
+	for len(data) >= 4 {
+		tl := BMPRouteMirrTLV{
+			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Length: binary.BigEndian.Uint16(data[2:4]),
+		}
+		data = data[4:]
+		if len(data) < int(tl.Length) {
+			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+		}
+		var tlv BMPRouteMirrTLVInterface
+		switch tl.Type {
+		case BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG:
+			tlv = &BMPRouteMirrTLVBGPMsg{BMPRouteMirrTLV: tl}
+		case BMP_ROUTE_MIRRORING_TLV_TYPE_INFO:
+			tlv = &BMPRouteMirrTLV16{BMPRouteMirrTLV: tl}
+		default:
+			tlv = &BMPRouteMirrTLVUnknown{BMPRouteMirrTLV: tl}
+		}
+		if err := tlv.ParseValue(data); err != nil {
+			return err
+		}
+		body.Info = append(body.Info, tlv)
+		data = data[tl.Length:]
+	}
+	return nil
+}
+
+func (body *BMPRouteMirroring) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, tlv := range body.Info {
+		b, err := tlv.Serialize()
+		if err != nil {
+			return buf, err
+		}
+		buf = append(buf, b...)
+	}
+	return buf, nil
+}
+
 type BMPBody interface {
 	// Sigh, some body messages need a BMPHeader to parse the body
 	// data so we need to pass BMPHeader (avoid DecodeFromBytes
@@ -884,6 +1037,10 @@ func ParseBMPMessage(data []byte) (msg *BMPMessage, err error) {
 		msg.Body = &BMPInitiation{}
 	case BMP_MSG_TERMINATION:
 		msg.Body = &BMPTermination{}
+	case BMP_MSG_ROUTE_MIRRORING:
+		msg.Body = &BMPRouteMirroring{}
+	default:
+		return nil, fmt.Errorf("unsupported BMP message type: %d", msg.Header.Type)
 	}
 
 	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_TERMINATION {
