@@ -92,6 +92,20 @@ func Test_StatisticsReport(t *testing.T) {
 	verify(t, s0)
 }
 
+func Test_RouteMirroring(t *testing.T) {
+	p0 := NewBMPPeerHeader(0, 0, 1000, "10.0.0.1", 70000, "10.0.0.2", 1)
+	s0 := NewBMPRouteMirroring(
+		*p0,
+		[]BMPRouteMirrTLVInterface{
+			NewBMPRouteMirrTLV16(BMP_ROUTE_MIRRORING_TLV_TYPE_INFO, BMP_ROUTE_MIRRORING_INFO_MSG_LOST),
+			NewBMPRouteMirrTLVUnknown(0xff, []byte{0x01, 0x02, 0x03, 0x04}),
+			// RFC7854: BGP Message TLV MUST occur last in the list of TLVs
+			NewBMPRouteMirrTLVBGPMsg(BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG, bgp.NewTestBGPOpenMessage()),
+		},
+	)
+	verify(t, s0)
+}
+
 func Test_BogusHeader(t *testing.T) {
 	h, err := ParseBMPMessage(make([]byte, 10))
 	assert.Nil(t, h)
