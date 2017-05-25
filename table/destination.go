@@ -51,22 +51,11 @@ const (
 )
 
 func IpToRadixkey(b []byte, max uint8) string {
-	var backing [128]byte
-	buf := backing[:max]
-	for y, i := 8, 0; y <= len(buf); y, i = y+8, i+1 {
-		n, byt, cur := 8, b[i], buf[y-8:y]
-		for byt > 0 {
-			n--
-			cur[n] = byte('0' + byt&1)
-			byt >>= 1
-		}
+	var buffer bytes.Buffer
+	for i := 0; i < len(b) && i < int(max); i++ {
+		fmt.Fprintf(&buffer, "%08b", b[i])
 	}
-	for i := 0; i < len(buf); i++ {
-		if buf[i] == 0 {
-			buf[i] = '0'
-		}
-	}
-	return string(buf)
+	return buffer.String()[:max]
 }
 
 func CidrToRadixkey(cidr string) string {
