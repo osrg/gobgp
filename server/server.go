@@ -532,6 +532,33 @@ func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
 	}
 }
 
+func (server *BgpServer) notifyMessageWatcher(peer *Peer, timestamp time.Time, msg *bgp.BGPMessage, isSent bool) {
+	// validation should be done in the caller of this function
+	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	l, _ := peer.fsm.LocalHostPort()
+	ev := &WatchEventMessage{
+		Message:      msg,
+		PeerAS:       peer.fsm.peerInfo.AS,
+		LocalAS:      peer.fsm.peerInfo.LocalAS,
+		PeerAddress:  peer.fsm.peerInfo.Address,
+		LocalAddress: net.ParseIP(l),
+		PeerID:       peer.fsm.peerInfo.ID,
+		FourBytesAs:  y,
+		Timestamp:    timestamp,
+		IsSent:       isSent,
+	}
+	if !isSent {
+		server.notifyWatcher(WATCH_EVENT_TYPE_RECV_MSG, ev)
+	}
+}
+
+func (server *BgpServer) notifyRecvMessageWatcher(peer *Peer, timestamp time.Time, msg *bgp.BGPMessage) {
+	if peer == nil || !server.isWatched(WATCH_EVENT_TYPE_RECV_MSG) {
+		return
+	}
+	server.notifyMessageWatcher(peer, timestamp, msg, false)
+}
+
 func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*table.Path {
 	moded := make([]*table.Path, 0, len(pathList)/2)
 	for _, before := range pathList {
@@ -853,6 +880,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			sendFsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
 			return
 		case *bgp.BGPMessage:
+			server.notifyRecvMessageWatcher(peer, e.timestamp, m)
 			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED || e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime {
 				return
 			}
@@ -2127,6 +2155,7 @@ const (
 	WATCH_EVENT_TYPE_POST_UPDATE WatchEventType = "postupdate"
 	WATCH_EVENT_TYPE_PEER_STATE  WatchEventType = "peerstate"
 	WATCH_EVENT_TYPE_TABLE       WatchEventType = "table"
+	WATCH_EVENT_TYPE_RECV_MSG    WatchEventType = "receivedmessage"
 )
 
 type WatchEvent interface {
@@ -2177,6 +2206,18 @@ type WatchEventBestPath struct {
 	MultiPathList [][]*table.Path
 }
 
+type WatchEventMessage struct {
+	Message      *bgp.BGPMessage
+	PeerAS       uint32
+	LocalAS      uint32
+	PeerAddress  net.IP
+	LocalAddress net.IP
+	PeerID       net.IP
+	FourBytesAs  bool
+	Timestamp    time.Time
+	IsSent       bool
+}
+
 type watchOptions struct {
 	bestpath       bool
 	preUpdate      bool
@@ -2187,6 +2228,8 @@ type watchOptions struct {
 	initPostUpdate bool
 	initPeerState  bool
 	tableName      string
+	recvMessage    bool
+	sentMessage    bool
 }
 
 type WatchOption func(*watchOptions)
@@ -2230,6 +2273,19 @@ func WatchPeerState(current bool) WatchOption {
 func WatchTableName(name string) WatchOption {
 	return func(o *watchOptions) {
 		o.tableName = name
+	}
+}
+
+func WatchMessage(isSent bool) WatchOption {
+	return func(o *watchOptions) {
+		if isSent {
+			log.WithFields(log.Fields{
+				"Topic": "Server",
+			}).Warn("watch event for sent messages is not implemented yet")
+			// o.sentMessage = true
+		} else {
+			o.recvMessage = true
+		}
 	}
 }
 
@@ -2455,6 +2511,9 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 					})
 				}
 			}
+		}
+		if w.opts.recvMessage {
+			register(WATCH_EVENT_TYPE_RECV_MSG, w)
 		}
 
 		go w.loop()
