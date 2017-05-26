@@ -548,19 +548,29 @@ module gobgp {
         "Reference to the address of the BMP server used as
          a key in the BMP server list";
     }
+
     leaf port {
       type uint32;
       description
         "Reference to the port of the BMP server";
     }
+
     leaf route-monitoring-policy {
       type bmp-route-monitoring-policy-type;
       default PRE-POLICY;
     }
+
     leaf statistics-timeout {
       type uint16;
       description
         "Interval seconds of statistics messages sent to BMP server";
+    }
+
+    leaf route-mirroring-enabled {
+      type boolean;
+      description
+        "Enable feature for mirroring of received BGP messages
+         mainly for debugging purpose";
     }
   }
 

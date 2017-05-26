@@ -64,6 +64,17 @@ Please note the range of this interval is 15 though 65535 seconds.
     statistics-timeout = 3600
 ```
 
+To enable route mirroring feature, specify `true` for `route-mirroring-enabled` option.
+Please note this option is mainly for debugging purpose.
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    route-mirroring-enabled = true
+```
+
 ## <a name="verify"> Verification
 
 Let's check if BMP works with a bmp server. GoBGP also supports BMP server (currently, just shows received BMP messages in the json format).

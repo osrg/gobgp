@@ -1171,6 +1171,9 @@ type BmpServerConfig struct {
 	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy" json:"route-monitoring-policy,omitempty"`
 	// original -> gobgp:statistics-timeout
 	StatisticsTimeout uint16 `mapstructure:"statistics-timeout" json:"statistics-timeout,omitempty"`
+	// original -> gobgp:route-mirroring-enabled
+	//gobgp:route-mirroring-enabled's original type is boolean
+	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
 }
 
 func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
@@ -1187,6 +1190,9 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 		return false
 	}
 	if lhs.StatisticsTimeout != rhs.StatisticsTimeout {
+		return false
+	}
+	if lhs.RouteMirroringEnabled != rhs.RouteMirroringEnabled {
 		return false
 	}
 	return true
