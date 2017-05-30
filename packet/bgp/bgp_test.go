@@ -840,6 +840,6 @@ func Test_ParseRouteDistingusher(t *testing.T) {
 		t.Fatal("Type of RD interface is not RouteDistinguisherFourOctetAS")
 	}
 
-	assert.Equal(uint32((100 << 16) | 1000), rdType2.Admin)
+	assert.Equal(uint32((100<<16)|1000), rdType2.Admin)
 	assert.Equal(uint16(10000), rdType2.Assigned)
 }
