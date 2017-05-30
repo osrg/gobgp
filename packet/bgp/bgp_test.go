@@ -812,3 +812,34 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	// Test serialised value
 	assert.Equal(bufin, bufout)
 }
+
+func Test_ParseRouteDistingusher(t *testing.T) {
+	assert := assert.New(t)
+
+	rd, _ := ParseRouteDistinguisher("100:1000")
+	rdType0, ok := rd.(*RouteDistinguisherTwoOctetAS)
+	if !ok {
+		t.Fatal("Type of RD interface is not RouteDistinguisherTwoOctetAS")
+	}
+
+	assert.Equal(uint16(100), rdType0.Admin)
+	assert.Equal(uint32(1000), rdType0.Assigned)
+
+	rd, _ = ParseRouteDistinguisher("10.0.0.0:100")
+	rdType1, ok := rd.(*RouteDistinguisherIPAddressAS)
+	if !ok {
+		t.Fatal("Type of RD interface is not RouteDistinguisherIPAddressAS")
+	}
+
+	assert.Equal("10.0.0.0", rdType1.Admin.String())
+	assert.Equal(uint16(100), rdType1.Assigned)
+
+	rd, _ = ParseRouteDistinguisher("100.1000:10000")
+	rdType2, ok := rd.(*RouteDistinguisherFourOctetAS)
+	if !ok {
+		t.Fatal("Type of RD interface is not RouteDistinguisherFourOctetAS")
+	}
+
+	assert.Equal(uint32((100<<16)|1000), rdType2.Admin)
+	assert.Equal(uint16(10000), rdType2.Assigned)
+}

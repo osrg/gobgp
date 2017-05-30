@@ -1105,12 +1105,13 @@ func (p *Path) ToLocal() *Path {
 		n := nlri.(*bgp.LabeledVPNIPv6AddrPrefix)
 		_, c, _ := net.ParseCIDR(n.IPPrefix())
 		ones, _ := c.Mask.Size()
-		nlri = bgp.NewIPAddrPrefix(uint8(ones), c.IP.String())
+		nlri = bgp.NewIPv6AddrPrefix(uint8(ones), c.IP.String())
 	default:
 		return p
 	}
 	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
+
 	if f == bgp.RF_IPv4_VPN {
 		nh := path.GetNexthop()
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)

@@ -1271,7 +1271,7 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	assigned, _ := strconv.Atoi(elems[9])
+	assigned, _ := strconv.Atoi(elems[10])
 	ip := net.ParseIP(elems[1])
 	switch {
 	case ip.To4() != nil:
