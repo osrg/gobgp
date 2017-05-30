@@ -64,6 +64,24 @@ func CidrToRadixkey(cidr string) string {
 	return IpToRadixkey(n.IP, uint8(ones))
 }
 
+func AddrToRadixkey(addr bgp.AddrPrefixInterface) string {
+	var (
+		ip   net.IP
+		size uint8
+	)
+	switch T := addr.(type) {
+	case *bgp.IPAddrPrefix:
+		mask := net.CIDRMask(int(T.Length), net.IPv4len*8)
+		ip, size = T.Prefix.Mask(mask).To4(), uint8(T.Length)
+	case *bgp.IPv6AddrPrefix:
+		mask := net.CIDRMask(int(T.Length), net.IPv6len*8)
+		ip, size = T.Prefix.Mask(mask).To16(), uint8(T.Length)
+	default:
+		return CidrToRadixkey(addr.String())
+	}
+	return IpToRadixkey(ip, size)
+}
+
 type PeerInfo struct {
 	AS                      uint32
 	ID                      net.IP
@@ -140,7 +158,7 @@ func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
 	}
 	switch d.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
-		d.RadixKey = CidrToRadixkey(nlri.String())
+		d.RadixKey = AddrToRadixkey(nlri)
 	}
 	return d
 }
