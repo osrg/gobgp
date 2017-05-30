@@ -1123,6 +1123,9 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 
 		if vrfId != "" {
 			vrf := server.globalRib.Vrfs[vrfId]
+			if vrf == nil {
+				return fmt.Errorf("vrf %s not found", vrfId)
+			}
 			if err := vrf.ToGlobalPath(path); err != nil {
 				return err
 			}
