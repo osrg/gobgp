@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="">
     <meta name="author" content="">
-
-    <title>Bolt - Free Bootstrap 3 Theme</title>
+    <link rel="icon" type="image/x-icon" href="logos/favicon.ico">
+   
+    <title>GoBGP</title>
 
     <!-- Bootstrap core CSS -->
     <link href="assets/css/bootstrap.css" rel="stylesheet">
@@ -15,6 +16,7 @@
     <!-- Custom styles for this template -->
     <link href="assets/css/main.css" rel="stylesheet">
     <link href="assets/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
 
     <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
     <script src="assets/js/chart.js"></script>
@@ -32,19 +34,16 @@
     <!-- Fixed navbar -->
     <div class="navbar navbar-default navbar-fixed-top">
       <div class="container">
-        <div class="navbar-header">
-          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="navbar-brand" href="#"><i class="fa fa-bolt"></i></a>
-        </div>
-        <div class="navbar-collapse collapse">
-          <ul class="nav navbar-nav navbar-right">
-            <li class="active"><a href="#contact">Contact</a></li>
+      <div class="header clearfix">
+        <nav>
+          <ul class="nav nav-pills pull-right">
+            <li role="presentation"><a href="https://github.com/osrg/gobgp"><i class="fa fa-github fa-3x"></i></a></li>
+            <li role="presentation"><a href="https://slackin-gobgp.mybluemix.net/"><i class="fa fa-slack fa-3x"></i></a></li>
+            <li role="presentation"><a href="https://twitter.com/ryusdn"><i class="fa fa-twitter fa-3x"></i></a></li>
           </ul>
-        </div><!--/.nav-collapse -->
+        </nav>
+      </div>
+
       </div>
     </div>
 
@@ -53,8 +52,9 @@
 	    <div class="container">
 	    	<div class="row">
 	    		<div class="col-lg-8 col-lg-offset-2 centered">
-	    			<h1>Bolt Theme</h1>
-	    			<h2>FREE BOOTSTRAP THEMES</h2>
+	    			<img src="logos/GoBGP_v.png" alt="GoBGP Logo" width="150px">
+					<h1>GoBGP</h1>
+	    			<h2>Designed from scratch for modern environment so implemented in the Go programming language.</h2>
 	    		</div><!-- /col-lg-8 -->
 	    	</div><!-- /row -->
 	    </div> <!-- /container -->
@@ -63,166 +63,43 @@
 	<div id="green">
 		<div class="container">
 			<div class="row">
-				<div class="col-lg-5 centered">
-					<img src="assets/img/iphone.png" alt="">
-				</div>
-				
-				<div class="col-lg-7 centered">
-					<h3>WHAT WE CAN DO?</h3>
-					<p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.</p>
-				</div>
-			</div>
+	        <div class="col-lg-4">
+          <h2>Multicore CPUs</h2>
+          <p>GoBGP is designed to exploit todays multicore processors. <a href="https://golang.org">Golang</a> makes it extremely easy and simple to write concurrent code. </p>
+<!--           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p> -->
+        </div>
+        <div class="col-lg-4">
+          <h2>Automation Friendly</h2>
+          <p>GoBGP is designed to be easily integrated with other software with its <a href="http://www.grpc.io/">RPC APIs</a> instead of manually changing its config via CLI. GoBGP also supports its CLI though.</p>
+<!--           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p> -->
+       </div>
+        <div class="col-lg-4">
+          <h2>Standard Config Model</h2>
+          <p>GoBGP is implemented based on <a href="https://datatracker.ietf.org/doc/draft-shaikh-idr-bgp-model/?include_text=1">an IETF draft</a>, vendor-neutral model for network configuration and policy. Imagine that you can configure BGP across multiple vendors' gear with the single model.</p>
+<!--           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p> -->
+        </div>
 		</div>
+	</div>
 	</div>
 	
 	<div class="container">
 		<div class="row centered mt grid">
-			<h3>OUR LATEST WORK</h3>
-			<div class="mt"></div>
-			<div class="col-lg-4">
-				<a href="#"><img src="assets/img/01.jpg" alt=""></a>
+			<h3>Who uses GoBGP in production?</h3>
+			<div class="col-lg-6">
+				<a href="http://www.mfeed.co.jp/english/index.html"><img src="logos/mf.png" alt="Internet Multifeed" width="100px"></a>
 			</div>
-			<div class="col-lg-4">
-				<a href="#"><img src="assets/img/02.jpg" alt=""></a>
+			<div class="col-lg-6">
+				<a href="http://www.cloudwan.io/"><img src="logos/cloudwan.png" alt="Cloudwan" width="300px"></a>
 			</div>
-			<div class="col-lg-4">
-				<a href="#"><img src="assets/img/03.jpg" alt=""></a>
-			</div>
-		</div>
-		
-		<div class="row centered mt grid">
-			<div class="mt"></div>		
-			<div class="col-lg-4">
-				<a href="#"><img src="assets/img/04.jpg" alt=""></a>
-			</div>
-			<div class="col-lg-4">
-				<a href="#"><img src="assets/img/05.jpg" alt=""></a>
-			</div>
-			<div class="col-lg-4">
-				<a href="#"><img src="assets/img/06.jpg" alt=""></a>
-			</div>
-		</div>
-		
-		<div class="row mt centered">
-			<div class="col-lg-7 col-lg-offset-1 mt">
-					<p class="lead">Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever.</p>
-			</div>
-			
-			<div class="col-lg-3 mt">
-				<p><button type="button" class="btn btn-theme btn-lg">Email Me!</button></p>
-			</div>
-		</div>
+		</div>	
+		<div class="mt"></div>
 	</div>
-
-
-	<div id="skills">
-		<div class="container">
-			<div class="row centered">
-				<h3>OUR SKILLS</h3>
-				<div class="col-lg-3 mt">
-					<canvas id="javascript" height="130" width="130"></canvas>
-					<p>Javascript</p>
-					<br>
-					<script>
-						var doughnutData = [
-								{
-									value: 70,
-									color:"#74cfae"
-								},
-								{
-									value : 30,
-									color : "#3c3c3c"
-								}
-							];
-							var myDoughnut = new Chart(document.getElementById("javascript").getContext("2d")).Doughnut(doughnutData);
-					</script>
-				</div>
-				<div class="col-lg-3 mt">
-					<canvas id="bootstrap" height="130" width="130"></canvas>
-					<p>Bootstrap</p>
-					<br>
-					<script>
-						var doughnutData = [
-								{
-									value: 90,
-									color:"#74cfae"
-								},
-								{
-									value : 10,
-									color : "#3c3c3c"
-								}
-							];
-							var myDoughnut = new Chart(document.getElementById("bootstrap").getContext("2d")).Doughnut(doughnutData);
-					</script>
-				</div>
-				<div class="col-lg-3 mt">
-					<canvas id="wordpress" height="130" width="130"></canvas>
-					<p>Wordpress</p>
-					<br>
-					<script>
-						var doughnutData = [
-								{
-									value: 65,
-									color:"#74cfae"
-								},
-								{
-									value : 35,
-									color : "#3c3c3c"
-								}
-							];
-							var myDoughnut = new Chart(document.getElementById("wordpress").getContext("2d")).Doughnut(doughnutData);
-					</script>
-				</div>
-				<div class="col-lg-3 mt">
-					<canvas id="photoshop" height="130" width="130"></canvas>
-					<p>Photoshop</p>
-					<br>
-					<script>
-						var doughnutData = [
-								{
-									value: 50,
-									color:"#74cfae"
-								},
-								{
-									value : 50,
-									color : "#3c3c3c"
-								}
-							];
-							var myDoughnut = new Chart(document.getElementById("photoshop").getContext("2d")).Doughnut(doughnutData);
-					</script>
-				</div>
-			</div><!-- /row -->
-		</div><!-- /container -->
-	</div><!-- /skills -->
-	
-	<section id="contact"></section>
-	<div id="social">
-		<div class="container">
-			<div class="row centered">
-				<div class="col-lg-8 col-lg-offset-2">
-					<div class="col-md-3">
-						<a href="#"><i class="fa fa-facebook"></i></a>
-					</div>
-					<div class="col-md-3">
-						<a href="#"><i class="fa fa-dribbble"></i></a>
-					</div>
-					<div class="col-md-3">
-						<a href="#"><i class="fa fa-twitter"></i></a>
-					</div>
-					<div class="col-md-3">
-						<a href="#"><i class="fa fa-envelope"></i></a>
-					</div>
-				</div>
-			</div>
-		</div><!-- /container -->
-	</div><!-- /social -->
-
 
 	<div id="f">
 		<div class="container">
 			<div class="row">
-				<p>Crafted with <i class="fa fa-heart"></i> by BlackTie.co.</p>
-			</div>
+			   <p>&copy; <a href="https://osrg.github.io/ryu/">Ryu SDN Framework Community</a>. 2017</p>
+			   </div>
 		</div>
 	</div>
 

@@ -50,7 +50,7 @@ p {
 
 /* Links */
 a {
-    color: #f85c37;
+    /* color: #f85c37; */
     word-wrap: break-word;
 
     -webkit-transition: color 0.1s ease-in, background 0.1s ease-in;
@@ -129,8 +129,8 @@ a:after {
 /* hello */
 #hello {
 	width: 100%;
-	padding-top: 250px;
-	padding-bottom: 250px;
+	padding-top: 150px;
+	padding-bottom: 100px;
 }
 
 #hello h1 {
