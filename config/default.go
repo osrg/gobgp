@@ -190,6 +190,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 			if !vv.IsSet("afi-safi.config") {
 				af.Config.Enabled = true
 			}
+			af.MpGracefulRestart.State.Enabled = af.MpGracefulRestart.Config.Enabled
 			n.AfiSafis[i] = af
 		}
 	}
