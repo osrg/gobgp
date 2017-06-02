@@ -170,6 +170,9 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Nil(err)
 	defer s.Stop()
 
+	// wait a few seconds to avoid taking effect from other test cases.
+	time.Sleep(time.Second * 5)
+
 	num := runtime.NumGoroutine()
 
 	n := &config.Neighbor{
