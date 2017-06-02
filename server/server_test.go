@@ -31,13 +31,16 @@ func TestModPolicyAssign(t *testing.T) {
 	assert := assert.New(t)
 	s := NewBgpServer()
 	go s.Serve()
-	s.Start(&config.Global{
+	err := s.Start(&config.Global{
 		Config: config.GlobalConfig{
 			As:       1,
 			RouterId: "1.1.1.1",
 		},
 	})
-	err := s.AddPolicy(&table.Policy{Name: "p1"}, false)
+	assert.Nil(err)
+	defer s.Stop()
+
+	err = s.AddPolicy(&table.Policy{Name: "p1"}, false)
 	assert.Nil(err)
 
 	err = s.AddPolicy(&table.Policy{Name: "p2"}, false)
@@ -62,13 +65,16 @@ func TestMonitor(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()
 	go s.Serve()
-	s.Start(&config.Global{
+	err := s.Start(&config.Global{
 		Config: config.GlobalConfig{
 			As:       1,
 			RouterId: "1.1.1.1",
 			Port:     10179,
 		},
 	})
+	assert.Nil(err)
+	defer s.Stop()
+
 	n := &config.Neighbor{
 		Config: config.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
@@ -80,18 +86,21 @@ func TestMonitor(test *testing.T) {
 			},
 		},
 	}
-	if err := s.AddNeighbor(n); err != nil {
-		log.Fatal(err)
-	}
+	err = s.AddNeighbor(n)
+	assert.Nil(err)
+
 	t := NewBgpServer()
 	go t.Serve()
-	t.Start(&config.Global{
+	err = t.Start(&config.Global{
 		Config: config.GlobalConfig{
 			As:       2,
 			RouterId: "2.2.2.2",
 			Port:     -1,
 		},
 	})
+	assert.Nil(err)
+	defer t.Stop()
+
 	m := &config.Neighbor{
 		Config: config.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
@@ -103,9 +112,8 @@ func TestMonitor(test *testing.T) {
 			},
 		},
 	}
-	if err := t.AddNeighbor(m); err != nil {
-		log.Fatal(err)
-	}
+	err = t.AddNeighbor(m)
+	assert.Nil(err)
 
 	for {
 		time.Sleep(time.Second)
@@ -159,6 +167,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 		},
 	})
 	assert.Nil(err)
+	defer s.Stop()
 
 	num := runtime.NumGoroutine()
 
@@ -345,25 +354,29 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 }
 
 func TestPeerGroup(test *testing.T) {
+	assert := assert.New(test)
 	log.SetLevel(log.DebugLevel)
 	s := NewBgpServer()
 	go s.Serve()
-	s.Start(&config.Global{
+	err := s.Start(&config.Global{
 		Config: config.GlobalConfig{
 			As:       1,
 			RouterId: "1.1.1.1",
-			Port:     10180,
+			Port:     10179,
 		},
 	})
+	assert.Nil(err)
+	defer s.Stop()
+
 	g := &config.PeerGroup{
 		Config: config.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
 	}
-	if err := s.AddPeerGroup(g); err != nil {
-		log.Fatal(err)
-	}
+	err = s.AddPeerGroup(g)
+	assert.Nil(err)
+
 	n := &config.Neighbor{
 		Config: config.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
@@ -387,20 +400,20 @@ func TestPeerGroup(test *testing.T) {
 		},
 	}
 	config.RegisterConfiguredFields("127.0.0.1", configured)
-
-	if err := s.AddNeighbor(n); err != nil {
-		log.Fatal(err)
-	}
+	err = s.AddNeighbor(n)
+	assert.Nil(err)
 
 	t := NewBgpServer()
 	go t.Serve()
-	t.Start(&config.Global{
+	err = t.Start(&config.Global{
 		Config: config.GlobalConfig{
 			As:       2,
 			RouterId: "2.2.2.2",
 			Port:     -1,
 		},
 	})
+	assert.Nil(err)
+	defer t.Stop()
 
 	m := &config.Neighbor{
 		Config: config.NeighborConfig{
@@ -409,13 +422,12 @@ func TestPeerGroup(test *testing.T) {
 		},
 		Transport: config.Transport{
 			Config: config.TransportConfig{
-				RemotePort: 10180,
+				RemotePort: 10179,
 			},
 		},
 	}
-	if err := t.AddNeighbor(m); err != nil {
-		log.Fatal(err)
-	}
+	err = t.AddNeighbor(m)
+	assert.Nil(err)
 
 	for {
 		time.Sleep(time.Second)
