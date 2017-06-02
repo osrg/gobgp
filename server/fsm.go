@@ -866,6 +866,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					"Key":   fsm.pConf.Config.NeighborAddress,
 					"State": fsm.state.String(),
 				}).Warn("graceful restart timer expired")
+				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
 			}
 		case i, ok := <-h.msgCh.Out():
@@ -1076,6 +1077,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 					"Key":   fsm.pConf.Config.NeighborAddress,
 					"State": fsm.state.String(),
 				}).Warn("graceful restart timer expired")
+				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
 			}
 		case <-ticker.C:
