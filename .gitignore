@@ -5,6 +5,7 @@
 *.pyc
 gobgp/gobgp
 gobgpd/gobgpd
+vendor/
 
 # Folders
 _obj

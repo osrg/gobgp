@@ -1,0 +1,49 @@
+{
+    "dependencies": {
+        "github.com/BurntSushi/toml": {
+            "branch": "master"
+        },
+        "github.com/Sirupsen/logrus": {
+            "branch": "master"
+        },
+        "github.com/armon/go-radix": {
+            "branch": "master"
+        },
+        "github.com/eapache/channels": {
+            "branch": "master"
+        },
+        "github.com/golang/protobuf": {
+            "branch": "master"
+        },
+        "github.com/influxdata/influxdb": {
+            "branch": "master"
+        },
+        "github.com/jessevdk/go-flags": {
+            "branch": "master"
+        },
+        "github.com/kr/pretty": {
+            "branch": "master"
+        },
+        "github.com/satori/go.uuid": {
+            "branch": "master"
+        },
+        "github.com/spf13/cobra": {
+            "branch": "master"
+        },
+        "github.com/spf13/viper": {
+            "branch": "master"
+        },
+        "github.com/vishvananda/netlink": {
+            "branch": "master"
+        },
+        "golang.org/x/net": {
+            "branch": "master"
+        },
+        "google.golang.org/grpc": {
+            "branch": "master"
+        },
+        "gopkg.in/tomb.v2": {
+            "branch": "v2"
+        }
+    }
+}
