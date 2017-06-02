@@ -35,6 +35,7 @@ func TestModPolicyAssign(t *testing.T) {
 		Config: config.GlobalConfig{
 			As:       1,
 			RouterId: "1.1.1.1",
+			Port:     -1,
 		},
 	})
 	assert.Nil(err)
