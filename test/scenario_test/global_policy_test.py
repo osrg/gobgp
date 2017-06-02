@@ -283,6 +283,8 @@ class GoBGPTestBase(unittest.TestCase):
             for p in v['paths']:
                 self.assertTrue(p['nexthop'] == '0.0.0.0')
 
+        for n in self.quaggas.itervalues():
+            self.assertTrue(self.gobgp.get_neighbor(n)['state'].get('adj-table', {}).get('accepted', 0) == 0)
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)

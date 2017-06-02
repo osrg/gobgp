@@ -21,9 +21,10 @@ import (
 )
 
 type AdjRib struct {
-	id       string
-	accepted map[bgp.RouteFamily]int
-	table    map[bgp.RouteFamily]map[string]*Path
+	id             string
+	accepted       map[bgp.RouteFamily]int
+	importFiltered map[bgp.RouteFamily]int
+	table          map[bgp.RouteFamily]map[string]*Path
 }
 
 func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
@@ -32,9 +33,10 @@ func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
 		table[rf] = make(map[string]*Path)
 	}
 	return &AdjRib{
-		id:       id,
-		table:    table,
-		accepted: make(map[bgp.RouteFamily]int),
+		id:             id,
+		table:          table,
+		accepted:       make(map[bgp.RouteFamily]int),
+		importFiltered: make(map[bgp.RouteFamily]int),
 	}
 }
 
@@ -52,6 +54,9 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				delete(adj.table[rf], key)
 				if old.Filtered(adj.id) != POLICY_DIRECTION_IN {
 					adj.accepted[rf]--
+				}
+				if old.Filtered(GLOBAL_RIB_NAME) == POLICY_DIRECTION_IMPORT {
+					adj.importFiltered[rf]--
 				}
 			}
 		} else {
@@ -79,6 +84,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
 	for _, rf := range rfList {
 		adj.accepted[rf] = 0
+		adj.importFiltered[rf] = 0
 		for _, p := range adj.table[rf] {
 			if p.Filtered(adj.id) != POLICY_DIRECTION_IN {
 				adj.accepted[rf]++
@@ -120,11 +126,28 @@ func (adj *AdjRib) Accepted(rfList []bgp.RouteFamily) int {
 	return count
 }
 
+func (adj *AdjRib) ImportFilter(path *Path) {
+	family := path.GetRouteFamily()
+	path.Filter(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT)
+	adj.importFiltered[family]++
+}
+
+func (adj *AdjRib) ImportFiltered(rfList []bgp.RouteFamily) int {
+	count := 0
+	for _, rf := range rfList {
+		if n, ok := adj.importFiltered[rf]; ok {
+			count += n
+		}
+	}
+	return count
+}
+
 func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
 	for _, rf := range rfList {
 		if _, ok := adj.table[rf]; ok {
 			adj.table[rf] = make(map[string]*Path)
 			adj.accepted[rf] = 0
+			adj.importFiltered[rf] = 0
 		}
 	}
 }
