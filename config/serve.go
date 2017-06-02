@@ -22,6 +22,9 @@ type BgpConfigSet struct {
 }
 
 func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
+	ReadConfigfileServeExtensive(path, format, configCh, false, nil);
+}
+func ReadConfigfileServeExtensive(path, format string, configCh chan *BgpConfigSet, strict bool, viperCh chan *viper.Viper) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP)
 
@@ -38,8 +41,14 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 		if err = v.ReadInConfig(); err != nil {
 			goto ERROR
 		}
-		if err = v.UnmarshalExact(c); err != nil {
-			goto ERROR
+		if strict {
+			if err = v.UnmarshalExact(c); err != nil {
+				goto ERROR
+			}
+		} else {
+			if err = v.UnmarshalKey("gobgp",c); err != nil {
+				goto ERROR
+			}
 		}
 		if err = setDefaultConfigValuesWithViper(v, c); err != nil {
 			goto ERROR
@@ -51,6 +60,9 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 		}
 		cnt++
 		configCh <- c
+		if viperCh != nil {
+			viperCh <- v
+		}
 		goto NEXT
 	ERROR:
 		if cnt == 0 {
