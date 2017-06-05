@@ -7,6 +7,7 @@ import (
 	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/spf13/viper"
 	"net"
+	"reflect"
 )
 
 const (
@@ -14,6 +15,20 @@ const (
 	DEFAULT_IDLE_HOLDTIME_AFTER_RESET = 30
 	DEFAULT_CONNECT_RETRY             = 120
 )
+
+var forcedOverwrittenConfig = []string{
+	"neighbor.config.peer-as",
+	"neighbor.timers.config.minimum-advertisement-interval",
+}
+
+var configuredFields map[string]interface{}
+
+func RegisterConfiguredFields(addr string, n interface{}) {
+	if configuredFields == nil {
+		configuredFields = make(map[string]interface{}, 0)
+	}
+	configuredFields[addr] = n
+}
 
 func defaultAfiSafi(typ AfiSafiType, enable bool) AfiSafi {
 	return AfiSafi{
@@ -255,6 +270,22 @@ func setDefaultPolicyConfigValuesWithViper(v *viper.Viper, p *PolicyDefinition) 
 	return nil
 }
 
+func validatePeerGroupConfig(n *Neighbor, b *BgpConfigSet) error {
+	name := n.Config.PeerGroup
+	if name == "" {
+		return nil
+	}
+	for _, pg := range b.PeerGroups {
+		if name == pg.Config.PeerGroupName {
+			if pg.Config.PeerAs != 0 && n.Config.PeerAs != 0 {
+				return fmt.Errorf("Cannot configure remote-as for members. Peer-group AS %d.", pg.Config.PeerAs)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("No such peer-group: %s", name)
+}
+
 func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	if v == nil {
 		v = viper.New()
@@ -294,6 +325,10 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	}
 
 	for idx, n := range b.Neighbors {
+		if err := validatePeerGroupConfig(&n, b); err != nil {
+			return err
+		}
+
 		vv := viper.New()
 		if len(list) > idx {
 			vv.Set("neighbor", list[idx])
@@ -302,6 +337,10 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 			return err
 		}
 		b.Neighbors[idx] = n
+
+		if n.Config.PeerGroup != "" {
+			RegisterConfiguredFields(vv.Get("neighbor.config.neighbor-address").(string), list[idx])
+		}
 	}
 
 	for idx, r := range b.RpkiServers {
@@ -327,4 +366,56 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	}
 
 	return nil
+}
+
+func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
+	v := viper.New()
+
+	val, ok := configuredFields[c.Config.NeighborAddress]
+	if !ok {
+		return fmt.Errorf("No such neighbor %s", c.Config.NeighborAddress)
+	}
+	v.Set("neighbor", val)
+
+	overwriteConfig(&c.Config, &pg.Config, "neighbor.config", v)
+	overwriteConfig(&c.Timers.Config, &pg.Timers.Config, "neighbor.timers.config", v)
+	overwriteConfig(&c.Transport.Config, &pg.Transport.Config, "neighbor.transport.config", v)
+	overwriteConfig(&c.ErrorHandling.Config, &pg.ErrorHandling.Config, "neighbor.error-handling.config", v)
+	overwriteConfig(&c.LoggingOptions.Config, &pg.LoggingOptions.Config, "neighbor.logging-options.config", v)
+	overwriteConfig(&c.EbgpMultihop.Config, &pg.EbgpMultihop.Config, "neighbor.ebgp-multihop.config", v)
+	overwriteConfig(&c.RouteReflector.Config, &pg.RouteReflector.Config, "neighbor.route-reflector.config", v)
+	overwriteConfig(&c.AsPathOptions.Config, &pg.AsPathOptions.Config, "neighbor.as-path-options.config", v)
+	overwriteConfig(&c.AddPaths.Config, &pg.AddPaths.Config, "neighbor.add-paths.config", v)
+	overwriteConfig(&c.GracefulRestart.Config, &pg.GracefulRestart.Config, "neighbor.gradeful-restart.config", v)
+	overwriteConfig(&c.ApplyPolicy.Config, &pg.ApplyPolicy.Config, "neighbor.apply-policy.config", v)
+	overwriteConfig(&c.UseMultiplePaths.Config, &pg.UseMultiplePaths.Config, "neighbor.use-multiple-paths.config", v)
+	overwriteConfig(&c.RouteServer.Config, &pg.RouteServer.Config, "neighbor.route-server.config", v)
+
+	if !v.IsSet("neighbor.afi-safis") {
+		c.AfiSafis = pg.AfiSafis
+	}
+
+	return nil
+}
+
+func overwriteConfig(c, pg interface{}, tagPrefix string, v *viper.Viper) {
+	nValue := reflect.Indirect(reflect.ValueOf(c))
+	nType := reflect.Indirect(nValue).Type()
+	pgValue := reflect.Indirect(reflect.ValueOf(pg))
+	pgType := reflect.Indirect(pgValue).Type()
+
+	for i := 0; i < pgType.NumField(); i++ {
+		field := pgType.Field(i).Name
+		tag := tagPrefix + "." + nType.Field(i).Tag.Get("mapstructure")
+		if func() bool {
+			for _, t := range forcedOverwrittenConfig {
+				if t == tag {
+					return true
+				}
+			}
+			return false
+		}() || !v.IsSet(tag) {
+			nValue.FieldByName(field).Set(pgValue.FieldByName(field))
+		}
+	}
 }
