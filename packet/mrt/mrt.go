@@ -67,6 +67,7 @@ const (
 	RIB_IPV6_UNICAST           MRTSubTypeTableDumpv2 = 4
 	RIB_IPV6_MULTICAST         MRTSubTypeTableDumpv2 = 5
 	RIB_GENERIC                MRTSubTypeTableDumpv2 = 6
+	GEO_PEER_TABLE             MRTSubTypeTableDumpv2 = 7  // RFC6397
 	RIB_IPV4_UNICAST_ADDPATH   MRTSubTypeTableDumpv2 = 8  // RFC8050
 	RIB_IPV4_MULTICAST_ADDPATH MRTSubTypeTableDumpv2 = 9  // RFC8050
 	RIB_IPV6_UNICAST_ADDPATH   MRTSubTypeTableDumpv2 = 10 // RFC8050
@@ -542,6 +543,115 @@ func (u *Rib) String() string {
 	return fmt.Sprintf("RIB: Seq [%d] Prefix [%s] Entries [%s]", u.SequenceNumber, u.Prefix, u.Entries)
 }
 
+type GeoPeer struct {
+	Type      uint8
+	BgpId     net.IP
+	Latitude  float32
+	Longitude float32
+}
+
+func (p *GeoPeer) DecodeFromBytes(data []byte) ([]byte, error) {
+	if len(data) < 13 {
+		return nil, fmt.Errorf("not all GeoPeer bytes are available")
+	}
+	// Peer IP Address and Peer AS should not be included
+	p.Type = uint8(data[0])
+	if p.Type != uint8(0) {
+		return nil, fmt.Errorf("unsupported peer type for GeoPeer: %d", p.Type)
+	}
+	p.BgpId = net.IP(data[1:5])
+	p.Latitude = math.Float32frombits(binary.BigEndian.Uint32(data[5:9]))
+	p.Longitude = math.Float32frombits(binary.BigEndian.Uint32(data[9:13]))
+	return data[13:], nil
+}
+
+func (p *GeoPeer) Serialize() ([]byte, error) {
+	buf := make([]byte, 13)
+	buf[0] = uint8(0) // Peer IP Address and Peer AS should not be included
+	bgpId := p.BgpId.To4()
+	if bgpId == nil {
+		return nil, fmt.Errorf("invalid BgpId: %s", p.BgpId)
+	}
+	copy(buf[1:5], bgpId)
+	binary.BigEndian.PutUint32(buf[5:9], math.Float32bits(p.Latitude))
+	binary.BigEndian.PutUint32(buf[9:13], math.Float32bits(p.Longitude))
+	return buf, nil
+}
+
+func NewGeoPeer(bgpid string, latitude float32, longitude float32) *GeoPeer {
+	return &GeoPeer{
+		Type:      0, // Peer IP Address and Peer AS should not be included
+		BgpId:     net.ParseIP(bgpid).To4(),
+		Latitude:  latitude,
+		Longitude: longitude,
+	}
+}
+
+func (p *GeoPeer) String() string {
+	return fmt.Sprintf("PEER ENTRY: ID [%s] Latitude [%f] Longitude [%f]", p.BgpId, p.Latitude, p.Longitude)
+}
+
+type GeoPeerTable struct {
+	CollectorBgpId     net.IP
+	CollectorLatitude  float32
+	CollectorLongitude float32
+	Peers              []*GeoPeer
+}
+
+func (t *GeoPeerTable) DecodeFromBytes(data []byte) error {
+	if len(data) < 14 {
+		return fmt.Errorf("not all GeoPeerTable bytes are available")
+	}
+	t.CollectorBgpId = net.IP(data[0:4])
+	t.CollectorLatitude = math.Float32frombits(binary.BigEndian.Uint32(data[4:8]))
+	t.CollectorLongitude = math.Float32frombits(binary.BigEndian.Uint32(data[8:12]))
+	peerCount := binary.BigEndian.Uint16(data[12:14])
+	data = data[14:]
+	t.Peers = make([]*GeoPeer, 0, peerCount)
+	var err error
+	for i := 0; i < int(peerCount); i++ {
+		p := &GeoPeer{}
+		if data, err = p.DecodeFromBytes(data); err != nil {
+			return err
+		}
+		t.Peers = append(t.Peers, p)
+	}
+	return nil
+}
+
+func (t *GeoPeerTable) Serialize() ([]byte, error) {
+	buf := make([]byte, 14)
+	collectorBgpId := t.CollectorBgpId.To4()
+	if collectorBgpId == nil {
+		return nil, fmt.Errorf("invalid CollectorBgpId: %s", t.CollectorBgpId)
+	}
+	copy(buf[0:4], collectorBgpId)
+	binary.BigEndian.PutUint32(buf[4:8], math.Float32bits(t.CollectorLatitude))
+	binary.BigEndian.PutUint32(buf[8:12], math.Float32bits(t.CollectorLongitude))
+	binary.BigEndian.PutUint16(buf[12:14], uint16(len(t.Peers)))
+	for _, peer := range t.Peers {
+		pbuf, err := peer.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, pbuf...)
+	}
+	return buf, nil
+}
+
+func NewGeoPeerTable(bgpid string, latitude float32, longitude float32, peers []*GeoPeer) *GeoPeerTable {
+	return &GeoPeerTable{
+		CollectorBgpId:     net.ParseIP(bgpid).To4(),
+		CollectorLatitude:  latitude,
+		CollectorLongitude: longitude,
+		Peers:              peers,
+	}
+}
+
+func (t *GeoPeerTable) String() string {
+	return fmt.Sprintf("GEO_PEER_TABLE: CollectorBgpId [%s] CollectorLatitude [%f] CollectorLongitude [%f] Peers [%s]", t.CollectorBgpId, t.CollectorLatitude, t.CollectorLongitude, t.Peers)
+}
+
 type BGP4MPHeader struct {
 	PeerAS         uint32
 	LocalAS        uint32
@@ -812,6 +922,8 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 		case RIB_IPV6_MULTICAST:
 			rf = bgp.RF_IPv6_MC
 		case RIB_GENERIC:
+		case GEO_PEER_TABLE:
+			msg.Body = &GeoPeerTable{}
 		case RIB_IPV4_UNICAST_ADDPATH:
 			rf = bgp.RF_IPv4_UC
 			isAddPath = true
@@ -830,7 +942,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %v\n", subType)
 		}
 
-		if subType != PEER_INDEX_TABLE {
+		if msg.Body == nil {
 			msg.Body = &Rib{
 				RouteFamily: rf,
 				isAddPath:   isAddPath,

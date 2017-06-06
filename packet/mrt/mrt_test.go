@@ -227,6 +227,22 @@ func TestMrtRibWithAddPath(t *testing.T) {
 	assert.Equal(t, reflect.DeepEqual(r1, r2), true)
 }
 
+func TestMrtGeoPeerTable(t *testing.T) {
+	p1 := NewGeoPeer("192.168.0.1", 28.031157, 86.899684)
+	p2 := NewGeoPeer("192.168.0.1", 35.360556, 138.727778)
+	pt1 := NewGeoPeerTable("192.168.0.1", 12.345678, 98.765432, []*GeoPeer{p1, p2})
+	b1, err := pt1.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pt2 := &GeoPeerTable{}
+	err = pt2.DecodeFromBytes(b1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, reflect.DeepEqual(pt1, pt2), true)
+}
+
 func TestMrtBgp4mpStateChange(t *testing.T) {
 	c1 := NewBGP4MPStateChange(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, ACTIVE, ESTABLISHED)
 	b1, err := c1.Serialize()
