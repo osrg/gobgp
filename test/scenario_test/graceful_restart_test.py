@@ -26,6 +26,7 @@ from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
+    BGP_FSM_IDLE,
     BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
 )
@@ -127,6 +128,47 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(25)
         g2 = self.bgpds['g2']
         self.assertTrue(len(g2.get_global_rib()) == 0)
+
+    def test_07_multineighbor_established(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+
+        g1._start_gobgp()
+
+        g1.del_peer(g2)
+        g1.del_peer(g3)
+        g2.del_peer(g1)
+        g3.del_peer(g1)
+        g1.add_peer(g2, graceful_restart=True, llgr=True)
+        g1.add_peer(g3, graceful_restart=True, llgr=True)
+        g2.add_peer(g1, graceful_restart=True, llgr=True)
+        g3.add_peer(g1, graceful_restart=True, llgr=True)
+
+        g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
+
+    def test_08_multineighbor_graceful_restart(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+
+        g1.graceful_restart()
+        g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+        g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+
+        g1._start_gobgp(graceful_restart=True)
+
+        count = 0
+        while ((g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED)
+                or (g1.get_neighbor_state(g3) != BGP_FSM_ESTABLISHED)):
+            count += 1
+            # assert connections are not refused
+            self.assertTrue(g1.get_neighbor_state(g2) != BGP_FSM_IDLE)
+            self.assertTrue(g1.get_neighbor_state(g3) != BGP_FSM_IDLE)
+            if count > 120:
+                raise Exception('timeout')
+            time.sleep(1)
 
 
 if __name__ == '__main__':
