@@ -17,10 +17,10 @@ package server
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
 	"time"
 )
 

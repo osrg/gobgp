@@ -17,11 +17,11 @@ package server
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"time"

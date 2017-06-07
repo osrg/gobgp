@@ -21,11 +21,11 @@ import (
 	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

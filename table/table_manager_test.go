@@ -17,8 +17,8 @@ package table
 
 import (
 	_ "fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"os"

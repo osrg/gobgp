@@ -26,10 +26,10 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 )
 
 type PolicyOptions struct {

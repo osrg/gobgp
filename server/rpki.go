@@ -24,12 +24,12 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
