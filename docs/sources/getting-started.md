@@ -7,7 +7,7 @@ Route Server), this example gives you the basics of GoBGP usage.
 
 ## Prerequisites
 
-You need to install [Go 1.5 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
+You need to install [Go 1.7 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
 
 ## Installing GoBGP
 
@@ -119,7 +119,7 @@ BGP neighbor is 10.0.255.1, remote AS 65001
     Notifications:          0          0
     Updates:                1          1
     Keepalives:             4          5
-    Route Refesh:           0          0
+    Route Refresh:          0          0
     Discarded:              0          0
     Total:                  7          7
 ```

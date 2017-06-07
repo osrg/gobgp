@@ -13,18 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.base import wait_for_completion
-from lib.gobgp import *
-from lib.quagga import *
-import sys
-import os
-import time
-import nose
-from noseplugin import OptionParser, parser_option
+from __future__ import absolute_import
+
 from itertools import combinations
+import sys
+import time
+import unittest
+
+from fabric.api import local
+import nose
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    BGP_FSM_IDLE,
+    BGP_FSM_ESTABLISHED,
+)
+from lib.base import wait_for_completion
+from lib.gobgp import GoBGPContainer
+from lib.quagga import QuaggaBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -45,7 +53,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         # advertise a route from q1, q2
         for idx, c in enumerate(qs):
-            route = '10.0.{0}.0/24'.format(idx+1)
+            route = '10.0.{0}.0/24'.format(idx + 1)
             c.add_route(route)
 
         initial_wait_time = max(ctn.run() for ctn in ctns)
@@ -119,7 +127,7 @@ class GoBGPTestBase(unittest.TestCase):
     # check routes are properly advertised to all BGP speaker
     def test_06_check_quagga_global_rib(self):
         interval = 1
-        timeout = int(120/interval)
+        timeout = int(120 / interval)
         for q in self.quaggas.itervalues():
             done = False
             for _ in range(timeout):
@@ -134,7 +142,7 @@ class GoBGPTestBase(unittest.TestCase):
 
                 peer_info = self.gobgp.peers[q]
                 local_addr = peer_info['local_addr'].split('/')[0]
-                for r in self.gobgp.routes.keys():
+                for r in self.gobgp.routes:
                     self.assertTrue(r in (p['prefix'] for p in global_rib))
                     for rr in global_rib:
                         if rr['prefix'] == r:
@@ -150,7 +158,7 @@ class GoBGPTestBase(unittest.TestCase):
             if done:
                 continue
             # should not reach here
-            self.assertTrue(False)
+            raise AssertionError
 
     def test_07_add_ebgp_peer(self):
         q3 = QuaggaBGPContainer(name='q3', asn=65001, router_id='192.168.0.4')
@@ -174,7 +182,7 @@ class GoBGPTestBase(unittest.TestCase):
         q3 = self.quaggas['q3']
         paths = self.gobgp.get_adj_rib_out(q3)
         total_len = len(q1.routes) + len(q2.routes) + len(self.gobgp.routes)
-        assert(len(paths) == total_len)
+        assert len(paths) == total_len
         for path in paths:
             peer_info = self.gobgp.peers[q3]
             local_addr = peer_info['local_addr'].split('/')[0]
@@ -252,9 +260,9 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['q1']
         q2 = self.quaggas['q2']
         for q in [q1, q2]:
-            def f():
+            def _f():
                 return prefix in [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q)]
-            wait_for_completion(f)
+            wait_for_completion(_f)
 
         def f():
             return len(q2.get_global_rib(prefix)) == 1
@@ -267,26 +275,23 @@ class GoBGPTestBase(unittest.TestCase):
         prefix = '10.0.4.0/24'
         q1.add_route(prefix)
 
-        def f():
+        def f1():
             l = self.gobgp.get_global_rib(prefix)
             return len(l) == 1 and len(l[0]['paths']) == 2
-        wait_for_completion(f)
+        wait_for_completion(f1)
 
-        def f():
+        def f2():
             return prefix not in [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q2)]
-        wait_for_completion(f)
+        wait_for_completion(f2)
 
-        def f():
+        def f3():
             l = q2.get_global_rib(prefix)
             # route from ibgp so aspath should be empty
             return len(l) == 1 and len(l[0]['aspath']) == 0
-        wait_for_completion(f)
+        wait_for_completion(f3)
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

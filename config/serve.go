@@ -25,6 +25,9 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP)
 
+	// Update config file type, if detectable
+	format = detectConfigFileType(path, format)
+
 	cnt := 0
 	for {
 		c := &BgpConfigSet{}
@@ -80,6 +83,15 @@ func inSlice(n Neighbor, b []Neighbor) int {
 	return -1
 }
 
+func existPeerGroup(n string, b []PeerGroup) int {
+	for i, nb := range b {
+		if nb.Config.PeerGroupName == n {
+			return i
+		}
+	}
+	return -1
+}
+
 func ConfigSetToRoutingPolicy(c *BgpConfigSet) *RoutingPolicy {
 	return &RoutingPolicy{
 		DefinedSets:       c.DefinedSets,
@@ -87,8 +99,34 @@ func ConfigSetToRoutingPolicy(c *BgpConfigSet) *RoutingPolicy {
 	}
 }
 
-func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor, bool) {
+func UpdatePeerGroupConfig(curC, newC *BgpConfigSet) ([]PeerGroup, []PeerGroup, []PeerGroup) {
+	addedPg := []PeerGroup{}
+	deletedPg := []PeerGroup{}
+	updatedPg := []PeerGroup{}
 
+	for _, n := range newC.PeerGroups {
+		if idx := existPeerGroup(n.Config.PeerGroupName, curC.PeerGroups); idx < 0 {
+			addedPg = append(addedPg, n)
+		} else if !n.Equal(&curC.PeerGroups[idx]) {
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Debugf("Current peer-group config:%s", curC.PeerGroups[idx])
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Debugf("New peer-group config:%s", n)
+			updatedPg = append(updatedPg, n)
+		}
+	}
+
+	for _, n := range curC.PeerGroups {
+		if existPeerGroup(n.Config.PeerGroupName, newC.PeerGroups) < 0 {
+			deletedPg = append(deletedPg, n)
+		}
+	}
+	return addedPg, deletedPg, updatedPg
+}
+
+func UpdateNeighborConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor) {
 	added := []Neighbor{}
 	deleted := []Neighbor{}
 	updated := []Neighbor{}
@@ -112,8 +150,7 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 			deleted = append(deleted, n)
 		}
 	}
-
-	return added, deleted, updated, CheckPolicyDifference(ConfigSetToRoutingPolicy(curC), ConfigSetToRoutingPolicy(newC))
+	return added, deleted, updated
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {

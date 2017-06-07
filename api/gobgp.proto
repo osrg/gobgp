@@ -35,7 +35,7 @@ service GobgpApi {
   rpc ValidateRib(ValidateRibRequest) returns (ValidateRibResponse) {}
   rpc AddPath(AddPathRequest) returns (AddPathResponse) {}
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse) {}
-  rpc MonitorRib(Table) returns (stream Destination) {}
+  rpc MonitorRib(MonitorRibRequest) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc EnableMrt(EnableMrtRequest) returns (EnableMrtResponse) {}
   rpc DisableMrt(DisableMrtRequest) returns (DisableMrtResponse) {}
@@ -75,6 +75,7 @@ service GobgpApi {
 
 message GetNeighborRequest {
   bool enableAdvertised = 1;
+  string address        = 2;
 }
 
 message GetNeighborResponse {
@@ -124,6 +125,7 @@ message DeleteNeighborResponse {
 
 message ResetNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message ResetNeighborResponse {
@@ -144,6 +146,7 @@ message SoftResetNeighborResponse {
 
 message ShutdownNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message ShutdownNeighborResponse {
@@ -158,6 +161,7 @@ message EnableNeighborResponse {
 
 message DisableNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message DisableNeighborResponse {
@@ -207,6 +211,11 @@ message DeleteBmpRequest {
 }
 
 message DeleteBmpResponse {
+}
+
+message MonitorRibRequest {
+    Table table = 1;
+    bool current = 2;
 }
 
 message RPKIConf {
@@ -296,6 +305,8 @@ message EnableZebraRequest {
   string url = 1;
   repeated string route_types = 2;
   uint32 version = 3;
+  bool nexthop_trigger_enable = 4;
+  uint32 nexthop_trigger_delay = 5;
 }
 
 message EnableZebraResponse {
@@ -324,6 +335,7 @@ message DeleteVrfResponse {
 
 message GetDefinedSetRequest {
   DefinedType type = 1;
+  string name = 2;
 }
 
 message GetDefinedSetResponse {
@@ -495,6 +507,8 @@ message Path {
   bool stale = 12;
   bool is_from_external = 13;
   string neighbor_ip = 14;
+  bytes uuid = 15; // only paths installed by AddPath API have this
+  bool is_nexthop_invalid = 16;
 }
 
 message Destination {
@@ -561,7 +575,12 @@ message PeerConf {
   uint32 peer_as = 5;
   string peer_group = 6;
   uint32 peer_type = 7;
-  uint32 remove_private_as = 8;
+  enum RemovePrivateAs {
+      NONE = 0;
+      ALL = 1;
+      REPLACE = 2;
+  }
+  RemovePrivateAs remove_private_as = 8;
   bool route_flap_damping = 9;
   uint32 send_community = 10;
   repeated bytes remote_cap = 11;
@@ -571,6 +590,8 @@ message PeerConf {
   string local_address = 15;
   string neighbor_interface = 16;
   string vrf = 17;
+  uint32 allow_own_as = 18;
+  bool replace_peer_as = 19;
 }
 
 message EbgpMultihop {

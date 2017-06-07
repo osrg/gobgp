@@ -13,16 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    BGP_FSM_ACTIVE,
+    BGP_FSM_ESTABLISHED,
+)
+from lib.gobgp import GoBGPContainer
+
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -86,7 +94,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_04_add_non_graceful_restart_enabled_peer(self):
         g1 = self.bgpds['g1']
-        g2 = self.bgpds['g2']
+        # g2 = self.bgpds['g2']
         gobgp_ctn_image_name = parser_option.gobgp_image
         g3 = GoBGPContainer(name='g3', asn=65002, router_id='192.168.0.3',
                             ctn_image_name=gobgp_ctn_image_name,
@@ -122,9 +130,6 @@ class GoBGPTestBase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

@@ -36,7 +36,6 @@ Server:
  Git commit:   76d6bc9
  Built:        Tue Nov  3 17:43:42 UTC 2015
  OS/Arch:      linux/amd64
-
 ```
 
 ## <a name="section1"> Set up dependencies
@@ -44,89 +43,74 @@ Execute the following commands inside the VM to install the dependencies:
 
 1. Install pip and [pipework](https://github.com/jpetazzo/pipework).
 
- ```shell
- $ sudo apt-get update
- $ sudo apt-get install git python-pip python-dev iputils-arping bridge-utils lv
- $ sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
- $ sudo chmod 755 /usr/local/bin/pipework
- ```
- <br>
+```shell
+$ sudo apt-get update
+$ sudo apt-get install git python-pip python-dev iputils-arping bridge-utils lv
+$ sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
+$ sudo chmod 755 /usr/local/bin/pipework
+```
 
-1. Get docker images.
+2. Get docker images.
  Download docker images pertaining to GoBGP testing.
 
- ```shell
- $ sudo docker pull golang:1.5
- $ sudo docker pull osrg/quagga
- $ sudo docker pull osrg/gobgp
- ```
- <br>
+```shell
+$ sudo docker pull golang:1.7
+$ sudo docker pull osrg/gobgp
+$ sudo docker pull osrg/quagga
+$ sudo docker pull osrg/quagga:v1.0
+$ sudo docker pull osrg/exabgp
+```
 
-1. Clone gobgp and install python libraries.
+3. Clone GoBGP and install python libraries.
 
- ```shell
- $ mkdir -p $GOPATH/src/github.com/osrg
- $ cd $GOPATH/src/github.com/osrg
- $ git clone https://github.com/osrg/gobgp.git
- $ cd ./gobgp/test
- $ sudo pip install -r pip-requires.txt
- ```
-<br>
+```shell
+$ mkdir -p $GOPATH/src/github.com/osrg
+$ cd $GOPATH/src/github.com/osrg
+$ git clone https://github.com/osrg/gobgp.git
+$ cd ./gobgp/test
+$ sudo pip install -r pip-requires.txt
+```
 
 ## <a name="section2"> Install local source code
-You need to install local source code into gobgp docker container.
+You need to install local source code into GoBGP docker container.
 You also need this operation at every modification to the source code.
 
-```
+```shell
 $ cd $GOPATH/src/github.com/osrg/gobgp
 $ sudo fab -f ./test/lib/base.py make_gobgp_ctn --set tag=gobgp
 ```
 
-
 ## <a name="section3"> Run test
 
-1. Run all test
-
+1. Run all test.
  You can run all scenario tests with run_all_tests.sh.
  If all tests passed, you can see "all tests passed successfully" at the end of the test.
 
- ```shell
- $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
- $ ./run_all_tests.sh
- ...
- OK
- all tests passed successfully
- ```
- <br>
-2. Run each test
+```shell
+$ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
+$ ./run_all_tests.sh
+...
+OK
+all tests passed successfully
+```
 
- Gobgp have a scenario test shown in the following.
+2. Run each test.
  You can run scenario tests individually with each test file.
+ See `test/scenario_test/*.py`, for the individual test files.
 
- ```shell
- $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
- $ sudo -E PYTHONPATH=$GOBGP/test python <scenario test name>.py
- ...
- OK
- ```
-
- what kind of scenaio tests:
- - bgp_router_test
- - bgp_zebra_test
- - evpn_test
- - flow_spec_test
- - global_policy_test
- - ibgp_router_test
- - route_reflector_test
- - route_server_ipv4_v6_test
- - route_server_malformed_test
- - route_server_policy_grpc_test
- - route_server_policy_test
- - route_server_test
+```shell
+$ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
+$ sudo -E PYTHONPATH=$GOBGP/test python <scenario test name>.py
+...
+OK
+```
 
 ## <a name="section4"> Clean up
-A lot of containers are created during the test.
+A lot of containers, networks temporary files are created during the test.
 Let's clean up.
-```
+
+```shell
 $ sudo docker rm -f $(sudo docker ps -a -q)
+$ sudo docker network prune -f
+$ sudo rm -rf /tmp/gobgp
 ```

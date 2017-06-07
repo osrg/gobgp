@@ -28,6 +28,8 @@ import (
 
 func NewMonitorCmd() *cobra.Command {
 
+	var current bool
+
 	monitor := func(recver interface {
 		Recv() (*table.Destination, error)
 	}) {
@@ -54,7 +56,7 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			recver, err := client.MonitorRIB(family)
+			recver, err := client.MonitorRIB(family, current)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -62,6 +64,7 @@ func NewMonitorCmd() *cobra.Command {
 		},
 	}
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	ribCmd.PersistentFlags().BoolVarP(&current, "current", "", false, "dump current contents")
 
 	globalCmd := &cobra.Command{
 		Use: CMD_GLOBAL,
@@ -71,11 +74,7 @@ func NewMonitorCmd() *cobra.Command {
 	neighborCmd := &cobra.Command{
 		Use: CMD_NEIGHBOR,
 		Run: func(cmd *cobra.Command, args []string) {
-			var names []string
-			if len(args) > 0 {
-				names = []string{args[0]}
-			}
-			stream, err := client.MonitorNeighborState(names...)
+			stream, err := client.MonitorNeighborState(args...)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -90,7 +89,11 @@ func NewMonitorCmd() *cobra.Command {
 					j, _ := json.Marshal(s)
 					fmt.Println(string(j))
 				} else {
-					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", s.Config.NeighborAddress, s.State.SessionState, s.State.AdminState)
+					addr := s.Config.NeighborAddress
+					if s.Config.NeighborInterface != "" {
+						addr = fmt.Sprintf("%s(%s)", addr, s.Config.NeighborInterface)
+					}
+					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", addr, s.State.SessionState, s.State.AdminState)
 				}
 			}
 		},
@@ -111,7 +114,7 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			recver, err := client.MonitorAdjRIBIn(name, family)
+			recver, err := client.MonitorAdjRIBIn(name, family, current)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -119,6 +122,7 @@ func NewMonitorCmd() *cobra.Command {
 		},
 	}
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	adjInCmd.PersistentFlags().BoolVarP(&current, "current", "", false, "dump current contents")
 
 	monitorCmd := &cobra.Command{
 		Use: CMD_MONITOR,

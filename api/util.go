@@ -116,8 +116,10 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	path := table.NewPath(info, nlri, p.IsWithdraw, pattr, t, false)
 	path.SetValidation(config.IntToRpkiValidationResultTypeMap[int(p.Validation)])
 	path.MarkStale(p.Stale)
+	path.SetUUID(p.Uuid)
 	if p.Filtered {
 		path.Filter("", table.POLICY_DIRECTION_IN)
 	}
+	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path, nil
 }

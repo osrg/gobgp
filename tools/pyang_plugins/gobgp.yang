@@ -46,7 +46,15 @@ module gobgp {
       }
       enum BOTH {
         value 2;
-        description "send both pre and post-policy routes";
+        description "!OBSOLETED! send both pre and post-policy routes";
+      }
+      enum LOCAL-RIB {
+        value 3;
+        description "send local rib routes";
+      }
+      enum ALL {
+        value 4;
+        description "send pre-policy, post-policy, and local rib routes";
       }
     }
   }
@@ -191,6 +199,10 @@ module gobgp {
   grouping gobgp-adjacent-table {
     container adj-table {
       leaf ADVERTISED {
+        type uint32;
+      }
+
+      leaf FILTERED {
         type uint32;
       }
 
@@ -536,14 +548,29 @@ module gobgp {
         "Reference to the address of the BMP server used as
          a key in the BMP server list";
     }
+
     leaf port {
       type uint32;
       description
         "Reference to the port of the BMP server";
     }
+
     leaf route-monitoring-policy {
       type bmp-route-monitoring-policy-type;
       default PRE-POLICY;
+    }
+
+    leaf statistics-timeout {
+      type uint16;
+      description
+        "Interval seconds of statistics messages sent to BMP server";
+    }
+
+    leaf route-mirroring-enabled {
+      type boolean;
+      description
+        "Enable feature for mirroring of received BGP messages
+         mainly for debugging purpose";
     }
   }
 
@@ -1020,6 +1047,12 @@ module gobgp {
       type uint8;
       description
         "Configure version of zebra protocol.  Default is 2. Supported up to 3.";
+    }
+    leaf nexthop-trigger-enable {
+      type boolean;
+    }
+    leaf nexthop-trigger-delay {
+      type uint8;
     }
   }
 

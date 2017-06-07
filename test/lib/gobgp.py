@@ -13,21 +13,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from base import *
+from __future__ import absolute_import
+
 import json
-import toml
-import yaml
 from itertools import chain
 from threading import Thread
-import socket
 import subprocess
 import os
+
+from fabric import colors
+from fabric.api import local
+from fabric.utils import indent
+import netaddr
+import toml
+import yaml
+
+from lib.base import (
+    BGPContainer,
+    CmdBuffer,
+    BGP_ATTR_TYPE_AS_PATH,
+    BGP_ATTR_TYPE_NEXT_HOP,
+    BGP_ATTR_TYPE_MULTI_EXIT_DISC,
+    BGP_ATTR_TYPE_LOCAL_PREF,
+    BGP_ATTR_TYPE_MP_REACH_NLRI,
+)
+
 
 def extract_path_attribute(path, typ):
     for a in path['attrs']:
         if a['type'] == typ:
             return a
     return None
+
 
 class GoBGPContainer(BGPContainer):
 
@@ -36,7 +53,7 @@ class GoBGPContainer(BGPContainer):
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='toml',
-                 zapi_version=2):
+                 zapi_version=2, ospfd_config=None):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -45,10 +62,24 @@ class GoBGPContainer(BGPContainer):
         self.prefix_set = None
         self.neighbor_set = None
         self.bgp_set = None
+        self.statements = None
         self.default_policy = None
         self.zebra = zebra
         self.zapi_version = zapi_version
         self.config_format = config_format
+
+        # To start OSPFd in GoBGP container, specify 'ospfd_config' as a dict
+        # type value.
+        # Example:
+        # ospfd_config = {
+        #     'redistributes': [
+        #         'connected',
+        #     ],
+        #     'networks': {
+        #         '192.168.1.0/24': '0.0.0.0',  # <network>: <area>
+        #     },
+        # }
+        self.ospfd_config = ospfd_config or {}
 
     def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
@@ -74,42 +105,54 @@ class GoBGPContainer(BGPContainer):
             cmd = 'zebra -u root -g root -f {0}/zebra.conf'.format(self.SHARED_VOLUME)
         self.local(cmd, detach=True)
 
+    def _start_ospfd(self):
+        if self.zapi_version == 2:
+            cmd = 'cp {0}/ospfd.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
+            self.local(cmd)
+            cmd = '/usr/lib/quagga/ospfd -f {0}/ospfd.conf'.format(self.QUAGGA_VOLUME)
+        else:
+            cmd = 'ospfd -u root -g root -f {0}/ospfd.conf'.format(self.SHARED_VOLUME)
+        self.local(cmd, detach=True)
+
     def run(self):
         super(GoBGPContainer, self).run()
         if self.zebra:
             self._start_zebra()
+            if self.ospfd_config:
+                self._start_ospfd()
         self._start_gobgp()
         return self.WAIT_FOR_BOOT
 
-    def _get_as_path(self, path):
-        asps = (p['as_paths'] for p in path['attrs'] if
-                p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p
-                and p['as_paths'] != None)
+    @staticmethod
+    def _get_as_path(path):
+        asps = (p['as_paths'] for p in path['attrs']
+                if p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p and p['as_paths'] is not None)
         asps = chain.from_iterable(asps)
         asns = (asp['asns'] for asp in asps)
         return list(chain.from_iterable(asns))
 
-    def _get_nexthop(self, path):
+    @staticmethod
+    def _get_nexthop(path):
         for p in path['attrs']:
             if p['type'] == BGP_ATTR_TYPE_NEXT_HOP or p['type'] == BGP_ATTR_TYPE_MP_REACH_NLRI:
                 return p['nexthop']
 
-    def _get_local_pref(self, path):
+    @staticmethod
+    def _get_local_pref(path):
         for p in path['attrs']:
             if p['type'] == BGP_ATTR_TYPE_LOCAL_PREF:
                 return p['value']
         return None
 
-    def _get_med(self, path):
+    @staticmethod
+    def _get_med(path):
         for p in path['attrs']:
             if p['type'] == BGP_ATTR_TYPE_MULTI_EXIT_DISC:
                 return p['metric']
         return None
 
     def _trigger_peer_cmd(self, cmd, peer):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} {1}'.format(peer_addr, cmd)
         self.local(cmd)
 
@@ -126,9 +169,7 @@ class GoBGPContainer(BGPContainer):
         self._trigger_peer_cmd('softreset{0} -a {1}'.format(type, rf), peer)
 
     def get_local_rib(self, peer, prefix='', rf='ipv4'):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
         output = self.local(cmd, capture=True)
         ret = json.loads(output)
@@ -181,9 +222,7 @@ class GoBGPContainer(BGPContainer):
         t.start()
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} adj-{1} {2} -a {3} -j'.format(peer_addr,
                                                                 adj_type,
                                                                 prefix, rf)
@@ -204,10 +243,7 @@ class GoBGPContainer(BGPContainer):
         return self._get_adj_rib('out', peer, prefix, rf)
 
     def get_neighbor(self, peer):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        cmd = 'gobgp -j neighbor {0}'.format(peer_addr)
+        cmd = 'gobgp -j neighbor {0}'.format(self.peer_name(peer))
         return json.loads(self.local(cmd, capture=True))
 
     def get_neighbor_state(self, peer):
@@ -222,7 +258,7 @@ class GoBGPContainer(BGPContainer):
         self.statements = []
 
     def set_prefix_set(self, ps):
-        if type(ps) is not list:
+        if not isinstance(ps, list):
             ps = [ps]
         self.prefix_set = ps
 
@@ -232,7 +268,7 @@ class GoBGPContainer(BGPContainer):
         self.prefix_set.append(ps)
 
     def set_neighbor_set(self, ns):
-        if type(ns) is not list:
+        if not isinstance(ns, list):
             ns = [ns]
         self.neighbor_set = ns
 
@@ -248,28 +284,41 @@ class GoBGPContainer(BGPContainer):
         self._create_config_bgp()
         if self.zebra:
             self._create_config_zebra()
+            if self.ospfd_config:
+                self._create_config_ospfd()
 
     def _create_config_bgp(self):
-        config = {'global': {'config': {'as': self.asn, 'router-id': self.router_id},
-                'route-selection-options':{
+        config = {
+            'global': {
+                'config': {
+                    'as': self.asn,
+                    'router-id': self.router_id,
+                },
+                'route-selection-options': {
                     'config': {
                         'external-compare-router-id': True,
                     },
                 },
-        }}
+            },
+            'neighbors': [],
+        }
 
         if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
 
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
-            version = netaddr.IPNetwork(info['neigh_addr']).version
-            if version == 4:
+            if info['interface'] != '':
                 afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
-            elif version == 6:
                 afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
             else:
-                Exception('invalid ip address version. {0}'.format(version))
+                version = netaddr.IPNetwork(info['neigh_addr']).version
+                if version == 4:
+                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                elif version == 6:
+                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                else:
+                    Exception('invalid ip address version. {0}'.format(version))
 
             if info['vpn']:
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
@@ -283,18 +332,37 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-flowspec'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-flowspec'}})
 
-            n = {'config':
-                 {'neighbor-address': info['neigh_addr'].split('/')[0],
-                  'peer-as': peer.asn,
-                  'auth-password': info['passwd'],
-                  'vrf': info['vrf'],
-                  },
-                 'afi-safis': afi_safi_list,
-                 'timers': {'config': {
-                     'connect-retry': 10,
-                  }},
-                 'transport': {'config': {}},
-                 }
+            neigh_addr = None
+            interface = None
+            if info['interface'] == '':
+                neigh_addr = info['neigh_addr'].split('/')[0]
+            else:
+                interface = info['interface']
+            n = {
+                'config': {
+                    'neighbor-address': neigh_addr,
+                    'neighbor-interface': interface,
+                    'peer-as': peer.asn,
+                    'auth-password': info['passwd'],
+                    'vrf': info['vrf'],
+                    'remove-private-as': info['remove_private_as'],
+                },
+                'afi-safis': afi_safi_list,
+                'timers': {
+                    'config': {
+                        'connect-retry': 10,
+                    },
+                },
+                'transport': {
+                    'config': {},
+                },
+            }
+
+            n['as-path-options'] = {'config': {}}
+            if info['allow_as_in'] > 0:
+                n['as-path-options']['config']['allow-own-as'] = info['allow_as_in']
+            if info['replace_peer_as']:
+                n['as-path-options']['config']['replace-peer-as'] = info['replace_peer_as']
 
             if ':' in info['local_addr']:
                 n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]
@@ -310,7 +378,7 @@ class GoBGPContainer(BGPContainer):
 
             if info['prefix_limit']:
                 for v in afi_safi_list:
-                    v['prefix-limit'] = {'config': {'max-prefixes': info['prefix_limit'], 'shutdown-threshold-pct': 80 }}
+                    v['prefix-limit'] = {'config': {'max-prefixes': info['prefix_limit'], 'shutdown-threshold-pct': 80}}
 
             if info['graceful_restart'] is not None:
                 n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': 20}}
@@ -324,11 +392,11 @@ class GoBGPContainer(BGPContainer):
                         afi_safi['long-lived-graceful-restart'] = {'config': {'enabled': True, 'restart-time': 30}}
 
             if info['is_rr_client']:
-                clusterId = self.router_id
+                cluster_id = self.router_id
                 if 'cluster_id' in info and info['cluster_id'] is not None:
-                    clusterId = info['cluster_id']
-                n['route-reflector'] = {'config' : {'route-reflector-client': True,
-                                                   'route-reflector-cluster-id': clusterId}}
+                    cluster_id = info['cluster_id']
+                n['route-reflector'] = {'config': {'route-reflector-client': True,
+                                                   'route-reflector-cluster-id': cluster_id}}
 
             if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
                 n['apply-policy'] = {'config': {}}
@@ -336,7 +404,7 @@ class GoBGPContainer(BGPContainer):
             for typ, p in info.get('policies', {}).iteritems():
                 n['apply-policy']['config']['{0}-policy-list'.format(typ)] = [p['name']]
 
-            def f(v):
+            def _f(v):
                 if v == 'reject':
                     return 'reject-route'
                 elif v == 'accept':
@@ -344,10 +412,7 @@ class GoBGPContainer(BGPContainer):
                 raise Exception('invalid default policy type {0}'.format(v))
 
             for typ, d in info.get('default-policy', {}).iteritems():
-                n['apply-policy']['config']['default-{0}-policy'.format(typ)] = f(d)
-
-            if 'neighbors' not in config:
-                config['neighbors'] = []
+                n['apply-policy']['config']['default-{0}-policy'.format(typ)] = _f(d)
 
             config['neighbors'].append(n)
 
@@ -372,12 +437,12 @@ class GoBGPContainer(BGPContainer):
             config['policy-definitions'] = policy_list
 
         if self.zebra:
-            config['zebra'] = {'config':{'enabled': True,
-                                         'redistribute-route-type-list':['connect'],
-                                         'version': self.zapi_version}}
+            config['zebra'] = {'config': {'enabled': True,
+                                          'redistribute-route-type-list': ['connect'],
+                                          'version': self.zapi_version}}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new gobgpd.conf]'.format(self.name))
             if self.config_format is 'toml':
                 raw = toml.dumps(config)
             elif self.config_format is 'yaml':
@@ -400,15 +465,33 @@ class GoBGPContainer(BGPContainer):
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
+            print colors.yellow(indent(str(c)))
+            f.writelines(str(c))
+
+    def _create_config_ospfd(self):
+        c = CmdBuffer()
+        c << 'hostname ospfd'
+        c << 'password zebra'
+        c << 'router ospf'
+        for redistribute in self.ospfd_config.get('redistributes', []):
+            c << ' redistribute {0}'.format(redistribute)
+        for network, area in self.ospfd_config.get('networks', {}).items():
+            c << ' network {0} area {1}'.format(network, area)
+        c << 'log file {0}/ospfd.log'.format(self.SHARED_VOLUME)
+        c << ''
+
+        with open('{0}/ospfd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new ospfd.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
     def reload_config(self):
-        daemon = []
-        daemon.append('gobgpd')
+        daemon = ['gobgpd']
         if self.zebra:
             daemon.append('zebra')
+            if self.ospfd_config:
+                daemon.append('ospfd')
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
             self.local(cmd)
@@ -428,7 +511,7 @@ class GoBGPContainer(BGPContainer):
                 cmd = 'gobgp global '\
                       'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
             else:
-                raise Exception('unsupported route faily: {0}'.format(rf))
+                raise Exception('unsupported route faily: {0}'.format(v['rf']))
             self.local(cmd)
 
 
@@ -449,8 +532,9 @@ class RawGoBGPContainer(GoBGPContainer):
         super(RawGoBGPContainer, self).__init__(name, asn, router_id,
                                                 ctn_image_name, log_level,
                                                 zebra, config_format)
+
     def create_config(self):
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new gobgpd.conf]'.format(self.name))
             print colors.yellow(indent(self.config))
             f.write(self.config)

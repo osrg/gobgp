@@ -108,17 +108,19 @@ func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	t, _ := rt.GetTypes()
-	switch t {
-	case bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
+	switch rt.(type) {
+	case *bgp.TwoOctetAsSpecificExtended:
 		r := rt.(*bgp.TwoOctetAsSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectTwoOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
-	case bgp.EC_TYPE_TRANSITIVE_IP4_SPECIFIC:
+	case *bgp.IPv4AddressSpecificExtended:
 		r := rt.(*bgp.IPv4AddressSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv4AddressSpecificExtended(r.IPv4.String(), r.LocalAdmin)}, nil
-	case bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
+	case *bgp.FourOctetAsSpecificExtended:
 		r := rt.(*bgp.FourOctetAsSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectFourOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
+	case *bgp.IPv6AddressSpecificExtended:
+		r := rt.(*bgp.IPv6AddressSpecificExtended)
+		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv6AddressSpecificExtended(r.IPv6.String(), r.LocalAdmin)}, nil
 	}
 	return nil, fmt.Errorf("invalid redirect")
 }
@@ -797,7 +799,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		return nil, err
 	}
 
-	if rf == bgp.RF_IPv4_UC {
+	if rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})
@@ -809,8 +811,24 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		if err != nil {
 			return nil, err
 		}
-		p := bgp.NewPathAttributeExtendedCommunities(extcomms)
-		attrs = append(attrs, p)
+		normalextcomms := make([]bgp.ExtendedCommunityInterface, 0)
+		ipv6extcomms := make([]bgp.ExtendedCommunityInterface, 0)
+		for _, com := range extcomms {
+			switch com.(type) {
+			case *bgp.RedirectIPv6AddressSpecificExtended:
+				ipv6extcomms = append(ipv6extcomms, com)
+			default:
+				normalextcomms = append(normalextcomms, com)
+			}
+		}
+		if len(normalextcomms) != 0 {
+			p := bgp.NewPathAttributeExtendedCommunities(normalextcomms)
+			attrs = append(attrs, p)
+		}
+		if len(ipv6extcomms) != 0 {
+			ip6p := bgp.NewPathAttributeIP6ExtendedCommunities(ipv6extcomms)
+			attrs = append(attrs, ip6p)
+		}
 	}
 
 	sort.Sort(attrs)
@@ -863,12 +881,12 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
 			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
 		ipFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
-                    %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [not] [match] <TCPFLAG>... |
+                    %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [!] [=] <TCPFLAG>... |
                     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
    <PROTO> : %s
    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
    <TCPFLAG> : %s
-   <ITEM> : &?{<|>|=}<value>`,
+   <ITEM> : & {<|<=|>|>=|==|!=}<value>`,
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],

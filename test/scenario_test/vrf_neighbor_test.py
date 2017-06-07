@@ -13,16 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -125,13 +130,13 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(dst) == 1)
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
-        self.assertTrue([self.g1.asn] ==  path['aspath'])
+        self.assertTrue([self.g1.asn] == path['aspath'])
 
         dst = self.g6.get_global_rib('10.0.0.0/24')
         self.assertTrue(len(dst) == 1)
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
-        self.assertTrue([self.g5.asn, self.g4.asn, self.g1.asn] ==  path['aspath'])
+        self.assertTrue([self.g5.asn, self.g4.asn, self.g1.asn] == path['aspath'])
 
         dst = self.g7.get_global_rib('10.0.0.0/24')
         self.assertTrue(len(dst) == 0)
@@ -154,19 +159,16 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(dst) == 1)
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
-        self.assertTrue([self.g5.asn, self.g4.asn, self.g1.asn] ==  path['aspath'])
+        self.assertTrue([self.g5.asn, self.g4.asn, self.g1.asn] == path['aspath'])
 
         dst = self.g7.get_global_rib('10.0.0.0/24')
         self.assertTrue(len(dst) == 1)
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
-        self.assertTrue([self.g5.asn, self.g4.asn, self.g3.asn] ==  path['aspath'])
+        self.assertTrue([self.g5.asn, self.g4.asn, self.g3.asn] == path['aspath'])
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

@@ -13,19 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
-from lib.exabgp import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
-import nose
+import unittest
 import inspect
-from nose.tools import *
-from noseplugin import OptionParser, parser_option
+
+from fabric.api import local
+import nose
+from nose.tools import (
+    assert_true,
+    assert_false,
+)
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    Bridge,
+    BGP_FSM_ESTABLISHED,
+    BGP_ATTR_TYPE_COMMUNITIES,
+    BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+)
+from lib.gobgp import GoBGPContainer
+from lib.quagga import QuaggaBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 counter = 1
@@ -112,8 +125,8 @@ class ImportPolicy(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -178,8 +191,8 @@ class ExportPolicy(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -264,8 +277,8 @@ class ImportPolicyUpdate(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -282,7 +295,7 @@ class ImportPolicyUpdate(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -296,7 +309,7 @@ class ImportPolicyUpdate(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
+        # q1 = env.q1
         q2 = env.q2
         g1.clear_policy()
 
@@ -311,8 +324,9 @@ class ImportPolicyUpdate(object):
         g1.set_neighbor_set(ns0)
 
         st0 = {'name': 'st0',
-               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                              'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'conditions': {
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -323,7 +337,7 @@ class ImportPolicyUpdate(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -391,8 +405,9 @@ class ExportPolicyUpdate(object):
         g1.set_neighbor_set(ns0)
 
         st0 = {'name': 'st0',
-               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                              'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'conditions': {
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -409,7 +424,7 @@ class ExportPolicyUpdate(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -438,8 +453,9 @@ class ExportPolicyUpdate(object):
         g1.set_neighbor_set(ns0)
 
         st0 = {'name': 'st0',
-               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                              'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'conditions': {
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -455,7 +471,7 @@ class ExportPolicyUpdate(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -534,8 +550,8 @@ class ImportPolicyIPV6(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -603,8 +619,8 @@ class ExportPolicyIPV6(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -685,8 +701,8 @@ class ImportPolicyIPV6Update(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -713,7 +729,7 @@ class ImportPolicyIPV6Update(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
+        # q1 = env.q1
         q2 = env.q2
 
         p0 = {'ip-prefix': '2001:0:10:2::/64'}
@@ -728,8 +744,8 @@ class ImportPolicyIPV6Update(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {
                    'route-disposition': 'reject-route'}}
 
@@ -806,8 +822,8 @@ class ExportPolicyIPv6Update(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -849,8 +865,8 @@ class ExportPolicyIPv6Update(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -909,9 +925,9 @@ class ImportPolicyAsPathLengthCondition(object):
         g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
-        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
+        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn - 10, -1))
         # this will pass
-        e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn-8, -1))
+        e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn - 8, -1))
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -919,7 +935,7 @@ class ImportPolicyAsPathLengthCondition(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
@@ -969,9 +985,9 @@ class ImportPolicyAsPathCondition(object):
         g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
-        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
+        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn - 10, -1))
         # this will pass
-        e1.add_route('192.168.200.0/24', aspath=range(e1.asn-1, e1.asn-10, -1))
+        e1.add_route('192.168.200.0/24', aspath=range(e1.asn - 1, e1.asn - 10, -1))
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -1189,7 +1205,7 @@ class ImportPolicyAsPathMismatchCondition(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
@@ -1245,8 +1261,6 @@ class ImportPolicyCommunityCondition(object):
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-
 
     @staticmethod
     def check(env):
@@ -1345,10 +1359,12 @@ class ImportPolicyCommunityAction(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-                'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0', 'match-set-options': 'any'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0', 'match-set-options': 'any'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'add',
-                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'add',
+                                   'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1362,7 +1378,7 @@ class ImportPolicyCommunityAction(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 1)
@@ -1407,7 +1423,6 @@ class ImportPolicyCommunityReplace(object):
     def boot(env):
         lookup_scenario("ImportPolicy").boot(env)
 
-
     @staticmethod
     def setup(env):
         g1 = env.g1
@@ -1419,10 +1434,12 @@ class ImportPolicyCommunityReplace(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'REPLACE',
-                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'REPLACE',
+                                   'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1433,7 +1450,6 @@ class ImportPolicyCommunityReplace(object):
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
 
-
     @staticmethod
     def check(env):
         lookup_scenario('ImportPolicyCommunityAction').check(env)
@@ -1441,7 +1457,7 @@ class ImportPolicyCommunityReplace(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -1485,10 +1501,12 @@ class ImportPolicyCommunityRemove(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'REMOVE',
-                                                           'set-community-method': {'communities-list': ['65100:10', '65100:20']}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'REMOVE',
+                                   'set-community-method': {'communities-list': ['65100:10', '65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1504,7 +1522,7 @@ class ImportPolicyCommunityRemove(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -1517,7 +1535,7 @@ class ImportPolicyCommunityRemove(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         adj_out = g1.get_adj_rib_out(q1)
@@ -1569,10 +1587,12 @@ class ImportPolicyCommunityNull(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'REPLACE',
-                                                             'set-community-method': {'communities-list': []}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'REPLACE',
+                                   'set-community-method': {'communities-list': []}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1643,10 +1663,12 @@ class ExportPolicyCommunityAdd(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'add',
-                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'add',
+                                   'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1716,10 +1738,12 @@ class ExportPolicyCommunityReplace(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'REPLACE',
-                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'REPLACE',
+                                   'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1789,10 +1813,12 @@ class ExportPolicyCommunityRemove(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'REMOVE',
-                                                           'set-community-method': {'communities-list': ['65100:20', '65100:30']}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'REMOVE',
+                                   'set-community-method': {'communities-list': ['65100:20', '65100:30']}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -1860,15 +1886,17 @@ class ExportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'community-sets':  [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'accept-route',
-                           'bgp-actions': {'set-community': {'options': 'REPLACE',
-                                                           'set-community-method': {'communities-list': []}}}}}
+                           'bgp-actions': {
+                               'set-community': {
+                                   'options': 'REPLACE',
+                                   'set-community-method': {'communities-list': []}}}}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2313,7 +2341,7 @@ class InPolicyReject(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -2372,8 +2400,8 @@ class InPolicyAccept(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'name': 'st0',
-               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
-               'actions':{'route-disposition': 'accept-route'}}
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
+               'actions': {'route-disposition': 'accept-route'}}
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2446,8 +2474,8 @@ class InPolicyUpdate(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -2479,8 +2507,8 @@ class InPolicyUpdate(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
+        # q1 = env.q1
+        # q2 = env.q2
         g1.clear_policy()
 
         p0 = {'ip-prefix': '192.168.20.0/24'}
@@ -2494,8 +2522,9 @@ class InPolicyUpdate(object):
         g1.set_neighbor_set(ns0)
 
         st0 = {'name': 'st0',
-               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                          'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'conditions': {
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -2600,7 +2629,7 @@ class ExportPolicyAsPathPrepend(object):
         assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [65005]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([65005] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
         assert_true(path['aspath'] == [e1.asn])
@@ -2674,10 +2703,10 @@ class ImportPolicyAsPathPrependLastAS(object):
         assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
         assert_true(path['aspath'] == [e1.asn])
@@ -2754,7 +2783,7 @@ class ExportPolicyAsPathPrependLastAS(object):
         assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
         assert_true(path['aspath'] == [e1.asn])
@@ -2794,7 +2823,7 @@ class ImportPolicyExCommunityOriginCondition(object):
         g1.set_bgp_defined_set(es0)
 
         st0 = {'name': 'st0',
-               'conditions': {'bgp-conditions':{'match-ext-community-set':{'ext-community-set': 'es0'}}},
+               'conditions': {'bgp-conditions': {'match-ext-community-set': {'ext-community-set': 'es0'}}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -2845,7 +2874,7 @@ class ImportPolicyExCommunityTargetCondition(object):
         g1.set_bgp_defined_set(es0)
 
         st0 = {'name': 'st0',
-               'conditions': {'bgp-conditions':{'match-ext-community-set':{'ext-community-set': 'es0'}}},
+               'conditions': {'bgp-conditions': {'match-ext-community-set': {'ext-community-set': 'es0'}}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -2897,8 +2926,7 @@ class InPolicyPrefixCondition(object):
         g1.set_prefix_set(ps0)
 
         st0 = {'name': 'st0',
-               'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -2968,8 +2996,8 @@ class ImportPolicyExCommunityAdd(object):
             'conditions': {
                 'match-prefix-set': {
                     'prefix-set': ps0['prefix-set-name']
-                    }
-                },
+                }
+            },
             'actions': {
                 'route-disposition': 'accept-route',
                 'bgp-actions': {
@@ -2977,11 +3005,11 @@ class ImportPolicyExCommunityAdd(object):
                         'options': 'add',
                         'set-ext-community-method': {
                             'communities-list': ['rt:65000:1'],
-                            }
-                        },
-                    }
+                        }
+                    },
                 }
             }
+        }
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -2999,7 +3027,7 @@ class ImportPolicyExCommunityAdd(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -3048,8 +3076,8 @@ class ImportPolicyExCommunityAdd2(object):
             'conditions': {
                 'match-prefix-set': {
                     'prefix-set': ps0['prefix-set-name']
-                    }
-                },
+                }
+            },
             'actions': {
                 'route-disposition': 'accept-route',
                 'bgp-actions': {
@@ -3057,11 +3085,11 @@ class ImportPolicyExCommunityAdd2(object):
                         'options': 'add',
                         'set-ext-community-method': {
                             'communities-list': ['rt:65100:100'],
-                            }
-                        },
-                    }
+                        }
+                    },
                 }
             }
+        }
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -3079,7 +3107,7 @@ class ImportPolicyExCommunityAdd2(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -3133,8 +3161,8 @@ class ImportPolicyExCommunityMultipleAdd(object):
             'conditions': {
                 'match-prefix-set': {
                     'prefix-set': ps0['prefix-set-name']
-                    }
-                },
+                }
+            },
             'actions': {
                 'route-disposition': 'accept-route',
                 'bgp-actions': {
@@ -3142,11 +3170,11 @@ class ImportPolicyExCommunityMultipleAdd(object):
                         'options': 'add',
                         'set-ext-community-method': {
                             'communities-list': ['rt:65100:100', 'rt:100:100'],
-                            }
-                        },
-                    }
+                        }
+                    },
                 }
             }
+        }
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -3164,7 +3192,7 @@ class ImportPolicyExCommunityMultipleAdd(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -3218,8 +3246,8 @@ class ExportPolicyExCommunityAdd(object):
             'conditions': {
                 'match-prefix-set': {
                     'prefix-set': ps0['prefix-set-name']
-                    }
-                },
+                }
+            },
             'actions': {
                 'route-disposition': 'accept-route',
                 'bgp-actions': {
@@ -3227,11 +3255,11 @@ class ExportPolicyExCommunityAdd(object):
                         'options': 'add',
                         'set-ext-community-method': {
                             'communities-list': ['rt:65000:1'],
-                            }
-                        },
-                    }
+                        }
+                    },
                 }
             }
+        }
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
@@ -3249,7 +3277,7 @@ class ExportPolicyExCommunityAdd(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -3316,8 +3344,8 @@ class InPolicyUpdate2(object):
 
         st0 = {'name': 'st0',
                'conditions': {
-                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -3349,8 +3377,8 @@ class InPolicyUpdate2(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
+        # q1 = env.q1
+        # q2 = env.q2
         g1.clear_policy()
 
         p0 = {'ip-prefix': '192.168.20.0/24'}
@@ -3365,8 +3393,9 @@ class InPolicyUpdate2(object):
         g1.set_neighbor_set(ns0)
 
         st0 = {'name': 'st0',
-               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                          'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'conditions': {
+                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
                'actions': {'route-disposition': 'reject-route'}}
 
         policy = {'name': 'policy0',
@@ -3397,7 +3426,157 @@ class InPolicyUpdate2(object):
         lookup_scenario("InPolicyUpdate2").check2(env)
 
 
-class TestGoBGPBase():
+@register_scenario
+class InPolicyRejectImplicitWithdraw(object):
+    """
+    No.48 in-policy reject test
+    g2 (asn: 65002)
+    g3 (asn: 65003)
+
+    g2's in-policy only accepts routes with origin asn 65002
+
+    r1:192.168.10.0/24
+
+    1.
+
+         r1
+          |                                  g1(rs)
+          v                             ----------------
+    g3 - g2 ->(r1(aspath=[65002]))->  o | -> g4-rib -> | -> r1(aspath=[65002]) --> g4
+                                        ----------------
+
+    2. g3 also sends prefix r1 (the prefix from g2 is still the best for the prefix)
+
+    r1   r1
+    |     |                                  g1(rs)
+    v     v                             ----------------
+    g3 - g2 ->(r1(aspath=[65002]))->  o | -> g4-rib -> | -> r1(aspath=[65002]) --> g4
+                                        ----------------
+
+    3. g2 withdraws r1, then the path from g3 becomes the best (implicit withdrawal happens).
+       Since g2's in-policy only accepts routes with origin asn 2, rs must send withdrawal to g4.
+
+    r1   r1
+    |     x                                        g1(rs)
+    v                                         ----------------
+    g3 - g2 ->(r1(aspath=[65002,65003]))->  x | -> g4-rib -> | -> r1(withdrawal) --> g4
+                                              ----------------
+    """
+    @staticmethod
+    def boot(env):
+        gobgp_ctn_image_name = env.parser_option.gobgp_image
+        log_level = env.parser_option.gobgp_log_level
+        g1 = GoBGPContainer(name='g1', asn=65001, router_id='192.168.0.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        g2 = GoBGPContainer(name='g2', asn=65002, router_id='192.168.0.2',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        g3 = GoBGPContainer(name='g3', asn=65003, router_id='192.168.0.3',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        g4 = GoBGPContainer(name='g4', asn=65004, router_id='192.168.0.4',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+
+        ctns = [g1, g2, g3, g4]
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+        time.sleep(initial_wait_time)
+
+        for cli in [g2, g4]:
+            g1.add_peer(cli, is_rs_client=True)
+            cli.add_peer(g1)
+
+        g3.add_peer(g2)
+        g2.add_peer(g3)
+
+        env.g1 = g1
+        env.g2 = g2
+        env.g3 = g3
+        env.g4 = g4
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        g2 = env.g2
+        # g3 = env.g3
+        g4 = env.g4
+
+        as0 = {'as-path-sets': [{'as-path-set-name': 'as0', 'as-path-list': ['_65002$']}]}
+
+        g1.set_bgp_defined_set(as0)
+
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
+               'actions': {'route-disposition': 'accept-route'}}
+
+        policy = {'name': 'policy0',
+                  'statements': [st0]}
+        g1.add_policy(policy, g2, 'in', 'reject')
+
+        g2.add_route('192.168.0.0/24')
+
+        for c in [g2, g4]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+        g2.wait_for(BGP_FSM_ESTABLISHED, g1)
+
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        # g2 = env.g2
+        g4 = env.g4
+        wait_for(lambda: len(g1.get_local_rib(g4)) == 1)
+        wait_for(lambda: len(g1.get_local_rib(g4)[0]['paths']) == 1)
+        wait_for(lambda: len(g4.get_global_rib()) == 1)
+        wait_for(lambda: len(g4.get_global_rib()[0]['paths']) == 1)
+
+    @staticmethod
+    def setup2(env):
+        env.g3.add_route('192.168.0.0/24')
+
+    @staticmethod
+    def check2(env):
+        g1 = env.g1
+        g2 = env.g2
+        g4 = env.g4
+        wait_for(lambda: len(g2.get_global_rib()) == 1)
+        wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 2)
+        wait_for(lambda: len(g1.get_local_rib(g4)) == 1)
+        wait_for(lambda: len(g1.get_local_rib(g4)[0]['paths']) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
+        wait_for(lambda: g1.get_neighbor(g2)['state'].get('adj-table', {}).get('accepted', 0) == 1)
+        wait_for(lambda: len(g4.get_global_rib()) == 1)
+        wait_for(lambda: len(g4.get_global_rib()[0]['paths']) == 1)
+
+    @staticmethod
+    def setup3(env):
+        env.g2.local('gobgp global rib del 192.168.0.00/24')
+
+    @staticmethod
+    def check3(env):
+        g1 = env.g1
+        g2 = env.g2
+        g4 = env.g4
+        wait_for(lambda: len(g2.get_global_rib()) == 1)
+        wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
+        wait_for(lambda: g1.get_neighbor(g2)['state'].get('adj-table', {}).get('accepted', 0) == 0)
+        wait_for(lambda: len(g1.get_local_rib(g4)) == 0)
+        wait_for(lambda: len(g4.get_global_rib()) == 0)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyRejectImplicitWithdraw").boot(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").setup(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").check(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").setup2(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").check2(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").setup3(env)
+        lookup_scenario("InPolicyRejectImplicitWithdraw").check3(env)
+
+
+class TestGoBGPBase(unittest.TestCase):
 
     wait_per_retry = 5
     retry_limit = 10
@@ -3430,9 +3609,6 @@ class TestGoBGPBase():
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

@@ -31,6 +31,26 @@ const (
 	MIN_CONNECT_RETRY = 10
 )
 
+type PeerGroup struct {
+	Conf    *config.PeerGroup
+	members map[string]config.Neighbor
+}
+
+func NewPeerGroup(c *config.PeerGroup) *PeerGroup {
+	return &PeerGroup{
+		Conf:    c,
+		members: make(map[string]config.Neighbor, 0),
+	}
+}
+
+func (pg *PeerGroup) AddMember(c config.Neighbor) {
+	pg.members[c.Config.NeighborAddress] = c
+}
+
+func (pg *PeerGroup) DeleteMember(c config.Neighbor) {
+	delete(pg.members, c.Config.NeighborAddress)
+}
+
 type Peer struct {
 	tableId           string
 	fsm               *FSM
@@ -69,7 +89,7 @@ func (peer *Peer) TableID() string {
 }
 
 func (peer *Peer) isIBGPPeer() bool {
-	return peer.fsm.pConf.Config.PeerAs == peer.fsm.gConf.Config.As
+	return peer.fsm.pConf.State.PeerAs == peer.fsm.gConf.Config.As
 }
 
 func (peer *Peer) isRouteServerClient() bool {
@@ -267,17 +287,29 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		}
 	}
 
+	// replace-peer-as handling
+	if path != nil && !path.IsWithdraw && peer.fsm.pConf.AsPathOptions.State.ReplacePeerAs {
+		path = path.ReplaceAS(peer.fsm.pConf.Config.LocalAs, peer.fsm.pConf.Config.PeerAs)
+	}
+
 	if path = filterpath(peer, path, old); path == nil {
 		return nil
 	}
 
-	path = path.Clone(path.IsWithdraw)
-	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
 
 	options := &table.PolicyOptions{
 		Info: peer.fsm.peerInfo,
 	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	// When 'path' is filetered (path == nil), check 'old' has been sent to this peer.
+	// If it has, send withdrawal to the peer.
+	if path == nil && old != nil {
+		o := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
+		if o != nil {
+			path = old.Clone(true)
+		}
+	}
 
 	// draft-uttaro-idr-bgp-persistence-02
 	// 4.3.  Processing LLGR_STALE Routes
@@ -475,6 +507,8 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			}
 			if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
 				paths = append(paths, path)
+			} else {
+				paths = append(paths, path.Clone(true))
 			}
 		}
 		return paths, eor, nil
@@ -523,15 +557,15 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 	conf.State.RemoteCapabilityList = remoteCap
 	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
 
-	conf.State.RemoteRouterId = peer.fsm.peerInfo.ID.To4().String()
 	conf.State.SessionState = config.IntToSessionStateMap[int(peer.fsm.state)]
 	conf.State.AdminState = config.IntToAdminStateMap[int(peer.fsm.adminState)]
 
 	if peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
 		if getAdvertised {
-			pathList, _ := peer.getBestFromLocal(rfList)
+			pathList, filtered := peer.getBestFromLocal(rfList)
 			conf.State.AdjTable.Advertised = uint32(len(pathList))
+			conf.State.AdjTable.Filtered = uint32(len(filtered))
 		} else {
 			conf.State.AdjTable.Advertised = 0
 		}
@@ -543,6 +577,7 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 		buf, _ := peer.fsm.recvOpen.Serialize()
 		// need to copy all values here
 		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
+		conf.State.RemoteRouterId = peer.fsm.peerInfo.ID.To4().String()
 	}
 	return &conf
 }

@@ -79,6 +79,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 				case mrt.PEER_INDEX_TABLE:
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
+				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV6_UNICAST:
 				default:
 					exitWithError(fmt.Errorf("unsupported subType: %v", subType))
 				}
@@ -109,7 +110,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 					for _, p := range paths {
 						dst.AddNewPath(p)
 					}
-					best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME})
+					best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME}, false)
 					if best[table.GLOBAL_RIB_NAME] == nil {
 						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
 					}

@@ -30,7 +30,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-type GoBGPClient struct {
+type Client struct {
 	conn *grpc.ClientConn
 	cli  api.GobgpApiClient
 }
@@ -39,26 +39,43 @@ func defaultGRPCOptions() []grpc.DialOption {
 	return []grpc.DialOption{grpc.WithTimeout(time.Second), grpc.WithBlock(), grpc.WithInsecure()}
 }
 
-func NewGoBGPClient(target string, opts ...grpc.DialOption) (*GoBGPClient, error) {
+// New returns a new Client using the given target and options for dialing
+// to the grpc server. If an error occurs during dialing it will be returned and
+// Client will be nil.
+func New(target string, opts ...grpc.DialOption) (*Client, error) {
+	return NewWith(context.Background(), target, opts...)
+}
+
+// NewWith is like New, but uses the given ctx to cancel or expire the current
+// attempt to connect if it becomes Done before the connection succeeds.
+func NewWith(ctx context.Context, target string, opts ...grpc.DialOption) (*Client, error) {
 	if target == "" {
 		target = ":50051"
 	}
 	if len(opts) == 0 {
 		opts = defaultGRPCOptions()
 	}
-	conn, err := grpc.Dial(target, opts...)
+	conn, err := grpc.DialContext(ctx, target, opts...)
 	if err != nil {
 		return nil, err
 	}
 	cli := api.NewGobgpApiClient(conn)
-	return &GoBGPClient{conn: conn, cli: cli}, nil
+	return &Client{conn: conn, cli: cli}, nil
 }
 
-func (cli *GoBGPClient) Close() error {
+// NewFrom returns a new Client, using the given conn and cli for the
+// underlying connection. The given grpc.ClientConn connection is expected to be
+// initialized and paired with the api client. See New to have the connection
+// dialed for you.
+func NewFrom(conn *grpc.ClientConn, cli api.GobgpApiClient) *Client {
+	return &Client{conn: conn, cli: cli}
+}
+
+func (cli *Client) Close() error {
 	return cli.conn.Close()
 }
 
-func (cli *GoBGPClient) StartServer(c *config.Global) error {
+func (cli *Client) StartServer(c *config.Global) error {
 	_, err := cli.cli.StartServer(context.Background(), &api.StartServerRequest{
 		Global: &api.Global{
 			As:               c.Config.As,
@@ -71,12 +88,12 @@ func (cli *GoBGPClient) StartServer(c *config.Global) error {
 	return err
 }
 
-func (cli *GoBGPClient) StopServer() error {
+func (cli *Client) StopServer() error {
 	_, err := cli.cli.StopServer(context.Background(), &api.StopServerRequest{})
 	return err
 }
 
-func (cli *GoBGPClient) GetServer() (*config.Global, error) {
+func (cli *Client) GetServer() (*config.Global, error) {
 	ret, err := cli.cli.GetServer(context.Background(), &api.GetServerRequest{})
 	if err != nil {
 		return nil, err
@@ -96,8 +113,22 @@ func (cli *GoBGPClient) GetServer() (*config.Global, error) {
 	}, nil
 }
 
-func (cli *GoBGPClient) getNeighbor(name string, afi int, vrf string) ([]*config.Neighbor, error) {
-	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: name != ""})
+func (cli *Client) EnableZebra(c *config.Zebra) error {
+	req := &api.EnableZebraRequest{
+		Url:                  c.Config.Url,
+		Version:              uint32(c.Config.Version),
+		NexthopTriggerEnable: c.Config.NexthopTriggerEnable,
+		NexthopTriggerDelay:  uint32(c.Config.NexthopTriggerDelay),
+	}
+	for _, t := range c.Config.RedistributeRouteTypeList {
+		req.RouteTypes = append(req.RouteTypes, string(t))
+	}
+	_, err := cli.cli.EnableZebra(context.Background(), req)
+	return err
+}
+
+func (cli *Client) getNeighbor(name string, afi int, vrf string, enableAdvertised bool) ([]*config.Neighbor, error) {
+	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{EnableAdvertised: enableAdvertised, Address: name})
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +136,7 @@ func (cli *GoBGPClient) getNeighbor(name string, afi int, vrf string) ([]*config
 	neighbors := make([]*config.Neighbor, 0, len(ret.Peers))
 
 	for _, p := range ret.Peers {
-		if name != "" && name != p.Conf.NeighborAddress {
+		if name != "" && name != p.Conf.NeighborAddress && name != p.Conf.NeighborInterface {
 			continue
 		}
 		if vrf != "" && name != p.Conf.Vrf {
@@ -126,20 +157,24 @@ func (cli *GoBGPClient) getNeighbor(name string, afi int, vrf string) ([]*config
 	return neighbors, nil
 }
 
-func (cli *GoBGPClient) ListNeighbor() ([]*config.Neighbor, error) {
-	return cli.getNeighbor("", 0, "")
+func (cli *Client) ListNeighbor() ([]*config.Neighbor, error) {
+	return cli.getNeighbor("", 0, "", false)
 }
 
-func (cli *GoBGPClient) ListNeighborByTransport(afi int) ([]*config.Neighbor, error) {
-	return cli.getNeighbor("", afi, "")
+func (cli *Client) ListNeighborByTransport(afi int) ([]*config.Neighbor, error) {
+	return cli.getNeighbor("", afi, "", false)
 }
 
-func (cli *GoBGPClient) ListNeighborByVRF(vrf string) ([]*config.Neighbor, error) {
-	return cli.getNeighbor("", 0, vrf)
+func (cli *Client) ListNeighborByVRF(vrf string) ([]*config.Neighbor, error) {
+	return cli.getNeighbor("", 0, vrf, false)
 }
 
-func (cli *GoBGPClient) GetNeighbor(name string) (*config.Neighbor, error) {
-	ns, err := cli.getNeighbor(name, 0, "")
+func (cli *Client) GetNeighbor(name string, options ...bool) (*config.Neighbor, error) {
+	enableAdvertised := false
+	if len(options) > 0 && options[0] {
+		enableAdvertised = true
+	}
+	ns, err := cli.getNeighbor(name, 0, "", enableAdvertised)
 	if err != nil {
 		return nil, err
 	}
@@ -149,42 +184,42 @@ func (cli *GoBGPClient) GetNeighbor(name string) (*config.Neighbor, error) {
 	return ns[0], nil
 }
 
-func (cli *GoBGPClient) AddNeighbor(c *config.Neighbor) error {
+func (cli *Client) AddNeighbor(c *config.Neighbor) error {
 	peer := api.NewPeerFromConfigStruct(c)
 	_, err := cli.cli.AddNeighbor(context.Background(), &api.AddNeighborRequest{Peer: peer})
 	return err
 }
 
-func (cli *GoBGPClient) DeleteNeighbor(c *config.Neighbor) error {
+func (cli *Client) DeleteNeighbor(c *config.Neighbor) error {
 	peer := api.NewPeerFromConfigStruct(c)
 	_, err := cli.cli.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{Peer: peer})
 	return err
 }
 
-//func (cli *GoBGPClient) UpdateNeighbor(c *config.Neighbor) (bool, error) {
+//func (cli *Client) UpdateNeighbor(c *config.Neighbor) (bool, error) {
 //}
 
-func (cli *GoBGPClient) ShutdownNeighbor(addr string) error {
-	_, err := cli.cli.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: addr})
+func (cli *Client) ShutdownNeighbor(addr, communication string) error {
+	_, err := cli.cli.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: addr, Communication: communication})
 	return err
 }
 
-func (cli *GoBGPClient) ResetNeighbor(addr string) error {
-	_, err := cli.cli.ResetNeighbor(context.Background(), &api.ResetNeighborRequest{Address: addr})
+func (cli *Client) ResetNeighbor(addr, communication string) error {
+	_, err := cli.cli.ResetNeighbor(context.Background(), &api.ResetNeighborRequest{Address: addr, Communication: communication})
 	return err
 }
 
-func (cli *GoBGPClient) EnableNeighbor(addr string) error {
+func (cli *Client) EnableNeighbor(addr string) error {
 	_, err := cli.cli.EnableNeighbor(context.Background(), &api.EnableNeighborRequest{Address: addr})
 	return err
 }
 
-func (cli *GoBGPClient) DisableNeighbor(addr string) error {
-	_, err := cli.cli.DisableNeighbor(context.Background(), &api.DisableNeighborRequest{Address: addr})
+func (cli *Client) DisableNeighbor(addr, communication string) error {
+	_, err := cli.cli.DisableNeighbor(context.Background(), &api.DisableNeighborRequest{Address: addr, Communication: communication})
 	return err
 }
 
-func (cli *GoBGPClient) softreset(addr string, family bgp.RouteFamily, dir api.SoftResetNeighborRequest_SoftResetDirection) error {
+func (cli *Client) softreset(addr string, family bgp.RouteFamily, dir api.SoftResetNeighborRequest_SoftResetDirection) error {
 	_, err := cli.cli.SoftResetNeighbor(context.Background(), &api.SoftResetNeighborRequest{
 		Address:   addr,
 		Direction: dir,
@@ -192,19 +227,19 @@ func (cli *GoBGPClient) softreset(addr string, family bgp.RouteFamily, dir api.S
 	return err
 }
 
-func (cli *GoBGPClient) SoftResetIn(addr string, family bgp.RouteFamily) error {
+func (cli *Client) SoftResetIn(addr string, family bgp.RouteFamily) error {
 	return cli.softreset(addr, family, api.SoftResetNeighborRequest_IN)
 }
 
-func (cli *GoBGPClient) SoftResetOut(addr string, family bgp.RouteFamily) error {
+func (cli *Client) SoftResetOut(addr string, family bgp.RouteFamily) error {
 	return cli.softreset(addr, family, api.SoftResetNeighborRequest_OUT)
 }
 
-func (cli *GoBGPClient) SoftReset(addr string, family bgp.RouteFamily) error {
+func (cli *Client) SoftReset(addr string, family bgp.RouteFamily) error {
 	return cli.softreset(addr, family, api.SoftResetNeighborRequest_BOTH)
 }
 
-func (cli *GoBGPClient) getRIB(resource api.Resource, name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
 	dsts := make([]*api.Destination, 0, len(prefixes))
 	for _, p := range prefixes {
 		longer := false
@@ -235,27 +270,27 @@ func (cli *GoBGPClient) getRIB(resource api.Resource, name string, family bgp.Ro
 	return res.Table.ToNativeTable()
 }
 
-func (cli *GoBGPClient) GetRIB(family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetRIB(family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
 	return cli.getRIB(api.Resource_GLOBAL, "", family, prefixes)
 }
 
-func (cli *GoBGPClient) GetLocalRIB(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetLocalRIB(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
 	return cli.getRIB(api.Resource_LOCAL, name, family, prefixes)
 }
 
-func (cli *GoBGPClient) GetAdjRIBIn(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetAdjRIBIn(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
 	return cli.getRIB(api.Resource_ADJ_IN, name, family, prefixes)
 }
 
-func (cli *GoBGPClient) GetAdjRIBOut(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetAdjRIBOut(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
 	return cli.getRIB(api.Resource_ADJ_OUT, name, family, prefixes)
 }
 
-func (cli *GoBGPClient) GetVRFRIB(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetVRFRIB(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
 	return cli.getRIB(api.Resource_VRF, name, family, prefixes)
 }
 
-func (cli *GoBGPClient) getRIBInfo(resource api.Resource, name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.RouteFamily) (*table.TableInfo, error) {
 	res, err := cli.cli.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
 		Info: &api.TableInfo{
 			Type:   resource,
@@ -274,19 +309,19 @@ func (cli *GoBGPClient) getRIBInfo(resource api.Resource, name string, family bg
 
 }
 
-func (cli *GoBGPClient) GetRIBInfo(family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetRIBInfo(family bgp.RouteFamily) (*table.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_GLOBAL, "", family)
 }
 
-func (cli *GoBGPClient) GetLocalRIBInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetLocalRIBInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_LOCAL, name, family)
 }
 
-func (cli *GoBGPClient) GetAdjRIBInInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetAdjRIBInInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_ADJ_IN, name, family)
 }
 
-func (cli *GoBGPClient) GetAdjRIBOutInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetAdjRIBOutInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_ADJ_OUT, name, family)
 }
 
@@ -310,7 +345,7 @@ func (c *AddPathByStreamClient) Close() error {
 	return err
 }
 
-func (cli *GoBGPClient) AddPathByStream() (*AddPathByStreamClient, error) {
+func (cli *Client) AddPathByStream() (*AddPathByStreamClient, error) {
 	stream, err := cli.cli.InjectMrt(context.Background())
 	if err != nil {
 		return nil, err
@@ -318,7 +353,7 @@ func (cli *GoBGPClient) AddPathByStream() (*AddPathByStreamClient, error) {
 	return &AddPathByStreamClient{stream}, nil
 }
 
-func (cli *GoBGPClient) addPath(vrfID string, pathList []*table.Path) ([]byte, error) {
+func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error) {
 	resource := api.Resource_GLOBAL
 	if vrfID != "" {
 		resource = api.Resource_VRF
@@ -338,18 +373,18 @@ func (cli *GoBGPClient) addPath(vrfID string, pathList []*table.Path) ([]byte, e
 	return uuid, nil
 }
 
-func (cli *GoBGPClient) AddPath(pathList []*table.Path) ([]byte, error) {
+func (cli *Client) AddPath(pathList []*table.Path) ([]byte, error) {
 	return cli.addPath("", pathList)
 }
 
-func (cli *GoBGPClient) AddVRFPath(vrfID string, pathList []*table.Path) ([]byte, error) {
+func (cli *Client) AddVRFPath(vrfID string, pathList []*table.Path) ([]byte, error) {
 	if vrfID == "" {
 		return nil, fmt.Errorf("VRF ID is empty")
 	}
 	return cli.addPath(vrfID, pathList)
 }
 
-func (cli *GoBGPClient) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, pathList []*table.Path) error {
+func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, pathList []*table.Path) error {
 	var reqs []*api.DeletePathRequest
 
 	resource := api.Resource_GLOBAL
@@ -391,26 +426,26 @@ func (cli *GoBGPClient) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string,
 	return nil
 }
 
-func (cli *GoBGPClient) DeletePath(pathList []*table.Path) error {
+func (cli *Client) DeletePath(pathList []*table.Path) error {
 	return cli.deletePath(nil, bgp.RouteFamily(0), "", pathList)
 }
 
-func (cli *GoBGPClient) DeleteVRFPath(vrfID string, pathList []*table.Path) error {
+func (cli *Client) DeleteVRFPath(vrfID string, pathList []*table.Path) error {
 	if vrfID == "" {
 		return fmt.Errorf("VRF ID is empty")
 	}
 	return cli.deletePath(nil, bgp.RouteFamily(0), vrfID, pathList)
 }
 
-func (cli *GoBGPClient) DeletePathByUUID(uuid []byte) error {
+func (cli *Client) DeletePathByUUID(uuid []byte) error {
 	return cli.deletePath(uuid, bgp.RouteFamily(0), "", nil)
 }
 
-func (cli *GoBGPClient) DeletePathByFamily(family bgp.RouteFamily) error {
+func (cli *Client) DeletePathByFamily(family bgp.RouteFamily) error {
 	return cli.deletePath(nil, family, "", nil)
 }
 
-func (cli *GoBGPClient) GetVRF() ([]*table.Vrf, error) {
+func (cli *Client) GetVRF() ([]*table.Vrf, error) {
 	ret, err := cli.cli.GetVrf(context.Background(), &api.GetVrfRequest{})
 	if err != nil {
 		return nil, err
@@ -450,7 +485,7 @@ func (cli *GoBGPClient) GetVRF() ([]*table.Vrf, error) {
 	return vrfs, nil
 }
 
-func (cli *GoBGPClient) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) error {
+func (cli *Client) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) error {
 	buf, err := rd.Serialize()
 	if err != nil {
 		return err
@@ -490,7 +525,7 @@ func (cli *GoBGPClient) AddVRF(name string, id int, rd bgp.RouteDistinguisherInt
 	return err
 }
 
-func (cli *GoBGPClient) DeleteVRF(name string) error {
+func (cli *Client) DeleteVRF(name string) error {
 	arg := &api.DeleteVrfRequest{
 		Vrf: &api.Vrf{
 			Name: name,
@@ -500,8 +535,11 @@ func (cli *GoBGPClient) DeleteVRF(name string) error {
 	return err
 }
 
-func (cli *GoBGPClient) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, error) {
-	ret, err := cli.cli.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{Type: api.DefinedType(typ)})
+func (cli *Client) getDefinedSet(typ table.DefinedType, name string) ([]table.DefinedSet, error) {
+	ret, err := cli.cli.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{
+		Type: api.DefinedType(typ),
+		Name: name,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +554,24 @@ func (cli *GoBGPClient) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet
 	return ds, nil
 }
 
-func (cli *GoBGPClient) AddDefinedSet(d table.DefinedSet) error {
+func (cli *Client) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, error) {
+	return cli.getDefinedSet(typ, "")
+}
+
+func (cli *Client) GetDefinedSetByName(typ table.DefinedType, name string) (table.DefinedSet, error) {
+	sets, err := cli.getDefinedSet(typ, name)
+	if err != nil {
+		return nil, err
+	}
+	if len(sets) == 0 {
+		return nil, fmt.Errorf("not found defined set: %s", name)
+	} else if len(sets) > 1 {
+		return nil, fmt.Errorf("invalid response for GetDefinedSetByName")
+	}
+	return sets[0], nil
+}
+
+func (cli *Client) AddDefinedSet(d table.DefinedSet) error {
 	a, err := api.NewAPIDefinedSetFromTableStruct(d)
 	if err != nil {
 		return err
@@ -527,7 +582,7 @@ func (cli *GoBGPClient) AddDefinedSet(d table.DefinedSet) error {
 	return err
 }
 
-func (cli *GoBGPClient) DeleteDefinedSet(d table.DefinedSet, all bool) error {
+func (cli *Client) DeleteDefinedSet(d table.DefinedSet, all bool) error {
 	a, err := api.NewAPIDefinedSetFromTableStruct(d)
 	if err != nil {
 		return err
@@ -539,7 +594,7 @@ func (cli *GoBGPClient) DeleteDefinedSet(d table.DefinedSet, all bool) error {
 	return err
 }
 
-func (cli *GoBGPClient) ReplaceDefinedSet(d table.DefinedSet) error {
+func (cli *Client) ReplaceDefinedSet(d table.DefinedSet) error {
 	a, err := api.NewAPIDefinedSetFromTableStruct(d)
 	if err != nil {
 		return err
@@ -550,7 +605,7 @@ func (cli *GoBGPClient) ReplaceDefinedSet(d table.DefinedSet) error {
 	return err
 }
 
-func (cli *GoBGPClient) GetStatement() ([]*table.Statement, error) {
+func (cli *Client) GetStatement() ([]*table.Statement, error) {
 	ret, err := cli.cli.GetStatement(context.Background(), &api.GetStatementRequest{})
 	if err != nil {
 		return nil, err
@@ -566,7 +621,7 @@ func (cli *GoBGPClient) GetStatement() ([]*table.Statement, error) {
 	return sts, nil
 }
 
-func (cli *GoBGPClient) AddStatement(t *table.Statement) error {
+func (cli *Client) AddStatement(t *table.Statement) error {
 	a := api.NewAPIStatementFromTableStruct(t)
 	_, err := cli.cli.AddStatement(context.Background(), &api.AddStatementRequest{
 		Statement: a,
@@ -574,7 +629,7 @@ func (cli *GoBGPClient) AddStatement(t *table.Statement) error {
 	return err
 }
 
-func (cli *GoBGPClient) DeleteStatement(t *table.Statement, all bool) error {
+func (cli *Client) DeleteStatement(t *table.Statement, all bool) error {
 	a := api.NewAPIStatementFromTableStruct(t)
 	_, err := cli.cli.DeleteStatement(context.Background(), &api.DeleteStatementRequest{
 		Statement: a,
@@ -583,7 +638,7 @@ func (cli *GoBGPClient) DeleteStatement(t *table.Statement, all bool) error {
 	return err
 }
 
-func (cli *GoBGPClient) ReplaceStatement(t *table.Statement) error {
+func (cli *Client) ReplaceStatement(t *table.Statement) error {
 	a := api.NewAPIStatementFromTableStruct(t)
 	_, err := cli.cli.ReplaceStatement(context.Background(), &api.ReplaceStatementRequest{
 		Statement: a,
@@ -591,7 +646,7 @@ func (cli *GoBGPClient) ReplaceStatement(t *table.Statement) error {
 	return err
 }
 
-func (cli *GoBGPClient) GetPolicy() ([]*table.Policy, error) {
+func (cli *Client) GetPolicy() ([]*table.Policy, error) {
 	ret, err := cli.cli.GetPolicy(context.Background(), &api.GetPolicyRequest{})
 	if err != nil {
 		return nil, err
@@ -607,7 +662,7 @@ func (cli *GoBGPClient) GetPolicy() ([]*table.Policy, error) {
 	return pols, nil
 }
 
-func (cli *GoBGPClient) AddPolicy(t *table.Policy, refer bool) error {
+func (cli *Client) AddPolicy(t *table.Policy, refer bool) error {
 	a := api.NewAPIPolicyFromTableStruct(t)
 	_, err := cli.cli.AddPolicy(context.Background(), &api.AddPolicyRequest{
 		Policy:                  a,
@@ -616,7 +671,7 @@ func (cli *GoBGPClient) AddPolicy(t *table.Policy, refer bool) error {
 	return err
 }
 
-func (cli *GoBGPClient) DeletePolicy(t *table.Policy, all, preserve bool) error {
+func (cli *Client) DeletePolicy(t *table.Policy, all, preserve bool) error {
 	a := api.NewAPIPolicyFromTableStruct(t)
 	_, err := cli.cli.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
 		Policy:             a,
@@ -626,7 +681,7 @@ func (cli *GoBGPClient) DeletePolicy(t *table.Policy, all, preserve bool) error 
 	return err
 }
 
-func (cli *GoBGPClient) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
+func (cli *Client) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
 	a := api.NewAPIPolicyFromTableStruct(t)
 	_, err := cli.cli.ReplacePolicy(context.Background(), &api.ReplacePolicyRequest{
 		Policy:                  a,
@@ -636,7 +691,7 @@ func (cli *GoBGPClient) ReplacePolicy(t *table.Policy, refer, preserve bool) err
 	return err
 }
 
-func (cli *GoBGPClient) getPolicyAssignment(name string, dir table.PolicyDirection) (*table.PolicyAssignment, error) {
+func (cli *Client) getPolicyAssignment(name string, dir table.PolicyDirection) (*table.PolicyAssignment, error) {
 	var typ api.PolicyType
 	switch dir {
 	case table.POLICY_DIRECTION_IN:
@@ -683,34 +738,34 @@ func (cli *GoBGPClient) getPolicyAssignment(name string, dir table.PolicyDirecti
 	}, nil
 }
 
-func (cli *GoBGPClient) GetImportPolicy() (*table.PolicyAssignment, error) {
+func (cli *Client) GetImportPolicy() (*table.PolicyAssignment, error) {
 	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_IMPORT)
 }
 
-func (cli *GoBGPClient) GetExportPolicy() (*table.PolicyAssignment, error) {
+func (cli *Client) GetExportPolicy() (*table.PolicyAssignment, error) {
 	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_EXPORT)
 }
 
-func (cli *GoBGPClient) GetRouteServerInPolicy(name string) (*table.PolicyAssignment, error) {
+func (cli *Client) GetRouteServerInPolicy(name string) (*table.PolicyAssignment, error) {
 	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_IN)
 }
 
-func (cli *GoBGPClient) GetRouteServerImportPolicy(name string) (*table.PolicyAssignment, error) {
+func (cli *Client) GetRouteServerImportPolicy(name string) (*table.PolicyAssignment, error) {
 	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_IMPORT)
 }
 
-func (cli *GoBGPClient) GetRouteServerExportPolicy(name string) (*table.PolicyAssignment, error) {
+func (cli *Client) GetRouteServerExportPolicy(name string) (*table.PolicyAssignment, error) {
 	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_EXPORT)
 }
 
-func (cli *GoBGPClient) AddPolicyAssignment(assignment *table.PolicyAssignment) error {
+func (cli *Client) AddPolicyAssignment(assignment *table.PolicyAssignment) error {
 	_, err := cli.cli.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
 		Assignment: api.NewAPIPolicyAssignmentFromTableStruct(assignment),
 	})
 	return err
 }
 
-func (cli *GoBGPClient) DeletePolicyAssignment(assignment *table.PolicyAssignment, all bool) error {
+func (cli *Client) DeletePolicyAssignment(assignment *table.PolicyAssignment, all bool) error {
 	a := api.NewAPIPolicyAssignmentFromTableStruct(assignment)
 	_, err := cli.cli.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{
 		Assignment: a,
@@ -718,21 +773,21 @@ func (cli *GoBGPClient) DeletePolicyAssignment(assignment *table.PolicyAssignmen
 	return err
 }
 
-func (cli *GoBGPClient) ReplacePolicyAssignment(assignment *table.PolicyAssignment) error {
+func (cli *Client) ReplacePolicyAssignment(assignment *table.PolicyAssignment) error {
 	_, err := cli.cli.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
 		Assignment: api.NewAPIPolicyAssignmentFromTableStruct(assignment),
 	})
 	return err
 }
 
-//func (cli *GoBGPClient) EnableMrt(c *config.MrtConfig) error {
+//func (cli *Client) EnableMrt(c *config.MrtConfig) error {
 //}
 //
-//func (cli *GoBGPClient) DisableMrt(c *config.MrtConfig) error {
+//func (cli *Client) DisableMrt(c *config.MrtConfig) error {
 //}
 //
 
-func (cli *GoBGPClient) GetRPKI() ([]*config.RpkiServer, error) {
+func (cli *Client) GetRPKI() ([]*config.RpkiServer, error) {
 	rsp, err := cli.cli.GetRpki(context.Background(), &api.GetRpkiRequest{})
 	if err != nil {
 		return nil, err
@@ -779,7 +834,7 @@ func (cli *GoBGPClient) GetRPKI() ([]*config.RpkiServer, error) {
 	return servers, nil
 }
 
-func (cli *GoBGPClient) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
+func (cli *Client) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
 	rsp, err := cli.cli.GetRoa(context.Background(), &api.GetRoaRequest{
 		Family: uint32(family),
 	})
@@ -799,7 +854,7 @@ func (cli *GoBGPClient) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
 	return roas, nil
 }
 
-func (cli *GoBGPClient) AddRPKIServer(address string, port, lifetime int) error {
+func (cli *Client) AddRPKIServer(address string, port, lifetime int) error {
 	_, err := cli.cli.AddRpki(context.Background(), &api.AddRpkiRequest{
 		Address:  address,
 		Port:     uint32(port),
@@ -808,42 +863,42 @@ func (cli *GoBGPClient) AddRPKIServer(address string, port, lifetime int) error 
 	return err
 }
 
-func (cli *GoBGPClient) DeleteRPKIServer(address string) error {
+func (cli *Client) DeleteRPKIServer(address string) error {
 	_, err := cli.cli.DeleteRpki(context.Background(), &api.DeleteRpkiRequest{
 		Address: address,
 	})
 	return err
 }
 
-func (cli *GoBGPClient) EnableRPKIServer(address string) error {
+func (cli *Client) EnableRPKIServer(address string) error {
 	_, err := cli.cli.EnableRpki(context.Background(), &api.EnableRpkiRequest{
 		Address: address,
 	})
 	return err
 }
 
-func (cli *GoBGPClient) DisableRPKIServer(address string) error {
+func (cli *Client) DisableRPKIServer(address string) error {
 	_, err := cli.cli.DisableRpki(context.Background(), &api.DisableRpkiRequest{
 		Address: address,
 	})
 	return err
 }
 
-func (cli *GoBGPClient) ResetRPKIServer(address string) error {
+func (cli *Client) ResetRPKIServer(address string) error {
 	_, err := cli.cli.ResetRpki(context.Background(), &api.ResetRpkiRequest{
 		Address: address,
 	})
 	return err
 }
 
-func (cli *GoBGPClient) SoftResetRPKIServer(address string) error {
+func (cli *Client) SoftResetRPKIServer(address string) error {
 	_, err := cli.cli.SoftResetRpki(context.Background(), &api.SoftResetRpkiRequest{
 		Address: address,
 	})
 	return err
 }
 
-func (cli *GoBGPClient) ValidateRIBWithRPKI(prefixes ...string) error {
+func (cli *Client) ValidateRIBWithRPKI(prefixes ...string) error {
 	req := &api.ValidateRibRequest{}
 	if len(prefixes) > 1 {
 		return fmt.Errorf("too many prefixes: %d", len(prefixes))
@@ -854,7 +909,7 @@ func (cli *GoBGPClient) ValidateRIBWithRPKI(prefixes ...string) error {
 	return err
 }
 
-func (cli *GoBGPClient) AddBMP(c *config.BmpServerConfig) error {
+func (cli *Client) AddBMP(c *config.BmpServerConfig) error {
 	_, err := cli.cli.AddBmp(context.Background(), &api.AddBmpRequest{
 		Address: c.Address,
 		Port:    c.Port,
@@ -863,7 +918,7 @@ func (cli *GoBGPClient) AddBMP(c *config.BmpServerConfig) error {
 	return err
 }
 
-func (cli *GoBGPClient) DeleteBMP(c *config.BmpServerConfig) error {
+func (cli *Client) DeleteBMP(c *config.BmpServerConfig) error {
 	_, err := cli.cli.DeleteBmp(context.Background(), &api.DeleteBmpRequest{
 		Address: c.Address,
 		Port:    c.Port,
@@ -883,10 +938,13 @@ func (c *MonitorRIBClient) Recv() (*table.Destination, error) {
 	return d.ToNativeDestination()
 }
 
-func (cli *GoBGPClient) MonitorRIB(family bgp.RouteFamily) (*MonitorRIBClient, error) {
-	stream, err := cli.cli.MonitorRib(context.Background(), &api.Table{
-		Type:   api.Resource_GLOBAL,
-		Family: uint32(family),
+func (cli *Client) MonitorRIB(family bgp.RouteFamily, current bool) (*MonitorRIBClient, error) {
+	stream, err := cli.cli.MonitorRib(context.Background(), &api.MonitorRibRequest{
+		Table: &api.Table{
+			Type:   api.Resource_GLOBAL,
+			Family: uint32(family),
+		},
+		Current: current,
 	})
 	if err != nil {
 		return nil, err
@@ -894,11 +952,14 @@ func (cli *GoBGPClient) MonitorRIB(family bgp.RouteFamily) (*MonitorRIBClient, e
 	return &MonitorRIBClient{stream}, nil
 }
 
-func (cli *GoBGPClient) MonitorAdjRIBIn(name string, family bgp.RouteFamily) (*MonitorRIBClient, error) {
-	stream, err := cli.cli.MonitorRib(context.Background(), &api.Table{
-		Type:   api.Resource_ADJ_IN,
-		Name:   name,
-		Family: uint32(family),
+func (cli *Client) MonitorAdjRIBIn(name string, family bgp.RouteFamily, current bool) (*MonitorRIBClient, error) {
+	stream, err := cli.cli.MonitorRib(context.Background(), &api.MonitorRibRequest{
+		Table: &api.Table{
+			Type:   api.Resource_ADJ_IN,
+			Name:   name,
+			Family: uint32(family),
+		},
+		Current: current,
 	})
 	if err != nil {
 		return nil, err
@@ -918,7 +979,7 @@ func (c *MonitorNeighborStateClient) Recv() (*config.Neighbor, error) {
 	return api.NewNeighborFromAPIStruct(p)
 }
 
-func (cli *GoBGPClient) MonitorNeighborState(names ...string) (*MonitorNeighborStateClient, error) {
+func (cli *Client) MonitorNeighborState(names ...string) (*MonitorNeighborStateClient, error) {
 	if len(names) > 1 {
 		return nil, fmt.Errorf("support one name at most: %d", len(names))
 	}

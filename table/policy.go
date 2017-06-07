@@ -110,6 +110,16 @@ func (o MatchOption) String() string {
 	}
 }
 
+func (o MatchOption) ConvertToMatchSetOptionsRestrictedType() config.MatchSetOptionsRestrictedType {
+	switch o {
+	case MATCH_OPTION_ANY:
+		return config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+	case MATCH_OPTION_INVERT:
+		return config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+	}
+	return "unknown"
+}
+
 type MedActionType int
 
 const (
@@ -275,14 +285,32 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 	return lhs.Prefix.String() == rhs.Prefix.String() && lhs.MasklengthRangeMin == rhs.MasklengthRangeMin && lhs.MasklengthRangeMax == rhs.MasklengthRangeMax
 }
 
+func (p *Prefix) PrefixString() string {
+	isZeros := func(p net.IP) bool {
+		for i := 0; i < len(p); i++ {
+			if p[i] != 0 {
+				return false
+			}
+		}
+		return true
+	}
+
+	ip := p.Prefix.IP
+	if p.AddressFamily == bgp.RF_IPv6_UC && isZeros(ip[0:10]) && ip[10] == 0xff && ip[11] == 0xff {
+		m, _ := p.Prefix.Mask.Size()
+		return fmt.Sprintf("::FFFF:%s/%d", ip.To16(), m)
+	}
+	return p.Prefix.String()
+}
+
 func NewPrefix(c config.Prefix) (*Prefix, error) {
-	addr, prefix, err := net.ParseCIDR(c.IpPrefix)
+	_, prefix, err := net.ParseCIDR(c.IpPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	rf := bgp.RF_IPv4_UC
-	if addr.To4() == nil {
+	if strings.Contains(c.IpPrefix, ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	p := &Prefix{
@@ -316,8 +344,9 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 }
 
 type PrefixSet struct {
-	name string
-	tree *radix.Tree
+	name   string
+	tree   *radix.Tree
+	family bgp.RouteFamily
 }
 
 func (s *PrefixSet) Name() string {
@@ -333,6 +362,16 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
+	// if either is empty, family can be ignored.
+	if lhs.tree.Len() != 0 && rhs.tree.Len() != 0 {
+		_, w, _ := lhs.tree.Minimum()
+		l := w.([]*Prefix)
+		_, v, _ := rhs.tree.Minimum()
+		r := v.([]*Prefix)
+		if l[0].AddressFamily != r[0].AddressFamily {
+			return fmt.Errorf("can't append different family")
+		}
+	}
 	rhs.tree.Walk(func(key string, v interface{}) bool {
 		w, ok := lhs.tree.Get(key)
 		if ok {
@@ -344,6 +383,8 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 		}
 		return false
 	})
+	_, w, _ := lhs.tree.Minimum()
+	lhs.family = w.([]*Prefix)[0].AddressFamily
 	return nil
 }
 
@@ -388,6 +429,7 @@ func (lhs *PrefixSet) Replace(arg DefinedSet) error {
 		return fmt.Errorf("type cast failed")
 	}
 	lhs.tree = rhs.tree
+	lhs.family = rhs.family
 	return nil
 }
 
@@ -396,7 +438,7 @@ func (s *PrefixSet) List() []string {
 	s.tree.Walk(func(s string, v interface{}) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
-			list = append(list, fmt.Sprintf("%s %d..%d", p.Prefix.String(), p.MasklengthRangeMin, p.MasklengthRangeMax))
+			list = append(list, fmt.Sprintf("%s %d..%d", p.PrefixString(), p.MasklengthRangeMin, p.MasklengthRangeMax))
 		}
 		return false
 	})
@@ -408,7 +450,7 @@ func (s *PrefixSet) ToConfig() *config.PrefixSet {
 	s.tree.Walk(func(s string, v interface{}) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
-			list = append(list, config.Prefix{IpPrefix: p.Prefix.String(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
+			list = append(list, config.Prefix{IpPrefix: p.PrefixString(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
 		}
 		return false
 	})
@@ -431,7 +473,13 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 		return nil, fmt.Errorf("empty prefix set name")
 	}
 	tree := radix.New()
-	for _, x := range prefixes {
+	var family bgp.RouteFamily
+	for i, x := range prefixes {
+		if i == 0 {
+			family = x.AddressFamily
+		} else if family != x.AddressFamily {
+			return nil, fmt.Errorf("multiple families")
+		}
 		key := CidrToRadixkey(x.Prefix.String())
 		d, ok := tree.Get(key)
 		if ok {
@@ -442,8 +490,9 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 		}
 	}
 	return &PrefixSet{
-		name: name,
-		tree: tree,
+		name:   name,
+		tree:   tree,
+		family: family,
 	}, nil
 }
 
@@ -456,10 +505,16 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
 	tree := radix.New()
-	for _, x := range c.PrefixList {
+	var family bgp.RouteFamily
+	for i, x := range c.PrefixList {
 		y, err := NewPrefix(x)
 		if err != nil {
 			return nil, err
+		}
+		if i == 0 {
+			family = y.AddressFamily
+		} else if family != y.AddressFamily {
+			return nil, fmt.Errorf("multiple families")
 		}
 		key := CidrToRadixkey(y.Prefix.String())
 		d, ok := tree.Get(key)
@@ -471,8 +526,9 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		}
 	}
 	return &PrefixSet{
-		name: name,
-		tree: tree,
+		name:   name,
+		tree:   tree,
+		family: family,
 	}, nil
 }
 
@@ -1090,6 +1146,16 @@ func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	}, nil
 }
 
+func (s *ExtCommunitySet) Append(arg DefinedSet) error {
+	err := s.regExpSet.Append(arg)
+	if err != nil {
+		return err
+	}
+	sList := arg.(*ExtCommunitySet).subtypeList
+	s.subtypeList = append(s.subtypeList, sList...)
+	return nil
+}
+
 type LargeCommunitySet struct {
 	regExpSet
 }
@@ -1190,7 +1256,8 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		}
 		return buffer.String()[:ones]
 	}
-	switch path.GetRouteFamily() {
+	family := path.GetRouteFamily()
+	switch family {
 	case bgp.RF_IPv4_UC:
 		masklen = path.GetNlri().(*bgp.IPAddrPrefix).Length
 		key = keyf(path.GetNlri().(*bgp.IPAddrPrefix).Prefix, int(masklen))
@@ -1198,6 +1265,9 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		masklen = path.GetNlri().(*bgp.IPv6AddrPrefix).Length
 		key = keyf(path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix, int(masklen))
 	default:
+		return false
+	}
+	if family != c.set.family {
 		return false
 	}
 
@@ -2363,10 +2433,10 @@ func (s *Statement) ToConfig() *config.Statement {
 				switch c.(type) {
 				case *PrefixCondition:
 					v := c.(*PrefixCondition)
-					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsRestrictedTypeMap[int(v.option)]}
+					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *NeighborCondition:
 					v := c.(*NeighborCondition)
-					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsRestrictedTypeMap[int(v.option)]}
+					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *AsPathLengthCondition:
 					v := c.(*AsPathLengthCondition)
 					cond.BgpConditions.AsPathLength = config.AsPathLength{Operator: config.IntToAttributeComparisonMap[int(v.operator)], Value: v.length}
@@ -3114,7 +3184,7 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	return nil
 }
 
-func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, error) {
+func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*config.DefinedSets, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -3133,6 +3203,9 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, err
 		},
 	}
 	for _, s := range set {
+		if name != "" && s.Name() != name {
+			continue
+		}
 		switch s.(type) {
 		case *PrefixSet:
 			sets.PrefixSets = append(sets.PrefixSets, *s.(*PrefixSet).ToConfig())
@@ -3506,7 +3579,12 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 		}
 		err = r.setDefaultPolicy(id, dir, ROUTE_TYPE_NONE)
 	} else {
-		n := make([]*Policy, 0, len(cur)-len(ps))
+		l := len(cur) - len(ps)
+		if l < 0 {
+			// try to remove more than the assigned policies...
+			l = len(cur)
+		}
+		n := make([]*Policy, 0, l)
 		for _, y := range cur {
 			found := false
 			for _, x := range ps {

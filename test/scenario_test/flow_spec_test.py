@@ -13,17 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.exabgp import *
-import sys
-import os
-import time
-import nose
-from noseplugin import OptionParser, parser_option
+from __future__ import absolute_import
+
 from itertools import combinations
+import sys
+import time
+import unittest
+
+from fabric.api import local
+import nose
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -44,13 +49,13 @@ class GoBGPTestBase(unittest.TestCase):
         matchs = ['destination 10.0.0.0/24', 'source 20.0.0.0/24']
         thens = ['discard']
         e1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs, thens=thens)
-        matchs2 = ['tcp-flags syn', 'protocol tcp udp', "packet-length '>1000&<2000'"]
+        matchs2 = ['tcp-flags S', 'protocol ==tcp ==udp', "packet-length '>1000&<2000'", "source-port '!=2&!=22&!=222'"]
         thens2 = ['rate-limit 9600', 'redirect 0.10:100', 'mark 20', 'action sample']
         g1.add_route(route='flow1', rf='ipv4-flowspec', matchs=matchs2, thens=thens2)
         matchs3 = ['destination 2001::/24/10', 'source 2002::/24/15']
         thens3 = ['discard']
         e1.add_route(route='flow2', rf='ipv6-flowspec', matchs=matchs3, thens=thens3)
-        matchs4 = ['destination 2001::/24 10', "label '=100'"]
+        matchs4 = ['destination 2001::/24 10', "label '==100'"]
         thens4 = ['discard']
         g1.add_route(route='flow2', rf='ipv6-flowspec', matchs=matchs4, thens=thens4)
 
@@ -78,9 +83,6 @@ class GoBGPTestBase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

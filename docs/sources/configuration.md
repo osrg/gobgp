@@ -30,6 +30,8 @@
     [bmp-servers.config]
         address = "127.0.0.1"
         port = 11019
+        route-monitoring-policy = "pre-policy"
+        statistics-timeout = 3600
 
 [[mrt-dump]]
     dump-type = "updates"
@@ -49,6 +51,12 @@
         neighbor-address = "192.168.10.2"
         # override global.config.as value
         local-as = 1000
+        remove-private-as = "all"
+        # To enable peer group setting, uncomment the following
+        #peer-group = "my-peer-group"
+    [neighbors.as-path-options.config]
+        allow-own-as = 1
+        replace-peer-as = true
     [neighbors.timers.config]
         connect-retry = 5
         hold-time = 9
@@ -124,6 +132,14 @@
     [neighbors.route-server.config]
         route-server-client = true
 
+[[peer-groups]]
+  [peer-groups.config]
+    peer-group-name = "my-peer-group"
+    peer-as = 65000
+  [[peer-groups.afi-safis]]
+    [peer-groups.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+
 [[defined-sets.prefix-sets]]
     prefix-set-name = "ps0"
     [[defined-sets.prefix-sets.prefix-list]]
@@ -163,21 +179,21 @@
         [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
             as = "last-as"
             repeat-n = 5
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
     [[policy-definitions.statements]]
         [policy-definitions.statements.conditions.bgp-conditions.match-ext-community-set]
             ext-community-set = "es0"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = false
+        [policy-definitions.statements.actions]
+            route-disposition = "reject-route"
 
 [[policy-definitions]]
     name = "policy2"
     [[policy-definitions.statements]]
         [policy-definitions.statements.conditions.bgp-conditions.match-as-path-set]
             as-path-set = "as0"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-community]
             options = "add"
             [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
@@ -188,8 +204,8 @@
     [[policy-definitions.statements]]
         [policy-definitions.statements.conditions.bgp-conditions.match-as-path-set]
             as-path-set = "as0"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-community]
             options = "add"
             [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
@@ -198,8 +214,8 @@
         [policy-definitions.statements.conditions.match-prefix-set]
             prefix-set = "ps0"
             match-set-options = "invert"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-ext-community]
             options = "replace"
             [policy-definitions.statements.actions.bgp-actions.set-ext-community.set-ext-community-method]
@@ -207,8 +223,8 @@
     [[policy-definitions.statements]]
         [policy-definitions.statements.conditions.match-neighbor-set]
             neighbor-set = "ns0"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-ext-community]
             options = "remove"
             [policy-definitions.statements.actions.bgp-actions.set-ext-community.set-ext-community-method]
@@ -220,35 +236,35 @@
         # this statement matches with locally generated routes 
         [policy-definitions.statements.conditions.bgp-conditions]
             route-type = "local"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
     [[policy-definitions.statements]]
         # this statement matches with routes from iBGP peers
         [policy-definitions.statements.conditions.bgp-conditions]
             route-type = "internal"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
     [[policy-definitions.statements]]
         # this statement matches with routes from eBGP peers
         [policy-definitions.statements.conditions.bgp-conditions]
             route-type = "external"
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
 
 [[policy-definitions]]
     name = "large-communty-policy"
     [[policy-definitions.statements]]
         # this statement adds specified large communities
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-large-community]
             options = "add"
             [policy-definitions.statements.actions.bgp-actions.set-large-community.set-large-community-method]
                 communities-list = ["100:200:300"]
     [[policy-definitions.statements]]
         # this statement adds specified large communities
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-large-community]
             options = "replace"
             [policy-definitions.statements.actions.bgp-actions.set-large-community.set-large-community-method]
@@ -256,8 +272,8 @@
     [[policy-definitions.statements]]
         # this statement removes specified large communities
         # regular expression is also supported
-        [policy-definitions.statements.actions.route-disposition]
-            accept-route = true
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
         [policy-definitions.statements.actions.bgp-actions.set-large-community]
             options = "remove"
             [policy-definitions.statements.actions.bgp-actions.set-large-community.set-large-community-method]

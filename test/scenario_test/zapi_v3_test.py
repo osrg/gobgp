@@ -13,17 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
-from itertools import chain
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -33,14 +37,14 @@ class GoBGPTestBase(unittest.TestCase):
         base.TEST_PREFIX = parser_option.test_prefix
 
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
-                               ctn_image_name=gobgp_ctn_image_name,
-                               log_level=parser_option.gobgp_log_level,
-                               zebra=True, zapi_version=3)
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level,
+                            zebra=True, zapi_version=3)
 
         g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2',
-                               ctn_image_name=gobgp_ctn_image_name,
-                               log_level=parser_option.gobgp_log_level,
-                               zebra=True, zapi_version=3)
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level,
+                            zebra=True, zapi_version=3)
 
         initial_wait_time = max(ctn.run() for ctn in [g1, g2])
 
@@ -66,10 +70,10 @@ class GoBGPTestBase(unittest.TestCase):
         self.g2.local('ip netns exec ns01 ip li set up dev lo')
         self.g2.local('ip netns exec ns02 ip li set up dev lo')
 
-        self.g1.local("vtysh -c 'en' -c 'conf t' -c 'vrf 1 netns ns01'")
-        self.g1.local("vtysh -c 'en' -c 'conf t' -c 'vrf 2 netns ns02'")
-        self.g2.local("vtysh -c 'en' -c 'conf t' -c 'vrf 1 netns ns01'")
-        self.g2.local("vtysh -c 'en' -c 'conf t' -c 'vrf 2 netns ns02'")
+        self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 1 netns ns01'")
+        self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 2 netns ns02'")
+        self.g2.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 1 netns ns01'")
+        self.g2.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 2 netns ns02'")
 
         self.g1.local("gobgp vrf add vrf01 id 1 rd 1:1 rt both 1:1")
         self.g1.local("gobgp vrf add vrf02 id 2 rd 2:2 rt both 2:2")
@@ -91,9 +95,6 @@ class GoBGPTestBase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

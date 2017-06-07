@@ -303,6 +303,17 @@ func (t *Table) Bests(id string) []*Path {
 	return paths
 }
 
+func (t *Table) MultiBests(id string) [][]*Path {
+	paths := make([][]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		path := dst.GetMultiBestPath(id)
+		if path != nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 func (t *Table) GetKnownPathList(id string) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {
@@ -360,13 +371,13 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						}
 					}
 				case LOOKUP_SHORTER:
-					_, prefix, err := net.ParseCIDR(key)
+					addr, prefix, err := net.ParseCIDR(key)
 					if err != nil {
 						return nil, err
 					}
-					ones, bits := prefix.Mask.Size()
-					for i := ones; i > 0; i-- {
-						prefix.Mask = net.CIDRMask(i, bits)
+					ones, _ := prefix.Mask.Size()
+					for i := ones; i >= 0; i-- {
+						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
 						f(prefix.String())
 					}
 				default:
@@ -375,8 +386,12 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						if t.routeFamily == bgp.RF_IPv6_UC {
 							masklen = 128
 						}
-						for i := masklen; i > 0; i-- {
-							if f(fmt.Sprintf("%s/%d", key, i)) {
+						for i := masklen; i >= 0; i-- {
+							_, prefix, err := net.ParseCIDR(fmt.Sprintf("%s/%d", key, i))
+							if err != nil {
+								return nil, err
+							}
+							if f(prefix.String()) {
 								break
 							}
 						}

@@ -185,7 +185,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, map[string][]*Path, [][]*Path) {
+func (manager *TableManager) calculate(ids []string, destinations []*Destination, peerDown bool) (map[string][]*Path, map[string][]*Path, [][]*Path) {
 	best := make(map[string][]*Path, len(ids))
 	old := make(map[string][]*Path, len(ids))
 
@@ -200,7 +200,7 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 			"Topic": "table",
 			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, olds, m := dst.Calculate(ids)
+		paths, olds, m := dst.Calculate(ids, peerDown)
 		for id, path := range paths {
 			best[id] = append(best[id], path)
 			old[id] = append(old[id], olds[id])
@@ -224,7 +224,7 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, map[string][]*Path, [][]*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		return manager.calculate(ids, dsts)
+		return manager.calculate(ids, dsts, true)
 	}
 	return nil, nil, nil
 }
@@ -255,7 +255,7 @@ func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[s
 			}
 		}
 	}
-	return manager.calculate(ids, dsts)
+	return manager.calculate(ids, dsts, false)
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -299,37 +299,66 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	return dsts
 }
 
+func (manager *TableManager) tables(list ...bgp.RouteFamily) []*Table {
+	l := make([]*Table, 0, len(manager.Tables))
+	if len(list) == 0 {
+		for _, v := range manager.Tables {
+			l = append(l, v)
+		}
+		return l
+	}
+	for _, f := range list {
+		if t, ok := manager.Tables[f]; ok {
+			l = append(l, t)
+		}
+	}
+	return l
+}
+
 func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	count := 0
-	for _, rf := range rfList {
-		if _, ok := manager.Tables[rf]; ok {
-			count += len(manager.Tables[rf].GetDestinations())
-		}
+	for _, t := range manager.tables(rfList...) {
+		count += len(t.GetDestinations())
 	}
 	return count
 }
 
 func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			paths = append(paths, t.Bests(id)...)
-		}
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.Bests(id)...)
+	}
+	return paths
+}
+
+func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
+	if !UseMultiplePaths.Enabled {
+		return nil
+	}
+	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.MultiBests(id)...)
 	}
 	return paths
 }
 
 func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []*Path {
-	c := 0
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			c += len(t.destinations)
-		}
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.GetKnownPathList(id)...)
 	}
-	paths := make([]*Path, 0, c)
+	return paths
+}
+
+func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.RouteFamily, nexthop net.IP) []*Path {
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
-			paths = append(paths, t.GetKnownPathList(id)...)
+			for _, path := range t.GetKnownPathList(id) {
+				if path.GetNexthop().Equal(nexthop) {
+					paths = append(paths, path)
+				}
+			}
 		}
 	}
 	return paths

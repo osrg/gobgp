@@ -13,22 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
-import sys
-import os
-import time
-import nose
-from noseplugin import OptionParser, parser_option
+from __future__ import absolute_import
+
 from itertools import combinations
+import sys
+import time
+import unittest
+
+from fabric.api import local
+import nose
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    BGP_FSM_ESTABLISHED,
+    BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+)
+from lib.gobgp import GoBGPContainer
+
 
 def get_mac_mobility_sequence(pattr):
-    for ecs in [p['value'] for p in pattr
-                if 'type' in p and \
-                p['type'] == BGP_ATTR_TYPE_EXTENDED_COMMUNITIES]:
+    for ecs in [
+            p['value'] for p in pattr
+            if 'type' in p and p['type'] == BGP_ATTR_TYPE_EXTENDED_COMMUNITIES]:
         for ec in [e for e in ecs if 'type' in e and e['type'] == 6]:
             if ec['subtype'] == 0:
                 if 'sequence' not in ec:
@@ -82,7 +90,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(path['nexthop'] == '0.0.0.0')
 
         interval = 1
-        timeout = int(30/interval)
+        timeout = int(30 / interval)
         done = False
         for _ in range(timeout):
             if done:
@@ -135,9 +143,6 @@ class GoBGPTestBase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

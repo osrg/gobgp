@@ -22,7 +22,6 @@ import (
 	"os"
 	"strings"
 	"syscall"
-	"unsafe"
 )
 
 const (

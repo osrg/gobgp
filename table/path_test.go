@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
@@ -330,4 +331,39 @@ func updateMsgP3() *bgp.BGPMessage {
 	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
 	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+}
+
+func TestRemovePrivateAS(t *testing.T) {
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{64512, 64513, 1, 2})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nlri := bgp.NewIPAddrPrefix(24, "30.30.30.0")
+	path := NewPath(nil, nlri, false, []bgp.PathAttributeInterface{aspath}, time.Now(), false)
+	path.RemovePrivateAS(10, config.REMOVE_PRIVATE_AS_OPTION_ALL)
+	list := path.GetAsList()
+	assert.Equal(t, len(list), 2)
+	assert.Equal(t, list[0], uint32(1))
+	assert.Equal(t, list[1], uint32(2))
+
+	path = NewPath(nil, nlri, false, []bgp.PathAttributeInterface{aspath}, time.Now(), false)
+	path.RemovePrivateAS(10, config.REMOVE_PRIVATE_AS_OPTION_REPLACE)
+	list = path.GetAsList()
+	assert.Equal(t, len(list), 4)
+	assert.Equal(t, list[0], uint32(10))
+	assert.Equal(t, list[1], uint32(10))
+	assert.Equal(t, list[2], uint32(1))
+	assert.Equal(t, list[3], uint32(2))
+}
+
+func TestReplaceAS(t *testing.T) {
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{64512, 64513, 1, 2})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nlri := bgp.NewIPAddrPrefix(24, "30.30.30.0")
+	path := NewPath(nil, nlri, false, []bgp.PathAttributeInterface{aspath}, time.Now(), false)
+	path = path.ReplaceAS(10, 1)
+	list := path.GetAsList()
+	assert.Equal(t, len(list), 4)
+	assert.Equal(t, list[0], uint32(64512))
+	assert.Equal(t, list[1], uint32(64513))
+	assert.Equal(t, list[2], uint32(10))
+	assert.Equal(t, list[3], uint32(2))
 }

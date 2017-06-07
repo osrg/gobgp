@@ -58,7 +58,7 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 		}
 		for i, x := range l {
 			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
-				exp := regexp.MustCompile("\\^(\\S+)\\$")
+				exp := regexp.MustCompile("\\^\\^(\\S+)\\$\\$")
 				x = exp.ReplaceAllString(x, "$1")
 			}
 			if i == 0 {
@@ -90,22 +90,19 @@ func showDefinedSet(v string, args []string) error {
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
-	ds, err := client.GetDefinedSet(typ)
-	if err != nil {
-		return err
-	}
 	var m table.DefinedSetList
 	if len(args) > 0 {
-		for _, set := range ds {
-			if args[0] == set.Name() {
-				m = append(m, set)
-			}
+		d, err := client.GetDefinedSetByName(typ, args[0])
+		if err != nil {
+			return err
 		}
-		if len(m) == 0 {
-			return fmt.Errorf("not found %s", args[0])
-		}
+		m = table.DefinedSetList([]table.DefinedSet{d})
 	} else {
-		m = ds
+		var err error
+		m, err = client.GetDefinedSet(typ)
+		if err != nil {
+			return err
+		}
 	}
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)

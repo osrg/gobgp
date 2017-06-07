@@ -1,6 +1,6 @@
 # BGP Monitoring Protocol
 
-GoBGP supports [BGP Monitoring Protocol](https://datatracker.ietf.org/doc/draft-ietf-grow-bmp/).
+GoBGP supports [BGP Monitoring Protocol (RFC 7854)](https://tools.ietf.org/html/rfc7854), which provides a convenient interface for obtaining route views.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 
 ## <a name="config"> Configuration
 
-Add `[bmp-servers]` session to enable BMP like below.
+Add `[bmp-servers]` session to enable BMP. 
 
 ```toml
 [global.config]
@@ -23,6 +23,56 @@ Add `[bmp-servers]` session to enable BMP like below.
   [bmp-servers.config]
     address = "127.0.0.1"
     port=11019
+```
+
+The supported route monitoring policy types are:
+- pre-policy (Default)
+- post-policy
+- both (Obsoleted)
+- local-rib
+- all
+
+Enable post-policy support as follows:
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    route-monitoring-policy = "post-policy"
+```
+
+Enable all policies support as follows:
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    route-monitoring-policy = "all"
+```
+
+To enable BMP stats reports, specify the interval seconds to send statistics messages.
+The default value is 0 and no statistics messages are sent.
+Please note the range of this interval is 15 though 65535 seconds.
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    statistics-timeout = 3600
+```
+
+To enable route mirroring feature, specify `true` for `route-mirroring-enabled` option.
+Please note this option is mainly for debugging purpose.
+
+```toml
+[[bmp-servers]]
+  [bmp-servers.config]
+    address = "127.0.0.1"
+    port=11019
+    route-mirroring-enabled = true
 ```
 
 ## <a name="verify"> Verification

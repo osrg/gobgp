@@ -13,8 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from base import *
-from itertools import chain
+from __future__ import absolute_import
+
+import time
+
+from fabric import colors
+from fabric.api import local
+
+from lib.base import (
+    BGPContainer,
+    CmdBuffer,
+    try_several_times,
+)
+
 
 class ExaBGPContainer(BGPContainer):
 
@@ -46,7 +57,7 @@ class ExaBGPContainer(BGPContainer):
         c << 'cp {0}/etc/exabgp/exabgp.env {1}'.format(remotepath, self.SHARED_VOLUME)
         c << 'sed -i -e \'s/all = false/all = true/g\' {0}/exabgp.env'.format(self.SHARED_VOLUME)
         c << 'cp -r {0}/exabgp {1}'.format(self.SHARED_VOLUME,
-                                           remotepath[:-1*len('exabgp')])
+                                           remotepath[:-1 * len('exabgp')])
         c << 'cp {0}/exabgp.env {1}/etc/exabgp/'.format(self.SHARED_VOLUME, remotepath)
         cmd = 'echo "{0:s}" > {1}/update.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
@@ -140,7 +151,7 @@ class ExaBGPContainer(BGPContainer):
             cmd << '}'
 
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
             print colors.yellow(str(cmd))
             f.write(str(cmd))
 
@@ -188,6 +199,6 @@ class RawExaBGPContainer(ExaBGPContainer):
 
     def create_config(self):
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
             print colors.yellow(self.config)
             f.write(self.config)

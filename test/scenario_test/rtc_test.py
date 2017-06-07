@@ -13,17 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
-import sys
-import os
-import time
-import nose
-from noseplugin import OptionParser, parser_option
+from __future__ import absolute_import
+
 from itertools import combinations
+import sys
+import time
+import unittest
+
+from fabric.api import local
+import nose
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -124,7 +128,8 @@ class GoBGPTestBase(unittest.TestCase):
         g5.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
 
         time.sleep(1)
-        def check(client):
+
+        def check_rtc(client):
             rib = g3.get_adj_rib_out(client, rf='rtc')
             self.assertTrue(len(rib) == 1)
             path = rib[0]
@@ -132,13 +137,15 @@ class GoBGPTestBase(unittest.TestCase):
             ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
             self.assertTrue(len(ids) == 1)
             self.assertTrue(ids[0] == g3.router_id)
-        check(g4)
-        check(g5)
+
+        check_rtc(g4)
+        check_rtc(g5)
 
         g4.local("gobgp vrf vrf1 rib add 40.0.0.0/24")
         g5.local("gobgp vrf vrf1 rib add 50.0.0.0/24")
         time.sleep(1)
-        def check(client):
+
+        def check_ipv4_l3vpn(client):
             rib = g3.get_adj_rib_out(client, rf='ipv4-l3vpn')
             self.assertTrue(len(rib) == 1)
             path = rib[0]
@@ -146,8 +153,9 @@ class GoBGPTestBase(unittest.TestCase):
             ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
             self.assertTrue(len(ids) == 1)
             self.assertTrue(ids[0] != client.router_id)
-        check(g4)
-        check(g5)
+
+        check_ipv4_l3vpn(g4)
+        check_ipv4_l3vpn(g5)
 
     def test_08_rr_setup2(self):
         g1 = self.ctns['g1']
@@ -214,9 +222,6 @@ class GoBGPTestBase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

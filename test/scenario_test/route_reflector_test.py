@@ -13,17 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
-from itertools import combinations
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+from lib.quagga import QuaggaBGPContainer
+
 
 def wait_for(f, timeout=120):
     interval = 1
@@ -58,7 +63,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         # advertise a route from q1, q2
         for idx, c in enumerate(qs):
-            route = '10.0.{0}.0/24'.format(idx+1)
+            route = '10.0.{0}.0/24'.format(idx + 1)
             c.add_route(route)
 
         initial_wait_time = max(ctn.run() for ctn in ctns)
@@ -98,7 +103,7 @@ class GoBGPTestBase(unittest.TestCase):
 
                 return len(routes) == 0
             wait_for(f)
- 
+
     def test_03_check_gobgp_adj_rib_out(self):
         for q in self.quaggas.itervalues():
             paths = [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q)]
@@ -115,10 +120,8 @@ class GoBGPTestBase(unittest.TestCase):
                         else:
                             self.assertFalse(p in paths)
 
+
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

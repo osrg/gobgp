@@ -95,6 +95,28 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			families = append(families, uint32(family))
 		}
 	}
+	applyPolicy := &ApplyPolicy{}
+	applyPolicy.ImportPolicy = &PolicyAssignment{
+		Type:    PolicyType_IMPORT,
+		Default: RouteAction(pconf.ApplyPolicy.Config.DefaultImportPolicy.ToInt()),
+	}
+	for _, pname := range pconf.ApplyPolicy.Config.ImportPolicyList {
+		applyPolicy.ImportPolicy.Policies = append(applyPolicy.ImportPolicy.Policies, &Policy{Name: pname})
+	}
+	applyPolicy.ExportPolicy = &PolicyAssignment{
+		Type:    PolicyType_EXPORT,
+		Default: RouteAction(pconf.ApplyPolicy.Config.DefaultExportPolicy.ToInt()),
+	}
+	for _, pname := range pconf.ApplyPolicy.Config.ExportPolicyList {
+		applyPolicy.ExportPolicy.Policies = append(applyPolicy.ExportPolicy.Policies, &Policy{Name: pname})
+	}
+	applyPolicy.InPolicy = &PolicyAssignment{
+		Type:    PolicyType_IN,
+		Default: RouteAction(pconf.ApplyPolicy.Config.DefaultInPolicy.ToInt()),
+	}
+	for _, pname := range pconf.ApplyPolicy.Config.InPolicyList {
+		applyPolicy.InPolicy.Policies = append(applyPolicy.InPolicy.Policies, &Policy{Name: pname})
+	}
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	for _, family := range pconf.AfiSafis {
 		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
@@ -122,8 +144,16 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		c, _ := cap.Serialize()
 		localCap = append(localCap, c)
 	}
+	var removePrivateAs PeerConf_RemovePrivateAs
+	switch pconf.Config.RemovePrivateAs {
+	case config.REMOVE_PRIVATE_AS_OPTION_ALL:
+		removePrivateAs = PeerConf_ALL
+	case config.REMOVE_PRIVATE_AS_OPTION_REPLACE:
+		removePrivateAs = PeerConf_REPLACE
+	}
 	return &Peer{
-		Families: families,
+		Families:    families,
+		ApplyPolicy: applyPolicy,
 		Conf: &PeerConf{
 			NeighborAddress:   pconf.Config.NeighborAddress,
 			Id:                s.RemoteRouterId,
@@ -131,9 +161,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			LocalAs:           pconf.Config.LocalAs,
 			PeerType:          uint32(pconf.Config.PeerType.ToInt()),
 			AuthPassword:      pconf.Config.AuthPassword,
-			RemovePrivateAs:   uint32(pconf.Config.RemovePrivateAs.ToInt()),
 			RouteFlapDamping:  pconf.Config.RouteFlapDamping,
-			SendCommunity:     uint32(pconf.Config.SendCommunity.ToInt()),
 			Description:       pconf.Config.Description,
 			PeerGroup:         pconf.Config.PeerGroup,
 			RemoteCap:         remoteCap,
@@ -142,6 +170,9 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			LocalAddress:      localAddress,
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
+			AllowOwnAs:        uint32(pconf.AsPathOptions.Config.AllowOwnAs),
+			RemovePrivateAs:   removePrivateAs,
+			ReplacePeerAs:     pconf.AsPathOptions.Config.ReplacePeerAs,
 		},
 		Info: &PeerState{
 			BgpState:   string(s.SessionState),
@@ -169,6 +200,8 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			Received:   s.AdjTable.Received,
 			Accepted:   s.AdjTable.Accepted,
 			Advertised: s.AdjTable.Advertised,
+			PeerAs:     s.PeerAs,
+			PeerType:   uint32(s.PeerType.ToInt()),
 		},
 		Timers: &Timers{
 			Config: &TimersConfig{
@@ -198,8 +231,11 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 }
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*GetNeighborResponse, error) {
+	if arg == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	p := []*Peer{}
-	for _, e := range s.bgpServer.GetNeighbor(arg.EnableAdvertised) {
+	for _, e := range s.bgpServer.GetNeighbor(arg.Address, arg.EnableAdvertised) {
 		p = append(p, NewPeerFromConfigStruct(e))
 	}
 	return &GetNeighborResponse{Peers: p}, nil
@@ -228,6 +264,8 @@ func ToPathApi(path *table.Path) *Path {
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
+		Uuid:               path.UUID().Bytes(),
+		IsNexthopInvalid:   path.IsNexthopInvalid,
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS
@@ -238,6 +276,9 @@ func ToPathApi(path *table.Path) *Path {
 }
 
 func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibResponse, error) {
+	if arg == nil || arg.Table == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	f := func() []*table.LookupPrefix {
 		l := make([]*table.LookupPrefix, 0, len(arg.Table.Destinations))
 		for _, p := range arg.Table.Destinations {
@@ -307,18 +348,22 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 	}, err
 }
 
-func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error {
+func (s *Server) MonitorRib(arg *MonitorRibRequest, stream GobgpApi_MonitorRibServer) error {
+	if arg == nil || arg.Table == nil {
+		return fmt.Errorf("invalid request")
+	}
+	t := arg.Table
 	w, err := func() (*server.Watcher, error) {
-		switch arg.Type {
+		switch t.Type {
 		case Resource_GLOBAL:
-			return s.bgpServer.Watch(server.WatchBestPath()), nil
+			return s.bgpServer.Watch(server.WatchBestPath(arg.Current)), nil
 		case Resource_ADJ_IN:
-			if arg.PostPolicy {
-				return s.bgpServer.Watch(server.WatchPostUpdate(false)), nil
+			if t.PostPolicy {
+				return s.bgpServer.Watch(server.WatchPostUpdate(arg.Current)), nil
 			}
-			return s.bgpServer.Watch(server.WatchUpdate(false)), nil
+			return s.bgpServer.Watch(server.WatchUpdate(arg.Current)), nil
 		default:
-			return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
+			return nil, fmt.Errorf("unsupported resource type: %v", t.Type)
 		}
 	}()
 	if err != nil {
@@ -331,7 +376,7 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 		sendPath := func(pathList []*table.Path) error {
 			dsts := make(map[string]*Destination)
 			for _, path := range pathList {
-				if path == nil || (arg.Family != 0 && bgp.RouteFamily(arg.Family) != path.GetRouteFamily()) {
+				if path == nil || (t.Family != 0 && bgp.RouteFamily(t.Family) != path.GetRouteFamily()) {
 					continue
 				}
 				if dst, y := dsts[path.GetNlri().String()]; y {
@@ -379,6 +424,9 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 }
 
 func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerStateServer) error {
+	if arg == nil {
+		return fmt.Errorf("invalid request")
+	}
 	return func() error {
 		w := s.bgpServer.Watch(server.WatchPeerState(false))
 		defer func() { w.Stop() }()
@@ -388,15 +436,16 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 			case ev := <-w.Event():
 				switch msg := ev.(type) {
 				case *server.WatchEventPeerState:
-					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() {
+					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() && arg.Name != msg.PeerInterface {
 						continue
 					}
 					if err := stream.Send(&Peer{
 						Conf: &PeerConf{
-							PeerAs:          msg.PeerAS,
-							LocalAs:         msg.LocalAS,
-							NeighborAddress: msg.PeerAddress.String(),
-							Id:              msg.PeerID.String(),
+							PeerAs:            msg.PeerAS,
+							LocalAs:           msg.LocalAS,
+							NeighborAddress:   msg.PeerAddress.String(),
+							Id:                msg.PeerID.String(),
+							NeighborInterface: msg.PeerInterface,
 						},
 						Info: &PeerState{
 							PeerAs:          msg.PeerAS,
@@ -420,7 +469,7 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 }
 
 func (s *Server) ResetNeighbor(ctx context.Context, arg *ResetNeighborRequest) (*ResetNeighborResponse, error) {
-	return &ResetNeighborResponse{}, s.bgpServer.ResetNeighbor(arg.Address)
+	return &ResetNeighborResponse{}, s.bgpServer.ResetNeighbor(arg.Address, arg.Communication)
 }
 
 func (s *Server) SoftResetNeighbor(ctx context.Context, arg *SoftResetNeighborRequest) (*SoftResetNeighborResponse, error) {
@@ -442,7 +491,7 @@ func (s *Server) SoftResetNeighbor(ctx context.Context, arg *SoftResetNeighborRe
 }
 
 func (s *Server) ShutdownNeighbor(ctx context.Context, arg *ShutdownNeighborRequest) (*ShutdownNeighborResponse, error) {
-	return &ShutdownNeighborResponse{}, s.bgpServer.ShutdownNeighbor(arg.Address)
+	return &ShutdownNeighborResponse{}, s.bgpServer.ShutdownNeighbor(arg.Address, arg.Communication)
 }
 
 func (s *Server) EnableNeighbor(ctx context.Context, arg *EnableNeighborRequest) (*EnableNeighborResponse, error) {
@@ -450,13 +499,14 @@ func (s *Server) EnableNeighbor(ctx context.Context, arg *EnableNeighborRequest)
 }
 
 func (s *Server) DisableNeighbor(ctx context.Context, arg *DisableNeighborRequest) (*DisableNeighborResponse, error) {
-	return &DisableNeighborResponse{}, s.bgpServer.DisableNeighbor(arg.Address)
+	return &DisableNeighborResponse{}, s.bgpServer.DisableNeighbor(arg.Address, arg.Communication)
 }
 
 func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var nexthop string
 	var pi *table.PeerInfo
+	var err error
 
 	pathList := make([]*table.Path, 0, len(ApiPathList))
 	for _, path := range ApiPathList {
@@ -473,7 +523,10 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 		}
 
 		if len(path.Nlri) > 0 {
-			nlri = &bgp.IPAddrPrefix{}
+			afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(path.Family))
+			if nlri, err = bgp.NewPrefixFromRouteFamily(afi, safi); err != nil {
+				return nil, err
+			}
 			err := nlri.DecodeFromBytes(path.Nlri)
 			if err != nil {
 				return nil, err
@@ -520,9 +573,7 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			return nil, fmt.Errorf("not found nlri or nexthop")
 		}
 
-		rf := bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
-
-		if resource != Resource_VRF && rf == bgp.RF_IPv4_UC {
+		if resource != Resource_VRF && bgp.RouteFamily(path.Family) == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
 		} else {
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
@@ -734,6 +785,8 @@ func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*Ena
 		Url: arg.Url,
 		RedistributeRouteTypeList: l,
 		Version:                   uint8(arg.Version),
+		NexthopTriggerEnable:      arg.NexthopTriggerEnable,
+		NexthopTriggerDelay:       uint8(arg.NexthopTriggerDelay),
 	})
 }
 
@@ -765,6 +818,9 @@ func (s *Server) GetVrf(ctx context.Context, arg *GetVrfRequest) (*GetVrfRespons
 }
 
 func (s *Server) AddVrf(ctx context.Context, arg *AddVrfRequest) (r *AddVrfResponse, err error) {
+	if arg == nil || arg.Vrf == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
 	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
 		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
@@ -789,6 +845,9 @@ func (s *Server) AddVrf(ctx context.Context, arg *AddVrfRequest) (r *AddVrfRespo
 }
 
 func (s *Server) DeleteVrf(ctx context.Context, arg *DeleteVrfRequest) (*DeleteVrfResponse, error) {
+	if arg == nil || arg.Vrf == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	return &DeleteVrfResponse{}, s.bgpServer.DeleteVrf(arg.Vrf.Name)
 }
 
@@ -799,14 +858,21 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.Config.PeerAs = a.Conf.PeerAs
 		pconf.Config.LocalAs = a.Conf.LocalAs
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
-		pconf.Config.RemovePrivateAs = config.RemovePrivateAsOption(a.Conf.RemovePrivateAs)
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
-		pconf.Config.SendCommunity = config.CommunityType(a.Conf.SendCommunity)
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
+		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAs)
+		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAs
+
+		switch a.Conf.RemovePrivateAs {
+		case PeerConf_ALL:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
+		case PeerConf_REPLACE:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
+		}
 
 		f := func(bufs [][]byte) ([]bgp.ParameterCapabilityInterface, error) {
 			var caps []bgp.ParameterCapabilityInterface
@@ -842,12 +908,11 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 				},
 			})
 		}
-
 		for _, pl := range a.Conf.PrefixLimits {
-			for _, f := range pconf.AfiSafis {
+			for i, f := range pconf.AfiSafis {
 				if f.Config.AfiSafiName == config.AfiSafiType(bgp.RouteFamily(pl.Family).String()) {
-					f.PrefixLimit.Config.MaxPrefixes = pl.MaxPrefixes
-					f.PrefixLimit.Config.ShutdownThresholdPct = config.Percentage(pl.ShutdownThresholdPct)
+					pconf.AfiSafis[i].PrefixLimit.Config.MaxPrefixes = pl.MaxPrefixes
+					pconf.AfiSafis[i].PrefixLimit.Config.ShutdownThresholdPct = config.Percentage(pl.ShutdownThresholdPct)
 				}
 			}
 		}
@@ -876,19 +941,19 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	}
 	if a.ApplyPolicy != nil {
 		if a.ApplyPolicy.ImportPolicy != nil {
-			pconf.ApplyPolicy.Config.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
+			pconf.ApplyPolicy.Config.DefaultImportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ApplyPolicy.ImportPolicy.Default)]
 			for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
 				pconf.ApplyPolicy.Config.ImportPolicyList = append(pconf.ApplyPolicy.Config.ImportPolicyList, p.Name)
 			}
 		}
 		if a.ApplyPolicy.ExportPolicy != nil {
-			pconf.ApplyPolicy.Config.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
+			pconf.ApplyPolicy.Config.DefaultExportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ApplyPolicy.ExportPolicy.Default)]
 			for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
 				pconf.ApplyPolicy.Config.ExportPolicyList = append(pconf.ApplyPolicy.Config.ExportPolicyList, p.Name)
 			}
 		}
 		if a.ApplyPolicy.InPolicy != nil {
-			pconf.ApplyPolicy.Config.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
+			pconf.ApplyPolicy.Config.DefaultInPolicy = config.IntToDefaultPolicyTypeMap[int(a.ApplyPolicy.InPolicy.Default)]
 			for _, p := range a.ApplyPolicy.InPolicy.Policies {
 				pconf.ApplyPolicy.Config.InPolicyList = append(pconf.ApplyPolicy.Config.InPolicyList, p.Name)
 			}
@@ -910,6 +975,8 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.State.AdjTable.Received = a.Info.Received
 		pconf.State.AdjTable.Accepted = a.Info.Accepted
 		pconf.State.AdjTable.Advertised = a.Info.Advertised
+		pconf.State.PeerAs = a.Info.PeerAs
+		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
 
 		if a.Info.Messages != nil {
 			if a.Info.Messages.Sent != nil {
@@ -950,12 +1017,12 @@ func (s *Server) DeleteNeighbor(ctx context.Context, arg *DeleteNeighborRequest)
 }
 
 func NewPrefixFromApiStruct(a *Prefix) (*table.Prefix, error) {
-	addr, prefix, err := net.ParseCIDR(a.IpPrefix)
+	_, prefix, err := net.ParseCIDR(a.IpPrefix)
 	if err != nil {
 		return nil, err
 	}
 	rf := bgp.RF_IPv4_UC
-	if addr.To4() == nil {
+	if strings.Contains(a.IpPrefix, ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	return &table.Prefix{
@@ -1081,7 +1148,7 @@ func NewDefinedSetFromApiStruct(a *DefinedSet) (table.DefinedSet, error) {
 }
 
 func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (*GetDefinedSetResponse, error) {
-	cd, err := s.bgpServer.GetDefinedSet(table.DefinedType(arg.Type))
+	cd, err := s.bgpServer.GetDefinedSet(table.DefinedType(arg.Type), arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -1151,6 +1218,9 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (
 }
 
 func (s *Server) AddDefinedSet(ctx context.Context, arg *AddDefinedSetRequest) (*AddDefinedSetResponse, error) {
+	if arg == nil || arg.Set == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
@@ -1159,6 +1229,9 @@ func (s *Server) AddDefinedSet(ctx context.Context, arg *AddDefinedSetRequest) (
 }
 
 func (s *Server) DeleteDefinedSet(ctx context.Context, arg *DeleteDefinedSetRequest) (*DeleteDefinedSetResponse, error) {
+	if arg == nil || arg.Set == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
@@ -1167,6 +1240,9 @@ func (s *Server) DeleteDefinedSet(ctx context.Context, arg *DeleteDefinedSetRequ
 }
 
 func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *ReplaceDefinedSetRequest) (*ReplaceDefinedSetResponse, error) {
+	if arg == nil || arg.Set == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
@@ -1181,14 +1257,16 @@ func NewAPIStatementFromTableStruct(t *table.Statement) *Statement {
 func toStatementApi(s *config.Statement) *Statement {
 	cs := &Conditions{}
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.MatchPrefixSet.MatchSetOptions)
 		cs.PrefixSet = &MatchSet{
-			Type: MatchType(s.Conditions.MatchPrefixSet.MatchSetOptions.ToInt()),
+			Type: MatchType(o),
 			Name: s.Conditions.MatchPrefixSet.PrefixSet,
 		}
 	}
 	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.MatchNeighborSet.MatchSetOptions)
 		cs.NeighborSet = &MatchSet{
-			Type: MatchType(s.Conditions.MatchNeighborSet.MatchSetOptions.ToInt()),
+			Type: MatchType(o),
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
@@ -1211,13 +1289,13 @@ func toStatementApi(s *config.Statement) *Statement {
 		}
 	}
 	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
-		cs.CommunitySet = &MatchSet{
+		cs.ExtCommunitySet = &MatchSet{
 			Type: MatchType(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
 			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet != "" {
-		cs.CommunitySet = &MatchSet{
+		cs.LargeCommunitySet = &MatchSet{
 			Type: MatchType(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
 			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
 		}
@@ -1667,6 +1745,9 @@ func (s *Server) GetStatement(ctx context.Context, arg *GetStatementRequest) (*G
 }
 
 func (s *Server) AddStatement(ctx context.Context, arg *AddStatementRequest) (*AddStatementResponse, error) {
+	if arg == nil || arg.Statement == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
 		err = s.bgpServer.AddStatement(st)
@@ -1675,6 +1756,9 @@ func (s *Server) AddStatement(ctx context.Context, arg *AddStatementRequest) (*A
 }
 
 func (s *Server) DeleteStatement(ctx context.Context, arg *DeleteStatementRequest) (*DeleteStatementResponse, error) {
+	if arg == nil || arg.Statement == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
 		err = s.bgpServer.DeleteStatement(st, arg.All)
@@ -1683,6 +1767,9 @@ func (s *Server) DeleteStatement(ctx context.Context, arg *DeleteStatementReques
 }
 
 func (s *Server) ReplaceStatement(ctx context.Context, arg *ReplaceStatementRequest) (*ReplaceStatementResponse, error) {
+	if arg == nil || arg.Statement == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
 		err = s.bgpServer.ReplaceStatement(st)
@@ -1777,6 +1864,9 @@ func (s *Server) GetPolicy(ctx context.Context, arg *GetPolicyRequest) (*GetPoli
 }
 
 func (s *Server) AddPolicy(ctx context.Context, arg *AddPolicyRequest) (*AddPolicyResponse, error) {
+	if arg == nil || arg.Policy == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
@@ -1785,6 +1875,9 @@ func (s *Server) AddPolicy(ctx context.Context, arg *AddPolicyRequest) (*AddPoli
 }
 
 func (s *Server) DeletePolicy(ctx context.Context, arg *DeletePolicyRequest) (*DeletePolicyResponse, error) {
+	if arg == nil || arg.Policy == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
@@ -1793,6 +1886,9 @@ func (s *Server) DeletePolicy(ctx context.Context, arg *DeletePolicyRequest) (*D
 }
 
 func (s *Server) ReplacePolicy(ctx context.Context, arg *ReplacePolicyRequest) (*ReplacePolicyResponse, error) {
+	if arg == nil || arg.Policy == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
@@ -1829,6 +1925,9 @@ func toPolicyAssignmentName(a *PolicyAssignment) (string, table.PolicyDirection,
 }
 
 func (s *Server) GetPolicyAssignment(ctx context.Context, arg *GetPolicyAssignmentRequest) (*GetPolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1874,6 +1973,9 @@ func toPolicyDefinition(policies []*Policy) []*config.PolicyDefinition {
 }
 
 func (s *Server) AddPolicyAssignment(ctx context.Context, arg *AddPolicyAssignmentRequest) (*AddPolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1882,6 +1984,9 @@ func (s *Server) AddPolicyAssignment(ctx context.Context, arg *AddPolicyAssignme
 }
 
 func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *DeletePolicyAssignmentRequest) (*DeletePolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1890,6 +1995,9 @@ func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *DeletePolicyAs
 }
 
 func (s *Server) ReplacePolicyAssignment(ctx context.Context, arg *ReplacePolicyAssignmentRequest) (*ReplacePolicyAssignmentResponse, error) {
+	if arg == nil || arg.Assignment == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
@@ -1911,6 +2019,9 @@ func (s *Server) GetServer(ctx context.Context, arg *GetServerRequest) (*GetServ
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*StartServerResponse, error) {
+	if arg == nil || arg.Global == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	g := arg.Global
 	if net.ParseIP(g.RouterId) == nil {
 		return nil, fmt.Errorf("invalid router-id format: %s", g.RouterId)
@@ -1952,6 +2063,9 @@ func (s *Server) StopServer(ctx context.Context, arg *StopServerRequest) (*StopS
 }
 
 func (s *Server) GetRibInfo(ctx context.Context, arg *GetRibInfoRequest) (*GetRibInfoResponse, error) {
+	if arg == nil || arg.Info == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
 	family := bgp.RouteFamily(arg.Info.Family)
 	var in bool
 	var err error

@@ -147,7 +147,7 @@ func (m *mrtWriter) loop() error {
 						if path.IsLocal() {
 							continue
 						}
-						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetPathAttrs()))
+						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs()))
 					}
 					if len(entries) > 0 {
 						bm, _ := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, subtype(pathList[0]), mrt.NewRib(seq, pathList[0].GetNlri(), entries))

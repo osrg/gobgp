@@ -102,15 +102,19 @@ const (
 	TCP_FLAG_PUSH   = 0x08
 	TCP_FLAG_ACK    = 0x10
 	TCP_FLAG_URGENT = 0x20
+	TCP_FLAG_ECE    = 0x40
+	TCP_FLAG_CWR    = 0x80
 )
 
 var TCPFlagNameMap = map[TCPFlag]string{
-	TCP_FLAG_FIN:    "fin",
-	TCP_FLAG_SYN:    "syn",
-	TCP_FLAG_RST:    "rst",
-	TCP_FLAG_PUSH:   "push",
-	TCP_FLAG_ACK:    "ack",
-	TCP_FLAG_URGENT: "urgent",
+	TCP_FLAG_FIN:    "F",
+	TCP_FLAG_SYN:    "S",
+	TCP_FLAG_RST:    "R",
+	TCP_FLAG_PUSH:   "P",
+	TCP_FLAG_ACK:    "A",
+	TCP_FLAG_URGENT: "U",
+	TCP_FLAG_CWR:    "C",
+	TCP_FLAG_ECE:    "E",
 }
 
 var TCPFlagValueMap = map[string]TCPFlag{
@@ -120,11 +124,94 @@ var TCPFlagValueMap = map[string]TCPFlag{
 	TCPFlagNameMap[TCP_FLAG_PUSH]:   TCP_FLAG_PUSH,
 	TCPFlagNameMap[TCP_FLAG_ACK]:    TCP_FLAG_ACK,
 	TCPFlagNameMap[TCP_FLAG_URGENT]: TCP_FLAG_URGENT,
+	TCPFlagNameMap[TCP_FLAG_CWR]:    TCP_FLAG_CWR,
+	TCPFlagNameMap[TCP_FLAG_ECE]:    TCP_FLAG_ECE,
+}
+
+type TCPFlagOp int
+
+const (
+	TCP_FLAG_OP_OR    = 0x00
+	TCP_FLAG_OP_AND   = 0x40
+	TCP_FLAG_OP_END   = 0x80
+	TCP_FLAG_OP_NOT   = 0x02
+	TCP_FLAG_OP_MATCH = 0x01
+)
+
+var TCPFlagOpNameMap = map[TCPFlagOp]string{
+	TCP_FLAG_OP_OR:    " ",
+	TCP_FLAG_OP_AND:   "&",
+	TCP_FLAG_OP_END:   "E",
+	TCP_FLAG_OP_NOT:   "!",
+	TCP_FLAG_OP_MATCH: "=",
+}
+
+var TCPFlagOpValueMap = map[string]TCPFlagOp{
+	TCPFlagOpNameMap[TCP_FLAG_OP_OR]:    TCP_FLAG_OP_OR,
+	TCPFlagOpNameMap[TCP_FLAG_OP_AND]:   TCP_FLAG_OP_AND,
+	TCPFlagOpNameMap[TCP_FLAG_OP_END]:   TCP_FLAG_OP_END,
+	TCPFlagOpNameMap[TCP_FLAG_OP_NOT]:   TCP_FLAG_OP_NOT,
+	TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]: TCP_FLAG_OP_MATCH,
+}
+
+type DECNumOp int
+
+const (
+	DEC_NUM_OP_TRUE   = 0x00 // true always with END bit set
+	DEC_NUM_OP_EQ     = 0x01
+	DEC_NUM_OP_GT     = 0x02
+	DEC_NUM_OP_GT_EQ  = 0x03
+	DEC_NUM_OP_LT     = 0x04
+	DEC_NUM_OP_LT_EQ  = 0x05
+	DEC_NUM_OP_NOT_EQ = 0x06
+	DEC_NUM_OP_FALSE  = 0x07 // true always with END bit set
+)
+
+var DECNumOpNameMap = map[DECNumOp]string{
+	DEC_NUM_OP_TRUE:   "true",
+	DEC_NUM_OP_EQ:     "==",
+	DEC_NUM_OP_GT:     ">",
+	DEC_NUM_OP_GT_EQ:  ">=",
+	DEC_NUM_OP_LT:     "<",
+	DEC_NUM_OP_LT_EQ:  "<=",
+	DEC_NUM_OP_NOT_EQ: "!=",
+	DEC_NUM_OP_FALSE:  "false",
+}
+
+var DECNumOpValueMap = map[string]DECNumOp{
+	DECNumOpNameMap[DEC_NUM_OP_TRUE]:   DEC_NUM_OP_TRUE,
+	DECNumOpNameMap[DEC_NUM_OP_EQ]:     DEC_NUM_OP_EQ,
+	DECNumOpNameMap[DEC_NUM_OP_GT]:     DEC_NUM_OP_GT,
+	DECNumOpNameMap[DEC_NUM_OP_GT_EQ]:  DEC_NUM_OP_GT_EQ,
+	DECNumOpNameMap[DEC_NUM_OP_LT]:     DEC_NUM_OP_LT,
+	DECNumOpNameMap[DEC_NUM_OP_LT_EQ]:  DEC_NUM_OP_LT_EQ,
+	DECNumOpNameMap[DEC_NUM_OP_NOT_EQ]: DEC_NUM_OP_NOT_EQ,
+	DECNumOpNameMap[DEC_NUM_OP_FALSE]:  DEC_NUM_OP_FALSE,
+}
+
+type DECLogicOp int
+
+const (
+	DEC_LOGIC_OP_END = 0x80
+	DEC_LOGIC_OP_OR  = 0x00
+	DEC_LOGIC_OP_AND = 0x40
+)
+
+var DECLogicOpNameMap = map[DECLogicOp]string{
+	DEC_LOGIC_OP_OR:  " ",
+	DEC_LOGIC_OP_AND: "&",
+	DEC_LOGIC_OP_END: "E",
+}
+
+var DECLogicOpValueMap = map[string]DECLogicOp{
+	DECLogicOpNameMap[DEC_LOGIC_OP_OR]:  DEC_LOGIC_OP_OR,
+	DECLogicOpNameMap[DEC_LOGIC_OP_AND]: DEC_LOGIC_OP_AND,
+	DECLogicOpNameMap[DEC_LOGIC_OP_END]: DEC_LOGIC_OP_END,
 }
 
 func (f TCPFlag) String() string {
 	ss := make([]string, 0, 6)
-	for _, v := range []TCPFlag{TCP_FLAG_FIN, TCP_FLAG_SYN, TCP_FLAG_RST, TCP_FLAG_PUSH, TCP_FLAG_ACK, TCP_FLAG_URGENT} {
+	for _, v := range []TCPFlag{TCP_FLAG_FIN, TCP_FLAG_SYN, TCP_FLAG_RST, TCP_FLAG_PUSH, TCP_FLAG_ACK, TCP_FLAG_URGENT, TCP_FLAG_CWR, TCP_FLAG_ECE} {
 		if f&v > 0 {
 			ss = append(ss, TCPFlagNameMap[v])
 		}

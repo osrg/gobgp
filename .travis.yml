@@ -3,6 +3,7 @@ language: go
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1; fi
 install: test/scenario_test/ci-scripts/travis-install-script.sh
 script: test/scenario_test/ci-scripts/travis-build-script.sh
 
@@ -14,18 +15,12 @@ env:
 matrix:
   allow_failures:
     - go: tip
-    - go: 1.7
-      os: osx
   include:
-    - go: 1.5
-      before_install: true
-      install: go get -t ./...
-      script: go test ./...
-    - go: 1.6
-      before_install: true
-      install: go get -t ./...
-      script: go test ./...
     - go: 1.7
+      before_install: true
+      install: go get -t ./...
+      script: go test ./...
+    - go: 1.8
       before_install: true
       install: go get -t ./...
       script: go test ./...
@@ -34,10 +29,23 @@ matrix:
       install: go get -t ./...
       script: go test ./...
     - go: 1.7
-      os: osx
       before_install: true
       install: go get -t ./...
-      script: go test ./...
+      script: cd gobgpd && go build
+      env:
+        - GOOS=windows
+    - go: 1.7
+      before_install: true
+      install: go get -t ./...
+      script: cd gobgpd && go build
+      env:
+        - GOOS=freebsd
+    - go: 1.7
+      before_install: true
+      install: go get -t ./...
+      script: cd gobgpd && go build
+      env:
+        - GOOS=darwin
     - go: 1.7
       before_install: true
       install: true
@@ -57,6 +65,11 @@ matrix:
         - docker
     - env:
         - TEST=bgp_zebra_test.py
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=bgp_zebra_nht_test.py FROM_IMAGE=osrg/quagga:v1.0
       sudo: required
       services:
         - docker
@@ -147,6 +160,16 @@ matrix:
         - docker
     - env:
         - TEST=vrf_neighbor_test2.py
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=bgp_unnumbered_test.py
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=aspath_test.py
       sudo: required
       services:
         - docker

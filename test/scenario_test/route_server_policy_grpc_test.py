@@ -13,19 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
-from lib.exabgp import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
-import nose
+import unittest
 import inspect
-from nose.tools import *
-from noseplugin import OptionParser, parser_option
+
+from fabric.api import local
+import nose
+from nose.tools import (
+    assert_true,
+    assert_false,
+)
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    Bridge,
+    BGP_FSM_ESTABLISHED,
+    BGP_ATTR_TYPE_COMMUNITIES,
+    BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+)
+from lib.gobgp import GoBGPContainer
+from lib.quagga import QuaggaBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 counter = 1
@@ -247,7 +260,7 @@ class ImportPolicyUpdate(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -261,8 +274,8 @@ class ImportPolicyUpdate(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
+        # q1 = env.q1
+        # q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
         g1.softreset(e1)
@@ -270,7 +283,7 @@ class ImportPolicyUpdate(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -347,7 +360,7 @@ class ExportPolicyUpdate(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -374,7 +387,7 @@ class ExportPolicyUpdate(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -391,6 +404,7 @@ class ExportPolicyUpdate(object):
         lookup_scenario("ExportPolicyUpdate").check(env)
         lookup_scenario("ExportPolicyUpdate").setup2(env)
         lookup_scenario("ExportPolicyUpdate").check2(env)
+
 
 @register_scenario
 class ExportPolicyUpdateRouteRefresh(object):
@@ -456,6 +470,7 @@ class ExportPolicyUpdateRouteRefresh(object):
         lookup_scenario("ExportPolicyUpdateRouteRefresh").check(env)
         lookup_scenario("ExportPolicyUpdateRouteRefresh").setup2(env)
         lookup_scenario("ExportPolicyUpdateRouteRefresh").check2(env)
+
 
 @register_scenario
 class ImportPolicyIPV6(object):
@@ -661,8 +676,8 @@ class ImportPolicyIPV6Update(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
+        # q1 = env.q1
+        # q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
         g1.softreset(e1, rf='ipv6')
@@ -807,9 +822,9 @@ class ImportPolicyAsPathLengthCondition(object):
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
-        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
+        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn - 10, -1))
         # this will pass
-        e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn-8, -1))
+        e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn - 8, -1))
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -817,7 +832,7 @@ class ImportPolicyAsPathLengthCondition(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
@@ -863,9 +878,9 @@ class ImportPolicyAsPathCondition(object):
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
-        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
+        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn - 10, -1))
         # this will pass
-        e1.add_route('192.168.200.0/24', aspath=range(e1.asn-1, e1.asn-10, -1))
+        e1.add_route('192.168.200.0/24', aspath=range(e1.asn - 1, e1.asn - 10, -1))
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -1066,7 +1081,7 @@ class ImportPolicyAsPathMismatchCondition(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
@@ -1118,8 +1133,6 @@ class ImportPolicyCommunityCondition(object):
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-
 
     @staticmethod
     def check(env):
@@ -1224,7 +1237,7 @@ class ImportPolicyCommunityAction(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 1)
@@ -1269,7 +1282,6 @@ class ImportPolicyCommunityReplace(object):
     def boot(env):
         lookup_scenario("ImportPolicy").boot(env)
 
-
     @staticmethod
     def setup(env):
         g1 = env.g1
@@ -1290,7 +1302,6 @@ class ImportPolicyCommunityReplace(object):
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
 
-
     @staticmethod
     def check(env):
         lookup_scenario('ImportPolicyCommunityAction').check(env)
@@ -1298,7 +1309,7 @@ class ImportPolicyCommunityReplace(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -1356,7 +1367,7 @@ class ImportPolicyCommunityRemove(object):
     @staticmethod
     def check(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
@@ -1369,7 +1380,7 @@ class ImportPolicyCommunityRemove(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         adj_out = g1.get_adj_rib_out(q1)
@@ -2277,8 +2288,8 @@ class InPolicyUpdate(object):
     def setup2(env):
         g1 = env.g1
         e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
+        # q1 = env.q1
+        # q2 = env.q2
         g1.clear_policy()
 
         g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
@@ -2373,7 +2384,7 @@ class ExportPolicyAsPathPrepend(object):
         assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [65005]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([65005] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
         assert_true(path['aspath'] == [e1.asn])
@@ -2439,10 +2450,10 @@ class ImportPolicyAsPathPrependLastAS(object):
         assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
         assert_true(path['aspath'] == [e1.asn])
@@ -2511,7 +2522,7 @@ class ExportPolicyAsPathPrependLastAS(object):
         assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
         assert_true(path['aspath'] == [e1.asn])
@@ -2710,7 +2721,7 @@ class ImportPolicyExCommunityAdd(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -2724,6 +2735,7 @@ class ImportPolicyExCommunityAdd(object):
         lookup_scenario("ImportPolicyExCommunityAdd").setup(env)
         lookup_scenario("ImportPolicyExCommunityAdd").check(env)
         lookup_scenario("ImportPolicyExCommunityAdd").check2(env)
+
 
 @register_scenario
 class ImportPolicyExCommunityAdd2(object):
@@ -2766,7 +2778,7 @@ class ImportPolicyExCommunityAdd2(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -2828,7 +2840,7 @@ class ImportPolicyExCommunityMultipleAdd(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -2890,7 +2902,7 @@ class ExportPolicyExCommunityAdd(object):
     @staticmethod
     def check2(env):
         g1 = env.g1
-        e1 = env.e1
+        # e1 = env.e1
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
@@ -2908,7 +2920,7 @@ class ExportPolicyExCommunityAdd(object):
         lookup_scenario("ExportPolicyExCommunityAdd").check2(env)
 
 
-class TestGoBGPBase():
+class TestGoBGPBase(unittest.TestCase):
 
     wait_per_retry = 5
     retry_limit = 10
@@ -2941,9 +2953,6 @@ class TestGoBGPBase():
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

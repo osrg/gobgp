@@ -1,4 +1,4 @@
-// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2017 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,15 @@
 package main
 
 import (
+	"io/ioutil"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
+
 	log "github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
 	api "github.com/osrg/gobgp/api"
@@ -25,21 +32,13 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
-	"io/ioutil"
-	"log/syslog"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"runtime"
-	"runtime/debug"
-	"strings"
-	"syscall"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGUSR1)
+	signal.Notify(sigCh, syscall.SIGTERM)
 
 	var opts struct {
 		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
@@ -55,6 +54,9 @@ func main() {
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
 		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
+		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
+		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
+		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -93,64 +95,8 @@ func main() {
 	}
 
 	if opts.UseSyslog != "" {
-		dst := strings.SplitN(opts.UseSyslog, ":", 2)
-		network := ""
-		addr := ""
-		if len(dst) == 2 {
-			network = dst[0]
-			addr = dst[1]
-		}
-
-		facility := syslog.Priority(0)
-		switch opts.Facility {
-		case "kern":
-			facility = syslog.LOG_KERN
-		case "user":
-			facility = syslog.LOG_USER
-		case "mail":
-			facility = syslog.LOG_MAIL
-		case "daemon":
-			facility = syslog.LOG_DAEMON
-		case "auth":
-			facility = syslog.LOG_AUTH
-		case "syslog":
-			facility = syslog.LOG_SYSLOG
-		case "lpr":
-			facility = syslog.LOG_LPR
-		case "news":
-			facility = syslog.LOG_NEWS
-		case "uucp":
-			facility = syslog.LOG_UUCP
-		case "cron":
-			facility = syslog.LOG_CRON
-		case "authpriv":
-			facility = syslog.LOG_AUTHPRIV
-		case "ftp":
-			facility = syslog.LOG_FTP
-		case "local0":
-			facility = syslog.LOG_LOCAL0
-		case "local1":
-			facility = syslog.LOG_LOCAL1
-		case "local2":
-			facility = syslog.LOG_LOCAL2
-		case "local3":
-			facility = syslog.LOG_LOCAL3
-		case "local4":
-			facility = syslog.LOG_LOCAL4
-		case "local5":
-			facility = syslog.LOG_LOCAL5
-		case "local6":
-			facility = syslog.LOG_LOCAL6
-		case "local7":
-			facility = syslog.LOG_LOCAL7
-		}
-
-		hook, err := logrus_syslog.NewSyslogHook(network, addr, syslog.LOG_INFO|facility, "bgpd")
-		if err != nil {
+		if err := addSyslogHook(opts.UseSyslog, opts.Facility); err != nil {
 			log.Error("Unable to connect to syslog daemon, ", opts.UseSyslog)
-			os.Exit(1)
-		} else {
-			log.AddHook(hook)
 		}
 	}
 
@@ -178,10 +124,18 @@ func main() {
 	bgpServer := server.NewBgpServer()
 	go bgpServer.Serve()
 
+	var grpcOpts []grpc.ServerOption
+	if opts.TLS {
+		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
+		if err != nil {
+			log.Fatalf("Failed to generate credentials: %v", err)
+		}
+		grpcOpts = []grpc.ServerOption{grpc.Creds(creds)}
+	}
 	// start grpc Server
-	grpcServer := api.NewGrpcServer(bgpServer, opts.GrpcHosts)
+	apiServer := api.NewServer(bgpServer, grpc.NewServer(grpcOpts...), opts.GrpcHosts)
 	go func() {
-		if err := grpcServer.Serve(); err != nil {
+		if err := apiServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
 		}
 	}()
@@ -195,6 +149,7 @@ func main() {
 		select {
 		case newConfig := <-configCh:
 			var added, deleted, updated []config.Neighbor
+			var addedPg, deletedPg, updatedPg []config.PeerGroup
 			var updatePolicy bool
 
 			if c == nil {
@@ -236,6 +191,7 @@ func main() {
 				}
 
 				added = newConfig.Neighbors
+				addedPg = newConfig.PeerGroups
 				if opts.GracefulRestart {
 					for i, n := range added {
 						if n.GracefulRestart.Config.Enabled {
@@ -245,7 +201,10 @@ func main() {
 				}
 
 			} else {
-				added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
+				addedPg, deletedPg, updatedPg = config.UpdatePeerGroupConfig(c, newConfig)
+				added, deleted, updated = config.UpdateNeighborConfig(c, newConfig)
+				updatePolicy = config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
+
 				if updatePolicy {
 					log.Info("Policy config is updated")
 					p := config.ConfigSetToRoutingPolicy(newConfig)
@@ -287,7 +246,26 @@ func main() {
 				}
 				c = newConfig
 			}
-
+			for i, pg := range addedPg {
+				log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
+				if err := bgpServer.AddPeerGroup(&addedPg[i]); err != nil {
+					log.Warn(err)
+				}
+			}
+			for i, pg := range deletedPg {
+				log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
+				if err := bgpServer.DeletePeerGroup(&deletedPg[i]); err != nil {
+					log.Warn(err)
+				}
+			}
+			for i, pg := range updatedPg {
+				log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
+				u, err := bgpServer.UpdatePeerGroup(&updatedPg[i])
+				if err != nil {
+					log.Warn(err)
+				}
+				updatePolicy = updatePolicy || u
+			}
 			for i, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
 				if err := bgpServer.AddNeighbor(&added[i]); err != nil {
@@ -312,14 +290,8 @@ func main() {
 			if updatePolicy {
 				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
-		case sig := <-sigCh:
-			switch sig {
-			case syscall.SIGKILL, syscall.SIGTERM:
-				bgpServer.Shutdown()
-			case syscall.SIGUSR1:
-				runtime.GC()
-				debug.FreeOSMemory()
-			}
+		case <-sigCh:
+			bgpServer.Shutdown()
 		}
 	}
 }

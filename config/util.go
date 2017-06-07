@@ -18,11 +18,27 @@ package config
 import (
 	"fmt"
 	"net"
+	"path/filepath"
 	"regexp"
 	"strconv"
 
 	"github.com/osrg/gobgp/packet/bgp"
 )
+
+// Returns config file type by retrieving extension from the given path.
+// If no corresponding type found, returns the given def as the default value.
+func detectConfigFileType(path, def string) string {
+	switch ext := filepath.Ext(path); ext {
+	case ".toml":
+		return "toml"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".json":
+		return "json"
+	default:
+		return def
+	}
+}
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {
 	if p.Config.PeerAs != g.Config.As {
