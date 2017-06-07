@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
 	api "github.com/osrg/gobgp/api"
@@ -32,6 +31,7 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
