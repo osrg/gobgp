@@ -653,6 +653,47 @@ module gobgp {
       }
   }
 
+  grouping gobgp-ttl-security-config {
+    description
+      "Configuration parameters for TTL Security";
+
+    leaf enabled {
+      type boolean;
+      default "false";
+      description
+        "Enable features for TTL Security";
+    }
+
+    leaf ttl-min {
+      type uint8;
+      description
+        "Reference to the port of the BMP server";
+    }
+  }
+
+  grouping gobgp-ttl-security-config-set {
+    description
+      "set of configurations for Generalized TTL Security Mechanism (GTSM)";
+
+    container ttl-security {
+      description
+        "Configure TTL Security feature";
+
+      container config {
+        description
+          "Configuration parameters for TTL Security";
+        uses gobgp-ttl-security-config;
+      }
+
+      container state {
+        config false;
+        description
+          "State information for TTL Security";
+        uses gobgp-ttl-security-config;
+      }
+    }
+  }
+
   // augment statements
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
     description "additional counters";
@@ -824,6 +865,16 @@ module gobgp {
     description "route server configuration for neighbor";
     uses gobgp-route-server-config-set;
   }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    description "TTL Security configuration for peer-group";
+    uses gobgp-ttl-security-config-set;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    description "TTL Security configuration for neighbor";
+    uses gobgp-ttl-security-config-set;
+   }
 
   augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
     description "addtional policy";

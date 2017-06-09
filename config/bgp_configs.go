@@ -1565,6 +1565,8 @@ type PeerGroup struct {
 	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths,omitempty"`
 	// original -> gobgp:route-server
 	RouteServer RouteServer `mapstructure:"route-server" json:"route-server,omitempty"`
+	// original -> gobgp:ttl-security
+	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -1624,6 +1626,58 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 		return false
 	}
 	if !lhs.RouteServer.Equal(&(rhs.RouteServer)) {
+		return false
+	}
+	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:state
+type TtlSecurityState struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:ttl-min
+	TtlMin uint8 `mapstructure:"ttl-min" json:"ttl-min,omitempty"`
+}
+
+//struct for container gobgp:config
+type TtlSecurityConfig struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:ttl-min
+	TtlMin uint8 `mapstructure:"ttl-min" json:"ttl-min,omitempty"`
+}
+
+func (lhs *TtlSecurityConfig) Equal(rhs *TtlSecurityConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	if lhs.TtlMin != rhs.TtlMin {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:ttl-security
+type TtlSecurity struct {
+	// original -> gobgp:ttl-security-config
+	Config TtlSecurityConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:ttl-security-state
+	State TtlSecurityState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *TtlSecurity) Equal(rhs *TtlSecurity) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
 	return true
@@ -2521,6 +2575,8 @@ type Neighbor struct {
 	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths,omitempty"`
 	// original -> gobgp:route-server
 	RouteServer RouteServer `mapstructure:"route-server" json:"route-server,omitempty"`
+	// original -> gobgp:ttl-security
+	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
@@ -2580,6 +2636,9 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 		return false
 	}
 	if !lhs.RouteServer.Equal(&(rhs.RouteServer)) {
+		return false
+	}
+	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
 		return false
 	}
 	return true
