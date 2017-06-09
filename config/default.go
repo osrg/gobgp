@@ -232,6 +232,11 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 			n.GracefulRestart.Config.DeferralTime = uint16(360)
 		}
 	}
+
+	if n.EbgpMultihop.Config.Enabled && n.TtlSecurity.Config.Enabled {
+		return fmt.Errorf("ebgp-multihop and ttl-security are mututally exclusive")
+	}
+
 	return nil
 }
 
@@ -424,6 +429,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.ApplyPolicy.Config, &pg.ApplyPolicy.Config, "neighbor.apply-policy.config", v)
 	overwriteConfig(&c.UseMultiplePaths.Config, &pg.UseMultiplePaths.Config, "neighbor.use-multiple-paths.config", v)
 	overwriteConfig(&c.RouteServer.Config, &pg.RouteServer.Config, "neighbor.route-server.config", v)
+	overwriteConfig(&c.TtlSecurity.Config, &pg.TtlSecurity.Config, "neighbor.ttl-security.config", v)
 
 	if !v.IsSet("neighbor.afi-safis") {
 		c.AfiSafis = pg.AfiSafis
