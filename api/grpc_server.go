@@ -223,6 +223,14 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		RouteServer: &RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
 		},
+		GracefulRestart: &GracefulRestart{
+			Enabled:             pconf.GracefulRestart.Config.Enabled,
+			RestartTime:         uint32(pconf.GracefulRestart.Config.RestartTime),
+			HelperOnly:          pconf.GracefulRestart.Config.HelperOnly,
+			DeferralTime:        uint32(pconf.GracefulRestart.Config.DeferralTime),
+			NotificationEnabled: pconf.GracefulRestart.Config.NotificationEnabled,
+			LonglivedEnabled:    pconf.GracefulRestart.Config.LongLivedEnabled,
+		},
 		Transport: &Transport{
 			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
 			LocalAddress: pconf.Transport.Config.LocalAddress,
@@ -938,6 +946,14 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	}
 	if a.RouteServer != nil {
 		pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+	}
+	if a.GracefulRestart != nil {
+		pconf.GracefulRestart.Config.Enabled = a.GracefulRestart.Enabled
+		pconf.GracefulRestart.Config.RestartTime = uint16(a.GracefulRestart.RestartTime)
+		pconf.GracefulRestart.Config.HelperOnly = a.GracefulRestart.HelperOnly
+		pconf.GracefulRestart.Config.DeferralTime = uint16(a.GracefulRestart.DeferralTime)
+		pconf.GracefulRestart.Config.NotificationEnabled = a.GracefulRestart.NotificationEnabled
+		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
 	}
 	if a.ApplyPolicy != nil {
 		if a.ApplyPolicy.ImportPolicy != nil {

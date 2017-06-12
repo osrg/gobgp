@@ -553,6 +553,7 @@ message Peer {
   Timers timers = 7;
   Transport transport = 8;
   RouteServer route_server = 9;
+  GracefulRestart graceful_restart = 10;
 }
 
 message ApplyPolicy {
@@ -687,6 +688,15 @@ message Transport {
 
 message RouteServer {
   bool route_server_client = 1;
+}
+
+message GracefulRestart {
+  bool enabled = 1;
+  uint32 restart_time = 2;
+  bool helper_only = 3;
+  uint32 deferral_time = 4;
+  bool notification_enabled = 5;
+  bool longlived_enabled = 6;
 }
 
 message Prefix {
