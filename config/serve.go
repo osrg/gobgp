@@ -76,7 +76,7 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 
 func inSlice(n Neighbor, b []Neighbor) int {
 	for i, nb := range b {
-		if nb.Config.NeighborAddress == n.Config.NeighborAddress {
+		if nb.State.NeighborAddress == n.State.NeighborAddress {
 			return i
 		}
 	}

@@ -140,3 +140,14 @@ func ParseMaskLength(prefix, mask string) (int, int, error) {
 	}
 	return min, max, nil
 }
+
+func ExtractNeighborAddress(c *Neighbor) (string, error) {
+	addr := c.State.NeighborAddress
+	if addr == "" {
+		addr = c.Config.NeighborAddress
+		if addr == "" {
+			return "", fmt.Errorf("NeighborAddress is not configured")
+		}
+	}
+	return addr, nil
+}

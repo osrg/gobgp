@@ -178,8 +178,8 @@ func (n neighbors) Swap(i, j int) {
 }
 
 func (n neighbors) Less(i, j int) bool {
-	p1 := n[i].Config.NeighborAddress
-	p2 := n[j].Config.NeighborAddress
+	p1 := n[i].State.NeighborAddress
+	p2 := n[j].State.NeighborAddress
 	p1Isv4 := !strings.Contains(p1, ":")
 	p2Isv4 := !strings.Contains(p2, ":")
 	if p1Isv4 != p2Isv4 {

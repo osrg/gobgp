@@ -127,7 +127,7 @@ func (i *PeerInfo) String() string {
 func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 	id := net.ParseIP(string(p.RouteReflector.Config.RouteReflectorClusterId)).To4()
 	// exclude zone info
-	naddr, _ := net.ResolveIPAddr("ip", p.Config.NeighborAddress)
+	naddr, _ := net.ResolveIPAddr("ip", p.State.NeighborAddress)
 	return &PeerInfo{
 		AS:                      p.Config.PeerAs,
 		LocalAS:                 g.Config.As,

@@ -136,14 +136,14 @@ func (cli *Client) getNeighbor(name string, afi int, vrf string, enableAdvertise
 	neighbors := make([]*config.Neighbor, 0, len(ret.Peers))
 
 	for _, p := range ret.Peers {
-		if name != "" && name != p.Conf.NeighborAddress && name != p.Conf.NeighborInterface {
+		if name != "" && name != p.Info.NeighborAddress && name != p.Conf.NeighborInterface {
 			continue
 		}
 		if vrf != "" && name != p.Conf.Vrf {
 			continue
 		}
 		if afi > 0 {
-			v6 := net.ParseIP(p.Conf.NeighborAddress).To4() == nil
+			v6 := net.ParseIP(p.Info.NeighborAddress).To4() == nil
 			if afi == bgp.AFI_IP && v6 || afi == bgp.AFI_IP6 && !v6 {
 				continue
 			}

@@ -289,7 +289,7 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timest
 
 func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, neighConf *config.Neighbor) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
-	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, neighConf.Config.NeighborAddress, neighConf.State.PeerAs, neighConf.State.RemoteRouterId, float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, neighConf.State.NeighborAddress, neighConf.State.PeerAs, neighConf.State.RemoteRouterId, float64(timestamp))
 	return bmp.NewBMPStatisticsReport(
 		*ph,
 		[]bmp.BMPStatsTLVInterface{

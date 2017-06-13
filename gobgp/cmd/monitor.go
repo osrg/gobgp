@@ -89,7 +89,7 @@ func NewMonitorCmd() *cobra.Command {
 					j, _ := json.Marshal(s)
 					fmt.Println(string(j))
 				} else {
-					addr := s.Config.NeighborAddress
+					addr := s.State.NeighborAddress
 					if s.Config.NeighborInterface != "" {
 						addr = fmt.Sprintf("%s(%s)", addr, s.Config.NeighborInterface)
 					}

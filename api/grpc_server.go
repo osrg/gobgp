@@ -862,7 +862,6 @@ func (s *Server) DeleteVrf(ctx context.Context, arg *DeleteVrfRequest) (*DeleteV
 func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	pconf := &config.Neighbor{}
 	if a.Conf != nil {
-		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.PeerAs = a.Conf.PeerAs
 		pconf.Config.LocalAs = a.Conf.LocalAs
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
@@ -993,6 +992,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.State.AdjTable.Advertised = a.Info.Advertised
 		pconf.State.PeerAs = a.Info.PeerAs
 		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
+		pconf.State.NeighborAddress = a.Info.NeighborAddress
 
 		if a.Info.Messages != nil {
 			if a.Info.Messages.Sent != nil {

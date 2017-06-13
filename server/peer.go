@@ -44,11 +44,11 @@ func NewPeerGroup(c *config.PeerGroup) *PeerGroup {
 }
 
 func (pg *PeerGroup) AddMember(c config.Neighbor) {
-	pg.members[c.Config.NeighborAddress] = c
+	pg.members[c.State.NeighborAddress] = c
 }
 
 func (pg *PeerGroup) DeleteMember(c config.Neighbor) {
-	delete(pg.members, c.Config.NeighborAddress)
+	delete(pg.members, c.State.NeighborAddress)
 }
 
 type Peer struct {
@@ -71,7 +71,7 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
 	if peer.isRouteServerClient() {
-		peer.tableId = conf.Config.NeighborAddress
+		peer.tableId = conf.State.NeighborAddress
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
@@ -81,7 +81,7 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 }
 
 func (peer *Peer) ID() string {
-	return peer.fsm.pConf.Config.NeighborAddress
+	return peer.fsm.pConf.State.NeighborAddress
 }
 
 func (peer *Peer) TableID() string {
@@ -360,7 +360,7 @@ func (peer *Peer) processOutgoingPaths(paths, olds []*table.Path) []*table.Path 
 	if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
-			"Key":   peer.fsm.pConf.Config.NeighborAddress,
+			"Key":   peer.fsm.pConf.State.NeighborAddress,
 		}).Debug("now syncing, suppress sending updates")
 		return nil
 	}
@@ -478,7 +478,7 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	update := m.Body.(*bgp.BGPUpdate)
 	log.WithFields(log.Fields{
 		"Topic":       "Peer",
-		"Key":         peer.fsm.pConf.Config.NeighborAddress,
+		"Key":         peer.fsm.pConf.State.NeighborAddress,
 		"nlri":        update.NLRI,
 		"withdrawals": update.WithdrawnRoutes,
 		"attributes":  update.PathAttributes,
