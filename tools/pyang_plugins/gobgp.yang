@@ -1126,6 +1126,45 @@ module gobgp {
       uses listen-config;
   }
 
+  grouping dynamic-neighbors {
+    container dynamic-neighbors {
+      list dynamic-neighbor {
+        key "prefix";
+
+        leaf prefix {
+          type leafref {
+            path "../config/prefix";
+          }
+        }
+
+        container config {
+          uses bgp-global-dynamic-neighbor-config;
+        }
+
+        container state {
+          config false;
+          uses bgp-global-dynamic-neighbor-config;
+        }
+      }
+    }
+  }
+
+  grouping bgp-global-dynamic-neighbor-config {
+    description "A dynamic neighbor belongs to a peer group.
+     This configuration structure was taken from the latest openconfig.";
+
+    leaf prefix {
+      type string;
+    }
+    leaf peer-group {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses dynamic-neighbors;
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }

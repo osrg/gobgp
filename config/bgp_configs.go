@@ -966,6 +966,54 @@ func (v RpkiValidationResultType) Validate() error {
 }
 
 //struct for container gobgp:state
+type DynamicNeighborState struct {
+	// original -> gobgp:prefix
+	Prefix string `mapstructure:"prefix" json:"prefix,omitempty"`
+	// original -> gobgp:peer-group
+	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
+}
+
+//struct for container gobgp:config
+type DynamicNeighborConfig struct {
+	// original -> gobgp:prefix
+	Prefix string `mapstructure:"prefix" json:"prefix,omitempty"`
+	// original -> gobgp:peer-group
+	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
+}
+
+func (lhs *DynamicNeighborConfig) Equal(rhs *DynamicNeighborConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Prefix != rhs.Prefix {
+		return false
+	}
+	if lhs.PeerGroup != rhs.PeerGroup {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:dynamic-neighbor
+type DynamicNeighbor struct {
+	// original -> gobgp:prefix
+	// original -> gobgp:dynamic-neighbor-config
+	Config DynamicNeighborConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:dynamic-neighbor-state
+	State DynamicNeighborState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *DynamicNeighbor) Equal(rhs *DynamicNeighbor) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:state
 type CollectorState struct {
 	// original -> gobgp:url
 	Url string `mapstructure:"url" json:"url,omitempty"`
@@ -3778,6 +3826,8 @@ type Bgp struct {
 	Zebra Zebra `mapstructure:"zebra" json:"zebra,omitempty"`
 	// original -> gobgp:collector
 	Collector Collector `mapstructure:"collector" json:"collector,omitempty"`
+	// original -> gobgp:dynamic-neighbors
+	DynamicNeighbors []DynamicNeighbor `mapstructure:"dynamic-neighbors" json:"dynamic-neighbors,omitempty"`
 }
 
 func (lhs *Bgp) Equal(rhs *Bgp) bool {
@@ -3872,6 +3922,22 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	}
 	if !lhs.Collector.Equal(&(rhs.Collector)) {
 		return false
+	}
+	if len(lhs.DynamicNeighbors) != len(rhs.DynamicNeighbors) {
+		return false
+	}
+	{
+		lmap := make(map[string]*DynamicNeighbor)
+		for i, l := range lhs.DynamicNeighbors {
+			lmap[mapkey(i, string(l.Config.Prefix))] = &lhs.DynamicNeighbors[i]
+		}
+		for i, r := range rhs.DynamicNeighbors {
+			if l, y := lmap[mapkey(i, string(r.Config.Prefix))]; !y {
+				return false
+			} else if !r.Equal(l) {
+				return false
+			}
+		}
 	}
 	return true
 }
