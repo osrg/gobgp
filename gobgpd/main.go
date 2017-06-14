@@ -266,6 +266,12 @@ func main() {
 				}
 				updatePolicy = updatePolicy || u
 			}
+			for _, dn := range newConfig.DynamicNeighbors {
+				log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
+				if err := bgpServer.AddDynamicNeighbor(&dn); err != nil {
+					log.Warn(err)
+				}
+			}
 			for i, p := range added {
 				log.Infof("Peer %v is added", p.State.NeighborAddress)
 				if err := bgpServer.AddNeighbor(&added[i]); err != nil {

@@ -140,6 +140,11 @@
     [peer-groups.afi-safis.config]
       afi-safi-name = "ipv4-unicast"
 
+[[dynamic-neighbors]]
+  [dynamic-neighbors.config]
+    prefix = "20.0.0.0/24"
+    peer-group = "my-peer-group"
+
 [[defined-sets.prefix-sets]]
     prefix-set-name = "ps0"
     [[defined-sets.prefix-sets.prefix-list]]

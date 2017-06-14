@@ -236,6 +236,16 @@ func (server *BgpServer) Serve() {
 					"Topic": "Peer",
 				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
 				peer.PassConn(conn)
+			} else if pg := server.matchLongestDynamicNeighborPrefix(remoteAddr); pg != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("Accepted a new dynamic neighbor from:%s", remoteAddr)
+				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, pg.Conf, server.globalRib, server.policy)
+				server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): peer.fsm.pConf.ApplyPolicy})
+				server.neighborMap[remoteAddr] = peer
+				peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
+				server.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE)
+				peer.PassConn(conn)
 			} else {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
@@ -278,6 +288,24 @@ func (server *BgpServer) Serve() {
 			handleFsmMsg(e)
 		}
 	}
+}
+
+func (server *BgpServer) matchLongestDynamicNeighborPrefix(a string) *PeerGroup {
+	ipAddr := net.ParseIP(a)
+	longestMask := net.CIDRMask(0, 32).String()
+	var longestPG *PeerGroup
+	for _, pg := range server.peerGroupMap {
+		for _, d := range pg.dynamicNeighbors {
+			_, netAddr, _ := net.ParseCIDR(d.Config.Prefix)
+			if netAddr.Contains(ipAddr) {
+				if netAddr.Mask.String() > longestMask {
+					longestMask = netAddr.Mask.String()
+					longestPG = pg
+				}
+			}
+		}
+	}
+	return longestPG
 }
 
 func sendFsmOutgoingMsg(peer *Peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
@@ -720,6 +748,11 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			if peer.fsm.pConf.Config.PeerAs == 0 {
 				peer.fsm.pConf.State.PeerAs = 0
 				peer.fsm.peerInfo.AS = 0
+			}
+			if peer.isDynamicNeighbor() {
+				peer.stopPeerRestarting()
+				go peer.stopFSM()
+				delete(server.neighborMap, peer.fsm.pConf.State.NeighborAddress)
 			}
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
 			if peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled {
@@ -1716,6 +1749,13 @@ func (s *BgpServer) AddNeighbor(c *config.Neighbor) error {
 	}, true)
 }
 
+func (s *BgpServer) AddDynamicNeighbor(c *config.DynamicNeighbor) error {
+	return s.mgmtOperation(func() error {
+		s.peerGroupMap[c.Config.PeerGroup].AddDynamicNeighbor(c)
+		return nil
+	}, true)
+}
+
 func (server *BgpServer) deletePeerGroup(pg *config.PeerGroup) error {
 	name := pg.Config.PeerGroupName
 
@@ -1766,41 +1806,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 	n.fsm.sendNotification(code, subcode, nil, "")
 	n.stopPeerRestarting()
 
-	go func(addr string) {
-		failed := false
-		t1 := time.AfterFunc(time.Minute*5, func() {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-			}).Warnf("Failed to free the fsm.h.t for %s", addr)
-			failed = true
-		})
-		n.fsm.h.t.Kill(nil)
-		n.fsm.h.t.Wait()
-		t1.Stop()
-		if !failed {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   addr,
-			}).Debug("freed fsm.h.t")
-			cleanInfiniteChannel(n.outgoing)
-		}
-		failed = false
-		t2 := time.AfterFunc(time.Minute*5, func() {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-			}).Warnf("Failed to free the fsm.t for %s", addr)
-			failed = true
-		})
-		n.fsm.t.Kill(nil)
-		n.fsm.t.Wait()
-		t2.Stop()
-		if !failed {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   addr,
-			}).Debug("freed fsm.t")
-		}
-	}(addr)
+	go n.stopFSM()
 	delete(server.neighborMap, addr)
 	server.dropPeerAllRoutes(n, n.configuredRFlist())
 	return nil
@@ -1861,7 +1867,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 
 	addr, err := config.ExtractNeighborAddress(c)
 	if err != nil {
-		return err
+		return needsSoftResetIn, err
 	}
 
 	peer, ok := s.neighborMap[addr]

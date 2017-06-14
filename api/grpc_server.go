@@ -197,11 +197,12 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 					TOTAL:        s.Messages.Sent.Total,
 				},
 			},
-			Received:   s.AdjTable.Received,
-			Accepted:   s.AdjTable.Accepted,
-			Advertised: s.AdjTable.Advertised,
-			PeerAs:     s.PeerAs,
-			PeerType:   uint32(s.PeerType.ToInt()),
+			Received:        s.AdjTable.Received,
+			Accepted:        s.AdjTable.Accepted,
+			Advertised:      s.AdjTable.Advertised,
+			PeerAs:          s.PeerAs,
+			PeerType:        uint32(s.PeerType.ToInt()),
+			NeighborAddress: pconf.State.NeighborAddress,
 		},
 		Timers: &Timers{
 			Config: &TimersConfig{

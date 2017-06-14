@@ -32,14 +32,16 @@ const (
 )
 
 type PeerGroup struct {
-	Conf    *config.PeerGroup
-	members map[string]config.Neighbor
+	Conf             *config.PeerGroup
+	members          map[string]config.Neighbor
+	dynamicNeighbors map[string]*config.DynamicNeighbor
 }
 
 func NewPeerGroup(c *config.PeerGroup) *PeerGroup {
 	return &PeerGroup{
-		Conf:    c,
-		members: make(map[string]config.Neighbor, 0),
+		Conf:             c,
+		members:          make(map[string]config.Neighbor, 0),
+		dynamicNeighbors: make(map[string]*config.DynamicNeighbor, 0),
 	}
 }
 
@@ -49,6 +51,29 @@ func (pg *PeerGroup) AddMember(c config.Neighbor) {
 
 func (pg *PeerGroup) DeleteMember(c config.Neighbor) {
 	delete(pg.members, c.State.NeighborAddress)
+}
+
+func (pg *PeerGroup) AddDynamicNeighbor(c *config.DynamicNeighbor) {
+	pg.dynamicNeighbors[c.Config.Prefix] = c
+}
+
+func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
+	conf := config.Neighbor{
+		Config: config.NeighborConfig{
+			PeerGroup: pg.Config.PeerGroupName,
+		},
+		Transport: config.Transport{
+			Config: config.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+	}
+	config.OverwriteNeighborConfigWithPeerGroup(&conf, pg)
+	config.SetDefaultNeighborConfigValues(&conf, g.Config.As)
+	conf.State.NeighborAddress = neighborAddress
+	peer := NewPeer(g, &conf, loc, policy)
+	peer.fsm.state = bgp.BGP_FSM_ACTIVE
+	return peer
 }
 
 type Peer struct {
@@ -102,6 +127,10 @@ func (peer *Peer) isRouteReflectorClient() bool {
 
 func (peer *Peer) isGracefulRestartEnabled() bool {
 	return peer.fsm.pConf.GracefulRestart.State.Enabled
+}
+
+func (peer *Peer) isDynamicNeighbor() bool {
+	return peer.fsm.pConf.Config.NeighborAddress == "" && peer.fsm.pConf.Config.NeighborInterface == ""
 }
 
 func (peer *Peer) recvedAllEOR() bool {
@@ -584,4 +613,43 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 
 func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
 	peer.adjRibIn.Drop(rfList)
+}
+
+func (peer *Peer) stopFSM() error {
+	failed := false
+	addr := peer.fsm.pConf.State.NeighborAddress
+	t1 := time.AfterFunc(time.Minute*5, func() {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+		}).Warnf("Failed to free the fsm.h.t for %s", addr)
+		failed = true
+	})
+	peer.fsm.h.t.Kill(nil)
+	peer.fsm.h.t.Wait()
+	t1.Stop()
+	if !failed {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Debug("freed fsm.h.t")
+		cleanInfiniteChannel(peer.outgoing)
+	}
+	failed = false
+	t2 := time.AfterFunc(time.Minute*5, func() {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+		}).Warnf("Failed to free the fsm.t for %s", addr)
+		failed = true
+	})
+	peer.fsm.t.Kill(nil)
+	peer.fsm.t.Wait()
+	t2.Stop()
+	if !failed {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Debug("freed fsm.t")
+		return nil
+	}
+	return fmt.Errorf("Failed to free FSM for %s", addr)
 }

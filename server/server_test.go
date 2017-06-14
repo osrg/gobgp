@@ -441,6 +441,74 @@ func TestPeerGroup(test *testing.T) {
 	}
 }
 
+func TestDynamicNeighbor(t *testing.T) {
+	assert := assert.New(t)
+	log.SetLevel(log.DebugLevel)
+	s1 := NewBgpServer()
+	go s1.Serve()
+	err := s1.Start(&config.Global{
+		Config: config.GlobalConfig{
+			As:       1,
+			RouterId: "1.1.1.1",
+			Port:     10179,
+		},
+	})
+	assert.Nil(err)
+	defer s1.Stop()
+
+	g := &config.PeerGroup{
+		Config: config.PeerGroupConfig{
+			PeerAs:        2,
+			PeerGroupName: "g",
+		},
+	}
+	err = s1.AddPeerGroup(g)
+	assert.Nil(err)
+
+	d := &config.DynamicNeighbor{
+		Config: config.DynamicNeighborConfig{
+			Prefix:    "127.0.0.0/24",
+			PeerGroup: "g",
+		},
+	}
+	err = s1.AddDynamicNeighbor(d)
+	assert.Nil(err)
+
+	s2 := NewBgpServer()
+	go s2.Serve()
+	err = s2.Start(&config.Global{
+		Config: config.GlobalConfig{
+			As:       2,
+			RouterId: "2.2.2.2",
+			Port:     -1,
+		},
+	})
+	assert.Nil(err)
+	defer s2.Stop()
+
+	m := &config.Neighbor{
+		Config: config.NeighborConfig{
+			NeighborAddress: "127.0.0.1",
+			PeerAs:          1,
+		},
+		Transport: config.Transport{
+			Config: config.TransportConfig{
+				RemotePort: 10179,
+			},
+		},
+	}
+	err = s2.AddNeighbor(m)
+
+	assert.Nil(err)
+
+	for {
+		time.Sleep(time.Second)
+		if s2.GetNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
+			break
+		}
+	}
+}
+
 func TestGracefulRestartTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 	s1 := NewBgpServer()

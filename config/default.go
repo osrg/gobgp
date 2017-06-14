@@ -276,15 +276,38 @@ func validatePeerGroupConfig(n *Neighbor, b *BgpConfigSet) error {
 	if name == "" {
 		return nil
 	}
+
+	pg, err := getPeerGroup(name, b)
+	if err != nil {
+		return err
+	}
+
+	if pg.Config.PeerAs != 0 && n.Config.PeerAs != 0 {
+		return fmt.Errorf("Cannot configure remote-as for members. PeerGroup AS %d.", pg.Config.PeerAs)
+	}
+	return nil
+}
+
+func getPeerGroup(n string, b *BgpConfigSet) (*PeerGroup, error) {
+	if n == "" {
+		return nil, fmt.Errorf("peer-group name is not configured")
+	}
 	for _, pg := range b.PeerGroups {
-		if name == pg.Config.PeerGroupName {
-			if pg.Config.PeerAs != 0 && n.Config.PeerAs != 0 {
-				return fmt.Errorf("Cannot configure remote-as for members. Peer-group AS %d.", pg.Config.PeerAs)
-			}
-			return nil
+		if n == pg.Config.PeerGroupName {
+			return &pg, nil
 		}
 	}
-	return fmt.Errorf("No such peer-group: %s", name)
+	return nil, fmt.Errorf("No such peer-group: %s", n)
+}
+
+func validateDynamicNeighborConfig(d *DynamicNeighborConfig, b *BgpConfigSet) error {
+	if _, err := getPeerGroup(d.PeerGroup, b); err != nil {
+		return err
+	}
+	if _, _, err := net.ParseCIDR(d.Prefix); err != nil {
+		return fmt.Errorf("Invalid Dynamic Neighbor prefix %s", d.Prefix)
+	}
+	return nil
 }
 
 func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
@@ -344,6 +367,12 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		}
 	}
 
+	for _, d := range b.DynamicNeighbors {
+		if err := validateDynamicNeighborConfig(&d.Config, b); err != nil {
+			return err
+		}
+	}
+
 	for idx, r := range b.RpkiServers {
 		if r.Config.Port == 0 {
 			b.RpkiServers[idx].Config.Port = rtr.RPKI_DEFAULT_PORT
@@ -372,11 +401,12 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	v := viper.New()
 
-	val, ok := configuredFields[c.Config.NeighborAddress]
-	if !ok {
-		return fmt.Errorf("No such neighbor %s", c.Config.NeighborAddress)
+	val, ok := configuredFields[c.State.NeighborAddress]
+	if ok {
+		v.Set("neighbor", val)
+	} else {
+		v.Set("neighbor.config.peer-group", c.Config.PeerGroup)
 	}
-	v.Set("neighbor", val)
 
 	overwriteConfig(&c.Config, &pg.Config, "neighbor.config", v)
 	overwriteConfig(&c.Timers.Config, &pg.Timers.Config, "neighbor.timers.config", v)
