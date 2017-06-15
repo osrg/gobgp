@@ -697,6 +697,7 @@ message GracefulRestart {
   uint32 deferral_time = 4;
   bool notification_enabled = 5;
   bool longlived_enabled = 6;
+  repeated uint32 families = 7;
 }
 
 message Prefix {

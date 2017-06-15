@@ -89,10 +89,23 @@ func (s *Server) Serve() error {
 }
 
 func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
-	var families []uint32
+	families := make([]uint32, 0, len(pconf.AfiSafis))
+	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
+	mpGrFamilies := make([]uint32, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
 		if family, ok := bgp.AddressFamilyValueMap[string(f.Config.AfiSafiName)]; ok {
 			families = append(families, uint32(family))
+			if f.MpGracefulRestart.Config.Enabled {
+				mpGrFamilies = append(mpGrFamilies, uint32(family))
+			}
+		}
+		if c := f.PrefixLimit.Config; c.MaxPrefixes > 0 {
+			k, _ := bgp.GetRouteFamily(string(f.Config.AfiSafiName))
+			prefixLimits = append(prefixLimits, &PrefixLimit{
+				Family:               uint32(k),
+				MaxPrefixes:          c.MaxPrefixes,
+				ShutdownThresholdPct: uint32(c.ShutdownThresholdPct),
+			})
 		}
 	}
 	applyPolicy := &ApplyPolicy{}
@@ -116,17 +129,6 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 	}
 	for _, pname := range pconf.ApplyPolicy.Config.InPolicyList {
 		applyPolicy.InPolicy.Policies = append(applyPolicy.InPolicy.Policies, &Policy{Name: pname})
-	}
-	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
-	for _, family := range pconf.AfiSafis {
-		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
-			k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
-			prefixLimits = append(prefixLimits, &PrefixLimit{
-				Family:               uint32(k),
-				MaxPrefixes:          c.MaxPrefixes,
-				ShutdownThresholdPct: uint32(c.ShutdownThresholdPct),
-			})
-		}
 	}
 
 	timer := pconf.Timers
@@ -231,6 +233,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			DeferralTime:        uint32(pconf.GracefulRestart.Config.DeferralTime),
 			NotificationEnabled: pconf.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    pconf.GracefulRestart.Config.LongLivedEnabled,
+			Families:            mpGrFamilies,
 		},
 		Transport: &Transport{
 			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
@@ -954,6 +957,13 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.GracefulRestart.Config.DeferralTime = uint16(a.GracefulRestart.DeferralTime)
 		pconf.GracefulRestart.Config.NotificationEnabled = a.GracefulRestart.NotificationEnabled
 		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
+		for i, f := range pconf.AfiSafis {
+			for _, mpGrFamily := range a.GracefulRestart.Families {
+				if f.Config.AfiSafiName == config.AfiSafiType(bgp.RouteFamily(mpGrFamily).String()) {
+					pconf.AfiSafis[i].MpGracefulRestart.Config.Enabled = true
+				}
+			}
+		}
 	}
 	if a.ApplyPolicy != nil {
 		if a.ApplyPolicy.ImportPolicy != nil {
