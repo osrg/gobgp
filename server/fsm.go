@@ -493,10 +493,15 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 				ttl = 255
 				ttlMin = int(fsm.pConf.TtlSecurity.Config.TtlMin)
 			} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
-				ttl = 1
 				if fsm.pConf.EbgpMultihop.Config.Enabled {
 					ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
+				} else if fsm.pConf.Transport.Config.Ttl != 0 {
+					ttl = int(fsm.pConf.Transport.Config.Ttl)
+				} else {
+					ttl = 1
 				}
+			} else if fsm.pConf.Transport.Config.Ttl != 0 {
+				ttl = int(fsm.pConf.Transport.Config.Ttl)
 			}
 			if ttl != 0 {
 				if err := SetTcpTTLSockopts(conn.(*net.TCPConn), ttl); err != nil {
