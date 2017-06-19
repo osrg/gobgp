@@ -2595,24 +2595,24 @@ func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
 	for index < len(myCmd) {
 		myCmdChar := myCmd[index : index+1]
 		switch myCmdChar {
-		case TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]:
-			if bit := TCPFlagOpValueMap[myCmdChar]; bit&TCPFlagOp(operatorValue[0]) == 0 {
+		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]:
+			if bit := BitmaskFlagOpValueMap[myCmdChar]; bit&BitmaskFlagOp(operatorValue[0]) == 0 {
 				operatorValue[0] |= int(bit)
 				index++
 			} else {
 				err := fmt.Errorf("Match flag appears multiple time")
 				return nil, err
 			}
-		case TCPFlagOpNameMap[TCP_FLAG_OP_NOT]:
-			if bit := TCPFlagOpValueMap[myCmdChar]; bit&TCPFlagOp(operatorValue[0]) == 0 {
+		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:
+			if bit := BitmaskFlagOpValueMap[myCmdChar]; bit&BitmaskFlagOp(operatorValue[0]) == 0 {
 				operatorValue[0] |= int(bit)
 				index++
 			} else {
 				err := fmt.Errorf("Not flag appears multiple time")
 				return nil, err
 			}
-		case TCPFlagOpNameMap[TCP_FLAG_OP_AND], TCPFlagOpNameMap[TCP_FLAG_OP_OR]:
-			if bit := TCPFlagOpValueMap[myCmdChar]; bit&TCPFlagOp(operatorValue[0]) == 0 {
+		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:
+			if bit := BitmaskFlagOpValueMap[myCmdChar]; bit&BitmaskFlagOp(operatorValue[0]) == 0 {
 				tcpOperatorsFlagsValues = append(tcpOperatorsFlagsValues, operatorValue)
 				operatorValue[0] = int(bit)
 				operatorValue[1] = 0
@@ -2629,7 +2629,7 @@ func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
 			// we loop till we reach the end of TCP flags description
 			// exit conditions : we reach the end of tcp flags (we find & or ' ') or we reach the end of the line
 			for loopIndex < len(myCmd) &&
-				(myLoopChar != TCPFlagOpNameMap[TCP_FLAG_OP_AND] && myLoopChar != TCPFlagOpNameMap[TCP_FLAG_OP_OR]) {
+				(myLoopChar != BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND] && myLoopChar != BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]) {
 				// we check if inspected charater is a well known tcp flag and if it doesn't appear twice
 				if bit, isPresent := TCPFlagValueMap[myLoopChar]; isPresent && (bit&TCPFlag(operatorValue[1]) == 0) {
 					operatorValue[1] |= int(bit) // we set this flag
@@ -2649,7 +2649,7 @@ func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
 			return nil, err
 		}
 	}
-	operatorValue[0] |= int(TCPFlagOpValueMap["E"])
+	operatorValue[0] |= int(BitmaskFlagOpValueMap["E"])
 	tcpOperatorsFlagsValues = append(tcpOperatorsFlagsValues, operatorValue)
 	return tcpOperatorsFlagsValues, nil
 }
@@ -3298,21 +3298,21 @@ func formatProto(op int, value int) string {
 
 func formatFlag(op int, value int) string {
 	var retString string
-	if op&TCP_FLAG_OP_MATCH > 0 {
-		retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_MATCH])
+	if op&BITMASK_FLAG_OP_MATCH > 0 {
+		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
 	}
-	if op&TCP_FLAG_OP_NOT > 0 {
-		retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_NOT])
+	if op&BITMASK_FLAG_OP_NOT > 0 {
+		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
 	}
 	for flag, valueFlag := range TCPFlagValueMap {
 		if value&int(valueFlag) > 0 {
 			retString = fmt.Sprintf("%s%s", retString, flag)
 		}
 	}
-	if op&TCP_FLAG_OP_AND > 0 {
-		retString = fmt.Sprintf("%s%s", TCPFlagOpNameMap[TCP_FLAG_OP_AND], retString)
+	if op&BITMASK_FLAG_OP_AND > 0 {
+		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], retString)
 	} else { // default is or
-		retString = fmt.Sprintf("%s%s", TCPFlagOpNameMap[TCP_FLAG_OP_OR], retString)
+		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR], retString)
 	}
 	return retString
 }
