@@ -154,6 +154,32 @@ var BitmaskFlagOpValueMap = map[string]BitmaskFlagOp{
 	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]: BITMASK_FLAG_OP_MATCH,
 }
 
+type FragmentFlag int
+
+const (
+	FRAG_FLAG_NOT   = 0x00
+	FRAG_FLAG_DONT  = 0x01
+	FRAG_FLAG_IS    = 0x02
+	FRAG_FLAG_FIRST = 0x04
+	FRAG_FLAG_LAST  = 0x08
+)
+
+var FragmentFlagNameMap = map[FragmentFlag]string{
+	FRAG_FLAG_NOT:   "not-a-fragment",
+	FRAG_FLAG_DONT:  "dont-fragment",
+	FRAG_FLAG_IS:    "is-fragment",
+	FRAG_FLAG_FIRST: "first-fragment",
+	FRAG_FLAG_LAST:  "last-fragment",
+}
+
+var FragmentFlagValueMap = map[string]FragmentFlag{
+	FragmentFlagNameMap[FRAG_FLAG_NOT]:   FRAG_FLAG_NOT,
+	FragmentFlagNameMap[FRAG_FLAG_DONT]:  FRAG_FLAG_DONT,
+	FragmentFlagNameMap[FRAG_FLAG_IS]:    FRAG_FLAG_IS,
+	FragmentFlagNameMap[FRAG_FLAG_FIRST]: FRAG_FLAG_FIRST,
+	FragmentFlagNameMap[FRAG_FLAG_LAST]:  FRAG_FLAG_LAST,
+}
+
 type DECNumOp int
 
 const (
