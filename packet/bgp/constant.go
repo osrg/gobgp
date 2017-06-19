@@ -128,30 +128,30 @@ var TCPFlagValueMap = map[string]TCPFlag{
 	TCPFlagNameMap[TCP_FLAG_ECE]:    TCP_FLAG_ECE,
 }
 
-type TCPFlagOp int
+type BitmaskFlagOp int
 
 const (
-	TCP_FLAG_OP_OR    = 0x00
-	TCP_FLAG_OP_AND   = 0x40
-	TCP_FLAG_OP_END   = 0x80
-	TCP_FLAG_OP_NOT   = 0x02
-	TCP_FLAG_OP_MATCH = 0x01
+	BITMASK_FLAG_OP_OR    = 0x00
+	BITMASK_FLAG_OP_AND   = 0x40
+	BITMASK_FLAG_OP_END   = 0x80
+	BITMASK_FLAG_OP_NOT   = 0x02
+	BITMASK_FLAG_OP_MATCH = 0x01
 )
 
-var TCPFlagOpNameMap = map[TCPFlagOp]string{
-	TCP_FLAG_OP_OR:    " ",
-	TCP_FLAG_OP_AND:   "&",
-	TCP_FLAG_OP_END:   "E",
-	TCP_FLAG_OP_NOT:   "!",
-	TCP_FLAG_OP_MATCH: "=",
+var BitmaskFlagOpNameMap = map[BitmaskFlagOp]string{
+	BITMASK_FLAG_OP_OR:    " ",
+	BITMASK_FLAG_OP_AND:   "&",
+	BITMASK_FLAG_OP_END:   "E",
+	BITMASK_FLAG_OP_NOT:   "!",
+	BITMASK_FLAG_OP_MATCH: "=",
 }
 
-var TCPFlagOpValueMap = map[string]TCPFlagOp{
-	TCPFlagOpNameMap[TCP_FLAG_OP_OR]:    TCP_FLAG_OP_OR,
-	TCPFlagOpNameMap[TCP_FLAG_OP_AND]:   TCP_FLAG_OP_AND,
-	TCPFlagOpNameMap[TCP_FLAG_OP_END]:   TCP_FLAG_OP_END,
-	TCPFlagOpNameMap[TCP_FLAG_OP_NOT]:   TCP_FLAG_OP_NOT,
-	TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]: TCP_FLAG_OP_MATCH,
+var BitmaskFlagOpValueMap = map[string]BitmaskFlagOp{
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:    BITMASK_FLAG_OP_OR,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND]:   BITMASK_FLAG_OP_AND,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_END]:   BITMASK_FLAG_OP_END,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:   BITMASK_FLAG_OP_NOT,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]: BITMASK_FLAG_OP_MATCH,
 }
 
 type DECNumOp int
