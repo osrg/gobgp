@@ -2825,27 +2825,48 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 		return nil, fmt.Errorf("invalid flowspec fragment specifier")
 	}
 	items := make([]*FlowSpecComponentItem, 0)
-	for _, a := range args[1:] {
-		value := 0
-		switch a {
-		case "dont-fragment":
-			if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP6 {
-				return nil, fmt.Errorf("can't specify dont-fragment for ipv6")
+	cmd := strings.Join(args[1:], " ")
+	var op byte
+	var flags byte
+	for cmd != "" {
+		next := 1
+		c := cmd[0:1]
+		switch c {
+		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]:
+			if op&BITMASK_FLAG_OP_MATCH != 0 {
+				err := fmt.Errorf("invalid flowspec fragment specifier: '=' flag appears multiple time", cmd)
+				return nil, err
 			}
-			value = 0x1
-		case "is-fragment":
-			value = 0x2
-		case "first-fragment":
-			value = 0x4
-		case "last-fragment":
-			value = 0x8
-		case "not-a-fragment":
-			value = 0x0
+			op |= BITMASK_FLAG_OP_MATCH
+		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:
+			if op&BITMASK_FLAG_OP_NOT != 0 {
+				err := fmt.Errorf("invalid flowspec fragment specifier: '!' flag appears multiple time", cmd)
+				return nil, err
+			}
+			op = op | BITMASK_FLAG_OP_NOT
+		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:
+			operand := BitmaskFlagOpValueMap[c]
+			items = append(items, NewFlowSpecComponentItem(int(op), int(flags)))
+			op = byte(operand)
+			flags = byte(0)
 		default:
-			return nil, fmt.Errorf("invalid flowspec fragment specifier")
+			for k, v := range FragmentFlagNameMap {
+				length := len(v)
+				if (len(cmd) >= length) && (cmd[:length] == v) {
+					flags = flags | byte(k)
+					next = length
+					break
+				}
+			}
+			// if not matched with any of FragmentFlags
+			if next == 1 {
+				return nil, fmt.Errorf("invalid flowspec fragment specifier: %s", cmd)
+			}
 		}
-		items = append(items, NewFlowSpecComponentItem(0, value))
+		cmd = cmd[next:]
 	}
+	op = op | BITMASK_FLAG_OP_END
+	items = append(items, NewFlowSpecComponentItem(int(op), int(flags)))
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
 }
 
@@ -3318,26 +3339,24 @@ func formatFlag(op int, value int) string {
 }
 
 func formatFragment(op int, value int) string {
-	ss := make([]string, 0)
-	if value == 0 {
-		ss = append(ss, "not-a-fragment")
+	var retString string
+	if op&BITMASK_FLAG_OP_MATCH > 0 {
+		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
 	}
-	if value&0x1 > 0 {
-		ss = append(ss, "dont-fragment")
+	if op&BITMASK_FLAG_OP_NOT > 0 {
+		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
 	}
-	if value&0x2 > 0 {
-		ss = append(ss, "is-fragment")
+	for flag, valueFlag := range FragmentFlagValueMap {
+		if value&int(valueFlag) > 0 {
+			retString = fmt.Sprintf("%s%s", retString, flag)
+		}
 	}
-	if value&0x4 > 0 {
-		ss = append(ss, "first-fragment")
+	if op&BITMASK_FLAG_OP_AND > 0 {
+		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], retString)
+	} else { // default is or
+		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR], retString)
 	}
-	if value&0x8 > 0 {
-		ss = append(ss, "last-fragment")
-	}
-	if len(ss) > 1 {
-		return fmt.Sprintf("%s(%s)", formatNumericOp(op), strings.Join(ss, "|"))
-	}
-	return fmt.Sprintf("%s%s", formatNumericOp(op), ss[0])
+	return retString
 }
 
 func formatEtherType(op int, value int) string {

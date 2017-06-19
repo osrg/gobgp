@@ -881,7 +881,7 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
 			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
 		ipFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
-                    %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [!] [=] <TCPFLAG>... |
+                    %s <PROTO>... | %s [!] [=] <FRAGMENT_TYPE> | %s [!] [=] <TCPFLAG>... |
                     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
    <PROTO> : %s
    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
