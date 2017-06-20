@@ -68,8 +68,20 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 			},
 		},
 	}
-	config.OverwriteNeighborConfigWithPeerGroup(&conf, pg)
-	config.SetDefaultNeighborConfigValues(&conf, g.Config.As)
+	if err := config.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   neighborAddress,
+		}).Debugf("Can't overwrite neighbor config: %s", err)
+		return nil
+	}
+	if err := config.SetDefaultNeighborConfigValues(&conf, g.Config.As); err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   neighborAddress,
+		}).Debugf("Can't set default config: %s", err)
+		return nil
+	}
 	conf.State.NeighborAddress = neighborAddress
 	peer := NewPeer(g, &conf, loc, policy)
 	peer.fsm.state = bgp.BGP_FSM_ACTIVE

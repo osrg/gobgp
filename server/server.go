@@ -241,6 +241,14 @@ func (server *BgpServer) Serve() {
 					"Topic": "Peer",
 				}).Debugf("Accepted a new dynamic neighbor from:%s", remoteAddr)
 				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, pg.Conf, server.globalRib, server.policy)
+				if peer == nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   remoteAddr,
+					}).Infof("Can't create new Dynamic Peer")
+					conn.Close()
+					return
+				}
 				server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): peer.fsm.pConf.ApplyPolicy})
 				server.neighborMap[remoteAddr] = peer
 				peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
