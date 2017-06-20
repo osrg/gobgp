@@ -2613,9 +2613,8 @@ func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
 			}
 		case TCPFlagOpNameMap[TCP_FLAG_OP_AND], TCPFlagOpNameMap[TCP_FLAG_OP_OR]:
 			if bit := TCPFlagOpValueMap[myCmdChar]; bit&TCPFlagOp(operatorValue[0]) == 0 {
-				operatorValue[0] |= int(bit)
 				tcpOperatorsFlagsValues = append(tcpOperatorsFlagsValues, operatorValue)
-				operatorValue[0] = 0
+				operatorValue[0] = int(bit)
 				operatorValue[1] = 0
 				index++
 			} else {
@@ -3311,9 +3310,9 @@ func formatFlag(op int, value int) string {
 		}
 	}
 	if op&TCP_FLAG_OP_AND > 0 {
-		retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_AND])
+		retString = fmt.Sprintf("%s%s", TCPFlagOpNameMap[TCP_FLAG_OP_AND], retString)
 	} else { // default is or
-		retString = fmt.Sprintf("%s%s", retString, TCPFlagOpNameMap[TCP_FLAG_OP_OR])
+		retString = fmt.Sprintf("%s%s", TCPFlagOpNameMap[TCP_FLAG_OP_OR], retString)
 	}
 	return retString
 }
