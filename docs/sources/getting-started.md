@@ -86,7 +86,7 @@ neighbors:
 ```
 
 ```bash
-$ sudo -E gobgpd -t yaml gobgpd.yml
+$ sudo -E gobgpd -t yaml -f gobgpd.yml
 {"level":"info","msg":"Peer 10.0.255.1 is added","time":"2015-04-06T20:32:28+09:00"}
 {"level":"info","msg":"Peer 10.0.255.2 is added","time":"2015-04-06T20:32:28+09:00"}
 ```
