@@ -62,6 +62,9 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		Config: config.NeighborConfig{
 			PeerGroup: pg.Config.PeerGroupName,
 		},
+		State: config.NeighborState{
+			NeighborAddress: neighborAddress,
+		},
 		Transport: config.Transport{
 			Config: config.TransportConfig{
 				PassiveMode: true,
@@ -82,7 +85,6 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		}).Debugf("Can't set default config: %s", err)
 		return nil
 	}
-	conf.State.NeighborAddress = neighborAddress
 	peer := NewPeer(g, &conf, loc, policy)
 	peer.fsm.state = bgp.BGP_FSM_ACTIVE
 	return peer
