@@ -487,13 +487,33 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 				break
 			}
 			fsm.conn = conn
-			if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
-				ttl := 1
+			ttl := 0
+			ttlMin := 0
+			if fsm.pConf.TtlSecurity.Config.Enabled {
+				ttl = 255
+				ttlMin = int(fsm.pConf.TtlSecurity.Config.TtlMin)
+			} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+				ttl = 1
 				if fsm.pConf.EbgpMultihop.Config.Enabled {
 					ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
 				}
-				if ttl != 0 {
-					SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
+			}
+			if ttl != 0 {
+				if err := SetTcpTTLSockopts(conn.(*net.TCPConn), ttl); err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.Config.NeighborAddress,
+						"State": fsm.state.String(),
+					}).Warnf("cannot set TTL(=%d) for peer: %s", ttl, err)
+				}
+			}
+			if ttlMin != 0 {
+				if err := SetTcpMinTTLSockopts(conn.(*net.TCPConn), ttlMin); err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.Config.NeighborAddress,
+						"State": fsm.state.String(),
+					}).Warnf("cannot set minimal TTL(=%d) for peer: %s", ttl, err)
 				}
 			}
 			// we don't implement delayed open timer so move to opensent right
