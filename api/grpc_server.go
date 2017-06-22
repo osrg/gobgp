@@ -92,11 +92,18 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 	families := make([]uint32, 0, len(pconf.AfiSafis))
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	mpGrFamilies := make([]uint32, 0, len(pconf.AfiSafis))
+	llGrFamilies := make([]*LongLivedGracefulRestart, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
 		if family, ok := bgp.AddressFamilyValueMap[string(f.Config.AfiSafiName)]; ok {
 			families = append(families, uint32(family))
 			if f.MpGracefulRestart.Config.Enabled {
 				mpGrFamilies = append(mpGrFamilies, uint32(family))
+			}
+			if f.LongLivedGracefulRestart.Config.Enabled {
+				llGrFamilies = append(llGrFamilies, &LongLivedGracefulRestart{
+					Family:      uint32(family),
+					RestartTime: f.LongLivedGracefulRestart.Config.RestartTime,
+				})
 			}
 		}
 		if c := f.PrefixLimit.Config; c.MaxPrefixes > 0 {
@@ -234,6 +241,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			NotificationEnabled: pconf.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    pconf.GracefulRestart.Config.LongLivedEnabled,
 			Families:            mpGrFamilies,
+			LlgrFamilies:        llGrFamilies,
 		},
 		Transport: &Transport{
 			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
@@ -961,6 +969,12 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 			for _, mpGrFamily := range a.GracefulRestart.Families {
 				if f.Config.AfiSafiName == config.AfiSafiType(bgp.RouteFamily(mpGrFamily).String()) {
 					pconf.AfiSafis[i].MpGracefulRestart.Config.Enabled = true
+				}
+			}
+			for _, llFrFamily := range a.GracefulRestart.LlgrFamilies {
+				if f.Config.AfiSafiName == config.AfiSafiType(bgp.RouteFamily(llFrFamily.Family).String()) {
+					pconf.AfiSafis[i].LongLivedGracefulRestart.Config.Enabled = true
+					pconf.AfiSafis[i].LongLivedGracefulRestart.Config.RestartTime = llFrFamily.RestartTime
 				}
 			}
 		}

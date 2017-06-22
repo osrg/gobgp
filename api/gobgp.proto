@@ -698,6 +698,12 @@ message GracefulRestart {
   bool notification_enabled = 5;
   bool longlived_enabled = 6;
   repeated uint32 families = 7;
+  repeated LongLivedGracefulRestart llgr_families = 8;
+}
+
+message LongLivedGracefulRestart {
+  uint32 family = 1;
+  uint32 restart_time = 2;
 }
 
 message Prefix {
