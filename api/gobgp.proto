@@ -703,8 +703,20 @@ message GracefulRestart {
   bool longlived_enabled = 6;
 }
 
-message MpGracefulRestart {
+message MpGracefulRestartConfig {
   bool enabled = 1;
+}
+
+message MpGracefulRestartState {
+  bool enabled = 1;
+  bool received = 2;
+  bool advertised = 3;
+  bool end_of_rib_received = 4;
+  bool end_of_rib_sent = 5;
+}
+message MpGracefulRestart {
+  MpGracefulRestartConfig config = 1;
+  MpGracefulRestartState state = 2;
 }
 
 message AfiSafiConfig {
@@ -712,7 +724,14 @@ message AfiSafiConfig {
   bool enabled = 2;
 }
 
-message RouteSelectionOptions {
+message AfiSafiState {
+  uint32 family = 1;
+  bool enabled = 2;
+  uint32 total_paths = 3;
+  uint32 total_prefixes = 4;
+}
+
+message RouteSelectionOptionsConfig {
   bool always_compare_med = 1;
   bool ignore_as_path_length = 2;
   bool external_compare_router_id = 3;
@@ -721,32 +740,92 @@ message RouteSelectionOptions {
   bool ignore_next_hop_igp_metric = 6;
 }
 
+message RouteSelectionOptionsState {
+  bool always_compare_med = 1;
+  bool ignore_as_path_length = 2;
+  bool external_compare_router_id = 3;
+  bool advertise_inactive_routes = 4;
+  bool enable_aigp = 5;
+  bool ignore_next_hop_igp_metric = 6;
+}
+
+message RouteSelectionOptions {
+  RouteSelectionOptionsConfig config = 1;
+  RouteSelectionOptionsState state = 2;
+}
+
 message UseMultiplePathsConfig {
   bool enabled = 1;
 }
 
-message Ebgp {
+message UseMultiplePathsState {
+  bool enabled = 1;
+}
+
+message EbgpConfig {
   bool allow_multiple_as = 1;
   uint32 maximum_paths = 2;
 }
 
-message Ibgp {
+message EbgpState {
+  bool allow_multiple_as = 1;
+  uint32 maximum_paths = 2;
+}
+
+message Ebgp {
+  EbgpConfig config = 1;
+  EbgpState state = 2;
+}
+
+message IbgpConfig {
   uint32 maximum_paths = 1;
+}
+
+message IbgpState {
+  uint32 maximum_paths = 1;
+}
+
+message Ibgp {
+  IbgpConfig config = 1;
+  IbgpState state = 2;
 }
 
 message UseMultiplePaths {
   UseMultiplePathsConfig config = 1;
-  Ebgp ebgp = 2;
-  Ibgp ibgp = 3;
+  UseMultiplePathsState state = 2;
+  Ebgp ebgp = 3;
+  Ibgp ibgp = 4;
 }
 
-message RouteTargetMembership {
+message RouteTargetMembershipConfig {
   uint32 deferral_time = 1;
 }
 
-message LongLivedGracefulRestart {
+message RouteTargetMembershipState {
+  uint32 deferral_time = 1;
+}
+
+message RouteTargetMembership {
+  RouteTargetMembershipConfig config = 1;
+  RouteTargetMembershipState state = 2;
+}
+
+message LongLivedGracefulRestartConfig {
   bool enabled = 1;
   uint32 restart_time = 2;
+}
+
+message LongLivedGracefulRestartState {
+  bool enabled = 1;
+  bool received = 2;
+  bool advertised = 3;
+  uint32 peer_restart_time = 4;
+  bool peer_restart_timer_expired = 5;
+}
+
+message LongLivedGracefulRestart {
+  LongLivedGracefulRestartConfig config = 1;
+  LongLivedGracefulRestartState state = 2;
 }
 
 message AfiSafi {
