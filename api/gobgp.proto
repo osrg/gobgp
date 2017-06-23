@@ -554,6 +554,7 @@ message Peer {
   Transport transport = 8;
   RouteServer route_server = 9;
   GracefulRestart graceful_restart = 10;
+  repeated AfiSafi afi_safis = 11;
 }
 
 message ApplyPolicy {
@@ -587,6 +588,9 @@ message PeerConf {
   repeated bytes remote_cap = 11;
   repeated bytes local_cap = 12;
   string id = 13;
+  // Note: Regarding to the consistency with OpenConfig mode, list of
+  // PrefixLimit should be removed from here, and list of PrefixLimit in
+  // AfiSafi should be used instead.
   repeated PrefixLimit prefix_limits = 14;
   string local_address = 15;
   string neighbor_interface = 16;
@@ -697,6 +701,75 @@ message GracefulRestart {
   uint32 deferral_time = 4;
   bool notification_enabled = 5;
   bool longlived_enabled = 6;
+}
+
+message MpGracefulRestart {
+  bool enabled = 1;
+}
+
+message AfiSafiConfig {
+  uint32 family = 1;
+  bool enabled = 2;
+}
+
+message RouteSelectionOptions {
+  bool always_compare_med = 1;
+  bool ignore_as_path_length = 2;
+  bool external_compare_router_id = 3;
+  bool advertise_inactive_routes = 4;
+  bool enable_aigp = 5;
+  bool ignore_next_hop_igp_metric = 6;
+}
+
+message UseMultiplePathsConfig {
+  bool enabled = 1;
+}
+
+message Ebgp {
+  bool allow_multiple_as = 1;
+  uint32 maximum_paths = 2;
+}
+
+message Ibgp {
+  uint32 maximum_paths = 1;
+}
+
+message UseMultiplePaths {
+  UseMultiplePathsConfig config = 1;
+  Ebgp ebgp = 2;
+  Ibgp ibgp = 3;
+}
+
+message RouteTargetMembership {
+  uint32 deferral_time = 1;
+}
+
+message LongLivedGracefulRestart {
+  bool enabled = 1;
+  uint32 restart_time = 2;
+}
+
+message AfiSafi {
+  MpGracefulRestart mp_graceful_restart = 1;
+  AfiSafiConfig config = 2;
+  ApplyPolicy apply_policy = 3;
+  // TODO:
+  // Support the following structures:
+  // - Ipv4Unicast
+  // - Ipv6Unicast
+  // - Ipv4LabelledUnicast
+  // - Ipv6LabelledUnicast
+  // - L3vpnIpv4Unicast
+  // - L3vpnIpv6Unicast
+  // - L3vpnIpv4Multicast
+  // - L3vpnIpv6Multicast
+  // - L2vpnVpls
+  // - L2vpnEvpn
+  RouteSelectionOptions route_selection_options = 4;
+  UseMultiplePaths use_multiple_paths = 5;
+  PrefixLimit prefix_limits = 6;
+  RouteTargetMembership route_target_membership = 7;
+  LongLivedGracefulRestart long_lived_graceful_restart = 8;
 }
 
 message Prefix {
