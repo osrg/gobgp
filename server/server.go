@@ -98,6 +98,7 @@ type BgpServer struct {
 	neighborMap  map[string]*Peer
 	peerGroupMap map[string]*PeerGroup
 	globalRib    *table.TableManager
+	rsRib        *table.TableManager
 	roaManager   *roaManager
 	shutdown     bool
 	watcherMap   map[WatchEventType][]*Watcher
@@ -512,9 +513,10 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
 
 	families = peer.toGlobalFamilies(families)
-
+	rib := server.globalRib
 	ids := make([]string, 0, len(server.neighborMap))
 	if peer.isRouteServerClient() {
+		rib = server.rsRib
 		for _, targetPeer := range server.neighborMap {
 			if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
@@ -525,7 +527,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		ids = append(ids, table.GLOBAL_RIB_NAME)
 	}
 	for _, rf := range families {
-		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
+		best, _, multipath := rib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 		if !peer.isRouteServerClient() {
 			server.notifyBestWatcher(best, multipath)
 		}
@@ -633,6 +635,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 	}
 
 	if peer != nil && peer.isRouteServerClient() {
+		rib = server.rsRib
 		for _, path := range pathList {
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
 			path.Filter(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
@@ -1304,6 +1307,7 @@ func (s *BgpServer) Start(c *config.Global) error {
 
 		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 		s.globalRib = table.NewTableManager(rfs)
+		s.rsRib = table.NewTableManager(rfs)
 
 		if err := s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
 			return err
@@ -1523,6 +1527,7 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*tabl
 				return fmt.Errorf("Neighbor %v doesn't have local rib", addr)
 			}
 			id = peer.ID()
+			m = s.rsRib
 		}
 		af := bgp.RouteFamily(family)
 		tbl, ok := m.Tables[af]
@@ -1596,6 +1601,7 @@ func (s *BgpServer) GetRibInfo(addr string, family bgp.RouteFamily) (info *table
 				return fmt.Errorf("Neighbor %v doesn't have local rib", addr)
 			}
 			id = peer.ID()
+			m = s.rsRib
 		}
 		info, err = m.TableInfo(id, family)
 		return err
@@ -1720,7 +1726,11 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		"Topic": "Peer",
 	}).Infof("Add a peer configuration for:%s", addr)
 
-	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
+	rib := server.globalRib
+	if c.RouteServer.Config.RouteServerClient {
+		rib = server.rsRib
+	}
+	peer := NewPeer(&server.bgpConfig.Global, c, rib, server.policy)
 	server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
 	if peer.isRouteServerClient() {
 		pathList := make([]*table.Path, 0)
@@ -1733,7 +1743,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		}
 		moded := server.RSimportPaths(peer, pathList)
 		if len(moded) > 0 {
-			server.globalRib.ProcessPaths(nil, moded)
+			server.rsRib.ProcessPaths(nil, moded)
 		}
 	}
 	server.neighborMap[addr] = peer
@@ -2446,6 +2456,7 @@ func (w *Watcher) Generate(t WatchEventType) error {
 			}
 			w.notify(&WatchEventAdjIn{PathList: clonePathList(pathList)})
 		case WATCH_EVENT_TYPE_TABLE:
+			rib := w.s.globalRib
 			id := table.GLOBAL_RIB_NAME
 			if len(w.opts.tableName) > 0 {
 				peer, ok := w.s.neighborMap[w.opts.tableName]
@@ -2456,11 +2467,12 @@ func (w *Watcher) Generate(t WatchEventType) error {
 					return fmt.Errorf("Neighbor %v doesn't have local rib", w.opts.tableName)
 				}
 				id = peer.ID()
+				rib = w.s.rsRib
 			}
 
 			pathList := func() map[string][]*table.Path {
 				pathList := make(map[string][]*table.Path)
-				for _, t := range w.s.globalRib.Tables {
+				for _, t := range rib.Tables {
 					for _, dst := range t.GetSortedDestinations() {
 						if paths := dst.GetKnownPathList(id); len(paths) > 0 {
 							pathList[dst.GetNlri().String()] = clonePathList(paths)
