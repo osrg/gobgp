@@ -92,7 +92,7 @@ func TestCalculate(t *testing.T) {
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate([]string{"1", "2"}, false)
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
@@ -100,7 +100,7 @@ func TestCalculate(t *testing.T) {
 
 	d.AddWithdraw(path1.Clone(true))
 
-	d.Calculate([]string{"1", "2"}, false)
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
 	assert.Equal(t, len(d.GetKnownPathList("2")), 0)
@@ -124,7 +124,7 @@ func TestCalculate2(t *testing.T) {
 
 	d := NewDestination(nlri)
 	d.AddNewPath(path1)
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	// suppose peer2 sends grammaatically correct but semantically flawed update message
 	// which has a withdrawal nlri not advertised before
@@ -134,7 +134,7 @@ func TestCalculate2(t *testing.T) {
 	assert.Equal(t, path2.IsWithdraw, true)
 
 	d.AddWithdraw(path2)
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	// we have a path from peer1 here
 	assert.Equal(t, len(d.knownPathList), 1)
@@ -145,7 +145,7 @@ func TestCalculate2(t *testing.T) {
 	assert.Equal(t, path3.IsWithdraw, false)
 
 	d.AddNewPath(path3)
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	// this time, we have paths from peer1 and peer2
 	assert.Equal(t, len(d.knownPathList), 2)
@@ -156,7 +156,7 @@ func TestCalculate2(t *testing.T) {
 	path4 := ProcessMessage(update4, peer3, time.Now())[0]
 
 	d.AddNewPath(path4)
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	// we must have paths from peer1, peer2 and peer3
 	assert.Equal(t, len(d.knownPathList), 3)
@@ -190,7 +190,7 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
@@ -209,7 +209,7 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path3.Filter("1", POLICY_DIRECTION_IMPORT)
 
 	d.AddNewPath(path3)
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
@@ -294,7 +294,7 @@ func TestTimeTieBreaker(t *testing.T) {
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
@@ -305,7 +305,7 @@ func TestTimeTieBreaker(t *testing.T) {
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate(nil, false)
+	d.Calculate()
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
@@ -462,17 +462,18 @@ func TestMultipath(t *testing.T) {
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	best, old, multi := d.Calculate([]string{GLOBAL_RIB_NAME}, false)
-	assert.Equal(t, len(best), 1)
-	assert.Equal(t, old[GLOBAL_RIB_NAME], (*Path)(nil))
+	best, old, multi := d.Calculate().GetChanges(GLOBAL_RIB_NAME, false)
+	assert.NotNil(t, best)
+	assert.Equal(t, old, (*Path)(nil))
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
 	path3 := path2.Clone(true)
 	d.AddWithdraw(path3)
-	best, old, multi = d.Calculate([]string{GLOBAL_RIB_NAME}, false)
-	assert.Equal(t, len(best), 1)
-	assert.Equal(t, old[GLOBAL_RIB_NAME], path1)
+	dd := d.Calculate()
+	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, false)
+	assert.Nil(t, best)
+	assert.Equal(t, old, path1)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 1)
 
@@ -489,8 +490,8 @@ func TestMultipath(t *testing.T) {
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
 	d.AddNewPath(path4)
 
-	best, _, multi = d.Calculate([]string{GLOBAL_RIB_NAME}, false)
-	assert.Equal(t, len(best), 1)
+	best, _, multi = d.Calculate().GetChanges(GLOBAL_RIB_NAME, false)
+	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
@@ -505,8 +506,8 @@ func TestMultipath(t *testing.T) {
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 	d.AddNewPath(path5)
 
-	best, _, multi = d.Calculate([]string{GLOBAL_RIB_NAME}, false)
-	assert.Equal(t, len(best), 1)
+	best, _, multi = d.Calculate().GetChanges(GLOBAL_RIB_NAME, false)
+	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 3)
 

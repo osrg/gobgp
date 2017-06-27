@@ -16,15 +16,16 @@
 package server
 
 import (
+	"net"
+	"runtime"
+	"testing"
+	"time"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"net"
-	"runtime"
-	"testing"
-	"time"
 )
 
 func TestModPolicyAssign(t *testing.T) {
@@ -214,14 +215,14 @@ func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*
 }
 
 func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
-	news, olds, _ := rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, l)
+	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, rib.ProcessPaths(l))
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
-	for idx, path := range news[table.GLOBAL_RIB_NAME] {
+	for idx, path := range news {
 		var old *table.Path
 		if olds != nil {
-			old = olds[table.GLOBAL_RIB_NAME][idx]
+			old = olds[idx]
 		}
 		return path, old
 	}

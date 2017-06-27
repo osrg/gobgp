@@ -467,12 +467,12 @@ func clonePathList(pathList []*table.Path) []*table.Path {
 	return l
 }
 
-func (server *BgpServer) notifyBestWatcher(best map[string][]*table.Path, multipath [][]*table.Path) {
+func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.Path) {
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
 		clonedM[i] = clonePathList(pathList)
 	}
-	clonedB := clonePathList(best[table.GLOBAL_RIB_NAME])
+	clonedB := clonePathList(best)
 	for _, p := range clonedB {
 		switch p.GetRouteFamily() {
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
@@ -510,33 +510,45 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 	server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
 }
 
-func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
+func dstsToPaths(id string, dsts []*table.Destination) ([]*table.Path, []*table.Path, [][]*table.Path) {
+	bestList := make([]*table.Path, 0, len(dsts))
+	oldList := make([]*table.Path, 0, len(dsts))
+	mpathList := make([][]*table.Path, 0, len(dsts))
 
+	for _, dst := range dsts {
+		best, old, mpath := dst.GetChanges(id, false)
+		bestList = append(bestList, best)
+		oldList = append(oldList, old)
+		if mpath != nil {
+			mpathList = append(mpathList, mpath)
+		}
+	}
+	return bestList, oldList, mpathList
+}
+
+func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
+	var bestList []*table.Path
+	var mpathList [][]*table.Path
 	families = peer.toGlobalFamilies(families)
 	rib := server.globalRib
-	ids := make([]string, 0, len(server.neighborMap))
 	if peer.isRouteServerClient() {
 		rib = server.rsRib
-		for _, targetPeer := range server.neighborMap {
-			if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
-				continue
-			}
-			ids = append(ids, targetPeer.TableID())
-		}
-	} else {
-		ids = append(ids, table.GLOBAL_RIB_NAME)
 	}
 	for _, rf := range families {
-		best, _, multipath := rib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
+		dsts := rib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
 		if !peer.isRouteServerClient() {
-			server.notifyBestWatcher(best, multipath)
+			bestList, _, mpathList = dstsToPaths(table.GLOBAL_RIB_NAME, dsts)
+			server.notifyBestWatcher(bestList, mpathList)
 		}
 
 		for _, targetPeer := range server.neighborMap {
 			if peer.isRouteServerClient() != targetPeer.isRouteServerClient() || targetPeer == peer {
 				continue
 			}
-			if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], nil); len(paths) > 0 {
+			if targetPeer.isRouteServerClient() {
+				bestList, _, _ = dstsToPaths(targetPeer.TableID(), dsts)
+			}
+			if paths := targetPeer.processOutgoingPaths(bestList, nil); len(paths) > 0 {
 				sendFsmOutgoingMsg(targetPeer, paths, nil, false)
 			}
 		}
@@ -624,8 +636,12 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 }
 
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
+	var dsts []*table.Destination
+
+	var bestList, oldList []*table.Path
+	var mpathList [][]*table.Path
+
 	rib := server.globalRib
-	var best, old map[string][]*table.Path
 
 	if peer != nil && peer.fsm.pConf.Config.Vrf != "" {
 		vrf := server.globalRib.Vrfs[peer.fsm.pConf.Config.Vrf]
@@ -647,17 +663,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 			}
 			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
 		}
-		isTarget := func(p *Peer) bool {
-			return p.isRouteServerClient() && p.fsm.state == bgp.BGP_FSM_ESTABLISHED && !p.fsm.pConf.GracefulRestart.State.LocalRestarting
-		}
-
-		ids := make([]string, 0, len(server.neighborMap))
-		for _, targetPeer := range server.neighborMap {
-			if isTarget(targetPeer) {
-				ids = append(ids, targetPeer.TableID())
-			}
-		}
-		best, old, _ = rib.ProcessPaths(ids, append(pathList, moded...))
+		dsts = rib.ProcessPaths(append(pathList, moded...))
 	} else {
 		for idx, path := range pathList {
 			if p := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil); p != nil {
@@ -712,20 +718,23 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 			}
 		}
 		server.notifyPostPolicyUpdateWatcher(peer, pathList)
-		var multipath [][]*table.Path
-		best, old, multipath = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+		dsts = rib.ProcessPaths(pathList)
 
-		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
+		bestList, oldList, mpathList = dstsToPaths(table.GLOBAL_RIB_NAME, dsts)
+		if len(bestList) == 0 {
 			return
 		}
-		server.notifyBestWatcher(best, multipath)
+		server.notifyBestWatcher(bestList, mpathList)
 	}
 
 	for _, targetPeer := range server.neighborMap {
 		if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
 			continue
 		}
-		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], old[targetPeer.TableID()]); len(paths) > 0 {
+		if targetPeer.isRouteServerClient() {
+			bestList, oldList, _ = dstsToPaths(targetPeer.TableID(), dsts)
+		}
+		if paths := targetPeer.processOutgoingPaths(bestList, oldList); len(paths) > 0 {
 			sendFsmOutgoingMsg(targetPeer, paths, nil, false)
 		}
 	}
@@ -1743,7 +1752,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		}
 		moded := server.RSimportPaths(peer, pathList)
 		if len(moded) > 0 {
-			server.rsRib.ProcessPaths(nil, moded)
+			server.rsRib.ProcessPaths(moded)
 		}
 	}
 	server.neighborMap[addr] = peer
