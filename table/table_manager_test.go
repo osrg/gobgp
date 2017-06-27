@@ -29,15 +29,12 @@ import (
 // process BGPUpdate message
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
-	paths := ProcessMessage(message, fromPeer, time.Now())
-	best, _, _ := manager.ProcessPaths([]string{GLOBAL_RIB_NAME}, paths)
-	paths2 := make([]*Path, 0, len(paths))
-	for _, p := range best[GLOBAL_RIB_NAME] {
-		if p != nil {
-			paths2 = append(paths2, p)
-		}
+	pathList := make([]*Path, 0)
+	for _, d := range manager.ProcessPaths(ProcessMessage(message, fromPeer, time.Now())) {
+		b, _, _ := d.GetChanges(GLOBAL_RIB_NAME, false)
+		pathList = append(pathList, b)
 	}
-	return paths2, nil
+	return pathList, nil
 }
 
 func getLogger(lv log.Level) *log.Logger {

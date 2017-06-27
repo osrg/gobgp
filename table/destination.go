@@ -140,12 +140,13 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily   bgp.RouteFamily
-	nlri          bgp.AddrPrefixInterface
-	knownPathList paths
-	withdrawList  paths
-	newPathList   paths
-	RadixKey      string
+	routeFamily      bgp.RouteFamily
+	nlri             bgp.AddrPrefixInterface
+	knownPathList    paths
+	withdrawList     paths
+	newPathList      paths
+	oldKnownPathList paths
+	RadixKey         string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
@@ -226,50 +227,10 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, &dd.knownPathList)
 }
 
-func (dd *Destination) AddWithdraw(withdraw *Path) {
-	dd.validatePath(withdraw)
-	dd.withdrawList = append(dd.withdrawList, withdraw)
-}
-
-func (dd *Destination) AddNewPath(newPath *Path) {
-	dd.validatePath(newPath)
-	dd.newPathList = append(dd.newPathList, newPath)
-}
-
-func (dd *Destination) validatePath(path *Path) {
-	if path == nil || path.GetRouteFamily() != dd.routeFamily {
-
-		log.WithFields(log.Fields{
-			"Topic":      "Table",
-			"Key":        dd.GetNlri().String(),
-			"Path":       path,
-			"ExpectedRF": dd.routeFamily,
-		}).Error("path is nil or invalid route family")
-	}
-}
-
-// Calculates best-path among known paths for this destination.
-//
-// Modifies destination's state related to stored paths. Removes withdrawn
-// paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(ids []string, peerDown bool) (map[string]*Path, map[string]*Path, []*Path) {
-	bestList := make(map[string]*Path, len(ids))
-	oldList := make(map[string]*Path, len(ids))
-	oldKnownPathList := dest.knownPathList
-	// First remove the withdrawn paths.
-	dest.explicitWithdraw()
-	// Do implicit withdrawal
-	dest.implicitWithdraw()
-	// Collect all new paths into known paths.
-	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
-	// Clear new paths as we copied them.
-	dest.newPathList = make([]*Path, 0)
-	// Compute new best path
-	dest.computeKnownBestPath()
-
-	f := func(id string) (*Path, *Path) {
-		old := getBestPath(id, &oldKnownPathList)
-		best := dest.GetBestPath(id)
+func (dd *Destination) GetChanges(id string, peerDown bool) (*Path, *Path, []*Path) {
+	best, old := func(id string) (*Path, *Path) {
+		old := getBestPath(id, &dd.oldKnownPathList)
+		best := dd.GetBestPath(id)
 		if best != nil && best.Equal(old) {
 			// RFC4684 3.2. Intra-AS VPN Route Distribution
 			// When processing RT membership NLRIs received from internal iBGP
@@ -300,35 +261,79 @@ func (dest *Destination) Calculate(ids []string, peerDown bool) (map[string]*Pat
 			return old.Clone(true), old
 		}
 		return best, old
-	}
+	}(id)
 
 	var multi []*Path
-	for _, id := range ids {
-		bestList[id], oldList[id] = f(id)
-		if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
-			diff := func(lhs, rhs []*Path) bool {
-				if len(lhs) != len(rhs) {
+
+	if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
+		diff := func(lhs, rhs []*Path) bool {
+			if len(lhs) != len(rhs) {
+				return true
+			}
+			for idx, l := range lhs {
+				if !l.Equal(rhs[idx]) {
 					return true
 				}
-				for idx, l := range lhs {
-					if !l.Equal(rhs[idx]) {
-						return true
-					}
-				}
-				return false
 			}
-			oldM := getMultiBestPath(id, &oldKnownPathList)
-			newM := dest.GetMultiBestPath(id)
-			if diff(oldM, newM) {
-				multi = newM
-				if len(newM) == 0 {
-					multi = []*Path{bestList[id]}
-				}
+			return false
+		}
+		oldM := getMultiBestPath(id, &dd.oldKnownPathList)
+		newM := dd.GetMultiBestPath(id)
+		if diff(oldM, newM) {
+			multi = newM
+			if len(newM) == 0 {
+				multi = []*Path{best}
 			}
 		}
 	}
+	return best, old, multi
+}
 
-	return bestList, oldList, multi
+func (dd *Destination) AddWithdraw(withdraw *Path) {
+	dd.validatePath(withdraw)
+	dd.withdrawList = append(dd.withdrawList, withdraw)
+}
+
+func (dd *Destination) AddNewPath(newPath *Path) {
+	dd.validatePath(newPath)
+	dd.newPathList = append(dd.newPathList, newPath)
+}
+
+func (dd *Destination) validatePath(path *Path) {
+	if path == nil || path.GetRouteFamily() != dd.routeFamily {
+
+		log.WithFields(log.Fields{
+			"Topic":      "Table",
+			"Key":        dd.GetNlri().String(),
+			"Path":       path,
+			"ExpectedRF": dd.routeFamily,
+		}).Error("path is nil or invalid route family")
+	}
+}
+
+// Calculates best-path among known paths for this destination.
+//
+// Modifies destination's state related to stored paths. Removes withdrawn
+// paths from known paths. Also, adds new paths to known paths.
+func (dest *Destination) Calculate() *Destination {
+	oldKnownPathList := dest.knownPathList
+	// First remove the withdrawn paths.
+	dest.explicitWithdraw()
+	// Do implicit withdrawal
+	dest.implicitWithdraw()
+	// Collect all new paths into known paths.
+	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
+	// Clear new paths as we copied them.
+	dest.newPathList = make([]*Path, 0)
+	// Compute new best path
+	dest.computeKnownBestPath()
+
+	return &Destination{
+		routeFamily:      dest.routeFamily,
+		nlri:             dest.nlri,
+		knownPathList:    dest.knownPathList,
+		oldKnownPathList: oldKnownPathList,
+	}
 }
 
 // Removes withdrawn paths.
