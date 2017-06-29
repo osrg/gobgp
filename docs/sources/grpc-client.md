@@ -32,36 +32,7 @@ $ protoc  -I $GOBGP_API --python_out=. --grpc_out=. --plugin=protoc-gen-grpc=`wh
 
 ### Get Neighbor
 
-Here is an example for getting neighbor's information and we assumed that it's created in 'get_neighbor.py' under '$GOPATH/src/github.com/osrg/gobgp/tools/grpc/python'.
-```python
-import gobgp_pb2
-import sys
-
-from grpc.beta import implementations
-
-_TIMEOUT_SECONDS = 10
-
-
-def run(gobgpd_addr, neighbor_addr):
-    channel = implementations.insecure_channel(gobgpd_addr, 50051)
-    with gobgp_pb2.beta_create_GobgpApi_stub(channel) as stub:
-        peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
-        print("BGP neighbor is %s, remote AS %d" % (peer.conf.neighbor_address, peer.conf.peer_as))
-        print("  BGP version 4, remote router ID %s" % (peer.conf.id))
-        print("  BGP state = %s, up for %s" % (peer.info.bgp_state, peer.timers.state.uptime))
-        print("  BGP OutQ = %d, Flops = %d" % (peer.info.out_q, peer.info.flops))
-        print("  Hold time is %d, keepalive interval is %d seconds" % (peer.timers.state.negotiated_hold_time, peer.timers.state.keepalive_interval))
-        print("  Configured hold time is %d, keepalive interval is %d seconds" % (peer.timers.config.hold_time, peer.timers.config.keepalive_interval))
-
-
-if __name__ == '__main__':
-    gobgp = sys.argv[1]
-    neighbor = sys.argv[2]
-    run(gobgp, neighbor)
-```
-
-We need to import gobgp_pb2 and call 'beta_create_GobgpApi_stub' in your code.
-
+['tools/grpc/python/get_neighbor.py'](https://github.com/osrg/gobgp/blob/master/tools/grpc/python/get_neighbor.py) shows an example for getting neighbor's information.
 Let's run this script.
 
 ```bash
@@ -91,26 +62,7 @@ $ protoc  -I $GOBGP_API --ruby_out=. --grpc_out=. --plugin=protoc-gen-grpc=`whic
 
 ### Get Neighbor
 
-Here is an example for getting neighbor's information.
-```ruby
-require 'gobgp'
-require 'gobgp_services'
-
-host = 'localhost'
-host = ARGV[0] if ARGV.length > 0
-
-stub = Gobgpapi::GobgpApi::Stub.new("#{host}:50051")
-arg = Gobgpapi::Arguments.new()
-stub.get_neighbors(arg).each do |n|
-    puts "BGP neighbor is #{n.conf.neighbor_address}, remote AS #{n.conf.peer_as}"
-    puts "\tBGP version 4, remote route ID #{n.conf.id}"
-    puts "\tBGP state = #{n.info.bgp_state}, up for #{n.timers.state.uptime}"
-    puts "\tBGP OutQ = #{n.info.out_q}, Flops = #{n.info.flops}"
-    puts "\tHold time is #{n.timers.state.hold_time}, keepalive interval is #{n.timers.state.keepalive_interval} seconds"
-    puts "\tConfigured hold time is #{n.timers.config.hold_time}"
-end
-```
-
+['tools/grpc/ruby/get_neighbor.py'](https://github.com/osrg/gobgp/blob/master/tools/grpc/ruby/get_neighbor.rb) shows an example for getting neighbor's information.
 Let's run this script.
 
 ```bash
@@ -132,6 +84,8 @@ BGP neighbor is 192.168.10.3, remote AS 65001
 ## <a name="cpp"> C++
 
 We use .so compilation with golang, please use only 1.5 or newer version of Go Lang.
+
+['tools/grpc/cpp/gobgp_api_client.cc'](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/gobgp_api_client.cc) shows an example for getting neighbor's information.
 
 Clone this repository and build API example:
 ```bash
@@ -174,35 +128,7 @@ Copy protocol definition.
 cp $GOPATH/src/github.com/osrg/gobgp/api/gobgp.proto .
 ```
 
-Here is an example to show neighbor information.
-
-```javascript
-var grpc = require('grpc');
-var api = grpc.load('gobgp.proto').gobgpapi;
-var stub = new api.GobgpApi('localhost:50051', grpc.credentials.createInsecure());
-
-stub.getNeighbor({}, function(err, neighbor) {
-  neighbor.peers.forEach(function(peer) {
-    if(peer.info.bgp_state == 'BGP_FSM_ESTABLISHED') {
-      var date = new Date(Number(peer.timers.state.uptime)*1000);
-      var holdtime = peer.timers.state.negotiated_hold_time;
-      var keepalive = peer.timers.state.keepalive_interval;
-    }
-
-    console.log('BGP neighbor:', peer.conf.neighbor_address,
-                ', remote AS:', peer.conf.peer_as);
-    console.log("\tBGP version 4, remote router ID:", peer.conf.id);
-    console.log("\tBGP state:", peer.info.bgp_state,
-                ', uptime:', date);
-    console.log("\tBGP OutQ:", peer.info.out_q,
-                ', Flops:', peer.info.flops);
-    console.log("\tHold time:", holdtime,
-                ', keepalive interval:', keepalive, 'seconds');
-    console.log("\tConfigured hold time:", peer.timers.config.hold_time);
-  });
-});
-```
-
+['tools/grpc/nodejs/get_neighbor.js'](https://github.com/osrg/gobgp/blob/master/tools/grpc/nodejs/get_neighbors.js) shows an example to show neighbor information.
 Let's run this:
 
 ```
@@ -282,61 +208,9 @@ $ ls ./src/gobgpapi/
 Gobgp.java  GobgpApiGrpc.java
 ```
 
-### Create your own client and build it:
-```bash
-$ cd ~/go/src/github.com/osrg/gobgp/tools/grpc/java
-$ mkdir -p src/gobgp/example
-$ cd src/gobgp/example
-$ vi GobgpSampleClient.java
-```
+### Build sample client:
 
-```java
-package gobgp.example;
-
-import gobgpapi.Gobgp;
-import gobgpapi.GobgpApiGrpc;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-
-import java.util.Iterator;
-
-public class GobgpSampleClient {
-
-    private final GobgpApiGrpc.GobgpApiBlockingStub blockingStub;
-
-    public GobgpSampleClient(String host, int port) {
-        ManagedChannel channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext(true).build();
-        this.blockingStub = GobgpApiGrpc.newBlockingStub(channel);
-    }
-
-    public void getNeighbors(){
-
-        Gobgp.Arguments request = Gobgp.Arguments.newBuilder().build();
-
-        for(Iterator<Gobgp.Peer> iterator = this.blockingStub.getNeighbors(request); iterator.hasNext(); ) {
-            Gobgp.Peer p = iterator.next();
-            Gobgp.PeerConf conf = p.getConf();
-            Gobgp.PeerState state = p.getInfo();
-            Gobgp.Timers timer = p.getTimers();
-
-            System.out.printf("BGP neighbor is %s, remote AS %d\n", conf.getNeighborAddress(), conf.getPeerAs());
-            System.out.printf("\tBGP version 4, remote router ID %s\n", conf.getId());
-            System.out.printf("\tBGP state = %s, up for %d\n", state.getBgpState(), timer.getState().getUptime());
-            System.out.printf("\tBGP OutQ = %d, Flops = %d\n", state.getOutQ(), state.getFlops());
-            System.out.printf("\tHold time is %d, keepalive interval is %d seconds\n",
-                    timer.getState().getHoldTime(), timer.getState().getKeepaliveInterval());
-            System.out.printf("\tConfigured hold time is %d\n", timer.getConfig().getHoldTime());
-
-        }
-    }
-
-    public static void main(String args[]){
-        new GobgpSampleClient(args[0], 8080).getNeighbors();
-    }
-
-}
-
-```
+['tools/grpc/java/src/gobgp/example/GobgpSampleClient.java'](https://github.com/osrg/gobgp/blob/master/tools/grpc/java/src/gobgp/example/GobgpSampleClient.java) is an example to show neighbor information.
 
 Let's build and run it. However we need to download and copy some dependencies beforehand.
 ```bash
