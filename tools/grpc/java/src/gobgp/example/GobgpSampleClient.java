@@ -5,7 +5,7 @@ import gobgpapi.GobgpApiGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
-import java.util.Iterator;
+import java.util.List;
 
 public class GobgpSampleClient {
 
@@ -18,13 +18,12 @@ public class GobgpSampleClient {
 
     public void getNeighbors(){
 
-        Gobgp.Arguments request = Gobgp.Arguments.newBuilder().build();
+        Gobgp.GetNeighborRequest request = Gobgp.GetNeighborRequest.newBuilder().build();
 
-        for(Iterator<Gobgp.Peer> iterator = this.blockingStub.getNeighbors(request); iterator.hasNext(); ) {
-            Gobgp.Peer p = iterator.next();
-            Gobgp.PeerConf conf = p.getConf();
-            Gobgp.PeerState state = p.getInfo();
-            Gobgp.Timers timer = p.getTimers();
+        for(Gobgp.Peer peer: this.blockingStub.getNeighbor(request).getPeersList()) {
+            Gobgp.PeerConf conf = peer.getConf();
+            Gobgp.PeerState state = peer.getInfo();
+            Gobgp.Timers timer = peer.getTimers();
 
             System.out.printf("BGP neighbor is %s, remote AS %d\n", conf.getNeighborAddress(), conf.getPeerAs());
             System.out.printf("\tBGP version 4, remote router ID %s\n", conf.getId());
@@ -38,7 +37,7 @@ public class GobgpSampleClient {
     }
 
     public static void main(String args[]){
-        new GobgpSampleClient(args[0], 8080).getNeighbors();
+        new GobgpSampleClient(args[0], 50051).getNeighbors();
     }
 
 }

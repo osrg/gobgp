@@ -232,13 +232,15 @@ $ CLASSPATH=./lib/protobuf-java-3.3.0.jar:./lib/guava-22.0.jar:./lib/grpc-okhttp
 $ javac -classpath $CLASSPATH -d ./classes ./src/gobgpapi/*.java
 $ javac -classpath $CLASSPATH -d ./classes ./src/gobgp/example/GobgpSampleClient.java
 $ java -cp $CLASSPATH gobgp.example.GobgpSampleClient localhost
-Feb 08, 2016 2:39:29 PM io.grpc.internal.TransportSet$1 run
-INFO: Created transport io.grpc.okhttp.OkHttpClientTransport@ba4d54(localhost/127.0.0.1:8080) for localhost/127.0.0.1:8080
-Feb 08, 2016 2:39:29 PM io.grpc.internal.TransportSet$TransportListener transportReady
-INFO: Transport io.grpc.okhttp.OkHttpClientTransport@ba4d54(localhost/127.0.0.1:8080) for localhost/127.0.0.1:8080 is ready
-BGP neighbor is 10.0.255.1, remote AS 65001
-	BGP version 4, remote router ID <nil>
-	BGP state = BGP_FSM_ACTIVE, up for 0
+BGP neighbor is 10.0.0.2, remote AS 1
+	BGP version 4, remote router ID
+	BGP state = active, up for 0
+	BGP OutQ = 0, Flops = 0
+	Hold time is 0, keepalive interval is 0 seconds
+	Configured hold time is 90
+BGP neighbor is 10.0.0.3, remote AS 1
+	BGP version 4, remote router ID
+	BGP state = active, up for 0
 	BGP OutQ = 0, Flops = 0
 	Hold time is 0, keepalive interval is 0 seconds
 	Configured hold time is 90
