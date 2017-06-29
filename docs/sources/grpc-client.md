@@ -136,7 +136,13 @@ BGP neighbor: 10.0.255.2 , remote AS: 65002
 ```
 
 ## <a name="java"> Java
-We can make a client in Java using [grpc-java](https://github.com/grpc/grpc-java).
+
+At the time of this writing, versions of each plugins and tools are as following:
+* ProtocolBuffer: 3.3.0
+* grpc-java: 1.4.0
+* java: 1.8.0_131
+
+In proceeding with the following procedure, please substitute versions to the latest.
 
 ### Install JDK:
 We need to install JDK and we use Oracle JDK8 in this example.
@@ -145,17 +151,18 @@ $ sudo add-apt-repository ppa:webupd8team/java
 $ sudo apt-get update
 $ sudo apt-get install oracle-java8-installer
 $ java -version
-java version "1.8.0_72"
-Java(TM) SE Runtime Environment (build 1.8.0_72-b15)
-Java HotSpot(TM) 64-Bit Server VM (build 25.72-b15, mixed mode)
+java version "1.8.0_131"
+Java(TM) SE Runtime Environment (build 1.8.0_131-b11)
+Java HotSpot(TM) 64-Bit Server VM (build 25.131-b11, mixed mode)
 $ echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> ~/.bashrc
 $ source ~/.bashrc
 ```
 
 ### Create protobuf library for Java:
+We assume you've cloned gRPC repository in your home directory.
 ```bash
 $ sudo apt-get install maven
-$ cd ~/work/protobuf-3.0.0-beta-2/java
+$ cd ~/grpc/third_party/protobuf/java
 $ mvn package
 ...
 [INFO]
@@ -167,22 +174,20 @@ $ mvn package
 [INFO] Finished at: Mon Feb 08 11:51:51 JST 2016
 [INFO] Final Memory: 31M/228M
 [INFO] ------------------------------------------------------------------------
-$ ls ./target/proto*
-./target/protobuf-java-3.0.0-beta-2.jar
+$ ls ./core/target/proto*
+./core/target/protobuf-java-3.3.0.jar
 ```
 
-### Clone grpc-java and build protoc plugin and other dependencies:
+### Clone grpc-java and get plugins
 ```bash
 $ cd ~/work
 $ git clone https://github.com/grpc/grpc-java.git
 $ cd ./grpc-java
-$ git checkout -b v0.12.0 v0.12.0
+$ git checkout -b v1.4.0 v1.4.0
 $ cd ./all
 $ ../gradlew build
 $ ls ../compiler/build/binaries/java_pluginExecutable/
 protoc-gen-grpc-java
-$ ls ./build/libs/grpc-all-0.12.0*
-./build/libs/grpc-all-0.12.0-javadoc.jar  ./build/libs/grpc-all-0.12.0-sources.jar  ./build/libs/grpc-all-0.12.0.jar
 ```
 
 ### Generate stub classes:
@@ -192,7 +197,7 @@ $ mkdir -p java/src
 $ cd java
 $ GOBGP_API=$GOPATH/src/github.com/osrg/gobgp/api
 $ protoc --java_out=./src --proto_path="$GOBGP_API" $GOBGP_API/gobgp.proto
-$ protoc --plugin=protoc-gen-grpc-java=$HOME/work/grpc-java/compiler/build/binaries/java_pluginExecutable/protoc-gen-grpc-java --grpc-java_out=./src --proto_path="$GOBGP_API" $GOBGP_API/gobgp.proto
+$ protoc --plugin=protoc-gen-grpc-java=$HOME/work/grpc-java/compiler/build/exe/java_plugin/protoc-gen-grpc-java --grpc-java_out=./src --proto_path="$GOBGP_API" $GOBGP_API/gobgp.proto
 $ ls ./src/gobgpapi/
 Gobgp.java  GobgpApiGrpc.java
 ```
@@ -206,18 +211,24 @@ Let's build and run it. However we need to download and copy some dependencies b
 $ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/java
 $ mkdir lib
 $ cd lib
-$ wget http://central.maven.org/maven2/com/google/guava/guava/18.0/guava-18.0.jar
-$ wget http://central.maven.org/maven2/com/squareup/okhttp/okhttp/2.5.0/okhttp-2.5.0.jar
-$ wget http://central.maven.org/maven2/com/squareup/okio/okio/1.6.0/okio-1.6.0.jar
-$ cp ~/work/protobuf-3.0.0-beta-2/java/target/protobuf-java-3.0.0-beta-2.jar ./
-$ cp ~/work/grpc-java/all/build/libs/grpc-all-0.12.0.jar ./
+$ wget http://central.maven.org/maven2/com/google/guava/guava/22.0/guava-22.0.jar
+$ wget http://central.maven.org/maven2/com/squareup/okhttp/okhttp/2.5.0/okhttp-2.7.5.jar
+$ wget http://central.maven.org/maven2/com/squareup/okio/okio/1.13.0/okio-1.13.0.jar
+$ wget http://central.maven.org/maven2/com/google/instrumentation/instrumentation-api/0.4.3/instrumentation-api-0.4.3.jar
+$ cp ~/grpc/third_party/protobuf/java/core/target/protobuf-java-3.3.0.jar ./
+$ cp ~/work/grpc-java/stub/build/libs/grpc-stub-1.4.0.jar ./
+$ cp ~/work/grpc-java/core/build/libs/grpc-core-1.4.0.jar ./
+$ cp ~/work/grpc-java/protobuf/build/libs/grpc-protobuf-1.4.0.jar ./
+$ cp ~/work/grpc-java/protobuf-lite/build/libs/grpc-protobuf-lite-1.4.0.jar ./
+$ cp ~/work/grpc-java/context/build/libs/grpc-context-1.4.0.jar ./
+$ cp ~/work/grpc-java/okhttp/build/libs/grpc-okhttp-1.4.0.jar ./
 ```
 
 We are ready to build and run.
 ```bash
 $ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/java
 $ mkdir classes
-$ CLASSPATH=./lib/protobuf-java-3.0.0-beta-2.jar:./lib/grpc-all-0.12.0.jar:./lib/guava-18.0.jar:./lib/okhttp-2.5.0.jar:./lib/okio-1.6.0.jar:./classes
+$ CLASSPATH=./lib/protobuf-java-3.3.0.jar:./lib/guava-22.0.jar:./lib/grpc-okhttp-1.4.0.jar:./lib/okio-1.13.0.jar:./lib/grpc-stub-1.4.0.jar:./lib/grpc-core-1.4.0.jar:./lib/grpc-protobuf-1.4.0.jar:./lib/okhttp-2.7.5.jar:./lib/instrumentation-api-0.4.3.jar:./lib/grpc-context-1.4.0.jar:./lib/grpc-protobuf-lite-1.4.0.jar:./classes/
 $ javac -classpath $CLASSPATH -d ./classes ./src/gobgpapi/*.java
 $ javac -classpath $CLASSPATH -d ./classes ./src/gobgp/example/GobgpSampleClient.java
 $ java -cp $CLASSPATH gobgp.example.GobgpSampleClient localhost
