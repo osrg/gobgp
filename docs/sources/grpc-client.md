@@ -90,18 +90,19 @@ $ bash build.sh
 
 ### Let's run it:
 ```bash
-LD_LIBRARY_PATH=".:/opt/grpc/lib:/opt/protobuf_3.0.0_alpha4/lib" ./gobgp_api_client
-
-List of announced prefixes for route family: 65537
-
-Prefix: 10.10.20.0/22
-NLRI: {"nlri":{"prefix":"10.10.20.0/22"},"attrs":[{"type":1,"value":0},{"type":3,"nexthop":"0.0.0.0"}]}
-
-
-List of announced prefixes for route family: 65669
-
-Prefix: [destination:10.0.0.0/24][protocol: tcp][source:20.0.0.0/24]
-NLRI: {"nlri":{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"value":[{"op":129,"value":6}]},{"type":2,"value":{"prefix":"20.0.0.0/24"}}]},"attrs":[{"type":1,"value":0},{"type":14,"nexthop":"0.0.0.0","afi":1,"safi":133,"value":[{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"value":[{"op":129,"value":6}]},{"type":2,"value":{"prefix":"20.0.0.0/24"}}]}]},{"type":16,"value":[{"type":128,"subtype":8,"value":"10:10"}]}]}
+$ ./gobgp_api_client 172.18.0.2
+BGP neighbor is: 10.0.0.2, remote AS: 1
+	BGP version: 4, remote route ID
+	BGP state = active, up for 0
+	BGP OutQ = 0, Flops = 0
+	Hold time is 0, keepalive interval is 0seconds
+	Configured hold time is 90
+BGP neighbor is: 10.0.0.3, remote AS: 1
+	BGP version: 4, remote route ID
+	BGP state = active, up for 0
+	BGP OutQ = 0, Flops = 0
+	Hold time is 0, keepalive interval is 0seconds
+	Configured hold time is 90
 ```
 
 ## <a name="nodejs"> Node.js
