@@ -36,15 +36,13 @@ $ protoc  -I $GOBGP_API --python_out=. --grpc_out=. --plugin=protoc-gen-grpc=`wh
 Let's run this script.
 
 ```bash
-$ source ~/venv/bin/activate
-(venv)$ python get_neighbor.py 10.0.255.1 10.0.0.1
-BGP neighbor is 10.0.0.1, remote AS 65001
-  BGP version 4, remote router ID 192.168.0.1
-  BGP state = BGP_FSM_ESTABLISHED, up for 9042
+$ python get_neighbor.py 172.18.0.2
+BGP neighbor is 10.0.0.2, remote AS 65002
+  BGP version 4, remote router ID
+  BGP state = active, up for 0
   BGP OutQ = 0, Flops = 0
-  Hold time is 30, keepalive interval is 10 seconds
-  Configured hold time is 30, keepalive interval is 10 seconds
-
+  Hold time is 0, keepalive interval is 0 seconds
+  Configured hold time is 90, keepalive interval is 30 seconds
 ```
 
 We got the neighbor information successfully.
