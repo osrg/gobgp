@@ -1,7 +1,17 @@
+HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
+SYSTEM ?= $(HOST_SYSTEM)
 CXX = g++
-CPPFLAGS += -I/opt/protobuf_3.0.0_alpha4/include -I/opt/grpc/include -pthread
+CPPFLAGS += -I/usr/local/include -pthread
 CXXFLAGS += -std=c++11
-LDFLAGS += -L/opt/grpc/lib -L/opt/protobuf_3.0.0_alpha4/lib -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl
+ifeq ($(SYSTEM),Darwin)
+LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++`            \
+           -lgrpc++_reflection \
+           -lprotobuf -lpthread -ldl
+else
+LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++`            \
+           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed \
+           -lprotobuf -lpthread -ldl
+endif
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
@@ -13,7 +23,7 @@ vpath %.proto $(PROTOS_PATH)
 all: system-check gobgp_api_client
 
 gobgp_api_client: gobgp_api_client.pb.o gobgp_api_client.grpc.pb.o gobgp_api_client.o
-	$(CXX) $^ $(LDFLAGS) -L. -lgobgp -o $@ 
+	$(CXX) $^ $(LDFLAGS) -L. -lgobgp -o $@
 
 %.grpc.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<

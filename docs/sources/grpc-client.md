@@ -79,19 +79,13 @@ We use .so compilation with golang, please use only 1.5 or newer version of Go L
 
 ['tools/grpc/cpp/gobgp_api_client.cc'](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/gobgp_api_client.cc) shows an example for getting neighbor's information.
 
-Clone this repository and build API example:
-```bash
-export PATH="$PATH:/opt//grpc/bin:/opt/protobuf_3.0.0_alpha4/bin/"
+We provide ['tools/grpc/cpp/build.sh'](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/build.sh) to build this sample code.
+This script also generates stub codes and builds GoBGP shared library.
 
-cd /usr/src
-git clone https://github.com/osrg/gobgp.git
-cd gobgp/gobgp/lib
-go build -buildmode=c-shared -o libgobgp.so *.go
-cp libgobgp.h /usr/src/gobgp/tools/grpc/cpp
-cp libgobgp.so /usr/src/gobgp/tools/grpc/cpp
-cp /usr/src/gobgp/api/gobgp.proto /usr/src/gobgp/tools/grpc/cpp/gobgp_api_client.proto
-cd /usr/src/gobgp/tools/grpc/cpp
-make
+Let's build the sample code:
+```bash
+$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/cpp
+$ bash build.sh
 ```
 
 ### Let's run it:
