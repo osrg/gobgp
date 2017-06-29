@@ -112,13 +112,15 @@ BGP neighbor is: 10.0.0.3, remote AS: 1
 Copy protocol definition.
 
 ```bash
-cp $GOPATH/src/github.com/osrg/gobgp/api/gobgp.proto .
+$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/nodejs
+$ ln -s $GOPATH/src/github.com/osrg/gobgp/api/gobgp.proto
 ```
 
 ['tools/grpc/nodejs/get_neighbor.js'](https://github.com/osrg/gobgp/blob/master/tools/grpc/nodejs/get_neighbors.js) shows an example to show neighbor information.
 Let's run this:
 
 ```
+$ node get_neighbors.js
 BGP neighbor: 10.0.255.1 , remote AS: 65001
         BGP version 4, remote router ID: 10.0.255.1
         BGP state: BGP_FSM_ESTABLISHED , uptime: Wed Jul 20 2016 05:37:22 GMT+0900 (JST)
