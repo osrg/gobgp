@@ -1,12 +1,11 @@
-require 'gobgp'
-require 'gobgp_services'
+require 'gobgp_pb'
+require 'gobgp_services_pb'
 
-host = 'localhost'
-host = ARGV[0] if ARGV.length > 0
+host = ARGV[0]
 
 stub = Gobgpapi::GobgpApi::Stub.new("#{host}:50051", :this_channel_is_insecure)
-arg = Gobgpapi::Arguments.new()
-stub.get_neighbors(arg).each do |n|
+arg = Gobgpapi::GetNeighborRequest.new()
+stub.get_neighbor(arg).peers.each do |n|
     puts "BGP neighbor is #{n.conf.neighbor_address}, remote AS #{n.conf.peer_as}"
     puts "\tBGP version 4, remote route ID #{n.conf.id}"
     puts "\tBGP state = #{n.info.bgp_state}, up for #{n.timers.state.uptime}"
