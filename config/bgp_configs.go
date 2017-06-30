@@ -981,19 +981,6 @@ type DynamicNeighborConfig struct {
 	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
 }
 
-func (lhs *DynamicNeighborConfig) Equal(rhs *DynamicNeighborConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Prefix != rhs.Prefix {
-		return false
-	}
-	if lhs.PeerGroup != rhs.PeerGroup {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:dynamic-neighbor
 type DynamicNeighbor struct {
 	// original -> gobgp:prefix
@@ -1001,16 +988,6 @@ type DynamicNeighbor struct {
 	Config DynamicNeighborConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:dynamic-neighbor-state
 	State DynamicNeighborState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *DynamicNeighbor) Equal(rhs *DynamicNeighbor) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:state
@@ -1033,38 +1010,12 @@ type CollectorConfig struct {
 	TableDumpInterval uint64 `mapstructure:"table-dump-interval" json:"table-dump-interval,omitempty"`
 }
 
-func (lhs *CollectorConfig) Equal(rhs *CollectorConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Url != rhs.Url {
-		return false
-	}
-	if lhs.DbName != rhs.DbName {
-		return false
-	}
-	if lhs.TableDumpInterval != rhs.TableDumpInterval {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:collector
 type Collector struct {
 	// original -> gobgp:collector-config
 	Config CollectorConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:collector-state
 	State CollectorState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Collector) Equal(rhs *Collector) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:state
@@ -1103,52 +1054,12 @@ type ZebraConfig struct {
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
 }
 
-func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.Url != rhs.Url {
-		return false
-	}
-	if len(lhs.RedistributeRouteTypeList) != len(rhs.RedistributeRouteTypeList) {
-		return false
-	}
-	for idx, l := range lhs.RedistributeRouteTypeList {
-		if l != rhs.RedistributeRouteTypeList[idx] {
-			return false
-		}
-	}
-	if lhs.Version != rhs.Version {
-		return false
-	}
-	if lhs.NexthopTriggerEnable != rhs.NexthopTriggerEnable {
-		return false
-	}
-	if lhs.NexthopTriggerDelay != rhs.NexthopTriggerDelay {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:zebra-config
 	Config ZebraConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:zebra-state
 	State ZebraState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Zebra) Equal(rhs *Zebra) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:config
@@ -1165,43 +1076,11 @@ type MrtConfig struct {
 	RotationInterval uint64 `mapstructure:"rotation-interval" json:"rotation-interval,omitempty"`
 }
 
-func (lhs *MrtConfig) Equal(rhs *MrtConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.DumpType != rhs.DumpType {
-		return false
-	}
-	if lhs.FileName != rhs.FileName {
-		return false
-	}
-	if lhs.TableName != rhs.TableName {
-		return false
-	}
-	if lhs.DumpInterval != rhs.DumpInterval {
-		return false
-	}
-	if lhs.RotationInterval != rhs.RotationInterval {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:mrt
 type Mrt struct {
 	// original -> gobgp:file-name
 	// original -> gobgp:mrt-config
 	Config MrtConfig `mapstructure:"config" json:"config,omitempty"`
-}
-
-func (lhs *Mrt) Equal(rhs *Mrt) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:state
@@ -1224,28 +1103,6 @@ type BmpServerConfig struct {
 	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
 }
 
-func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Address != rhs.Address {
-		return false
-	}
-	if lhs.Port != rhs.Port {
-		return false
-	}
-	if lhs.RouteMonitoringPolicy != rhs.RouteMonitoringPolicy {
-		return false
-	}
-	if lhs.StatisticsTimeout != rhs.StatisticsTimeout {
-		return false
-	}
-	if lhs.RouteMirroringEnabled != rhs.RouteMirroringEnabled {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:bmp-server
 type BmpServer struct {
 	// original -> gobgp:address
@@ -1253,16 +1110,6 @@ type BmpServer struct {
 	Config BmpServerConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:bmp-server-state
 	State BmpServerState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *BmpServer) Equal(rhs *BmpServer) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:rpki-received
@@ -1283,34 +1130,6 @@ type RpkiReceived struct {
 	Error int64 `mapstructure:"error" json:"error,omitempty"`
 }
 
-func (lhs *RpkiReceived) Equal(rhs *RpkiReceived) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.SerialNotify != rhs.SerialNotify {
-		return false
-	}
-	if lhs.CacheReset != rhs.CacheReset {
-		return false
-	}
-	if lhs.CacheResponse != rhs.CacheResponse {
-		return false
-	}
-	if lhs.Ipv4Prefix != rhs.Ipv4Prefix {
-		return false
-	}
-	if lhs.Ipv6Prefix != rhs.Ipv6Prefix {
-		return false
-	}
-	if lhs.EndOfData != rhs.EndOfData {
-		return false
-	}
-	if lhs.Error != rhs.Error {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:rpki-sent
 type RpkiSent struct {
 	// original -> gobgp:serial-query
@@ -1321,41 +1140,12 @@ type RpkiSent struct {
 	Error int64 `mapstructure:"error" json:"error,omitempty"`
 }
 
-func (lhs *RpkiSent) Equal(rhs *RpkiSent) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.SerialQuery != rhs.SerialQuery {
-		return false
-	}
-	if lhs.ResetQuery != rhs.ResetQuery {
-		return false
-	}
-	if lhs.Error != rhs.Error {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:rpki-messages
 type RpkiMessages struct {
 	// original -> gobgp:rpki-sent
 	RpkiSent RpkiSent `mapstructure:"rpki-sent" json:"rpki-sent,omitempty"`
 	// original -> gobgp:rpki-received
 	RpkiReceived RpkiReceived `mapstructure:"rpki-received" json:"rpki-received,omitempty"`
-}
-
-func (lhs *RpkiMessages) Equal(rhs *RpkiMessages) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.RpkiSent.Equal(&(rhs.RpkiSent)) {
-		return false
-	}
-	if !lhs.RpkiReceived.Equal(&(rhs.RpkiReceived)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:state
@@ -1400,31 +1190,6 @@ type RpkiServerConfig struct {
 	Preference uint8 `mapstructure:"preference" json:"preference,omitempty"`
 }
 
-func (lhs *RpkiServerConfig) Equal(rhs *RpkiServerConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Address != rhs.Address {
-		return false
-	}
-	if lhs.Port != rhs.Port {
-		return false
-	}
-	if lhs.RefreshTime != rhs.RefreshTime {
-		return false
-	}
-	if lhs.HoldTime != rhs.HoldTime {
-		return false
-	}
-	if lhs.RecordLifetime != rhs.RecordLifetime {
-		return false
-	}
-	if lhs.Preference != rhs.Preference {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
 	// original -> gobgp:address
@@ -1432,16 +1197,6 @@ type RpkiServer struct {
 	Config RpkiServerConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:rpki-server-state
 	State RpkiServerState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *RpkiServer) Equal(rhs *RpkiServer) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -1498,40 +1253,6 @@ type PeerGroupConfig struct {
 	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name,omitempty"`
 }
 
-func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.PeerAs != rhs.PeerAs {
-		return false
-	}
-	if lhs.LocalAs != rhs.LocalAs {
-		return false
-	}
-	if lhs.PeerType != rhs.PeerType {
-		return false
-	}
-	if lhs.AuthPassword != rhs.AuthPassword {
-		return false
-	}
-	if lhs.RemovePrivateAs != rhs.RemovePrivateAs {
-		return false
-	}
-	if lhs.RouteFlapDamping != rhs.RouteFlapDamping {
-		return false
-	}
-	if lhs.SendCommunity != rhs.SendCommunity {
-		return false
-	}
-	if lhs.Description != rhs.Description {
-		return false
-	}
-	if lhs.PeerGroupName != rhs.PeerGroupName {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:peer-group
 type PeerGroup struct {
 	// original -> bgp:peer-group-name
@@ -1569,71 +1290,6 @@ type PeerGroup struct {
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
 }
 
-func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.Timers.Equal(&(rhs.Timers)) {
-		return false
-	}
-	if !lhs.Transport.Equal(&(rhs.Transport)) {
-		return false
-	}
-	if !lhs.ErrorHandling.Equal(&(rhs.ErrorHandling)) {
-		return false
-	}
-	if !lhs.LoggingOptions.Equal(&(rhs.LoggingOptions)) {
-		return false
-	}
-	if !lhs.EbgpMultihop.Equal(&(rhs.EbgpMultihop)) {
-		return false
-	}
-	if !lhs.RouteReflector.Equal(&(rhs.RouteReflector)) {
-		return false
-	}
-	if !lhs.AsPathOptions.Equal(&(rhs.AsPathOptions)) {
-		return false
-	}
-	if !lhs.AddPaths.Equal(&(rhs.AddPaths)) {
-		return false
-	}
-	if len(lhs.AfiSafis) != len(rhs.AfiSafis) {
-		return false
-	}
-	{
-		lmap := make(map[string]*AfiSafi)
-		for i, l := range lhs.AfiSafis {
-			lmap[mapkey(i, string(l.Config.AfiSafiName))] = &lhs.AfiSafis[i]
-		}
-		for i, r := range rhs.AfiSafis {
-			if l, y := lmap[mapkey(i, string(r.Config.AfiSafiName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if !lhs.GracefulRestart.Equal(&(rhs.GracefulRestart)) {
-		return false
-	}
-	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
-		return false
-	}
-	if !lhs.UseMultiplePaths.Equal(&(rhs.UseMultiplePaths)) {
-		return false
-	}
-	if !lhs.RouteServer.Equal(&(rhs.RouteServer)) {
-		return false
-	}
-	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:state
 type TtlSecurityState struct {
 	// original -> gobgp:enabled
@@ -1652,35 +1308,12 @@ type TtlSecurityConfig struct {
 	TtlMin uint8 `mapstructure:"ttl-min" json:"ttl-min,omitempty"`
 }
 
-func (lhs *TtlSecurityConfig) Equal(rhs *TtlSecurityConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.TtlMin != rhs.TtlMin {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:ttl-security
 type TtlSecurity struct {
 	// original -> gobgp:ttl-security-config
 	Config TtlSecurityConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:ttl-security-state
 	State TtlSecurityState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *TtlSecurity) Equal(rhs *TtlSecurity) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:state
@@ -1697,32 +1330,12 @@ type RouteServerConfig struct {
 	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
 }
 
-func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.RouteServerClient != rhs.RouteServerClient {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:route-server
 type RouteServer struct {
 	// original -> gobgp:route-server-config
 	Config RouteServerConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:route-server-state
 	State RouteServerState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *RouteServer) Equal(rhs *RouteServer) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-op:prefixes
@@ -1733,22 +1346,6 @@ type Prefixes struct {
 	Sent uint32 `mapstructure:"sent" json:"sent,omitempty"`
 	// original -> bgp-op:installed
 	Installed uint32 `mapstructure:"installed" json:"installed,omitempty"`
-}
-
-func (lhs *Prefixes) Equal(rhs *Prefixes) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Received != rhs.Received {
-		return false
-	}
-	if lhs.Sent != rhs.Sent {
-		return false
-	}
-	if lhs.Installed != rhs.Installed {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -1769,35 +1366,12 @@ type AddPathsConfig struct {
 	SendMax uint8 `mapstructure:"send-max" json:"send-max,omitempty"`
 }
 
-func (lhs *AddPathsConfig) Equal(rhs *AddPathsConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Receive != rhs.Receive {
-		return false
-	}
-	if lhs.SendMax != rhs.SendMax {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:add-paths
 type AddPaths struct {
 	// original -> bgp:add-paths-config
 	Config AddPathsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:add-paths-state
 	State AddPathsState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *AddPaths) Equal(rhs *AddPaths) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -1818,35 +1392,12 @@ type AsPathOptionsConfig struct {
 	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as,omitempty"`
 }
 
-func (lhs *AsPathOptionsConfig) Equal(rhs *AsPathOptionsConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AllowOwnAs != rhs.AllowOwnAs {
-		return false
-	}
-	if lhs.ReplacePeerAs != rhs.ReplacePeerAs {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:as-path-options
 type AsPathOptions struct {
 	// original -> bgp:as-path-options-config
 	Config AsPathOptionsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:as-path-options-state
 	State AsPathOptionsState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *AsPathOptions) Equal(rhs *AsPathOptions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -1867,35 +1418,12 @@ type RouteReflectorConfig struct {
 	RouteReflectorClient bool `mapstructure:"route-reflector-client" json:"route-reflector-client,omitempty"`
 }
 
-func (lhs *RouteReflectorConfig) Equal(rhs *RouteReflectorConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.RouteReflectorClusterId != rhs.RouteReflectorClusterId {
-		return false
-	}
-	if lhs.RouteReflectorClient != rhs.RouteReflectorClient {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:route-reflector
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
 	Config RouteReflectorConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:route-reflector-state
 	State RouteReflectorState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *RouteReflector) Equal(rhs *RouteReflector) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -1916,35 +1444,12 @@ type EbgpMultihopConfig struct {
 	MultihopTtl uint8 `mapstructure:"multihop-ttl" json:"multihop-ttl,omitempty"`
 }
 
-func (lhs *EbgpMultihopConfig) Equal(rhs *EbgpMultihopConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.MultihopTtl != rhs.MultihopTtl {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:ebgp-multihop
 type EbgpMultihop struct {
 	// original -> bgp:ebgp-multihop-config
 	Config EbgpMultihopConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:ebgp-multihop-state
 	State EbgpMultihopState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *EbgpMultihop) Equal(rhs *EbgpMultihop) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -1961,32 +1466,12 @@ type LoggingOptionsConfig struct {
 	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes" json:"log-neighbor-state-changes,omitempty"`
 }
 
-func (lhs *LoggingOptionsConfig) Equal(rhs *LoggingOptionsConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.LogNeighborStateChanges != rhs.LogNeighborStateChanges {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:logging-options
 type LoggingOptions struct {
 	// original -> bgp:logging-options-config
 	Config LoggingOptionsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:logging-options-state
 	State LoggingOptionsState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *LoggingOptions) Equal(rhs *LoggingOptions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -2005,32 +1490,12 @@ type ErrorHandlingConfig struct {
 	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw" json:"treat-as-withdraw,omitempty"`
 }
 
-func (lhs *ErrorHandlingConfig) Equal(rhs *ErrorHandlingConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.TreatAsWithdraw != rhs.TreatAsWithdraw {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:error-handling
 type ErrorHandling struct {
 	// original -> bgp:error-handling-config
 	Config ErrorHandlingConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:error-handling-state
 	State ErrorHandlingState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *ErrorHandling) Equal(rhs *ErrorHandling) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -2077,47 +1542,12 @@ type TransportConfig struct {
 	Ttl uint8 `mapstructure:"ttl" json:"ttl,omitempty"`
 }
 
-func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.TcpMss != rhs.TcpMss {
-		return false
-	}
-	if lhs.MtuDiscovery != rhs.MtuDiscovery {
-		return false
-	}
-	if lhs.PassiveMode != rhs.PassiveMode {
-		return false
-	}
-	if lhs.LocalAddress != rhs.LocalAddress {
-		return false
-	}
-	if lhs.RemotePort != rhs.RemotePort {
-		return false
-	}
-	if lhs.Ttl != rhs.Ttl {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:transport
 type Transport struct {
 	// original -> bgp:transport-config
 	Config TransportConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:transport-state
 	State TransportState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Transport) Equal(rhs *Transport) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -2169,44 +1599,12 @@ type TimersConfig struct {
 	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset,omitempty"`
 }
 
-func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.ConnectRetry != rhs.ConnectRetry {
-		return false
-	}
-	if lhs.HoldTime != rhs.HoldTime {
-		return false
-	}
-	if lhs.KeepaliveInterval != rhs.KeepaliveInterval {
-		return false
-	}
-	if lhs.MinimumAdvertisementInterval != rhs.MinimumAdvertisementInterval {
-		return false
-	}
-	if lhs.IdleHoldTimeAfterReset != rhs.IdleHoldTimeAfterReset {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:timers
 type Timers struct {
 	// original -> bgp:timers-config
 	Config TimersConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:timers-state
 	State TimersState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Timers) Equal(rhs *Timers) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:adj-table
@@ -2221,44 +1619,12 @@ type AdjTable struct {
 	Accepted uint32 `mapstructure:"accepted" json:"accepted,omitempty"`
 }
 
-func (lhs *AdjTable) Equal(rhs *AdjTable) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Advertised != rhs.Advertised {
-		return false
-	}
-	if lhs.Filtered != rhs.Filtered {
-		return false
-	}
-	if lhs.Received != rhs.Received {
-		return false
-	}
-	if lhs.Accepted != rhs.Accepted {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:queues
 type Queues struct {
 	// original -> bgp-op:input
 	Input uint32 `mapstructure:"input" json:"input,omitempty"`
 	// original -> bgp-op:output
 	Output uint32 `mapstructure:"output" json:"output,omitempty"`
-}
-
-func (lhs *Queues) Equal(rhs *Queues) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Input != rhs.Input {
-		return false
-	}
-	if lhs.Output != rhs.Output {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:received
@@ -2285,43 +1651,6 @@ type Received struct {
 	Total uint64 `mapstructure:"total" json:"total,omitempty"`
 }
 
-func (lhs *Received) Equal(rhs *Received) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Update != rhs.Update {
-		return false
-	}
-	if lhs.Notification != rhs.Notification {
-		return false
-	}
-	if lhs.Open != rhs.Open {
-		return false
-	}
-	if lhs.Refresh != rhs.Refresh {
-		return false
-	}
-	if lhs.Keepalive != rhs.Keepalive {
-		return false
-	}
-	if lhs.DynamicCap != rhs.DynamicCap {
-		return false
-	}
-	if lhs.WithdrawUpdate != rhs.WithdrawUpdate {
-		return false
-	}
-	if lhs.WithdrawPrefix != rhs.WithdrawPrefix {
-		return false
-	}
-	if lhs.Discarded != rhs.Discarded {
-		return false
-	}
-	if lhs.Total != rhs.Total {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:sent
 type Sent struct {
 	// original -> bgp-op:UPDATE
@@ -2346,62 +1675,12 @@ type Sent struct {
 	Total uint64 `mapstructure:"total" json:"total,omitempty"`
 }
 
-func (lhs *Sent) Equal(rhs *Sent) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Update != rhs.Update {
-		return false
-	}
-	if lhs.Notification != rhs.Notification {
-		return false
-	}
-	if lhs.Open != rhs.Open {
-		return false
-	}
-	if lhs.Refresh != rhs.Refresh {
-		return false
-	}
-	if lhs.Keepalive != rhs.Keepalive {
-		return false
-	}
-	if lhs.DynamicCap != rhs.DynamicCap {
-		return false
-	}
-	if lhs.WithdrawUpdate != rhs.WithdrawUpdate {
-		return false
-	}
-	if lhs.WithdrawPrefix != rhs.WithdrawPrefix {
-		return false
-	}
-	if lhs.Discarded != rhs.Discarded {
-		return false
-	}
-	if lhs.Total != rhs.Total {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:messages
 type Messages struct {
 	// original -> bgp:sent
 	Sent Sent `mapstructure:"sent" json:"sent,omitempty"`
 	// original -> bgp:received
 	Received Received `mapstructure:"received" json:"received,omitempty"`
-}
-
-func (lhs *Messages) Equal(rhs *Messages) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Sent.Equal(&(rhs.Sent)) {
-		return false
-	}
-	if !lhs.Received.Equal(&(rhs.Received)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -2501,52 +1780,6 @@ type NeighborConfig struct {
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 }
 
-func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.PeerAs != rhs.PeerAs {
-		return false
-	}
-	if lhs.LocalAs != rhs.LocalAs {
-		return false
-	}
-	if lhs.PeerType != rhs.PeerType {
-		return false
-	}
-	if lhs.AuthPassword != rhs.AuthPassword {
-		return false
-	}
-	if lhs.RemovePrivateAs != rhs.RemovePrivateAs {
-		return false
-	}
-	if lhs.RouteFlapDamping != rhs.RouteFlapDamping {
-		return false
-	}
-	if lhs.SendCommunity != rhs.SendCommunity {
-		return false
-	}
-	if lhs.Description != rhs.Description {
-		return false
-	}
-	if lhs.PeerGroup != rhs.PeerGroup {
-		return false
-	}
-	if lhs.NeighborAddress != rhs.NeighborAddress {
-		return false
-	}
-	if lhs.AdminDown != rhs.AdminDown {
-		return false
-	}
-	if lhs.NeighborInterface != rhs.NeighborInterface {
-		return false
-	}
-	if lhs.Vrf != rhs.Vrf {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:neighbor
 type Neighbor struct {
 	// original -> bgp:neighbor-address
@@ -2584,71 +1817,6 @@ type Neighbor struct {
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
 }
 
-func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.Timers.Equal(&(rhs.Timers)) {
-		return false
-	}
-	if !lhs.Transport.Equal(&(rhs.Transport)) {
-		return false
-	}
-	if !lhs.ErrorHandling.Equal(&(rhs.ErrorHandling)) {
-		return false
-	}
-	if !lhs.LoggingOptions.Equal(&(rhs.LoggingOptions)) {
-		return false
-	}
-	if !lhs.EbgpMultihop.Equal(&(rhs.EbgpMultihop)) {
-		return false
-	}
-	if !lhs.RouteReflector.Equal(&(rhs.RouteReflector)) {
-		return false
-	}
-	if !lhs.AsPathOptions.Equal(&(rhs.AsPathOptions)) {
-		return false
-	}
-	if !lhs.AddPaths.Equal(&(rhs.AddPaths)) {
-		return false
-	}
-	if len(lhs.AfiSafis) != len(rhs.AfiSafis) {
-		return false
-	}
-	{
-		lmap := make(map[string]*AfiSafi)
-		for i, l := range lhs.AfiSafis {
-			lmap[mapkey(i, string(l.Config.AfiSafiName))] = &lhs.AfiSafis[i]
-		}
-		for i, r := range rhs.AfiSafis {
-			if l, y := lmap[mapkey(i, string(r.Config.AfiSafiName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if !lhs.GracefulRestart.Equal(&(rhs.GracefulRestart)) {
-		return false
-	}
-	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
-		return false
-	}
-	if !lhs.UseMultiplePaths.Equal(&(rhs.UseMultiplePaths)) {
-		return false
-	}
-	if !lhs.RouteServer.Equal(&(rhs.RouteServer)) {
-		return false
-	}
-	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:state
 type LongLivedGracefulRestartState struct {
 	// original -> gobgp:enabled
@@ -2676,35 +1844,12 @@ type LongLivedGracefulRestartConfig struct {
 	RestartTime uint32 `mapstructure:"restart-time" json:"restart-time,omitempty"`
 }
 
-func (lhs *LongLivedGracefulRestartConfig) Equal(rhs *LongLivedGracefulRestartConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.RestartTime != rhs.RestartTime {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:long-lived-graceful-restart
 type LongLivedGracefulRestart struct {
 	// original -> gobgp:long-lived-graceful-restart-config
 	Config LongLivedGracefulRestartConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:long-lived-graceful-restart-state
 	State LongLivedGracefulRestartState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *LongLivedGracefulRestart) Equal(rhs *LongLivedGracefulRestart) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container gobgp:state
@@ -2719,16 +1864,6 @@ type RouteTargetMembershipConfig struct {
 	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
 }
 
-func (lhs *RouteTargetMembershipConfig) Equal(rhs *RouteTargetMembershipConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.DeferralTime != rhs.DeferralTime {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:route-target-membership
 type RouteTargetMembership struct {
 	// original -> gobgp:route-target-membership-config
@@ -2737,30 +1872,10 @@ type RouteTargetMembership struct {
 	State RouteTargetMembershipState `mapstructure:"state" json:"state,omitempty"`
 }
 
-func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
-}
-
-func (lhs *L2vpnEvpn) Equal(rhs *L2vpnEvpn) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:l2vpn-vpls
@@ -2769,30 +1884,10 @@ type L2vpnVpls struct {
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
-func (lhs *L2vpnVpls) Equal(rhs *L2vpnVpls) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:l3vpn-ipv6-multicast
 type L3vpnIpv6Multicast struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
-}
-
-func (lhs *L3vpnIpv6Multicast) Equal(rhs *L3vpnIpv6Multicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:l3vpn-ipv4-multicast
@@ -2801,30 +1896,10 @@ type L3vpnIpv4Multicast struct {
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
-func (lhs *L3vpnIpv4Multicast) Equal(rhs *L3vpnIpv4Multicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:l3vpn-ipv6-unicast
 type L3vpnIpv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
-}
-
-func (lhs *L3vpnIpv6Unicast) Equal(rhs *L3vpnIpv6Unicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:l3vpn-ipv4-unicast
@@ -2833,46 +1908,16 @@ type L3vpnIpv4Unicast struct {
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
-func (lhs *L3vpnIpv4Unicast) Equal(rhs *L3vpnIpv4Unicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:ipv6-labelled-unicast
 type Ipv6LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
-func (lhs *Ipv6LabelledUnicast) Equal(rhs *Ipv6LabelledUnicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:ipv4-labelled-unicast
 type Ipv4LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
-}
-
-func (lhs *Ipv4LabelledUnicast) Equal(rhs *Ipv4LabelledUnicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -2889,16 +1934,6 @@ type Ipv6UnicastConfig struct {
 	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route,omitempty"`
 }
 
-func (lhs *Ipv6UnicastConfig) Equal(rhs *Ipv6UnicastConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.SendDefaultRoute != rhs.SendDefaultRoute {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:ipv6-unicast
 type Ipv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
@@ -2907,19 +1942,6 @@ type Ipv6Unicast struct {
 	Config Ipv6UnicastConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ipv6-unicast-state
 	State Ipv6UnicastState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Ipv6Unicast) Equal(rhs *Ipv6Unicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -2934,16 +1956,6 @@ type Ipv4UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
 	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route,omitempty"`
-}
-
-func (lhs *Ipv4UnicastConfig) Equal(rhs *Ipv4UnicastConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.SendDefaultRoute != rhs.SendDefaultRoute {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -2968,38 +1980,12 @@ type PrefixLimitConfig struct {
 	RestartTimer float64 `mapstructure:"restart-timer" json:"restart-timer,omitempty"`
 }
 
-func (lhs *PrefixLimitConfig) Equal(rhs *PrefixLimitConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.MaxPrefixes != rhs.MaxPrefixes {
-		return false
-	}
-	if lhs.ShutdownThresholdPct != rhs.ShutdownThresholdPct {
-		return false
-	}
-	if lhs.RestartTimer != rhs.RestartTimer {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
 	// original -> bgp-mp:prefix-limit-config
 	Config PrefixLimitConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:prefix-limit-state
 	State PrefixLimitState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *PrefixLimit) Equal(rhs *PrefixLimit) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:ipv4-unicast
@@ -3010,19 +1996,6 @@ type Ipv4Unicast struct {
 	Config Ipv4UnicastConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ipv4-unicast-state
 	State Ipv4UnicastState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Ipv4Unicast) Equal(rhs *Ipv4Unicast) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container rpol:state
@@ -3057,62 +2030,12 @@ type ApplyPolicyConfig struct {
 	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy,omitempty"`
 }
 
-func (lhs *ApplyPolicyConfig) Equal(rhs *ApplyPolicyConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.ImportPolicyList) != len(rhs.ImportPolicyList) {
-		return false
-	}
-	for idx, l := range lhs.ImportPolicyList {
-		if l != rhs.ImportPolicyList[idx] {
-			return false
-		}
-	}
-	if lhs.DefaultImportPolicy != rhs.DefaultImportPolicy {
-		return false
-	}
-	if len(lhs.ExportPolicyList) != len(rhs.ExportPolicyList) {
-		return false
-	}
-	for idx, l := range lhs.ExportPolicyList {
-		if l != rhs.ExportPolicyList[idx] {
-			return false
-		}
-	}
-	if lhs.DefaultExportPolicy != rhs.DefaultExportPolicy {
-		return false
-	}
-	if len(lhs.InPolicyList) != len(rhs.InPolicyList) {
-		return false
-	}
-	for idx, l := range lhs.InPolicyList {
-		if l != rhs.InPolicyList[idx] {
-			return false
-		}
-	}
-	if lhs.DefaultInPolicy != rhs.DefaultInPolicy {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:apply-policy
 type ApplyPolicy struct {
 	// original -> rpol:apply-policy-config
 	Config ApplyPolicyConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> rpol:apply-policy-state
 	State ApplyPolicyState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *ApplyPolicy) Equal(rhs *ApplyPolicy) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -3135,19 +2058,6 @@ type AfiSafiConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
-}
-
-func (lhs *AfiSafiConfig) Equal(rhs *AfiSafiConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AfiSafiName != rhs.AfiSafiName {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -3176,32 +2086,12 @@ type MpGracefulRestartConfig struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
-func (lhs *MpGracefulRestartConfig) Equal(rhs *MpGracefulRestartConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:graceful-restart
 type MpGracefulRestart struct {
 	// original -> bgp-mp:mp-graceful-restart-config
 	Config MpGracefulRestartConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:mp-graceful-restart-state
 	State MpGracefulRestartState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *MpGracefulRestart) Equal(rhs *MpGracefulRestart) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:afi-safi
@@ -3245,67 +2135,6 @@ type AfiSafi struct {
 	RouteTargetMembership RouteTargetMembership `mapstructure:"route-target-membership" json:"route-target-membership,omitempty"`
 	// original -> gobgp:long-lived-graceful-restart
 	LongLivedGracefulRestart LongLivedGracefulRestart `mapstructure:"long-lived-graceful-restart" json:"long-lived-graceful-restart,omitempty"`
-}
-
-func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.MpGracefulRestart.Equal(&(rhs.MpGracefulRestart)) {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
-		return false
-	}
-	if !lhs.Ipv4Unicast.Equal(&(rhs.Ipv4Unicast)) {
-		return false
-	}
-	if !lhs.Ipv6Unicast.Equal(&(rhs.Ipv6Unicast)) {
-		return false
-	}
-	if !lhs.Ipv4LabelledUnicast.Equal(&(rhs.Ipv4LabelledUnicast)) {
-		return false
-	}
-	if !lhs.Ipv6LabelledUnicast.Equal(&(rhs.Ipv6LabelledUnicast)) {
-		return false
-	}
-	if !lhs.L3vpnIpv4Unicast.Equal(&(rhs.L3vpnIpv4Unicast)) {
-		return false
-	}
-	if !lhs.L3vpnIpv6Unicast.Equal(&(rhs.L3vpnIpv6Unicast)) {
-		return false
-	}
-	if !lhs.L3vpnIpv4Multicast.Equal(&(rhs.L3vpnIpv4Multicast)) {
-		return false
-	}
-	if !lhs.L3vpnIpv6Multicast.Equal(&(rhs.L3vpnIpv6Multicast)) {
-		return false
-	}
-	if !lhs.L2vpnVpls.Equal(&(rhs.L2vpnVpls)) {
-		return false
-	}
-	if !lhs.L2vpnEvpn.Equal(&(rhs.L2vpnEvpn)) {
-		return false
-	}
-	if !lhs.RouteSelectionOptions.Equal(&(rhs.RouteSelectionOptions)) {
-		return false
-	}
-	if !lhs.UseMultiplePaths.Equal(&(rhs.UseMultiplePaths)) {
-		return false
-	}
-	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
-		return false
-	}
-	if !lhs.RouteTargetMembership.Equal(&(rhs.RouteTargetMembership)) {
-		return false
-	}
-	if !lhs.LongLivedGracefulRestart.Equal(&(rhs.LongLivedGracefulRestart)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -3364,50 +2193,12 @@ type GracefulRestartConfig struct {
 	LongLivedEnabled bool `mapstructure:"long-lived-enabled" json:"long-lived-enabled,omitempty"`
 }
 
-func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.RestartTime != rhs.RestartTime {
-		return false
-	}
-	if lhs.StaleRoutesTime != rhs.StaleRoutesTime {
-		return false
-	}
-	if lhs.HelperOnly != rhs.HelperOnly {
-		return false
-	}
-	if lhs.DeferralTime != rhs.DeferralTime {
-		return false
-	}
-	if lhs.NotificationEnabled != rhs.NotificationEnabled {
-		return false
-	}
-	if lhs.LongLivedEnabled != rhs.LongLivedEnabled {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:graceful-restart
 type GracefulRestart struct {
 	// original -> bgp:graceful-restart-config
 	Config GracefulRestartConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:graceful-restart-state
 	State GracefulRestartState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *GracefulRestart) Equal(rhs *GracefulRestart) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -3422,32 +2213,12 @@ type IbgpConfig struct {
 	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths,omitempty"`
 }
 
-func (lhs *IbgpConfig) Equal(rhs *IbgpConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.MaximumPaths != rhs.MaximumPaths {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:ibgp
 type Ibgp struct {
 	// original -> bgp-mp:ibgp-config
 	Config IbgpConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ibgp-state
 	State IbgpState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Ibgp) Equal(rhs *Ibgp) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -3468,35 +2239,12 @@ type EbgpConfig struct {
 	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths,omitempty"`
 }
 
-func (lhs *EbgpConfig) Equal(rhs *EbgpConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AllowMultipleAs != rhs.AllowMultipleAs {
-		return false
-	}
-	if lhs.MaximumPaths != rhs.MaximumPaths {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:ebgp
 type Ebgp struct {
 	// original -> bgp-mp:ebgp-config
 	Config EbgpConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ebgp-state
 	State EbgpState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Ebgp) Equal(rhs *Ebgp) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -3513,16 +2261,6 @@ type UseMultiplePathsConfig struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
-func (lhs *UseMultiplePathsConfig) Equal(rhs *UseMultiplePathsConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:use-multiple-paths
 type UseMultiplePaths struct {
 	// original -> bgp-mp:use-multiple-paths-config
@@ -3533,22 +2271,6 @@ type UseMultiplePaths struct {
 	Ebgp Ebgp `mapstructure:"ebgp" json:"ebgp,omitempty"`
 	// original -> bgp-mp:ibgp
 	Ibgp Ibgp `mapstructure:"ibgp" json:"ibgp,omitempty"`
-}
-
-func (lhs *UseMultiplePaths) Equal(rhs *UseMultiplePaths) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.Ebgp.Equal(&(rhs.Ebgp)) {
-		return false
-	}
-	if !lhs.Ibgp.Equal(&(rhs.Ibgp)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -3577,43 +2299,12 @@ type ConfederationConfig struct {
 	MemberAsList []uint32 `mapstructure:"member-as-list" json:"member-as-list,omitempty"`
 }
 
-func (lhs *ConfederationConfig) Equal(rhs *ConfederationConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.Identifier != rhs.Identifier {
-		return false
-	}
-	if len(lhs.MemberAsList) != len(rhs.MemberAsList) {
-		return false
-	}
-	for idx, l := range lhs.MemberAsList {
-		if l != rhs.MemberAsList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container bgp:confederation
 type Confederation struct {
 	// original -> bgp:confederation-config
 	Config ConfederationConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:confederation-state
 	State ConfederationState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Confederation) Equal(rhs *Confederation) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -3632,35 +2323,12 @@ type DefaultRouteDistanceConfig struct {
 	InternalRouteDistance uint8 `mapstructure:"internal-route-distance" json:"internal-route-distance,omitempty"`
 }
 
-func (lhs *DefaultRouteDistanceConfig) Equal(rhs *DefaultRouteDistanceConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.ExternalRouteDistance != rhs.ExternalRouteDistance {
-		return false
-	}
-	if lhs.InternalRouteDistance != rhs.InternalRouteDistance {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp:default-route-distance
 type DefaultRouteDistance struct {
 	// original -> bgp:default-route-distance-config
 	Config DefaultRouteDistanceConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:default-route-distance-state
 	State DefaultRouteDistanceState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *DefaultRouteDistance) Equal(rhs *DefaultRouteDistance) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-mp:state
@@ -3707,47 +2375,12 @@ type RouteSelectionOptionsConfig struct {
 	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric,omitempty"`
 }
 
-func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AlwaysCompareMed != rhs.AlwaysCompareMed {
-		return false
-	}
-	if lhs.IgnoreAsPathLength != rhs.IgnoreAsPathLength {
-		return false
-	}
-	if lhs.ExternalCompareRouterId != rhs.ExternalCompareRouterId {
-		return false
-	}
-	if lhs.AdvertiseInactiveRoutes != rhs.AdvertiseInactiveRoutes {
-		return false
-	}
-	if lhs.EnableAigp != rhs.EnableAigp {
-		return false
-	}
-	if lhs.IgnoreNextHopIgpMetric != rhs.IgnoreNextHopIgpMetric {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-mp:route-selection-options
 type RouteSelectionOptions struct {
 	// original -> bgp-mp:route-selection-options-config
 	Config RouteSelectionOptionsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:route-selection-options-state
 	State RouteSelectionOptionsState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *RouteSelectionOptions) Equal(rhs *RouteSelectionOptions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:state
@@ -3782,30 +2415,6 @@ type GlobalConfig struct {
 	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
 }
 
-func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.As != rhs.As {
-		return false
-	}
-	if lhs.RouterId != rhs.RouterId {
-		return false
-	}
-	if lhs.Port != rhs.Port {
-		return false
-	}
-	if len(lhs.LocalAddressList) != len(rhs.LocalAddressList) {
-		return false
-	}
-	for idx, l := range lhs.LocalAddressList {
-		if l != rhs.LocalAddressList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container bgp:global
 type Global struct {
 	// original -> bgp:global-config
@@ -3826,50 +2435,6 @@ type Global struct {
 	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis,omitempty"`
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
-}
-
-func (lhs *Global) Equal(rhs *Global) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.RouteSelectionOptions.Equal(&(rhs.RouteSelectionOptions)) {
-		return false
-	}
-	if !lhs.DefaultRouteDistance.Equal(&(rhs.DefaultRouteDistance)) {
-		return false
-	}
-	if !lhs.Confederation.Equal(&(rhs.Confederation)) {
-		return false
-	}
-	if !lhs.UseMultiplePaths.Equal(&(rhs.UseMultiplePaths)) {
-		return false
-	}
-	if !lhs.GracefulRestart.Equal(&(rhs.GracefulRestart)) {
-		return false
-	}
-	if len(lhs.AfiSafis) != len(rhs.AfiSafis) {
-		return false
-	}
-	{
-		lmap := make(map[string]*AfiSafi)
-		for i, l := range lhs.AfiSafis {
-			lmap[mapkey(i, string(l.Config.AfiSafiName))] = &lhs.AfiSafis[i]
-		}
-		for i, r := range rhs.AfiSafis {
-			if l, y := lmap[mapkey(i, string(r.Config.AfiSafiName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp:bgp
@@ -3894,137 +2459,10 @@ type Bgp struct {
 	DynamicNeighbors []DynamicNeighbor `mapstructure:"dynamic-neighbors" json:"dynamic-neighbors,omitempty"`
 }
 
-func (lhs *Bgp) Equal(rhs *Bgp) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Global.Equal(&(rhs.Global)) {
-		return false
-	}
-	if len(lhs.Neighbors) != len(rhs.Neighbors) {
-		return false
-	}
-	{
-		lmap := make(map[string]*Neighbor)
-		for i, l := range lhs.Neighbors {
-			lmap[mapkey(i, string(l.Config.NeighborAddress))] = &lhs.Neighbors[i]
-		}
-		for i, r := range rhs.Neighbors {
-			if l, y := lmap[mapkey(i, string(r.Config.NeighborAddress))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.PeerGroups) != len(rhs.PeerGroups) {
-		return false
-	}
-	{
-		lmap := make(map[string]*PeerGroup)
-		for i, l := range lhs.PeerGroups {
-			lmap[mapkey(i, string(l.Config.PeerGroupName))] = &lhs.PeerGroups[i]
-		}
-		for i, r := range rhs.PeerGroups {
-			if l, y := lmap[mapkey(i, string(r.Config.PeerGroupName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.RpkiServers) != len(rhs.RpkiServers) {
-		return false
-	}
-	{
-		lmap := make(map[string]*RpkiServer)
-		for i, l := range lhs.RpkiServers {
-			lmap[mapkey(i, string(l.Config.Address))] = &lhs.RpkiServers[i]
-		}
-		for i, r := range rhs.RpkiServers {
-			if l, y := lmap[mapkey(i, string(r.Config.Address))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.BmpServers) != len(rhs.BmpServers) {
-		return false
-	}
-	{
-		lmap := make(map[string]*BmpServer)
-		for i, l := range lhs.BmpServers {
-			lmap[mapkey(i, string(l.Config.Address))] = &lhs.BmpServers[i]
-		}
-		for i, r := range rhs.BmpServers {
-			if l, y := lmap[mapkey(i, string(r.Config.Address))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.MrtDump) != len(rhs.MrtDump) {
-		return false
-	}
-	{
-		lmap := make(map[string]*Mrt)
-		for i, l := range lhs.MrtDump {
-			lmap[mapkey(i, string(l.Config.FileName))] = &lhs.MrtDump[i]
-		}
-		for i, r := range rhs.MrtDump {
-			if l, y := lmap[mapkey(i, string(r.Config.FileName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if !lhs.Zebra.Equal(&(rhs.Zebra)) {
-		return false
-	}
-	if !lhs.Collector.Equal(&(rhs.Collector)) {
-		return false
-	}
-	if len(lhs.DynamicNeighbors) != len(rhs.DynamicNeighbors) {
-		return false
-	}
-	{
-		lmap := make(map[string]*DynamicNeighbor)
-		for i, l := range lhs.DynamicNeighbors {
-			lmap[mapkey(i, string(l.Config.Prefix))] = &lhs.DynamicNeighbors[i]
-		}
-		for i, r := range rhs.DynamicNeighbors {
-			if l, y := lmap[mapkey(i, string(r.Config.Prefix))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 //struct for container gobgp:set-large-community-method
 type SetLargeCommunityMethod struct {
 	// original -> gobgp:communities
 	CommunitiesList []string `mapstructure:"communities-list" json:"communities-list,omitempty"`
-}
-
-func (lhs *SetLargeCommunityMethod) Equal(rhs *SetLargeCommunityMethod) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.CommunitiesList) != len(rhs.CommunitiesList) {
-		return false
-	}
-	for idx, l := range lhs.CommunitiesList {
-		if l != rhs.CommunitiesList[idx] {
-			return false
-		}
-	}
-	return true
 }
 
 //struct for container gobgp:set-large-community
@@ -4033,19 +2471,6 @@ type SetLargeCommunity struct {
 	SetLargeCommunityMethod SetLargeCommunityMethod `mapstructure:"set-large-community-method" json:"set-large-community-method,omitempty"`
 	// original -> gobgp:options
 	Options BgpSetCommunityOptionType `mapstructure:"options" json:"options,omitempty"`
-}
-
-func (lhs *SetLargeCommunity) Equal(rhs *SetLargeCommunity) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.SetLargeCommunityMethod.Equal(&(rhs.SetLargeCommunityMethod)) {
-		return false
-	}
-	if lhs.Options != rhs.Options {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-pol:set-ext-community-method
@@ -4057,24 +2482,6 @@ type SetExtCommunityMethod struct {
 	ExtCommunitySetRef string `mapstructure:"ext-community-set-ref" json:"ext-community-set-ref,omitempty"`
 }
 
-func (lhs *SetExtCommunityMethod) Equal(rhs *SetExtCommunityMethod) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.CommunitiesList) != len(rhs.CommunitiesList) {
-		return false
-	}
-	for idx, l := range lhs.CommunitiesList {
-		if l != rhs.CommunitiesList[idx] {
-			return false
-		}
-	}
-	if lhs.ExtCommunitySetRef != rhs.ExtCommunitySetRef {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-pol:set-ext-community
 type SetExtCommunity struct {
 	// original -> bgp-pol:set-ext-community-method
@@ -4082,19 +2489,6 @@ type SetExtCommunity struct {
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
 	Options string `mapstructure:"options" json:"options,omitempty"`
-}
-
-func (lhs *SetExtCommunity) Equal(rhs *SetExtCommunity) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.SetExtCommunityMethod.Equal(&(rhs.SetExtCommunityMethod)) {
-		return false
-	}
-	if lhs.Options != rhs.Options {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-pol:set-community-method
@@ -4106,24 +2500,6 @@ type SetCommunityMethod struct {
 	CommunitySetRef string `mapstructure:"community-set-ref" json:"community-set-ref,omitempty"`
 }
 
-func (lhs *SetCommunityMethod) Equal(rhs *SetCommunityMethod) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.CommunitiesList) != len(rhs.CommunitiesList) {
-		return false
-	}
-	for idx, l := range lhs.CommunitiesList {
-		if l != rhs.CommunitiesList[idx] {
-			return false
-		}
-	}
-	if lhs.CommunitySetRef != rhs.CommunitySetRef {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-pol:set-community
 type SetCommunity struct {
 	// original -> bgp-pol:set-community-method
@@ -4133,19 +2509,6 @@ type SetCommunity struct {
 	Options string `mapstructure:"options" json:"options,omitempty"`
 }
 
-func (lhs *SetCommunity) Equal(rhs *SetCommunity) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.SetCommunityMethod.Equal(&(rhs.SetCommunityMethod)) {
-		return false
-	}
-	if lhs.Options != rhs.Options {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
 	// original -> bgp-pol:repeat-n
@@ -4153,19 +2516,6 @@ type SetAsPathPrepend struct {
 	// original -> gobgp:as
 	//gobgp:as's original type is union
 	As string `mapstructure:"as" json:"as,omitempty"`
-}
-
-func (lhs *SetAsPathPrepend) Equal(rhs *SetAsPathPrepend) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.RepeatN != rhs.RepeatN {
-		return false
-	}
-	if lhs.As != rhs.As {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-pol:bgp-actions
@@ -4188,51 +2538,10 @@ type BgpActions struct {
 	SetLargeCommunity SetLargeCommunity `mapstructure:"set-large-community" json:"set-large-community,omitempty"`
 }
 
-func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.SetAsPathPrepend.Equal(&(rhs.SetAsPathPrepend)) {
-		return false
-	}
-	if !lhs.SetCommunity.Equal(&(rhs.SetCommunity)) {
-		return false
-	}
-	if !lhs.SetExtCommunity.Equal(&(rhs.SetExtCommunity)) {
-		return false
-	}
-	if lhs.SetRouteOrigin != rhs.SetRouteOrigin {
-		return false
-	}
-	if lhs.SetLocalPref != rhs.SetLocalPref {
-		return false
-	}
-	if lhs.SetNextHop != rhs.SetNextHop {
-		return false
-	}
-	if lhs.SetMed != rhs.SetMed {
-		return false
-	}
-	if !lhs.SetLargeCommunity.Equal(&(rhs.SetLargeCommunity)) {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:igp-actions
 type IgpActions struct {
 	// original -> rpol:set-tag
 	SetTag TagType `mapstructure:"set-tag" json:"set-tag,omitempty"`
-}
-
-func (lhs *IgpActions) Equal(rhs *IgpActions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.SetTag != rhs.SetTag {
-		return false
-	}
-	return true
 }
 
 //struct for container rpol:actions
@@ -4245,41 +2554,12 @@ type Actions struct {
 	BgpActions BgpActions `mapstructure:"bgp-actions" json:"bgp-actions,omitempty"`
 }
 
-func (lhs *Actions) Equal(rhs *Actions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.RouteDisposition != rhs.RouteDisposition {
-		return false
-	}
-	if !lhs.IgpActions.Equal(&(rhs.IgpActions)) {
-		return false
-	}
-	if !lhs.BgpActions.Equal(&(rhs.BgpActions)) {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:match-large-community-set
 type MatchLargeCommunitySet struct {
 	// original -> gobgp:large-community-set
 	LargeCommunitySet string `mapstructure:"large-community-set" json:"large-community-set,omitempty"`
 	// original -> rpol:match-set-options
 	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
-}
-
-func (lhs *MatchLargeCommunitySet) Equal(rhs *MatchLargeCommunitySet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.LargeCommunitySet != rhs.LargeCommunitySet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-pol:as-path-length
@@ -4290,38 +2570,12 @@ type AsPathLength struct {
 	Value uint32 `mapstructure:"value" json:"value,omitempty"`
 }
 
-func (lhs *AsPathLength) Equal(rhs *AsPathLength) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Operator != rhs.Operator {
-		return false
-	}
-	if lhs.Value != rhs.Value {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-pol:community-count
 type CommunityCount struct {
 	// original -> ptypes:operator
 	Operator AttributeComparison `mapstructure:"operator" json:"operator,omitempty"`
 	// original -> ptypes:value
 	Value uint32 `mapstructure:"value" json:"value,omitempty"`
-}
-
-func (lhs *CommunityCount) Equal(rhs *CommunityCount) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Operator != rhs.Operator {
-		return false
-	}
-	if lhs.Value != rhs.Value {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-pol:match-as-path-set
@@ -4332,19 +2586,6 @@ type MatchAsPathSet struct {
 	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
-func (lhs *MatchAsPathSet) Equal(rhs *MatchAsPathSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AsPathSet != rhs.AsPathSet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-pol:match-ext-community-set
 type MatchExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set
@@ -4353,38 +2594,12 @@ type MatchExtCommunitySet struct {
 	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
-func (lhs *MatchExtCommunitySet) Equal(rhs *MatchExtCommunitySet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.ExtCommunitySet != rhs.ExtCommunitySet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
-}
-
 //struct for container bgp-pol:match-community-set
 type MatchCommunitySet struct {
 	// original -> bgp-pol:community-set
 	CommunitySet string `mapstructure:"community-set" json:"community-set,omitempty"`
 	// original -> rpol:match-set-options
 	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
-}
-
-func (lhs *MatchCommunitySet) Equal(rhs *MatchCommunitySet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.CommunitySet != rhs.CommunitySet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
 }
 
 //struct for container bgp-pol:bgp-conditions
@@ -4418,71 +2633,8 @@ type BgpConditions struct {
 	MatchLargeCommunitySet MatchLargeCommunitySet `mapstructure:"match-large-community-set" json:"match-large-community-set,omitempty"`
 }
 
-func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.MatchCommunitySet.Equal(&(rhs.MatchCommunitySet)) {
-		return false
-	}
-	if !lhs.MatchExtCommunitySet.Equal(&(rhs.MatchExtCommunitySet)) {
-		return false
-	}
-	if !lhs.MatchAsPathSet.Equal(&(rhs.MatchAsPathSet)) {
-		return false
-	}
-	if lhs.MedEq != rhs.MedEq {
-		return false
-	}
-	if lhs.OriginEq != rhs.OriginEq {
-		return false
-	}
-	if len(lhs.NextHopInList) != len(rhs.NextHopInList) {
-		return false
-	}
-	for idx, l := range lhs.NextHopInList {
-		if l != rhs.NextHopInList[idx] {
-			return false
-		}
-	}
-	if len(lhs.AfiSafiInList) != len(rhs.AfiSafiInList) {
-		return false
-	}
-	for idx, l := range lhs.AfiSafiInList {
-		if l != rhs.AfiSafiInList[idx] {
-			return false
-		}
-	}
-	if lhs.LocalPrefEq != rhs.LocalPrefEq {
-		return false
-	}
-	if !lhs.CommunityCount.Equal(&(rhs.CommunityCount)) {
-		return false
-	}
-	if !lhs.AsPathLength.Equal(&(rhs.AsPathLength)) {
-		return false
-	}
-	if lhs.RouteType != rhs.RouteType {
-		return false
-	}
-	if lhs.RpkiValidationResult != rhs.RpkiValidationResult {
-		return false
-	}
-	if !lhs.MatchLargeCommunitySet.Equal(&(rhs.MatchLargeCommunitySet)) {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:igp-conditions
 type IgpConditions struct {
-}
-
-func (lhs *IgpConditions) Equal(rhs *IgpConditions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	return true
 }
 
 //struct for container rpol:match-tag-set
@@ -4493,19 +2645,6 @@ type MatchTagSet struct {
 	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
-func (lhs *MatchTagSet) Equal(rhs *MatchTagSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.TagSet != rhs.TagSet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:match-neighbor-set
 type MatchNeighborSet struct {
 	// original -> rpol:neighbor-set
@@ -4514,38 +2653,12 @@ type MatchNeighborSet struct {
 	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
-func (lhs *MatchNeighborSet) Equal(rhs *MatchNeighborSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.NeighborSet != rhs.NeighborSet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:match-prefix-set
 type MatchPrefixSet struct {
 	// original -> rpol:prefix-set
 	PrefixSet string `mapstructure:"prefix-set" json:"prefix-set,omitempty"`
 	// original -> rpol:match-set-options
 	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
-}
-
-func (lhs *MatchPrefixSet) Equal(rhs *MatchPrefixSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.PrefixSet != rhs.PrefixSet {
-		return false
-	}
-	if lhs.MatchSetOptions != rhs.MatchSetOptions {
-		return false
-	}
-	return true
 }
 
 //struct for container rpol:conditions
@@ -4566,34 +2679,6 @@ type Conditions struct {
 	BgpConditions BgpConditions `mapstructure:"bgp-conditions" json:"bgp-conditions,omitempty"`
 }
 
-func (lhs *Conditions) Equal(rhs *Conditions) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.CallPolicy != rhs.CallPolicy {
-		return false
-	}
-	if !lhs.MatchPrefixSet.Equal(&(rhs.MatchPrefixSet)) {
-		return false
-	}
-	if !lhs.MatchNeighborSet.Equal(&(rhs.MatchNeighborSet)) {
-		return false
-	}
-	if !lhs.MatchTagSet.Equal(&(rhs.MatchTagSet)) {
-		return false
-	}
-	if lhs.InstallProtocolEq != rhs.InstallProtocolEq {
-		return false
-	}
-	if !lhs.IgpConditions.Equal(&(rhs.IgpConditions)) {
-		return false
-	}
-	if !lhs.BgpConditions.Equal(&(rhs.BgpConditions)) {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:statement
 type Statement struct {
 	// original -> rpol:name
@@ -4604,54 +2689,12 @@ type Statement struct {
 	Actions Actions `mapstructure:"actions" json:"actions,omitempty"`
 }
 
-func (lhs *Statement) Equal(rhs *Statement) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Name != rhs.Name {
-		return false
-	}
-	if !lhs.Conditions.Equal(&(rhs.Conditions)) {
-		return false
-	}
-	if !lhs.Actions.Equal(&(rhs.Actions)) {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:policy-definition
 type PolicyDefinition struct {
 	// original -> rpol:name
 	Name string `mapstructure:"name" json:"name,omitempty"`
 	// original -> rpol:statements
 	Statements []Statement `mapstructure:"statements" json:"statements,omitempty"`
-}
-
-func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Name != rhs.Name {
-		return false
-	}
-	if len(lhs.Statements) != len(rhs.Statements) {
-		return false
-	}
-	{
-		lmap := make(map[string]*Statement)
-		for i, l := range lhs.Statements {
-			lmap[mapkey(i, string(l.Name))] = &lhs.Statements[i]
-		}
-		for i, r := range rhs.Statements {
-			if l, y := lmap[mapkey(i, string(r.Name))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 //struct for container gobgp:large-community-set
@@ -4662,48 +2705,12 @@ type LargeCommunitySet struct {
 	LargeCommunityList []string `mapstructure:"large-community-list" json:"large-community-list,omitempty"`
 }
 
-func (lhs *LargeCommunitySet) Equal(rhs *LargeCommunitySet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.LargeCommunitySetName != rhs.LargeCommunitySetName {
-		return false
-	}
-	if len(lhs.LargeCommunityList) != len(rhs.LargeCommunityList) {
-		return false
-	}
-	for idx, l := range lhs.LargeCommunityList {
-		if l != rhs.LargeCommunityList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
 	AsPathSetName string `mapstructure:"as-path-set-name" json:"as-path-set-name,omitempty"`
 	// original -> gobgp:as-path
 	AsPathList []string `mapstructure:"as-path-list" json:"as-path-list,omitempty"`
-}
-
-func (lhs *AsPathSet) Equal(rhs *AsPathSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AsPathSetName != rhs.AsPathSetName {
-		return false
-	}
-	if len(lhs.AsPathList) != len(rhs.AsPathList) {
-		return false
-	}
-	for idx, l := range lhs.AsPathList {
-		if l != rhs.AsPathList[idx] {
-			return false
-		}
-	}
-	return true
 }
 
 //struct for container bgp-pol:ext-community-set
@@ -4714,48 +2721,12 @@ type ExtCommunitySet struct {
 	ExtCommunityList []string `mapstructure:"ext-community-list" json:"ext-community-list,omitempty"`
 }
 
-func (lhs *ExtCommunitySet) Equal(rhs *ExtCommunitySet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.ExtCommunitySetName != rhs.ExtCommunitySetName {
-		return false
-	}
-	if len(lhs.ExtCommunityList) != len(rhs.ExtCommunityList) {
-		return false
-	}
-	for idx, l := range lhs.ExtCommunityList {
-		if l != rhs.ExtCommunityList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
 	CommunitySetName string `mapstructure:"community-set-name" json:"community-set-name,omitempty"`
 	// original -> gobgp:community
 	CommunityList []string `mapstructure:"community-list" json:"community-list,omitempty"`
-}
-
-func (lhs *CommunitySet) Equal(rhs *CommunitySet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.CommunitySetName != rhs.CommunitySetName {
-		return false
-	}
-	if len(lhs.CommunityList) != len(rhs.CommunityList) {
-		return false
-	}
-	for idx, l := range lhs.CommunityList {
-		if l != rhs.CommunityList[idx] {
-			return false
-		}
-	}
-	return true
 }
 
 //struct for container bgp-pol:bgp-defined-sets
@@ -4770,91 +2741,10 @@ type BgpDefinedSets struct {
 	LargeCommunitySets []LargeCommunitySet `mapstructure:"large-community-sets" json:"large-community-sets,omitempty"`
 }
 
-func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.CommunitySets) != len(rhs.CommunitySets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*CommunitySet)
-		for i, l := range lhs.CommunitySets {
-			lmap[mapkey(i, string(l.CommunitySetName))] = &lhs.CommunitySets[i]
-		}
-		for i, r := range rhs.CommunitySets {
-			if l, y := lmap[mapkey(i, string(r.CommunitySetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.ExtCommunitySets) != len(rhs.ExtCommunitySets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*ExtCommunitySet)
-		for i, l := range lhs.ExtCommunitySets {
-			lmap[mapkey(i, string(l.ExtCommunitySetName))] = &lhs.ExtCommunitySets[i]
-		}
-		for i, r := range rhs.ExtCommunitySets {
-			if l, y := lmap[mapkey(i, string(r.ExtCommunitySetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.AsPathSets) != len(rhs.AsPathSets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*AsPathSet)
-		for i, l := range lhs.AsPathSets {
-			lmap[mapkey(i, string(l.AsPathSetName))] = &lhs.AsPathSets[i]
-		}
-		for i, r := range rhs.AsPathSets {
-			if l, y := lmap[mapkey(i, string(r.AsPathSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.LargeCommunitySets) != len(rhs.LargeCommunitySets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*LargeCommunitySet)
-		for i, l := range lhs.LargeCommunitySets {
-			lmap[mapkey(i, string(l.LargeCommunitySetName))] = &lhs.LargeCommunitySets[i]
-		}
-		for i, r := range rhs.LargeCommunitySets {
-			if l, y := lmap[mapkey(i, string(r.LargeCommunitySetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 //struct for container rpol:tag
 type Tag struct {
 	// original -> rpol:value
 	Value TagType `mapstructure:"value" json:"value,omitempty"`
-}
-
-func (lhs *Tag) Equal(rhs *Tag) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Value != rhs.Value {
-		return false
-	}
-	return true
 }
 
 //struct for container rpol:tag-set
@@ -4863,32 +2753,6 @@ type TagSet struct {
 	TagSetName string `mapstructure:"tag-set-name" json:"tag-set-name,omitempty"`
 	// original -> rpol:tag
 	TagList []Tag `mapstructure:"tag-list" json:"tag-list,omitempty"`
-}
-
-func (lhs *TagSet) Equal(rhs *TagSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.TagSetName != rhs.TagSetName {
-		return false
-	}
-	if len(lhs.TagList) != len(rhs.TagList) {
-		return false
-	}
-	{
-		lmap := make(map[string]*Tag)
-		for i, l := range lhs.TagList {
-			lmap[mapkey(i, string(l.Value))] = &lhs.TagList[i]
-		}
-		for i, r := range rhs.TagList {
-			if l, y := lmap[mapkey(i, string(r.Value))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 //struct for container rpol:neighbor-set
@@ -4900,24 +2764,6 @@ type NeighborSet struct {
 	NeighborInfoList []string `mapstructure:"neighbor-info-list" json:"neighbor-info-list,omitempty"`
 }
 
-func (lhs *NeighborSet) Equal(rhs *NeighborSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.NeighborSetName != rhs.NeighborSetName {
-		return false
-	}
-	if len(lhs.NeighborInfoList) != len(rhs.NeighborInfoList) {
-		return false
-	}
-	for idx, l := range lhs.NeighborInfoList {
-		if l != rhs.NeighborInfoList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container rpol:prefix
 type Prefix struct {
 	// original -> rpol:ip-prefix
@@ -4927,51 +2773,12 @@ type Prefix struct {
 	MasklengthRange string `mapstructure:"masklength-range" json:"masklength-range,omitempty"`
 }
 
-func (lhs *Prefix) Equal(rhs *Prefix) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.IpPrefix != rhs.IpPrefix {
-		return false
-	}
-	if lhs.MasklengthRange != rhs.MasklengthRange {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:prefix-set
 type PrefixSet struct {
 	// original -> rpol:prefix-set-name
 	PrefixSetName string `mapstructure:"prefix-set-name" json:"prefix-set-name,omitempty"`
 	// original -> rpol:prefix
 	PrefixList []Prefix `mapstructure:"prefix-list" json:"prefix-list,omitempty"`
-}
-
-func (lhs *PrefixSet) Equal(rhs *PrefixSet) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.PrefixSetName != rhs.PrefixSetName {
-		return false
-	}
-	if len(lhs.PrefixList) != len(rhs.PrefixList) {
-		return false
-	}
-	{
-		lmap := make(map[string]*Prefix)
-		for i, l := range lhs.PrefixList {
-			lmap[mapkey(i, string(l.IpPrefix+l.MasklengthRange))] = &lhs.PrefixList[i]
-		}
-		for i, r := range rhs.PrefixList {
-			if l, y := lmap[mapkey(i, string(r.IpPrefix+r.MasklengthRange))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 //struct for container rpol:defined-sets
@@ -4986,94 +2793,10 @@ type DefinedSets struct {
 	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets" json:"bgp-defined-sets,omitempty"`
 }
 
-func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.PrefixSets) != len(rhs.PrefixSets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*PrefixSet)
-		for i, l := range lhs.PrefixSets {
-			lmap[mapkey(i, string(l.PrefixSetName))] = &lhs.PrefixSets[i]
-		}
-		for i, r := range rhs.PrefixSets {
-			if l, y := lmap[mapkey(i, string(r.PrefixSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.NeighborSets) != len(rhs.NeighborSets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*NeighborSet)
-		for i, l := range lhs.NeighborSets {
-			lmap[mapkey(i, string(l.NeighborSetName))] = &lhs.NeighborSets[i]
-		}
-		for i, r := range rhs.NeighborSets {
-			if l, y := lmap[mapkey(i, string(r.NeighborSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if len(lhs.TagSets) != len(rhs.TagSets) {
-		return false
-	}
-	{
-		lmap := make(map[string]*TagSet)
-		for i, l := range lhs.TagSets {
-			lmap[mapkey(i, string(l.TagSetName))] = &lhs.TagSets[i]
-		}
-		for i, r := range rhs.TagSets {
-			if l, y := lmap[mapkey(i, string(r.TagSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	if !lhs.BgpDefinedSets.Equal(&(rhs.BgpDefinedSets)) {
-		return false
-	}
-	return true
-}
-
 //struct for container rpol:routing-policy
 type RoutingPolicy struct {
 	// original -> rpol:defined-sets
 	DefinedSets DefinedSets `mapstructure:"defined-sets" json:"defined-sets,omitempty"`
 	// original -> rpol:policy-definitions
 	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions" json:"policy-definitions,omitempty"`
-}
-
-func (lhs *RoutingPolicy) Equal(rhs *RoutingPolicy) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.DefinedSets.Equal(&(rhs.DefinedSets)) {
-		return false
-	}
-	if len(lhs.PolicyDefinitions) != len(rhs.PolicyDefinitions) {
-		return false
-	}
-	{
-		lmap := make(map[string]*PolicyDefinition)
-		for i, l := range lhs.PolicyDefinitions {
-			lmap[mapkey(i, string(l.Name))] = &lhs.PolicyDefinitions[i]
-		}
-		for i, r := range rhs.PolicyDefinitions {
-			if l, y := lmap[mapkey(i, string(r.Name))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
-		}
-	}
-	return true
 }

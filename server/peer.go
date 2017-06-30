@@ -17,13 +17,16 @@ package server
 
 import (
 	"fmt"
+	"net"
+	"reflect"
+	"time"
+
 	"github.com/eapache/channels"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
-	"net"
-	"time"
 )
 
 const (
@@ -496,7 +499,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 		}
 		if p, ok := m[k]; !ok {
 			return fmt.Errorf("changing supported afi-safi is not allowed")
-		} else if !p.Equal(&e.PrefixLimit.Config) {
+		} else if !reflect.DeepEqual(&p, &e.PrefixLimit.Config) {
 			log.WithFields(log.Fields{
 				"Topic":                   "Peer",
 				"Key":                     peer.ID(),
