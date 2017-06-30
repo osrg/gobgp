@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 
 import optparse
-import StringIO
 import sys
 from pyang import plugin
 from collections import namedtuple
@@ -73,7 +73,7 @@ class GolangPlugin(plugin.PyangPlugin):
         # visit yang statements
         visit_modules(ctx)
         # emit bgp_configs
-        emit_go(ctx)
+        emit_go(ctx, fd)
 
 
 def visit_modules(ctx):
@@ -88,33 +88,33 @@ def visit_modules(ctx):
         visit_children(ctx, module, module.i_children)
 
 
-def emit_go(ctx):
+def emit_go(ctx, fd):
 
     ctx.golang_struct_def.reverse()
     done = set()
 
     # emit
-    generate_header(ctx)
+    generate_header(ctx, fd)
 
-    generate_common_functions(ctx)
+    generate_common_functions(ctx, fd)
 
     for mod in ctx.module_deps:
         if mod not in _module_excluded:
-            emit_typedef(ctx, mod)
-            emit_identity(ctx, mod)
+            emit_typedef(ctx, mod, fd)
+            emit_identity(ctx, mod, fd)
 
     for struct in ctx.golang_struct_def:
         struct_name = struct.uniq_name
         if struct_name in done:
             continue
-        emit_class_def(ctx, struct, struct_name, struct.module_prefix)
+        emit_class_def(ctx, struct, struct_name, struct.module_prefix, fd)
         done.add(struct_name)
 
 
 def check_module_deps(ctx, module):
 
     own_prefix = module.i_prefix
-    for k, v in module.i_prefixes.items():
+    for k, v in list(module.i_prefixes.items()):
         mod = ctx.get_module(v[0])
         if mod.i_prefix != own_prefix:
             check_module_deps(ctx, mod)
@@ -133,15 +133,12 @@ def dig_leafref(type_obj):
         return reftype
 
 
-def emit_class_def(ctx, yang_statement, struct_name, prefix):
-
-    o = StringIO.StringIO()
-
+def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
     if len(yang_statement.i_children) == 1 and is_list(yang_statement.i_children[0]):
         return
 
-    print >> o, '//struct for container %s:%s' % (prefix, yang_statement.arg)
-    print >> o, 'type %s struct {' % convert_to_golang(struct_name)
+    print('//struct for container %s:%s' % (prefix, yang_statement.arg), file=fd)
+    print('type %s struct {' % convert_to_golang(struct_name), file=fd)
 
     equal_elems = []
 
@@ -156,8 +153,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         tag_name = child.uniq_name.lower()
         equal_type = EQUAL_TYPE_LEAF
         equal_data = None
-        print >> o, '  // original -> %s:%s' % \
-                    (child_prefix, container_or_list_name)
+        print('  // original -> %s:%s' % (child_prefix, container_or_list_name), file=fd)
 
         # case leaf
         if is_leaf(child):
@@ -175,8 +171,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                     continue
                 t = dig_leafref(type_obj)
                 if is_translation_required(t):
-                    print >> o, '  //%s:%s\'s original type is %s' \
-                                % (child_prefix, container_or_list_name, t.arg)
+                    print('  //%s:%s\'s original type is %s' % (child_prefix, container_or_list_name, t.arg), file=fd)
                     emit_type_name = translate_type(t.arg)
                 elif is_identityref(t):
                     emit_type_name = convert_to_golang(t.search_one('base').arg.split(':')[-1])
@@ -189,8 +184,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  //%s:%s\'s original type is %s'\
-                            % (child_prefix, container_or_list_name, type_name)
+                print('  //%s:%s\'s original type is %s' % (child_prefix, container_or_list_name, type_name), file=fd)
                 emit_type_name = translate_type(type_name)
 
             # case other primitives
@@ -229,7 +223,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  // original type is list of %s' % (type_obj.arg)
+                print('  // original type is list of %s' % type_obj.arg, file=fd)
                 emit_type_name = '[]'+translate_type(type_name)
 
             # case other primitives
@@ -278,67 +272,66 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 tag_name = 'state'
                 val_name_go = 'State'
 
-        print >> o, '  {0}\t{1} `mapstructure:"{2}" json:"{2},omitempty"`'.format(val_name_go, emit_type_name, tag_name)
+        print('  {0}\t{1} `mapstructure:"{2}" json:"{2},omitempty"`'.format(val_name_go, emit_type_name, tag_name), file=fd)
 
         equal_elems.append((val_name_go, emit_type_name, equal_type, equal_data))
 
-    print >> o, '}'
+    print('}', file=fd)
 
     if not struct_name.endswith('state'):
-        print >> o, 'func (lhs *{0}) Equal(rhs *{0}) bool {{'.format(convert_to_golang(struct_name))
-        print >> o, 'if lhs == nil || rhs == nil {'
-        print >> o, 'return false'
-        print >> o, '}'
+        print('func (lhs *{0}) Equal(rhs *{0}) bool {{'.format(convert_to_golang(struct_name)), file=fd)
+        print('if lhs == nil || rhs == nil {', file=fd)
+        print('return false', file=fd)
+        print('}', file=fd)
 
         for val_name, type_name, typ, elem in equal_elems:
             if val_name == 'State':
                 continue
             if typ == EQUAL_TYPE_LEAF:
                 if type_name == '[]byte':
-                    print >> o, 'if bytes.Compare(lhs.{0}, rhs.{0}) != 0 {{'.format(val_name)
+                    print('if bytes.Compare(lhs.{0}, rhs.{0}) != 0 {{'.format(val_name), file=fd)
                 else:
-                    print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val_name)
-                print >> o, 'return false'
-                print >> o, '}'
+                    print('if lhs.{0} != rhs.{0} {{'.format(val_name), file=fd)
+                print('return false', file=fd)
+                print('}', file=fd)
             elif typ == EQUAL_TYPE_CONTAINER:
-                print >> o, 'if !lhs.{0}.Equal(&(rhs.{0})) {{'.format(val_name)
-                print >> o, 'return false'
-                print >> o, '}'
+                print('if !lhs.{0}.Equal(&(rhs.{0})) {{'.format(val_name), file=fd)
+                print('return false', file=fd)
+                print('}', file=fd)
             elif typ == EQUAL_TYPE_ARRAY:
-                print >> o, 'if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name)
-                print >> o, 'return false'
-                print >> o, '}'
-                print >> o, 'for idx, l := range lhs.{0} {{'.format(val_name)
+                print('if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name), file=fd)
+                print('return false', file=fd)
+                print('}', file=fd)
+                print('for idx, l := range lhs.{0} {{'.format(val_name), file=fd)
                 if type_name == '[][]byte':
-                    print >> o, 'if bytes.Compare(l, rhs.{0}[idx]) != 0 {{'.format(val_name)
+                    print('if bytes.Compare(l, rhs.{0}[idx]) != 0 {{'.format(val_name), file=fd)
                 else:
-                    print >> o, 'if l != rhs.{0}[idx] {{'.format(val_name)
-                print >> o, 'return false'
-                print >> o, '}'
-                print >> o, '}'
+                    print('if l != rhs.{0}[idx] {{'.format(val_name), file=fd)
+                print('return false', file=fd)
+                print('}', file=fd)
+                print('}', file=fd)
             elif typ == EQUAL_TYPE_MAP:
-                print >> o, 'if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name)
-                print >> o, 'return false'
-                print >> o, '}'
-                print >> o, '{'
-                print >> o, 'lmap := make(map[string]*{0})'.format(type_name[2:])
-                print >> o, 'for i, l := range lhs.{0} {{'.format(val_name)
-                print >> o, 'lmap[mapkey(i, string({0}))] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name)
-                print >> o, '}'
-                print >> o, 'for i, r := range rhs.{0} {{'.format(val_name)
-                print >> o, 'if l, y := lmap[mapkey(i, string({0}))]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')))
-                print >> o, 'return false'
-                print >> o, '} else if !r.Equal(l) {'
-                print >> o, 'return false'
-                print >> o, '}'
-                print >> o, '}'
-                print >> o, '}'
+                print('if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name), file=fd)
+                print('return false', file=fd)
+                print('}', file=fd)
+                print('{', file=fd)
+                print('lmap := make(map[string]*{0})'.format(type_name[2:]), file=fd)
+                print('for i, l := range lhs.{0} {{'.format(val_name), file=fd)
+                print('lmap[mapkey(i, string({0}))] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name), file=fd)
+                print('}', file=fd)
+                print('for i, r := range rhs.{0} {{'.format(val_name), file=fd)
+                print('if l, y := lmap[mapkey(i, string({0}))]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' '))), file=fd)
+                print('return false', file=fd)
+                print('} else if !r.Equal(l) {', file=fd)
+                print('return false', file=fd)
+                print('}', file=fd)
+                print('}', file=fd)
+                print('}', file=fd)
             else:
                 sys.stderr.write("invalid equal type %s", typ)
 
-        print >> o, 'return true'
-        print >> o, '}'
-    print o.getvalue()
+        print('return true', file=fd)
+        print('}', file=fd)
 
 
 def get_orig_prefix(module):
@@ -502,16 +495,15 @@ def lookup(basemap, default_prefix, key):
         return key
 
 
-def emit_enum(prefix, name, stmt, substmts):
+def emit_enum(prefix, name, stmt, substmts, fd):
         type_name_org = name
         type_name = stmt.golang_name
-        o = StringIO.StringIO()
 
-        print >> o, '// typedef for identity %s:%s' % (prefix, type_name_org)
-        print >> o, 'type %s string' % (type_name)
+        print('// typedef for identity %s:%s' % (prefix, type_name_org), file=fd)
+        print('type %s string' % type_name, file=fd)
 
         const_prefix = convert_const_prefix(type_name_org)
-        print >> o, 'const ('
+        print('const (', file=fd)
         m = {}
 
         if is_choice(stmt) and is_enum_choice(stmt):
@@ -522,56 +514,52 @@ def emit_enum(prefix, name, stmt, substmts):
         for sub in substmts:
             enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
             m[sub.arg.lower()] = enum_name
-            print >> o, ' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower())
-        print >> o, ')\n'
+            print(' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower()), file=fd)
+        print(')\n', file=fd)
 
-        print >> o, 'var %sToIntMap = map[%s]int {' % (type_name, type_name)
+        print('var %sToIntMap = map[%s]int {' % (type_name, type_name), file=fd)
         for i, sub in enumerate(substmts):
             enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-            print >> o, ' %s: %d,' % (enum_name, i)
-        print >> o, '}\n'
+            print(' %s: %d,' % (enum_name, i), file=fd)
+        print('}\n', file=fd)
 
-        print >> o, 'func (v %s) ToInt() int {' % (type_name)
-        print >> o, 'i, ok := %sToIntMap[v]' % (type_name)
-        print >> o, 'if !ok {'
-        print >> o, 'return -1'
-        print >> o, '}'
-        print >> o, 'return i'
-        print >> o, '}'
+        print('func (v %s) ToInt() int {' % type_name, file=fd)
+        print('i, ok := %sToIntMap[v]' % type_name, file=fd)
+        print('if !ok {', file=fd)
+        print('return -1', file=fd)
+        print('}', file=fd)
+        print('return i', file=fd)
+        print('}', file=fd)
 
-        print >> o, 'var IntTo%sMap = map[int]%s {' % (type_name, type_name)
+        print('var IntTo%sMap = map[int]%s {' % (type_name, type_name), file=fd)
         for i, sub in enumerate(substmts):
             enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-            print >> o, ' %d: %s,' % (i, enum_name)
-        print >> o, '}\n'
+            print(' %d: %s,' % (i, enum_name), file=fd)
+        print('}\n', file=fd)
 
-        print >> o, 'func (v %s) Validate() error {' % (type_name)
-        print >> o, 'if _, ok := %sToIntMap[v]; !ok {' % (type_name)
-        print >> o, 'return fmt.Errorf("invalid %s: %%s", v)' % (type_name)
-        print >> o, '}'
-        print >> o, 'return nil'
-        print >> o, '}\n'
+        print('func (v %s) Validate() error {' % type_name, file=fd)
+        print('if _, ok := %sToIntMap[v]; !ok {' % type_name, file=fd)
+        print('return fmt.Errorf("invalid %s: %%s", v)' % type_name, file=fd)
+        print('}', file=fd)
+        print('return nil', file=fd)
+        print('}\n', file=fd)
 
         if stmt.search_one('default'):
             default = stmt.search_one('default')
-            print >> o, 'func (v %s) Default() %s {' % (type_name, type_name)
-            print >> o, 'return %s' % m[default.arg.lower()]
-            print >> o, '}\n'
+            print('func (v %s) Default() %s {' % (type_name, type_name), file=fd)
+            print('return %s' % m[default.arg.lower()], file=fd)
+            print('}\n', file=fd)
 
-            print >> o, 'func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name)
-            print >> o, ' if string(v) == "" {'
-            print >> o, ' return v.Default()'
-            print >> o, '}'
-            print >> o, ' return v'
-            print >> o, '}'
-
-
-
-        print o.getvalue()
+            print('func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name), file=fd)
+            print(' if string(v) == "" {', file=fd)
+            print(' return v.Default()', file=fd)
+            print('}', file=fd)
+            print(' return v', file=fd)
+            print('}', file=fd)
 
 
-def emit_typedef(ctx, module):
-    prefix = module.i_prefix
+def emit_typedef(ctx, mod, fd):
+    prefix = mod.i_prefix
     t_map = ctx.golang_typedef_map[prefix]
     for name, stmt in t_map.items():
         if stmt.path in _typedef_exclude:
@@ -593,39 +581,33 @@ def emit_typedef(ctx, module):
         emitted_type_names[type_name] = prefix+":"+type_name_org
 
         t = stmt.search_one('type')
-        o = StringIO.StringIO()
-
         if not t and  is_choice(stmt):
-            emit_enum(prefix, type_name_org, stmt, stmt.i_children)
+            emit_enum(prefix, type_name_org, stmt, stmt.i_children, fd)
         elif t.arg == 'enumeration':
-            emit_enum(prefix, type_name_org, stmt, t.substmts)
+            emit_enum(prefix, type_name_org, stmt, t.substmts, fd)
         elif t.arg == 'union':
-            print >> o, '// typedef for typedef %s:%s'\
-                        % (prefix, type_name_org)
-            print >> o, 'type %s string' % (type_name)
+            print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
+            print('type %s string' % type_name, file=fd)
         else:
-            print >> o, '// typedef for typedef %s:%s'\
-                        % (prefix, type_name_org)
+            print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
 
             if not is_builtin_type(t):
                 m = ctx.golang_typedef_map
                 for k in t.arg.split(':'):
                     m = m[k]
-                print >> o, 'type %s %s' % (type_name, m.golang_name)
+                print('type %s %s' % (type_name, m.golang_name), file=fd)
             else:
-                print >> o, 'type %s %s' % (type_name, t.arg)
-
-        print o.getvalue()
+                print('type %s %s' % (type_name, t.arg), file=fd)
 
 
-def emit_identity(ctx, module):
+def emit_identity(ctx, mod, fd):
 
-    prefix = module.i_prefix
+    prefix = mod.i_prefix
     i_map = ctx.golang_identity_map[prefix]
     for name, stmt in i_map.items():
         enums = stmt.search('identity')
         if len(enums) > 0:
-            emit_enum(prefix, name, stmt, enums)
+            emit_enum(prefix, name, stmt, enums, fd)
 
 def is_reference(s):
     return s.arg in ['leafref', 'identityref']
@@ -672,7 +654,7 @@ def is_builtin_type(t):
 
 
 def is_translation_required(t):
-    return t.arg in _type_translation_map.keys()
+    return t.arg in list(_type_translation_map.keys())
 
 
 _type_translation_map = {
@@ -720,25 +702,25 @@ _typedef_exclude =["/gobgp:bgp-capability",
                    "/gobgp:bgp-open-message"]
 
 
-def generate_header(ctx):
-    print _COPYRIGHT_NOTICE
-    print 'package config'
-    print ''
-    print 'import ('
-    print '"fmt"'
-    print ''
-    print '"github.com/osrg/gobgp/packet/bgp"'
-    print ')'
-    print ''
+def generate_header(ctx, fd):
+    print(_COPYRIGHT_NOTICE, file=fd)
+    print('package config', file=fd)
+    print('', file=fd)
+    print('import (', file=fd)
+    print('"fmt"', file=fd)
+    print('', file=fd)
+    print('"github.com/osrg/gobgp/packet/bgp"', file=fd)
+    print(')', file=fd)
+    print('', file=fd)
 
 
-def generate_common_functions(ctx):
-    print 'func mapkey(index int, name string) string {'
-    print 'if name != "" {'
-    print 'return name'
-    print '}'
-    print 'return fmt.Sprintf("%v", index)'
-    print '}'
+def generate_common_functions(ctx, fd):
+    print('func mapkey(index int, name string) string {', file=fd)
+    print('if name != "" {', file=fd)
+    print('return name', file=fd)
+    print('}', file=fd)
+    print('return fmt.Sprintf("%v", index)', file=fd)
+    print('}', file=fd)
 
 
 def translate_type(key):
