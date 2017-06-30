@@ -3,71 +3,23 @@
 This page explains how to managing GoBGP with your favorite Language.
 You can use any language supported by [gRPC](http://www.grpc.io/) (10
 languages are supported now). This page gives an example in Python,
-Ruby, C++, Node.js, and Java. It assumes that you use Ubuntu 14.04 (64bit).
+Ruby, C++, Node.js, and Java. It assumes that you use Ubuntu 16.04 (64bit).
 
 ## Contents
 
+- [Prerequisite](#prerequisite)
 - [Python](#python)
 - [Ruby](#ruby)
 - [C++](#cpp)
 - [Node.js](#nodejs)
 - [Java](#java)
 
+## <a name="prerequisite"> Prerequisite
+We assumes that you have finished installing `protoc` [protocol buffer](https://github.com/google/protobuf) compiler to generate stub server and client code and "protobuf runtime" for your favorite language.
+
+Please refer to [the official docs of gRPC](http://www.grpc.io/docs/) for details.
+
 ## <a name="python"> Python
-
-We need to install ProtocolBuffers and gRPC libraries.
-
-### Install ProtocolBuffers:
-```bash
-$ sudo apt-get update
-$ sudo apt-get install -y build-essential autoconf git libtool unzip
-$ mkdir ~/work
-$ cd ~/work
-$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-1.tar.gz
-$ tar xvzf v3.0.0-beta-1.tar.gz
-$ cd protobuf-3.0.0-beta-1
-$ ./autogen.sh
-$ ./configure
-$ make
-$ sudo make install
-$ vi ~/.bashrc
-  export LD_LIBRARY_PATH=/usr/local/lib
-```
-
-please check the version.
- ```bash
- $ protoc --version
- libprotoc 3.0.0
- ```
-
-### Install gRPC:
-```bash
-$ sudo apt-get update
-$ sudo apt-get install -y python-all-dev python-virtualenv
-$ cd ~/work
-$ git clone https://github.com/grpc/grpc.git
-$ cd grpc
-$ git checkout -b release-0_11_1 release-0_11_1
-$ git submodule update --init
-$ make
-$ sudo make install
-```
-
-### Install Python Libraries:
-
-Install python libraries for protobuf and gRPC.
-Please use virtualenv if you want to keep your environment clean.
-In this example we create venv directory at $HOME/venv.
-
-```bash
-$ virtualenv ~/venv
-$ source ~/venv/bin/activate
-$ cd ~/work/protobuf-3.0.0-beta-1/python
-$ python setup.py install
-$ cd ~/work/grpc/src/python/grpcio/
-$ python setup.py install
-$ deactivate
-```
 
 ### Generating Stub Code
 
@@ -128,45 +80,6 @@ We got the neighbor information successfully.
 
 ## <a name="ruby"> Ruby
 
-### Install ProtoBuffers:
-
-```bash
-$ sudo apt-get update
-$ sudo apt-get install -y build-essential curl git m4 ruby autoconf libtool unzip
-$ mkdir ~/work
-$ cd ~/work
-$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-1.tar.gz
-$ tar xvzf v3.0.0-beta-1.tar.gz
-$ cd protobuf-3.0.0-beta-1
-$ ./autogen.sh
-$ ./configure
-$ make
-$ sudo make install
-$ vi ~/.bashrc
-  export LD_LIBRARY_PATH=/usr/local/lib
-```
-
-### Installing gRPC and Ruby Libraries
-
-```bash
-$ command curl -sSL https://rvm.io/mpapis.asc | gpg --import -
-$ \curl -sSL https://get.rvm.io | bash -s stable --ruby=ruby-2
-$ source $HOME/.rvm/scripts/rvm
-$ rvm install 2.1
-$ gem install bundler
-$ cd ~/work/
-$ git clone https://github.com/grpc/grpc.git
-$ cd grpc
-$ git checkout -b release-0_11_1 release-0_11_1
-$ git submodule update --init
-$ $ make
-$ $ sudo make install
-$ cd src/ruby/
-$ gem build grpc.gemspec
-$ bundle install
-$ gem install -l grpc-0.11.0.gem
-```
-
 ### Generating Stub Code
 
 We need to generate stub code GoBGP at first.
@@ -218,38 +131,6 @@ BGP neighbor is 192.168.10.3, remote AS 65001
 
 ## <a name="cpp"> C++
 
-For gRPC we need so much dependencies, please make coffee and be ready!
-
-### Install ProtoBuffers:
-```bash
-apt-get update
-apt-get install -y gcc make autoconf automake git libtool g++ curl
-
-cd /usr/src
-wget https://github.com/google/protobuf/archive/v3.0.0-alpha-4.tar.gz
-tar -xf v3.0.0-alpha-4.tar.gz
-cd protobuf-3.0.0-alpha-4/
-./autogen.sh
-./configure --prefix=/opt/protobuf_3.0.0_alpha4
-make -j 4
-make install
-```
-
-### Install gRPC:
-```bash
-apt-get update
-apt-get install -y gcc make autoconf automake git libtool g++ python-all-dev python-virtualenv
-
-cd /usr/src/
-git clone https://github.com/grpc/grpc.git
-cd grpc
-# We are using specific commit because gRPC is under heavy development right now
-git checkout e5cdbea1530a99a95fd3d032e7d69a19c61a0d16
-git submodule update --init
-make -j 4
-make install prefix=/opt/grpc
-```
-
 We use .so compilation with golang, please use only 1.5 or newer version of Go Lang.
 
 Clone this repository and build API example:
@@ -284,48 +165,6 @@ NLRI: {"nlri":{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"v
 ```
 
 ## <a name="nodejs"> Node.js
-
-Build from source code because there is no official gRPC package for Ubuntu 14.04.
-(Debian Linux and Mac OSX are much easier. See [the document](https://github.com/grpc/grpc/tree/release-0_11/src/node))
-
-
-### Install Protocol Buffers:
-
-Install protobuf v3.0.0-beta before gRPC. gRPC installation process will try to do it automatically but fail. (Probably because it tries another version of protobuf)
-
-See [installation document](https://github.com/grpc/grpc/blob/master/INSTALL).
-
-```bash
-$ [sudo] apt-get install unzip autoconf libtool build-essential
-
-$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-4.tar.gz
-$ tar zxvf v3.0.0-beta-4.tar.gz
-$ cd protobuf-3.0.0-beta-4/
-$ ./autogen.sh
-$ ./configure
-$ make
-$ [sudo] make install
-```
-
-### Install gRPC:
-
-```bash
-$ [sudo] apt-get install git
-
-$ git clone https://github.com/grpc/grpc.git
-$ cd grpc
-$ git submodule update --init
-$ make 
-$ [sudo] make install
-```
-
-### Install Node.js gRPC library:
-
-Let's say Node.js is already installed,
-
-```bash
-npm install grpc
-```
 
 ### Example
 
@@ -397,30 +236,6 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.72-b15, mixed mode)
 $ echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> ~/.bashrc
 $ source ~/.bashrc
 ```
-
-
-### Install ProtocolBuffers:
-We use v3.0.0 beta2.
-```bash
-$ sudo apt-get install -y build-essential autoconf git libtool unzip
-$ mkdir ~/work
-$ cd ~/work
-$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-2.tar.gz
-$ tar xvzf v3.0.0-beta-2.tar.gz
-$ cd protobuf-3.0.0-beta-2
-$ ./autogen.sh
-$ ./configure
-$ make
-$ sudo make install
-$ echo "export LD_LIBRARY_PATH=/usr/local/lib" >> ~/.bashrc
-$ source ~/.bashrc
-```
-
-Please check the version.
- ```bash
- $ protoc --version
- libprotoc 3.0.0
- ```
 
 ### Create protobuf library for Java:
 ```bash
