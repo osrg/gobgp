@@ -209,7 +209,7 @@ func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*
 		rib,
 		policy)
 	for _, f := range rib.GetRFlist() {
-		p.fsm.rfMap[f] = true
+		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
 	}
 	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address)}
 }
