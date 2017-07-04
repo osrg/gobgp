@@ -184,17 +184,3 @@ enables you to validate all the routes.
 ```bash
 $ gobgp rpki validate
 ```
-
-## <a name="section4"> Monitoring validation
-
-You can monitor the validation results in real-time.
-
-```bash
-$ gobgp monitor rpki
-[VALIDATION] Reason: Update, Peer: 10.0.255.1, Timestamp: 2016-01-18 06:47:33 -0800 PST, Prefix:217.196.16.0/20, OriginAS:24651, ASPath:24651, Old:NONE, New:INVALID, ROAs: [Source: 210.173.170.254:323, AS: 6453, Prefix: 217.196.16.0, Prefixlen: 20, Maxlen: 20], [Source: 210.173.170.254:323, AS: 6854, Prefix: 217.196.16.0, Prefixlen: 20, Maxlen: 20], [Source: 210.173.170.254:323, AS: 41798, Prefix: 217.196.16.0, Prefixlen: 20, Maxlen: 20], [Source: 210.173.170.254:323, AS: 43994, Prefix: 217.196.16.0, Prefixlen: 20, Maxlen: 20]
-[VALIDATION] Reason: PeerDown, Peer: 10.0.255.3, Timestamp: 2016-01-18 06:47:33 -0800 PST, Prefix:223.27.80.0/24, OriginAS:65003, ASPath:65003, Old:INVALID, New:INVALID
-```
-
-Notification is sent when the validation result of a route changes to
-invalid or non-invalid. Notification is also sent when an invalid
-route is withdrawn.
