@@ -585,10 +585,6 @@ module gobgp {
     }
   }
 
-  grouping gobgp-bmp-server-state {
-    description "additional BMP state";
-  }
-
   grouping gobgp-bmp-server-set {
     description "additional BMP configuration and state";
 
@@ -601,7 +597,7 @@ module gobgp {
     container state {
       description
         "Configuration parameters relating to BMP server";
-      uses gobgp-bmp-server-state;
+      uses gobgp-bmp-server-config;
     }
   }
 

@@ -1206,6 +1206,18 @@ func (lhs *Mrt) Equal(rhs *Mrt) bool {
 
 //struct for container gobgp:state
 type BmpServerState struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address string `mapstructure:"address" json:"address,omitempty"`
+	// original -> gobgp:port
+	Port uint32 `mapstructure:"port" json:"port,omitempty"`
+	// original -> gobgp:route-monitoring-policy
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy" json:"route-monitoring-policy,omitempty"`
+	// original -> gobgp:statistics-timeout
+	StatisticsTimeout uint16 `mapstructure:"statistics-timeout" json:"statistics-timeout,omitempty"`
+	// original -> gobgp:route-mirroring-enabled
+	//gobgp:route-mirroring-enabled's original type is boolean
+	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
 }
 
 //struct for container gobgp:config
