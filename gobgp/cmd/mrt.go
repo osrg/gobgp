@@ -112,11 +112,11 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 					for _, p := range paths {
 						dst.AddNewPath(p)
 					}
-					best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME}, false)
-					if best[table.GLOBAL_RIB_NAME] == nil {
+					best, _, _ := dst.Calculate().GetChanges(table.GLOBAL_RIB_NAME, false)
+					if best == nil {
 						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
 					}
-					paths = []*table.Path{best[table.GLOBAL_RIB_NAME]}
+					paths = []*table.Path{best}
 				}
 
 				if idx >= skip {

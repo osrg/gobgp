@@ -18,10 +18,11 @@ package table
 import (
 	"bytes"
 	"fmt"
-	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -185,29 +186,17 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(ids []string, destinations []*Destination, peerDown bool) (map[string][]*Path, map[string][]*Path, [][]*Path) {
-	best := make(map[string][]*Path, len(ids))
-	old := make(map[string][]*Path, len(ids))
+func (manager *TableManager) calculate(dsts []*Destination) []*Destination {
+	emptyDsts := make([]*Destination, 0, len(dsts))
+	clonedDsts := make([]*Destination, 0, len(dsts))
 
-	emptyDsts := make([]*Destination, 0, len(destinations))
-	var multi [][]*Path
-	if UseMultiplePaths.Enabled && len(ids) == 1 && ids[0] == GLOBAL_RIB_NAME {
-		multi = make([][]*Path, 0, len(destinations))
-	}
-
-	for _, dst := range destinations {
+	for _, dst := range dsts {
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, olds, m := dst.Calculate(ids, peerDown)
-		for id, path := range paths {
-			best[id] = append(best[id], path)
-			old[id] = append(old[id], olds[id])
-		}
-		if m != nil {
-			multi = append(multi, m)
-		}
+
+		clonedDsts = append(clonedDsts, dst.Calculate())
 
 		if len(dst.knownPathList) == 0 {
 			emptyDsts = append(emptyDsts, dst)
@@ -218,18 +207,18 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 		t := manager.Tables[dst.Family()]
 		t.deleteDest(dst)
 	}
-	return best, old, multi
+	return clonedDsts
 }
 
-func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, map[string][]*Path, [][]*Path) {
+func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Destination {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		return manager.calculate(ids, dsts, true)
+		return manager.calculate(dsts)
 	}
-	return nil, nil, nil
+	return nil
 }
 
-func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, map[string][]*Path, [][]*Path) {
+func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
@@ -255,7 +244,7 @@ func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[s
 			}
 		}
 	}
-	return manager.calculate(ids, dsts, false)
+	return manager.calculate(dsts)
 }
 
 // EVPN MAC MOBILITY HANDLING

@@ -32,7 +32,7 @@ func NewMonitorCmd() *cobra.Command {
 
 	monitor := func(recver interface {
 		Recv() (*table.Destination, error)
-	}) {
+	}, showIdentifier bool) {
 		for {
 			dst, err := recver.Recv()
 			if err == io.EOF {
@@ -44,7 +44,7 @@ func NewMonitorCmd() *cobra.Command {
 				j, _ := json.Marshal(dst.GetAllKnownPathList())
 				fmt.Println(string(j))
 			} else {
-				ShowRoute(dst.GetAllKnownPathList(), false, false, false, true, false)
+				ShowRoute(dst.GetAllKnownPathList(), false, false, false, showIdentifier, true, false)
 			}
 		}
 	}
@@ -60,7 +60,7 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			monitor(recver)
+			monitor(recver, false)
 		},
 	}
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
@@ -118,7 +118,7 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			monitor(recver)
+			monitor(recver, true)
 		},
 	}
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")

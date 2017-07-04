@@ -370,6 +370,7 @@ func ToPathApi(path *table.Path) *Path {
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
 		Uuid:               path.UUID().Bytes(),
 		IsNexthopInvalid:   path.IsNexthopInvalid,
+		Identifier:         nlri.PathIdentifier(),
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS

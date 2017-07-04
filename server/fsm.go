@@ -124,7 +124,7 @@ type FSM struct {
 	adminStateCh         chan AdminStateOperation
 	getActiveCh          chan struct{}
 	h                    *FSMHandler
-	rfMap                map[bgp.RouteFamily]bool
+	rfMap                map[bgp.RouteFamily]bgp.BGPAddPathMode
 	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen             *bgp.BGPMessage
 	peerInfo             *table.PeerInfo
@@ -132,6 +132,7 @@ type FSM struct {
 	gracefulRestartTimer *time.Timer
 	twoByteAsTrans       bool
 	version              uint
+	marshallingOptions   *bgp.MarshallingOption
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -212,7 +213,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		adminState:           adminState,
 		adminStateCh:         make(chan AdminStateOperation, 1),
 		getActiveCh:          make(chan struct{}),
-		rfMap:                make(map[bgp.RouteFamily]bool),
+		rfMap:                make(map[bgp.RouteFamily]bgp.BGPAddPathMode),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
 		policy:               policy,
@@ -614,6 +615,23 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 		cap := bgp.NewCapExtendedNexthop(tuples)
 		caps = append(caps, cap)
 	}
+
+	var mode bgp.BGPAddPathMode
+	if pConf.AddPaths.Config.Receive {
+		mode |= bgp.BGP_ADD_PATH_RECEIVE
+	}
+	if pConf.AddPaths.Config.SendMax > 0 {
+		mode |= bgp.BGP_ADD_PATH_SEND
+	}
+	if uint8(mode) > 0 {
+		items := make([]*bgp.CapAddPathTuple, 0, len(pConf.AfiSafis))
+		for _, rf := range pConf.AfiSafis {
+			k, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
+			items = append(items, bgp.NewCapAddPathTuple(k, mode))
+		}
+		caps = append(caps, bgp.NewCapAddPath(items))
+	}
+
 	return caps
 }
 
@@ -703,7 +721,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 	}
 
 	now := time.Now()
-	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, h.fsm.marshallingOptions)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
@@ -841,10 +859,8 @@ func (h *FSMHandler) recvMessage() error {
 	return nil
 }
 
-func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bool) {
+func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bgp.BGPAddPathMode) {
 	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
-	rfMap := config.CreateRfMap(n)
-	r := make(map[bgp.RouteFamily]bool)
 	for _, p := range open.OptParams {
 		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
 			for _, c := range paramCap.Capability {
@@ -853,26 +869,53 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 					m = make([]bgp.ParameterCapabilityInterface, 0, 1)
 				}
 				capMap[c.Code()] = append(m, c)
+			}
+		}
+	}
 
-				if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
-					m := c.(*bgp.CapMultiProtocol)
-					r[m.CapValue] = true
+	// squash add path cap
+	if caps, y := capMap[bgp.BGP_CAP_ADD_PATH]; y {
+		items := make([]*bgp.CapAddPathTuple, 0, len(caps))
+		for _, c := range caps {
+			for _, i := range c.(*bgp.CapAddPath).Tuples {
+				items = append(items, i)
+			}
+		}
+		capMap[bgp.BGP_CAP_ADD_PATH] = []bgp.ParameterCapabilityInterface{bgp.NewCapAddPath(items)}
+	}
+
+	// remote open message may not include multi-protocol capability
+	if _, y := capMap[bgp.BGP_CAP_MULTIPROTOCOL]; !y {
+		capMap[bgp.BGP_CAP_MULTIPROTOCOL] = []bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)}
+	}
+
+	local := config.CreateRfMap(n)
+	remote := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
+	for _, c := range capMap[bgp.BGP_CAP_MULTIPROTOCOL] {
+		family := c.(*bgp.CapMultiProtocol).CapValue
+		remote[family] = bgp.BGP_ADD_PATH_NONE
+		for _, a := range capMap[bgp.BGP_CAP_ADD_PATH] {
+			for _, i := range a.(*bgp.CapAddPath).Tuples {
+				if i.RouteFamily == family {
+					remote[family] = i.Mode
 				}
 			}
 		}
 	}
-
-	if len(r) > 0 {
-		for rf, _ := range rfMap {
-			if _, y := r[rf]; !y {
-				delete(rfMap, rf)
+	negotiated := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
+	for family, mode := range local {
+		if m, y := remote[family]; y {
+			n := bgp.BGP_ADD_PATH_NONE
+			if mode&bgp.BGP_ADD_PATH_SEND > 0 && m&bgp.BGP_ADD_PATH_RECEIVE > 0 {
+				n |= bgp.BGP_ADD_PATH_SEND
 			}
+			if mode&bgp.BGP_ADD_PATH_RECEIVE > 0 && m&bgp.BGP_ADD_PATH_SEND > 0 {
+				n |= bgp.BGP_ADD_PATH_RECEIVE
+			}
+			negotiated[family] = n
 		}
-	} else {
-		rfMap = make(map[bgp.RouteFamily]bool)
-		rfMap[bgp.RF_IPv4_UC] = true
 	}
-	return capMap, rfMap
+	return capMap, negotiated
 }
 
 func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
@@ -954,6 +997,12 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					fsm.peerInfo.AS = peerAs
 					fsm.peerInfo.ID = body.ID
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
+
+					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
+						fsm.marshallingOptions = &bgp.MarshallingOption{
+							AddPath: fsm.rfMap,
+						}
+					}
 
 					// calculate HoldTime
 					// RFC 4271 P.13
@@ -1202,7 +1251,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
-		b, err := m.Serialize()
+		b, err := m.Serialize(h.fsm.marshallingOptions)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

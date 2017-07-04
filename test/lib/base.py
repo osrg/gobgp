@@ -311,7 +311,7 @@ class BGPContainer(Container):
                  flowspec=False, bridge='', reload_config=True, as2=False,
                  graceful_restart=None, local_as=None, prefix_limit=None,
                  v6=False, llgr=None, vrf='', interface='', allow_as_in=0,
-                 remove_private_as=None, replace_peer_as=False):
+                 remove_private_as=None, replace_peer_as=False, addpath=False):
         neigh_addr = ''
         local_addr = ''
         it = itertools.product(self.ip_addrs, peer.ip_addrs)
@@ -355,7 +355,8 @@ class BGPContainer(Container):
                             'vrf': vrf,
                             'allow_as_in': allow_as_in,
                             'remove_private_as': remove_private_as,
-                            'replace_peer_as': replace_peer_as}
+                            'replace_peer_as': replace_peer_as,
+                            'addpath': addpath}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
@@ -378,8 +379,10 @@ class BGPContainer(Container):
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
                   nexthop=None, matchs=None, thens=None,
-                  local_pref=None, reload_config=True):
-        self.routes[route] = {'prefix': route,
+                  local_pref=None, identifier=None, reload_config=True):
+        if route not in self.routes:
+            self.routes[route] = []
+        self.routes[route].append({'prefix': route,
                               'rf': rf,
                               'attr': attribute,
                               'next-hop': nexthop,
@@ -388,8 +391,9 @@ class BGPContainer(Container):
                               'med': med,
                               'local-pref': local_pref,
                               'extended-community': extendedcommunity,
+                              'identifier': identifier,
                               'matchs': matchs,
-                              'thens': thens}
+                              'thens': thens})
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
