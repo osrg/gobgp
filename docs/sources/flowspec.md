@@ -45,7 +45,7 @@ CLI syntax to add ipv4/ipv6 flowspec rule is
 ```shell
 % global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
    <MATCH_EXPR> : { destination <PREFIX> [<OFFSET>] | source <PREFIX> [<OFFSET>] |
-                    protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags [!] [=] <TCPFLAG>... |
+                    protocol <PROTO>... | fragment [!] [=] <FRAGMENT_TYPE> | tcp-flags [!] [=] <TCPFLAG>... |
                     { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp | label } <ITEM>... }...
    <PROTO> : ospf, pim, igp, udp, igmp, tcp, egp, rsvp, gre, ipip, unknown, icmp, sctp, <VALUE>
    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
@@ -98,22 +98,26 @@ All decimal values like ports, destination port, source port, procotol number ca
    Network                                       Next Hop             AS_PATH              Age        Attrs
 *> [destination:10.0.0.0/24][source:20.0.0.0/24] 0.0.0.0                                   00:00:04   [{Origin: i} {Extcomms: [redirect: 10:10]}]
 
-# add another flowspec rule which discard flows whose ip protocol is tcp and destination port is 80 or greater than or equal to 8080 and lesser than or equal to 8888
-% gobgp global rib -a ipv4-flowspec add match protocol tcp destination-port '==80' '>=8080&<=8888' then discard
+# add another flowspec rule which discard flows whose
+  # ip protocol is tcp and
+  # destination port is 80 or greater than or equal to 8080 and lesser than or equal to 8888 and
+  # packet is a first fragment or a last fragment
+% gobgp global rib -a ipv4-flowspec add match protocol tcp destination-port '==80' '>=8080&<=8888' fragment '=first-fragment =last-fragment' then discard
 
 # add flowspec rule to drop traffic not going to destination port 80, 443 or 22
 
 gobgp global rib -a ipv4-flowspec add match destination 2.2.2.2/32 dest-port '!=80&!=443&!=22' then discard
 
 % gobgp global rib -a ipv4-flowspec
-   Network                                              Next Hop             AS_PATH              Age        Attrs
-*> [destination:10.0.0.0/24][source:20.0.0.0/24]        0.0.0.0                                   00:03:19   [{Origin: i} {Extcomms: [redirect: 10:10]}]
-*> [protocol: tcp][destination-port: ==80 >=8080&<=8888] 0.0.0.0                                   00:00:03   [{Origin: i} {Extcomms: [discard]}]
+   Network                                                                                          Next Hop             AS_PATH              Age        Attrs
+*> [destination:10.0.0.0/24][source:20.0.0.0/24]                                                    0.0.0.0                                   00:03:19   [{Origin: i} {Extcomms: [redirect: 10:10]}]
+*> [protocol:==tcp ][destination-port: ==80 >=8080&<=8888][fragment:=first-fragment =last-fragment ]0.0.0.0                                   00:00:05   [{Origin: ?} {Extcomms: [discard]}]
+
 
 # delete a flowspec rule
 % gobgp global rib -a ipv4-flowspec del match destination 10.0.0.0/24 source 20.0.0.0/24 then redirect 10:10
 
 % gobgp global rib -a ipv4-flowspec
-   Network                                              Next Hop             AS_PATH              Age        Attrs
-*> [protocol: tcp][destination-port: ==80 >=8080&<=8888] 0.0.0.0                                   00:00:03   [{Origin: i} {Extcomms: [discard]}]
+   Network                                                                                          Next Hop             AS_PATH              Age        Attrs
+*> [protocol:==tcp ][destination-port: ==80 >=8080&<=8888][fragment:=first-fragment =last-fragment ]0.0.0.0                                   00:00:05   [{Origin: ?} {Extcomms: [discard]}]
 ```

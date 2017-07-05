@@ -128,30 +128,56 @@ var TCPFlagValueMap = map[string]TCPFlag{
 	TCPFlagNameMap[TCP_FLAG_ECE]:    TCP_FLAG_ECE,
 }
 
-type TCPFlagOp int
+type BitmaskFlagOp int
 
 const (
-	TCP_FLAG_OP_OR    = 0x00
-	TCP_FLAG_OP_AND   = 0x40
-	TCP_FLAG_OP_END   = 0x80
-	TCP_FLAG_OP_NOT   = 0x02
-	TCP_FLAG_OP_MATCH = 0x01
+	BITMASK_FLAG_OP_OR    = 0x00
+	BITMASK_FLAG_OP_AND   = 0x40
+	BITMASK_FLAG_OP_END   = 0x80
+	BITMASK_FLAG_OP_NOT   = 0x02
+	BITMASK_FLAG_OP_MATCH = 0x01
 )
 
-var TCPFlagOpNameMap = map[TCPFlagOp]string{
-	TCP_FLAG_OP_OR:    " ",
-	TCP_FLAG_OP_AND:   "&",
-	TCP_FLAG_OP_END:   "E",
-	TCP_FLAG_OP_NOT:   "!",
-	TCP_FLAG_OP_MATCH: "=",
+var BitmaskFlagOpNameMap = map[BitmaskFlagOp]string{
+	BITMASK_FLAG_OP_OR:    " ",
+	BITMASK_FLAG_OP_AND:   "&",
+	BITMASK_FLAG_OP_END:   "E",
+	BITMASK_FLAG_OP_NOT:   "!",
+	BITMASK_FLAG_OP_MATCH: "=",
 }
 
-var TCPFlagOpValueMap = map[string]TCPFlagOp{
-	TCPFlagOpNameMap[TCP_FLAG_OP_OR]:    TCP_FLAG_OP_OR,
-	TCPFlagOpNameMap[TCP_FLAG_OP_AND]:   TCP_FLAG_OP_AND,
-	TCPFlagOpNameMap[TCP_FLAG_OP_END]:   TCP_FLAG_OP_END,
-	TCPFlagOpNameMap[TCP_FLAG_OP_NOT]:   TCP_FLAG_OP_NOT,
-	TCPFlagOpNameMap[TCP_FLAG_OP_MATCH]: TCP_FLAG_OP_MATCH,
+var BitmaskFlagOpValueMap = map[string]BitmaskFlagOp{
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:    BITMASK_FLAG_OP_OR,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND]:   BITMASK_FLAG_OP_AND,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_END]:   BITMASK_FLAG_OP_END,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:   BITMASK_FLAG_OP_NOT,
+	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]: BITMASK_FLAG_OP_MATCH,
+}
+
+type FragmentFlag int
+
+const (
+	FRAG_FLAG_NOT   = 0x00
+	FRAG_FLAG_DONT  = 0x01
+	FRAG_FLAG_IS    = 0x02
+	FRAG_FLAG_FIRST = 0x04
+	FRAG_FLAG_LAST  = 0x08
+)
+
+var FragmentFlagNameMap = map[FragmentFlag]string{
+	FRAG_FLAG_NOT:   "not-a-fragment",
+	FRAG_FLAG_DONT:  "dont-fragment",
+	FRAG_FLAG_IS:    "is-fragment",
+	FRAG_FLAG_FIRST: "first-fragment",
+	FRAG_FLAG_LAST:  "last-fragment",
+}
+
+var FragmentFlagValueMap = map[string]FragmentFlag{
+	FragmentFlagNameMap[FRAG_FLAG_NOT]:   FRAG_FLAG_NOT,
+	FragmentFlagNameMap[FRAG_FLAG_DONT]:  FRAG_FLAG_DONT,
+	FragmentFlagNameMap[FRAG_FLAG_IS]:    FRAG_FLAG_IS,
+	FragmentFlagNameMap[FRAG_FLAG_FIRST]: FRAG_FLAG_FIRST,
+	FragmentFlagNameMap[FRAG_FLAG_LAST]:  FRAG_FLAG_LAST,
 }
 
 type DECNumOp int

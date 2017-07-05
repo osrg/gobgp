@@ -305,11 +305,14 @@ func Test_FlowSpecNlri(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
 	isFlagment := 0x02
-	item5 := NewFlowSpecComponentItem(isFlagment, 0)
-	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5}))
-	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
-	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
-	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
+	lastFlagment := 0x08
+	match := 0x1
+	item5 := NewFlowSpecComponentItem(match, isFlagment)
+	item6 := NewFlowSpecComponentItem(and, lastFlagment)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5, item6}))
+	item7 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
+	item8 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item7, item8}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
