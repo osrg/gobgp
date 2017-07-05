@@ -185,7 +185,7 @@ func showNeighbor(args []string) error {
 
 	elems := make([]string, 0, 3)
 	if as := p.AsPathOptions.Config.AllowOwnAs; as > 0 {
-		elems = append(elems, fmt.Sprintf("Allow Own AS: %d\n", as))
+		elems = append(elems, fmt.Sprintf("Allow Own AS: %d", as))
 	}
 	switch p.Config.RemovePrivateAs {
 	case config.REMOVE_PRIVATE_AS_OPTION_ALL:
@@ -197,7 +197,7 @@ func showNeighbor(args []string) error {
 		elems = append(elems, "Replace peer AS: enabled")
 	}
 
-	fmt.Println("  %s", strings.Join(elems, ", "))
+	fmt.Printf("  %s\n", strings.Join(elems, ", "))
 
 	fmt.Printf("  Neighbor capabilities:\n")
 	caps := capabilities{}
