@@ -16,7 +16,13 @@
 package server
 
 import (
+	"net"
+	"os"
+	"strings"
+	"syscall"
+
 	"github.com/eapache/channels"
+
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -58,4 +64,29 @@ func decodeAdministrativeCommunication(data []byte) (string, []byte) {
 		communicationLen = len(data) + 1
 	}
 	return string(data[1 : communicationLen+1]), data[communicationLen+1:]
+}
+
+func extractFileAndFamilyFromTCPConn(conn *net.TCPConn) (*os.File, int, error) {
+	// Note #1: TCPConn.File() has the unexpected side-effect of putting
+	// the original socket into blocking mode. See Note #2.
+	fi, err := conn.File()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Note #2: Call net.FileConn() to put the original socket back into
+	// non-blocking mode.
+	fc, err := net.FileConn(fi)
+	if err != nil {
+		fi.Close()
+		return nil, 0, err
+	}
+	fc.Close()
+
+	family := syscall.AF_INET
+	if strings.Contains(conn.RemoteAddr().String(), "[") {
+		family = syscall.AF_INET6
+	}
+
+	return fi, family, nil
 }

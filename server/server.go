@@ -1723,7 +1723,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	if server.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range server.Listeners(addr) {
 			if c.Config.AuthPassword != "" {
-				if err := SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword); err != nil {
+				if err := SetTcpMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   addr,
@@ -1825,7 +1825,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
 	}
 	for _, l := range server.Listeners(addr) {
-		if err := SetTcpMD5SigSockopts(l, addr, ""); err != nil {
+		if err := SetTcpMD5SigSockopt(l, addr, ""); err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   addr,

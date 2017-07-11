@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -56,143 +55,159 @@ func buildTcpMD5Sig(address string, key string) (tcpmd5sig, error) {
 	return t, nil
 }
 
-func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error {
-	t, _ := buildTcpMD5Sig(address, key)
+func setsockoptTcpMD5Sig(fd int, address string, key string) error {
+	t, err := buildTcpMD5Sig(address, key)
+	if err != nil {
+		return err
+	}
+	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptString(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, string(b[:])))
+}
+
+func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	fi, err := l.File()
 	defer fi.Close()
 	if err != nil {
 		return err
 	}
-	if l, err := net.FileListener(fi); err == nil {
-		defer l.Close()
-	}
-	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
-	if err := syscall.SetsockoptString(int(fi.Fd()),
-		syscall.IPPROTO_TCP, TCP_MD5SIG,
-		string(b[:])); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setTcpSockoptInt(conn *net.TCPConn, level int, name int, value int) error {
-	fi, err := conn.File()
-	defer fi.Close()
+	fl, err := net.FileListener(fi)
+	defer fl.Close()
 	if err != nil {
 		return err
 	}
-	if conn, err := net.FileConn(fi); err == nil {
-		defer conn.Close()
-	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(int(fi.Fd()), level, name, value))
+	return setsockoptTcpMD5Sig(int(fi.Fd()), address, key)
 }
 
-func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
+func setsockoptIpTtl(fd int, family int, value int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_TTL
-	if strings.Contains(conn.RemoteAddr().String(), "[") {
+	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
 		name = syscall.IPV6_UNICAST_HOPS
 	}
-	return setTcpSockoptInt(conn, level, name, ttl)
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
 }
 
-func SetTcpMinTTLSockopts(conn *net.TCPConn, ttl int) error {
+func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+}
+
+func setsockoptIpMinTtl(fd int, family int, value int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_MINTTL
-	if strings.Contains(conn.RemoteAddr().String(), "[") {
+	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
 		name = IPV6_MINHOPCOUNT
 	}
-	return setTcpSockoptInt(conn, level, name, ttl)
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
 }
 
-func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec int) (*net.TCPConn, error) {
+func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpMinTtl(int(fi.Fd()), family, ttl)
+}
+
+type TCPDialer struct {
+	net.Dialer
+
+	// MD5 authentication password.
+	AuthPassword string
+
+	// The TTL value to set outgoing connection.
+	Ttl uint8
+
+	// The minimum TTL value for incoming packets.
+	TtlMin uint8
+}
+
+func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	var family int
 	var ra, la syscall.Sockaddr
 
-	ip, err := net.ResolveIPAddr("ip", host)
+	raddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr, fmt.Sprintf("%d", port)))
 	if err != nil {
-		return nil, fmt.Errorf("invalid ip: %s", err)
+		return nil, fmt.Errorf("invalid remote address: %s", err)
 	}
-	l, err := net.ResolveIPAddr("ip", localAddr)
-	if l == nil {
-		return nil, fmt.Errorf("invalid local ip: %s", err)
+	laddr, err := net.ResolveTCPAddr("tcp", d.LocalAddr.String())
+	if err != nil {
+		return nil, fmt.Errorf("invalid local address: %s", err)
 	}
-	if (ip.IP.To4() != nil) != (l.IP.To4() != nil) {
-		return nil, fmt.Errorf("remote and local ip address family is not same")
-	}
-	switch {
-	case ip.IP.To4() != nil:
+	if raddr.IP.To4() != nil {
 		family = syscall.AF_INET
-		i := &syscall.SockaddrInet4{
-			Port: port,
-		}
-		for idx, _ := range i.Addr {
-			i.Addr[idx] = ip.IP.To4()[idx]
-		}
-		ra = i
-		j := &syscall.SockaddrInet4{}
-		for idx, _ := range j.Addr {
-			j.Addr[idx] = l.IP.To4()[idx]
-		}
-		la = j
-	default:
+		rsockaddr := &syscall.SockaddrInet4{Port: port}
+		copy(rsockaddr.Addr[:], raddr.IP.To4())
+		ra = rsockaddr
+		lsockaddr := &syscall.SockaddrInet4{}
+		copy(lsockaddr.Addr[:], laddr.IP.To4())
+		la = lsockaddr
+	} else {
 		family = syscall.AF_INET6
-		i := &syscall.SockaddrInet6{
-			Port: port,
-		}
-		for idx, _ := range i.Addr {
-			i.Addr[idx] = ip.IP[idx]
-		}
-		ra = i
+		rsockaddr := &syscall.SockaddrInet6{Port: port}
+		copy(rsockaddr.Addr[:], raddr.IP.To16())
+		ra = rsockaddr
 		var zone uint32
-		if l.Zone != "" {
-			intf, err := net.InterfaceByName(l.Zone)
-			if err != nil {
+		if laddr.Zone != "" {
+			if intf, err := net.InterfaceByName(laddr.Zone); err != nil {
 				return nil, err
+			} else {
+				zone = uint32(intf.Index)
 			}
-			zone = uint32(intf.Index)
 		}
-		j := &syscall.SockaddrInet6{
-			ZoneId: zone,
-		}
-		for idx, _ := range j.Addr {
-			j.Addr[idx] = l.IP[idx]
-		}
-		la = j
+		lsockaddr := &syscall.SockaddrInet6{ZoneId: zone}
+		copy(lsockaddr.Addr[:], laddr.IP.To16())
+		la = lsockaddr
 	}
-	sotype := syscall.SOCK_STREAM | syscall.SOCK_CLOEXEC | syscall.SOCK_NONBLOCK
-	proto := 0
-	fd, err := syscall.Socket(family, sotype, proto)
-	if err != nil {
-		return nil, err
-	}
-	fi := os.NewFile(uintptr(fd), "")
-	defer fi.Close()
 
-	t, err := buildTcpMD5Sig(host, key)
+	sockType := syscall.SOCK_STREAM | syscall.SOCK_CLOEXEC | syscall.SOCK_NONBLOCK
+	proto := 0
+	fd, err := syscall.Socket(family, sockType, proto)
 	if err != nil {
 		return nil, err
-	}
-	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
-	if err := syscall.SetsockoptString(int(fi.Fd()),
-		syscall.IPPROTO_TCP, TCP_MD5SIG,
-		string(b[:])); err != nil {
-		return nil, os.NewSyscallError("setsockopt", err)
 	}
 
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1); err != nil {
 		return nil, os.NewSyscallError("setsockopt", err)
 	}
+
 	if err = syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1); err != nil {
 		return nil, os.NewSyscallError("setsockopt", err)
 	}
+
+	if d.AuthPassword != "" {
+		if err = setsockoptTcpMD5Sig(fd, addr, d.AuthPassword); err != nil {
+			return nil, err
+		}
+	}
+
+	if d.Ttl != 0 {
+		if err = setsockoptIpTtl(fd, family, int(d.Ttl)); err != nil {
+			return nil, err
+		}
+	}
+
+	if d.TtlMin != 0 {
+		if err = setsockoptIpMinTtl(fd, family, int(d.Ttl)); err != nil {
+			return nil, err
+		}
+	}
+
 	if err = syscall.Bind(fd, la); err != nil {
 		return nil, os.NewSyscallError("bind", err)
 	}
 
-	tcpconn := func(fi *os.File) (*net.TCPConn, error) {
+	newTCPConn := func(fd int) (*net.TCPConn, error) {
+		fi := os.NewFile(uintptr(fd), "")
+		defer fi.Close()
+
 		conn, err := net.FileConn(fi)
 		return conn.(*net.TCPConn), err
 	}
@@ -202,7 +217,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	case syscall.EINPROGRESS, syscall.EALREADY, syscall.EINTR:
 		// do timeout handling
 	case nil, syscall.EISCONN:
-		return tcpconn(fi)
+		return newTCPConn(fd)
 	default:
 		return nil, os.NewSyscallError("connect", err)
 	}
@@ -223,7 +238,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	}
 
 	for {
-		nevents, e := syscall.EpollWait(epfd, events, msec)
+		nevents, e := syscall.EpollWait(epfd, events, int(d.Timeout/1000000) /*msec*/)
 		if e != nil {
 			return nil, e
 		}
@@ -237,7 +252,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 			switch err := syscall.Errno(nerr); err {
 			case syscall.EINPROGRESS, syscall.EALREADY, syscall.EINTR:
 			case syscall.Errno(0), syscall.EISCONN:
-				return tcpconn(fi)
+				return newTCPConn(fd)
 			default:
 				return nil, os.NewSyscallError("getsockopt", err)
 			}

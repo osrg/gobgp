@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -29,59 +30,109 @@ const (
 	IPV6_MINHOPCOUNT = 73   // Generalized TTL Security Mechanism (RFC5082)
 )
 
-func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error {
+func setsockoptTcpMD5Sig(fd int, address string, key string) error {
+	// always enable and assumes that the configuration is done by setkey()
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, 1))
+}
+
+func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	fi, err := l.File()
 	defer fi.Close()
-
 	if err != nil {
 		return err
 	}
-
-	if l, err := net.FileListener(fi); err == nil {
-		defer l.Close()
-	}
-
-	// always enable and assumes that the configuration is done by
-	// setkey()
-	if err := syscall.SetsockoptInt(int(fi.Fd()),
-		syscall.IPPROTO_TCP, TCP_MD5SIG, 1); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setTcpSockoptInt(conn *net.TCPConn, level int, name int, value int) error {
-	fi, err := conn.File()
-	defer fi.Close()
+	fl, err := net.FileListener(fi)
+	defer fl.Close()
 	if err != nil {
 		return err
 	}
-	if conn, err := net.FileConn(fi); err == nil {
-		defer conn.Close()
-	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(int(fi.Fd()), level, name, value))
+	return setsockoptTcpMD5Sig(int(fi.Fd()), address, key)
 }
 
-func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
+func setsockoptIpTtl(fd int, family int, value int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_TTL
-	if strings.Contains(conn.RemoteAddr().String(), "[") {
+	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
 		name = syscall.IPV6_UNICAST_HOPS
 	}
-	return setTcpSockoptInt(conn, level, name, ttl)
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
 }
 
-func SetTcpMinTTLSockopts(conn *net.TCPConn, ttl int) error {
+func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+}
+
+func setsockoptIpMinTtl(fd int, family int, value int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_MINTTL
-	if strings.Contains(conn.RemoteAddr().String(), "[") {
+	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
 		name = IPV6_MINHOPCOUNT
 	}
-	return setTcpSockoptInt(conn, level, name, ttl)
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
 }
 
-func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec int) (*net.TCPConn, error) {
-	return nil, fmt.Errorf("md5 active connection unsupported")
+func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpMinTtl(int(fi.Fd()), family, ttl)
+}
+
+type TCPDialer struct {
+	net.Dialer
+
+	// MD5 authentication password.
+	AuthPassword string
+
+	// The TTL value to set outgoing connection.
+	Ttl uint8
+
+	// The minimum TTL value for incoming packets.
+	TtlMin uint8
+}
+
+func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
+	if d.AuthPassword != "" {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Warn("setting md5 for active connection is not supported")
+	}
+	if d.Ttl != 0 {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Warn("setting ttl for active connection is not supported")
+	}
+	if d.TtlMin != 0 {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Warn("setting min ttl for active connection is not supported")
+	}
+
+	raddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr, fmt.Sprintf("%d", port)))
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote address: %s", err)
+	}
+	laddr, err := net.ResolveTCPAddr("tcp", d.LocalAddr.String())
+	if err != nil {
+		return nil, fmt.Errorf("invalid local address: %s", err)
+	}
+
+	dialer := net.Dialer{LocalAddr: laddr, Timeout: d.Timeout}
+	conn, err := dialer.Dial("tcp", raddr.String())
+	if err != nil {
+		return nil, err
+	}
+	return conn.(*net.TCPConn), nil
 }
