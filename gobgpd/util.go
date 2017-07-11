@@ -27,7 +27,7 @@ import (
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/syslog"
+	lSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )
 
 func init() {
@@ -94,7 +94,7 @@ func addSyslogHook(host, facility string) error {
 		priority = syslog.LOG_LOCAL7
 	}
 
-	hook, err := logrus_syslog.NewSyslogHook(network, addr, syslog.LOG_INFO|priority, "bgpd")
+	hook, err := lSyslog.NewSyslogHook(network, addr, syslog.LOG_INFO|priority, "bgpd")
 	if err != nil {
 		return err
 	}
