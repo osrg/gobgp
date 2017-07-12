@@ -27,6 +27,10 @@ func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return fmt.Errorf("setting md5 is not supported")
 }
 
+func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
+	return fmt.Errorf("setting ttl is not supported")
+}
+
 func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return fmt.Errorf("setting ttl is not supported")
 }

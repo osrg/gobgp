@@ -24,10 +24,11 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
 )
 
 type TCPListener struct {
@@ -65,6 +66,15 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 	if err != nil {
 		return nil, err
 	}
+	// Note: Set TTL=255 for incoming connection listener in order to accept
+	// connection in case for the neighbor has TTL Security settings.
+	if err := SetListenTcpTTLSockopt(l, 255); err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Warnf("cannot set TTL(=%d) for TCPLisnter: %s", 255, err)
+	}
+
 	closeCh := make(chan struct{})
 	go func() error {
 		for {

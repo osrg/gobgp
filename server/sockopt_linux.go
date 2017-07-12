@@ -65,13 +65,8 @@ func setsockoptTcpMD5Sig(fd int, address string, key string) error {
 }
 
 func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	fi, err := l.File()
+	fi, _, err := extractFileAndFamilyFromTCPListener(l)
 	defer fi.Close()
-	if err != nil {
-		return err
-	}
-	fl, err := net.FileListener(fi)
-	defer fl.Close()
 	if err != nil {
 		return err
 	}
@@ -86,6 +81,15 @@ func setsockoptIpTtl(fd int, family int, value int) error {
 		name = syscall.IPV6_UNICAST_HOPS
 	}
 	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
+}
+
+func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPListener(l)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
 }
 
 func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
