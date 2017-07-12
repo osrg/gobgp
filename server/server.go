@@ -1722,14 +1722,13 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 
 	if server.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range server.Listeners(addr) {
-			if err := SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword); err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-				}).Debugf("failed to set md5 %s %s", addr, err)
-			} else {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-				}).Debugf("successfully set md5 %s", addr)
+			if c.Config.AuthPassword != "" {
+				if err := SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword); err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+					}).Warnf("failed to set md5: %s", err)
+				}
 			}
 		}
 	}
@@ -1826,7 +1825,12 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
 	}
 	for _, l := range server.Listeners(addr) {
-		SetTcpMD5SigSockopts(l, addr, "")
+		if err := SetTcpMD5SigSockopts(l, addr, ""); err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Warnf("failed to unset md5: %s", err)
+		}
 	}
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
