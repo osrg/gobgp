@@ -75,9 +75,8 @@ func getIPv6LinkLocalAddress(ifname string) (string, error) {
 		return "", err
 	}
 	for _, addr := range addrs {
-		if ip, _, err := net.ParseCIDR(addr.String()); err != nil {
-			return "", err
-		} else if ip.To4() == nil && ip.IsLinkLocalUnicast() {
+		ip := addr.(*net.IPNet).IP
+		if ip.To4() == nil && ip.IsLinkLocalUnicast() {
 			return fmt.Sprintf("%s%%%s", ip.String(), ifname), nil
 		}
 	}
