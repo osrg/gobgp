@@ -492,24 +492,46 @@ enum Resource {
   VRF = 4;
 }
 
+message RPKIValidation{
+  enum State {
+    STATE_NONE = 0;
+    STATE_NOT_FOUND = 1;
+    STATE_VALID = 2;
+    STATE_INVALID = 3;
+  }
+
+  enum Reason {
+    REASOT_NONE = 0;
+    REASON_AS = 1;
+    REASON_LENGTH = 2;
+  }
+
+  State state = 1;
+  Reason reason = 2;
+  repeated Roa matched = 3;
+  repeated Roa unmatched_as = 4;
+  repeated Roa unmatched_length = 5;
+}
+
 message Path {
   bytes nlri = 1;
   repeated bytes pattrs = 2;
   int64 age = 3;
   bool best = 4;
   bool is_withdraw = 5;
-  int32 validation = 6;
-  bool no_implicit_withdraw = 7;
-  uint32 family = 8;
-  uint32 source_asn = 9;
-  string source_id = 10;
-  bool filtered = 11;
-  bool stale = 12;
-  bool is_from_external = 13;
-  string neighbor_ip = 14;
-  bytes uuid = 15; // only paths installed by AddPath API have this
-  bool is_nexthop_invalid = 16;
-  uint32 identifier = 17;
+  int32 validation = 6; // remains for backword compatibility
+  RPKIValidation validation_detail = 7;
+  bool no_implicit_withdraw = 8;
+  uint32 family = 9;
+  uint32 source_asn = 10;
+  string source_id = 11;
+  bool filtered = 12;
+  bool stale = 13;
+  bool is_from_external = 14;
+  string neighbor_ip = 15;
+  bytes uuid = 16; // only paths installed by AddPath API have this
+  bool is_nexthop_invalid = 17;
+  uint32 identifier = 18;
 }
 
 message Destination {
