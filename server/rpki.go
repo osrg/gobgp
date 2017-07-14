@@ -489,8 +489,16 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 	return l, nil
 }
 
-func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) (config.RpkiValidationResultType, *RoaBucket) {
+func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) (*table.Validation, *RoaBucket) {
 	var as uint32
+
+	validation := &table.Validation{
+		Status:          config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND,
+		Reason:          table.RPKI_VALIDATION_REASON_TYPE_NONE,
+		Matched:         make([]*table.ROA, 0),
+		UnmatchedLength: make([]*table.ROA, 0),
+		UnmatchedAs:     make([]*table.ROA, 0),
+	}
 
 	if asPath == nil || len(asPath.Value) == 0 {
 		as = ownAs
@@ -506,7 +514,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 			as = ownAs
 		default:
-			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, nil
+			return validation, nil
 		}
 	}
 	_, n, _ := net.ParseCIDR(cidr)
@@ -515,23 +523,42 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	key := table.IpToRadixkey(n.IP, prefixLen)
 	_, b, _ := tree.LongestPrefix(key)
 	if b == nil {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, nil
+		return validation, nil
 	}
 
-	result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
 	var bucket *RoaBucket
 	fn := radix.WalkFn(func(k string, v interface{}) bool {
 		bucket, _ = v.(*RoaBucket)
 		for _, r := range bucket.entries {
-			if prefixLen <= r.MaxLen && r.AS != 0 && r.AS == as {
-				result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
-				return true
+			if prefixLen <= r.MaxLen {
+				if r.AS != 0 && r.AS == as {
+					validation.Matched = append(validation.Matched, r)
+				} else {
+					validation.UnmatchedAs = append(validation.UnmatchedAs, r)
+				}
+			} else {
+				validation.UnmatchedLength = append(validation.UnmatchedLength, r)
 			}
 		}
 		return false
 	})
 	tree.WalkPath(key, fn)
-	return result, bucket
+
+	if len(validation.Matched) != 0 {
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_VALID
+		validation.Reason = table.RPKI_VALIDATION_REASON_TYPE_NONE
+	} else if len(validation.UnmatchedAs) != 0 {
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+		validation.Reason = table.RPKI_VALIDATION_REASON_TYPE_AS
+	} else if len(validation.UnmatchedLength) != 0 {
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+		validation.Reason = table.RPKI_VALIDATION_REASON_TYPE_LENGTH
+	} else {
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+		validation.Reason = table.RPKI_VALIDATION_REASON_TYPE_NONE
+	}
+
+	return validation, bucket
 }
 
 func (c *roaManager) validate(pathList []*table.Path) {
@@ -545,8 +572,8 @@ func (c *roaManager) validate(pathList []*table.Path) {
 			continue
 		}
 		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
-			r, _ := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
-			path.SetValidation(config.RpkiValidationResultType(r))
+			v, _ := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			path.SetValidation(v)
 		}
 	}
 }
