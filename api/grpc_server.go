@@ -26,13 +26,14 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 type Server struct {
@@ -345,6 +346,18 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 	return &GetNeighborResponse{Peers: p}, nil
 }
 
+func NewValidationFromTableStruct(v *table.Validation) *RPKIValidation {
+	if v == nil {
+		return &RPKIValidation{}
+	}
+	return &RPKIValidation{
+		Reason:          RPKIValidation_Reason(v.Reason.ToInt()),
+		Matched:         NewRoaListFromTableStructList(v.Matched),
+		UnmatchedAs:     NewRoaListFromTableStructList(v.UnmatchedAs),
+		UnmatchedLength: NewRoaListFromTableStructList(v.UnmatchedLength),
+	}
+}
+
 func ToPathApi(path *table.Path) *Path {
 	nlri := path.GetNlri()
 	n, _ := nlri.Serialize()
@@ -362,7 +375,8 @@ func ToPathApi(path *table.Path) *Path {
 		Pattrs:             pattrs,
 		Age:                path.GetTimestamp().Unix(),
 		IsWithdraw:         path.IsWithdraw,
-		Validation:         int32(path.Validation().ToInt()),
+		Validation:         int32(path.ValidationStatus().ToInt()),
+		ValidationDetail:   NewValidationFromTableStruct(path.Validation()),
 		Filtered:           path.Filtered("") == table.POLICY_DIRECTION_IN,
 		Family:             family,
 		Stale:              path.IsStale(),

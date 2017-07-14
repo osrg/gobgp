@@ -121,7 +121,13 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	t := time.Unix(p.Age, 0)
 	nlri.SetPathIdentifier(p.Identifier)
 	path := table.NewPath(info, nlri, p.IsWithdraw, pattr, t, false)
-	path.SetValidation(config.IntToRpkiValidationResultTypeMap[int(p.Validation)])
+	path.SetValidation(&table.Validation{
+		Status:          config.IntToRpkiValidationResultTypeMap[int(p.Validation)],
+		Reason:          table.IntToRpkiValidationReasonTypeMap[int(p.ValidationDetail.Reason)],
+		Matched:         NewROAListFromApiStructList(p.ValidationDetail.Matched),
+		UnmatchedAs:     NewROAListFromApiStructList(p.ValidationDetail.UnmatchedAs),
+		UnmatchedLength: NewROAListFromApiStructList(p.ValidationDetail.UnmatchedLength),
+	})
 	path.MarkStale(p.Stale)
 	path.SetUUID(p.Uuid)
 	if p.Filtered {
@@ -129,4 +135,23 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	}
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path, nil
+}
+
+func NewROAListFromApiStructList(l []*Roa) []*table.ROA {
+	roas := make([]*table.ROA, 0, len(l))
+	for _, r := range l {
+		ip := net.ParseIP(r.Prefix)
+		rf := func(prefix string) bgp.RouteFamily {
+			a, _, _ := net.ParseCIDR(prefix)
+			if a.To4() != nil {
+				return bgp.RF_IPv4_UC
+			} else {
+				return bgp.RF_IPv6_UC
+			}
+		}(r.Prefix)
+		afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+		roa := table.NewROA(int(afi), []byte(ip), uint8(r.Prefixlen), uint8(r.Maxlen), r.As, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
+		roas = append(roas, roa)
+	}
+	return roas
 }

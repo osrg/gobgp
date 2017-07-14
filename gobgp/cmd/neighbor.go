@@ -18,15 +18,17 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
-	"github.com/spf13/cobra"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 )
 
 func getNeighbors(vrf string) (neighbors, error) {
@@ -444,7 +446,7 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentif
 		if p.IsStale() {
 			best += "S"
 		}
-		switch p.Validation() {
+		switch p.ValidationStatus() {
 		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
 			best += "N"
 		case config.RPKI_VALIDATION_RESULT_TYPE_VALID:

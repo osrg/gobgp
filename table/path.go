@@ -24,10 +24,12 @@ import (
 	"sort"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/satori/go.uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -57,12 +59,48 @@ type originInfo struct {
 	source             *PeerInfo
 	timestamp          time.Time
 	noImplicitWithdraw bool
-	validation         config.RpkiValidationResultType
+	validation         *Validation
 	isFromExternal     bool
 	key                string
 	uuid               uuid.UUID
 	eor                bool
 	stale              bool
+}
+
+type RpkiValidationReasonType string
+
+const (
+	RPKI_VALIDATION_REASON_TYPE_NONE   RpkiValidationReasonType = "none"
+	RPKI_VALIDATION_REASON_TYPE_AS     RpkiValidationReasonType = "as"
+	RPKI_VALIDATION_REASON_TYPE_LENGTH RpkiValidationReasonType = "length"
+)
+
+var RpkiValidationReasonTypeToIntMap = map[RpkiValidationReasonType]int{
+	RPKI_VALIDATION_REASON_TYPE_NONE:   0,
+	RPKI_VALIDATION_REASON_TYPE_AS:     1,
+	RPKI_VALIDATION_REASON_TYPE_LENGTH: 2,
+}
+
+func (v RpkiValidationReasonType) ToInt() int {
+	i, ok := RpkiValidationReasonTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToRpkiValidationReasonTypeMap = map[int]RpkiValidationReasonType{
+	0: RPKI_VALIDATION_REASON_TYPE_NONE,
+	1: RPKI_VALIDATION_REASON_TYPE_AS,
+	2: RPKI_VALIDATION_REASON_TYPE_LENGTH,
+}
+
+type Validation struct {
+	Status          config.RpkiValidationResultType
+	Reason          RpkiValidationReasonType
+	Matched         []*ROA
+	UnmatchedAs     []*ROA
+	UnmatchedLength []*ROA
 }
 
 type FlowSpecComponents []bgp.FlowSpecComponentInterface
@@ -306,12 +344,20 @@ func (path *Path) NoImplicitWithdraw() bool {
 	return path.OriginInfo().noImplicitWithdraw
 }
 
-func (path *Path) Validation() config.RpkiValidationResultType {
+func (path *Path) Validation() *Validation {
 	return path.OriginInfo().validation
 }
 
-func (path *Path) SetValidation(r config.RpkiValidationResultType) {
-	path.OriginInfo().validation = r
+func (path *Path) ValidationStatus() config.RpkiValidationResultType {
+	if v := path.OriginInfo().validation; v != nil {
+		return v.Status
+	} else {
+		return config.RPKI_VALIDATION_RESULT_TYPE_NONE
+	}
+}
+
+func (path *Path) SetValidation(v *Validation) {
+	path.OriginInfo().validation = v
 }
 
 func (path *Path) IsFromExternal() bool {
@@ -977,7 +1023,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		PathAttrs:  path.GetPathAttrs(),
 		Age:        path.GetTimestamp().Unix(),
 		Withdrawal: path.IsWithdraw,
-		Validation: string(path.Validation()),
+		Validation: string(path.ValidationStatus()),
 		SourceID:   path.GetSource().ID,
 		NeighborIP: path.GetSource().Address,
 		Stale:      path.IsStale(),

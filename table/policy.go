@@ -26,10 +26,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/armon/go-radix"
+	log "github.com/sirupsen/logrus"
+
+	radix "github.com/armon/go-radix"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 type PolicyOptions struct {
@@ -1701,7 +1703,7 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 }
 
 func (c *RpkiValidationCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	return c.result == path.Validation()
+	return c.result == path.ValidationStatus()
 }
 
 func (c *RpkiValidationCondition) Set() DefinedSet {
