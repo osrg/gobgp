@@ -549,6 +549,71 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentif
 	}
 }
 
+func checkOriginAsWasNotShown(p *table.Path, shownAs map[uint32]struct{}) bool {
+	asPath := p.GetAsPath().Value
+	// the path was generated in internal
+	if len(asPath) == 0 {
+		return false
+	}
+	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
+	origin := aslist[len(aslist)-1]
+
+	if _, ok := shownAs[origin]; ok {
+		return false
+	}
+	shownAs[origin] = struct{}{}
+	return true
+}
+
+func ShowValidationInfo(p *table.Path) {
+	status := p.Validation().Status
+	reason := p.Validation().Reason
+	asPath := p.GetAsPath().Value
+	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
+	origin := aslist[len(aslist)-1]
+
+	fmt.Printf("Target Prefix: %s, AS: %d\n", p.GetNlri().String(), origin)
+	fmt.Printf("  This route is %s", status)
+	switch status {
+	case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+		fmt.Printf("  reason: %s\n", reason)
+		switch reason {
+		case table.RPKI_VALIDATION_REASON_TYPE_AS:
+			fmt.Println("  No VRP ASN matches the route origin ASN.")
+		case table.RPKI_VALIDATION_REASON_TYPE_LENGTH:
+			fmt.Println("  Route Prefix length is greater than the maximum length allowed by VRP(s) matching this route origin ASN.")
+		}
+	case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+		fmt.Println("\n  No VRP Covers the Route Prefix")
+	default:
+		fmt.Print("\n\n")
+	}
+
+	printVRPs := func(l []*table.ROA) {
+		if len(l) == 0 {
+			fmt.Println("    No Entry")
+		} else {
+			var format string
+			if ip, _, _ := net.ParseCIDR(p.GetNlri().String()); ip.To4() != nil {
+				format = "    %-18s %-6s %-10s\n"
+			} else {
+				format = "    %-42s %-6s %-10s\n"
+			}
+			fmt.Printf(format, "Network", "AS", "MaxLen")
+			for _, m := range l {
+				fmt.Printf(format, m.Prefix, fmt.Sprint(m.AS), fmt.Sprint(m.MaxLen))
+			}
+		}
+	}
+
+	fmt.Println("  Matched VRPs: ")
+	printVRPs(p.Validation().Matched)
+	fmt.Println("  Unmatched AS VRPs: ")
+	printVRPs(p.Validation().UnmatchedAs)
+	fmt.Println("  Unmatched Length VRPs: ")
+	printVRPs(p.Validation().UnmatchedLength)
+}
+
 func showRibInfo(r, name string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
 	if r == CMD_GLOBAL {
@@ -605,6 +670,8 @@ func showNeighborRib(r string, name string, args []string) error {
 	showAge := true
 	showLabel := false
 	showIdentifier := false
+	validationTarget := ""
+
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
 	case CMD_GLOBAL:
@@ -628,21 +695,29 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	var filter []*table.LookupPrefix
 	if len(args) > 0 {
+		target := args[0]
 		if _, _, err = parseCIDRorIP(args[0]); err != nil {
 			return err
 		}
 		var option table.LookupOption
-		if len(args) > 1 {
-			if args[1] == "longer-prefixes" {
+		args = args[1:]
+		for len(args) != 0 {
+			if args[0] == "longer-prefixes" {
 				option = table.LOOKUP_LONGER
-			} else if args[1] == "shorter-prefixes" {
+			} else if args[0] == "shorter-prefixes" {
 				option = table.LOOKUP_SHORTER
+			} else if args[0] == "validation" {
+				if r != CMD_ADJ_IN {
+					return fmt.Errorf("RPKI information is supported for only adj-in.")
+				}
+				validationTarget = target
 			} else {
 				return fmt.Errorf("invalid format for route filtering")
 			}
+			args = args[1:]
 		}
 		filter = []*table.LookupPrefix{&table.LookupPrefix{
-			Prefix:       args[0],
+			Prefix:       target,
 			LookupOption: option,
 		},
 		}
@@ -687,8 +762,12 @@ func showNeighborRib(r string, name string, args []string) error {
 		return nil
 	}
 
+	shownAs := make(map[uint32]struct{})
 	counter := 0
 	for _, d := range rib.GetSortedDestinations() {
+		if validationTarget != "" && d.GetNlri().String() != validationTarget {
+			continue
+		}
 		var ps []*table.Path
 		if r == CMD_ACCEPTED || r == CMD_REJECTED {
 			for _, p := range d.GetAllKnownPathList() {
@@ -711,7 +790,18 @@ func showNeighborRib(r string, name string, args []string) error {
 		if counter == 0 {
 			showHeader = true
 		}
-		ShowRoute(ps, showAge, showBest, showLabel, showIdentifier, false, showHeader)
+		if validationTarget != "" {
+			for _, p := range ps {
+				asPath := p.GetAsPath().Value
+				if len(asPath) == 0 {
+					fmt.Printf("The path to %s was locally generated.\n", p.GetNlri().String())
+				} else if checkOriginAsWasNotShown(p, shownAs) {
+					ShowValidationInfo(p)
+				}
+			}
+		} else {
+			ShowRoute(ps, showAge, showBest, showLabel, showIdentifier, false, showHeader)
+		}
 		counter++
 	}
 

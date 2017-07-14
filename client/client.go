@@ -22,12 +22,13 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 type Client struct {
@@ -841,17 +842,7 @@ func (cli *Client) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
 	if err != nil {
 		return nil, err
 	}
-	roas := make([]*table.ROA, 0, len(rsp.Roas))
-	for _, r := range rsp.Roas {
-		ip := net.ParseIP(r.Prefix)
-		if ip.To4() != nil {
-			ip = ip.To4()
-		}
-		afi, _ := bgp.RouteFamilyToAfiSafi(family)
-		roa := table.NewROA(int(afi), []byte(ip), uint8(r.Prefixlen), uint8(r.Maxlen), r.As, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
-		roas = append(roas, roa)
-	}
-	return roas, nil
+	return api.NewROAListFromApiStructList(rsp.Roas), nil
 }
 
 func (cli *Client) AddRPKIServer(address string, port, lifetime int) error {

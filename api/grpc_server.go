@@ -874,21 +874,7 @@ func (s *Server) GetRoa(ctx context.Context, arg *GetRoaRequest) (*GetRoaRespons
 	if err != nil {
 		return nil, err
 	}
-	l := make([]*Roa, 0, len(roas))
-	for _, r := range roas {
-		host, port, _ := net.SplitHostPort(r.Src)
-		l = append(l, &Roa{
-			As:        r.AS,
-			Maxlen:    uint32(r.MaxLen),
-			Prefixlen: uint32(r.Prefix.Length),
-			Prefix:    r.Prefix.Prefix.String(),
-			Conf: &RPKIConf{
-				Address:    host,
-				RemotePort: port,
-			},
-		})
-	}
-	return &GetRoaResponse{Roas: l}, nil
+	return &GetRoaResponse{Roas: NewRoaListFromTableStructList(roas)}, nil
 }
 
 func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*EnableZebraResponse, error) {
@@ -2075,6 +2061,24 @@ func NewPolicyFromApiStruct(a *Policy) (*table.Policy, error) {
 		Name:       a.Name,
 		Statements: stmts,
 	}, nil
+}
+
+func NewRoaListFromTableStructList(origin []*table.ROA) []*Roa {
+	l := make([]*Roa, 0)
+	for _, r := range origin {
+		host, port, _ := net.SplitHostPort(r.Src)
+		l = append(l, &Roa{
+			As:        r.AS,
+			Maxlen:    uint32(r.MaxLen),
+			Prefixlen: uint32(r.Prefix.Length),
+			Prefix:    r.Prefix.Prefix.String(),
+			Conf: &RPKIConf{
+				Address:    host,
+				RemotePort: port,
+			},
+		})
+	}
+	return l
 }
 
 func (s *Server) GetPolicy(ctx context.Context, arg *GetPolicyRequest) (*GetPolicyResponse, error) {

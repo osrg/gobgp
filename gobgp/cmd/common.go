@@ -26,12 +26,13 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	cli "github.com/osrg/gobgp/client"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -78,6 +79,7 @@ const (
 	CMD_BMP            = "bmp"
 	CMD_LARGECOMMUNITY = "large-community"
 	CMD_SUMMARY        = "summary"
+	CMD_VALIDATION     = "validation"
 )
 
 var subOpts struct {
