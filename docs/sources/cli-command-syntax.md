@@ -129,6 +129,8 @@ The following options can be specified in the global subcommand:
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
 # show table summary
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] summary [-a <address family>]
+# show RPKI detailed information in adj-in table
+% gobgp neighbor <neighbor address> adj-in <prefix> validation
 ```
 
 #### - example

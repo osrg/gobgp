@@ -175,6 +175,27 @@ $ gobgp neighbor 10.0.255.2 local
     N*> 192.168.1.0/24   10.0.255.1           65001                00:00:21   [{Origin: i}]
 ```
 
+
+### Detailed Information about validation
+You can get the detailed information about announced routes.
+```bash
+$ gobgp neighbor 10.0.255.1 adj-in 2.1.0.0/16 validation
+Target Prefix: 2.1.0.0/16, AS: 65001
+  This route is invalid  reason: as
+  No VRP ASN matches the route origin ASN.
+
+  Matched VRPs:
+    No Entry
+  Unmatched AS VRPs:
+    Network            AS    MaxLen
+    2.0.0.0/12         3215  16
+    2.1.0.0/16         3215  16
+  Unmatched Length VRPs:
+    No Entry
+```
+From this, we can notice that 2.1.0.0/16 (Origin AS: 65001) is invalid due to its origin AS,
+the origin AS should be 3215.
+
 ## <a name="section3"> Force Re-validation
 
 Validation is executed every time bgp update messages arrive. The
