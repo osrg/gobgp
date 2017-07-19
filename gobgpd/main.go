@@ -21,19 +21,21 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime"
 	"syscall"
 
-	"github.com/jessevdk/go-flags"
+	flags "github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -211,7 +213,7 @@ func main() {
 					bgpServer.UpdatePolicy(*p)
 				}
 				// global policy update
-				if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
+				if !reflect.DeepEqual(&newConfig.Global.ApplyPolicy.Config, &c.Global.ApplyPolicy.Config) {
 					a := newConfig.Global.ApplyPolicy.Config
 					toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
 						var def table.RouteType

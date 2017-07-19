@@ -1,11 +1,13 @@
 package config
 
 import (
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"os"
 	"os/signal"
+	"reflect"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type BgpConfigSet struct {
@@ -108,7 +110,7 @@ func UpdatePeerGroupConfig(curC, newC *BgpConfigSet) ([]PeerGroup, []PeerGroup, 
 	for _, n := range newC.PeerGroups {
 		if idx := existPeerGroup(n.Config.PeerGroupName, curC.PeerGroups); idx < 0 {
 			addedPg = append(addedPg, n)
-		} else if !n.Equal(&curC.PeerGroups[idx]) {
+		} else if !reflect.DeepEqual(&n, &curC.PeerGroups[idx]) {
 			log.WithFields(log.Fields{
 				"Topic": "Config",
 			}).Debugf("Current peer-group config:%s", curC.PeerGroups[idx])
@@ -135,7 +137,7 @@ func UpdateNeighborConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []N
 	for _, n := range newC.Neighbors {
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
-		} else if !n.Equal(&curC.Neighbors[idx]) {
+		} else if !reflect.DeepEqual(&n, &curC.Neighbors[idx]) {
 			log.WithFields(log.Fields{
 				"Topic": "Config",
 			}).Debugf("Current neighbor config:%s", curC.Neighbors[idx])
@@ -169,7 +171,7 @@ func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolic
 		result = false
 	} else {
 		if currentPolicy != nil && newPolicy != nil {
-			result = !currentPolicy.Equal(newPolicy)
+			result = !reflect.DeepEqual(&currentPolicy, &newPolicy)
 		} else {
 			result = true
 		}

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -1918,7 +1919,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 		return needsSoftResetIn, fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
 	}
 
-	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
+	if !reflect.DeepEqual(&peer.fsm.pConf.ApplyPolicy, &c.ApplyPolicy) {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
@@ -1929,7 +1930,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 	}
 	original := peer.fsm.pConf
 
-	if !original.AsPathOptions.Config.Equal(&c.AsPathOptions.Config) {
+	if !reflect.DeepEqual(&original.AsPathOptions.Config, &c.AsPathOptions.Config) {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.ID(),
@@ -1938,7 +1939,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 		needsSoftResetIn = true
 	}
 
-	if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) || config.CheckAfiSafisChange(original.AfiSafis, c.AfiSafis) {
+	if !reflect.DeepEqual(&original.Config, &c.Config) || !reflect.DeepEqual(&original.Transport.Config, &c.Transport.Config) || config.CheckAfiSafisChange(original.AfiSafis, c.AfiSafis) {
 		sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
 		if original.Config.AdminDown != c.Config.AdminDown {
 			sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
@@ -1971,7 +1972,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 		return needsSoftResetIn, err
 	}
 
-	if !original.Timers.Config.Equal(&c.Timers.Config) {
+	if !reflect.DeepEqual(&original.Timers.Config, &c.Timers.Config) {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.ID(),

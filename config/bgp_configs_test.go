@@ -16,8 +16,10 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEqual(t *testing.T) {
@@ -30,17 +32,20 @@ func TestEqual(t *testing.T) {
 		IpPrefix:        "192.168.0.0",
 		MasklengthRange: "24..32",
 	}
-	assert.True(p1.Equal(&p2))
-	assert.False(p1.Equal(nil))
+	assert.True(reflect.DeepEqual(p1, p2))
+	// Note: reflect.DeepEqual() returns false if comparing instance of struct
+	// with pointer to struct.
+	assert.False(reflect.DeepEqual(p1, &p2))
+	assert.False(reflect.DeepEqual(p1, nil))
 	var p3 *Prefix
-	assert.False(p3.Equal(&p1))
+	assert.False(reflect.DeepEqual(p3, &p1))
 	p3 = &Prefix{
 		IpPrefix:        "192.168.0.0",
 		MasklengthRange: "24..32",
 	}
-	assert.True(p3.Equal(&p1))
+	assert.True(reflect.DeepEqual(p3, &p1))
 	p3.IpPrefix = "10.10.0.0"
-	assert.False(p3.Equal(&p1))
+	assert.False(reflect.DeepEqual(p3, &p1))
 	ps1 := PrefixSet{
 		PrefixSetName: "ps",
 		PrefixList:    []Prefix{p1, p2},
@@ -49,7 +54,7 @@ func TestEqual(t *testing.T) {
 		PrefixSetName: "ps",
 		PrefixList:    []Prefix{p2, p1},
 	}
-	assert.True(ps1.Equal(&ps2))
+	assert.True(reflect.DeepEqual(ps1, ps2))
 	ps2.PrefixSetName = "ps2"
-	assert.False(ps1.Equal(&ps2))
+	assert.False(reflect.DeepEqual(ps1, ps2))
 }
