@@ -16,8 +16,15 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
+	"bufio"
+	"os"
+	"path"
+	"runtime"
+	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEqual(t *testing.T) {
@@ -52,4 +59,58 @@ func TestEqual(t *testing.T) {
 	assert.True(ps1.Equal(&ps2))
 	ps2.PrefixSetName = "ps2"
 	assert.False(ps1.Equal(&ps2))
+}
+
+func extractTomlFromMarkdown(fileMd string, fileToml string) error {
+	fMd, err := os.Open(fileMd)
+	if err != nil {
+		return err
+	}
+	defer fMd.Close()
+
+	fToml, err := os.Create(fileToml)
+	if err != nil {
+		return err
+	}
+	defer fToml.Close()
+
+	isBody := false
+	scanner := bufio.NewScanner(fMd)
+	fTomlWriter := bufio.NewWriter(fToml)
+	for scanner.Scan() {
+		if curText := scanner.Text(); strings.HasPrefix(curText, "```toml") {
+			isBody = true
+		} else if strings.HasPrefix(curText, "```") {
+			isBody = false
+		} else if isBody {
+			if _, err := fTomlWriter.WriteString(curText + "\n"); err != nil {
+				return err
+			}
+		}
+	}
+
+	fTomlWriter.Flush()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func TestConfigExample(t *testing.T) {
+	assert := assert.New(t)
+
+	_, f, _, _ := runtime.Caller(0)
+	fileMd := path.Join(path.Dir(f), "../docs/sources/configuration.md")
+	fileToml := "/tmp/gobgpd.example.toml"
+	assert.NoError(extractTomlFromMarkdown(fileMd, fileToml))
+	defer os.Remove(fileToml)
+
+	format := detectConfigFileType(fileToml, "")
+	c := &BgpConfigSet{}
+	v := viper.New()
+	v.SetConfigFile(fileToml)
+	v.SetConfigType(format)
+	assert.NoError(v.ReadInConfig())
+	assert.NoError(v.UnmarshalExact(c))
+	assert.NoError(setDefaultConfigValuesWithViper(v, c))
 }
