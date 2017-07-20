@@ -17,9 +17,6 @@
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
         default-export-policy = "accept-route"
-    [global.mpls-label-range]
-        min-label = 1000
-        max-label = 2000
 
 [[rpki-servers]]
     [rpki-servers.config]
