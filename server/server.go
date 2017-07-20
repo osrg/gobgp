@@ -664,7 +664,6 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 		rib = server.rsRib
 		for _, path := range pathList {
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
-			path.Filter(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
 		}
 		moded := make([]*table.Path, 0)
 		for _, targetPeer := range server.neighborMap {
