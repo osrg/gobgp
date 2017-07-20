@@ -13,18 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+import time
 import unittest
+
+import nose
 from fabric.api import local
+
 from lib import base
 from lib.base import BGP_FSM_ESTABLISHED
-from lib.gobgp import *
-from lib.exabgp import *
-import sys
-import os
-import time
-import nose
+from lib.gobgp import GoBGPContainer
+from lib.exabgp import ExaBGPContainer
 from lib.noseplugin import OptionParser, parser_option
-from itertools import combinations
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -64,10 +64,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(rib) == 1)
         self.assertTrue(len(rib[0]['paths']) == 3)
 
+
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"
