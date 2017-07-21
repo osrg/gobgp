@@ -15,7 +15,6 @@
 
 from __future__ import print_function
 
-import optparse
 import sys
 from pyang import plugin
 from collections import namedtuple
@@ -41,61 +40,62 @@ _COPYRIGHT_NOTICE = """
 
 """
 
-emitted_type_names = {}
-
 EQUAL_TYPE_LEAF = 0
 EQUAL_TYPE_ARRAY = 1
 EQUAL_TYPE_MAP = 2
 EQUAL_TYPE_CONTAINER = 3
+
 
 def pyang_plugin_init():
     plugin.register_plugin(GolangPlugin())
 
 
 class GolangPlugin(plugin.PyangPlugin):
-    def add_output_format(self, fmts):
+
+    def __init__(self, name=None):
+        super(GolangPlugin, self).__init__(name=name)
         self.multiple_modules = True
+
+    def add_output_format(self, fmts):
         fmts['golang'] = self
 
     def emit(self, ctx, modules, fd):
-
         ctx.golang_identity_map = {}
         ctx.golang_typedef_map = {}
         ctx.golang_struct_def = []
         ctx.golang_struct_names = {}
 
+        ctx.emitted_type_names = {}
+
         ctx.prefix_rel = {}
         ctx.module_deps = []
-
         for m in modules:
             check_module_deps(ctx, m)
 
         # visit yang statements
         visit_modules(ctx)
+
         # emit bgp_configs
         emit_go(ctx, fd)
 
 
 def visit_modules(ctx):
-
     # visit typedef and identity
-    for module in ctx.module_deps:
-        visit_typedef(ctx, module)
-        visit_identity(ctx, module)
+    for mod in ctx.module_deps:
+        visit_typedef(ctx, mod)
+        visit_identity(ctx, mod)
 
     # visit container
-    for module in ctx.module_deps:
-        visit_children(ctx, module, module.i_children)
+    for mod in ctx.module_deps:
+        visit_children(ctx, mod, mod.i_children)
 
 
 def emit_go(ctx, fd):
-
     ctx.golang_struct_def.reverse()
     done = set()
 
     # emit
     generate_header(ctx, fd)
-
     generate_common_functions(ctx, fd)
 
     for mod in ctx.module_deps:
@@ -111,17 +111,19 @@ def emit_go(ctx, fd):
         done.add(struct_name)
 
 
-def check_module_deps(ctx, module):
-
-    own_prefix = module.i_prefix
-    for k, v in list(module.i_prefixes.items()):
+def check_module_deps(ctx, mod):
+    own_prefix = mod.i_prefix
+    for k, v in mod.i_prefixes.items():
         mod = ctx.get_module(v[0])
+        if mod is None:
+            continue
+
         if mod.i_prefix != own_prefix:
             check_module_deps(ctx, mod)
 
         ctx.prefix_rel[mod.i_prefix] = k
-        if mod not in ctx.module_deps \
-                and mod.i_modulename not in _module_excluded:
+        if (mod not in ctx.module_deps
+                and mod.i_modulename not in _module_excluded):
             ctx.module_deps.append(mod)
 
 
@@ -133,16 +135,16 @@ def dig_leafref(type_obj):
         return reftype
 
 
-def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
-    if len(yang_statement.i_children) == 1 and is_list(yang_statement.i_children[0]):
+def emit_class_def(ctx, stmt, struct_name, prefix, fd):
+    if len(stmt.i_children) == 1 and is_list(stmt.i_children[0]):
         return
 
-    print('//struct for container %s:%s' % (prefix, yang_statement.arg), file=fd)
+    print('// struct for container %s:%s' % (prefix, stmt.arg), file=fd)
     print('type %s struct {' % convert_to_golang(struct_name), file=fd)
 
     equal_elems = []
 
-    for child in yang_statement.i_children:
+    for child in stmt.i_children:
 
         if child.path in _path_exclude:
             continue
@@ -160,13 +162,12 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
             type_obj = child.search_one('type')
             type_name = type_obj.arg
 
-
             # case identityref
-            if type_name == 'identityref':
+            if is_identityref(type_obj):
                 emit_type_name = convert_to_golang(type_obj.search_one('base').arg.split(':')[-1])
 
             # case leafref
-            elif type_name == 'leafref':
+            elif is_leafref(type_obj):
                 if type_obj.search_one('path').arg.startswith('../config'):
                     continue
                 t = dig_leafref(type_obj)
@@ -179,7 +180,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
                     emit_type_name = t.arg
 
             # case embeded enumeration
-            elif type_name == 'enumeration':
+            elif is_enum(type_obj):
                 emit_type_name = val_name_go
 
             # case translation required
@@ -195,7 +196,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
             else:
                 base_module = type_obj.i_orig_module.i_prefix
                 t = lookup_typedef(ctx, base_module, type_name)
-                # print(t)
+                # print(t.golang_name, file=sys.stderr)
                 emit_type_name = t.golang_name
 
         # case 'case'
@@ -214,12 +215,13 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
             equal_type = EQUAL_TYPE_ARRAY
 
             # case leafref
-            if type_name == 'leafref':
-                t = type_obj.i_type_spec.i_target_node.search_one('type')
-                emit_type_name = '[]'+t.arg
+            if is_leafref(type_obj):
+                t = dig_leafref(type_obj)
+                emit_type_name = '[]' + t.arg
 
-            elif type_name == 'identityref':
-                emit_type_name = '[]'+convert_to_golang(type_obj.search_one('base').arg.split(':')[-1])
+            # case identityref
+            elif is_identityref(type_obj):
+                emit_type_name = '[]' + convert_to_golang(type_obj.search_one('base').arg.split(':')[-1])
 
             # case translation required
             elif is_translation_required(type_obj):
@@ -228,17 +230,17 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
 
             # case other primitives
             elif is_builtin_type(type_obj):
-                emit_type_name = '[]'+type_name
+                emit_type_name = '[]' + type_name
 
             # default
             else:
                 base_module = type_obj.i_orig_module.i_prefix
                 t = lookup_typedef(ctx, base_module, type_name)
-                emit_type_name = '[]'+t.golang_name
+                emit_type_name = '[]' + t.golang_name
 
         # case container
         elif is_container(child) or (is_choice(child) and not is_enum_choice(child)):
-            key = child_prefix+':'+container_or_list_name
+            key = child_prefix + ':' + container_or_list_name
             t = ctx.golang_struct_names[key]
             val_name_go = t.golang_name
             if len(t.i_children) == 1 and is_list(t.i_children[0]):
@@ -255,7 +257,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
 
         # case list
         elif is_list(child):
-            key = child_prefix+':'+container_or_list_name
+            key = child_prefix + ':' + container_or_list_name
             t = ctx.golang_struct_names[key]
             val_name_go = val_name_go + 'List'
             tag_name += '-list'
@@ -334,12 +336,12 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix, fd):
         print('}', file=fd)
 
 
-def get_orig_prefix(module):
-    orig = module.i_orig_module
+def get_orig_prefix(mod):
+    orig = mod.i_orig_module
     if orig:
         get_orig_prefix(orig)
     else:
-        return module.i_prefix
+        return mod.i_prefix
 
 
 def get_path(c):
@@ -349,15 +351,26 @@ def get_path(c):
         if hasattr(c, 'i_module'):
             mod = c.i_module
             prefix = mod.search_one('prefix')
+            if prefix:
+                p = prefix.arg + ":"
 
-        p = prefix.arg + ":" if prefix else ''
         path = get_path(c.parent) + "/" + p + c.arg
     return path
 
 
-def visit_children(ctx, module, children):
+# define container embedded enums
+def define_enum(ctx, mod, c):
+    prefix = mod.i_prefix
+    c.path = get_path(c)
+    c.golang_name = convert_to_golang(c.arg)
+    if prefix in ctx.golang_typedef_map:
+        ctx.golang_typedef_map[prefix][c.arg] = c
+    else:
+        ctx.golang_typedef_map[prefix] = {c.arg: c}
+
+
+def visit_children(ctx, mod, children):
     for c in children:
-        prefix = ''
         if is_case(c):
             prefix = get_orig_prefix(c.parent.i_orig_module)
             c.i_orig_module = c.parent.i_orig_module
@@ -368,26 +381,15 @@ def visit_children(ctx, module, children):
         if c.arg == 'config':
             c.uniq_name = c.parent.uniq_name + '-config'
 
-        if c.arg == 'state':
+        elif c.arg == 'state':
             c.uniq_name = c.parent.uniq_name + '-state'
 
-        if c.arg == 'graceful-restart' and prefix == 'bgp-mp':
-             c.uniq_name = 'mp-graceful-restart'
+        elif c.arg == 'graceful-restart' and prefix == 'bgp-mp':
+            c.uniq_name = 'mp-graceful-restart'
 
-        t = c.search_one('type')
+        if is_leaf(c) and is_enum(c.search_one('type')):
+            define_enum(ctx, mod, c)
 
-        # define container embeded enums
-        def define_enum(c):
-            prefix = module.i_prefix
-            c.path = get_path(c)
-            c.golang_name = convert_to_golang(c.arg)
-            if prefix in ctx.golang_typedef_map:
-                ctx.golang_typedef_map[prefix][c.arg] = c
-            else:
-                ctx.golang_typedef_map[prefix] = {c.arg: c}
-
-        if is_leaf(c) and c.search_one('type').arg == 'enumeration':
-            define_enum(c)
         elif is_list(c) or is_container(c) or is_choice(c):
             c.golang_name = convert_to_golang(c.uniq_name)
 
@@ -395,27 +397,28 @@ def visit_children(ctx, module, children):
                 picks = pickup_choice(c)
                 c.i_children = picks
                 if is_enum_choice(c):
-                    define_enum(c)
+                    define_enum(ctx, mod, c)
                     continue
 
-            if ctx.golang_struct_names.get(prefix+':'+c.uniq_name):
-                ext_c = ctx.golang_struct_names.get(prefix+':'+c.uniq_name)
+            prefix_name = prefix + ':' + c.uniq_name
+            if prefix_name in ctx.golang_struct_names:
+                ext_c = ctx.golang_struct_names.get(prefix_name)
                 ext_c_child_count = len(getattr(ext_c, "i_children"))
                 current_c_child_count = len(getattr(c, "i_children"))
                 if ext_c_child_count < current_c_child_count:
                     c.module_prefix = prefix
-                    ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
+                    ctx.golang_struct_names[prefix_name] = c
                     idx = ctx.golang_struct_def.index(ext_c)
                     ctx.golang_struct_def[idx] = c
             else:
                 c.module_prefix = prefix
-                ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
+                ctx.golang_struct_names[prefix_name] = c
                 ctx.golang_struct_def.append(c)
 
         c.path = get_path(c)
-        # print(c.path)
+        # print(c.path, file=sys.stderr)
         if hasattr(c, 'i_children'):
-            visit_children(ctx, module, c.i_children)
+            visit_children(ctx, mod, c.i_children)
 
 
 def pickup_choice(c):
@@ -430,46 +433,55 @@ def pickup_choice(c):
 def get_type_spec(stmt):
     for s in stmt.substmts:
         if hasattr(s, 'i_type_spec'):
-            type_sp = s.i_type_spec
-            return type_sp.name
+            return s.i_type_spec.name
 
     return None
 
 
-def visit_typedef(ctx, module):
-    prefix = module.i_prefix
+def visit_typedef(ctx, mod):
+    prefix = mod.i_prefix
     child_map = {}
-    for stmts in module.substmts:
-        if stmts.keyword == 'typedef':
-            stmts.path = get_path(stmts)
-            # print(stmts.path)
-            name = stmts.arg
-            stmts.golang_name = convert_to_golang(name)
-            child_map[name] = stmts
+    for stmt in mod.substmts:
+        if is_typedef(stmt):
+            stmt.path = get_path(stmt)
+            # print('stmt.path = "%s"' % stmt.path, file=sys.stderr)
+            name = stmt.arg
+            stmt.golang_name = convert_to_golang(name)
+            # print('stmt.golang_name = "%s"' % stmt.golang_name, file=sys.stderr)
+            child_map[name] = stmt
 
     ctx.golang_typedef_map[prefix] = child_map
-    if ctx.prefix_rel[prefix] != prefix:
-        ctx.golang_typedef_map[ctx.prefix_rel[prefix]] = child_map
+    # print('ctx.golang_typedef_map["%s"] = %s' % (prefix, child_map), file=sys.stderr)
+    prefix_rel = ctx.prefix_rel[prefix]
+    ctx.golang_typedef_map[prefix_rel] = child_map
+    # print('ctx.golang_typedef_map["%s"] = %s' % (prefix_rel, child_map)), file=sys.stderr)
 
 
-def visit_identity(ctx, module):
-    prefix = module.i_prefix
+def visit_identity(ctx, mod):
+    prefix = mod.i_prefix
     child_map = {}
-    for stmts in module.substmts:
-        if stmts.keyword == 'identity':
-            name = stmts.arg
-            stmts.golang_name = convert_to_golang(name)
-            child_map[name] = stmts
+    for stmt in mod.substmts:
+        if is_identity(stmt):
+            name = stmt.arg
+            stmt.golang_name = convert_to_golang(name)
+            # print('stmt.golang_name = "%s"' % stmt.golang_name, file=sys.stderr)
+            child_map[name] = stmt
 
-            base = stmts.search_one('base')
+            base = stmt.search_one('base')
             if base:
-                elems = base.arg.split(':')
-                if len(elems) > 1:
-                    ctx.golang_identity_map[elems[0]][elems[1]].substmts.append(stmts)
+                base_name = base.arg
+                if ':' in base_name:
+                    base_prefix, base_name = base_name.split(':', 1)
+                    if base_prefix in ctx.golang_identity_map:
+                        ctx.golang_identity_map[base_prefix][base_name].substmts.append(stmt)
                 else:
-                    child_map[base.arg].substmts.append(stmts)
+                    child_map[base_name].substmts.append(stmt)
 
     ctx.golang_identity_map[prefix] = child_map
+    # print('ctx.golang_identity_map["%s"] = %s\n' % (prefix, child_map), file=sys.stderr)
+    prefix_rel = ctx.prefix_rel[prefix]
+    ctx.golang_identity_map[prefix_rel] = child_map
+    # print('ctx.golang_identity_map["%s"] = %s\n' % (prefix_rel, child_map), file=sys.stderr)
 
 
 def lookup_identity(ctx, default_prefix, identity_name):
@@ -498,7 +510,6 @@ def lookup(basemap, default_prefix, key):
 def emit_enum(prefix, name, stmt, substmts, fd):
         type_name_org = name
         type_name = stmt.golang_name
-
         print('// typedef for identity %s:%s' % (prefix, type_name_org), file=fd)
         print('type %s string' % type_name, file=fd)
 
@@ -571,37 +582,40 @@ def emit_typedef(ctx, mod, fd):
 
         type_name_org = name
         type_name = stmt.golang_name
-        if type_name in emitted_type_names:
-            warn = "warning %s: %s has already been emitted from %s.\n"\
-                   % (prefix+":"+type_name_org, type_name_org,
-                      emitted_type_names[type_name])
-            sys.stderr.write(warn)
+        if type_name in ctx.emitted_type_names:
+            print("warning %s: %s has already been emitted from %s."
+                  % (prefix + ":" + type_name_org, type_name_org, ctx.emitted_type_names[type_name]),
+                  file=sys.stderr)
             continue
 
-        emitted_type_names[type_name] = prefix+":"+type_name_org
+        ctx.emitted_type_names[type_name] = prefix + ":" + type_name_org
 
         t = stmt.search_one('type')
-        if not t and  is_choice(stmt):
+        if not t and is_choice(stmt):
             emit_enum(prefix, type_name_org, stmt, stmt.i_children, fd)
-        elif t.arg == 'enumeration':
+        elif is_enum(t):
             emit_enum(prefix, type_name_org, stmt, t.substmts, fd)
-        elif t.arg == 'union':
+        elif is_union(t):
             print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
             print('type %s string' % type_name, file=fd)
         else:
-            print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
+            if is_leafref(t):
+                t = dig_leafref(t)
 
-            if not is_builtin_type(t):
+            print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
+            if is_builtin_type(t):
+                print('type %s %s' % (type_name, t.arg), file=fd)
+            elif is_translation_required(t):
+                print('  //%s:%s\'s original type is %s' % (prefix, name, t.arg), file=fd)
+                print('type %s %s' % (type_name, translate_type(t.arg)), file=fd)
+            else:
                 m = ctx.golang_typedef_map
                 for k in t.arg.split(':'):
                     m = m[k]
                 print('type %s %s' % (type_name, m.golang_name), file=fd)
-            else:
-                print('type %s %s' % (type_name, t.arg), file=fd)
 
 
 def emit_identity(ctx, mod, fd):
-
     prefix = mod.i_prefix
     i_map = ctx.golang_identity_map[prefix]
     for name, stmt in i_map.items():
@@ -609,14 +623,34 @@ def emit_identity(ctx, mod, fd):
         if len(enums) > 0:
             emit_enum(prefix, name, stmt, enums, fd)
 
+
 def is_reference(s):
     return s.arg in ['leafref', 'identityref']
+
 
 def is_leafref(s):
     return s.arg in ['leafref']
 
+
 def is_identityref(s):
     return s.arg in ['identityref']
+
+
+def is_enum(s):
+    return s.arg in ['enumeration']
+
+
+def is_union(s):
+    return s.arg in ['union']
+
+
+def is_typedef(s):
+    return s.keyword in ['typedef']
+
+
+def is_identity(s):
+    return s.keyword in ['identity']
+
 
 def is_leaf(s):
     return s.keyword in ['leaf']
@@ -640,6 +674,7 @@ def is_case(s):
 
 def is_choice(s):
     return s.keyword in ['choice']
+
 
 def is_enum_choice(s):
     return all(e.search_one('type').arg in _type_enum_case for e in s.i_children)
@@ -676,30 +711,36 @@ _type_translation_map = {
 }
 
 
-_type_builtin = ["union",
-                 "int8",
-                 "int16",
-                 "int32",
-                 "int64",
-                 "string",
-                 "uint8",
-                 "uint16",
-                 "uint32",
-                 "uint64",
-                 ]
+_type_builtin = [
+    "union",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "string",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+]
 
 
-_module_excluded = ["ietf-inet-types",
-                    "ietf-yang-types",
-                    ]
+_module_excluded = [
+    "ietf-inet-types",
+    "ietf-yang-types",
+]
 
-_path_exclude = ["/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
-                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set/bgp-pol:community-member",
-                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member",
-                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set/bgp-pol:as-path-set-member"]
+_path_exclude = [
+    "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
+    "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set/bgp-pol:community-member",
+    "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member",
+    "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set/bgp-pol:as-path-set-member",
+]
 
-_typedef_exclude =["/gobgp:bgp-capability",
-                   "/gobgp:bgp-open-message"]
+_typedef_exclude = [
+    "/gobgp:bgp-capability",
+    "/gobgp:bgp-open-message",
+]
 
 
 def generate_header(ctx, fd):
