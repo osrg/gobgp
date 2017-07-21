@@ -139,7 +139,8 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
     if len(stmt.i_children) == 1 and is_list(stmt.i_children[0]):
         return
 
-    print('// struct for container %s:%s' % (prefix, stmt.arg), file=fd)
+    print('// struct for container %s:%s.' % (prefix, stmt.arg), file=fd)
+    emit_description(stmt, fd)
     print('type %s struct {' % convert_to_golang(struct_name), file=fd)
 
     equal_elems = []
@@ -155,7 +156,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
         tag_name = child.uniq_name.lower()
         equal_type = EQUAL_TYPE_LEAF
         equal_data = None
-        print('  // original -> %s:%s' % (child_prefix, container_or_list_name), file=fd)
+        print('// original -> %s:%s' % (child_prefix, container_or_list_name), file=fd)
 
         # case leaf
         if is_leaf(child):
@@ -172,7 +173,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
                     continue
                 t = dig_leafref(type_obj)
                 if is_translation_required(t):
-                    print('  //%s:%s\'s original type is %s' % (child_prefix, container_or_list_name, t.arg), file=fd)
+                    print('// %s:%s\'s original type is %s.' % (child_prefix, container_or_list_name, t.arg), file=fd)
                     emit_type_name = translate_type(t.arg)
                 elif is_identityref(t):
                     emit_type_name = convert_to_golang(t.search_one('base').arg.split(':')[-1])
@@ -185,7 +186,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print('  //%s:%s\'s original type is %s' % (child_prefix, container_or_list_name, type_name), file=fd)
+                print('// %s:%s\'s original type is %s.' % (child_prefix, container_or_list_name, type_name), file=fd)
                 emit_type_name = translate_type(type_name)
 
             # case other primitives
@@ -225,7 +226,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print('  // original type is list of %s' % type_obj.arg, file=fd)
+                print('// original type is list of %s' % type_obj.arg, file=fd)
                 emit_type_name = '[]'+translate_type(type_name)
 
             # case other primitives
@@ -274,6 +275,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
                 tag_name = 'state'
                 val_name_go = 'State'
 
+        emit_description(child, fd=fd)
         print('  {0}\t{1} `mapstructure:"{2}" json:"{2},omitempty"`'.format(val_name_go, emit_type_name, tag_name), file=fd)
 
         equal_elems.append((val_name_go, emit_type_name, equal_type, equal_data))
@@ -507,10 +509,19 @@ def lookup(basemap, default_prefix, key):
         return key
 
 
+def emit_description(stmt, fd):
+    desc = stmt.search_one('description')
+    if desc is None:
+        return None
+    desc_words = desc.arg if desc.arg.endswith('.') else desc.arg + '.'
+    print('// %s' % desc_words.replace('\n', '\n// '), file=fd)
+
+
 def emit_enum(prefix, name, stmt, substmts, fd):
         type_name_org = name
         type_name = stmt.golang_name
-        print('// typedef for identity %s:%s' % (prefix, type_name_org), file=fd)
+        print('// typedef for identity %s:%s.' % (prefix, type_name_org), file=fd)
+        emit_description(stmt, fd)
         print('type %s string' % type_name, file=fd)
 
         const_prefix = convert_const_prefix(type_name_org)
@@ -596,22 +607,26 @@ def emit_typedef(ctx, mod, fd):
         elif is_enum(t):
             emit_enum(prefix, type_name_org, stmt, t.substmts, fd)
         elif is_union(t):
-            print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
+            print('// typedef for typedef %s:%s.' % (prefix, type_name_org), file=fd)
+            emit_description(t, fd)
             print('type %s string' % type_name, file=fd)
         else:
             if is_leafref(t):
                 t = dig_leafref(t)
 
-            print('// typedef for typedef %s:%s' % (prefix, type_name_org), file=fd)
+            print('// typedef for typedef %s:%s.' % (prefix, type_name_org), file=fd)
             if is_builtin_type(t):
+                emit_description(t, fd)
                 print('type %s %s' % (type_name, t.arg), file=fd)
             elif is_translation_required(t):
-                print('  //%s:%s\'s original type is %s' % (prefix, name, t.arg), file=fd)
+                print('// %s:%s\'s original type is %s.' % (prefix, name, t.arg), file=fd)
+                emit_description(t, fd)
                 print('type %s %s' % (type_name, translate_type(t.arg)), file=fd)
             else:
                 m = ctx.golang_typedef_map
                 for k in t.arg.split(':'):
                     m = m[k]
+                emit_description(t, fd)
                 print('type %s %s' % (type_name, m.golang_name), file=fd)
 
 
