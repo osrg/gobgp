@@ -17,13 +17,14 @@ package server
 
 import (
 	"fmt"
+	"net"
+	"time"
+
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	log "github.com/sirupsen/logrus"
-	"net"
-	"time"
 )
 
 const (
@@ -141,6 +142,13 @@ func (peer *Peer) isRouteReflectorClient() bool {
 
 func (peer *Peer) isGracefulRestartEnabled() bool {
 	return peer.fsm.pConf.GracefulRestart.State.Enabled
+}
+
+func (peer *Peer) isAddPathSendEnabled(family bgp.RouteFamily) bool {
+	if mode, y := peer.fsm.rfMap[family]; y && (mode&bgp.BGP_ADD_PATH_SEND) > 0 {
+		return true
+	}
+	return false
 }
 
 func (peer *Peer) isDynamicNeighbor() bool {
@@ -380,13 +388,20 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
-	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), peer.toGlobalFamilies(rfList)) {
-		if p := peer.filterpath(path, nil); p != nil {
-			pathList = append(pathList, p)
-		} else {
-			filtered = append(filtered, path)
+	for _, family := range peer.toGlobalFamilies(rfList) {
+		pl := func() []*table.Path {
+			if peer.isAddPathSendEnabled(family) {
+				return peer.localRib.GetPathList(peer.TableID(), []bgp.RouteFamily{family})
+			}
+			return peer.localRib.GetBestPathList(peer.TableID(), []bgp.RouteFamily{family})
+		}()
+		for _, path := range pl {
+			if p := peer.filterpath(path, nil); p != nil {
+				pathList = append(pathList, p)
+			} else {
+				filtered = append(filtered, path)
+			}
 		}
-
 	}
 	if peer.isGracefulRestartEnabled() {
 		for _, family := range rfList {

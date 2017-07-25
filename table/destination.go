@@ -228,6 +228,17 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, &dd.knownPathList)
 }
 
+func (dd *Destination) GetAddPathChanges(id string) []*Path {
+	l := make([]*Path, 0, len(dd.newPathList)+len(dd.withdrawList))
+	for _, p := range dd.newPathList {
+		l = append(l, p)
+	}
+	for _, p := range dd.withdrawList {
+		l = append(l, p.Clone(true))
+	}
+	return l
+}
+
 func (dd *Destination) GetChanges(id string, peerDown bool) (*Path, *Path, []*Path) {
 	best, old := func(id string) (*Path, *Path) {
 		old := getBestPath(id, &dd.oldKnownPathList)
@@ -318,6 +329,7 @@ func (dd *Destination) validatePath(path *Path) {
 // paths from known paths. Also, adds new paths to known paths.
 func (dest *Destination) Calculate() *Destination {
 	oldKnownPathList := dest.knownPathList
+	newPathList := dest.newPathList
 	// First remove the withdrawn paths.
 	withdrawn := dest.explicitWithdraw()
 	// Do implicit withdrawal
@@ -346,6 +358,8 @@ func (dest *Destination) Calculate() *Destination {
 		nlri:             dest.nlri,
 		knownPathList:    dest.knownPathList,
 		oldKnownPathList: oldKnownPathList,
+		newPathList:      newPathList,
+		withdrawList:     withdrawn,
 	}
 }
 
