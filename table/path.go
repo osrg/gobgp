@@ -50,6 +50,24 @@ func (b Bitmap) GetFlag(i uint) bool {
 	return b[i/64]&(1<<uint(i%64)) > 0
 }
 
+func (b Bitmap) FindandSetZeroBit() uint {
+	for i := 0; i < len(b); i++ {
+		if b[i] == math.MaxUint64 {
+			continue
+		}
+		// replace this with TrailingZero64() when gobgp drops go 1.8 support.
+		for j := 0; j < 64; j++ {
+			v := ^b[i]
+			if v&(1<<uint64(j)) > 0 {
+				r := i*64 + j
+				b.Flag(uint(r))
+				return uint(r)
+			}
+		}
+	}
+	return 0
+}
+
 func NewBitmap(size int) Bitmap {
 	return Bitmap(make([]uint64, (size+64-1)/64))
 }
