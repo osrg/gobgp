@@ -407,7 +407,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentifier, isMonitor, printHeader bool) {
+func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool, showIdentifier bgp.BGPAddPathMode) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -471,15 +471,18 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentif
 			if p.IsWithdraw {
 				title = "DELROUTE"
 			}
-			if showIdentifier {
+			if showIdentifier != bgp.BGP_ADD_PATH_NONE {
 				pathStrs = append(pathStrs, []interface{}{title, nlri.PathIdentifier(), nlri, nexthop, aspathstr, pattrstr})
 			} else {
 				pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
 			}
 		} else {
 			args := []interface{}{best}
-			if showIdentifier {
+			switch showIdentifier {
+			case bgp.BGP_ADD_PATH_RECEIVE:
 				args = append(args, fmt.Sprint(nlri.PathIdentifier()))
+			case bgp.BGP_ADD_PATH_SEND:
+				args = append(args, fmt.Sprint(nlri.PathLocalIdentifier()))
 			}
 			args = append(args, nlri)
 			if showLabel {
@@ -513,7 +516,7 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentif
 		format = "[%s] %d:%s via %s aspath [%s] attrs %s\n"
 	} else {
 		format = fmt.Sprintf("%%-3s")
-		if showIdentifier {
+		if showIdentifier != bgp.BGP_ADD_PATH_NONE {
 			format += "%-3s "
 		}
 		format += fmt.Sprintf("%%-%ds ", maxPrefixLen)
@@ -529,7 +532,7 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentif
 
 	if printHeader {
 		args := []interface{}{""}
-		if showIdentifier {
+		if showIdentifier != bgp.BGP_ADD_PATH_NONE {
 			args = append(args, "ID")
 		}
 		args = append(args, "Network")
@@ -669,7 +672,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showBest := false
 	showAge := true
 	showLabel := false
-	showIdentifier := false
+	showIdentifier := bgp.BGP_ADD_PATH_NONE
 	validationTarget := ""
 
 	def := addr2AddressFamily(net.ParseIP(name))
@@ -730,10 +733,10 @@ func showNeighborRib(r string, name string, args []string) error {
 	case CMD_LOCAL:
 		rib, err = client.GetLocalRIB(name, family, filter)
 	case CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED:
-		showIdentifier = true
+		showIdentifier = bgp.BGP_ADD_PATH_RECEIVE
 		rib, err = client.GetAdjRIBIn(name, family, filter)
 	case CMD_ADJ_OUT:
-		showIdentifier = true
+		showIdentifier = bgp.BGP_ADD_PATH_SEND
 		rib, err = client.GetAdjRIBOut(name, family, filter)
 	case CMD_VRF:
 		rib, err = client.GetVRFRIB(name, family, filter)
@@ -800,7 +803,7 @@ func showNeighborRib(r string, name string, args []string) error {
 				}
 			}
 		} else {
-			ShowRoute(ps, showAge, showBest, showLabel, showIdentifier, false, showHeader)
+			ShowRoute(ps, showAge, showBest, showLabel, false, showHeader, showIdentifier)
 		}
 		counter++
 	}

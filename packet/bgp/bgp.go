@@ -994,10 +994,13 @@ type AddrPrefixInterface interface {
 	Flat() map[string]string
 	PathIdentifier() uint32
 	SetPathIdentifier(uint32)
+	PathLocalIdentifier() uint32
+	SetPathLocalIdentifier(uint32)
 }
 
 type PrefixDefault struct {
-	id uint32
+	id      uint32
+	localId uint32
 }
 
 func (p *PrefixDefault) PathIdentifier() uint32 {
@@ -1006,6 +1009,14 @@ func (p *PrefixDefault) PathIdentifier() uint32 {
 
 func (p *PrefixDefault) SetPathIdentifier(id uint32) {
 	p.id = id
+}
+
+func (p *PrefixDefault) PathLocalIdentifier() uint32 {
+	return p.localId
+}
+
+func (p *PrefixDefault) SetPathLocalIdentifier(id uint32) {
+	p.localId = id
 }
 
 func (p *PrefixDefault) decodePathIdentifier(data []byte) ([]byte, error) {
@@ -1020,7 +1031,7 @@ func (p *PrefixDefault) decodePathIdentifier(data []byte) ([]byte, error) {
 
 func (p *PrefixDefault) serializeIdentifier() ([]byte, error) {
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, p.PathIdentifier())
+	binary.BigEndian.PutUint32(buf, p.PathLocalIdentifier())
 	return buf, nil
 }
 

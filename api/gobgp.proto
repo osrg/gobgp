@@ -532,6 +532,7 @@ message Path {
   bytes uuid = 16; // only paths installed by AddPath API have this
   bool is_nexthop_invalid = 17;
   uint32 identifier = 18;
+  uint32 local_identifier = 19;
 }
 
 message Destination {
