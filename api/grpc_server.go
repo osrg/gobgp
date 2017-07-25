@@ -651,6 +651,7 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			if err != nil {
 				return nil, err
 			}
+			nlri.SetPathIdentifier(path.Identifier)
 		}
 
 		for _, attr := range path.Pattrs {

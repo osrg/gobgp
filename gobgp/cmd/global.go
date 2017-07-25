@@ -713,7 +713,16 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
 
-		extcomms = args[1:]
+		if len(args) > 2 && args[1] == "identifier" {
+			if id, err := strconv.Atoi(args[2]); err != nil {
+				return nil, fmt.Errorf("invalid format")
+			} else {
+				nlri.SetPathIdentifier(uint32(id))
+			}
+			extcomms = args[3:]
+		} else {
+			extcomms = args[1:]
+		}
 
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 		if len(args) < 5 || args[1] != "label" || args[3] != "rd" {

@@ -120,6 +120,7 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	}
 	t := time.Unix(p.Age, 0)
 	nlri.SetPathIdentifier(p.Identifier)
+	nlri.SetPathLocalIdentifier(p.LocalIdentifier)
 	path := table.NewPath(info, nlri, p.IsWithdraw, pattr, t, false)
 	path.SetValidation(&table.Validation{
 		Status:          config.IntToRpkiValidationResultTypeMap[int(p.Validation)],
