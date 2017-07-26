@@ -86,18 +86,18 @@ func (m *mrtWriter) loop() error {
 	for {
 		serialize := func(ev WatchEvent) []*mrt.MRTMessage {
 			msg := make([]*mrt.MRTMessage, 0, 1)
-			switch m := ev.(type) {
+			switch e := ev.(type) {
 			case *WatchEventUpdate:
 				subtype := mrt.MESSAGE_AS4
-				mp := mrt.NewBGP4MPMessage(m.PeerAS, m.LocalAS, 0, m.PeerAddress.String(), m.LocalAddress.String(), m.FourBytesAs, nil)
-				mp.BGPMessagePayload = m.Payload
-				if m.FourBytesAs == false {
+				mp := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.String(), e.LocalAddress.String(), e.FourBytesAs, nil)
+				mp.BGPMessagePayload = e.Payload
+				if e.FourBytesAs == false {
 					subtype = mrt.MESSAGE
 				}
-				if bm, err := mrt.NewMRTMessage(uint32(m.Timestamp.Unix()), mrt.BGP4MP, subtype, mp); err != nil {
+				if bm, err := mrt.NewMRTMessage(uint32(e.Timestamp.Unix()), mrt.BGP4MP, subtype, mp); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
-						"Data":  m,
+						"Data":  e,
 						"Error": err,
 					}).Warn("Failed to create MRT message in serialize()")
 				} else {
@@ -105,23 +105,23 @@ func (m *mrtWriter) loop() error {
 				}
 			case *WatchEventTable:
 				t := uint32(time.Now().Unix())
-				peers := make([]*mrt.Peer, 0, len(m.Neighbor))
-				for _, pconf := range m.Neighbor {
+				peers := make([]*mrt.Peer, 0, len(e.Neighbor))
+				for _, pconf := range e.Neighbor {
 					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.State.NeighborAddress, pconf.Config.PeerAs, true))
 				}
-				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.RouterId, "", peers)); err != nil {
+				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterId, "", peers)); err != nil {
 					break
 				} else {
 					msg = append(msg, bm)
 				}
 
 				idx := func(p *table.Path) uint16 {
-					for i, pconf := range m.Neighbor {
+					for i, pconf := range e.Neighbor {
 						if p.GetSource().Address.String() == pconf.State.NeighborAddress {
 							return uint16(i)
 						}
 					}
-					return uint16(len(m.Neighbor))
+					return uint16(len(e.Neighbor))
 				}
 
 				subtype := func(p *table.Path) mrt.MRTSubTypeTableDumpv2 {
@@ -139,7 +139,7 @@ func (m *mrtWriter) loop() error {
 				}
 
 				seq := uint32(0)
-				for _, pathList := range m.PathList {
+				for _, pathList := range e.PathList {
 					entries := make([]*mrt.RibEntry, 0, len(pathList))
 					for _, path := range pathList {
 						if path.IsLocal() {
