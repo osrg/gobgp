@@ -10,6 +10,8 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 - [Inject routes from MRT table v2 records](#section0)
 - [Dump updates in MRT BGP4MP format](#section1)
     - [Configuration](#section1.1)
+- [Dump the RIB in MRT TABLE_DUMPv2 format](#section2)
+    - [Configuration](#section2.1)
 
 ## <a name="section0"> Inject routes from MRT table v2 records
 Route injection can be done by
@@ -70,9 +72,9 @@ router-id = "10.0.255.254"
     rotation-interval = 180
 ```
 
-## <a name="section1"> Dump the RIB in MRT TABLE_DUMPv2 format
+## <a name="section2"> Dump the RIB in MRT TABLE_DUMPv2 format
 
-### <a name="section1.1"> Configuration
+### <a name="section2.1"> Configuration
 
 With the following configuration, gobgpd continuously dumps routes in
 the global rib to `/tmp/table.dump` file in the TABLE_DUMPv2 format
