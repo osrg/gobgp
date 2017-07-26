@@ -27,25 +27,10 @@ With the following configuration, gobgpd continuously dumps BGP update
 messages to `/tmp/updates.dump` file in the BGP4MP format.
 
 ```toml
-[global.config]
-as = 64512
-router-id = "10.0.255.254"
-
-[[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
-
 [[mrt-dump]]
   [mrt-dump.config]
     dump-type = "updates"
     file-name = "/tmp/updates.dump"
-
-[[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "table"
-    file-name = "/tmp/table.dump"
-    dump-interval = 60
 ```
 
 Also gobgpd supports log rotation; a new dump file is created
@@ -56,15 +41,6 @@ specified in golang's
 [time](https://golang.org/pkg/time/#pkg-constants) package's format.
 
 ```toml
-[global.config]
-as = 64512
-router-id = "10.0.255.254"
-
-[[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
-
 [[mrt-dump]]
   [mrt-dump.config]
     dump-type = "updates"
@@ -82,15 +58,6 @@ every 60 seconds.
 
 
 ```toml
-[global.config]
-as = 64512
-router-id = "10.0.255.254"
-
-[[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
-
 [[mrt-dump]]
   [mrt-dump.config]
     dump-type = "table"
@@ -103,27 +70,17 @@ peer's RIB.
 
 
 ```toml
-[global.config]
-  as = 64512
-  router-id = "192.168.255.1"
-
 [[neighbors]]
   [neighbors.config]
     neighbor-address = "10.0.255.1"
-    peer-as = 65001
-    auth-password = "hoge1"
-  [neighbors.transport.config]
-    passive-mode = true
+  # ...(snip)...
   [neighbors.route-server.config]
     route-server-client = true
 
 [[neighbors]]
   [neighbors.config]
     neighbor-address = "10.0.255.2"
-    peer-as = 65002
-    auth-password = "hoge2"
-  [neighbors.transport.config]
-    passive-mode = true
+  # ...(snip)...
   [neighbors.route-server.config]
     route-server-client = true
 
