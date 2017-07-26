@@ -733,15 +733,13 @@ def translate_type(key):
 # 'hoge-hoge' -> 'HogeHoge'
 def convert_to_golang(type_string):
     a = type_string.split('.')
-    a = map(lambda x: x.capitalize(), a)  # XXX locale sensitive
-    return '.'.join( ''.join(t.capitalize() for t in x.split('-')) for x in a)
+    a = [x.capitalize() for x in a]  # XXX locale sensitive
+    return '.'.join(''.join(t.capitalize() for t in x.split('-')) for x in a)
 
 
 # 'hoge-hoge' -> 'HOGE_HOGE'
 def convert_const_prefix(type_string):
-    a = type_string.split('-')
-    a = map(lambda x: x.upper(), a)  # XXX locale sensitive
-    return '_'.join(a)
+    return type_string.replace('-', '_').upper()
 
 
 def chop_suf(s, suf):
