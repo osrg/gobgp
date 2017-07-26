@@ -230,6 +230,14 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 			if a.GetFlags()&bgp.BGP_ATTR_FLAG_TRANSITIVE == 0 {
 				path.delPathAttr(a.GetType())
 			}
+		} else {
+			switch a.GetType() {
+			case bgp.BGP_ATTR_TYPE_CLUSTER_LIST, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID:
+				if !(peer.State.PeerType == config.PEER_TYPE_INTERNAL && peer.RouteReflector.Config.RouteReflectorClient) {
+					// send these attributes to only rr clients
+					path.delPathAttr(a.GetType())
+				}
+			}
 		}
 	}
 
