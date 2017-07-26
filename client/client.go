@@ -401,8 +401,10 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 				return err
 			}
 			p := &api.Path{
-				Nlri:   n,
-				Family: uint32(path.GetRouteFamily()),
+				Nlri:            n,
+				Family:          uint32(path.GetRouteFamily()),
+				Identifier:      nlri.PathIdentifier(),
+				LocalIdentifier: nlri.PathLocalIdentifier(),
 			}
 			reqs = append(reqs, &api.DeletePathRequest{
 				Resource: resource,
