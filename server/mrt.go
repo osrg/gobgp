@@ -309,7 +309,7 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 		if rInterval < MIN_ROTATION_INTERVAL {
 			log.WithFields(log.Fields{
 				"Topic": "MRT",
-			}).Info("minimum mrt rotation interval is %d seconds", MIN_ROTATION_INTERVAL)
+			}).Infof("minimum mrt rotation interval is %d seconds", MIN_ROTATION_INTERVAL)
 			rInterval = MIN_ROTATION_INTERVAL
 		}
 	}
@@ -319,7 +319,7 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 			if dInterval < MIN_DUMP_INTERVAL {
 				log.WithFields(log.Fields{
 					"Topic": "MRT",
-				}).Info("minimum mrt dump interval is %d seconds", MIN_DUMP_INTERVAL)
+				}).Infof("minimum mrt dump interval is %d seconds", MIN_DUMP_INTERVAL)
 				dInterval = MIN_DUMP_INTERVAL
 			}
 		} else if dInterval == 0 {
