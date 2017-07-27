@@ -79,7 +79,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 				case mrt.PEER_INDEX_TABLE:
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
-				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV6_UNICAST:
+				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV6_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH, mrt.RIB_IPV6_UNICAST_ADDPATH:
 				case mrt.GEO_PEER_TABLE:
 					fmt.Printf("WARNING: Skipping GEO_PEER_TABLE: %s", msg.Body.(*mrt.GeoPeerTable))
 				default:
