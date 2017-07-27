@@ -736,7 +736,9 @@ func compareByASPath(path1, path2 *Path) *Path {
 	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
-	if attribute1 == nil || attribute2 == nil {
+	// With addpath support, we could compare paths from API don't
+	// AS_PATH. No need to warn here.
+	if !path1.IsLocal() && !path2.IsLocal() && (attribute1 == nil || attribute2 == nil) {
 		log.WithFields(log.Fields{
 			"Topic":   "Table",
 			"Key":     "compareByASPath",
