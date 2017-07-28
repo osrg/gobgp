@@ -52,6 +52,21 @@ env.abort_exception = RuntimeError
 output.stderr = False
 
 
+def community_str(i):
+    """
+    Converts integer in to colon separated two bytes decimal strings like
+    BGP Community or Large Community representation.
+
+    For example, this function converts 13107300 = ((200 << 16) | 100)
+    into "200:100".
+    """
+    values = []
+    while i > 0:
+        values.append(str(i & 0xffff))
+        i >>= 16
+    return ':'.join(reversed(values))
+
+
 def wait_for_completion(f, timeout=120):
     interval = 1
     count = 0

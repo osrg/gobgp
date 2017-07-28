@@ -35,7 +35,9 @@ from lib.base import (
     BGP_ATTR_TYPE_NEXT_HOP,
     BGP_ATTR_TYPE_MULTI_EXIT_DISC,
     BGP_ATTR_TYPE_LOCAL_PREF,
+    BGP_ATTR_TYPE_COMMUNITIES,
     BGP_ATTR_TYPE_MP_REACH_NLRI,
+    community_str,
 )
 
 
@@ -151,6 +153,29 @@ class GoBGPContainer(BGPContainer):
                 return p['metric']
         return None
 
+    @staticmethod
+    def _get_community(path):
+        for p in path['attrs']:
+            if p['type'] == BGP_ATTR_TYPE_COMMUNITIES:
+                return [community_str(c) for c in p['communities']]
+        return None
+
+    def _get_rib(self, dests_dict):
+        dests = []
+        for k, v in dests_dict.items():
+            for p in v:
+                p["nexthop"] = self._get_nexthop(p)
+                p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
+                p["community"] = self._get_community(p)
+                p["med"] = self._get_med(p)
+                p["prefix"] = k
+                path_id = p.get("id", None)
+                if path_id:
+                    p["identifier"] = p["id"]
+            dests.append({'paths': v, 'prefix': k})
+        return dests
+
     def _trigger_peer_cmd(self, cmd, peer):
         peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} {1}'.format(peer_addr, cmd)
@@ -172,32 +197,12 @@ class GoBGPContainer(BGPContainer):
         peer_addr = self.peer_name(peer)
         cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
         output = self.local(cmd, capture=True)
-        ret = json.loads(output)
-        dsts = []
-        for k, v in ret.iteritems():
-            for p in v:
-                p["nexthop"] = self._get_nexthop(p)
-                p["aspath"] = self._get_as_path(p)
-                p["local-pref"] = self._get_local_pref(p)
-                p["med"] = self._get_med(p)
-                p["prefix"] = k
-            dsts.append({'paths': v, 'prefix': k})
-        return dsts
+        return self._get_rib(json.loads(output))
 
     def get_global_rib(self, prefix='', rf='ipv4'):
         cmd = 'gobgp -j global rib {0} -a {1}'.format(prefix, rf)
         output = self.local(cmd, capture=True)
-        ret = json.loads(output)
-        dsts = []
-        for k, v in ret.iteritems():
-            for p in v:
-                p["nexthop"] = self._get_nexthop(p)
-                p["aspath"] = self._get_as_path(p)
-                p["local-pref"] = self._get_local_pref(p)
-                p["med"] = self._get_med(p)
-                p["prefix"] = k
-            dsts.append({'paths': v, 'prefix': k})
-        return dsts
+        return self._get_rib(json.loads(output))
 
     def monitor_global_rib(self, queue, rf='ipv4'):
         host = self.ip_addrs[0][1].split('/')[0]
