@@ -403,14 +403,7 @@ class BGPContainer(Container):
     def del_route(self, route, identifier=None, reload_config=True):
         if route not in self.routes:
             return
-        if identifier:
-            new_paths = []
-            for path in self.routes[route]:
-                if path['identifier'] != identifier:
-                    new_paths.append(path)
-            self.routes[route] = new_paths
-        else:
-            self.routes[route] = []
+        self.routes[route] = [p for p in self.routes[route] if p['identifier'] != identifier]
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
