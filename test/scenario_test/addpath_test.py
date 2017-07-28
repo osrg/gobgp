@@ -40,14 +40,12 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.2',
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level)
-        e1 = ExaBGPContainer(name='e1', asn=65000, router_id='192.168.0.3')
+        g3 = GoBGPContainer(name='g3', asn=65000, router_id='192.168.0.3',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+        e1 = ExaBGPContainer(name='e1', asn=65000, router_id='192.168.0.4')
 
-        ctns = [g1, g2, e1]
-
-        e1.add_route(route='192.168.100.0/24', identifier=10, aspath=[100, 200, 300])
-        e1.add_route(route='192.168.100.0/24', identifier=20, aspath=[100, 200])
-        e1.add_route(route='192.168.100.0/24', identifier=30, aspath=[100])
-
+        ctns = [g1, g2, g3, e1]
         initial_wait_time = max(ctn.run() for ctn in ctns)
 
         time.sleep(initial_wait_time)
@@ -58,14 +56,25 @@ class GoBGPTestBase(unittest.TestCase):
         g1.add_peer(g2, addpath=False, is_rr_client=True)
         g2.add_peer(g1, addpath=False)
 
+        g1.add_peer(g3, addpath=True, is_rr_client=True)
+        g3.add_peer(g1, addpath=True)
+
         cls.g1 = g1
         cls.g2 = g2
+        cls.g3 = g3
         cls.e1 = e1
 
     # test each neighbor state is turned establish
-    def test_01_neighbor_established(self):
+    def test_00_neighbor_established(self):
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.e1)
+
+    # prepare routes with path_id (no error check)
+    def test_01_prepare_add_paths_routes(self):
+        self.e1.add_route(route='192.168.100.0/24', identifier=10, aspath=[100, 200, 300])
+        self.e1.add_route(route='192.168.100.0/24', identifier=20, aspath=[100, 200])
+        self.e1.add_route(route='192.168.100.0/24', identifier=30, aspath=[100])
+        time.sleep(1)  # XXX: wait for routes re-calculated and advertised
 
     # test three routes are installed to the rib due to add-path feature
     def test_02_check_g1_global_rib(self):
@@ -78,22 +87,43 @@ class GoBGPTestBase(unittest.TestCase):
         rib = self.g2.get_global_rib()
         self.assertEqual(len(rib), 1)
         self.assertEqual(len(rib[0]['paths']), 1)
-        self.assertEqual(rib[0]['paths'][0]["aspath"], [100])
+        self.assertEqual(rib[0]['paths'][0]['aspath'], [100])
 
-    # test a withdraw route with path_id is removed from the rib
-    def test_04_withdraw_route_with_path_id(self):
+    # test three routes are advertised to g3
+    def test_04_check_g3_global_rib(self):
+        rib = self.g3.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 3)
+
+    # withdraw a route with path_id (no error check)
+    def test_05_withdraw_route_with_path_id(self):
         self.e1.del_route(route='192.168.100.0/24', identifier=30)
+        time.sleep(1)  # XXX: wait for routes re-calculated and advertised
 
+    # test the withdrawn route is removed from the rib
+    def test_06_check_g1_global_rib(self):
         rib = self.g1.get_global_rib()
         self.assertEqual(len(rib), 1)
         self.assertEqual(len(rib[0]['paths']), 2)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200])
 
     # test the best path is replaced due to the removal from g1 rib
-    def test_05_check_g2_global_rib(self):
+    def test_07_check_g2_global_rib(self):
         rib = self.g2.get_global_rib()
         self.assertEqual(len(rib), 1)
         self.assertEqual(len(rib[0]['paths']), 1)
-        self.assertEqual(rib[0]['paths'][0]["aspath"], [100, 200])
+        self.assertEqual(rib[0]['paths'][0]['aspath'], [100, 200])
+
+    # test the withdrawn route is removed from the rib of g3
+    def test_08_check_g3_global_rib(self):
+        rib = self.g3.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 2)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200])
 
 
 if __name__ == '__main__':
