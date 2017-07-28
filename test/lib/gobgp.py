@@ -519,6 +519,24 @@ class GoBGPContainer(BGPContainer):
                 raise Exception('unsupported route faily: {0}'.format(v['rf']))
             self.local(cmd)
 
+    def del_route(self, route, identifier=None, reload_config=True):
+        if route not in self.routes:
+            return
+        new_paths = []
+        for path in self.routes[route]:
+            if path['identifier'] != identifier:
+                new_paths.append(path)
+            else:
+                r = CmdBuffer(' ')
+                r << 'gobgp global -a {0}'.format(path['rf'])
+                r << 'rib del {0}'.format(path['prefix'])
+                if identifier:
+                    r << 'identifier {0}'.format(identifier)
+                cmd = str(r)
+                self.local(cmd)
+        self.routes[route] = new_paths
+        # no need to reload config
+
 
 class RawGoBGPContainer(GoBGPContainer):
     def __init__(self, name, config, ctn_image_name='osrg/gobgp',
