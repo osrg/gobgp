@@ -125,6 +125,92 @@ class GoBGPTestBase(unittest.TestCase):
             self.assertTrue(path['aspath'] == [100, 200, 300] or
                             path['aspath'] == [100, 200])
 
+    # install a route with path_id via GoBGP CLI (no error check)
+    def test_09_install_add_paths_route_via_cli(self):
+        # identifier is duplicated with the identifier of the route from e1
+        self.g1.add_route(route='192.168.100.0/24', identifier=10, local_pref=500)
+        time.sleep(1)  # XXX: wait for routes re-calculated and advertised
+
+    # test the route from CLI is installed to the rib
+    def test_10_check_g1_global_rib(self):
+        rib = self.g1.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 3)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200] or
+                            path['aspath'] == [])
+            if len(path['aspath']) == 0:
+                self.assertEqual(path['local-pref'], 500)
+
+    # test the best path is replaced due to the CLI route from g1 rib
+    def test_11_check_g2_global_rib(self):
+        rib = self.g2.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 1)
+        self.assertEqual(rib[0]['paths'][0]['aspath'], [])
+
+    # test the route from CLI is advertised from g1
+    def test_12_check_g3_global_rib(self):
+        rib = self.g3.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 3)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200] or
+                            path['aspath'] == [])
+            if len(path['aspath']) == 0:
+                self.assertEqual(path['local-pref'], 500)
+
+    # remove non-existing route with path_id via GoBGP CLI (no error check)
+    def test_13_remove_non_existing_add_paths_route_via_cli(self):
+        # specify locally non-existing identifier which has the same value
+        # with the identifier of the route from e1
+        self.g1.del_route(route='192.168.100.0/24', identifier=20)
+        time.sleep(1)  # XXX: wait for routes re-calculated and advertised
+
+    # test none of route is removed by non-existing path_id via CLI
+    def test_14_check_g1_global_rib(self):
+        rib = self.g1.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 3)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200] or
+                            path['aspath'] == [])
+            if len(path['aspath']) == 0:
+                self.assertEqual(path['local-pref'], 500)
+
+    # remove route with path_id via GoBGP CLI (no error check)
+    def test_15_remove_add_paths_route_via_cli(self):
+        self.g1.del_route(route='192.168.100.0/24', identifier=10)
+        time.sleep(1)  # XXX: wait for routes re-calculated and advertised
+
+    # test the route is removed from the rib via CLI
+    def test_16_check_g1_global_rib(self):
+        rib = self.g1.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 2)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200])
+
+    # test the best path is replaced the removal from g1 rib
+    def test_17_check_g2_global_rib(self):
+        rib = self.g2.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 1)
+        self.assertEqual(rib[0]['paths'][0]['aspath'], [100, 200])
+
+    # test the removed route from CLI is withdrawn by g1
+    def test_18_check_g3_global_rib(self):
+        rib = self.g3.get_global_rib()
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 2)
+        for path in rib[0]['paths']:
+            self.assertTrue(path['aspath'] == [100, 200, 300] or
+                            path['aspath'] == [100, 200])
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
