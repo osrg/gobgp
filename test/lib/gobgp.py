@@ -505,12 +505,18 @@ class GoBGPContainer(BGPContainer):
                 r = CmdBuffer(' ')
                 r << 'gobgp global -a {0}'.format(v['rf'])
                 r << 'rib add {0}'.format(v['prefix'])
+                if v['identifier']:
+                    r << 'identifier {0}'.format(v['identifier'])
                 if v['next-hop']:
                     r << 'nexthop {0}'.format(v['next-hop'])
                 if v['local-pref']:
                     r << 'local-pref {0}'.format(v['local-pref'])
                 if v['med']:
                     r << 'med {0}'.format(v['med'])
+                if v['community']:
+                    r << 'community {0}'.format(
+                        ','.join(v['community'])
+                        if isinstance(v['community'], (list, tuple)) else v['community'])
                 cmd = str(r)
             elif v['rf'] == 'ipv4-flowspec' or v['rf'] == 'ipv6-flowspec':
                 cmd = 'gobgp global '\
