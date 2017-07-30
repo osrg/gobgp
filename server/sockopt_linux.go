@@ -212,7 +212,9 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 		fi := os.NewFile(uintptr(fd), "")
 		defer fi.Close()
 
-		conn, err := net.FileConn(fi)
+		if conn, err := net.FileConn(fi); err != nil {
+			retrun nil, err
+		}
 		return conn.(*net.TCPConn), err
 	}
 
