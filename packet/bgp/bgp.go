@@ -7817,6 +7817,7 @@ type BGPUpdate struct {
 }
 
 func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	var strongestError error
 
 	// cache error codes
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -7870,20 +7871,46 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 
 	msg.PathAttributes = []PathAttributeInterface{}
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
+		var e error
+		if pathlen < 3 {
+			e = NewMessageErrorWithErrorHandling(
+				eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, "insufficient data to decode")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
+			data = data[pathlen:]
+			break
+		}
 		p, err := GetPathAttribute(data)
 		if err != nil {
 			return err
 		}
+
 		err = p.DecodeFromBytes(data, options...)
 		if err != nil {
-			return err
+			e = err.(*MessageError)
+			if e.(*MessageError).SubTypeCode == BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR {
+				e.(*MessageError).ErrorHandling = ERROR_HANDLING_TREAT_AS_WITHDRAW
+			} else {
+				e.(*MessageError).ErrorHandling = getErrorHandlingFromPathAttribute(p.GetType())
+				e.(*MessageError).ErrorAttribute = &p
+			}
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 		pathlen -= uint16(p.Len(options...))
 		if len(data) < p.Len(options...) {
-			return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, "attribute length is short")
+			e = NewMessageErrorWithErrorHandling(
+				eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, "attribute length is short")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 		data = data[p.Len(options...):]
-		msg.PathAttributes = append(msg.PathAttributes, p)
+		if e == nil || e.(*MessageError).ErrorHandling != ERROR_HANDLING_ATTRIBUTE_DISCARD {
+			msg.PathAttributes = append(msg.PathAttributes, p)
+		}
 	}
 
 	msg.NLRI = make([]*IPAddrPrefix, 0)
@@ -7897,11 +7924,14 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		if len(data) < n.Len(options...)+addpathLen {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "NLRI length is short")
 		}
+		if n.Len(options...) > 32 {
+			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "NLRI length is too long")
+		}
 		data = data[n.Len(options...)+addpathLen:]
 		msg.NLRI = append(msg.NLRI, n)
 	}
 
-	return nil
+	return strongestError
 }
 
 func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -8125,10 +8155,7 @@ func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMe
 		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, nil, "unknown message type")
 	}
 	err := msg.Body.DecodeFromBytes(data, options...)
-	if err != nil {
-		return nil, err
-	}
-	return msg, nil
+	return msg, err
 }
 
 func ParseBGPMessage(data []byte, options ...*MarshallingOption) (*BGPMessage, error) {
