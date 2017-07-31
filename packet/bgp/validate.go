@@ -9,6 +9,8 @@ import (
 
 // Validator for BGPUpdate
 func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
+	var strongestError error
+
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
@@ -20,22 +22,34 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 	}
 
 	seen := make(map[BGPAttrType]PathAttributeInterface)
+	newAttrs := make([]PathAttributeInterface, 0, len(seen))
 	// check path attribute
 	for _, a := range m.PathAttributes {
 		// check duplication
 		if _, ok := seen[a.GetType()]; !ok {
 			seen[a.GetType()] = a
-		} else {
+			newAttrs = append(newAttrs, a)
+			//check specific path attribute
+			ok, err := ValidateAttribute(a, rfs, doConfedCheck)
+			if !ok {
+				if err.(*MessageError).ErrorHandling == ERROR_HANDLING_SESSION_RESET {
+					return false, err
+				} else if err.(*MessageError).Stronger(strongestError) {
+					strongestError = err
+				}
+			}
+		} else if a.GetType() == BGP_ATTR_TYPE_MP_REACH_NLRI || a.GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
-		}
-
-		//check specific path attribute
-		ok, e := ValidateAttribute(a, rfs, doConfedCheck)
-		if !ok {
-			return false, e
+		} else {
+			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	}
+	m.PathAttributes = newAttrs
 
 	if _, ok := seen[BGP_ATTR_TYPE_MP_REACH_NLRI]; ok || len(m.NLRI) > 0 {
 		// check the existence of well-known mandatory attributes
@@ -55,13 +69,18 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 		if ok, t := exist(mandatory); !ok {
 			eMsg := "well-known mandatory attributes are not present. type : " + strconv.Itoa(int(t))
 			data := []byte{byte(t)}
-			return false, NewMessageError(eCode, eSubCodeMissing, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMissing, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	}
-	return true, nil
+
+	return strongestError == nil, strongestError
 }
 
 func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
+	var strongestError error
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
@@ -126,7 +145,10 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
 			data, _ := a.Serialize()
 			eMsg := "invalid origin attribute. value : " + strconv.Itoa(int(v))
-			return false, NewMessageError(eCode, eSubCodeBadOrigin, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadOrigin, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	case *PathAttributeNextHop:
 
@@ -144,7 +166,10 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 		if p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
-			return false, NewMessageError(eCode, eSubCodeBadNextHop, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadNextHop, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	case *PathAttributeAsPath:
 		if doConfedCheck {
@@ -158,7 +183,11 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 				}
 
 				if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
-					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type confederation(%d) found", segType))
+					err := NewMessageErrorWithErrorHandling(
+						eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, fmt.Sprintf("segment type confederation(%d) found", segType))
+					if err.(*MessageError).Stronger(strongestError) {
+						strongestError = err
+					}
 				}
 			}
 		}
@@ -186,8 +215,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 		}
 	}
 
-	return true, nil
-
+	return strongestError == nil, strongestError
 }
 
 // validator for PathAttribute
