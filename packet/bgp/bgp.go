@@ -8162,24 +8162,106 @@ func (msg *BGPMessage) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	return append(h, b...), nil
 }
 
+type ErrorHandling int
+
+const (
+	ERROR_HANDLING_NONE ErrorHandling = iota
+	ERROR_HANDLING_ATTRIBUTE_DISCARD
+	ERROR_HANDLING_TREAT_AS_WITHDRAW
+	ERROR_HANDLING_AFISAFI_DISABLE
+	ERROR_HANDLING_SESSION_RESET
+)
+
+func getErrorHandlingFromPathAttribute(t BGPAttrType) ErrorHandling {
+	switch t {
+	case BGP_ATTR_TYPE_ORIGIN:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_AS_PATH:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_AS4_PATH:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_NEXT_HOP:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_MULTI_EXIT_DISC:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_LOCAL_PREF:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_ATOMIC_AGGREGATE:
+		return ERROR_HANDLING_ATTRIBUTE_DISCARD
+	case BGP_ATTR_TYPE_AGGREGATOR:
+		return ERROR_HANDLING_ATTRIBUTE_DISCARD
+	case BGP_ATTR_TYPE_AS4_AGGREGATOR:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_COMMUNITIES:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_ORIGINATOR_ID:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_CLUSTER_LIST:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_MP_REACH_NLRI:
+		return ERROR_HANDLING_AFISAFI_DISABLE
+	case BGP_ATTR_TYPE_MP_UNREACH_NLRI:
+		return ERROR_HANDLING_AFISAFI_DISABLE
+	case BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_PMSI_TUNNEL:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_LARGE_COMMUNITY:
+		return ERROR_HANDLING_TREAT_AS_WITHDRAW
+	case BGP_ATTR_TYPE_TUNNEL_ENCAP:
+		return ERROR_HANDLING_ATTRIBUTE_DISCARD
+	case BGP_ATTR_TYPE_AIGP:
+		return ERROR_HANDLING_ATTRIBUTE_DISCARD
+	default:
+		return ERROR_HANDLING_ATTRIBUTE_DISCARD
+	}
+}
+
 type MessageError struct {
-	TypeCode    uint8
-	SubTypeCode uint8
-	Data        []byte
-	Message     string
+	TypeCode       uint8
+	SubTypeCode    uint8
+	Data           []byte
+	Message        string
+	ErrorHandling  ErrorHandling
+	ErrorAttribute *PathAttributeInterface
 }
 
 func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error {
 	return &MessageError{
-		TypeCode:    typeCode,
-		SubTypeCode: subTypeCode,
-		Data:        data,
-		Message:     msg,
+		TypeCode:       typeCode,
+		SubTypeCode:    subTypeCode,
+		Data:           data,
+		ErrorHandling:  ERROR_HANDLING_SESSION_RESET,
+		ErrorAttribute: nil,
+		Message:        msg,
+	}
+}
+
+func NewMessageErrorWithErrorHandling(typeCode, subTypeCode uint8, data []byte, errorHandling ErrorHandling, errorAttribute *PathAttributeInterface, msg string) error {
+	return &MessageError{
+		TypeCode:       typeCode,
+		SubTypeCode:    subTypeCode,
+		Data:           data,
+		ErrorHandling:  errorHandling,
+		ErrorAttribute: errorAttribute,
+		Message:        msg,
 	}
 }
 
 func (e *MessageError) Error() string {
 	return e.Message
+}
+
+func (e *MessageError) Stronger(err error) bool {
+	if err == nil {
+		return true
+	}
+	if msgErr, ok := err.(*MessageError); ok {
+		return e.ErrorHandling > msgErr.ErrorHandling
+	}
+	return false
 }
 
 func (e *TwoOctetAsSpecificExtended) Flat() map[string]string {
