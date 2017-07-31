@@ -431,13 +431,13 @@ func (e *RibEntry) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewRibEntry(index uint16, time uint32, pathid uint32, pathattrs []bgp.PathAttributeInterface) *RibEntry {
+func NewRibEntry(index uint16, time uint32, pathId uint32, pathAttrs []bgp.PathAttributeInterface, isAddPath bool) *RibEntry {
 	return &RibEntry{
 		PeerIndex:      index,
 		OriginatedTime: time,
-		PathIdentifier: pathid,
-		PathAttributes: pathattrs,
-		isAddPath:      pathid != 0,
+		PathIdentifier: pathId,
+		PathAttributes: pathAttrs,
+		isAddPath:      isAddPath,
 	}
 }
 

@@ -114,7 +114,7 @@ func TestMrtRibEntry(t *testing.T) {
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
 
-	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 0, p)
+	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 0, p, false)
 	b1, err := e1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestMrtRibEntryWithAddPath(t *testing.T) {
 		bgp.NewPathAttributeMultiExitDisc(1 << 20),
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
-	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 200, p)
+	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 200, p, true)
 	b1, err := e1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -173,9 +173,9 @@ func TestMrtRib(t *testing.T) {
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
 
-	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 0, p)
-	e2 := NewRibEntry(2, uint32(time.Now().Unix()), 0, p)
-	e3 := NewRibEntry(3, uint32(time.Now().Unix()), 0, p)
+	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 0, p, false)
+	e2 := NewRibEntry(2, uint32(time.Now().Unix()), 0, p, false)
+	e3 := NewRibEntry(3, uint32(time.Now().Unix()), 0, p, false)
 
 	r1 := NewRib(1, bgp.NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
 	b1, err := r1.Serialize()
@@ -207,9 +207,9 @@ func TestMrtRibWithAddPath(t *testing.T) {
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
 
-	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 100, p)
-	e2 := NewRibEntry(2, uint32(time.Now().Unix()), 200, p)
-	e3 := NewRibEntry(3, uint32(time.Now().Unix()), 300, p)
+	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 100, p, true)
+	e2 := NewRibEntry(2, uint32(time.Now().Unix()), 200, p, true)
+	e3 := NewRibEntry(3, uint32(time.Now().Unix()), 300, p, true)
 
 	r1 := NewRib(1, bgp.NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
 	b1, err := r1.Serialize()
