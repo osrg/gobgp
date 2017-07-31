@@ -25,15 +25,16 @@ import (
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
-	p "github.com/kr/pretty"
+	"github.com/kr/pretty"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -115,7 +116,7 @@ func main() {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 		c := <-configCh
 		if opts.LogLevel == "debug" {
-			p.Println(c)
+			pretty.Println(c)
 		}
 		os.Exit(0)
 	}
