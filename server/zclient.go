@@ -361,7 +361,6 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 
 	var nlri bgp.AddrPrefixInterface
 	pattr := make([]bgp.PathAttributeInterface, 0)
-	var mpnlri *bgp.PathAttributeMpReachNLRI
 	var isWithdraw bool = header.Command == zebra.IPV4_ROUTE_DELETE || header.Command == zebra.IPV6_ROUTE_DELETE
 
 	origin := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
@@ -385,12 +384,16 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	switch family {
 	case bgp.RF_IPv4_UC:
 		nlri = bgp.NewIPAddrPrefix(body.PrefixLength, body.Prefix.String())
-		nexthop := bgp.NewPathAttributeNextHop(body.Nexthops[0].String())
-		pattr = append(pattr, nexthop)
+		if len(body.Nexthops) > 0 {
+			pattr = append(pattr, bgp.NewPathAttributeNextHop(body.Nexthops[0].String()))
+		}
 	case bgp.RF_IPv6_UC:
 		nlri = bgp.NewIPv6AddrPrefix(body.PrefixLength, body.Prefix.String())
-		mpnlri = bgp.NewPathAttributeMpReachNLRI(body.Nexthops[0].String(), []bgp.AddrPrefixInterface{nlri})
-		pattr = append(pattr, mpnlri)
+		nexthop := ""
+		if len(body.Nexthops) > 0 {
+			nexthop = body.Nexthops[0].String()
+		}
+		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 	default:
 		log.WithFields(log.Fields{
 			"Topic": "Zebra",
