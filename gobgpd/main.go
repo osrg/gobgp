@@ -1,3 +1,4 @@
+//
 // Copyright (C) 2014-2017 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +17,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	_ "net/http/pprof"
@@ -36,6 +38,8 @@ import (
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
 )
+
+var version = "master"
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
@@ -58,10 +62,16 @@ func main() {
 		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
 		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
 		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
+		Version         bool   `long:"version" description:"show version number"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		os.Exit(1)
+	}
+
+	if opts.Version {
+		fmt.Println("gobgpd version", version)
+		os.Exit(0)
 	}
 
 	if opts.CPUs == 0 {
