@@ -178,7 +178,7 @@ func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...Table
 		if d, y := dsts[path.GetNlri().String()]; y {
 			d.knownPathList = append(d.knownPathList, path)
 		} else {
-			dst := NewDestination(path.GetNlri())
+			dst := NewDestination(path.GetNlri(), 0)
 			dsts[path.GetNlri().String()] = dst
 			dst.knownPathList = append(dst.knownPathList, path)
 		}

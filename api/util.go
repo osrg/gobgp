@@ -82,7 +82,7 @@ func (d *Destination) ToNativeDestination(option ...ToNativeOption) (*table.Dest
 		}
 		paths = append(paths, path)
 	}
-	return table.NewDestination(nlri, paths...), nil
+	return table.NewDestination(nlri, 0, paths...), nil
 }
 
 func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {

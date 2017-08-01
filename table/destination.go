@@ -147,16 +147,21 @@ type Destination struct {
 	newPathList      paths
 	oldKnownPathList paths
 	RadixKey         string
-	localIdMap       Bitmap
+	localIdMap       *Bitmap
 }
 
-func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
+func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *Destination {
 	d := &Destination{
 		routeFamily:   bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()),
 		nlri:          nlri,
 		knownPathList: known,
 		withdrawList:  make([]*Path, 0),
 		newPathList:   make([]*Path, 0),
+		localIdMap:    NewBitmap(mapSize),
+	}
+	// the id zero means id is not allocated yet.
+	if mapSize != 0 {
+		d.localIdMap.Flag(0)
 	}
 	switch d.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
@@ -345,7 +350,12 @@ func (dest *Destination) Calculate() *Destination {
 
 	for _, path := range dest.knownPathList {
 		if path.GetNlri().PathLocalIdentifier() == 0 {
-			path.GetNlri().SetPathLocalIdentifier(uint32(dest.localIdMap.FindandSetZeroBit()))
+			id, err := dest.localIdMap.FindandSetZeroBit()
+			if err != nil {
+				dest.localIdMap.Expand()
+				id, _ = dest.localIdMap.FindandSetZeroBit()
+			}
+			path.GetNlri().SetPathLocalIdentifier(uint32(id))
 		}
 	}
 	// Clear new paths as we copied them.
@@ -1022,7 +1032,7 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 			}
 		}
 	}
-	new := NewDestination(old.nlri)
+	new := NewDestination(old.nlri, 0)
 	for _, path := range paths {
 		p := path.Clone(path.IsWithdraw)
 		p.Filter("", path.Filtered(id))

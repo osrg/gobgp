@@ -29,13 +29,13 @@ import (
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
+	ipv4d := NewDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv6d := NewDestination(pathD[0].GetNlri())
+	ipv6d := NewDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv6d)
 }
 
@@ -88,7 +88,7 @@ func TestCalculate(t *testing.T) {
 	path1.Filter("2", POLICY_DIRECTION_IMPORT)
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
@@ -122,7 +122,7 @@ func TestCalculate2(t *testing.T) {
 	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
 	path1 := ProcessMessage(update1, peer1, time.Now())[0]
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.Calculate()
 
@@ -186,7 +186,7 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 	path2.Filter("3", POLICY_DIRECTION_IMPORT)
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
@@ -290,7 +290,7 @@ func TestTimeTieBreaker(t *testing.T) {
 	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}} // weaker router-id
 	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
@@ -301,7 +301,7 @@ func TestTimeTieBreaker(t *testing.T) {
 
 	// this option disables tie breaking by age
 	SelectionOptions.ExternalCompareRouterId = true
-	d = NewDestination(nlri)
+	d = NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
@@ -458,7 +458,7 @@ func TestMultipath(t *testing.T) {
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 
-	d := NewDestination(nlri[0])
+	d := NewDestination(nlri[0], 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
@@ -512,4 +512,23 @@ func TestMultipath(t *testing.T) {
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 3)
 
 	UseMultiplePaths.Enabled = false
+}
+
+func TestIdMap(t *testing.T) {
+	d := NewDestination(bgp.NewIPAddrPrefix(24, "10.10.0.101"), 64)
+	for i := 0; ; i++ {
+		if id, err := d.localIdMap.FindandSetZeroBit(); err == nil {
+			assert.Equal(t, uint(i+1), id)
+		} else {
+			assert.Equal(t, i, 63)
+			break
+		}
+	}
+	d.localIdMap.Expand()
+	for i := 0; i < 64; i++ {
+		id, _ := d.localIdMap.FindandSetZeroBit()
+		assert.Equal(t, id, uint(64+i))
+	}
+	_, err := d.localIdMap.FindandSetZeroBit()
+	assert.NotNil(t, err)
 }

@@ -28,7 +28,7 @@ func TestTableDeleteDestByNlri(t *testing.T) {
 	ipv4t := NewTable(bgp.RF_IPv4_UC)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
@@ -43,11 +43,11 @@ func TestTableDeleteDest(t *testing.T) {
 	ipv4t := NewTable(bgp.RF_IPv4_UC)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
-	dest := NewDestination(pathT[0].GetNlri())
+	dest := NewDestination(pathT[0].GetNlri(), 0)
 	ipv4t.setDestination(tableKey, dest)
 	ipv4t.deleteDest(dest)
 	gdest := ipv4t.GetDestination(tableKey)
@@ -67,7 +67,7 @@ func TestTableSetDestinations(t *testing.T) {
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), 0)
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
@@ -81,7 +81,7 @@ func TestTableGetDestinations(t *testing.T) {
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), 0)
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)

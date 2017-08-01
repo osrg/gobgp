@@ -217,10 +217,7 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 			"Topic": "Table",
 			"Key":   tableKey,
 		}).Debugf("create Destination")
-		dest = NewDestination(nlri)
-		dest.localIdMap = NewBitmap(2048)
-		// the id zero means id is not allocated yet.
-		dest.localIdMap.Flag(0)
+		dest = NewDestination(nlri, 64)
 		t.setDestination(tableKey, dest)
 	}
 	return dest

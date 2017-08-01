@@ -108,7 +108,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 				}
 
 				if onlyBest {
-					dst := table.NewDestination(nlri)
+					dst := table.NewDestination(nlri, 0)
 					for _, p := range paths {
 						dst.AddNewPath(p)
 					}

@@ -36,40 +36,55 @@ const (
 	DEFAULT_LOCAL_PREF = 100
 )
 
-type Bitmap []uint64
-
-func (b Bitmap) Flag(i uint) {
-	b[i/64] |= 1 << uint(i%64)
+type Bitmap struct {
+	bitmap []uint64
 }
 
-func (b Bitmap) Unflag(i uint) {
-	b[i/64] &^= 1 << uint(i%64)
+func (b *Bitmap) Flag(i uint) {
+	b.bitmap[i/64] |= 1 << uint(i%64)
 }
 
-func (b Bitmap) GetFlag(i uint) bool {
-	return b[i/64]&(1<<uint(i%64)) > 0
+func (b *Bitmap) Unflag(i uint) {
+	b.bitmap[i/64] &^= 1 << uint(i%64)
 }
 
-func (b Bitmap) FindandSetZeroBit() uint {
-	for i := 0; i < len(b); i++ {
-		if b[i] == math.MaxUint64 {
+func (b *Bitmap) GetFlag(i uint) bool {
+	return b.bitmap[i/64]&(1<<uint(i%64)) > 0
+}
+
+func (b *Bitmap) FindandSetZeroBit() (uint, error) {
+	for i := 0; i < len(b.bitmap); i++ {
+		if b.bitmap[i] == math.MaxUint64 {
 			continue
 		}
 		// replace this with TrailingZero64() when gobgp drops go 1.8 support.
 		for j := 0; j < 64; j++ {
-			v := ^b[i]
+			v := ^b.bitmap[i]
 			if v&(1<<uint64(j)) > 0 {
 				r := i*64 + j
 				b.Flag(uint(r))
-				return uint(r)
+				return uint(r), nil
 			}
 		}
 	}
-	return 0
+	return 0, fmt.Errorf("no space")
 }
 
-func NewBitmap(size int) Bitmap {
-	return Bitmap(make([]uint64, (size+64-1)/64))
+func (b *Bitmap) Expand() {
+	old := b.bitmap
+	new := make([]uint64, len(old)+1)
+	for i := 0; i < len(old); i++ {
+		new[i] = old[i]
+	}
+	b.bitmap = new
+}
+
+func NewBitmap(size int) *Bitmap {
+	b := &Bitmap{}
+	if size != 0 {
+		b.bitmap = make([]uint64, (size+64-1)/64)
+	}
+	return b
 }
 
 type originInfo struct {
