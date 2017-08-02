@@ -608,6 +608,7 @@ message Peer {
   RouteServer route_server = 9;
   GracefulRestart graceful_restart = 10;
   repeated AfiSafi afi_safis = 11;
+  AddPaths add_paths = 12;
 }
 
 message ApplyPolicy {
@@ -902,6 +903,22 @@ message AfiSafi {
   PrefixLimit prefix_limits = 6;
   RouteTargetMembership route_target_membership = 7;
   LongLivedGracefulRestart long_lived_graceful_restart = 8;
+  AddPaths add_paths = 9;
+}
+
+message AddPathsConfig {
+  bool receive = 1;
+  uint32 send_max = 2;
+}
+
+message AddPathsState {
+  bool receive = 1;
+  uint32 send_max = 2;
+}
+
+message AddPaths {
+  AddPathsConfig config = 1;
+  AddPathsState state = 2;
 }
 
 message Prefix {
