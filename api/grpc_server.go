@@ -195,6 +195,15 @@ func NewLongLivedGracefulRestartFromConfigStruct(c *config.LongLivedGracefulRest
 	}
 }
 
+func NewAddPathsFromConfigStruct(c *config.AddPaths) *AddPaths {
+	return &AddPaths{
+		Config: &AddPathsConfig{
+			Receive: c.Config.Receive,
+			SendMax: uint32(c.Config.SendMax),
+		},
+	}
+}
+
 func NewAfiSafiFromConfigStruct(c *config.AfiSafi) *AfiSafi {
 	return &AfiSafi{
 		MpGracefulRestart:        NewMpGracefulRestartFromConfigStruct(&c.MpGracefulRestart),
@@ -205,6 +214,7 @@ func NewAfiSafiFromConfigStruct(c *config.AfiSafi) *AfiSafi {
 		PrefixLimits:             NewPrefixLimitFromConfigStruct(c),
 		RouteTargetMembership:    NewRouteTargetMembershipFromConfigStruct(&c.RouteTargetMembership),
 		LongLivedGracefulRestart: NewLongLivedGracefulRestartFromConfigStruct(&c.LongLivedGracefulRestart),
+		AddPaths:                 NewAddPathsFromConfigStruct(&c.AddPaths),
 	}
 }
 
@@ -330,6 +340,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			LocalAddress: pconf.Transport.Config.LocalAddress,
 		},
 		AfiSafis: afiSafis,
+		AddPaths: NewAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 
@@ -1113,6 +1124,16 @@ func ReadLongLivedGracefulRestartFromAPIStruct(c *config.LongLivedGracefulRestar
 	}
 }
 
+func ReadAddPathsFromAPIStruct(c *config.AddPaths, a *AddPaths) {
+	if c == nil || a == nil {
+		return
+	}
+	if a.Config != nil {
+		c.Config.Receive = a.Config.Receive
+		c.Config.SendMax = uint8(a.Config.SendMax)
+	}
+}
+
 func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	pconf := &config.Neighbor{}
 	if a.Conf != nil {
@@ -1182,6 +1203,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 					ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, a.PrefixLimits)
 					ReadRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, a.RouteTargetMembership)
 					ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, a.LongLivedGracefulRestart)
+					ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, a.AddPaths)
 				}
 			}
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
@@ -1258,6 +1280,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 			}
 		}
 	}
+	ReadAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
 	return pconf, nil
 }
 
