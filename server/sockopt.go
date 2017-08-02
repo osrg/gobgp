@@ -12,7 +12,7 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd
+// +build !linux,!openbsd
 
 package server
 
@@ -24,19 +24,19 @@ import (
 )
 
 func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	return fmt.Errorf("setting md5 is not supported")
+	return setTcpMD5SigSockopt(l, address, key)
 }
 
 func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
-	return fmt.Errorf("setting ttl is not supported")
+	return setListenTcpTTLSockopt(l, ttl)
 }
 
 func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
-	return fmt.Errorf("setting ttl is not supported")
+	return setTcpTTLSockopt(conn, ttl)
 }
 
 func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	return fmt.Errorf("setting min ttl is not supported")
+	return setTcpMinTTLSockopt(conn, ttl)
 }
 
 type TCPDialer struct {

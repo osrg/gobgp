@@ -1,4 +1,4 @@
-// Copyright (C) 2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2016-2017 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,33 +12,19 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// +build dragonfly freebsd netbsd
+// +build darwin
 
 package server
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"syscall"
 )
 
-const (
-	TCP_MD5SIG       = 0x10 // TCP MD5 Signature (RFC2385)
-	IPV6_MINHOPCOUNT = 73   // Generalized TTL Security Mechanism (RFC5082)
-)
-
-func setsockoptTcpMD5Sig(fd int, address string, key string) error {
-	// always enable and assumes that the configuration is done by setkey()
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, 1))
-}
-
 func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	fi, _, err := extractFileAndFamilyFromTCPListener(l)
-	defer fi.Close()
-	if err != nil {
-		return err
-	}
-	return setsockoptTcpMD5Sig(int(fi.Fd()), address, key)
+	return fmt.Errorf("setting md5 is not supported")
 }
 
 func setsockoptIpTtl(fd int, family int, value int) error {
@@ -69,21 +55,6 @@ func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
 }
 
-func setsockoptIpMinTtl(fd int, family int, value int) error {
-	level := syscall.IPPROTO_IP
-	name := syscall.IP_MINTTL
-	if family == syscall.AF_INET6 {
-		level = syscall.IPPROTO_IPV6
-		name = IPV6_MINHOPCOUNT
-	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
-}
-
 func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
-	defer fi.Close()
-	if err != nil {
-		return err
-	}
-	return setsockoptIpMinTtl(int(fi.Fd()), family, ttl)
+	return fmt.Errorf("setting min ttl is not supported")
 }
