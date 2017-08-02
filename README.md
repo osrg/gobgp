@@ -7,9 +7,15 @@ GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
 [the Go Programming Language](http://golang.org/).
 
-## Getting started
+----
 
-Installing GoBGP is quite easy (just one command!):
+## To start using GoBGP
+
+Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
+
+## To start developing GoBGP
+
+You need a working [Go environment](https://golang.org/doc/install).
 
 ```bash
 $ go get github.com/osrg/gobgp/...
