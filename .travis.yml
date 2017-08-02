@@ -1,6 +1,7 @@
 language: go
 
 before_install:
+  - go get -u github.com/golang/dep/cmd/dep
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1; fi
@@ -17,39 +18,32 @@ matrix:
     - go: tip
   include:
     - go: 1.7
-      before_install: true
-      install: go get -t ./...
+      install: $GOPATH/bin/dep ensure
       script: go test ./...
     - go: 1.8
-      before_install: true
-      install: go get -t ./...
+      install: $GOPATH/bin/dep ensure
       script: go test ./...
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
     - go: tip
-      before_install: true
-      install: go get -t ./...
+      install: $GOPATH/bin/dep ensure
       script: go test ./...
     - go: 1.7
-      before_install: true
-      install: go get -t ./...
+      install: $GOPATH/bin/dep ensure
       script: cd gobgpd && go build
       env:
         - GOOS=windows
     - go: 1.7
-      before_install: true
-      install: go get -t ./...
+      install: $GOPATH/bin/dep ensure
       script: cd gobgpd && go build
       env:
         - GOOS=freebsd
     - go: 1.7
-      before_install: true
-      install: go get -t ./...
+      install: $GOPATH/bin/dep ensure
       script: cd gobgpd && go build
       env:
         - GOOS=darwin
     - go: 1.7
-      before_install: true
       install: true
       script: test -z "$(go fmt ./...)"
     - go: 1.7
@@ -57,8 +51,7 @@ matrix:
       install: true
       script: test -z "$(go vet ./...)"
     - go: 1.7
-      before_install: true
-      install: go get ./...
+      install: $GOPATH/bin/dep ensure
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
     - env:
         - TEST=bgp_router_test.py
