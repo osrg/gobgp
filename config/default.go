@@ -106,12 +106,18 @@ func SetDefaultNeighborConfigValues(n *Neighbor, asn uint32) error {
 
 func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn uint32) error {
 	if v == nil {
+		// Determines this function is called against the same Neighbor struct,
+		// and if already called, returns immediately.
+		if n.State.LocalAs != 0 {
+			return nil
+		}
 		v = viper.New()
 	}
 
 	if n.Config.LocalAs == 0 {
 		n.Config.LocalAs = asn
 	}
+	n.State.LocalAs = n.Config.LocalAs
 
 	if n.Config.PeerAs != n.Config.LocalAs {
 		n.Config.PeerType = PEER_TYPE_EXTERNAL
