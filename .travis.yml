@@ -8,12 +8,12 @@ install: test/scenario_test/ci-scripts/travis-install-script.sh
 script: test/scenario_test/ci-scripts/travis-build-script.sh
 
 _simple_install: &_simple_install
-  before_install: true
-  install: go get -t ./...
+  before_install: go get -u github.com/golang/dep/cmd/dep
+  install: $GOPATH/bin/dep ensure
 
 _unittest: &_unittest
   <<: *_simple_install
-  script: go test ./...
+  script: go test $(go list ./... | grep -v '/vendor/')
 
 _cross_compile: &_cross_compile
   go: 1.7

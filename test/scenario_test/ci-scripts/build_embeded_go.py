@@ -20,9 +20,9 @@ def cut(filename, out):
 
 if __name__ == '__main__':
     filename = sys.argv[1]
-    out = '/tmp/test.go'
+    out = 'hoge.go'
     cut(filename, out)
-    ret = call(['go', 'build', '-o', '/tmp/test', out])
+    ret = call(['go', 'build', '-o', 'hoge', out])
     os.remove(out)
-    os.remove('/tmp/test')
+    os.remove('hoge')
     sys.exit(ret)
