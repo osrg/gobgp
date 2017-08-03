@@ -205,17 +205,19 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 		if err != nil {
 			return err
 		}
-		for i, af := range n.AfiSafis {
+		for i := range n.AfiSafis {
 			vv := viper.New()
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			af.State.AfiSafiName = af.Config.AfiSafiName
-			if !vv.IsSet("afi-safi.config.enabled") {
-				af.Config.Enabled = true
+			if _, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName)); err != nil {
+				return err
 			}
-			af.MpGracefulRestart.State.Enabled = af.MpGracefulRestart.Config.Enabled
-			n.AfiSafis[i] = af
+			n.AfiSafis[i].State.AfiSafiName = n.AfiSafis[i].Config.AfiSafiName
+			if !vv.IsSet("afi-safi.config.enabled") {
+				n.AfiSafis[i].Config.Enabled = true
+			}
+			n.AfiSafis[i].MpGracefulRestart.State.Enabled = n.AfiSafis[i].MpGracefulRestart.Config.Enabled
 		}
 	}
 
