@@ -7,6 +7,29 @@ before_install:
 install: test/scenario_test/ci-scripts/travis-install-script.sh
 script: test/scenario_test/ci-scripts/travis-build-script.sh
 
+_simple_install: &_simple_install
+  before_install: true
+  install: go get -t ./...
+
+_unittest: &_unittest
+  <<: *_simple_install
+  script: go test ./...
+
+_cross_compile: &_cross_compile
+  go: 1.7
+  <<: *_simple_install
+  script: cd gobgpd && go build
+
+_no_install: &_no_install
+  go: 1.7
+  before_install: true
+  install: true
+
+_docker: &_docker
+  sudo: required
+  services:
+    - docker
+
 env:
   global:
     - DOCKER_IMAGE=gobgp
@@ -16,170 +39,111 @@ matrix:
   allow_failures:
     - go: tip
   include:
-    - go: 1.7
-      before_install: true
-      install: go get -t ./...
-      script: go test ./...
-    - go: 1.8
-      before_install: true
-      install: go get -t ./...
-      script: go test ./...
+    - <<: *_unittest
+      go: tip
+    - <<: *_unittest
+      go: 1.7
+    - <<: *_unittest
+      go: 1.8
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
-    - go: tip
-      before_install: true
-      install: go get -t ./...
-      script: go test ./...
-    - go: 1.7
-      before_install: true
-      install: go get -t ./...
-      script: cd gobgpd && go build
+#
+# cross-compiile
+#
+    - <<: *_cross_compile
       env:
         - GOOS=windows
-    - go: 1.7
-      before_install: true
-      install: go get -t ./...
-      script: cd gobgpd && go build
+    - <<: *_cross_compile
       env:
         - GOOS=freebsd
-    - go: 1.7
-      before_install: true
-      install: go get -t ./...
-      script: cd gobgpd && go build
+    - <<: *_cross_compile
       env:
         - GOOS=darwin
-    - go: 1.7
-      before_install: true
-      install: true
+#
+# Misc
+#
+    - <<: *_no_install
       script: test -z "$(go fmt ./...)"
-    - go: 1.7
-      before_install: true
-      install: true
+    - <<: *_no_install
       script: test -z "$(go vet ./...)"
-    - go: 1.7
-      before_install: true
-      install: go get ./...
+    - <<: *_simple_install
+      go: 1.7
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
-    - env:
+#
+# Docker
+#
+    - <<: *_docker
+      env:
         - TEST=bgp_router_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=bgp_zebra_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=bgp_zebra_nht_test.py FROM_IMAGE=osrg/quagga:v1.0
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=evpn_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=flow_spec_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=global_policy_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=graceful_restart_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=ibgp_router_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_reflector_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_as2_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_ipv4_v6_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_malformed_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_policy_grpc_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_policy_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_softreset_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=route_server_test2.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=zapi_v3_test.py FROM_IMAGE=osrg/quagga:v1.0
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=long_lived_graceful_restart_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=vrf_neighbor_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=vrf_neighbor_test2.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=bgp_unnumbered_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=aspath_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
+    - <<: *_docker
+      env:
         - TEST=addpath_test.py
-      sudo: required
-      services:
-        - docker
 
 cache:
   pip: true
