@@ -37,7 +37,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 		}
 	}
 
-	if len(m.NLRI) > 0 {
+	if _, ok := seen[BGP_ATTR_TYPE_MP_REACH_NLRI]; ok || len(m.NLRI) > 0 {
 		// check the existence of well-known mandatory attributes
 		exist := func(attrs []BGPAttrType) (bool, BGPAttrType) {
 			for _, attr := range attrs {
@@ -48,7 +48,10 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 			}
 			return true, 0
 		}
-		mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH, BGP_ATTR_TYPE_NEXT_HOP}
+		mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH}
+		if len(m.NLRI) > 0 {
+			mandatory = append(mandatory, BGP_ATTR_TYPE_NEXT_HOP)
+		}
 		if ok, t := exist(mandatory); !ok {
 			eMsg := "well-known mandatory attributes are not present. type : " + strconv.Itoa(int(t))
 			data := []byte{byte(t)}
