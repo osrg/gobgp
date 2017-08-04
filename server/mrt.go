@@ -88,28 +88,41 @@ func (m *mrtWriter) loop() error {
 			msg := make([]*mrt.MRTMessage, 0, 1)
 			switch e := ev.(type) {
 			case *WatchEventUpdate:
-				subtype := mrt.MESSAGE_AS4
 				mp := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.String(), e.LocalAddress.String(), e.FourBytesAs, nil)
 				mp.BGPMessagePayload = e.Payload
-				if e.FourBytesAs == false {
-					subtype = mrt.MESSAGE
+				isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetRouteFamily())
+				subtype := mrt.MESSAGE
+				switch {
+				case isAddPath && e.FourBytesAs:
+					subtype = mrt.MESSAGE_AS4_ADDPATH
+				case isAddPath:
+					subtype = mrt.MESSAGE_ADDPATH
+				case e.FourBytesAs:
+					subtype = mrt.MESSAGE_AS4
 				}
 				if bm, err := mrt.NewMRTMessage(uint32(e.Timestamp.Unix()), mrt.BGP4MP, subtype, mp); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
 						"Data":  e,
 						"Error": err,
-					}).Warn("Failed to create MRT message in serialize()")
+					}).Warnf("Failed to create MRT BGP4MP message (subtype %d)", subtype)
 				} else {
 					msg = append(msg, bm)
 				}
 			case *WatchEventTable:
 				t := uint32(time.Now().Unix())
 				peers := make([]*mrt.Peer, 0, len(e.Neighbor))
+				neighborMap := make(map[string]*config.Neighbor)
 				for _, pconf := range e.Neighbor {
 					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.State.NeighborAddress, pconf.Config.PeerAs, true))
+					neighborMap[pconf.State.NeighborAddress] = pconf
 				}
 				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterId, "", peers)); err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "mrt",
+						"Data":  e,
+						"Error": err,
+					}).Warnf("Failed to create MRT TABLE_DUMPv2 message (subtype %d)", mrt.PEER_INDEX_TABLE)
 					break
 				} else {
 					msg = append(msg, bm)
@@ -124,33 +137,61 @@ func (m *mrtWriter) loop() error {
 					return uint16(len(e.Neighbor))
 				}
 
-				subtype := func(p *table.Path) mrt.MRTSubTypeTableDumpv2 {
+				subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
+					t := mrt.RIB_GENERIC
 					switch p.GetRouteFamily() {
 					case bgp.RF_IPv4_UC:
-						return mrt.RIB_IPV4_UNICAST
+						t = mrt.RIB_IPV4_UNICAST
 					case bgp.RF_IPv4_MC:
-						return mrt.RIB_IPV4_MULTICAST
+						t = mrt.RIB_IPV4_MULTICAST
 					case bgp.RF_IPv6_UC:
-						return mrt.RIB_IPV6_UNICAST
+						t = mrt.RIB_IPV6_UNICAST
 					case bgp.RF_IPv6_MC:
-						return mrt.RIB_IPV6_MULTICAST
+						t = mrt.RIB_IPV6_MULTICAST
 					}
-					return mrt.RIB_GENERIC
+					if isAddPath {
+						// Shift non-additional-path version to *_ADDPATH
+						t += 6
+					}
+					return t
 				}
 
 				seq := uint32(0)
+				appendTableDumpMsg := func(path *table.Path, entries []*mrt.RibEntry, isAddPath bool) {
+					st := subtype(path, isAddPath)
+					if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetNlri(), entries)); err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "mrt",
+							"Data":  e,
+							"Error": err,
+						}).Warnf("Failed to create MRT TABLE_DUMPv2 message (subtype %d)", st)
+					} else {
+						msg = append(msg, bm)
+						seq++
+					}
+				}
 				for _, pathList := range e.PathList {
 					entries := make([]*mrt.RibEntry, 0, len(pathList))
+					entriesAddPath := make([]*mrt.RibEntry, 0, len(pathList))
 					for _, path := range pathList {
 						if path.IsLocal() {
 							continue
 						}
-						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs()))
+						isAddPath := false
+						if neighbor, ok := neighborMap[path.GetSource().Address.String()]; ok {
+							isAddPath = neighbor.IsAddPathReceiveEnabled(path.GetRouteFamily())
+						}
+						if !isAddPath {
+							entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs(), false))
+						} else {
+							entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetNlri().PathIdentifier(), path.GetPathAttrs(), true))
+						}
 					}
 					if len(entries) > 0 {
-						bm, _ := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, subtype(pathList[0]), mrt.NewRib(seq, pathList[0].GetNlri(), entries))
-						msg = append(msg, bm)
-						seq++
+						appendTableDumpMsg(pathList[0], entries, false)
+					}
+					if len(entriesAddPath) > 0 {
+						appendTableDumpMsg(pathList[0], entriesAddPath, true)
 					}
 				}
 			}
