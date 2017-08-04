@@ -721,6 +721,7 @@ _type_translation_map = {
     'yang:timeticks': 'int64',
     'ptypes:install-protocol-type': 'string',
     'binary': '[]byte',
+    'route-family': 'bgp.RouteFamily',
     'bgp-capability': 'bgp.ParameterCapabilityInterface',
     'bgp-open-message': '*bgp.BGPMessage',
 }

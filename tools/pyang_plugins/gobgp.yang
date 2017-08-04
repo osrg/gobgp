@@ -1227,6 +1227,18 @@ module gobgp {
       }
   }
 
+  grouping afi-safi-state {
+    leaf family {
+      description
+        "Address family value of AFI-SAFI pair translated from afi-safi-name.";
+      type route-family;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi/bgp:state" {
+      uses afi-safi-state;
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
     container route-target-membership {
       container config {

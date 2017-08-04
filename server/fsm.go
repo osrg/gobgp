@@ -562,9 +562,8 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInterface {
 	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
 	caps = append(caps, bgp.NewCapRouteRefresh())
-	for _, rf := range pConf.AfiSafis {
-		family, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
-		caps = append(caps, bgp.NewCapMultiProtocol(family))
+	for _, af := range pConf.AfiSafis {
+		caps = append(caps, bgp.NewCapMultiProtocol(af.State.Family))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(pConf.Config.LocalAs))
 
@@ -580,7 +579,6 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 
 		if !c.HelperOnly {
 			for i, rf := range pConf.AfiSafis {
-				k, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
 				if m := rf.MpGracefulRestart.Config; m.Enabled {
 					// When restarting, always flag forwaring bit.
 					// This can be a lie, depending on how gobgpd is used.
@@ -589,11 +587,11 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 					// is a l2 switch which continues to work with no
 					// relation to bgpd, this behavior is ok.
 					// TODO consideration of other use-cases
-					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(k, restarting))
+					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(rf.State.Family, restarting))
 					pConf.AfiSafis[i].MpGracefulRestart.State.Advertised = true
 				}
 				if m := rf.LongLivedGracefulRestart.Config; m.Enabled {
-					ltuples = append(ltuples, bgp.NewCapLongLivedGracefulRestartTuple(k, restarting, m.RestartTime))
+					ltuples = append(ltuples, bgp.NewCapLongLivedGracefulRestartTuple(rf.State.Family, restarting, m.RestartTime))
 				}
 			}
 		}
@@ -629,9 +627,8 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 	}
 	if uint8(mode) > 0 {
 		items := make([]*bgp.CapAddPathTuple, 0, len(pConf.AfiSafis))
-		for _, rf := range pConf.AfiSafis {
-			k, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
-			items = append(items, bgp.NewCapAddPathTuple(k, mode))
+		for _, af := range pConf.AfiSafis {
+			items = append(items, bgp.NewCapAddPathTuple(af.State.Family, mode))
 		}
 		caps = append(caps, bgp.NewCapAddPath(items))
 	}

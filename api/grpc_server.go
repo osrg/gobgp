@@ -97,10 +97,10 @@ func NewMpGracefulRestartFromConfigStruct(c *config.MpGracefulRestart) *MpGracef
 	}
 }
 
-func NewAfiSafiConfigFromConfigStruct(c *config.AfiSafiConfig) *AfiSafiConfig {
+func NewAfiSafiConfigFromConfigStruct(c *config.AfiSafi) *AfiSafiConfig {
 	return &AfiSafiConfig{
-		Family:  uint32(bgp.AddressFamilyValueMap[string(c.AfiSafiName)]),
-		Enabled: c.Enabled,
+		Family:  uint32(c.State.Family),
+		Enabled: c.Config.Enabled,
 	}
 }
 
@@ -166,13 +166,12 @@ func NewUseMultiplePathsFromConfigStruct(c *config.UseMultiplePaths) *UseMultipl
 }
 
 func NewPrefixLimitFromConfigStruct(c *config.AfiSafi) *PrefixLimit {
-	family, err := bgp.GetRouteFamily(string(c.Config.AfiSafiName))
-	if err != nil || c.PrefixLimit.Config.MaxPrefixes == 0 {
+	if c.PrefixLimit.Config.MaxPrefixes == 0 {
 		return nil
 	}
 
 	return &PrefixLimit{
-		Family:               uint32(family),
+		Family:               uint32(c.State.Family),
 		MaxPrefixes:          c.PrefixLimit.Config.MaxPrefixes,
 		ShutdownThresholdPct: uint32(c.PrefixLimit.Config.ShutdownThresholdPct),
 	}
@@ -198,7 +197,7 @@ func NewLongLivedGracefulRestartFromConfigStruct(c *config.LongLivedGracefulRest
 func NewAfiSafiFromConfigStruct(c *config.AfiSafi) *AfiSafi {
 	return &AfiSafi{
 		MpGracefulRestart:        NewMpGracefulRestartFromConfigStruct(&c.MpGracefulRestart),
-		Config:                   NewAfiSafiConfigFromConfigStruct(&c.Config),
+		Config:                   NewAfiSafiConfigFromConfigStruct(c),
 		ApplyPolicy:              NewApplyPolicyFromConfigStruct(&c.ApplyPolicy),
 		RouteSelectionOptions:    NewRouteSelectionOptionsFromConfigStruct(&c.RouteSelectionOptions),
 		UseMultiplePaths:         NewUseMultiplePathsFromConfigStruct(&c.UseMultiplePaths),
@@ -213,9 +212,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	afiSafis := make([]*AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
-		if family, ok := bgp.AddressFamilyValueMap[string(f.Config.AfiSafiName)]; ok {
-			families = append(families, uint32(family))
-		}
+		families = append(families, uint32(f.State.Family))
 		if prefixLimit := NewPrefixLimitFromConfigStruct(&f); prefixLimit != nil {
 			prefixLimits = append(prefixLimits, prefixLimit)
 		}
