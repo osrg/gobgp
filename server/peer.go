@@ -215,8 +215,7 @@ func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteF
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
-			f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName))
-			list = append(list, f)
+			list = append(list, a.State.Family)
 		}
 	}
 	return classifyFamilies(peer.configuredRFlist(), list)
@@ -226,8 +225,7 @@ func (peer *Peer) llgrFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if a.LongLivedGracefulRestart.State.Enabled {
-			f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName))
-			list = append(list, f)
+			list = append(list, a.State.Family)
 		}
 	}
 	return classifyFamilies(peer.configuredRFlist(), list)
@@ -248,7 +246,7 @@ func (peer *Peer) isLLGREnabledFamily(family bgp.RouteFamily) bool {
 
 func (peer *Peer) llgrRestartTime(family bgp.RouteFamily) uint32 {
 	for _, a := range peer.fsm.pConf.AfiSafis {
-		if f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName)); f == family {
+		if a.State.Family == family {
 			return a.LongLivedGracefulRestart.State.PeerRestartTime
 		}
 	}
@@ -258,7 +256,7 @@ func (peer *Peer) llgrRestartTime(family bgp.RouteFamily) uint32 {
 func (peer *Peer) llgrRestartTimerExpired(family bgp.RouteFamily) bool {
 	all := true
 	for _, a := range peer.fsm.pConf.AfiSafis {
-		if f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName)); f == family {
+		if a.State.Family == family {
 			a.LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
 		}
 		s := a.LongLivedGracefulRestart.State
@@ -498,18 +496,10 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 	}
 	m := make(map[bgp.RouteFamily]config.PrefixLimitConfig)
 	for _, e := range x {
-		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
-		if err != nil {
-			return err
-		}
-		m[k] = e.PrefixLimit.Config
+		m[e.State.Family] = e.PrefixLimit.Config
 	}
 	for _, e := range y {
-		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
-		if err != nil {
-			return err
-		}
-		if p, ok := m[k]; !ok {
+		if p, ok := m[e.State.Family]; !ok {
 			return fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
 			log.WithFields(log.Fields{
@@ -521,8 +511,8 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 				"OldShutdownThresholdPct": p.ShutdownThresholdPct,
 				"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct,
 			}).Warnf("update prefix limit configuration")
-			peer.prefixLimitWarned[k] = false
-			if msg := peer.doPrefixLimit(k, &e.PrefixLimit.Config); msg != nil {
+			peer.prefixLimitWarned[e.State.Family] = false
+			if msg := peer.doPrefixLimit(e.State.Family, &e.PrefixLimit.Config); msg != nil {
 				sendFsmOutgoingMsg(peer, nil, msg, true)
 			}
 		}
@@ -544,9 +534,8 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	if len(e.PathList) > 0 {
 		peer.adjRibIn.Update(e.PathList)
-		for _, family := range peer.fsm.pConf.AfiSafis {
-			k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
-			if msg := peer.doPrefixLimit(k, &family.PrefixLimit.Config); msg != nil {
+		for _, af := range peer.fsm.pConf.AfiSafis {
+			if msg := peer.doPrefixLimit(af.State.Family, &af.PrefixLimit.Config); msg != nil {
 				return nil, nil, msg
 			}
 		}

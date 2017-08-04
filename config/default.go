@@ -38,6 +38,7 @@ func defaultAfiSafi(typ AfiSafiType, enable bool) AfiSafi {
 		},
 		State: AfiSafiState{
 			AfiSafiName: typ,
+			Family:      bgp.AddressFamilyValueMap[string(typ)],
 		},
 	}
 }
@@ -210,8 +211,10 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			if _, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName)); err != nil {
+			if rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName)); err != nil {
 				return err
+			} else {
+				n.AfiSafis[i].State.Family = rf
 			}
 			n.AfiSafis[i].State.AfiSafiName = n.AfiSafis[i].Config.AfiSafiName
 			if !vv.IsSet("afi-safi.config.enabled") {
