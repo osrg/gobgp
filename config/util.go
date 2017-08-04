@@ -153,3 +153,12 @@ func ExtractNeighborAddress(c *Neighbor) (string, error) {
 	}
 	return addr, nil
 }
+
+func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.RouteFamily) bool {
+	for _, af := range n.AfiSafis {
+		if af.State.Family == family {
+			return af.AddPaths.State.Receive
+		}
+	}
+	return false
+}
