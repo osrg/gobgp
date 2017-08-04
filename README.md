@@ -18,7 +18,9 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 You need a working [Go environment](https://golang.org/doc/install).
 
 ```bash
-$ go get github.com/osrg/gobgp/...
+$ go get -u github.com/golang/dep/cmd/dep
+$ go get github.com/osrg/gobgp
+$ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 ```
 
 ## Documentation
