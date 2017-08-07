@@ -59,6 +59,8 @@ If you want to remove routes with the address of the ipv6 from global rib：
 ```shell
 % gobgp global rib add -a ipv4 10.0.0.0/24 origin igp
 % gobgp global rib add -a ipv4 10.0.0.0/24 origin egp
+% gobgp global rib add -a ipv4 10.0.0.0/24 aspath 10,20,100.100
+% gobgp global rib add -a ipv4 10.0.0.0/24 aspath "10 20 {30,40} 50"
 % gobgp global rib add -a ipv4 10.0.0.0/24 nexthop 20.20.20.20
 % gobgp global rib add -a ipv4 10.0.0.0/24 med 10
 % gobgp global rib add -a ipv4 10.0.0.0/24 local-pref 110
