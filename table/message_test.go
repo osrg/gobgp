@@ -432,3 +432,29 @@ func TestBMP(t *testing.T) {
 	pList := ProcessMessage(msg, peerR1(), time.Now())
 	CreateUpdateMsgFromPaths(pList)
 }
+
+func TestMixedMPReachMPUnreach(t *testing.T) {
+	aspath1 := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{100}),
+	}
+	nlri1 := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(32, "2222::")}
+	nlri2 := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(32, "1111::")}
+
+	p := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath(aspath1),
+		bgp.NewPathAttributeMpReachNLRI("1::1", nlri1),
+		bgp.NewPathAttributeMpUnreachNLRI(nlri2),
+	}
+	msg := bgp.NewBGPUpdateMessage(nil, p, nil)
+	pList := ProcessMessage(msg, peerR1(), time.Now())
+	assert.Equal(t, len(pList), 2)
+	assert.Equal(t, pList[0].IsWithdraw, false)
+	assert.Equal(t, pList[1].IsWithdraw, true)
+	msgs := CreateUpdateMsgFromPaths(pList)
+	assert.Equal(t, len(msgs), 2)
+	attrs := msgs[0].Body.(*bgp.BGPUpdate).PathAttributes
+	assert.Equal(t, len(attrs), 3)
+	attrs = msgs[1].Body.(*bgp.BGPUpdate).PathAttributes
+	assert.Equal(t, len(attrs), 1)
+}
