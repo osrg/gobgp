@@ -513,6 +513,76 @@ func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) 
 	}
 	return args, bgp.NewPathAttributeOrigin(uint8(typ)), nil
 }
+
+func toAs4Value(s string) (uint32, error) {
+	if strings.Contains(s, ".") {
+		v := strings.Split(s, ".")
+		upper, err := strconv.Atoi(v[0])
+		if err != nil {
+			return 0, nil
+		}
+		lower, err := strconv.Atoi(v[1])
+		if err != nil {
+			return 0, nil
+		}
+		return uint32(upper)<<16 + uint32(lower), nil
+	}
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(i), nil
+}
+
+func newAsPath(aspath string) (bgp.PathAttributeInterface, error) {
+	// For the first step, parses "aspath" into a list of uint32 list.
+	// e.g.) "10 20 {30,40} 50" -> [][]uint32{{10, 20}, {30, 40}, {50}}
+	exp := regexp.MustCompile("[{}]")
+	segments := exp.Split(aspath, -1)
+	asPathPrams := make([]bgp.AsPathParamInterface, 0, len(segments))
+	exp = regexp.MustCompile(",|\\s+")
+	for idx, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		nums := exp.Split(segment, -1)
+		asNums := make([]uint32, 0, len(nums))
+		for _, n := range nums {
+			if n == "" {
+				continue
+			}
+			if asn, err := toAs4Value(n); err != nil {
+				return nil, err
+			} else {
+				asNums = append(asNums, uint32(asn))
+			}
+		}
+		// Assumes "idx" is even, the given "segment" is of type AS_SEQUENCE,
+		// otherwise AS_SET, because the "segment" enclosed in parentheses is
+		// of type AS_SET.
+		if idx%2 == 0 {
+			asPathPrams = append(asPathPrams, bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asNums))
+		} else {
+			asPathPrams = append(asPathPrams, bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, asNums))
+		}
+	}
+	return bgp.NewPathAttributeAsPath(asPathPrams), nil
+}
+
+func extractAsPath(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "aspath" && len(args) > (idx+1) {
+			attr, err := newAsPath(args[idx+1])
+			if err != nil {
+				return nil, nil, err
+			}
+			args = append(args[:idx], args[idx+2:]...)
+			return args, attr, nil
+		}
+	}
+	return args, nil, nil
+}
+
 func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error) {
 	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
 	nexthop := "0.0.0.0"
@@ -666,6 +736,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
 
 	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
+		extractAsPath,
 		extractOrigin,
 		extractMed,
 		extractLocalPref,
@@ -879,8 +950,8 @@ func modPath(resource string, name, modtype string, args []string) error {
 		}
 		etherTypes := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv6", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 %%s
