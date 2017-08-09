@@ -279,7 +279,7 @@ func main() {
 			}
 			for i, dn := range newConfig.DynamicNeighbors {
 				log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
-				if err := bgpServer.AddDynamicNeighbor(&newConfig.DynamicNeighors[i]); err != nil {
+				if err := bgpServer.AddDynamicNeighbor(&newConfig.DynamicNeighbors[i]); err != nil {
 					log.Warn(err)
 				}
 			}
