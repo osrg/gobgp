@@ -177,6 +177,15 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	if err != nil {
 		return nil, err
 	}
+	fi := os.NewFile(uintptr(fd), "")
+	defer fi.Close()
+	// A new socket was created so we must close it before this
+	// function returns either on failure or success. On success,
+	// net.FileConn() in newTCPConn() increases the refcount of
+	// the socket so this fi.Close() doesn't destroy the socket.
+	// The caller must call Close() with the file later.
+	// Note that the above os.NewFile() doesn't play with the
+	// refcount.
 
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1); err != nil {
 		return nil, os.NewSyscallError("setsockopt", err)
@@ -208,10 +217,7 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 		return nil, os.NewSyscallError("bind", err)
 	}
 
-	newTCPConn := func(fd int) (*net.TCPConn, error) {
-		fi := os.NewFile(uintptr(fd), "")
-		defer fi.Close()
-
+	newTCPConn := func(fi *os.File) (*net.TCPConn, error) {
 		if conn, err := net.FileConn(fi); err != nil {
 			return nil, err
 		} else {
@@ -224,7 +230,7 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	case syscall.EINPROGRESS, syscall.EALREADY, syscall.EINTR:
 		// do timeout handling
 	case nil, syscall.EISCONN:
-		return newTCPConn(fd)
+		return newTCPConn(fi)
 	default:
 		return nil, os.NewSyscallError("connect", err)
 	}
@@ -259,7 +265,7 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 			switch err := syscall.Errno(nerr); err {
 			case syscall.EINPROGRESS, syscall.EALREADY, syscall.EINTR:
 			case syscall.Errno(0), syscall.EISCONN:
-				return newTCPConn(fd)
+				return newTCPConn(fi)
 			default:
 				return nil, os.NewSyscallError("getsockopt", err)
 			}
