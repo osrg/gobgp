@@ -49,6 +49,7 @@ func modBmpServer(cmdType string, args []string) error {
 		policyType := config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY
 		if len(args) > 1 {
 			switch args[1] {
+			case "pre":
 			case "post":
 				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY
 			case "both":
