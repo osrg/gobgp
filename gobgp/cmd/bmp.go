@@ -17,11 +17,12 @@ package cmd
 
 import (
 	"fmt"
+	"net"
+	"strconv"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/spf13/cobra"
-	"net"
-	"strconv"
 )
 
 func modBmpServer(cmdType string, args []string) error {
