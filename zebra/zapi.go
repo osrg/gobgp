@@ -542,6 +542,23 @@ type Body interface {
 	String() string
 }
 
+type UnknownBody struct {
+	Data []byte
+}
+
+func (b *UnknownBody) DecodeFromBytes(data []byte, version uint8) error {
+	b.Data = data
+	return nil
+}
+
+func (b *UnknownBody) Serialize() ([]byte, error) {
+	return b.Data, nil
+}
+
+func (b *UnknownBody) String() string {
+	return fmt.Sprintf("data: %v", b.Data)
+}
+
 type HelloBody struct {
 	RedistDefault ROUTE_TYPE
 }
@@ -1338,7 +1355,10 @@ func ParseMessage(hdr *Header, data []byte) (*Message, error) {
 			"Topic": "Zebra",
 		}).Debugf("nexthop update message received: %v", data)
 	default:
-		return nil, fmt.Errorf("Unknown zapi command: %d", m.Header.Command)
+		m.Body = &UnknownBody{}
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("unknown message received: %v", data)
 	}
 	err := m.Body.DecodeFromBytes(data, m.Header.Version)
 	if err != nil {
