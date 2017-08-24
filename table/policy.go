@@ -3484,9 +3484,10 @@ func (r *RoutingPolicy) ReplacePolicy(x *Policy, refer, preserve bool) (err erro
 		}
 	}
 
+	ys := y.Statements
 	err = y.Replace(x)
 	if err == nil && !preserve {
-		for _, st := range y.Statements {
+		for _, st := range ys {
 			if !r.statementInUse(st) {
 				log.WithFields(log.Fields{
 					"Topic": "Policy",
