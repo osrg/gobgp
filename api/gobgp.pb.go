@@ -432,20 +432,26 @@ func (SoftResetNeighborRequest_SoftResetDirection) EnumDescriptor() ([]byte, []i
 type AddBmpRequest_MonitoringPolicy int32
 
 const (
-	AddBmpRequest_PRE  AddBmpRequest_MonitoringPolicy = 0
-	AddBmpRequest_POST AddBmpRequest_MonitoringPolicy = 1
-	AddBmpRequest_BOTH AddBmpRequest_MonitoringPolicy = 2
+	AddBmpRequest_PRE   AddBmpRequest_MonitoringPolicy = 0
+	AddBmpRequest_POST  AddBmpRequest_MonitoringPolicy = 1
+	AddBmpRequest_BOTH  AddBmpRequest_MonitoringPolicy = 2
+	AddBmpRequest_LOCAL AddBmpRequest_MonitoringPolicy = 3
+	AddBmpRequest_ALL   AddBmpRequest_MonitoringPolicy = 4
 )
 
 var AddBmpRequest_MonitoringPolicy_name = map[int32]string{
 	0: "PRE",
 	1: "POST",
 	2: "BOTH",
+	3: "LOCAL",
+	4: "ALL",
 }
 var AddBmpRequest_MonitoringPolicy_value = map[string]int32{
-	"PRE":  0,
-	"POST": 1,
-	"BOTH": 2,
+	"PRE":   0,
+	"POST":  1,
+	"BOTH":  2,
+	"LOCAL": 3,
+	"ALL":   4,
 }
 
 func (x AddBmpRequest_MonitoringPolicy) String() string {
