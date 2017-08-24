@@ -27,7 +27,7 @@ import (
 
 func modBmpServer(cmdType string, args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: gobgp bmp %s <addr>[:<port>] [{pre|post|both}]", cmdType)
+		return fmt.Errorf("usage: gobgp bmp %s <addr>[:<port>] [{pre|post|both|local-rib|all}]", cmdType)
 	}
 
 	var address string
@@ -55,8 +55,12 @@ func modBmpServer(cmdType string, args []string) error {
 				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY
 			case "both":
 				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH
+			case "local-rib":
+				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB
+			case "all":
+				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL
 			default:
-				return fmt.Errorf("invalid bmp policy type. valid type is {pre|post|both}")
+				return fmt.Errorf("invalid bmp policy type. valid type is {pre|post|both|local-rib|all}")
 			}
 		}
 		err = client.AddBMP(&config.BmpServerConfig{

@@ -204,6 +204,8 @@ message AddBmpRequest {
     PRE = 0;
     POST = 1;
     BOTH = 2;
+    LOCAL = 3;
+    ALL = 4;
   }
   MonitoringPolicy type = 3;
 }
