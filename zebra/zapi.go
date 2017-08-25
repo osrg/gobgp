@@ -597,7 +597,7 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 
 type Body interface {
 	DecodeFromBytes([]byte, uint8) error
-	Serialize() ([]byte, error)
+	Serialize(uint8) ([]byte, error)
 	String() string
 }
 
@@ -610,7 +610,7 @@ func (b *UnknownBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *UnknownBody) Serialize() ([]byte, error) {
+func (b *UnknownBody) Serialize(version uint8) ([]byte, error) {
 	return b.Data, nil
 }
 
@@ -627,7 +627,7 @@ func (b *HelloBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *HelloBody) Serialize() ([]byte, error) {
+func (b *HelloBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{uint8(b.RedistDefault)}, nil
 }
 
@@ -644,7 +644,7 @@ func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *RedistributeBody) Serialize() ([]byte, error) {
+func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{uint8(b.Redist)}, nil
 }
 
@@ -694,7 +694,7 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error 
 	return nil
 }
 
-func (b *InterfaceUpdateBody) Serialize() ([]byte, error) {
+func (b *InterfaceUpdateBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{}, nil
 }
 
@@ -733,7 +733,7 @@ func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8)
 	return nil
 }
 
-func (b *InterfaceAddressUpdateBody) Serialize() ([]byte, error) {
+func (b *InterfaceAddressUpdateBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{}, nil
 }
 
@@ -762,7 +762,7 @@ func (b *RouterIDUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *RouterIDUpdateBody) Serialize() ([]byte, error) {
+func (b *RouterIDUpdateBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{}, nil
 }
 
@@ -785,7 +785,7 @@ type IPRouteBody struct {
 	Api          API_TYPE
 }
 
-func (b *IPRouteBody) Serialize() ([]byte, error) {
+func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 	buf := make([]byte, 5)
 	buf[0] = uint8(b.Type)
 	buf[1] = uint8(b.Flags)
@@ -1048,7 +1048,7 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool) (int,
 	return offset, nil
 }
 
-func (b *NexthopLookupBody) Serialize() ([]byte, error) {
+func (b *NexthopLookupBody) Serialize(version uint8) ([]byte, error) {
 
 	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
 	buf := make([]byte, 0)
@@ -1116,7 +1116,7 @@ type ImportLookupBody struct {
 	Nexthops     []*Nexthop
 }
 
-func (b *ImportLookupBody) Serialize() ([]byte, error) {
+func (b *ImportLookupBody) Serialize(version uint8) ([]byte, error) {
 	buf := make([]byte, 1)
 	buf[0] = b.PrefixLength
 	buf = append(buf, b.Addr.To4()...)
@@ -1240,7 +1240,7 @@ type NexthopRegisterBody struct {
 	Nexthops []*RegisteredNexthop
 }
 
-func (b *NexthopRegisterBody) Serialize() ([]byte, error) {
+func (b *NexthopRegisterBody) Serialize(version uint8) ([]byte, error) {
 	buf := make([]byte, 0)
 
 	// List of Registered Nexthops
@@ -1297,7 +1297,7 @@ type NexthopUpdateBody struct {
 	Nexthops []*Nexthop
 }
 
-func (b *NexthopUpdateBody) Serialize() ([]byte, error) {
+func (b *NexthopUpdateBody) Serialize(version uint8) ([]byte, error) {
 	// Address Family (2 bytes)
 	buf := make([]byte, 3)
 	binary.BigEndian.PutUint16(buf, b.Family)
@@ -1372,7 +1372,7 @@ func (m *Message) Serialize() ([]byte, error) {
 	var body []byte
 	if m.Body != nil {
 		var err error
-		body, err = m.Body.Serialize()
+		body, err = m.Body.Serialize(m.Header.Version)
 		if err != nil {
 			return nil, err
 		}

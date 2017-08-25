@@ -189,7 +189,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	assert.Equal(uint32(1), r.Mtu)
 
 	//Serialize
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(2)
 	assert.Equal(nil, err)
 	assert.Equal([]byte{0x2, 0x10, 0x1d}, buf[0:3])
 	assert.Equal([]byte{0x0, 0x1}, buf[3:5])
@@ -275,7 +275,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	assert.Equal(uint32(1), r.Mtu)
 
 	//Serialize
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(2)
 	assert.Equal(nil, err)
 	assert.Equal([]byte{0x2, 0x10, 0x1d}, buf[0:3])
 	assert.Equal([]byte{0x0, 0x1}, buf[3:5])
@@ -362,7 +362,7 @@ func Test_NexthopLookupBody(t *testing.T) {
 	assert.Equal("172.16.1.101", b.Nexthops[0].Addr.String())
 
 	//Serialize
-	buf, err = b.Serialize()
+	buf, err = b.Serialize(2)
 	ip = net.ParseIP("192.168.50.0").To4()
 	assert.Equal(nil, err)
 	assert.Equal([]byte(ip)[0:4], buf[0:4])
@@ -401,7 +401,7 @@ func Test_NexthopLookupBody(t *testing.T) {
 	assert.Equal("2001:db8:0:1111::1", b.Nexthops[0].Addr.String())
 
 	//Serialize
-	buf, err = b.Serialize()
+	buf, err = b.Serialize(2)
 	ip = net.ParseIP("2001:db8:0:f101::").To16()
 	assert.Equal(nil, err)
 	assert.Equal([]byte(ip)[0:16], buf[0:16])
@@ -444,7 +444,7 @@ func Test_ImportLookupBody(t *testing.T) {
 
 	//Serialize
 	b.PrefixLength = uint8(24)
-	buf, err = b.Serialize()
+	buf, err = b.Serialize(2)
 	ip = net.ParseIP("192.168.50.0").To4()
 	assert.Equal(nil, err)
 	assert.Equal(uint8(24), buf[0])
@@ -487,7 +487,7 @@ func Test_NexthopRegisterBody(t *testing.T) {
 	assert.Equal(net.ParseIP("2001:db8:1:1::1").To16(), b.Nexthops[1].Prefix)
 
 	// Test Serialize()
-	bufOut, err := b.Serialize()
+	bufOut, err := b.Serialize(3)
 	assert.Nil(err)
 
 	// Test serialised value
