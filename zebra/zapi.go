@@ -650,10 +650,11 @@ func (b *InterfaceUpdateBody) String() string {
 }
 
 type InterfaceAddressUpdateBody struct {
-	Index  uint32
-	Flags  uint8
-	Prefix net.IP
-	Length uint8
+	Index       uint32
+	Flags       uint8
+	Prefix      net.IP
+	Length      uint8
+	Destination net.IP
 }
 
 func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
@@ -671,6 +672,7 @@ func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8)
 	}
 	b.Prefix = data[6 : 6+addrlen]
 	b.Length = data[6+addrlen]
+	b.Destination = data[7+addrlen : 7+addrlen*2]
 	return nil
 }
 
