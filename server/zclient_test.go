@@ -24,9 +24,10 @@ import (
 	"time"
 )
 
-func Test_createRequestFromIPRouteMessage(t *testing.T) {
+func Test_createPathFromIPRouteMessage(t *testing.T) {
 	assert := assert.New(t)
 
+	// IPv4 Route Add
 	m := &zebra.Message{}
 	h := &zebra.Header{
 		Len:     zebra.HeaderSize(2),
@@ -34,7 +35,6 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 		Version: 2,
 		Command: zebra.IPV4_ROUTE_ADD,
 	}
-
 	b := &zebra.IPRouteBody{
 		Type:         zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
 		Flags:        zebra.FLAG(zebra.FLAG_SELECTED),
@@ -49,7 +49,6 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 		Mtu:          uint32(0),
 		Api:          zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
 	}
-
 	m.Header = *h
 	m.Body = b
 
@@ -61,9 +60,12 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 	assert.True(pp.IsFromExternal())
 	assert.False(pp.IsWithdraw)
 
-	// withdraw
+	// IPv4 Route Delete
 	h.Command = zebra.IPV4_ROUTE_DELETE
+	b.Api = zebra.IPV4_ROUTE_DELETE
 	m.Header = *h
+	m.Body = b
+
 	path = createPathFromIPRouteMessage(m)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
@@ -74,8 +76,9 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 	assert.True(pp.IsFromExternal())
 	assert.True(pp.IsWithdraw)
 
-	// IPv6
+	// IPv6 Route Add
 	h.Command = zebra.IPV6_ROUTE_ADD
+	b.Api = zebra.IPV6_ROUTE_ADD
 	b.Prefix = net.ParseIP("2001:db8:0:f101::")
 	b.PrefixLength = uint8(64)
 	b.Nexthops = []net.IP{net.ParseIP("::")}
@@ -92,9 +95,12 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 	assert.True(pp.IsFromExternal())
 	assert.False(pp.IsWithdraw)
 
-	// withdraw
+	// IPv6 Route Delete
 	h.Command = zebra.IPV6_ROUTE_DELETE
+	b.Api = zebra.IPV6_ROUTE_DELETE
 	m.Header = *h
+	m.Body = b
+
 	path = createPathFromIPRouteMessage(m)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())

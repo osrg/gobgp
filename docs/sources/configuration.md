@@ -41,6 +41,7 @@
         enabled = true
         url = "unix:/var/run/quagga/zserv.api"
         redistribute-route-type-list = ["connect"]
+        version = 2  # version used in Quagga on Ubuntu 16.04
 
 [[neighbors]]
     [neighbors.config]

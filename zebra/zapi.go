@@ -23,6 +23,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -751,6 +752,43 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 	return nil
 }
 
+func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) error {
+	command := IPV4_ROUTE_ADD
+	if c.Version <= 3 {
+		if isWithdraw {
+			command = IPV4_ROUTE_DELETE
+		}
+	} else { // version >= 4
+		if isWithdraw {
+			command = FRR_IPV4_ROUTE_DELETE
+		} else {
+			command = FRR_IPV4_ROUTE_ADD
+		}
+	}
+	return c.SendCommand(command, vrfId, body)
+}
+
+func (c *Client) SendNexthopRegister(vrfId uint16, body *NexthopRegisterBody, isWithdraw bool) error {
+	// Note: NEXTHOP_REGISTER and NEXTHOP_UNREGISTER messages are not
+	// supported in Zebra protocol version<3.
+	if c.Version < 3 {
+		return fmt.Errorf("NEXTHOP_REGISTER/NEXTHOP_UNREGISTER are not supported in version: %d", c.Version)
+	}
+	command := NEXTHOP_REGISTER
+	if c.Version == 3 {
+		if isWithdraw {
+			command = NEXTHOP_UNREGISTER
+		}
+	} else { // version >= 4
+		if isWithdraw {
+			command = FRR_NEXTHOP_UNREGISTER
+		} else {
+			command = FRR_NEXTHOP_REGISTER
+		}
+	}
+	return c.SendCommand(command, vrfId, body)
+}
+
 func (c *Client) Close() error {
 	close(c.outgoing)
 	return c.conn.Close()
@@ -1044,6 +1082,26 @@ type IPRouteBody struct {
 	Mtu             uint32
 	Tag             uint32
 	Api             API_TYPE
+}
+
+func (b *IPRouteBody) RouteFamily() bgp.RouteFamily {
+	switch b.Api {
+	case IPV4_ROUTE_ADD, IPV4_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_ADD, FRR_REDISTRIBUTE_IPV4_DEL:
+		return bgp.RF_IPv4_UC
+	case IPV6_ROUTE_ADD, IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV6_ADD, FRR_REDISTRIBUTE_IPV6_DEL:
+		return bgp.RF_IPv6_UC
+	default:
+		return bgp.RF_OPAQUE
+	}
+}
+
+func (b *IPRouteBody) IsWithdraw() bool {
+	switch b.Api {
+	case IPV4_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_DEL, IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV6_DEL:
+		return true
+	default:
+		return false
+	}
 }
 
 func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
