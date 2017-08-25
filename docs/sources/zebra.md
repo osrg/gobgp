@@ -3,11 +3,12 @@
 This page explains how to perform FIB manipulation; kernel routing
 table updates, interface lookups, and redistribution of routes between
 different routing protocols. GoBGP uses zebra included in
-[Quagga](http://www.nongnu.org/quagga/).
+[Quagga](http://www.nongnu.org/quagga/) or [FRRouting](https://frrouting.org/).
 
 ## Prerequisites
 
-Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md) and installing [Quagga](http://www.nongnu.org/quagga/) on the same host with GoBGP.
+Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
+and installing Quagga or FRRouting on the same host with GoBGP.
 
 ## Contents
 - [Configuration](#section0)
@@ -22,13 +23,22 @@ You need to enable the zebra feature in the Global configuration as follows.
         enabled = true
         url = "unix:/var/run/quagga/zserv.api"
         redistribute-route-type-list = ["connect"]
+        version = 2
 ```
 
-You can skip Url. If it's skipped, GoBGP uses "unix:/var/run/quagga/zserv.api" as the Url.
-This configuration specifies unix domain socket in its Url and you can change it to the one using TCP.
-If you use TCP, Url can be like "tcp:192.168.24.1:2600".
-Specify which route type you want to redistribute through bgp.
-Here gobgp will redistribute connected routes which zebra has.
+- `url` specifies the path to the unix domain socket or the TCP port for connecting to Zebra API.
+If omitted, GoBGP will use `"unix:/var/run/quagga/zserv.api"` by the default.
+Please note that with FRRouting, the path to the unix domain socket would be like
+`"unix:/var/run/frr/zserv.api"`.
+To specify the TCP port, `url` value would be like `"tcp:192.168.24.1:2600"`.
+
+- `redistribute-route-type-list` specifies which route types you want to receive from Zebra
+daemon. For example, with `["connect"]`, GoBGP will receive the connected routes and redistribute
+them.
+
+- `version` specifies Zebra API version. `2` is the version used by Quagga on Ubuntu 16.04 LTS.
+To enable the Next-Hop Tracking features, please specify `3` or later.
+For connecting to FRRouting, please specify `4`.
 
 ## <a name="section1">Check Routes from zebra
 
