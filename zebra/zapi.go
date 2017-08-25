@@ -182,6 +182,7 @@ const (
 	ROUTE_OSPF6
 	ROUTE_ISIS
 	ROUTE_BGP
+	ROUTE_PIM
 	ROUTE_HSLS
 	ROUTE_OLSR
 	ROUTE_BABEL
@@ -199,6 +200,7 @@ var routeTypeValueMap = map[string]ROUTE_TYPE{
 	"ospf3":   ROUTE_OSPF6,
 	"isis":    ROUTE_ISIS,
 	"bgp":     ROUTE_BGP,
+	"pim":     ROUTE_PIM,
 	"hsls":    ROUTE_HSLS,
 	"olsr":    ROUTE_OLSR,
 	"babel":   ROUTE_BABEL,
