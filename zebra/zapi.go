@@ -103,7 +103,7 @@ const VRF_DEFAULT = 0
 
 func HeaderSize(version uint8) uint16 {
 	switch version {
-	case 3:
+	case 3, 4:
 		return 8
 	default:
 		return 6
@@ -521,8 +521,10 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	}
 	outgoing := make(chan *Message)
 	incoming := make(chan *Message, 64)
-	if version != 3 {
+	if version < 2 {
 		version = 2
+	} else if version > 4 {
+		version = 4
 	}
 
 	c := &Client{
@@ -657,10 +659,14 @@ func (c *Client) Send(m *Message) {
 }
 
 func (c *Client) SendCommand(command API_TYPE, vrfId uint16, body Body) error {
+	var marker uint8 = HEADER_MARKER
+	if c.Version >= 4 {
+		marker = FRR_HEADER_MARKER
+	}
 	m := &Message{
 		Header: Header{
 			Len:     HeaderSize(c.Version),
-			Marker:  HEADER_MARKER,
+			Marker:  marker,
 			Version: c.Version,
 			VrfId:   vrfId,
 			Command: command,
@@ -673,29 +679,56 @@ func (c *Client) SendCommand(command API_TYPE, vrfId uint16, body Body) error {
 
 func (c *Client) SendHello() error {
 	if c.redistDefault > 0 {
+		command := HELLO
 		body := &HelloBody{
 			RedistDefault: c.redistDefault,
+			Instance:      0,
 		}
-		return c.SendCommand(HELLO, VRF_DEFAULT, body)
+		if c.Version >= 4 {
+			command = FRR_HELLO
+		}
+		return c.SendCommand(command, VRF_DEFAULT, body)
 	}
 	return nil
 }
 
 func (c *Client) SendRouterIDAdd() error {
-	return c.SendCommand(ROUTER_ID_ADD, VRF_DEFAULT, nil)
+	command := ROUTER_ID_ADD
+	if c.Version >= 4 {
+		command = FRR_ROUTER_ID_ADD
+	}
+	return c.SendCommand(command, VRF_DEFAULT, nil)
 }
 
 func (c *Client) SendInterfaceAdd() error {
-	return c.SendCommand(INTERFACE_ADD, VRF_DEFAULT, nil)
+	command := INTERFACE_ADD
+	if c.Version >= 4 {
+		command = FRR_INTERFACE_ADD
+	}
+	return c.SendCommand(command, VRF_DEFAULT, nil)
 }
 
 func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint16) error {
+	command := REDISTRIBUTE_ADD
 	if c.redistDefault != t {
-		body := &RedistributeBody{
-			Redist: t,
+		bodies := make([]*RedistributeBody, 0)
+		if c.Version <= 3 {
+			bodies = append(bodies, &RedistributeBody{
+				Redist: t,
+			})
+		} else { // version >= 4
+			command = FRR_REDISTRIBUTE_ADD
+			for _, afi := range []AFI{AFI_IP, AFI_IP6} {
+				bodies = append(bodies, &RedistributeBody{
+					Afi:      afi,
+					Redist:   t,
+					Instance: 0,
+				})
+			}
 		}
-		if e := c.SendCommand(REDISTRIBUTE_ADD, vrfId, body); e != nil {
-			return e
+
+		for _, body := range bodies {
+			return c.SendCommand(command, vrfId, body)
 		}
 	}
 
@@ -703,14 +736,15 @@ func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint16) error {
 }
 
 func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
-
 	if t < ROUTE_MAX {
+		command := REDISTRIBUTE_DELETE
+		if c.Version >= 4 {
+			command = FRR_REDISTRIBUTE_DELETE
+		}
 		body := &RedistributeBody{
 			Redist: t,
 		}
-		if e := c.SendCommand(REDISTRIBUTE_DELETE, VRF_DEFAULT, body); e != nil {
-			return e
-		}
+		return c.SendCommand(command, VRF_DEFAULT, body)
 	} else {
 		return fmt.Errorf("unknown route type: %d", t)
 	}
@@ -732,14 +766,17 @@ type Header struct {
 
 func (h *Header) Serialize() ([]byte, error) {
 	buf := make([]byte, HeaderSize(h.Version))
-	binary.BigEndian.PutUint16(buf[0:], h.Len)
+	binary.BigEndian.PutUint16(buf[0:2], h.Len)
 	buf[2] = h.Marker
 	buf[3] = h.Version
-	if h.Version == 3 {
+	switch h.Version {
+	case 2:
+		binary.BigEndian.PutUint16(buf[4:6], uint16(h.Command))
+	case 3, 4:
 		binary.BigEndian.PutUint16(buf[4:6], uint16(h.VrfId))
-		binary.BigEndian.PutUint16(buf[6:], uint16(h.Command))
-	} else {
-		binary.BigEndian.PutUint16(buf[4:], uint16(h.Command))
+		binary.BigEndian.PutUint16(buf[6:8], uint16(h.Command))
+	default:
+		return nil, fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
 	}
 	return buf, nil
 }
@@ -754,11 +791,14 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 	if uint16(len(data)) < HeaderSize(h.Version) {
 		return fmt.Errorf("Not all ZAPI message header")
 	}
-	if h.Version == 3 {
+	switch h.Version {
+	case 2:
+		h.Command = API_TYPE(binary.BigEndian.Uint16(data[4:6]))
+	case 3, 4:
 		h.VrfId = binary.BigEndian.Uint16(data[4:6])
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[6:8]))
-	} else {
-		h.Command = API_TYPE(binary.BigEndian.Uint16(data[4:6]))
+	default:
+		return fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
 	}
 	return nil
 }
@@ -788,36 +828,68 @@ func (b *UnknownBody) String() string {
 
 type HelloBody struct {
 	RedistDefault ROUTE_TYPE
+	Instance      uint16
 }
 
 func (b *HelloBody) DecodeFromBytes(data []byte, version uint8) error {
 	b.RedistDefault = ROUTE_TYPE(data[0])
+	if version >= 4 {
+		b.Instance = binary.BigEndian.Uint16(data[1:3])
+	}
 	return nil
 }
 
 func (b *HelloBody) Serialize(version uint8) ([]byte, error) {
-	return []byte{uint8(b.RedistDefault)}, nil
+	if version <= 3 {
+		return []byte{uint8(b.RedistDefault)}, nil
+	} else { // version >= 4
+		buf := make([]byte, 3, 3)
+		buf[0] = uint8(b.RedistDefault)
+		binary.BigEndian.PutUint16(buf[1:3], b.Instance)
+		return buf, nil
+
+	}
 }
 
 func (b *HelloBody) String() string {
-	return fmt.Sprintf("route_type: %d", b.RedistDefault)
+	return fmt.Sprintf(
+		"route_type: %s, instance :%d",
+		b.RedistDefault.String(), b.Instance)
 }
 
 type RedistributeBody struct {
-	Redist ROUTE_TYPE
+	Afi      AFI
+	Redist   ROUTE_TYPE
+	Instance uint16
 }
 
 func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8) error {
-	b.Redist = ROUTE_TYPE(data[0])
+	if version <= 3 {
+		b.Redist = ROUTE_TYPE(data[0])
+	} else { // version >= 4
+		b.Afi = AFI(data[0])
+		b.Redist = ROUTE_TYPE(data[1])
+		b.Instance = binary.BigEndian.Uint16(data[2:4])
+	}
 	return nil
 }
 
 func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
-	return []byte{uint8(b.Redist)}, nil
+	if version <= 3 {
+		return []byte{uint8(b.Redist)}, nil
+	} else { // version >= 4
+		buf := make([]byte, 4, 4)
+		buf[0] = uint8(b.Afi)
+		buf[1] = uint8(b.Redist)
+		binary.BigEndian.PutUint16(buf[2:4], b.Instance)
+		return buf, nil
+	}
 }
 
 func (b *RedistributeBody) String() string {
-	return fmt.Sprintf("route_type: %d", b.Redist)
+	return fmt.Sprintf(
+		"afi: %s, route_type: %s, instance :%d",
+		b.Afi.String(), b.Redist.String(), b.Instance)
 }
 
 type InterfaceUpdateBody struct {
@@ -825,7 +897,10 @@ type InterfaceUpdateBody struct {
 	Index        uint32
 	Status       INTERFACE_STATUS
 	Flags        uint64
+	PTMEnable    PTM_ENABLE
+	PTMStatus    PTM_STATUS
 	Metric       uint32
+	Speed        uint32
 	MTU          uint32
 	MTU6         uint32
 	Bandwidth    uint32
@@ -840,17 +915,27 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error 
 
 	b.Name = strings.Trim(string(data[:INTERFACE_NAMSIZ]), "\u0000")
 	data = data[INTERFACE_NAMSIZ:]
-	b.Index = binary.BigEndian.Uint32(data[:4])
+	b.Index = binary.BigEndian.Uint32(data[0:4])
 	b.Status = INTERFACE_STATUS(data[4])
 	b.Flags = binary.BigEndian.Uint64(data[5:13])
-	b.Metric = binary.BigEndian.Uint32(data[13:17])
-	b.MTU = binary.BigEndian.Uint32(data[17:21])
-	b.MTU6 = binary.BigEndian.Uint32(data[21:25])
-	b.Bandwidth = binary.BigEndian.Uint32(data[25:29])
-	data = data[29:]
-	if version > 2 {
-		b.Linktype = LINK_TYPE(binary.BigEndian.Uint32(data[:4]))
-		data = data[4:]
+	if version >= 4 {
+		b.PTMEnable = PTM_ENABLE(data[13])
+		b.PTMStatus = PTM_STATUS(data[14])
+		b.Metric = binary.BigEndian.Uint32(data[15:19])
+		b.Speed = binary.BigEndian.Uint32(data[19:23])
+		data = data[23:]
+	} else {
+		b.Metric = binary.BigEndian.Uint32(data[13:17])
+		data = data[17:]
+	}
+	b.MTU = binary.BigEndian.Uint32(data[0:4])
+	b.MTU6 = binary.BigEndian.Uint32(data[4:8])
+	b.Bandwidth = binary.BigEndian.Uint32(data[8:12])
+	if version >= 3 {
+		b.Linktype = LINK_TYPE(binary.BigEndian.Uint32(data[12:16]))
+		data = data[16:]
+	} else {
+		data = data[12:]
 	}
 	l := binary.BigEndian.Uint32(data[:4])
 	if l > 0 {
@@ -867,9 +952,11 @@ func (b *InterfaceUpdateBody) Serialize(version uint8) ([]byte, error) {
 }
 
 func (b *InterfaceUpdateBody) String() string {
-	s := fmt.Sprintf("name: %s, idx: %d, status: %s, flags: %s, metric: %d, mtu: %d, mtu6: %d, bandwidth: %d, linktype: %s", b.Name, b.Index, b.Status, intfflag2string(b.Flags), b.Metric, b.MTU, b.MTU6, b.Bandwidth, b.Linktype)
+	s := fmt.Sprintf(
+		"name: %s, idx: %d, status: %s, flags: %s, ptm_enable: %s, ptm_status: %s, metric: %d, speed: %d, mtu: %d, mtu6: %d, bandwidth: %d, linktype: %s",
+		b.Name, b.Index, b.Status.String(), intfflag2string(b.Flags), b.PTMEnable.String(), b.PTMStatus.String(), b.Metric, b.Speed, b.MTU, b.MTU6, b.Bandwidth, b.Linktype.String())
 	if len(b.HardwareAddr) > 0 {
-		return s + fmt.Sprintf(", mac: %s", b.HardwareAddr)
+		return s + fmt.Sprintf(", mac: %s", b.HardwareAddr.String())
 	}
 	return s
 }
@@ -906,7 +993,9 @@ func (b *InterfaceAddressUpdateBody) Serialize(version uint8) ([]byte, error) {
 }
 
 func (b *InterfaceAddressUpdateBody) String() string {
-	return fmt.Sprintf("idx: %d, flags: %d, addr: %s/%d", b.Index, b.Flags, b.Prefix, b.Length)
+	return fmt.Sprintf(
+		"idx: %d, flags: %d, addr: %s/%d",
+		b.Index, b.Flags.String(), b.Prefix.String(), b.Length)
 }
 
 type RouterIDUpdateBody struct {
@@ -935,61 +1024,81 @@ func (b *RouterIDUpdateBody) Serialize(version uint8) ([]byte, error) {
 }
 
 func (b *RouterIDUpdateBody) String() string {
-	return fmt.Sprintf("id: %s/%d", b.Prefix, b.Length)
+	return fmt.Sprintf("id: %s/%d", b.Prefix.String(), b.Length)
 }
 
 type IPRouteBody struct {
-	Type         ROUTE_TYPE
-	Flags        FLAG
-	Message      MESSAGE_FLAG
-	SAFI         SAFI
-	Prefix       net.IP
-	PrefixLength uint8
-	Nexthops     []net.IP
-	Ifindexs     []uint32
-	Distance     uint8
-	Metric       uint32
-	Mtu          uint32
-	Api          API_TYPE
+	Type            ROUTE_TYPE
+	Instance        uint16
+	Flags           FLAG
+	Message         MESSAGE_FLAG
+	SAFI            SAFI
+	Prefix          net.IP
+	PrefixLength    uint8
+	SrcPrefix       net.IP
+	SrcPrefixLength uint8
+	Nexthops        []net.IP
+	Ifindexs        []uint32
+	Distance        uint8
+	Metric          uint32
+	Mtu             uint32
+	Tag             uint32
+	Api             API_TYPE
 }
 
 func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
-	buf := make([]byte, 5)
-	buf[0] = uint8(b.Type)
-	buf[1] = uint8(b.Flags)
-	buf[2] = uint8(b.Message)
-	binary.BigEndian.PutUint16(buf[3:], uint16(b.SAFI))
-	bitlen := b.PrefixLength
-	bytelen := (int(b.PrefixLength) + 7) / 8
-	bbuf := make([]byte, bytelen)
-	copy(bbuf, b.Prefix)
-	if bitlen%8 != 0 {
-		mask := 0xff00 >> (bitlen % 8)
-		last_byte_value := bbuf[bytelen-1] & byte(mask)
-		bbuf[bytelen-1] = last_byte_value
+
+	var buf []byte
+	nhfIPv4 := uint8(NEXTHOP_IPV4)
+	nhfIPv6 := uint8(NEXTHOP_IPV6)
+	nhfIndx := uint8(NEXTHOP_IFINDEX)
+	nhfBlkH := uint8(NEXTHOP_BLACKHOLE)
+	if version <= 3 {
+		buf = make([]byte, 5)
+		buf[0] = uint8(b.Type)
+		buf[1] = uint8(b.Flags)
+		buf[2] = uint8(b.Message)
+		binary.BigEndian.PutUint16(buf[3:5], uint16(b.SAFI))
+	} else { // version >= 4
+		buf = make([]byte, 10)
+		buf[0] = uint8(b.Type)
+		binary.BigEndian.PutUint16(buf[1:3], uint16(b.Instance))
+		binary.BigEndian.PutUint32(buf[3:7], uint32(b.Flags))
+		buf[7] = uint8(b.Message)
+		binary.BigEndian.PutUint16(buf[8:10], uint16(b.SAFI))
+		nhfIPv4 = uint8(FRR_NEXTHOP_IPV4)
+		nhfIPv6 = uint8(FRR_NEXTHOP_IPV6)
+		nhfIndx = uint8(FRR_NEXTHOP_IFINDEX)
+		nhfBlkH = uint8(FRR_NEXTHOP_BLACKHOLE)
 	}
-	buf = append(buf, bitlen)
-	buf = append(buf, bbuf...)
+	byteLen := (int(b.PrefixLength) + 7) / 8
+	buf = append(buf, b.PrefixLength)
+	buf = append(buf, b.Prefix[:byteLen]...)
+	if b.Message&FRR_MESSAGE_SRCPFX > 0 {
+		byteLen = (int(b.SrcPrefixLength) + 7) / 8
+		buf = append(buf, b.SrcPrefixLength)
+		buf = append(buf, b.SrcPrefix[:byteLen]...)
+	}
 
 	if b.Message&MESSAGE_NEXTHOP > 0 {
 		if b.Flags&FLAG_BLACKHOLE > 0 {
-			buf = append(buf, []byte{1, uint8(NEXTHOP_BLACKHOLE)}...)
+			buf = append(buf, []byte{1, nhfBlkH}...)
 		} else {
 			buf = append(buf, uint8(len(b.Nexthops)+len(b.Ifindexs)))
 		}
 
 		for _, v := range b.Nexthops {
 			if v.To4() != nil {
-				buf = append(buf, uint8(NEXTHOP_IPV4))
+				buf = append(buf, nhfIPv4)
 				buf = append(buf, v.To4()...)
 			} else {
-				buf = append(buf, uint8(NEXTHOP_IPV6))
+				buf = append(buf, nhfIPv6)
 				buf = append(buf, v.To16()...)
 			}
 		}
 
 		for _, v := range b.Ifindexs {
-			buf = append(buf, uint8(NEXTHOP_IFINDEX))
+			buf = append(buf, nhfIndx)
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, v)
 			buf = append(buf, bbuf...)
@@ -1004,45 +1113,85 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 		binary.BigEndian.PutUint32(bbuf, b.Metric)
 		buf = append(buf, bbuf...)
 	}
-	if b.Message&MESSAGE_MTU > 0 {
-		bbuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(bbuf, b.Mtu)
-		buf = append(buf, bbuf...)
+	if version <= 3 {
+		if b.Message&MESSAGE_MTU > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Mtu)
+			buf = append(buf, bbuf...)
+		}
+		if b.Message&MESSAGE_TAG > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Tag)
+			buf = append(buf, bbuf...)
+		}
+	} else { // version >= 4
+		if b.Message&FRR_MESSAGE_TAG > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Tag)
+			buf = append(buf, bbuf...)
+		}
+		if b.Message&FRR_MESSAGE_MTU > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Mtu)
+			buf = append(buf, bbuf...)
+		}
 	}
 	return buf, nil
 }
 
 func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
-
-	isV4 := b.Api == IPV4_ROUTE_ADD || b.Api == IPV4_ROUTE_DELETE
+	isV4 := true
+	if version <= 3 {
+		isV4 = b.Api == IPV4_ROUTE_ADD || b.Api == IPV4_ROUTE_DELETE
+	} else {
+		isV4 = b.Api == FRR_REDISTRIBUTE_IPV4_ADD || b.Api == FRR_REDISTRIBUTE_IPV4_DEL
+	}
 	var addrLen uint8 = net.IPv4len
 	if !isV4 {
 		addrLen = net.IPv6len
 	}
 
 	b.Type = ROUTE_TYPE(data[0])
-	b.Flags = FLAG(data[1])
-	b.Message = MESSAGE_FLAG(data[2])
-	b.PrefixLength = data[3]
+	if version <= 3 {
+		b.Flags = FLAG(data[1])
+		data = data[2:]
+	} else { // version >= 4
+		b.Instance = binary.BigEndian.Uint16(data[1:3])
+		b.Flags = FLAG(binary.BigEndian.Uint32(data[3:7]))
+		data = data[7:]
+	}
+
+	b.Message = MESSAGE_FLAG(data[0])
 	b.SAFI = SAFI(SAFI_UNICAST)
 
+	b.PrefixLength = data[1]
 	if b.PrefixLength > addrLen*8 {
 		return fmt.Errorf("prefix length is greater than %d", addrLen*8)
 	}
-
-	byteLen := int((b.PrefixLength + 7) / 8)
-
-	pos := 4
+	pos := 2
 	buf := make([]byte, addrLen)
+	byteLen := int((b.PrefixLength + 7) / 8)
 	copy(buf, data[pos:pos+byteLen])
-
 	if isV4 {
 		b.Prefix = net.IP(buf).To4()
 	} else {
 		b.Prefix = net.IP(buf).To16()
 	}
-
 	pos += byteLen
+
+	if b.Message&FRR_MESSAGE_SRCPFX > 0 {
+		b.SrcPrefixLength = data[pos]
+		pos += 1
+		buf = make([]byte, addrLen)
+		byteLen = int((b.SrcPrefixLength + 7) / 8)
+		copy(buf, data[pos:pos+byteLen])
+		if isV4 {
+			b.SrcPrefix = net.IP(buf).To4()
+		} else {
+			b.SrcPrefix = net.IP(buf).To16()
+		}
+		pos += byteLen
+	}
 
 	rest := 0
 	var numNexthop int
@@ -1051,20 +1200,32 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		// rest = numNexthop(1) + (nexthop(4 or 16) + placeholder(1) + ifindex(4)) * numNexthop
 		rest += 1 + numNexthop*(int(addrLen)+5)
 	}
-
 	if b.Message&MESSAGE_DISTANCE > 0 {
 		// distance(1)
 		rest += 1
 	}
-
 	if b.Message&MESSAGE_METRIC > 0 {
 		// metric(4)
 		rest += 4
 	}
-
-	if b.Message&MESSAGE_MTU > 0 {
-		// mtu(4)
-		rest += 4
+	if version <= 3 {
+		if b.Message&MESSAGE_MTU > 0 {
+			// mtu(4)
+			rest += 4
+		}
+		if b.Message&MESSAGE_TAG > 0 {
+			// tag(4)
+			rest += 4
+		}
+	} else { // version >= 4
+		if b.Message&FRR_MESSAGE_TAG > 0 {
+			// tag(4)
+			rest += 4
+		}
+		if b.Message&FRR_MESSAGE_MTU > 0 {
+			// mtu(4)
+			rest += 4
+		}
 	}
 
 	if len(data[pos:]) != rest {
@@ -1102,23 +1263,48 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
 	}
-	if b.Message&MESSAGE_MTU > 0 {
-		b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
-		pos += 4
+	if version <= 3 {
+		if b.Message&MESSAGE_MTU > 0 {
+			b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
+		if b.Message&MESSAGE_TAG > 0 {
+			b.Tag = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
+	} else {
+		if b.Message&FRR_MESSAGE_TAG > 0 {
+			b.Tag = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
+		if b.Message&FRR_MESSAGE_MTU > 0 {
+			b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
 	}
 
 	return nil
 }
 
 func (b *IPRouteBody) String() string {
-	s := fmt.Sprintf("type: %s, flags: %s, message: %d, prefix: %s, length: %d, nexthop: %s, distance: %d, metric: %d, mtu: %d",
-		b.Type.String(), b.Flags.String(), b.Message, b.Prefix.String(), b.PrefixLength, b.Nexthops[0].String(), b.Distance, b.Metric, b.Mtu)
-	return s
+	s := fmt.Sprintf(
+		"type: %s, instance: %d, flags: %s, message: %d, safi: %s, prefix: %s/%d, src_prefix: %s/%d",
+		b.Type.String(), b.Instance, b.Flags.String(), b.Message, b.SAFI.String(), b.Prefix.String(), b.PrefixLength, b.SrcPrefix.String(), b.SrcPrefixLength)
+	for i, nh := range b.Nexthops {
+		s += fmt.Sprintf(", nexthops[%d]: %s", i, nh.String())
+	}
+	for i, idx := range b.Ifindexs {
+		s += fmt.Sprintf(", ifindex[%d]: %d", i, idx)
+	}
+	return s + fmt.Sprintf(
+		", distance: %d, metric: %d, mtu: %d, tag: %d",
+		b.Distance, b.Metric, b.Mtu, b.Tag)
 }
 
 type NexthopLookupBody struct {
 	Api      API_TYPE
 	Addr     net.IP
+	Distance uint8
 	Metric   uint32
 	Nexthops []*Nexthop
 }
@@ -1131,34 +1317,63 @@ type Nexthop struct {
 }
 
 func (n *Nexthop) String() string {
-	s := fmt.Sprintf("type: %s, addr: %s, ifindex: %d, ifname: %s", n.Type.String(), n.Addr.String(), n.Ifindex, n.Ifname)
+	s := fmt.Sprintf(
+		"type: %s, addr: %s, ifindex: %d, ifname: %s",
+		n.Type.String(), n.Addr.String(), n.Ifindex, n.Ifname)
 	return s
 }
 
-func serializeNexthops(nexthops []*Nexthop, isV4 bool) ([]byte, error) {
+func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, error) {
 	buf := make([]byte, 0)
 	if len(nexthops) == 0 {
 		return buf, nil
 	}
 	buf = append(buf, byte(len(nexthops)))
 
+	nhIfindex := NEXTHOP_IFINDEX
+	nhIfname := NEXTHOP_IFNAME
+	nhIPv4 := NEXTHOP_IPV4
+	nhIPv4Ifindex := NEXTHOP_IPV4_IFINDEX
+	nhIPv4Ifname := NEXTHOP_IPV4_IFNAME
+	nhIPv6 := NEXTHOP_IPV6
+	nhIPv6Ifindex := NEXTHOP_IPV6_IFINDEX
+	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
+	if version >= 4 {
+		nhIfindex = FRR_NEXTHOP_IFINDEX
+		nhIfname = NEXTHOP_FLAG(0)
+		nhIPv4 = FRR_NEXTHOP_IPV4
+		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
+		nhIPv4Ifname = NEXTHOP_FLAG(0)
+		nhIPv6 = FRR_NEXTHOP_IPV6
+		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
+		nhIPv6Ifname = NEXTHOP_FLAG(0)
+	}
+
 	for _, nh := range nexthops {
 		buf = append(buf, byte(nh.Type))
 
 		switch nh.Type {
-		case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
+		case nhIfindex, nhIfname:
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
 			buf = append(buf, bbuf...)
 
-		case NEXTHOP_IPV4, NEXTHOP_IPV6:
+		case nhIPv4, nhIPv6:
 			if isV4 {
 				buf = append(buf, nh.Addr.To4()...)
 			} else {
 				buf = append(buf, nh.Addr.To16()...)
 			}
+			if version >= 4 {
+				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
+				// NEXTHOP_IPV6 have the same structure with
+				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
+				bbuf := make([]byte, 4)
+				binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+				buf = append(buf, bbuf...)
+			}
 
-		case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV4_IFNAME, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
+		case nhIPv4Ifindex, nhIPv4Ifname, nhIPv6Ifindex, nhIPv6Ifname:
 			if isV4 {
 				buf = append(buf, nh.Addr.To4()...)
 			} else {
@@ -1173,10 +1388,28 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool) ([]byte, error) {
 	return buf, nil
 }
 
-func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool) (int, error) {
+func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, version uint8) (int, error) {
 	addrLen := net.IPv4len
 	if !isV4 {
 		addrLen = net.IPv6len
+	}
+	nhIfindex := NEXTHOP_IFINDEX
+	nhIfname := NEXTHOP_IFNAME
+	nhIPv4 := NEXTHOP_IPV4
+	nhIPv4Ifindex := NEXTHOP_IPV4_IFINDEX
+	nhIPv4Ifname := NEXTHOP_IPV4_IFNAME
+	nhIPv6 := NEXTHOP_IPV6
+	nhIPv6Ifindex := NEXTHOP_IPV6_IFINDEX
+	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
+	if version >= 4 {
+		nhIfindex = FRR_NEXTHOP_IFINDEX
+		nhIfname = NEXTHOP_FLAG(0)
+		nhIPv4 = FRR_NEXTHOP_IPV4
+		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
+		nhIPv4Ifname = NEXTHOP_FLAG(0)
+		nhIPv6 = FRR_NEXTHOP_IPV6
+		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
+		nhIPv6Ifname = NEXTHOP_FLAG(0)
 	}
 
 	numNexthop := int(data[0])
@@ -1188,19 +1421,26 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool) (int,
 		offset += 1
 
 		switch nh.Type {
-		case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
+		case nhIfindex, nhIfname:
 			nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
 			offset += 4
 
-		case NEXTHOP_IPV4, NEXTHOP_IPV6:
+		case nhIPv4, nhIPv6:
 			if isV4 {
 				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
 			} else {
 				nh.Addr = net.IP(data[offset : offset+addrLen]).To16()
 			}
 			offset += addrLen
+			if version >= 4 {
+				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
+				// NEXTHOP_IPV6 have the same structure with
+				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
+				nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
+				offset += 4
+			}
 
-		case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV4_IFNAME, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
+		case nhIPv4Ifindex, nhIPv4Ifname, nhIPv6Ifindex, nhIPv6Ifname:
 			if isV4 {
 				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
 			} else {
@@ -1217,8 +1457,13 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool) (int,
 }
 
 func (b *NexthopLookupBody) Serialize(version uint8) ([]byte, error) {
+	isV4 := false
+	if version <= 3 {
+		isV4 = b.Api == IPV4_NEXTHOP_LOOKUP
+	} else { // version >= 4
+		isV4 = b.Api == FRR_IPV4_NEXTHOP_LOOKUP_MRIB
+	}
 
-	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
 	buf := make([]byte, 0)
 
 	if isV4 {
@@ -1230,8 +1475,12 @@ func (b *NexthopLookupBody) Serialize(version uint8) ([]byte, error) {
 }
 
 func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
-
-	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
+	isV4 := false
+	if version <= 3 {
+		isV4 = b.Api == IPV4_NEXTHOP_LOOKUP
+	} else { // version >= 4
+		isV4 = b.Api == FRR_IPV4_NEXTHOP_LOOKUP_MRIB
+	}
 	addrLen := net.IPv4len
 	if !isV4 {
 		addrLen = net.IPv6len
@@ -1251,11 +1500,16 @@ func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 		b.Addr = net.IP(buf).To16()
 	}
 
+	if version >= 4 {
+		b.Distance = data[pos]
+		pos++
+	}
+
 	if len(data[pos:]) > int(1+addrLen) {
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
 		b.Nexthops = []*Nexthop{}
-		if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[pos:], isV4); err != nil {
+		if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[pos:], isV4, version); err != nil {
 			return err
 		} else {
 			pos += nexthopsByteLen
@@ -1266,7 +1520,9 @@ func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 }
 
 func (b *NexthopLookupBody) String() string {
-	s := fmt.Sprintf("addr: %s, metric: %d", b.Addr, b.Metric)
+	s := fmt.Sprintf(
+		"addr: %s, distance:%d, metric: %d",
+		b.Addr.String(), b.Distance, b.Metric)
 	if len(b.Nexthops) > 0 {
 		for _, nh := range b.Nexthops {
 			s = s + fmt.Sprintf(", nexthop:{%s}", nh.String())
@@ -1312,7 +1568,7 @@ func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
 		b.Nexthops = []*Nexthop{}
-		if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[pos:], isV4); err != nil {
+		if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[pos:], isV4, version); err != nil {
 			return err
 		} else {
 			pos += nexthopsByteLen
@@ -1323,7 +1579,9 @@ func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 }
 
 func (b *ImportLookupBody) String() string {
-	s := fmt.Sprintf("addr: %s, metric: %d", b.Addr, b.Metric)
+	s := fmt.Sprintf(
+		"prefix: %s/%d, addr: %s, metric: %d",
+		b.Prefix.String(), b.PrefixLength, b.Addr.String(), b.Metric)
 	if len(b.Nexthops) > 0 {
 		for _, nh := range b.Nexthops {
 			s = s + fmt.Sprintf(", nexthop:{%s}", nh.String())
@@ -1400,7 +1658,9 @@ func (n *RegisteredNexthop) DecodeFromBytes(data []byte) error {
 }
 
 func (n *RegisteredNexthop) String() string {
-	return fmt.Sprintf("connected: %d, family: %d, prefix: %s", n.Connected, n.Family, n.Prefix.String())
+	return fmt.Sprintf(
+		"connected: %d, family: %d, prefix: %s",
+		n.Connected, n.Family, n.Prefix.String())
 }
 
 type NexthopRegisterBody struct {
@@ -1461,6 +1721,7 @@ type NexthopUpdateBody struct {
 	// - 32 if Address Family is AF_INET
 	// - 128 if Address Family is AF_INET6
 	Prefix   net.IP
+	Distance uint8
 	Metric   uint32
 	Nexthops []*Nexthop
 }
@@ -1504,9 +1765,16 @@ func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 	}
 	offset += addrLen
 
+	// Distance (1 byte) (if version>=4)
 	// Metric (4 bytes)
 	// Number of Nexthops (1 byte)
-	if len(data[offset:]) < 4+1 {
+	if version >= 4 {
+		if len(data[offset:]) < 6 {
+			return fmt.Errorf("invalid message length: missing distance(1 byte), metric(4 bytes) or nexthops(1 byte): %d<6", len(data[offset:]))
+		}
+		b.Distance = data[offset]
+		offset += 1
+	} else if len(data[offset:]) < 5 {
 		return fmt.Errorf("invalid message length: missing metric(4 bytes) or nexthops(1 byte): %d<5", len(data[offset:]))
 	}
 	b.Metric = binary.BigEndian.Uint32(data[offset : offset+4])
@@ -1514,7 +1782,7 @@ func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	// List of Nexthops
 	b.Nexthops = []*Nexthop{}
-	if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[offset:], isV4); err != nil {
+	if nexthopsByteLen, err := decodeNexthopsFromBytes(&b.Nexthops, data[offset:], isV4, version); err != nil {
 		return err
 	} else {
 		offset += nexthopsByteLen
@@ -1524,7 +1792,9 @@ func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 }
 
 func (b *NexthopUpdateBody) String() string {
-	s := fmt.Sprintf("family: %d, prefix: %s, metric: %d", b.Family, b.Prefix.String(), b.Metric)
+	s := fmt.Sprintf(
+		"family: %d, prefix: %s, distance: %d, metric: %d",
+		b.Family, b.Prefix.String(), b.Distance, b.Metric)
 	for _, nh := range b.Nexthops {
 		s = s + fmt.Sprintf(", nexthop:{%s}", nh.String())
 	}
@@ -1553,9 +1823,7 @@ func (m *Message) Serialize() ([]byte, error) {
 	return append(hdr, body...), nil
 }
 
-func ParseMessage(hdr *Header, data []byte) (*Message, error) {
-	m := &Message{Header: *hdr}
-
+func (m *Message) parseMessage(data []byte) error {
 	switch m.Header.Command {
 	case INTERFACE_ADD, INTERFACE_DELETE, INTERFACE_UP, INTERFACE_DOWN:
 		m.Body = &InterfaceUpdateBody{}
@@ -1565,31 +1833,64 @@ func ParseMessage(hdr *Header, data []byte) (*Message, error) {
 		m.Body = &RouterIDUpdateBody{}
 	case IPV4_ROUTE_ADD, IPV6_ROUTE_ADD, IPV4_ROUTE_DELETE, IPV6_ROUTE_DELETE:
 		m.Body = &IPRouteBody{Api: m.Header.Command}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("ipv4/v6 route add/delete message received: %v", data)
 	case IPV4_NEXTHOP_LOOKUP, IPV6_NEXTHOP_LOOKUP:
 		m.Body = &NexthopLookupBody{Api: m.Header.Command}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("ipv4/v6 nexthop lookup received: %v", data)
 	case IPV4_IMPORT_LOOKUP:
 		m.Body = &ImportLookupBody{Api: m.Header.Command}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("ipv4 import lookup message received: %v", data)
 	case NEXTHOP_UPDATE:
 		m.Body = &NexthopUpdateBody{Api: m.Header.Command}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("nexthop update message received: %v", data)
 	default:
 		m.Body = &UnknownBody{}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("unknown message received: %v", data)
 	}
-	err := m.Body.DecodeFromBytes(data, m.Header.Version)
+	return m.Body.DecodeFromBytes(data, m.Header.Version)
+}
+
+func (m *Message) parseFrrMessage(data []byte) error {
+	switch m.Header.Command {
+	case FRR_INTERFACE_ADD, FRR_INTERFACE_DELETE, FRR_INTERFACE_UP, FRR_INTERFACE_DOWN:
+		m.Body = &InterfaceUpdateBody{}
+	case FRR_INTERFACE_ADDRESS_ADD, FRR_INTERFACE_ADDRESS_DELETE:
+		m.Body = &InterfaceAddressUpdateBody{}
+	case FRR_ROUTER_ID_UPDATE:
+		m.Body = &RouterIDUpdateBody{}
+	case FRR_NEXTHOP_UPDATE:
+		m.Body = &NexthopUpdateBody{}
+	case FRR_INTERFACE_NBR_ADDRESS_ADD, FRR_INTERFACE_NBR_ADDRESS_DELETE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_INTERFACE_BFD_DEST_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_IMPORT_CHECK_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_BFD_DEST_REPLAY:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_REDISTRIBUTE_IPV4_ADD, FRR_REDISTRIBUTE_IPV4_DEL, FRR_REDISTRIBUTE_IPV6_ADD, FRR_REDISTRIBUTE_IPV6_DEL:
+		m.Body = &IPRouteBody{Api: m.Header.Command}
+	case FRR_INTERFACE_VRF_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_INTERFACE_LINK_PARAMS:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_PW_STATUS_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	default:
+		m.Body = &UnknownBody{}
+	}
+	return m.Body.DecodeFromBytes(data, m.Header.Version)
+}
+
+func ParseMessage(hdr *Header, data []byte) (m *Message, err error) {
+	m = &Message{Header: *hdr}
+	if m.Header.Version == 4 {
+		err = m.parseFrrMessage(data)
+	} else {
+		err = m.parseMessage(data)
+	}
 	if err != nil {
 		return nil, err
 	}
