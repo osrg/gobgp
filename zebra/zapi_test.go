@@ -95,18 +95,21 @@ func Test_InterfaceAddressUpdateBody(t *testing.T) {
 	assert := assert.New(t)
 
 	//DecodeFromBytes
-	buf := make([]byte, 11)
+	buf := make([]byte, 15)
 	pos := 0
-	binary.BigEndian.PutUint32(buf[pos:], 0)
+	binary.BigEndian.PutUint32(buf[pos:], 0) // index
 	pos += 4
-	buf[pos] = 0x01
+	buf[pos] = 0x01 // flags
 	pos += 1
-	buf[pos] = 0x2
+	buf[pos] = 0x2 // family
 	pos += 1
-	ip := net.ParseIP("192.168.100.1").To4()
+	ip := net.ParseIP("192.168.100.1").To4() // prefix
 	copy(buf[pos:pos+4], []byte(ip))
 	pos += 4
-	buf[pos] = byte(24)
+	buf[pos] = byte(24) // prefix len
+	pos += 1
+	dst := net.ParseIP("192.168.100.255").To4() // destination
+	copy(buf[pos:pos+4], []byte(dst))
 
 	b := &InterfaceAddressUpdateBody{}
 	err := b.DecodeFromBytes(buf, 2)
@@ -114,6 +117,7 @@ func Test_InterfaceAddressUpdateBody(t *testing.T) {
 	assert.Equal(uint8(1), b.Flags)
 	assert.Equal("192.168.100.1", b.Prefix.String())
 	assert.Equal(uint8(24), b.Length)
+	assert.Equal("192.168.100.255", b.Destination.String())
 
 	// af invalid
 	buf[5] = 0x4
