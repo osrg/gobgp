@@ -53,10 +53,10 @@ func newNexthopTrackingManager(server *BgpServer, delay int) *nexthopTrackingMan
 	}
 }
 
-func (s *nexthopTrackingManager) stop() {
-	close(s.pathListCh)
-	close(s.trigger)
-	close(s.dead)
+func (m *nexthopTrackingManager) stop() {
+	close(m.pathListCh)
+	close(m.trigger)
+	close(m.dead)
 }
 
 func (m *nexthopTrackingManager) isRegisteredNexthop(nexthop net.IP) bool {
@@ -123,7 +123,7 @@ func (m *nexthopTrackingManager) loop() {
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
 				"Event": "Nexthop Tracking",
-			}).Debug("penalty 500 chrged: penalty: %d", penalty)
+			}).Debugf("penalty 500 chrged: penalty: %d", penalty)
 
 			m.appendPathList(paths)
 
@@ -143,7 +143,7 @@ func (m *nexthopTrackingManager) loop() {
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
 				"Event": "Nexthop Tracking",
-			}).Debug("nexthop tracking event scheduled in %d secs", delay)
+			}).Debugf("nexthop tracking event scheduled in %d secs", delay)
 
 		case <-m.trigger:
 			paths := make(pathList, 0)
@@ -155,7 +155,7 @@ func (m *nexthopTrackingManager) loop() {
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
 				"Event": "Nexthop Tracking",
-			}).Debug("update nexthop reachability: %s", paths)
+			}).Debugf("update nexthop reachability: %s", paths)
 
 			if err := m.server.UpdatePath("", paths); err != nil {
 				log.WithFields(log.Fields{
