@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	HEADER_MARKER    = 255
-	INTERFACE_NAMSIZ = 20
+	HEADER_MARKER     = 255
+	FRR_HEADER_MARKER = 254
+	INTERFACE_NAMSIZ  = 20
 )
 
 // Internal Interface Status.
@@ -38,6 +39,7 @@ const (
 	INTERFACE_ACTIVE        INTERFACE_STATUS = 0x01
 	INTERFACE_SUB           INTERFACE_STATUS = 0x02
 	INTERFACE_LINKDETECTION INTERFACE_STATUS = 0x04
+	INTERFACE_VRF_LOOPBACK  INTERFACE_STATUS = 0x08
 )
 
 // Interface Link Layer Types.
@@ -119,6 +121,9 @@ func (t INTERFACE_STATUS) String() string {
 	if t&INTERFACE_LINKDETECTION > 0 {
 		ss = append(ss, "LINKDETECTION")
 	}
+	if t&INTERFACE_VRF_LOOPBACK > 0 {
+		ss = append(ss, "VRF_LOOPBACK")
+	}
 	return strings.Join(ss, "|")
 }
 
@@ -145,6 +150,17 @@ func (t INTERFACE_ADDRESS_FLAG) String() string {
 	return strings.Join(ss, "|")
 }
 
+// Address Family Identifier.
+//go:generate stringer -type=AFI
+type AFI uint8
+
+const (
+	AFI_IP    AFI = 1
+	AFI_IP6   AFI = 2
+	AFI_ETHER AFI = 3
+	AFI_MAX   AFI = 4
+)
+
 // Subsequent Address Family Identifier.
 //go:generate stringer -type=SAFI
 type SAFI uint8
@@ -162,6 +178,7 @@ const (
 //go:generate stringer -type=API_TYPE
 type API_TYPE uint16
 
+// For Quagga.
 const (
 	_ API_TYPE = iota
 	INTERFACE_ADD
@@ -196,10 +213,75 @@ const (
 	MESSAGE_MAX
 )
 
+// For FRRouting.
+const (
+	FRR_INTERFACE_ADD API_TYPE = iota
+	FRR_INTERFACE_DELETE
+	FRR_INTERFACE_ADDRESS_ADD
+	FRR_INTERFACE_ADDRESS_DELETE
+	FRR_INTERFACE_UP
+	FRR_INTERFACE_DOWN
+	FRR_IPV4_ROUTE_ADD
+	FRR_IPV4_ROUTE_DELETE
+	FRR_IPV6_ROUTE_ADD
+	FRR_IPV6_ROUTE_DELETE
+	FRR_REDISTRIBUTE_ADD
+	FRR_REDISTRIBUTE_DELETE
+	FRR_REDISTRIBUTE_DEFAULT_ADD
+	FRR_REDISTRIBUTE_DEFAULT_DELETE
+	FRR_ROUTER_ID_ADD
+	FRR_ROUTER_ID_DELETE
+	FRR_ROUTER_ID_UPDATE
+	FRR_HELLO
+	FRR_NEXTHOP_REGISTER
+	FRR_NEXTHOP_UNREGISTER
+	FRR_NEXTHOP_UPDATE
+	FRR_INTERFACE_NBR_ADDRESS_ADD
+	FRR_INTERFACE_NBR_ADDRESS_DELETE
+	FRR_INTERFACE_BFD_DEST_UPDATE
+	FRR_IMPORT_ROUTE_REGISTER
+	FRR_IMPORT_ROUTE_UNREGISTER
+	FRR_IMPORT_CHECK_UPDATE
+	FRR_IPV4_ROUTE_IPV6_NEXTHOP_ADD
+	FRR_BFD_DEST_REGISTER
+	FRR_BFD_DEST_DEREGISTER
+	FRR_BFD_DEST_UPDATE
+	FRR_BFD_DEST_REPLAY
+	FRR_REDISTRIBUTE_IPV4_ADD
+	FRR_REDISTRIBUTE_IPV4_DEL
+	FRR_REDISTRIBUTE_IPV6_ADD
+	FRR_REDISTRIBUTE_IPV6_DEL
+	FRR_VRF_UNREGISTER
+	FRR_VRF_ADD
+	FRR_VRF_DELETE
+	FRR_INTERFACE_VRF_UPDATE
+	FRR_BFD_CLIENT_REGISTER
+	FRR_INTERFACE_ENABLE_RADV
+	FRR_INTERFACE_DISABLE_RADV
+	FRR_IPV4_NEXTHOP_LOOKUP_MRIB
+	FRR_INTERFACE_LINK_PARAMS
+	FRR_MPLS_LABELS_ADD
+	FRR_MPLS_LABELS_DELETE
+	FRR_IPV4_NEXTHOP_ADD
+	FRR_IPV4_NEXTHOP_DELETE
+	FRR_IPV6_NEXTHOP_ADD
+	FRR_IPV6_NEXTHOP_DELETE
+	FRR_IPMR_ROUTE_STATS
+	FRR_LABEL_MANAGER_CONNECT
+	FRR_GET_LABEL_CHUNK
+	FRR_RELEASE_LABEL_CHUNK
+	FRR_PW_ADD
+	FRR_PW_DELETE
+	FRR_PW_SET
+	FRR_PW_UNSET
+	FRR_PW_STATUS_UPDATE
+)
+
 // Route Types.
 //go:generate stringer -type=ROUTE_TYPE
 type ROUTE_TYPE uint8
 
+// For Quagga.
 const (
 	ROUTE_SYSTEM ROUTE_TYPE = iota
 	ROUTE_KERNEL
@@ -218,21 +300,55 @@ const (
 	ROUTE_MAX
 )
 
+// For FRRouting.
+const (
+	FRR_ROUTE_SYSTEM ROUTE_TYPE = iota
+	FRR_ROUTE_KERNEL
+	FRR_ROUTE_CONNECT
+	FRR_ROUTE_STATIC
+	FRR_ROUTE_RIP
+	FRR_ROUTE_RIPNG
+	FRR_ROUTE_OSPF
+	FRR_ROUTE_OSPF6
+	FRR_ROUTE_ISIS
+	FRR_ROUTE_BGP
+	FRR_ROUTE_PIM
+	FRR_ROUTE_HSLS
+	FRR_ROUTE_OLSR
+	FRR_ROUTE_TABLE
+	FRR_ROUTE_LDP
+	FRR_ROUTE_VNC
+	FRR_ROUTE_VNC_DIRECT
+	FRR_ROUTE_VNC_DIRECT_RH
+	FRR_ROUTE_BGP_DIRECT
+	FRR_ROUTE_BGP_DIRECT_EXT
+	FRR_ROUTE_ALL
+	FRR_ROUTE_MAX
+)
+
 var routeTypeValueMap = map[string]ROUTE_TYPE{
-	"system":  ROUTE_SYSTEM,
-	"kernel":  ROUTE_KERNEL,
-	"connect": ROUTE_CONNECT,
-	"static":  ROUTE_STATIC,
-	"rip":     ROUTE_RIP,
-	"ripng":   ROUTE_RIPNG,
-	"ospf":    ROUTE_OSPF,
-	"ospf3":   ROUTE_OSPF6,
-	"isis":    ROUTE_ISIS,
-	"bgp":     ROUTE_BGP,
-	"pim":     ROUTE_PIM,
-	"hsls":    ROUTE_HSLS,
-	"olsr":    ROUTE_OLSR,
-	"babel":   ROUTE_BABEL,
+	"system":         ROUTE_SYSTEM,
+	"kernel":         ROUTE_KERNEL,
+	"connect":        ROUTE_CONNECT,
+	"static":         ROUTE_STATIC,
+	"rip":            ROUTE_RIP,
+	"ripng":          ROUTE_RIPNG,
+	"ospf":           ROUTE_OSPF,
+	"ospf3":          ROUTE_OSPF6,
+	"isis":           ROUTE_ISIS,
+	"bgp":            ROUTE_BGP,
+	"pim":            ROUTE_PIM,
+	"hsls":           ROUTE_HSLS,
+	"olsr":           ROUTE_OLSR,
+	"babel":          ROUTE_BABEL,
+	"table":          FRR_ROUTE_TABLE,
+	"ldp":            FRR_ROUTE_LDP,
+	"vnc":            FRR_ROUTE_VNC,
+	"vnc-direct":     FRR_ROUTE_VNC_DIRECT,
+	"vnc-direct-rh":  FRR_ROUTE_VNC_DIRECT_RH,
+	"bgp-direct":     FRR_ROUTE_BGP_DIRECT,
+	"bgp-direct-ext": FRR_ROUTE_BGP_DIRECT_EXT,
+	"all":            FRR_ROUTE_ALL,
 }
 
 func RouteTypeFromString(typ string) (ROUTE_TYPE, error) {
@@ -246,6 +362,7 @@ func RouteTypeFromString(typ string) (ROUTE_TYPE, error) {
 // API Message Flags.
 type MESSAGE_FLAG uint8
 
+// For Quagga.
 const (
 	MESSAGE_NEXTHOP  MESSAGE_FLAG = 0x01
 	MESSAGE_IFINDEX  MESSAGE_FLAG = 0x02
@@ -278,18 +395,31 @@ func (t MESSAGE_FLAG) String() string {
 	return strings.Join(ss, "|")
 }
 
+// For FRRouting.
+const (
+	FRR_MESSAGE_NEXTHOP  MESSAGE_FLAG = 0x01
+	FRR_MESSAGE_IFINDEX  MESSAGE_FLAG = 0x02
+	FRR_MESSAGE_DISTANCE MESSAGE_FLAG = 0x04
+	FRR_MESSAGE_METRIC   MESSAGE_FLAG = 0x08
+	FRR_MESSAGE_TAG      MESSAGE_FLAG = 0x10
+	FRR_MESSAGE_MTU      MESSAGE_FLAG = 0x20
+	FRR_MESSAGE_SRCPFX   MESSAGE_FLAG = 0x40
+)
+
 // Message Flags
 type FLAG uint64
 
 const (
-	FLAG_INTERNAL  FLAG = 0x01
-	FLAG_SELFROUTE FLAG = 0x02
-	FLAG_BLACKHOLE FLAG = 0x04
-	FLAG_IBGP      FLAG = 0x08
-	FLAG_SELECTED  FLAG = 0x10
-	FLAG_CHANGED   FLAG = 0x20
-	FLAG_STATIC    FLAG = 0x40
-	FLAG_REJECT    FLAG = 0x80
+	FLAG_INTERNAL     FLAG = 0x01
+	FLAG_SELFROUTE    FLAG = 0x02
+	FLAG_BLACKHOLE    FLAG = 0x04
+	FLAG_IBGP         FLAG = 0x08
+	FLAG_SELECTED     FLAG = 0x10
+	FLAG_CHANGED      FLAG = 0x20
+	FLAG_STATIC       FLAG = 0x40
+	FLAG_REJECT       FLAG = 0x80
+	FLAG_SCOPE_LINK   FLAG = 0x100
+	FLAG_FIB_OVERRIDE FLAG = 0x200
 )
 
 func (t FLAG) String() string {
@@ -318,6 +448,12 @@ func (t FLAG) String() string {
 	if t&FLAG_REJECT > 0 {
 		ss = append(ss, "FLAG_REJECT")
 	}
+	if t&FLAG_SCOPE_LINK > 0 {
+		ss = append(ss, "FLAG_SCOPE_LINK")
+	}
+	if t&FLAG_FIB_OVERRIDE > 0 {
+		ss = append(ss, "FLAG_FIB_OVERRIDE")
+	}
 	return strings.Join(ss, "|")
 }
 
@@ -325,6 +461,7 @@ func (t FLAG) String() string {
 //go:generate stringer -type=NEXTHOP_FLAG
 type NEXTHOP_FLAG uint8
 
+// For Quagga.
 const (
 	_ NEXTHOP_FLAG = iota
 	NEXTHOP_IFINDEX
@@ -336,6 +473,37 @@ const (
 	NEXTHOP_IPV6_IFINDEX
 	NEXTHOP_IPV6_IFNAME
 	NEXTHOP_BLACKHOLE
+)
+
+// For FRRouting.
+const (
+	_ NEXTHOP_FLAG = iota
+	FRR_NEXTHOP_IFINDEX
+	FRR_NEXTHOP_IPV4
+	FRR_NEXTHOP_IPV4_IFINDEX
+	FRR_NEXTHOP_IPV6
+	FRR_NEXTHOP_IPV6_IFINDEX
+	FRR_NEXTHOP_BLACKHOLE
+)
+
+// Interface PTM Enable Configuration.
+//go:generate stringer -type=PTM_ENABLE
+type PTM_ENABLE uint8
+
+const (
+	PTM_ENABLE_OFF    PTM_ENABLE = 0
+	PTM_ENABLE_ON     PTM_ENABLE = 1
+	PTM_ENABLE_UNSPEC PTM_ENABLE = 2
+)
+
+// PTM Status.
+//go:generate stringer -type=PTM_STATUS
+type PTM_STATUS uint8
+
+const (
+	PTM_STATUS_DOWN    PTM_STATUS = 0
+	PTM_STATUS_UP      PTM_STATUS = 1
+	PTM_STATUS_UNKNOWN PTM_STATUS = 2
 )
 
 type Client struct {
