@@ -594,7 +594,7 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error 
 		return fmt.Errorf("lack of bytes. need %d but %d", INTERFACE_NAMSIZ+29, len(data))
 	}
 
-	b.Name = string(data[:INTERFACE_NAMSIZ])
+	b.Name = strings.Trim(string(data[:INTERFACE_NAMSIZ]), "\u0000")
 	data = data[INTERFACE_NAMSIZ:]
 	b.Index = binary.BigEndian.Uint32(data[:4])
 	b.Status = INTERFACE_STATUS(data[4])
