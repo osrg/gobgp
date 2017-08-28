@@ -40,6 +40,8 @@ const (
 	INTERFACE_LINKDETECTION INTERFACE_STATUS = 0x04
 )
 
+// Interface Link Layer Types.
+//go:generate stringer -type=LINK_TYPE
 type LINK_TYPE uint32
 
 const (
@@ -121,6 +123,7 @@ func (t INTERFACE_STATUS) String() string {
 }
 
 // Subsequent Address Family Identifier.
+//go:generate stringer -type=SAFI
 type SAFI uint8
 
 const (
@@ -133,6 +136,7 @@ const (
 )
 
 // API Types.
+//go:generate stringer -type=API_TYPE
 type API_TYPE uint16
 
 const (
@@ -170,6 +174,7 @@ const (
 )
 
 // Route Types.
+//go:generate stringer -type=ROUTE_TYPE
 type ROUTE_TYPE uint8
 
 const (
@@ -294,6 +299,7 @@ func (t FLAG) String() string {
 }
 
 // Nexthop Flags.
+//go:generate stringer -type=NEXTHOP_FLAG
 type NEXTHOP_FLAG uint8
 
 const (
