@@ -303,6 +303,10 @@ func (m *roaManager) deleteROA(roa *table.ROA) {
 	}).Info("Can't withdraw a ROA")
 }
 
+func (m *roaManager) DeleteROA(roa *table.ROA) {
+	m.deleteROA(roa)
+}
+
 func (m *roaManager) addROA(roa *table.ROA) {
 	tree, key := m.roa2tree(roa)
 	b, _ := tree.Get(key)
@@ -323,6 +327,10 @@ func (m *roaManager) addROA(roa *table.ROA) {
 		}
 	}
 	bucket.entries = append(bucket.entries, roa)
+}
+
+func (m *roaManager) AddROA(roa *table.ROA) {
+	m.addROA(roa)
 }
 
 func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
