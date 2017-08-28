@@ -214,13 +214,40 @@ func RouteTypeFromString(typ string) (ROUTE_TYPE, error) {
 	return t, fmt.Errorf("unknown route type: %s", typ)
 }
 
+// API Message Flags.
+type MESSAGE_FLAG uint8
+
 const (
-	MESSAGE_NEXTHOP  = 0x01
-	MESSAGE_IFINDEX  = 0x02
-	MESSAGE_DISTANCE = 0x04
-	MESSAGE_METRIC   = 0x08
-	MESSAGE_MTU      = 0x10
+	MESSAGE_NEXTHOP  MESSAGE_FLAG = 0x01
+	MESSAGE_IFINDEX  MESSAGE_FLAG = 0x02
+	MESSAGE_DISTANCE MESSAGE_FLAG = 0x04
+	MESSAGE_METRIC   MESSAGE_FLAG = 0x08
+	MESSAGE_MTU      MESSAGE_FLAG = 0x10
+	MESSAGE_TAG      MESSAGE_FLAG = 0x20
 )
+
+func (t MESSAGE_FLAG) String() string {
+	var ss []string
+	if t&MESSAGE_NEXTHOP > 0 {
+		ss = append(ss, "NEXTHOP")
+	}
+	if t&MESSAGE_IFINDEX > 0 {
+		ss = append(ss, "IFINDEX")
+	}
+	if t&MESSAGE_DISTANCE > 0 {
+		ss = append(ss, "DISTANCE")
+	}
+	if t&MESSAGE_METRIC > 0 {
+		ss = append(ss, "METRIC")
+	}
+	if t&MESSAGE_MTU > 0 {
+		ss = append(ss, "MTU")
+	}
+	if t&MESSAGE_TAG > 0 {
+		ss = append(ss, "TAG")
+	}
+	return strings.Join(ss, "|")
+}
 
 // Message Flags
 type FLAG uint64
@@ -716,7 +743,7 @@ func (b *RouterIDUpdateBody) String() string {
 type IPRouteBody struct {
 	Type         ROUTE_TYPE
 	Flags        FLAG
-	Message      uint8
+	Message      MESSAGE_FLAG
 	SAFI         SAFI
 	Prefix       net.IP
 	PrefixLength uint8
@@ -732,7 +759,7 @@ func (b *IPRouteBody) Serialize() ([]byte, error) {
 	buf := make([]byte, 5)
 	buf[0] = uint8(b.Type)
 	buf[1] = uint8(b.Flags)
-	buf[2] = b.Message
+	buf[2] = uint8(b.Message)
 	binary.BigEndian.PutUint16(buf[3:], uint16(b.SAFI))
 	bitlen := b.PrefixLength
 	bytelen := (int(b.PrefixLength) + 7) / 8
@@ -797,7 +824,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	b.Type = ROUTE_TYPE(data[0])
 	b.Flags = FLAG(data[1])
-	b.Message = data[2]
+	b.Message = MESSAGE_FLAG(data[2])
 	b.PrefixLength = data[3]
 	b.SAFI = SAFI(SAFI_UNICAST)
 
