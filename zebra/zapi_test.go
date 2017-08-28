@@ -63,7 +63,7 @@ func Test_InterfaceUpdateBody(t *testing.T) {
 	pos := INTERFACE_NAMSIZ
 	binary.BigEndian.PutUint32(buf[pos:], 1)
 	pos += 4
-	buf[pos] = INTERFACE_ACTIVE
+	buf[pos] = byte(INTERFACE_ACTIVE)
 	pos += 1
 	binary.BigEndian.PutUint64(buf[pos:], 1)
 	pos += 8 // flags
