@@ -161,7 +161,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	buf := make([]byte, 26)
 	buf[0] = byte(ROUTE_CONNECT)
 	buf[1] = byte(FLAG_SELECTED)
-	buf[2] = MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC | MESSAGE_MTU
+	buf[2] = byte(MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC | MESSAGE_MTU)
 	buf[3] = 24
 	ip := net.ParseIP("192.168.100.0").To4()
 	copy(buf[4:7], []byte(ip))
@@ -181,7 +181,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal("192.168.100.0", r.Prefix.String())
 	assert.Equal(uint8(0x18), r.PrefixLength)
-	assert.Equal(uint8(MESSAGE_NEXTHOP|MESSAGE_DISTANCE|MESSAGE_METRIC|MESSAGE_MTU), r.Message)
+	assert.Equal(MESSAGE_NEXTHOP|MESSAGE_DISTANCE|MESSAGE_METRIC|MESSAGE_MTU, r.Message)
 	assert.Equal("0.0.0.0", r.Nexthops[0].String())
 	assert.Equal(uint32(1), r.Ifindexs[0])
 	assert.Equal(uint8(0), r.Distance)
@@ -209,7 +209,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	buf = make([]byte, 18)
 	buf[0] = byte(ROUTE_CONNECT)
 	buf[1] = byte(FLAG_SELECTED)
-	buf[2] = MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC
+	buf[2] = byte(MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC)
 	buf[3] = 24
 	ip = net.ParseIP("192.168.100.0").To4()
 	copy(buf[4:7], []byte(ip))
@@ -227,7 +227,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	buf = make([]byte, 12)
 	buf[0] = byte(ROUTE_CONNECT)
 	buf[1] = byte(FLAG_SELECTED)
-	buf[2] = MESSAGE_DISTANCE | MESSAGE_METRIC
+	buf[2] = byte(MESSAGE_DISTANCE | MESSAGE_METRIC)
 	buf[3] = 24
 	ip = net.ParseIP("192.168.100.0").To4()
 	copy(buf[4:7], []byte(ip))
@@ -246,7 +246,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	buf := make([]byte, 43)
 	buf[0] = byte(ROUTE_CONNECT)
 	buf[1] = byte(FLAG_SELECTED)
-	buf[2] = MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC | MESSAGE_MTU
+	buf[2] = byte(MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC | MESSAGE_MTU)
 	buf[3] = 64
 	ip := net.ParseIP("2001:db8:0:f101::").To16()
 	copy(buf[4:12], []byte(ip))
@@ -267,7 +267,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal("2001:db8:0:f101::", r.Prefix.String())
 	assert.Equal(uint8(64), r.PrefixLength)
-	assert.Equal(uint8(MESSAGE_NEXTHOP|MESSAGE_DISTANCE|MESSAGE_METRIC|MESSAGE_MTU), r.Message)
+	assert.Equal(MESSAGE_NEXTHOP|MESSAGE_DISTANCE|MESSAGE_METRIC|MESSAGE_MTU, r.Message)
 	assert.Equal("::", r.Nexthops[0].String())
 	assert.Equal(uint32(1), r.Ifindexs[0])
 	assert.Equal(uint8(0), r.Distance)
@@ -302,7 +302,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	buf = make([]byte, 50)
 	buf[0] = byte(ROUTE_CONNECT)
 	buf[1] = byte(FLAG_SELECTED)
-	buf[2] = MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC
+	buf[2] = byte(MESSAGE_NEXTHOP | MESSAGE_DISTANCE | MESSAGE_METRIC)
 	buf[3] = 24
 	ip = net.ParseIP("2001:db8:0:f101::").To4()
 	copy(buf[4:12], []byte(ip))
@@ -320,7 +320,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	buf = make([]byte, 11)
 	buf[0] = byte(ROUTE_CONNECT)
 	buf[1] = byte(FLAG_SELECTED)
-	buf[2] = MESSAGE_DISTANCE | MESSAGE_METRIC
+	buf[2] = byte(MESSAGE_DISTANCE | MESSAGE_METRIC)
 	buf[3] = 16
 	ip = net.ParseIP("2501::").To16()
 	copy(buf[4:6], []byte(ip))

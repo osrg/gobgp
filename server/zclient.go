@@ -242,7 +242,7 @@ func newIPRouteMessage(dst pathList, version uint8, vrfId uint16) *zebra.Message
 	default:
 		return nil
 	}
-	msgFlags := uint8(zebra.MESSAGE_NEXTHOP)
+	msgFlags := zebra.MESSAGE_NEXTHOP
 	plen, _ := strconv.Atoi(l[1])
 	med, err := path.GetMed()
 	if err == nil {
