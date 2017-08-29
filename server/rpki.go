@@ -528,8 +528,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
 	prefixLen := uint8(ones)
-	key := table.IpToRadixkey(n.IP, prefixLen)
-	_, b, _ := tree.LongestPrefix(key)
+	_, b, _ := table.GetLongestPrefix(tree, n.IP, prefixLen)
 	if b == nil {
 		return validation
 	}

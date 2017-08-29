@@ -30,6 +30,7 @@ import (
 
 	radix "github.com/armon/go-radix"
 
+	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 )
@@ -1274,7 +1275,7 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	}
 
 	result := false
-	_, ps, ok := c.set.tree.LongestPrefix(key)
+	_, ps, ok := GetLongestPrefix(c.set.tree, ip, masklen)
 	if ok {
 		for _, p := range ps.([]*Prefix) {
 			if p.MasklengthRangeMin <= masklen && masklen <= p.MasklengthRangeMax {
@@ -3690,6 +3691,19 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 	c, _ := NewExtCommunityCondition(matchSet)
 	c.set = set
 	return c.Evaluate(path, nil)
+}
+
+func GetLongestPrefix(trie *critbitgo.Trie, ip []byte, ones uint8) ([]byte, interface{}, bool) {
+	for {
+		key := BytesToTrieKey(ip, ones)
+		v, ok := trie.Get(key)
+		if ok {
+			return key, v, true
+		} else if ones == 0 {
+			return nil, nil, false
+		}
+		ones--
+	}
 }
 
 type PolicyAssignment struct {
