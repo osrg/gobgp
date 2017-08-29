@@ -16,12 +16,12 @@ _unittest: &_unittest
   script: go test $(go list ./... | grep -v '/vendor/')
 
 _cross_compile: &_cross_compile
-  go: 1.7
+  go: 1.8
   <<: *_simple_install
   script: cd gobgpd && go build
 
 _no_install: &_no_install
-  go: 1.7
+  go: 1.8
   before_install: true
   install: true
 
@@ -42,9 +42,9 @@ matrix:
     - <<: *_unittest
       go: tip
     - <<: *_unittest
-      go: 1.7
-    - <<: *_unittest
       go: 1.8
+    - <<: *_unittest
+      go: 1.9
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
 #
@@ -67,7 +67,7 @@ matrix:
     - <<: *_no_install
       script: test -z "$(go vet ./...)"
     - <<: *_simple_install
-      go: 1.7
+      go: 1.8
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 #
 # Docker
