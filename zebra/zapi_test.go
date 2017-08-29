@@ -114,7 +114,7 @@ func Test_InterfaceAddressUpdateBody(t *testing.T) {
 	b := &InterfaceAddressUpdateBody{}
 	err := b.DecodeFromBytes(buf, 2)
 	assert.Equal(uint32(0), b.Index)
-	assert.Equal(uint8(1), b.Flags)
+	assert.Equal(INTERFACE_ADDRESS_FLAG(1), b.Flags)
 	assert.Equal("192.168.100.1", b.Prefix.String())
 	assert.Equal(uint8(24), b.Length)
 	assert.Equal("192.168.100.255", b.Destination.String())
