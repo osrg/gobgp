@@ -122,6 +122,29 @@ func (t INTERFACE_STATUS) String() string {
 	return strings.Join(ss, "|")
 }
 
+// Interface Connected Address Flags
+type INTERFACE_ADDRESS_FLAG uint8
+
+const (
+	INTERFACE_ADDRESS_SECONDARY  INTERFACE_ADDRESS_FLAG = 0x01
+	INTERFACE_ADDRESS_PEER       INTERFACE_ADDRESS_FLAG = 0x02
+	INTERFACE_ADDRESS_UNNUMBERED INTERFACE_ADDRESS_FLAG = 0x04
+)
+
+func (t INTERFACE_ADDRESS_FLAG) String() string {
+	ss := make([]string, 0, 3)
+	if t&INTERFACE_ADDRESS_SECONDARY > 0 {
+		ss = append(ss, "SECONDARY")
+	}
+	if t&INTERFACE_ADDRESS_PEER > 0 {
+		ss = append(ss, "PEER")
+	}
+	if t&INTERFACE_ADDRESS_UNNUMBERED > 0 {
+		ss = append(ss, "UNNUMBERED")
+	}
+	return strings.Join(ss, "|")
+}
+
 // Subsequent Address Family Identifier.
 //go:generate stringer -type=SAFI
 type SAFI uint8
@@ -685,7 +708,7 @@ func (b *InterfaceUpdateBody) String() string {
 
 type InterfaceAddressUpdateBody struct {
 	Index       uint32
-	Flags       uint8
+	Flags       INTERFACE_ADDRESS_FLAG
 	Prefix      net.IP
 	Length      uint8
 	Destination net.IP
@@ -693,7 +716,7 @@ type InterfaceAddressUpdateBody struct {
 
 func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 	b.Index = binary.BigEndian.Uint32(data[:4])
-	b.Flags = data[4]
+	b.Flags = INTERFACE_ADDRESS_FLAG(data[4])
 	family := data[5]
 	var addrlen int8
 	switch family {
