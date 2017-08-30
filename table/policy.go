@@ -16,7 +16,6 @@
 package table
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -26,13 +25,10 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
-
-	radix "github.com/armon/go-radix"
-
 	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 )
 
 type PolicyOptions struct {
@@ -348,7 +344,7 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 
 type PrefixSet struct {
 	name   string
-	tree   *radix.Tree
+	tree   *critbitgo.Trie
 	family bgp.RouteFamily
 }
 
@@ -365,29 +361,21 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	// if either is empty, family can be ignored.
-	if lhs.tree.Len() != 0 && rhs.tree.Len() != 0 {
-		_, w, _ := lhs.tree.Minimum()
-		l := w.([]*Prefix)
-		_, v, _ := rhs.tree.Minimum()
-		r := v.([]*Prefix)
-		if l[0].AddressFamily != r[0].AddressFamily {
-			return fmt.Errorf("can't append different family")
-		}
+	if rhs.tree.Size() == 0 {
+		return nil
+	} else if lhs.tree.Size() != 0 && lhs.family != rhs.family {
+		return fmt.Errorf("can't append different family")
 	}
-	rhs.tree.Walk(func(key string, v interface{}) bool {
-		w, ok := lhs.tree.Get(key)
-		if ok {
+	rhs.tree.Walk(nil, func(key []byte, v interface{}) bool {
+		if !lhs.tree.Insert(key, v) {
+			w, _ := lhs.tree.Get(key)
 			r := v.([]*Prefix)
 			l := w.([]*Prefix)
-			lhs.tree.Insert(key, append(l, r...))
-		} else {
-			lhs.tree.Insert(key, v)
+			lhs.tree.Set(key, append(l, r...))
 		}
-		return false
+		return true
 	})
-	_, w, _ := lhs.tree.Minimum()
-	lhs.family = w.([]*Prefix)[0].AddressFamily
+	lhs.family = rhs.family
 	return nil
 }
 
@@ -396,10 +384,10 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	rhs.tree.Walk(func(key string, v interface{}) bool {
+	rhs.tree.Walk(nil, func(key []byte, v interface{}) bool {
 		w, ok := lhs.tree.Get(key)
 		if !ok {
-			return false
+			return true
 		}
 		r := v.([]*Prefix)
 		l := w.([]*Prefix)
@@ -419,9 +407,9 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 		if len(new) == 0 {
 			lhs.tree.Delete(key)
 		} else {
-			lhs.tree.Insert(key, new)
+			lhs.tree.Set(key, new)
 		}
-		return false
+		return true
 	})
 	return nil
 }
@@ -438,24 +426,24 @@ func (lhs *PrefixSet) Replace(arg DefinedSet) error {
 
 func (s *PrefixSet) List() []string {
 	var list []string
-	s.tree.Walk(func(s string, v interface{}) bool {
+	s.tree.Walk(nil, func(s []byte, v interface{}) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
 			list = append(list, fmt.Sprintf("%s %d..%d", p.PrefixString(), p.MasklengthRangeMin, p.MasklengthRangeMax))
 		}
-		return false
+		return true
 	})
 	return list
 }
 
 func (s *PrefixSet) ToConfig() *config.PrefixSet {
-	list := make([]config.Prefix, 0, s.tree.Len())
-	s.tree.Walk(func(s string, v interface{}) bool {
+	list := make([]config.Prefix, 0, s.tree.Size())
+	s.tree.Walk(nil, func(s []byte, v interface{}) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
 			list = append(list, config.Prefix{IpPrefix: p.PrefixString(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
 		}
-		return false
+		return true
 	})
 	return &config.PrefixSet{
 		PrefixSetName: s.name,
@@ -475,7 +463,7 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 	if name == "" {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
-	tree := radix.New()
+	tree := critbitgo.NewTrie()
 	var family bgp.RouteFamily
 	for i, x := range prefixes {
 		if i == 0 {
@@ -507,7 +495,7 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		}
 		return nil, fmt.Errorf("empty prefix set name")
 	}
-	tree := radix.New()
+	tree := critbitgo.NewTrie()
 	var family bgp.RouteFamily
 	for i, x := range c.PrefixList {
 		y, err := NewPrefix(x)
@@ -520,12 +508,10 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 			return nil, fmt.Errorf("multiple families")
 		}
 		key := CidrToTrieKey(y.Prefix.String())
-		d, ok := tree.Get(key)
-		if ok {
+		if !tree.Insert(key, []*Prefix{y}) {
+			d, _ := tree.Get(key)
 			ps := d.([]*Prefix)
-			tree.Insert(key, append(ps, y))
-		} else {
-			tree.Insert(key, []*Prefix{y})
+			tree.Set(key, append(ps, y))
 		}
 	}
 	return &PrefixSet{
@@ -1250,23 +1236,16 @@ func (c *PrefixCondition) Option() MatchOption {
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
 func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	var key string
+	var ip []byte
 	var masklen uint8
-	keyf := func(ip net.IP, ones int) string {
-		var buffer bytes.Buffer
-		for i := 0; i < len(ip) && i < ones; i++ {
-			buffer.WriteString(fmt.Sprintf("%08b", ip[i]))
-		}
-		return buffer.String()[:ones]
-	}
 	family := path.GetRouteFamily()
-	switch family {
-	case bgp.RF_IPv4_UC:
-		masklen = path.GetNlri().(*bgp.IPAddrPrefix).Length
-		key = keyf(path.GetNlri().(*bgp.IPAddrPrefix).Prefix, int(masklen))
-	case bgp.RF_IPv6_UC:
-		masklen = path.GetNlri().(*bgp.IPv6AddrPrefix).Length
-		key = keyf(path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix, int(masklen))
+	switch nlri := path.GetNlri().(type) {
+	case *bgp.IPAddrPrefix:
+		masklen = nlri.Length
+		ip = nlri.Prefix
+	case *bgp.IPv6AddrPrefix:
+		masklen = nlri.Length
+		ip = nlri.Prefix
 	default:
 		return false
 	}

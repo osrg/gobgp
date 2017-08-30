@@ -20,7 +20,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/armon/go-radix"
+	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
 )
@@ -227,13 +227,13 @@ func (t *Table) GetSortedDestinations() []*Destination {
 	results := make([]*Destination, 0, len(t.GetDestinations()))
 	switch t.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-		r := radix.New()
+		r := critbitgo.NewTrie()
 		for _, dst := range t.GetDestinations() {
-			r.Insert(dst.RadixKey, dst)
+			r.Insert(dst.TreeKey, dst)
 		}
-		r.Walk(func(s string, v interface{}) bool {
+		r.Walk(nil, func(s []byte, v interface{}) bool {
 			results = append(results, v.(*Destination))
-			return false
+			return true
 		})
 	default:
 		for _, dst := range t.GetDestinations() {
@@ -247,9 +247,11 @@ func (t *Table) GetSortedDestinations() []*Destination {
 func (t *Table) GetDestinations() map[string]*Destination {
 	return t.destinations
 }
+
 func (t *Table) setDestinations(destinations map[string]*Destination) {
 	t.destinations = destinations
 }
+
 func (t *Table) GetDestination(key string) *Destination {
 	dest, ok := t.destinations[key]
 	if ok {
@@ -268,11 +270,11 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 			return nil, err
 		}
 		k := CidrToTrieKey(prefix.String())
-		r := radix.New()
+		r := critbitgo.NewTrie()
 		for _, dst := range t.GetDestinations() {
 			r.Insert(dst.TreeKey, dst)
 		}
-		r.WalkPrefix(k, func(s string, v interface{}) bool {
+		r.Allprefixed(k, func(s []byte, v interface{}) bool {
 			results = append(results, v.(*Destination))
 			return false
 		})
