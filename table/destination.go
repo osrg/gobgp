@@ -50,21 +50,28 @@ const (
 	BPR_NON_LLGR_STALE     BestPathReason = "no LLGR Stale"
 )
 
-func IpToRadixkey(b []byte, max uint8) string {
-	var buffer bytes.Buffer
-	for i := 0; i < len(b) && i < int(max); i++ {
-		fmt.Fprintf(&buffer, "%08b", b[i])
+func BytesToTrieKey(b []byte, max uint8) []byte {
+	ans := make([]byte, 0)
+	if max == 0 {
+		return ans
 	}
-	return buffer.String()[:max]
+	q := max / 8
+	r := max % 8
+	s := 256 - (1 << (8 - r))
+	ans = append(ans, b[:q]...)
+	if r != 0 {
+		ans = append(ans, b[q]&byte(s))
+	}
+	return append(ans, byte(max))
 }
 
-func CidrToRadixkey(cidr string) string {
+func CidrToTrieKey(cidr string) []byte {
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
-	return IpToRadixkey(n.IP, uint8(ones))
+	return BytesToTrieKey(n.IP, uint8(ones))
 }
 
-func AddrToRadixkey(addr bgp.AddrPrefixInterface) string {
+func AddrToTrieKey(addr bgp.AddrPrefixInterface) []byte {
 	var (
 		ip   net.IP
 		size uint8
@@ -77,9 +84,9 @@ func AddrToRadixkey(addr bgp.AddrPrefixInterface) string {
 		mask := net.CIDRMask(int(T.Length), net.IPv6len*8)
 		ip, size = T.Prefix.Mask(mask).To16(), uint8(T.Length)
 	default:
-		return CidrToRadixkey(addr.String())
+		return CidrToTrieKey(addr.String())
 	}
-	return IpToRadixkey(ip, size)
+	return BytesToTrieKey(ip, size)
 }
 
 type PeerInfo struct {
@@ -146,7 +153,7 @@ type Destination struct {
 	withdrawList     paths
 	newPathList      paths
 	oldKnownPathList paths
-	RadixKey         string
+	TreeKey          []byte
 	localIdMap       *Bitmap
 }
 
@@ -165,7 +172,7 @@ func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *
 	}
 	switch d.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
-		d.RadixKey = AddrToRadixkey(nlri)
+		d.TreeKey = AddrToTrieKey(nlri)
 	}
 	return d
 }

@@ -16,7 +16,7 @@
 package table
 
 import (
-	//"fmt"
+	"bytes"
 	"fmt"
 	"net"
 	"testing"
@@ -398,10 +398,11 @@ func updateMsgD3() *bgp.BGPMessage {
 }
 
 func TestRadixkey(t *testing.T) {
-	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
-	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
-	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
-	assert.Equal(t, CidrToRadixkey("::ffff:0.0.0.0/96")+"000010100000001100100000", CidrToRadixkey("::ffff:10.3.32.0/120"))
+	assert.Equal(t, []byte{0xa, 0x3, 0x20, 0x18}, CidrToTrieKey("10.3.32.0/24"))
+	assert.Equal(t, []byte{0xa, 0x3, 0x20, 0x18}, BytesToTrieKey(net.ParseIP("10.3.32.0").To4(), 24))
+	assert.Equal(t, []byte{0xa, 0x3, 0x20, 0x18}, BytesToTrieKey(net.ParseIP("10.3.32.0").To4(), 24))
+	b := CidrToTrieKey("::ffff:0.0.0.0/96")
+	assert.Equal(t, append(b[:len(b)-1], []byte{0xa, 0x3, 0x20, 0x78}...), CidrToTrieKey("::ffff:10.3.32.0/120"))
 }
 
 func TestIpToRadixkey(t *testing.T) {
@@ -409,16 +410,16 @@ func TestIpToRadixkey(t *testing.T) {
 		for y := byte(1); y < 128; y *= 2 {
 			ip := net.IPv4(i, i+2, i+3, i-y)
 			for n := uint8(16); n <= 32; n += 2 {
-				exp := CidrToRadixkey(fmt.Sprintf("%v/%d", ip.To4(), n))
-				got := IpToRadixkey(ip.To4(), n)
-				if exp != got {
+				exp := CidrToTrieKey(fmt.Sprintf("%v/%d", ip.To4(), n))
+				got := BytesToTrieKey(ip.To4(), n)
+				if !bytes.Equal(exp, got) {
 					t.Fatalf(`exp %v; got %v`, exp, got)
 				}
 			}
 			for n := uint8(116); n <= 128; n += 2 {
-				exp := CidrToRadixkey(fmt.Sprintf("::ffff:%v/%d", ip.To16(), n))
-				got := IpToRadixkey(ip.To16(), n)
-				if exp != got {
+				exp := CidrToTrieKey(fmt.Sprintf("::ffff:%v/%d", ip.To16(), n))
+				got := BytesToTrieKey(ip.To16(), n)
+				if !bytes.Equal(exp, got) {
 					t.Fatalf(`exp %v; got %v`, exp, got)
 				}
 			}

@@ -482,7 +482,7 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 		} else if family != x.AddressFamily {
 			return nil, fmt.Errorf("multiple families")
 		}
-		key := CidrToRadixkey(x.Prefix.String())
+		key := CidrToTrieKey(x.Prefix.String())
 		d, ok := tree.Get(key)
 		if ok {
 			ps := d.([]*Prefix)
@@ -518,7 +518,7 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		} else if family != y.AddressFamily {
 			return nil, fmt.Errorf("multiple families")
 		}
-		key := CidrToRadixkey(y.Prefix.String())
+		key := CidrToTrieKey(y.Prefix.String())
 		d, ok := tree.Get(key)
 		if ok {
 			ps := d.([]*Prefix)

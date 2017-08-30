@@ -267,10 +267,10 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		if err != nil {
 			return nil, err
 		}
-		k := CidrToRadixkey(prefix.String())
+		k := CidrToTrieKey(prefix.String())
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
-			r.Insert(dst.RadixKey, dst)
+			r.Insert(dst.TreeKey, dst)
 		}
 		r.WalkPrefix(k, func(s string, v interface{}) bool {
 			results = append(results, v.(*Destination))
