@@ -214,8 +214,14 @@ func newIPRouteMessage(dst pathList, version uint8, vrfId uint16) *zebra.Message
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
 		if path.IsWithdraw == true {
 			command = zebra.IPV4_ROUTE_DELETE
+			if version == 4 {
+				command = zebra.FRR_IPV4_ROUTE_DELETE
+			}
 		} else {
 			command = zebra.IPV4_ROUTE_ADD
+			if version == 4 {
+				command = zebra.FRR_IPV4_ROUTE_ADD
+			}
 		}
 		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
 			prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
@@ -228,8 +234,14 @@ func newIPRouteMessage(dst pathList, version uint8, vrfId uint16) *zebra.Message
 	case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
 		if path.IsWithdraw == true {
 			command = zebra.IPV6_ROUTE_DELETE
+			if version == 4 {
+				command = zebra.FRR_IPV6_ROUTE_DELETE
+			}
 		} else {
 			command = zebra.IPV6_ROUTE_ADD
+			if version == 4 {
+				command = zebra.FRR_IPV6_ROUTE_ADD
+			}
 		}
 		if path.GetRouteFamily() == bgp.RF_IPv6_UC {
 			prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
@@ -258,7 +270,7 @@ func newIPRouteMessage(dst pathList, version uint8, vrfId uint16) *zebra.Message
 	return &zebra.Message{
 		Header: zebra.Header{
 			Len:     zebra.HeaderSize(version),
-			Marker:  zebra.HEADER_MARKER,
+			Marker:  zebra.HeaderMarker(version),
 			Version: version,
 			Command: command,
 			VrfId:   vrfId,
@@ -290,6 +302,9 @@ func newNexthopRegisterMessage(dst pathList, version uint8, vrfId uint16, nhtMan
 
 	route_family := paths[0].GetRouteFamily()
 	command := zebra.NEXTHOP_REGISTER
+	if version == 4 {
+		command = zebra.FRR_NEXTHOP_REGISTER
+	}
 	if paths[0].IsWithdraw == true {
 		// TODO:
 		// Send NEXTHOP_UNREGISTER message if the given nexthop is no longer
@@ -339,7 +354,7 @@ func newNexthopRegisterMessage(dst pathList, version uint8, vrfId uint16, nhtMan
 	return &zebra.Message{
 		Header: zebra.Header{
 			Len:     zebra.HeaderSize(version),
-			Marker:  zebra.HEADER_MARKER,
+			Marker:  zebra.HeaderMarker(version),
 			Version: version,
 			Command: command,
 			VrfId:   vrfId,
@@ -355,13 +370,23 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
 	family := bgp.RF_IPv6_UC
-	if header.Command == zebra.IPV4_ROUTE_ADD || header.Command == zebra.IPV4_ROUTE_DELETE {
-		family = bgp.RF_IPv4_UC
+	switch header.Version {
+	case 2, 3:
+		if header.Command == zebra.IPV4_ROUTE_ADD || header.Command == zebra.IPV4_ROUTE_DELETE {
+			family = bgp.RF_IPv4_UC
+		}
+	case 4:
+		if header.Command == zebra.FRR_IPV4_ROUTE_ADD || header.Command == zebra.FRR_IPV4_ROUTE_DELETE || header.Command == zebra.FRR_REDISTRIBUTE_IPV4_ADD || header.Command == zebra.FRR_REDISTRIBUTE_IPV4_DEL {
+			family = bgp.RF_IPv4_UC
+		}
 	}
 
 	var nlri bgp.AddrPrefixInterface
 	pattr := make([]bgp.PathAttributeInterface, 0)
 	var isWithdraw bool = header.Command == zebra.IPV4_ROUTE_DELETE || header.Command == zebra.IPV6_ROUTE_DELETE
+	if header.Version == 4 {
+		isWithdraw = header.Command == zebra.FRR_IPV4_ROUTE_DELETE || header.Command == zebra.FRR_IPV6_ROUTE_DELETE || header.Command == zebra.FRR_REDISTRIBUTE_IPV4_DEL || header.Command == zebra.FRR_REDISTRIBUTE_IPV6_DEL
+	}
 
 	origin := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
 	pattr = append(pattr, origin)
@@ -524,15 +549,19 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	if err != nil {
 		// Retry with another Zebra message version
 		var retry_version uint8 = 2
-		if version == 2 {
-			retry_version = 3
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Warnf("cannot connect to Zebra with message version %d. retry with version %d", version, retry_version)
-		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, retry_version)
-		if err != nil {
-			return nil, err
+		for ; retry_version <= 4; retry_version++ {
+			if version == retry_version {
+				continue
+			}
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Warnf("cannot connect to Zebra with message version %d. retry with version %d", version, retry_version)
+			cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, retry_version)
+			if err != nil {
+				return nil, err
+			} else {
+				break
+			}
 		}
 	}
 	// Note: HELLO/ROUTER_ID_ADD messages are automatically sent to negotiate
