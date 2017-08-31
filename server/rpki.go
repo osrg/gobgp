@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/armon/go-radix"
+	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/rtr"
@@ -94,7 +94,7 @@ type ROAEvent struct {
 
 type roaManager struct {
 	AS        uint32
-	Roas      map[bgp.RouteFamily]*radix.Tree
+	Roas      map[bgp.RouteFamily]*critbitgo.Trie
 	eventCh   chan *ROAEvent
 	clientMap map[string]*roaClient
 }
@@ -102,10 +102,10 @@ type roaManager struct {
 func NewROAManager(as uint32) (*roaManager, error) {
 	m := &roaManager{
 		AS:   as,
-		Roas: make(map[bgp.RouteFamily]*radix.Tree),
+		Roas: make(map[bgp.RouteFamily]*critbitgo.Trie),
 	}
-	m.Roas[bgp.RF_IPv4_UC] = radix.New()
-	m.Roas[bgp.RF_IPv6_UC] = radix.New()
+	m.Roas[bgp.RF_IPv4_UC] = critbitgo.NewTrie()
+	m.Roas[bgp.RF_IPv6_UC] = critbitgo.NewTrie()
 	m.eventCh = make(chan *ROAEvent)
 	m.clientMap = make(map[string]*roaClient)
 	return m, nil
@@ -150,8 +150,11 @@ func (m *roaManager) DeleteServer(host string) error {
 
 func (m *roaManager) deleteAllROA(network string) {
 	for _, tree := range m.Roas {
-		deleteKeys := make([]string, 0, tree.Len())
-		tree.Walk(func(s string, v interface{}) bool {
+		if tree.Size() == 0 {
+			continue
+		}
+		deleteKeys := make([][]byte, 0, tree.Size())
+		tree.Walk(nil, func(s []byte, v interface{}) bool {
 			b, _ := v.(*RoaBucket)
 			newEntries := make([]*table.ROA, 0, len(b.entries))
 			for _, r := range b.entries {
@@ -164,7 +167,7 @@ func (m *roaManager) deleteAllROA(network string) {
 			} else {
 				deleteKeys = append(deleteKeys, s)
 			}
-			return false
+			return true
 		})
 		for _, key := range deleteKeys {
 			tree.Delete(key)
@@ -267,12 +270,12 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 	}
 }
 
-func (m *roaManager) roa2tree(roa *table.ROA) (*radix.Tree, string) {
+func (m *roaManager) roa2tree(roa *table.ROA) (*critbitgo.Trie, []byte) {
 	tree := m.Roas[bgp.RF_IPv4_UC]
 	if roa.Family == bgp.AFI_IP6 {
 		tree = m.Roas[bgp.RF_IPv6_UC]
 	}
-	return tree, table.IpToRadixkey(roa.Prefix.Prefix, roa.Prefix.Length)
+	return tree, table.BytesToTrieKey(roa.Prefix.Prefix, roa.Prefix.Length)
 }
 
 func (m *roaManager) deleteROA(roa *table.ROA) {
@@ -406,11 +409,11 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 }
 
 func (c *roaManager) GetServers() []*config.RpkiServer {
-	f := func(tree *radix.Tree) (map[string]uint32, map[string]uint32) {
+	f := func(tree *critbitgo.Trie) (map[string]uint32, map[string]uint32) {
 		records := make(map[string]uint32)
 		prefixes := make(map[string]uint32)
 
-		tree.Walk(func(s string, v interface{}) bool {
+		tree.Walk(nil, func(s []byte, v interface{}) bool {
 			b, _ := v.(*RoaBucket)
 			tmpRecords := make(map[string]uint32)
 			for _, roa := range b.entries {
@@ -423,7 +426,7 @@ func (c *roaManager) GetServers() []*config.RpkiServer {
 					prefixes[src]++
 				}
 			}
-			return false
+			return true
 		})
 		return records, prefixes
 	}
@@ -480,7 +483,7 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 	l := make([]*table.ROA, 0)
 	for _, rf := range rfList {
 		if tree, ok := c.Roas[rf]; ok {
-			tree.Walk(func(s string, v interface{}) bool {
+			tree.Walk(nil, func(s []byte, v interface{}) bool {
 				b, _ := v.(*RoaBucket)
 				var roaList roas
 				for _, r := range b.entries {
@@ -490,14 +493,14 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 				for _, roa := range roaList {
 					l = append(l, roa)
 				}
-				return false
+				return true
 			})
 		}
 	}
 	return l, nil
 }
 
-func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) *table.Validation {
+func ValidatePath(ownAs uint32, tree *critbitgo.Trie, prefix net.IP, prefixLen uint8, asPath *bgp.PathAttributeAsPath) *table.Validation {
 	var as uint32
 
 	validation := &table.Validation{
@@ -525,17 +528,21 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 			return validation
 		}
 	}
-	_, n, _ := net.ParseCIDR(cidr)
-	ones, _ := n.Mask.Size()
-	prefixLen := uint8(ones)
-	_, b, _ := table.GetLongestPrefix(tree, n.IP, prefixLen)
+
+	_, b, _ := table.GetLongestPrefix(tree, prefix, prefixLen)
 	if b == nil {
 		return validation
 	}
 
-	var bucket *RoaBucket
-	fn := radix.WalkFn(func(k string, v interface{}) bool {
-		bucket, _ = v.(*RoaBucket)
+	key := table.BytesToTrieKey(prefix, prefixLen)
+	prefix, length := key[:len(key)-1], uint8(key[len(key)-1])
+	for i := uint8(1); i <= length; i++ {
+		t := table.BytesToTrieKey(prefix, i)
+		v, ok := tree.Get(t)
+		if !ok {
+			continue
+		}
+		bucket := v.(*RoaBucket)
 		for _, r := range bucket.entries {
 			if prefixLen <= r.MaxLen {
 				if r.AS != 0 && r.AS == as {
@@ -547,9 +554,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 				validation.UnmatchedLength = append(validation.UnmatchedLength, r)
 			}
 		}
-		return false
-	})
-	tree.WalkPath(key, fn)
+	}
 
 	if len(validation.Matched) != 0 {
 		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_VALID
@@ -579,7 +584,8 @@ func (c *roaManager) validate(pathList []*table.Path) {
 			continue
 		}
 		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
-			v := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			prefix := path.GetNlri().(*bgp.IPAddrPrefix)
+			v := ValidatePath(c.AS, tree, prefix.Prefix, prefix.Length, path.GetAsPath())
 			path.SetValidation(v)
 		}
 	}

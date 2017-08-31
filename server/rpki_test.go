@@ -23,8 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	radix "github.com/armon/go-radix"
-
+	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
@@ -56,8 +55,10 @@ func strToASParam(str string) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(atype, as)})
 }
 
-func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidationResultType {
-	r := ValidatePath(65500, tree, cidr, strToASParam(aspathStr))
+func validateOne(tree *critbitgo.Trie, cidr string, aspathStr string) config.RpkiValidationResultType {
+	_, p, _ := net.ParseCIDR(cidr)
+	ones, _ := p.Mask.Size()
+	r := ValidatePath(65500, tree, p.IP, uint8(ones), strToASParam(aspathStr))
 	return r.Status
 }
 
