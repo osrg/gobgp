@@ -3338,7 +3338,7 @@ func (r *RoutingPolicy) DeleteStatement(st *Statement, all bool) (err error) {
 	return err
 }
 
-func (r *RoutingPolicy) ReplaceStatement(st *Statement) (err error) {
+func (r *RoutingPolicy) ReplaceStatement(st *Statement, all bool) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -3351,7 +3351,13 @@ func (r *RoutingPolicy) ReplaceStatement(st *Statement) (err error) {
 	m := r.statementMap
 	name := st.Name
 	if d, ok := m[name]; ok {
-		err = d.Replace(st)
+		if all {
+			d.Conditions = st.Conditions
+			d.RouteAction = st.RouteAction
+			d.ModActions = st.ModActions
+		} else {
+			err = d.Replace(st)
+		}
 	} else {
 		err = fmt.Errorf("not found statement: %s", name)
 	}

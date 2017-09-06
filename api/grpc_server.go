@@ -2106,7 +2106,7 @@ func (s *Server) ReplaceStatement(ctx context.Context, arg *ReplaceStatementRequ
 	}
 	st, err := NewStatementFromApiStruct(arg.Statement)
 	if err == nil {
-		err = s.bgpServer.ReplaceStatement(st)
+		err = s.bgpServer.ReplaceStatement(st, arg.All)
 	}
 	return &ReplaceStatementResponse{}, err
 }

@@ -2224,9 +2224,9 @@ func (s *BgpServer) DeleteStatement(st *table.Statement, all bool) error {
 	}, false)
 }
 
-func (s *BgpServer) ReplaceStatement(st *table.Statement) error {
+func (s *BgpServer) ReplaceStatement(st *table.Statement, all bool) error {
 	return s.mgmtOperation(func() error {
-		return s.policy.ReplaceStatement(st)
+		return s.policy.ReplaceStatement(st, all)
 	}, false)
 }
 

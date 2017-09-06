@@ -662,10 +662,11 @@ func (cli *Client) DeleteStatement(t *table.Statement, all bool) error {
 	return err
 }
 
-func (cli *Client) ReplaceStatement(t *table.Statement) error {
+func (cli *Client) ReplaceStatement(t *table.Statement, all bool) error {
 	a := api.NewAPIStatementFromTableStruct(t)
 	_, err := cli.cli.ReplaceStatement(context.Background(), &api.ReplaceStatementRequest{
 		Statement: a,
+		All:       all,
 	})
 	return err
 }
