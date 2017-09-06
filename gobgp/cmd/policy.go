@@ -463,7 +463,7 @@ func modStatement(op string, args []string) error {
 	case CMD_ADD:
 		err = client.AddStatement(stmt)
 	case CMD_DEL:
-		err = client.DeleteStatement(stmt, false)
+		err = client.DeleteStatement(stmt, true)
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
