@@ -2181,6 +2181,19 @@ func (s *Server) GetPolicyAssignment(ctx context.Context, arg *GetPolicyAssignme
 	return &GetPolicyAssignmentResponse{NewAPIPolicyAssignmentFromTableStruct(t)}, err
 }
 
+func (s *Server) GetAllPolicyAssignments(ctx context.Context, arg *GetAllPolicyAssignmentsRequest) (*GetAllPolicyAssignmentsResponse, error) {
+	assignments, err := s.bgpServer.GetAllPolicyAssignments()
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*PolicyAssignment, 0, len(assignments))
+	for _, a := range assignments {
+		res = append(res, NewAPIPolicyAssignmentFromTableStruct(a))
+	}
+	return &GetAllPolicyAssignmentsResponse{res}, err
+}
+
 func defaultRouteType(d RouteAction) table.RouteType {
 	switch d {
 	case RouteAction_ACCEPT:
