@@ -375,20 +375,14 @@ class QuaggaOSPFContainer(OSPFContainer):
             f.writelines(str(c))
 
     def _start_zebra(self):
-        if self.zapi_vserion == 2:
-            # Do nothing. supervisord will automatically start Zebra daemon.
-            return
-
-        self.local(
-            '/usr/local/sbin/zebra '
-            '-u root -g root -f {0}/zebra.conf'.format(self.SHARED_VOLUME),
-            detach=True)
+        # Do nothing. supervisord will automatically start Zebra daemon.
+        return
 
     def _start_ospfd(self):
         if self.zapi_vserion == 2:
             ospfd_cmd = '/usr/lib/quagga/ospfd'
         else:
-            ospfd_cmd = '/usr/local/sbin/ospfd -u root -g root'
+            ospfd_cmd = 'ospfd'
         self.local(
             '{0} -f {1}/ospfd.conf'.format(ospfd_cmd, self.SHARED_VOLUME),
             detach=True)
