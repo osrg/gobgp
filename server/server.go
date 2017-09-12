@@ -659,7 +659,7 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 	var dsts []*table.Destination
 
-	var gBestList, gOldList, bestList, oldList []*table.Path
+	var gBestList, gOldList []*table.Path
 	var mpathList [][]*table.Path
 
 	rib := server.globalRib
@@ -700,7 +700,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 			// match the Route Target in question.
 			//
 			// A BGP speaker should generate the minimum set of BGP VPN route
-			// updates (advertisements and/or withdrawls) necessary to transition
+			// updates (advertisements and/or withdraws) necessary to transition
 			// between the previous and current state of the route distribution
 			// graph that is derived from Route Target membership information.
 			if peer != nil && path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC {
@@ -744,14 +744,20 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 		server.notifyBestWatcher(gBestList, mpathList)
 	}
 
+	server.propagateUpdateToNeighbors(peer, dsts, gBestList, gOldList)
+}
+
+func (server *BgpServer) propagateUpdateToNeighbors(peer *Peer, dsts []*table.Destination, gBestList, gOldList []*table.Path) {
 	families := make(map[bgp.RouteFamily][]*table.Destination)
 	for _, dst := range dsts {
-		if families[dst.Family()] == nil {
-			families[dst.Family()] = make([]*table.Destination, 0, len(dsts))
+		family := dst.Family()
+		if families[family] == nil {
+			families[family] = make([]*table.Destination, 0, len(dsts))
 		}
-		families[dst.Family()] = append(families[dst.Family()], dst)
+		families[family] = append(families[family], dst)
 	}
 
+	var bestList, oldList []*table.Path
 	for family, l := range families {
 		for _, targetPeer := range server.neighborMap {
 			if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
@@ -1322,8 +1328,10 @@ func (s *BgpServer) UpdatePath(vrfId string, pathList []*table.Path) error {
 		if err := s.fixupApiPath(vrfId, pathList); err != nil {
 			return err
 		}
-
-		s.propagateUpdate(nil, pathList)
+		dsts := s.globalRib.ProcessPaths(pathList)
+		gBestList, gOldList, gMPathList := dstsToPaths(table.GLOBAL_RIB_NAME, dsts, false)
+		s.notifyBestWatcher(gBestList, gMPathList)
+		s.propagateUpdateToNeighbors(nil, dsts, gBestList, gOldList)
 		return nil
 	}, true)
 	return err
