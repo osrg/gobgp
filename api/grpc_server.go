@@ -2158,7 +2158,7 @@ func NewRoaListFromTableStructList(origin []*table.ROA) []*Roa {
 
 func (s *Server) GetPolicy(ctx context.Context, arg *GetPolicyRequest) (*GetPolicyResponse, error) {
 	l := make([]*Policy, 0)
-	for _, p := range s.bgpServer.GetPolicy() {
+	for _, p := range s.bgpServer.GetPolicy(arg.Name) {
 		l = append(l, toPolicyApi(p))
 	}
 	return &GetPolicyResponse{Policies: l}, nil

@@ -3362,6 +3362,23 @@ func (r *RoutingPolicy) GetAllPolicy() []*config.PolicyDefinition {
 	return l
 }
 
+func (r *RoutingPolicy) GetPolicyDefinition(name string) []*config.PolicyDefinition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	l := make([]*config.PolicyDefinition, 0, len(r.policyMap))
+	if name != "" {
+		if p, ok := r.policyMap[name]; ok {
+			l = append(l, p.ToConfig())
+		}
+	} else {
+		for _, p := range r.policyMap {
+			l = append(l, p.ToConfig())
+		}
+	}
+	return l
+}
+
 func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

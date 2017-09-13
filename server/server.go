@@ -2175,9 +2175,9 @@ func (s *BgpServer) ReplaceStatement(st *table.Statement) error {
 	}, false)
 }
 
-func (s *BgpServer) GetPolicy() (l []*config.PolicyDefinition) {
+func (s *BgpServer) GetPolicy(name string) (l []*config.PolicyDefinition) {
 	s.mgmtOperation(func() error {
-		l = s.policy.GetAllPolicy()
+		l = s.policy.GetPolicyDefinition(name)
 		return nil
 	}, false)
 	return l
