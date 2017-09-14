@@ -91,6 +91,10 @@
            enabled = true
            # long lived graceful restart restart time
            restart-time = 100000
+        [neighbors.afi-safis.add-paths.config]
+           # override neighbors.add-paths.config
+           receive = true
+           send-max = 8
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-unicast"

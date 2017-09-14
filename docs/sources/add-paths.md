@@ -34,6 +34,26 @@ receive multiple paths from this neighbor.
       receive = true
 ```
 
+Also, BGP Additional Paths features are configurable per AFI-SAFI and the per
+AFI-SAFI configuration overrides the per neighbor configuration.
+The following example enables BGP Additional Paths features for only IPv4
+unicast family.
+
+```toml
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.2"
+  [neighbors.add-paths.config]
+    receive = false
+    send-max = 0
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+      send-max = 8
+```
+
 ## <a name="section1"> Verification
 
 ### <a name="section1.1"> Example Topology and Configuration
