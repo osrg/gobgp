@@ -43,7 +43,8 @@ type Server struct {
 }
 
 func NewGrpcServer(b *server.BgpServer, hosts string) *Server {
-	return NewServer(b, grpc.NewServer(), hosts)
+	size := 256 << 20
+	return NewServer(b, grpc.NewServer(grpc.MaxRecvMsgSize(size), grpc.MaxSendMsgSize(size)), hosts)
 }
 
 func NewServer(b *server.BgpServer, g *grpc.Server, hosts string) *Server {
