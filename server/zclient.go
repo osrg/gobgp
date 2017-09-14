@@ -32,7 +32,7 @@ type pathList []*table.Path
 
 type nexthopTrackingManager struct {
 	dead              chan struct{}
-	nexthopCache      []*net.IP
+	nexthopCache      map[string]struct{}
 	server            *BgpServer
 	delay             int
 	isScheduled       bool
@@ -44,7 +44,7 @@ type nexthopTrackingManager struct {
 func newNexthopTrackingManager(server *BgpServer, delay int) *nexthopTrackingManager {
 	return &nexthopTrackingManager{
 		dead:              make(chan struct{}),
-		nexthopCache:      make([]*net.IP, 0),
+		nexthopCache:      make(map[string]struct{}),
 		server:            server,
 		delay:             delay,
 		scheduledPathList: make(map[string]pathList, 0),
@@ -60,20 +60,23 @@ func (m *nexthopTrackingManager) stop() {
 }
 
 func (m *nexthopTrackingManager) isRegisteredNexthop(nexthop net.IP) bool {
-	for _, cached := range m.nexthopCache {
-		if cached.Equal(nexthop) {
-			return true
-		}
-	}
-	return false
+	key := nexthop.String()
+	_, ok := m.nexthopCache[key]
+	return ok
 }
 
 func (m *nexthopTrackingManager) registerNexthop(nexthop net.IP) bool {
-	if m.isRegisteredNexthop(nexthop) {
+	key := nexthop.String()
+	if _, ok := m.nexthopCache[key]; ok {
 		return false
 	}
-	m.nexthopCache = append(m.nexthopCache, &nexthop)
+	m.nexthopCache[key] = struct{}{}
 	return true
+}
+
+func (m *nexthopTrackingManager) unregisterNexthop(nexthop net.IP) {
+	key := nexthop.String()
+	delete(m.nexthopCache, key)
 }
 
 func (m *nexthopTrackingManager) appendPathList(paths pathList) {
@@ -199,7 +202,7 @@ func filterOutExternalPath(paths pathList) pathList {
 	return filteredPaths
 }
 
-func newIPRouteBody(dst pathList) (*zebra.IPRouteBody, bool) {
+func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 	paths := filterOutExternalPath(dst)
 	if len(paths) == 0 {
 		return nil, false
@@ -256,7 +259,7 @@ func newIPRouteBody(dst pathList) (*zebra.IPRouteBody, bool) {
 	}, path.IsWithdraw
 }
 
-func newNexthopRegisterBody(dst pathList, nhtManager *nexthopTrackingManager) (*zebra.NexthopRegisterBody, bool) {
+func newNexthopRegisterBody(dst pathList, nhtManager *nexthopTrackingManager) (body *zebra.NexthopRegisterBody, isWithdraw bool) {
 	if nhtManager == nil {
 		return nil, false
 	}
@@ -268,10 +271,9 @@ func newNexthopRegisterBody(dst pathList, nhtManager *nexthopTrackingManager) (*
 	path := paths[0]
 
 	if path.IsWithdraw == true {
-		// TODO:
-		// Send NEXTHOP_UNREGISTER message if the given nexthop is no longer
-		// referred by any path. Currently, do not send NEXTHOP_UNREGISTER
-		// message to simplify the implementation.
+		// NEXTHOP_UNREGISTER message will be sent when GoBGP received
+		// NEXTHOP_UPDATE message and there is no path bound for the updated
+		// nexthop. So there is nothing to do here.
 		return nil, true
 	}
 
@@ -372,7 +374,7 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	return path
 }
 
-func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.TableManager) (pathList, error) {
+func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.TableManager, nhtManager *nexthopTrackingManager) (pathList, *zebra.NexthopRegisterBody, error) {
 	body := m.Body.(*zebra.NexthopUpdateBody)
 	isNexthopInvalid := len(body.Nexthops) == 0
 
@@ -383,11 +385,26 @@ func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.Tab
 	case uint16(syscall.AF_INET6):
 		rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
 	default:
-		return nil, fmt.Errorf("invalid address family: %d", body.Family)
+		return nil, nil, fmt.Errorf("invalid address family: %d", body.Family)
 	}
 
 	paths := manager.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix)
-	updatedPathList := make(pathList, 0, len(paths))
+	pathsLen := len(paths)
+
+	// If there is no path bound for the updated nexthop, send
+	// NEXTHOP_UNREGISTER message.
+	var nexthopUnregisterBody *zebra.NexthopRegisterBody
+	if pathsLen == 0 {
+		nexthopUnregisterBody = &zebra.NexthopRegisterBody{
+			Nexthops: []*zebra.RegisteredNexthop{{
+				Family: body.Family,
+				Prefix: body.Prefix,
+			}},
+		}
+		nhtManager.unregisterNexthop(body.Prefix)
+	}
+
+	updatedPathList := make(pathList, 0, pathsLen)
 	for _, path := range paths {
 		newPath := path.Clone(false)
 		if isNexthopInvalid {
@@ -403,7 +420,7 @@ func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.Tab
 		updatedPathList = append(updatedPathList, newPath)
 	}
 
-	return updatedPathList, nil
+	return updatedPathList, nexthopUnregisterBody, nil
 }
 
 type zebraClient struct {
@@ -440,10 +457,13 @@ func (z *zebraClient) loop() {
 				}
 			case *zebra.NexthopUpdateBody:
 				if z.nhtManager != nil {
-					if paths, err := createPathListFromNexthopUpdateMessage(msg, z.server.globalRib); err != nil {
+					if paths, b, err := createPathListFromNexthopUpdateMessage(msg, z.server.globalRib, z.nhtManager); err != nil {
 						log.Errorf("failed to create updated path list related to nexthop %s", body.Prefix.String())
 					} else {
 						z.nhtManager.scheduleUpdate(paths)
+						if b != nil {
+							z.client.SendNexthopRegister(msg.Header.VrfId, b, true)
+						}
 					}
 				}
 			}
