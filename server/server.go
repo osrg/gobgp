@@ -496,6 +496,33 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
 }
 
+func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*table.Path, msg *bgp.BGPMessage, timestamp time.Time, payload []byte) {
+	if !server.isWatched(WATCH_EVENT_TYPE_PRE_UPDATE) || peer == nil {
+		return
+	}
+	cloned := clonePathList(pathList)
+	if len(cloned) == 0 {
+		return
+	}
+	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	l, _ := peer.fsm.LocalHostPort()
+	ev := &WatchEventUpdate{
+		Message:      msg,
+		PeerAS:       peer.fsm.peerInfo.AS,
+		LocalAS:      peer.fsm.peerInfo.LocalAS,
+		PeerAddress:  peer.fsm.peerInfo.Address,
+		LocalAddress: net.ParseIP(l),
+		PeerID:       peer.fsm.peerInfo.ID,
+		FourBytesAs:  y,
+		Timestamp:    timestamp,
+		Payload:      payload,
+		PostPolicy:   false,
+		PathList:     cloned,
+		Neighbor:     peer.ToConfig(false),
+	}
+	server.notifyWatcher(WATCH_EVENT_TYPE_PRE_UPDATE, ev)
+}
+
 func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*table.Path) {
 	if !server.isWatched(WATCH_EVENT_TYPE_POST_UPDATE) || peer == nil {
 		return
@@ -986,24 +1013,8 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				sendFsmOutgoingMsg(peer, nil, notification, true)
 				return
 			}
-			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.isWatched(WATCH_EVENT_TYPE_PRE_UPDATE) {
-				_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-				l, _ := peer.fsm.LocalHostPort()
-				ev := &WatchEventUpdate{
-					Message:      m,
-					PeerAS:       peer.fsm.peerInfo.AS,
-					LocalAS:      peer.fsm.peerInfo.LocalAS,
-					PeerAddress:  peer.fsm.peerInfo.Address,
-					LocalAddress: net.ParseIP(l),
-					PeerID:       peer.fsm.peerInfo.ID,
-					FourBytesAs:  y,
-					Timestamp:    e.timestamp,
-					Payload:      e.payload,
-					PostPolicy:   false,
-					PathList:     clonePathList(pathList),
-					Neighbor:     peer.ToConfig(false),
-				}
-				server.notifyWatcher(WATCH_EVENT_TYPE_PRE_UPDATE, ev)
+			if m.Header.Type == bgp.BGP_MSG_UPDATE {
+				server.notifyPrePolicyUpdateWatcher(peer, pathList, m, e.timestamp, e.payload)
 			}
 
 			if len(pathList) > 0 {
