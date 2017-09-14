@@ -348,10 +348,82 @@ type bucket struct {
 	paths []*Path
 }
 
+func registerToPathByAttrs(pathByAttrs map[uint32][]*bucket, path *Path) {
+	key, attrs := func(p *Path) (uint32, []byte) {
+		if p.IsWithdraw {
+			return uint32(0), nil
+		}
+		h := fnv.New32()
+		total := bytes.NewBuffer(make([]byte, 0))
+		for _, v := range p.GetPathAttrs() {
+			b, _ := v.Serialize()
+			total.Write(b)
+		}
+		h.Write(total.Bytes())
+		return h.Sum32(), total.Bytes()
+	}(path)
+
+	if bl, y := pathByAttrs[key]; y {
+		found := false
+		for _, b := range bl {
+			if bytes.Compare(b.attrs, attrs) == 0 {
+				b.paths = append(b.paths, path)
+				found = true
+				break
+			}
+		}
+		if found == false {
+			nb := &bucket{
+				attrs: attrs,
+				paths: []*Path{path},
+			}
+			pathByAttrs[key] = append(pathByAttrs[key], nb)
+		}
+	} else {
+		nb := &bucket{
+			attrs: attrs,
+			paths: []*Path{path},
+		}
+		pathByAttrs[key] = []*bucket{nb}
+	}
+}
+
+func createMsgsFromBucket(b bucket) []*bgp.BGPMessage {
+	var msgs []*bgp.BGPMessage
+	var msg *bgp.BGPMessage
+	for i, path := range b.paths {
+		if i == 0 {
+			msg = createUpdateMsgFromPath(path, nil)
+			msgs = append(msgs, msg)
+		} else {
+			msgLen := func(u *bgp.BGPUpdate) int {
+				attrsLen := 0
+				for _, a := range u.PathAttributes {
+					attrsLen += a.Len()
+				}
+				// Header + Update (WithdrawnRoutesLen +
+				// TotalPathAttributeLen + attributes + maxlen of
+				// NLRI). Note that we try to add one NLRI.
+				return 19 + 2 + 2 + attrsLen + (len(u.NLRI)+len(u.WithdrawnRoutes)+1)*5
+			}(msg.Body.(*bgp.BGPUpdate))
+
+			if msgLen+32 > bgp.BGP_MAX_MESSAGE_LENGTH {
+				// don't marge
+				msg = createUpdateMsgFromPath(path, nil)
+				msgs = append(msgs, msg)
+			} else {
+				createUpdateMsgFromPath(path, msg)
+			}
+		}
+	}
+	return msgs
+}
+
 func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 	var msgs []*bgp.BGPMessage
 
 	pathByAttrs := make(map[uint32][]*bucket)
+	withdraw := &bucket{paths: []*Path{}}
 	for _, path := range pathList {
 		if path == nil {
 			continue
@@ -359,50 +431,12 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 			msgs = append(msgs, bgp.NewEndOfRib(path.GetRouteFamily()))
 			continue
 		}
-		y := func(p *Path) bool {
-			if p.GetRouteFamily() != bgp.RF_IPv4_UC {
-				return false
-			}
-			if p.IsWithdraw {
-				return false
-			}
-			return true
-		}(path)
 
-		if y {
-			key, attrs := func(p *Path) (uint32, []byte) {
-				h := fnv.New32()
-				total := bytes.NewBuffer(make([]byte, 0))
-				for _, v := range p.GetPathAttrs() {
-					b, _ := v.Serialize()
-					total.Write(b)
-				}
-				h.Write(total.Bytes())
-				return h.Sum32(), total.Bytes()
-			}(path)
-
-			if bl, y := pathByAttrs[key]; y {
-				found := false
-				for _, b := range bl {
-					if bytes.Compare(b.attrs, attrs) == 0 {
-						b.paths = append(b.paths, path)
-						found = true
-						break
-					}
-				}
-				if found == false {
-					nb := &bucket{
-						attrs: attrs,
-						paths: []*Path{path},
-					}
-					pathByAttrs[key] = append(pathByAttrs[key], nb)
-				}
+		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
+			if path.IsWithdraw {
+				withdraw.paths = append(withdraw.paths, path)
 			} else {
-				nb := &bucket{
-					attrs: attrs,
-					paths: []*Path{path},
-				}
-				pathByAttrs[key] = []*bucket{nb}
+				registerToPathByAttrs(pathByAttrs, path)
 			}
 		} else {
 			msg := createUpdateMsgFromPath(path, nil)
@@ -410,34 +444,11 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 		}
 	}
 
+	msgs = append(msgs, createMsgsFromBucket(*withdraw)...)
+
 	for _, bList := range pathByAttrs {
 		for _, b := range bList {
-			var msg *bgp.BGPMessage
-			for i, path := range b.paths {
-				if i == 0 {
-					msg = createUpdateMsgFromPath(path, nil)
-					msgs = append(msgs, msg)
-				} else {
-					msgLen := func(u *bgp.BGPUpdate) int {
-						attrsLen := 0
-						for _, a := range u.PathAttributes {
-							attrsLen += a.Len()
-						}
-						// Header + Update (WithdrawnRoutesLen +
-						// TotalPathAttributeLen + attributes + maxlen of
-						// NLRI). Note that we try to add one NLRI.
-						return 19 + 2 + 2 + attrsLen + (len(u.NLRI)+1)*5
-					}(msg.Body.(*bgp.BGPUpdate))
-
-					if msgLen+32 > bgp.BGP_MAX_MESSAGE_LENGTH {
-						// don't marge
-						msg = createUpdateMsgFromPath(path, nil)
-						msgs = append(msgs, msg)
-					} else {
-						createUpdateMsgFromPath(path, msg)
-					}
-				}
-			}
+			msgs = append(msgs, createMsgsFromBucket(*b)...)
 		}
 	}
 
