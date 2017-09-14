@@ -559,6 +559,26 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 	}
 }
 
+func capAddPathFromConfig(pConf *config.Neighbor) bgp.ParameterCapabilityInterface {
+	tuples := make([]*bgp.CapAddPathTuple, 0, len(pConf.AfiSafis))
+	for _, af := range pConf.AfiSafis {
+		var mode bgp.BGPAddPathMode
+		if af.AddPaths.State.Receive {
+			mode |= bgp.BGP_ADD_PATH_RECEIVE
+		}
+		if af.AddPaths.State.SendMax > 0 {
+			mode |= bgp.BGP_ADD_PATH_SEND
+		}
+		if mode > 0 {
+			tuples = append(tuples, bgp.NewCapAddPathTuple(af.State.Family, mode))
+		}
+	}
+	if len(tuples) == 0 {
+		return nil
+	}
+	return bgp.NewCapAddPath(tuples)
+}
+
 func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInterface {
 	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
 	caps = append(caps, bgp.NewCapRouteRefresh())
@@ -595,9 +615,9 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 				}
 			}
 		}
-		time := c.RestartTime
+		restartTime := c.RestartTime
 		notification := c.NotificationEnabled
-		caps = append(caps, bgp.NewCapGracefulRestart(restarting, notification, time, tuples))
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, notification, restartTime, tuples))
 		if c.LongLivedEnabled {
 			caps = append(caps, bgp.NewCapLongLivedGracefulRestart(ltuples))
 		}
@@ -614,23 +634,12 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 			tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
 			tuples = append(tuples, tuple)
 		}
-		cap := bgp.NewCapExtendedNexthop(tuples)
-		caps = append(caps, cap)
+		caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
 	}
 
-	var mode bgp.BGPAddPathMode
-	if pConf.AddPaths.Config.Receive {
-		mode |= bgp.BGP_ADD_PATH_RECEIVE
-	}
-	if pConf.AddPaths.Config.SendMax > 0 {
-		mode |= bgp.BGP_ADD_PATH_SEND
-	}
-	if uint8(mode) > 0 {
-		items := make([]*bgp.CapAddPathTuple, 0, len(pConf.AfiSafis))
-		for _, af := range pConf.AfiSafis {
-			items = append(items, bgp.NewCapAddPathTuple(af.State.Family, mode))
-		}
-		caps = append(caps, bgp.NewCapAddPath(items))
+	// ADD-PATH Capability
+	if c := capAddPathFromConfig(pConf); c != nil {
+		caps = append(caps, capAddPathFromConfig(pConf))
 	}
 
 	return caps

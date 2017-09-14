@@ -144,11 +144,19 @@ func (peer *Peer) isGracefulRestartEnabled() bool {
 	return peer.fsm.pConf.GracefulRestart.State.Enabled
 }
 
-func (peer *Peer) isAddPathSendEnabled(family bgp.RouteFamily) bool {
-	if mode, y := peer.fsm.rfMap[family]; y && (mode&bgp.BGP_ADD_PATH_SEND) > 0 {
-		return true
+func (peer *Peer) getAddPathMode(family bgp.RouteFamily) bgp.BGPAddPathMode {
+	if mode, y := peer.fsm.rfMap[family]; y {
+		return mode
 	}
-	return false
+	return bgp.BGP_ADD_PATH_NONE
+}
+
+func (peer *Peer) isAddPathReceiveEnabled(family bgp.RouteFamily) bool {
+	return (peer.getAddPathMode(family) & bgp.BGP_ADD_PATH_RECEIVE) > 0
+}
+
+func (peer *Peer) isAddPathSendEnabled(family bgp.RouteFamily) bool {
+	return (peer.getAddPathMode(family) & bgp.BGP_ADD_PATH_SEND) > 0
 }
 
 func (peer *Peer) isDynamicNeighbor() bool {
@@ -588,17 +596,23 @@ func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
 	conf := *peer.fsm.pConf
 
 	conf.AfiSafis = make([]config.AfiSafi, len(peer.fsm.pConf.AfiSafis))
-	for i := 0; i < len(peer.fsm.pConf.AfiSafis); i++ {
-		conf.AfiSafis[i] = peer.fsm.pConf.AfiSafis[i]
+	for i, af := range peer.fsm.pConf.AfiSafis {
+		conf.AfiSafis[i] = af
+		conf.AfiSafis[i].AddPaths.State.Receive = peer.isAddPathReceiveEnabled(af.State.Family)
+		if peer.isAddPathSendEnabled(af.State.Family) {
+			conf.AfiSafis[i].AddPaths.State.SendMax = af.AddPaths.State.SendMax
+		} else {
+			conf.AfiSafis[i].AddPaths.State.SendMax = 0
+		}
 	}
 
 	remoteCap := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
-	for _, c := range peer.fsm.capMap {
-		for _, m := range c {
+	for _, caps := range peer.fsm.capMap {
+		for _, m := range caps {
 			// need to copy all values here
 			buf, _ := m.Serialize()
-			cap, _ := bgp.DecodeCapability(buf)
-			remoteCap = append(remoteCap, cap)
+			c, _ := bgp.DecodeCapability(buf)
+			remoteCap = append(remoteCap, c)
 		}
 	}
 	conf.State.RemoteCapabilityList = remoteCap

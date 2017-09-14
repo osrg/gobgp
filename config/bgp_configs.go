@@ -3933,6 +3933,9 @@ type AfiSafi struct {
 	RouteTargetMembership RouteTargetMembership `mapstructure:"route-target-membership" json:"route-target-membership,omitempty"`
 	// original -> gobgp:long-lived-graceful-restart
 	LongLivedGracefulRestart LongLivedGracefulRestart `mapstructure:"long-lived-graceful-restart" json:"long-lived-graceful-restart,omitempty"`
+	// original -> gobgp:add-paths
+	// add-paths configuration options related to a particular AFI-SAFI.
+	AddPaths AddPaths `mapstructure:"add-paths" json:"add-paths,omitempty"`
 }
 
 func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
@@ -3991,6 +3994,9 @@ func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
 		return false
 	}
 	if !lhs.LongLivedGracefulRestart.Equal(&(rhs.LongLivedGracefulRestart)) {
+		return false
+	}
+	if !lhs.AddPaths.Equal(&(rhs.AddPaths)) {
 		return false
 	}
 	return true

@@ -1251,4 +1251,17 @@ module gobgp {
     
     uses long-lived-graceful-restart;
   }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
+    container add-paths {
+      description
+        "add-paths configuration options related to a particular AFI-SAFI.";
+      container config {
+          uses bgp:bgp-neighbor-add-paths_config;
+      }
+      container state {
+          uses bgp:bgp-neighbor-add-paths_config;
+      }
+    }
+  }
 }
