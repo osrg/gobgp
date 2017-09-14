@@ -59,6 +59,8 @@ class GoBGPContainer(BGPContainer):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
+        self.quagga_config_dir = '{0}/quagga'.format(self.config_dir)
+        self.shared_volumes.append((self.quagga_config_dir, self.QUAGGA_VOLUME))
 
         self.log_level = log_level
         self.prefix_set = None
@@ -100,20 +102,18 @@ class GoBGPContainer(BGPContainer):
 
     def _start_zebra(self):
         if self.zapi_version == 2:
-            cmd = 'cp {0}/zebra.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
-            self.local(cmd)
-            cmd = '/usr/lib/quagga/zebra -f {0}/zebra.conf'.format(self.QUAGGA_VOLUME)
+            daemon_bin = '/usr/lib/quagga/zebra'
         else:
-            cmd = 'zebra -u root -g root -f {0}/zebra.conf'.format(self.SHARED_VOLUME)
+            daemon_bin = 'zebra'
+        cmd = '{0} -f {1}/zebra.conf'.format(daemon_bin, self.QUAGGA_VOLUME)
         self.local(cmd, detach=True)
 
     def _start_ospfd(self):
         if self.zapi_version == 2:
-            cmd = 'cp {0}/ospfd.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
-            self.local(cmd)
-            cmd = '/usr/lib/quagga/ospfd -f {0}/ospfd.conf'.format(self.QUAGGA_VOLUME)
+            daemon_bin = '/usr/lib/quagga/ospfd'
         else:
-            cmd = 'ospfd -u root -g root -f {0}/ospfd.conf'.format(self.SHARED_VOLUME)
+            daemon_bin = 'ospfd'
+        cmd = '{0} -f {1}/ospfd.conf'.format(daemon_bin, self.QUAGGA_VOLUME)
         self.local(cmd, detach=True)
 
     def run(self):
@@ -288,6 +288,8 @@ class GoBGPContainer(BGPContainer):
     def create_config(self):
         self._create_config_bgp()
         if self.zebra:
+            local('mkdir -p {0}'.format(self.quagga_config_dir))
+            local('chmod 777 {0}'.format(self.quagga_config_dir))
             self._create_config_zebra()
             if self.ospfd_config:
                 self._create_config_ospfd()
@@ -468,13 +470,13 @@ class GoBGPContainer(BGPContainer):
         c = CmdBuffer()
         c << 'hostname zebra'
         c << 'password zebra'
-        c << 'log file {0}/zebra.log'.format(self.SHARED_VOLUME)
+        c << 'log file {0}/zebra.log'.format(self.QUAGGA_VOLUME)
         c << 'debug zebra packet'
         c << 'debug zebra kernel'
         c << 'debug zebra rib'
         c << ''
 
-        with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
+        with open('{0}/zebra.conf'.format(self.quagga_config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
@@ -488,10 +490,10 @@ class GoBGPContainer(BGPContainer):
             c << ' redistribute {0}'.format(redistribute)
         for network, area in self.ospfd_config.get('networks', {}).items():
             c << ' network {0} area {1}'.format(network, area)
-        c << 'log file {0}/ospfd.log'.format(self.SHARED_VOLUME)
+        c << 'log file {0}/ospfd.log'.format(self.QUAGGA_VOLUME)
         c << ''
 
-        with open('{0}/ospfd.conf'.format(self.config_dir), 'w') as f:
+        with open('{0}/ospfd.conf'.format(self.quagga_config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new ospfd.conf]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
