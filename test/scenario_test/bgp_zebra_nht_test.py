@@ -32,14 +32,12 @@ from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaOSPFContainer
 
 
-def try_local(command, f=local, ok_ret_codes=None, **kwargs):
-    ok_ret_codes = ok_ret_codes or []
-    orig_ok_ret_codes = list(env.ok_ret_codes)
-    try:
-        env.ok_ret_codes.extend(ok_ret_codes)
-        return f(command, **kwargs)
-    finally:
-        env.ok_ret_codes = orig_ok_ret_codes
+def check_metric(cnt, prefix, metric):
+    for nw in cnt.get_global_rib(prefix=prefix):
+        for path in nw['paths']:
+            if path['metric'] == metric:
+                return True
+    return False
 
 
 def wait_for(f, timeout=120):
@@ -67,7 +65,6 @@ class ZebraNHTTest(unittest.TestCase):
     """
     Test case for Next-Hop Tracking with Zebra integration.
     """
-    # R1: GoBGP
     # R2: GoBGP + Zebra + OSPFd
     # R3: Zebra + OSPFd
     # R4: Zebra + OSPFd
@@ -83,14 +80,6 @@ class ZebraNHTTest(unittest.TestCase):
     # +----+      |
     # | R2 |------+
     # +----+
-    #   | 192.168.0.2/24
-    #   |
-    #   | 192.168.0.0/24
-    #   |
-    #   | 192.168.0.1/24
-    # +----+
-    # | R1 |
-    # +----+
 
     @classmethod
     def setUpClass(cls):
@@ -98,12 +87,6 @@ class ZebraNHTTest(unittest.TestCase):
         base.TEST_PREFIX = parser_option.test_prefix
 
         local("echo 'start %s'" % cls.__name__, capture=True)
-
-        cls.r1 = GoBGPContainer(
-            name='r1', asn=65000, router_id='192.168.0.1',
-            ctn_image_name=gobgp_ctn_image_name,
-            log_level=parser_option.gobgp_log_level,
-            zebra=False)
 
         cls.r2 = GoBGPContainer(
             name='r2', asn=65000, router_id='192.168.0.2',
@@ -144,11 +127,8 @@ class ZebraNHTTest(unittest.TestCase):
                 },
             })
 
-        wait_time = max(ctn.run() for ctn in [cls.r1, cls.r2, cls.r3, cls.r4])
+        wait_time = max(ctn.run() for ctn in [cls.r2, cls.r3, cls.r4])
         time.sleep(wait_time)
-
-        cls.br_r1_r2 = Bridge(name='br_r1_r2', subnet='192.168.12.0/24')
-        [cls.br_r1_r2.addif(ctn) for ctn in (cls.r1, cls.r2)]
 
         cls.br_r2_r3 = Bridge(name='br_r2_r3', subnet='192.168.23.0/24')
         [cls.br_r2_r3.addif(ctn) for ctn in (cls.r2, cls.r3)]
@@ -159,127 +139,63 @@ class ZebraNHTTest(unittest.TestCase):
         cls.br_r3_r4 = Bridge(name='br_r3_r4', subnet='192.168.34.0/24')
         [cls.br_r3_r4.addif(ctn) for ctn in (cls.r3, cls.r4)]
 
-    def test_01_BGP_neighbor_established(self):
-        """
-        Test to start BGP connection up between r1-r2.
-        """
-
-        self.r1.add_peer(self.r2, bridge=self.br_r1_r2.name)
-        self.r2.add_peer(self.r1, bridge=self.br_r1_r2.name)
-
-        self.r1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.r2)
-
-    def test_02_OSPF_established(self):
-        """
-        Test to start OSPF connection up between r2-r3 and receive the route
-        to r3's loopback '10.3.1.1'.
-        """
+    def test_01_OSPF_established(self):
+        # Test to start OSPF connection up between r2-r3 and receive the route
+        # to r3's loopback '10.3.1.1'.
         def _f():
-            return try_local(
-                "vtysh -c 'show ip ospf route'"
-                " | grep '10.3.1.1/32'",
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            return self.r2.local("vtysh -c 'show ip ospf neighbor 10.3.1.1'",
+                                 capture=True)
 
         wait_for(f=_f)
 
-    def test_03_add_ipv4_route(self):
-        """
-        Test to add IPv4 route to '10.3.1.0/24' whose nexthop is r3's
-        loopback '10.3.1.1'.
+    def test_02_add_ipv4_route(self):
+        # Test to add IPv4 route to '10.3.1.0/24' whose nexthop is r3's
+        # loopback '10.3.1.1'.
+        #
+        # Also, test to receive the initial Metric.
+        # Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
+        metric = 20
 
-        Also, test to receive the initial MED/Metric.
-        """
-        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
-        med = 20
-
-        def _f_r2():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
-
-        def _f_r1():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r1.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+        def _f():
+            return check_metric(self.r2, '10.3.1.0/24', metric)
 
         self.r2.local(
             'gobgp global rib add -a ipv4 10.3.1.0/24 nexthop 10.3.1.1')
 
-        wait_for(f=_f_r2)
-        wait_for(f=_f_r1)
+        wait_for(f=_f)
 
-    def test_04_link_r2_r3_down(self):
-        """
-        Test to update MED to the nexthop if the Metric to that nexthop is
-        changed by the link down.
+    def test_03_link_r2_r3_down(self):
+        # Test to update Metric to the nexthop if the Metric to that nexthop is
+        # changed by the link down.
+        #
+        # If the link r2-r3 goes down, Metric should be increased.
+        # Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
+        metric = 30
 
-        If the link r2-r3 goes down, MED/Metric should be increased.
-        """
-        # MED/Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
-        med = 30
-
-        def _f_r2():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
-
-        def _f_r1():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r1.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+        def _f():
+            return check_metric(self.r2, '10.3.1.0/24', metric)
 
         ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
         self.r3.local('ip link set %s down' % ifname)
 
-        wait_for(f=_f_r2)
-        wait_for(f=_f_r1)
+        wait_for(f=_f)
 
-    def test_05_link_r2_r3_restore(self):
-        """
-        Test to update MED to the nexthop if the Metric to that nexthop is
-        changed by the link up again.
+    def test_04_link_r2_r3_restore(self):
+        # Test to update Metric to the nexthop if the Metric to that nexthop is
+        # changed by the link up again.
+        #
+        # If the link r2-r3 goes up again, Metric should be update with
+        # the initial value.
+        # Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
+        metric = 20
 
-        If the link r2-r3 goes up again, MED/Metric should be update with
-        the initial value.
-        """
-        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
-        med = 20
-
-        def _f_r2():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
-
-        def _f_r1():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r1.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+        def _f():
+            return check_metric(self.r2, '10.3.1.0/24', metric)
 
         ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
         self.r3.local('ip link set %s up' % ifname)
 
-        wait_for(f=_f_r2)
-        wait_for(f=_f_r1)
+        wait_for(f=_f)
 
 
 if __name__ == '__main__':
