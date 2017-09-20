@@ -856,17 +856,17 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 				fmsg.MsgType = FSM_MSG_ROUTE_REFRESH
 			case bgp.BGP_MSG_UPDATE:
 				body := m.Body.(*bgp.BGPUpdate)
-				confedCheck := !config.IsConfederationMember(h.fsm.gConf, h.fsm.pConf) && config.IsEBGPPeer(h.fsm.gConf, h.fsm.pConf)
+				isEBGP := h.fsm.pConf.IsEBGPPeer(h.fsm.gConf)
+				isConfed := h.fsm.pConf.IsConfederationMember(h.fsm.gConf)
 
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
 				copy(fmsg.payload, headerBuf)
 				copy(fmsg.payload[len(headerBuf):], bodyBuf)
 
-				ok, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, confedCheck)
+				ok, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, isEBGP, isConfed)
 				if !ok {
 					handling = h.handlingError(m, err, useRevisedError)
 				}
-
 				if handling == bgp.ERROR_HANDLING_SESSION_RESET {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",

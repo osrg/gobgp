@@ -40,19 +40,24 @@ func detectConfigFileType(path, def string) string {
 	}
 }
 
-func IsConfederationMember(g *Global, p *Neighbor) bool {
-	if p.Config.PeerAs != g.Config.As {
-		for _, member := range g.Confederation.Config.MemberAsList {
-			if member == p.Config.PeerAs {
-				return true
-			}
+func (n *Neighbor) IsConfederationMember(g *Global) bool {
+	for _, member := range g.Confederation.Config.MemberAsList {
+		if member == n.Config.PeerAs {
+			return true
 		}
 	}
 	return false
 }
 
-func IsEBGPPeer(g *Global, p *Neighbor) bool {
-	return p.Config.PeerAs != g.Config.As
+func (n *Neighbor) IsConfederation(g *Global) bool {
+	if n.Config.PeerAs == g.Config.As {
+		return true
+	}
+	return n.IsConfederationMember(g)
+}
+
+func (n *Neighbor) IsEBGPPeer(g *Global) bool {
+	return n.Config.PeerAs != g.Config.As
 }
 
 type AfiSafis []AfiSafi
