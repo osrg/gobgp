@@ -8,7 +8,7 @@ import (
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool) (bool, error) {
 	var strongestError error
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -30,7 +30,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 			seen[a.GetType()] = a
 			newAttrs = append(newAttrs, a)
 			//check specific path attribute
-			ok, err := ValidateAttribute(a, rfs, doConfedCheck)
+			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed)
 			if !ok {
 				if err.(*MessageError).ErrorHandling == ERROR_HANDLING_SESSION_RESET {
 					return false, err
@@ -79,7 +79,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 	return strongestError == nil, strongestError
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool) (bool, error) {
 	var strongestError error
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -172,21 +172,28 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 			}
 		}
 	case *PathAttributeAsPath:
-		if doConfedCheck {
-			for _, paramIf := range p.Value {
-				var segType uint8
-				asParam, y := paramIf.(*As4PathParam)
-				if y {
-					segType = asParam.Type
-				} else {
-					segType = paramIf.(*AsPathParam).Type
+		getSegType := func(p AsPathParamInterface) uint8 {
+			asParam, y := p.(*As4PathParam)
+			if y {
+				return asParam.Type
+			} else {
+				return p.(*AsPathParam).Type
+			}
+		}
+		if isEBGP {
+			if isConfed {
+				if segType := getSegType(p.Value[0]); segType != BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type is not confederation seq (%d)", segType))
 				}
-
-				if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
-					err := NewMessageErrorWithErrorHandling(
-						eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, fmt.Sprintf("segment type confederation(%d) found", segType))
-					if err.(*MessageError).Stronger(strongestError) {
-						strongestError = err
+			} else {
+				for _, paramIf := range p.Value {
+					segType := getSegType(paramIf)
+					if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+						err := NewMessageErrorWithErrorHandling(
+							eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, fmt.Sprintf("segment type confederation(%d) found", segType))
+						if err.(*MessageError).Stronger(strongestError) {
+							strongestError = err
+						}
 					}
 				}
 			}
