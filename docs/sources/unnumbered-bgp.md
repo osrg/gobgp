@@ -2,7 +2,7 @@
 
 BGP is not only for the Internet. Due to proven scalability and configuration
 flexibility, large data center operators are using BGP for thier data center
-networking [[draft-ietf-rtgwg-bgp-routing-large-dc](https://www.ietf.org/id/draft-ietf-rtgwg-bgp-routing-large-dc-11.txt)].
+networking [[ietf-rtgwg-bgp-routing-large-dc](https://tools.ietf.org/html/rfc7938)].
 
 In typical case, the topology of the network is CLOS network which can offer
 multiple ECMP for ToR switches.
