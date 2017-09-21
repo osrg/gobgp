@@ -38,6 +38,7 @@ service GobgpApi {
   rpc EnableNeighbor(EnableNeighborRequest) returns (EnableNeighborResponse) {}
   rpc DisableNeighbor(DisableNeighborRequest) returns (DisableNeighborResponse) {}
   rpc GetRib(GetRibRequest) returns (GetRibResponse) {}
+  rpc GetPath(GetPathRequest) returns (stream Path) {}
   rpc ValidateRib(ValidateRibRequest) returns (ValidateRibResponse) {}
   rpc AddPath(AddPathRequest) returns (AddPathResponse) {}
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse) {}
@@ -564,6 +565,26 @@ message GetRibRequest {
 
 message GetRibResponse {
   Table table = 1;
+}
+
+// API representation of table.LookupOption
+enum TableLookupOption {
+  LOOKUP_EXACT = 0;
+  LOOKUP_LONGER = 1;
+  LOOKUP_SHORTER = 2;
+}
+
+// API representation of table.LookupPrefix
+message TableLookupPrefix {
+  string prefix = 1;
+  TableLookupOption lookup_option = 2;
+}
+
+message GetPathRequest {
+  Resource type = 1;
+  string name = 2;
+  uint32 family = 3;
+  repeated TableLookupPrefix prefixes = 4;
 }
 
 message ValidateRibRequest {

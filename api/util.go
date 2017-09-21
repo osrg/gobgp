@@ -46,7 +46,7 @@ func (t *Table) ToNativeTable(option ...ToNativeOption) (*table.Table, error) {
 }
 
 func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error) {
-	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(family))
+	afi, safi := bgp.RouteFamilyToAfiSafi(family)
 	nlri, err := bgp.NewPrefixFromRouteFamily(afi, safi)
 	if err != nil {
 		return nil, err
@@ -83,6 +83,10 @@ func (d *Destination) ToNativeDestination(option ...ToNativeOption) (*table.Dest
 		paths = append(paths, path)
 	}
 	return table.NewDestination(nlri, 0, paths...), nil
+}
+
+func (p *Path) GetNativeNlri() (bgp.AddrPrefixInterface, error) {
+	return getNLRI(bgp.RouteFamily(p.Family), p.Nlri)
 }
 
 func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {

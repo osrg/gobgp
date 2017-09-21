@@ -466,6 +466,58 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 	}, err
 }
 
+func (s *Server) GetPath(arg *GetPathRequest, stream GobgpApi_GetPathServer) error {
+	f := func() []*table.LookupPrefix {
+		l := make([]*table.LookupPrefix, 0, len(arg.Prefixes))
+		for _, p := range arg.Prefixes {
+			l = append(l, &table.LookupPrefix{
+				Prefix:       p.Prefix,
+				LookupOption: table.LookupOption(p.LookupOption),
+			})
+		}
+		return l
+	}
+
+	in := false
+	family := bgp.RouteFamily(arg.Family)
+	var tbl *table.Table
+	var err error
+	switch arg.Type {
+	case Resource_LOCAL, Resource_GLOBAL:
+		tbl, err = s.bgpServer.GetRib(arg.Name, family, f())
+	case Resource_ADJ_IN:
+		in = true
+		fallthrough
+	case Resource_ADJ_OUT:
+		tbl, err = s.bgpServer.GetAdjRib(arg.Name, family, in, f())
+	case Resource_VRF:
+		tbl, err = s.bgpServer.GetVrfRib(arg.Name, family, []*table.LookupPrefix{})
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Type)
+	}
+	if err != nil {
+		return err
+	}
+
+	return func() error {
+		for _, dst := range tbl.GetDestinations() {
+			for idx, path := range dst.GetAllKnownPathList() {
+				p := ToPathApi(path)
+				if idx == 0 {
+					switch arg.Type {
+					case Resource_LOCAL, Resource_GLOBAL:
+						p.Best = true
+					}
+				}
+				if err := stream.Send(p); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}()
+}
+
 func (s *Server) MonitorRib(arg *MonitorRibRequest, stream GobgpApi_MonitorRibServer) error {
 	if arg == nil || arg.Table == nil {
 		return fmt.Errorf("invalid request")

@@ -18,6 +18,7 @@ package client
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -241,34 +242,54 @@ func (cli *Client) SoftReset(addr string, family bgp.RouteFamily) error {
 }
 
 func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
-	dsts := make([]*api.Destination, 0, len(prefixes))
+	prefixList := make([]*api.TableLookupPrefix, 0, len(prefixes))
 	for _, p := range prefixes {
-		longer := false
-		shorter := false
-		if p.LookupOption&table.LOOKUP_LONGER > 0 {
-			longer = true
-		}
-		if p.LookupOption&table.LOOKUP_SHORTER > 0 {
-			shorter = true
-		}
-		dsts = append(dsts, &api.Destination{
-			Prefix:          p.Prefix,
-			LongerPrefixes:  longer,
-			ShorterPrefixes: shorter,
+		prefixList = append(prefixList, &api.TableLookupPrefix{
+			Prefix:       p.Prefix,
+			LookupOption: api.TableLookupOption(p.LookupOption),
 		})
 	}
-	res, err := cli.cli.GetRib(context.Background(), &api.GetRibRequest{
-		Table: &api.Table{
-			Type:         resource,
-			Family:       uint32(family),
-			Name:         name,
-			Destinations: dsts,
-		},
+	stream, err := cli.cli.GetPath(context.Background(), &api.GetPathRequest{
+		Type:     resource,
+		Family:   uint32(family),
+		Name:     name,
+		Prefixes: prefixList,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return res.Table.ToNativeTable()
+	pathMap := make(map[string][]*table.Path)
+	for {
+		p, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		nlri, err := p.GetNativeNlri()
+		if err != nil {
+			return nil, err
+		}
+		var path *table.Path
+		if p.Identifier > 0 {
+			path, err = p.ToNativePath()
+		} else {
+			path, err = p.ToNativePath(api.ToNativeOption{
+				NLRI: nlri,
+			})
+		}
+		if err != nil {
+			return nil, err
+		}
+		nlriStr := nlri.String()
+		pathMap[nlriStr] = append(pathMap[nlriStr], path)
+	}
+	dstList := make([]*table.Destination, 0, len(pathMap))
+	for _, pathList := range pathMap {
+		dstList = append(dstList, table.NewDestination(pathList[0].GetNlri(), 0, pathList...))
+	}
+	return table.NewTable(family, dstList...), nil
 }
 
 func (cli *Client) GetRIB(family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
