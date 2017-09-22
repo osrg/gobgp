@@ -665,7 +665,12 @@ func (path *Path) GetAsString() string {
 
 			sep := " "
 			switch segment.Type {
-			case bgp.BGP_ASPATH_ATTR_TYPE_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+				s.WriteString("(")
+			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+				s.WriteString("[")
+				sep = ","
+			case bgp.BGP_ASPATH_ATTR_TYPE_SET:
 				s.WriteString("{")
 				sep = ","
 			}
@@ -676,7 +681,11 @@ func (path *Path) GetAsString() string {
 				}
 			}
 			switch segment.Type {
-			case bgp.BGP_ASPATH_ATTR_TYPE_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+				s.WriteString(")")
+			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+				s.WriteString("]")
+			case bgp.BGP_ASPATH_ATTR_TYPE_SET:
 				s.WriteString("}")
 			}
 		}
