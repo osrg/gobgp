@@ -714,7 +714,15 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 		dsts = rib.ProcessPaths(append(pathList, moded...))
 	} else {
 		for idx, path := range pathList {
-			if p := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil); p != nil {
+			var options *table.PolicyOptions
+			if peer != nil {
+				options = &table.PolicyOptions{
+					Info: peer.fsm.peerInfo,
+				}
+			} else {
+				options = nil
+			}
+			if p := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, options); p != nil {
 				path = p
 			} else {
 				path = path.Clone(true)

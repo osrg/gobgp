@@ -92,6 +92,7 @@ type PeerInfo struct {
 	RouteReflectorClient    bool
 	RouteReflectorClusterID net.IP
 	MultihopTtl             uint8
+	Confederation           bool
 }
 
 func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
@@ -136,6 +137,7 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 		Address:                 naddr.IP,
 		RouteReflectorClusterID: id,
 		MultihopTtl:             p.EbgpMultihop.Config.MultihopTtl,
+		Confederation:           p.IsConfederationMember(g),
 	}
 }
 
@@ -892,9 +894,12 @@ func compareByASNumber(path1, path2 *Path) *Path {
 	log.WithFields(log.Fields{
 		"Topic": "Table",
 	}).Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.GetSource().AS, path2.GetSource().AS)
-	// If one path is from ibgp peer and another is from ebgp peer, take the ebgp path
-	if path1.IsIBGP() != path2.IsIBGP() {
-		if path1.IsIBGP() {
+	// Path from confederation member should be treated as internal (IBGP learned) path.
+	isIBGP1 := path1.GetSource().Confederation || path1.IsIBGP()
+	isIBGP2 := path2.GetSource().Confederation || path2.IsIBGP()
+	// If one path is from ibgp peer and another is from ebgp peer, take the ebgp path.
+	if isIBGP1 != isIBGP2 {
+		if isIBGP1 {
 			return path2
 		}
 		return path1
