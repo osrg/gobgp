@@ -268,7 +268,11 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 		path.RemovePrivateAS(peer.Config.LocalAs, peer.State.RemovePrivateAs)
 
 		// AS_PATH handling
-		path.PrependAsn(peer.Config.LocalAs, 1)
+		confed := peer.IsConfederationMember(global)
+		path.PrependAsn(peer.Config.LocalAs, 1, confed)
+		if !confed {
+			path.removeConfedAs()
+		}
 
 		// MED Handling
 		if med := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC); med != nil && !path.IsLocal() {
@@ -288,7 +292,7 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 		// if the path has AS_PATH path attribute, don't modify it.
 		// if not, attach *empty* AS_PATH path attribute.
 		if nh := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); nh == nil {
-			path.PrependAsn(0, 0)
+			path.PrependAsn(0, 0, false)
 		}
 
 		// For iBGP peers we are required to send local-pref attribute
@@ -711,6 +715,8 @@ func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 
 // PrependAsn prepends AS number.
 // This function updates the AS_PATH attribute as follows.
+// (If the peer is in the confederation member AS,
+//  replace AS_SEQUENCE in the following sentence with AS_CONFED_SEQUENCE.)
 //  1) if the first path segment of the AS_PATH is of type
 //     AS_SEQUENCE, the local system prepends the specified AS num as
 //     the last element of the sequence (put it in the left-most
@@ -729,7 +735,13 @@ func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 //  3) if the AS_PATH is empty, the local system creates a path
 //     segment of type AS_SEQUENCE, places the specified AS number
 //     into that segment, and places that segment into the AS_PATH.
-func (path *Path) PrependAsn(asn uint32, repeat uint8) {
+func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
+	var segType uint8
+	if confed {
+		segType = bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ
+	} else {
+		segType = bgp.BGP_ASPATH_ATTR_TYPE_SEQ
+	}
 
 	original := path.GetAsPath()
 
@@ -747,7 +759,7 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8) {
 
 	if len(asPath.Value) > 0 {
 		fst := asPath.Value[0].(*bgp.As4PathParam)
-		if fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ {
+		if fst.Type == segType {
 			if len(fst.AS)+int(repeat) > 255 {
 				repeat = uint8(255 - len(fst.AS))
 			}
@@ -758,7 +770,7 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8) {
 	}
 
 	if len(asns) > 0 {
-		p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
+		p := bgp.NewAs4PathParam(segType, asns)
 		asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
 	}
 	path.setPathAttr(asPath)
@@ -795,6 +807,21 @@ func (path *Path) RemovePrivateAS(localAS uint32, option config.RemovePrivateAsO
 		path.setPathAttr(bgp.NewPathAttributeAsPath(newASParams))
 	}
 	return
+}
+
+func (path *Path) removeConfedAs() {
+	original := path.GetAsPath()
+	if original == nil {
+		return
+	}
+	newAsParams := make([]bgp.AsPathParamInterface, 0, len(original.Value))
+	for _, v := range original.Value {
+		p := v.(*bgp.As4PathParam)
+		if p.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ || p.Type == bgp.BGP_ASPATH_ATTR_TYPE_SET {
+			newAsParams = append(newAsParams, p)
+		}
+	}
+	path.setPathAttr(bgp.NewPathAttributeAsPath(newAsParams))
 }
 
 func (path *Path) ReplaceAS(localAS, peerAS uint32) *Path {
