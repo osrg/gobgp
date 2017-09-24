@@ -73,6 +73,7 @@ service GobgpApi {
   rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse) {}
   rpc ReplacePolicy(ReplacePolicyRequest) returns (ReplacePolicyResponse) {}
   rpc GetPolicyAssignment(GetPolicyAssignmentRequest) returns (GetPolicyAssignmentResponse) {}
+  rpc GetAllPolicyAssignments(GetAllPolicyAssignmentsRequest) returns (GetAllPolicyAssignmentsResponse) {}
   rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (AddPolicyAssignmentResponse) {}
   rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (DeletePolicyAssignmentResponse) {}
   rpc ReplacePolicyAssignment(ReplacePolicyAssignmentRequest) returns (ReplacePolicyAssignmentResponse) {}
@@ -448,6 +449,13 @@ message GetPolicyAssignmentRequest {
 
 message GetPolicyAssignmentResponse {
   PolicyAssignment assignment = 1;
+}
+
+message GetAllPolicyAssignmentsRequest {
+}
+
+message GetAllPolicyAssignmentsResponse {
+  repeated PolicyAssignment assignments = 1;
 }
 
 message AddPolicyAssignmentRequest {

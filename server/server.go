@@ -2212,18 +2212,67 @@ func (server *BgpServer) toPolicyInfo(name string, dir table.PolicyDirection) (s
 	}
 }
 
+func (s *BgpServer) getPolicyAssignment(name string, dir table.PolicyDirection) (rt table.RouteType, l []*config.PolicyDefinition, err error) {
+	id, err := s.toPolicyInfo(name, dir)
+	if err != nil {
+		rt = table.ROUTE_TYPE_NONE
+		return table.ROUTE_TYPE_NONE, nil, err
+	}
+	return s.policy.GetPolicyAssignment(id, dir)
+}
+
 func (s *BgpServer) GetPolicyAssignment(name string, dir table.PolicyDirection) (rt table.RouteType, l []*config.PolicyDefinition, err error) {
 	err = s.mgmtOperation(func() error {
-		var id string
-		id, err = s.toPolicyInfo(name, dir)
-		if err != nil {
-			rt = table.ROUTE_TYPE_NONE
-			return err
-		}
-		rt, l, err = s.policy.GetPolicyAssignment(id, dir)
+		rt, l, err = s.getPolicyAssignment(name, dir)
 		return nil
 	}, false)
 	return rt, l, err
+}
+
+func (s *BgpServer) GetAllPolicyAssignments() (ls []*table.PolicyAssignment, err error) {
+
+	f := func(k string, d table.PolicyDirection) error {
+		rt, l, err := s.getPolicyAssignment(k, d)
+		if err != nil {
+			return nil
+		}
+		policies := make([]*table.Policy, 0)
+		for _, pd := range l {
+			p, _ := table.NewPolicy(*pd)
+			policies = append(policies, p)
+		}
+		pa := &table.PolicyAssignment{
+			Name:     k,
+			Type:     d,
+			Policies: policies,
+			Default:  rt,
+		}
+		ls = append(ls, pa)
+		return err
+	}
+
+	err = s.mgmtOperation(func() error {
+		dirs := []table.PolicyDirection{
+			table.POLICY_DIRECTION_IMPORT,
+			table.POLICY_DIRECTION_EXPORT,
+		}
+		for _, d := range dirs {
+			if err := f("", d); err != nil {
+				return err
+			}
+		}
+
+		dirs = append(dirs, table.POLICY_DIRECTION_IN)
+		for k := range s.neighborMap {
+			for _, d := range dirs {
+				if err := f(k, d); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}, false)
+	return ls, err
 }
 
 func (s *BgpServer) AddPolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, def table.RouteType) error {
