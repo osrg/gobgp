@@ -426,6 +426,9 @@ class GoBGPContainer(BGPContainer):
             for typ, d in info.get('default-policy', {}).iteritems():
                 n['apply-policy']['config']['default-{0}-policy'.format(typ)] = _f(d)
 
+            if info['treat_as_withdraw']:
+                n['error-handling'] = {'config': {'treat-as-withdraw': True}}
+
             config['neighbors'].append(n)
 
         config['defined-sets'] = {}

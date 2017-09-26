@@ -144,6 +144,9 @@ matrix:
     - <<: *_docker
       env:
         - TEST=addpath_test.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_malformed_msg_handling_test.py
 
 cache:
   pip: true
