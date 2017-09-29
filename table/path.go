@@ -257,13 +257,10 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 	}
 
 	localAddress := info.LocalAddress
-	isZero := func(ip net.IP) bool {
-		return ip.Equal(net.ParseIP("0.0.0.0")) || ip.Equal(net.ParseIP("::"))
-	}
 	nexthop := path.GetNexthop()
 	if peer.State.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
-		if !path.IsLocal() || isZero(nexthop) {
+		if !path.IsLocal() || nexthop.IsUnspecified() {
 			path.SetNexthop(localAddress)
 		}
 
@@ -283,7 +280,7 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
-		if path.IsLocal() && isZero(nexthop) {
+		if path.IsLocal() && nexthop.IsUnspecified() {
 			path.SetNexthop(localAddress)
 		}
 
