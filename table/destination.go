@@ -740,6 +740,12 @@ func compareByASPath(path1, path2 *Path) *Path {
 	//
 	// Shortest as-path length is preferred. If both path have same lengths,
 	// we return None.
+	if SelectionOptions.IgnoreAsPathLength {
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Debug("compareByASPath -- skip")
+		return nil
+	}
 	log.WithFields(log.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByASPath")
