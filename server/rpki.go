@@ -497,7 +497,7 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 	return l, nil
 }
 
-func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) (*table.Validation, *RoaBucket) {
+func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) *table.Validation {
 	var as uint32
 
 	validation := &table.Validation{
@@ -522,7 +522,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 			as = ownAs
 		default:
-			return validation, nil
+			return validation
 		}
 	}
 	_, n, _ := net.ParseCIDR(cidr)
@@ -531,7 +531,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	key := table.IpToRadixkey(n.IP, prefixLen)
 	_, b, _ := tree.LongestPrefix(key)
 	if b == nil {
-		return validation, nil
+		return validation
 	}
 
 	var bucket *RoaBucket
@@ -566,7 +566,7 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 		validation.Reason = table.RPKI_VALIDATION_REASON_TYPE_NONE
 	}
 
-	return validation, bucket
+	return validation
 }
 
 func (c *roaManager) validate(pathList []*table.Path) {
@@ -580,7 +580,7 @@ func (c *roaManager) validate(pathList []*table.Path) {
 			continue
 		}
 		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
-			v, _ := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			v := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 			path.SetValidation(v)
 		}
 	}
