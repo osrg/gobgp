@@ -153,6 +153,9 @@ matrix:
     - <<: *_docker
       env:
         - TEST=bgp_malformed_msg_handling_test.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_confederation_test.py
 #
 # Spell Check
 #
