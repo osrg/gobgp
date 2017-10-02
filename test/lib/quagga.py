@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+import re
 
 from fabric import colors
 from fabric.utils import indent
@@ -56,34 +57,14 @@ class QuaggaBGPContainer(BGPContainer):
         if out.startswith('No BGP network exists'):
             return rib
 
-        read_next = False
+        for line in out.split('\n')[6:-2]:
+            line = line[3:]
 
-        for line in out.split('\n'):
-            ibgp = False
-            if line[:2] == '*>':
-                line = line[2:]
-                ibgp = False
-                if line[0] == 'i':
-                    line = line[1:]
-                    ibgp = True
-            elif not read_next:
+            p = line.split()[0]
+            if '/' not in p:
                 continue
 
-            elems = line.split()
-
-            if len(elems) == 1:
-                read_next = True
-                prefix = elems[0]
-                continue
-            elif read_next:
-                nexthop = elems[0]
-            else:
-                prefix = elems[0]
-                nexthop = elems[1]
-            read_next = False
-
-            rib.append({'prefix': prefix, 'nexthop': nexthop,
-                        'ibgp': ibgp})
+            rib.extend(self.get_global_rib_with_prefix(p, rf))
 
         return rib
 
@@ -104,23 +85,32 @@ class QuaggaBGPContainer(BGPContainer):
         else:
             raise Exception('unknown output format {0}'.format(lines))
 
-        if lines[0] == 'Local':
-            aspath = []
-        else:
-            aspath = [int(asn) for asn in lines[0].split()]
+        while len(lines) > 0:
+            if lines[0] == 'Local':
+                aspath = []
+            else:
+                aspath = [int(re.sub('\D', '', asn)) for asn in lines[0].split()]
 
-        nexthop = lines[1].split()[0].strip()
-        info = [s.strip(',') for s in lines[2].split()]
-        attrs = []
-        if 'metric' in info:
-            med = info[info.index('metric') + 1]
-            attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
-        if 'localpref' in info:
-            localpref = info[info.index('localpref') + 1]
-            attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+            nexthop = lines[1].split()[0].strip()
+            info = [s.strip(',') for s in lines[2].split()]
+            attrs = []
+            ibgp = False
+            best = False
+            if 'metric' in info:
+                med = info[info.index('metric') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
+            if 'localpref' in info:
+                localpref = info[info.index('localpref') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+            if 'internal' in info:
+                ibgp = True
+            if 'best' in info:
+                best = True
 
-        rib.append({'prefix': prefix, 'nexthop': nexthop,
-                    'aspath': aspath, 'attrs': attrs})
+            rib.append({'prefix': prefix, 'nexthop': nexthop,
+                        'aspath': aspath, 'attrs': attrs, 'ibgp': ibgp, 'best': best})
+
+            lines = lines[5:]
 
         return rib
 
