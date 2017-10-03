@@ -1760,7 +1760,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		}
 	}
 
-	if err := config.SetDefaultNeighborConfigValues(c, server.bgpConfig.Global.Config.As); err != nil {
+	if err := config.SetDefaultNeighborConfigValues(c, &server.bgpConfig.Global); err != nil {
 		return err
 	}
 
