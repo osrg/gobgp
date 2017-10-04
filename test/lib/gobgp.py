@@ -27,6 +27,7 @@ from fabric.utils import indent
 import netaddr
 import toml
 import yaml
+import collections
 
 from lib.base import (
     BGPContainer,
@@ -55,7 +56,7 @@ class GoBGPContainer(BGPContainer):
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='toml',
-                 zapi_version=2, ospfd_config=None):
+                 zapi_version=2, bgp_config=None, ospfd_config=None):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -71,6 +72,20 @@ class GoBGPContainer(BGPContainer):
         self.zebra = zebra
         self.zapi_version = zapi_version
         self.config_format = config_format
+
+        # bgp_config is equivalent to config.BgpConfigSet structure
+        # Example:
+        # bgp_config = {
+        #     'global': {
+        #         'confederation': {
+        #             'config': {
+        #                 'identifier': 10,
+        #                 'member-as-list': [65001],
+        #             }
+        #         },
+        #     },
+        # }
+        self.bgp_config = bgp_config or {}
 
         # To start OSPFd in GoBGP container, specify 'ospfd_config' as a dict
         # type value.
@@ -294,6 +309,14 @@ class GoBGPContainer(BGPContainer):
             if self.ospfd_config:
                 self._create_config_ospfd()
 
+    def _merge_dict(self, dct, merge_dct):
+        for k, v in merge_dct.iteritems():
+            if (k in dct and isinstance(dct[k], dict)
+                    and isinstance(merge_dct[k], collections.Mapping)):
+                self._merge_dict(dct[k], merge_dct[k])
+            else:
+                dct[k] = merge_dct[k]
+
     def _create_config_bgp(self):
         config = {
             'global': {
@@ -309,6 +332,8 @@ class GoBGPContainer(BGPContainer):
             },
             'neighbors': [],
         }
+
+        self._merge_dict(config, self.bgp_config)
 
         if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
@@ -349,7 +374,7 @@ class GoBGPContainer(BGPContainer):
                 'config': {
                     'neighbor-address': neigh_addr,
                     'neighbor-interface': interface,
-                    'peer-as': peer.asn,
+                    'peer-as': info['remote_as'],
                     'auth-password': info['passwd'],
                     'vrf': info['vrf'],
                     'remove-private-as': info['remove_private_as'],

@@ -38,11 +38,23 @@ class QuaggaBGPContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', zebra=False):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', bgpd_config=None, zebra=False):
         super(QuaggaBGPContainer, self).__init__(name, asn, router_id,
                                                  ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
         self.zebra = zebra
+
+        # bgp_config is equivalent to config.BgpConfigSet structure
+        # Example:
+        # bgpd_config = {
+        #     'global': {
+        #         'confederation': {
+        #             'identifier': 10,
+        #             'peers': [65001],
+        #         },
+        #     },
+        # }
+        self.bgpd_config = bgpd_config or {}
 
     def run(self):
         super(QuaggaBGPContainer, self).run()
@@ -160,14 +172,19 @@ class QuaggaBGPContainer(BGPContainer):
         if any(info['graceful_restart'] for info in self.peers.itervalues()):
             c << 'bgp graceful-restart'
 
+        if 'global' in self.bgpd_config:
+            if 'confederation' in self.bgpd_config['global']:
+                conf = self.bgpd_config['global']['confederation']['config']
+                c << 'bgp confederation identifier {0}'.format(conf['identifier'])
+                c << 'bgp confederation peers {0}'.format(' '.join([str(i) for i in conf['member-as-list']]))
+
         version = 4
         for peer, info in self.peers.iteritems():
             version = netaddr.IPNetwork(info['neigh_addr']).version
             n_addr = info['neigh_addr'].split('/')[0]
             if version == 6:
                 c << 'no bgp default ipv4-unicast'
-
-            c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
+            c << 'neighbor {0} remote-as {1}'.format(n_addr, info['remote_as'])
             if info['is_rs_client']:
                 c << 'neighbor {0} route-server-client'.format(n_addr)
             for typ, p in info['policies'].iteritems():
