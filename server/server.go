@@ -1144,6 +1144,10 @@ func (s *BgpServer) Shutdown() {
 		for _, p := range s.neighborMap {
 			p.fsm.adminStateCh <- stateOp
 		}
+		// the main goroutine waits for peers' goroutines to stop but if no peer is configured, needs to die immediately.
+		if len(s.neighborMap) == 0 {
+			os.Exit(0)
+		}
 		// TODO: call fsmincomingCh.Close()
 		return nil
 	}, false)
