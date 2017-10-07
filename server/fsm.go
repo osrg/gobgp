@@ -759,7 +759,7 @@ func (h *FSMHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 					"Topic": "Peer",
 					"Key":   h.fsm.pConf.State.NeighborAddress,
 					"State": h.fsm.state.String(),
-				}).Warn("Error occured during AFI/SAFI disabling")
+				}).Warn("Error occurred during AFI/SAFI disabling")
 			} else {
 				n := h.afiSafiDisable(*rf)
 				log.WithFields(log.Fields{
