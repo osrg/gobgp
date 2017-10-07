@@ -222,7 +222,7 @@ func NewBMPStatsTLV32(t uint16, v uint32) *BMPStatsTLV32 {
 
 func (s *BMPStatsTLV32) ParseValue(data []byte) error {
 	if s.Length != 4 {
-		return fmt.Errorf("invalid lengh: %d bytes (%d bytes expected)", s.Length, 4)
+		return fmt.Errorf("invalid length: %d bytes (%d bytes expected)", s.Length, 4)
 	}
 	s.Value = binary.BigEndian.Uint32(data[:8])
 	return nil
@@ -253,7 +253,7 @@ func NewBMPStatsTLV64(t uint16, v uint64) *BMPStatsTLV64 {
 
 func (s *BMPStatsTLV64) ParseValue(data []byte) error {
 	if s.Length != 8 {
-		return fmt.Errorf("invalid lengh: %d bytes (%d bytes expected)", s.Length, 8)
+		return fmt.Errorf("invalid length: %d bytes (%d bytes expected)", s.Length, 8)
 	}
 	s.Value = binary.BigEndian.Uint64(data[:8])
 	return nil
@@ -288,7 +288,7 @@ func NewBMPStatsTLVPerAfiSafi64(t uint16, afi uint16, safi uint8, v uint64) *BMP
 
 func (s *BMPStatsTLVPerAfiSafi64) ParseValue(data []byte) error {
 	if s.Length != 11 {
-		return fmt.Errorf("invalid lengh: %d bytes (%d bytes expected)", s.Length, 11)
+		return fmt.Errorf("invalid length: %d bytes (%d bytes expected)", s.Length, 11)
 	}
 	s.AFI = binary.BigEndian.Uint16(data[0:2])
 	s.SAFI = data[2]
@@ -335,7 +335,7 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
 		}
 		data = data[4:]
 		if len(data) < int(tl.Length) {
-			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+			return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
 		}
 		var s BMPStatsTLVInterface
 		switch tl.Type {
@@ -605,7 +605,7 @@ func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
 		}
 		data = data[4:]
 		if len(data) < int(tl.Length) {
-			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+			return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
 		}
 		var tlv BMPInfoTLVInterface
 		switch tl.Type {
@@ -760,7 +760,7 @@ func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte) error {
 		}
 		data = data[4:]
 		if len(data) < int(tl.Length) {
-			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+			return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
 		}
 		var tlv BMPTermTLVInterface
 		switch tl.Type {
@@ -923,7 +923,7 @@ func (body *BMPRouteMirroring) ParseBody(msg *BMPMessage, data []byte) error {
 		}
 		data = data[4:]
 		if len(data) < int(tl.Length) {
-			return fmt.Errorf("value lengh is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+			return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
 		}
 		var tlv BMPRouteMirrTLVInterface
 		switch tl.Type {
