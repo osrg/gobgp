@@ -367,3 +367,21 @@ func TestReplaceAS(t *testing.T) {
 	assert.Equal(t, list[2], uint32(10))
 	assert.Equal(t, list[3], uint32(2))
 }
+
+func TestValidateLargeCommunities(t *testing.T) {
+	assert := assert.New(t)
+	c1, err := bgp.ParseLargeCommunity("10:10:10")
+	assert.Nil(err)
+	c2, err := bgp.ParseLargeCommunity("10:10:10")
+	assert.Nil(err)
+	c3, err := bgp.ParseLargeCommunity("10:10:20")
+	assert.Nil(err)
+	nlri := bgp.NewIPAddrPrefix(24, "30.30.30.0")
+
+	a := bgp.NewPathAttributeLargeCommunities([]*bgp.LargeCommunity{c1, c2, c3})
+	path := NewPath(nil, nlri, false, []bgp.PathAttributeInterface{a}, time.Now(), false)
+
+	assert.True(len(path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY).(*bgp.PathAttributeLargeCommunities).Values) == 3)
+	path.RemoveDuplicateLargeCommunities()
+	assert.True(len(path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY).(*bgp.PathAttributeLargeCommunities).Values) == 2)
+}

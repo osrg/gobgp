@@ -227,6 +227,8 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 		}
 		rf := path.GetRouteFamily()
 		if t, ok := manager.Tables[rf]; ok {
+			path.FixupAttributes()
+
 			dst := t.insert(path)
 			key := dst.GetNlri().String()
 			if !m[key] {

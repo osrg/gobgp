@@ -191,22 +191,6 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 				}
 			}
 		}
-	case *PathAttributeLargeCommunities:
-		uniq := make([]*LargeCommunity, 0, len(p.Values))
-		for _, x := range p.Values {
-			found := false
-			for _, y := range uniq {
-				if x.String() == y.String() {
-					found = true
-					break
-				}
-			}
-			if !found {
-				uniq = append(uniq, x)
-			}
-		}
-		p.Values = uniq
-
 	case *PathAttributeUnknown:
 		if p.GetFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
 			eMsg := fmt.Sprintf("unrecognized well-known attribute %s", p.GetType())

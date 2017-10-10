@@ -996,6 +996,34 @@ func (path *Path) RemoveLocalPref() {
 	}
 }
 
+func (path *Path) FixupAttributes() {
+	path.RemoveDuplicateLargeCommunities()
+}
+
+func (path *Path) RemoveDuplicateLargeCommunities() {
+	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY)
+	if attr == nil {
+		return
+	}
+
+	lc := attr.(*bgp.PathAttributeLargeCommunities)
+	uniq := make([]*bgp.LargeCommunity, 0, len(lc.Values))
+	for _, x := range lc.Values {
+		found := false
+		for _, y := range uniq {
+			if x.String() == y.String() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			uniq = append(uniq, x)
+		}
+	}
+	lc.Values = uniq
+	path.setPathAttr(lc)
+}
+
 func (path *Path) GetOriginatorID() net.IP {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID); attr != nil {
 		return attr.(*bgp.PathAttributeOriginatorId).Value
