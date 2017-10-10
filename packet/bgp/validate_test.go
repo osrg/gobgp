@@ -393,18 +393,3 @@ func Test_Validate_flowspec(t *testing.T) {
 	_, err = ValidateAttribute(a, m, false)
 	assert.NotNil(err)
 }
-
-func TestValidateLargeCommunities(t *testing.T) {
-	assert := assert.New(t)
-	c1, err := ParseLargeCommunity("10:10:10")
-	assert.Nil(err)
-	c2, err := ParseLargeCommunity("10:10:10")
-	assert.Nil(err)
-	c3, err := ParseLargeCommunity("10:10:20")
-	assert.Nil(err)
-	a := NewPathAttributeLargeCommunities([]*LargeCommunity{c1, c2, c3})
-	assert.True(len(a.Values) == 3)
-	_, err = ValidateAttribute(a, nil, false)
-	assert.Nil(err)
-	assert.True(len(a.Values) == 2)
-}
