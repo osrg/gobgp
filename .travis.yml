@@ -147,6 +147,15 @@ matrix:
     - <<: *_docker
       env:
         - TEST=bgp_malformed_msg_handling_test.py
+#
+# Spell Check
+#
+    - language: python
+      python: "2.7"
+      before_install: true
+      install: pip install scspell3k
+      script: bash tools/spell-check/scspell.sh
+
 
 cache:
   pip: true
