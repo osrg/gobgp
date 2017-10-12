@@ -168,7 +168,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   nlri.String(),
-		}).Error("Need to provide patattrs for the path that is not withdraw.")
+		}).Error("Need to provide path attributes for non-withdrawn path.")
 		return nil
 	}
 

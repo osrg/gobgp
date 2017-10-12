@@ -135,7 +135,7 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 
 	stream, err := client.AddPathByStream()
 	if err != nil {
-		return fmt.Errorf("failed to modpath: %s", err)
+		return fmt.Errorf("failed to add path: %s", err)
 	}
 
 	for paths := range ch {
