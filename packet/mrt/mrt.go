@@ -443,9 +443,9 @@ func NewRibEntry(index uint16, time uint32, pathId uint32, pathAttrs []bgp.PathA
 
 func (e *RibEntry) String() string {
 	if e.isAddPath {
-		return fmt.Sprintf("RIB_ENTRY: PeerIndex [%d] OriginatedTime [%d] PathIdentifier[%d] PathAttrs [%v]", e.PeerIndex, e.OriginatedTime, e.PathIdentifier, e.PathAttributes)
+		return fmt.Sprintf("RIB_ENTRY: PeerIndex [%d] OriginatedTime [%d] PathIdentifier[%d] PathAttributes [%v]", e.PeerIndex, e.OriginatedTime, e.PathIdentifier, e.PathAttributes)
 	} else {
-		return fmt.Sprintf("RIB_ENTRY: PeerIndex [%d] OriginatedTime [%d] PathAttrs [%v]", e.PeerIndex, e.OriginatedTime, e.PathAttributes)
+		return fmt.Sprintf("RIB_ENTRY: PeerIndex [%d] OriginatedTime [%d] PathAttributes [%v]", e.PeerIndex, e.OriginatedTime, e.PathAttributes)
 	}
 
 }
