@@ -500,7 +500,7 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debugf("computeKnownBestPath known pathlist: %d", len(dest.knownPathList))
+	}).Debugf("computeKnownBestPath knownPathList: %d", len(dest.knownPathList))
 
 	// We pick the first path as current best path. This helps in breaking
 	// tie between two new paths learned in one cycle for which best-path

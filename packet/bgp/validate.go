@@ -17,7 +17,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfe
 
 	if len(m.NLRI) > 0 || len(m.WithdrawnRoutes) > 0 {
 		if _, ok := rfs[RF_IPv4_UC]; !ok {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", RF_IPv4_UC))
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", RF_IPv4_UC))
 		}
 	}
 
@@ -92,7 +92,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 		for _, prefix := range l {
 			rf := AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
 			if _, ok := rfs[rf]; !ok {
-				return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not avalible for this session", rf))
+				return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not available for this session", rf))
 			}
 			switch rf {
 			case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
@@ -125,7 +125,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 	case *PathAttributeMpUnreachNLRI:
 		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
 		}
 		if err := checkPrefix(p.Value); err != nil {
 			return false, err
@@ -133,7 +133,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 	case *PathAttributeMpReachNLRI:
 		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
 		}
 		if err := checkPrefix(p.Value); err != nil {
 			return false, err
@@ -263,7 +263,7 @@ func ValidateBGPMessage(m *BGPMessage) error {
 
 func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) (uint32, error) {
 	if m.Version != 4 {
-		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("upsuppored version %d", m.Version))
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("unsupported version %d", m.Version))
 	}
 
 	as := uint32(m.MyAS)
