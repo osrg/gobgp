@@ -56,7 +56,7 @@ func create_config_files(nr int, outputDir string) {
 		c := config.Neighbor{}
 		c.Config.PeerAs = 65000 + uint32(i)
 		c.Config.NeighborAddress = fmt.Sprintf("10.0.0.%d", i)
-		c.Config.AuthPassword = fmt.Sprintf("hoge%d", i)
+		c.Config.AuthPassword = fmt.Sprintf("password%d", i)
 
 		gobgpConf.Neighbors = append(gobgpConf.Neighbors, c)
 		q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP("10.0.255.1"))

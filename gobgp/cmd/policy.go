@@ -269,7 +269,7 @@ func parseDefinedSet(settype string, args []string) (table.DefinedSet, error) {
 	case CMD_LARGECOMMUNITY:
 		return parseLargeCommunitySet(args)
 	default:
-		return nil, fmt.Errorf("invalid setype: %s", settype)
+		return nil, fmt.Errorf("invalid defined set type: %s", settype)
 	}
 }
 

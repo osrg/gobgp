@@ -192,7 +192,7 @@ func (peer *Peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily
 					"Key":    peer.ID(),
 					"Family": f,
 					"VRF":    peer.fsm.pConf.Config.Vrf,
-				}).Warn("invalid family configured for vrfed neighbor")
+				}).Warn("invalid family configured for neighbor with vrf")
 			}
 		}
 		families = fs
