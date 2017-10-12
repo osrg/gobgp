@@ -1099,7 +1099,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 							"Topic": "Peer",
 							"Key":   fsm.pConf.State.NeighborAddress,
 							"State": fsm.state.String(),
-						}).Infof("skiped asn negotiation: peer-as: %d, peer-type: %s", peerAs, typ)
+						}).Infof("skipped asn negotiation: peer-as: %d, peer-type: %s", peerAs, typ)
 					} else {
 						fsm.pConf.State.PeerType = fsm.pConf.Config.PeerType
 					}

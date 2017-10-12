@@ -2966,7 +2966,7 @@ func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, 
 					return nil, err
 				}
 			} else {
-				err := fmt.Errorf("Malformated not or equal operator")
+				err := fmt.Errorf("Malformed not or equal operator")
 				return nil, err
 			}
 		case "t", "f": // we could be facing true or false, let's check
@@ -6117,7 +6117,7 @@ func (s ValidationState) String() string {
 	case VALIDATION_STATE_INVALID:
 		return "invalid"
 	}
-	return fmt.Sprintf("unknown validatation state(%d)", s)
+	return fmt.Sprintf("unknown validation state(%d)", s)
 }
 
 type ValidationExtended struct {
