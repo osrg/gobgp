@@ -72,7 +72,7 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
-		}).Warnf("cannot set TTL(=%d) for TCPLisnter: %s", 255, err)
+		}).Warnf("cannot set TTL(=%d) for TCPListener: %s", 255, err)
 	}
 
 	closeCh := make(chan struct{})
