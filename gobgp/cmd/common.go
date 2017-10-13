@@ -108,10 +108,12 @@ var actionOpts struct {
 	NexthopAction       string `long:"next-hop" description:"specifying a next-hop action of policy"`
 }
 
-var mrtOpts struct {
+type mrtOpts struct {
 	OutputDir  string
 	FileFormat string
 	Best       bool `long:"only-best" description:"only keep best path routes"`
+	SkipV4     bool `long:"no-ipv4" description:"Skip importing IPv4 routes"`
+	SkipV6     bool `long:"no-ipv4" description:"Skip importing IPv6 routes"`
 }
 
 func formatTimedelta(d int64) string {
