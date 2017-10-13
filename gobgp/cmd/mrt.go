@@ -27,21 +27,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func injectMrt(filename string, count int, skip int, onlyBest bool) error {
+func injectMrt(filename string, count int, skip int) error {
 
 	file, err := os.Open(filename)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %s", err)
 	}
 
+	if mrtOpts.NextHop != nil && !mrtOpts.SkipV4 && !mrtOpts.SkipV6 {
+		fmt.Println("You should probably specify either --no-ipv4 or --no-ipv6 when overwriting nexthop, unless your dump contains only one type of routes")
+	}
+
 	idx := 0
 
 	ch := make(chan []*table.Path, 1<<20)
-
 	go func() {
 
 		var peers []*mrt.Peer
-
 		for {
 			buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
 			_, err := file.Read(buf)
@@ -79,7 +81,14 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 				case mrt.PEER_INDEX_TABLE:
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
-				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV6_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH, mrt.RIB_IPV6_UNICAST_ADDPATH:
+				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH:
+					if mrtOpts.SkipV4 {
+						continue
+					}
+				case mrt.RIB_IPV6_UNICAST, mrt.RIB_IPV6_UNICAST_ADDPATH:
+					if mrtOpts.SkipV6 {
+						continue
+					}
 				case mrt.GEO_PEER_TABLE:
 					fmt.Printf("WARNING: Skipping GEO_PEER_TABLE: %s", msg.Body.(*mrt.GeoPeerTable))
 				default:
@@ -106,8 +115,13 @@ func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 					t := time.Unix(int64(e.OriginatedTime), 0)
 					paths = append(paths, table.NewPath(source, nlri, false, e.PathAttributes, t, false))
 				}
+				if mrtOpts.NextHop != nil {
+					for _, p := range paths {
+						p.SetNexthop(mrtOpts.NextHop)
+					}
+				}
 
-				if onlyBest {
+				if mrtOpts.Best {
 					dst := table.NewDestination(nlri, 0)
 					for _, p := range paths {
 						dst.AddNewPath(p)
@@ -174,7 +188,7 @@ func NewMrtCmd() *cobra.Command {
 					}
 				}
 			}
-			err := injectMrt(filename, count, skip, mrtOpts.Best)
+			err := injectMrt(filename, count, skip)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -192,5 +206,8 @@ func NewMrtCmd() *cobra.Command {
 	mrtCmd.AddCommand(injectCmd)
 
 	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.Best, "only-best", "", false, "inject only best paths")
+	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.SkipV4, "no-ipv4", "", false, "Do not import IPv4 routes")
+	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.SkipV6, "no-ipv6", "", false, "Do not import IPv6 routes")
+	mrtCmd.PersistentFlags().IPVarP(&mrtOpts.NextHop, "nexthop", "", nil, "Overwrite nexthop")
 	return mrtCmd
 }
