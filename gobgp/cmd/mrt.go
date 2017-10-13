@@ -34,10 +34,13 @@ func injectMrt(filename string, count int, skip int, opts *mrtOpts) error {
 		return fmt.Errorf("failed to open file: %s", err)
 	}
 
+	if opts.NextHop != nil && !opts.SkipV4 && !opts.SkipV6 {
+		fmt.Println("You should probably specify either --no-ipv4 or --no-ipv6 when overwriting nexthop, unless your dump contains only one type of routes")
+	}
+
 	idx := 0
 
 	ch := make(chan []*table.Path, 1<<20)
-
 	go func() {
 
 		var peers []*mrt.Peer
@@ -78,10 +81,14 @@ func injectMrt(filename string, count int, skip int, opts *mrtOpts) error {
 				case mrt.PEER_INDEX_TABLE:
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
-				case mrt.RIB_IPV4_UNICAST,mrt.RIB_IPV4_UNICAST_ADDPATH:
-					if opts.SkipV4 {continue}
+				case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH:
+					if opts.SkipV4 {
+						continue
+					}
 				case mrt.RIB_IPV6_UNICAST, mrt.RIB_IPV6_UNICAST_ADDPATH:
-					if opts.SkipV6 {continue}
+					if opts.SkipV6 {
+						continue
+					}
 				case mrt.GEO_PEER_TABLE:
 					fmt.Printf("WARNING: Skipping GEO_PEER_TABLE: %s", msg.Body.(*mrt.GeoPeerTable))
 				default:
@@ -107,6 +114,11 @@ func injectMrt(filename string, count int, skip int, opts *mrtOpts) error {
 					}
 					t := time.Unix(int64(e.OriginatedTime), 0)
 					paths = append(paths, table.NewPath(source, nlri, false, e.PathAttributes, t, false))
+				}
+				if opts.NextHop != nil {
+					for _, p := range paths {
+						p.SetNexthop(opts.NextHop)
+					}
 				}
 
 				if opts.Best {
@@ -144,8 +156,8 @@ func injectMrt(filename string, count int, skip int, opts *mrtOpts) error {
 		err = stream.Send(paths...)
 		if err != nil {
 			return fmt.Errorf("failed to send: %s", err)
-				}
-			}
+		}
+	}
 
 	if err := stream.Close(); err != nil {
 		return fmt.Errorf("failed to send: %s", err)
@@ -197,5 +209,6 @@ func NewMrtCmd() *cobra.Command {
 	mrtCmd.PersistentFlags().BoolVarP(&opts.Best, "only-best", "", false, "inject only best paths")
 	mrtCmd.PersistentFlags().BoolVarP(&opts.SkipV4, "no-ipv4", "", false, "Do not import IPv4 routes")
 	mrtCmd.PersistentFlags().BoolVarP(&opts.SkipV6, "no-ipv6", "", false, "Do not import IPv6 routes")
+	mrtCmd.PersistentFlags().IPVarP(&opts.NextHop, "nexthop", "", nil, "Overwrite nexthop")
 	return mrtCmd
 }

@@ -111,9 +111,10 @@ var actionOpts struct {
 type mrtOpts struct {
 	OutputDir  string
 	FileFormat string
-	Best       bool `long:"only-best" description:"only keep best path routes"`
-	SkipV4     bool `long:"no-ipv4" description:"Skip importing IPv4 routes"`
-	SkipV6     bool `long:"no-ipv4" description:"Skip importing IPv6 routes"`
+	Best       bool   `long:"only-best" description:"only keep best path routes"`
+	SkipV4     bool   `long:"no-ipv4" description:"Skip importing IPv4 routes"`
+	SkipV6     bool   `long:"no-ipv4" description:"Skip importing IPv6 routes"`
+	NextHop    net.IP `long:"nexthop" description:"Rewrite nexthop"`
 }
 
 func formatTimedelta(d int64) string {
