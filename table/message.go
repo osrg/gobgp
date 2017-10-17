@@ -350,13 +350,14 @@ type bucket struct {
 
 func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 	var msgs []*bgp.BGPMessage
+	var eors []*bgp.BGPMessage
 
 	pathByAttrs := make(map[uint32][]*bucket)
 	for _, path := range pathList {
 		if path == nil {
 			continue
 		} else if path.IsEOR() {
-			msgs = append(msgs, bgp.NewEndOfRib(path.GetRouteFamily()))
+			eors = append(eors, bgp.NewEndOfRib(path.GetRouteFamily()))
 			continue
 		}
 		y := func(p *Path) bool {
@@ -439,6 +440,10 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 				}
 			}
 		}
+	}
+
+	for _, eor := range eors {
+		msgs = append(msgs, eor)
 	}
 
 	return msgs
