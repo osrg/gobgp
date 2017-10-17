@@ -27,9 +27,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func injectMrt(filename string, count int, skip int) error {
+func injectMrt() error {
 
-	file, err := os.Open(filename)
+	file, err := os.Open(mrtOpts.Filename)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %s", err)
 	}
@@ -133,12 +133,12 @@ func injectMrt(filename string, count int, skip int) error {
 					paths = []*table.Path{best}
 				}
 
-				if idx >= skip {
+				if idx >= mrtOpts.RecordSkip {
 					ch <- paths
 				}
 
 				idx += 1
-				if idx == count+skip {
+				if idx == mrtOpts.RecordCount + mrtOpts.RecordSkip {
 					break
 				}
 			}
@@ -172,23 +172,24 @@ func NewMrtCmd() *cobra.Command {
 			if len(args) < 1 {
 				exitWithError(fmt.Errorf("usage: gobgp mrt inject global <filename> [<count> [<skip>]]"))
 			}
-			filename := args[0]
-			count := -1
-			skip := 0
+			mrtOpts.Filename = args[0]
 			if len(args) > 1 {
 				var err error
-				count, err = strconv.Atoi(args[1])
+				mrtOpts.RecordCount, err = strconv.Atoi(args[1])
 				if err != nil {
 					exitWithError(fmt.Errorf("invalid count value: %s", args[1]))
 				}
 				if len(args) > 2 {
-					skip, err = strconv.Atoi(args[2])
+					mrtOpts.RecordSkip, err = strconv.Atoi(args[2])
 					if err != nil {
 						exitWithError(fmt.Errorf("invalid skip value: %s", args[2]))
 					}
 				}
+			} else {
+				mrtOpts.RecordCount = -1
+				mrtOpts.RecordSkip = 0
 			}
-			err := injectMrt(filename, count, skip)
+			err := injectMrt()
 			if err != nil {
 				exitWithError(err)
 			}
