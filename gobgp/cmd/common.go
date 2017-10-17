@@ -109,9 +109,16 @@ var actionOpts struct {
 }
 
 var mrtOpts struct {
-	OutputDir  string
-	FileFormat string
-	Best       bool `long:"only-best" description:"only keep best path routes"`
+	OutputDir   string
+	FileFormat  string
+	Filename    string `long:"filename" description:"MRT file name"`
+	RecordCount int    `long:"count" description:"Number of records to inject"`
+	RecordSkip  int    `long:"skip" description:"Number of records to skip before injecting"`
+	QueueSize   int    `long:"batch-size" description:"Maximum number of updates to keep queued"`
+	Best        bool   `long:"only-best" description:"only keep best path routes"`
+	SkipV4      bool   `long:"no-ipv4" description:"Skip importing IPv4 routes"`
+	SkipV6      bool   `long:"no-ipv4" description:"Skip importing IPv6 routes"`
+	NextHop     net.IP `long:"nexthop" description:"Rewrite nexthop"`
 }
 
 func formatTimedelta(d int64) string {
