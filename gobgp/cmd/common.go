@@ -108,7 +108,7 @@ var actionOpts struct {
 	NexthopAction       string `long:"next-hop" description:"specifying a next-hop action of policy"`
 }
 
-type mrtOpts struct {
+var mrtOpts struct {
 	OutputDir  string
 	FileFormat string
 	Best       bool   `long:"only-best" description:"only keep best path routes"`
