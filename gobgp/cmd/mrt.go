@@ -39,8 +39,11 @@ func injectMrt() error {
 	}
 
 	idx := 0
+	if mrtOpts.QueueSize < 1 {
+		return fmt.Errorf("Specified queue size is smaller than 1, refusing to run with unbounded memory usage")
+	}
 
-	ch := make(chan []*table.Path, 1<<20)
+	ch := make(chan []*table.Path, mrtOpts.QueueSize)
 	go func() {
 
 		var peers []*mrt.Peer
@@ -138,7 +141,7 @@ func injectMrt() error {
 				}
 
 				idx += 1
-				if idx == mrtOpts.RecordCount + mrtOpts.RecordSkip {
+				if idx == mrtOpts.RecordCount+mrtOpts.RecordSkip {
 					break
 				}
 			}
@@ -209,6 +212,7 @@ func NewMrtCmd() *cobra.Command {
 	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.Best, "only-best", "", false, "inject only best paths")
 	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.SkipV4, "no-ipv4", "", false, "Do not import IPv4 routes")
 	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.SkipV6, "no-ipv6", "", false, "Do not import IPv6 routes")
+	mrtCmd.PersistentFlags().IntVarP(&mrtOpts.QueueSize, "queue-size", "", 1<<10, "Maximum number of updates to keep queued")
 	mrtCmd.PersistentFlags().IPVarP(&mrtOpts.NextHop, "nexthop", "", nil, "Overwrite nexthop")
 	return mrtCmd
 }
