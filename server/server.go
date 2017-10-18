@@ -337,7 +337,7 @@ func sendFsmOutgoingMsg(peer *Peer, paths []*table.Path, notification *bgp.BGPMe
 
 func isASLoop(peer *Peer, path *table.Path) bool {
 	for _, as := range path.GetAsList() {
-		if as == peer.fsm.pConf.State.PeerAs {
+		if as == peer.AS() {
 			return true
 		}
 	}
@@ -378,7 +378,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 			ignore = true
 			info := path.GetSource()
 			//if the path comes from eBGP peer
-			if info.AS != peer.fsm.pConf.State.PeerAs {
+			if info.AS != peer.AS() {
 				ignore = false
 			}
 			// RFC4456 8. Avoiding Routing Information Loops
@@ -416,13 +416,19 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		}
 
 		if ignore {
-			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() && old.GetSource().AS != peer.fsm.pConf.State.PeerAs {
-				// we advertise a route from ebgp,
-				// which is the old best. We got the
-				// new best from ibgp. We don't
-				// advertise the new best and need to
-				// withdraw the old.
-				return old.Clone(true)
+			if !path.IsWithdraw && old != nil {
+				oldSource := old.GetSource()
+				if old.IsLocal() || oldSource.Address.String() != peer.ID() && oldSource.AS != peer.AS() {
+					// In this case, we suppose this peer has the same prefix
+					// received from another iBGP peer.
+					// So we withdraw the old best which was injected locally
+					// (from CLI or gRPC for example) in order to avoid the
+					// old best left on peers.
+					// Also, we withdraw the eBGP route which is the old best.
+					// When we got the new best from iBGP, we don't advertise
+					// the new best and need to withdraw the old best.
+					return old.Clone(true)
+				}
 			}
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

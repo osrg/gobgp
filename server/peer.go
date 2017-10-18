@@ -120,6 +120,10 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 	return peer
 }
 
+func (peer *Peer) AS() uint32 {
+	return peer.fsm.pConf.State.PeerAs
+}
+
 func (peer *Peer) ID() string {
 	return peer.fsm.pConf.State.NeighborAddress
 }
