@@ -40,6 +40,32 @@ func detectConfigFileType(path, def string) string {
 	}
 }
 
+func (b *BgpConfigSet) getPeerGroup(n string) (*PeerGroup, error) {
+	if n == "" {
+		return nil, nil
+	}
+	for _, pg := range b.PeerGroups {
+		if n == pg.Config.PeerGroupName {
+			return &pg, nil
+		}
+	}
+	return nil, fmt.Errorf("no such peer-group: %s", n)
+}
+
+func (d *DynamicNeighbor) validate(b *BgpConfigSet) error {
+	if d.Config.PeerGroup == "" {
+		return fmt.Errorf("dynamic neighbor requires the peer group config")
+	}
+
+	if _, err := b.getPeerGroup(d.Config.PeerGroup); err != nil {
+		return err
+	}
+	if _, _, err := net.ParseCIDR(d.Config.Prefix); err != nil {
+		return fmt.Errorf("invalid dynamic neighbor prefix %s", d.Config.Prefix)
+	}
+	return nil
+}
+
 func (n *Neighbor) IsConfederationMember(g *Global) bool {
 	for _, member := range g.Confederation.Config.MemberAsList {
 		if member == n.Config.PeerAs {

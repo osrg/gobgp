@@ -1762,13 +1762,16 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
 	}
 
+	var pgConf *config.PeerGroup
 	if c.Config.PeerGroup != "" {
-		if err := config.OverwriteNeighborConfigWithPeerGroup(c, server.peerGroupMap[c.Config.PeerGroup].Conf); err != nil {
-			return err
+		pg, ok := server.peerGroupMap[c.Config.PeerGroup]
+		if !ok {
+			return fmt.Errorf("no such peer-group: %s", c.Config.PeerGroup)
 		}
+		pgConf = pg.Conf
 	}
 
-	if err := config.SetDefaultNeighborConfigValues(c, &server.bgpConfig.Global); err != nil {
+	if err := config.SetDefaultNeighborConfigValues(c, pgConf, &server.bgpConfig.Global); err != nil {
 		return err
 	}
 
@@ -1965,8 +1968,12 @@ func (s *BgpServer) UpdatePeerGroup(pg *config.PeerGroup) (needsSoftResetIn bool
 
 func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, err error) {
 	if c.Config.PeerGroup != "" {
-		if err := config.OverwriteNeighborConfigWithPeerGroup(c, s.peerGroupMap[c.Config.PeerGroup].Conf); err != nil {
-			return needsSoftResetIn, err
+		if pg, ok := s.peerGroupMap[c.Config.PeerGroup]; ok {
+			if err := config.SetDefaultNeighborConfigValues(c, pg.Conf, &s.bgpConfig.Global); err != nil {
+				return needsSoftResetIn, err
+			}
+		} else {
+			return needsSoftResetIn, fmt.Errorf("no such peer-group: %s", c.Config.PeerGroup)
 		}
 	}
 
