@@ -381,6 +381,7 @@ func ToPathApi(path *table.Path) *Path {
 		}
 		return ret
 	}(path.GetPathAttrs())
+	nexthopState := path.GetNexthopState()
 	p := &Path{
 		Nlri:               n,
 		Pattrs:             pattrs,
@@ -394,7 +395,8 @@ func ToPathApi(path *table.Path) *Path {
 		IsFromExternal:     path.IsFromExternal(),
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
 		Uuid:               path.UUID().Bytes(),
-		IsNexthopInvalid:   path.IsNexthopInvalid,
+		IsNexthopInvalid:   nexthopState.IsUnreachable,
+		IgpMetric:          nexthopState.IgpMetric,
 		Identifier:         nlri.PathIdentifier(),
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 	}
