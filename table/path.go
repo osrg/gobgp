@@ -139,17 +139,16 @@ type Validation struct {
 }
 
 type Path struct {
-	info       *originInfo
-	IsWithdraw bool
-	pathAttrs  []bgp.PathAttributeInterface
-	attrsHash  uint32
-	reason     BestPathReason
-	parent     *Path
-	dels       []bgp.BGPAttrType
-	filtered   map[string]PolicyDirection
-	VrfIds     []uint16
-	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
-	IsNexthopInvalid bool
+	info         *originInfo
+	IsWithdraw   bool
+	pathAttrs    []bgp.PathAttributeInterface
+	attrsHash    uint32
+	reason       BestPathReason
+	parent       *Path
+	dels         []bgp.BGPAttrType
+	filtered     map[string]PolicyDirection
+	VrfIds       []uint16
+	nexthopState *NexthopState
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -333,10 +332,9 @@ func (path *Path) IsIBGP() bool {
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
 	return &Path{
-		parent:           path,
-		IsWithdraw:       isWithdraw,
-		filtered:         make(map[string]PolicyDirection),
-		IsNexthopInvalid: path.IsNexthopInvalid,
+		parent:     path,
+		IsWithdraw: isWithdraw,
+		filtered:   make(map[string]PolicyDirection),
 	}
 }
 
@@ -474,6 +472,22 @@ func (path *Path) SetNexthop(nexthop net.IP) {
 	}
 }
 
+func (path *Path) GetNexthopState() *NexthopState {
+	p := path
+	for p.nexthopState == nil {
+		if p.parent == nil {
+			// For the case of the path has no nexthop
+			return &NexthopState{Address: net.IP{}}
+		}
+		p = p.parent
+	}
+	return p.nexthopState
+}
+
+func (path *Path) SetNexthopState(state *NexthopState) {
+	path.nexthopState = state
+}
+
 func (path *Path) GetNlri() bgp.AddrPrefixInterface {
 	return path.OriginInfo().nlri
 }
@@ -587,7 +601,7 @@ func (path *Path) String() string {
 	s.WriteString(fmt.Sprintf("{ %s | ", path.getPrefix()))
 	s.WriteString(fmt.Sprintf("src: %s", path.GetSource()))
 	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
-	if path.IsNexthopInvalid {
+	if path.GetNexthopState().IsUnreachable {
 		s.WriteString(" (not reachable)")
 	}
 	if path.IsWithdraw {
@@ -1078,30 +1092,36 @@ func (lhs *Path) Equal(rhs *Path) bool {
 }
 
 func (path *Path) MarshalJSON() ([]byte, error) {
+	source := path.GetSource()
+	nexthopState := path.GetNexthopState()
 	return json.Marshal(struct {
-		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
-		PathAttrs  []bgp.PathAttributeInterface `json:"attrs"`
-		Age        int64                        `json:"age"`
-		Withdrawal bool                         `json:"withdrawal,omitempty"`
-		Validation string                       `json:"validation,omitempty"`
-		SourceID   net.IP                       `json:"source-id,omitempty"`
-		NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
-		Stale      bool                         `json:"stale,omitempty"`
-		Filtered   bool                         `json:"filtered,omitempty"`
-		UUID       string                       `json:"uuid,omitempty"`
-		ID         uint32                       `json:"id,omitempty"`
+		Nlri             bgp.AddrPrefixInterface      `json:"nlri"`
+		PathAttrs        []bgp.PathAttributeInterface `json:"attrs"`
+		Age              int64                        `json:"age"`
+		Withdrawal       bool                         `json:"withdrawal,omitempty"`
+		Validation       string                       `json:"validation,omitempty"`
+		SourceID         net.IP                       `json:"source-id,omitempty"`
+		NeighborIP       net.IP                       `json:"neighbor-ip,omitempty"`
+		Stale            bool                         `json:"stale,omitempty"`
+		Filtered         bool                         `json:"filtered,omitempty"`
+		UUID             string                       `json:"uuid,omitempty"`
+		ID               uint32                       `json:"id,omitempty"`
+		NexthopReachable bool                         `json:"nexthop-reachable"`
+		Metric           uint32                       `json:"metric"`
 	}{
-		Nlri:       path.GetNlri(),
-		PathAttrs:  path.GetPathAttrs(),
-		Age:        path.GetTimestamp().Unix(),
-		Withdrawal: path.IsWithdraw,
-		Validation: string(path.ValidationStatus()),
-		SourceID:   path.GetSource().ID,
-		NeighborIP: path.GetSource().Address,
-		Stale:      path.IsStale(),
-		Filtered:   path.Filtered("") > POLICY_DIRECTION_NONE,
-		UUID:       path.UUID().String(),
-		ID:         path.GetNlri().PathIdentifier(),
+		Nlri:             path.GetNlri(),
+		PathAttrs:        path.GetPathAttrs(),
+		Age:              path.GetTimestamp().Unix(),
+		Withdrawal:       path.IsWithdraw,
+		Validation:       string(path.ValidationStatus()),
+		SourceID:         source.ID,
+		NeighborIP:       source.Address,
+		Stale:            path.IsStale(),
+		Filtered:         path.Filtered("") > POLICY_DIRECTION_NONE,
+		UUID:             path.UUID().String(),
+		ID:               path.GetNlri().PathIdentifier(),
+		NexthopReachable: !nexthopState.IsUnreachable,
+		Metric:           nexthopState.IgpMetric,
 	})
 }
 
@@ -1208,7 +1228,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
-	path.IsNexthopInvalid = p.IsNexthopInvalid
+	path.nexthopState = p.nexthopState
 	return path
 }
 
@@ -1237,7 +1257,7 @@ func (p *Path) ToLocal() *Path {
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 		path.setPathAttr(bgp.NewPathAttributeNextHop(nh.String()))
 	}
-	path.IsNexthopInvalid = p.IsNexthopInvalid
+	path.nexthopState = p.nexthopState
 	return path
 }
 
