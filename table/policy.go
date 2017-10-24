@@ -3044,7 +3044,7 @@ func (r *RoutingPolicy) inUse(d DefinedSet) bool {
 	for _, p := range r.policyMap {
 		for _, s := range p.Statements {
 			for _, c := range s.Conditions {
-				if c.Set().Name() == name {
+				if c.Set() != nil && c.Set().Name() == name {
 					return true
 				}
 			}
