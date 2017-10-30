@@ -1289,7 +1289,7 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 		s.propagateUpdate(nil, pathList)
 		return nil
 	}, true)
-	return
+	return pathList[0].UUID().Bytes(), err
 }
 
 func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) error {
