@@ -1285,7 +1285,7 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 		}
 		for _, p := range pathList{
 			p.AssignNewUUID()
-			uuidBytes = append(uuidBytes, p.UUID().Byte()...)
+			uuidBytes = append(uuidBytes, p.UUID().Bytes()...)
 		}
 		s.propagateUpdate(nil, pathList)
 		return nil
