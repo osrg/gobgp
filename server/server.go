@@ -1283,13 +1283,14 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 		if err := s.fixupApiPath(vrfId, pathList); err != nil {
 			return err
 		}
-		if len(pathList) == 1 {
-			pathList[0].AssignNewUUID()
+		for _, p := range pathList{
+			p.AssignNewUUID()
+			uuidBytes = append(uuidBytes, p.UUID().Byte()...)
 		}
 		s.propagateUpdate(nil, pathList)
 		return nil
 	}, true)
-	return pathList[0].UUID().Bytes(), err
+	return
 }
 
 func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) error {
