@@ -178,21 +178,21 @@ func main() {
 						log.Fatalf("failed to set collector config: %s", err)
 					}
 				}
-				for _, c := range newConfig.RpkiServers {
-					if err := bgpServer.AddRpki(&c.Config); err != nil {
+				for i, _ := range newConfig.RpkiServers {
+					if err := bgpServer.AddRpki(&newConfig.RpkiServers[i].Config); err != nil {
 						log.Fatalf("failed to set rpki config: %s", err)
 					}
 				}
-				for _, c := range newConfig.BmpServers {
-					if err := bgpServer.AddBmp(&c.Config); err != nil {
+				for i, _ := range newConfig.BmpServers {
+					if err := bgpServer.AddBmp(&newConfig.BmpServers[i].Config); err != nil {
 						log.Fatalf("failed to set bmp config: %s", err)
 					}
 				}
-				for _, c := range newConfig.MrtDump {
-					if len(c.Config.FileName) == 0 {
+				for i, _ := range newConfig.MrtDump {
+					if len(newConfig.MrtDump[i].Config.FileName) == 0 {
 						continue
 					}
-					if err := bgpServer.EnableMrt(&c.Config); err != nil {
+					if err := bgpServer.EnableMrt(&newConfig.MrtDump[i].Config); err != nil {
 						log.Fatalf("failed to set mrt config: %s", err)
 					}
 				}
