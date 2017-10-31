@@ -1283,8 +1283,11 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 		if err := s.fixupApiPath(vrfId, pathList); err != nil {
 			return err
 		}
-		if len(pathList) == 1 {
-			pathList[0].AssignNewUUID()
+		if len(pathList) > 0 {
+				for _, p := range pathList{
+				p.AssignNewUUID()
+				uuidBytes = append(uuidBytes, p.UUID().Bytes()...)
+			}
 		}
 		s.propagateUpdate(nil, pathList)
 		return nil
