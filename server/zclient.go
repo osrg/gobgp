@@ -123,7 +123,7 @@ func (m *nexthopTrackingManager) loop() {
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
 				"Event": "Nexthop Tracking",
-			}).Debugf("penalty 500 chrged: penalty: %d", penalty)
+			}).Debugf("penalty 500 charged: penalty: %d", penalty)
 
 			m.appendPathList(paths)
 

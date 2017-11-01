@@ -729,7 +729,7 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			if _, ok := seen[p.GetType()]; !ok {
 				seen[p.GetType()] = true
 			} else {
-				return nil, fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
+				return nil, fmt.Errorf("the path attribute appears twice. Type : " + strconv.Itoa(int(p.GetType())))
 			}
 			switch p.GetType() {
 			case bgp.BGP_ATTR_TYPE_NEXT_HOP:

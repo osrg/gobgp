@@ -164,7 +164,7 @@ var spiOutMap map[string]uint32 = map[string]uint32{}
 func pfkeyReply() (spi uint32, err error) {
 	buf := make([]byte, SADB_MSG_SIZE)
 	if count, _, _, _, _ := syscall.Recvmsg(fd, buf, nil, syscall.MSG_PEEK); count != len(buf) {
-		return spi, fmt.Errorf("incomplete sadbmsg %d %d", len(buf), count)
+		return spi, fmt.Errorf("incomplete sadb msg %d %d", len(buf), count)
 	}
 	h := sadbMsg{}
 	h.DecodeFromBytes(buf)
@@ -182,7 +182,7 @@ func pfkeyReply() (spi uint32, err error) {
 
 	buf = make([]byte, int(8*h.sadbMsgLen))
 	if count, _, _, _, _ := syscall.Recvmsg(fd, buf, nil, 0); count != len(buf) {
-		return spi, fmt.Errorf("incomplete sadbmsg body %d %d", len(buf), count)
+		return spi, fmt.Errorf("incomplete sadb msg body %d %d", len(buf), count)
 	}
 
 	buf = buf[SADB_MSG_SIZE:]

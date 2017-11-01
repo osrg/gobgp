@@ -2,7 +2,6 @@
 package table
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -119,7 +118,6 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 
 	p.PrependAsn(65000, 1)
 	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005, 0, 0, 0}, p.GetAsSeqList())
-	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
 func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
@@ -170,7 +168,6 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
 	assert.Equal([]uint32{asn, 0, 0, 0}, p.GetAsSeqList())
-	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
 func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
@@ -200,7 +197,6 @@ func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
 	assert.Equal([]uint32{asn, 0, 0, 0}, p.GetAsSeqList())
-	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
 func TestPathPrependAsnToFullPathAttr(t *testing.T) {
@@ -239,7 +235,6 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	}
 	p.PrependAsn(65000, 2)
 	assert.Equal(append(expected, []uint32{0, 0, 0}...), p.GetAsSeqList())
-	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
 func TestGetPathAttrs(t *testing.T) {
