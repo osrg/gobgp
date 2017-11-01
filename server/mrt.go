@@ -34,12 +34,10 @@ const (
 )
 
 type mrtWriter struct {
-	dead             chan struct{}
-	s                *BgpServer
-	c                *config.MrtConfig
-	file             *os.File
-	rotationInterval uint64
-	dumpInterval     uint64
+	dead chan struct{}
+	s    *BgpServer
+	c    *config.MrtConfig
+	file *os.File
 }
 
 func (m *mrtWriter) Stop() {
@@ -58,26 +56,26 @@ func (m *mrtWriter) loop() error {
 	}
 	w := m.s.Watch(ops...)
 	rotator := func() *time.Ticker {
-		if m.rotationInterval == 0 {
+		if m.c.RotationInterval == 0 {
 			return &time.Ticker{}
 		}
-		return time.NewTicker(time.Second * time.Duration(m.rotationInterval))
+		return time.NewTicker(time.Second * time.Duration(m.c.RotationInterval))
 	}()
 	dump := func() *time.Ticker {
-		if m.dumpInterval == 0 {
+		if m.c.DumpInterval == 0 {
 			return &time.Ticker{}
 		}
-		return time.NewTicker(time.Second * time.Duration(m.dumpInterval))
+		return time.NewTicker(time.Second * time.Duration(m.c.DumpInterval))
 	}()
 
 	defer func() {
 		if m.file != nil {
 			m.file.Close()
 		}
-		if m.rotationInterval != 0 {
+		if m.c.RotationInterval != 0 {
 			rotator.Stop()
 		}
-		if m.dumpInterval != 0 {
+		if m.c.DumpInterval != 0 {
 			dump.Stop()
 		}
 		w.Stop()
@@ -243,7 +241,7 @@ func (m *mrtWriter) loop() error {
 		}
 		rotate := func() {
 			m.file.Close()
-			file, err := mrtFileOpen(m.c.FileName, m.rotationInterval)
+			file, err := mrtFileOpen(m.c.FileName, m.c.RotationInterval)
 			if err == nil {
 				m.file = file
 			} else {
@@ -260,7 +258,7 @@ func (m *mrtWriter) loop() error {
 			return nil
 		case e := <-w.Event():
 			drain(e)
-			if m.c.DumpType == config.MRT_TYPE_TABLE && m.rotationInterval != 0 {
+			if m.c.DumpType == config.MRT_TYPE_TABLE && m.c.RotationInterval != 0 {
 				rotate()
 			}
 		case <-rotator.C:
@@ -317,17 +315,15 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 	return file, err
 }
 
-func newMrtWriter(s *BgpServer, c *config.MrtConfig, rInterval, dInterval uint64) (*mrtWriter, error) {
-	file, err := mrtFileOpen(c.FileName, rInterval)
+func newMrtWriter(s *BgpServer, c *config.MrtConfig) (*mrtWriter, error) {
+	file, err := mrtFileOpen(c.FileName, c.RotationInterval)
 	if err != nil {
 		return nil, err
 	}
 	m := mrtWriter{
-		s:                s,
-		c:                c,
-		file:             file,
-		rotationInterval: rInterval,
-		dumpInterval:     dInterval,
+		s:    s,
+		c:    c,
+		file: file,
 	}
 	go m.loop()
 	return &m, nil
@@ -339,47 +335,46 @@ type mrtManager struct {
 }
 
 func (m *mrtManager) enable(c *config.MrtConfig) error {
-	if _, ok := m.writer[c.FileName]; ok {
-		return fmt.Errorf("%s already exists", c.FileName)
+	// Create copy to avoid data race
+	conf := *c
+	if _, ok := m.writer[conf.FileName]; ok {
+		return fmt.Errorf("%s already exists", conf.FileName)
 	}
 
-	rInterval := c.RotationInterval
-	dInterval := c.DumpInterval
-
 	setRotationMin := func() {
-		if rInterval < MIN_ROTATION_INTERVAL {
+		if conf.RotationInterval < MIN_ROTATION_INTERVAL {
 			log.WithFields(log.Fields{
 				"Topic": "MRT",
 			}).Infof("minimum mrt rotation interval is %d seconds", MIN_ROTATION_INTERVAL)
-			rInterval = MIN_ROTATION_INTERVAL
+			conf.RotationInterval = MIN_ROTATION_INTERVAL
 		}
 	}
 
-	if c.DumpType == config.MRT_TYPE_TABLE {
-		if rInterval == 0 {
-			if dInterval < MIN_DUMP_INTERVAL {
+	if conf.DumpType == config.MRT_TYPE_TABLE {
+		if conf.RotationInterval == 0 {
+			if conf.DumpInterval < MIN_DUMP_INTERVAL {
 				log.WithFields(log.Fields{
 					"Topic": "MRT",
 				}).Infof("minimum mrt dump interval is %d seconds", MIN_DUMP_INTERVAL)
-				dInterval = MIN_DUMP_INTERVAL
+				conf.DumpInterval = MIN_DUMP_INTERVAL
 			}
-		} else if dInterval == 0 {
+		} else if conf.DumpInterval == 0 {
 			setRotationMin()
 		} else {
 			return fmt.Errorf("can't specify both intervals in the table dump type")
 		}
-	} else if c.DumpType == config.MRT_TYPE_UPDATES {
+	} else if conf.DumpType == config.MRT_TYPE_UPDATES {
 		// ignore the dump interval
-		dInterval = 0
-		if len(c.TableName) > 0 {
+		conf.DumpInterval = 0
+		if len(conf.TableName) > 0 {
 			return fmt.Errorf("can't specify the table name with the update dump type")
 		}
 		setRotationMin()
 	}
 
-	w, err := newMrtWriter(m.bgpServer, c, rInterval, dInterval)
+	w, err := newMrtWriter(m.bgpServer, &conf)
 	if err == nil {
-		m.writer[c.FileName] = w
+		m.writer[conf.FileName] = w
 	}
 	return err
 }
