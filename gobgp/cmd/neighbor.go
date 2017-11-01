@@ -423,6 +423,12 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 		}
 		aspathstr := p.GetAsString()
 
+		nlri := p.GetNlri()
+		prefixLen := len(nlri.String())
+		if maxPrefixLen < prefixLen {
+			maxPrefixLen = prefixLen
+		}
+
 		s := []string{}
 		for _, a := range p.GetPathAttrs() {
 			switch a.GetType() {
@@ -430,6 +436,19 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 				continue
 			default:
 				s = append(s, a.String())
+			}
+		}
+		switch n := nlri.(type) {
+		case *bgp.EVPNNLRI:
+			// We print non route key fields like path attributes.
+			switch route := n.RouteTypeData.(type) {
+			case *bgp.EVPNMacIPAdvertisementRoute:
+				s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
+			case *bgp.EVPNIPPrefixRoute:
+				s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
+				if route.GWIPAddress != nil {
+					s = append(s, fmt.Sprintf("[GW: %s]", route.GWIPAddress.String()))
+				}
 			}
 		}
 		pattrstr := fmt.Sprint(s)
@@ -461,10 +480,6 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 				best += "* "
 			}
 		}
-		nlri := p.GetNlri()
-		if maxPrefixLen < len(nlri.String()) {
-			maxPrefixLen = len(nlri.String())
-		}
 
 		if isMonitor {
 			title := "ROUTE"
@@ -487,15 +502,28 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 			args = append(args, nlri)
 			if showLabel {
 				label := ""
-				switch nlri.(type) {
+				switch n := nlri.(type) {
 				case *bgp.LabeledIPAddrPrefix:
-					label = nlri.(*bgp.LabeledIPAddrPrefix).Labels.String()
+					label = n.Labels.String()
 				case *bgp.LabeledIPv6AddrPrefix:
-					label = nlri.(*bgp.LabeledIPv6AddrPrefix).Labels.String()
+					label = n.Labels.String()
 				case *bgp.LabeledVPNIPAddrPrefix:
-					label = nlri.(*bgp.LabeledVPNIPAddrPrefix).Labels.String()
+					label = n.Labels.String()
 				case *bgp.LabeledVPNIPv6AddrPrefix:
-					label = nlri.(*bgp.LabeledVPNIPv6AddrPrefix).Labels.String()
+					label = n.Labels.String()
+				case *bgp.EVPNNLRI:
+					switch route := n.RouteTypeData.(type) {
+					case *bgp.EVPNEthernetAutoDiscoveryRoute:
+						label = fmt.Sprintf("[%d]", route.Label)
+					case *bgp.EVPNMacIPAdvertisementRoute:
+						var l []string
+						for _, i := range route.Labels {
+							l = append(l, strconv.Itoa(int(i)))
+						}
+						label = fmt.Sprintf("[%s]", strings.Join(l, ","))
+					case *bgp.EVPNIPPrefixRoute:
+						label = fmt.Sprintf("[%d]", route.Label)
+					}
 				}
 				if maxLabelLen < len(label) {
 					maxLabelLen = len(label)
@@ -692,7 +720,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		return err
 	}
 	switch family {
-	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_EVPN:
 		showLabel = true
 	}
 
