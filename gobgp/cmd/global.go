@@ -348,9 +348,13 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid eTag: %s. err: %s", args[2], err)
 	}
-	label, err := strconv.Atoi(args[3])
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid label: %s. err: %s", args[3], err)
+	var labels []uint32
+	for _, l := range strings.SplitN(args[3], ",", 2) {
+		label, err := strconv.Atoi(l)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid label: %s. err: %s", args[3], err)
+		}
+		labels = append(labels, uint32(label))
 	}
 
 	var rd bgp.RouteDistinguisherInterface
@@ -370,7 +374,7 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		MacAddress:       mac,
 		IPAddressLength:  uint8(iplen),
 		IPAddress:        ip,
-		Labels:           []uint32{uint32(label)},
+		Labels:           labels,
 		ETag:             uint32(eTag),
 	}
 	nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
