@@ -2055,7 +2055,13 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) String() string {
-	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI.String(), er.ETag, er.Label)
+	// RFC7432: BGP MPLS-Based Ethernet VPN
+	// 7.1. Ethernet Auto-discovery Route
+	// For the purpose of BGP route key processing, only the Ethernet
+	// Segment Identifier and the Ethernet Tag ID are considered to be part
+	// of the prefix in the NLRI.  The MPLS Label field is to be treated as
+	// a route attribute as opposed to being part of the route.
+	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d]", er.RD, er.ESI.String(), er.ETag)
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) MarshalJSON() ([]byte, error) {
@@ -2165,7 +2171,15 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) String() string {
-	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
+	// RFC7432: BGP MPLS-Based Ethernet VPN
+	// 7.2. MAC/IP Advertisement Route
+	// For the purpose of BGP route key processing, only the Ethernet Tag
+	// ID, MAC Address Length, MAC Address, IP Address Length, and IP
+	// Address fields are considered to be part of the prefix in the NLRI.
+	// The Ethernet Segment Identifier, MPLS Label1, and MPLS Label2 fields
+	// are to be treated as route attributes as opposed to being part of the
+	// "route".
+	return fmt.Sprintf("[type:macadv][rd:%s][etag:%d][mac:%s][ip:%s]", er.RD, er.ETag, er.MacAddress, er.IPAddress)
 }
 
 func (er *EVPNMacIPAdvertisementRoute) MarshalJSON() ([]byte, error) {
@@ -2241,6 +2255,12 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 }
 
 func (er *EVPNMulticastEthernetTagRoute) String() string {
+	// RFC7432: BGP MPLS-Based Ethernet VPN
+	// 7.3. Inclusive Multicast Ethernet Tag Route
+	// ...(snip)... For the purpose of BGP route key
+	// processing, only the Ethernet Tag ID, IP Address Length, and
+	// Originating Router's IP Address fields are considered to be part of
+	// the prefix in the NLRI.
 	return fmt.Sprintf("[type:multicast][rd:%s][etag:%d][ip:%s]", er.RD, er.ETag, er.IPAddress)
 }
 
@@ -2311,6 +2331,11 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 }
 
 func (er *EVPNEthernetSegmentRoute) String() string {
+	// RFC7432: BGP MPLS-Based Ethernet VPN
+	// 7.4. Ethernet Segment Route
+	// For the purpose of BGP route key processing, only the Ethernet
+	// Segment ID, IP Address Length, and Originating Router's IP Address
+	// fields are considered to be part of the prefix in the NLRI.
 	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
 }
 
@@ -2420,7 +2445,12 @@ func (er *EVPNIPPrefixRoute) Serialize() ([]byte, error) {
 }
 
 func (er *EVPNIPPrefixRoute) String() string {
-	return fmt.Sprintf("[type:Prefix][rd:%s][esi:%s][etag:%d][prefix:%s/%d][gw:%s][label:%d]", er.RD, er.ESI.String(), er.ETag, er.IPPrefix, er.IPPrefixLength, er.GWIPAddress, er.Label)
+	// draft-ietf-bess-evpn-prefix-advertisement: IP Prefix Advertisement in EVPN
+	// 3.1 IP Prefix Route Encoding
+	// The RD, Eth-Tag ID, IP Prefix Length and IP Prefix will be part of
+	// the route key used by BGP to compare routes. The rest of the fields
+	// will not be part of the route key.
+	return fmt.Sprintf("[type:Prefix][rd:%s][etag:%d][prefix:%s/%d]", er.RD, er.ETag, er.IPPrefix, er.IPPrefixLength)
 }
 
 func (er *EVPNIPPrefixRoute) MarshalJSON() ([]byte, error) {
