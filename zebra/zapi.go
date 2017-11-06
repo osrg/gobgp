@@ -749,7 +749,6 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 	} else {
 		return fmt.Errorf("unknown route type: %d", t)
 	}
-	return nil
 }
 
 func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) error {
@@ -1032,7 +1031,7 @@ func (b *InterfaceAddressUpdateBody) Serialize(version uint8) ([]byte, error) {
 
 func (b *InterfaceAddressUpdateBody) String() string {
 	return fmt.Sprintf(
-		"idx: %d, flags: %d, addr: %s/%d",
+		"idx: %d, flags: %s, addr: %s/%d",
 		b.Index, b.Flags.String(), b.Prefix.String(), b.Length)
 }
 
