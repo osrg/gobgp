@@ -3107,13 +3107,13 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 		switch c {
 		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]:
 			if op&BITMASK_FLAG_OP_MATCH != 0 {
-				err := fmt.Errorf("invalid flowspec fragment specifier: '=' flag appears multiple time", cmd)
+				err := fmt.Errorf("invalid flowspec fragment specifier: '=' flag appears multiple time: %s", cmd)
 				return nil, err
 			}
 			op |= BITMASK_FLAG_OP_MATCH
 		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:
 			if op&BITMASK_FLAG_OP_NOT != 0 {
-				err := fmt.Errorf("invalid flowspec fragment specifier: '!' flag appears multiple time", cmd)
+				err := fmt.Errorf("invalid flowspec fragment specifier: '!' flag appears multiple time: %s", cmd)
 				return nil, err
 			}
 			op = op | BITMASK_FLAG_OP_NOT

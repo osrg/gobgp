@@ -20,7 +20,7 @@ import (
 	"testing"
 )
 
-func TestdetectConfigFileType(t *testing.T) {
+func TestDetectConfigFileType(t *testing.T) {
 	assert := assert.New(t)
 
 	assert.Equal("toml", detectConfigFileType("bgpd.conf", "toml"))
