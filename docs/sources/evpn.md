@@ -14,54 +14,98 @@ still very experimental.
 
 ## BaGPipe
 
-This example uses [BaGPipe
-BGP](https://github.com/Orange-OpenSource/bagpipe-bgp). GoBGP receives
+This example uses [BaGPipe](https://github.com/openstack/networking-bagpipe). GoBGP receives
 routes from one BaGPipe peer and advertises it to another BaGPipe peer.
 
-If you don't want to install [BaGPipe
-BGP](https://github.com/Orange-OpenSource/bagpipe-bgp) by hand, you can use [Our BaGPipe BGP Docker
-image](https://registry.hub.docker.com/u/yoshima/bagpipe-bgp/).
+**NOTE:** The following supposes to use BaGPipe version "7.0.0".
 
 ### Configuration
 
-BaGPipe supports only iBGP. GoBGP peer connects to two BaGPipe
-peers. Two BaGPipe peers are not connected. It's incorrect from the
-perspective of BGP but this example just shows two OSS BGP
-implementations can interchange EVPN messages.
+Please note BaGPipe supports only iBGP.
+So here supposes a topology that GoBGP is configured as Route Reflector.
+Two BaGPipe peers are Route Reflector clients and not connected to each other.
+Then the following example shows two OSS BGP implementations can interchange EVPN messages.
+
+Topology:
+
+```
+           +------------+
+           | GoBGP (RR) |
+     +-----| AS 65000   |-----+
+     |     | 10.0.0.254 |     |
+     |     +------------+     |
+     |                        |
+   (iBGP)                  (iBGP)
+     |                        |
++----------+            +----------+
+| BaGPipe  |            | BaGPipe  |
+| AS 65000 |            | AS 65000 |
+| 10.0.0.1 |            | 10.0.0.2 |
++----------+            +----------+
+```
+
+The following shows the sample configuration for GoBGP.
+The point is that "l2vpn-evpn" families to be advertised need to be specified.
+
+GoBGP on "10.0.0.254": `gobgpd.toml`
 
 ```toml
 [global.config]
-  as = 64512
-  router-id = "192.168.255.1"
+  as = 65000
+  router-id = "10.0.0.254"
 
 [[neighbors]]
-[neighbors.config]
-  neighbor-address = "10.0.255.1"
-  peer-as = 64512
-[[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
-  afi-safi-name = "l2vpn-evpn"
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65000
+  [neighbors.route-reflector.config]
+    route-reflector-client = true
+    route-reflector-cluster-id = "10.0.0.254"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
 
 [[neighbors]]
-[neighbors.config]
-  neighbor-address = "10.0.255.2"
-  peer-as = 64512
-[[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
-  afi-safi-name = "l2vpn-evpn"
+  [neighbors.config]
+    neighbor-address = "10.0.0.2"
+    peer-as = 65000
+  [neighbors.route-reflector.config]
+    route-reflector-client = true
+    route-reflector-cluster-id = "10.0.0.254"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
 ```
 
-The point is that route families to be advertised need to be
-specified. We expect that many people are not familiar with [BaGPipe
-BGP](https://github.com/Orange-OpenSource/bagpipe-bgp), the following
-is our configuration files.
+If you are not familiar with BaGPipe, the following shows our configuration files.
 
-```bash
-bagpipe-peer1:/etc/bagpipe-bgp# cat bgp.conf
+BaGPipe peer on "10.0.0.1": `/etc/bagpipe-bgp/bgp.conf`
+
+```ini
 [BGP]
-local_address=10.0.255.1
-peers=10.0.255.254
-my_as=64512
+local_address=10.0.0.1
+peers=10.0.0.254
+my_as=65000
+enable_rtc=True
+
+[API]
+host=localhost
+port=8082
+
+[DATAPLANE_DRIVER_IPVPN]
+dataplane_driver = DummyDataplaneDriver
+
+[DATAPLANE_DRIVER_EVPN]
+dataplane_driver = DummyDataplaneDriver
+```
+
+BaGPipe peer on "10.0.0.2": `/etc/bagpipe-bgp/bgp.conf`
+
+```ini
+[BGP]
+local_address=10.0.0.2
+peers=10.0.0.254
+my_as=65000
 enable_rtc=True
 
 [API]
@@ -74,48 +118,76 @@ dataplane_driver = DummyDataplaneDriver
 [DATAPLANE_DRIVER_EVPN]
 dataplane_driver = DummyDataplaneDriver
 ```
-10.0.255.254 is GoBGP peer's address.
+
+Then, run GoBGP and BaGPipe peers.
+
+```bash
+# GoBGP
+$ gobgpd -f gobgpd.toml
+
+# BaGPipe
+# If bgp.conf does not locate on the default path, please specify the config file as following.
+$ bagpipe-bgp --config-file /etc/bagpipe-bgp/bgp.conf
+```
 
 ### Advertising EVPN route
 
-As you expect, the RIBs at 10.0.255.2 peer has nothing.
+As you expect, the RIBs at BaGPipe peer on "10.0.0.2" has nothing.
 
 ```bash
-bagpipe-peer2:~# bagpipe-looking-glass bgp routes
-match:IPv4/mpls-vpn,*: -
-match:IPv4/rtc,*: -
-match:L2VPN/evpn,*: -
+# BaGPipe peer on "10.0.0.2"
+$ bagpipe-looking-glass bgp routes
+l2vpn/evpn,*: -
+ipv4/mpls-vpn,*: -
+ipv4/rtc,*: -
+ipv4/flow-vpn,*: -
 ```
 
-Let's advertise something from 10.0.255.1 peer.
+Let's advertise EVPN routes from BaGPipe peer on "10.0.0.1".
 
 ```bash
-bagpipe-peer1:~# bagpipe-rest-attach --attach --port tap42 --mac 00:11:22:33:44:55 --ip 11.11.11.1 --gateway-ip 11.11.11.254 --network-type evpn --rt 65000:77
+# BaGPipe peer on "10.0.0.1"
+$ bagpipe-rest-attach --attach --network-type evpn --port tap-dummy --mac 00:11:22:33:44:55 --ip 11.11.11.1 --gateway-ip 11.11.11.254 --rt 65000:77 --vni 100
+request: {"import_rt": ["65000:77"], "lb_consistent_hash_order": 0, "vpn_type": "evpn", "vni": 100, "vpn_instance_id": "evpn-bagpipe-test", "ip_address": "11.11.11.1/24", "export_rt": ["65000:77"], "local_port": {"linuxif": "tap-dummy"}, "advertise_subnet": false, "attract_traffic": {}, "gateway_ip": "11.11.11.254", "mac_address": "00:11:22:33:44:55", "readvertise": null}
+response: 200 null
 ```
 
-Now the RIBs at 10.0.255.2 peer has the above route. The route was interchanged via GoBGP peer.
+Now the RIBs at GoBGP and BaGPipe peer "10.0.0.2" has the advertised routes. The route was interchanged via GoBGP peer.
+
 ```bash
-bagpipe-peer2:~# bagpipe-looking-glass bgp routes
-match:IPv4/mpls-vpn,*: -
-match:IPv4/rtc,*: -
-match:L2VPN/evpn,*:
-  * EVPN:Multicast:[rd:10.0.255.1:1][etag:178][10.0.255.1]:
+# GoBGP
+$ gobgp global rib -a evpn
+   Network                                                                      Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:macadv][rd:10.0.0.1:118][etag:0][mac:00:11:22:33:44:55][ip:11.11.11.1] [1601]     10.0.0.1                                  hh:mm:ss   [{Origin: i} {LocalPref: 100} {Extcomms: [VXLAN], [65000:77]} [ESI: single-homed]]
+*> [type:multicast][rd:10.0.0.1:118][etag:0][ip:10.0.0.1]            10.0.0.1                                  hh:mm:ss   [{Origin: i} {LocalPref: 100} {Extcomms: [VXLAN], [65000:77]} {Pmsi: type: ingress-repl, label: 1600, tunnel-id: 10.0.0.1}]
+
+# BaGPipe peer on "10.0.0.2"
+$ bagpipe-looking-glass bgp routes
+l2vpn/evpn,*:
+  * evpn:macadv::10.0.0.1:118:-:0:00:11:22:33:44:55/48:11.11.11.1: label [ 100 ]:
       attributes:
-        next_hop: 10.0.255.1
-        pmsi_tunnel: PMSITunnel:IngressReplication:0:[0]:[10.0.255.1]
-        extended_community: [ target:65000:77 Encap:VXLAN ]
-      afi-safi: L2VPN/evpn
-      source: BGP-10.0.255.254/192.168.255.1 (...)
+        originator-id: 10.0.0.1
+        cluster-list: [ 10.0.0.254 ]
+        extended-community: [ target:65000:77 encap:VXLAN ]
+      next_hop: 10.0.0.1
+      afi-safi: l2vpn/evpn
+      source: BGP-10.0.0.254 (...)
       route_targets:
         * target:65000:77
-  * EVPN:MACAdv:[rd:10.0.255.1:1][esi:-][etag:178][00:11:22:33:44:55][11.11.11.1][label:0]:
+  * evpn:multicast::10.0.0.1:118:0:10.0.0.1:
       attributes:
-        next_hop: 10.0.255.1
-        extended_community: [ target:65000:77 Encap:VXLAN ]
-      afi-safi: L2VPN/evpn
-      source: BGP-10.0.255.254/192.168.255.1 (...)
+        cluster-list: [ 10.0.0.254 ]
+        originator-id: 10.0.0.1
+        pmsi-tunnel: pmsi:ingressreplication:-:100:10.0.0.1
+        extended-community: [ target:65000:77 encap:VXLAN ]
+      next_hop: 10.0.0.1
+      afi-safi: l2vpn/evpn
+      source: BGP-10.0.0.254 (...)
       route_targets:
         * target:65000:77
+ipv4/mpls-vpn,*: -
+ipv4/rtc,*: -
+ipv4/flow-vpn,*: -
 ```
 
 ## YABGP
