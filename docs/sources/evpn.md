@@ -5,10 +5,14 @@ still very experimental.
 
 ## Contents
 
-- [BaGpipe](#bagpipe)
+- [BaGPipe](#bagpipe)
+    - [Configuration](#configuration)
+    - [Advertising EVPN route](#advertising-evpn-route)
 - [YABGP](#yabgp)
+    - [Configuration](#configuration-1)
+    - [Advertising EVPN route](#advertising-evpn-route-1)
 
-## <a name="bagpipe"> BaGPipe
+## BaGPipe
 
 This example uses [BaGPipe
 BGP](https://github.com/Orange-OpenSource/bagpipe-bgp). GoBGP receives
@@ -114,7 +118,7 @@ match:L2VPN/evpn,*:
         * target:65000:77
 ```
 
-## <a name="yabgp"> YABGP
+## YABGP
 
 Just like the last example, this example uses [YABGP](https://github.com/smartbgp/yabgp). GoBGP receives
 routes from one YABGP peer and advertises it to another YABGP peer.
