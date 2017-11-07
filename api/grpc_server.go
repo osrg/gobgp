@@ -100,7 +100,7 @@ func NewMpGracefulRestartFromConfigStruct(c *config.MpGracefulRestart) *MpGracef
 
 func NewAfiSafiConfigFromConfigStruct(c *config.AfiSafi) *AfiSafiConfig {
 	return &AfiSafiConfig{
-		Family:  uint32(c.State.Family),
+		Family:  extractFamilyFromConfigAfiSafi(c),
 		Enabled: c.Config.Enabled,
 	}
 }
@@ -223,7 +223,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 	prefixLimits := make([]*PrefixLimit, 0, len(pconf.AfiSafis))
 	afiSafis := make([]*AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
-		families = append(families, uint32(f.State.Family))
+		families = append(families, extractFamilyFromConfigAfiSafi(&f))
 		if prefixLimit := NewPrefixLimitFromConfigStruct(&f); prefixLimit != nil {
 			prefixLimits = append(prefixLimits, prefixLimit)
 		}
