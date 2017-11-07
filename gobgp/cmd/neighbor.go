@@ -983,13 +983,13 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client", "allow-own-as", "remove-private-as", "replace-peer-as"})
-	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
+	m := extractReserved(args, []string{"interface", "as", "family", "vrf", "route-reflector-client", "route-server-client", "allow-own-as", "remove-private-as", "replace-peer-as"})
+	usage := fmt.Sprintf("usage: gobgp neighbor %s [ <neighbor-address> | interface <neighbor-interface> ]", cmdType)
 	if cmdType == CMD_ADD {
-		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
+		usage += " as <VALUE> [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
 	}
 
-	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["allow-own-as"]) > 1 || len(m["remove-private-as"]) > 1 {
+	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["family"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["allow-own-as"]) > 1 || len(m["remove-private-as"]) > 1 {
 		return fmt.Errorf("%s", usage)
 	}
 	unnumbered := len(m["interface"]) > 0
@@ -1010,6 +1010,15 @@ func modNeighbor(cmdType string, args []string) error {
 		} else {
 			peer.Config.NeighborAddress = m[""][0]
 			peer.State.NeighborAddress = m[""][0]
+		}
+		if len(m["family"]) == 1 {
+			for _, family := range strings.Split(m["family"][0], ",") {
+				afiSafiName := config.AfiSafiType(family)
+				if afiSafiName.ToInt() == -1 {
+					return nil, fmt.Errorf("invalid family value: %s", family)
+				}
+				peer.AfiSafis = append(peer.AfiSafis, config.AfiSafi{Config: config.AfiSafiConfig{AfiSafiName: afiSafiName}})
+			}
 		}
 		if len(m["vrf"]) == 1 {
 			peer.Config.Vrf = m["vrf"][0]
