@@ -3014,6 +3014,10 @@ func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, 
 				return nil, err
 			}
 		case DECLogicOpNameMap[DEC_LOGIC_OP_AND], DECLogicOpNameMap[DEC_LOGIC_OP_OR]:
+			if index == 0 {
+				err := fmt.Errorf("Logic operator appears a first character")
+				return nil, err
+			}
 			bit := DECLogicOpValueMap[myCmdChar]
 			decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
 			if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
