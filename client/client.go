@@ -670,8 +670,8 @@ func (cli *Client) ReplaceStatement(t *table.Statement) error {
 	return err
 }
 
-func (cli *Client) GetPolicy() ([]*table.Policy, error) {
-	ret, err := cli.cli.GetPolicy(context.Background(), &api.GetPolicyRequest{})
+func (cli *Client) GetPolicy(name string) ([]*table.Policy, error) {
+	ret, err := cli.cli.GetPolicy(context.Background(), &api.GetPolicyRequest{Name: name})
 	if err != nil {
 		return nil, err
 	}

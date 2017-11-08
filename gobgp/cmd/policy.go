@@ -378,37 +378,38 @@ func printPolicy(indent int, pd *table.Policy) {
 }
 
 func showPolicy(args []string) error {
-	policies, err := client.GetPolicy()
+	var name string
+	if len(args) == 0 {
+		name = ""
+	} else {
+		name = args[0]
+	}
+
+	policies, err := client.GetPolicy(name)
 	if err != nil {
 		return err
 	}
-	var m table.Policies
-	if len(args) > 0 {
-		for _, p := range policies {
-			if args[0] == p.Name {
-				m = append(m, p)
-				break
-			}
+	if len(policies) == 0 {
+		if len(args) == 0 {
+			return fmt.Errorf("no policy is defined")
 		}
-		if len(m) == 0 {
-			return fmt.Errorf("not found %s", args[0])
-		}
-	} else {
-		m = policies
+		return fmt.Errorf("no such policy: %s", name)
 	}
 	if globalOpts.Json {
-		j, _ := json.Marshal(m)
+		j, _ := json.Marshal(policies)
 		fmt.Println(string(j))
 		return nil
 	}
 	if globalOpts.Quiet {
-		for _, p := range m {
+		for _, p := range policies {
 			fmt.Println(p.Name)
 		}
 		return nil
 	}
-	sort.Sort(m)
-	for _, pd := range m {
+	sort.Slice(policies, func(i, j int) bool {
+		return policies[i].Name < policies[j].Name
+	})
+	for _, pd := range policies {
 		fmt.Printf("Name %s:\n", pd.Name)
 		printPolicy(4, pd)
 	}

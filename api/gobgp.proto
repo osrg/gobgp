@@ -403,6 +403,7 @@ message ReplaceStatementResponse {
 }
 
 message GetPolicyRequest {
+  string name = 1;
 }
 
 message GetPolicyResponse {
