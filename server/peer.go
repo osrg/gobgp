@@ -79,7 +79,7 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		}).Debugf("Can't overwrite neighbor config: %s", err)
 		return nil
 	}
-	if err := config.SetDefaultNeighborConfigValues(&conf, g.Config.As); err != nil {
+	if err := config.SetDefaultNeighborConfigValues(&conf, g); err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   neighborAddress,
@@ -118,6 +118,10 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
 	return peer
+}
+
+func (peer *Peer) AS() uint32 {
+	return peer.fsm.pConf.State.PeerAs
 }
 
 func (peer *Peer) ID() string {

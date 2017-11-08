@@ -1,32 +1,39 @@
 language: go
 
-before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1; fi
-install: test/scenario_test/ci-scripts/travis-install-script.sh
-script: test/scenario_test/ci-scripts/travis-build-script.sh
+_go: &_go
+  go: 1.8
 
-_simple_install: &_simple_install
+_dep_ensure: &_dep_ensure
+  <<: *_go
   before_install: go get -u github.com/golang/dep/cmd/dep
   install: $GOPATH/bin/dep ensure
 
 _unittest: &_unittest
-  <<: *_simple_install
+  <<: *_dep_ensure
   script: go test $(go list ./... | grep -v '/vendor/')
 
-_cross_compile: &_cross_compile
-  go: 1.8
-  <<: *_simple_install
-  script: cd gobgpd && go build
+_build: &_build
+  <<: *_dep_ensure
+  script:
+    - go build -o ./gobgp/gobgp   ./gobgp/
+    - go build -o ./gobgpd/gobgpd ./gobgpd/
 
-_no_install: &_no_install
-  go: 1.8
-  before_install: true
-  install: true
+_python: &_python
+  language: python
+  python: "2.7"
 
 _docker: &_docker
+  <<: *_python
   sudo: required
+  before_install:
+    - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+    - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
+    - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
+  install:
+    - pip install -r test/pip-requires.txt
+    - fab -f test/lib/base.py make_gobgp_ctn:tag=$DOCKER_IMAGE,from_image=$FROM_IMAGE
+  script:
+    - PYTHONPATH=test python test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
   services:
     - docker
 
@@ -48,26 +55,25 @@ matrix:
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
 #
-# cross-compiile
+# Cross-compile
 #
-    - <<: *_cross_compile
+    - <<: *_build
       env:
         - GOOS=windows
-    - <<: *_cross_compile
+    - <<: *_build
       env:
         - GOOS=freebsd
-    - <<: *_cross_compile
+    - <<: *_build
       env:
         - GOOS=darwin
 #
 # Misc
 #
-    - <<: *_no_install
+    - <<: *_go
       script: test -z "$(go fmt ./...)"
-    - <<: *_no_install
+    - <<: *_go
       script: test -z "$(go vet ./...)"
-    - <<: *_simple_install
-      go: 1.8
+    - <<: *_dep_ensure
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 #
 # Docker
@@ -147,15 +153,15 @@ matrix:
     - <<: *_docker
       env:
         - TEST=bgp_malformed_msg_handling_test.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_confederation_test.py
 #
 # Spell Check
 #
-    - language: python
-      python: "2.7"
-      before_install: true
+    - <<: *_python
       install: pip install scspell3k
       script: bash tools/spell-check/scspell.sh
-
 
 cache:
   pip: true

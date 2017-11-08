@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+import re
 
 from fabric import colors
 from fabric.utils import indent
@@ -37,11 +38,23 @@ class QuaggaBGPContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', zebra=False):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', bgpd_config=None, zebra=False):
         super(QuaggaBGPContainer, self).__init__(name, asn, router_id,
                                                  ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
         self.zebra = zebra
+
+        # bgp_config is equivalent to config.BgpConfigSet structure
+        # Example:
+        # bgpd_config = {
+        #     'global': {
+        #         'confederation': {
+        #             'identifier': 10,
+        #             'peers': [65001],
+        #         },
+        #     },
+        # }
+        self.bgpd_config = bgpd_config or {}
 
     def run(self):
         super(QuaggaBGPContainer, self).run()
@@ -56,34 +69,14 @@ class QuaggaBGPContainer(BGPContainer):
         if out.startswith('No BGP network exists'):
             return rib
 
-        read_next = False
+        for line in out.split('\n')[6:-2]:
+            line = line[3:]
 
-        for line in out.split('\n'):
-            ibgp = False
-            if line[:2] == '*>':
-                line = line[2:]
-                ibgp = False
-                if line[0] == 'i':
-                    line = line[1:]
-                    ibgp = True
-            elif not read_next:
+            p = line.split()[0]
+            if '/' not in p:
                 continue
 
-            elems = line.split()
-
-            if len(elems) == 1:
-                read_next = True
-                prefix = elems[0]
-                continue
-            elif read_next:
-                nexthop = elems[0]
-            else:
-                prefix = elems[0]
-                nexthop = elems[1]
-            read_next = False
-
-            rib.append({'prefix': prefix, 'nexthop': nexthop,
-                        'ibgp': ibgp})
+            rib.extend(self.get_global_rib_with_prefix(p, rf))
 
         return rib
 
@@ -104,23 +97,32 @@ class QuaggaBGPContainer(BGPContainer):
         else:
             raise Exception('unknown output format {0}'.format(lines))
 
-        if lines[0] == 'Local':
-            aspath = []
-        else:
-            aspath = [int(asn) for asn in lines[0].split()]
+        while len(lines) > 0:
+            if lines[0] == 'Local':
+                aspath = []
+            else:
+                aspath = [int(re.sub('\D', '', asn)) for asn in lines[0].split()]
 
-        nexthop = lines[1].split()[0].strip()
-        info = [s.strip(',') for s in lines[2].split()]
-        attrs = []
-        if 'metric' in info:
-            med = info[info.index('metric') + 1]
-            attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
-        if 'localpref' in info:
-            localpref = info[info.index('localpref') + 1]
-            attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+            nexthop = lines[1].split()[0].strip()
+            info = [s.strip(',') for s in lines[2].split()]
+            attrs = []
+            ibgp = False
+            best = False
+            if 'metric' in info:
+                med = info[info.index('metric') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
+            if 'localpref' in info:
+                localpref = info[info.index('localpref') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+            if 'internal' in info:
+                ibgp = True
+            if 'best' in info:
+                best = True
 
-        rib.append({'prefix': prefix, 'nexthop': nexthop,
-                    'aspath': aspath, 'attrs': attrs})
+            rib.append({'prefix': prefix, 'nexthop': nexthop,
+                        'aspath': aspath, 'attrs': attrs, 'ibgp': ibgp, 'best': best})
+
+            lines = lines[5:]
 
         return rib
 
@@ -170,14 +172,19 @@ class QuaggaBGPContainer(BGPContainer):
         if any(info['graceful_restart'] for info in self.peers.itervalues()):
             c << 'bgp graceful-restart'
 
+        if 'global' in self.bgpd_config:
+            if 'confederation' in self.bgpd_config['global']:
+                conf = self.bgpd_config['global']['confederation']['config']
+                c << 'bgp confederation identifier {0}'.format(conf['identifier'])
+                c << 'bgp confederation peers {0}'.format(' '.join([str(i) for i in conf['member-as-list']]))
+
         version = 4
         for peer, info in self.peers.iteritems():
             version = netaddr.IPNetwork(info['neigh_addr']).version
             n_addr = info['neigh_addr'].split('/')[0]
             if version == 6:
                 c << 'no bgp default ipv4-unicast'
-
-            c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
+            c << 'neighbor {0} remote-as {1}'.format(n_addr, info['remote_as'])
             if info['is_rs_client']:
                 c << 'neighbor {0} route-server-client'.format(n_addr)
             for typ, p in info['policies'].iteritems():

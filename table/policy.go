@@ -2260,7 +2260,7 @@ func (a *AsPathPrependAction) Type() ActionType {
 	return ACTION_AS_PATH_PREPEND
 }
 
-func (a *AsPathPrependAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
 	var asn uint32
 	if a.useLeftMost {
 		aspath := path.GetAsSeqList()
@@ -2283,7 +2283,8 @@ func (a *AsPathPrependAction) Apply(path *Path, _ *PolicyOptions) *Path {
 		asn = a.asn
 	}
 
-	path.PrependAsn(asn, a.repeat)
+	confed := option != nil && option.Info.Confederation
+	path.PrependAsn(asn, a.repeat, confed)
 
 	return path
 }

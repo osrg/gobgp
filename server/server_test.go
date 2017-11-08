@@ -200,7 +200,8 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 
 func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*Peer, *table.PeerInfo) {
 	nConf := &config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}}
-	config.SetDefaultNeighborConfigValues(nConf, myAs)
+	gConf := &config.Global{Config: config.GlobalConfig{As: myAs}}
+	config.SetDefaultNeighborConfigValues(nConf, gConf)
 	policy := table.NewRoutingPolicy()
 	policy.Reset(&config.RoutingPolicy{}, nil)
 	p := NewPeer(

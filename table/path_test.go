@@ -116,7 +116,7 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
-	p.PrependAsn(65000, 1)
+	p.PrependAsn(65000, 1, false)
 	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005, 0, 0, 0}, p.GetAsSeqList())
 }
 
@@ -138,7 +138,7 @@ func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
-	p.PrependAsn(asn, 1)
+	p.PrependAsn(asn, 1, false)
 	assert.Equal([]uint32{asn}, p.GetAsSeqList())
 }
 
@@ -166,7 +166,7 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
-	p.PrependAsn(asn, 1)
+	p.PrependAsn(asn, 1, false)
 	assert.Equal([]uint32{asn, 0, 0, 0}, p.GetAsSeqList())
 }
 
@@ -195,7 +195,7 @@ func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
-	p.PrependAsn(asn, 1)
+	p.PrependAsn(asn, 1, false)
 	assert.Equal([]uint32{asn, 0, 0, 0}, p.GetAsSeqList())
 }
 
@@ -233,7 +233,7 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	for _, v := range asns {
 		expected = append(expected, uint32(v))
 	}
-	p.PrependAsn(65000, 2)
+	p.PrependAsn(65000, 2, false)
 	assert.Equal(append(expected, []uint32{0, 0, 0}...), p.GetAsSeqList())
 }
 

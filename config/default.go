@@ -101,11 +101,18 @@ func isLocalLinkLocalAddress(ifindex int, addr net.IP) (bool, error) {
 	return false, nil
 }
 
-func SetDefaultNeighborConfigValues(n *Neighbor, asn uint32) error {
-	return setDefaultNeighborConfigValuesWithViper(nil, n, asn)
+func SetDefaultNeighborConfigValues(n *Neighbor, g *Global) error {
+	return setDefaultNeighborConfigValuesWithViper(nil, n, g)
 }
 
-func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn uint32) error {
+func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Global) error {
+	if n == nil {
+		return fmt.Errorf("neighbor config is nil")
+	}
+	if g == nil {
+		return fmt.Errorf("global config is nil")
+	}
+
 	if v == nil {
 		// Determines this function is called against the same Neighbor struct,
 		// and if already called, returns immediately.
@@ -116,7 +123,12 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	if n.Config.LocalAs == 0 {
-		n.Config.LocalAs = asn
+		n.Config.LocalAs = g.Config.As
+		if !g.Confederation.Config.Enabled || n.IsConfederation(g) {
+			n.Config.LocalAs = g.Config.As
+		} else {
+			n.Config.LocalAs = g.Confederation.Config.Identifier
+		}
 	}
 	n.State.LocalAs = n.Config.LocalAs
 
@@ -407,7 +419,7 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		if len(list) > idx {
 			vv.Set("neighbor", list[idx])
 		}
-		if err := setDefaultNeighborConfigValuesWithViper(vv, &n, b.Global.Config.As); err != nil {
+		if err := setDefaultNeighborConfigValuesWithViper(vv, &n, &b.Global); err != nil {
 			return err
 		}
 		b.Neighbors[idx] = n

@@ -24,6 +24,7 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -3107,13 +3108,13 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 		switch c {
 		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]:
 			if op&BITMASK_FLAG_OP_MATCH != 0 {
-				err := fmt.Errorf("invalid flowspec fragment specifier: '=' flag appears multiple time", cmd)
+				err := fmt.Errorf("invalid flowspec fragment specifier: '=' flag appears multiple time: %s", cmd)
 				return nil, err
 			}
 			op |= BITMASK_FLAG_OP_MATCH
 		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:
 			if op&BITMASK_FLAG_OP_NOT != 0 {
-				err := fmt.Errorf("invalid flowspec fragment specifier: '!' flag appears multiple time", cmd)
+				err := fmt.Errorf("invalid flowspec fragment specifier: '!' flag appears multiple time: %s", cmd)
 				return nil, err
 			}
 			op = op | BITMASK_FLAG_OP_NOT
@@ -3590,7 +3591,7 @@ func formatProto(op int, value int) string {
 	return fmt.Sprintf("%s%s%s", formatNumericOpFrontQty(op), Protocol(value).String(), formatNumericOpBackLogic(op))
 }
 
-func formatFlag(op int, value int) string {
+func formatTCPFlag(op int, value int) string {
 	var retString string
 	if op&BITMASK_FLAG_OP_MATCH > 0 {
 		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
@@ -3598,11 +3599,20 @@ func formatFlag(op int, value int) string {
 	if op&BITMASK_FLAG_OP_NOT > 0 {
 		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
 	}
-	for flag, valueFlag := range TCPFlagValueMap {
-		if value&int(valueFlag) > 0 {
-			retString = fmt.Sprintf("%s%s", retString, flag)
+
+	// Prepare a sorted list of flags because map iterations does not happen
+	// in a consistent order in Golang.
+	vs := make([]int, 0)
+	for _, v := range TCPFlagValueMap {
+		vs = append(vs, int(v))
+	}
+	sort.Ints(vs)
+	for _, v := range vs {
+		if value&v > 0 {
+			retString = fmt.Sprintf("%s%s", retString, TCPFlagNameMap[TCPFlag(v)])
 		}
 	}
+
 	if op&BITMASK_FLAG_OP_AND > 0 {
 		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], retString)
 	} else { // default is or
@@ -3619,11 +3629,20 @@ func formatFragment(op int, value int) string {
 	if op&BITMASK_FLAG_OP_NOT > 0 {
 		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
 	}
-	for flag, valueFlag := range FragmentFlagValueMap {
-		if value&int(valueFlag) > 0 {
-			retString = fmt.Sprintf("%s%s", retString, flag)
+
+	// Prepare a sorted list of flags because map iterations does not happen
+	// in a consistent order in Golang.
+	vs := make([]int, 0)
+	for _, v := range FragmentFlagValueMap {
+		vs = append(vs, int(v))
+	}
+	sort.Ints(vs)
+	for _, v := range vs {
+		if value&v > 0 {
+			retString = fmt.Sprintf("%s%s", retString, FragmentFlagNameMap[FragmentFlag(v)])
 		}
 	}
+
 	if op&BITMASK_FLAG_OP_AND > 0 {
 		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], retString)
 	} else { // default is or
@@ -3644,7 +3663,7 @@ var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
 	FLOW_SPEC_TYPE_SRC_PORT:      formatNumeric,
 	FLOW_SPEC_TYPE_ICMP_TYPE:     formatNumeric,
 	FLOW_SPEC_TYPE_ICMP_CODE:     formatNumeric,
-	FLOW_SPEC_TYPE_TCP_FLAG:      formatFlag,
+	FLOW_SPEC_TYPE_TCP_FLAG:      formatTCPFlag,
 	FLOW_SPEC_TYPE_PKT_LEN:       formatNumeric,
 	FLOW_SPEC_TYPE_DSCP:          formatNumeric,
 	FLOW_SPEC_TYPE_FRAGMENT:      formatFragment,
