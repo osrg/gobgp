@@ -1606,17 +1606,24 @@ func toStatementApi(s *config.Statement) *Statement {
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
 		}(),
 		Med: func() *MedAction {
-			if len(string(s.Actions.BgpActions.SetMed)) == 0 {
+			medStr := strings.TrimSpace(string(s.Actions.BgpActions.SetMed))
+			if len(medStr) == 0 {
 				return nil
 			}
-			exp := regexp.MustCompile("^(\\+|\\-)?(\\d+)$")
-			elems := exp.FindStringSubmatch(string(s.Actions.BgpActions.SetMed))
+			re := regexp.MustCompile("([+-]?)(\\d+)")
+			matches := re.FindStringSubmatch(medStr)
+			if len(matches) == 0 {
+				return nil
+			}
 			action := MedActionType_MED_REPLACE
-			switch elems[1] {
+			switch matches[1] {
 			case "+", "-":
 				action = MedActionType_MED_MOD
 			}
-			value, _ := strconv.Atoi(string(s.Actions.BgpActions.SetMed))
+			value, err := strconv.Atoi(matches[1] + matches[2])
+			if err != nil {
+				return nil
+			}
 			return &MedAction{
 				Value: int64(value),
 				Type:  action,
