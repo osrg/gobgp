@@ -64,25 +64,24 @@ func (s *Server) Serve() error {
 	wg.Add(len(l))
 
 	serve := func(host string) {
-		for {
-			defer wg.Done()
-			lis, err := net.Listen("tcp", fmt.Sprintf(host))
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "grpc",
-					"Key":   host,
-					"Error": err,
-				}).Warn("listen failed")
-				return
-			}
-			err = s.grpcServer.Serve(lis)
+		defer wg.Done()
+		lis, err := net.Listen("tcp", fmt.Sprintf(host))
+		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "grpc",
 				"Key":   host,
 				"Error": err,
-			}).Warn("accept failed")
+			}).Warn("listen failed")
+			return
 		}
+		err = s.grpcServer.Serve(lis)
+		log.WithFields(log.Fields{
+			"Topic": "grpc",
+			"Key":   host,
+			"Error": err,
+		}).Warn("accept failed")
 	}
+
 	for _, host := range l {
 		go serve(host)
 	}
