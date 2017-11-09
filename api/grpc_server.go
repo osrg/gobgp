@@ -49,13 +49,13 @@ func NewGrpcServer(b *server.BgpServer, hosts string) *Server {
 
 func NewServer(b *server.BgpServer, g *grpc.Server, hosts string) *Server {
 	grpc.EnableTracing = false
-	server := &Server{
+	s := &Server{
 		bgpServer:  b,
 		grpcServer: g,
 		hosts:      hosts,
 	}
-	RegisterGobgpApiServer(g, server)
-	return server
+	RegisterGobgpApiServer(g, s)
+	return s
 }
 
 func (s *Server) Serve() error {
