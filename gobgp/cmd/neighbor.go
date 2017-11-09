@@ -407,7 +407,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool, showIdentifier bgp.BGPAddPathMode) {
+func showRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool, showIdentifier bgp.BGPAddPathMode) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -596,10 +596,16 @@ func checkOriginAsWasNotShown(p *table.Path, shownAs map[uint32]struct{}) bool {
 	return true
 }
 
-func ShowValidationInfo(p *table.Path) {
+func showValidationInfo(p *table.Path, shownAs map[uint32]struct{}) error {
+	asPath := p.GetAsPath().Value
+	if len(asPath) == 0 {
+		return fmt.Errorf("The path to %s was locally generated.\n", p.GetNlri().String())
+	} else if !checkOriginAsWasNotShown(p, shownAs) {
+		return nil
+	}
+
 	status := p.Validation().Status
 	reason := p.Validation().Reason
-	asPath := p.GetAsPath().Value
 	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
 	origin := aslist[len(aslist)-1]
 
@@ -643,6 +649,8 @@ func ShowValidationInfo(p *table.Path) {
 	printVRPs(p.Validation().UnmatchedAs)
 	fmt.Println("  Unmatched Length VRPs: ")
 	printVRPs(p.Validation().UnmatchedLength)
+
+	return nil
 }
 
 func showRibInfo(r, name string) error {
@@ -793,51 +801,51 @@ func showNeighborRib(r string, name string, args []string) error {
 		return nil
 	}
 
-	shownAs := make(map[uint32]struct{})
-	counter := 0
-	for _, d := range rib.GetSortedDestinations() {
-		if validationTarget != "" && d.GetNlri().String() != validationTarget {
-			continue
+	if validationTarget != "" {
+		// show RPKI validation info
+		d := rib.GetDestination(validationTarget)
+		if d == nil {
+			fmt.Println("Network not in table")
+			return nil
 		}
-		var ps []*table.Path
-		if r == CMD_ACCEPTED || r == CMD_REJECTED {
-			for _, p := range d.GetAllKnownPathList() {
-				switch r {
-				case CMD_ACCEPTED:
-					if p.Filtered("") > table.POLICY_DIRECTION_NONE {
-						continue
-					}
-				case CMD_REJECTED:
-					if p.Filtered("") == table.POLICY_DIRECTION_NONE {
-						continue
-					}
-				}
-				ps = append(ps, p)
+		shownAs := make(map[uint32]struct{})
+		for _, p := range d.GetAllKnownPathList() {
+			if err := showValidationInfo(p, shownAs); err != nil {
+				return err
 			}
-		} else {
-			ps = d.GetAllKnownPathList()
 		}
-		showHeader := false
+	} else {
+		// show RIB
+		counter := 0
+		for _, d := range rib.GetSortedDestinations() {
+			var ps []*table.Path
+			if r == CMD_ACCEPTED || r == CMD_REJECTED {
+				for _, p := range d.GetAllKnownPathList() {
+					switch r {
+					case CMD_ACCEPTED:
+						if p.Filtered("") > table.POLICY_DIRECTION_NONE {
+							continue
+						}
+					case CMD_REJECTED:
+						if p.Filtered("") == table.POLICY_DIRECTION_NONE {
+							continue
+						}
+					}
+					ps = append(ps, p)
+				}
+			} else {
+				ps = d.GetAllKnownPathList()
+			}
+			showHeader := false
+			if counter == 0 {
+				showHeader = true
+			}
+			showRoute(ps, showAge, showBest, showLabel, false, showHeader, showIdentifier)
+			counter++
+		}
 		if counter == 0 {
-			showHeader = true
+			fmt.Println("Network not in table")
 		}
-		if validationTarget != "" {
-			for _, p := range ps {
-				asPath := p.GetAsPath().Value
-				if len(asPath) == 0 {
-					fmt.Printf("The path to %s was locally generated.\n", p.GetNlri().String())
-				} else if checkOriginAsWasNotShown(p, shownAs) {
-					ShowValidationInfo(p)
-				}
-			}
-		} else {
-			ShowRoute(ps, showAge, showBest, showLabel, false, showHeader, showIdentifier)
-		}
-		counter++
-	}
-
-	if counter == 0 {
-		fmt.Println("Network not in table")
 	}
 	return nil
 }
