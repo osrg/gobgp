@@ -348,11 +348,12 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 	if arg == nil {
 		return nil, fmt.Errorf("invalid request")
 	}
-	p := []*Peer{}
-	for _, e := range s.bgpServer.GetNeighbor(arg.Address, arg.EnableAdvertised) {
-		p = append(p, NewPeerFromConfigStruct(e))
+	neighbors := s.bgpServer.GetNeighbor(arg.Address, arg.EnableAdvertised)
+	peers := make([]*Peer, 0, len(neighbors))
+	for _, e := range neighbors {
+		peers = append(peers, NewPeerFromConfigStruct(e))
 	}
-	return &GetNeighborResponse{Peers: p}, nil
+	return &GetNeighborResponse{Peers: peers}, nil
 }
 
 func NewValidationFromTableStruct(v *table.Validation) *RPKIValidation {
@@ -449,8 +450,9 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 		return nil, err
 	}
 
-	dsts := []*Destination{}
-	for _, dst := range tbl.GetDestinations() {
+	tblDsts := tbl.GetDestinations()
+	dsts := make([]*Destination, 0, len(tblDsts))
+	for _, dst := range tblDsts {
 		dsts = append(dsts, &Destination{
 			Prefix: dst.GetNlri().String(),
 			Paths: func(paths []*table.Path) []*Path {
@@ -941,7 +943,7 @@ func (s *Server) GetRoa(ctx context.Context, arg *GetRoaRequest) (*GetRoaRespons
 }
 
 func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*EnableZebraResponse, error) {
-	l := []config.InstallProtocolType{}
+	l := make([]config.InstallProtocolType, 0, len(arg.RouteTypes))
 	for _, p := range arg.RouteTypes {
 		if err := config.InstallProtocolType(p).Validate(); err != nil {
 			return &EnableZebraResponse{}, err
