@@ -44,7 +44,8 @@ func NewMonitorCmd() *cobra.Command {
 				j, _ := json.Marshal(dst.GetAllKnownPathList())
 				fmt.Println(string(j))
 			} else {
-				ShowRoute(dst.GetAllKnownPathList(), false, false, false, true, false, showIdentifier)
+				ds := [][]*table.Path{dst.GetAllKnownPathList()}
+				ShowRoute(ds, false, false, false, true, false, showIdentifier)
 			}
 		}
 	}

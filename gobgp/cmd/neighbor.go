@@ -407,7 +407,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool, showIdentifier bgp.BGPAddPathMode) {
+func showRoute(destinationList [][]*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool, showIdentifier bgp.BGPAddPathMode) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -416,126 +416,128 @@ func showRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 	maxLabelLen := 10
 
 	now := time.Now()
-	for idx, p := range pathList {
-		nexthop := "fictitious"
-		if n := p.GetNexthop(); n != nil {
-			nexthop = p.GetNexthop().String()
-		}
-		aspathstr := p.GetAsString()
-
-		nlri := p.GetNlri()
-		prefixLen := len(nlri.String())
-		if maxPrefixLen < prefixLen {
-			maxPrefixLen = prefixLen
-		}
-
-		s := []string{}
-		for _, a := range p.GetPathAttrs() {
-			switch a.GetType() {
-			case bgp.BGP_ATTR_TYPE_NEXT_HOP, bgp.BGP_ATTR_TYPE_MP_REACH_NLRI, bgp.BGP_ATTR_TYPE_AS_PATH, bgp.BGP_ATTR_TYPE_AS4_PATH:
-				continue
-			default:
-				s = append(s, a.String())
+	for _, pathList := range destinationList {
+		for idx, p := range pathList {
+			nexthop := "fictitious"
+			if n := p.GetNexthop(); n != nil {
+				nexthop = p.GetNexthop().String()
 			}
-		}
-		switch n := nlri.(type) {
-		case *bgp.EVPNNLRI:
-			// We print non route key fields like path attributes.
-			switch route := n.RouteTypeData.(type) {
-			case *bgp.EVPNMacIPAdvertisementRoute:
-				s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
-			case *bgp.EVPNIPPrefixRoute:
-				s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
-				if route.GWIPAddress != nil {
-					s = append(s, fmt.Sprintf("[GW: %s]", route.GWIPAddress.String()))
+			aspathstr := p.GetAsString()
+
+			nlri := p.GetNlri()
+			prefixLen := len(nlri.String())
+			if maxPrefixLen < prefixLen {
+				maxPrefixLen = prefixLen
+			}
+
+			s := []string{}
+			for _, a := range p.GetPathAttrs() {
+				switch a.GetType() {
+				case bgp.BGP_ATTR_TYPE_NEXT_HOP, bgp.BGP_ATTR_TYPE_MP_REACH_NLRI, bgp.BGP_ATTR_TYPE_AS_PATH, bgp.BGP_ATTR_TYPE_AS4_PATH:
+					continue
+				default:
+					s = append(s, a.String())
 				}
 			}
-		}
-		pattrstr := fmt.Sprint(s)
-
-		if maxNexthopLen < len(nexthop) {
-			maxNexthopLen = len(nexthop)
-		}
-
-		if maxAsPathLen < len(aspathstr) {
-			maxAsPathLen = len(aspathstr)
-		}
-
-		best := ""
-		if p.IsStale() {
-			best += "S"
-		}
-		switch p.ValidationStatus() {
-		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
-			best += "N"
-		case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
-			best += "V"
-		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
-			best += "I"
-		}
-		if showBest {
-			if idx == 0 && !p.IsNexthopInvalid {
-				best += "*>"
-			} else {
-				best += "* "
-			}
-		}
-
-		if isMonitor {
-			title := "ROUTE"
-			if p.IsWithdraw {
-				title = "DELROUTE"
-			}
-			if showIdentifier != bgp.BGP_ADD_PATH_NONE {
-				pathStrs = append(pathStrs, []interface{}{title, nlri.PathIdentifier(), nlri, nexthop, aspathstr, pattrstr})
-			} else {
-				pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
-			}
-		} else {
-			args := []interface{}{best}
-			switch showIdentifier {
-			case bgp.BGP_ADD_PATH_RECEIVE:
-				args = append(args, fmt.Sprint(nlri.PathIdentifier()))
-			case bgp.BGP_ADD_PATH_SEND:
-				args = append(args, fmt.Sprint(nlri.PathLocalIdentifier()))
-			}
-			args = append(args, nlri)
-			if showLabel {
-				label := ""
-				switch n := nlri.(type) {
-				case *bgp.LabeledIPAddrPrefix:
-					label = n.Labels.String()
-				case *bgp.LabeledIPv6AddrPrefix:
-					label = n.Labels.String()
-				case *bgp.LabeledVPNIPAddrPrefix:
-					label = n.Labels.String()
-				case *bgp.LabeledVPNIPv6AddrPrefix:
-					label = n.Labels.String()
-				case *bgp.EVPNNLRI:
-					switch route := n.RouteTypeData.(type) {
-					case *bgp.EVPNEthernetAutoDiscoveryRoute:
-						label = fmt.Sprintf("[%d]", route.Label)
-					case *bgp.EVPNMacIPAdvertisementRoute:
-						var l []string
-						for _, i := range route.Labels {
-							l = append(l, strconv.Itoa(int(i)))
-						}
-						label = fmt.Sprintf("[%s]", strings.Join(l, ","))
-					case *bgp.EVPNIPPrefixRoute:
-						label = fmt.Sprintf("[%d]", route.Label)
+			switch n := nlri.(type) {
+			case *bgp.EVPNNLRI:
+				// We print non route key fields like path attributes.
+				switch route := n.RouteTypeData.(type) {
+				case *bgp.EVPNMacIPAdvertisementRoute:
+					s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
+				case *bgp.EVPNIPPrefixRoute:
+					s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
+					if route.GWIPAddress != nil {
+						s = append(s, fmt.Sprintf("[GW: %s]", route.GWIPAddress.String()))
 					}
 				}
-				if maxLabelLen < len(label) {
-					maxLabelLen = len(label)
+			}
+			pattrstr := fmt.Sprint(s)
+
+			if maxNexthopLen < len(nexthop) {
+				maxNexthopLen = len(nexthop)
+			}
+
+			if maxAsPathLen < len(aspathstr) {
+				maxAsPathLen = len(aspathstr)
+			}
+
+			best := ""
+			if p.IsStale() {
+				best += "S"
+			}
+			switch p.ValidationStatus() {
+			case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+				best += "N"
+			case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
+				best += "V"
+			case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+				best += "I"
+			}
+			if showBest {
+				if idx == 0 && !p.IsNexthopInvalid {
+					best += "*>"
+				} else {
+					best += "* "
 				}
-				args = append(args, label)
 			}
-			args = append(args, []interface{}{nexthop, aspathstr}...)
-			if showAge {
-				args = append(args, formatTimedelta(int64(now.Sub(p.GetTimestamp()).Seconds())))
+
+			if isMonitor {
+				title := "ROUTE"
+				if p.IsWithdraw {
+					title = "DELROUTE"
+				}
+				if showIdentifier != bgp.BGP_ADD_PATH_NONE {
+					pathStrs = append(pathStrs, []interface{}{title, nlri.PathIdentifier(), nlri, nexthop, aspathstr, pattrstr})
+				} else {
+					pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
+				}
+			} else {
+				args := []interface{}{best}
+				switch showIdentifier {
+				case bgp.BGP_ADD_PATH_RECEIVE:
+					args = append(args, fmt.Sprint(nlri.PathIdentifier()))
+				case bgp.BGP_ADD_PATH_SEND:
+					args = append(args, fmt.Sprint(nlri.PathLocalIdentifier()))
+				}
+				args = append(args, nlri)
+				if showLabel {
+					label := ""
+					switch n := nlri.(type) {
+					case *bgp.LabeledIPAddrPrefix:
+						label = n.Labels.String()
+					case *bgp.LabeledIPv6AddrPrefix:
+						label = n.Labels.String()
+					case *bgp.LabeledVPNIPAddrPrefix:
+						label = n.Labels.String()
+					case *bgp.LabeledVPNIPv6AddrPrefix:
+						label = n.Labels.String()
+					case *bgp.EVPNNLRI:
+						switch route := n.RouteTypeData.(type) {
+						case *bgp.EVPNEthernetAutoDiscoveryRoute:
+							label = fmt.Sprintf("[%d]", route.Label)
+						case *bgp.EVPNMacIPAdvertisementRoute:
+							var l []string
+							for _, i := range route.Labels {
+								l = append(l, strconv.Itoa(int(i)))
+							}
+							label = fmt.Sprintf("[%s]", strings.Join(l, ","))
+						case *bgp.EVPNIPPrefixRoute:
+							label = fmt.Sprintf("[%d]", route.Label)
+						}
+					}
+					if maxLabelLen < len(label) {
+						maxLabelLen = len(label)
+					}
+					args = append(args, label)
+				}
+				args = append(args, []interface{}{nexthop, aspathstr}...)
+				if showAge {
+					args = append(args, formatTimedelta(int64(now.Sub(p.GetTimestamp()).Seconds())))
+				}
+				args = append(args, pattrstr)
+				pathStrs = append(pathStrs, args)
 			}
-			args = append(args, pattrstr)
-			pathStrs = append(pathStrs, args)
 		}
 	}
 
@@ -816,34 +818,32 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 	} else {
 		// show RIB
-		counter := 0
+		var ds [][]*table.Path
 		for _, d := range rib.GetSortedDestinations() {
 			var ps []*table.Path
-			if r == CMD_ACCEPTED || r == CMD_REJECTED {
+			switch r {
+			case CMD_ACCEPTED:
 				for _, p := range d.GetAllKnownPathList() {
-					switch r {
-					case CMD_ACCEPTED:
-						if p.Filtered("") > table.POLICY_DIRECTION_NONE {
-							continue
-						}
-					case CMD_REJECTED:
-						if p.Filtered("") == table.POLICY_DIRECTION_NONE {
-							continue
-						}
+					if p.Filtered("") > table.POLICY_DIRECTION_NONE {
+						continue
 					}
 					ps = append(ps, p)
 				}
-			} else {
+			case CMD_REJECTED:
+				for _, p := range d.GetAllKnownPathList() {
+					if p.Filtered("") == table.POLICY_DIRECTION_NONE {
+						continue
+					}
+					ps = append(ps, p)
+				}
+			default:
 				ps = d.GetAllKnownPathList()
 			}
-			showHeader := false
-			if counter == 0 {
-				showHeader = true
-			}
-			showRoute(ps, showAge, showBest, showLabel, false, showHeader, showIdentifier)
-			counter++
+			ds = append(ds, ps)
 		}
-		if counter == 0 {
+		if len(ds) > 0 {
+			showRoute(ds, showAge, showBest, showLabel, false, true, showIdentifier)
+		} else {
 			fmt.Println("Network not in table")
 		}
 	}
