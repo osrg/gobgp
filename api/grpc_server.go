@@ -1032,7 +1032,16 @@ func ReadAfiSafiConfigFromAPIStruct(c *config.AfiSafiConfig, a *AfiSafiConfig) {
 	if c == nil || a == nil {
 		return
 	}
+	c.AfiSafiName = config.AfiSafiType(bgp.RouteFamily(a.Family).String())
 	c.Enabled = a.Enabled
+}
+
+func ReadAfiSafiStateFromAPIStruct(s *config.AfiSafiState, a *AfiSafiConfig) {
+	if s == nil || a == nil {
+		return
+	}
+	// Store only address family value for the convenience
+	s.Family = bgp.RouteFamily(a.Family)
 }
 
 func ReadPrefixLimitFromAPIStruct(c *config.PrefixLimit, a *PrefixLimit) {
@@ -1181,32 +1190,53 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 
 		pconf.State.RemoteRouterId = a.Conf.Id
 
-		for _, family := range a.Families {
-			afiSafi := config.AfiSafi{
-				Config: config.AfiSafiConfig{
-					AfiSafiName: config.AfiSafiType(bgp.RouteFamily(family).String()),
-					Enabled:     true,
-				},
-			}
-			for _, pl := range a.Conf.PrefixLimits {
-				if family == pl.Family {
-					ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, pl)
-				}
-			}
-			for _, a := range a.AfiSafis {
-				if a.Config != nil && family == a.Config.Family {
-					ReadMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, a.MpGracefulRestart)
-					ReadAfiSafiConfigFromAPIStruct(&afiSafi.Config, a.Config)
-					ReadApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, a.ApplyPolicy)
-					ReadRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, a.RouteSelectionOptions)
-					ReadUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, a.UseMultiplePaths)
-					ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, a.PrefixLimits)
-					ReadRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, a.RouteTargetMembership)
-					ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, a.LongLivedGracefulRestart)
-					ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, a.AddPaths)
-				}
-			}
+		for _, af := range a.AfiSafis {
+			afiSafi := config.AfiSafi{}
+			ReadMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, af.MpGracefulRestart)
+			ReadAfiSafiConfigFromAPIStruct(&afiSafi.Config, af.Config)
+			ReadAfiSafiStateFromAPIStruct(&afiSafi.State, af.Config)
+			ReadApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, af.ApplyPolicy)
+			ReadRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, af.RouteSelectionOptions)
+			ReadUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, af.UseMultiplePaths)
+			ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, af.PrefixLimits)
+			ReadRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, af.RouteTargetMembership)
+			ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
+			ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
+		}
+		// For the backward compatibility, we override AfiSafi configurations
+		// with Peer.Families.
+		for _, family := range a.Families {
+			found := false
+			for _, afiSafi := range pconf.AfiSafis {
+				if uint32(afiSafi.State.Family) == family {
+					// If Peer.Families contains the same address family,
+					// we enable this address family.
+					afiSafi.Config.Enabled = true
+					found = true
+				}
+			}
+			if !found {
+				// If Peer.Families does not contain the same address family,
+				// we append AfiSafi structure with the default value.
+				pconf.AfiSafis = append(pconf.AfiSafis, config.AfiSafi{
+					Config: config.AfiSafiConfig{
+						AfiSafiName: config.AfiSafiType(bgp.RouteFamily(family).String()),
+						Enabled:     true,
+					},
+				})
+			}
+		}
+		// For the backward compatibility, we override AfiSafi configurations
+		// with Peer.Conf.PrefixLimits.
+		for _, prefixLimit := range a.Conf.PrefixLimits {
+			for _, afiSafi := range pconf.AfiSafis {
+				// If Peer.Conf.PrefixLimits contains the configuration for
+				// the same address family, we override AfiSafi.PrefixLimit.
+				if uint32(afiSafi.State.Family) == prefixLimit.Family {
+					ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, prefixLimit)
+				}
+			}
 		}
 	}
 

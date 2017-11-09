@@ -623,6 +623,9 @@ message ValidateRibResponse {
 }
 
 message Peer {
+  // Note: Regarding to the consistency with OpenConfig model, a list of
+  // address family should be removed from here, and should be configured with
+  // the list of AfiSafi instead.
   repeated uint32 families = 1;
   ApplyPolicy apply_policy = 2;
   PeerConf conf = 3;
@@ -668,7 +671,7 @@ message PeerConf {
   repeated bytes remote_cap = 11;
   repeated bytes local_cap = 12;
   string id = 13;
-  // Note: Regarding to the consistency with OpenConfig mode, list of
+  // Note: Regarding to the consistency with OpenConfig model, list of
   // PrefixLimit should be removed from here, and list of PrefixLimit in
   // AfiSafi should be used instead.
   repeated PrefixLimit prefix_limits = 14;
