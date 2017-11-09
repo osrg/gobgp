@@ -2769,6 +2769,9 @@ func (*ValidateRibResponse) ProtoMessage()               {}
 func (*ValidateRibResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{104} }
 
 type Peer struct {
+	// Note: Regarding to the consistency with OpenConfig model, a list of
+	// address family should be removed from here, and should be configured with
+	// the list of AfiSafi instead.
 	Families        []uint32         `protobuf:"varint,1,rep,packed,name=families" json:"families,omitempty"`
 	ApplyPolicy     *ApplyPolicy     `protobuf:"bytes,2,opt,name=apply_policy,json=applyPolicy" json:"apply_policy,omitempty"`
 	Conf            *PeerConf        `protobuf:"bytes,3,opt,name=conf" json:"conf,omitempty"`
@@ -2950,7 +2953,7 @@ type PeerConf struct {
 	RemoteCap        [][]byte                 `protobuf:"bytes,11,rep,name=remote_cap,json=remoteCap,proto3" json:"remote_cap,omitempty"`
 	LocalCap         [][]byte                 `protobuf:"bytes,12,rep,name=local_cap,json=localCap,proto3" json:"local_cap,omitempty"`
 	Id               string                   `protobuf:"bytes,13,opt,name=id" json:"id,omitempty"`
-	// Note: Regarding to the consistency with OpenConfig mode, list of
+	// Note: Regarding to the consistency with OpenConfig model, list of
 	// PrefixLimit should be removed from here, and list of PrefixLimit in
 	// AfiSafi should be used instead.
 	PrefixLimits      []*PrefixLimit `protobuf:"bytes,14,rep,name=prefix_limits,json=prefixLimits" json:"prefix_limits,omitempty"`
