@@ -22,6 +22,8 @@ import (
 	"math"
 	"net"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -720,6 +722,34 @@ func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 		}
 	}
 	return asList
+}
+
+func (path *Path) GetLabelString() string {
+	label := ""
+	switch n := path.GetNlri().(type) {
+	case *bgp.LabeledIPAddrPrefix:
+		label = n.Labels.String()
+	case *bgp.LabeledIPv6AddrPrefix:
+		label = n.Labels.String()
+	case *bgp.LabeledVPNIPAddrPrefix:
+		label = n.Labels.String()
+	case *bgp.LabeledVPNIPv6AddrPrefix:
+		label = n.Labels.String()
+	case *bgp.EVPNNLRI:
+		switch route := n.RouteTypeData.(type) {
+		case *bgp.EVPNEthernetAutoDiscoveryRoute:
+			label = fmt.Sprintf("[%d]", route.Label)
+		case *bgp.EVPNMacIPAdvertisementRoute:
+			var l []string
+			for _, i := range route.Labels {
+				l = append(l, strconv.Itoa(int(i)))
+			}
+			label = fmt.Sprintf("[%s]", strings.Join(l, ","))
+		case *bgp.EVPNIPPrefixRoute:
+			label = fmt.Sprintf("[%d]", route.Label)
+		}
+	}
+	return label
 }
 
 // PrependAsn prepends AS number.

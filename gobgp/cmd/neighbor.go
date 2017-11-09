@@ -31,6 +31,29 @@ import (
 	"github.com/osrg/gobgp/table"
 )
 
+// used in showRoute() to determine the width of each column
+var (
+	columnWidthPrefix  = 20
+	columnWidthNextHop = 20
+	columnWidthAsPath  = 20
+	columnWidthLabel   = 10
+)
+
+func updateColumnWidth(nlri, nexthop, aspath, label string) {
+	if prefixLen := len(nlri); columnWidthPrefix < prefixLen {
+		columnWidthPrefix = prefixLen
+	}
+	if columnWidthNextHop < len(nexthop) {
+		columnWidthNextHop = len(nexthop)
+	}
+	if columnWidthAsPath < len(aspath) {
+		columnWidthAsPath = len(aspath)
+	}
+	if columnWidthLabel < len(label) {
+		columnWidthLabel = len(label)
+	}
+}
+
 func getNeighbors(vrf string) (neighbors, error) {
 	if vrf != "" {
 		n, err := client.ListNeighborByVRF(vrf)
@@ -407,176 +430,137 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(destinationList [][]*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool, showIdentifier bgp.BGPAddPathMode) {
+func getPathSymbolString(p *table.Path, idx int, showBest bool) string {
+	symbols := ""
+	if p.IsStale() {
+		symbols += "S"
+	}
+	switch p.ValidationStatus() {
+	case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+		symbols += "N"
+	case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
+		symbols += "V"
+	case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+		symbols += "I"
+	}
+	if showBest {
+		if idx == 0 && !p.IsNexthopInvalid {
+			symbols += "*>"
+		} else {
+			symbols += "* "
+		}
+	}
+	return symbols
+}
 
+func getPathAttributeString(p *table.Path) string {
+	s := make([]string, 0)
+	for _, a := range p.GetPathAttrs() {
+		switch a.GetType() {
+		case bgp.BGP_ATTR_TYPE_NEXT_HOP, bgp.BGP_ATTR_TYPE_MP_REACH_NLRI, bgp.BGP_ATTR_TYPE_AS_PATH, bgp.BGP_ATTR_TYPE_AS4_PATH:
+			continue
+		default:
+			s = append(s, a.String())
+		}
+	}
+	switch n := p.GetNlri().(type) {
+	case *bgp.EVPNNLRI:
+		// We print non route key fields like path attributes.
+		switch route := n.RouteTypeData.(type) {
+		case *bgp.EVPNMacIPAdvertisementRoute:
+			s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
+		case *bgp.EVPNIPPrefixRoute:
+			s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
+			if route.GWIPAddress != nil {
+				s = append(s, fmt.Sprintf("[GW: %s]", route.GWIPAddress.String()))
+			}
+		}
+	}
+	return fmt.Sprint(s)
+}
+
+func makeShowRouteArgs(p *table.Path, idx int, now time.Time, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
+	nlri := p.GetNlri()
+
+	// Path Symbols (e.g. "*>")
+	args := []interface{}{getPathSymbolString(p, idx, showBest)}
+
+	// Path Identifier
+	switch showIdentifier {
+	case bgp.BGP_ADD_PATH_RECEIVE:
+		args = append(args, fmt.Sprint(nlri.PathIdentifier()))
+	case bgp.BGP_ADD_PATH_SEND:
+		args = append(args, fmt.Sprint(nlri.PathLocalIdentifier()))
+	}
+
+	// NLRI
+	args = append(args, nlri)
+
+	// Label
+	label := ""
+	if showLabel {
+		label = p.GetLabelString()
+		args = append(args, label)
+	}
+
+	// Next Hop
+	nexthop := "fictitious"
+	if n := p.GetNexthop(); n != nil {
+		nexthop = p.GetNexthop().String()
+	}
+	args = append(args, nexthop)
+
+	// AS_PATH
+	aspathstr := p.GetAsString()
+	args = append(args, aspathstr)
+
+	// Age
+	if showAge {
+		args = append(args, formatTimedelta(int64(now.Sub(p.GetTimestamp()).Seconds())))
+	}
+
+	// Path Attributes
+	pattrstr := getPathAttributeString(p)
+	args = append(args, pattrstr)
+
+	updateColumnWidth(nlri.String(), nexthop, aspathstr, label)
+
+	return args
+}
+
+func showRoute(destinationList [][]*table.Path, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) {
 	var pathStrs [][]interface{}
-	maxPrefixLen := 20
-	maxNexthopLen := 20
-	maxAsPathLen := 20
-	maxLabelLen := 10
-
 	now := time.Now()
 	for _, pathList := range destinationList {
 		for idx, p := range pathList {
-			nexthop := "fictitious"
-			if n := p.GetNexthop(); n != nil {
-				nexthop = p.GetNexthop().String()
-			}
-			aspathstr := p.GetAsString()
-
-			nlri := p.GetNlri()
-			prefixLen := len(nlri.String())
-			if maxPrefixLen < prefixLen {
-				maxPrefixLen = prefixLen
-			}
-
-			s := []string{}
-			for _, a := range p.GetPathAttrs() {
-				switch a.GetType() {
-				case bgp.BGP_ATTR_TYPE_NEXT_HOP, bgp.BGP_ATTR_TYPE_MP_REACH_NLRI, bgp.BGP_ATTR_TYPE_AS_PATH, bgp.BGP_ATTR_TYPE_AS4_PATH:
-					continue
-				default:
-					s = append(s, a.String())
-				}
-			}
-			switch n := nlri.(type) {
-			case *bgp.EVPNNLRI:
-				// We print non route key fields like path attributes.
-				switch route := n.RouteTypeData.(type) {
-				case *bgp.EVPNMacIPAdvertisementRoute:
-					s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
-				case *bgp.EVPNIPPrefixRoute:
-					s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
-					if route.GWIPAddress != nil {
-						s = append(s, fmt.Sprintf("[GW: %s]", route.GWIPAddress.String()))
-					}
-				}
-			}
-			pattrstr := fmt.Sprint(s)
-
-			if maxNexthopLen < len(nexthop) {
-				maxNexthopLen = len(nexthop)
-			}
-
-			if maxAsPathLen < len(aspathstr) {
-				maxAsPathLen = len(aspathstr)
-			}
-
-			best := ""
-			if p.IsStale() {
-				best += "S"
-			}
-			switch p.ValidationStatus() {
-			case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
-				best += "N"
-			case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
-				best += "V"
-			case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
-				best += "I"
-			}
-			if showBest {
-				if idx == 0 && !p.IsNexthopInvalid {
-					best += "*>"
-				} else {
-					best += "* "
-				}
-			}
-
-			if isMonitor {
-				title := "ROUTE"
-				if p.IsWithdraw {
-					title = "DELROUTE"
-				}
-				if showIdentifier != bgp.BGP_ADD_PATH_NONE {
-					pathStrs = append(pathStrs, []interface{}{title, nlri.PathIdentifier(), nlri, nexthop, aspathstr, pattrstr})
-				} else {
-					pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
-				}
-			} else {
-				args := []interface{}{best}
-				switch showIdentifier {
-				case bgp.BGP_ADD_PATH_RECEIVE:
-					args = append(args, fmt.Sprint(nlri.PathIdentifier()))
-				case bgp.BGP_ADD_PATH_SEND:
-					args = append(args, fmt.Sprint(nlri.PathLocalIdentifier()))
-				}
-				args = append(args, nlri)
-				if showLabel {
-					label := ""
-					switch n := nlri.(type) {
-					case *bgp.LabeledIPAddrPrefix:
-						label = n.Labels.String()
-					case *bgp.LabeledIPv6AddrPrefix:
-						label = n.Labels.String()
-					case *bgp.LabeledVPNIPAddrPrefix:
-						label = n.Labels.String()
-					case *bgp.LabeledVPNIPv6AddrPrefix:
-						label = n.Labels.String()
-					case *bgp.EVPNNLRI:
-						switch route := n.RouteTypeData.(type) {
-						case *bgp.EVPNEthernetAutoDiscoveryRoute:
-							label = fmt.Sprintf("[%d]", route.Label)
-						case *bgp.EVPNMacIPAdvertisementRoute:
-							var l []string
-							for _, i := range route.Labels {
-								l = append(l, strconv.Itoa(int(i)))
-							}
-							label = fmt.Sprintf("[%s]", strings.Join(l, ","))
-						case *bgp.EVPNIPPrefixRoute:
-							label = fmt.Sprintf("[%d]", route.Label)
-						}
-					}
-					if maxLabelLen < len(label) {
-						maxLabelLen = len(label)
-					}
-					args = append(args, label)
-				}
-				args = append(args, []interface{}{nexthop, aspathstr}...)
-				if showAge {
-					args = append(args, formatTimedelta(int64(now.Sub(p.GetTimestamp()).Seconds())))
-				}
-				args = append(args, pattrstr)
-				pathStrs = append(pathStrs, args)
-			}
+			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showIdentifier))
 		}
 	}
 
+	headers := make([]interface{}, 0)
 	var format string
-	if isMonitor {
-		format = "[%s] %d:%s via %s aspath [%s] attrs %s\n"
-	} else {
-		format = fmt.Sprintf("%%-3s")
-		if showIdentifier != bgp.BGP_ADD_PATH_NONE {
-			format += "%-3s "
-		}
-		format += fmt.Sprintf("%%-%ds ", maxPrefixLen)
-		if showLabel {
-			format += fmt.Sprintf("%%-%ds ", maxLabelLen)
-		}
-		format += fmt.Sprintf("%%-%ds %%-%ds ", maxNexthopLen, maxAsPathLen)
-		if showAge {
-			format += "%-10s "
-		}
-		format += "%-s\n"
+	headers = append(headers, "") // Symbols
+	format = fmt.Sprintf("%%-3s")
+	if showIdentifier != bgp.BGP_ADD_PATH_NONE {
+		headers = append(headers, "ID")
+		format += "%-3s "
 	}
-
-	if printHeader {
-		args := []interface{}{""}
-		if showIdentifier != bgp.BGP_ADD_PATH_NONE {
-			args = append(args, "ID")
-		}
-		args = append(args, "Network")
-		if showLabel {
-			args = append(args, "Labels")
-		}
-		args = append(args, []interface{}{"Next Hop", "AS_PATH"}...)
-		if showAge {
-			args = append(args, "Age")
-		}
-		args = append(args, "Attrs")
-		fmt.Printf(format, args...)
+	headers = append(headers, "Network")
+	format += fmt.Sprintf("%%-%ds ", columnWidthPrefix)
+	if showLabel {
+		headers = append(headers, "Labels")
+		format += fmt.Sprintf("%%-%ds ", columnWidthLabel)
 	}
+	headers = append(headers, "Next Hop", "AS_PATH")
+	format += fmt.Sprintf("%%-%ds %%-%ds ", columnWidthNextHop, columnWidthAsPath)
+	if showAge {
+		headers = append(headers, "Age")
+		format += "%-10s "
+	}
+	headers = append(headers, "Attrs")
+	format += "%-s\n"
 
+	fmt.Printf(format, headers...)
 	for _, pathStr := range pathStrs {
 		fmt.Printf(format, pathStr...)
 	}
@@ -842,7 +826,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			ds = append(ds, ps)
 		}
 		if len(ds) > 0 {
-			showRoute(ds, showAge, showBest, showLabel, false, true, showIdentifier)
+			showRoute(ds, showAge, showBest, showLabel, showIdentifier)
 		} else {
 			fmt.Println("Network not in table")
 		}
