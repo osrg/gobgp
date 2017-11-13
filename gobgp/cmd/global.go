@@ -771,11 +771,11 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		if len(args) < 1 {
 			return nil, fmt.Errorf("invalid format")
 		}
-		ip, net, err := net.ParseCIDR(args[0])
+		ip, nw, err := net.ParseCIDR(args[0])
 		if err != nil {
 			return nil, err
 		}
-		ones, _ := net.Mask.Size()
+		ones, _ := nw.Mask.Size()
 		if rf == bgp.RF_IPv4_UC {
 			if ip.To4() == nil {
 				return nil, fmt.Errorf("invalid ipv4 prefix")
@@ -803,8 +803,8 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		if len(args) < 5 || args[1] != "label" || args[3] != "rd" {
 			return nil, fmt.Errorf("invalid format")
 		}
-		ip, net, _ := net.ParseCIDR(args[0])
-		ones, _ := net.Mask.Size()
+		ip, nw, _ := net.ParseCIDR(args[0])
+		ones, _ := nw.Mask.Size()
 
 		label := 0
 		if label, err = strconv.Atoi(args[2]); err != nil {
@@ -835,8 +835,8 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 			return nil, fmt.Errorf("invalid format")
 		}
 
-		ip, net, _ := net.ParseCIDR(args[0])
-		ones, _ := net.Mask.Size()
+		ip, nw, _ := net.ParseCIDR(args[0])
+		ones, _ := nw.Mask.Size()
 
 		mpls, err := bgp.ParseMPLSLabelStack(args[1])
 		if err != nil {
