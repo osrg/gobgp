@@ -42,37 +42,40 @@ const (
 	ACTION
 	RT
 	ENCAP
+	ROUTER_MAC
 	VALID
 	NOT_FOUND
 	INVALID
 )
 
 var ExtCommNameMap = map[ExtCommType]string{
-	ACCEPT:    "accept",
-	DISCARD:   "discard",
-	RATE:      "rate-limit",
-	REDIRECT:  "redirect",
-	MARK:      "mark",
-	ACTION:    "action",
-	RT:        "rt",
-	ENCAP:     "encap",
-	VALID:     "valid",
-	NOT_FOUND: "not-found",
-	INVALID:   "invalid",
+	ACCEPT:     "accept",
+	DISCARD:    "discard",
+	RATE:       "rate-limit",
+	REDIRECT:   "redirect",
+	MARK:       "mark",
+	ACTION:     "action",
+	RT:         "rt",
+	ENCAP:      "encap",
+	ROUTER_MAC: "router-mac",
+	VALID:      "valid",
+	NOT_FOUND:  "not-found",
+	INVALID:    "invalid",
 }
 
 var ExtCommValueMap = map[string]ExtCommType{
-	ExtCommNameMap[ACCEPT]:    ACCEPT,
-	ExtCommNameMap[DISCARD]:   DISCARD,
-	ExtCommNameMap[RATE]:      RATE,
-	ExtCommNameMap[REDIRECT]:  REDIRECT,
-	ExtCommNameMap[MARK]:      MARK,
-	ExtCommNameMap[ACTION]:    ACTION,
-	ExtCommNameMap[RT]:        RT,
-	ExtCommNameMap[ENCAP]:     ENCAP,
-	ExtCommNameMap[VALID]:     VALID,
-	ExtCommNameMap[NOT_FOUND]: NOT_FOUND,
-	ExtCommNameMap[INVALID]:   INVALID,
+	ExtCommNameMap[ACCEPT]:     ACCEPT,
+	ExtCommNameMap[DISCARD]:    DISCARD,
+	ExtCommNameMap[RATE]:       RATE,
+	ExtCommNameMap[REDIRECT]:   REDIRECT,
+	ExtCommNameMap[MARK]:       MARK,
+	ExtCommNameMap[ACTION]:     ACTION,
+	ExtCommNameMap[RT]:         RT,
+	ExtCommNameMap[ENCAP]:      ENCAP,
+	ExtCommNameMap[ROUTER_MAC]: ROUTER_MAC,
+	ExtCommNameMap[VALID]:      VALID,
+	ExtCommNameMap[NOT_FOUND]:  NOT_FOUND,
+	ExtCommNameMap[INVALID]:    INVALID,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -196,10 +199,21 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	default:
 		return nil, fmt.Errorf("invalid encap type")
 	}
-	isTransitive := true
-	o := bgp.NewOpaqueExtended(isTransitive)
+	o := bgp.NewOpaqueExtended(true)
 	o.SubType = bgp.EC_SUBTYPE_ENCAPSULATION
 	o.Value = &bgp.EncapExtended{TunnelType: typ}
+	return []bgp.ExtendedCommunityInterface{o}, nil
+}
+
+func routerMacParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[ROUTER_MAC] {
+		return nil, fmt.Errorf("invalid router's mac")
+	}
+	hw, err := net.ParseMAC(args[1])
+	if err != nil {
+		return nil, err
+	}
+	o := &bgp.RouterMacExtended{Mac: hw}
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
@@ -218,33 +232,32 @@ func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	default:
 		return nil, fmt.Errorf("invalid validation state")
 	}
-	isTransitive := false
-	o := bgp.NewOpaqueExtended(isTransitive)
+	o := bgp.NewOpaqueExtended(true)
 	o.SubType = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
 	o.Value = &bgp.ValidationExtended{Value: typ}
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
 var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
-	ACCEPT:    nil,
-	DISCARD:   rateLimitParser,
-	RATE:      rateLimitParser,
-	REDIRECT:  redirectParser,
-	MARK:      markParser,
-	ACTION:    actionParser,
-	RT:        rtParser,
-	ENCAP:     encapParser,
-	VALID:     validationParser,
-	NOT_FOUND: validationParser,
-	INVALID:   validationParser,
+	ACCEPT:     nil,
+	DISCARD:    rateLimitParser,
+	RATE:       rateLimitParser,
+	REDIRECT:   redirectParser,
+	MARK:       markParser,
+	ACTION:     actionParser,
+	RT:         rtParser,
+	ENCAP:      encapParser,
+	ROUTER_MAC: routerMacParser,
+	VALID:      validationParser,
+	NOT_FOUND:  validationParser,
+	INVALID:    validationParser,
 }
 
-func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, error) {
+func ParseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	idxs := make([]struct {
 		t ExtCommType
 		i int
 	}, 0, len(ExtCommNameMap))
-	args := strings.Split(input, " ")
 	for idx, v := range args {
 		if t, ok := ExtCommValueMap[v]; ok {
 			idxs = append(idxs, struct {
@@ -609,7 +622,7 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"gw", "esi", "etag", "label", "rd", "rt", "encap"})
+	m := extractReserved(args, []string{"gw", "esi", "etag", "label", "rd", "rt", "encap", "router-mac"})
 	if len(m[""]) < 1 {
 		return nil, nil, fmt.Errorf("specify prefix")
 	}
@@ -663,6 +676,9 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	if len(m["encap"]) > 0 {
 		extcomms = append(extcomms, "encap", m["encap"][0])
 	}
+	if len(m["router-mac"]) > 0 {
+		extcomms = append(extcomms, "router-mac", m["router-mac"][0])
+	}
 
 	r := &bgp.EVPNIPPrefixRoute{
 		RD:             rd,
@@ -673,7 +689,7 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		GWIPAddress:    gw,
 		Label:          label,
 	}
-	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, 0, r), nil, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, 0, r), extcomms, nil
 }
 
 func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -1090,7 +1106,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 	}
 
 	if extcomms != nil && len(extcomms) > 0 {
-		extcomms, err := ParseExtendedCommunities(strings.Join(extcomms, " "))
+		extcomms, err := ParseExtendedCommunities(extcomms)
 		if err != nil {
 			return nil, err
 		}
@@ -1212,7 +1228,7 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
     <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
-    <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]`, cmdstr, modtype)
+    <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`, cmdstr, modtype)
 		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
