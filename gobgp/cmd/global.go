@@ -1035,7 +1035,7 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 	return err
 }
 
-func showGlobalConfig(args []string) error {
+func showGlobalConfig() error {
 	g, err := client.GetServer()
 	if err != nil {
 		return err
@@ -1105,7 +1105,7 @@ func NewGlobalCmd() *cobra.Command {
 			if len(args) != 0 {
 				err = modGlobalConfig(args)
 			} else {
-				err = showGlobalConfig(args)
+				err = showGlobalConfig()
 			}
 			if err != nil {
 				exitWithError(err)
