@@ -151,6 +151,7 @@ const (
 	EC_SUBTYPE_MAC_MOBILITY ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x06
 	EC_SUBTYPE_ESI_LABEL    ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x06
 	EC_SUBTYPE_ES_IMPORT    ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x06
+	EC_SUBTYPE_ROUTER_MAC   ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x06
 
 	EC_SUBTYPE_UUID_BASED_RT ExtendedCommunityAttrSubType = 0x11
 )
@@ -6642,6 +6643,49 @@ func NewMacMobilityExtended(seq uint32, isSticky bool) *MacMobilityExtended {
 	}
 }
 
+type RouterMacExtended struct {
+	Mac net.HardwareAddr
+}
+
+func (e *RouterMacExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 2, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ROUTER_MAC)
+	buf = append(buf, e.Mac...)
+	return buf, nil
+}
+
+func (e *RouterMacExtended) String() string {
+	return fmt.Sprintf("router's mac: %s", e.Mac.String())
+}
+
+func (e *RouterMacExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Mac     string                       `json:"mac"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Mac:     e.Mac.String(),
+	})
+}
+
+func (e *RouterMacExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ROUTER_MAC
+}
+
+func NewRoutersMacExtended(mac string) *RouterMacExtended {
+	hw, err := net.ParseMAC(mac)
+	if err != nil {
+		return nil
+	}
+	return &RouterMacExtended{
+		Mac: hw,
+	}
+}
+
 func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 	if ExtendedCommunityAttrType(data[0]) != EC_TYPE_EVPN {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_EVPN: %d", data[0]))
@@ -6671,6 +6715,10 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 		return &MacMobilityExtended{
 			Sequence: seq,
 			IsSticky: isSticky,
+		}, nil
+	case EC_SUBTYPE_ROUTER_MAC:
+		return &RouterMacExtended{
+			Mac: net.HardwareAddr(data[2:8]),
 		}, nil
 	}
 	return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("unknown evpn subtype: %d", subType))
@@ -8571,6 +8619,10 @@ func (e *ESImportRouteTarget) Flat() map[string]string {
 }
 
 func (e *MacMobilityExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *RouterMacExtended) Flat() map[string]string {
 	return map[string]string{}
 }
 
