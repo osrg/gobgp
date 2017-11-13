@@ -322,6 +322,60 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguis
 	return nlri, args[thenPos+1:], nil
 }
 
+func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	// Format:
+	// esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	req := 8
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m := extractReserved(args, []string{"esi", "etag", "label", "rd", "rt", "encap"})
+	for _, f := range []string{"esi", "etag", "label", "rd"} {
+		for len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+
+	esi, err := bgp.ParseEthernetSegmentIdentifier(m["esi"])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	e, err := strconv.Atoi(m["etag"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	etag := uint32(e)
+
+	l, err := strconv.Atoi(m["label"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	label := uint32(l)
+
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	extcomms := make([]string, 0)
+	if len(m["rt"]) > 0 {
+		extcomms = append(extcomms, "rt")
+		extcomms = append(extcomms, m["rt"]...)
+	}
+	if len(m["encap"]) > 0 {
+		extcomms = append(extcomms, "encap", m["encap"][0])
+	}
+
+	r := &bgp.EVPNEthernetAutoDiscoveryRoute{
+		RD:    rd,
+		ESI:   esi,
+		ETag:  etag,
+		Label: label,
+	}
+	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0, r), extcomms, nil
+}
+
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <mac address> <ip address> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
@@ -563,6 +617,8 @@ func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	subtype := args[0]
 	args = args[1:]
 	switch subtype {
+	case "a-d":
+		return ParseEvpnEthernetAutoDiscoveryArgs(args)
 	case "macadv":
 		return ParseEvpnMacAdvArgs(args)
 	case "multicast":
@@ -1083,7 +1139,8 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			etherTypes,
 		)
 		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
-		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> | prefix <PREFIX> } -a evpn
+		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | prefix <PREFIX> } -a evpn
+    <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
     <MACADV>    : <mac address> <ip address> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <PREFIX>    : <ip prefix> [gw <gateway>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]`, cmdstr, modtype)
