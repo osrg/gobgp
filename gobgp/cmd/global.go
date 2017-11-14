@@ -959,18 +959,18 @@ func modPath(resource string, name, modtype string, args []string) error {
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 %%s
-   <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
-   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
+    <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
+    <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
 			ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
 			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
 			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
 		ipFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
                     %s <PROTO>... | %s [!] [=] <FRAGMENT_TYPE> | %s [!] [=] <TCPFLAG>... |
                     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
-   <PROTO> : %s
-   <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
-   <TCPFLAG> : %s
-   <ITEM> : & {<|<=|>|>=|==|!=}<value>`,
+    <PROTO> : %s
+    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
+    <TCPFLAG> : %s
+    <ITEM> : & {<|<=|>|>=|==|!=}<value>`,
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],
@@ -992,8 +992,8 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		helpErrMap[bgp.RF_FS_IPv4_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv4-l3vpn-flowspec", ipFsMatchExpr)
 		helpErrMap[bgp.RF_FS_IPv6_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv6-l3vpn-flowspec", ipFsMatchExpr)
 		macFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { { %s | %s } <MAC> | %s <ETHER_TYPE> | { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
-   <ETHER_TYPE> : %s
-   <ITEM> : &?{<|>|=}<value>`,
+    <ETHER_TYPE> : %s
+    <ITEM> : &?{<|>|=}<value>`,
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_MAC],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_MAC],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ETHERNET_TYPE],
