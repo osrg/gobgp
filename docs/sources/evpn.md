@@ -433,7 +433,7 @@ GoBGP will receive these four routes and re-advertise them to YABGP peer on "10.
 $ gobgp global rib -a evpn
    Network                                                  Labels     Next Hop             AS_PATH              Age        Attrs
 *> [type:A-D][rd:1.1.1.1:32867][esi:single-homed][etag:100] [161]      10.75.44.254                              hh:mm:ss   [{Extcomms: [esi-label: 8001]} {Origin: i} {LocalPref: 100}]
-*> [type:esi][rd:172.16.0.1:8888][esi:{0 [0 0 0 0 0 0 0 0 0]}][ip:192.168.0.1]            10.75.44.254                              hh:mm:ss   [{Extcomms: [es-import rt: 00:11:22:33:44:55]} {Origin: i} {LocalPref: 100}]
+*> [type:esi][rd:172.16.0.1:8888][esi:single-homed][ip:192.168.0.1]            10.75.44.254                              hh:mm:ss   [{Extcomms: [es-import rt: 00:11:22:33:44:55]} {Origin: i} {LocalPref: 100}]
 *> [type:macadv][rd:172.17.0.3:2][etag:108][mac:00:11:22:33:44:55][ip:11.11.11.1] [0]        10.75.44.254                              hh:mm:ss   [{Extcomms: [mac-mobility: 500, sticky]} {Origin: i} {LocalPref: 100} [ESI: single-homed]]
 *> [type:multicast][rd:172.16.0.1:5904][etag:100][ip:192.168.0.1]            10.75.44.254                              hh:mm:ss   [{Origin: i} {LocalPref: 100}]
 ```
