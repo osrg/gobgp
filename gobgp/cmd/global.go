@@ -378,16 +378,16 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
-	// <mac address> <ip address> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	// <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
 	// or
-	// <mac address> <ip address> <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	// <mac address> <ip address> <etag> [esi <esi>] label <label> rd <rd> [rt <rt>...] [encap <encap type>]
 	// or
-	// <mac address> <ip address> <etag> <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	// <mac address> <ip address> <etag> <label> [esi <esi>] rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 6
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"etag", "label", "rd", "rt", "encap"})
+	m := extractReserved(args, []string{"esi", "etag", "label", "rd", "rt", "encap"})
 	if len(m[""]) < 2 {
 		return nil, nil, fmt.Errorf("specify mac and ip address")
 	}
@@ -432,6 +432,11 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		ipLen = net.IPv6len * 8
 	}
 
+	esi, err := bgp.ParseEthernetSegmentIdentifier(m["esi"])
+	if err != nil {
+		return nil, nil, err
+	}
+
 	eTag, err := strconv.Atoi(eTagStr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid etag: %s: %s", eTagStr, err)
@@ -461,10 +466,8 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	}
 
 	r := &bgp.EVPNMacIPAdvertisementRoute{
-		RD: rd,
-		ESI: bgp.EthernetSegmentIdentifier{
-			Type: bgp.ESI_ARBITRARY,
-		},
+		RD:               rd,
+		ESI:              esi,
 		MacAddressLength: 48,
 		MacAddress:       mac,
 		IPAddressLength:  uint8(ipLen),
@@ -601,12 +604,12 @@ func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 
 func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
-	// <ip prefix> [gw <gateway>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]
+	// <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 5
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"gw", "etag", "label", "rd", "rt", "encap"})
+	m := extractReserved(args, []string{"gw", "esi", "etag", "label", "rd", "rt", "encap"})
 	if len(m[""]) < 1 {
 		return nil, nil, fmt.Errorf("specify prefix")
 	}
@@ -628,6 +631,11 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	}
 
 	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	esi, err := bgp.ParseEthernetSegmentIdentifier(m["esi"])
 	if err != nil {
 		return nil, nil, err
 	}
@@ -658,6 +666,7 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 
 	r := &bgp.EVPNIPPrefixRoute{
 		RD:             rd,
+		ESI:            esi,
 		ETag:           etag,
 		IPPrefixLength: uint8(ones),
 		IPPrefix:       nw.IP,
@@ -1200,10 +1209,10 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
     <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
-    <MACADV>    : <mac address> <ip address> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+    <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
-    <PREFIX>    : <ip prefix> [gw <gateway>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]`, cmdstr, modtype)
+    <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]`, cmdstr, modtype)
 		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
