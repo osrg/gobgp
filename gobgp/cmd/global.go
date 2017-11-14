@@ -323,107 +323,169 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguis
 }
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
-	if len(args) < 4 {
-		return nil, nil, fmt.Errorf("lack of number of args needs 4 but %d", len(args))
+	// Format:
+	// <mac address> <ip address> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	// or
+	// <mac address> <ip address> <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	// or
+	// <mac address> <ip address> <etag> <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	req := 6
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	var nlri bgp.AddrPrefixInterface
-	var ip net.IP
-	iplen := 0
+	m := extractReserved(args, []string{"etag", "label", "rd", "rt", "encap"})
+	if len(m[""]) < 2 {
+		return nil, nil, fmt.Errorf("specify mac and ip address")
+	}
+	macStr := m[""][0]
+	ipStr := m[""][1]
+	eTagStr := ""
+	labelStr := ""
+	if len(m[""]) == 2 {
+		if len(m["etag"]) == 0 || len(m["label"]) == 0 {
+			return nil, nil, fmt.Errorf("specify etag and label")
+		}
+		eTagStr = m["etag"][0]
+		labelStr = m["label"][0]
+	} else if len(m[""]) == 3 {
+		if len(m["label"]) == 0 {
+			return nil, nil, fmt.Errorf("specify label")
+		}
+		eTagStr = m[""][2]
+		labelStr = m["label"][0]
+	} else {
+		eTagStr = m[""][2]
+		labelStr = m[""][3]
+	}
+	if len(m["rd"]) == 0 {
+		return nil, nil, fmt.Errorf("specify rd")
+	}
 
-	mac, err := net.ParseMAC(args[0])
+	mac, err := net.ParseMAC(macStr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid mac: %s", args[0])
+		return nil, nil, fmt.Errorf("invalid mac address: %s", macStr)
 	}
-	if args[1] != "0.0.0.0" && args[1] != "::" {
-		ip = net.ParseIP(args[1])
-		if ip == nil {
-			return nil, nil, fmt.Errorf("invalid ip prefix: %s", args[1])
-		}
-		iplen = net.IPv4len * 8
-		if ip.To4() == nil {
-			iplen = net.IPv6len * 8
-		}
+
+	ip := net.ParseIP(ipStr)
+	ipLen := 0
+	if ip == nil {
+		return nil, nil, fmt.Errorf("invalid ip address: %s", ipStr)
+	} else if ip.IsUnspecified() {
+		ip = nil
+	} else if ip.To4() != nil {
+		ipLen = net.IPv4len * 8
+	} else {
+		ipLen = net.IPv6len * 8
 	}
-	eTag, err := strconv.Atoi(args[2])
+
+	eTag, err := strconv.Atoi(eTagStr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid eTag: %s. err: %s", args[2], err)
+		return nil, nil, fmt.Errorf("invalid etag: %s: %s", eTagStr, err)
 	}
+
 	var labels []uint32
-	for _, l := range strings.SplitN(args[3], ",", 2) {
+	for _, l := range strings.SplitN(labelStr, ",", 2) {
 		label, err := strconv.Atoi(l)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid label: %s. err: %s", args[3], err)
+			return nil, nil, fmt.Errorf("invalid label: %s: %s", labelStr, err)
 		}
 		labels = append(labels, uint32(label))
 	}
 
-	var rd bgp.RouteDistinguisherInterface
-	if args[4] == "rd" && len(args) > 5 {
-		rd, err = bgp.ParseRouteDistinguisher(args[5])
-		if err != nil {
-			return nil, nil, err
-		}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
 	}
 
-	macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
+	extcomms := make([]string, 0)
+	if len(m["rt"]) > 0 {
+		extcomms = append(extcomms, "rt")
+		extcomms = append(extcomms, m["rt"]...)
+	}
+	if len(m["encap"]) > 0 {
+		extcomms = append(extcomms, "encap", m["encap"][0])
+	}
+
+	r := &bgp.EVPNMacIPAdvertisementRoute{
 		RD: rd,
 		ESI: bgp.EthernetSegmentIdentifier{
 			Type: bgp.ESI_ARBITRARY,
 		},
 		MacAddressLength: 48,
 		MacAddress:       mac,
-		IPAddressLength:  uint8(iplen),
+		IPAddressLength:  uint8(ipLen),
 		IPAddress:        ip,
 		Labels:           labels,
 		ETag:             uint32(eTag),
 	}
-	nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
-	extcomms := args[6:]
-	return nlri, extcomms, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, r), extcomms, nil
 }
 
 func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
-	if len(args) < 2 {
-		return nil, nil, fmt.Errorf("lack of number of args needs 2 but %d", len(args))
+	// Format:
+	// <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+	// or
+	// <ip address> <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+	req := 4
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	var nlri bgp.AddrPrefixInterface
-	var ip net.IP
-	iplen := 0
-
-	if args[0] != "0.0.0.0" && args[0] != "::" {
-		ip = net.ParseIP(args[0])
-		if ip == nil {
-			return nil, nil, fmt.Errorf("invalid ip prefix: %s", args[0])
+	m := extractReserved(args, []string{"etag", "rd", "rt", "encap"})
+	if len(m[""]) < 1 {
+		return nil, nil, fmt.Errorf("specify ip address")
+	}
+	ipStr := m[""][0]
+	eTagStr := ""
+	if len(m[""]) == 1 {
+		if len(m["etag"]) == 0 {
+			return nil, nil, fmt.Errorf("specify etag")
 		}
-		iplen = net.IPv4len * 8
-		if ip.To4() == nil {
-			iplen = net.IPv6len * 8
-		}
+		eTagStr = m["etag"][0]
+	} else {
+		eTagStr = m[""][1]
+	}
+	if len(m["rd"]) == 0 {
+		return nil, nil, fmt.Errorf("specify rd")
 	}
 
-	eTag, err := strconv.Atoi(args[1])
+	ip := net.ParseIP(ipStr)
+	ipLen := 0
+	if ip == nil {
+		return nil, nil, fmt.Errorf("invalid ip address: %s", ipStr)
+	} else if ip.IsUnspecified() {
+		ip = nil
+	} else if ip.To4() != nil {
+		ipLen = net.IPv4len * 8
+	} else {
+		ipLen = net.IPv6len * 8
+	}
+
+	eTag, err := strconv.Atoi(eTagStr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid eTag: %s. err: %s", args[1], err)
+		return nil, nil, fmt.Errorf("invalid etag: %s: %s", eTagStr, err)
 	}
 
-	var rd bgp.RouteDistinguisherInterface
-	if args[2] == "rd" && len(args) > 3 {
-		rd, err = bgp.ParseRouteDistinguisher(args[3])
-		if err != nil {
-			return nil, nil, err
-		}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
 	}
 
-	multicastEtag := &bgp.EVPNMulticastEthernetTagRoute{
+	extcomms := make([]string, 0)
+	if len(m["rt"]) > 0 {
+		extcomms = append(extcomms, "rt")
+		extcomms = append(extcomms, m["rt"]...)
+	}
+	if len(m["encap"]) > 0 {
+		extcomms = append(extcomms, "encap", m["encap"][0])
+	}
+
+	r := &bgp.EVPNMulticastEthernetTagRoute{
 		RD:              rd,
-		IPAddressLength: uint8(iplen),
+		IPAddressLength: uint8(ipLen),
 		IPAddress:       ip,
 		ETag:            uint32(eTag),
 	}
-	extcomms := args[4:]
-	nlri = bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0, multicastEtag)
-	return nlri, extcomms, nil
-
+	return bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0, r), extcomms, nil
 }
 
 func ParseEVPNIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -1009,8 +1071,8 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		)
 		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> | prefix <PREFIX> } -a evpn
-    <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... [encap <encap type>]
-    <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]
+    <MACADV>    : <mac address> <ip address> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+    <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <PREFIX>    : <ip prefix> [gw <gateway>] etag <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
 		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
