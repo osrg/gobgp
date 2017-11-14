@@ -2479,7 +2479,7 @@ func (er *EVPNEthernetSegmentRoute) String() string {
 	// For the purpose of BGP route key processing, only the Ethernet
 	// Segment ID, IP Address Length, and Originating Router's IP Address
 	// fields are considered to be part of the prefix in the NLRI.
-	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
+	return fmt.Sprintf("[type:esi][rd:%s][esi:%s][ip:%s]", er.RD, er.ESI.String(), er.IPAddress)
 }
 
 func (er *EVPNEthernetSegmentRoute) MarshalJSON() ([]byte, error) {
