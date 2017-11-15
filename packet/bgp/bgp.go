@@ -1952,14 +1952,19 @@ func isZeroBuf(buf []byte) bool {
 }
 
 func (esi *EthernetSegmentIdentifier) String() string {
+	toHexArray := func(data []byte) string {
+		// Converts byte slice into the colon separated hex values and the
+		// number of elements are 9 at most (excluding Type field).
+		values := make([]string, 0, 9)
+		for _, v := range data {
+			values = append(values, fmt.Sprintf("%02x", v))
+		}
+		return strings.Join(values, ":")
+	}
+
 	s := bytes.NewBuffer(make([]byte, 0, 64))
 	s.WriteString(fmt.Sprintf("%s | ", esi.Type.String()))
 	switch esi.Type {
-	case ESI_ARBITRARY:
-		if isZeroBuf(esi.Value) {
-			return "single-homed"
-		}
-		s.WriteString(fmt.Sprintf("%s", esi.Value))
 	case ESI_LACP:
 		s.WriteString(fmt.Sprintf("system mac %s, ", net.HardwareAddr(esi.Value[:6]).String()))
 		s.WriteString(fmt.Sprintf("port key %d", binary.BigEndian.Uint16(esi.Value[6:8])))
@@ -1975,8 +1980,13 @@ func (esi *EthernetSegmentIdentifier) String() string {
 	case ESI_AS:
 		s.WriteString(fmt.Sprintf("as %d, ", binary.BigEndian.Uint32(esi.Value[:4])))
 		s.WriteString(fmt.Sprintf("local discriminator %d", binary.BigEndian.Uint32(esi.Value[4:8])))
+	case ESI_ARBITRARY:
+		if isZeroBuf(esi.Value) {
+			return "single-homed"
+		}
+		fallthrough
 	default:
-		s.WriteString(fmt.Sprintf("value %s", esi.Value))
+		s.WriteString(toHexArray(esi.Value))
 	}
 	return s.String()
 }
