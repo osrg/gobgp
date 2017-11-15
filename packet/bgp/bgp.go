@@ -2527,79 +2527,86 @@ type EVPNIPPrefixRoute struct {
 }
 
 func (er *EVPNIPPrefixRoute) DecodeFromBytes(data []byte) error {
-	if len(data) < 30 { // rd + esi + etag + prefix-len + ipv4 addr + label
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPN IP Prefix Route bytes available")
-	}
-	er.RD = GetRouteDistinguisher(data)
-	data = data[er.RD.Len():]
-	err := er.ESI.DecodeFromBytes(data)
-	if err != nil {
-		return err
-	}
-	data = data[10:]
-	er.ETag = binary.BigEndian.Uint32(data[0:4])
-	data = data[4:]
-	er.IPPrefixLength = data[0]
-	addrLen := 4
-	data = data[1:]
-	if len(data) > 19 { // ipv6 addr + label
-		addrLen = 16
-	}
-	er.IPPrefix = net.IP(data[:addrLen])
-	data = data[addrLen:]
-	switch {
-	case len(data) == 3:
-		er.Label = labelDecode(data)
-	case len(data) == addrLen+3:
-		er.GWIPAddress = net.IP(data[:addrLen])
-		er.Label = labelDecode(data[addrLen:])
+	addrLen := net.IPv4len
+	switch len(data) {
+	case 34:
+		// RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1) + IPv4 Prefix(4) + GW IPv4(4) + Label(3)
+	case 58:
+		// RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1) + IPv6 Prefix(16) + GW IPv6(16) + Label(3)
+		addrLen = net.IPv6len
 	default:
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPN IP Prefix Route bytes available")
 	}
+
+	er.RD = GetRouteDistinguisher(data[0:8])
+
+	err := er.ESI.DecodeFromBytes(data[8:18])
+	if err != nil {
+		return err
+	}
+
+	er.ETag = binary.BigEndian.Uint32(data[18:22])
+
+	er.IPPrefixLength = data[22]
+
+	offset := 23 // RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1)
+	er.IPPrefix = data[offset : offset+addrLen]
+	offset += addrLen
+
+	er.GWIPAddress = data[offset : offset+addrLen]
+	offset += addrLen
+
+	if er.Label, err = labelDecode(data[offset : offset+3]); err != nil {
+		return err
+	}
+	//offset += 3
+
 	return nil
 }
 
 func (er *EVPNIPPrefixRoute) Serialize() ([]byte, error) {
-	var buf []byte
-	var err error
+	buf := make([]byte, 23) // RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1)
+
 	if er.RD != nil {
-		buf, err = er.RD.Serialize()
+		tbuf, err := er.RD.Serialize()
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		buf = make([]byte, 8)
+		copy(buf[0:8], tbuf)
 	}
+
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, tbuf...)
+	copy(buf[8:18], tbuf)
 
-	tbuf = make([]byte, 4)
-	binary.BigEndian.PutUint32(tbuf, er.ETag)
-	buf = append(buf, tbuf...)
+	binary.BigEndian.PutUint32(buf[18:22], er.ETag)
 
-	buf = append(buf, er.IPPrefixLength)
+	buf[22] = er.IPPrefixLength
 
 	if er.IPPrefix == nil {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("IP Prefix is nil"))
 	} else if er.IPPrefix.To4() != nil {
-		buf = append(buf, []byte(er.IPPrefix.To4())...)
-	} else {
-		buf = append(buf, []byte(er.IPPrefix)...)
-	}
-
-	if er.GWIPAddress != nil {
-		if er.GWIPAddress.To4() != nil {
-			buf = append(buf, []byte(er.GWIPAddress.To4())...)
-		} else {
-			buf = append(buf, []byte(er.GWIPAddress.To16())...)
+		buf = append(buf, er.IPPrefix.To4()...)
+		if er.GWIPAddress == nil {
+			// draft-ietf-bess-evpn-prefix-advertisement: IP Prefix Advertisement in EVPN
+			// The GW IP field SHOULD be zero if it is not used as an Overlay Index.
+			er.GWIPAddress = net.IPv4zero
 		}
+		buf = append(buf, er.GWIPAddress.To4()...)
+	} else {
+		buf = append(buf, er.IPPrefix.To16()...)
+		if er.GWIPAddress == nil {
+			er.GWIPAddress = net.IPv6zero
+		}
+		buf = append(buf, er.GWIPAddress.To16()...)
 	}
 
-	tbuf = make([]byte, 3)
-	labelSerialize(er.Label, tbuf)
+	tbuf, err = labelSerialize(er.Label)
+	if err != nil {
+		return nil, err
+	}
 	buf = append(buf, tbuf...)
 
 	return buf, nil
