@@ -505,11 +505,11 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		}
 	}
 
-	ip, n, err := net.ParseCIDR(m[""][0])
+	_, nw, err := net.ParseCIDR(m[""][0])
 	if err != nil {
 		return nil, nil, err
 	}
-	ones, _ := n.Mask.Size()
+	ones, _ := nw.Mask.Size()
 
 	var gw net.IP
 	if len(m["gw"]) > 0 {
@@ -549,7 +549,7 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		RD:             rd,
 		ETag:           etag,
 		IPPrefixLength: uint8(ones),
-		IPPrefix:       ip,
+		IPPrefix:       nw.IP,
 		GWIPAddress:    gw,
 		Label:          label,
 	}
