@@ -2138,14 +2138,22 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 // bottom of stack bit.
 //
 
-func labelDecode(data []byte) uint32 {
-	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
+func labelDecode(data []byte) (uint32, error) {
+	if len(data) < 3 {
+		return 0, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all Label bytes available")
+	}
+	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2]), nil
 }
 
-func labelSerialize(label uint32, buf []byte) {
+func labelSerialize(label uint32) ([]byte, error) {
+	if label > 0xffffff {
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Out of range Label: %d", label))
+	}
+	buf := make([]byte, 3, 3)
 	buf[0] = byte((label >> 16) & 0xff)
 	buf[1] = byte((label >> 8) & 0xff)
 	buf[2] = byte(label & 0xff)
+	return buf, nil
 }
 
 type EVPNEthernetAutoDiscoveryRoute struct {
@@ -2165,7 +2173,9 @@ func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	data = data[10:]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	data = data[4:]
-	er.Label = labelDecode(data)
+	if er.Label, err = labelDecode(data); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -2190,8 +2200,10 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
 	buf = append(buf, tbuf...)
 
-	tbuf = make([]byte, 3)
-	labelSerialize(er.Label, tbuf)
+	tbuf, err = labelSerialize(er.Label)
+	if err != nil {
+		return nil, err
+	}
 	buf = append(buf, tbuf...)
 
 	return buf, nil
@@ -2256,13 +2268,17 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 	data = data[(er.IPAddressLength / 8):]
-	label1 := labelDecode(data)
-	er.Labels = append(er.Labels, label1)
+	var label uint32
+	if label, err = labelDecode(data); err != nil {
+		return err
+	}
+	er.Labels = append(er.Labels, label)
 	data = data[3:]
 	if len(data) == 3 {
-		label2 := labelDecode(data)
-		er.Labels = append(er.Labels, label2)
-
+		if label, err = labelDecode(data); err != nil {
+			return err
+		}
+		er.Labels = append(er.Labels, label)
 	}
 	return nil
 }
@@ -2306,8 +2322,10 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	}
 
 	for _, l := range er.Labels {
-		tbuf = make([]byte, 3)
-		labelSerialize(l, tbuf)
+		tbuf, err = labelSerialize(l)
+		if err != nil {
+			return nil, err
+		}
 		buf = append(buf, tbuf...)
 	}
 	return buf, nil
@@ -7492,7 +7510,9 @@ func (p *PathAttributePmsiTunnel) DecodeFromBytes(data []byte, options ...*Marsh
 		p.IsLeafInfoRequired = true
 	}
 	p.TunnelType = PmsiTunnelType(p.PathAttribute.Value[1])
-	p.Label = labelDecode(p.PathAttribute.Value[2:5])
+	if p.Label, err = labelDecode(p.PathAttribute.Value[2:5]); err != nil {
+		return err
+	}
 
 	switch p.TunnelType {
 	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
@@ -7509,14 +7529,16 @@ func (p *PathAttributePmsiTunnel) Serialize(options ...*MarshallingOption) ([]by
 		buf[0] = 0x01
 	}
 	buf[1] = byte(p.TunnelType)
-	lbuf := make([]byte, 3)
-	labelSerialize(p.Label, lbuf)
-	buf = append(buf, lbuf...)
-	ibuf, err := p.TunnelID.Serialize()
+	tbuf, err := labelSerialize(p.Label)
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, ibuf...)
+	buf = append(buf, tbuf...)
+	tbuf, err = p.TunnelID.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize(options...)
 }
