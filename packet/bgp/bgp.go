@@ -1981,6 +1981,138 @@ func (esi *EthernetSegmentIdentifier) String() string {
 	return s.String()
 }
 
+// Decode Ethernet Segment Identifier (ESI) from string slice.
+//
+// The first element of args should be the Type field (e.g., "ARBITRARY",
+// "arbitrary", "ESI_ARBITRARY" or "esi_arbitrary") and "single-homed" is
+// the special keyword for all zeroed ESI.
+// For the "ARBITRARY" Value field (Type 0), it should be the colon separated
+// hex values and the number of elements should be 9 at most.
+//   e.g.) args := []string{"ARBITRARY", "11:22:33:44:55:66:77:88:99"}
+// For the other types, the Value field format is the similar to the string
+// format of ESI.
+//   e.g.) args := []string{"lacp", "aa:bb:cc:dd:ee:ff", "100"}
+func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, error) {
+	esi := EthernetSegmentIdentifier{}
+	argLen := len(args)
+	if argLen == 0 || args[0] == "single-homed" {
+		return esi, nil
+	}
+
+	typeStr := strings.TrimPrefix(strings.ToUpper(args[0]), "ESI_")
+	switch typeStr {
+	case "ARBITRARY":
+		esi.Type = ESI_ARBITRARY
+	case "LACP":
+		esi.Type = ESI_LACP
+	case "MSTP":
+		esi.Type = ESI_MSTP
+	case "MAC":
+		esi.Type = ESI_MAC
+	case "ROUTERID":
+		esi.Type = ESI_ROUTERID
+	case "AS":
+		esi.Type = ESI_AS
+	default:
+		typ, err := strconv.Atoi(args[0])
+		if err != nil {
+			return esi, fmt.Errorf("invalid esi type: %s", args[0])
+		}
+		esi.Type = ESIType(typ)
+	}
+
+	invalidEsiValuesError := fmt.Errorf("invalid esi values for type %s: %s", esi.Type.String(), args[1:])
+	esi.Value = make([]byte, 9, 9)
+	switch esi.Type {
+	case ESI_LACP:
+		fallthrough
+	case ESI_MSTP:
+		if argLen < 3 {
+			return esi, invalidEsiValuesError
+		}
+		// MAC
+		mac, err := net.ParseMAC(args[1])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		copy(esi.Value[0:6], mac)
+		// Port Key or Bridge Priority
+		i, err := strconv.Atoi(args[2])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		binary.BigEndian.PutUint16(esi.Value[6:8], uint16(i))
+	case ESI_MAC:
+		if argLen < 3 {
+			return esi, invalidEsiValuesError
+		}
+		// MAC
+		mac, err := net.ParseMAC(args[1])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		copy(esi.Value[0:6], mac)
+		// Local Discriminator
+		i, err := strconv.Atoi(args[2])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		iBuf := make([]byte, 4, 4)
+		binary.BigEndian.PutUint32(iBuf, uint32(i))
+		copy(esi.Value[6:9], iBuf[1:4])
+	case ESI_ROUTERID:
+		if argLen < 3 {
+			return esi, invalidEsiValuesError
+		}
+		// Router ID
+		ip := net.ParseIP(args[1])
+		if ip == nil || ip.To4() == nil {
+			return esi, invalidEsiValuesError
+		}
+		copy(esi.Value[0:4], ip.To4())
+		// Local Discriminator
+		i, err := strconv.Atoi(args[2])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		binary.BigEndian.PutUint32(esi.Value[4:8], uint32(i))
+	case ESI_AS:
+		if argLen < 3 {
+			return esi, invalidEsiValuesError
+		}
+		// AS
+		as, err := strconv.Atoi(args[1])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		binary.BigEndian.PutUint32(esi.Value[0:4], uint32(as))
+		// Local Discriminator
+		i, err := strconv.Atoi(args[2])
+		if err != nil {
+			return esi, invalidEsiValuesError
+		}
+		binary.BigEndian.PutUint32(esi.Value[4:8], uint32(i))
+	case ESI_ARBITRARY:
+		fallthrough
+	default:
+		if argLen < 2 {
+			// Assumes the Value field is omitted
+			break
+		}
+		values := make([]byte, 0, 9)
+		for _, e := range strings.SplitN(args[1], ":", 9) {
+			v, err := strconv.ParseUint(e, 16, 16)
+			if err != nil {
+				return esi, invalidEsiValuesError
+			}
+			values = append(values, byte(v))
+		}
+		copy(esi.Value, values)
+	}
+
+	return esi, nil
+}
+
 //
 // I-D bess-evpn-overlay-01
 //
