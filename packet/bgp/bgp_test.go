@@ -18,10 +18,12 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"reflect"
+	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func keepalive() *BGPMessage {
@@ -1038,7 +1040,7 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	assert.Equal(bufin, bufout)
 }
 
-func Test_ParseRouteDistingusher(t *testing.T) {
+func Test_ParseRouteDistinguisher(t *testing.T) {
 	assert := assert.New(t)
 
 	rd, _ := ParseRouteDistinguisher("100:1000")
@@ -1067,4 +1069,82 @@ func Test_ParseRouteDistingusher(t *testing.T) {
 
 	assert.Equal(uint32((100<<16)|1000), rdType2.Admin)
 	assert.Equal(uint16(10000), rdType2.Assigned)
+}
+
+func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
+	assert := assert.New(t)
+
+	// "single-homed"
+	esiZero := EthernetSegmentIdentifier{}
+	args := make([]string, 0, 0)
+	esi, err := ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(esiZero, esi)
+	args = []string{"single-homed"}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(esiZero, esi)
+
+	// ESI_ARBITRARY
+	args = []string{"ARBITRARY", "11:22:33:44:55:66:77:88:99"} // omit "ESI_"
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_ARBITRARY,
+		Value: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99},
+	}, esi)
+
+	// ESI_LACP
+	args = []string{"lacp", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x1122)} // lower case
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_LACP,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x00},
+	}, esi)
+
+	// ESI_MSTP
+	args = []string{"esi_mstp", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x1122)} // omit "ESI_" + lower case
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_MSTP,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x00},
+	}, esi)
+
+	// ESI_MAC
+	args = []string{"ESI_MAC", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x112233)}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_MAC,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33},
+	}, esi)
+
+	// ESI_ROUTERID
+	args = []string{"ESI_ROUTERID", "1.1.1.1", strconv.Itoa(0x11223344)}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_ROUTERID,
+		Value: []byte{0x01, 0x01, 0x01, 0x01, 0x11, 0x22, 0x33, 0x44, 0x00},
+	}, esi)
+
+	// ESI_AS
+	args = []string{"ESI_AS", strconv.Itoa(0xaabbccdd), strconv.Itoa(0x11223344)}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_AS,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44, 0x00},
+	}, esi)
+
+	// Other
+	args = []string{"99", "11:22:33:44:55:66:77:88:99"}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESIType(99),
+		Value: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99},
+	}, esi)
 }
