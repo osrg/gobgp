@@ -1973,7 +1973,7 @@ func (esi *EthernetSegmentIdentifier) String() string {
 		s.WriteString(fmt.Sprintf("router id %s, ", net.IP(esi.Value[:4])))
 		s.WriteString(fmt.Sprintf("local discriminator %d", binary.BigEndian.Uint32(esi.Value[4:8])))
 	case ESI_AS:
-		s.WriteString(fmt.Sprintf("as %d:%d, ", binary.BigEndian.Uint16(esi.Value[:2]), binary.BigEndian.Uint16(esi.Value[2:4])))
+		s.WriteString(fmt.Sprintf("as %d, ", binary.BigEndian.Uint32(esi.Value[:4])))
 		s.WriteString(fmt.Sprintf("local discriminator %d", binary.BigEndian.Uint32(esi.Value[4:8])))
 	default:
 		s.WriteString(fmt.Sprintf("value %s", esi.Value))
