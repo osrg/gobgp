@@ -42,6 +42,7 @@ const (
 	ACTION
 	RT
 	ENCAP
+	ESI_LABEL
 	ROUTER_MAC
 	VALID
 	NOT_FOUND
@@ -57,6 +58,7 @@ var ExtCommNameMap = map[ExtCommType]string{
 	ACTION:     "action",
 	RT:         "rt",
 	ENCAP:      "encap",
+	ESI_LABEL:  "esi-label",
 	ROUTER_MAC: "router-mac",
 	VALID:      "valid",
 	NOT_FOUND:  "not-found",
@@ -72,6 +74,7 @@ var ExtCommValueMap = map[string]ExtCommType{
 	ExtCommNameMap[ACTION]:     ACTION,
 	ExtCommNameMap[RT]:         RT,
 	ExtCommNameMap[ENCAP]:      ENCAP,
+	ExtCommNameMap[ESI_LABEL]:  ESI_LABEL,
 	ExtCommNameMap[ROUTER_MAC]: ROUTER_MAC,
 	ExtCommNameMap[VALID]:      VALID,
 	ExtCommNameMap[NOT_FOUND]:  NOT_FOUND,
@@ -205,6 +208,32 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
+func esiLabelParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[ESI_LABEL] {
+		return nil, fmt.Errorf("invalid esi-label")
+	}
+	label, err := strconv.Atoi(args[1])
+	if err != nil {
+		return nil, err
+	}
+	isSingleActive := false
+	if len(args) > 2 {
+		switch args[2] {
+		case "single-active":
+			isSingleActive = true
+		case "all-active":
+			// isSingleActive = false
+		default:
+			return nil, fmt.Errorf("invalid esi-label")
+		}
+	}
+	o := &bgp.ESILabelExtended{
+		Label:          uint32(label),
+		IsSingleActive: isSingleActive,
+	}
+	return []bgp.ExtendedCommunityInterface{o}, nil
+}
+
 func routerMacParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	if len(args) < 2 || args[0] != ExtCommNameMap[ROUTER_MAC] {
 		return nil, fmt.Errorf("invalid router's mac")
@@ -247,6 +276,7 @@ var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	ACTION:     actionParser,
 	RT:         rtParser,
 	ENCAP:      encapParser,
+	ESI_LABEL:  esiLabelParser,
 	ROUTER_MAC: routerMacParser,
 	VALID:      validationParser,
 	NOT_FOUND:  validationParser,
@@ -337,12 +367,12 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguis
 
 func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
-	// esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+	// esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
 	req := 8
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"esi", "etag", "label", "rd", "rt", "encap"})
+	m := extractReserved(args, []string{"esi", "etag", "label", "rd", "rt", "encap", "esi-label"})
 	for _, f := range []string{"esi", "etag", "label", "rd"} {
 		for len(m[f]) == 0 {
 			return nil, nil, fmt.Errorf("specify %s", f)
@@ -378,6 +408,10 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 	}
 	if len(m["encap"]) > 0 {
 		extcomms = append(extcomms, "encap", m["encap"][0])
+	}
+	if len(m["esi-label"]) > 0 {
+		extcomms = append(extcomms, "esi-label")
+		extcomms = append(extcomms, m["esi-label"]...)
 	}
 
 	r := &bgp.EVPNEthernetAutoDiscoveryRoute{
@@ -1224,7 +1258,7 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		)
 		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
-    <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+    <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
     <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
