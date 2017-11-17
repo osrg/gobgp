@@ -29,85 +29,64 @@ const (
 	GLOBAL_RIB_NAME = "global"
 )
 
-func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
-	updateMsg := m.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	pathList := make([]*Path, 0)
-	for _, nlri := range updateMsg.NLRI {
-		path := NewPath(p, nlri, false, pathAttributes, now, false)
-		pathList = append(pathList, path)
-	}
-	return pathList
-}
-
-func withdraw2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
-	updateMsg := m.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	pathList := make([]*Path, 0)
-	for _, nlri := range updateMsg.WithdrawnRoutes {
-		path := NewPath(p, nlri, true, pathAttributes, now, false)
-		pathList = append(pathList, path)
-	}
-	return pathList
-}
-
-func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
-	updateMsg := m.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	attrList := []*bgp.PathAttributeMpReachNLRI{}
-
-	for _, attr := range pathAttributes {
-		a, ok := attr.(*bgp.PathAttributeMpReachNLRI)
-		if ok {
-			attrList = append(attrList, a)
-			break
-		}
-	}
-	pathList := make([]*Path, 0)
-
-	for _, mp := range attrList {
-		nlri_info := mp.Value
-		for _, nlri := range nlri_info {
-			path := NewPath(p, nlri, false, pathAttributes, now, false)
-			pathList = append(pathList, path)
-		}
-	}
-	return pathList
-}
-
-func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
-	updateMsg := m.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
-
-	for _, attr := range pathAttributes {
-		a, ok := attr.(*bgp.PathAttributeMpUnreachNLRI)
-		if ok {
-			attrList = append(attrList, a)
-			break
-		}
-	}
-	pathList := make([]*Path, 0)
-
-	for _, mp := range attrList {
-		nlri_info := mp.Value
-
-		for _, nlri := range nlri_info {
-			path := NewPath(p, nlri, true, pathAttributes, now, false)
-			pathList = append(pathList, path)
-		}
-	}
-	return pathList
-}
-
 func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) []*Path {
-	pathList := make([]*Path, 0)
-	pathList = append(pathList, nlri2Path(m, peerInfo, timestamp)...)
-	pathList = append(pathList, withdraw2Path(m, peerInfo, timestamp)...)
-	pathList = append(pathList, mpreachNlri2Path(m, peerInfo, timestamp)...)
-	pathList = append(pathList, mpunreachNlri2Path(m, peerInfo, timestamp)...)
-	if y, f := m.Body.(*bgp.BGPUpdate).IsEndOfRib(); y {
-		pathList = append(pathList, NewEOR(f))
+	update := m.Body.(*bgp.BGPUpdate)
+
+	if y, f := update.IsEndOfRib(); y {
+		// this message has no normal updates or withdrawals.
+		return []*Path{NewEOR(f)}
+	}
+
+	adds := make([]bgp.AddrPrefixInterface, 0, len(update.NLRI))
+	for _, nlri := range update.NLRI {
+		adds = append(adds, nlri)
+	}
+
+	dels := make([]bgp.AddrPrefixInterface, 0, len(update.WithdrawnRoutes))
+	for _, nlri := range update.WithdrawnRoutes {
+		dels = append(dels, nlri)
+	}
+
+	attrs := make([]bgp.PathAttributeInterface, 0, len(update.PathAttributes))
+	var reach *bgp.PathAttributeMpReachNLRI
+	for _, attr := range update.PathAttributes {
+		switch a := attr.(type) {
+		case *bgp.PathAttributeMpReachNLRI:
+			reach = a
+		case *bgp.PathAttributeMpUnreachNLRI:
+			l := make([]bgp.AddrPrefixInterface, 0, len(a.Value))
+			for _, nlri := range a.Value {
+				l = append(l, nlri)
+			}
+			dels = append(dels, l...)
+		default:
+			attrs = append(attrs, attr)
+		}
+	}
+
+	listLen := len(adds) + len(dels)
+	if reach != nil {
+		listLen += len(reach.Value)
+	}
+	pathList := make([]*Path, 0, listLen)
+	for _, nlri := range adds {
+		p := NewPath(peerInfo, nlri, false, attrs, timestamp, false)
+		pathList = append(pathList, p)
+	}
+	if reach != nil {
+		reachAttrs := make([]bgp.PathAttributeInterface, len(attrs)+1)
+		copy(reachAttrs, attrs)
+		// we sort attributes when creating a bgp message from paths
+		reachAttrs[len(reachAttrs)-1] = reach
+
+		for _, nlri := range reach.Value {
+			p := NewPath(peerInfo, nlri, false, reachAttrs, timestamp, false)
+			pathList = append(pathList, p)
+		}
+	}
+	for _, nlri := range dels {
+		p := NewPath(peerInfo, nlri, true, []bgp.PathAttributeInterface{}, timestamp, false)
+		pathList = append(pathList, p)
 	}
 	return pathList
 }
