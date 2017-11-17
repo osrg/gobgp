@@ -388,8 +388,8 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item5, item6}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
-	isFlagment := 0x02
-	item7 := NewFlowSpecComponentItem(isFlagment, 0)
+	isFragment := 0x02
+	item7 := NewFlowSpecComponentItem(isFragment, 0)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
 	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
@@ -402,6 +402,8 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	n1 = NewFlowSpecIPv4Unicast(cmp)
 	a = NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
+	// Swaps components order to reproduce the rules order violation.
+	n1.Value[0], n1.Value[1] = n1.Value[1], n1.Value[0]
 	_, err = ValidateAttribute(a, m, false, false)
 	assert.NotNil(err)
 }

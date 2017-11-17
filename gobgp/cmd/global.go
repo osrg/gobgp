@@ -25,10 +25,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	"github.com/spf13/cobra"
 )
 
 type ExtCommType int
@@ -334,34 +335,28 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguis
 		return nil, nil, fmt.Errorf("invalid format")
 	}
 	matchArgs := args[1:thenPos]
-	cmp, err := bgp.ParseFlowSpecComponents(rf, strings.Join(matchArgs, " "))
+
+	rules, err := bgp.ParseFlowSpecComponents(rf, strings.Join(matchArgs, " "))
 	if err != nil {
 		return nil, nil, err
 	}
+
 	var nlri bgp.AddrPrefixInterface
-	var fnlri *bgp.FlowSpecNLRI
 	switch rf {
 	case bgp.RF_FS_IPv4_UC:
-		nlri = bgp.NewFlowSpecIPv4Unicast(cmp)
-		fnlri = &nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
+		nlri = bgp.NewFlowSpecIPv4Unicast(rules)
 	case bgp.RF_FS_IPv6_UC:
-		nlri = bgp.NewFlowSpecIPv6Unicast(cmp)
-		fnlri = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+		nlri = bgp.NewFlowSpecIPv6Unicast(rules)
 	case bgp.RF_FS_IPv4_VPN:
-		nlri = bgp.NewFlowSpecIPv4VPN(rd, cmp)
-		fnlri = &nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+		nlri = bgp.NewFlowSpecIPv4VPN(rd, rules)
 	case bgp.RF_FS_IPv6_VPN:
-		nlri = bgp.NewFlowSpecIPv6VPN(rd, cmp)
-		fnlri = &nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
+		nlri = bgp.NewFlowSpecIPv6VPN(rd, rules)
 	case bgp.RF_FS_L2_VPN:
-		nlri = bgp.NewFlowSpecL2VPN(rd, cmp)
-		fnlri = &nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
+		nlri = bgp.NewFlowSpecL2VPN(rd, rules)
 	default:
 		return nil, nil, fmt.Errorf("invalid route family")
 	}
-	var comms table.FlowSpecComponents
-	comms = fnlri.Value
-	sort.Sort(comms)
+
 	return nlri, args[thenPos+1:], nil
 }
 

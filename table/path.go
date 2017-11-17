@@ -136,20 +136,6 @@ type Validation struct {
 	UnmatchedLength []*ROA
 }
 
-type FlowSpecComponents []bgp.FlowSpecComponentInterface
-
-func (c FlowSpecComponents) Len() int {
-	return len(c)
-}
-
-func (c FlowSpecComponents) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (c FlowSpecComponents) Less(i, j int) bool {
-	return c[i].Type() < c[j].Type()
-}
-
 type Path struct {
 	info       *originInfo
 	IsWithdraw bool
@@ -171,25 +157,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			"Key":   nlri.String(),
 		}).Error("Need to provide path attributes for non-withdrawn path.")
 		return nil
-	}
-
-	if nlri != nil && (nlri.SAFI() == bgp.SAFI_FLOW_SPEC_UNICAST || nlri.SAFI() == bgp.SAFI_FLOW_SPEC_VPN) {
-		var coms FlowSpecComponents
-		var f *bgp.FlowSpecNLRI
-		switch nlri.(type) {
-		case *bgp.FlowSpecIPv4Unicast:
-			f = &nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
-		case *bgp.FlowSpecIPv4VPN:
-			f = &nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
-		case *bgp.FlowSpecIPv6Unicast:
-			f = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
-		case *bgp.FlowSpecIPv6VPN:
-			f = &nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
-		}
-		if f != nil {
-			coms = f.Value
-			sort.Sort(coms)
-		}
 	}
 
 	return &Path{

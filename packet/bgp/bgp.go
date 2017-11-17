@@ -4027,6 +4027,10 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*
 		n.Value = append(n.Value, i)
 	}
 
+	// Sort Traffic Filtering Rules in types order to avoid the unordered rules
+	// are determined different.
+	sort.SliceStable(n.Value, func(i, j int) bool { return n.Value[i].Type() < n.Value[j].Type() })
+
 	return nil
 }
 
@@ -4246,7 +4250,13 @@ func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte, options ...*Marshalli
 }
 
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
-	return &FlowSpecIPv4Unicast{FlowSpecNLRI{Value: value, rf: RF_FS_IPv4_UC}}
+	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
+	return &FlowSpecIPv4Unicast{
+		FlowSpecNLRI: FlowSpecNLRI{
+			Value: value,
+			rf:    RF_FS_IPv4_UC,
+		},
+	}
 }
 
 type FlowSpecIPv4VPN struct {
@@ -4258,7 +4268,14 @@ func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte, options ...*MarshallingOp
 }
 
 func NewFlowSpecIPv4VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
-	return &FlowSpecIPv4VPN{FlowSpecNLRI{Value: value, rf: RF_FS_IPv4_VPN, rd: rd}}
+	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
+	return &FlowSpecIPv4VPN{
+		FlowSpecNLRI: FlowSpecNLRI{
+			Value: value,
+			rf:    RF_FS_IPv4_VPN,
+			rd:    rd,
+		},
+	}
 }
 
 type FlowSpecIPv6Unicast struct {
@@ -4270,10 +4287,13 @@ func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte, options ...*Marshalli
 }
 
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
-	return &FlowSpecIPv6Unicast{FlowSpecNLRI{
-		Value: value,
-		rf:    RF_FS_IPv6_UC,
-	}}
+	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
+	return &FlowSpecIPv6Unicast{
+		FlowSpecNLRI: FlowSpecNLRI{
+			Value: value,
+			rf:    RF_FS_IPv6_UC,
+		},
+	}
 }
 
 type FlowSpecIPv6VPN struct {
@@ -4285,11 +4305,14 @@ func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte, options ...*MarshallingOp
 }
 
 func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
-	return &FlowSpecIPv6VPN{FlowSpecNLRI{
-		Value: value,
-		rf:    RF_FS_IPv6_VPN,
-		rd:    rd,
-	}}
+	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
+	return &FlowSpecIPv6VPN{
+		FlowSpecNLRI: FlowSpecNLRI{
+			Value: value,
+			rf:    RF_FS_IPv6_VPN,
+			rd:    rd,
+		},
+	}
 }
 
 type FlowSpecL2VPN struct {
@@ -4301,11 +4324,14 @@ func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte, options ...*MarshallingOpti
 }
 
 func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecL2VPN {
-	return &FlowSpecL2VPN{FlowSpecNLRI{
-		Value: value,
-		rf:    RF_FS_L2_VPN,
-		rd:    rd,
-	}}
+	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
+	return &FlowSpecL2VPN{
+		FlowSpecNLRI: FlowSpecNLRI{
+			Value: value,
+			rf:    RF_FS_L2_VPN,
+			rd:    rd,
+		},
+	}
 }
 
 type OpaqueNLRI struct {
