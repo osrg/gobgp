@@ -145,6 +145,21 @@ var BitmaskFlagOpNameMap = map[BitmaskFlagOp]string{
 	BITMASK_FLAG_OP_MATCH: "=",
 }
 
+// Note: Meaning of "" is different from that of the numeric operator because
+// RFC5575 says if the Match bit in the bitmask operand is set, it should be
+// "strictly" matching against the given value.
+var BitmaskFlagOpValueMap = map[string]BitmaskFlagOp{
+	" ":  BITMASK_FLAG_OP_OR,
+	"":   BITMASK_FLAG_OP_OR,
+	"==": BITMASK_FLAG_OP_MATCH,
+	"=":  BITMASK_FLAG_OP_MATCH,
+	"!":  BITMASK_FLAG_OP_NOT,
+	"!=": BITMASK_FLAG_OP_NOT_MATCH,
+	"=!": BITMASK_FLAG_OP_NOT_MATCH, // For the backward compatibility
+	"&":  BITMASK_FLAG_OP_AND,
+	"E":  BITMASK_FLAG_OP_END,
+}
+
 func (f BitmaskFlagOp) String() string {
 	ops := make([]string, 0)
 	if f&BITMASK_FLAG_OP_AND > 0 {
@@ -228,6 +243,24 @@ var DECNumOpNameMap = map[DECNumOp]string{
 	//DEC_NUM_OP_OR:   " ", // duplicate with DEC_NUM_OP_TRUE
 	DEC_NUM_OP_AND: "&",
 	DEC_NUM_OP_END: "E",
+}
+
+var DECNumOpValueMap = map[string]DECNumOp{
+	"true":  DEC_NUM_OP_TRUE,
+	"":      DEC_NUM_OP_EQ,
+	"==":    DEC_NUM_OP_EQ,
+	"=":     DEC_NUM_OP_EQ,
+	">":     DEC_NUM_OP_GT,
+	">=":    DEC_NUM_OP_GT_EQ,
+	"<":     DEC_NUM_OP_LT,
+	"<=":    DEC_NUM_OP_LT_EQ,
+	"!=":    DEC_NUM_OP_NOT_EQ,
+	"=!":    DEC_NUM_OP_NOT_EQ,
+	"!":     DEC_NUM_OP_NOT_EQ,
+	"false": DEC_NUM_OP_FALSE,
+	" ":     DEC_NUM_OP_OR,
+	"&":     DEC_NUM_OP_AND,
+	"E":     DEC_NUM_OP_END,
 }
 
 func (f DECNumOp) String() string {

@@ -2950,418 +2950,501 @@ var FlowSpecValueMap = map[string]BGPFlowSpecType{
 	FlowSpecNameMap[FLOW_SPEC_TYPE_INNER_COS]:     FLOW_SPEC_TYPE_INNER_COS,
 }
 
-func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	if len(args) < 2 {
-		return nil, fmt.Errorf("invalid flowspec dst/src prefix")
+// Joins the given and args into a single string and normalize it.
+// Example:
+// args := []string{"  &  <=80", " tcp  != udp ", " =!   SA   & =U!  F", " =  is-fragment+last-fragment"}
+// fmt.Printf("%q", normalizeFlowSpecOpValues(args))
+// >>> ["<=80" "tcp" "!=udp" "=!SA" "&=U" "!F" "=is-fragment+last-fragment"]
+func normalizeFlowSpecOpValues(args []string) []string {
+	// Note:
+	// - "=!" is used in the old style format of "tcp-flags" and "fragment".
+	// - The value field should be one of the followings:
+	//     * Decimal value (e.g., 80)
+	//     * Combination of the small letters, decimals, "-" and "+"
+	//       (e.g., tcp, ipv4, is-fragment+first-fragment)
+	//     * Capital letters (e.g., SA)
+	re := regexp.MustCompile("&|=|>|<|!|[\\w\\-+]+")
+	reValue := regexp.MustCompile("[\\w\\-+]+")
+
+	// Extracts keywords from the given args.
+	sub := ""
+	subs := make([]string, 0)
+	for _, s := range re.FindAllString(strings.Join(args, " "), -1) {
+		sub += s
+		if reValue.MatchString(s) {
+			subs = append(subs, sub)
+			sub = ""
+		}
 	}
-	typ := args[0]
-	ip, nw, err := net.ParseCIDR(args[1])
-	if err != nil {
-		return nil, fmt.Errorf("invalid ip prefix")
+
+	// RFC5575 says "It should be unset in the first operator byte of a
+	// sequence".
+	if len(subs) > 0 {
+		subs[0] = strings.TrimPrefix(subs[0], "&")
 	}
-	afi, _ := RouteFamilyToAfiSafi(rf)
-	if afi == AFI_IP && ip.To4() == nil {
-		return nil, fmt.Errorf("invalid ipv4 prefix")
-	} else if afi == AFI_IP6 && !strings.Contains(ip.String(), ":") {
-		return nil, fmt.Errorf("invalid ipv6 prefix")
+
+	return subs
+}
+
+// Parses the FlowSpec numeric operator using the given submatch which should be
+// the return value of func (*Regexp) FindStringSubmatch.
+func parseFlowSpecNumericOperator(submatch []string) (operator int, err error) {
+	if submatch[1] == "&" {
+		operator = DEC_NUM_OP_AND
 	}
-	ones, _ := nw.Mask.Size()
-	var offset uint8
-	if len(args) > 2 {
-		o, err := strconv.Atoi(args[2])
-		offset = uint8(o)
+	value, ok := DECNumOpValueMap[submatch[2]]
+	if !ok {
+		return 0, fmt.Errorf("invalid numeric operator: %s%s", submatch[1], submatch[2])
+	}
+	operator |= int(value)
+	return operator, nil
+}
+
+// Parses the pairs of operator and value for the FlowSpec numeric type. The
+// given validationFunc is applied to evaluate whether the parsed value is
+// valid or not (e.g., if exceeds range or not).
+// Note: Each of the args should be formatted in single pair of operator and
+// value before calling this function.
+// e.g.) "&==100", ">=200" or "&<300"
+func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validationFunc func(int) error) (FlowSpecComponentInterface, error) {
+	argsLen := len(args)
+	items := make([]*FlowSpecComponentItem, 0, argsLen)
+	re := regexp.MustCompile("(&?)(==|=|>|>=|<|<=|!|!=|=!)?(\\d+|-\\d|true|false)")
+	for idx, arg := range args {
+		// Example:
+		// re.FindStringSubmatch("&==80")
+		// >>> ["&==80" "&" "==" "80"]
+		m := re.FindStringSubmatch(arg)
+		if len(m) < 4 {
+			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
+		}
+		operator, err := parseFlowSpecNumericOperator(m)
 		if err != nil {
 			return nil, err
 		}
+		// "true" and "false" is operator, but here handles them as value.
+		value := 0
+		switch m[3] {
+		case "true", "false":
+			if idx != argsLen-1 {
+				return nil, fmt.Errorf("%s should be the last of each rule", m[3])
+			}
+			operator = int(DECNumOpValueMap[m[3]])
+		default:
+			if value, err = strconv.Atoi(m[3]); err != nil {
+				return nil, fmt.Errorf("invalid numeric value: %s", m[3])
+			}
+			if err = validationFunc(value); err != nil {
+				return nil, err
+			}
+		}
+		items = append(items, NewFlowSpecComponentItem(operator, value))
 	}
 
-	switch typ {
-	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:
-		switch rf {
-		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
-			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
-			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
-		default:
-			return nil, fmt.Errorf("invalid type")
-		}
-	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:
-		switch rf {
-		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
-			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
-			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
-		default:
-			return nil, fmt.Errorf("invalid type")
-		}
-	}
-	return nil, fmt.Errorf("invalid type. only destination or source is allowed")
+	// Marks end-of-list bit
+	items[argsLen-1].Op |= int(DEC_NUM_OP_END)
+
+	return NewFlowSpecComponent(typ, items), nil
 }
 
-func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO] {
-		return nil, fmt.Errorf("invalid ip-proto format")
+func flowSpecNumeric1ByteParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	args = normalizeFlowSpecOpValues(args)
+
+	f := func(i int) error {
+		if 0 <= i && i <= 0xff { // 1 byte
+			return nil
+		}
+		return fmt.Errorf("%s range exceeded", typ.String())
 	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+func flowSpecNumeric2BytesParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	args = normalizeFlowSpecOpValues(args)
+
+	f := func(i int) error {
+		if 0 <= i && i <= 0xffff { // 2 bytes
+			return nil
+		}
+		return fmt.Errorf("%s range exceeded", typ.String())
+	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+// Parses the FlowSpec bitmask operand using the given submatch which should be
+// the return value of func (*Regexp) FindStringSubmatch.
+func parseFlowSpecBitmaskOperand(submatch []string) (operand int, err error) {
+	if submatch[1] == "&" {
+		operand = BITMASK_FLAG_OP_AND
+	}
+	value, ok := BitmaskFlagOpValueMap[submatch[2]]
+	if !ok {
+		return 0, fmt.Errorf("invalid bitmask operand: %s%s", submatch[1], submatch[2])
+	}
+	operand |= int(value)
+	return operand, nil
+}
+
+func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	// args[0]: IP Prefix or IP Address (suppose prefix length is 32)
+	// args[1]: Offset in bit (IPv6 only)
+	//
+	// Example:
+	// - IPv4 Prefix
+	//   args := []string{"192.168.0.0/24"}
+	// - IPv4 Address
+	//   args := []string{"192.168.0.1"}
+	// - IPv6 Prefix
+	//   args := []string{"2001:db8:1::/64"}
+	// - IPv6 Prefix with offset
+	//   args := []string{"2001:db8:1::/64", "16"}
+	afi, _ := RouteFamilyToAfiSafi(rf)
+	var prefix net.IP
+	var prefixLen int
+	_, nw, err := net.ParseCIDR(args[0])
+	if err != nil {
+		prefix = net.ParseIP(args[0])
+		if prefix == nil {
+			return nil, fmt.Errorf("invalid ip prefix: %s", args[0])
+		}
+		switch afi {
+		case AFI_IP:
+			prefixLen = net.IPv4len * 8
+		case AFI_IP6:
+			prefixLen = net.IPv6len * 8
+		}
+	} else {
+		prefix = nw.IP
+		prefixLen, _ = nw.Mask.Size()
+	}
+
+	switch afi {
+	case AFI_IP:
+		if prefix.To4() == nil {
+			return nil, fmt.Errorf("invalid ipv4 prefix: %s", args[0])
+		}
+		if len(args) > 1 {
+			return nil, fmt.Errorf("cannot specify offset for ipv4 prefix")
+		}
+		switch typ {
+		case FLOW_SPEC_TYPE_DST_PREFIX:
+			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(prefixLen), prefix.String())), nil
+		case FLOW_SPEC_TYPE_SRC_PREFIX:
+			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(prefixLen), prefix.String())), nil
+		}
+		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
+	case AFI_IP6:
+		if prefix.To16() == nil {
+			return nil, fmt.Errorf("invalid ipv6 prefix: %s", args[0])
+		}
+		var offset uint8
+		if len(args) > 1 {
+			o, err := strconv.Atoi(args[1])
+			if err != nil {
+				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", args[0])
+			}
+			offset = uint8(o)
+		}
+		switch typ {
+		case FLOW_SPEC_TYPE_DST_PREFIX:
+			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), offset), nil
+		case FLOW_SPEC_TYPE_SRC_PREFIX:
+			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), offset), nil
+		}
+		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
+	}
+	return nil, fmt.Errorf("invalid address family: %s", rf.String())
+}
+
+func flowSpecIpProtoParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	// args: List of pairs of Operator and IP protocol type
+	//
+	// Example:
+	// - TCP or UDP
+	//   args := []string{"tcp", "==udp"}
+	// - Not TCP and not UDP
+	//   args := []string{"!=tcp", "&!=udp"}
+	args = normalizeFlowSpecOpValues(args)
 	s := strings.Join(args, " ")
 	for i, name := range ProtocolNameMap {
 		s = strings.Replace(s, name, fmt.Sprintf("%d", i), -1)
 	}
 	args = strings.Split(s, " ")
-	validationFunc := func(i int) error {
-		if 0 < i && i < 255 {
+
+	f := func(i int) error {
+		if 0 <= i && i <= 0xff { // 1 byte
 			return nil
 		}
-		return fmt.Errorf("ip protocol range exceeded")
+		return fmt.Errorf("%s range exceeded", typ.String())
 	}
-	return doFlowSpecNumericParser(0, args, validationFunc)
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
 }
 
-func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	args = append(args[:0], args[1:]...) // removing tcp-flags string
-	fullCmd := strings.Join(args, " ")   // rebuiling tcp filters
-	opsFlags, err := parseTcpFlagCmd(fullCmd)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]*FlowSpecComponentItem, 0)
-	for _, opFlag := range opsFlags {
-		items = append(items, NewFlowSpecComponentItem(opFlag[0], opFlag[1]))
-	}
-	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
-}
+func flowSpecTcpFlagParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	// args: List of pairs of Operand and TCP Flags
+	//
+	// Example:
+	// - SYN or SYN/ACK
+	//   args := []string{"==S", "==SA"}
+	// - Not FIN and not URG
+	//   args := []string{"!=F", "&!=U"}
+	args = normalizeFlowSpecOpValues(args)
 
-func parseTcpFlagCmd(myCmd string) ([][2]int, error) {
-	var index int = 0
-	var tcpOperatorsFlagsValues [][2]int
-	var operatorValue [2]int
-	for index < len(myCmd) {
-		myCmdChar := myCmd[index : index+1]
-		switch myCmdChar {
-		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]:
-			if bit := BitmaskFlagOpValueMap[myCmdChar]; bit&BitmaskFlagOp(operatorValue[0]) == 0 {
-				operatorValue[0] |= int(bit)
-				index++
-			} else {
-				err := fmt.Errorf("Match flag appears multiple time")
-				return nil, err
-			}
-		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:
-			if bit := BitmaskFlagOpValueMap[myCmdChar]; bit&BitmaskFlagOp(operatorValue[0]) == 0 {
-				operatorValue[0] |= int(bit)
-				index++
-			} else {
-				err := fmt.Errorf("Not flag appears multiple time")
-				return nil, err
-			}
-		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:
-			if bit := BitmaskFlagOpValueMap[myCmdChar]; bit&BitmaskFlagOp(operatorValue[0]) == 0 {
-				tcpOperatorsFlagsValues = append(tcpOperatorsFlagsValues, operatorValue)
-				operatorValue[0] = int(bit)
-				operatorValue[1] = 0
-				index++
-			} else {
-				err := fmt.Errorf("AND or OR (space) operator appears multiple time")
-				return nil, err
-			}
-		case TCPFlagNameMap[TCP_FLAG_ACK], TCPFlagNameMap[TCP_FLAG_SYN], TCPFlagNameMap[TCP_FLAG_FIN],
-			TCPFlagNameMap[TCP_FLAG_URGENT], TCPFlagNameMap[TCP_FLAG_ECE], TCPFlagNameMap[TCP_FLAG_RST],
-			TCPFlagNameMap[TCP_FLAG_CWR], TCPFlagNameMap[TCP_FLAG_PUSH]:
-			myLoopChar := myCmdChar
-			loopIndex := index
-			// we loop till we reach the end of TCP flags description
-			// exit conditions : we reach the end of tcp flags (we find & or ' ') or we reach the end of the line
-			for loopIndex < len(myCmd) &&
-				(myLoopChar != BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND] && myLoopChar != BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]) {
-				// we check if inspected charater is a well known tcp flag and if it doesn't appear twice
-				if bit, isPresent := TCPFlagValueMap[myLoopChar]; isPresent && (bit&TCPFlag(operatorValue[1]) == 0) {
-					operatorValue[1] |= int(bit) // we set this flag
-					loopIndex++                  // we move to next character
-					if loopIndex < len(myCmd) {
-						myLoopChar = myCmd[loopIndex : loopIndex+1] // we move to the next character only if we didn't reach the end of cmd
-					}
-				} else {
-					err := fmt.Errorf("flag %s appears multiple time or is not part of TCP flags", myLoopChar)
-					return nil, err
-				}
-			}
-			// we are done with flags, we give back the next cooming charater to the main loop
-			index = loopIndex
-		default:
-			err := fmt.Errorf("flag %s not part of tcp flags", myCmdChar)
+	argsLen := len(args)
+	items := make([]*FlowSpecComponentItem, 0, argsLen)
+	// Note: "(-*)" and "(.*)" catch the invalid flags
+	re := regexp.MustCompile("(&?)(==|=|!|!=|=!)?(-*)([FSRPAUCE]+)(.*)")
+	for _, arg := range args {
+		// Example: In this case, "Z" is unsupported flag type.
+		// re.FindStringSubmatch("&==-SZU")
+		// >>> ["&==-SZU" "&" "==" "-" "S" "ZU"]
+		m := re.FindStringSubmatch(arg)
+		if len(m) < 6 {
+			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
+		} else if mLast := m[len(m)-1]; mLast != "" || m[3] != "" {
+			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
+		}
+		operand, err := parseFlowSpecBitmaskOperand(m)
+		if err != nil {
 			return nil, err
 		}
+		value := 0
+		for flag, name := range TCPFlagNameMap {
+			if strings.Contains(m[4], name) {
+				value |= int(flag)
+			}
+		}
+		items = append(items, NewFlowSpecComponentItem(operand, value))
 	}
-	operatorValue[0] |= int(BitmaskFlagOpValueMap["E"])
-	tcpOperatorsFlagsValues = append(tcpOperatorsFlagsValues, operatorValue)
-	return tcpOperatorsFlagsValues, nil
+
+	// Marks end-of-list bit
+	items[argsLen-1].Op |= BITMASK_FLAG_OP_END
+
+	return NewFlowSpecComponent(typ, items), nil
 }
 
-func flowSpecEtherTypeParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_ETHERNET_TYPE] {
-		return nil, fmt.Errorf("invalid ethernet-type format")
+func flowSpecDscpParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	args = normalizeFlowSpecOpValues(args)
+
+	f := func(i int) error {
+		if 0 <= i && i < 64 { // 6 bits
+			return nil
+		}
+		return fmt.Errorf("%s range exceeded", typ.String())
 	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+func flowSpecFragmentParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	// args: List of pairs of Operator and Fragment flags
+	//
+	// Example:
+	// - is-fragment or last-fragment
+	//   args := []string{"==is-fragment", "==last-fragment"}
+	// - is-fragment and last-fragment (exact match)
+	//   args := []string{"==is-fragment+last-fragment"}
+	args = normalizeFlowSpecOpValues(args)
+
+	argsLen := len(args)
+	items := make([]*FlowSpecComponentItem, 0, argsLen)
+	// Note: "(.*)" catches the invalid flags
+	re := regexp.MustCompile("(&?)(==|=|!|!=|=!)?(((\\+)?(dont|is|first|last|not-a)-fragment)+)(.*)")
+	for _, arg := range args {
+		// Example:
+		// re.FindStringSubmatch("&!=+first-fragment+last-fragment+invalid-fragment")
+		// >>> ["&!=+first-fragment+last-fragment+invalid-fragment" "&" "!=" "+first-fragment+last-fragment" "+last-fragment" "+" "last" "+invalid-fragment"]
+		m := re.FindStringSubmatch(arg)
+		if len(m) < 4 {
+			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
+		} else if mLast := m[len(m)-1]; mLast != "" {
+			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
+		}
+		operand, err := parseFlowSpecBitmaskOperand(m)
+		if err != nil {
+			return nil, err
+		}
+		value := 0
+		// Example:
+		// m[3] = "first-fragment+last-fragment"
+		for flag, name := range FragmentFlagNameMap {
+			if strings.Contains(m[3], name) {
+				value |= int(flag)
+			}
+		}
+		items = append(items, NewFlowSpecComponentItem(operand, value))
+	}
+
+	// Marks end-of-list bit
+	items[argsLen-1].Op |= BITMASK_FLAG_OP_END
+
+	return NewFlowSpecComponent(typ, items), nil
+}
+
+func flowSpecLabelParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	afi, _ := RouteFamilyToAfiSafi(rf)
+	if afi == AFI_IP {
+		return nil, fmt.Errorf("%s is not supported for ipv4", typ.String())
+	}
+
+	args = normalizeFlowSpecOpValues(args)
+
+	f := func(i int) error {
+		if 0 <= i && i <= 0xfffff { // 20 bits
+			return nil
+		}
+		return fmt.Errorf("flow label range exceeded")
+	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+func flowSpecEtherTypeParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	// args: List of pairs of Operator and Ether Types
+	//
+	// Example:
+	// - ARP or IPv4
+	//   args := []string{"==arp", "==ipv4"}
+	// - Not IPv4 and not IPv6
+	//   args := []string{"!=ipv4", "&!=ipv6"}
+	if rf != RF_FS_L2_VPN {
+		return nil, fmt.Errorf("%s is supported for only l2vpn", typ.String())
+	}
+
+	args = normalizeFlowSpecOpValues(args)
 	s := strings.Join(args, " ")
 	for i, name := range EthernetTypeNameMap {
 		s = strings.Replace(s, name, fmt.Sprintf("%d", i), -1)
 	}
 	args = strings.Split(s, " ")
-	validationFunc := func(i int) error {
-		if 0 < i && i < 0xffff {
+
+	f := func(i int) error {
+		if 0 <= i && i <= 0xffff { // 2 bytes
 			return nil
 		}
-		return fmt.Errorf("ethernet type range exceeded")
+		return fmt.Errorf("%s range exceeded", typ.String())
 	}
-	return doFlowSpecNumericParser(0, args, validationFunc)
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
 }
 
-func doFlowSpecNumericParser(rf RouteFamily, args []string, validationFunc func(int) error) (FlowSpecComponentInterface, error) {
-	if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP && FlowSpecValueMap[args[0]] == FLOW_SPEC_TYPE_LABEL {
-		return nil, fmt.Errorf("flow label spec is only allowed for ipv6")
-	}
-	cmdType := args[0]
-	args = append(args[:0], args[1:]...) // removing command string
-	fullCmd := strings.Join(args, " ")   // rebuiling tcp filters
-	opsFlags, err := parseDecValuesCmd(fullCmd, validationFunc)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]*FlowSpecComponentItem, 0)
-	for _, opFlag := range opsFlags {
-		items = append(items, NewFlowSpecComponentItem(opFlag[0], opFlag[1]))
-	}
-	return NewFlowSpecComponent(FlowSpecValueMap[cmdType], items), nil
-}
-
-func parseDecValuesCmd(myCmd string, validationFunc func(int) error) ([][2]int, error) {
-	var index int = 0
-	var decOperatorsAndValues [][2]int
-	var operatorValue [2]int
-	var errorNum error
-	for index < len(myCmd) {
-		myCmdChar := myCmd[index : index+1]
-		switch myCmdChar {
-		case DECNumOpNameMap[DEC_NUM_OP_GT], DECNumOpNameMap[DEC_NUM_OP_LT]:
-			// We found a < or > let's check if we face >= or <=
-			if myCmd[index+1:index+2] == "=" {
-				myCmdChar = myCmd[index : index+2]
-				index++
-			}
-			if bit := DECNumOpValueMap[myCmdChar]; bit&DECNumOp(operatorValue[0]) == 0 {
-				operatorValue[0] |= int(bit)
-				index++
-			} else {
-				err := fmt.Errorf("Operator > < or >= <= appears multiple times")
-				return nil, err
-			}
-		case "!", "=":
-			// we found the beginning of a not let's check secong character
-			if myCmd[index+1:index+2] == "=" {
-				myCmdChar = myCmd[index : index+2]
-				if bit := DECNumOpValueMap[myCmdChar]; bit&DECNumOp(operatorValue[0]) == 0 {
-					operatorValue[0] |= int(bit)
-					index += 2
-				} else {
-					err := fmt.Errorf("Not or Equal operator appears multiple time")
-					return nil, err
-				}
-			} else {
-				err := fmt.Errorf("Malformed not or equal operator")
-				return nil, err
-			}
-		case "t", "f": // we could be facing true or false, let's check
-			if myCmd == DECNumOpNameMap[DEC_NUM_OP_FALSE] || myCmd == DECNumOpNameMap[DEC_NUM_OP_TRUE] {
-				if bit := DECNumOpValueMap[myCmd]; bit&DECNumOp(operatorValue[0]) == 0 {
-					operatorValue[0] |= int(bit)
-					index = index + len(myCmd)
-				} else {
-					err := fmt.Errorf("Boolean operator appears multiple times")
-					return nil, err
-				}
-			} else {
-				err := fmt.Errorf("Boolean operator %s badly formatted", myCmd)
-				return nil, err
-			}
-		case DECLogicOpNameMap[DEC_LOGIC_OP_AND], DECLogicOpNameMap[DEC_LOGIC_OP_OR]:
-			if index == 0 {
-				err := fmt.Errorf("Logic operator appears a first character")
-				return nil, err
-			}
-			bit := DECLogicOpValueMap[myCmdChar]
-			decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
-			if myCmdChar == DECLogicOpNameMap[DEC_LOGIC_OP_AND] {
-				operatorValue[0] = int(bit)
-			} else {
-				operatorValue[0] = 0
-			}
-			operatorValue[1] = 0
-			index++
-		case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
-			myLoopChar := myCmdChar
-			loopIndex := index
-			// we loop till we reach the end of decimal value
-			// exit conditions : we reach the end of decimal value (we found & or ' ') or we reach the end of the line
-			for loopIndex < len(myCmd) &&
-				(myLoopChar != DECLogicOpNameMap[DEC_LOGIC_OP_AND] && myLoopChar != DECLogicOpNameMap[DEC_LOGIC_OP_OR]) {
-				// we check if inspected charater is a number
-				if _, err := strconv.Atoi(myLoopChar); err == nil {
-					// we move to next character
-					loopIndex++
-					if loopIndex < len(myCmd) {
-						myLoopChar = myCmd[loopIndex : loopIndex+1] // we move to the next character only if we didn't reach the end of cmd
-					}
-				} else {
-					err := fmt.Errorf("Decimal value badly formatted: %s", myLoopChar)
-					return nil, err
-				}
-			}
-			decimalValueString := myCmd[index:loopIndex]
-			operatorValue[1], errorNum = strconv.Atoi(decimalValueString)
-			if errorNum != nil {
-				return nil, errorNum
-			}
-			err := validationFunc(operatorValue[1])
-			if err != nil {
-				return nil, err
-			}
-			// we check if we found any operator, if not we set default as ==
-			if operatorValue[0] == 0 {
-				operatorValue[0] = DEC_NUM_OP_EQ
-			}
-			// we are done with decimal value, we give back the next cooming charater to the main loop
-			index = loopIndex
-		default:
-			err := fmt.Errorf("%s not part of flowspec decimal value or operators", myCmdChar)
-			return nil, err
-		}
-	}
-	operatorValue[0] |= int(DECLogicOpValueMap["E"])
-	decOperatorsAndValues = append(decOperatorsAndValues, operatorValue)
-	return decOperatorsAndValues, nil
-}
-
-func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	f := func(i int) error {
-		return nil
-	}
-	return doFlowSpecNumericParser(rf, args, f)
-}
-
-func flowSpecPortParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	f := func(i int) error {
-		if 0 <= i && i < 65536 {
-			return nil
-		}
-		return fmt.Errorf("port range exceeded")
-	}
-	return doFlowSpecNumericParser(rf, args, f)
-}
-
-func flowSpecDscpParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	f := func(i int) error {
-		if 0 < i && i < 64 {
-			return nil
-		}
-		return fmt.Errorf("dscp value range exceeded")
-	}
-	return doFlowSpecNumericParser(rf, args, f)
-}
-
-func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	if len(args) < 2 {
-		return nil, fmt.Errorf("invalid flowspec fragment specifier")
-	}
-	items := make([]*FlowSpecComponentItem, 0)
-	cmd := strings.Join(args[1:], " ")
-	var op byte
-	var flags byte
-	for cmd != "" {
-		next := 1
-		c := cmd[0:1]
-		switch c {
-		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]:
-			if op&BITMASK_FLAG_OP_MATCH != 0 {
-				err := fmt.Errorf("invalid flowspec fragment specifier: '=' flag appears multiple time: %s", cmd)
-				return nil, err
-			}
-			op |= BITMASK_FLAG_OP_MATCH
-		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:
-			if op&BITMASK_FLAG_OP_NOT != 0 {
-				err := fmt.Errorf("invalid flowspec fragment specifier: '!' flag appears multiple time: %s", cmd)
-				return nil, err
-			}
-			op = op | BITMASK_FLAG_OP_NOT
-		case BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:
-			operand := BitmaskFlagOpValueMap[c]
-			items = append(items, NewFlowSpecComponentItem(int(op), int(flags)))
-			op = byte(operand)
-			flags = byte(0)
-		default:
-			for k, v := range FragmentFlagNameMap {
-				length := len(v)
-				if (len(cmd) >= length) && (cmd[:length] == v) {
-					flags = flags | byte(k)
-					next = length
-					break
-				}
-			}
-			// if not matched with any of FragmentFlags
-			if next == 1 {
-				return nil, fmt.Errorf("invalid flowspec fragment specifier: %s", cmd)
-			}
-		}
-		cmd = cmd[next:]
-	}
-	op = op | BITMASK_FLAG_OP_END
-	items = append(items, NewFlowSpecComponentItem(int(op), int(flags)))
-	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
-}
-
-func flowSpecMacParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	if len(args) < 2 {
-		return nil, fmt.Errorf("invalid flowspec dst/src mac")
-	}
+func flowSpecMacParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	// args[0]: MAC address
 	if rf != RF_FS_L2_VPN {
-		return nil, fmt.Errorf("invalid family")
+		return nil, fmt.Errorf("%s is supported for only l2vpn", typ.String())
 	}
-	typ := args[0]
-	mac, err := net.ParseMAC(args[1])
+
+	mac, err := net.ParseMAC(args[0])
 	if err != nil {
-		return nil, fmt.Errorf("invalid mac")
+		return nil, fmt.Errorf("invalid mac address: %s", args[0])
 	}
+
 	switch typ {
-	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_MAC]:
+	case FLOW_SPEC_TYPE_DST_MAC:
 		return NewFlowSpecDestinationMac(mac), nil
-	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_MAC]:
+	case FLOW_SPEC_TYPE_SRC_MAC:
 		return NewFlowSpecSourceMac(mac), nil
 	}
-	return nil, fmt.Errorf("invalid type. only %s or %s allowed", FlowSpecNameMap[FLOW_SPEC_TYPE_DST_MAC], FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_MAC])
+	return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 }
 
-var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, []string) (FlowSpecComponentInterface, error){
+func flowSpecLlcParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	if rf != RF_FS_L2_VPN {
+		return nil, fmt.Errorf("%s is supported for only l2vpn", typ.String())
+	}
+
+	return flowSpecNumeric1ByteParser(rf, typ, args)
+}
+
+func flowSpecSnapParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	if rf != RF_FS_L2_VPN {
+		return nil, fmt.Errorf("%s is supported for only l2vpn", typ.String())
+	}
+
+	args = normalizeFlowSpecOpValues(args)
+
+	f := func(i int) error {
+		if 0 <= i && i <= 0xffffffffff { // 5 bytes
+			return nil
+		}
+		return fmt.Errorf("%s range exceeded", typ.String())
+	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+func flowSpecVlanIDParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	if rf != RF_FS_L2_VPN {
+		return nil, fmt.Errorf("%s is supported for only l2vpn", typ.String())
+	}
+
+	args = normalizeFlowSpecOpValues(args)
+	s := strings.Join(args, " ")
+	for i, name := range EthernetTypeNameMap {
+		s = strings.Replace(s, name, fmt.Sprintf("%d", i), -1)
+	}
+	args = strings.Split(s, " ")
+
+	f := func(i int) error {
+		if 0 <= i && i <= 4095 { // 12 bits
+			return nil
+		}
+		return fmt.Errorf("%s range exceeded", typ.String())
+	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+func flowSpecVlanCosParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+	if rf != RF_FS_L2_VPN {
+		return nil, fmt.Errorf("%s is supported for only l2vpn", typ.String())
+	}
+
+	args = normalizeFlowSpecOpValues(args)
+	s := strings.Join(args, " ")
+	for i, name := range EthernetTypeNameMap {
+		s = strings.Replace(s, name, fmt.Sprintf("%d", i), -1)
+	}
+	args = strings.Split(s, " ")
+
+	f := func(i int) error {
+		if 0 <= i && i <= 7 { // 3 bits
+			return nil
+		}
+		return fmt.Errorf("%s range exceeded", typ.String())
+	}
+
+	return parseFlowSpecNumericOpValues(typ, args, f)
+}
+
+var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, BGPFlowSpecType, []string) (FlowSpecComponentInterface, error){
 	FLOW_SPEC_TYPE_DST_PREFIX:    flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_SRC_PREFIX:    flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_IP_PROTO:      flowSpecIpProtoParser,
-	FLOW_SPEC_TYPE_PORT:          flowSpecPortParser,
-	FLOW_SPEC_TYPE_DST_PORT:      flowSpecPortParser,
-	FLOW_SPEC_TYPE_SRC_PORT:      flowSpecPortParser,
-	FLOW_SPEC_TYPE_ICMP_TYPE:     flowSpecNumericParser,
-	FLOW_SPEC_TYPE_ICMP_CODE:     flowSpecNumericParser,
+	FLOW_SPEC_TYPE_PORT:          flowSpecNumeric2BytesParser,
+	FLOW_SPEC_TYPE_DST_PORT:      flowSpecNumeric2BytesParser,
+	FLOW_SPEC_TYPE_SRC_PORT:      flowSpecNumeric2BytesParser,
+	FLOW_SPEC_TYPE_ICMP_TYPE:     flowSpecNumeric1ByteParser,
+	FLOW_SPEC_TYPE_ICMP_CODE:     flowSpecNumeric1ByteParser,
 	FLOW_SPEC_TYPE_TCP_FLAG:      flowSpecTcpFlagParser,
-	FLOW_SPEC_TYPE_PKT_LEN:       flowSpecNumericParser,
+	FLOW_SPEC_TYPE_PKT_LEN:       flowSpecNumeric2BytesParser,
 	FLOW_SPEC_TYPE_DSCP:          flowSpecDscpParser,
 	FLOW_SPEC_TYPE_FRAGMENT:      flowSpecFragmentParser,
-	FLOW_SPEC_TYPE_LABEL:         flowSpecNumericParser,
+	FLOW_SPEC_TYPE_LABEL:         flowSpecLabelParser,
 	FLOW_SPEC_TYPE_ETHERNET_TYPE: flowSpecEtherTypeParser,
 	FLOW_SPEC_TYPE_DST_MAC:       flowSpecMacParser,
 	FLOW_SPEC_TYPE_SRC_MAC:       flowSpecMacParser,
-	FLOW_SPEC_TYPE_LLC_DSAP:      flowSpecNumericParser,
-	FLOW_SPEC_TYPE_LLC_SSAP:      flowSpecNumericParser,
-	FLOW_SPEC_TYPE_LLC_CONTROL:   flowSpecNumericParser,
-	FLOW_SPEC_TYPE_SNAP:          flowSpecNumericParser,
-	FLOW_SPEC_TYPE_VID:           flowSpecNumericParser,
-	FLOW_SPEC_TYPE_COS:           flowSpecNumericParser,
-	FLOW_SPEC_TYPE_INNER_VID:     flowSpecNumericParser,
-	FLOW_SPEC_TYPE_INNER_COS:     flowSpecNumericParser,
+	FLOW_SPEC_TYPE_LLC_DSAP:      flowSpecLlcParser,
+	FLOW_SPEC_TYPE_LLC_SSAP:      flowSpecLlcParser,
+	FLOW_SPEC_TYPE_LLC_CONTROL:   flowSpecLlcParser,
+	FLOW_SPEC_TYPE_SNAP:          flowSpecSnapParser,
+	FLOW_SPEC_TYPE_VID:           flowSpecVlanIDParser,
+	FLOW_SPEC_TYPE_COS:           flowSpecVlanCosParser,
+	FLOW_SPEC_TYPE_INNER_VID:     flowSpecVlanIDParser,
+	FLOW_SPEC_TYPE_INNER_COS:     flowSpecVlanCosParser,
 }
 
 func extractFlowSpecArgs(args []string) map[BGPFlowSpecType][]string {
