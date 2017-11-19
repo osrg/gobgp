@@ -3772,11 +3772,11 @@ func formatProto(op int, value int) string {
 
 func formatTCPFlag(op int, value int) string {
 	var retString string
-	if op&BITMASK_FLAG_OP_MATCH > 0 {
-		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
-	}
 	if op&BITMASK_FLAG_OP_NOT > 0 {
 		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
+	}
+	if op&BITMASK_FLAG_OP_MATCH > 0 {
+		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
 	}
 
 	// Prepare a sorted list of flags because map iterations does not happen
@@ -3802,11 +3802,11 @@ func formatTCPFlag(op int, value int) string {
 
 func formatFragment(op int, value int) string {
 	var retString string
-	if op&BITMASK_FLAG_OP_MATCH > 0 {
-		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
-	}
 	if op&BITMASK_FLAG_OP_NOT > 0 {
 		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
+	}
+	if op&BITMASK_FLAG_OP_MATCH > 0 {
+		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
 	}
 
 	// Prepare a sorted list of flags because map iterations does not happen
