@@ -3451,7 +3451,7 @@ func (p *flowSpecPrefix) Type() BGPFlowSpecType {
 }
 
 func (p *flowSpecPrefix) String() string {
-	return fmt.Sprintf("[%s:%s]", p.Type(), p.Prefix.String())
+	return fmt.Sprintf("[%s: %s]", p.Type(), p.Prefix.String())
 }
 
 func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
@@ -3500,7 +3500,7 @@ func (p *flowSpecPrefix6) Type() BGPFlowSpecType {
 }
 
 func (p *flowSpecPrefix6) String() string {
-	return fmt.Sprintf("[%s:%s/%d]", p.Type(), p.Prefix.String(), p.Offset)
+	return fmt.Sprintf("[%s: %s/%d]", p.Type(), p.Prefix.String(), p.Offset)
 }
 
 func (p *flowSpecPrefix6) MarshalJSON() ([]byte, error) {
@@ -3578,7 +3578,7 @@ func (p *flowSpecMac) Type() BGPFlowSpecType {
 }
 
 func (p *flowSpecMac) String() string {
-	return fmt.Sprintf("[%s:%s]", p.Type(), p.Mac.String())
+	return fmt.Sprintf("[%s: %s]", p.Type(), p.Mac.String())
 }
 
 func (p *flowSpecMac) MarshalJSON() ([]byte, error) {
@@ -3715,7 +3715,7 @@ func (p *FlowSpecComponent) Serialize(options ...*MarshallingOption) ([]byte, er
 func (p *FlowSpecComponent) Len(options ...*MarshallingOption) int {
 	l := 1
 	for _, item := range p.Items {
-		l += (item.Len() + 1)
+		l += item.Len() + 1
 	}
 	return l
 }
@@ -3725,113 +3725,42 @@ func (p *FlowSpecComponent) Type() BGPFlowSpecType {
 }
 
 func formatRaw(op int, value int) string {
-	return fmt.Sprintf("op: %b, value: %d", op, value)
-}
-
-func formatNumericOp(op int) string {
-	var opstr string
-	if op&0x40 > 0 {
-		opstr = "&"
-	} else {
-		opstr = " "
-	}
-	if op&0x2 > 0 {
-		opstr += ">"
-	}
-	if op&0x4 > 0 {
-		opstr += "<"
-	}
-	if op&0x1 > 0 {
-		opstr += "="
-	}
-	return opstr
-}
-
-func formatNumericOpFrontQty(op int) string {
-	gtlteqOnly := op & 0x07
-	return fmt.Sprintf("%s", DECNumOpNameMap[DECNumOp(gtlteqOnly)])
-}
-
-func formatNumericOpBackLogic(op int) string {
-	andOrOnly := op & 0x40 // let's ignore the END bit to avoid having an E at the end of the string
-	return fmt.Sprintf("%s", DECLogicOpNameMap[DECLogicOp(andOrOnly)])
+	return fmt.Sprintf("op:%b,value:%d", op, value)
 }
 
 func formatNumeric(op int, value int) string {
-	gtlteqOnly := op & 0x07
-	if DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_FALSE]] || DECNumOp(gtlteqOnly) == DECNumOpValueMap[DECNumOpNameMap[DEC_NUM_OP_TRUE]] {
-		return fmt.Sprintf("%s%s", formatNumericOpFrontQty(op), formatNumericOpBackLogic(op))
-	} else {
-		return fmt.Sprintf("%s%s%d", formatNumericOpBackLogic(op), formatNumericOpFrontQty(op), value)
+	cmpFlag := DECNumOp(op & 0x7) // lower 3 bits
+	if cmpFlag == DEC_NUM_OP_TRUE || cmpFlag == DEC_NUM_OP_FALSE {
+		// Omit value field
+		return DECNumOp(op).String()
 	}
+	return fmt.Sprint(DECNumOp(op).String(), strconv.Itoa(value))
 }
 
 func formatProto(op int, value int) string {
-	return fmt.Sprintf("%s%s%s", formatNumericOpFrontQty(op), Protocol(value).String(), formatNumericOpBackLogic(op))
+	cmpFlag := DECNumOp(op & 0x7) // lower 3 bits
+	if cmpFlag == DEC_NUM_OP_TRUE || cmpFlag == DEC_NUM_OP_FALSE {
+		// Omit value field
+		return DECNumOp(op).String()
+	}
+	return fmt.Sprint(DECNumOp(op).String(), Protocol(value).String())
 }
 
 func formatTCPFlag(op int, value int) string {
-	var retString string
-	if op&BITMASK_FLAG_OP_NOT > 0 {
-		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
-	}
-	if op&BITMASK_FLAG_OP_MATCH > 0 {
-		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
-	}
-
-	// Prepare a sorted list of flags because map iterations does not happen
-	// in a consistent order in Golang.
-	vs := make([]int, 0)
-	for _, v := range TCPFlagValueMap {
-		vs = append(vs, int(v))
-	}
-	sort.Ints(vs)
-	for _, v := range vs {
-		if value&v > 0 {
-			retString = fmt.Sprintf("%s%s", retString, TCPFlagNameMap[TCPFlag(v)])
-		}
-	}
-
-	if op&BITMASK_FLAG_OP_AND > 0 {
-		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], retString)
-	} else { // default is or
-		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR], retString)
-	}
-	return retString
+	return fmt.Sprint(BitmaskFlagOp(op).String(), TCPFlag(value).String())
 }
 
 func formatFragment(op int, value int) string {
-	var retString string
-	if op&BITMASK_FLAG_OP_NOT > 0 {
-		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
-	}
-	if op&BITMASK_FLAG_OP_MATCH > 0 {
-		retString = fmt.Sprintf("%s%s", retString, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
-	}
-
-	// Prepare a sorted list of flags because map iterations does not happen
-	// in a consistent order in Golang.
-	vs := make([]int, 0)
-	for _, v := range FragmentFlagValueMap {
-		vs = append(vs, int(v))
-	}
-	sort.Ints(vs)
-	for _, v := range vs {
-		if value&v > 0 {
-			retString = fmt.Sprintf("%s%s", retString, FragmentFlagNameMap[FragmentFlag(v)])
-		}
-	}
-
-	if op&BITMASK_FLAG_OP_AND > 0 {
-		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND], retString)
-	} else { // default is or
-		retString = fmt.Sprintf("%s%s", BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR], retString)
-	}
-	return retString
+	return fmt.Sprint(BitmaskFlagOp(op).String(), FragmentFlag(value).String())
 }
 
 func formatEtherType(op int, value int) string {
-	return fmt.Sprintf("%s%s", formatNumericOp(op), EthernetType(value).String())
+	cmpFlag := DECNumOp(op & 0x7) // lower 3 bits
+	if cmpFlag == DEC_NUM_OP_TRUE || cmpFlag == DEC_NUM_OP_FALSE {
+		// Omit value field
+		return DECNumOp(op).String()
+	}
+	return fmt.Sprint(DECNumOp(op).String(), EthernetType(value).String())
 }
 
 var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
@@ -3860,14 +3789,18 @@ var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
 
 func (p *FlowSpecComponent) String() string {
 	f := flowSpecFormatMap[FLOW_SPEC_TYPE_UNKNOWN]
-	if _, ok := flowSpecFormatMap[p.Type()]; ok {
-		f = flowSpecFormatMap[p.Type()]
+	if _, ok := flowSpecFormatMap[p.typ]; ok {
+		f = flowSpecFormatMap[p.typ]
 	}
-	buf := bytes.NewBuffer(make([]byte, 0, 32))
+
+	items := make([]string, 0, len(p.Items))
 	for _, i := range p.Items {
-		buf.WriteString(f(i.Op, i.Value))
+		items = append(items, f(i.Op, i.Value))
 	}
-	return fmt.Sprintf("[%s:%s]", p.typ, buf.String())
+	// Removes leading and tailing spaces
+	value := strings.TrimSpace(strings.Join(items, ""))
+
+	return fmt.Sprintf("[%s: %s]", p.typ, value)
 }
 
 func (p *FlowSpecComponent) MarshalJSON() ([]byte, error) {
