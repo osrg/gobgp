@@ -1055,20 +1055,20 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen ui
 	return nil
 }
 
-func (r *IPAddrPrefixDefault) serializePrefix(bitlen uint8) ([]byte, error) {
-	bytelen := (int(bitlen) + 7) / 8
-	buf := make([]byte, bytelen)
+func (r *IPAddrPrefixDefault) serializePrefix(bitLen uint8) ([]byte, error) {
+	byteLen := (int(bitLen) + 7) / 8
+	buf := make([]byte, byteLen)
 	copy(buf, r.Prefix)
 	// clear trailing bits in the last byte. rfc doesn't require
 	// this though.
-	if bitlen%8 != 0 {
-		mask := 0xff00 >> (bitlen % 8)
-		last_byte_value := buf[bytelen-1] & byte(mask)
-		buf[bytelen-1] = last_byte_value
+	rem := bitLen % 8
+	if rem != 0 {
+		mask := 0xff00 >> rem
+		lastByte := buf[byteLen-1] & byte(mask)
+		buf[byteLen-1] = lastByte
 	}
-	b := make([]byte, len(r.Prefix))
-	copy(b, buf)
-	copy(r.Prefix, b)
+	r.Prefix = make([]byte, len(r.Prefix))
+	copy(r.Prefix, buf)
 	return buf, nil
 }
 
@@ -3249,11 +3249,11 @@ type FlowSpecComponentInterface interface {
 
 type flowSpecPrefix struct {
 	Prefix AddrPrefixInterface
-	type_  BGPFlowSpecType
+	typ    BGPFlowSpecType
 }
 
 func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	p.type_ = BGPFlowSpecType(data[0])
+	p.typ = BGPFlowSpecType(data[0])
 	return p.Prefix.DecodeFromBytes(data[1:], options...)
 }
 
@@ -3272,7 +3272,7 @@ func (p *flowSpecPrefix) Len(options ...*MarshallingOption) int {
 }
 
 func (p *flowSpecPrefix) Type() BGPFlowSpecType {
-	return p.type_
+	return p.typ
 }
 
 func (p *flowSpecPrefix) String() string {
@@ -3292,13 +3292,13 @@ func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
 type flowSpecPrefix6 struct {
 	Prefix AddrPrefixInterface
 	Offset uint8
-	type_  BGPFlowSpecType
+	typ    BGPFlowSpecType
 }
 
 // draft-ietf-idr-flow-spec-v6-06
 // <type (1 octet), prefix length (1 octet), prefix offset(1 octet), prefix>
 func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	p.type_ = BGPFlowSpecType(data[0])
+	p.typ = BGPFlowSpecType(data[0])
 	p.Offset = data[2]
 	prefix := append([]byte{data[1]}, data[3:]...)
 	return p.Prefix.DecodeFromBytes(prefix, options...)
@@ -3321,7 +3321,7 @@ func (p *flowSpecPrefix6) Len(options ...*MarshallingOption) int {
 }
 
 func (p *flowSpecPrefix6) Type() BGPFlowSpecType {
-	return p.type_
+	return p.typ
 }
 
 func (p *flowSpecPrefix6) String() string {
@@ -3373,15 +3373,15 @@ func NewFlowSpecSourcePrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpe
 }
 
 type flowSpecMac struct {
-	Mac   net.HardwareAddr
-	type_ BGPFlowSpecType
+	Mac net.HardwareAddr
+	typ BGPFlowSpecType
 }
 
 func (p *flowSpecMac) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 2 || len(data) < 2+int(data[1]) {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all mac bits available")
 	}
-	p.type_ = BGPFlowSpecType(data[0])
+	p.typ = BGPFlowSpecType(data[0])
 	p.Mac = net.HardwareAddr(data[2 : 2+int(data[1])])
 	return nil
 }
@@ -3399,7 +3399,7 @@ func (p *flowSpecMac) Len(options ...*MarshallingOption) int {
 }
 
 func (p *flowSpecMac) Type() BGPFlowSpecType {
-	return p.type_
+	return p.typ
 }
 
 func (p *flowSpecMac) String() string {
@@ -3421,7 +3421,7 @@ type FlowSpecSourceMac struct {
 }
 
 func NewFlowSpecSourceMac(mac net.HardwareAddr) *FlowSpecSourceMac {
-	return &FlowSpecSourceMac{flowSpecMac{Mac: mac, type_: FLOW_SPEC_TYPE_SRC_MAC}}
+	return &FlowSpecSourceMac{flowSpecMac{Mac: mac, typ: FLOW_SPEC_TYPE_SRC_MAC}}
 }
 
 type FlowSpecDestinationMac struct {
@@ -3429,7 +3429,7 @@ type FlowSpecDestinationMac struct {
 }
 
 func NewFlowSpecDestinationMac(mac net.HardwareAddr) *FlowSpecDestinationMac {
-	return &FlowSpecDestinationMac{flowSpecMac{Mac: mac, type_: FLOW_SPEC_TYPE_DST_MAC}}
+	return &FlowSpecDestinationMac{flowSpecMac{Mac: mac, typ: FLOW_SPEC_TYPE_DST_MAC}}
 }
 
 type FlowSpecComponentItem struct {
@@ -3492,11 +3492,11 @@ func NewFlowSpecComponentItem(op int, value int) *FlowSpecComponentItem {
 
 type FlowSpecComponent struct {
 	Items []*FlowSpecComponentItem
-	type_ BGPFlowSpecType
+	typ   BGPFlowSpecType
 }
 
 func (p *FlowSpecComponent) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	p.type_ = BGPFlowSpecType(data[0])
+	p.typ = BGPFlowSpecType(data[0])
 	data = data[1:]
 	p.Items = make([]*FlowSpecComponentItem, 0)
 	for {
@@ -3546,7 +3546,7 @@ func (p *FlowSpecComponent) Len(options ...*MarshallingOption) int {
 }
 
 func (p *FlowSpecComponent) Type() BGPFlowSpecType {
-	return p.type_
+	return p.typ
 }
 
 func formatRaw(op int, value int) string {
@@ -3692,7 +3692,7 @@ func (p *FlowSpecComponent) String() string {
 	for _, i := range p.Items {
 		buf.WriteString(f(i.Op, i.Value))
 	}
-	return fmt.Sprintf("[%s:%s]", p.type_, buf.String())
+	return fmt.Sprintf("[%s:%s]", p.typ, buf.String())
 }
 
 func (p *FlowSpecComponent) MarshalJSON() ([]byte, error) {
@@ -3705,10 +3705,10 @@ func (p *FlowSpecComponent) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewFlowSpecComponent(type_ BGPFlowSpecType, items []*FlowSpecComponentItem) *FlowSpecComponent {
+func NewFlowSpecComponent(typ BGPFlowSpecType, items []*FlowSpecComponentItem) *FlowSpecComponent {
 	return &FlowSpecComponent{
 		Items: items,
-		type_: type_,
+		typ:   typ,
 	}
 }
 

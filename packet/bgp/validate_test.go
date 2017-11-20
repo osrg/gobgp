@@ -2,9 +2,10 @@ package bgp
 
 import (
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func bgpupdate() *BGPMessage {
@@ -27,13 +28,13 @@ func bgpupdateV6() *BGPMessage {
 		NewAsPathParam(2, []uint16{65001}),
 	}
 
-	mp_nlri := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
+	prefixes := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
 		"fe80:1234:1234:5667:8967:af12:8912:1023")}
 
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(1),
 		NewPathAttributeAsPath(aspath),
-		NewPathAttributeMpReachNLRI("1023::", mp_nlri),
+		NewPathAttributeMpReachNLRI("1023::", prefixes),
 	}
 	return NewBGPUpdateMessage(nil, p, nil)
 }
