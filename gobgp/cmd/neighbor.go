@@ -59,6 +59,9 @@ func getNeighbor(name string, enableAdvertised bool) (*config.Neighbor, error) {
 }
 
 func getASN(p *config.Neighbor) string {
+	if p.Config.PeerAs > 0 {
+		return fmt.Sprint(p.Config.PeerAs)
+	}
 	asn := "*"
 	if p.State.PeerAs > 0 {
 		asn = fmt.Sprint(p.State.PeerAs)
