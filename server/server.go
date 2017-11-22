@@ -999,6 +999,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 		if peer.fsm.adminState == ADMIN_STATE_DOWN {
 			peer.fsm.pConf.State = config.NeighborState{}
 			peer.fsm.pConf.State.NeighborAddress = peer.fsm.pConf.Config.NeighborAddress
+			peer.fsm.pConf.State.PeerAs = peer.fsm.pConf.Config.PeerAs
 			peer.fsm.pConf.Timers.State = config.TimersState{}
 		}
 		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
