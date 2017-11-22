@@ -16,6 +16,7 @@
 package gobgpapi
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	farm "github.com/dgryski/go-farm"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -766,6 +768,17 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 		}
 		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw)
+		if path.IsWithdraw == false {
+			total := bytes.NewBuffer(make([]byte, 0))
+			for _, a := range newPath.GetPathAttrs() {
+				if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+					continue
+				}
+				b, _ := a.Serialize()
+				total.Write(b)
+			}
+			newPath.SetHash(farm.Hash32(total.Bytes()))
+		}
 		newPath.SetIsFromExternal(path.IsFromExternal)
 		pathList = append(pathList, newPath)
 	}

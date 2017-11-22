@@ -154,6 +154,7 @@ type Path struct {
 	info       *originInfo
 	IsWithdraw bool
 	pathAttrs  []bgp.PathAttributeInterface
+	attrsHash  uint32
 	reason     BestPathReason
 	parent     *Path
 	dels       []bgp.BGPAttrType
@@ -1241,4 +1242,12 @@ func (p *Path) ToLocal() *Path {
 	}
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path
+}
+
+func (p *Path) SetHash(v uint32) {
+	p.attrsHash = v
+}
+
+func (p *Path) GetHash() uint32 {
+	return p.attrsHash
 }
