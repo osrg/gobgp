@@ -120,9 +120,6 @@ func (m *roaManager) SetAS(as uint32) error {
 }
 
 func (m *roaManager) AddServer(host string, lifetime int64) error {
-	if m.AS == 0 {
-		return fmt.Errorf("AS isn't configured yet")
-	}
 	address, port, err := net.SplitHostPort(host)
 	if err != nil {
 		return err
