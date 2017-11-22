@@ -3364,39 +3364,46 @@ var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, []string) (FlowSpe
 	FLOW_SPEC_TYPE_INNER_COS:     flowSpecNumericParser,
 }
 
-func ParseFlowSpecComponents(rf RouteFamily, input string) ([]FlowSpecComponentInterface, error) {
-	idxs := make([]struct {
-		t BGPFlowSpecType
-		i int
-	}, 0, 8)
-	args := strings.Split(input, " ")
-	for idx, v := range args {
-		if t, ok := FlowSpecValueMap[v]; ok {
-			idxs = append(idxs, struct {
-				t BGPFlowSpecType
-				i int
-			}{t, idx})
-		}
-	}
-	if len(idxs) == 0 {
-		return nil, fmt.Errorf("failed to parse: %s", input)
-	}
-	cmps := make([]FlowSpecComponentInterface, 0, len(idxs))
-	for i, idx := range idxs {
-		var a []string
-		f := flowSpecParserMap[idx.t]
-		if i < len(idxs)-1 {
-			a = args[idx.i:idxs[i+1].i]
+func extractFlowSpecArgs(args []string) map[BGPFlowSpecType][]string {
+	m := make(map[BGPFlowSpecType][]string, len(FlowSpecValueMap))
+	var typ BGPFlowSpecType
+	for _, arg := range args {
+		if t, ok := FlowSpecValueMap[arg]; ok {
+			typ = t
+			m[typ] = make([]string, 0)
 		} else {
-			a = args[idx.i:]
+			m[typ] = append(m[typ], arg)
 		}
-		cmp, err := f(rf, a)
+	}
+	return m
+}
+
+func ParseFlowSpecComponents(rf RouteFamily, arg string) ([]FlowSpecComponentInterface, error) {
+	_, safi := RouteFamilyToAfiSafi(rf)
+	switch safi {
+	case SAFI_FLOW_SPEC_UNICAST, SAFI_FLOW_SPEC_VPN:
+		// Valid
+	default:
+		return nil, fmt.Errorf("invalid address family: %s", rf.String())
+	}
+
+	typeArgs := extractFlowSpecArgs(strings.Split(arg, " "))
+	rules := make([]FlowSpecComponentInterface, 0, len(typeArgs))
+	for typ, args := range typeArgs {
+		parser, ok := flowSpecParserMap[typ]
+		if !ok {
+			return nil, fmt.Errorf("unsupported traffic filtering rule type: %s", typ.String())
+		}
+		if len(args) == 0 {
+			return nil, fmt.Errorf("specify traffic filtering rules for %s", typ.String())
+		}
+		rule, err := parser(rf, typ, args)
 		if err != nil {
 			return nil, err
 		}
-		cmps = append(cmps, cmp)
+		rules = append(rules, rule)
 	}
-	return cmps, nil
+	return rules, nil
 }
 
 func (t BGPFlowSpecType) String() string {

@@ -324,19 +324,31 @@ func ParseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 }
 
 func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguisherInterface) (bgp.AddrPrefixInterface, []string, error) {
-	thenPos := len(args)
-	for idx, v := range args {
-		if v == "then" {
-			thenPos = idx
-			break
+	// Format:
+	// match <rule>... [then <action>...] [rt <rt>...]
+	req := 3 // match <key1> <arg1> [<key2> <arg2>...]
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m := extractReserved(args, []string{"match", "then", "rt"})
+	if len(m["match"]) == 0 {
+		return nil, nil, fmt.Errorf("specify filtering rules with keyword 'match'")
+	}
+
+	extcomms := m["then"]
+	switch rf {
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
+		if len(m["rt"]) > 0 {
+			extcomms = append(extcomms, "rt")
+			extcomms = append(extcomms, m["rt"]...)
+		}
+	default:
+		if len(m["rt"]) > 0 {
+			return nil, nil, fmt.Errorf("cannot specify rt for %s", rf.String())
 		}
 	}
-	if len(args) < 4 || args[0] != "match" || thenPos > len(args)-2 {
-		return nil, nil, fmt.Errorf("invalid format")
-	}
-	matchArgs := args[1:thenPos]
 
-	rules, err := bgp.ParseFlowSpecComponents(rf, strings.Join(matchArgs, " "))
+	rules, err := bgp.ParseFlowSpecComponents(rf, strings.Join(m["match"], " "))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -357,7 +369,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguis
 		return nil, nil, fmt.Errorf("invalid route family")
 	}
 
-	return nlri, args[thenPos+1:], nil
+	return nlri, extcomms, nil
 }
 
 func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
