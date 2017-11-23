@@ -270,7 +270,7 @@ func newCage(b []byte, path *Path) *cage {
 
 type packerInterface interface {
 	add(*Path)
-	pack() []*bgp.BGPMessage
+	pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage
 }
 
 type packer struct {
@@ -314,7 +314,7 @@ func createMPReachMessage(path *Path) *bgp.BGPMessage {
 	return bgp.NewBGPUpdateMessage(nil, attrs, nil)
 }
 
-func (p *packerMP) pack() []*bgp.BGPMessage {
+func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	msgs := make([]*bgp.BGPMessage, 0, p.packer.total)
 
 	for _, path := range p.withdrawals {
@@ -392,7 +392,7 @@ func (p *packerV4) add(path *Path) {
 	}
 }
 
-func (p *packerV4) pack() []*bgp.BGPMessage {
+func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	split := func(max int, paths []*Path) ([]*bgp.IPAddrPrefix, []*Path) {
 		nlris := make([]*bgp.IPAddrPrefix, 0, max)
 		i := 0
@@ -404,12 +404,15 @@ func (p *packerV4) pack() []*bgp.BGPMessage {
 		}
 		return nlris, paths[i:]
 	}
+	addpathNLRILen := 0
+	if bgp.IsAddPathEnabled(false, p.packer.family, options) {
+		addpathNLRILen = 4
+	}
 	// Header + Update (WithdrawnRoutesLen +
 	// TotalPathAttributeLen + attributes + maxlen of NLRI).
-	// the max size of NLRI is 5bytes
-	// TODO: addpath needs 4 bytes per NLRI
+	// the max size of NLRI is 5bytes (plus 4bytes with addpath enabled)
 	maxNLRIs := func(attrsLen int) int {
-		return (bgp.BGP_MAX_MESSAGE_LENGTH - (19 + 2 + 2 + attrsLen)) / 5
+		return (bgp.BGP_MAX_MESSAGE_LENGTH - (19 + 2 + 2 + attrsLen)) / (5 + addpathNLRILen)
 	}
 
 	loop := func(attrsLen int, paths []*Path, cb func([]*bgp.IPAddrPrefix)) {
@@ -476,7 +479,7 @@ func newPacker(f bgp.RouteFamily) packerInterface {
 	}
 }
 
-func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
+func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	msgs := make([]*bgp.BGPMessage, 0, len(pathList))
 
 	m := make(map[bgp.RouteFamily]packerInterface)
@@ -489,7 +492,7 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 	}
 
 	for _, p := range m {
-		msgs = append(msgs, p.pack()...)
+		msgs = append(msgs, p.pack(options...)...)
 	}
 	return msgs
 }

@@ -33,7 +33,7 @@ type MarshallingOption struct {
 	AddPath map[RouteFamily]BGPAddPathMode
 }
 
-func handleAddPath(decode bool, f RouteFamily, options []*MarshallingOption) bool {
+func IsAddPathEnabled(decode bool, f RouteFamily, options []*MarshallingOption) bool {
 	for _, opt := range options {
 		if opt == nil {
 			continue
@@ -1102,7 +1102,7 @@ func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 	if r.addrlen == 16 {
 		f = RF_IPv6_UC
 	}
-	if handleAddPath(true, f, options) {
+	if IsAddPathEnabled(true, f, options) {
 		var err error
 		data, err = r.decodePathIdentifier(data)
 		if err != nil {
@@ -1124,7 +1124,7 @@ func (r *IPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) 
 		f = RF_IPv6_UC
 	}
 	var buf []byte
-	if handleAddPath(false, f, options) {
+	if IsAddPathEnabled(false, f, options) {
 		var err error
 		buf, err = r.serializeIdentifier()
 		if err != nil {
@@ -1564,7 +1564,7 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	if l.addrlen == 16 {
 		f = RF_IPv6_VPN
 	}
-	if handleAddPath(true, f, options) {
+	if IsAddPathEnabled(true, f, options) {
 		var err error
 		data, err = l.decodePathIdentifier(data)
 		if err != nil {
@@ -1593,7 +1593,7 @@ func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byt
 		f = RF_IPv6_VPN
 	}
 	var buf []byte
-	if handleAddPath(false, f, options) {
+	if IsAddPathEnabled(false, f, options) {
 		var err error
 		buf, err = l.serializeIdentifier()
 		if err != nil {
@@ -1711,7 +1711,7 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 	if l.addrlen == 16 {
 		f = RF_IPv6_MPLS
 	}
-	if handleAddPath(true, f, options) {
+	if IsAddPathEnabled(true, f, options) {
 		var err error
 		data, err = l.decodePathIdentifier(data)
 		if err != nil {
@@ -1736,7 +1736,7 @@ func (l *LabeledIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, 
 		f = RF_IPv6_MPLS
 	}
 	var buf []byte
-	if handleAddPath(false, f, options) {
+	if IsAddPathEnabled(false, f, options) {
 		var err error
 		buf, err = l.serializeIdentifier()
 		if err != nil {
@@ -1816,7 +1816,7 @@ type RouteTargetMembershipNLRI struct {
 }
 
 func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if handleAddPath(true, RF_RTC_UC, options) {
+	if IsAddPathEnabled(true, RF_RTC_UC, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
 		if err != nil {
@@ -1844,7 +1844,7 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*Mar
 
 func (n *RouteTargetMembershipNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	var buf []byte
-	if handleAddPath(false, RF_RTC_UC, options) {
+	if IsAddPathEnabled(false, RF_RTC_UC, options) {
 		var err error
 		buf, err = n.serializeIdentifier()
 		if err != nil {
@@ -2684,7 +2684,7 @@ type EVPNNLRI struct {
 }
 
 func (n *EVPNNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if handleAddPath(true, RF_EVPN, options) {
+	if IsAddPathEnabled(true, RF_EVPN, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
 		if err != nil {
@@ -2710,7 +2710,7 @@ func (n *EVPNNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) e
 
 func (n *EVPNNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	var buf []byte
-	if handleAddPath(false, RF_EVPN, options) {
+	if IsAddPathEnabled(false, RF_EVPN, options) {
 		var err error
 		buf, err = n.serializeIdentifier()
 		if err != nil {
@@ -2783,7 +2783,7 @@ func (n *EncapNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 	if n.addrlen == 16 {
 		f = RF_IPv6_ENCAP
 	}
-	if handleAddPath(true, f, options) {
+	if IsAddPathEnabled(true, f, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
 		if err != nil {
@@ -2808,7 +2808,7 @@ func (n *EncapNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	if n.addrlen == 16 {
 		f = RF_IPv6_ENCAP
 	}
-	if handleAddPath(false, f, options) {
+	if IsAddPathEnabled(false, f, options) {
 		var err error
 		buf, err = n.serializeIdentifier()
 		if err != nil {
@@ -3940,7 +3940,7 @@ func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
 }
 
 func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*MarshallingOption) error {
-	if handleAddPath(true, rf, options) {
+	if IsAddPathEnabled(true, rf, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
 		if err != nil {
@@ -4062,7 +4062,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 		buf = append(b, buf...)
 	}
 
-	if handleAddPath(false, n.rf, options) {
+	if IsAddPathEnabled(false, n.rf, options) {
 		id, err := n.serializeIdentifier()
 		if err != nil {
 			return nil, err
@@ -4319,7 +4319,7 @@ func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption)
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
 	}
-	if handleAddPath(true, RF_OPAQUE, options) {
+	if IsAddPathEnabled(true, RF_OPAQUE, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
 		if err != nil {
@@ -4343,7 +4343,7 @@ func (n *OpaqueNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	binary.BigEndian.PutUint16(buf, uint16(len(n.Key)))
 	buf = append(buf, n.Key...)
 	buf = append(buf, n.Value...)
-	if handleAddPath(false, RF_OPAQUE, options) {
+	if IsAddPathEnabled(false, RF_OPAQUE, options) {
 		id, err := n.serializeIdentifier()
 		if err != nil {
 			return nil, err
@@ -5811,7 +5811,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	}
 	value = value[1:]
 	addpathLen := 0
-	if handleAddPath(true, AfiSafiToRouteFamily(afi, safi), options) {
+	if IsAddPathEnabled(true, AfiSafiToRouteFamily(afi, safi), options) {
 		addpathLen = 4
 	}
 	for len(value) > 0 {
@@ -5957,7 +5957,7 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 	p.AFI = afi
 	p.SAFI = safi
 	addpathLen := 0
-	if handleAddPath(true, AfiSafiToRouteFamily(afi, safi), options) {
+	if IsAddPathEnabled(true, AfiSafiToRouteFamily(afi, safi), options) {
 		addpathLen = 4
 	}
 	for len(value) > 0 {
@@ -8109,7 +8109,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	}
 
 	addpathLen := 0
-	if handleAddPath(true, RF_IPv4_UC, options) {
+	if IsAddPathEnabled(true, RF_IPv4_UC, options) {
 		addpathLen = 4
 	}
 

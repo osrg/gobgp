@@ -1445,7 +1445,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			return nil
 		case o := <-h.outgoing.Out():
 			m := o.(*FsmOutgoingMsg)
-			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths) {
+			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, h.fsm.marshallingOptions) {
 				if err := send(msg); err != nil {
 					return nil
 				}
