@@ -129,10 +129,6 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		}
 	}
 
-	if n.Config.PeerAs == 0 {
-		return fmt.Errorf("peer-as is not set for %s", n.Config.NeighborAddress)
-	}
-
 	if n.Config.LocalAs == 0 {
 		n.Config.LocalAs = g.Config.As
 		if !g.Confederation.Config.Enabled || n.IsConfederation(g) {
