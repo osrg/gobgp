@@ -66,6 +66,9 @@ matrix:
     - <<: *_build
       env:
         - GOOS=darwin
+    - <<: *_build
+      env:
+        - GOARCH=386
 #
 # Misc
 #
