@@ -1748,7 +1748,7 @@ func (s *BgpServer) GetNeighbor(address string, getAdvertised bool) (l []*config
 	s.mgmtOperation(func() error {
 		l = make([]*config.Neighbor, 0, len(s.neighborMap))
 		for k, peer := range s.neighborMap {
-			if address != "" && address != k {
+			if address != "" && address != k && address != peer.fsm.pConf.Config.NeighborInterface {
 				continue
 			}
 			l = append(l, peer.ToConfig(getAdvertised))

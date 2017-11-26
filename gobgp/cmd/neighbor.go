@@ -74,13 +74,6 @@ func getNeighbors(vrf string) (neighbors, error) {
 	return neighbors(n), err
 }
 
-func getNeighbor(name string, enableAdvertised bool) (*config.Neighbor, error) {
-	if net.ParseIP(name) == nil {
-		name = ""
-	}
-	return client.GetNeighbor(name, enableAdvertised)
-}
-
 func getASN(p *config.Neighbor) string {
 	asn := "*"
 	if p.State.PeerAs > 0 {
@@ -178,7 +171,7 @@ func showNeighbors(vrf string) error {
 }
 
 func showNeighbor(args []string) error {
-	p, e := getNeighbor(args[0], true)
+	p, e := client.GetNeighbor(args[0], true)
 	if e != nil {
 		return e
 	}
@@ -771,7 +764,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	switch r {
 	case CMD_LOCAL, CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED, CMD_ADJ_OUT:
 		if rib.Info("").NumDestination == 0 {
-			peer, err := getNeighbor(name, false)
+			peer, err := client.GetNeighbor(name, false)
 			if err != nil {
 				return err
 			}
@@ -1105,7 +1098,7 @@ func NewNeighborCmd() *cobra.Command {
 						}
 					}
 					if addr == "" {
-						peer, err := getNeighbor(args[len(args)-1], false)
+						peer, err := client.GetNeighbor(args[len(args)-1], false)
 						if err != nil {
 							exitWithError(err)
 						}
@@ -1136,7 +1129,7 @@ func NewNeighborCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
 		Run: func(cmd *cobra.Command, args []string) {
-			peer, err := getNeighbor(args[0], false)
+			peer, err := client.GetNeighbor(args[0], false)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -1153,7 +1146,7 @@ func NewNeighborCmd() *cobra.Command {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				peer, err := getNeighbor(args[0], false)
+				peer, err := client.GetNeighbor(args[0], false)
 				if err != nil {
 					exitWithError(err)
 				}
@@ -1169,7 +1162,7 @@ func NewNeighborCmd() *cobra.Command {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
-					peer, err := getNeighbor(args[len(args)-1], false)
+					peer, err := client.GetNeighbor(args[len(args)-1], false)
 					if err != nil {
 						exitWithError(err)
 					}
