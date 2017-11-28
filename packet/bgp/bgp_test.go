@@ -387,8 +387,8 @@ func Test_FlowSpecNlri(t *testing.T) {
 	isFlagment := 0x02
 	lastFlagment := 0x08
 	match := 0x1
-	item5 := NewFlowSpecComponentItem(match, isFlagment)
-	item6 := NewFlowSpecComponentItem(and, lastFlagment)
+	item5 := NewFlowSpecComponentItem(match, uint64(isFlagment))
+	item6 := NewFlowSpecComponentItem(and, uint64(lastFlagment))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5, item6}))
 	item7 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
 	item8 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
@@ -530,7 +530,7 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecDestinationMac(mac))
 	cmp = append(cmp, NewFlowSpecSourceMac(mac))
 	eq := 0x1
-	item1 := NewFlowSpecComponentItem(eq, int(IPv4))
+	item1 := NewFlowSpecComponentItem(eq, uint64(IPv4))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, []*FlowSpecComponentItem{item1}))
 	rd, _ := ParseRouteDistinguisher("100:100")
 	n1 := NewFlowSpecL2VPN(rd, cmp)
