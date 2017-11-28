@@ -126,7 +126,7 @@ func (f TCPFlag) String() string {
 	return strings.Join(flags, "")
 }
 
-type BitmaskFlagOp int
+type BitmaskFlagOp uint8
 
 const (
 	BITMASK_FLAG_OP_OR        BitmaskFlagOp = iota
@@ -215,7 +215,7 @@ func (f FragmentFlag) String() string {
 	return strings.Join(flags, "+")
 }
 
-type DECNumOp int
+type DECNumOp uint8
 
 const (
 	DEC_NUM_OP_TRUE   DECNumOp = iota // true always with END bit set
