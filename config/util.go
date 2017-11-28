@@ -179,7 +179,7 @@ func ExtractNeighborAddress(c *Neighbor) (string, error) {
 	if addr == "" {
 		addr = c.Config.NeighborAddress
 		if addr == "" {
-			return "", fmt.Errorf("NeighborAddress is not configured")
+			return GetIPv6LinkLocalNeighborAddress(c.Config.NeighborInterface)
 		}
 	}
 	return addr, nil
