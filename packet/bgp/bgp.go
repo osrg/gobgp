@@ -2988,7 +2988,7 @@ func normalizeFlowSpecOpValues(args []string) []string {
 
 // Parses the FlowSpec numeric operator using the given submatch which should be
 // the return value of func (*Regexp) FindStringSubmatch.
-func parseFlowSpecNumericOperator(submatch []string) (operator int, err error) {
+func parseFlowSpecNumericOperator(submatch []string) (operator uint8, err error) {
 	if submatch[1] == "&" {
 		operator = DEC_NUM_OP_AND
 	}
@@ -2996,7 +2996,7 @@ func parseFlowSpecNumericOperator(submatch []string) (operator int, err error) {
 	if !ok {
 		return 0, fmt.Errorf("invalid numeric operator: %s%s", submatch[1], submatch[2])
 	}
-	operator |= int(value)
+	operator |= uint8(value)
 	return operator, nil
 }
 
@@ -3006,7 +3006,7 @@ func parseFlowSpecNumericOperator(submatch []string) (operator int, err error) {
 // Note: Each of the args should be formatted in single pair of operator and
 // value before calling this function.
 // e.g.) "&==100", ">=200" or "&<300"
-func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validationFunc func(int) error) (FlowSpecComponentInterface, error) {
+func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validationFunc func(uint64) error) (FlowSpecComponentInterface, error) {
 	argsLen := len(args)
 	items := make([]*FlowSpecComponentItem, 0, argsLen)
 	re := regexp.MustCompile("(&?)(==|=|>|>=|<|<=|!|!=|=!)?(\\d+|-\\d|true|false)")
@@ -3023,15 +3023,15 @@ func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validation
 			return nil, err
 		}
 		// "true" and "false" is operator, but here handles them as value.
-		value := 0
+		var value uint64
 		switch m[3] {
 		case "true", "false":
 			if idx != argsLen-1 {
 				return nil, fmt.Errorf("%s should be the last of each rule", m[3])
 			}
-			operator = int(DECNumOpValueMap[m[3]])
+			operator = uint8(DECNumOpValueMap[m[3]])
 		default:
-			if value, err = strconv.Atoi(m[3]); err != nil {
+			if value, err = strconv.ParseUint(m[3], 10, 64); err != nil {
 				return nil, fmt.Errorf("invalid numeric value: %s", m[3])
 			}
 			if err = validationFunc(value); err != nil {
@@ -3042,7 +3042,7 @@ func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validation
 	}
 
 	// Marks end-of-list bit
-	items[argsLen-1].Op |= int(DEC_NUM_OP_END)
+	items[argsLen-1].Op |= uint8(DEC_NUM_OP_END)
 
 	return NewFlowSpecComponent(typ, items), nil
 }
@@ -3050,8 +3050,8 @@ func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validation
 func flowSpecNumeric1ByteParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
 	args = normalizeFlowSpecOpValues(args)
 
-	f := func(i int) error {
-		if 0 <= i && i <= 0xff { // 1 byte
+	f := func(i uint64) error {
+		if i <= 0xff { // 1 byte
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3063,8 +3063,8 @@ func flowSpecNumeric1ByteParser(_ RouteFamily, typ BGPFlowSpecType, args []strin
 func flowSpecNumeric2BytesParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
 	args = normalizeFlowSpecOpValues(args)
 
-	f := func(i int) error {
-		if 0 <= i && i <= 0xffff { // 2 bytes
+	f := func(i uint64) error {
+		if i <= 0xffff { // 2 bytes
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3075,7 +3075,7 @@ func flowSpecNumeric2BytesParser(_ RouteFamily, typ BGPFlowSpecType, args []stri
 
 // Parses the FlowSpec bitmask operand using the given submatch which should be
 // the return value of func (*Regexp) FindStringSubmatch.
-func parseFlowSpecBitmaskOperand(submatch []string) (operand int, err error) {
+func parseFlowSpecBitmaskOperand(submatch []string) (operand uint8, err error) {
 	if submatch[1] == "&" {
 		operand = BITMASK_FLAG_OP_AND
 	}
@@ -3083,7 +3083,7 @@ func parseFlowSpecBitmaskOperand(submatch []string) (operand int, err error) {
 	if !ok {
 		return 0, fmt.Errorf("invalid bitmask operand: %s%s", submatch[1], submatch[2])
 	}
-	operand |= int(value)
+	operand |= uint8(value)
 	return operand, nil
 }
 
@@ -3173,8 +3173,8 @@ func flowSpecIpProtoParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (F
 	}
 	args = strings.Split(s, " ")
 
-	f := func(i int) error {
-		if 0 <= i && i <= 0xff { // 1 byte
+	f := func(i uint64) error {
+		if i <= 0xff { // 1 byte
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3211,10 +3211,10 @@ func flowSpecTcpFlagParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (F
 		if err != nil {
 			return nil, err
 		}
-		value := 0
+		var value uint64
 		for flag, name := range TCPFlagNameMap {
 			if strings.Contains(m[4], name) {
-				value |= int(flag)
+				value |= uint64(flag)
 			}
 		}
 		items = append(items, NewFlowSpecComponentItem(operand, value))
@@ -3229,8 +3229,8 @@ func flowSpecTcpFlagParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (F
 func flowSpecDscpParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
 	args = normalizeFlowSpecOpValues(args)
 
-	f := func(i int) error {
-		if 0 <= i && i < 64 { // 6 bits
+	f := func(i uint64) error {
+		if i < 64 { // 6 bits
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3267,12 +3267,12 @@ func flowSpecFragmentParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (
 		if err != nil {
 			return nil, err
 		}
-		value := 0
+		var value uint64
 		// Example:
 		// m[3] = "first-fragment+last-fragment"
 		for flag, name := range FragmentFlagNameMap {
 			if strings.Contains(m[3], name) {
-				value |= int(flag)
+				value |= uint64(flag)
 			}
 		}
 		items = append(items, NewFlowSpecComponentItem(operand, value))
@@ -3292,8 +3292,8 @@ func flowSpecLabelParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (Fl
 
 	args = normalizeFlowSpecOpValues(args)
 
-	f := func(i int) error {
-		if 0 <= i && i <= 0xfffff { // 20 bits
+	f := func(i uint64) error {
+		if i <= 0xfffff { // 20 bits
 			return nil
 		}
 		return fmt.Errorf("flow label range exceeded")
@@ -3321,8 +3321,8 @@ func flowSpecEtherTypeParser(rf RouteFamily, typ BGPFlowSpecType, args []string)
 	}
 	args = strings.Split(s, " ")
 
-	f := func(i int) error {
-		if 0 <= i && i <= 0xffff { // 2 bytes
+	f := func(i uint64) error {
+		if i <= 0xffff { // 2 bytes
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3366,8 +3366,8 @@ func flowSpecSnapParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (Flo
 
 	args = normalizeFlowSpecOpValues(args)
 
-	f := func(i int) error {
-		if 0 <= i && i <= 0xffffffffff { // 5 bytes
+	f := func(i uint64) error {
+		if i <= 0xffffffffff { // 5 bytes
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3388,8 +3388,8 @@ func flowSpecVlanIDParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 	}
 	args = strings.Split(s, " ")
 
-	f := func(i int) error {
-		if 0 <= i && i <= 4095 { // 12 bits
+	f := func(i uint64) error {
+		if i <= 4095 { // 12 bits
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3410,8 +3410,8 @@ func flowSpecVlanCosParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (
 	}
 	args = strings.Split(s, " ")
 
-	f := func(i int) error {
-		if 0 <= i && i <= 7 { // 3 bits
+	f := func(i uint64) error {
+		if i <= 7 { // 3 bits
 			return nil
 		}
 		return fmt.Errorf("%s range exceeded", typ.String())
@@ -3691,8 +3691,8 @@ func NewFlowSpecDestinationMac(mac net.HardwareAddr) *FlowSpecDestinationMac {
 }
 
 type FlowSpecComponentItem struct {
-	Op    int `json:"op"`
-	Value int `json:"value"`
+	Op    uint8  `json:"op"`
+	Value uint64 `json:"value"`
 }
 
 func (v *FlowSpecComponentItem) Len() int {
@@ -3725,7 +3725,7 @@ func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewFlowSpecComponentItem(op int, value int) *FlowSpecComponentItem {
+func NewFlowSpecComponentItem(op uint8, value uint64) *FlowSpecComponentItem {
 	v := &FlowSpecComponentItem{op, value}
 	order := uint32(math.Log2(float64(v.Len())))
 	// we don't know if not initialized properly or initialized to
@@ -3744,7 +3744,7 @@ func NewFlowSpecComponentItem(op int, value int) *FlowSpecComponentItem {
 	if order > 3 {
 		return nil
 	}
-	v.Op = int(uint32(v.Op) | order<<4)
+	v.Op = uint8(uint32(v.Op) | order<<4)
 	return v
 }
 
@@ -3766,8 +3766,8 @@ func (p *FlowSpecComponent) DecodeFromBytes(data []byte, options ...*Marshalling
 		l := 1 << ((op >> 4) & 0x3) // (min, max) = (1, 8)
 		v := make([]byte, 8)
 		copy(v[8-l:], data[1:1+l])
-		i := int(binary.BigEndian.Uint64(v))
-		item := &FlowSpecComponentItem{int(op), i}
+		i := binary.BigEndian.Uint64(v)
+		item := &FlowSpecComponentItem{op, i}
 		p.Items = append(p.Items, item)
 		if end > 0 {
 			break
@@ -3807,20 +3807,20 @@ func (p *FlowSpecComponent) Type() BGPFlowSpecType {
 	return p.typ
 }
 
-func formatRaw(op int, value int) string {
+func formatRaw(op uint8, value uint64) string {
 	return fmt.Sprintf("op:%b,value:%d", op, value)
 }
 
-func formatNumeric(op int, value int) string {
+func formatNumeric(op uint8, value uint64) string {
 	cmpFlag := DECNumOp(op & 0x7) // lower 3 bits
 	if cmpFlag == DEC_NUM_OP_TRUE || cmpFlag == DEC_NUM_OP_FALSE {
 		// Omit value field
 		return DECNumOp(op).String()
 	}
-	return fmt.Sprint(DECNumOp(op).String(), strconv.Itoa(value))
+	return fmt.Sprint(DECNumOp(op).String(), value)
 }
 
-func formatProto(op int, value int) string {
+func formatProto(op uint8, value uint64) string {
 	cmpFlag := DECNumOp(op & 0x7) // lower 3 bits
 	if cmpFlag == DEC_NUM_OP_TRUE || cmpFlag == DEC_NUM_OP_FALSE {
 		// Omit value field
@@ -3829,15 +3829,15 @@ func formatProto(op int, value int) string {
 	return fmt.Sprint(DECNumOp(op).String(), Protocol(value).String())
 }
 
-func formatTCPFlag(op int, value int) string {
+func formatTCPFlag(op uint8, value uint64) string {
 	return fmt.Sprint(BitmaskFlagOp(op).String(), TCPFlag(value).String())
 }
 
-func formatFragment(op int, value int) string {
+func formatFragment(op uint8, value uint64) string {
 	return fmt.Sprint(BitmaskFlagOp(op).String(), FragmentFlag(value).String())
 }
 
-func formatEtherType(op int, value int) string {
+func formatEtherType(op uint8, value uint64) string {
 	cmpFlag := DECNumOp(op & 0x7) // lower 3 bits
 	if cmpFlag == DEC_NUM_OP_TRUE || cmpFlag == DEC_NUM_OP_FALSE {
 		// Omit value field
@@ -3846,7 +3846,7 @@ func formatEtherType(op int, value int) string {
 	return fmt.Sprint(DECNumOp(op).String(), EthernetType(value).String())
 }
 
-var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
+var flowSpecFormatMap = map[BGPFlowSpecType]func(op uint8, value uint64) string{
 	FLOW_SPEC_TYPE_UNKNOWN:       formatRaw,
 	FLOW_SPEC_TYPE_IP_PROTO:      formatProto,
 	FLOW_SPEC_TYPE_PORT:          formatNumeric,
