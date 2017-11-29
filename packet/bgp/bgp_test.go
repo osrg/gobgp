@@ -18,10 +18,12 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"reflect"
+	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func keepalive() *BGPMessage {
@@ -365,16 +367,11 @@ func Test_FlowSpecNlri(t *testing.T) {
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	eq := 0x1
-	gt := 0x2
-	lt := 0x4
-	and := 0x40
-	not := 0x2
-	item1 := NewFlowSpecComponentItem(eq, TCP)
+	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
-	item2 := NewFlowSpecComponentItem(gt|eq, 20)
-	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
-	item4 := NewFlowSpecComponentItem(eq, 10)
+	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
+	item3 := NewFlowSpecComponentItem(DEC_NUM_OP_AND|DEC_NUM_OP_LT_EQ, 30)
+	item4 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 10)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
@@ -382,14 +379,13 @@ func Test_FlowSpecNlri(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
-	isFlagment := 0x02
-	lastFlagment := 0x08
-	match := 0x1
-	item5 := NewFlowSpecComponentItem(match, isFlagment)
-	item6 := NewFlowSpecComponentItem(and, lastFlagment)
+	isFragment := uint64(0x02)
+	lastFragment := uint64(0x08)
+	item5 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
+	item6 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND, lastFragment)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5, item6}))
 	item7 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
-	item8 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	item8 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND|BITMASK_FLAG_OP_NOT, TCP_FLAG_URGENT)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item7, item8}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
 	buf1, err := n1.Serialize()
@@ -459,16 +455,11 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
 	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
-	eq := 0x1
-	gt := 0x2
-	lt := 0x4
-	and := 0x40
-	not := 0x2
-	item1 := NewFlowSpecComponentItem(eq, TCP)
+	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
-	item2 := NewFlowSpecComponentItem(gt|eq, 20)
-	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
-	item4 := NewFlowSpecComponentItem(eq, 10)
+	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
+	item3 := NewFlowSpecComponentItem(DEC_NUM_OP_AND|DEC_NUM_OP_LT_EQ, 30)
+	item4 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, 10)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
@@ -477,11 +468,11 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_LABEL, []*FlowSpecComponentItem{item2, item3, item4}))
-	isFlagment := 0x02
-	item5 := NewFlowSpecComponentItem(isFlagment, 0)
+	isFragment := uint64(0x02)
+	item5 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5}))
 	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
-	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	item7 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND|BITMASK_FLAG_OP_NOT, TCP_FLAG_URGENT)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
 	n1 := NewFlowSpecIPv6Unicast(cmp)
 	buf1, err := n1.Serialize()
@@ -527,8 +518,7 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationMac(mac))
 	cmp = append(cmp, NewFlowSpecSourceMac(mac))
-	eq := 0x1
-	item1 := NewFlowSpecComponentItem(eq, int(IPv4))
+	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, uint64(IPv4))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, []*FlowSpecComponentItem{item1}))
 	rd, _ := ParseRouteDistinguisher("100:100")
 	n1 := NewFlowSpecL2VPN(rd, cmp)
@@ -785,20 +775,21 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	assert := assert.New(t)
 	cmp, err := ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 10.0.0.2/32 source 10.0.0.1/32 destination-port ==3128 protocol tcp")
 	assert.Nil(err)
-	n1 := &FlowSpecNLRI{Value: cmp, rf: RF_FS_IPv4_UC}
+	// Note: Use NewFlowSpecIPv4Unicast() for the consistent ordered rules.
+	n1 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.0/24 destination-port ==3128 protocol tcp")
 	assert.Nil(err)
-	n2 := &FlowSpecNLRI{Value: cmp, rf: RF_FS_IPv4_UC}
-	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.9/32 port ==80 ==8080 destination-port >8080&<8080 ==3128 source-port >1024 protocol ==udp ==tcp")
-	n3 := &FlowSpecNLRI{Value: cmp, rf: RF_FS_IPv4_UC}
-	assert.Nil(err)
-	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 192.168.0.2/32")
-	n4 := &FlowSpecNLRI{Value: cmp, rf: RF_FS_IPv4_UC}
-	assert.Nil(err)
-	r, err := CompareFlowSpecNLRI(n1, n2)
+	n2 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	r, err := CompareFlowSpecNLRI(&n1, &n2)
 	assert.Nil(err)
 	assert.True(r > 0)
-	r, err = CompareFlowSpecNLRI(n3, n4)
+	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.9/32 port ==80 ==8080 destination-port >8080&<8080 ==3128 source-port >1024 protocol ==udp ==tcp")
+	n3 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	assert.Nil(err)
+	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 192.168.0.2/32")
+	n4 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	assert.Nil(err)
+	r, err = CompareFlowSpecNLRI(&n3, &n4)
 	assert.Nil(err)
 	assert.True(r < 0)
 }
@@ -1038,7 +1029,7 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	assert.Equal(bufin, bufout)
 }
 
-func Test_ParseRouteDistingusher(t *testing.T) {
+func Test_ParseRouteDistinguisher(t *testing.T) {
 	assert := assert.New(t)
 
 	rd, _ := ParseRouteDistinguisher("100:1000")
@@ -1067,4 +1058,82 @@ func Test_ParseRouteDistingusher(t *testing.T) {
 
 	assert.Equal(uint32((100<<16)|1000), rdType2.Admin)
 	assert.Equal(uint16(10000), rdType2.Assigned)
+}
+
+func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
+	assert := assert.New(t)
+
+	// "single-homed"
+	esiZero := EthernetSegmentIdentifier{}
+	args := make([]string, 0, 0)
+	esi, err := ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(esiZero, esi)
+	args = []string{"single-homed"}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(esiZero, esi)
+
+	// ESI_ARBITRARY
+	args = []string{"ARBITRARY", "11:22:33:44:55:66:77:88:99"} // omit "ESI_"
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_ARBITRARY,
+		Value: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99},
+	}, esi)
+
+	// ESI_LACP
+	args = []string{"lacp", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x1122)} // lower case
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_LACP,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x00},
+	}, esi)
+
+	// ESI_MSTP
+	args = []string{"esi_mstp", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x1122)} // omit "ESI_" + lower case
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_MSTP,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x00},
+	}, esi)
+
+	// ESI_MAC
+	args = []string{"ESI_MAC", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x112233)}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_MAC,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33},
+	}, esi)
+
+	// ESI_ROUTERID
+	args = []string{"ESI_ROUTERID", "1.1.1.1", strconv.Itoa(0x11223344)}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_ROUTERID,
+		Value: []byte{0x01, 0x01, 0x01, 0x01, 0x11, 0x22, 0x33, 0x44, 0x00},
+	}, esi)
+
+	// ESI_AS
+	args = []string{"ESI_AS", strconv.Itoa(0xaabbccdd), strconv.Itoa(0x11223344)}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESI_AS,
+		Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44, 0x00},
+	}, esi)
+
+	// Other
+	args = []string{"99", "11:22:33:44:55:66:77:88:99"}
+	esi, err = ParseEthernetSegmentIdentifier(args)
+	assert.Nil(err)
+	assert.Equal(EthernetSegmentIdentifier{
+		Type:  ESIType(99),
+		Value: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99},
+	}, esi)
 }

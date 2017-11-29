@@ -80,6 +80,32 @@ service GobgpApi {
   rpc GetRibInfo(GetRibInfoRequest) returns (GetRibInfoResponse) {}
 }
 
+// Constants for address families
+enum Family {
+  _ = 0;
+  IPv4 = 65537;
+  IPv6 = 131073;
+  IPv4_MC = 65538;
+  IPv6_MC = 131074;
+  IPv4_MPLS = 65540;
+  IPv6_MPLS = 131076;
+  IPv4_VPN = 65664;
+  IPv6_VPN = 131200;
+  IPv4_VPN_MC = 65665;
+  IPv6_VPN_MC = 131201;
+  VPLS = 1638465;
+  EVPN = 1638470;
+  RTC = 65668;
+  IPv4_ENCAP = 65543;
+  IPv6_ENCAP = 131079;
+  FLOW_SPEC_IPv4 = 65669;
+  FLOW_SPEC_IPv6 = 131205;
+  FLOW_SPEC_IPv4_VPN = 65670;
+  FLOW_SPEC_IPv6_VPN = 131206;
+  FLOW_SPEC_L2_VPN = 1638534;
+  OPAQUE = 1074594033;
+}
+
 message GetNeighborRequest {
   bool enableAdvertised = 1;
   string address        = 2;
@@ -597,6 +623,9 @@ message ValidateRibResponse {
 }
 
 message Peer {
+  // Note: Regarding to the consistency with OpenConfig model, a list of
+  // address family should be removed from here, and should be configured with
+  // the list of AfiSafi instead.
   repeated uint32 families = 1;
   ApplyPolicy apply_policy = 2;
   PeerConf conf = 3;
@@ -642,7 +671,7 @@ message PeerConf {
   repeated bytes remote_cap = 11;
   repeated bytes local_cap = 12;
   string id = 13;
-  // Note: Regarding to the consistency with OpenConfig mode, list of
+  // Note: Regarding to the consistency with OpenConfig model, list of
   // PrefixLimit should be removed from here, and list of PrefixLimit in
   // AfiSafi should be used instead.
   repeated PrefixLimit prefix_limits = 14;

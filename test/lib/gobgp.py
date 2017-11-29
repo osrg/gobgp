@@ -366,15 +366,17 @@ class GoBGPContainer(BGPContainer):
 
             neigh_addr = None
             interface = None
+            peer_as = None
             if info['interface'] == '':
                 neigh_addr = info['neigh_addr'].split('/')[0]
+                peer_as = info['remote_as']
             else:
                 interface = info['interface']
             n = {
                 'config': {
                     'neighbor-address': neigh_addr,
                     'neighbor-interface': interface,
-                    'peer-as': info['remote_as'],
+                    'peer-as': peer_as,
                     'auth-password': info['passwd'],
                     'vrf': info['vrf'],
                     'remove-private-as': info['remove_private_as'],

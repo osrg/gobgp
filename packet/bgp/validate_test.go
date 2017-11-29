@@ -2,9 +2,10 @@ package bgp
 
 import (
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func bgpupdate() *BGPMessage {
@@ -27,13 +28,13 @@ func bgpupdateV6() *BGPMessage {
 		NewAsPathParam(2, []uint16{65001}),
 	}
 
-	mp_nlri := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
+	prefixes := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
 		"fe80:1234:1234:5667:8967:af12:8912:1023")}
 
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(1),
 		NewPathAttributeAsPath(aspath),
-		NewPathAttributeMpReachNLRI("1023::", mp_nlri),
+		NewPathAttributeMpReachNLRI("1023::", prefixes),
 	}
 	return NewBGPUpdateMessage(nil, p, nil)
 }
@@ -367,28 +368,23 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	eq := 0x1
-	gt := 0x2
-	lt := 0x4
-	and := 0x40
-	not := 0x2
-	item1 := NewFlowSpecComponentItem(eq, TCP)
+	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
-	item2 := NewFlowSpecComponentItem(gt|eq, 20)
-	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
-	item4 := NewFlowSpecComponentItem(eq, 10)
+	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
+	item3 := NewFlowSpecComponentItem(DEC_NUM_OP_AND|DEC_NUM_OP_LT_EQ, 30)
+	item4 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, 10)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_TYPE, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
 	item5 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
-	item6 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	item6 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND|BITMASK_FLAG_OP_NOT, TCP_FLAG_URGENT)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item5, item6}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
-	isFlagment := 0x02
-	item7 := NewFlowSpecComponentItem(isFlagment, 0)
+	isFragment := uint64(0x02)
+	item7 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
 	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
@@ -401,6 +397,8 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	n1 = NewFlowSpecIPv4Unicast(cmp)
 	a = NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
+	// Swaps components order to reproduce the rules order violation.
+	n1.Value[0], n1.Value[1] = n1.Value[1], n1.Value[0]
 	_, err = ValidateAttribute(a, m, false, false)
 	assert.NotNil(err)
 }

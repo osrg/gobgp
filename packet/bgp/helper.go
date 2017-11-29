@@ -77,25 +77,25 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewMacMobilityExtended(123, false),
 	}
 
-	mp_nlri := []AddrPrefixInterface{
+	prefixes1 := []AddrPrefixInterface{
 		NewLabeledVPNIPAddrPrefix(20, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
 			NewRouteDistinguisherTwoOctetAS(256, 10000)),
 		NewLabeledVPNIPAddrPrefix(26, "192.10.8.192", *NewMPLSLabelStack(5, 6, 7, 8),
 			NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001)),
 	}
 
-	mp_nlri2 := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
+	prefixes2 := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
 		"fe80:1234:1234:5667:8967:af12:8912:1023")}
 
-	mp_nlri3 := []AddrPrefixInterface{NewLabeledVPNIPv6AddrPrefix(100,
+	prefixes3 := []AddrPrefixInterface{NewLabeledVPNIPv6AddrPrefix(100,
 		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewMPLSLabelStack(5, 6),
 		NewRouteDistinguisherFourOctetAS(5, 6))}
 
-	mp_nlri4 := []AddrPrefixInterface{NewLabeledIPAddrPrefix(25, "192.168.0.0",
+	prefixes4 := []AddrPrefixInterface{NewLabeledIPAddrPrefix(25, "192.168.0.0",
 		*NewMPLSLabelStack(5, 6, 7))}
 
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
-	mp_nlri5 := []AddrPrefixInterface{
+	prefixes5 := []AddrPrefixInterface{
 		NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0,
 			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2}),
@@ -129,12 +129,12 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewPathAttributeExtendedCommunities(ecommunities),
 		NewPathAttributeAs4Path(aspath3),
 		NewPathAttributeAs4Aggregator(10000, "112.22.2.1"),
-		NewPathAttributeMpReachNLRI("112.22.2.0", mp_nlri),
-		NewPathAttributeMpReachNLRI("1023::", mp_nlri2),
-		NewPathAttributeMpReachNLRI("fe80::", mp_nlri3),
-		NewPathAttributeMpReachNLRI("129.1.1.1", mp_nlri4),
-		NewPathAttributeMpReachNLRI("129.1.1.1", mp_nlri5),
-		NewPathAttributeMpUnreachNLRI(mp_nlri),
+		NewPathAttributeMpReachNLRI("112.22.2.0", prefixes1),
+		NewPathAttributeMpReachNLRI("1023::", prefixes2),
+		NewPathAttributeMpReachNLRI("fe80::", prefixes3),
+		NewPathAttributeMpReachNLRI("129.1.1.1", prefixes4),
+		NewPathAttributeMpReachNLRI("129.1.1.1", prefixes5),
+		NewPathAttributeMpUnreachNLRI(prefixes1),
 		//NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
 		//NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
 		&PathAttributeUnknown{

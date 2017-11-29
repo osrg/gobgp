@@ -79,7 +79,7 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		}).Debugf("Can't overwrite neighbor config: %s", err)
 		return nil
 	}
-	if err := config.SetDefaultNeighborConfigValues(&conf, g); err != nil {
+	if err := config.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   neighborAddress,

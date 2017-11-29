@@ -20,6 +20,12 @@
   version = "v1.1.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/dgryski/go-farm"
+  packages = ["."]
+  revision = "ac7624ea8da311f2fbbd94401d8c1cf66089f9fb"
+
+[[projects]]
   name = "github.com/eapache/channels"
   packages = ["."]
   revision = "47238d5aae8c0fefd518ef2bee46290909cf8263"
@@ -220,6 +226,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "146db92061e64997aa59085cf4fa06f72668ed1c6b79be10ce8b654e575e4edc"
+  inputs-digest = "215ec1190c8bd8e4b8ed7691e5f4cfd33100b60045ca47b866db2c0762e30fbd"
   solver-name = "gps-cdcl"
   solver-version = 1

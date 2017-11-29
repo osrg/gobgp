@@ -70,21 +70,6 @@ var ProtocolNameMap = map[Protocol]string{
 	SCTP:    "sctp",
 }
 
-var ProtocolValueMap = map[string]Protocol{
-	ProtocolNameMap[ICMP]: ICMP,
-	ProtocolNameMap[IGMP]: IGMP,
-	ProtocolNameMap[TCP]:  TCP,
-	ProtocolNameMap[EGP]:  EGP,
-	ProtocolNameMap[IGP]:  IGP,
-	ProtocolNameMap[UDP]:  UDP,
-	ProtocolNameMap[RSVP]: RSVP,
-	ProtocolNameMap[GRE]:  GRE,
-	ProtocolNameMap[OSPF]: OSPF,
-	ProtocolNameMap[IPIP]: IPIP,
-	ProtocolNameMap[PIM]:  PIM,
-	ProtocolNameMap[SCTP]: SCTP,
-}
-
 func (p Protocol) String() string {
 	name, ok := ProtocolNameMap[p]
 	if !ok {
@@ -96,14 +81,15 @@ func (p Protocol) String() string {
 type TCPFlag int
 
 const (
-	TCP_FLAG_FIN    = 0x01
-	TCP_FLAG_SYN    = 0x02
-	TCP_FLAG_RST    = 0x04
-	TCP_FLAG_PUSH   = 0x08
-	TCP_FLAG_ACK    = 0x10
-	TCP_FLAG_URGENT = 0x20
-	TCP_FLAG_ECE    = 0x40
-	TCP_FLAG_CWR    = 0x80
+	_               TCPFlag = iota
+	TCP_FLAG_FIN            = 0x01
+	TCP_FLAG_SYN            = 0x02
+	TCP_FLAG_RST            = 0x04
+	TCP_FLAG_PUSH           = 0x08
+	TCP_FLAG_ACK            = 0x10
+	TCP_FLAG_URGENT         = 0x20
+	TCP_FLAG_ECE            = 0x40
+	TCP_FLAG_CWR            = 0x80
 )
 
 var TCPFlagNameMap = map[TCPFlag]string{
@@ -117,25 +103,38 @@ var TCPFlagNameMap = map[TCPFlag]string{
 	TCP_FLAG_ECE:    "E",
 }
 
-var TCPFlagValueMap = map[string]TCPFlag{
-	TCPFlagNameMap[TCP_FLAG_FIN]:    TCP_FLAG_FIN,
-	TCPFlagNameMap[TCP_FLAG_SYN]:    TCP_FLAG_SYN,
-	TCPFlagNameMap[TCP_FLAG_RST]:    TCP_FLAG_RST,
-	TCPFlagNameMap[TCP_FLAG_PUSH]:   TCP_FLAG_PUSH,
-	TCPFlagNameMap[TCP_FLAG_ACK]:    TCP_FLAG_ACK,
-	TCPFlagNameMap[TCP_FLAG_URGENT]: TCP_FLAG_URGENT,
-	TCPFlagNameMap[TCP_FLAG_CWR]:    TCP_FLAG_CWR,
-	TCPFlagNameMap[TCP_FLAG_ECE]:    TCP_FLAG_ECE,
+// Prepares a sorted list of flags because map iterations does not happen
+// in a consistent order in Golang.
+var TCPSortedFlags = []TCPFlag{
+	TCP_FLAG_FIN,
+	TCP_FLAG_SYN,
+	TCP_FLAG_RST,
+	TCP_FLAG_PUSH,
+	TCP_FLAG_ACK,
+	TCP_FLAG_URGENT,
+	TCP_FLAG_ECE,
+	TCP_FLAG_CWR,
 }
 
-type BitmaskFlagOp int
+func (f TCPFlag) String() string {
+	flags := make([]string, 0, len(TCPSortedFlags))
+	for _, v := range TCPSortedFlags {
+		if f&v > 0 {
+			flags = append(flags, TCPFlagNameMap[v])
+		}
+	}
+	return strings.Join(flags, "")
+}
+
+type BitmaskFlagOp uint8
 
 const (
-	BITMASK_FLAG_OP_OR    = 0x00
-	BITMASK_FLAG_OP_AND   = 0x40
-	BITMASK_FLAG_OP_END   = 0x80
-	BITMASK_FLAG_OP_NOT   = 0x02
-	BITMASK_FLAG_OP_MATCH = 0x01
+	BITMASK_FLAG_OP_OR        BitmaskFlagOp = iota
+	BITMASK_FLAG_OP_MATCH                   = 0x01
+	BITMASK_FLAG_OP_NOT                     = 0x02
+	BITMASK_FLAG_OP_NOT_MATCH               = 0x03
+	BITMASK_FLAG_OP_AND                     = 0x40
+	BITMASK_FLAG_OP_END                     = 0x80
 )
 
 var BitmaskFlagOpNameMap = map[BitmaskFlagOp]string{
@@ -146,22 +145,45 @@ var BitmaskFlagOpNameMap = map[BitmaskFlagOp]string{
 	BITMASK_FLAG_OP_MATCH: "=",
 }
 
+// Note: Meaning of "" is different from that of the numeric operator because
+// RFC5575 says if the Match bit in the bitmask operand is set, it should be
+// "strictly" matching against the given value.
 var BitmaskFlagOpValueMap = map[string]BitmaskFlagOp{
-	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR]:    BITMASK_FLAG_OP_OR,
-	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND]:   BITMASK_FLAG_OP_AND,
-	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_END]:   BITMASK_FLAG_OP_END,
-	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT]:   BITMASK_FLAG_OP_NOT,
-	BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH]: BITMASK_FLAG_OP_MATCH,
+	" ":  BITMASK_FLAG_OP_OR,
+	"":   BITMASK_FLAG_OP_OR,
+	"==": BITMASK_FLAG_OP_MATCH,
+	"=":  BITMASK_FLAG_OP_MATCH,
+	"!":  BITMASK_FLAG_OP_NOT,
+	"!=": BITMASK_FLAG_OP_NOT_MATCH,
+	"=!": BITMASK_FLAG_OP_NOT_MATCH, // For the backward compatibility
+	"&":  BITMASK_FLAG_OP_AND,
+	"E":  BITMASK_FLAG_OP_END,
+}
+
+func (f BitmaskFlagOp) String() string {
+	ops := make([]string, 0)
+	if f&BITMASK_FLAG_OP_AND > 0 {
+		ops = append(ops, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND])
+	} else {
+		ops = append(ops, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_OR])
+	}
+	if f&BITMASK_FLAG_OP_NOT > 0 {
+		ops = append(ops, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_NOT])
+	}
+	if f&BITMASK_FLAG_OP_MATCH > 0 {
+		ops = append(ops, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_MATCH])
+	}
+	return strings.Join(ops, "")
 }
 
 type FragmentFlag int
 
 const (
-	FRAG_FLAG_NOT   = 0x00
-	FRAG_FLAG_DONT  = 0x01
-	FRAG_FLAG_IS    = 0x02
-	FRAG_FLAG_FIRST = 0x04
-	FRAG_FLAG_LAST  = 0x08
+	FRAG_FLAG_NOT   FragmentFlag = iota
+	FRAG_FLAG_DONT               = 0x01
+	FRAG_FLAG_IS                 = 0x02
+	FRAG_FLAG_FIRST              = 0x04
+	FRAG_FLAG_LAST               = 0x08
 )
 
 var FragmentFlagNameMap = map[FragmentFlag]string{
@@ -172,25 +194,41 @@ var FragmentFlagNameMap = map[FragmentFlag]string{
 	FRAG_FLAG_LAST:  "last-fragment",
 }
 
-var FragmentFlagValueMap = map[string]FragmentFlag{
-	FragmentFlagNameMap[FRAG_FLAG_NOT]:   FRAG_FLAG_NOT,
-	FragmentFlagNameMap[FRAG_FLAG_DONT]:  FRAG_FLAG_DONT,
-	FragmentFlagNameMap[FRAG_FLAG_IS]:    FRAG_FLAG_IS,
-	FragmentFlagNameMap[FRAG_FLAG_FIRST]: FRAG_FLAG_FIRST,
-	FragmentFlagNameMap[FRAG_FLAG_LAST]:  FRAG_FLAG_LAST,
+// Prepares a sorted list of flags because map iterations does not happen
+// in a consistent order in Golang.
+var FragmentSortedFlags = []FragmentFlag{
+	FRAG_FLAG_NOT,
+	FRAG_FLAG_DONT,
+	FRAG_FLAG_IS,
+	FRAG_FLAG_FIRST,
+	FRAG_FLAG_LAST,
 }
 
-type DECNumOp int
+func (f FragmentFlag) String() string {
+	flags := make([]string, 0, len(FragmentSortedFlags))
+	for _, v := range FragmentSortedFlags {
+		if f&v > 0 {
+			flags = append(flags, FragmentFlagNameMap[v])
+		}
+	}
+	// Note: If multiple bits are set, joins them with "+".
+	return strings.Join(flags, "+")
+}
+
+type DECNumOp uint8
 
 const (
-	DEC_NUM_OP_TRUE   = 0x00 // true always with END bit set
-	DEC_NUM_OP_EQ     = 0x01
-	DEC_NUM_OP_GT     = 0x02
-	DEC_NUM_OP_GT_EQ  = 0x03
-	DEC_NUM_OP_LT     = 0x04
-	DEC_NUM_OP_LT_EQ  = 0x05
-	DEC_NUM_OP_NOT_EQ = 0x06
-	DEC_NUM_OP_FALSE  = 0x07 // true always with END bit set
+	DEC_NUM_OP_TRUE   DECNumOp = iota // true always with END bit set
+	DEC_NUM_OP_EQ              = 0x01
+	DEC_NUM_OP_GT              = 0x02
+	DEC_NUM_OP_GT_EQ           = 0x03
+	DEC_NUM_OP_LT              = 0x04
+	DEC_NUM_OP_LT_EQ           = 0x05
+	DEC_NUM_OP_NOT_EQ          = 0x06
+	DEC_NUM_OP_FALSE           = 0x07 // false always with END bit set
+	DEC_NUM_OP_OR              = 0x00
+	DEC_NUM_OP_AND             = 0x40
+	DEC_NUM_OP_END             = 0x80
 )
 
 var DECNumOpNameMap = map[DECNumOp]string{
@@ -202,49 +240,49 @@ var DECNumOpNameMap = map[DECNumOp]string{
 	DEC_NUM_OP_LT_EQ:  "<=",
 	DEC_NUM_OP_NOT_EQ: "!=",
 	DEC_NUM_OP_FALSE:  "false",
+	//DEC_NUM_OP_OR:   " ", // duplicate with DEC_NUM_OP_TRUE
+	DEC_NUM_OP_AND: "&",
+	DEC_NUM_OP_END: "E",
 }
 
 var DECNumOpValueMap = map[string]DECNumOp{
-	DECNumOpNameMap[DEC_NUM_OP_TRUE]:   DEC_NUM_OP_TRUE,
-	DECNumOpNameMap[DEC_NUM_OP_EQ]:     DEC_NUM_OP_EQ,
-	DECNumOpNameMap[DEC_NUM_OP_GT]:     DEC_NUM_OP_GT,
-	DECNumOpNameMap[DEC_NUM_OP_GT_EQ]:  DEC_NUM_OP_GT_EQ,
-	DECNumOpNameMap[DEC_NUM_OP_LT]:     DEC_NUM_OP_LT,
-	DECNumOpNameMap[DEC_NUM_OP_LT_EQ]:  DEC_NUM_OP_LT_EQ,
-	DECNumOpNameMap[DEC_NUM_OP_NOT_EQ]: DEC_NUM_OP_NOT_EQ,
-	DECNumOpNameMap[DEC_NUM_OP_FALSE]:  DEC_NUM_OP_FALSE,
+	"true":  DEC_NUM_OP_TRUE,
+	"":      DEC_NUM_OP_EQ,
+	"==":    DEC_NUM_OP_EQ,
+	"=":     DEC_NUM_OP_EQ,
+	">":     DEC_NUM_OP_GT,
+	">=":    DEC_NUM_OP_GT_EQ,
+	"<":     DEC_NUM_OP_LT,
+	"<=":    DEC_NUM_OP_LT_EQ,
+	"!=":    DEC_NUM_OP_NOT_EQ,
+	"=!":    DEC_NUM_OP_NOT_EQ,
+	"!":     DEC_NUM_OP_NOT_EQ,
+	"false": DEC_NUM_OP_FALSE,
+	" ":     DEC_NUM_OP_OR,
+	"&":     DEC_NUM_OP_AND,
+	"E":     DEC_NUM_OP_END,
 }
 
-type DECLogicOp int
-
-const (
-	DEC_LOGIC_OP_END = 0x80
-	DEC_LOGIC_OP_OR  = 0x00
-	DEC_LOGIC_OP_AND = 0x40
-)
-
-var DECLogicOpNameMap = map[DECLogicOp]string{
-	DEC_LOGIC_OP_OR:  " ",
-	DEC_LOGIC_OP_AND: "&",
-	DEC_LOGIC_OP_END: "E",
-}
-
-var DECLogicOpValueMap = map[string]DECLogicOp{
-	DECLogicOpNameMap[DEC_LOGIC_OP_OR]:  DEC_LOGIC_OP_OR,
-	DECLogicOpNameMap[DEC_LOGIC_OP_AND]: DEC_LOGIC_OP_AND,
-	DECLogicOpNameMap[DEC_LOGIC_OP_END]: DEC_LOGIC_OP_END,
-}
-
-func (f TCPFlag) String() string {
-	ss := make([]string, 0, 6)
-	for _, v := range []TCPFlag{TCP_FLAG_FIN, TCP_FLAG_SYN, TCP_FLAG_RST, TCP_FLAG_PUSH, TCP_FLAG_ACK, TCP_FLAG_URGENT, TCP_FLAG_CWR, TCP_FLAG_ECE} {
-		if f&v > 0 {
-			ss = append(ss, TCPFlagNameMap[v])
+func (f DECNumOp) String() string {
+	ops := make([]string, 0)
+	logicFlag := DECNumOp(f & 0xc0) // higher 2 bits
+	if logicFlag&DEC_NUM_OP_AND > 0 {
+		ops = append(ops, DECNumOpNameMap[DEC_NUM_OP_AND])
+	} else {
+		ops = append(ops, " ") // DEC_NUM_OP_OR
+	}
+	// Omits DEC_NUM_OP_END
+	cmpFlag := DECNumOp(f & 0x7) // lower 3 bits
+	for v, s := range DECNumOpNameMap {
+		if cmpFlag == v {
+			ops = append(ops, s)
+			break
 		}
 	}
-	return strings.Join(ss, "|")
+	return strings.Join(ops, "")
 }
 
+// Potentially taken from https://www.iana.org/assignments/ieee-802-numbers/ieee-802-numbers.xhtml
 type EthernetType int
 
 const (
@@ -281,27 +319,9 @@ var EthernetTypeNameMap = map[EthernetType]string{
 	LOOPBACK:        "loopback",
 }
 
-var EthernetTypeValueMap = map[string]EthernetType{
-	EthernetTypeNameMap[IPv4]:            IPv4,
-	EthernetTypeNameMap[ARP]:             ARP,
-	EthernetTypeNameMap[RARP]:            RARP,
-	EthernetTypeNameMap[VMTP]:            VMTP,
-	EthernetTypeNameMap[APPLE_TALK]:      APPLE_TALK,
-	EthernetTypeNameMap[AARP]:            AARP,
-	EthernetTypeNameMap[IPX]:             IPX,
-	EthernetTypeNameMap[SNMP]:            SNMP,
-	EthernetTypeNameMap[NET_BIOS]:        NET_BIOS,
-	EthernetTypeNameMap[XTP]:             XTP,
-	EthernetTypeNameMap[IPv6]:            IPv6,
-	EthernetTypeNameMap[PPPoE_DISCOVERY]: PPPoE_DISCOVERY,
-	EthernetTypeNameMap[PPPoE_SESSION]:   PPPoE_SESSION,
-	EthernetTypeNameMap[LOOPBACK]:        LOOPBACK,
-}
-
 func (t EthernetType) String() string {
-	n, ok := EthernetTypeNameMap[t]
-	if !ok {
-		return fmt.Sprintf("%d", t)
+	if name, ok := EthernetTypeNameMap[t]; ok {
+		return name
 	}
-	return n
+	return fmt.Sprintf("%d", t)
 }
