@@ -90,7 +90,7 @@ The following options can be specified in the global subcommand:
 |--------|---------------|--------------------------------------------|---------|
 |a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `l2vpn-flowspec`, `opaque` | `ipv4` |
 
-<br>
+For the `*-flowspec` address family, see also [CLI Syntax for Flow Specification](flowspec.md#cli-syntax)
 
 ## 2. <a name="neighbor"> neighbor subcommand
 ### 2.1. Show Neighbor Status
