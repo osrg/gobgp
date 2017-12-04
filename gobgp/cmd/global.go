@@ -1196,41 +1196,74 @@ func modPath(resource string, name, modtype string, args []string) error {
 		if resource == CMD_VRF {
 			cmdstr = fmt.Sprintf("vrf %s", name)
 		}
-
+		rdHelpMsgFmt := `
+    <RD> : xxx:yyy, xxx.xxx.xxx.xxx:yyy, xxx.xxx:yyy`
 		ss := make([]string, 0, len(bgp.ProtocolNameMap))
 		for _, v := range bgp.ProtocolNameMap {
 			ss = append(ss, v)
 		}
-		ss = append(ss, "<VALUE>")
-		protos := strings.Join(ss, ", ")
+		sort.SliceStable(ss, func(i, j int) bool { return ss[i] < ss[j] })
+		ss = append(ss, "<DEC_NUM>")
+		ipProtocols := strings.Join(ss, ", ")
 		ss = make([]string, 0, len(bgp.TCPFlagNameMap))
-		for _, v := range bgp.TCPFlagNameMap {
-			ss = append(ss, v)
+		for _, v := range bgp.TCPSortedFlags {
+			ss = append(ss, bgp.TCPFlagNameMap[v])
 		}
-		flags := strings.Join(ss, ", ")
+		tcpFlags := strings.Join(ss, ", ")
 		ss = make([]string, 0, len(bgp.EthernetTypeNameMap))
 		for _, v := range bgp.EthernetTypeNameMap {
 			ss = append(ss, v)
 		}
+		sort.SliceStable(ss, func(i, j int) bool { return ss[i] < ss[j] })
+		ss = append(ss, "<DEC_NUM>")
 		etherTypes := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
 		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv4", cmdstr, modtype)
 		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
-usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
-%%s
-    <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
-    <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
-			ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
-			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
-			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
-		ipFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
-                    %s <PROTO>... | %s [!] [=] <FRAGMENT_TYPE> | %s [!] [=] <TCPFLAG>... |
-                    { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
-    <PROTO> : %s
-    <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
-    <TCPFLAG> : %s
-    <ITEM> : & {<|<=|>|>=|==|!=}<value>`,
+usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
+    <THEN> : { %s |
+               %s |
+               %s <RATE> [as <AS>] |
+               %s <RT> |
+               %s <DEC_NUM> |
+               %s { sample | terminal | sample-terminal } }...
+    <RT> : xxx:yyy, xxx.xxx.xxx.xxx:yyy, xxxx::xxxx:yyy, xxx.xxx:yyy`,
+			err,
+			cmdstr,
+			// <address family>
+			modtype,
+			// "" or " rd <RD>"
+			// "" or " [rt <RT>]"
+			// <help message for RD>
+			// <MATCH>
+			ExtCommNameMap[ACCEPT],
+			ExtCommNameMap[DISCARD],
+			ExtCommNameMap[RATE],
+			ExtCommNameMap[REDIRECT],
+			ExtCommNameMap[MARK],
+			ExtCommNameMap[ACTION],
+		)
+		baseFsMatchExpr := fmt.Sprintf(`
+    <MATCH> : { %s <PREFIX> [<OFFSET>] |
+                %s <PREFIX> [<OFFSET>] |
+                %s <PROTOCOLS>... |
+                %s <FRAGMENTS>... |
+                %s <TCP_FLAGS>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... %%s}...
+    <PROTOCOLS> : [&] [<|<=|>|>=|==|!=] <PROTOCOL>
+    <PROTOCOL> : %s
+    <FRAGMENTS> : [&] [=|!|!=] <FRAGMENT>
+    <FRAGMENT> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
+    <TCP_FLAGS> : [&] [=|!|!=] <TCP_FLAG>
+    <TCP_FLAG> : %s%%s
+    <ITEM> : [&] [<|<=|>|>=|==|!=] <DEC_NUM>`,
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],
@@ -1243,17 +1276,29 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ICMP_CODE],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PKT_LEN],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DSCP],
-			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LABEL],
-			protos,
-			flags,
+			// <additional help messages if exists>
+			ipProtocols,
+			tcpFlags,
+			// <additional help messages if exists>
 		)
-		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, " ", "ipv4-flowspec", ipFsMatchExpr)
-		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, " ", "ipv6-flowspec", ipFsMatchExpr)
-		helpErrMap[bgp.RF_FS_IPv4_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv4-l3vpn-flowspec", ipFsMatchExpr)
-		helpErrMap[bgp.RF_FS_IPv6_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv6-l3vpn-flowspec", ipFsMatchExpr)
-		macFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { { %s | %s } <MAC> | %s <ETHER_TYPE> | { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
-    <ETHER_TYPE> : %s
-    <ITEM> : &?{<|>|=}<value>`,
+		ipv4FsMatchExpr := fmt.Sprintf(baseFsMatchExpr, "", "")
+		ipv6FsMatchExpr := fmt.Sprintf(baseFsMatchExpr, fmt.Sprintf(`|
+                %s <ITEM>... `,
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LABEL]), "")
+		l2vpnFsMatchExpr := fmt.Sprintf(baseFsMatchExpr, fmt.Sprintf(`|
+                %s <ITEM>... |
+                %s <MAC_ADDRESS> |
+                %s <MAC_ADDRESS> |
+                %s <ETHER_TYPES>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... |
+                %s <ITEM>... `,
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LABEL],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_MAC],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_MAC],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ETHERNET_TYPE],
@@ -1264,10 +1309,15 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_VID],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_COS],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_INNER_VID],
-			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_INNER_COS],
-			etherTypes,
-		)
-		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_INNER_COS]), fmt.Sprintf(`
+    <ETHER_TYPES> : [&] [<|<=|>|>=|==|!=] <ETHER_TYPE>
+    <ETHER_TYPE> : %s`,
+			etherTypes))
+		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv4-flowspec", "", "", "", ipv4FsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv6-flowspec", "", "", "", ipv6FsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv4_VPN] = fmt.Errorf(fsHelpMsgFmt, "ipv4-l3vpn-flowspec", " rd <RD>", " [rt <RT>]", rdHelpMsgFmt, ipv4FsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv6_VPN] = fmt.Errorf(fsHelpMsgFmt, "ipv6-l3vpn-flowspec", " rd <RD>", " [rt <RT>]", rdHelpMsgFmt, ipv6FsMatchExpr)
+		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", " rd <RD>", " [rt <RT>]", rdHelpMsgFmt, l2vpnFsMatchExpr)
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
     <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
     <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
