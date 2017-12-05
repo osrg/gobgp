@@ -78,6 +78,12 @@ matrix:
       before_script:
         - export GOOS="darwin"
         - go env
+    - <<: *_build
+      env:
+        - GOARCH="386"
+      before_script:
+        - export GOARCH="386"
+        - go env
 #
 # Misc
 #
