@@ -57,15 +57,27 @@ matrix:
 #
 # Cross-compile
 #
+# Note: We use "before_script" to enable "go env" settings. The following keeps
+# "env" sections as just markers of Travis-CI Web UI.
+# See https://github.com/travis-ci/travis-ci/issues/6126
     - <<: *_build
       env:
-        - GOOS=windows
+        - GOOS="windows"
+      before_script:
+        - export GOOS="windows"
+        - go env
     - <<: *_build
       env:
-        - GOOS=freebsd
+        - GOOS="freebsd"
+      before_script:
+        - export GOOS="freebsd"
+        - go env
     - <<: *_build
       env:
-        - GOOS=darwin
+        - GOOS="darwin"
+      before_script:
+        - export GOOS="darwin"
+        - go env
 #
 # Misc
 #
