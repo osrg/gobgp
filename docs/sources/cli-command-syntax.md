@@ -428,11 +428,11 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 #### Syntax
 ```shell
 # add routes to vrf
-% gobgp vrf <vrf name> rib add <prefix> -a <address family>
+% gobgp vrf <vrf name> rib add <prefix> [-a <address family>]
 # del routes from vrf
-% gobgp vrf <vrf name> rib del <prefix> -a <address family>
+% gobgp vrf <vrf name> rib del <prefix> [-a <address family>]
 # show routes in vrf
-% gobgp vrf <vrf name>
+% gobgp vrf <vrf name> rib [-a <address family>]
 ```
 
 #### Example
