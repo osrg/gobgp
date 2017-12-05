@@ -992,6 +992,11 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		if unnumbered {
 			peer.Config.NeighborInterface = m["interface"][0]
+			addr, err := config.GetIPv6LinkLocalNeighborAddress(peer.Config.NeighborInterface)
+			if err != nil {
+				return nil, err
+			}
+			peer.State.NeighborAddress = addr
 		} else {
 			peer.Config.NeighborAddress = m[""][0]
 			peer.State.NeighborAddress = m[""][0]
