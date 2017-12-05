@@ -60,7 +60,6 @@ advertisement.
 ## Configuration via CLI
 
 ```bash
-$ gobgp global as 64512 router-id 192.168.255.1
 $ gobgp neighbor add interface eth0
 $ gobgp neighbor eth0
 BGP neighbor is fe80::42:acff:fe11:3%eth0, remote AS 65001
