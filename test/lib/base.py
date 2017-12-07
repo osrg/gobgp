@@ -48,6 +48,10 @@ BGP_ATTR_TYPE_CLUSTER_LIST = 10
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
+# with this prefix, we can do filtering in `docker ps`
+CONTAINER_NAME_PREFIX = 'osrg-gobgp-test'
+TEST_NETWORK_LABEL = CONTAINER_NAME_PREFIX
+
 env.abort_exception = RuntimeError
 output.stderr = False
 
@@ -156,7 +160,7 @@ class Bridge(object):
             v6 = ''
             if self.subnet.version == 6:
                 v6 = '--ipv6'
-            self.id = local('docker network create --driver bridge {0} --subnet {1} {2}'.format(v6, subnet, self.name), capture=True)
+            self.id = local('docker network create --driver bridge {0} --subnet {1} --label {2} {3}'.format(v6, subnet, TEST_NETWORK_LABEL, self.name), capture=True)
         try_several_times(f)
 
         self.self_ip = self_ip
@@ -200,8 +204,9 @@ class Container(object):
 
     def docker_name(self):
         if TEST_PREFIX == DEFAULT_TEST_PREFIX:
-            return self.name
-        return '{0}_{1}'.format(TEST_PREFIX, self.name)
+            return '{0}_{1}'.format(CONTAINER_NAME_PREFIX, self.name)
+        return '{0}_{1}_{2}'.format(CONTAINER_NAME_PREFIX,
+                                    TEST_PREFIX, self.name)
 
     def next_if_name(self):
         name = 'eth{0}'.format(len(self.eths) + 1)
