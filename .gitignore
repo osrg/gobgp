@@ -26,3 +26,8 @@ _testmain.go
 *.exe
 *.test
 *.prof
+test/scenario_test/*.xml
+
+# IDE configs
+.vscode
+.idea
