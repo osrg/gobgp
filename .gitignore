@@ -23,7 +23,7 @@ _cgo_export.*
 
 _testmain.go
 
-test/scenario_test/*.xml
+test/scenario_test/nosetest*.xml
 
 *.exe
 *.test
