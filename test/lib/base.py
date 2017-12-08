@@ -49,7 +49,7 @@ BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
 # with this prefix, we can do filtering in `docker ps`
-CONTAINER_NAME_PREFIX = 'osrg-gobgp-test'
+CONTAINER_NAME_PREFIX = 'gobgp-test'
 TEST_NETWORK_LABEL = CONTAINER_NAME_PREFIX
 
 env.abort_exception = RuntimeError
