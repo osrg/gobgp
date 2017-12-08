@@ -110,9 +110,8 @@ A lot of containers, networks temporary files are created during the test.
 Let's clean up.
 
 ```shell
-$ sudo docker rm -f $(sudo docker ps -a -q -f "name=osrg-gobgp-test_*")
-$ sudo docker network prune -f --filter "label=osrg-gobgp-test"
+$ sudo docker rm -f $(sudo docker ps -a -q -f "name=gobgp-test_*")
+$ sudo docker network prune -f --filter "label=gobgp-test"
 $ sudo rm -rf /tmp/gobgp
 ```
 
-You could run `bash test/scenario_test/cleanup.sh` directly.
