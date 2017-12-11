@@ -477,7 +477,7 @@ class BGPContainer(Container):
     def get_neighbor_state(self, peer_id):
         raise Exception('implement get_neighbor() method')
 
-    def get_reachablily(self, prefix, timeout=20):
+    def get_reachability(self, prefix, timeout=20):
         version = netaddr.IPNetwork(prefix).version
         addr = prefix.split('/')[0]
         if version == 4:
