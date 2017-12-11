@@ -211,7 +211,7 @@ If you want to remove one element(prefix) of PrefixSet, to specify a prefix in a
 #### Syntax
 ```shell
 # add NeighborSet
-% gobgp policy neighbor add <neighbor set name> <neighbor address>
+% gobgp policy neighbor add <neighbor set name> <neighbor address/prefix>
 # delete a NeighborSet
 % gobgp policy neighbor del <neighbor set name>
 # delete a neighbor from a NeighborSet
@@ -227,7 +227,11 @@ If you want to add the NeighborSet：
 ```shell
 % gobgp policy neighbor add ns1 10.0.0.1
 ```
-A NeighborSet it is possible to have multiple address, if you want to remove the NeighborSet to specify only NeighborSet name.
+You can also specify a neighbor address range with the prefix representation:
+```shell
+% gobgp policy neighbor add ns 10.0.0.0/24
+``````
+A NeighborSet is possible to have multiple address, if you want to remove the NeighborSet to specify only NeighborSet name.
 ```shell
 % gobgp policy neighbor del ns1
 ```
