@@ -111,7 +111,7 @@ class GoBGPTestBase(unittest.TestCase):
            that have previously beyond the gobpg in ipv4 environment
     """
 
-    def test_02_check_reachablily_beyond_gobgp_from_quagga(self):
+    def test_02_check_reachability_beyond_gobgp_from_quagga(self):
         g1 = self.gobgps['ipv4']
         q1 = self.quaggas['ipv4']
         o1 = self.others['ipv4'][0]
@@ -124,14 +124,14 @@ class GoBGPTestBase(unittest.TestCase):
         o1.add_static_route(self.bridges['br02_v4'].subnet, next_hop)
         addr = [e[1] for e in o1.ip_addrs if 'br01_v4' in e[2]]
         self.assertTrue(len(addr) == 1)
-        q1.get_reachablily(addr[0])
+        q1.get_reachability(addr[0])
 
     """
       No.3 check whether the ping is reachable in container
            that have previously beyond the quagga in ipv4 environment
     """
 
-    def test_03_check_reachablily_beyond_quagga_from_gobgp(self):
+    def test_03_check_reachability_beyond_quagga_from_gobgp(self):
         g1 = self.gobgps['ipv4']
         q1 = self.quaggas['ipv4']
         o2 = self.others['ipv4'][1]
@@ -140,7 +140,7 @@ class GoBGPTestBase(unittest.TestCase):
         o2.add_static_route(self.bridges['br02_v4'].subnet, next_hop)
         addr = [e[1] for e in o2.ip_addrs if 'br03_v4' in e[2]]
         self.assertTrue(len(addr) == 1)
-        g1.get_reachablily(addr[0])
+        g1.get_reachability(addr[0])
 
     """
       No.4 start up ipv4 containers and check state
@@ -171,7 +171,7 @@ class GoBGPTestBase(unittest.TestCase):
            that have previously beyond the gobpg in ipv6 environment
     """
 
-    def test_05_check_reachablily_beyond_gobgp_from_quagga(self):
+    def test_05_check_reachability_beyond_gobgp_from_quagga(self):
         g1 = self.gobgps['ipv6']
         q1 = self.quaggas['ipv6']
         o1 = self.others['ipv6'][0]
@@ -181,14 +181,14 @@ class GoBGPTestBase(unittest.TestCase):
         o1.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
         addr = [e[1] for e in o1.ip_addrs if 'br01_v6' in e[2]]
         self.assertTrue(len(addr) == 1)
-        q1.get_reachablily(addr[0])
+        q1.get_reachability(addr[0])
 
     """
       No.6 check whether the ping is reachable in container
            that have previously beyond the quagga in ipv6 environment
     """
 
-    def test_06_check_reachablily_beyond_quagga_from_gobgp(self):
+    def test_06_check_reachability_beyond_quagga_from_gobgp(self):
         g1 = self.gobgps['ipv6']
         q1 = self.quaggas['ipv6']
         o2 = self.others['ipv6'][1]
@@ -198,7 +198,7 @@ class GoBGPTestBase(unittest.TestCase):
         o2.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
         addr = [e[1] for e in o2.ip_addrs if 'br03_v6' in e[2]]
         self.assertTrue(len(addr) == 1)
-        g1.get_reachablily(addr[0])
+        g1.get_reachability(addr[0])
 
     def test_07_mpath_test_setup(self):
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
