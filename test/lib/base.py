@@ -48,9 +48,9 @@ BGP_ATTR_TYPE_CLUSTER_LIST = 10
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
-# with this prefix, we can do filtering in `docker ps`
-CONTAINER_NAME_PREFIX = 'gobgp-test'
-TEST_NETWORK_LABEL = CONTAINER_NAME_PREFIX
+# with this label, we can do filtering in `docker ps` and `docker network prune`
+TEST_CONTAINER_LABEL = 'gobgp-test'
+TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
 
 env.abort_exception = RuntimeError
 output.stderr = False
@@ -204,9 +204,8 @@ class Container(object):
 
     def docker_name(self):
         if TEST_PREFIX == DEFAULT_TEST_PREFIX:
-            return '{0}_{1}'.format(CONTAINER_NAME_PREFIX, self.name)
-        return '{0}_{1}_{2}'.format(CONTAINER_NAME_PREFIX,
-                                    TEST_PREFIX, self.name)
+            return '{0}'.format(self.name)
+        return '{0}_{1}'.format(TEST_PREFIX, self.name)
 
     def next_if_name(self):
         name = 'eth{0}'.format(len(self.eths) + 1)
@@ -218,7 +217,7 @@ class Container(object):
         c << "docker run --privileged=true"
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
-        c << "--name {0} -id {1}".format(self.docker_name(), self.image)
+        c << "--name {0} -l {1} -id {2}".format(self.docker_name(), TEST_CONTAINER_LABEL, self.image)
         self.id = try_several_times(lambda: local(str(c), capture=True))
         self.is_running = True
         self.local("ip li set up dev lo")
