@@ -86,19 +86,9 @@ func (n *Neighbor) IsEBGPPeer(g *Global) bool {
 	return n.Config.PeerAs != g.Config.As
 }
 
-type AfiSafis []AfiSafi
-
-func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
-	rfs := make([]bgp.RouteFamily, 0, len(c))
-	for _, af := range c {
-		rfs = append(rfs, af.State.Family)
-	}
-	return rfs, nil
-}
-
-func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bgp.BGPAddPathMode {
+func (n *Neighbor) CreateRfMap() map[bgp.RouteFamily]bgp.BGPAddPathMode {
 	rfMap := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
-	for _, af := range p.AfiSafis {
+	for _, af := range n.AfiSafis {
 		mode := bgp.BGP_ADD_PATH_NONE
 		if af.AddPaths.State.Receive {
 			mode |= bgp.BGP_ADD_PATH_RECEIVE
@@ -111,13 +101,43 @@ func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bgp.BGPAddPathMode {
 	return rfMap
 }
 
-func GetAfiSafi(p *Neighbor, family bgp.RouteFamily) *AfiSafi {
-	for _, a := range p.AfiSafis {
+func (n *Neighbor) GetAfiSafi(family bgp.RouteFamily) *AfiSafi {
+	for _, a := range n.AfiSafis {
 		if string(a.Config.AfiSafiName) == family.String() {
 			return &a
 		}
 	}
 	return nil
+}
+
+func (n *Neighbor) ExtractNeighborAddress() (string, error) {
+	addr := n.State.NeighborAddress
+	if addr == "" {
+		addr = n.Config.NeighborAddress
+		if addr == "" {
+			return "", fmt.Errorf("NeighborAddress is not configured")
+		}
+	}
+	return addr, nil
+}
+
+func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.RouteFamily) bool {
+	for _, af := range n.AfiSafis {
+		if af.State.Family == family {
+			return af.AddPaths.State.Receive
+		}
+	}
+	return false
+}
+
+type AfiSafis []AfiSafi
+
+func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
+	rfs := make([]bgp.RouteFamily, 0, len(c))
+	for _, af := range c {
+		rfs = append(rfs, af.State.Family)
+	}
+	return rfs, nil
 }
 
 func CheckAfiSafisChange(x, y []AfiSafi) bool {
@@ -172,24 +192,4 @@ func ParseMaskLength(prefix, mask string) (int, int, error) {
 		}
 	}
 	return min, max, nil
-}
-
-func ExtractNeighborAddress(c *Neighbor) (string, error) {
-	addr := c.State.NeighborAddress
-	if addr == "" {
-		addr = c.Config.NeighborAddress
-		if addr == "" {
-			return "", fmt.Errorf("NeighborAddress is not configured")
-		}
-	}
-	return addr, nil
-}
-
-func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.RouteFamily) bool {
-	for _, af := range n.AfiSafis {
-		if af.State.Family == family {
-			return af.AddPaths.State.Receive
-		}
-	}
-	return false
 }
