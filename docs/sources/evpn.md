@@ -195,7 +195,7 @@ ipv4/flow-vpn,*: -
 Just like the example using BaGPipe, this example uses [YABGP](https://github.com/smartbgp/yabgp).
 GoBGP receives EVPN routes from one YABGP peer and re-advertises it to another YABGP peer.
 
-**NOTE:** The following supposes to use YABGP version "0.3.1".
+**NOTE:** The following supposes to use YABGP version "0.4.0".
 
 ### Configuration
 
@@ -312,11 +312,7 @@ curl -X POST -u admin:admin -H 'Content-Type: application/json' http://10.0.0.1:
             ]
         },
         "16": [
-            [
-                1537,
-                0,
-                500
-            ]
+            "esi-label:0:500"
         ]
     }
 }'
@@ -353,11 +349,7 @@ curl -X POST -u admin:admin -H 'Content-Type: application/json' http://10.0.0.1:
             ]
         },
         "16": [
-            [
-                1536,
-                1,
-                500
-            ]
+            "mac-mobility:1:500"
         ]
     }
 }'
@@ -417,10 +409,7 @@ curl -X POST -u admin:admin -H 'Content-Type: application/json' http://10.0.0.1:
             ]
         },
         "16": [
-            [
-                1538,
-                "00-11-22-33-44-55"
-            ]
+            "es-import:00-11-22-33-44-55"
         ]
     }
 }'
