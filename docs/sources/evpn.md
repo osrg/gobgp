@@ -5,12 +5,170 @@ still very experimental.
 
 ## Contents
 
+- [CLI Syntax](#cli-syntax)
 - [BaGPipe](#bagpipe)
-    - [Configuration](#configuration)
-    - [Advertising EVPN route](#advertising-evpn-route)
+  - [Configuration](#configuration)
+  - [Advertising EVPN route](#advertising-evpn-route)
 - [YABGP](#yabgp)
-    - [Configuration](#configuration-1)
-    - [Advertising EVPN route](#advertising-evpn-route-1)
+  - [Configuration](#configuration-1)
+  - [Advertising EVPN route](#advertising-evpn-route-1)
+
+## CLI Syntax
+
+### Ethernet Auto-discovery Route
+
+```bash
+# Add a route
+$ gobgp global rib -a evpn add a-d esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
+
+# Show routes
+$ gobgp global rib -a evpn [a-d]
+
+# Delete route
+$ gobgp global rib -a evpn del a-d esi <esi> etag <etag> label <label> rd <rd>
+```
+
+#### Example - Ethernet Auto-discovery Route
+
+```bash
+# Simple case
+$ gobgp global rib -a evpn add a-d esi 0 etag 100 label 200 rd 1.1.1.1:65000
+$ gobgp global rib -a evpn
+   Network                                                  Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:65000][esi:single-homed][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+$ gobgp global rib -a evpn del a-d esi 0 etag 100 label 200 rd 1.1.1.1:65000
+
+# With optionals
+$ gobgp global rib -a evpn add a-d esi LACP aa:bb:cc:dd:ee:ff 100 etag 200 label 300 rd 1.1.1.1:65000 rt 65000:200 encap vxlan esi-label 400 single-active
+$ gobgp global rib -a evpn a-d
+   Network                                                                                           Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:65000][esi:ESI_LACP | system mac aa:bb:cc:dd:ee:ff, port key 100][etag:200] [300]      0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:200], [VXLAN], [esi-label: 400, single-active]}]
+$ gobgp global rib -a evpn del a-d esi LACP aa:bb:cc:dd:ee:ff 100 etag 200 label 300 rd 1.1.1.1:65000
+```
+
+### MAC/IP Advertisement Route
+
+```bash
+# Add a route
+$ gobgp global rib -a evpn add macadv <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+
+# Show routes
+$ gobgp global rib -a evpn [macadv]
+
+# Delete route
+$ gobgp global rib -a evpn del macadv <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd>
+```
+
+#### Example - MAC/IP Advertisement Route
+
+```bash
+# Simple case
+$ gobgp global rib -a evpn add macadv aa:bb:cc:dd:ee:ff 10.0.0.1 etag 100 label 200,300 rd 1.1.1.1:65000
+$ gobgp global rib -a evpn
+   Network                                                                       Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:macadv][rd:1.1.1.1:65000][etag:100][mac:aa:bb:cc:dd:ee:ff][ip:10.0.0.1] [200,300]  0.0.0.0                                   00:00:00   [{Origin: ?} [ESI: single-homed]]
+$ gobgp global rib -a evpn del macadv aa:bb:cc:dd:ee:ff 10.0.0.1 etag 100 label 200,300 rd 1.1.1.1:65000
+
+# With optionals
+$ gobgp global rib -a evpn add macadv aa:bb:cc:dd:ee:ff 10.0.0.1 esi AS 65000 100 etag 200 label 300 rd 1.1.1.1:65000 rt 65000:400 encap vxlan
+$ gobgp global rib -a evpn macadv
+   Network                                                                       Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:macadv][rd:1.1.1.1:65000][etag:200][mac:aa:bb:cc:dd:ee:ff][ip:10.0.0.1] [300]      0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:400], [VXLAN]} [ESI: ESI_AS | as 65000, local discriminator 100]]
+$ gobgp global rib -a evpn del macadv aa:bb:cc:dd:ee:ff 10.0.0.1 esi AS 65000 100 etag 200 label 300 rd 1.1.1.1:65000
+```
+
+### Inclusive Multicast Ethernet Tag Route
+
+```bash
+# Add a route
+$ gobgp global rib -a evpn add multicast <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+
+# Show routes
+$ gobgp global rib -a evpn [multicast]
+
+# Delete route
+$ gobgp global rib -a evpn del multicast <ip address> etag <etag> rd <rd>
+```
+
+#### Example - Inclusive Multicast Ethernet Tag Route
+
+```bash
+# Simple case
+$ gobgp global rib -a evpn add multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000
+$ gobgp global rib -a evpn
+   Network                                                   Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:multicast][rd:1.1.1.1:65000][etag:100][ip:10.0.0.1]            0.0.0.0                                   00:00:00   [{Origin: ?}]
+$ gobgp global rib -a evpn del multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000
+
+# With optionals
+$ gobgp global rib -a evpn add multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000 rt 65000:200 encap vxlan
+$ gobgp global rib -a evpn multicast
+   Network                                                   Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:multicast][rd:1.1.1.1:65000][etag:100][ip:10.0.0.1]            0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:200], [VXLAN]}]
+$ gobgp global rib -a evpn del multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000
+```
+
+### Ethernet Segment Route
+
+```bash
+# Add a route
+$ gobgp global rib -a evpn add esi <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
+
+# Show routes
+$ gobgp global rib -a evpn [esi]
+
+# Delete route
+$ gobgp global rib -a evpn del esi <ip address> esi <esi> rd <rd>
+```
+
+#### Example - Ethernet Segment Route
+
+```bash
+# Simple case
+$ gobgp global rib -a evpn add esi 10.0.0.1 esi 0 rd 1.1.1.1:65000
+$ gobgp global rib -a evpn
+   Network                                                     Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:esi][rd:1.1.1.1:65000][esi:single-homed][ip:10.0.0.1]            0.0.0.0                                   00:00:00   [{Origin: ?}]
+$ gobgp global rib -a evpn del esi 10.0.0.1 esi 0 rd 1.1.1.1:65000
+
+# With optionals
+$ gobgp global rib -a evpn add esi 10.0.0.1 esi MAC aa:bb:cc:dd:ee:ff 100 rd 1.1.1.1:65000 rt 65000:200 encap vxlan
+$ gobgp global rib -a evpn esi
+   Network                                                                                                        Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:esi][rd:1.1.1.1:65000][esi:ESI_MAC | system mac aa:bb:cc:dd:ee:ff, local discriminator 100][ip:10.0.0.1]            0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:200], [VXLAN], [es-import rt: aa:bb:cc:dd:ee:ff]}]
+$ gobgp global rib -a evpn del esi 10.0.0.1 esi MAC aa:bb:cc:dd:ee:ff 100 rd 1.1.1.1:65000
+```
+
+### IP Prefix Route
+
+```bash
+# Add a route
+$ gobgp global rib -a evpn add prefix <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]
+
+# Show routes
+$ gobgp global rib -a evpn [prefix]
+
+# Delete route
+$ gobgp global rib -a evpn del prefix <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd>
+```
+
+#### Example - IP Prefix Route
+
+```bash
+# Simple case
+$ gobgp global rib -a evpn add prefix 10.0.0.0/24 etag 100 rd 1.1.1.1:65000
+$ gobgp global rib -a evpn
+   Network                                                       Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:Prefix][rd:1.1.1.1:65000][etag:100][prefix:10.0.0.0/24] [0]        0.0.0.0                                   00:00:00   [{Origin: ?} [ESI: single-homed] [GW: 0.0.0.0]]
+$ gobgp global rib -a evpn del prefix 10.0.0.0/24 etag 100 rd 1.1.1.1:65000
+
+# With optionals
+$ gobgp global rib -a evpn add prefix 10.0.0.0/24 172.16.0.1 esi MSTP aa:aa:aa:aa:aa:aa 100 etag 200 label 300 rd 1.1.1.1:65000 rt 65000:200 encap vxlan router-mac bb:bb:bb:bb:bb:bb
+$ gobgp global rib -a evpn prefix
+   Network                                                       Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:Prefix][rd:1.1.1.1:65000][etag:200][prefix:10.0.0.0/24] [300]      0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:200], [VXLAN], [router's mac: bb:bb:bb:bb:bb:bb]} [ESI: ESI_MSTP | bridge mac aa:aa:aa:aa:aa:aa, priority 100] [GW: 0.0.0.0]]
+$ gobgp global rib -a evpn del prefix 10.0.0.0/24 172.16.0.1 esi MSTP aa:aa:aa:aa:aa:aa 100 etag 200 label 300 rd 1.1.1.1:65000
+```
 
 ## BaGPipe
 
