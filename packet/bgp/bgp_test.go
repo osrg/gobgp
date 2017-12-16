@@ -1140,7 +1140,7 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 	}, esi)
 
 	// ESI_LACP
-	args = []string{"lacp", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x1122)} // lower case
+	args = []string{"lacp", "aa:bb:cc:dd:ee:ff", strconv.FormatInt(0x1122, 10)} // lower case
 	esi, err = ParseEthernetSegmentIdentifier(args)
 	assert.Nil(err)
 	assert.Equal(EthernetSegmentIdentifier{
@@ -1149,7 +1149,7 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 	}, esi)
 
 	// ESI_MSTP
-	args = []string{"esi_mstp", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x1122)} // omit "ESI_" + lower case
+	args = []string{"esi_mstp", "aa:bb:cc:dd:ee:ff", strconv.FormatInt(0x1122, 10)} // omit "ESI_" + lower case
 	esi, err = ParseEthernetSegmentIdentifier(args)
 	assert.Nil(err)
 	assert.Equal(EthernetSegmentIdentifier{
@@ -1158,7 +1158,7 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 	}, esi)
 
 	// ESI_MAC
-	args = []string{"ESI_MAC", "aa:bb:cc:dd:ee:ff", strconv.Itoa(0x112233)}
+	args = []string{"ESI_MAC", "aa:bb:cc:dd:ee:ff", strconv.FormatInt(0x112233, 10)}
 	esi, err = ParseEthernetSegmentIdentifier(args)
 	assert.Nil(err)
 	assert.Equal(EthernetSegmentIdentifier{
@@ -1167,7 +1167,7 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 	}, esi)
 
 	// ESI_ROUTERID
-	args = []string{"ESI_ROUTERID", "1.1.1.1", strconv.Itoa(0x11223344)}
+	args = []string{"ESI_ROUTERID", "1.1.1.1", strconv.FormatInt(0x11223344, 10)}
 	esi, err = ParseEthernetSegmentIdentifier(args)
 	assert.Nil(err)
 	assert.Equal(EthernetSegmentIdentifier{
@@ -1176,7 +1176,7 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 	}, esi)
 
 	// ESI_AS
-	args = []string{"ESI_AS", strconv.Itoa(0xaabbccdd), strconv.Itoa(0x11223344)}
+	args = []string{"ESI_AS", strconv.FormatInt(0xaabbccdd, 10), strconv.FormatInt(0x11223344, 10)}
 	esi, err = ParseEthernetSegmentIdentifier(args)
 	assert.Nil(err)
 	assert.Equal(EthernetSegmentIdentifier{
