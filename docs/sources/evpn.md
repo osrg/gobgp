@@ -50,7 +50,7 @@ $ gobgp global rib -a evpn del a-d esi LACP aa:bb:cc:dd:ee:ff 100 etag 200 label
 
 ```bash
 # Add a route
-$ gobgp global rib -a evpn add macadv <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>]
+$ gobgp global rib -a evpn add macadv <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
 
 # Show routes
 $ gobgp global rib -a evpn [macadv]
@@ -70,10 +70,10 @@ $ gobgp global rib -a evpn
 $ gobgp global rib -a evpn del macadv aa:bb:cc:dd:ee:ff 10.0.0.1 etag 100 label 200,300 rd 1.1.1.1:65000
 
 # With optionals
-$ gobgp global rib -a evpn add macadv aa:bb:cc:dd:ee:ff 10.0.0.1 esi AS 65000 100 etag 200 label 300 rd 1.1.1.1:65000 rt 65000:400 encap vxlan
+$ gobgp global rib -a evpn add macadv aa:bb:cc:dd:ee:ff 10.0.0.1 esi AS 65000 100 etag 200 label 300 rd 1.1.1.1:65000 rt 65000:400 encap vxlan default-gateway
 $ gobgp global rib -a evpn macadv
    Network                                                                       Labels     Next Hop             AS_PATH              Age        Attrs
-*> [type:macadv][rd:1.1.1.1:65000][etag:200][mac:aa:bb:cc:dd:ee:ff][ip:10.0.0.1] [300]      0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:400], [VXLAN]} [ESI: ESI_AS | as 65000, local discriminator 100]]
+*> [type:macadv][rd:1.1.1.1:65000][etag:200][mac:aa:bb:cc:dd:ee:ff][ip:10.0.0.1] [300]      0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:400], [VXLAN], [default-gateway]} [ESI: ESI_AS | as 65000, local discriminator 100]]
 $ gobgp global rib -a evpn del macadv aa:bb:cc:dd:ee:ff 10.0.0.1 esi AS 65000 100 etag 200 label 300 rd 1.1.1.1:65000
 ```
 

@@ -6470,6 +6470,19 @@ func (e *EncapExtended) String() string {
 	}
 }
 
+type DefaultGatewayExtended struct {
+}
+
+func (e *DefaultGatewayExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 7)
+	buf[0] = byte(EC_SUBTYPE_DEFAULT_GATEWAY)
+	return buf, nil
+}
+
+func (e *DefaultGatewayExtended) String() string {
+	return "default-gateway"
+}
+
 type OpaqueExtended struct {
 	IsTransitive bool
 	Value        OpaqueExtendedValueInterface
@@ -6494,6 +6507,8 @@ func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
 			e.Value = &EncapExtended{
 				TunnelType: t,
 			}
+		case EC_SUBTYPE_DEFAULT_GATEWAY:
+			e.Value = &DefaultGatewayExtended{}
 		default:
 			e.Value = &DefaultOpaqueExtendedValue{
 				Value: data, //7byte
