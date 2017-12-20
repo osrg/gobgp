@@ -521,7 +521,7 @@ const (
 	INSTALL_PROTOCOL_TYPE_OSPF               InstallProtocolType = "ospf"
 	INSTALL_PROTOCOL_TYPE_OSPF3              InstallProtocolType = "ospf3"
 	INSTALL_PROTOCOL_TYPE_STATIC             InstallProtocolType = "static"
-	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED InstallProtocolType = "directly-connected"
+	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED InstallProtocolType = "connect"
 	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE    InstallProtocolType = "local-aggregate"
 )
 
