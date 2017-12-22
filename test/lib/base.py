@@ -48,6 +48,33 @@ BGP_ATTR_TYPE_CLUSTER_LIST = 10
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
+FLOWSPEC_NAME_TO_TYPE = {
+    "destination": 1,
+    "source": 2,
+    "protocol": 3,
+    "port": 4,
+    "destination-port": 5,
+    "source-port": 6,
+    "icmp-type": 7,
+    "icmp-code": 8,
+    "tcp-flags": 9,
+    "packet-length": 10,
+    "dscp": 11,
+    "fragment": 12,
+    "label": 13,
+    "ether-type": 14,
+    "source-mac": 15,
+    "destination-mac": 16,
+    "llc-dsap": 17,
+    "llc-ssap": 18,
+    "llc-control": 19,
+    "snap": 20,
+    "vid": 21,
+    "cos": 22,
+    "inner-vid": 23,
+    "inner-cos": 24,
+}
+
 # with this label, we can do filtering in `docker ps` and `docker network prune`
 TEST_CONTAINER_LABEL = 'gobgp-test'
 TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
