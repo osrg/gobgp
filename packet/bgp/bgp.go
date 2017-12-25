@@ -3099,34 +3099,39 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 	// - IPv6 Prefix
 	//   args := []string{"2001:db8:1::/64"}
 	// - IPv6 Prefix with offset
-	//   args := []string{"2001:db8:1::/64", "16"}
+	//   args := []string{"0:db8:1::/64/16"}
+	//   args := []string{"0:db8:1::/64", "16"}
+	// - IPv6 Address
+	//   args := []string{"2001:db8:1::1"}
+	// - IPv6 Address with offset
+	//   args := []string{"0:db8:1::1", "16"}
 	afi, _ := RouteFamilyToAfiSafi(rf)
-	var prefix net.IP
-	var prefixLen int
-	_, nw, err := net.ParseCIDR(args[0])
-	if err != nil {
-		prefix = net.ParseIP(args[0])
-		if prefix == nil {
-			return nil, fmt.Errorf("invalid ip prefix: %s", args[0])
-		}
-		switch afi {
-		case AFI_IP:
-			prefixLen = net.IPv4len * 8
-		case AFI_IP6:
-			prefixLen = net.IPv6len * 8
-		}
-	} else {
-		prefix = nw.IP
-		prefixLen, _ = nw.Mask.Size()
-	}
-
 	switch afi {
 	case AFI_IP:
-		if prefix.To4() == nil {
-			return nil, fmt.Errorf("invalid ipv4 prefix: %s", args[0])
-		}
 		if len(args) > 1 {
 			return nil, fmt.Errorf("cannot specify offset for ipv4 prefix")
+		}
+		invalidIPv4PrefixError := fmt.Errorf("invalid ipv4 prefix: %s", args[0])
+		re := regexp.MustCompile("^([\\d.]+)(/(\\d{1,2}))?")
+		// re.FindStringSubmatch("192.168.0.0/24")
+		// >>> ["192.168.0.0/24" "192.168.0.0" "/24" "24"]
+		// re.FindStringSubmatch("192.168.0.1")
+		// >>> ["192.168.0.1" "192.168.0.1" "" ""]
+		m := re.FindStringSubmatch(args[0])
+		if len(m) < 4 {
+			return nil, invalidIPv4PrefixError
+		}
+		prefix := net.ParseIP(m[1])
+		if prefix.To4() == nil {
+			return nil, invalidIPv4PrefixError
+		}
+		var prefixLen uint64 = 32
+		if m[3] != "" {
+			var err error
+			prefixLen, err = strconv.ParseUint(m[3], 10, 8)
+			if err != nil || prefixLen > 32 {
+				return nil, invalidIPv4PrefixError
+			}
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
@@ -3136,22 +3141,55 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	case AFI_IP6:
-		if prefix.To16() == nil {
-			return nil, fmt.Errorf("invalid ipv6 prefix: %s", args[0])
+		if len(args) > 2 {
+			return nil, fmt.Errorf("invalid arguments for ipv6 prefix: %q", args)
 		}
-		var offset uint8
-		if len(args) > 1 {
-			o, err := strconv.Atoi(args[1])
-			if err != nil {
-				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", args[0])
+		invalidIPv6PrefixError := fmt.Errorf("invalid ipv6 prefix: %s", args[0])
+		re := regexp.MustCompile("^([a-fA-F\\d:.]+)(/(\\d{1,3}))?(/(\\d{1,3}))?")
+		// re.FindStringSubmatch("2001:dB8::/64")
+		// >>> ["2001:dB8::/64" "2001:dB8::" "/64" "64" "" ""]
+		// re.FindStringSubmatch("2001:dB8::/64/8")
+		// >>> ["2001:dB8::/64/8" "2001:dB8::" "/64" "64" "/8" "8"]
+		// re.FindStringSubmatch("2001:dB8::1")
+		// >>> ["2001:dB8::1" "2001:dB8::1" "" "" "" ""]
+		m := re.FindStringSubmatch(args[0])
+		if len(m) < 4 {
+			return nil, invalidIPv6PrefixError
+		}
+		prefix := net.ParseIP(m[1])
+		if prefix.To16() == nil {
+			return nil, invalidIPv6PrefixError
+		}
+		var prefixLen uint64 = 128
+		if m[3] != "" {
+			var err error
+			prefixLen, err = strconv.ParseUint(m[3], 10, 8)
+			if err != nil || prefixLen > 128 {
+				return nil, invalidIPv6PrefixError
 			}
-			offset = uint8(o)
+		}
+		var offset uint64
+		if len(args) == 1 && m[5] != "" {
+			var err error
+			offset, err = strconv.ParseUint(m[5], 10, 8)
+			if err != nil || offset > 128 {
+				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", m[5])
+			}
+		} else if len(args) == 2 {
+			if m[5] != "" {
+				return nil, fmt.Errorf("multiple ipv6 prefix offset arguments detected: %q", args)
+			}
+			var err error
+			offset, err = strconv.ParseUint(args[1], 10, 8)
+			if err != nil || offset > 128 {
+				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", args[1])
+			}
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), offset), nil
+			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), offset), nil
+			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	}
