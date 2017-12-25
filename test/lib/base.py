@@ -409,14 +409,24 @@ class BGPContainer(Container):
     def log(self):
         return local('cat {0}/*.log'.format(self.config_dir), capture=True)
 
+    def _extract_routes(self, families):
+        routes = {}
+        for prefix, paths in self.routes.items():
+            if paths and paths[0]['rf'] in families:
+                routes[prefix] = paths
+        return routes
+
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
                   nexthop=None, matchs=None, thens=None,
                   local_pref=None, identifier=None, reload_config=True):
         if route not in self.routes:
             self.routes[route] = []
+        prefix = route
+        if 'flowspec' in rf:
+            prefix = ' '.join(['match'] + matchs)
         self.routes[route].append({
-            'prefix': route,
+            'prefix': prefix,
             'rf': rf,
             'attr': attribute,
             'next-hop': nexthop,

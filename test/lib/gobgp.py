@@ -559,7 +559,7 @@ class GoBGPContainer(BGPContainer):
                 cmd = 'gobgp global '\
                       'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
             else:
-                raise Exception('unsupported route faily: {0}'.format(v['rf']))
+                raise Exception('unsupported route family: {0}'.format(v['rf']))
             self.local(cmd)
 
     def del_route(self, route, identifier=None, reload_config=True):
