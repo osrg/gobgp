@@ -6,6 +6,12 @@ still very experimental.
 ## Contents
 
 - [CLI Syntax](#cli-syntax)
+  - [Ethernet Segment Identifier](#ethernet-segment-identifier)
+  - [Ethernet Auto-discovery Route](#ethernet-auto-discovery-route)
+  - [MAC/IP Advertisement Route](#macip-advertisement-route)
+  - [Inclusive Multicast Ethernet Tag Route](#inclusive-multicast-ethernet-tag-route)
+  - [Ethernet Segment Route](#ethernet-segment-route)
+  - [IP Prefix Route](#ip-prefix-route)
 - [BaGPipe](#bagpipe)
   - [Configuration](#configuration)
   - [Advertising EVPN route](#advertising-evpn-route)
@@ -14,6 +20,68 @@ still very experimental.
   - [Advertising EVPN route](#advertising-evpn-route-1)
 
 ## CLI Syntax
+
+### Ethernet Segment Identifier
+
+Some route types requires to specify Ethernet Segment Identifier (ESI) for its
+argument. The supported ESI types and their formats are the following.
+
+| Type | Format                                 | Description                                                                                                   |
+| ---- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 0    | single-homed                           | Reserved keyword for arbitrary ESI type to denote a single-homed site.                                        |
+| 0    | 0                                      | The same with "single-homed".                                                                                 |
+| 0    | ARBITRARY \<Value>                     | Arbitrary ESI type with arbitrary value. Value should be colon separated hex values (similar to MAC address). |
+| 1    | LACP \<MAC> \<Port Key>                | Type for LACP configured segment.                                                                             |
+| 2    | MSTP \<MAC> \<Priority>                | Type for L2 bridge protocol (e.g., Multiple Spanning Tree Protocol) configured segment.                       |
+| 3    | MAC \<MAC> \<Discriminator>            | Type for ESI based on MAC address.                                                                            |
+| 4    | ROUTERID \<Router ID> \<Discriminator> | Type for ESI based on Router ID.                                                                              |
+| 5    | AS \<AS> \<Discriminator>              | Type for ESI based on AS number.                                                                              |
+
+### Example - Ethernet Segment Identifier
+
+```bash
+# single-homed
+$ gobgp global rib -a evpn add a-d esi single-homed etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:single-homed][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+
+# ARBITRARY <Value>
+$ gobgp global rib -a evpn add a-d esi ARBITRARY 11:22:33:44:55:66:77:88:99 etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                                              Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:ESI_ARBITRARY | 11:22:33:44:55:66:77:88:99][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+
+# LACP <MAC> <Port Key>
+$ gobgp global rib -a evpn add a-d esi LACP aa:bb:cc:dd:ee:ff 10 etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                                                        Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:ESI_LACP | system mac aa:bb:cc:dd:ee:ff, port key 10][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+
+# MSTP <MAC> <Priority>
+$ gobgp global rib -a evpn add a-d esi MSTP aa:bb:cc:dd:ee:ff 10 etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                                                        Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:ESI_MSTP | bridge mac aa:bb:cc:dd:ee:ff, priority 10][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+
+# MAC <MAC> <Discriminator>
+$ gobgp global rib -a evpn add a-d esi MAC aa:bb:cc:dd:ee:ff 10 etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                                                                  Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:ESI_MAC | system mac aa:bb:cc:dd:ee:ff, local discriminator 10][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+
+# ROUTERID <Router ID> <Discriminator>
+$ gobgp global rib -a evpn add a-d esi ROUTERID 1.1.1.1 10 etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                                                            Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:ESI_ROUTERID | router id 1.1.1.1, local discriminator 10][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+
+# AS <AS> <Discriminator>
+$ gobgp global rib -a evpn add a-d esi AS 65000 10 etag 100 label 200 rd 1.1.1.1:100
+$ gobgp global rib -a evpn
+   Network                                                                             Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:A-D][rd:1.1.1.1:100][esi:ESI_AS | as 65000, local discriminator 10][etag:100] [200]      0.0.0.0                                   00:00:00   [{Origin: ?}]
+```
 
 ### Ethernet Auto-discovery Route
 
