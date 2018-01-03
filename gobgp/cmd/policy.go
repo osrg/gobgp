@@ -466,7 +466,7 @@ func modStatement(op string, args []string) error {
 	case CMD_ADD:
 		err = client.AddStatement(stmt)
 	case CMD_DEL:
-		err = client.DeleteStatement(stmt, false)
+		err = client.DeleteStatement(stmt, true)
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -650,7 +650,7 @@ func modCondition(name, op string, args []string) error {
 	case CMD_DEL:
 		err = client.DeleteStatement(t, false)
 	case CMD_SET:
-		err = client.ReplaceStatement(t)
+		err = client.ReplaceStatement(t, false)
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -767,7 +767,7 @@ func modAction(name, op string, args []string) error {
 	case CMD_DEL:
 		err = client.DeleteStatement(t, false)
 	case CMD_SET:
-		err = client.ReplaceStatement(t)
+		err = client.ReplaceStatement(t, false)
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
