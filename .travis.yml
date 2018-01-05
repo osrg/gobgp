@@ -89,10 +89,10 @@ matrix:
 #
 # Misc
 #
-    - <<: *_go
-      script: test -z "$(go fmt ./...)"
-    - <<: *_go
-      script: test -z "$(go vet ./...)"
+    - <<: *_dep_ensure
+      script: test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
+    - <<: *_dep_ensure
+      script: test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
     - <<: *_dep_ensure
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 #
