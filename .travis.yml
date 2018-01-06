@@ -1,10 +1,7 @@
 language: go
 
-_go: &_go
-  go: 1.8
-
 _dep_ensure: &_dep_ensure
-  <<: *_go
+  go: 1.8
   before_install: go get -u github.com/golang/dep/cmd/dep
   install: $GOPATH/bin/dep ensure
 
