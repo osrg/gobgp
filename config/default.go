@@ -2,12 +2,14 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"reflect"
+
+	"github.com/spf13/viper"
+
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/packet/rtr"
-	"github.com/spf13/viper"
-	"net"
-	"reflect"
 )
 
 const (

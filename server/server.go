@@ -1320,6 +1320,21 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 					}
 				}
 			}
+		case *bgp.SRTEPolicyNLRI:
+			// draft-ietf-idr-segment-routing-te-policy-01
+			// 4.2.1. Acceptance of an SR Policy NLRI
+			// The SR Policy update MUST have either the NO_ADVERTISE community
+			// or at least one route-target extended community in IPv4-address
+			// format.
+			found := false
+			for _, extComm := range path.GetExtCommunities() {
+				if _, found = extComm.(*bgp.IPv4AddressSpecificExtended); found {
+					break
+				}
+			}
+			if !found {
+				path.SetCommunities([]uint32{bgp.COMMUNITY_NO_ADVERTISE}, false)
+			}
 		}
 	}
 	return nil

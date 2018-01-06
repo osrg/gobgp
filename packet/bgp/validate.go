@@ -8,12 +8,17 @@ import (
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool) (bool, error) {
-	var strongestError error
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool) (isValid bool, strongestError error) {
+	rf := RF_IPv4_UC
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
+	updateStrongestError := func(err error) {
+		if err.(*MessageError).Stronger(strongestError) {
+			strongestError = err
+		}
+	}
 
 	if len(m.NLRI) > 0 || len(m.WithdrawnRoutes) > 0 {
 		if _, ok := rfs[RF_IPv4_UC]; !ok {
@@ -25,28 +30,32 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP 
 	newAttrs := make([]PathAttributeInterface, 0, len(seen))
 	// check path attribute
 	for _, a := range m.PathAttributes {
+		attrType := a.GetType()
 		// check duplication
-		if _, ok := seen[a.GetType()]; !ok {
-			seen[a.GetType()] = a
+		if _, ok := seen[attrType]; !ok {
+			seen[attrType] = a
 			newAttrs = append(newAttrs, a)
 			//check specific path attribute
 			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed)
 			if !ok {
 				if err.(*MessageError).ErrorHandling == ERROR_HANDLING_SESSION_RESET {
 					return false, err
-				} else if err.(*MessageError).Stronger(strongestError) {
-					strongestError = err
 				}
+				updateStrongestError(err)
 			}
-		} else if a.GetType() == BGP_ATTR_TYPE_MP_REACH_NLRI || a.GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
-			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
+			switch attr := a.(type) {
+			case *PathAttributeMpReachNLRI:
+				rf = AfiSafiToRouteFamily(attr.AFI, attr.SAFI)
+			case *PathAttributeMpUnreachNLRI:
+				rf = AfiSafiToRouteFamily(attr.AFI, attr.SAFI)
+			}
+		} else if attrType == BGP_ATTR_TYPE_MP_REACH_NLRI || attrType == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
+			eMsg := fmt.Sprintf("the path attribute appears twice. Type: %s", attrType.String())
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
 		} else {
-			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
-			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, eMsg)
-			if e.(*MessageError).Stronger(strongestError) {
-				strongestError = e
-			}
+			eMsg := fmt.Sprintf("the path attribute appears twice. Type: %s", attrType.String())
+			err := NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, eMsg)
+			updateStrongestError(err)
 		}
 	}
 	m.PathAttributes = newAttrs
@@ -69,14 +78,61 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP 
 		if ok, t := exist(mandatory); !ok {
 			eMsg := "well-known mandatory attributes are not present. type : " + strconv.Itoa(int(t))
 			data := []byte{byte(t)}
-			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMissing, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
-			if e.(*MessageError).Stronger(strongestError) {
-				strongestError = e
-			}
+			err := NewMessageErrorWithErrorHandling(eCode, eSubCodeMissing, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+			updateStrongestError(err)
+		}
+	}
+
+	// Check address family specific requirements
+	switch rf {
+	case RF_IPv4_SR_TE, RF_IPv6_SR_TE:
+		if err := validateSrTeUpdateMsg(m); err != nil {
+			updateStrongestError(err)
 		}
 	}
 
 	return strongestError == nil, strongestError
+}
+
+// draft-ietf-idr-segment-routing-te-policy-01
+// 4.2.1. Acceptance of an SR Policy NLRI
+func validateSrTeUpdateMsg(m *BGPUpdate) error {
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+
+	validNoAdvOrIPv4 := false
+	for _, attr := range m.PathAttributes {
+		switch a := attr.(type) {
+		// If a router supporting this document receives an SR
+		// policy update with no route-target extended communities and no
+		// NO_ADVERTISE community, the update MUST NOT be sent to the SRTE
+		// process.  Furthermore, it SHOULD be considered to be malformed,
+		// and the "treat-as-withdraw" strategy of [RFC7606] applied.
+		case *PathAttributeCommunities:
+			if a.hasCommunity(COMMUNITY_NO_ADVERTISE) {
+				validNoAdvOrIPv4 = true
+			}
+		case *PathAttributeExtendedCommunities:
+			for _, extComm := range a.Value {
+				if _, ok := extComm.(*IPv4AddressSpecificExtended); ok {
+					validNoAdvOrIPv4 = true
+				}
+			}
+		// The Tunnel Encapsulation Attribute MUST be attached to the BGP
+		// Update and MUST have the Tunnel Type set to SR Policy (value to be
+		// assigned by IANA).
+		case *PathAttributeTunnelEncap:
+			if !a.validate([]TunnelType{TUNNEL_TYPE_SR_TE_Policy}) {
+				eMsg := "no valid Tunnel Encapsulation Attribute for SR TR Policy UPDATE"
+				return NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+			}
+		}
+	}
+	if !validNoAdvOrIPv4 {
+		eMsg := "no valid NO_ADVERTISE community or IPv4 address specific RT for SR TR Policy UPDATE"
+		return NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+	}
+	return nil
 }
 
 func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool) (bool, error) {

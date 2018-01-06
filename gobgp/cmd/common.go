@@ -288,6 +288,10 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 		rf = bgp.RF_IPv6_MPLS
 	case "evpn":
 		rf = bgp.RF_EVPN
+	case "ipv4-sr-te":
+		rf = bgp.RF_IPv4_SR_TE
+	case "ipv6-sr-te":
+		rf = bgp.RF_IPv6_SR_TE
 	case "encap", "ipv4-encap":
 		rf = bgp.RF_IPv4_ENCAP
 	case "ipv6-encap":

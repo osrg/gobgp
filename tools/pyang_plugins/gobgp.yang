@@ -148,6 +148,20 @@ module gobgp {
     reference "https://tools.ietf.org/html/draft-lapukhov-bgp-opaque-signaling-01";
   }
 
+  identity IPV4-SR-TE {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 SR TE Policy (AFI,SAFI = 1,73)";
+    reference "https://tools.ietf.org/html/draft-ietf-idr-segment-routing-te-policy";
+  }
+
+  identity IPV6-SR-TE {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv6 SR TE Policy (AFI,SAFI = 2,73)";
+    reference "https://tools.ietf.org/html/draft-ietf-idr-segment-routing-te-policy";
+  }
+
   grouping gobgp-message-counter {
     description
       "Counters for all BGPMessage types";
@@ -1248,7 +1262,7 @@ module gobgp {
           uses route-target-membership-config;
       }
     }
-    
+
     uses long-lived-graceful-restart;
   }
 

@@ -258,14 +258,11 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal([]byte{0x3, 0xc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x8}, buf)
 
-	subTlv := &TunnelEncapSubTLV{
-		Type:  ENCAP_SUBTLV_TYPE_COLOR,
-		Value: &TunnelEncapSubTLVColor{10},
-	}
+	subTlv := &TunnelEncapSubTLVColor{10}
 
 	tlv := &TunnelEncapTLV{
 		Type:  TUNNEL_TYPE_VXLAN,
-		Value: []*TunnelEncapSubTLV{subTlv},
+		Value: []TunnelEncapSubTLVInterface{subTlv},
 	}
 
 	attr := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv})
@@ -1192,4 +1189,48 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 		Type:  ESIType(99),
 		Value: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99},
 	}, esi)
+}
+
+func Test_TunnelEncapSubTLVs(t *testing.T) {
+	assert := assert.New(t)
+
+	bufIn := []byte{
+		// Preference sub-TLV
+		0x0c, 0x06, 0x00, 0x00, // Type=12, Length=6, Flags=0
+		0x00, 0x00, 0x00, 0x64, // Preference=100
+		// SR TE Binding SID Sub-TLV
+		0x0d, 0x02, 0x00, 0x00, // Type=13, Length=2, Flags=0
+		// Segment List Sub-TLV
+		0x80, 0x00, 0x09, 0x00, // Type=128, Length=9, Flags=0
+		// Weight Sub-TLV
+		0x09, 0x06, 0x00, 0x00, // Type=1, Length=6
+		0x00, 0x00, 0x00, 0x64, // Weight=100
+	}
+
+	// Test DecodeFromBytes()
+	tlv := &TunnelEncapTLV{}
+	err := tlv.DecodeFromBytes(bufIn)
+	assert.Nil(err)
+
+	// Test decoded values
+	assert.Equal(3, len(tlv.Value))
+	subTlvPref, ok := tlv.Value[0].(*TunnelEncapSubTLVPreference)
+	assert.True(ok)
+	assert.Equal(uint8(0), subTlvPref.Flags)
+	assert.Equal(uint32(100), subTlvPref.Preference)
+	subTlvSid, ok := tlv.Value[1].(*TunnelEncapSubTLVBindingSID)
+	assert.True(ok)
+	assert.Equal(uint8(0), subTlvSid.Flags)
+	assert.Equal("<nil>", subTlvSid.SID.String())
+	subTlvSegList, ok := tlv.Value[2].(*TunnelEncapSubTLVSegmentList)
+	assert.True(ok)
+	assert.Equal(1, len(subTlvSegList.Value))
+	segWeight, ok := subTlvSegList.Value[0].(*SegmentListSubTLVWeight)
+	assert.True(ok)
+	assert.Equal(uint32(100), segWeight.Weight)
+
+	// Test Serialize()
+	bufOut, err := tlv.Serialize()
+	assert.Nil(err)
+	assert.Equal(bufIn, bufOut[4:]) // excluding Type and Length fields
 }

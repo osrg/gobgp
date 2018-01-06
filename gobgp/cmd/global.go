@@ -42,6 +42,7 @@ const (
 	MARK
 	ACTION
 	RT
+	COLOR
 	ENCAP
 	ESI_LABEL
 	ROUTER_MAC
@@ -59,6 +60,7 @@ var ExtCommNameMap = map[ExtCommType]string{
 	MARK:            "mark",
 	ACTION:          "action",
 	RT:              "rt",
+	COLOR:           "color",
 	ENCAP:           "encap",
 	ESI_LABEL:       "esi-label",
 	ROUTER_MAC:      "router-mac",
@@ -76,6 +78,7 @@ var ExtCommValueMap = map[string]ExtCommType{
 	ExtCommNameMap[MARK]:            MARK,
 	ExtCommNameMap[ACTION]:          ACTION,
 	ExtCommNameMap[RT]:              RT,
+	ExtCommNameMap[COLOR]:           COLOR,
 	ExtCommNameMap[ENCAP]:           ENCAP,
 	ExtCommNameMap[ESI_LABEL]:       ESI_LABEL,
 	ExtCommNameMap[ROUTER_MAC]:      ROUTER_MAC,
@@ -179,6 +182,20 @@ func rtParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 		exts = append(exts, rt)
 	}
 	return exts, nil
+}
+
+func colorParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[COLOR] {
+		return nil, fmt.Errorf("invalid color")
+	}
+	ext, err := bgp.ParseColorExtended(args[1])
+	if err != nil {
+		return nil, err
+	}
+	o := bgp.NewOpaqueExtended(true)
+	o.SubType = bgp.EC_SUBTYPE_COLOR
+	o.Value = ext
+	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
 func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -291,6 +308,7 @@ var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	MARK:            markParser,
 	ACTION:          actionParser,
 	RT:              rtParser,
+	COLOR:           colorParser,
 	ENCAP:           encapParser,
 	ESI_LABEL:       esiLabelParser,
 	ROUTER_MAC:      routerMacParser,
@@ -787,6 +805,108 @@ func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }
 
+func parseSrTeTunnelEncapAttribute(segListArgs []string, prefArgs []string, sidArgs []string) (bgp.PathAttributeInterface, error) {
+	tlvs := make([]bgp.TunnelEncapSubTLVInterface, 0, 3)
+
+	if len(prefArgs) > 0 {
+		preference, err := strconv.ParseUint(prefArgs[0], 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid preference: %s", err.Error())
+		}
+		tlvs = append(tlvs, &bgp.TunnelEncapSubTLVPreference{Preference: uint32(preference)})
+	}
+
+	if len(sidArgs) > 0 {
+		sid, err := bgp.ParseSegmentID(sidArgs[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid binding-sid: %s", sidArgs[0])
+		}
+		tlvs = append(tlvs, &bgp.TunnelEncapSubTLVBindingSID{SID: sid})
+	}
+
+	segListSubTLVs, err := bgp.ParseSegmentListSubTLV(segListArgs)
+	if err != nil {
+		return nil, err
+	}
+	tlvs = append(tlvs, &bgp.TunnelEncapSubTLVSegmentList{Value: segListSubTLVs})
+
+	return bgp.NewPathAttributeTunnelEncap([]*bgp.TunnelEncapTLV{{
+		Type:  bgp.TUNNEL_TYPE_SR_TE_Policy,
+		Value: tlvs,
+	}}), nil
+}
+
+func parseSrTePolicyArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []bgp.PathAttributeInterface, []string, error) {
+	// Format:
+	// <DISTINGUISHER> <POLICY_COLOR> <ENDPOINT> segment-list <SEGMENT_LIST> [preference <DEC_NUM>] [binding-sid <SID>] [rt <RT>...] [color <COLOR>]
+	//     <DISTINGUISHER>: <DEC_NUM>
+	//     <POLICY_COLOR>:  <DEC_NUM>
+	//     <ENDPOINT>:      <IPv4 Address>, <IPv6 Address>
+	//     <SEGMENT-LIST>:  [weight <DEC_NUM>] {segment <SEGMENT>}...
+	//     <SEGMENT>:       <TYPE> <ARGS>...
+	//     <SID>:           <DEC_NUM>, <IPv6 Address>
+	//     <RT>:            xxx:yyy, xxx.xxx.xxx.xxx:yyy, xxxx::xxxx:yyy, xxx.xxx:yyy
+	//     <COLOR>:         [[C][O]:]<DEC_NUM>
+	req := 7
+	if len(args) < req {
+		return nil, nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m := extractReserved(args, []string{"segment-list", "preference", "binding-sid", "rt", "color"})
+	if len(m[""]) < 3 {
+		return nil, nil, nil, fmt.Errorf("specify distinguisher, policy color and endpoint")
+	}
+	if len(m["segment-list"]) == 0 {
+		return nil, nil, nil, fmt.Errorf("specify segment-list")
+	}
+
+	distinguisher, err := strconv.ParseUint(m[""][0], 10, 32)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid distinguisher: %s: %s", m[""][0], err)
+	}
+
+	color, err := strconv.ParseUint(m[""][1], 10, 32)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid color: %s: %s", m[""][1], err)
+	}
+
+	endpoint := net.ParseIP(m[""][2])
+	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+	var nlri bgp.AddrPrefixInterface
+	if endpoint == nil {
+		return nil, nil, nil, fmt.Errorf("invalid endpoint: %s: %s", m[""][2], err)
+	}
+	switch afi {
+	case bgp.AFI_IP:
+		endpoint = endpoint.To4()
+		if endpoint == nil {
+			return nil, nil, nil, fmt.Errorf("invalid ipv4 endpoint for this family: %s: %s", m[""][2], err)
+		}
+		nlri = bgp.NewIPv4SRTEPolicyNLRI(uint32(distinguisher), uint32(color), endpoint)
+	case bgp.AFI_IP6:
+		endpoint = endpoint.To16()
+		if endpoint == nil {
+			return nil, nil, nil, fmt.Errorf("invalid ipv6 endpoint for this family: %s: %s", m[""][2], err)
+		}
+		nlri = bgp.NewIPv6SRTEPolicyNLRI(uint32(distinguisher), uint32(color), endpoint)
+	}
+
+	tunEncapAttr, err := parseSrTeTunnelEncapAttribute(m["segment-list"], m["preference"], m["binding-sid"])
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	extcomms := make([]string, 0)
+	if len(m["rt"]) > 0 {
+		extcomms = append(extcomms, "rt")
+		extcomms = append(extcomms, m["rt"]...)
+	}
+	if len(m["color"]) > 0 {
+		extcomms = append(extcomms, "color", m["color"][0])
+	}
+
+	return nlri, []bgp.PathAttributeInterface{tunEncapAttr}, extcomms, nil
+}
+
 func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	typ := bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	for idx, arg := range args {
@@ -1146,6 +1266,10 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = ParseEvpnArgs(args)
+	case bgp.RF_IPv4_SR_TE, bgp.RF_IPv6_SR_TE:
+		var srTeAttrs []bgp.PathAttributeInterface
+		nlri, srTeAttrs, extcomms, err = parseSrTePolicyArgs(rf, args)
+		attrs = append(attrs, srTeAttrs...)
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
 		nlri, extcomms, err = ParseFlowSpecArgs(rf, args)
 	case bgp.RF_OPAQUE:
@@ -1345,7 +1469,20 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
     <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
-    <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`, cmdstr, modtype)
+	<PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`, cmdstr, modtype)
+		srTeHelpMsg := fmt.Sprintf(`err: %s
+usage: %%s rib -a {ipv4-sr-te|ipv6-sr-te} %%s <DISTINGUISHER> <POLICY_COLOR> <ENDPOINT> segment-list <SEGMENT_LIST> [preference <DEC_NUM>] [binding-sid <SID>] [rt <RT>...] [color <COLOR>]
+    <DISTINGUISHER>: <DEC_NUM>
+    <POLICY_COLOR>:  <DEC_NUM>
+    <ENDPOINT>:      <IPv4 Address>, <IPv6 Address>
+    <SEGMENT-LIST>:  [weight <DEC_NUM>] {segment <SEGMENT>}...
+    <SEGMENT>:       <TYPE> <ARGS>...
+    <SID>:           <DEC_NUM>, <IPv6 Address>
+    <RT>:            xxx:yyy, xxx.xxx.xxx.xxx:yyy, xxxx::xxxx:yyy, xxx.xxx:yyy
+    <COLOR>:         [[C][O]:]<DEC_NUM>`,
+			err)
+		helpErrMap[bgp.RF_IPv4_SR_TE] = fmt.Errorf(srTeHelpMsg, cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_SR_TE] = fmt.Errorf(srTeHelpMsg, cmdstr, modtype)
 		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
