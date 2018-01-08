@@ -568,6 +568,7 @@ message Path {
   bool is_nexthop_invalid = 17;
   uint32 identifier = 18;
   uint32 local_identifier = 19;
+  uint32 igp_metric = 20;
 }
 
 message Destination {

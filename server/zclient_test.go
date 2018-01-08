@@ -42,7 +42,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 		SAFI:         zebra.SAFI(zebra.SAFI_UNICAST),
 		Prefix:       net.ParseIP("192.168.100.0"),
 		PrefixLength: uint8(24),
-		Nexthops:     []net.IP{net.ParseIP("0.0.0.0")},
+		Nexthops:     []net.IP{net.ParseIP("10.0.0.1")},
 		Ifindexs:     []uint32{1},
 		Distance:     uint8(0),
 		Metric:       uint32(100),
@@ -52,13 +52,17 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path := createPathFromIPRouteMessage(m)
+	path, states := createPathFromIPRouteMessage(m)
 	pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("0.0.0.0", pp.GetNexthop().String())
+	assert.Equal("10.0.0.1", pp.GetNexthop().String())
 	assert.Equal("192.168.100.0/24", pp.GetNlri().String())
 	assert.True(pp.IsFromExternal())
 	assert.False(pp.IsWithdraw)
+	assert.Equal(1, len(states))
+	assert.Equal("10.0.0.1", states[0].Address.String())
+	assert.Equal(false, states[0].IsUnreachable)
+	assert.Equal(uint32(100), states[0].IgpMetric)
 
 	// IPv4 Route Delete
 	h.Command = zebra.IPV4_ROUTE_DELETE
@@ -66,34 +70,35 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = createPathFromIPRouteMessage(m)
+	path, states = createPathFromIPRouteMessage(m)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("0.0.0.0", pp.GetNexthop().String())
+	assert.Equal("10.0.0.1", pp.GetNexthop().String())
 	assert.Equal("192.168.100.0/24", pp.GetNlri().String())
-	med, _ := pp.GetMed()
-	assert.Equal(uint32(100), med)
 	assert.True(pp.IsFromExternal())
 	assert.True(pp.IsWithdraw)
+	assert.Nil(states)
 
 	// IPv6 Route Add
 	h.Command = zebra.IPV6_ROUTE_ADD
 	b.Api = zebra.IPV6_ROUTE_ADD
 	b.Prefix = net.ParseIP("2001:db8:0:f101::")
 	b.PrefixLength = uint8(64)
-	b.Nexthops = []net.IP{net.ParseIP("::")}
+	b.Nexthops = []net.IP{net.ParseIP("2001:db8:1::1")}
 	m.Header = *h
 	m.Body = b
 
-	path = createPathFromIPRouteMessage(m)
+	path, states = createPathFromIPRouteMessage(m)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("::", pp.GetNexthop().String())
+	assert.Equal("2001:db8:1::1", pp.GetNexthop().String())
 	assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
-	med, _ = pp.GetMed()
-	assert.Equal(uint32(100), med)
 	assert.True(pp.IsFromExternal())
 	assert.False(pp.IsWithdraw)
+	assert.Equal(1, len(states))
+	assert.Equal("2001:db8:1::1", states[0].Address.String())
+	assert.Equal(false, states[0].IsUnreachable)
+	assert.Equal(uint32(100), states[0].IgpMetric)
 
 	// IPv6 Route Delete
 	h.Command = zebra.IPV6_ROUTE_DELETE
@@ -101,11 +106,12 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = createPathFromIPRouteMessage(m)
+	path, states = createPathFromIPRouteMessage(m)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("::", pp.GetNexthop().String())
+	assert.Equal("2001:db8:1::1", pp.GetNexthop().String())
 	assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
 	assert.True(pp.IsFromExternal())
 	assert.True(pp.IsWithdraw)
+	assert.Nil(states)
 }

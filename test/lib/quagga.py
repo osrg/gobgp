@@ -322,7 +322,7 @@ class QuaggaOSPFContainer(OSPFContainer):
 
         # Example:
         # ospfd_config = {
-        #     'redistribute_types': [
+        #     'redistributes': [
         #         'connected',
         #     ],
         #     'networks': {

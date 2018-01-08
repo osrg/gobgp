@@ -106,9 +106,10 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 }
 
 type TableManager struct {
-	Tables map[bgp.RouteFamily]*Table
-	Vrfs   map[string]*Vrf
-	rfList []bgp.RouteFamily
+	Tables   map[bgp.RouteFamily]*Table
+	Vrfs     map[string]*Vrf
+	rfList   []bgp.RouteFamily
+	nhStates *nexthopStateMap
 }
 
 func NewTableManager(rfList []bgp.RouteFamily) *TableManager {
@@ -217,6 +218,9 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 	for _, path := range pathList {
 		if path == nil || path.IsEOR() {
 			continue
+		}
+		if manager.nhStates != nil {
+			path.SetNexthopState(manager.nhStates.newNexthopState(path.GetNexthop()))
 		}
 		rf := path.GetRouteFamily()
 		if t, ok := manager.Tables[rf]; ok {
@@ -364,4 +368,19 @@ func (manager *TableManager) TableInfo(id string, family bgp.RouteFamily) (*Tabl
 		return nil, fmt.Errorf("address family %s is not configured", family)
 	}
 	return t.Info(id), nil
+}
+
+func (manager *TableManager) PopulateNexthopStateMap() error {
+	if manager.nhStates != nil {
+		return fmt.Errorf("nexthop state map already exists")
+	}
+	manager.nhStates = &nexthopStateMap{}
+	return nil
+}
+
+func (manager *TableManager) UpdateNexthopState(state *NexthopState) (bool, error) {
+	if manager.nhStates == nil {
+		return false, fmt.Errorf("nexthop state map does not exist")
+	}
+	return manager.nhStates.updateNexthopState(state)
 }

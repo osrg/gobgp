@@ -37,20 +37,24 @@ var (
 	columnWidthNextHop = 20
 	columnWidthAsPath  = 20
 	columnWidthLabel   = 10
+	columnWidthMetric  = 10
 )
 
-func updateColumnWidth(nlri, nexthop, aspath, label string) {
+func updateColumnWidth(nlri, nexthop, aspath, label, metric string) {
 	if prefixLen := len(nlri); columnWidthPrefix < prefixLen {
 		columnWidthPrefix = prefixLen
 	}
-	if columnWidthNextHop < len(nexthop) {
-		columnWidthNextHop = len(nexthop)
+	if nexthopLen := len(nexthop); columnWidthNextHop < nexthopLen {
+		columnWidthNextHop = nexthopLen
 	}
-	if columnWidthAsPath < len(aspath) {
-		columnWidthAsPath = len(aspath)
+	if asPathLen := len(aspath); columnWidthAsPath < asPathLen {
+		columnWidthAsPath = asPathLen
 	}
-	if columnWidthLabel < len(label) {
-		columnWidthLabel = len(label)
+	if labelLen := len(label); columnWidthLabel < labelLen {
+		columnWidthLabel = labelLen
+	}
+	if metricLen := len(metric); columnWidthMetric < metricLen {
+		columnWidthMetric = metricLen
 	}
 }
 
@@ -436,8 +440,9 @@ func getPathSymbolString(p *table.Path, idx int, showBest bool) string {
 	case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
 		symbols += "I"
 	}
+	nexthopState := p.GetNexthopState()
 	if showBest {
-		if idx == 0 && !p.IsNexthopInvalid {
+		if idx == 0 && !nexthopState.IsUnreachable {
 			symbols += "*>"
 		} else {
 			symbols += "* "
@@ -507,6 +512,13 @@ func makeShowRouteArgs(p *table.Path, idx int, now time.Time, showAge, showBest,
 	aspathstr := p.GetAsString()
 	args = append(args, aspathstr)
 
+	// Metric
+	metric := ""
+	if subOpts.ShowMetric {
+		metric = fmt.Sprintf("%d", p.GetNexthopState().IgpMetric)
+		args = append(args, metric)
+	}
+
 	// Age
 	if showAge {
 		args = append(args, formatTimedelta(int64(now.Sub(p.GetTimestamp()).Seconds())))
@@ -516,7 +528,7 @@ func makeShowRouteArgs(p *table.Path, idx int, now time.Time, showAge, showBest,
 	pattrstr := getPathAttributeString(p)
 	args = append(args, pattrstr)
 
-	updateColumnWidth(nlri.String(), nexthop, aspathstr, label)
+	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, metric)
 
 	return args
 }
@@ -546,6 +558,10 @@ func showRoute(destinationList [][]*table.Path, showAge, showBest, showLabel boo
 	}
 	headers = append(headers, "Next Hop", "AS_PATH")
 	format += fmt.Sprintf("%%-%ds %%-%ds ", columnWidthNextHop, columnWidthAsPath)
+	if subOpts.ShowMetric {
+		headers = append(headers, "Metric")
+		format += fmt.Sprintf("%%-%ds ", columnWidthMetric)
+	}
 	if showAge {
 		headers = append(headers, "Age")
 		format += "%-10s "

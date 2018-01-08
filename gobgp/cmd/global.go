@@ -1457,6 +1457,7 @@ func NewGlobalCmd() *cobra.Command {
 	}
 
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	ribCmd.PersistentFlags().BoolVarP(&subOpts.ShowMetric, "show-metric", "m", false, "show Metric column")
 
 	for _, v := range []string{CMD_ADD, CMD_DEL} {
 		cmd := &cobra.Command{

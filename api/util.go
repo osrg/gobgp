@@ -138,7 +138,11 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	if p.Filtered {
 		path.Filter("", table.POLICY_DIRECTION_IN)
 	}
-	path.IsNexthopInvalid = p.IsNexthopInvalid
+	path.SetNexthopState(&table.NexthopState{
+		Address:       path.GetNexthop(),
+		IsUnreachable: p.IsNexthopInvalid,
+		IgpMetric:     p.IgpMetric,
+	})
 	return path, nil
 }
 

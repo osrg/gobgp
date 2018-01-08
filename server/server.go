@@ -1147,6 +1147,12 @@ func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 		}
 		var err error
 		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay)
+		if err == nil && s.zclient.client.Version >= 3 {
+			if err := s.globalRib.PopulateNexthopStateMap(); err != nil {
+				s.zclient.stop()
+				return err
+			}
+		}
 		return err
 	}, false)
 }
@@ -1377,15 +1383,37 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 	}, true)
 }
 
+func (s *BgpServer) updatePath(vrfId string, pathList []*table.Path) error {
+	if err := s.fixupApiPath(vrfId, pathList); err != nil {
+		return err
+	}
+	dsts := s.globalRib.ProcessPaths(pathList)
+	gBestList, gOldList, gMPathList := dstsToPaths(table.GLOBAL_RIB_NAME, dsts, false)
+	s.notifyBestWatcher(gBestList, gMPathList)
+	s.propagateUpdateToNeighbors(nil, dsts, gBestList, gOldList)
+	return nil
+}
+
 func (s *BgpServer) UpdatePath(vrfId string, pathList []*table.Path) error {
 	err := s.mgmtOperation(func() error {
-		if err := s.fixupApiPath(vrfId, pathList); err != nil {
-			return err
+		return s.updatePath(vrfId, pathList)
+	}, true)
+	return err
+}
+
+func (s *BgpServer) UpdateNexthopState(states []*table.NexthopState, families []bgp.RouteFamily) error {
+	err := s.mgmtOperation(func() error {
+		var err error
+		var updated bool
+		for _, state := range states {
+			if updated, err = s.globalRib.UpdateNexthopState(state); err != nil {
+				return err
+			}
 		}
-		dsts := s.globalRib.ProcessPaths(pathList)
-		gBestList, gOldList, gMPathList := dstsToPaths(table.GLOBAL_RIB_NAME, dsts, false)
-		s.notifyBestWatcher(gBestList, gMPathList)
-		s.propagateUpdateToNeighbors(nil, dsts, gBestList, gOldList)
+		if updated {
+			pathList := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, families)
+			return s.updatePath("", pathList)
+		}
 		return nil
 	}, true)
 	return err

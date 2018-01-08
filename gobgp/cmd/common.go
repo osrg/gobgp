@@ -84,6 +84,7 @@ const (
 
 var subOpts struct {
 	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family"`
+	ShowMetric    bool   `short:"m" long:"show-metric" description:"show Metric column"`
 }
 
 var neighborsOpts struct {

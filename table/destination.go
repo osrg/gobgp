@@ -204,7 +204,7 @@ func (dd *Destination) GetKnownPathList(id string) []*Path {
 
 func getBestPath(id string, pathList *paths) *Path {
 	for _, p := range *pathList {
-		if p.Filtered(id) == POLICY_DIRECTION_NONE && !p.IsNexthopInvalid {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE && !p.GetNexthopState().IsUnreachable {
 			return p
 		}
 	}
@@ -219,7 +219,7 @@ func getMultiBestPath(id string, pathList *paths) []*Path {
 	list := make([]*Path, 0, len(*pathList))
 	var best *Path
 	for _, p := range *pathList {
-		if p.Filtered(id) == POLICY_DIRECTION_NONE && !p.IsNexthopInvalid {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE && !p.GetNexthopState().IsUnreachable {
 			if best == nil {
 				best = p
 				list = append(list, p)
@@ -261,7 +261,7 @@ func (dd *Destination) GetChanges(id string, peerDown bool) (*Path, *Path, []*Pa
 			}
 			// For BGP Nexthop Tracking, checks if the nexthop reachability
 			// was changed or not.
-			if best.IsNexthopInvalid != old.IsNexthopInvalid {
+			if best.GetNexthopState().IsUnreachable != old.GetNexthopState().IsUnreachable {
 				return best, old
 			}
 			return nil, old
@@ -510,7 +510,7 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 	if len(dest.knownPathList) == 1 {
 		// If the first path has the invalidated next-hop, which evaluated by
 		// IGP, returns no path with the reason of the next-hop reachability.
-		if dest.knownPathList[0].IsNexthopInvalid {
+		if dest.knownPathList[0].GetNexthopState().IsUnreachable {
 			return nil, BPR_REACHABLE_NEXT_HOP, nil
 		}
 		return dest.knownPathList[0], BPR_ONLY_PATH, nil
@@ -519,7 +519,7 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 	newBest := dest.knownPathList[0]
 	// If the first path has the invalidated next-hop, which evaluated by IGP,
 	// returns no path with the reason of the next-hop reachability.
-	if dest.knownPathList[0].IsNexthopInvalid {
+	if dest.knownPathList[0].GetNexthopState().IsUnreachable {
 		return nil, BPR_REACHABLE_NEXT_HOP, nil
 	}
 	return newBest, newBest.reason, nil
@@ -656,20 +656,21 @@ func compareByLLGRStaleCommunity(path1, path2 *Path) *Path {
 }
 
 func compareByReachableNexthop(path1, path2 *Path) *Path {
-	//	Compares given paths and selects best path based on reachable next-hop.
+	// Compares given paths and selects best path based on reachability to nexthop.
 	//
-	//	If no path matches this criteria, return nil.
-	//	For BGP Nexthop Tracking, evaluates next-hop is validated by IGP.
+	// If no path matches this criteria, return nil.
+	isReachable1 := !path1.GetNexthopState().IsUnreachable
+	isReachable2 := !path2.GetNexthopState().IsUnreachable
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debugf("enter compareByReachableNexthop -- path1: %s, path2: %s", path1, path2)
+	}).Debugf("enter compareByReachableNexthop -- isReachable1: %s, isReachable2: %s", isReachable1, isReachable2)
 
-	if path1.IsNexthopInvalid && !path2.IsNexthopInvalid {
+	if isReachable1 != isReachable2 {
+		if isReachable1 {
+			return path1
+		}
 		return path2
-	} else if !path1.IsNexthopInvalid && path2.IsNexthopInvalid {
-		return path1
 	}
-
 	return nil
 }
 
@@ -910,13 +911,29 @@ func compareByASNumber(path1, path2 *Path) *Path {
 }
 
 func compareByIGPCost(path1, path2 *Path) *Path {
-	//	Select the route with the lowest IGP cost to the next hop.
+	// Select the path with the lowest IGP cost to the nexthop.
+	// Currently, determine the IGP metric as the IGP cost.
 	//
-	//	Return None if igp cost is same.
-	// Currently BGPS has no concept of IGP and IGP cost.
+	// Return nil if IGP cost is same.
+	if SelectionOptions.IgnoreNextHopIgpMetric {
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Debug("compareByIGPCost -- skip")
+		return nil
+	}
+
+	state1 := path1.GetNexthopState()
+	state2 := path2.GetNexthopState()
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debugf("enter compareByIGPCost -- path1: %v, path2: %v", path1, path2)
+	}).Debugf("compareByIGPCost -- metric1: %d, metric2: %d", state1.IgpMetric, state2.IgpMetric)
+
+	if state1.IgpMetric != state2.IgpMetric {
+		if state1.IgpMetric < state2.IgpMetric {
+			return path1
+		}
+		return path2
+	}
 	return nil
 }
 
