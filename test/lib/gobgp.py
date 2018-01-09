@@ -341,14 +341,14 @@ class GoBGPContainer(BGPContainer):
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             if info['interface'] != '':
-                afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
-                afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-unicast'}})
             else:
                 version = netaddr.IPNetwork(info['neigh_addr']).version
                 if version == 4:
-                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                    afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
                 elif version == 6:
-                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                    afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-unicast'}})
                 else:
                     Exception('invalid ip address version. {0}'.format(version))
 
@@ -433,9 +433,8 @@ class GoBGPContainer(BGPContainer):
                                                    'route-reflector-cluster-id': cluster_id}}
 
             if info['addpath']:
-                n['add-paths'] = {'config' : {'receive': True,
-                                              'send-max': 16}}
-
+                n['add-paths'] = {'config': {'receive': True,
+                                             'send-max': 16}}
 
             if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
                 n['apply-policy'] = {'config': {}}
@@ -504,6 +503,7 @@ class GoBGPContainer(BGPContainer):
         c << 'debug zebra packet'
         c << 'debug zebra kernel'
         c << 'debug zebra rib'
+        c << 'ipv6 forwarding'
         c << ''
 
         with open('{0}/zebra.conf'.format(self.quagga_config_dir), 'w') as f:

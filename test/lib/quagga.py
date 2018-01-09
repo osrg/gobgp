@@ -243,6 +243,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'debug zebra packet'
         c << 'debug zebra kernel'
         c << 'debug zebra rib'
+        c << 'ipv6 forwarding'
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
@@ -356,6 +357,7 @@ class QuaggaOSPFContainer(OSPFContainer):
         c << 'debug zebra packet'
         c << 'debug zebra kernel'
         c << 'debug zebra rib'
+        c << 'ipv6 forwarding'
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
