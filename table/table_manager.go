@@ -179,6 +179,13 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
+func (manager *TableManager) GetVrf(name string) (*Vrf, error) {
+    if vrf, ok := manager.Vrfs[name]; ok {
+        return vrf, nil
+    }
+    return nil, fmt.Errorf("vrf %s not found", name)
+}
+
 func (manager *TableManager) calculate(dsts []*Destination) []*Destination {
 	emptyDsts := make([]*Destination, 0, len(dsts))
 	clonedDsts := make([]*Destination, 0, len(dsts))
