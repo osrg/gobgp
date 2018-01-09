@@ -169,6 +169,17 @@ class Bridge(object):
             try_several_times(lambda: local("ip addr add {0} dev {1}".format(self.ip_addr, self.name)))
         self.ctns = []
 
+        # Note: Here removes routes from the container host to prevent traffic
+        # from going through the container host's routing table.
+        if with_ip:
+            local('ip route del {0}; echo $?'.format(subnet),
+                  capture=True)
+            # When IPv6, 2 routes will be installed to the container host's
+            # routing table.
+            if self.subnet.version == 6:
+                local('ip -6 route del {0}; echo $?'.format(subnet),
+                      capture=True)
+
     def next_ip_address(self):
         return "{0}/{1}".format(self._ip_generator.next(),
                                 self.subnet.prefixlen)
@@ -508,11 +519,11 @@ class BGPContainer(Container):
 
     def add_static_route(self, network, next_hop):
         cmd = '/sbin/ip route add {0} via {1}'.format(network, next_hop)
-        self.local(cmd)
+        self.local(cmd, capture=True)
 
     def set_ipv6_forward(self):
         cmd = 'sysctl -w net.ipv6.conf.all.forwarding=1'
-        self.local(cmd)
+        self.local(cmd, capture=True)
 
     def create_config(self):
         raise Exception('implement create_config() method')
