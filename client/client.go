@@ -993,9 +993,10 @@ func (c *MonitorNeighborStateClient) Recv() (*config.Neighbor, error) {
 	return api.NewNeighborFromAPIStruct(p)
 }
 
-func (cli *Client) MonitorNeighborState(name string) (*MonitorNeighborStateClient, error) {
+func (cli *Client) MonitorNeighborState(name string, current bool) (*MonitorNeighborStateClient, error) {
 	stream, err := cli.cli.MonitorPeerState(context.Background(), &api.Arguments{
-		Name: name,
+		Name:    name,
+		Current: current,
 	})
 	if err != nil {
 		return nil, err
