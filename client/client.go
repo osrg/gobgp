@@ -993,14 +993,7 @@ func (c *MonitorNeighborStateClient) Recv() (*config.Neighbor, error) {
 	return api.NewNeighborFromAPIStruct(p)
 }
 
-func (cli *Client) MonitorNeighborState(names ...string) (*MonitorNeighborStateClient, error) {
-	if len(names) > 1 {
-		return nil, fmt.Errorf("support one name at most: %d", len(names))
-	}
-	name := ""
-	if len(names) > 0 {
-		name = names[0]
-	}
+func (cli *Client) MonitorNeighborState(name string) (*MonitorNeighborStateClient, error) {
 	stream, err := cli.cli.MonitorPeerState(context.Background(), &api.Arguments{
 		Name: name,
 	})

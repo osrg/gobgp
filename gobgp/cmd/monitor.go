@@ -21,9 +21,10 @@ import (
 	"io"
 	"net"
 
+	"github.com/spf13/cobra"
+
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	"github.com/spf13/cobra"
 )
 
 func makeMonitorRouteArgs(p *table.Path, showIdentifier bgp.BGPAddPathMode) []interface{} {
@@ -122,9 +123,14 @@ func NewMonitorCmd() *cobra.Command {
 	globalCmd.AddCommand(ribCmd)
 
 	neighborCmd := &cobra.Command{
-		Use: CMD_NEIGHBOR,
+		Use:  fmt.Sprintf("%s [<neighbor address>]", CMD_NEIGHBOR),
+		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			stream, err := client.MonitorNeighborState(args...)
+			name := ""
+			if len(args) > 0 {
+				name = args[0]
+			}
+			stream, err := client.MonitorNeighborState(name)
 			if err != nil {
 				exitWithError(err)
 			}
