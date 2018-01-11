@@ -612,7 +612,7 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 		return fmt.Errorf("invalid request")
 	}
 	return func() error {
-		w := s.bgpServer.Watch(server.WatchPeerState(false))
+		w := s.bgpServer.Watch(server.WatchPeerState(arg.Current))
 		defer func() { w.Stop() }()
 
 		for {
