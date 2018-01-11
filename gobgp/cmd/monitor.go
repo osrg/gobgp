@@ -115,7 +115,6 @@ func NewMonitorCmd() *cobra.Command {
 		},
 	}
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
-	ribCmd.PersistentFlags().BoolVarP(&current, "current", "", false, "dump current contents")
 
 	globalCmd := &cobra.Command{
 		Use: CMD_GLOBAL,
@@ -130,7 +129,7 @@ func NewMonitorCmd() *cobra.Command {
 			if len(args) > 0 {
 				name = args[0]
 			}
-			stream, err := client.MonitorNeighborState(name)
+			stream, err := client.MonitorNeighborState(name, current)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -178,7 +177,6 @@ func NewMonitorCmd() *cobra.Command {
 		},
 	}
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
-	adjInCmd.PersistentFlags().BoolVarP(&current, "current", "", false, "dump current contents")
 
 	monitorCmd := &cobra.Command{
 		Use: CMD_MONITOR,
@@ -186,6 +184,8 @@ func NewMonitorCmd() *cobra.Command {
 	monitorCmd.AddCommand(globalCmd)
 	monitorCmd.AddCommand(neighborCmd)
 	monitorCmd.AddCommand(adjInCmd)
+
+	monitorCmd.PersistentFlags().BoolVarP(&current, "current", "", false, "dump current contents")
 
 	return monitorCmd
 }
