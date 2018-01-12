@@ -46,10 +46,16 @@ matrix:
     - go: tip
   include:
     - <<: *_unittest
+      env:
+        - DESCRIPTION="Unit Tests"
       go: tip
     - <<: *_unittest
+      env:
+        - DESCRIPTION="Unit Tests"
       go: 1.8
     - <<: *_unittest
+      env:
+        - DESCRIPTION="Unit Tests + goreleaser"
       go: 1.9
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
@@ -87,10 +93,16 @@ matrix:
 # Misc
 #
     - <<: *_dep_ensure
+      env:
+        - DESCRIPTION="go fmt"
       script: test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
     - <<: *_dep_ensure
+      env:
+        - DESCRIPTION="go vet"
       script: test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
     - <<: *_dep_ensure
+      env:
+        - DESCRIPTION="build_embeded_go.py"
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 #
 # Docker
@@ -177,6 +189,8 @@ matrix:
 # Tools
 #
     - <<: *_python
+      env:
+        - DESCRIPTION="Tools"
       install: pip install scspell3k
       script:
         - bash tools/spell-check/scspell.sh
