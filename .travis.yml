@@ -174,11 +174,13 @@ matrix:
       env:
         - TEST=bgp_confederation_test.py
 #
-# Spell Check
+# Tools
 #
     - <<: *_python
       install: pip install scspell3k
-      script: bash tools/spell-check/scspell.sh
+      script:
+        - bash tools/spell-check/scspell.sh
+        - bash tools/grep_avoided_functions.sh
 
 cache:
   pip: true
