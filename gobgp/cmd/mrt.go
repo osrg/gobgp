@@ -40,7 +40,7 @@ func injectMrt() error {
 		fmt.Println("You should probably specify either --no-ipv4 or --no-ipv6 when overwriting nexthop, unless your dump contains only one type of routes")
 	}
 
-	idx := 0
+	var idx int64
 	if mrtOpts.QueueSize < 1 {
 		return fmt.Errorf("Specified queue size is smaller than 1, refusing to run with unbounded memory usage")
 	}
@@ -195,12 +195,12 @@ func NewMrtCmd() *cobra.Command {
 			mrtOpts.Filename = args[0]
 			if len(args) > 1 {
 				var err error
-				mrtOpts.RecordCount, err = strconv.Atoi(args[1])
+				mrtOpts.RecordCount, err = strconv.ParseInt(args[1], 10, 64)
 				if err != nil {
 					exitWithError(fmt.Errorf("invalid count value: %s", args[1]))
 				}
 				if len(args) > 2 {
-					mrtOpts.RecordSkip, err = strconv.Atoi(args[2])
+					mrtOpts.RecordSkip, err = strconv.ParseInt(args[2], 10, 64)
 					if err != nil {
 						exitWithError(fmt.Errorf("invalid skip value: %s", args[2]))
 					}
