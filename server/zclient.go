@@ -17,15 +17,17 @@ package server
 
 import (
 	"fmt"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
-	"github.com/osrg/gobgp/zebra"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
+	"github.com/osrg/gobgp/zebra"
 )
 
 type pathList []*table.Path
@@ -249,7 +251,7 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		return nil, false
 	}
 	msgFlags := zebra.MESSAGE_NEXTHOP
-	plen, _ := strconv.Atoi(l[1])
+	plen, _ := strconv.ParseUint(l[1], 10, 8)
 	med, err := path.GetMed()
 	if err == nil {
 		msgFlags |= zebra.MESSAGE_METRIC

@@ -818,7 +818,9 @@ func (cli *Client) GetRPKI() ([]*config.RpkiServer, error) {
 	}
 	servers := make([]*config.RpkiServer, 0, len(rsp.Servers))
 	for _, s := range rsp.Servers {
-		port, err := strconv.Atoi(s.Conf.RemotePort)
+		// Note: RpkiServerConfig.Port is uint32 type, but the TCP/UDP port is
+		// 16-bit length.
+		port, err := strconv.ParseUint(s.Conf.RemotePort, 10, 16)
 		if err != nil {
 			return nil, err
 		}
