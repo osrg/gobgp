@@ -10,6 +10,10 @@ different routing protocols. GoBGP uses zebra included in
 Assume you finished [Getting Started](getting-started.md)
 and installing Quagga or FRRouting on the same host with GoBGP.
 
+**Note:** For the integration with FRRouting, ONLY version 3.0.x is supported,
+because the API (using Zebra protocol) of FRRouging is updated so fast and its
+backward compatibility is not been kept.
+
 ## Contents
 
 - [Configuration](#configuration)
