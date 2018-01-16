@@ -30,6 +30,7 @@ import yaml
 import collections
 
 from lib.base import (
+    wait_for_completion,
     BGPContainer,
     CmdBuffer,
     BGP_ATTR_TYPE_AS_PATH,
@@ -131,6 +132,28 @@ class GoBGPContainer(BGPContainer):
         cmd = '{0} -f {1}/ospfd.conf'.format(daemon_bin, self.QUAGGA_VOLUME)
         self.local(cmd, detach=True)
 
+    def _get_enabled_quagga_daemons(self):
+        daemons = []
+        if self.zebra:
+            daemons.append('zebra')
+            if self.ospfd_config:
+                daemons.append('ospfd')
+        return daemons
+
+    def _wait_for_boot(self):
+        def _f_gobgp():
+            ret = self.local('gobgp global > /dev/null 2>&1; echo $?', capture=True)
+            return ret == '0'
+
+        for daemon in self._get_enabled_quagga_daemons():
+            def _f_quagga():
+                ret = self.local("vtysh -d {0} -c 'show run' > /dev/null 2>&1; echo $?".format(daemon), capture=True)
+                return ret == '0'
+
+            wait_for_completion(_f_quagga)
+
+        wait_for_completion(_f_gobgp)
+
     def run(self):
         super(GoBGPContainer, self).run()
         if self.zebra:
@@ -138,6 +161,7 @@ class GoBGPContainer(BGPContainer):
             if self.ospfd_config:
                 self._start_ospfd()
         self._start_gobgp()
+        self._wait_for_boot()
         return self.WAIT_FOR_BOOT
 
     @staticmethod
@@ -529,14 +553,10 @@ class GoBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def reload_config(self):
-        daemon = ['gobgpd']
-        if self.zebra:
-            daemon.append('zebra')
-            if self.ospfd_config:
-                daemon.append('ospfd')
-        for d in daemon:
-            cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
-            self.local(cmd)
+        for daemon in self._get_enabled_quagga_daemons():
+            self.local('pkill {0} -SIGHUP'.format(daemon), capture=True)
+        self.local('pkill gobgpd -SIGHUP', capture=True)
+        self._wait_for_boot()
         for v in chain.from_iterable(self.routes.itervalues()):
             if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
                 r = CmdBuffer(' ')
