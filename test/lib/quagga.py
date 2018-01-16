@@ -22,6 +22,7 @@ from itertools import chain
 import netaddr
 
 from lib.base import (
+    wait_for_completion,
     BGPContainer,
     OSPFContainer,
     CmdBuffer,
@@ -56,8 +57,23 @@ class QuaggaBGPContainer(BGPContainer):
         # }
         self.bgpd_config = bgpd_config or {}
 
+    def _get_enabled_daemons(self):
+        daemons = ['bgpd']
+        if self.zebra:
+            daemons.append('zebra')
+        return daemons
+
+    def _wait_for_boot(self):
+        for daemon in self._get_enabled_daemons():
+            def _f():
+                ret = self.local("vtysh -d {0} -c 'show run' > /dev/null 2>&1; echo $?".format(daemon), capture=True)
+                return ret == '0'
+
+            wait_for_completion(_f)
+
     def run(self):
         super(QuaggaBGPContainer, self).run()
+        self._wait_for_boot()
         return self.WAIT_FOR_BOOT
 
     def get_global_rib(self, prefix='', rf='ipv4'):
@@ -261,12 +277,9 @@ class QuaggaBGPContainer(BGPContainer):
             return self.local("vtysh -d bgpd {0}".format(cmd), capture=True)
 
     def reload_config(self):
-        daemon = ['bgpd']
-        if self.zebra:
-            daemon.append('zebra')
-        for d in daemon:
-            cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
-            self.local(cmd, capture=True)
+        for daemon in self._get_enabled_daemons():
+            self.local('pkill {0} -SIGHUP'.format(daemon), capture=True)
+        self._wait_for_boot()
 
 
 class RawQuaggaBGPContainer(QuaggaBGPContainer):

@@ -18,7 +18,6 @@ from __future__ import print_function
 
 import json
 import os
-import time
 
 from fabric import colors
 from fabric.api import local
@@ -29,6 +28,7 @@ from lib.base import (
     BGPContainer,
     CmdBuffer,
     try_several_times,
+    wait_for_completion,
 )
 
 
@@ -55,11 +55,17 @@ class YABGPContainer(BGPContainer):
             ' --config-file {0}/yabgp.ini'.format(self.SHARED_VOLUME),
             detach=True)
 
+    def _wait_for_boot(self):
+        return wait_for_completion(self._curl_is_running)
+
     def run(self):
         super(YABGPContainer, self).run()
         # self.create_config() is called in super class
         self._copy_helper_app()
-        self._start_yabgp()
+        # To start YABGP, it is required to configure neighbor settings, so
+        # here does not start YABGP yet.
+        # self._start_yabgp()
+        # self._wait_for_boot()
         return self.WAIT_FOR_BOOT
 
     def create_config(self):
@@ -108,11 +114,20 @@ class YABGPContainer(BGPContainer):
                 self.local('/usr/bin/pkill -9 python')
 
             self._start_yabgp()
-            time.sleep(self.WAIT_FOR_BOOT)
+            self._wait_for_boot()
             if not _is_running():
                 raise RuntimeError()
 
         try_several_times(_reload)
+
+    def _curl_is_running(self):
+        c = CmdBuffer(' ')
+        c << "curl -X GET"
+        c << "-u admin:admin"
+        c << "-H 'Content-Type: application/json'"
+        c << "http://localhost:8801/v1/"
+        c << "> /dev/null 2>&1; echo $?"
+        return self.local(str(c), capture=True) == '0'
 
     def _curl_send_update(self, path, peer):
         c = CmdBuffer(' ')
