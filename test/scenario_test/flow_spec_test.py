@@ -72,13 +72,13 @@ class FlowSpecTest(unittest.TestCase):
             matchs=[
                 'destination 11.1.0.0/24',
                 'source 11.2.0.0/24',
-                "protocol '==tcp &=udp icmp >igmp >=egp <igp <=rsvp !=gre'",
+                "protocol '==tcp &=udp icmp >igmp >=egp <ipip <=rsvp !=gre'",
                 "port '==80 &=90 8080 >9090 >=8180 <9190 <=8081 !=9091 &!443'",
                 'destination-port 80',
                 'source-port 8080',
-                'icmp-type 1',
+                'icmp-type 0',
                 'icmp-code 2',
-                "tcp-flags '==S &=SA A !F !=U =!C'",
+                "tcp-flags '==S &=SA A !F !=U =!R'",
                 'packet-length 100',
                 'dscp 12',
                 'fragment dont-fragment is-fragment+first-fragment',
@@ -104,19 +104,31 @@ class FlowSpecTest(unittest.TestCase):
 
         # Add FlowSpec routes into ExaBGP.
         cls.e1.add_route(
-            route='ipv4/dst/src',
+            route='ipv4/all',
             rf='ipv4-flowspec',
             matchs=[
                 'destination 12.1.0.0/24',
                 'source 12.2.0.0/24',
+                'protocol =tcp',
+                'port >=80',
+                'destination-port >5000',
+                'source-port 8080',
+                'icmp-type <1',
+                'icmp-code <=2',
+                "tcp-flags FIN",
+                'packet-length >100&<200',
+                'dscp 12',
+                'fragment dont-fragment',
             ],
             thens=['discard'])
         cls.e1.add_route(
-            route='ipv6/dst/src',
+            route='ipv6/dst/src/protocol/label',  # others are tested on IPv4
             rf='ipv6-flowspec',
             matchs=[
                 'destination 2002:1::/64/10',
                 'source 2002:2::/64/15',
+                'next-header udp',
+                'flow-label >100',
             ],
             thens=['discard'])
 
@@ -150,7 +162,57 @@ class FlowSpecTest(unittest.TestCase):
         #     ],
         #     thens=['traffic-rate:0:0'])  # 'discard'
 
-    def test_01_ipv4_yabgp_adj_rib_in(self):
+    def test_01_ipv4_exabgp_adj_rib_in(self):
+        rib = self.e1.get_adj_rib_in(self.g1, rf='ipv4-flowspec')
+        self.assertEqual(1, len(rib))
+        nlri = list(rib)[0]  # advertised from G1(GoBGP)
+        _exp_fmt = (
+            # INPUTS:
+            # 'destination 11.1.0.0/24',
+            "destination-ipv4 11.1.0.0/24 "
+            # 'source 11.2.0.0/24',
+            "source-ipv4 11.2.0.0/24 "
+            # "protocol '==tcp &=udp icmp >igmp >=egp <ipip <=rsvp !=gre'",
+            "protocol [ =tcp&=udp =icmp >igmp >=egp <ipip <=rsvp !=gre ] "
+            # "port '==80 &=90 8080 >9090 >=8180 <9190 <=8081 !=9091 &!443'",
+            "port [ =80&=90 =8080 >9090 >=8180 <9190 <=8081 !=9091&!=443 ] "
+            # 'destination-port 80',
+            "destination-port =80 "
+            # 'source-port 8080',
+            "source-port =8080 "
+            # 'icmp-type 0',
+            "icmp-type =echo-reply "
+            # 'icmp-code 2',
+            "icmp-code =2 "
+            # "tcp-flags '==S &=SA A !F !=U =!R'",
+            "tcp-flags [ =syn&=%s ack !fin !=urgent !=rst ] "
+            # 'packet-length 100',
+            "packet-length =100 "
+            # 'dscp 12',
+            "dscp =12 "
+            # 'fragment dont-fragment is-fragment+first-fragment',
+            "fragment [ dont-fragment is-fragment+first-fragment ]"
+        )
+        # Note: Considers variants of SYN + ACK
+        expected_list = (_exp_fmt % 'syn+ack', _exp_fmt % 'ack+syn')
+        self.assertIn(nlri, expected_list)
+
+    def test_02_ipv6_exabgp_adj_rib_in(self):
+        rib = self.e1.get_adj_rib_in(self.g1, rf='ipv6-flowspec')
+        self.assertEqual(1, len(rib))
+        nlri = list(rib)[0]  # advertised from G1(GoBGP)
+        expected = (
+            # INPUTS:
+            # 'destination 2001:1::/64 10',
+            "destination-ipv6 2001:1::/64/10 "
+            # 'source 2001:2::/64 15',
+            "source-ipv6 2001:2::/64/15 "
+            # 'label 12',
+            "flow-label =12"
+        )
+        self.assertEqual(expected, nlri)
+
+    def test_03_ipv4_yabgp_adj_rib_in(self):
         rib = self.y1.get_adj_rib_in(peer=self.g1, rf='flowspec')
         self.assertEqual(1, len(rib))
         nlri = list(rib)[0]  # advertised from G1(GoBGP)
@@ -160,20 +222,20 @@ class FlowSpecTest(unittest.TestCase):
             '{"1": "11.1.0.0/24",'
             # 'source 11.2.0.0/24',
             ' "2": "11.2.0.0/24",'
-            # "protocol '==tcp &=udp icmp >igmp >=egp <igp <=rsvp !=gre'",
-            ' "3": "=6&=17|=1|>2|>=8|<9|<=46|><47",'
+            # "protocol '==tcp &=udp icmp >igmp >=egp <ipip <=rsvp !=gre'",
+            ' "3": "=6&=17|=1|>2|>=8|<94|<=46|><47",'
             # "port '==80 &=90 8080 >9090 >=8180 <9190 <=8081 !=9091 &!443'",
             ' "4": "=80&=90|=8080|>9090|>=8180|<9190|<=8081|><9091&><443",'
             # 'destination-port 80',
             ' "5": "=80",'
             # 'source-port 8080',
             ' "6": "=8080",'
-            # 'icmp-type 1',
-            ' "7": "=1",'
+            # 'icmp-type 0',
+            ' "7": "=0",'
             # 'icmp-code 2',
             ' "8": "=2",'
-            # "tcp-flags '==S &=SA A !F !=U =!C'",
-            ' "9": "=2&=18|16|>1|>=32|>=128",'
+            # "tcp-flags '==S &=SA A !F !=U =!R'",
+            ' "9": "=2&=18|16|>1|>=32|>=4",'
             # 'packet-length 100',
             ' "10": "=100",'
             # 'dscp 12',
@@ -183,43 +245,67 @@ class FlowSpecTest(unittest.TestCase):
         )
         self.assertEqual(expected, nlri)
 
-    def test_02_ipv4_gobgp_global_rib(self):
+    def test_04_ipv6_yabgp_adj_rib_in(self):
+        # IPv6 FlowSpec: not supported with YABGP v0.4.0
+        pass
+
+    def test_05_ipv4_gobgp_global_rib(self):
         rib = self.g1.get_global_rib(rf='ipv4-flowspec')
         self.assertEqual(3, len(rib))
         output_nlri_list = [r['prefix'] for r in rib]
-        nlri_e1 = (
-            # INPUTS:
-            # 'destination 12.1.0.0/24',
-            "[destination: 12.1.0.0/24]"
-            # 'source 12.2.0.0/24',
-            "[source: 12.2.0.0/24]"
-        )
         nlri_g1 = (
             # INPUTS:
             # 'destination 11.1.0.0/24',
             "[destination: 11.1.0.0/24]"
             # 'source 11.2.0.0/24',
             "[source: 11.2.0.0/24]"
-            # "protocol '==tcp &=udp icmp >igmp >=egp <igp <=rsvp !=gre'",
-            "[protocol: ==tcp&==udp ==icmp >igmp >=egp <igp <=rsvp !=gre]"
+            # "protocol '==tcp &=udp icmp >igmp >=egp <ipip <=rsvp !=gre'",
+            "[protocol: ==tcp&==udp ==icmp >igmp >=egp <ipip <=rsvp !=gre]"
             # "port '==80 &=90 8080 >9090 >=8180 <9190 <=8081 !=9091 &!443'",
             "[port: ==80&==90 ==8080 >9090 >=8180 <9190 <=8081 !=9091&!=443]"
             # 'destination-port 80',
             "[destination-port: ==80]"
             # 'source-port 8080',
             "[source-port: ==8080]"
-            # 'icmp-type 1',
-            "[icmp-type: ==1]"
+            # 'icmp-type 0',
+            "[icmp-type: ==0]"
             # 'icmp-code 2',
             "[icmp-code: ==2]"
-            # "tcp-flags '==S &=SA A !F !=U =!C'",
-            "[tcp-flags: =S&=SA A !F !=U !=C]"
+            # "tcp-flags '==S &=SA A !F !=U =!R'",
+            "[tcp-flags: =S&=SA A !F !=U !=R]"
             # 'packet-length 100',
             "[packet-length: ==100]"
             # 'dscp 12',
             "[dscp: ==12]"
             # 'fragment dont-fragment is-fragment+first-fragment',
             "[fragment: dont-fragment is-fragment+first-fragment]"
+        )
+        nlri_e1 = (
+            # INPUTS:
+            # 'destination 12.1.0.0/24',
+            '[destination: 12.1.0.0/24]'
+            # 'source 12.2.0.0/24',
+            '[source: 12.2.0.0/24]'
+            # 'protocol =tcp',
+            '[protocol: ==tcp]'
+            # 'port >=80',
+            '[port: >=80]'
+            # 'destination-port >5000',
+            '[destination-port: >5000]'
+            # 'source-port 8080',
+            '[source-port: ==8080]'
+            # 'icmp-type <1',
+            '[icmp-type: <1]'
+            # 'icmp-code <=2',
+            '[icmp-code: <=2]'
+            # "tcp-flags FIN",
+            '[tcp-flags: F]'
+            # 'packet-length >100&<200',
+            '[packet-length: >100&<200]'
+            # 'dscp 12',
+            '[dscp: ==12]'
+            # 'fragment dont-fragment',
+            '[fragment: dont-fragment]'
         )
         nlri_y1 = (
             # INPUTS:
@@ -242,20 +328,14 @@ class FlowSpecTest(unittest.TestCase):
             # 'dscp =12',
             "[dscp: ==12]"
         )
-        for nlri in [nlri_e1, nlri_g1, nlri_y1]:
+        for nlri in [nlri_g1, nlri_e1, nlri_y1]:
             self.assertIn(nlri, output_nlri_list)
 
-    def test_03_ipv6_gobgp_global_rib(self):
+    def test_06_ipv6_gobgp_global_rib(self):
         rib = self.g1.get_global_rib(rf='ipv6-flowspec')
-        self.assertEqual(2, len(rib))
+        import json
+        self.assertEqual(2, len(rib), json.dumps(rib))
         output_nlri_list = [r['prefix'] for r in rib]
-        nlri_e1 = (
-            # INPUTS:
-            # 'destination 2002:1::/64/10',
-            "[destination: 2002:1::/64/10]"
-            # 'source 2002:2::/64/15',
-            "[source: 2002:2::/64/15]"
-        )
         nlri_g1 = (
             # INPUTS:
             # 'destination 2001:1::/64 10',
@@ -265,10 +345,37 @@ class FlowSpecTest(unittest.TestCase):
             # 'label 12',
             "[label: ==12]"
         )
-        for nlri in [nlri_e1, nlri_g1]:
+        nlri_e1 = (
+            # INPUTS:
+            # 'destination 2002:1::/64/10',
+            '[destination: 2002:1::/64/10]'
+            # 'source 2002:2::/64/15',
+            '[source: 2002:2::/64/15]'
+            # 'next-header udp',
+            '[protocol: ==udp]'
+            # 'flow-label >100',
+            '[label: >100]'
+        )
+        for nlri in [nlri_g1, nlri_e1]:
             self.assertIn(nlri, output_nlri_list)
 
-    def test_04_ipv4_yabgp_delete_route(self):
+    def test_07_ipv4_exabgp_delete_route(self):
+        # Delete a route on E1(ExaBGP)
+        self.e1.del_route(route='ipv4/all')
+        time.sleep(1)
+        # Test if the route is deleted or not
+        rib = self.g1.get_adj_rib_in(peer=self.e1, rf='ipv4-flowspec')
+        self.assertEqual(0, len(rib))
+
+    def test_08_ipv6_exabgp_delete_route(self):
+        # Delete a route on E1(ExaBGP)
+        self.e1.del_route(route='ipv6/dst/src/protocol/label')
+        time.sleep(1)
+        # Test if the route is deleted or not
+        rib = self.g1.get_adj_rib_in(peer=self.e1, rf='ipv6-flowspec')
+        self.assertEqual(0, len(rib))
+
+    def test_09_ipv4_yabgp_delete_route(self):
         # Delete a route on Y1(YABGP)
         self.y1.del_route(route='ipv4/all')
         time.sleep(1)
@@ -276,13 +383,29 @@ class FlowSpecTest(unittest.TestCase):
         rib = self.g1.get_adj_rib_in(peer=self.y1, rf='ipv4-flowspec')
         self.assertEqual(0, len(rib))
 
-    def test_05_ipv4_gobgp_delete_route(self):
+    def test_10_ipv6_yabgp_delete_route(self):
+        # IPv6 FlowSpec: not supported with YABGP v0.4.0
+        pass
+
+    def test_11_ipv4_gobgp_delete_route(self):
         # Delete a route on G1(GoBGP)
         self.g1.del_route(route='ipv4/all')
         time.sleep(1)
         # Test if the route is deleted or not
-        rib = self.y1.get_adj_rib_in(peer=self.g1, rf='ipv4-flowspec')
-        self.assertEqual(0, len(rib))
+        rib_e1 = self.e1.get_adj_rib_in(peer=self.g1, rf='ipv4-flowspec')
+        self.assertEqual(0, len(rib_e1))
+        rib_y1 = self.y1.get_adj_rib_in(peer=self.g1, rf='ipv4-flowspec')
+        self.assertEqual(0, len(rib_y1))
+
+    def test_12_ipv6_gobgp_delete_route(self):
+        # Delete a route on G1(GoBGP)
+        self.g1.del_route(route='ipv6/dst/src/label')
+        time.sleep(1)
+        # Test if the route is deleted or not
+        rib_e1 = self.e1.get_adj_rib_in(peer=self.g1, rf='ipv6-flowspec')
+        self.assertEqual(0, len(rib_e1))
+        rib_y1 = self.y1.get_adj_rib_in(peer=self.g1, rf='ipv6-flowspec')
+        self.assertEqual(0, len(rib_y1))
 
 
 if __name__ == '__main__':
