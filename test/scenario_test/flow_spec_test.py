@@ -65,26 +65,6 @@ class FlowSpecTest(unittest.TestCase):
         initial_wait_time = max(ctn.run() for ctn in ctns)
         time.sleep(initial_wait_time)
 
-        # Add FlowSpec routes into ExaBGP.
-        # Note: Currently, ExaBGPContainer only supports to add routes by
-        # reloading configuration, so we add routes here.
-        cls.e1.add_route(
-            route='ipv4/dst/src',
-            rf='ipv4-flowspec',
-            matchs=[
-                'destination 12.1.0.0/24',
-                'source 12.2.0.0/24',
-            ],
-            thens=['discard'])
-        cls.e1.add_route(
-            route='ipv6/dst/src',
-            rf='ipv6-flowspec',
-            matchs=[
-                'destination 2002:1::/64/10',
-                'source 2002:2::/64/15',
-            ],
-            thens=['discard'])
-
         # Add FlowSpec routes into GoBGP.
         cls.g1.add_route(
             route='ipv4/all',
@@ -122,9 +102,25 @@ class FlowSpecTest(unittest.TestCase):
         cls.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=cls.e1)
         cls.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=cls.y1)
 
+        # Add FlowSpec routes into ExaBGP.
+        cls.e1.add_route(
+            route='ipv4/dst/src',
+            rf='ipv4-flowspec',
+            matchs=[
+                'destination 12.1.0.0/24',
+                'source 12.2.0.0/24',
+            ],
+            thens=['discard'])
+        cls.e1.add_route(
+            route='ipv6/dst/src',
+            rf='ipv6-flowspec',
+            matchs=[
+                'destination 2002:1::/64/10',
+                'source 2002:2::/64/15',
+            ],
+            thens=['discard'])
+
         # Add FlowSpec routes into YABGP.
-        # Note: Currently, YABGPContainer only supports to add routes via
-        # REST API after connection established, so we add routes here.
         cls.y1.add_route(
             route='ipv4/all',
             rf='ipv4-flowspec',
