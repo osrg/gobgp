@@ -229,6 +229,60 @@ class ExaBGPContainer(BGPContainer):
 
         self.routes[route] = new_paths
 
+    def _get_adj_rib(self, peer, rf, in_out='in'):
+        # IPv4 Unicast:
+        # neighbor 172.17.0.2 ipv4 unicast 192.168.100.0/24 path-information 0.0.0.20 next-hop self
+        # IPv6 FlowSpec:
+        # neighbor 172.17.0.2 ipv6 flow flow destination-ipv6 2002:1::/64/0 source-ipv6 2002:2::/64/0 next-header =udp flow-label >100
+        rf_map = {
+            'ipv4': ['ipv4', 'unicast'],
+            'ipv6': ['ipv6', 'unicast'],
+            'ipv4-flowspec': ['ipv4', 'flow'],
+            'ipv6-flowspec': ['ipv6', 'flow'],
+        }
+        assert rf in rf_map
+        assert in_out in ('in', 'out')
+        peer_addr = self.peer_name(peer)
+        lines = self.local('exabgpcli show adj-rib {0}'.format(in_out), capture=True).split('\n')
+        # rib = {
+        #     <nlri>: [
+        #         {
+        #             'nlri': <nlri>,
+        #             'next-hop': <next-hop>,
+        #             ...
+        #         },
+        #         ...
+        #     ],
+        # }
+        rib = {}
+        for line in lines:
+            if not line:
+                continue
+            values = line.split()
+            if peer_addr != values[1]:
+                continue
+            elif rf is not None and rf_map[rf] != values[2:4]:
+                continue
+            if rf in ('ipv4', 'ipv6'):
+                nlri = values[4]
+                rib.setdefault(nlri, [])
+                path = {k: v for k, v in zip(*[iter(values[5:])] * 2)}
+                path['nlri'] = nlri
+                rib[nlri].append(path)
+            elif rf in ('ipv4-flowspec', 'ipv6-flowspec'):
+                # XXX: Missing path attributes?
+                nlri = ' '.join(values[5:])
+                rib.setdefault(nlri, [])
+                path = {'nlri': nlri}
+                rib[nlri].append(path)
+        return rib
+
+    def get_adj_rib_in(self, peer, rf='ipv4'):
+        return self._get_adj_rib(peer, rf, 'in')
+
+    def get_adj_rib_out(self, peer, rf='ipv4'):
+        return self._get_adj_rib(peer, rf, 'out')
+
 
 class RawExaBGPContainer(ExaBGPContainer):
     def __init__(self, name, config, ctn_image_name='osrg/exabgp',
