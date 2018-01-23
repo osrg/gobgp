@@ -22,8 +22,9 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
-	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (
@@ -306,6 +307,10 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 }
 
 func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
+	if SelectionOptions.DisableBestPathSelection {
+		// Note: If best path selection disabled, there is no best path.
+		return nil
+	}
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.Bests(id)...)
@@ -314,7 +319,9 @@ func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily
 }
 
 func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
-	if !UseMultiplePaths.Enabled {
+	if !UseMultiplePaths.Enabled || SelectionOptions.DisableBestPathSelection {
+		// Note: If multi path not enabled or best path selection disabled,
+		// there is no best multi path.
 		return nil
 	}
 	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))
