@@ -77,7 +77,7 @@ matrix:
       before_script:
         - export GOOS="darwin"
         - go env
-    - <<: *_build
+    - <<: *_unittest
       env:
         - GOARCH="386"
       before_script:
