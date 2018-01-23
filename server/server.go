@@ -484,6 +484,10 @@ func clonePathList(pathList []*table.Path) []*table.Path {
 }
 
 func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.Path) {
+	if table.SelectionOptions.DisableBestPathSelection {
+		// Note: If best path selection disabled, no best path to notify.
+		return
+	}
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
 		clonedM[i] = clonePathList(pathList)
@@ -555,6 +559,10 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 }
 
 func dstsToPaths(id string, dsts []*table.Destination, addpath bool) ([]*table.Path, []*table.Path, [][]*table.Path) {
+	if table.SelectionOptions.DisableBestPathSelection {
+		// Note: If best path selection disabled, there is no best path.
+		return nil, nil, nil
+	}
 	bestList := make([]*table.Path, 0, len(dsts))
 	oldList := make([]*table.Path, 0, len(dsts))
 	mpathList := make([][]*table.Path, 0, len(dsts))
@@ -790,6 +798,10 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 }
 
 func (server *BgpServer) propagateUpdateToNeighbors(peer *Peer, dsts []*table.Destination, gBestList, gOldList []*table.Path) {
+	if table.SelectionOptions.DisableBestPathSelection {
+		// Note: If best path selection disabled, no best path to propagate.
+		return
+	}
 	families := make(map[bgp.RouteFamily][]*table.Destination)
 	for _, dst := range dsts {
 		family := dst.Family()

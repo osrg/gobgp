@@ -36,6 +36,7 @@ type BestPathReason uint8
 
 const (
 	BPR_UNKNOWN BestPathReason = iota
+	BPR_DISABLED
 	BPR_ONLY_PATH
 	BPR_REACHABLE_NEXT_HOP
 	BPR_HIGHEST_WEIGHT
@@ -53,6 +54,7 @@ const (
 
 var BestPathReasonStringMap = map[BestPathReason]string{
 	BPR_UNKNOWN:            "Unknown",
+	BPR_DISABLED:           "Bestpath selection disabled",
 	BPR_ONLY_PATH:          "Only Path",
 	BPR_REACHABLE_NEXT_HOP: "Reachable Next Hop",
 	BPR_HIGHEST_WEIGHT:     "Highest Weight",
@@ -515,6 +517,12 @@ func (dest *Destination) implicitWithdraw() paths {
 }
 
 func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
+	if SelectionOptions.DisableBestPathSelection {
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Debug("computeKnownBestPath skipped")
+		return nil, BPR_DISABLED, nil
+	}
 
 	// If we do not have any paths to this destination, then we do not have
 	// new best path.

@@ -462,7 +462,7 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 					pp := ToPathApi(p)
 					switch arg.Table.Type {
 					case Resource_LOCAL, Resource_GLOBAL:
-						if i == 0 {
+						if i == 0 && !table.SelectionOptions.DisableBestPathSelection {
 							pp.Best = true
 						}
 					}
@@ -517,7 +517,7 @@ func (s *Server) GetPath(arg *GetPathRequest, stream GobgpApi_GetPathServer) err
 		for _, dst := range tbl.GetDestinations() {
 			for idx, path := range dst.GetAllKnownPathList() {
 				p := ToPathApi(path)
-				if idx == 0 {
+				if idx == 0 && !table.SelectionOptions.DisableBestPathSelection {
 					switch arg.Type {
 					case Resource_LOCAL, Resource_GLOBAL:
 						p.Best = true

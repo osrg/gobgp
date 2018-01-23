@@ -1217,6 +1217,22 @@ module gobgp {
     uses dynamic-neighbors;
   }
 
+  grouping disable-best-path-selection-config {
+    leaf disable-best-path-selection {
+      type boolean;
+      description
+        "Disables best path selection process.";
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:route-selection-options/bgp:config" {
+    uses disable-best-path-selection-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:route-selection-options/bgp:state" {
+    uses disable-best-path-selection-config;
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }
@@ -1248,7 +1264,7 @@ module gobgp {
           uses route-target-membership-config;
       }
     }
-    
+
     uses long-lived-graceful-restart;
   }
 
