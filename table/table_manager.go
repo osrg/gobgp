@@ -180,10 +180,10 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 }
 
 func (manager *TableManager) GetVrf(name string) (*Vrf, error) {
-    if vrf, ok := manager.Vrfs[name]; ok {
-        return vrf, nil
-    }
-    return nil, fmt.Errorf("vrf %s not found", name)
+	if vrf, ok := manager.Vrfs[name]; ok {
+		return vrf, nil
+	}
+	return nil, fmt.Errorf("vrf %s not found", name)
 }
 
 func (manager *TableManager) calculate(dsts []*Destination) []*Destination {
