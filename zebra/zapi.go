@@ -23,8 +23,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (
@@ -328,28 +329,29 @@ const (
 )
 
 var routeTypeValueMap = map[string]ROUTE_TYPE{
-	"system":         ROUTE_SYSTEM,
-	"kernel":         ROUTE_KERNEL,
-	"connect":        ROUTE_CONNECT,
-	"static":         ROUTE_STATIC,
-	"rip":            ROUTE_RIP,
-	"ripng":          ROUTE_RIPNG,
-	"ospf":           ROUTE_OSPF,
-	"ospf3":          ROUTE_OSPF6,
-	"isis":           ROUTE_ISIS,
-	"bgp":            ROUTE_BGP,
-	"pim":            ROUTE_PIM,
-	"hsls":           ROUTE_HSLS,
-	"olsr":           ROUTE_OLSR,
-	"babel":          ROUTE_BABEL,
-	"table":          FRR_ROUTE_TABLE,
-	"ldp":            FRR_ROUTE_LDP,
-	"vnc":            FRR_ROUTE_VNC,
-	"vnc-direct":     FRR_ROUTE_VNC_DIRECT,
-	"vnc-direct-rh":  FRR_ROUTE_VNC_DIRECT_RH,
-	"bgp-direct":     FRR_ROUTE_BGP_DIRECT,
-	"bgp-direct-ext": FRR_ROUTE_BGP_DIRECT_EXT,
-	"all":            FRR_ROUTE_ALL,
+	"system":             ROUTE_SYSTEM,
+	"kernel":             ROUTE_KERNEL,
+	"connect":            ROUTE_CONNECT, // hack for backyard compatibility
+	"directly-connected": ROUTE_CONNECT,
+	"static":             ROUTE_STATIC,
+	"rip":                ROUTE_RIP,
+	"ripng":              ROUTE_RIPNG,
+	"ospf":               ROUTE_OSPF,
+	"ospf3":              ROUTE_OSPF6,
+	"isis":               ROUTE_ISIS,
+	"bgp":                ROUTE_BGP,
+	"pim":                ROUTE_PIM,
+	"hsls":               ROUTE_HSLS,
+	"olsr":               ROUTE_OLSR,
+	"babel":              ROUTE_BABEL,
+	"table":              FRR_ROUTE_TABLE,
+	"ldp":                FRR_ROUTE_LDP,
+	"vnc":                FRR_ROUTE_VNC,
+	"vnc-direct":         FRR_ROUTE_VNC_DIRECT,
+	"vnc-direct-rh":      FRR_ROUTE_VNC_DIRECT_RH,
+	"bgp-direct":         FRR_ROUTE_BGP_DIRECT,
+	"bgp-direct-ext":     FRR_ROUTE_BGP_DIRECT_EXT,
+	"all":                FRR_ROUTE_ALL,
 }
 
 func RouteTypeFromString(typ string) (ROUTE_TYPE, error) {
@@ -754,14 +756,30 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) error {
 	command := IPV4_ROUTE_ADD
 	if c.Version <= 3 {
-		if isWithdraw {
-			command = IPV4_ROUTE_DELETE
+		if body.Prefix.To4() != nil {
+			if isWithdraw {
+				command = IPV4_ROUTE_DELETE
+			}
+		} else {
+			if isWithdraw {
+				command = IPV6_ROUTE_DELETE
+			} else {
+				command = IPV6_ROUTE_ADD
+			}
 		}
 	} else { // version >= 4
-		if isWithdraw {
-			command = FRR_IPV4_ROUTE_DELETE
+		if body.Prefix.To4() != nil {
+			if isWithdraw {
+				command = FRR_IPV4_ROUTE_DELETE
+			} else {
+				command = FRR_IPV4_ROUTE_ADD
+			}
 		} else {
-			command = FRR_IPV4_ROUTE_ADD
+			if isWithdraw {
+				command = FRR_IPV6_ROUTE_DELETE
+			} else {
+				command = FRR_IPV6_ROUTE_ADD
+			}
 		}
 	}
 	return c.SendCommand(command, vrfId, body)

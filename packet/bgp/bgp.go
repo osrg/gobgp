@@ -1392,17 +1392,17 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	assigned, _ := strconv.Atoi(elems[10])
+	assigned, _ := strconv.ParseUint(elems[10], 10, 32)
 	ip := net.ParseIP(elems[1])
 	switch {
 	case ip.To4() != nil:
 		return NewRouteDistinguisherIPAddressAS(elems[1], uint16(assigned)), nil
 	case elems[6] == "" && elems[7] == "":
-		asn, _ := strconv.Atoi(elems[8])
+		asn, _ := strconv.ParseUint(elems[8], 10, 16)
 		return NewRouteDistinguisherTwoOctetAS(uint16(asn), uint32(assigned)), nil
 	default:
-		fst, _ := strconv.Atoi(elems[7])
-		snd, _ := strconv.Atoi(elems[8])
+		fst, _ := strconv.ParseUint(elems[7], 10, 16)
+		snd, _ := strconv.ParseUint(elems[8], 10, 16)
 		asn := fst<<16 | snd
 		return NewRouteDistinguisherFourOctetAS(uint32(asn), uint16(assigned)), nil
 	}
@@ -1514,11 +1514,11 @@ func ParseMPLSLabelStack(buf string) (*MPLSLabelStack, error) {
 		goto ERR
 	}
 	for _, elem := range elems {
-		i, err := strconv.Atoi(elem)
+		i, err := strconv.ParseUint(elem, 10, 32)
 		if err != nil {
 			goto ERR
 		}
-		if i < 0 || i > ((1<<20)-1) {
+		if i > ((1 << 20) - 1) {
 			goto ERR
 		}
 		labels = append(labels, uint32(i))
@@ -2025,7 +2025,7 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 	case "AS":
 		esi.Type = ESI_AS
 	default:
-		typ, err := strconv.Atoi(args[0])
+		typ, err := strconv.ParseUint(args[0], 10, 0)
 		if err != nil {
 			return esi, fmt.Errorf("invalid esi type: %s", args[0])
 		}
@@ -2048,7 +2048,7 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 		}
 		copy(esi.Value[0:6], mac)
 		// Port Key or Bridge Priority
-		i, err := strconv.Atoi(args[2])
+		i, err := strconv.ParseUint(args[2], 10, 16)
 		if err != nil {
 			return esi, invalidEsiValuesError
 		}
@@ -2064,7 +2064,7 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 		}
 		copy(esi.Value[0:6], mac)
 		// Local Discriminator
-		i, err := strconv.Atoi(args[2])
+		i, err := strconv.ParseUint(args[2], 10, 32)
 		if err != nil {
 			return esi, invalidEsiValuesError
 		}
@@ -2082,7 +2082,7 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 		}
 		copy(esi.Value[0:4], ip.To4())
 		// Local Discriminator
-		i, err := strconv.Atoi(args[2])
+		i, err := strconv.ParseUint(args[2], 10, 32)
 		if err != nil {
 			return esi, invalidEsiValuesError
 		}
@@ -2092,13 +2092,13 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 			return esi, invalidEsiValuesError
 		}
 		// AS
-		as, err := strconv.Atoi(args[1])
+		as, err := strconv.ParseUint(args[1], 10, 32)
 		if err != nil {
 			return esi, invalidEsiValuesError
 		}
 		binary.BigEndian.PutUint32(esi.Value[0:4], uint32(as))
 		// Local Discriminator
-		i, err := strconv.Atoi(args[2])
+		i, err := strconv.ParseUint(args[2], 10, 32)
 		if err != nil {
 			return esi, invalidEsiValuesError
 		}
@@ -3099,34 +3099,39 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 	// - IPv6 Prefix
 	//   args := []string{"2001:db8:1::/64"}
 	// - IPv6 Prefix with offset
-	//   args := []string{"2001:db8:1::/64", "16"}
+	//   args := []string{"0:db8:1::/64/16"}
+	//   args := []string{"0:db8:1::/64", "16"}
+	// - IPv6 Address
+	//   args := []string{"2001:db8:1::1"}
+	// - IPv6 Address with offset
+	//   args := []string{"0:db8:1::1", "16"}
 	afi, _ := RouteFamilyToAfiSafi(rf)
-	var prefix net.IP
-	var prefixLen int
-	_, nw, err := net.ParseCIDR(args[0])
-	if err != nil {
-		prefix = net.ParseIP(args[0])
-		if prefix == nil {
-			return nil, fmt.Errorf("invalid ip prefix: %s", args[0])
-		}
-		switch afi {
-		case AFI_IP:
-			prefixLen = net.IPv4len * 8
-		case AFI_IP6:
-			prefixLen = net.IPv6len * 8
-		}
-	} else {
-		prefix = nw.IP
-		prefixLen, _ = nw.Mask.Size()
-	}
-
 	switch afi {
 	case AFI_IP:
-		if prefix.To4() == nil {
-			return nil, fmt.Errorf("invalid ipv4 prefix: %s", args[0])
-		}
 		if len(args) > 1 {
 			return nil, fmt.Errorf("cannot specify offset for ipv4 prefix")
+		}
+		invalidIPv4PrefixError := fmt.Errorf("invalid ipv4 prefix: %s", args[0])
+		re := regexp.MustCompile("^([\\d.]+)(/(\\d{1,2}))?")
+		// re.FindStringSubmatch("192.168.0.0/24")
+		// >>> ["192.168.0.0/24" "192.168.0.0" "/24" "24"]
+		// re.FindStringSubmatch("192.168.0.1")
+		// >>> ["192.168.0.1" "192.168.0.1" "" ""]
+		m := re.FindStringSubmatch(args[0])
+		if len(m) < 4 {
+			return nil, invalidIPv4PrefixError
+		}
+		prefix := net.ParseIP(m[1])
+		if prefix.To4() == nil {
+			return nil, invalidIPv4PrefixError
+		}
+		var prefixLen uint64 = 32
+		if m[3] != "" {
+			var err error
+			prefixLen, err = strconv.ParseUint(m[3], 10, 8)
+			if err != nil || prefixLen > 32 {
+				return nil, invalidIPv4PrefixError
+			}
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
@@ -3136,22 +3141,55 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	case AFI_IP6:
-		if prefix.To16() == nil {
-			return nil, fmt.Errorf("invalid ipv6 prefix: %s", args[0])
+		if len(args) > 2 {
+			return nil, fmt.Errorf("invalid arguments for ipv6 prefix: %q", args)
 		}
-		var offset uint8
-		if len(args) > 1 {
-			o, err := strconv.Atoi(args[1])
-			if err != nil {
-				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", args[0])
+		invalidIPv6PrefixError := fmt.Errorf("invalid ipv6 prefix: %s", args[0])
+		re := regexp.MustCompile("^([a-fA-F\\d:.]+)(/(\\d{1,3}))?(/(\\d{1,3}))?")
+		// re.FindStringSubmatch("2001:dB8::/64")
+		// >>> ["2001:dB8::/64" "2001:dB8::" "/64" "64" "" ""]
+		// re.FindStringSubmatch("2001:dB8::/64/8")
+		// >>> ["2001:dB8::/64/8" "2001:dB8::" "/64" "64" "/8" "8"]
+		// re.FindStringSubmatch("2001:dB8::1")
+		// >>> ["2001:dB8::1" "2001:dB8::1" "" "" "" ""]
+		m := re.FindStringSubmatch(args[0])
+		if len(m) < 4 {
+			return nil, invalidIPv6PrefixError
+		}
+		prefix := net.ParseIP(m[1])
+		if prefix.To16() == nil {
+			return nil, invalidIPv6PrefixError
+		}
+		var prefixLen uint64 = 128
+		if m[3] != "" {
+			var err error
+			prefixLen, err = strconv.ParseUint(m[3], 10, 8)
+			if err != nil || prefixLen > 128 {
+				return nil, invalidIPv6PrefixError
 			}
-			offset = uint8(o)
+		}
+		var offset uint64
+		if len(args) == 1 && m[5] != "" {
+			var err error
+			offset, err = strconv.ParseUint(m[5], 10, 8)
+			if err != nil || offset > 128 {
+				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", m[5])
+			}
+		} else if len(args) == 2 {
+			if m[5] != "" {
+				return nil, fmt.Errorf("multiple ipv6 prefix offset arguments detected: %q", args)
+			}
+			var err error
+			offset, err = strconv.ParseUint(args[1], 10, 8)
+			if err != nil || offset > 128 {
+				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", args[1])
+			}
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), offset), nil
+			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), offset), nil
+			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	}
@@ -6340,7 +6378,7 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 	if err != nil {
 		return nil, err
 	}
-	localAdmin, _ := strconv.Atoi(elems[10])
+	localAdmin, _ := strconv.ParseUint(elems[10], 10, 32)
 	ip := net.ParseIP(elems[1])
 	isTransitive := true
 	switch {
@@ -6349,11 +6387,11 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 	case ip.To16() != nil:
 		return NewIPv6AddressSpecificExtended(subtype, elems[1], uint16(localAdmin), isTransitive), nil
 	case elems[6] == "" && elems[7] == "":
-		asn, _ := strconv.Atoi(elems[8])
+		asn, _ := strconv.ParseUint(elems[8], 10, 16)
 		return NewTwoOctetAsSpecificExtended(subtype, uint16(asn), uint32(localAdmin), isTransitive), nil
 	default:
-		fst, _ := strconv.Atoi(elems[7])
-		snd, _ := strconv.Atoi(elems[8])
+		fst, _ := strconv.ParseUint(elems[7], 10, 16)
+		snd, _ := strconv.ParseUint(elems[8], 10, 16)
 		asn := fst<<16 | snd
 		return NewFourOctetAsSpecificExtended(subtype, uint32(asn), uint16(localAdmin), isTransitive), nil
 	}
@@ -6470,6 +6508,19 @@ func (e *EncapExtended) String() string {
 	}
 }
 
+type DefaultGatewayExtended struct {
+}
+
+func (e *DefaultGatewayExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 7)
+	buf[0] = byte(EC_SUBTYPE_DEFAULT_GATEWAY)
+	return buf, nil
+}
+
+func (e *DefaultGatewayExtended) String() string {
+	return "default-gateway"
+}
+
 type OpaqueExtended struct {
 	IsTransitive bool
 	Value        OpaqueExtendedValueInterface
@@ -6494,6 +6545,8 @@ func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
 			e.Value = &EncapExtended{
 				TunnelType: t,
 			}
+		case EC_SUBTYPE_DEFAULT_GATEWAY:
+			e.Value = &DefaultGatewayExtended{}
 		default:
 			e.Value = &DefaultOpaqueExtendedValue{
 				Value: data, //7byte

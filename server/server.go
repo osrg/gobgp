@@ -2723,6 +2723,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 							Payload:      buf,
 							PostPolicy:   false,
 							Neighbor:     configNeighbor,
+							PathList:     []*table.Path{path},
 						})
 					}
 					eor := bgp.NewEndOfRib(rf)
@@ -2770,6 +2771,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 							Payload:     buf,
 							PostPolicy:  true,
 							Neighbor:    configNeighbor,
+							PathList:    []*table.Path{path},
 						})
 					}
 					eor := bgp.NewEndOfRib(rf)

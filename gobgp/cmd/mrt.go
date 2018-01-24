@@ -22,9 +22,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
-	"github.com/spf13/cobra"
 )
 
 func injectMrt() error {
@@ -116,7 +118,22 @@ func injectMrt() error {
 						ID: peers[e.PeerIndex].BgpId,
 					}
 					t := time.Unix(int64(e.OriginatedTime), 0)
-					paths = append(paths, table.NewPath(source, nlri, false, e.PathAttributes, t, false))
+
+					switch subType {
+					case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH:
+						paths = append(paths, table.NewPath(source, nlri, false, e.PathAttributes, t, false))
+					default:
+						attrs := make([]bgp.PathAttributeInterface, 0, len(e.PathAttributes))
+						for _, attr := range e.PathAttributes {
+							if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+								attrs = append(attrs, attr)
+							} else {
+								a := attr.(*bgp.PathAttributeMpReachNLRI)
+								attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(a.Nexthop.String(), []bgp.AddrPrefixInterface{nlri}))
+							}
+						}
+						paths = append(paths, table.NewPath(source, nlri, false, attrs, t, false))
+					}
 				}
 				if mrtOpts.NextHop != nil {
 					for _, p := range paths {

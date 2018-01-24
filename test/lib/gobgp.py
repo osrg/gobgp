@@ -30,6 +30,7 @@ import yaml
 import collections
 
 from lib.base import (
+    wait_for_completion,
     BGPContainer,
     CmdBuffer,
     BGP_ATTR_TYPE_AS_PATH,
@@ -131,6 +132,28 @@ class GoBGPContainer(BGPContainer):
         cmd = '{0} -f {1}/ospfd.conf'.format(daemon_bin, self.QUAGGA_VOLUME)
         self.local(cmd, detach=True)
 
+    def _get_enabled_quagga_daemons(self):
+        daemons = []
+        if self.zebra:
+            daemons.append('zebra')
+            if self.ospfd_config:
+                daemons.append('ospfd')
+        return daemons
+
+    def _wait_for_boot(self):
+        def _f_gobgp():
+            ret = self.local('gobgp global > /dev/null 2>&1; echo $?', capture=True)
+            return ret == '0'
+
+        for daemon in self._get_enabled_quagga_daemons():
+            def _f_quagga():
+                ret = self.local("vtysh -d {0} -c 'show run' > /dev/null 2>&1; echo $?".format(daemon), capture=True)
+                return ret == '0'
+
+            wait_for_completion(_f_quagga)
+
+        wait_for_completion(_f_gobgp)
+
     def run(self):
         super(GoBGPContainer, self).run()
         if self.zebra:
@@ -138,6 +161,7 @@ class GoBGPContainer(BGPContainer):
             if self.ospfd_config:
                 self._start_ospfd()
         self._start_gobgp()
+        self._wait_for_boot()
         return self.WAIT_FOR_BOOT
 
     @staticmethod
@@ -341,14 +365,14 @@ class GoBGPContainer(BGPContainer):
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             if info['interface'] != '':
-                afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
-                afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-unicast'}})
             else:
                 version = netaddr.IPNetwork(info['neigh_addr']).version
                 if version == 4:
-                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                    afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
                 elif version == 6:
-                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                    afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-unicast'}})
                 else:
                     Exception('invalid ip address version. {0}'.format(version))
 
@@ -433,9 +457,8 @@ class GoBGPContainer(BGPContainer):
                                                    'route-reflector-cluster-id': cluster_id}}
 
             if info['addpath']:
-                n['add-paths'] = {'config' : {'receive': True,
-                                              'send-max': 16}}
-
+                n['add-paths'] = {'config': {'receive': True,
+                                             'send-max': 16}}
 
             if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
                 n['apply-policy'] = {'config': {}}
@@ -504,6 +527,7 @@ class GoBGPContainer(BGPContainer):
         c << 'debug zebra packet'
         c << 'debug zebra kernel'
         c << 'debug zebra rib'
+        c << 'ipv6 forwarding'
         c << ''
 
         with open('{0}/zebra.conf'.format(self.quagga_config_dir), 'w') as f:
@@ -529,14 +553,10 @@ class GoBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def reload_config(self):
-        daemon = ['gobgpd']
-        if self.zebra:
-            daemon.append('zebra')
-            if self.ospfd_config:
-                daemon.append('ospfd')
-        for d in daemon:
-            cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
-            self.local(cmd)
+        for daemon in self._get_enabled_quagga_daemons():
+            self.local('pkill {0} -SIGHUP'.format(daemon), capture=True)
+        self.local('pkill gobgpd -SIGHUP', capture=True)
+        self._wait_for_boot()
         for v in chain.from_iterable(self.routes.itervalues()):
             if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
                 r = CmdBuffer(' ')
@@ -559,7 +579,7 @@ class GoBGPContainer(BGPContainer):
                 cmd = 'gobgp global '\
                       'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
             else:
-                raise Exception('unsupported route faily: {0}'.format(v['rf']))
+                raise Exception('unsupported route family: {0}'.format(v['rf']))
             self.local(cmd)
 
     def del_route(self, route, identifier=None, reload_config=True):
