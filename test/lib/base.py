@@ -123,6 +123,18 @@ def try_several_times(f, t=3, s=1):
     raise e
 
 
+def assert_several_times(f, t=30, s=1):
+    e = AssertionError
+    for _ in range(t):
+        try:
+            f()
+        except AssertionError as e:
+            time.sleep(s)
+        else:
+            return
+    raise e
+
+
 def get_bridges():
     return try_several_times(lambda: local("docker network ls | awk 'NR > 1{print $2}'", capture=True)).split('\n')
 

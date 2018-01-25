@@ -33,6 +33,7 @@ from lib.base import (
     BGP_ATTR_TYPE_MULTI_EXIT_DISC,
     BGP_ATTR_TYPE_LOCAL_PREF,
     wait_for_completion,
+    assert_several_times,
 )
 from lib.gobgp import (
     GoBGPContainer,
@@ -312,17 +313,17 @@ class GoBGPTestBase(unittest.TestCase):
         self.test_02_check_gobgp_global_rib()
 
         paths = q1.get_global_rib('20.0.0.0/24')
-        self.assertTrue(len(paths) == 1)
+        self.assertEqual(len(paths), 1)
         n_addrs = [i[1].split('/')[0] for i in self.gobgp.ip_addrs]
-        self.assertTrue(paths[0]['nexthop'] in n_addrs)
+        self.assertIn(paths[0]['nexthop'], n_addrs)
 
         q3.stop()
 
-        time.sleep(3)
+        self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q3)
 
         paths = q1.get_global_rib('20.0.0.0/24')
-        self.assertTrue(len(paths) == 1)
-        self.assertTrue(paths[0]['nexthop'] in n_addrs)
+        self.assertEqual(len(paths), 1)
+        self.assertIn(paths[0]['nexthop'], n_addrs)
 
         g1.del_peer(q3)
         del self.quaggas['q3']
@@ -340,19 +341,22 @@ class GoBGPTestBase(unittest.TestCase):
         self.test_02_check_gobgp_global_rib()
 
         paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
-        self.assertTrue(len(paths) == 1)
-        self.assertTrue('source-id' not in paths[0])
+        self.assertEqual(len(paths), 1)
+        self.assertNotIn('source-id', paths[0])
         paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
-        self.assertTrue(len(paths) == 1)
-        self.assertTrue('source-id' not in paths[0])
+        self.assertEqual(len(paths), 1)
+        self.assertNotIn('source-id', paths[0])
 
         g1.local('gobgp global rib del 30.0.0.0/24')
 
-        paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
-        self.assertTrue(len(paths) == 0)
-        paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
-        self.assertTrue(len(paths) == 1)
-        self.assertTrue(paths[0]['source-id'] == '192.168.0.2')
+        def f():
+            paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
+            self.assertEqual(len(paths), 0)
+            paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
+            self.assertEqual(len(paths), 1)
+            self.assertEqual(paths[0]['source-id'], '192.168.0.2')
+
+        assert_several_times(f)
 
     def test_19_check_grpc_add_neighbor(self):
         g1 = self.gobgp
