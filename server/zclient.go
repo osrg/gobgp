@@ -506,7 +506,13 @@ func (z *zebraClient) loop() {
 				}
 			case *WatchEventUpdate:
 				if body, isWithdraw := newNexthopRegisterBody(msg.PathList, z.nhtManager); body != nil {
-					z.client.SendNexthopRegister(0, body, isWithdraw)
+					vrfId := uint16(0)
+					for _, vrf := range z.server.GetVrf() {
+						if vrf.Name == msg.Neighbor.Config.Vrf {
+							vrfId = uint16(vrf.Id)
+						}
+					}
+					z.client.SendNexthopRegister(vrfId, body, isWithdraw)
 				}
 			}
 		}
