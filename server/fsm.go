@@ -22,6 +22,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/eapache/channels"
@@ -116,6 +117,7 @@ type FSM struct {
 	t                    tomb.Tomb
 	gConf                *config.Global
 	pConf                *config.Neighbor
+	mu                   sync.RWMutex
 	state                bgp.FSMState
 	reason               FsmStateReason
 	conn                 net.Conn
@@ -138,6 +140,9 @@ type FSM struct {
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
+	defer fsm.mu.Unlock()
+	fsm.mu.Lock()
+
 	state := &fsm.pConf.State.Messages
 	timer := &fsm.pConf.Timers
 	if isIn {
@@ -187,6 +192,9 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 }
 
 func (fsm *FSM) bmpStatsUpdate(statType uint16, increment int) {
+	defer fsm.mu.Unlock()
+	fsm.mu.Lock()
+
 	stats := &fsm.pConf.State.Messages.Received
 	switch statType {
 	// TODO
@@ -290,7 +298,11 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 }
 
 func (fsm *FSM) sendNotificationFromErrorMsg(e *bgp.MessageError) error {
-	if fsm.h != nil && fsm.h.conn != nil {
+	fsm.mu.RLock()
+	established := (fsm.h != nil && fsm.h.conn != nil)
+	fsm.mu.RUnlock()
+
+	if established {
 		m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
 		b, _ := m.Serialize()
 		_, err := fsm.h.conn.Write(b)
@@ -1038,7 +1050,9 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 	h.msgCh = channels.NewInfiniteChannel()
+	fsm.mu.Lock()
 	h.conn = fsm.conn
+	fsm.mu.Unlock()
 
 	h.t.Go(h.recvMessage)
 
@@ -1252,7 +1266,9 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	h.msgCh = channels.NewInfiniteChannel()
+	fsm.mu.Lock()
 	h.conn = fsm.conn
+	fsm.mu.Unlock()
 
 	h.t.Go(h.recvMessage)
 
@@ -1484,7 +1500,9 @@ func (h *FSMHandler) recvMessageloop() error {
 
 func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 	fsm := h.fsm
+	fsm.mu.Lock()
 	h.conn = fsm.conn
+	fsm.mu.Unlock()
 	h.t.Go(h.sendMessageloop)
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
@@ -1515,6 +1533,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 		case err := <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
+			fsm.mu.RLock()
 			if s := fsm.pConf.GracefulRestart.State; s.Enabled && ((s.NotificationEnabled && strings.HasPrefix(string(err), FSM_NOTIFICATION_RECV)) || err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
 				err = FSM_GRACEFUL_RESTART
 				log.WithFields(log.Fields{
@@ -1524,6 +1543,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 				}).Info("peer graceful restart")
 				fsm.gracefulRestartTimer.Reset(time.Duration(fsm.pConf.GracefulRestart.State.PeerRestartTime) * time.Second)
 			}
+			fsm.mu.RUnlock()
 			return bgp.BGP_FSM_IDLE, err
 		case <-holdTimer.C:
 			log.WithFields(log.Fields{
@@ -1594,9 +1614,11 @@ func (h *FSMHandler) loop() error {
 		// The main goroutine sent the notificaiton due to
 		// deconfiguration or something.
 		reason := fsm.reason
+		fsm.mu.RLock()
 		if fsm.h.sentNotification != "" {
 			reason = FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_SENT, fsm.h.sentNotification))
 		}
+		fsm.mu.RUnlock()
 		log.WithFields(log.Fields{
 			"Topic":  "Peer",
 			"Key":    fsm.pConf.State.NeighborAddress,
