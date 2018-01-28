@@ -5,18 +5,20 @@ _dep_ensure: &_dep_ensure
   before_install: go get -u github.com/golang/dep/cmd/dep
   install: $GOPATH/bin/dep ensure
 
+_build_script: &_build_script
+    - go build -o ./gobgp/gobgp   ./gobgp/
+    - go build -o ./gobgpd/gobgpd ./gobgpd/
+
 _unittest: &_unittest
   <<: *_dep_ensure
   script:
     - go test $(go list ./... | grep -v '/vendor/')
-    - go build -o ./gobgp/gobgp   ./gobgp/
-    - go build -o ./gobgpd/gobgpd ./gobgpd/
+    << *_build_script
 
 _build: &_build
   <<: *_dep_ensure
   script:
-    - go build -o ./gobgp/gobgp   ./gobgp/
-    - go build -o ./gobgpd/gobgpd ./gobgpd/
+    << *_build_script
 
 _python: &_python
   language: python
