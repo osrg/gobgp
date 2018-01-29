@@ -976,9 +976,16 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	params := map[string]int{"interface": PARAM_SINGLE}
+	params := map[string]int{
+		"interface": PARAM_SINGLE,
+	}
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [ <neighbor-address> | interface <neighbor-interface> ]", cmdType)
 	if cmdType == CMD_ADD {
+		usage += " as <VALUE>"
+	} else if cmdType == CMD_UPDATE {
+		usage += " [ as <VALUE> ]"
+	}
+	if cmdType == CMD_ADD || cmdType == CMD_UPDATE {
 		params["as"] = PARAM_SINGLE
 		params["family"] = PARAM_SINGLE
 		params["vrf"] = PARAM_SINGLE
@@ -987,13 +994,14 @@ func modNeighbor(cmdType string, args []string) error {
 		params["allow-own-as"] = PARAM_SINGLE
 		params["remove-private-as"] = PARAM_SINGLE
 		params["replace-peer-as"] = PARAM_FLAG
-		usage += " as <VALUE> [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
+		usage += " [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
 	}
 
 	m, err := extractReserved(args, params)
 	if err != nil || (len(m[""]) != 1 && len(m["interface"]) != 1) {
 		return fmt.Errorf("%s", usage)
 	}
+
 	unnumbered := len(m["interface"]) > 0
 	if !unnumbered {
 		if _, err := net.ResolveIPAddr("ip", m[""][0]); err != nil {
@@ -1001,28 +1009,53 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 	}
 
-	getConf := func(asn uint32) (*config.Neighbor, error) {
-		peer := &config.Neighbor{
-			Config: config.NeighborConfig{
-				PeerAs: asn,
-			},
-		}
+	getNeighborAddress := func() (string, error) {
 		if unnumbered {
-			peer.Config.NeighborInterface = m["interface"][0]
-			addr, err := config.GetIPv6LinkLocalNeighborAddress(peer.Config.NeighborInterface)
+			return config.GetIPv6LinkLocalNeighborAddress(m["interface"][0])
+		}
+		return m[""][0], nil
+	}
+
+	getNeighborConfig := func() (*config.Neighbor, error) {
+		addr, err := getNeighborAddress()
+		if err != nil {
+			return nil, err
+		}
+		var peer *config.Neighbor
+		switch cmdType {
+		case CMD_ADD, CMD_DEL:
+			peer = &config.Neighbor{}
+			if unnumbered {
+				peer.Config.NeighborInterface = m["interface"][0]
+			} else {
+				peer.Config.NeighborAddress = addr
+			}
+			peer.State.NeighborAddress = addr
+		case CMD_UPDATE:
+			peer, err = client.GetNeighbor(addr)
 			if err != nil {
 				return nil, err
 			}
-			peer.State.NeighborAddress = addr
-		} else {
-			peer.Config.NeighborAddress = m[""][0]
-			peer.State.NeighborAddress = m[""][0]
+		default:
+			return nil, fmt.Errorf("invalid command: %s", cmdType)
+		}
+		return peer, nil
+	}
+
+	updateNeighborConfig := func(peer *config.Neighbor) error {
+		if len(m["as"]) > 0 {
+			as, err := strconv.ParseUint(m["as"][0], 10, 32)
+			if err != nil {
+				return err
+			}
+			peer.Config.PeerAs = uint32(as)
 		}
 		if len(m["family"]) == 1 {
+			peer.AfiSafis = make([]config.AfiSafi, 0) // for the case of CMD_UPDATE
 			for _, family := range strings.Split(m["family"][0], ",") {
 				afiSafiName := config.AfiSafiType(family)
 				if afiSafiName.ToInt() == -1 {
-					return nil, fmt.Errorf("invalid family value: %s", family)
+					return fmt.Errorf("invalid family value: %s", family)
 				}
 				peer.AfiSafis = append(peer.AfiSafis, config.AfiSafi{Config: config.AfiSafiConfig{AfiSafiName: afiSafiName}})
 			}
@@ -1030,12 +1063,12 @@ func modNeighbor(cmdType string, args []string) error {
 		if len(m["vrf"]) == 1 {
 			peer.Config.Vrf = m["vrf"][0]
 		}
-		if rr, ok := m["route-reflector-client"]; ok {
+		if option, ok := m["route-reflector-client"]; ok {
 			peer.RouteReflector.Config = config.RouteReflectorConfig{
 				RouteReflectorClient: true,
 			}
-			if len(rr) == 1 {
-				peer.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(rr[0])
+			if len(option) == 1 {
+				peer.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(option[0])
 			}
 		}
 		if _, ok := m["route-server-client"]; ok {
@@ -1046,7 +1079,7 @@ func modNeighbor(cmdType string, args []string) error {
 		if option, ok := m["allow-own-as"]; ok {
 			as, err := strconv.ParseUint(option[0], 10, 8)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			peer.AsPathOptions.Config.AllowOwnAs = uint8(as)
 		}
@@ -1057,36 +1090,34 @@ func modNeighbor(cmdType string, args []string) error {
 			case "replace":
 				peer.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 			default:
-				return nil, fmt.Errorf("invalid remove-private-as value: all or replace")
+				return fmt.Errorf("invalid remove-private-as value: all or replace")
 			}
 		}
 		if _, ok := m["replace-peer-as"]; ok {
 			peer.AsPathOptions.Config.ReplacePeerAs = true
 		}
-		return peer, nil
+		return nil
 	}
 
-	var as uint64
-	if len(m["as"]) > 0 {
-		var err error
-		if as, err = strconv.ParseUint(m["as"][0], 10, 32); err != nil {
-			return err
-		}
-	}
-
-	n, err := getConf(uint32(as))
+	n, err := getNeighborConfig()
 	if err != nil {
 		return err
 	}
 
 	switch cmdType {
 	case CMD_ADD:
-		if len(m[""]) > 0 && len(m["as"]) != 1 {
-			return fmt.Errorf("%s", usage)
+		if err := updateNeighborConfig(n); err != nil {
+			return err
 		}
 		return client.AddNeighbor(n)
 	case CMD_DEL:
 		return client.DeleteNeighbor(n)
+	case CMD_UPDATE:
+		if err := updateNeighborConfig(n); err != nil {
+			return err
+		}
+		_, err := client.UpdateNeighbor(n, true)
+		return err
 	}
 	return nil
 }
@@ -1222,7 +1253,7 @@ func NewNeighborCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{CMD_ADD, CMD_DEL, CMD_UPDATE} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(c *cobra.Command, args []string) {

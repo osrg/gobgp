@@ -1360,6 +1360,21 @@ func (s *Server) DeleteNeighbor(ctx context.Context, arg *DeleteNeighborRequest)
 	}})
 }
 
+func (s *Server) UpdateNeighbor(ctx context.Context, arg *UpdateNeighborRequest) (*UpdateNeighborResponse, error) {
+	c, err := NewNeighborFromAPIStruct(arg.Peer)
+	if err != nil {
+		return nil, err
+	}
+	needsSoftResetIn, err := s.bgpServer.UpdateNeighbor(c)
+	if err != nil {
+		return nil, err
+	}
+	if arg.DoSoftResetIn && needsSoftResetIn {
+		return &UpdateNeighborResponse{NeedsSoftResetIn: false}, s.bgpServer.SoftResetIn("", bgp.RouteFamily(0))
+	}
+	return &UpdateNeighborResponse{NeedsSoftResetIn: needsSoftResetIn}, nil
+}
+
 func NewPrefixFromApiStruct(a *Prefix) (*table.Prefix, error) {
 	_, prefix, err := net.ParseCIDR(a.IpPrefix)
 	if err != nil {
