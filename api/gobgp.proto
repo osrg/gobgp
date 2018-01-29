@@ -31,6 +31,7 @@ service GobgpApi {
   rpc GetServer(GetServerRequest) returns (GetServerResponse) {}
   rpc AddNeighbor(AddNeighborRequest) returns (AddNeighborResponse) {}
   rpc DeleteNeighbor(DeleteNeighborRequest) returns (DeleteNeighborResponse) {}
+  rpc UpdateNeighbor(UpdateNeighborRequest) returns (UpdateNeighborResponse) {}
   rpc GetNeighbor(GetNeighborRequest) returns (GetNeighborResponse) {}
   rpc ResetNeighbor(ResetNeighborRequest) returns (ResetNeighborResponse) {}
   rpc SoftResetNeighbor(SoftResetNeighborRequest) returns (SoftResetNeighborResponse) {}
@@ -155,6 +156,20 @@ message DeleteNeighborRequest {
 }
 
 message DeleteNeighborResponse {
+}
+
+message UpdateNeighborRequest {
+  Peer peer = 1;
+  // Calls SoftResetIn after updating the neighbor configuration if needed.
+  bool do_soft_reset_in = 2;
+}
+
+message UpdateNeighborResponse {
+  // Indicates whether calling SoftResetIn is required due to this update. If
+  // "true" is set, the client should call SoftResetIn manually. If
+  // "do_soft_reset_in = true" is set in the request, always returned with
+  // "false".
+  bool needs_soft_reset_in = 1;
 }
 
 message ResetNeighborRequest {

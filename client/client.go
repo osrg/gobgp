@@ -198,8 +198,11 @@ func (cli *Client) DeleteNeighbor(c *config.Neighbor) error {
 	return err
 }
 
-//func (cli *Client) UpdateNeighbor(c *config.Neighbor) (bool, error) {
-//}
+func (cli *Client) UpdateNeighbor(c *config.Neighbor, doSoftResetIn bool) (bool, error) {
+	peer := api.NewPeerFromConfigStruct(c)
+	response, err := cli.cli.UpdateNeighbor(context.Background(), &api.UpdateNeighborRequest{Peer: peer, DoSoftResetIn: doSoftResetIn})
+	return response.NeedsSoftResetIn, err
+}
 
 func (cli *Client) ShutdownNeighbor(addr, communication string) error {
 	_, err := cli.cli.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: addr, Communication: communication})
