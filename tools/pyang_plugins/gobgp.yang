@@ -974,6 +974,14 @@ module gobgp {
   }
 
   augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition" {
+    leaf plugin-path {
+      description "Path to policy plugin which must be an shared object.";
+      type string;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
     "rpol:policy-definition/rpol:statements/rpol:statement/" +
     "rpol:actions/bgp-pol:bgp-actions/bgp-pol:set-as-path-prepend" {
     description "as number used for aspath prepend";

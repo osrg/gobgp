@@ -379,6 +379,7 @@ func printPolicy(indent int, pd *table.Policy) {
 	for _, s := range pd.Statements {
 		printStatement(indent, s)
 	}
+	fmt.Printf("%sPluginPath: %s\n", strings.Repeat(" ", indent), pd.PluginPath)
 }
 
 func showPolicy(args []string) error {
@@ -777,17 +778,26 @@ func modAction(name, op string, args []string) error {
 
 func modPolicy(modtype string, args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: gobgp policy %s <name> [<statement name>...]", modtype)
+		return fmt.Errorf("usage: gobgp policy %s <name> [<statement name>...] [plugin-path <plugin-path>]", modtype)
 	}
 	name := args[0]
 	args = args[1:]
 	stmts := make([]config.Statement, 0, len(args))
-	for _, n := range args {
-		stmts = append(stmts, config.Statement{Name: n})
+	pluginPath := ""
+	for idx, arg := range args {
+		if arg == "plugin-path" {
+			if len(args) <= idx+1 {
+				return fmt.Errorf("specify plugin-path argument")
+			}
+			pluginPath = args[idx+1]
+			break
+		}
+		stmts = append(stmts, config.Statement{Name: arg})
 	}
 	policy, err := table.NewPolicy(config.PolicyDefinition{
 		Name:       name,
 		Statements: stmts,
+		PluginPath: pluginPath,
 	})
 	if err != nil {
 		return err
