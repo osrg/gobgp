@@ -23,32 +23,54 @@ import (
 	"net"
 	"sort"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 var SelectionOptions config.RouteSelectionOptionsConfig
 var UseMultiplePaths config.UseMultiplePathsConfig
 
-type BestPathReason string
+type BestPathReason uint8
 
 const (
-	BPR_UNKNOWN            BestPathReason = "Unknown"
-	BPR_ONLY_PATH          BestPathReason = "Only Path"
-	BPR_REACHABLE_NEXT_HOP BestPathReason = "Reachable Next Hop"
-	BPR_HIGHEST_WEIGHT     BestPathReason = "Highest Weight"
-	BPR_LOCAL_PREF         BestPathReason = "Local Pref"
-	BPR_LOCAL_ORIGIN       BestPathReason = "Local Origin"
-	BPR_ASPATH             BestPathReason = "AS Path"
-	BPR_ORIGIN             BestPathReason = "Origin"
-	BPR_MED                BestPathReason = "MED"
-	BPR_ASN                BestPathReason = "ASN"
-	BPR_IGP_COST           BestPathReason = "IGP Cost"
-	BPR_ROUTER_ID          BestPathReason = "Router ID"
-	BPR_OLDER              BestPathReason = "Older"
-	BPR_NON_LLGR_STALE     BestPathReason = "no LLGR Stale"
+	BPR_UNKNOWN BestPathReason = iota
+	BPR_ONLY_PATH
+	BPR_REACHABLE_NEXT_HOP
+	BPR_HIGHEST_WEIGHT
+	BPR_LOCAL_PREF
+	BPR_LOCAL_ORIGIN
+	BPR_ASPATH
+	BPR_ORIGIN
+	BPR_MED
+	BPR_ASN
+	BPR_IGP_COST
+	BPR_ROUTER_ID
+	BPR_OLDER
+	BPR_NON_LLGR_STALE
 )
+
+var BestPathReasonStringMap = map[BestPathReason]string{
+	BPR_UNKNOWN:            "Unknown",
+	BPR_ONLY_PATH:          "Only Path",
+	BPR_REACHABLE_NEXT_HOP: "Reachable Next Hop",
+	BPR_HIGHEST_WEIGHT:     "Highest Weight",
+	BPR_LOCAL_PREF:         "Local Pref",
+	BPR_LOCAL_ORIGIN:       "Local Origin",
+	BPR_ASPATH:             "AS Path",
+	BPR_ORIGIN:             "Origin",
+	BPR_MED:                "MED",
+	BPR_ASN:                "ASN",
+	BPR_IGP_COST:           "IGP Cost",
+	BPR_ROUTER_ID:          "Router ID",
+	BPR_OLDER:              "Older",
+	BPR_NON_LLGR_STALE:     "no LLGR Stale",
+}
+
+func (r *BestPathReason) String() string {
+	return BestPathReasonStringMap[*r]
+}
 
 func IpToRadixkey(b []byte, max uint8) string {
 	var buffer bytes.Buffer
