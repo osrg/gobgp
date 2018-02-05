@@ -767,6 +767,9 @@ func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) e
 				command = IPV6_ROUTE_ADD
 			}
 		}
+		if body.Tag != 0 {
+			body.Message |= MESSAGE_TAG
+		}
 	} else { // version >= 4
 		if body.Prefix.To4() != nil {
 			if isWithdraw {
@@ -780,6 +783,9 @@ func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) e
 			} else {
 				command = FRR_IPV6_ROUTE_ADD
 			}
+		}
+		if body.Tag != 0 {
+			body.Message |= FRR_MESSAGE_TAG
 		}
 	}
 	return c.SendCommand(command, vrfId, body)

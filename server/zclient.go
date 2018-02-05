@@ -494,12 +494,25 @@ func (z *zebraClient) loop() {
 						}
 					}
 				} else {
+					vrfList := z.server.GetVrf()
+					getVrf := func(i uint32) *table.Vrf {
+						for _, vrf := range vrfList {
+							if vrf.Id == i {
+								return vrf
+							}
+						}
+						return nil
+					}
 					for _, path := range msg.PathList {
 						if len(path.VrfIds) == 0 {
 							path.VrfIds = []uint16{0}
 						}
 						for _, i := range path.VrfIds {
+							vrf := getVrf(uint32(i))
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
+								if vrf != nil {
+									body.Tag = vrf.MplsLabel()
+								}
 								z.client.SendIPRoute(i, body, isWithdraw)
 							}
 							if body, isWithdraw := newNexthopRegisterBody(pathList{path}, z.nhtManager); body != nil {
