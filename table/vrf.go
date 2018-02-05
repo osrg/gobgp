@@ -19,12 +19,24 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
+type vrfOption struct {
+	mplsLabel uint32
+}
+
 type Vrf struct {
 	Name     string
 	Id       uint32
 	Rd       bgp.RouteDistinguisherInterface
 	ImportRt []bgp.ExtendedCommunityInterface
 	ExportRt []bgp.ExtendedCommunityInterface
+	option   *vrfOption
+}
+
+func (v *Vrf) MplsLabel() uint32 {
+	if v.option == nil {
+		return 0
+	}
+	return v.option.mplsLabel
 }
 
 func (v *Vrf) Clone() *Vrf {
@@ -35,12 +47,14 @@ func (v *Vrf) Clone() *Vrf {
 		}
 		return l
 	}
+	option := *v.option
 	return &Vrf{
 		Name:     v.Name,
 		Id:       v.Id,
 		Rd:       v.Rd,
 		ImportRt: f(v.ImportRt),
 		ExportRt: f(v.ExportRt),
+		option:   &option,
 	}
 }
 
