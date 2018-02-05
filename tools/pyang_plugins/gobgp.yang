@@ -1198,13 +1198,20 @@ module gobgp {
     leaf version {
       type uint8;
       description
-        "Configure version of zebra protocol.  Default is 2. Supported up to 3.";
+        "Configure version of zebra protocol. Default is 2.
+        Supported version are 2 or 3 for Quagga and 4 for FRRouting.";
     }
     leaf nexthop-trigger-enable {
       type boolean;
     }
     leaf nexthop-trigger-delay {
       type uint8;
+    }
+    leaf mpls-label-range-size {
+      type uint32;
+      description
+        "Configure MPLS label range size which will be requested to
+        FRR/Zebra.";
     }
   }
 

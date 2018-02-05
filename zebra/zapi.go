@@ -567,6 +567,9 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	// Send HELLO/ROUTER_ID_ADD messages to negotiate the Zebra message version.
 	c.SendHello()
 	c.SendRouterIDAdd()
+	if version >= 4 {
+		c.SendLabelManagerConnect()
+	}
 
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
@@ -813,6 +816,25 @@ func (c *Client) SendNexthopRegister(vrfId uint16, body *NexthopRegisterBody, is
 		}
 	}
 	return c.SendCommand(command, vrfId, body)
+}
+
+func (c *Client) SendLabelManagerConnect() error {
+	if c.Version < 4 {
+		return fmt.Errorf("LABEL_MANAGER_CONNECT is not supported in version: %d", c.Version)
+	}
+	return c.SendCommand(
+		FRR_LABEL_MANAGER_CONNECT, 0,
+		&LabelManagerConnectBody{
+			RedistDefault: ROUTE_BGP,
+			Instance:      0,
+		})
+}
+
+func (c *Client) SendGetLabelChunk(body *GetLabelChunkBody) error {
+	if c.Version < 4 {
+		return fmt.Errorf("GET_LABEL_CHUNK is not supported in version: %d", c.Version)
+	}
+	return c.SendCommand(FRR_GET_LABEL_CHUNK, 0, body)
 }
 
 func (c *Client) Close() error {
@@ -1885,6 +1907,88 @@ func (b *NexthopUpdateBody) String() string {
 	return s
 }
 
+type LabelManagerConnectBody struct {
+	RedistDefault ROUTE_TYPE
+	Instance      uint16
+	// The followings are used in response from Zebra
+	Result uint8 // 0 means success
+}
+
+func (b *LabelManagerConnectBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 3)
+	buf[0] = uint8(b.RedistDefault)
+	binary.BigEndian.PutUint16(buf[1:3], b.Instance)
+	return buf, nil
+}
+
+func (b *LabelManagerConnectBody) DecodeFromBytes(data []byte, version uint8) error {
+	if len(data) < 1 {
+		return fmt.Errorf("invalid message length for LABEL_MANAGER_CONNECT response: %d<1", len(data))
+	}
+	b.Result = data[0]
+	return nil
+}
+
+func (b *LabelManagerConnectBody) String() string {
+	return fmt.Sprintf(
+		"route_type: %s, instance: %d, result: %d",
+		b.RedistDefault.String(), b.Instance, b.Result)
+}
+
+type GetLabelChunkBody struct {
+	Keep      uint8
+	ChunkSize uint32
+	// The followings are used in response from Zebra
+	Start uint32
+	End   uint32
+}
+
+func (b *GetLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 5)
+	buf[0] = b.Keep
+	binary.BigEndian.PutUint32(buf[1:5], b.ChunkSize)
+	return buf, nil
+}
+
+func (b *GetLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+	if len(data) < 9 {
+		return fmt.Errorf("invalid message length for GET_LABEL_CHUNK response: %d<9", len(data))
+	}
+	b.Keep = data[0]
+	b.Start = binary.BigEndian.Uint32(data[1:5])
+	b.End = binary.BigEndian.Uint32(data[5:9])
+	return nil
+}
+
+func (b *GetLabelChunkBody) String() string {
+	return fmt.Sprintf(
+		"keep: %d, chunk_size: %d, start: %d, end: %d",
+		b.Keep, b.ChunkSize, b.Start, b.End)
+}
+
+type ReleaseLabelChunkBody struct {
+	Start uint32
+	End   uint32
+}
+
+func (b *ReleaseLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint32(buf[0:4], b.Start)
+	binary.BigEndian.PutUint32(buf[4:8], b.End)
+	return buf, nil
+}
+
+func (b *ReleaseLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+	// No response from Zebra
+	return nil
+}
+
+func (b *ReleaseLabelChunkBody) String() string {
+	return fmt.Sprintf(
+		"start: %d, end: %d",
+		b.Start, b.End)
+}
+
 type Message struct {
 	Header Header
 	Body   Body
@@ -1962,6 +2066,15 @@ func (m *Message) parseFrrMessage(data []byte) error {
 	case FRR_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &ReleaseLabelChunkBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}

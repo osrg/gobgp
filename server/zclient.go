@@ -277,14 +277,25 @@ func newPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 }
 
 type zebraClient struct {
-	client       *zebra.Client
-	server       *BgpServer
-	nexthopCache nexthopStateCache
-	dead         chan struct{}
+	client             *zebra.Client
+	server             *BgpServer
+	nexthopCache       nexthopStateCache
+	mplsLabelRangeCh   chan [2]uint32 // {start, end}
+	mplsLabelRangeSize uint32
+	dead               chan struct{}
 }
 
 func (z *zebraClient) stop() {
 	close(z.dead)
+}
+
+func (z *zebraClient) requestMplsLabelAllocation() (uint32, uint32, error) {
+	if z.mplsLabelRangeCh == nil {
+		return 0, 0, fmt.Errorf("no mpls label range channel")
+	}
+	z.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: z.mplsLabelRangeSize})
+	labels := <-z.mplsLabelRangeCh
+	return labels[0], labels[1], nil
 }
 
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
@@ -336,6 +347,11 @@ func (z *zebraClient) loop() {
 	}...)
 	defer w.Stop()
 
+	if z.mplsLabelRangeSize > 0 {
+		z.mplsLabelRangeCh = make(chan [2]uint32)
+		defer close(z.mplsLabelRangeCh)
+	}
+
 	for {
 		select {
 		case <-z.dead:
@@ -364,6 +380,8 @@ func (z *zebraClient) loop() {
 					delete(z.nexthopCache, body.Prefix.String())
 				}
 				z.updatePathByNexthopCache(paths)
+			case *zebra.GetLabelChunkBody:
+				z.mplsLabelRangeCh <- [2]uint32{body.Start, body.End}
 			}
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
@@ -412,7 +430,7 @@ func (z *zebraClient) loop() {
 	}
 }
 
-func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8) (*zebraClient, error) {
+func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8, mplsLabelRangeSize uint32) (*zebraClient, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
@@ -445,10 +463,11 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		cli.SendRedistribute(t, zebra.VRF_DEFAULT)
 	}
 	w := &zebraClient{
-		client:       cli,
-		server:       s,
-		nexthopCache: make(nexthopStateCache),
-		dead:         make(chan struct{}),
+		client:             cli,
+		server:             s,
+		nexthopCache:       make(nexthopStateCache),
+		mplsLabelRangeSize: mplsLabelRangeSize,
+		dead:               make(chan struct{}),
 	}
 	go w.loop()
 	return w, nil
