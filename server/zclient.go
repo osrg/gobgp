@@ -476,6 +476,10 @@ func (z *zebraClient) loop() {
 						}
 					}
 				}
+			case *zebra.GetLabelChunkBody:
+				if err := z.server.SetMplsLabelRange(body.Start, body.End); err != nil {
+					log.Errorf("cannot allocate MPLS label rage: %s", err.Error())
+				}
 			}
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
@@ -490,12 +494,25 @@ func (z *zebraClient) loop() {
 						}
 					}
 				} else {
+					vrfList := z.server.GetVrf()
+					getVrf := func(i uint32) *table.Vrf {
+						for _, vrf := range vrfList {
+							if vrf.Id == i {
+								return vrf
+							}
+						}
+						return nil
+					}
 					for _, path := range msg.PathList {
 						if len(path.VrfIds) == 0 {
 							path.VrfIds = []uint16{0}
 						}
 						for _, i := range path.VrfIds {
+							vrf := getVrf(uint32(i))
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
+								if vrf != nil {
+									body.Tag = vrf.MplsLabel()
+								}
 								z.client.SendIPRoute(i, body, isWithdraw)
 							}
 							if body, isWithdraw := newNexthopRegisterBody(pathList{path}, z.nhtManager); body != nil {
@@ -517,6 +534,13 @@ func (z *zebraClient) loop() {
 			}
 		}
 	}
+}
+
+func (z *zebraClient) RequestMplsLabelAllocation(size uint32) error {
+	if err := z.client.SendLabelManagerConnect(); err != nil {
+		return err
+	}
+	return z.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: size})
 }
 
 func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8) (*zebraClient, error) {
