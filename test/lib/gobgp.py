@@ -140,11 +140,11 @@ class GoBGPContainer(BGPContainer):
                 daemons.append('ospfd')
         return daemons
 
-    def _wait_for_boot(self):
-        def _f_gobgp():
-            ret = self.local('gobgp global > /dev/null 2>&1; echo $?', capture=True)
-            return ret == '0'
+    def _is_running(self):
+        return self.local('gobgp global'
+                          ' > /dev/null 2>&1; echo $?', capture=True) == '0'
 
+    def _wait_for_boot(self):
         for daemon in self._get_enabled_quagga_daemons():
             def _f_quagga():
                 ret = self.local("vtysh -d {0} -c 'show run' > /dev/null 2>&1; echo $?".format(daemon), capture=True)
@@ -152,7 +152,7 @@ class GoBGPContainer(BGPContainer):
 
             wait_for_completion(_f_quagga)
 
-        wait_for_completion(_f_gobgp)
+        wait_for_completion(self._is_running)
 
     def run(self):
         super(GoBGPContainer, self).run()
@@ -557,34 +557,63 @@ class GoBGPContainer(BGPContainer):
             self.local('pkill {0} -SIGHUP'.format(daemon), capture=True)
         self.local('pkill gobgpd -SIGHUP', capture=True)
         self._wait_for_boot()
-        for v in chain.from_iterable(self.routes.itervalues()):
-            if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
-                r = CmdBuffer(' ')
-                r << 'gobgp global -a {0}'.format(v['rf'])
-                r << 'rib add {0}'.format(v['prefix'])
-                if v['identifier']:
-                    r << 'identifier {0}'.format(v['identifier'])
-                if v['next-hop']:
-                    r << 'nexthop {0}'.format(v['next-hop'])
-                if v['local-pref']:
-                    r << 'local-pref {0}'.format(v['local-pref'])
-                if v['med']:
-                    r << 'med {0}'.format(v['med'])
-                if v['community']:
-                    r << 'community {0}'.format(
-                        ','.join(v['community'])
-                        if isinstance(v['community'], (list, tuple)) else v['community'])
-                cmd = str(r)
-            elif v['rf'] == 'ipv4-flowspec' or v['rf'] == 'ipv6-flowspec':
-                cmd = 'gobgp global '\
-                      'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
-            else:
-                raise Exception('unsupported route family: {0}'.format(v['rf']))
-            self.local(cmd)
+
+    def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
+                  community=None, med=None, extendedcommunity=None,
+                  nexthop=None, matchs=None, thens=None,
+                  local_pref=None, identifier=None, reload_config=False):
+        if not self._is_running():
+            raise RuntimeError('GoBGP is not yet running')
+
+        self.routes.setdefault(route, [])
+        path = {
+            'prefix': route,
+            'rf': rf,
+            'attr': attribute,
+            'next-hop': nexthop,
+            'as-path': aspath,
+            'community': community,
+            'med': med,
+            'local-pref': local_pref,
+            'extended-community': extendedcommunity,
+            'identifier': identifier,
+            'matchs': matchs,
+            'thens': thens,
+        }
+
+        c = CmdBuffer(' ')
+        c << 'gobgp global rib -a {0} add'.format(rf)
+        if rf in ('ipv4', 'ipv6'):
+            c << route
+            if path['identifier']:
+                c << 'identifier {0}'.format(path['identifier'])
+            if path['next-hop']:
+                c << 'nexthop {0}'.format(path['next-hop'])
+            if path['local-pref']:
+                c << 'local-pref {0}'.format(path['local-pref'])
+            if path['med']:
+                c << 'med {0}'.format(path['med'])
+            if path['community']:
+                comm = str(path['community'])
+                if isinstance(path['community'], (list, tuple)):
+                    comm = ','.join(path['community'])
+                c << 'community {0}'.format(comm)
+        elif rf.endswith('-flowspec'):
+            c << 'match {0}'.format(' '.join(path['matchs']))
+            c << 'then {0}'.format(' '.join(path['thens']))
+        else:
+            raise Exception('unsupported address family: {0}'.format(rf))
+        self.local(str(c), capture=True)
+
+        self.routes[route].append(path)
 
     def del_route(self, route, identifier=None, reload_config=True):
+        if not self._is_running():
+            raise RuntimeError('GoBGP is not yet running')
+
         if route not in self.routes:
             return
+
         new_paths = []
         for path in self.routes[route]:
             if path['identifier'] != identifier:
@@ -592,11 +621,14 @@ class GoBGPContainer(BGPContainer):
             else:
                 r = CmdBuffer(' ')
                 r << 'gobgp global -a {0}'.format(path['rf'])
-                r << 'rib del {0}'.format(path['prefix'])
+                prefix = path['prefix']
+                if path['rf'].endswith('-flowspec'):
+                    prefix = 'match {0}'.format(' '.join(path['matchs']))
+                r << 'rib del {0}'.format(prefix)
                 if identifier:
                     r << 'identifier {0}'.format(identifier)
                 cmd = str(r)
-                self.local(cmd)
+                self.local(cmd, capture=True)
         self.routes[route] = new_paths
         # no need to reload config
 
