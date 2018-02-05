@@ -1138,6 +1138,12 @@ func (s *BgpServer) StartCollector(c *config.CollectorConfig) error {
 	}, false)
 }
 
+func (s *BgpServer) SetMplsLabelRange(start, end uint32) error {
+	return s.mgmtOperation(func() error {
+		return s.globalRib.AllocateMplsLabelRange(start, end)
+	}, false)
+}
+
 func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 	return s.mgmtOperation(func() error {
 		if s.zclient != nil {
@@ -1149,7 +1155,16 @@ func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 		}
 		var err error
 		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay)
-		return err
+		if err != nil {
+			return err
+		}
+		if s.globalRib != nil && s.zclient.client.Version >= 4 && c.MplsLabelRangeSize > 0 {
+			if err := s.zclient.RequestMplsLabelAllocation(c.MplsLabelRangeSize); err != nil {
+				s.zclient.stop()
+				return err
+			}
+		}
+		return nil
 	}, false)
 }
 
