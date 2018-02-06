@@ -93,11 +93,11 @@ type originInfo struct {
 	nlri               bgp.AddrPrefixInterface
 	source             *PeerInfo
 	timestamp          time.Time
-	noImplicitWithdraw bool
 	validation         *Validation
-	isFromExternal     bool
 	key                string
 	uuid               uuid.UUID
+	noImplicitWithdraw bool
+	isFromExternal     bool
 	eor                bool
 	stale              bool
 }
