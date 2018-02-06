@@ -31,6 +31,16 @@ const (
 	GLOBAL_RIB_NAME = "global"
 )
 
+type MplsLabelRangeFullError struct{}
+
+func (e *MplsLabelRangeFullError) Error() string {
+	return "could not assign new MPLS label; need to allocate new MPLS label range"
+}
+
+func NewMplsLabelRangeFullError() *MplsLabelRangeFullError {
+	return &MplsLabelRangeFullError{}
+}
+
 func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) []*Path {
 	update := m.Body.(*bgp.BGPUpdate)
 
@@ -107,12 +117,10 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 }
 
 type TableManager struct {
-	Tables         map[bgp.RouteFamily]*Table
-	Vrfs           map[string]*Vrf
-	rfList         []bgp.RouteFamily
-	mplsLabelStart uint32
-	mplsLabelEnd   uint32
-	mplsLabelMap   *Bitmap
+	Tables        map[bgp.RouteFamily]*Table
+	Vrfs          map[string]*Vrf
+	rfList        []bgp.RouteFamily
+	mplsLabelMaps map[uint64]*Bitmap
 }
 
 func NewTableManager(rfList []bgp.RouteFamily) *TableManager {
@@ -131,46 +139,61 @@ func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
 	return manager.rfList
 }
 
+func (manager *TableManager) EnableMplsLabelAllocation() error {
+	if manager.mplsLabelMaps != nil {
+		return fmt.Errorf("label allocation already enabled")
+	}
+	manager.mplsLabelMaps = make(map[uint64]*Bitmap)
+	return nil
+}
+
 func (manager *TableManager) AllocateMplsLabelRange(start, end uint32) error {
-	if manager.mplsLabelMap != nil {
-		return fmt.Errorf("label range is already allocated: start=%d, end=%d", manager.mplsLabelStart, manager.mplsLabelEnd)
+	if manager.mplsLabelMaps == nil {
+		return fmt.Errorf("label allocation not yet enabled")
 	}
 	log.WithFields(log.Fields{
 		"Topic": "Vrf",
 		"Start": start,
 		"End":   end,
-	}).Debugf("allocate MPLS label range")
-	manager.mplsLabelStart = start
-	manager.mplsLabelEnd = end
-	manager.mplsLabelMap = NewBitmap(64)
+	}).Debug("allocate new MPLS label range")
+	startEnd := uint64(start)<<32 | uint64(end)
+	manager.mplsLabelMaps[startEnd] = NewBitmap(int(end - start + 1))
 	return nil
 }
 
 func (manager *TableManager) assignMplsLabel() (uint32, error) {
-	if manager.mplsLabelMap == nil {
+	if manager.mplsLabelMaps == nil {
 		return 0, nil
 	}
-	l, err := manager.mplsLabelMap.FindandSetZeroBit()
-	if err != nil {
-		manager.mplsLabelMap.Expand()
-		l, err = manager.mplsLabelMap.FindandSetZeroBit()
-		if err != nil {
-			return 0, fmt.Errorf("no space to assign new MPLS label")
+	var label uint32
+	for startEnd, bitmap := range manager.mplsLabelMaps {
+		start := uint32(startEnd >> 32)
+		end := uint32(startEnd & 0xffffffff)
+		l, err := bitmap.FindandSetZeroBit()
+		if err == nil && start+uint32(l) <= end {
+			label = start + uint32(l)
+			break
 		}
 	}
-	label := uint32(l) + manager.mplsLabelStart
-	if label > manager.mplsLabelEnd {
-		manager.mplsLabelMap.Unflag(l)
-		return 0, fmt.Errorf("exceeds the max of MPLS label range")
+	if label == 0 {
+		return 0, NewMplsLabelRangeFullError()
 	}
 	return label, nil
 }
 
 func (manager *TableManager) releaseMplsLabel(label uint32) {
-	if label < manager.mplsLabelStart {
+	if manager.mplsLabelMaps == nil {
 		return
 	}
-	manager.mplsLabelMap.Unflag(uint(label - manager.mplsLabelStart))
+	for startEnd, bitmap := range manager.mplsLabelMaps {
+		start := uint32(startEnd >> 32)
+		end := uint32(startEnd & 0xffffffff)
+		if start <= label && label <= end {
+			bitmap.Unflag(uint(label - start))
+			return
+		}
+	}
+	return
 }
 
 func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
@@ -191,7 +214,7 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		"ImportRt": importRt,
 		"ExportRt": exportRt,
 		"option":   fmt.Sprintf("%+v", option),
-	}).Debugf("add vrf")
+	}).Debug("add vrf")
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
 		Id:       id,
@@ -228,7 +251,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 		"ImportRt": vrf.ImportRt,
 		"ExportRt": vrf.ExportRt,
 		"option":   fmt.Sprintf("%+v", vrf.option),
-	}).Debugf("delete vrf")
+	}).Debug("delete vrf")
 	manager.releaseMplsLabel(vrf.MplsLabel())
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]

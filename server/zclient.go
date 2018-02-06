@@ -431,10 +431,12 @@ func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.Tab
 }
 
 type zebraClient struct {
-	client     *zebra.Client
-	server     *BgpServer
-	dead       chan struct{}
-	nhtManager *nexthopTrackingManager
+	client             *zebra.Client
+	server             *BgpServer
+	dead               chan struct{}
+	nhtManager         *nexthopTrackingManager
+	mplsLabelRangeCh   chan [2]uint32 // {start, end}
+	mplsLabelRangeSize uint32
 }
 
 func (z *zebraClient) stop() {
@@ -451,6 +453,10 @@ func (z *zebraClient) loop() {
 	if z.nhtManager != nil {
 		go z.nhtManager.loop()
 		defer z.nhtManager.stop()
+	}
+
+	if z.mplsLabelRangeCh != nil {
+		defer close(z.mplsLabelRangeCh)
 	}
 
 	for {
@@ -477,9 +483,7 @@ func (z *zebraClient) loop() {
 					}
 				}
 			case *zebra.GetLabelChunkBody:
-				if err := z.server.SetMplsLabelRange(body.Start, body.End); err != nil {
-					log.Errorf("cannot allocate MPLS label rage: %s", err.Error())
-				}
+				z.mplsLabelRangeCh <- [2]uint32{body.Start, body.End}
 			}
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
@@ -536,14 +540,16 @@ func (z *zebraClient) loop() {
 	}
 }
 
-func (z *zebraClient) RequestMplsLabelAllocation(size uint32) error {
-	if err := z.client.SendLabelManagerConnect(); err != nil {
-		return err
+func (z *zebraClient) RequestMplsLabelAllocation() (uint32, uint32, error) {
+	if z.mplsLabelRangeCh == nil {
+		return 0, 0, fmt.Errorf("no MPLS label rage channel")
 	}
-	return z.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: size})
+	z.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: z.mplsLabelRangeSize})
+	labels := <-z.mplsLabelRangeCh
+	return labels[0], labels[1], nil
 }
 
-func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8) (*zebraClient, error) {
+func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8, mplsLabelRangeSize uint32) (*zebraClient, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
@@ -579,11 +585,17 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	if nhtEnable {
 		nhtManager = newNexthopTrackingManager(s, int(nhtDelay))
 	}
+	var mplsLabelRangeCh chan [2]uint32
+	if mplsLabelRangeSize > 0 {
+		mplsLabelRangeCh = make(chan [2]uint32)
+	}
 	w := &zebraClient{
-		dead:       make(chan struct{}),
-		client:     cli,
-		server:     s,
-		nhtManager: nhtManager,
+		dead:               make(chan struct{}),
+		client:             cli,
+		server:             s,
+		nhtManager:         nhtManager,
+		mplsLabelRangeCh:   mplsLabelRangeCh,
+		mplsLabelRangeSize: mplsLabelRangeSize,
 	}
 	go w.loop()
 	return w, nil
