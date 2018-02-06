@@ -1138,12 +1138,6 @@ func (s *BgpServer) StartCollector(c *config.CollectorConfig) error {
 	}, false)
 }
 
-func (s *BgpServer) SetMplsLabelRange(start, end uint32) error {
-	return s.mgmtOperation(func() error {
-		return s.globalRib.AllocateMplsLabelRange(start, end)
-	}, false)
-}
-
 func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 	return s.mgmtOperation(func() error {
 		if s.zclient != nil {
@@ -1154,12 +1148,12 @@ func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) error {
 			protos = append(protos, string(p))
 		}
 		var err error
-		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay)
+		s.zclient, err = newZebraClient(s, c.Url, protos, c.Version, c.NexthopTriggerEnable, c.NexthopTriggerDelay, c.MplsLabelRangeSize)
 		if err != nil {
 			return err
 		}
 		if s.globalRib != nil && s.zclient.client.Version >= 4 && c.MplsLabelRangeSize > 0 {
-			if err := s.zclient.RequestMplsLabelAllocation(c.MplsLabelRangeSize); err != nil {
+			if err := s.globalRib.EnableMplsLabelAllocation(); err != nil {
 				s.zclient.stop()
 				return err
 			}
@@ -1462,9 +1456,24 @@ func (s *BgpServer) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInte
 			AS:      s.bgpConfig.Global.Config.As,
 			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
-		if pathList, e := s.globalRib.AddVrf(name, id, rd, im, ex, pi); e != nil {
-			return e
-		} else if len(pathList) > 0 {
+		pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi)
+		if err != nil {
+			if _, ok := err.(*table.MplsLabelRangeFullError); ok {
+				start, end, err := s.zclient.RequestMplsLabelAllocation()
+				if err == nil {
+					err = s.globalRib.AllocateMplsLabelRange(start, end)
+				}
+				if err == nil {
+					pathList, err = s.globalRib.AddVrf(name, id, rd, im, ex, pi)
+				}
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
 		}
 		return nil

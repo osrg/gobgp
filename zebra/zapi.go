@@ -567,6 +567,9 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	// Send HELLO/ROUTER_ID_ADD messages to negotiate the Zebra message version.
 	c.SendHello()
 	c.SendRouterIDAdd()
+	if version >= 4 {
+		c.SendLabelManagerConnect()
+	}
 
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
