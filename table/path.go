@@ -92,7 +92,7 @@ func NewBitmap(size int) *Bitmap {
 type originInfo struct {
 	nlri               bgp.AddrPrefixInterface
 	source             *PeerInfo
-	timestamp          time.Time
+	timestamp          int64
 	validation         *Validation
 	key                string
 	uuid               uuid.UUID
@@ -165,7 +165,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		info: &originInfo{
 			nlri:               nlri,
 			source:             source,
-			timestamp:          timestamp,
+			timestamp:          timestamp.Unix(),
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
 		IsWithdraw: isWithdraw,
@@ -315,11 +315,11 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 }
 
 func (path *Path) GetTimestamp() time.Time {
-	return path.OriginInfo().timestamp
+	return time.Unix(path.OriginInfo().timestamp, 0)
 }
 
 func (path *Path) setTimestamp(t time.Time) {
-	path.OriginInfo().timestamp = t
+	path.OriginInfo().timestamp = t.Unix()
 }
 
 func (path *Path) IsLocal() bool {
@@ -1204,7 +1204,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	default:
 		return p
 	}
-	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
+	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
@@ -1229,7 +1229,7 @@ func (p *Path) ToLocal() *Path {
 	default:
 		return p
 	}
-	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
+	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 
 	if f == bgp.RF_IPv4_VPN {
