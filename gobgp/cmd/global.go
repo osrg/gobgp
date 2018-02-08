@@ -1240,9 +1240,16 @@ func modPath(resource string, name, modtype string, args []string) error {
 		ss = append(ss, "<DEC_NUM>")
 		etherTypes := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv6", cmdstr, modtype)
-		fsHelpMsgFmt := fmt.Sprintf(`err: %s
+		ucHelpMsgFmt := fmt.Sprintf(`error: %s
+usage: %s rib -a %%s %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE>]`,
+			err,
+			cmdstr,
+			// <address family>
+			modtype,
+		)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf(ucHelpMsgFmt, "ipv4")
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf(ucHelpMsgFmt, "ipv6")
+		fsHelpMsgFmt := fmt.Sprintf(`error: %s
 usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
     <THEN> : { %s |
                %s |
@@ -1340,13 +1347,23 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
 		helpErrMap[bgp.RF_FS_IPv4_VPN] = fmt.Errorf(fsHelpMsgFmt, "ipv4-l3vpn-flowspec", " rd <RD>", " [rt <RT>]", rdHelpMsgFmt, ipv4FsMatchExpr)
 		helpErrMap[bgp.RF_FS_IPv6_VPN] = fmt.Errorf(fsHelpMsgFmt, "ipv6-l3vpn-flowspec", " rd <RD>", " [rt <RT>]", rdHelpMsgFmt, ipv6FsMatchExpr)
 		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", " rd <RD>", " [rt <RT>]", rdHelpMsgFmt, l2vpnFsMatchExpr)
-		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
+		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`error: %s
+usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
     <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
     <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
-    <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`, cmdstr, modtype)
-		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
+    <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`,
+			err,
+			cmdstr,
+			modtype,
+		)
+		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`error: %s
+usage: %s rib %s key <KEY> [value <VALUE>]`,
+			err,
+			cmdstr,
+			modtype,
+		)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
 		}
