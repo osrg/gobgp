@@ -2050,7 +2050,7 @@ func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, e
 	case "AS":
 		esi.Type = ESI_AS
 	default:
-		typ, err := strconv.ParseUint(args[0], 10, 0)
+		typ, err := strconv.ParseUint(args[0], 10, 8)
 		if err != nil {
 			return esi, fmt.Errorf("invalid esi type: %s", args[0])
 		}
