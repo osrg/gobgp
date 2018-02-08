@@ -961,6 +961,22 @@ func extractLargeCommunity(args []string) ([]string, bgp.PathAttributeInterface,
 	return args, nil, nil
 }
 
+func extractPmsiTunnel(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "pmsi" {
+			pmsi, err := bgp.ParsePmsiTunnel(args[idx+1:])
+			if err != nil {
+				return nil, nil, err
+			}
+			if pmsi.IsLeafInfoRequired {
+				return append(args[:idx], args[idx+5:]...), pmsi, nil
+			}
+			return append(args[:idx], args[idx+4:]...), pmsi, nil
+		}
+	}
+	return args, nil, nil
+}
+
 func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "aigp" {
@@ -1028,14 +1044,15 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
 
 	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
-		extractAsPath,
-		extractOrigin,
-		extractMed,
-		extractLocalPref,
-		extractCommunity,
-		extractAigp,
-		extractAggregator,
-		extractLargeCommunity,
+		extractOrigin,         // 1 ORIGIN
+		extractAsPath,         // 2 AS_PATH
+		extractMed,            // 4 MULTI_EXIT_DISC
+		extractLocalPref,      // 5 LOCAL_PREF
+		extractAggregator,     // 7 AGGREGATOR
+		extractCommunity,      // 8 COMMUNITY
+		extractPmsiTunnel,     // 22 PMSI_TUNNEL
+		extractAigp,           // 26 AIGP
+		extractLargeCommunity, // 32 LARGE_COMMUNITY
 	}
 
 	for _, fn := range fns {
@@ -1351,7 +1368,7 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
 usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
     <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
     <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
-    <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+    <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>] [pmsi <type> [leaf-info-required] <label> <tunnel-id>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
     <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`,
 			err,
