@@ -7927,6 +7927,53 @@ func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, lab
 	}
 }
 
+func ParsePmsiTunnel(args []string) (*PathAttributePmsiTunnel, error) {
+	// Format:
+	// "<type>" ["leaf-info-required"] "<label>" "<tunnel-id>"
+	if len(args) < 3 {
+		return nil, fmt.Errorf("invalid pmsi tunnel arguments: %s", args)
+	}
+
+	pmsi := NewPathAttributePmsiTunnel(0, false, 0, nil)
+
+	switch args[0] {
+	case "ingress-repl":
+		pmsi.TunnelType = PMSI_TUNNEL_TYPE_INGRESS_REPL
+	default:
+		typ, err := strconv.ParseUint(args[0], 10, 8)
+		if err != nil {
+			return nil, fmt.Errorf("invalid pmsi tunnel type: %s", args[0])
+		}
+		pmsi.TunnelType = PmsiTunnelType(typ)
+	}
+
+	indx := 1
+	if args[indx] == "leaf-info-required" {
+		pmsi.IsLeafInfoRequired = true
+		indx++
+	}
+
+	label, err := strconv.ParseUint(args[indx], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pmsi tunnel label: %s", args[indx])
+	}
+	pmsi.Label = uint32(label)
+	indx++
+
+	switch pmsi.TunnelType {
+	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
+		ip := net.ParseIP(args[indx])
+		if ip == nil {
+			return nil, fmt.Errorf("invalid pmsi tunnel identifier: %s", args[indx])
+		}
+		pmsi.TunnelID = &IngressReplTunnelID{Value: ip}
+	default:
+		pmsi.TunnelID = &DefaultPmsiTunnelID{Value: []byte(args[indx])}
+	}
+
+	return pmsi, nil
+}
+
 type AigpTLVType uint8
 
 const (
