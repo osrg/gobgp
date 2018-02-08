@@ -149,7 +149,7 @@ $ gobgp global rib -a evpn del macadv aa:bb:cc:dd:ee:ff 10.0.0.1 esi AS 65000 10
 
 ```bash
 # Add a route
-$ gobgp global rib -a evpn add multicast <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+$ gobgp global rib -a evpn add multicast <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>] [pmsi <type> [leaf-info-required] <label> <tunnel-id>]
 
 # Show routes
 $ gobgp global rib -a evpn [multicast]
@@ -169,11 +169,10 @@ $ gobgp global rib -a evpn
 $ gobgp global rib -a evpn del multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000
 
 # With optionals
-$ gobgp global rib -a evpn add multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000 rt 65000:200 encap vxlan
+$ gobgp global rib -a evpn add multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000 rt 65000:200 encap vxlan pmsi ingress-repl 100 1.1.1.1
 $ gobgp global rib -a evpn multicast
    Network                                                   Labels     Next Hop             AS_PATH              Age        Attrs
-*> [type:multicast][rd:1.1.1.1:65000][etag:100][ip:10.0.0.1]            0.0.0.0                                   00:00:00   [{Origin: ?} {Extcomms: [65000:200], [VXLAN]}]
-$ gobgp global rib -a evpn del multicast 10.0.0.1 etag 100 rd 1.1.1.1:65000
+*> [type:multicast][rd:1.1.1.1:65000][etag:100][ip:10.0.0.1]            0.0.0.0                                   00:00:00   [{Origin: ?} {Pmsi: type: ingress-repl, label: 100, tunnel-id: 1.1.1.1} {Extcomms: [65000:200], [VXLAN]}]
 ```
 
 ### Ethernet Segment Route
