@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	farm "github.com/dgryski/go-farm"
@@ -108,14 +109,14 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 
 type TableManager struct {
 	Tables map[bgp.RouteFamily]*Table
-	Vrfs   map[string]*Vrf
+	Vrfs   sync.Map
 	rfList []bgp.RouteFamily
 }
 
 func NewTableManager(rfList []bgp.RouteFamily) *TableManager {
 	t := &TableManager{
 		Tables: make(map[bgp.RouteFamily]*Table),
-		Vrfs:   make(map[string]*Vrf),
+		Vrfs:   sync.Map{},
 		rfList: rfList,
 	}
 	for _, rf := range rfList {
@@ -129,7 +130,7 @@ func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
 }
 
 func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
-	if _, ok := manager.Vrfs[name]; ok {
+	if _, ok := manager.Vrfs.Load(name); ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
 	log.WithFields(log.Fields{
@@ -139,13 +140,13 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		"ImportRt": importRt,
 		"ExportRt": exportRt,
 	}).Debugf("add vrf")
-	manager.Vrfs[name] = &Vrf{
+	manager.Vrfs.Store(name, &Vrf{
 		Name:     name,
 		Id:       id,
 		Rd:       rd,
 		ImportRt: importRt,
 		ExportRt: exportRt,
-	}
+	})
 	msgs := make([]*Path, 0, len(importRt))
 	nexthop := "0.0.0.0"
 	for _, target := range importRt {
@@ -159,11 +160,12 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 }
 
 func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
-	if _, ok := manager.Vrfs[name]; !ok {
+	v, ok := manager.Vrfs.Load(name)
+	if !ok {
 		return nil, fmt.Errorf("vrf %s not found", name)
 	}
 	msgs := make([]*Path, 0)
-	vrf := manager.Vrfs[name]
+	vrf := v.(*Vrf)
 	for _, t := range manager.Tables {
 		msgs = append(msgs, t.deletePathsByVrf(vrf)...)
 	}
@@ -174,9 +176,11 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 		"ImportRt": vrf.ImportRt,
 		"ExportRt": vrf.ExportRt,
 	}).Debugf("delete vrf")
-	delete(manager.Vrfs, name)
+	manager.Vrfs.Delete(name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]
-	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)
+	m := make(map[string]*Vrf)
+	manager.Vrfs.Range(func(key, value interface{}) bool { m[key.(string)] = value.(*Vrf); return true })
+	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, m)...)
 	return msgs, nil
 }
 
