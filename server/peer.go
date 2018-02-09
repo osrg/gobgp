@@ -340,8 +340,8 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		if f := path.GetRouteFamily(); f != bgp.RF_IPv4_VPN && f != bgp.RF_IPv6_VPN {
 			return nil
 		}
-		vrf := peer.localRib.Vrfs[peer.fsm.pConf.Config.Vrf]
-		if table.CanImportToVrf(vrf, path) {
+		vrf, _ := peer.localRib.Vrfs.Load(peer.fsm.pConf.Config.Vrf)
+		if table.CanImportToVrf(vrf.(*table.Vrf), path) {
 			path = path.ToLocal()
 		} else {
 			return nil
