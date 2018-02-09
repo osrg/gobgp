@@ -492,18 +492,7 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 	for i, pathList := range multipath {
 		clonedM[i] = clonePathList(pathList)
 	}
-	clonedB := clonePathList(best)
-	for _, p := range clonedB {
-		switch p.GetRouteFamily() {
-		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
-			for _, vrf := range server.globalRib.Vrfs {
-				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
-					p.VrfIds = append(p.VrfIds, uint16(vrf.Id))
-				}
-			}
-		}
-	}
-	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
+	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonePathList(best), MultiPathList: clonedM})
 }
 
 func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*table.Path, msg *bgp.BGPMessage, timestamp time.Time, payload []byte) {
@@ -707,9 +696,12 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 	rib := server.globalRib
 
 	if peer != nil && peer.fsm.pConf.Config.Vrf != "" {
-		vrf := server.globalRib.Vrfs[peer.fsm.pConf.Config.Vrf]
+		vrf, y := server.globalRib.Vrfs.Load(peer.fsm.pConf.Config.Vrf)
+		if !y {
+			return
+		}
 		for idx, path := range pathList {
-			pathList[idx] = path.ToGlobal(vrf)
+			pathList[idx] = path.ToGlobal(vrf.(*table.Vrf))
 		}
 	}
 
@@ -1291,12 +1283,12 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 		}
 
 		if vrfId != "" {
-			vrf := server.globalRib.Vrfs[vrfId]
-			if vrf == nil {
+			if vrf, y := server.globalRib.Vrfs.Load(vrfId); y {
+				if err := vrf.(*table.Vrf).ToGlobalPath(path); err != nil {
+					return err
+				}
+			} else {
 				return fmt.Errorf("vrf %s not found", vrfId)
-			}
-			if err := vrf.ToGlobalPath(path); err != nil {
-				return err
 			}
 		}
 
@@ -1444,10 +1436,11 @@ func (s *BgpServer) Start(c *config.Global) error {
 
 func (s *BgpServer) GetVrf() (l []*table.Vrf) {
 	s.mgmtOperation(func() error {
-		l = make([]*table.Vrf, 0, len(s.globalRib.Vrfs))
-		for _, vrf := range s.globalRib.Vrfs {
-			l = append(l, vrf.Clone())
-		}
+		l = make([]*table.Vrf, 0)
+		s.globalRib.Vrfs.Range(func(key, value interface{}) bool {
+			l = append(l, value.(*table.Vrf).Clone())
+			return true
+		})
 		return nil
 	}, true)
 	return l
@@ -1664,8 +1657,8 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*tabl
 func (s *BgpServer) GetVrfRib(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
 	err = s.mgmtOperation(func() error {
 		m := s.globalRib
-		vrfs := m.Vrfs
-		if _, ok := vrfs[name]; !ok {
+		vrf, ok := m.Vrfs.Load(name)
+		if !ok {
 			return fmt.Errorf("vrf %s not found", name)
 		}
 		var af bgp.RouteFamily
@@ -1681,7 +1674,7 @@ func (s *BgpServer) GetVrfRib(name string, family bgp.RouteFamily, prefixes []*t
 		if !ok {
 			return fmt.Errorf("address family: %s not supported", af)
 		}
-		rib, err = tbl.Select(table.TableSelectOption{VRF: vrfs[name], LookupPrefixes: prefixes})
+		rib, err = tbl.Select(table.TableSelectOption{VRF: vrf.(*table.Vrf), LookupPrefixes: prefixes})
 		return err
 	}, true)
 	return
@@ -1823,7 +1816,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 				return fmt.Errorf("%s is not supported for VRF enslaved neighbor", f)
 			}
 		}
-		_, y := server.globalRib.Vrfs[vrf]
+		_, y := server.globalRib.Vrfs.Load(vrf)
 		if !y {
 			return fmt.Errorf("VRF not found: %s", vrf)
 		}

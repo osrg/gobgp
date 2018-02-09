@@ -491,10 +491,21 @@ func (z *zebraClient) loop() {
 					}
 				} else {
 					for _, path := range msg.PathList {
-						if len(path.VrfIds) == 0 {
-							path.VrfIds = []uint16{0}
+						vrfIds := []uint16{}
+						switch path.GetRouteFamily() {
+						case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+							z.server.globalRib.Vrfs.Range(func(key, value interface{}) bool {
+								vrf := value.(*table.Vrf)
+								if vrf.Id != 0 && table.CanImportToVrf(vrf, path) {
+									vrfIds = append(vrfIds, uint16(vrf.Id))
+								}
+								return true
+							})
 						}
-						for _, i := range path.VrfIds {
+						if len(vrfIds) == 0 {
+							vrfIds = []uint16{0}
+						}
+						for _, i := range vrfIds {
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
 								z.client.SendIPRoute(i, body, isWithdraw)
 							}

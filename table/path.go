@@ -140,14 +140,13 @@ type Validation struct {
 
 type Path struct {
 	info       *originInfo
-	IsWithdraw bool
 	pathAttrs  []bgp.PathAttributeInterface
 	attrsHash  uint32
 	reason     BestPathReason
 	parent     *Path
 	dels       []bgp.BGPAttrType
 	filtered   map[string]PolicyDirection
-	VrfIds     []uint16
+	IsWithdraw bool
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
 }
