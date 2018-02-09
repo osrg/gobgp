@@ -4530,6 +4530,10 @@ type RouteSelectionOptionsState struct {
 	// BGP best-path. The default is to select the route for
 	// which the metric to the next-hop is lowest.
 	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric,omitempty"`
+	// original -> gobgp:disable-best-path-selection
+	// gobgp:disable-best-path-selection's original type is boolean.
+	// Disables best path selection process.
+	DisableBestPathSelection bool `mapstructure:"disable-best-path-selection" json:"disable-best-path-selection,omitempty"`
 }
 
 // struct for container bgp-mp:config.
@@ -4571,6 +4575,10 @@ type RouteSelectionOptionsConfig struct {
 	// BGP best-path. The default is to select the route for
 	// which the metric to the next-hop is lowest.
 	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric,omitempty"`
+	// original -> gobgp:disable-best-path-selection
+	// gobgp:disable-best-path-selection's original type is boolean.
+	// Disables best path selection process.
+	DisableBestPathSelection bool `mapstructure:"disable-best-path-selection" json:"disable-best-path-selection,omitempty"`
 }
 
 func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) bool {
@@ -4593,6 +4601,9 @@ func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) 
 		return false
 	}
 	if lhs.IgnoreNextHopIgpMetric != rhs.IgnoreNextHopIgpMetric {
+		return false
+	}
+	if lhs.DisableBestPathSelection != rhs.DisableBestPathSelection {
 		return false
 	}
 	return true

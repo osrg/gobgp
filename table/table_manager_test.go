@@ -17,13 +17,14 @@ package table
 
 import (
 	_ "fmt"
-	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 // process BGPUpdate message
@@ -2129,7 +2130,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now())
 	path1 := pList1[0]
-	t1 := path1.OriginInfo().timestamp
+	t1 := path1.GetTimestamp()
 	adjRib.Update(pList1)
 
 	m2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
