@@ -908,12 +908,11 @@ func (o *OptionParameterUnknown) Serialize() ([]byte, error) {
 }
 
 type BGPOpen struct {
-	Version     uint8
-	MyAS        uint16
-	HoldTime    uint16
-	ID          net.IP
-	OptParamLen uint8
-	OptParams   []OptionParameterInterface
+	Version   uint8
+	MyAS      uint16
+	HoldTime  uint16
+	ID        net.IP
+	OptParams []OptionParameterInterface
 }
 
 func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -921,23 +920,23 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 	msg.MyAS = binary.BigEndian.Uint16(data[1:3])
 	msg.HoldTime = binary.BigEndian.Uint16(data[3:5])
 	msg.ID = net.IP(data[5:9]).To4()
-	msg.OptParamLen = data[9]
+	optParamLen := data[9]
 	data = data[10:]
-	if len(data) < int(msg.OptParamLen) {
+	if len(data) < int(optParamLen) {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all BGP Open message bytes available")
 	}
 
 	msg.OptParams = []OptionParameterInterface{}
-	for rest := msg.OptParamLen; rest > 0; {
-		if rest < 2 {
+	for optParamLen > 0 {
+		if optParamLen < 2 {
 			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP Open message")
 		}
 		paramtype := data[0]
 		paramlen := data[1]
-		if rest < paramlen+2 {
+		if optParamLen < paramlen+2 {
 			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP Open message")
 		}
-		rest -= paramlen + 2
+		optParamLen -= paramlen + 2
 
 		if paramtype == BGP_OPT_CAPABILITY {
 			p := &OptionParameterCapability{}
@@ -971,15 +970,20 @@ func (msg *BGPOpen) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	msg.OptParamLen = uint8(len(pbuf))
-	buf[9] = msg.OptParamLen
+	buf[9] = uint8(len(pbuf))
 	return append(buf, pbuf...), nil
 }
 
-func NewBGPOpenMessage(myas uint16, holdtime uint16, id string, optparams []OptionParameterInterface) *BGPMessage {
+func NewBGPOpenMessage(myAs uint16, holdTime uint16, id string, optParams []OptionParameterInterface) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_OPEN},
-		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), 0, optparams},
+		Body: &BGPOpen{
+			Version:   4,
+			MyAS:      myAs,
+			HoldTime:  holdTime,
+			ID:        net.ParseIP(id).To4(),
+			OptParams: optParams,
+		},
 	}
 }
 
@@ -8197,11 +8201,9 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 }
 
 type BGPUpdate struct {
-	WithdrawnRoutesLen    uint16
-	WithdrawnRoutes       []*IPAddrPrefix
-	TotalPathAttributeLen uint16
-	PathAttributes        []PathAttributeInterface
-	NLRI                  []*IPAddrPrefix
+	WithdrawnRoutes []*IPAddrPrefix
+	PathAttributes  []PathAttributeInterface
+	NLRI            []*IPAddrPrefix
 }
 
 func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -8216,11 +8218,11 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		return NewMessageError(eCode, eSubCode, nil, "message length isn't enough for withdrawn route length")
 	}
 
-	msg.WithdrawnRoutesLen = binary.BigEndian.Uint16(data[0:2])
+	withdrawnRoutesLen := binary.BigEndian.Uint16(data[0:2])
 	data = data[2:]
 
 	// check withdrawn route
-	if len(data) < int(msg.WithdrawnRoutesLen) {
+	if len(data) < int(withdrawnRoutesLen) {
 		return NewMessageError(eCode, eSubCode, nil, "withdrawn route length exceeds message length")
 	}
 
@@ -8229,8 +8231,8 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		addpathLen = 4
 	}
 
-	msg.WithdrawnRoutes = make([]*IPAddrPrefix, 0, msg.WithdrawnRoutesLen)
-	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
+	msg.WithdrawnRoutes = make([]*IPAddrPrefix, 0, withdrawnRoutesLen)
+	for routelen := withdrawnRoutesLen; routelen > 0; {
 		w := &IPAddrPrefix{}
 		err := w.DecodeFromBytes(data, options...)
 		if err != nil {
@@ -8249,16 +8251,16 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		return NewMessageError(eCode, eSubCode, nil, "message length isn't enough for path total attribute length")
 	}
 
-	msg.TotalPathAttributeLen = binary.BigEndian.Uint16(data[0:2])
+	totalPathAttributeLen := binary.BigEndian.Uint16(data[0:2])
 	data = data[2:]
 
 	// check path attribute
-	if len(data) < int(msg.TotalPathAttributeLen) {
+	if len(data) < int(totalPathAttributeLen) {
 		return NewMessageError(eCode, eSubCode, nil, "path total attribute length exceeds message length")
 	}
 
 	msg.PathAttributes = []PathAttributeInterface{}
-	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
+	for pathlen := totalPathAttributeLen; pathlen > 0; {
 		var e error
 		if pathlen < 3 {
 			e = NewMessageErrorWithErrorHandling(
@@ -8331,8 +8333,8 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		}
 		wbuf = append(wbuf, onewbuf...)
 	}
-	msg.WithdrawnRoutesLen = uint16(len(wbuf) - 2)
-	binary.BigEndian.PutUint16(wbuf, msg.WithdrawnRoutesLen)
+	// WithdrawnRoutesLen
+	binary.BigEndian.PutUint16(wbuf, uint16(len(wbuf)-2))
 
 	pbuf := make([]byte, 2)
 	for _, p := range msg.PathAttributes {
@@ -8342,8 +8344,8 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	msg.TotalPathAttributeLen = uint16(len(pbuf) - 2)
-	binary.BigEndian.PutUint16(pbuf, msg.TotalPathAttributeLen)
+	// TotalPathAttributeLen
+	binary.BigEndian.PutUint16(pbuf, uint16(len(pbuf)-2))
 
 	buf := append(wbuf, pbuf...)
 	for _, n := range msg.NLRI {
@@ -8371,16 +8373,7 @@ func (msg *BGPUpdate) IsEndOfRib() (bool, RouteFamily) {
 }
 
 func TreatAsWithdraw(msg *BGPUpdate) *BGPUpdate {
-	withdraw := &BGPUpdate{
-		WithdrawnRoutesLen:    0,
-		WithdrawnRoutes:       []*IPAddrPrefix{},
-		TotalPathAttributeLen: 0,
-		PathAttributes:        make([]PathAttributeInterface, 0, len(msg.PathAttributes)),
-		NLRI:                  []*IPAddrPrefix{},
-	}
-	withdraw.WithdrawnRoutes = append(msg.WithdrawnRoutes, msg.NLRI...)
 	var unreach []AddrPrefixInterface
-
 	for _, p := range msg.PathAttributes {
 		switch nlri := p.(type) {
 		case *PathAttributeMpReachNLRI:
@@ -8389,16 +8382,24 @@ func TreatAsWithdraw(msg *BGPUpdate) *BGPUpdate {
 			unreach = append(unreach, nlri.Value...)
 		}
 	}
+	var pathAttributes []PathAttributeInterface
 	if len(unreach) != 0 {
-		withdraw.PathAttributes = append(withdraw.PathAttributes, NewPathAttributeMpUnreachNLRI(unreach))
+		pathAttributes = []PathAttributeInterface{NewPathAttributeMpUnreachNLRI(unreach)}
 	}
-	return withdraw
+	return &BGPUpdate{
+		WithdrawnRoutes: msg.NLRI,
+		PathAttributes:  pathAttributes,
+	}
 }
 
-func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
+func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathAttributes []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
-		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
+		Body: &BGPUpdate{
+			WithdrawnRoutes: withdrawnRoutes,
+			PathAttributes:  pathAttributes,
+			NLRI:            nlri,
+		},
 	}
 }
 
