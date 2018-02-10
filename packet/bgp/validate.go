@@ -3,6 +3,7 @@ package bgp
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 )
@@ -139,7 +140,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 			return false, err
 		}
 	case *PathAttributeOrigin:
-		v := uint8(p.Value[0])
+		v := uint8(p.Value)
 		if v != BGP_ORIGIN_ATTR_TYPE_IGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_EGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
@@ -226,14 +227,14 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 }
 
 // validator for PathAttribute
-func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
+func validatePathAttributeFlags(t BGPAttrType, flags BGPAttrFlag) string {
 
 	/*
 	 * RFC 4271 P.17 For well-known attributes, the Transitive bit MUST be set to 1.
 	 */
 	if flags&BGP_ATTR_FLAG_OPTIONAL == 0 && flags&BGP_ATTR_FLAG_TRANSITIVE == 0 {
 		eMsg := fmt.Sprintf("well-known attribute %s must have transitive flag 1", t)
-		return false, eMsg
+		return eMsg
 	}
 	/*
 	 * RFC 4271 P.17 For well-known attributes and for optional non-transitive attributes,
@@ -241,21 +242,67 @@ func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
 	 */
 	if flags&BGP_ATTR_FLAG_OPTIONAL == 0 && flags&BGP_ATTR_FLAG_PARTIAL != 0 {
 		eMsg := fmt.Sprintf("well-known attribute %s must have partial bit 0", t)
-		return false, eMsg
+		return eMsg
 	}
 	if flags&BGP_ATTR_FLAG_OPTIONAL != 0 && flags&BGP_ATTR_FLAG_TRANSITIVE == 0 && flags&BGP_ATTR_FLAG_PARTIAL != 0 {
 		eMsg := fmt.Sprintf("optional non-transitive attribute %s must have partial bit 0", t)
-		return false, eMsg
+		return eMsg
 	}
 
 	// check flags are correct
 	if f, ok := PathAttrFlags[t]; ok {
 		if f != flags & ^BGP_ATTR_FLAG_EXTENDED_LENGTH & ^BGP_ATTR_FLAG_PARTIAL {
 			eMsg := fmt.Sprintf("flags are invalid. attribute type: %s, expect: %s, actual: %s", t, f, flags)
-			return false, eMsg
+			return eMsg
 		}
 	}
-	return true, ""
+	return ""
+}
+
+func validateAsPathValueBytes(data []byte) (bool, error) {
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
+	if len(data)%2 != 0 {
+		return false, NewMessageError(eCode, eSubCode, nil, "AS PATH length is not odd")
+	}
+
+	tryParse := func(data []byte, use4byte bool) (bool, error) {
+		for len(data) > 0 {
+			if len(data) < 2 {
+				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH header is short")
+			}
+			segType := data[0]
+			if segType == 0 || segType > 4 {
+				return false, NewMessageError(eCode, eSubCode, nil, "unknown AS_PATH seg type")
+			}
+			asNum := data[1]
+			data = data[2:]
+			if asNum == 0 || int(asNum) > math.MaxUint8 {
+				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH the number of AS is incorrect")
+			}
+			segLength := int(asNum)
+			if use4byte == true {
+				segLength *= 4
+			} else {
+				segLength *= 2
+			}
+			if int(segLength) > len(data) {
+				return false, NewMessageError(eCode, eSubCode, nil, "seg length is short")
+			}
+			data = data[segLength:]
+		}
+		return true, nil
+	}
+	_, err := tryParse(data, true)
+	if err == nil {
+		return true, nil
+	}
+
+	_, err = tryParse(data, false)
+	if err == nil {
+		return false, nil
+	}
+	return false, NewMessageError(eCode, eSubCode, nil, "can't parse AS_PATH")
 }
 
 func ValidateBGPMessage(m *BGPMessage) error {

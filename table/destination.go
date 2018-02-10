@@ -831,11 +831,11 @@ func compareByOrigin(path1, path2 *Path) *Path {
 		return nil
 	}
 
-	origin1, n1 := binary.Uvarint(attribute1.(*bgp.PathAttributeOrigin).Value)
-	origin2, n2 := binary.Uvarint(attribute2.(*bgp.PathAttributeOrigin).Value)
+	origin1 := attribute1.(*bgp.PathAttributeOrigin).Value
+	origin2 := attribute2.(*bgp.PathAttributeOrigin).Value
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debugf("compareByOrigin -- origin1: %d(%d), origin2: %d(%d)", origin1, n1, origin2, n2)
+	}).Debugf("compareByOrigin -- origin1: %d, origin2: %d", origin1, origin2)
 
 	// If both paths have same origins
 	if origin1 == origin2 {
