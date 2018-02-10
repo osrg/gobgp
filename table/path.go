@@ -1043,7 +1043,7 @@ func (path *Path) GetClusterList() []net.IP {
 
 func (path *Path) GetOrigin() (uint8, error) {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN); attr != nil {
-		return attr.(*bgp.PathAttributeOrigin).Value[0], nil
+		return attr.(*bgp.PathAttributeOrigin).Value, nil
 	}
 	return 0, fmt.Errorf("no origin path attr")
 }

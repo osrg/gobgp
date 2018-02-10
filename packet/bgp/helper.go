@@ -141,8 +141,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 			PathAttribute: PathAttribute{
 				Flags: BGP_ATTR_FLAG_TRANSITIVE,
 				Type:  100,
-				Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 			},
+			Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 		},
 	}
 	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "13.2.3.1")}
