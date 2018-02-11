@@ -4943,20 +4943,6 @@ func (p *PathAttribute) Serialize(value []byte, options ...*MarshallingOption) (
 	return buf, nil
 }
 
-func (p *PathAttribute) String() string {
-	return fmt.Sprintf("{Type: %s, Flags: %s}", p.Type, p.Flags)
-}
-
-func (p *PathAttribute) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type  BGPAttrType `json:"type"`
-		Flags BGPAttrFlag `json:"flags"`
-	}{
-		Type:  p.GetType(),
-		Flags: p.Flags,
-	})
-}
-
 type PathAttributeOrigin struct {
 	PathAttribute
 	Value uint8
@@ -7333,6 +7319,16 @@ func (p *PathAttributeAs4Path) String() string {
 	return strings.Join(params, " ")
 }
 
+func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType     `json:"type"`
+		Value []*As4PathParam `json:"as_paths"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
+}
+
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
@@ -7369,6 +7365,22 @@ func (p *PathAttributeAs4Aggregator) Serialize(options ...*MarshallingOption) ([
 	binary.BigEndian.PutUint32(buf[0:], p.Value.AS)
 	copy(buf[4:], p.Value.Address.To4())
 	return p.PathAttribute.Serialize(buf, options...)
+}
+
+func (p *PathAttributeAs4Aggregator) String() string {
+	return fmt.Sprintf("{As4Aggregator: {AS: %d, Address: %s}}", p.Value.AS, p.Value.Address)
+}
+
+func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    BGPAttrType `json:"type"`
+		AS      uint32      `json:"as"`
+		Address string      `json:"address"`
+	}{
+		Type:    p.GetType(),
+		AS:      p.Value.AS,
+		Address: p.Value.Address.String(),
+	})
 }
 
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
@@ -7570,6 +7582,24 @@ func (p *PathAttributeTunnelEncap) Serialize(options ...*MarshallingOption) ([]b
 		buf = append(buf, bbuf...)
 	}
 	return p.PathAttribute.Serialize(buf, options...)
+}
+
+func (p *PathAttributeTunnelEncap) String() string {
+	tlvList := make([]string, len(p.Value), len(p.Value))
+	for i, v := range p.Value {
+		tlvList[i] = v.String()
+	}
+	return fmt.Sprintf("{TunnelEncap: %s}", strings.Join(tlvList, ", "))
+}
+
+func (p *PathAttributeTunnelEncap) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType       `json:"type"`
+		Value []*TunnelEncapTLV `json:"value"`
+	}{
+		Type:  p.Type,
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEncap {
