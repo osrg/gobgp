@@ -258,16 +258,7 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal([]byte{0x3, 0xc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x8}, buf)
 
-	subTlv := &TunnelEncapSubTLV{
-		Type:  ENCAP_SUBTLV_TYPE_COLOR,
-		Value: &TunnelEncapSubTLVColor{10},
-	}
-
-	tlv := &TunnelEncapTLV{
-		Type:  TUNNEL_TYPE_VXLAN,
-		Value: []*TunnelEncapSubTLV{subTlv},
-	}
-
+	tlv := NewTunnelEncapTLV(TUNNEL_TYPE_VXLAN, []TunnelEncapSubTLVInterface{NewTunnelEncapSubTLVColor(10)})
 	attr := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv})
 
 	buf1, err := attr.Serialize()

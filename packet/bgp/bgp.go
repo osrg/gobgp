@@ -170,6 +170,31 @@ const (
 	TUNNEL_TYPE_MPLS_IN_UDP TunnelType = 13
 )
 
+func (p TunnelType) String() string {
+	switch p {
+	case TUNNEL_TYPE_L2TP3:
+		return "l2tp3"
+	case TUNNEL_TYPE_GRE:
+		return "gre"
+	case TUNNEL_TYPE_IP_IN_IP:
+		return "ip-in-ip"
+	case TUNNEL_TYPE_VXLAN:
+		return "vxlan"
+	case TUNNEL_TYPE_NVGRE:
+		return "nvgre"
+	case TUNNEL_TYPE_MPLS:
+		return "mpls"
+	case TUNNEL_TYPE_MPLS_IN_GRE:
+		return "mpls-ingre"
+	case TUNNEL_TYPE_VXLAN_GRE:
+		return "vxlan-gre"
+	case TUNNEL_TYPE_MPLS_IN_UDP:
+		return "mpls-in-udp"
+	default:
+		return fmt.Sprintf("TunnelType(%d)", uint8(p))
+	}
+}
+
 type PmsiTunnelType uint8
 
 const (
@@ -7397,143 +7422,319 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 	}
 }
 
-type TunnelEncapSubTLVValue interface {
+type TunnelEncapSubTLVInterface interface {
+	Len() int
+	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
+	String() string
+	MarshalJSON() ([]byte, error)
 }
 
-type TunnelEncapSubTLVDefault struct {
+type TunnelEncapSubTLV struct {
+	Type   EncapSubTLVType
+	Length uint16
+}
+
+func (t *TunnelEncapSubTLV) Len() int {
+	if t.Type >= 0x80 {
+		return 3 + int(t.Length)
+	}
+	return 2 + int(t.Length)
+}
+
+func (t *TunnelEncapSubTLV) DecodeFromBytes(data []byte) (value []byte, err error) {
+	t.Type = EncapSubTLVType(data[0])
+	if t.Type >= 0x80 {
+		t.Length = binary.BigEndian.Uint16(data[1:3])
+		data = data[3:]
+	} else {
+		t.Length = uint16(data[1])
+		data = data[2:]
+	}
+	if len(data) < int(t.Length) {
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
+	}
+	return data, nil
+}
+
+func (t *TunnelEncapSubTLV) Serialize(value []byte) (buf []byte, err error) {
+	t.Length = uint16(len(value))
+	if t.Type >= 0x80 {
+		buf = append(make([]byte, 3), value...)
+		binary.BigEndian.PutUint16(buf[1:3], t.Length)
+	} else {
+		buf = append(make([]byte, 2), value...)
+		buf[1] = uint8(t.Length)
+	}
+	buf[0] = uint8(t.Type)
+	return buf, nil
+}
+
+type TunnelEncapSubTLVUnkown struct {
+	TunnelEncapSubTLV
 	Value []byte
 }
 
-func (t *TunnelEncapSubTLVDefault) Serialize() ([]byte, error) {
-	return t.Value, nil
+func (t *TunnelEncapSubTLVUnkown) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	t.Value = value
+	return nil
+}
+
+func (t *TunnelEncapSubTLVUnkown) Serialize() ([]byte, error) {
+	return t.TunnelEncapSubTLV.Serialize(t.Value)
+}
+
+func (t *TunnelEncapSubTLVUnkown) String() string {
+	return fmt.Sprintf("{Type: %d, Value: %x}", t.Type, t.Value)
+}
+
+func (t *TunnelEncapSubTLVUnkown) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  EncapSubTLVType `json:"type"`
+		Value []byte          `json:"value"`
+	}{
+		Type:  t.Type,
+		Value: t.Value,
+	})
+}
+
+func NewTunnelEncapSubTLVUnkown(typ EncapSubTLVType, value []byte) *TunnelEncapSubTLVUnkown {
+	return &TunnelEncapSubTLVUnkown{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type: typ,
+		},
+		Value: value,
+	}
 }
 
 type TunnelEncapSubTLVEncapsulation struct {
+	TunnelEncapSubTLV
 	Key    uint32 // this represent both SessionID for L2TPv3 case and GRE-key for GRE case (RFC5512 4.)
 	Cookie []byte
+}
+
+func (t *TunnelEncapSubTLVEncapsulation) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if t.Length < 4 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLVEncapsulation bytes available")
+	}
+	t.Key = binary.BigEndian.Uint32(value[0:4])
+	t.Cookie = value[4:]
+	return nil
 }
 
 func (t *TunnelEncapSubTLVEncapsulation) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, t.Key)
-	return append(buf, t.Cookie...), nil
+	buf = append(buf, t.Cookie...)
+	return t.TunnelEncapSubTLV.Serialize(buf)
+}
+
+func (t *TunnelEncapSubTLVEncapsulation) String() string {
+	return fmt.Sprintf("{Key: %d, Cookie: %x}", t.Key, t.Cookie)
+}
+
+func (t *TunnelEncapSubTLVEncapsulation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   EncapSubTLVType `json:"type"`
+		Key    uint32          `json:"key"`
+		Cookie []byte          `json:"cookie"`
+	}{
+		Type:   t.Type,
+		Key:    t.Key,
+		Cookie: t.Cookie,
+	})
+}
+
+func NewTunnelEncapSubTLVEncapsulation(key uint32, cookie []byte) *TunnelEncapSubTLVEncapsulation {
+	return &TunnelEncapSubTLVEncapsulation{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type: ENCAP_SUBTLV_TYPE_ENCAPSULATION,
+		},
+		Key:    key,
+		Cookie: cookie,
+	}
 }
 
 type TunnelEncapSubTLVProtocol struct {
+	TunnelEncapSubTLV
 	Protocol uint16
+}
+
+func (t *TunnelEncapSubTLVProtocol) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if t.Length < 2 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLVProtocol bytes available")
+	}
+	t.Protocol = binary.BigEndian.Uint16(value[0:2])
+	return nil
 }
 
 func (t *TunnelEncapSubTLVProtocol) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, t.Protocol)
-	return buf, nil
+	return t.TunnelEncapSubTLV.Serialize(buf)
+}
+
+func (t *TunnelEncapSubTLVProtocol) String() string {
+	return fmt.Sprintf("{Protocol: %d}", t.Protocol)
+}
+
+func (t *TunnelEncapSubTLVProtocol) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     EncapSubTLVType `json:"type"`
+		Protocol uint16          `json:"protocol"`
+	}{
+		Type:     t.Type,
+		Protocol: t.Protocol,
+	})
+}
+
+func NewTunnelEncapSubTLVProtocol(protocol uint16) *TunnelEncapSubTLVProtocol {
+	return &TunnelEncapSubTLVProtocol{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type: ENCAP_SUBTLV_TYPE_PROTOCOL,
+		},
+		Protocol: protocol,
+	}
 }
 
 type TunnelEncapSubTLVColor struct {
+	TunnelEncapSubTLV
 	Color uint32
+}
+
+func (t *TunnelEncapSubTLVColor) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if t.Length != 8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Invalid TunnelEncapSubTLVColor length")
+	}
+	t.Color = binary.BigEndian.Uint32(value[4:8])
+	return nil
 }
 
 func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
 	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
 	buf[1] = byte(EC_SUBTYPE_COLOR)
-	binary.BigEndian.PutUint32(buf[4:], t.Color)
-	return buf, nil
+	binary.BigEndian.PutUint32(buf[4:8], t.Color)
+	return t.TunnelEncapSubTLV.Serialize(buf)
 }
 
-type TunnelEncapSubTLV struct {
-	Type  EncapSubTLVType
-	Len   int
-	Value TunnelEncapSubTLVValue
+func (t *TunnelEncapSubTLVColor) String() string {
+	return fmt.Sprintf("{Color: %d}", t.Color)
 }
 
-func (p *TunnelEncapSubTLV) Serialize() ([]byte, error) {
-	buf := make([]byte, 2)
-	bbuf, err := p.Value.Serialize()
-	if err != nil {
-		return nil, err
+func (t *TunnelEncapSubTLVColor) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  EncapSubTLVType `json:"type"`
+		Color uint32          `json:"color"`
+	}{
+		Type:  t.Type,
+		Color: t.Color,
+	})
+}
+
+func NewTunnelEncapSubTLVColor(color uint32) *TunnelEncapSubTLVColor {
+	return &TunnelEncapSubTLVColor{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type: ENCAP_SUBTLV_TYPE_COLOR,
+		},
+		Color: color,
 	}
-	buf = append(buf, bbuf...)
-	buf[0] = byte(p.Type)
-	p.Len = len(buf) - 2
-	buf[1] = byte(p.Len)
-	return buf, nil
-}
-
-func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
-	switch p.Type {
-	case ENCAP_SUBTLV_TYPE_ENCAPSULATION:
-		if len(data) < 4 {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
-		}
-		key := binary.BigEndian.Uint32(data[:4])
-		p.Value = &TunnelEncapSubTLVEncapsulation{
-			Key:    key,
-			Cookie: data[4:],
-		}
-	case ENCAP_SUBTLV_TYPE_PROTOCOL:
-		if len(data) < 2 {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
-		}
-		protocol := binary.BigEndian.Uint16(data[:2])
-		p.Value = &TunnelEncapSubTLVProtocol{protocol}
-	case ENCAP_SUBTLV_TYPE_COLOR:
-		if len(data) < 8 {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
-		}
-		color := binary.BigEndian.Uint32(data[4:])
-		p.Value = &TunnelEncapSubTLVColor{color}
-	default:
-		p.Value = &TunnelEncapSubTLVDefault{data}
-	}
-	return nil
 }
 
 type TunnelEncapTLV struct {
-	Type  TunnelType
-	Len   int
-	Value []*TunnelEncapSubTLV
+	Type   TunnelType
+	Length uint16
+	Value  []TunnelEncapSubTLVInterface
 }
 
 func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
-	curr := 0
-	for {
-		if len(data) < curr+2 {
-			break
+	t.Type = TunnelType(binary.BigEndian.Uint16(data[0:2]))
+	t.Length = binary.BigEndian.Uint16(data[2:4])
+	data = data[4:]
+	if len(data) < int(t.Length) {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Not all TunnelEncapTLV bytes available"))
+	}
+	value := data[:t.Length]
+	for len(value) > 2 {
+		subType := EncapSubTLVType(value[0])
+		var subTlv TunnelEncapSubTLVInterface
+		switch subType {
+		case ENCAP_SUBTLV_TYPE_ENCAPSULATION:
+			subTlv = &TunnelEncapSubTLVEncapsulation{}
+		case ENCAP_SUBTLV_TYPE_PROTOCOL:
+			subTlv = &TunnelEncapSubTLVProtocol{}
+		case ENCAP_SUBTLV_TYPE_COLOR:
+			subTlv = &TunnelEncapSubTLVColor{}
+		default:
+			subTlv = &TunnelEncapSubTLVUnkown{
+				TunnelEncapSubTLV: TunnelEncapSubTLV{
+					Type: subType,
+				},
+			}
 		}
-		subType := EncapSubTLVType(data[curr])
-		l := int(data[curr+1])
-		if len(data) < curr+2+l {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
-		}
-		v := data[curr+2 : curr+2+l]
-		subTlv := &TunnelEncapSubTLV{
-			Type: subType,
-		}
-		err := subTlv.DecodeFromBytes(v)
+		err := subTlv.DecodeFromBytes(value)
 		if err != nil {
 			return err
 		}
 		t.Value = append(t.Value, subTlv)
-		curr += 2 + l
+		value = value[subTlv.Len():]
 	}
 	return nil
 }
 
 func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
-	for _, s := range p.Value {
-		bbuf, err := s.Serialize()
+	for _, t := range p.Value {
+		tBuf, err := t.Serialize()
 		if err != nil {
 			return nil, err
 		}
-		buf = append(buf, bbuf...)
+		buf = append(buf, tBuf...)
 	}
 	binary.BigEndian.PutUint16(buf, uint16(p.Type))
-	p.Len = len(buf) - 4
-	binary.BigEndian.PutUint16(buf[2:], uint16(p.Len))
+	binary.BigEndian.PutUint16(buf[2:], uint16(len(buf)-4))
 	return buf, nil
+}
+
+func (p *TunnelEncapTLV) String() string {
+	tlvList := make([]string, len(p.Value), len(p.Value))
+	for i, v := range p.Value {
+		tlvList[i] = v.String()
+	}
+	return fmt.Sprintf("{%s: %s}", p.Type, strings.Join(tlvList, ", "))
+}
+
+func (p *TunnelEncapTLV) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  TunnelType                   `json:"type"`
+		Value []TunnelEncapSubTLVInterface `json:"value"`
+	}{
+		Type:  p.Type,
+		Value: p.Value,
+	})
+}
+
+func NewTunnelEncapTLV(typ TunnelType, value []TunnelEncapSubTLVInterface) *TunnelEncapTLV {
+	return &TunnelEncapTLV{
+		Type:  typ,
+		Value: value,
+	}
 }
 
 type PathAttributeTunnelEncap struct {
@@ -7546,28 +7747,14 @@ func (p *PathAttributeTunnelEncap) DecodeFromBytes(data []byte, options ...*Mars
 	if err != nil {
 		return err
 	}
-	curr := 0
-	for {
-		if len(value) < curr+4 {
-			break
-		}
-		t := binary.BigEndian.Uint16(value[curr : curr+2])
-		tunnelType := TunnelType(t)
-		l := int(binary.BigEndian.Uint16(value[curr+2 : curr+4]))
-		if len(value) < curr+4+l {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Not all TunnelEncapTLV bytes available. %d < %d", len(value), curr+4+l))
-		}
-		v := value[curr+4 : curr+4+l]
-		tlv := &TunnelEncapTLV{
-			Type: tunnelType,
-			Len:  l,
-		}
-		err = tlv.DecodeFromBytes(v)
+	for len(value) > 4 {
+		tlv := &TunnelEncapTLV{}
+		err = tlv.DecodeFromBytes(value)
 		if err != nil {
 			return err
 		}
 		p.Value = append(p.Value, tlv)
-		curr += 4 + l
+		value = value[4+tlv.Length:]
 	}
 	return nil
 }
