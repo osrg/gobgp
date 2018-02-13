@@ -2,12 +2,13 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"reflect"
+
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/spf13/viper"
-	"net"
-	"reflect"
 )
 
 const (
@@ -232,6 +233,14 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	} else if n.TtlSecurity.Config.Enabled {
 		if n.TtlSecurity.Config.TtlMin == 0 {
 			n.TtlSecurity.Config.TtlMin = 255
+		}
+	}
+
+	if n.RouteReflector.Config.RouteReflectorClient {
+		if n.RouteReflector.Config.RouteReflectorClusterId == "" {
+			n.RouteReflector.Config.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
+		} else if id := net.ParseIP(string(n.RouteReflector.Config.RouteReflectorClusterId)).To4(); id == nil {
+			return fmt.Errorf("route-reflector-cluster-id should be specified in IPv4 address format")
 		}
 	}
 
