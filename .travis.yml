@@ -1,7 +1,7 @@
 language: go
 
 _dep_ensure: &_dep_ensure
-  go: 1.8
+  go: "1.10"
   before_install: go get -u github.com/golang/dep/cmd/dep
   install: $GOPATH/bin/dep ensure
 
@@ -58,11 +58,11 @@ matrix:
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests"
-      go: 1.8
+      go: 1.9
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests + goreleaser"
-      go: 1.9
+      go: "1.10"
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
     - <<: *_unittest
