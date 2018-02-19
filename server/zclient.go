@@ -478,7 +478,7 @@ func (z *zebraClient) loop() {
 					} else {
 						z.nhtManager.scheduleUpdate(paths)
 						if b != nil {
-							z.client.SendNexthopRegister(msg.Header.VrfId, b, true)
+							z.client.SendNexthopRegister(uint16(msg.Header.VrfId), b, true)
 						}
 					}
 				}
@@ -556,7 +556,7 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	}
 	var cli *zebra.Client
 	var err error
-	for _, ver := range []uint8{version, 2, 3, 4} {
+	for _, ver := range []uint8{version, 2, 3, 4, 5} {
 		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, ver)
 		if err == nil {
 			break

@@ -2,12 +2,13 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"reflect"
+
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/spf13/viper"
-	"net"
-	"reflect"
 )
 
 const (
@@ -305,8 +306,8 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	}
 	if b.Zebra.Config.Version < 2 {
 		b.Zebra.Config.Version = 2
-	} else if b.Zebra.Config.Version > 4 {
-		b.Zebra.Config.Version = 4
+	} else if b.Zebra.Config.Version > 5 {
+		b.Zebra.Config.Version = 5
 	}
 	if !v.IsSet("zebra.config.nexthop-trigger-enable") && !b.Zebra.Config.NexthopTriggerEnable && b.Zebra.Config.Version > 2 {
 		b.Zebra.Config.NexthopTriggerEnable = true
