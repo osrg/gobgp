@@ -7470,12 +7470,12 @@ func (t *TunnelEncapSubTLV) Serialize(value []byte) (buf []byte, err error) {
 	return buf, nil
 }
 
-type TunnelEncapSubTLVUnkown struct {
+type TunnelEncapSubTLVUnknown struct {
 	TunnelEncapSubTLV
 	Value []byte
 }
 
-func (t *TunnelEncapSubTLVUnkown) DecodeFromBytes(data []byte) error {
+func (t *TunnelEncapSubTLVUnknown) DecodeFromBytes(data []byte) error {
 	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
 	if err != nil {
 		return err
@@ -7484,15 +7484,15 @@ func (t *TunnelEncapSubTLVUnkown) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (t *TunnelEncapSubTLVUnkown) Serialize() ([]byte, error) {
+func (t *TunnelEncapSubTLVUnknown) Serialize() ([]byte, error) {
 	return t.TunnelEncapSubTLV.Serialize(t.Value)
 }
 
-func (t *TunnelEncapSubTLVUnkown) String() string {
+func (t *TunnelEncapSubTLVUnknown) String() string {
 	return fmt.Sprintf("{Type: %d, Value: %x}", t.Type, t.Value)
 }
 
-func (t *TunnelEncapSubTLVUnkown) MarshalJSON() ([]byte, error) {
+func (t *TunnelEncapSubTLVUnknown) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type  EncapSubTLVType `json:"type"`
 		Value []byte          `json:"value"`
@@ -7502,8 +7502,8 @@ func (t *TunnelEncapSubTLVUnkown) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewTunnelEncapSubTLVUnkown(typ EncapSubTLVType, value []byte) *TunnelEncapSubTLVUnkown {
-	return &TunnelEncapSubTLVUnkown{
+func NewTunnelEncapSubTLVUnknown(typ EncapSubTLVType, value []byte) *TunnelEncapSubTLVUnknown {
+	return &TunnelEncapSubTLVUnknown{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
 			Type: typ,
 		},
@@ -7682,7 +7682,7 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 		case ENCAP_SUBTLV_TYPE_COLOR:
 			subTlv = &TunnelEncapSubTLVColor{}
 		default:
-			subTlv = &TunnelEncapSubTLVUnkown{
+			subTlv = &TunnelEncapSubTLVUnknown{
 				TunnelEncapSubTLV: TunnelEncapSubTLV{
 					Type: subType,
 				},
