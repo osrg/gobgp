@@ -107,6 +107,8 @@ func HeaderSize(version uint8) uint16 {
 	switch version {
 	case 3, 4:
 		return 8
+	case 5:
+		return 10
 	default:
 		return 6
 	}
