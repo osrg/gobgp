@@ -528,8 +528,8 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	incoming := make(chan *Message, 64)
 	if version < 2 {
 		version = 2
-	} else if version > 4 {
-		version = 4
+	} else if version > 5 {
+		version = 5
 	}
 
 	c := &Client{
@@ -676,7 +676,7 @@ func (c *Client) SendCommand(command API_TYPE, vrfId uint16, body Body) error {
 			Len:     HeaderSize(c.Version),
 			Marker:  marker,
 			Version: c.Version,
-			VrfId:   vrfId,
+			VrfId:   uint32(vrfId),
 			Command: command,
 		},
 		Body: body,
@@ -845,7 +845,7 @@ type Header struct {
 	Len     uint16
 	Marker  uint8
 	Version uint8
-	VrfId   uint16
+	VrfId   uint32
 	Command API_TYPE
 }
 
@@ -860,6 +860,9 @@ func (h *Header) Serialize() ([]byte, error) {
 	case 3, 4:
 		binary.BigEndian.PutUint16(buf[4:6], uint16(h.VrfId))
 		binary.BigEndian.PutUint16(buf[6:8], uint16(h.Command))
+	case 5:
+		binary.BigEndian.PutUint32(buf[4:8], uint32(h.VrfId))
+		binary.BigEndian.PutUint16(buf[8:10], uint16(h.Command))
 	default:
 		return nil, fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
 	}
@@ -880,8 +883,11 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 	case 2:
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[4:6]))
 	case 3, 4:
-		h.VrfId = binary.BigEndian.Uint16(data[4:6])
+		h.VrfId = uint32(binary.BigEndian.Uint16(data[4:6]))
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[6:8]))
+	case 5:
+		h.VrfId = binary.BigEndian.Uint32(data[4:8])
+		h.Command = API_TYPE(binary.BigEndian.Uint16(data[8:10]))
 	default:
 		return fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
 	}
@@ -2082,7 +2088,7 @@ func (m *Message) parseFrrMessage(data []byte) error {
 
 func ParseMessage(hdr *Header, data []byte) (m *Message, err error) {
 	m = &Message{Header: *hdr}
-	if m.Header.Version == 4 {
+	if m.Header.Version >= 4 {
 		err = m.parseFrrMessage(data)
 	} else {
 		err = m.parseMessage(data)
