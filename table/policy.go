@@ -1376,17 +1376,17 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 
        // FIXME:FIXME
 
-       neighbor := path.GetSource().Address
+       nexthop := path.GetNexthop()
        if options != nil && options.Info != nil && options.Info.Address != nil {
-               neighbor = options.Info.Address
+               nexthop = options.Info.Address
        }
 
-       if neighbor == nil {
+       if nexthop == nil {
                return false
        }
        result := false
        for _, n := range c.set.list {
-               if n.Contains(neighbor) {
+               if n.Contains(nexthop) {
                        result = true
                        break
                }
