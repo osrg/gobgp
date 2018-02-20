@@ -23,8 +23,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
-	//	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (
@@ -1326,20 +1326,32 @@ type IPRouteBody struct {
 	Api             API_TYPE
 }
 
-/*
-func (b *IPRouteBody) RouteFamily() bgp.RouteFamily {
-	switch b.Api {
-	case IPV4_ROUTE_ADD, IPV4_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_ADD, FRR_REDISTRIBUTE_IPV4_DEL,
-		FRR5_IPV4_ROUTE_ADD, FRR5_IPV4_ROUTE_DELETE:
-		return bgp.RF_IPv4_UC
-	case IPV6_ROUTE_ADD, IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV6_ADD, FRR_REDISTRIBUTE_IPV6_DEL,
-		FRR5_IPV6_ROUTE_ADD, FRR5_IPV6_ROUTE_DELETE:
-		return bgp.RF_IPv6_UC
-	default:
-		return bgp.RF_OPAQUE
+func (b *IPRouteBody) RouteFamily(zapiVersion uint8) bgp.RouteFamily {
+	switch zapiVersion {
+	case 1, 2, 3:
+		switch b.Api {
+		case IPV4_ROUTE_ADD, IPV4_ROUTE_DELETE:
+			return bgp.RF_IPv4_UC
+		case IPV6_ROUTE_ADD, IPV6_ROUTE_DELETE:
+			return bgp.RF_IPv6_UC
+		}
+	case 4:
+		switch b.Api {
+		case FRR_REDISTRIBUTE_IPV4_ADD, FRR_REDISTRIBUTE_IPV4_DEL:
+			return bgp.RF_IPv4_UC
+		case FRR_REDISTRIBUTE_IPV6_ADD, FRR_REDISTRIBUTE_IPV6_DEL:
+			return bgp.RF_IPv6_UC
+		}
+	case 5:
+		switch b.Api {
+		case FRR5_IPV4_ROUTE_ADD, FRR5_IPV4_ROUTE_DELETE:
+			return bgp.RF_IPv4_UC
+		case FRR5_IPV6_ROUTE_ADD, FRR5_IPV6_ROUTE_DELETE:
+			return bgp.RF_IPv6_UC
+		}
 	}
+	return bgp.RF_OPAQUE
 }
-*/
 
 func (b *IPRouteBody) IsWithdraw() bool {
 	switch b.Api {
