@@ -531,11 +531,12 @@ func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 
+	options := &table.PolicyOptions{
+		Info:       peer.fsm.peerInfo,
+		OldNextHop: path.GetNexthop(),
+	}
 	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
 
-	options := &table.PolicyOptions{
-		Info: peer.fsm.peerInfo,
-	}
 	if v := s.roaManager.validate(path); v != nil {
 		options.ValidationResult = v
 	}
