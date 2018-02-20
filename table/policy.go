@@ -48,6 +48,7 @@ const (
 	DEFINED_TYPE_COMMUNITY
 	DEFINED_TYPE_EXT_COMMUNITY
 	DEFINED_TYPE_LARGE_COMMUNITY
+	DEFINED_TYPE_NEXT_HOP
 )
 
 type RouteType int
@@ -153,6 +154,7 @@ const (
 	CONDITION_RPKI
 	CONDITION_ROUTE_TYPE
 	CONDITION_LARGE_COMMUNITY
+	CONDITION_NEXT_HOP
 )
 
 type ActionType int
@@ -533,6 +535,110 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		family: family,
 	}, nil
 }
+
+type NextHopSet struct {
+      list []net.IPNet
+}
+
+func (s *NextHopSet) Name() string {
+      return "NextHopSet: NO NAME"
+}
+
+func (s *NextHopSet) Type() DefinedType {
+      return DEFINED_TYPE_NEXT_HOP
+}
+
+func (lhs *NextHopSet) Append(arg DefinedSet) error {
+      rhs, ok := arg.(*NextHopSet)
+      if !ok {
+              return fmt.Errorf("type cast failed")
+      }
+      lhs.list = append(lhs.list, rhs.list...)
+      return nil
+}
+
+func (lhs *NextHopSet) Remove(arg DefinedSet) error {
+      rhs, ok := arg.(*NextHopSet)
+      if !ok {
+              return fmt.Errorf("type cast failed")
+      }
+      ps := make([]net.IPNet, 0, len(lhs.list))
+      for _, x := range lhs.list {
+              found := false
+              for _, y := range rhs.list {
+                      if x.String() == y.String() {
+                              found = true
+                              break
+                      }
+              }
+              if !found {
+                      ps = append(ps, x)
+              }
+      }
+      lhs.list = ps
+      return nil
+}
+
+func (lhs *NextHopSet) Replace(arg DefinedSet) error {
+      rhs, ok := arg.(*NextHopSet)
+      if !ok {
+              return fmt.Errorf("type cast failed")
+      }
+      lhs.list = rhs.list
+      return nil
+}
+
+func (s *NextHopSet) List() []string {
+      list := make([]string, 0, len(s.list))
+      for _, n := range s.list {
+          list = append(list, n.String())
+      }
+      return list
+}
+
+func (s *NextHopSet) ToConfig() []string {
+      return s.List()
+}
+
+func (s *NextHopSet) String() string {
+      return strings.Join(s.List(), "\n")
+}
+
+func (s *NextHopSet) MarshalJSON() ([]byte, error) {
+      return json.Marshal(s.ToConfig())
+}
+
+func NewNextHopSetFromApiStruct(name string, list []net.IPNet) (*NextHopSet, error) {
+      return &NextHopSet{
+              list: list,
+      }, nil
+}
+
+func NewNextHopSet(c []string) (*NextHopSet, error) {
+      list := make([]net.IPNet, 0, len(c))
+      for _, x := range c {
+          _, cidr, err := net.ParseCIDR(x)
+          if err != nil {
+              addr := net.ParseIP(x)
+              if addr == nil {
+                      return nil, fmt.Errorf("invalid address or prefix: %s", x)
+              }
+              mask := net.CIDRMask(32, 32)
+              if addr.To4() == nil {
+                      mask = net.CIDRMask(128, 128)
+              }
+              cidr = &net.IPNet{
+                      IP:   addr,
+                      Mask: mask,
+              }
+          }
+          list = append(list, *cidr)
+      }
+      return &NextHopSet{
+              list: list,
+      }, nil
+}
+
 
 type NeighborSet struct {
 	name string
@@ -1238,6 +1344,74 @@ type Condition interface {
 	Evaluate(*Path, *PolicyOptions) bool
 	Set() DefinedSet
 }
+
+
+
+type NextHopCondition struct {
+       set    *NextHopSet
+}
+
+func (c *NextHopCondition) Type() ConditionType {
+       return CONDITION_NEXT_HOP
+}
+
+func (c *NextHopCondition) Set() DefinedSet {
+       return c.set
+}
+//  FIXME: REMOVE
+// func (c *NextHopCondition) Option() MatchOption {
+//        return c.option
+// }
+
+// compare neighbor ipaddress of this condition and source address of path
+// and, subsequent comparisons are skipped if that matches the conditions.
+// If NeighborList's length is zero, return true.
+func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
+       if len(c.set.list) == 0 {
+               log.WithFields(log.Fields{
+                       "Topic": "Policy",
+               }).Debug("NextHop doesn't have elements")
+               return true
+       }
+
+       // FIXME:FIXME
+
+       neighbor := path.GetSource().Address
+       if options != nil && options.Info != nil && options.Info.Address != nil {
+               neighbor = options.Info.Address
+       }
+
+       if neighbor == nil {
+               return false
+       }
+       result := false
+       for _, n := range c.set.list {
+               if n.Contains(neighbor) {
+                       result = true
+                       break
+               }
+       }
+
+       return result
+}
+
+func (c *NextHopCondition) Name() string { return "NO NAME" }
+
+func NewNextHopCondition(c []string) (*NextHopCondition, error) {
+		if len(c) == 0 {
+		       return nil, nil
+		}
+
+		list, err := NewNextHopSet(c)
+		if err != nil {
+		      return nil, nil
+		}
+
+       return &NextHopCondition{
+               set: list,
+       }, nil
+}
+
 
 type PrefixCondition struct {
 	set    *PrefixSet
@@ -2465,6 +2639,9 @@ func (s *Statement) ToConfig() *config.Statement {
 				case *LargeCommunityCondition:
 					v := c.(*LargeCommunityCondition)
 					cond.BgpConditions.MatchLargeCommunitySet = config.MatchLargeCommunitySet{LargeCommunitySet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
+				case *NextHopCondition:
+                    v := c.(*NextHopCondition)
+                    cond.BgpConditions.NextHopInList = v.set.List()
 				case *RpkiValidationCondition:
 					v := c.(*RpkiValidationCondition)
 					cond.BgpConditions.RpkiValidationResult = v.result
@@ -2669,6 +2846,9 @@ func NewStatement(c config.Statement) (*Statement, error) {
 		func() (Condition, error) {
 			return NewLargeCommunityCondition(c.Conditions.BgpConditions.MatchLargeCommunitySet)
 		},
+        func() (Condition, error) {
+            return NewNextHopCondition(c.Conditions.BgpConditions.NextHopInList)
+        },
 	}
 	cs = make([]Condition, 0, len(cfs))
 	for _, f := range cfs {
@@ -3044,6 +3224,15 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 			c := v.(*LargeCommunityCondition)
 			c.set = i.(*LargeCommunitySet)
 		}
+    case CONDITION_NEXT_HOP:
+        // m := r.definedSetMap[DEFINED_TYPE_NEXT_HOP]
+        // if i, ok := m[v.Name()]; !ok {
+        //     return fmt.Errorf("not found next-hop set %s", v.Name())
+        // } else {
+        //     c := v.(*NextHopCondition)
+        //     c.set = i.(*NextHopSet)
+        // }
+
 	case CONDITION_AS_PATH_LENGTH:
 	case CONDITION_RPKI:
 	}
@@ -3153,6 +3342,7 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 		}
 		dmap[DEFINED_TYPE_LARGE_COMMUNITY][y.Name()] = y
 	}
+
 	pmap := make(map[string]*Policy)
 	smap := make(map[string]*Statement)
 	for _, x := range c.PolicyDefinitions {
