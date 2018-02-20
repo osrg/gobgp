@@ -24,8 +24,7 @@ import (
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/osrg/gobgp/packet/bgp"
+	//	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (
@@ -829,8 +828,11 @@ func (c *Client) SendHello() error {
 			RedistDefault: c.redistDefault,
 			Instance:      0,
 		}
-		if c.Version >= 4 {
+		switch c.Version {
+		case 4:
 			command = FRR_HELLO
+		case 5:
+			command = FRR5_HELLO
 		}
 		return c.SendCommand(command, VRF_DEFAULT, body)
 	}
@@ -839,16 +841,22 @@ func (c *Client) SendHello() error {
 
 func (c *Client) SendRouterIDAdd() error {
 	command := ROUTER_ID_ADD
-	if c.Version >= 4 {
+	switch c.Version {
+	case 4:
 		command = FRR_ROUTER_ID_ADD
+	case 5:
+		command = FRR5_ROUTER_ID_ADD
 	}
 	return c.SendCommand(command, VRF_DEFAULT, nil)
 }
 
 func (c *Client) SendInterfaceAdd() error {
 	command := INTERFACE_ADD
-	if c.Version >= 4 {
+	switch c.Version {
+	case 4:
 		command = FRR_INTERFACE_ADD
+	case 5:
+		command = FRR5_INTERFACE_ADD
 	}
 	return c.SendCommand(command, VRF_DEFAULT, nil)
 }
@@ -862,7 +870,12 @@ func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint16) error {
 				Redist: t,
 			})
 		} else { // version >= 4
-			command = FRR_REDISTRIBUTE_ADD
+			switch c.Version {
+			case 4:
+				command = FRR_REDISTRIBUTE_ADD
+			case 5:
+				command = FRR5_REDISTRIBUTE_ADD
+			}
 			for _, afi := range []AFI{AFI_IP, AFI_IP6} {
 				bodies = append(bodies, &RedistributeBody{
 					Afi:      afi,
@@ -883,8 +896,11 @@ func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint16) error {
 func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 	if t < ROUTE_MAX {
 		command := REDISTRIBUTE_DELETE
-		if c.Version >= 4 {
+		switch c.Version {
+		case 4:
 			command = FRR_REDISTRIBUTE_DELETE
+		case 5:
+			command = FRR5_REDISTRIBUTE_DELETE
 		}
 		body := &RedistributeBody{
 			Redist: t,
@@ -912,7 +928,7 @@ func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) e
 		if body.Tag != 0 {
 			body.Message |= MESSAGE_TAG
 		}
-	} else { // version >= 4
+	} else if c.Version == 4 {
 		if body.Prefix.To4() != nil {
 			if isWithdraw {
 				command = FRR_IPV4_ROUTE_DELETE
@@ -929,6 +945,23 @@ func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) e
 		if body.Tag != 0 {
 			body.Message |= FRR_MESSAGE_TAG
 		}
+	} else { // version >= 5
+		if body.Prefix.To4() != nil {
+			if isWithdraw {
+				command = FRR5_IPV4_ROUTE_DELETE
+			} else {
+				command = FRR5_IPV4_ROUTE_ADD
+			}
+		} else {
+			if isWithdraw {
+				command = FRR5_IPV6_ROUTE_DELETE
+			} else {
+				command = FRR5_IPV6_ROUTE_ADD
+			}
+		}
+		if body.Tag != 0 {
+			body.Message |= FRR5_MESSAGE_TAG
+		}
 	}
 	return c.SendCommand(command, vrfId, body)
 }
@@ -944,11 +977,17 @@ func (c *Client) SendNexthopRegister(vrfId uint16, body *NexthopRegisterBody, is
 		if isWithdraw {
 			command = NEXTHOP_UNREGISTER
 		}
-	} else { // version >= 4
+	} else if c.Version == 4 {
 		if isWithdraw {
 			command = FRR_NEXTHOP_UNREGISTER
 		} else {
 			command = FRR_NEXTHOP_REGISTER
+		}
+	} else if c.Version == 5 { // version >= 5
+		if isWithdraw {
+			command = FRR5_NEXTHOP_UNREGISTER
+		} else {
+			command = FRR5_NEXTHOP_REGISTER
 		}
 	}
 	return c.SendCommand(command, vrfId, body)
@@ -958,19 +997,32 @@ func (c *Client) SendLabelManagerConnect() error {
 	if c.Version < 4 {
 		return fmt.Errorf("LABEL_MANAGER_CONNECT is not supported in version: %d", c.Version)
 	}
+	var command API_TYPE
+	var rdistType ROUTE_TYPE
+	switch c.Version {
+	case 4:
+		command = FRR_LABEL_MANAGER_CONNECT
+		rdistType = FRR_ROUTE_BGP
+	case 5:
+		command = FRR5_LABEL_MANAGER_CONNECT
+		rdistType = FRR5_ROUTE_BGP
+	}
 	return c.SendCommand(
-		FRR_LABEL_MANAGER_CONNECT, 0,
+		command, 0,
 		&LabelManagerConnectBody{
-			RedistDefault: ROUTE_BGP,
+			RedistDefault: rdistType,
 			Instance:      0,
 		})
 }
 
 func (c *Client) SendGetLabelChunk(body *GetLabelChunkBody) error {
-	if c.Version < 4 {
-		return fmt.Errorf("GET_LABEL_CHUNK is not supported in version: %d", c.Version)
+	switch c.Version {
+	case 4:
+		return c.SendCommand(FRR_GET_LABEL_CHUNK, 0, body)
+	case 5:
+		return c.SendCommand(FRR5_GET_LABEL_CHUNK, 0, body)
 	}
-	return c.SendCommand(FRR_GET_LABEL_CHUNK, 0, body)
+	return fmt.Errorf("GET_LABEL_CHUNK is not supported in version: %d", c.Version)
 }
 
 func (c *Client) Close() error {
@@ -1274,16 +1326,20 @@ type IPRouteBody struct {
 	Api             API_TYPE
 }
 
+/*
 func (b *IPRouteBody) RouteFamily() bgp.RouteFamily {
 	switch b.Api {
-	case IPV4_ROUTE_ADD, IPV4_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_ADD, FRR_REDISTRIBUTE_IPV4_DEL:
+	case IPV4_ROUTE_ADD, IPV4_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_ADD, FRR_REDISTRIBUTE_IPV4_DEL,
+		FRR5_IPV4_ROUTE_ADD, FRR5_IPV4_ROUTE_DELETE:
 		return bgp.RF_IPv4_UC
-	case IPV6_ROUTE_ADD, IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV6_ADD, FRR_REDISTRIBUTE_IPV6_DEL:
+	case IPV6_ROUTE_ADD, IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV6_ADD, FRR_REDISTRIBUTE_IPV6_DEL,
+		FRR5_IPV6_ROUTE_ADD, FRR5_IPV6_ROUTE_DELETE:
 		return bgp.RF_IPv6_UC
 	default:
 		return bgp.RF_OPAQUE
 	}
 }
+*/
 
 func (b *IPRouteBody) IsWithdraw() bool {
 	switch b.Api {
