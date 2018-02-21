@@ -486,7 +486,7 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 func Test_Aigp(t *testing.T) {
 	assert := assert.New(t)
 	m := NewAigpTLVIgpMetric(1000)
-	a1 := NewPathAttributeAigp([]AigpTLV{m})
+	a1 := NewPathAttributeAigp([]AigpTLVInterface{m})
 	buf1, err := a1.Serialize()
 	assert.Nil(err)
 	a2 := NewPathAttributeAigp(nil)

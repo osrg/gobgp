@@ -7974,87 +7974,6 @@ func ParsePmsiTunnel(args []string) (*PathAttributePmsiTunnel, error) {
 	return pmsi, nil
 }
 
-type AigpTLVType uint8
-
-const (
-	AIGP_TLV_UNKNOWN AigpTLVType = iota
-	AIGP_TLV_IGP_METRIC
-)
-
-type AigpTLV interface {
-	Serialize() ([]byte, error)
-	String() string
-	MarshalJSON() ([]byte, error)
-	Type() AigpTLVType
-}
-
-type AigpTLVDefault struct {
-	typ   AigpTLVType
-	Value []byte
-}
-
-func (t *AigpTLVDefault) Serialize() ([]byte, error) {
-	buf := make([]byte, 3+len(t.Value))
-	buf[0] = uint8(t.Type())
-	binary.BigEndian.PutUint16(buf[1:], uint16(3+len(t.Value)))
-	copy(buf[3:], t.Value)
-	return buf, nil
-}
-
-func (t *AigpTLVDefault) String() string {
-	return fmt.Sprintf("{Type: %d, Value: %v}", t.Type(), t.Value)
-}
-
-func (t *AigpTLVDefault) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type  AigpTLVType `json:"type"`
-		Value []byte      `json:"value"`
-	}{
-		Type:  t.Type(),
-		Value: t.Value,
-	})
-}
-
-func (t *AigpTLVDefault) Type() AigpTLVType {
-	return t.typ
-}
-
-type AigpTLVIgpMetric struct {
-	Metric uint64
-}
-
-func (t *AigpTLVIgpMetric) Serialize() ([]byte, error) {
-	buf := make([]byte, 11)
-	buf[0] = uint8(AIGP_TLV_IGP_METRIC)
-	binary.BigEndian.PutUint16(buf[1:], uint16(11))
-	binary.BigEndian.PutUint64(buf[3:], t.Metric)
-	return buf, nil
-}
-
-func (t *AigpTLVIgpMetric) String() string {
-	return fmt.Sprintf("{Metric: %d}", t.Metric)
-}
-
-func (t *AigpTLVIgpMetric) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type   AigpTLVType `json:"type"`
-		Metric uint64      `json:"metric"`
-	}{
-		Type:   AIGP_TLV_IGP_METRIC,
-		Metric: t.Metric,
-	})
-}
-
-func NewAigpTLVIgpMetric(metric uint64) *AigpTLVIgpMetric {
-	return &AigpTLVIgpMetric{
-		Metric: metric,
-	}
-}
-
-func (t *AigpTLVIgpMetric) Type() AigpTLVType {
-	return AIGP_TLV_IGP_METRIC
-}
-
 type PathAttributeIP6ExtendedCommunities struct {
 	PathAttribute
 	Value []ExtendedCommunityInterface
@@ -8147,9 +8066,97 @@ func NewPathAttributeIP6ExtendedCommunities(value []ExtendedCommunityInterface) 
 	}
 }
 
+type AigpTLVType uint8
+
+const (
+	AIGP_TLV_UNKNOWN AigpTLVType = iota
+	AIGP_TLV_IGP_METRIC
+)
+
+type AigpTLVInterface interface {
+	Serialize() ([]byte, error)
+	String() string
+	MarshalJSON() ([]byte, error)
+	Type() AigpTLVType
+}
+
+type AigpTLVDefault struct {
+	typ   AigpTLVType
+	Value []byte
+}
+
+func (t *AigpTLVDefault) Serialize() ([]byte, error) {
+	buf := make([]byte, 3+len(t.Value))
+	buf[0] = uint8(t.Type())
+	binary.BigEndian.PutUint16(buf[1:], uint16(3+len(t.Value)))
+	copy(buf[3:], t.Value)
+	return buf, nil
+}
+
+func (t *AigpTLVDefault) String() string {
+	return fmt.Sprintf("{Type: %d, Value: %v}", t.Type(), t.Value)
+}
+
+func (t *AigpTLVDefault) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  AigpTLVType `json:"type"`
+		Value []byte      `json:"value"`
+	}{
+		Type:  t.Type(),
+		Value: t.Value,
+	})
+}
+
+func (t *AigpTLVDefault) Type() AigpTLVType {
+	return t.typ
+}
+
+func NewAigpTLVDefault(typ AigpTLVType, value []byte) *AigpTLVDefault {
+	return &AigpTLVDefault{
+		typ:   typ,
+		Value: value,
+	}
+}
+
+type AigpTLVIgpMetric struct {
+	Metric uint64
+}
+
+func (t *AigpTLVIgpMetric) Serialize() ([]byte, error) {
+	buf := make([]byte, 11)
+	buf[0] = uint8(AIGP_TLV_IGP_METRIC)
+	binary.BigEndian.PutUint16(buf[1:], uint16(11))
+	binary.BigEndian.PutUint64(buf[3:], t.Metric)
+	return buf, nil
+}
+
+func (t *AigpTLVIgpMetric) String() string {
+	return fmt.Sprintf("{Metric: %d}", t.Metric)
+}
+
+func (t *AigpTLVIgpMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   AigpTLVType `json:"type"`
+		Metric uint64      `json:"metric"`
+	}{
+		Type:   AIGP_TLV_IGP_METRIC,
+		Metric: t.Metric,
+	})
+}
+
+func NewAigpTLVIgpMetric(metric uint64) *AigpTLVIgpMetric {
+	return &AigpTLVIgpMetric{
+		Metric: metric,
+	}
+}
+
+func (t *AigpTLVIgpMetric) Type() AigpTLVType {
+	return AIGP_TLV_IGP_METRIC
+}
+
 type PathAttributeAigp struct {
 	PathAttribute
-	Values []AigpTLV
+	Values []AigpTLVInterface
 }
 
 func (p *PathAttributeAigp) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -8172,7 +8179,7 @@ func (p *PathAttributeAigp) DecodeFromBytes(data []byte, options ...*Marshalling
 			metric := binary.BigEndian.Uint64(v)
 			p.Values = append(p.Values, NewAigpTLVIgpMetric(metric))
 		default:
-			p.Values = append(p.Values, &AigpTLVDefault{AigpTLVType(typ), v})
+			p.Values = append(p.Values, NewAigpTLVDefault(AigpTLVType(typ), v))
 		}
 		value = value[length:]
 	}
@@ -8208,15 +8215,15 @@ func (p *PathAttributeAigp) String() string {
 
 func (p *PathAttributeAigp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type  BGPAttrType `json:"type"`
-		Value []AigpTLV   `json:"value"`
+		Type  BGPAttrType        `json:"type"`
+		Value []AigpTLVInterface `json:"value"`
 	}{
 		Type:  p.GetType(),
 		Value: p.Values,
 	})
 }
 
-func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
+func NewPathAttributeAigp(values []AigpTLVInterface) *PathAttributeAigp {
 	t := BGP_ATTR_TYPE_AIGP
 	return &PathAttributeAigp{
 		PathAttribute: PathAttribute{
