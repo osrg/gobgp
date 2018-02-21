@@ -515,21 +515,21 @@ func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
        path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
        // create policy
-       ps := createPrefixSet("ps1", "10.3.0.0/16", "21..24")
-       ns := createNeighborSet("ns1", "10.0.0.1")
-       ds := config.DefinedSets{}
-       ds.PrefixSets = []config.PrefixSet{ps}
-       ds.NeighborSets = []config.NeighborSet{ns}
-       s := createStatement("statement1", "ps1", "ns1", false)
-	   s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.1"}
-       pd := createPolicyDefinition("pd1", s)
-       pl := createRoutingPolicy(ds, pd)
+	   ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
+	   ns := createNeighborSet("ns1", "10.0.0.1")
+	   ds := config.DefinedSets{}
+	   ds.PrefixSets = []config.PrefixSet{ps}
+	   ds.NeighborSets = []config.NeighborSet{ns}
+	   s := createStatement("statement1", "ps1", "ns1", true)
+	   s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.1/32"}
+	   pd := createPolicyDefinition("pd1", s)
+	   pl := createRoutingPolicy(ds, pd)
 
        r := NewRoutingPolicy()
        err := r.reload(pl)
        assert.Nil(t, err)
        pType, newPath := r.policyMap["pd1"].Apply(path, nil)
-       assert.Equal(t, ROUTE_TYPE_NONE, pType)
+       assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
        assert.Equal(t, newPath, path)
 }
 
@@ -539,7 +539,7 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
        origin := bgp.NewPathAttributeOrigin(0)
        aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
        aspath := bgp.NewPathAttributeAsPath(aspathParam)
-       nexthop := bgp.NewPathAttributeNextHop("10.0.0.2")
+       nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
        med := bgp.NewPathAttributeMultiExitDisc(0)
        pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
        nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
@@ -547,15 +547,15 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
        path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
        // create policy
-       ps := createPrefixSet("ps1", "10.3.0.0/16", "21..24")
-       ns := createNeighborSet("ns1", "10.0.0.1")
-       ds := config.DefinedSets{}
-       ds.PrefixSets = []config.PrefixSet{ps}
-       ds.NeighborSets = []config.NeighborSet{ns}
-       s := createStatement("statement1", "ps1", "ns1", false)
-	   s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.1"}
-       pd := createPolicyDefinition("pd1", s)
-       pl := createRoutingPolicy(ds, pd)
+	   ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
+	   ns := createNeighborSet("ns1", "10.0.0.1")
+	   ds := config.DefinedSets{}
+	   ds.PrefixSets = []config.PrefixSet{ps}
+	   ds.NeighborSets = []config.NeighborSet{ns}
+	   s := createStatement("statement1", "ps1", "ns1", true)
+	   s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.12"}
+	   pd := createPolicyDefinition("pd1", s)
+	   pl := createRoutingPolicy(ds, pd)
 
        r := NewRoutingPolicy()
        err := r.reload(pl)

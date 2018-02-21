@@ -1374,9 +1374,8 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
                return true
        }
 
-       // FIXME:FIXME
-
        nexthop := path.GetNexthop()
+		   log.Print(nexthop)
        if options != nil && options.Info != nil && options.Info.Address != nil {
                nexthop = options.Info.Address
        }
@@ -1384,15 +1383,15 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
        if nexthop == nil {
                return false
        }
-       result := false
+
        for _, n := range c.set.list {
-               if n.Contains(nexthop) {
-                       result = true
-                       break
-               }
+
+           if n.Contains(nexthop) {
+                   return true
+           }
        }
 
-       return result
+       return false
 }
 
 func (c *NextHopCondition) Name() string { return "NO NAME" }
