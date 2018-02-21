@@ -2487,9 +2487,62 @@ func (m *Message) parseFrrMessage(data []byte) error {
 	return m.Body.DecodeFromBytes(data, m.Header.Version)
 }
 
+func (m *Message) parseFrr5Message(data []byte) error {
+	switch m.Header.Command {
+	case FRR5_INTERFACE_ADD, FRR5_INTERFACE_DELETE, FRR5_INTERFACE_UP, FRR5_INTERFACE_DOWN:
+		m.Body = &InterfaceUpdateBody{}
+	case FRR5_INTERFACE_ADDRESS_ADD, FRR5_INTERFACE_ADDRESS_DELETE:
+		m.Body = &InterfaceAddressUpdateBody{}
+	case FRR5_INTERFACE_SET_MASTER:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_ROUTER_ID_UPDATE:
+		m.Body = &RouterIDUpdateBody{}
+	case FRR5_NEXTHOP_UPDATE:
+		m.Body = &NexthopUpdateBody{}
+	case FRR5_INTERFACE_NBR_ADDRESS_ADD, FRR5_INTERFACE_NBR_ADDRESS_DELETE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_INTERFACE_BFD_DEST_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_IMPORT_CHECK_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_BFD_DEST_REPLAY:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_IPV4_ROUTE_ADD, FRR5_IPV4_ROUTE_DELETE, FRR_IPV6_ROUTE_ADD, FRR_IPV6_ROUTE_DELETE:
+		m.Body = &IPRouteBody{Api: m.Header.Command}
+	case FRR5_INTERFACE_VRF_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_INTERFACE_LINK_PARAMS:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_PW_STATUS_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR5_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR5_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR5_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &ReleaseLabelChunkBody{}
+	default:
+		m.Body = &UnknownBody{}
+	}
+	return m.Body.DecodeFromBytes(data, m.Header.Version)
+}
+
 func ParseMessage(hdr *Header, data []byte) (m *Message, err error) {
 	m = &Message{Header: *hdr}
-	if m.Header.Version >= 4 {
+	if m.Header.Version >= 5 {
+		err = m.parseFrr5Message(data)
+	} else if m.Header.Version == 4 {
 		err = m.parseFrrMessage(data)
 	} else {
 		err = m.parseMessage(data)
