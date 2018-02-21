@@ -2395,6 +2395,20 @@ func (b *ReleaseLabelChunkBody) String() string {
 		b.Start, b.End)
 }
 
+type VrfLabelBody struct {
+	Label     uint32
+	Afi       uint8
+	LabelType uint8
+}
+
+func (b *VrfLabelBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint32(buf[0:4], b.Label)
+	buf[4] = b.Afi
+	buf[5] = b.LabelType
+	return buf, nil
+}
+
 type Message struct {
 	Header Header
 	Body   Body
