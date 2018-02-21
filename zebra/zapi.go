@@ -1559,14 +1559,15 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	isV4 := true
 	if version <= 3 {
 		isV4 = b.Api == IPV4_ROUTE_ADD || b.Api == IPV4_ROUTE_DELETE
-	} else {
+	} else if version == 4 {
 		isV4 = b.Api == FRR_REDISTRIBUTE_IPV4_ADD || b.Api == FRR_REDISTRIBUTE_IPV4_DEL
+	} else { // version >= 5
+		isV4 = b.Api == FRR5_IPV4_ROUTE_ADD || b.Api == FRR5_IPV4_ROUTE_DELETE
 	}
 	var addrLen uint8 = net.IPv4len
 	if !isV4 {
 		addrLen = net.IPv6len
 	}
-
 	b.Type = ROUTE_TYPE(data[0])
 	if version <= 3 {
 		b.Flags = FLAG(data[1])
@@ -1576,10 +1577,8 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		b.Flags = FLAG(binary.BigEndian.Uint32(data[3:7]))
 		data = data[7:]
 	}
-
 	b.Message = MESSAGE_FLAG(data[0])
 	b.SAFI = SAFI(SAFI_UNICAST)
-
 	b.PrefixLength = data[1]
 	if b.PrefixLength > addrLen*8 {
 		return fmt.Errorf("prefix length is greater than %d", addrLen*8)
@@ -1594,37 +1593,47 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		b.Prefix = net.IP(buf).To16()
 	}
 	pos += byteLen
-
-	if b.Message&FRR_MESSAGE_SRCPFX > 0 {
-		b.SrcPrefixLength = data[pos]
-		pos += 1
-		buf = make([]byte, addrLen)
-		byteLen = int((b.SrcPrefixLength + 7) / 8)
-		copy(buf, data[pos:pos+byteLen])
-		if isV4 {
-			b.SrcPrefix = net.IP(buf).To4()
-		} else {
-			b.SrcPrefix = net.IP(buf).To16()
-		}
-		pos += byteLen
-	}
-
 	rest := 0
 	var numNexthop int
-	if b.Message&MESSAGE_NEXTHOP > 0 {
-		numNexthop = int(data[pos])
-		// rest = numNexthop(1) + (nexthop(4 or 16) + placeholder(1) + ifindex(4)) * numNexthop
-		rest += 1 + numNexthop*(int(addrLen)+5)
-	}
-	if b.Message&MESSAGE_DISTANCE > 0 {
-		// distance(1)
-		rest += 1
-	}
-	if b.Message&MESSAGE_METRIC > 0 {
-		// metric(4)
-		rest += 4
-	}
 	if version <= 3 {
+		if b.Message&MESSAGE_NEXTHOP > 0 {
+			numNexthop = int(data[pos])
+			rest += 1 + numNexthop*(int(addrLen)+5)
+		}
+		if b.Message&MESSAGE_DISTANCE > 0 {
+			// distance(1)
+			rest += 1
+		}
+		if b.Message&MESSAGE_METRIC > 0 {
+			// metric(4)
+			rest += 4
+		}
+	} else if version == 4 {
+		if b.Message&FRR_MESSAGE_SRCPFX > 0 {
+			b.SrcPrefixLength = data[pos]
+			pos += 1
+			buf = make([]byte, addrLen)
+			byteLen = int((b.SrcPrefixLength + 7) / 8)
+			copy(buf, data[pos:pos+byteLen])
+			if isV4 {
+				b.SrcPrefix = net.IP(buf).To4()
+			} else {
+				b.SrcPrefix = net.IP(buf).To16()
+			}
+			pos += byteLen
+		}
+		if b.Message&FRR_MESSAGE_NEXTHOP > 0 {
+			numNexthop = int(data[pos])
+			rest += 1 + numNexthop*(int(addrLen)+5)
+		}
+		if b.Message&FRR_MESSAGE_DISTANCE > 0 {
+			// distance(1)
+			rest += 1
+		}
+		if b.Message&FRR_MESSAGE_METRIC > 0 {
+			// metric(4)
+			rest += 4
+		}
 		if b.Message&MESSAGE_MTU > 0 {
 			// mtu(4)
 			rest += 4
@@ -1633,7 +1642,6 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 			// tag(4)
 			rest += 4
 		}
-	} else { // version >= 4
 		if b.Message&FRR_MESSAGE_TAG > 0 {
 			// tag(4)
 			rest += 4
@@ -1642,44 +1650,74 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 			// mtu(4)
 			rest += 4
 		}
+	} else { // version >= 5
+		if b.Message&FRR5_MESSAGE_SRCPFX > 0 {
+			b.SrcPrefixLength = data[pos]
+			pos += 1
+			buf = make([]byte, addrLen)
+			byteLen = int((b.SrcPrefixLength + 7) / 8)
+			copy(buf, data[pos:pos+byteLen])
+			if isV4 {
+				b.SrcPrefix = net.IP(buf).To4()
+			} else {
+				b.SrcPrefix = net.IP(buf).To16()
+			}
+			pos += byteLen
+		}
+		if b.Message&FRR5_MESSAGE_NEXTHOP > 0 {
+			numNexthop = int(data[pos])
+			rest += 1 + numNexthop*(int(addrLen)+5)
+		}
+		if b.Message&FRR5_MESSAGE_DISTANCE > 0 {
+			// distance(1)
+			rest += 1
+		}
+		if b.Message&FRR5_MESSAGE_METRIC > 0 {
+			// metric(4)
+			rest += 4
+		}
+		if b.Message&FRR5_MESSAGE_TAG > 0 {
+			// tag(4)
+			rest += 4
+		}
+		if b.Message&FRR5_MESSAGE_MTU > 0 {
+			// mtu(4)
+			rest += 4
+		}
 	}
-
 	if len(data[pos:]) != rest {
 		return fmt.Errorf("message length invalid")
 	}
-
 	b.Nexthops = []net.IP{}
 	b.Ifindexs = []uint32{}
+	if version <= 3 {
+		if b.Message&MESSAGE_NEXTHOP > 0 {
+			pos += 1
+			for i := 0; i < numNexthop; i++ {
+				addr := data[pos : pos+int(addrLen)]
+				var nexthop net.IP
+				if isV4 {
+					nexthop = net.IP(addr).To4()
+				} else {
+					nexthop = net.IP(addr).To16()
+				}
+				b.Nexthops = append(b.Nexthops, nexthop)
 
-	if b.Message&MESSAGE_NEXTHOP > 0 {
-		pos += 1
-		for i := 0; i < numNexthop; i++ {
-			addr := data[pos : pos+int(addrLen)]
-			var nexthop net.IP
-			if isV4 {
-				nexthop = net.IP(addr).To4()
-			} else {
-				nexthop = net.IP(addr).To16()
+				// skip nexthop and 1byte place holder
+				pos += int(addrLen + 1)
+				ifidx := binary.BigEndian.Uint32(data[pos : pos+4])
+				b.Ifindexs = append(b.Ifindexs, ifidx)
+				pos += 4
 			}
-			b.Nexthops = append(b.Nexthops, nexthop)
-
-			// skip nexthop and 1byte place holder
-			pos += int(addrLen + 1)
-			ifidx := binary.BigEndian.Uint32(data[pos : pos+4])
-			b.Ifindexs = append(b.Ifindexs, ifidx)
+		}
+		if b.Message&MESSAGE_DISTANCE > 0 {
+			b.Distance = data[pos]
+			pos += 1
+		}
+		if b.Message&MESSAGE_METRIC > 0 {
+			b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 			pos += 4
 		}
-	}
-
-	if b.Message&MESSAGE_DISTANCE > 0 {
-		b.Distance = data[pos]
-		pos += 1
-	}
-	if b.Message&MESSAGE_METRIC > 0 {
-		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
-		pos += 4
-	}
-	if version <= 3 {
 		if b.Message&MESSAGE_MTU > 0 {
 			b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
 			pos += 4
@@ -1688,7 +1726,34 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 			b.Tag = binary.BigEndian.Uint32(data[pos : pos+4])
 			pos += 4
 		}
-	} else {
+	} else if version == 4 {
+		if b.Message&FRR_MESSAGE_NEXTHOP > 0 {
+			pos += 1
+			for i := 0; i < numNexthop; i++ {
+				addr := data[pos : pos+int(addrLen)]
+				var nexthop net.IP
+				if isV4 {
+					nexthop = net.IP(addr).To4()
+				} else {
+					nexthop = net.IP(addr).To16()
+				}
+				b.Nexthops = append(b.Nexthops, nexthop)
+
+				// skip nexthop and 1byte place holder
+				pos += int(addrLen + 1)
+				ifidx := binary.BigEndian.Uint32(data[pos : pos+4])
+				b.Ifindexs = append(b.Ifindexs, ifidx)
+				pos += 4
+			}
+		}
+		if b.Message&FRR_MESSAGE_DISTANCE > 0 {
+			b.Distance = data[pos]
+			pos += 1
+		}
+		if b.Message&FRR_MESSAGE_METRIC > 0 {
+			b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
 		if b.Message&FRR_MESSAGE_TAG > 0 {
 			b.Tag = binary.BigEndian.Uint32(data[pos : pos+4])
 			pos += 4
@@ -1697,8 +1762,43 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 			b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
 			pos += 4
 		}
-	}
+	} else { // version >= 5
+		if b.Message&FRR5_MESSAGE_NEXTHOP > 0 {
+			pos += 1
+			for i := 0; i < numNexthop; i++ {
+				addr := data[pos : pos+int(addrLen)]
+				var nexthop net.IP
+				if isV4 {
+					nexthop = net.IP(addr).To4()
+				} else {
+					nexthop = net.IP(addr).To16()
+				}
+				b.Nexthops = append(b.Nexthops, nexthop)
 
+				// skip nexthop and 1byte place holder
+				pos += int(addrLen + 1)
+				ifidx := binary.BigEndian.Uint32(data[pos : pos+4])
+				b.Ifindexs = append(b.Ifindexs, ifidx)
+				pos += 4
+			}
+		}
+		if b.Message&FRR5_MESSAGE_DISTANCE > 0 {
+			b.Distance = data[pos]
+			pos += 1
+		}
+		if b.Message&FRR5_MESSAGE_METRIC > 0 {
+			b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
+		if b.Message&FRR5_MESSAGE_TAG > 0 {
+			b.Tag = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
+		if b.Message&FRR5_MESSAGE_MTU > 0 {
+			b.Mtu = binary.BigEndian.Uint32(data[pos : pos+4])
+			pos += 4
+		}
+	}
 	return nil
 }
 
