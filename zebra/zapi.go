@@ -1353,83 +1353,77 @@ func (b *IPRouteBody) RouteFamily(zapiVersion uint8) bgp.RouteFamily {
 	return bgp.RF_OPAQUE
 }
 
-func (b *IPRouteBody) IsWithdraw() bool {
-	switch b.Api {
-	case IPV4_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_DEL, IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV6_DEL:
-		return true
-	default:
-		return false
+func (b *IPRouteBody) IsWithdraw(zapiVersion uint8) bool {
+	switch zapiVersion {
+	case 1, 2, 3:
+		switch b.Api {
+		case IPV4_ROUTE_DELETE, IPV6_ROUTE_DELETE:
+			return true
+		}
+	case 4:
+		switch b.Api {
+		case FRR_REDISTRIBUTE_IPV4_DEL, FRR_REDISTRIBUTE_IPV6_DEL:
+			return true
+		}
+	case 5:
+		switch b.Api {
+		case FRR5_IPV4_ROUTE_DELETE, FRR_IPV6_ROUTE_DELETE:
+			return true
+		}
 	}
+	return false
 }
 
 func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 
 	var buf []byte
-	nhfIPv4 := uint8(NEXTHOP_IPV4)
-	nhfIPv6 := uint8(NEXTHOP_IPV6)
-	nhfIndx := uint8(NEXTHOP_IFINDEX)
-	nhfBlkH := uint8(NEXTHOP_BLACKHOLE)
+	var nhfBlkH, nhfIndx, nhfIPv4, nhfIPv6 uint8
+
 	if version <= 3 {
 		buf = make([]byte, 5)
 		buf[0] = uint8(b.Type)
 		buf[1] = uint8(b.Flags)
 		buf[2] = uint8(b.Message)
 		binary.BigEndian.PutUint16(buf[3:5], uint16(b.SAFI))
-	} else { // version >= 4
-		buf = make([]byte, 10)
-		buf[0] = uint8(b.Type)
-		binary.BigEndian.PutUint16(buf[1:3], uint16(b.Instance))
-		binary.BigEndian.PutUint32(buf[3:7], uint32(b.Flags))
-		buf[7] = uint8(b.Message)
-		binary.BigEndian.PutUint16(buf[8:10], uint16(b.SAFI))
-		nhfIPv4 = uint8(FRR_NEXTHOP_IPV4)
-		nhfIPv6 = uint8(FRR_NEXTHOP_IPV6)
-		nhfIndx = uint8(FRR_NEXTHOP_IFINDEX)
-		nhfBlkH = uint8(FRR_NEXTHOP_BLACKHOLE)
-	}
-	byteLen := (int(b.PrefixLength) + 7) / 8
-	buf = append(buf, b.PrefixLength)
-	buf = append(buf, b.Prefix[:byteLen]...)
-	if b.Message&FRR_MESSAGE_SRCPFX > 0 {
-		byteLen = (int(b.SrcPrefixLength) + 7) / 8
-		buf = append(buf, b.SrcPrefixLength)
-		buf = append(buf, b.SrcPrefix[:byteLen]...)
-	}
-
-	if b.Message&MESSAGE_NEXTHOP > 0 {
-		if b.Flags&FLAG_BLACKHOLE > 0 {
-			buf = append(buf, []byte{1, nhfBlkH}...)
-		} else {
-			buf = append(buf, uint8(len(b.Nexthops)+len(b.Ifindexs)))
-		}
-
-		for _, v := range b.Nexthops {
-			if v.To4() != nil {
-				buf = append(buf, nhfIPv4)
-				buf = append(buf, v.To4()...)
+		nhfIPv4 := uint8(NEXTHOP_IPV4)
+		nhfIPv6 := uint8(NEXTHOP_IPV6)
+		nhfIndx := uint8(NEXTHOP_IFINDEX)
+		nhfBlkH := uint8(NEXTHOP_BLACKHOLE)
+		byteLen := (int(b.PrefixLength) + 7) / 8
+		buf = append(buf, b.PrefixLength)
+		buf = append(buf, b.Prefix[:byteLen]...)
+		if b.Message&MESSAGE_NEXTHOP > 0 {
+			if b.Flags&FLAG_BLACKHOLE > 0 {
+				buf = append(buf, []byte{1, nhfBlkH}...)
 			} else {
-				buf = append(buf, nhfIPv6)
-				buf = append(buf, v.To16()...)
+				buf = append(buf, uint8(len(b.Nexthops)+len(b.Ifindexs)))
+			}
+
+			for _, v := range b.Nexthops {
+				if v.To4() != nil {
+					buf = append(buf, nhfIPv4)
+					buf = append(buf, v.To4()...)
+				} else {
+					buf = append(buf, nhfIPv6)
+					buf = append(buf, v.To16()...)
+				}
+			}
+
+			for _, v := range b.Ifindexs {
+				buf = append(buf, nhfIndx)
+				bbuf := make([]byte, 4)
+				binary.BigEndian.PutUint32(bbuf, v)
+				buf = append(buf, bbuf...)
 			}
 		}
-
-		for _, v := range b.Ifindexs {
-			buf = append(buf, nhfIndx)
+		if b.Message&MESSAGE_DISTANCE > 0 {
+			buf = append(buf, b.Distance)
+		}
+		if b.Message&MESSAGE_METRIC > 0 {
 			bbuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(bbuf, v)
+			binary.BigEndian.PutUint32(bbuf, b.Metric)
 			buf = append(buf, bbuf...)
 		}
-	}
-
-	if b.Message&MESSAGE_DISTANCE > 0 {
-		buf = append(buf, b.Distance)
-	}
-	if b.Message&MESSAGE_METRIC > 0 {
-		bbuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(bbuf, b.Metric)
-		buf = append(buf, bbuf...)
-	}
-	if version <= 3 {
 		if b.Message&MESSAGE_MTU > 0 {
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Mtu)
@@ -1440,13 +1434,119 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			binary.BigEndian.PutUint32(bbuf, b.Tag)
 			buf = append(buf, bbuf...)
 		}
-	} else { // version >= 4
+	} else if version == 4 {
+		buf = make([]byte, 10)
+		buf[0] = uint8(b.Type)
+		binary.BigEndian.PutUint16(buf[1:3], uint16(b.Instance))
+		binary.BigEndian.PutUint32(buf[3:7], uint32(b.Flags))
+		buf[7] = uint8(b.Message)
+		binary.BigEndian.PutUint16(buf[8:10], uint16(b.SAFI))
+		nhfIPv4 = uint8(FRR_NEXTHOP_IPV4)
+		nhfIPv6 = uint8(FRR_NEXTHOP_IPV6)
+		nhfIndx = uint8(FRR_NEXTHOP_IFINDEX)
+		nhfBlkH = uint8(FRR_NEXTHOP_BLACKHOLE)
+		byteLen := (int(b.PrefixLength) + 7) / 8
+		buf = append(buf, b.PrefixLength)
+		buf = append(buf, b.Prefix[:byteLen]...)
+		if b.Message&FRR_MESSAGE_SRCPFX > 0 {
+			byteLen = (int(b.SrcPrefixLength) + 7) / 8
+			buf = append(buf, b.SrcPrefixLength)
+			buf = append(buf, b.SrcPrefix[:byteLen]...)
+		}
+		if b.Message&FRR_MESSAGE_NEXTHOP > 0 {
+			if b.Flags&FLAG_BLACKHOLE > 0 {
+				buf = append(buf, []byte{1, nhfBlkH}...)
+			} else {
+				buf = append(buf, uint8(len(b.Nexthops)+len(b.Ifindexs)))
+			}
+
+			for _, v := range b.Nexthops {
+				if v.To4() != nil {
+					buf = append(buf, nhfIPv4)
+					buf = append(buf, v.To4()...)
+				} else {
+					buf = append(buf, nhfIPv6)
+					buf = append(buf, v.To16()...)
+				}
+			}
+
+			for _, v := range b.Ifindexs {
+				buf = append(buf, nhfIndx)
+				bbuf := make([]byte, 4)
+				binary.BigEndian.PutUint32(bbuf, v)
+				buf = append(buf, bbuf...)
+			}
+		}
+		if b.Message&FRR_MESSAGE_DISTANCE > 0 {
+			buf = append(buf, b.Distance)
+		}
+		if b.Message&FRR_MESSAGE_METRIC > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Metric)
+			buf = append(buf, bbuf...)
+		}
 		if b.Message&FRR_MESSAGE_TAG > 0 {
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Tag)
 			buf = append(buf, bbuf...)
 		}
 		if b.Message&FRR_MESSAGE_MTU > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Mtu)
+			buf = append(buf, bbuf...)
+		}
+	} else { // version >= 5
+		buf = make([]byte, 10)
+		buf[0] = uint8(b.Type)
+		binary.BigEndian.PutUint16(buf[1:3], uint16(b.Instance))
+		binary.BigEndian.PutUint32(buf[3:7], uint32(b.Flags))
+		buf[7] = uint8(b.Message)
+		binary.BigEndian.PutUint16(buf[8:10], uint16(b.SAFI))
+		nhfIPv4 = uint8(FRR_NEXTHOP_IPV4)
+		nhfIPv6 = uint8(FRR_NEXTHOP_IPV6)
+		nhfIndx = uint8(FRR_NEXTHOP_IFINDEX)
+		nhfBlkH = uint8(FRR_NEXTHOP_BLACKHOLE)
+		byteLen := (int(b.PrefixLength) + 7) / 8
+		buf = append(buf, b.PrefixLength)
+		buf = append(buf, b.Prefix[:byteLen]...)
+		if b.Message&FRR5_MESSAGE_SRCPFX > 0 {
+			byteLen = (int(b.SrcPrefixLength) + 7) / 8
+			buf = append(buf, b.SrcPrefixLength)
+			buf = append(buf, b.SrcPrefix[:byteLen]...)
+		}
+		if b.Message&FRR5_MESSAGE_NEXTHOP > 0 {
+			buf = append(buf, uint8(len(b.Nexthops)+len(b.Ifindexs)))
+			for _, v := range b.Nexthops {
+				if v.To4() != nil {
+					buf = append(buf, nhfIPv4)
+					buf = append(buf, v.To4()...)
+				} else {
+					buf = append(buf, nhfIPv6)
+					buf = append(buf, v.To16()...)
+				}
+			}
+
+			for _, v := range b.Ifindexs {
+				buf = append(buf, nhfIndx)
+				bbuf := make([]byte, 4)
+				binary.BigEndian.PutUint32(bbuf, v)
+				buf = append(buf, bbuf...)
+			}
+		}
+		if b.Message&FRR5_MESSAGE_DISTANCE > 0 {
+			buf = append(buf, b.Distance)
+		}
+		if b.Message&FRR5_MESSAGE_METRIC > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Metric)
+			buf = append(buf, bbuf...)
+		}
+		if b.Message&FRR5_MESSAGE_TAG > 0 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, b.Tag)
+			buf = append(buf, bbuf...)
+		}
+		if b.Message&FRR5_MESSAGE_MTU > 0 {
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Mtu)
 			buf = append(buf, bbuf...)
