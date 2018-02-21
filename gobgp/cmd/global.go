@@ -990,7 +990,7 @@ func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				aigp := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))})
+				aigp := bgp.NewPathAttributeAigp([]bgp.AigpTLVInterface{bgp.NewAigpTLVIgpMetric(uint64(metric))})
 				return append(args[:idx], args[idx+3:]...), aigp, nil
 			default:
 				return nil, nil, fmt.Errorf("unknown aigp type: %s", typ)
