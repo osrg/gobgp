@@ -1976,12 +1976,12 @@ func (b *NexthopLookupBody) Serialize(version uint8) ([]byte, error) {
 	isV4 := false
 	if version <= 3 {
 		isV4 = b.Api == IPV4_NEXTHOP_LOOKUP
-	} else { // version >= 4
+	} else if version == 4 {
 		isV4 = b.Api == FRR_IPV4_NEXTHOP_LOOKUP_MRIB
+	} else { // version >= 5
+		isV4 = b.Api == FRR5_IPV4_NEXTHOP_LOOKUP_MRIB
 	}
-
 	buf := make([]byte, 0)
-
 	if isV4 {
 		buf = append(buf, b.Addr.To4()...)
 	} else {
@@ -1994,33 +1994,30 @@ func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 	isV4 := false
 	if version <= 3 {
 		isV4 = b.Api == IPV4_NEXTHOP_LOOKUP
-	} else { // version >= 4
+	} else if version == 4 {
 		isV4 = b.Api == FRR_IPV4_NEXTHOP_LOOKUP_MRIB
+	} else { // version >= 5
+		isV4 = b.Api == FRR5_IPV4_NEXTHOP_LOOKUP_MRIB
 	}
 	addrLen := net.IPv4len
 	if !isV4 {
 		addrLen = net.IPv6len
 	}
-
 	if len(data) < addrLen {
 		return fmt.Errorf("message length invalid")
 	}
-
 	buf := make([]byte, addrLen)
 	copy(buf, data[0:addrLen])
 	pos := addrLen
-
 	if isV4 {
 		b.Addr = net.IP(buf).To4()
 	} else {
 		b.Addr = net.IP(buf).To16()
 	}
-
 	if version >= 4 {
 		b.Distance = data[pos]
 		pos++
 	}
-
 	if len(data[pos:]) > int(1+addrLen) {
 		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
@@ -2031,7 +2028,6 @@ func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 			pos += nexthopsByteLen
 		}
 	}
-
 	return nil
 }
 
