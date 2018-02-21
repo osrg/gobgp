@@ -330,8 +330,8 @@ func newNexthopRegisterBody(dst pathList, nhtManager *nexthopTrackingManager) (b
 func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
-	family := body.RouteFamily()
-	isWithdraw := body.IsWithdraw()
+	family := body.RouteFamily(header.Version)
+	isWithdraw := body.IsWithdraw(header.Version)
 
 	var nlri bgp.AddrPrefixInterface
 	pattr := make([]bgp.PathAttributeInterface, 0)
