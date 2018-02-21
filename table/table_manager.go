@@ -259,7 +259,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
-		f := func(p *Path) (uint32, net.HardwareAddr, int) {
+		f := func(p *Path) (bgp.EthernetSegmentIdentifier, net.HardwareAddr, int) {
 			nlri := p.GetNlri().(*bgp.EVPNNLRI)
 			d := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 			ecs := p.GetExtCommunities()
@@ -270,13 +270,14 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 					break
 				}
 			}
-			return d.ETag, d.MacAddress, seq
+			return d.ESI, d.MacAddress, seq
 		}
 		e1, m1, s1 := f(path)
 		e2, m2, s2 := f(path2)
-		if e1 == e2 && bytes.Equal(m1, m2) && s1 > s2 {
+		if bytes.Equal(m1, m2) && !bytes.Equal(e1.Value, e2.Value) && s1 > s2 {
 			path2.IsWithdraw = true
 			dsts = append(dsts, manager.Tables[bgp.RF_EVPN].insert(path2))
+			break
 		}
 	}
 	return dsts
