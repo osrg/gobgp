@@ -185,7 +185,7 @@ func (p TunnelType) String() string {
 	case TUNNEL_TYPE_MPLS:
 		return "mpls"
 	case TUNNEL_TYPE_MPLS_IN_GRE:
-		return "mpls-ingre"
+		return "mpls-in-gre"
 	case TUNNEL_TYPE_VXLAN_GRE:
 		return "vxlan-gre"
 	case TUNNEL_TYPE_MPLS_IN_UDP:
