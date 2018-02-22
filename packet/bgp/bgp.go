@@ -7217,18 +7217,19 @@ type UnknownExtended struct {
 }
 
 func (e *UnknownExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	if len(e.Value) != 7 {
+		return nil, fmt.Errorf("invalid value length for unknown extended community: %d", len(e.Value))
+	}
+	buf := make([]byte, 8, 8)
 	buf[0] = uint8(e.Type)
 	copy(buf[1:], e.Value)
-	e.Value = buf[1:]
 	return buf, nil
 }
 
 func (e *UnknownExtended) String() string {
 	buf := make([]byte, 8)
 	copy(buf[1:], e.Value)
-	v := binary.BigEndian.Uint64(buf)
-	return fmt.Sprintf("%d", v)
+	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf))
 }
 
 func (e *UnknownExtended) MarshalJSON() ([]byte, error) {
@@ -7245,7 +7246,21 @@ func (e *UnknownExtended) MarshalJSON() ([]byte, error) {
 }
 
 func (e *UnknownExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return ExtendedCommunityAttrType(0xFF), ExtendedCommunityAttrSubType(0xFF)
+	var subType ExtendedCommunityAttrSubType
+	if len(e.Value) > 0 {
+		// Use the first byte of value as the sub type
+		subType = ExtendedCommunityAttrSubType(e.Value[0])
+	}
+	return e.Type, subType
+}
+
+func NewUnknownExtended(typ ExtendedCommunityAttrType, value []byte) *UnknownExtended {
+	v := make([]byte, 7, 7)
+	copy(v, value)
+	return &UnknownExtended{
+		Type:  typ,
+		Value: v,
+	}
 }
 
 type PathAttributeExtendedCommunities struct {
