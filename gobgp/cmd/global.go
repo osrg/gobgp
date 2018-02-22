@@ -206,10 +206,7 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	default:
 		return nil, fmt.Errorf("invalid encap type")
 	}
-	o := bgp.NewOpaqueExtended(true)
-	o.SubType = bgp.EC_SUBTYPE_ENCAPSULATION
-	o.Value = &bgp.EncapExtended{TunnelType: typ}
-	return []bgp.ExtendedCommunityInterface{o}, nil
+	return []bgp.ExtendedCommunityInterface{bgp.NewEncapExtended(typ)}, nil
 }
 
 func esiLabelParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -254,12 +251,7 @@ func defaultGatewayParser(args []string) ([]bgp.ExtendedCommunityInterface, erro
 	if len(args) < 1 || args[0] != ExtCommNameMap[DEFAULT_GATEWAY] {
 		return nil, fmt.Errorf("invalid default-gateway")
 	}
-	o := &bgp.OpaqueExtended{
-		IsTransitive: true,
-		Value:        &bgp.DefaultGatewayExtended{},
-		SubType:      bgp.EC_SUBTYPE_DEFAULT_GATEWAY,
-	}
-	return []bgp.ExtendedCommunityInterface{o}, nil
+	return []bgp.ExtendedCommunityInterface{bgp.NewDefaultGatewayExtended()}, nil
 }
 
 func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -277,10 +269,7 @@ func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	default:
 		return nil, fmt.Errorf("invalid validation state")
 	}
-	o := bgp.NewOpaqueExtended(true)
-	o.SubType = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
-	o.Value = &bgp.ValidationExtended{Value: typ}
-	return []bgp.ExtendedCommunityInterface{o}, nil
+	return []bgp.ExtendedCommunityInterface{bgp.NewValidationExtended(typ)}, nil
 }
 
 var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
