@@ -2574,6 +2574,8 @@ func (m *Message) parseFrr5Message(data []byte) error {
 	case FRR5_RELEASE_LABEL_CHUNK:
 		// Note: Synchronous message
 		m.Body = &ReleaseLabelChunkBody{}
+	case FRR5_VRF_LABEL:
+		m.Body = &VrfLabelBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}
