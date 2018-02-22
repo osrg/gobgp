@@ -1134,7 +1134,7 @@ func (b *HelloBody) Serialize(version uint8) ([]byte, error) {
 func (b *HelloBody) String() string {
 	return fmt.Sprintf(
 		"route_type: %s, instance :%d",
-		b.RedistDefault.String(), b.Instance)
+		b.RedistDefault, b.Instance)
 }
 
 type RedistributeBody struct {
@@ -1169,7 +1169,7 @@ func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
 func (b *RedistributeBody) String() string {
 	return fmt.Sprintf(
 		"afi: %s, route_type: %s, instance :%d",
-		b.Afi.String(), b.Redist.String(), b.Instance)
+		b.Afi, b.Redist, b.Instance)
 }
 
 type InterfaceUpdateBody struct {
@@ -1805,7 +1805,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 func (b *IPRouteBody) String() string {
 	s := fmt.Sprintf(
 		"type: %s, instance: %d, flags: %s, message: %d, safi: %s, prefix: %s/%d, src_prefix: %s/%d",
-		b.Type.String(), b.Instance, b.Flags.String(), b.Message, b.SAFI.String(), b.Prefix.String(), b.PrefixLength, b.SrcPrefix.String(), b.SrcPrefixLength)
+		b.Type, b.Instance, b.Flags.String(), b.Message, b.SAFI, b.Prefix.String(), b.PrefixLength, b.SrcPrefix.String(), b.SrcPrefixLength)
 	for i, nh := range b.Nexthops {
 		s += fmt.Sprintf(", nexthops[%d]: %s", i, nh.String())
 	}
@@ -2434,7 +2434,7 @@ func (b *VrfLabelBody) DecodeFromBytes(data []byte, version uint8) error {
 func (b *VrfLabelBody) String() string {
 	return fmt.Sprintf(
 		"label: %d, AFI: %s LSP_type: %s",
-		b.Label, b.Afi.String(), b.LabelType.String())
+		b.Label, b.Afi, b.LabelType)
 }
 
 type Message struct {
