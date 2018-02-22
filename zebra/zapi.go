@@ -2395,18 +2395,46 @@ func (b *ReleaseLabelChunkBody) String() string {
 		b.Start, b.End)
 }
 
+//go:generate stringer -type=LSP_TYPE
+type LSP_TYPE uint8
+
+const (
+	FRR5_LSP_NONE LSP_TYPE = iota
+	FRR5_LSP_STATIC
+	FRR5_LSP_LDP
+	FRR5_LSP_BGP
+	FRR5_LSP_SR
+	FRR5_LSP_SHARP
+)
+
 type VrfLabelBody struct {
 	Label     uint32
-	Afi       uint8
-	LabelType uint8
+	Afi       AFI
+	LabelType LSP_TYPE
 }
 
 func (b *VrfLabelBody) Serialize(version uint8) ([]byte, error) {
 	buf := make([]byte, 6)
 	binary.BigEndian.PutUint32(buf[0:4], b.Label)
-	buf[4] = b.Afi
-	buf[5] = b.LabelType
+	buf[4] = uint8(b.Afi)
+	buf[5] = uint8(b.LabelType)
 	return buf, nil
+}
+
+func (b *VrfLabelBody) DecodeFromBytes(data []byte, version uint8) error {
+	if len(data) < 6 {
+		return fmt.Errorf("invalid message length for VRF_LABEL message: %d<6", len(data))
+	}
+	b.Label = binary.BigEndian.Uint32(data[0:4])
+	b.Afi = AFI(data[4])
+	b.LabelType = LSP_TYPE(data[5])
+	return nil
+}
+
+func (b *VrfLabelBody) String() string {
+	return fmt.Sprintf(
+		"label: %d, AFI: %s LSP_type: %s",
+		b.Label, b.Afi.String(), b.LabelType.String())
 }
 
 type Message struct {
