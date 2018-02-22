@@ -1358,14 +1358,10 @@ func (c *NextHopCondition) Type() ConditionType {
 func (c *NextHopCondition) Set() DefinedSet {
        return c.set
 }
-//  FIXME: REMOVE
-// func (c *NextHopCondition) Option() MatchOption {
-//        return c.option
-// }
 
-// compare neighbor ipaddress of this condition and source address of path
+// compare next-hop ipaddress of this condition and source address of path
 // and, subsequent comparisons are skipped if that matches the conditions.
-// If NeighborList's length is zero, return true.
+// If NextHopSet's length is zero, return true.
 func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
        if len(c.set.list) == 0 {
                log.WithFields(log.Fields{
@@ -1373,8 +1369,6 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
                }).Debug("NextHop doesn't have elements")
                return true
        }
-
-       // FIXME:FIXME
 
        nexthop := path.GetNexthop()
        if options != nil && options.Info != nil && options.Info.Address != nil {
@@ -3225,14 +3219,6 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 			c.set = i.(*LargeCommunitySet)
 		}
     case CONDITION_NEXT_HOP:
-        // m := r.definedSetMap[DEFINED_TYPE_NEXT_HOP]
-        // if i, ok := m[v.Name()]; !ok {
-        //     return fmt.Errorf("not found next-hop set %s", v.Name())
-        // } else {
-        //     c := v.(*NextHopCondition)
-        //     c.set = i.(*NextHopSet)
-        // }
-
 	case CONDITION_AS_PATH_LENGTH:
 	case CONDITION_RPKI:
 	}
