@@ -555,6 +555,11 @@ func (z *zebraClient) AddVrfLabel(label uint32, vrfId uint32) error {
 		Afi:       zebra.AFI_IP,
 		LabelType: zebra.FRR5_LSP_BGP,
 	}
+	log.WithFields(log.Fields{
+		"Topic":  "Vrf",
+		"VRF_ID": vrfId,
+		"Label":  label,
+	}).Info("add VRF label")
 	return z.client.SendCommand(zebra.FRR5_VRF_LABEL, vrfId, body)
 
 }
