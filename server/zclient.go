@@ -381,21 +381,19 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	return path
 }
 
-func createPathListFromNexthopUpdateMessage(m *zebra.Message, manager *table.TableManager, nhtManager *nexthopTrackingManager) (pathList, *zebra.NexthopRegisterBody, error) {
-	body := m.Body.(*zebra.NexthopUpdateBody)
-	isNexthopInvalid := len(body.Nexthops) == 0
-
-	var rfList []bgp.RouteFamily
+func rfListFromNexthopUpdateBody(body *zebra.NexthopUpdateBody) (rfList []bgp.RouteFamily) {
 	switch body.Family {
 	case uint16(syscall.AF_INET):
-		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN}
+		return []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN}
 	case uint16(syscall.AF_INET6):
-		rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
-	default:
-		return nil, nil, fmt.Errorf("invalid address family: %d", body.Family)
+		return []bgp.RouteFamily{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
 	}
+	return nil
+}
 
-	paths := manager.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix)
+func createPathListFromNexthopUpdateMessage(body *zebra.NexthopUpdateBody, manager *table.TableManager, nhtManager *nexthopTrackingManager) (pathList, *zebra.NexthopRegisterBody, error) {
+	isNexthopInvalid := len(body.Nexthops) == 0
+	paths := manager.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfListFromNexthopUpdateBody(body), body.Prefix)
 	pathsLen := len(paths)
 
 	// If there is no path bound for the updated nexthop, send
@@ -466,14 +464,26 @@ func (z *zebraClient) loop() {
 					}
 				}
 			case *zebra.NexthopUpdateBody:
-				if z.nhtManager != nil {
-					if paths, b, err := createPathListFromNexthopUpdateMessage(msg, z.server.globalRib, z.nhtManager); err != nil {
-						log.Errorf("failed to create updated path list related to nexthop %s", body.Prefix.String())
-					} else {
-						z.nhtManager.scheduleUpdate(paths)
-						if b != nil {
-							z.client.SendNexthopRegister(msg.Header.VrfId, b, true)
-						}
+				if z.nhtManager == nil {
+					continue
+				}
+				manager := &table.TableManager{
+					Tables: make(map[bgp.RouteFamily]*table.Table),
+				}
+				for _, rf := range rfListFromNexthopUpdateBody(body) {
+					rib, err := z.server.GetRib("", rf, nil)
+					if err != nil {
+						log.Errorf("failed to get global rib by family %s", rf.String())
+						continue
+					}
+					manager.Tables[rf] = rib
+				}
+				if paths, b, err := createPathListFromNexthopUpdateMessage(body, manager, z.nhtManager); err != nil {
+					log.Errorf("failed to create updated path list related to nexthop %s", body.Prefix.String())
+				} else {
+					z.nhtManager.scheduleUpdate(paths)
+					if b != nil {
+						z.client.SendNexthopRegister(msg.Header.VrfId, b, true)
 					}
 				}
 			}
