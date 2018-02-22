@@ -6319,22 +6319,19 @@ func NewFourOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uin
 
 func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (ExtendedCommunityInterface, error) {
 	if subtype == EC_SUBTYPE_ORIGIN_VALIDATION {
-		var value ValidationState
+		var state ValidationState
 		switch com {
 		case VALIDATION_STATE_VALID.String():
-			value = VALIDATION_STATE_VALID
+			state = VALIDATION_STATE_VALID
 		case VALIDATION_STATE_NOT_FOUND.String():
-			value = VALIDATION_STATE_NOT_FOUND
+			state = VALIDATION_STATE_NOT_FOUND
 		case VALIDATION_STATE_INVALID.String():
-			value = VALIDATION_STATE_INVALID
+			state = VALIDATION_STATE_INVALID
 		default:
 			return nil, fmt.Errorf("invalid validation state")
 		}
-		return &OpaqueExtended{
-			SubType: EC_SUBTYPE_ORIGIN_VALIDATION,
-			Value: &ValidationExtended{
-				Value: value,
-			},
+		return &ValidationExtended{
+			State: state,
 		}, nil
 	}
 	elems, err := parseRdAndRt(com)
@@ -6364,27 +6361,6 @@ func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
 	return ParseExtendedCommunity(EC_SUBTYPE_ROUTE_TARGET, rt)
 }
 
-type OpaqueExtendedValueInterface interface {
-	Serialize() ([]byte, error)
-	String() string
-}
-
-type DefaultOpaqueExtendedValue struct {
-	Value []byte
-}
-
-func (v *DefaultOpaqueExtendedValue) Serialize() ([]byte, error) {
-	v.Value = v.Value[:7]
-	return v.Value[:7], nil
-}
-
-func (v *DefaultOpaqueExtendedValue) String() string {
-	buf := make([]byte, 8)
-	copy(buf[1:], v.Value)
-	d := binary.BigEndian.Uint64(buf)
-	return fmt.Sprintf("%d", d)
-}
-
 type ValidationState uint8
 
 const (
@@ -6406,33 +6382,83 @@ func (s ValidationState) String() string {
 }
 
 type ValidationExtended struct {
-	Value ValidationState
+	State ValidationState
 }
 
 func (e *ValidationExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 7)
-	buf[0] = byte(EC_SUBTYPE_ORIGIN_VALIDATION)
-	buf[6] = byte(e.Value)
+	buf := make([]byte, 8, 8)
+	typ, subType := e.GetTypes()
+	buf[0] = byte(typ)
+	buf[1] = byte(subType)
+	buf[7] = byte(e.State)
 	return buf, nil
 }
 
 func (e *ValidationExtended) String() string {
-	return e.Value.String()
+	return e.State.String()
+}
+
+func (e *ValidationExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_NON_TRANSITIVE_OPAQUE, EC_SUBTYPE_ORIGIN_VALIDATION
+}
+
+func (e *ValidationExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		SubType ExtendedCommunityAttrSubType `json:"subtype"`
+		State   ValidationState              `json:"value"`
+	}{
+		Type:    t,
+		SubType: s,
+		State:   e.State,
+	})
+}
+
+func NewValidationExtended(state ValidationState) *ValidationExtended {
+	return &ValidationExtended{
+		State: state,
+	}
 }
 
 type ColorExtended struct {
-	Value uint32
+	Color uint32
 }
 
 func (e *ColorExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 7)
-	buf[0] = byte(EC_SUBTYPE_COLOR)
-	binary.BigEndian.PutUint32(buf[3:], uint32(e.Value))
+	buf := make([]byte, 8, 8)
+	typ, subType := e.GetTypes()
+	buf[0] = byte(typ)
+	buf[1] = byte(subType)
+	binary.BigEndian.PutUint32(buf[4:8], uint32(e.Color))
 	return buf, nil
 }
 
 func (e *ColorExtended) String() string {
-	return fmt.Sprintf("%d", e.Value)
+	return fmt.Sprintf("%d", e.Color)
+}
+
+func (e *ColorExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_TRANSITIVE_OPAQUE, EC_SUBTYPE_COLOR
+}
+
+func (e *ColorExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		SubType ExtendedCommunityAttrSubType `json:"subtype"`
+		Color   uint32                       `json:"color"`
+	}{
+		Type:    t,
+		SubType: s,
+		Color:   e.Color,
+	})
+}
+
+func NewColorExtended(color uint32) *ColorExtended {
+	return &ColorExtended{
+		Color: color,
+	}
 }
 
 type EncapExtended struct {
@@ -6440,9 +6466,11 @@ type EncapExtended struct {
 }
 
 func (e *EncapExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 7)
-	buf[0] = byte(EC_SUBTYPE_ENCAPSULATION)
-	binary.BigEndian.PutUint16(buf[5:], uint16(e.TunnelType))
+	buf := make([]byte, 8, 8)
+	typ, subType := e.GetTypes()
+	buf[0] = byte(typ)
+	buf[1] = byte(subType)
+	binary.BigEndian.PutUint16(buf[6:8], uint16(e.TunnelType))
 	return buf, nil
 }
 
@@ -6471,12 +6499,37 @@ func (e *EncapExtended) String() string {
 	}
 }
 
+func (e *EncapExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_TRANSITIVE_OPAQUE, EC_SUBTYPE_ENCAPSULATION
+}
+
+func (e *EncapExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type       ExtendedCommunityAttrType    `json:"type"`
+		SubType    ExtendedCommunityAttrSubType `json:"subtype"`
+		TunnelType TunnelType                   `json:"tunnel_type"`
+	}{
+		Type:       t,
+		SubType:    s,
+		TunnelType: e.TunnelType,
+	})
+}
+
+func NewEncapExtended(tunnelType TunnelType) *EncapExtended {
+	return &EncapExtended{
+		TunnelType: tunnelType,
+	}
+}
+
 type DefaultGatewayExtended struct {
 }
 
 func (e *DefaultGatewayExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 7)
-	buf[0] = byte(EC_SUBTYPE_DEFAULT_GATEWAY)
+	buf := make([]byte, 8, 8)
+	typ, subType := e.GetTypes()
+	buf[0] = byte(typ)
+	buf[1] = byte(subType)
 	return buf, nil
 }
 
@@ -6484,70 +6537,60 @@ func (e *DefaultGatewayExtended) String() string {
 	return "default-gateway"
 }
 
-type OpaqueExtended struct {
-	IsTransitive bool
-	Value        OpaqueExtendedValueInterface
-	SubType      ExtendedCommunityAttrSubType
+func (e *DefaultGatewayExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_TRANSITIVE_OPAQUE, EC_SUBTYPE_DEFAULT_GATEWAY
 }
 
-func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
-	if len(data) != 7 {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid OpaqueExtended bytes len: %d", len(data)))
-	}
-	e.SubType = ExtendedCommunityAttrSubType(data[0])
+func (e *DefaultGatewayExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		SubType ExtendedCommunityAttrSubType `json:"subtype"`
+	}{
+		Type:    t,
+		SubType: s,
+	})
+}
 
-	if e.IsTransitive {
-		switch e.SubType {
-		case EC_SUBTYPE_COLOR:
-			v := binary.BigEndian.Uint32(data[3:7])
-			e.Value = &ColorExtended{
-				Value: v,
-			}
-		case EC_SUBTYPE_ENCAPSULATION:
-			t := TunnelType(binary.BigEndian.Uint16(data[5:7]))
-			e.Value = &EncapExtended{
-				TunnelType: t,
-			}
-		case EC_SUBTYPE_DEFAULT_GATEWAY:
-			e.Value = &DefaultGatewayExtended{}
-		default:
-			e.Value = &DefaultOpaqueExtendedValue{
-				Value: data, //7byte
-			}
-		}
-	} else {
-		switch e.SubType {
-		case EC_SUBTYPE_ORIGIN_VALIDATION:
-			e.Value = &ValidationExtended{
-				Value: ValidationState(data[6]),
-			}
-		default:
-			e.Value = &DefaultOpaqueExtendedValue{
-				Value: data, //7byte
-			}
-		}
-	}
-	return nil
+func NewDefaultGatewayExtended() *DefaultGatewayExtended {
+	return &DefaultGatewayExtended{}
+}
+
+type OpaqueExtended struct {
+	IsTransitive bool
+	Value        []byte
 }
 
 func (e *OpaqueExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 1, 7)
+	if len(e.Value) != 7 {
+		return nil, fmt.Errorf("invalid value length for opaque extended community: %d", len(e.Value))
+	}
+	buf := make([]byte, 8, 8)
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
 	} else {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_OPAQUE)
 	}
-	bbuf, err := e.Value.Serialize()
-	e.SubType = ExtendedCommunityAttrSubType(bbuf[0])
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, bbuf...)
+	copy(buf[1:], e.Value)
 	return buf, nil
 }
 
 func (e *OpaqueExtended) String() string {
-	return e.Value.String()
+	buf := make([]byte, 8, 8)
+	copy(buf[1:], e.Value)
+	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf))
+}
+
+func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	var subType ExtendedCommunityAttrSubType
+	if len(e.Value) > 0 {
+		// Use the first byte of value as the sub type
+		subType = ExtendedCommunityAttrSubType(e.Value[0])
+	}
+	if e.IsTransitive {
+		return EC_TYPE_TRANSITIVE_OPAQUE, subType
+	}
+	return EC_TYPE_NON_TRANSITIVE_OPAQUE, subType
 }
 
 func (e *OpaqueExtended) MarshalJSON() ([]byte, error) {
@@ -6555,7 +6598,7 @@ func (e *OpaqueExtended) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type    ExtendedCommunityAttrType    `json:"type"`
 		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
-		Value   OpaqueExtendedValueInterface `json:"value"`
+		Value   []byte                       `json:"value"`
 	}{
 		Type:    t,
 		Subtype: s,
@@ -6563,18 +6606,50 @@ func (e *OpaqueExtended) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	t := EC_TYPE_TRANSITIVE_OPAQUE
-	if !e.IsTransitive {
-		t = EC_TYPE_NON_TRANSITIVE_OPAQUE
-	}
-	return t, e.SubType
-}
-
-func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
+func NewOpaqueExtended(isTransitive bool, value []byte) *OpaqueExtended {
+	v := make([]byte, 7, 7)
+	copy(v, value)
 	return &OpaqueExtended{
 		IsTransitive: isTransitive,
+		Value:        v,
 	}
+}
+
+func parseOpaqueExtended(data []byte) (ExtendedCommunityInterface, error) {
+	typ := ExtendedCommunityAttrType(data[0])
+	isTransitive := false
+	switch typ {
+	case EC_TYPE_TRANSITIVE_OPAQUE:
+		isTransitive = true
+	case EC_TYPE_NON_TRANSITIVE_OPAQUE:
+		// isTransitive = false
+	default:
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("invalid opaque extended community type: %d", data[0]))
+	}
+	subType := ExtendedCommunityAttrSubType(data[1])
+
+	if isTransitive {
+		switch subType {
+		case EC_SUBTYPE_COLOR:
+			return &ColorExtended{
+				Color: binary.BigEndian.Uint32(data[4:8]),
+			}, nil
+		case EC_SUBTYPE_ENCAPSULATION:
+			return &EncapExtended{
+				TunnelType: TunnelType(binary.BigEndian.Uint16(data[6:8])),
+			}, nil
+		case EC_SUBTYPE_DEFAULT_GATEWAY:
+			return &DefaultGatewayExtended{}, nil
+		}
+	} else {
+		switch subType {
+		case EC_SUBTYPE_ORIGIN_VALIDATION:
+			return &ValidationExtended{
+				State: ValidationState(data[7]),
+			}, nil
+		}
+	}
+	return NewOpaqueExtended(isTransitive, data[1:8]), nil
 }
 
 type ESILabelExtended struct {
@@ -7211,9 +7286,7 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_OPAQUE:
-		e := NewOpaqueExtended(transitive)
-		err := e.DecodeFromBytes(data[1:8])
-		return e, err
+		return parseOpaqueExtended(data)
 	case EC_TYPE_EVPN:
 		return parseEvpnExtended(data)
 	case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
@@ -8956,10 +9029,23 @@ func (e *TwoOctetAsSpecificExtended) Flat() map[string]string {
 	return map[string]string{}
 }
 
+func (e *ColorExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *EncapExtended) Flat() map[string]string {
+	return map[string]string{"encaspulation": e.TunnelType.String()}
+}
+
+func (e *DefaultGatewayExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ValidationExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
 func (e *OpaqueExtended) Flat() map[string]string {
-	if e.SubType == EC_SUBTYPE_ENCAPSULATION {
-		return map[string]string{"encaspulation": e.Value.String()}
-	}
 	return map[string]string{}
 }
 
