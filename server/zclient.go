@@ -478,7 +478,7 @@ func (z *zebraClient) loop() {
 					} else {
 						z.nhtManager.scheduleUpdate(paths)
 						if b != nil {
-							z.client.SendNexthopRegister(uint16(msg.Header.VrfId), b, true)
+							z.client.SendNexthopRegister(msg.Header.VrfId, b, true)
 						}
 					}
 				}
@@ -517,20 +517,20 @@ func (z *zebraClient) loop() {
 								if vrf != nil {
 									body.Tag = vrf.MplsLabel()
 								}
-								z.client.SendIPRoute(i, body, isWithdraw)
+								z.client.SendIPRoute(uint32(i), body, isWithdraw)
 							}
 							if body, isWithdraw := newNexthopRegisterBody(pathList{path}, z.nhtManager); body != nil {
-								z.client.SendNexthopRegister(i, body, isWithdraw)
+								z.client.SendNexthopRegister(uint32(i), body, isWithdraw)
 							}
 						}
 					}
 				}
 			case *WatchEventUpdate:
 				if body, isWithdraw := newNexthopRegisterBody(msg.PathList, z.nhtManager); body != nil {
-					vrfId := uint16(0)
+					vrfId := uint32(0)
 					for _, vrf := range z.server.GetVrf() {
 						if vrf.Name == msg.Neighbor.Config.Vrf {
-							vrfId = uint16(vrf.Id)
+							vrfId = vrf.Id
 						}
 					}
 					z.client.SendNexthopRegister(vrfId, body, isWithdraw)
@@ -547,6 +547,16 @@ func (z *zebraClient) RequestMplsLabelAllocation() (uint32, uint32, error) {
 	z.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: z.mplsLabelRangeSize})
 	labels := <-z.mplsLabelRangeCh
 	return labels[0], labels[1], nil
+}
+
+func (z *zebraClient) AddVrfLabel(label uint32, vrfId uint32) error {
+	body := &zebra.VrfLabelBody{
+		Label:     label,
+		Afi:       zebra.AFI_IP,
+		LabelType: zebra.FRR5_LSP_BGP,
+	}
+	return z.client.SendCommand(zebra.FRR5_VRF_LABEL, vrfId, body)
+
 }
 
 func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8, mplsLabelRangeSize uint32) (*zebraClient, error) {

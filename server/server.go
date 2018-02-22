@@ -1494,6 +1494,15 @@ func (s *BgpServer) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInte
 		if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
 		}
+		for _, vrf := range s.globalRib.Vrfs {
+			if vrf.Name == name {
+				err := s.zclient.AddVrfLabel(vrf.MplsLabel(), vrf.Id)
+				if err != nil {
+					return err
+				}
+				break
+			}
+		}
 		return nil
 	}, true)
 }

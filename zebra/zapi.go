@@ -802,7 +802,7 @@ func (c *Client) Send(m *Message) {
 	c.outgoing <- m
 }
 
-func (c *Client) SendCommand(command API_TYPE, vrfId uint16, body Body) error {
+func (c *Client) SendCommand(command API_TYPE, vrfId uint32, body Body) error {
 	var marker uint8 = HEADER_MARKER
 	if c.Version >= 4 {
 		marker = FRR_HEADER_MARKER
@@ -812,7 +812,7 @@ func (c *Client) SendCommand(command API_TYPE, vrfId uint16, body Body) error {
 			Len:     HeaderSize(c.Version),
 			Marker:  marker,
 			Version: c.Version,
-			VrfId:   uint32(vrfId),
+			VrfId:   vrfId,
 			Command: command,
 		},
 		Body: body,
@@ -861,7 +861,7 @@ func (c *Client) SendInterfaceAdd() error {
 	return c.SendCommand(command, VRF_DEFAULT, nil)
 }
 
-func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint16) error {
+func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint32) error {
 	command := REDISTRIBUTE_ADD
 	if c.redistDefault != t {
 		bodies := make([]*RedistributeBody, 0)
@@ -911,7 +911,7 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 	}
 }
 
-func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) error {
+func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) error {
 	command := IPV4_ROUTE_ADD
 	if c.Version <= 3 {
 		if body.Prefix.To4() != nil {
@@ -966,7 +966,7 @@ func (c *Client) SendIPRoute(vrfId uint16, body *IPRouteBody, isWithdraw bool) e
 	return c.SendCommand(command, vrfId, body)
 }
 
-func (c *Client) SendNexthopRegister(vrfId uint16, body *NexthopRegisterBody, isWithdraw bool) error {
+func (c *Client) SendNexthopRegister(vrfId uint32, body *NexthopRegisterBody, isWithdraw bool) error {
 	// Note: NEXTHOP_REGISTER and NEXTHOP_UNREGISTER messages are not
 	// supported in Zebra protocol version<3.
 	if c.Version < 3 {
