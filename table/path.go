@@ -146,7 +146,6 @@ type Path struct {
 	reason     BestPathReason
 	parent     *Path
 	dels       []bgp.BGPAttrType
-	filtered   map[string]PolicyDirection
 	VrfIds     []uint16
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
@@ -170,7 +169,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		},
 		IsWithdraw: isWithdraw,
 		pathAttrs:  pattrs,
-		filtered:   make(map[string]PolicyDirection),
 	}
 }
 
@@ -182,7 +180,6 @@ func NewEOR(family bgp.RouteFamily) *Path {
 			nlri: nlri,
 			eor:  true,
 		},
-		filtered: make(map[string]PolicyDirection),
 	}
 }
 
@@ -339,7 +336,6 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 	return &Path{
 		parent:           path,
 		IsWithdraw:       isWithdraw,
-		filtered:         make(map[string]PolicyDirection),
 		IsNexthopInvalid: path.IsNexthopInvalid,
 	}
 }
@@ -394,14 +390,6 @@ func (path *Path) SetUUID(id []byte) {
 
 func (path *Path) AssignNewUUID() {
 	path.OriginInfo().uuid, _ = uuid.NewV4()
-}
-
-func (path *Path) Filter(id string, reason PolicyDirection) {
-	path.filtered[id] = reason
-}
-
-func (path *Path) Filtered(id string) PolicyDirection {
-	return path.filtered[id]
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {
@@ -1091,7 +1079,6 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		SourceID   net.IP                       `json:"source-id,omitempty"`
 		NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
 		Stale      bool                         `json:"stale,omitempty"`
-		Filtered   bool                         `json:"filtered,omitempty"`
 		UUID       string                       `json:"uuid,omitempty"`
 		ID         uint32                       `json:"id,omitempty"`
 	}{
@@ -1103,7 +1090,6 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		SourceID:   path.GetSource().ID,
 		NeighborIP: path.GetSource().Address,
 		Stale:      path.IsStale(),
-		Filtered:   path.Filtered("") > POLICY_DIRECTION_NONE,
 		UUID:       path.UUID().String(),
 		ID:         path.GetNlri().PathIdentifier(),
 	})

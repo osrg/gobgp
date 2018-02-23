@@ -255,7 +255,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	if path.IsWithdraw || path.IsLocal() || nlri.RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 		return nil
 	}
-	for _, path2 := range manager.GetPathList(GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_EVPN}) {
+	for _, path2 := range manager.GetPathList(GLOBAL_RIB_NAME, 0, []bgp.RouteFamily{bgp.RF_EVPN}) {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
@@ -307,14 +307,14 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	return count
 }
 
-func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.RouteFamily) []*Path {
 	if SelectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, there is no best path.
 		return nil
 	}
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
-		paths = append(paths, t.Bests(id)...)
+		paths = append(paths, t.Bests(id, as)...)
 	}
 	return paths
 }
@@ -332,10 +332,10 @@ func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteF
 	return paths
 }
 
-func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.RouteFamily) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
-		paths = append(paths, t.GetKnownPathList(id)...)
+		paths = append(paths, t.GetKnownPathList(id, as)...)
 	}
 	return paths
 }
@@ -344,7 +344,7 @@ func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Rout
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
-			for _, path := range t.GetKnownPathList(id) {
+			for _, path := range t.GetKnownPathList(id, 0) {
 				if path.GetNexthop().Equal(nexthop) {
 					paths = append(paths, path)
 				}
@@ -366,10 +366,10 @@ func (manager *TableManager) GetDestination(path *Path) *Destination {
 	return t.GetDestination(path.getPrefix())
 }
 
-func (manager *TableManager) TableInfo(id string, family bgp.RouteFamily) (*TableInfo, error) {
+func (manager *TableManager) TableInfo(id string, as uint32, family bgp.RouteFamily) (*TableInfo, error) {
 	t, ok := manager.Tables[family]
 	if !ok {
 		return nil, fmt.Errorf("address family %s is not configured", family)
 	}
-	return t.Info(id), nil
+	return t.Info(id, as), nil
 }
