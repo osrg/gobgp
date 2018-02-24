@@ -1368,7 +1368,7 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	}
 
 	nexthop := path.GetNexthop()
-	log.Print(nexthop)
+	
 	if options != nil && options.Info != nil && options.Info.Address != nil {
 		nexthop = options.Info.Address
 	}
