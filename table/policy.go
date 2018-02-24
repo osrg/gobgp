@@ -1346,6 +1346,7 @@ type Condition interface {
 
 type NextHopCondition struct {
 	set *NextHopSet
+	option MatchOption
 }
 
 func (c *NextHopCondition) Type() ConditionType {
@@ -1354,6 +1355,15 @@ func (c *NextHopCondition) Type() ConditionType {
 
 func (c *NextHopCondition) Set() DefinedSet {
 	return c.set
+}
+
+func (c *NextHopCondition) String() string {
+	return c.set.String()
+}
+
+
+func (c *NextHopCondition) Option() MatchOption {
+	return c.option
 }
 
 // compare next-hop ipaddress of this condition and source address of path
@@ -1368,17 +1378,12 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	}
 
 	nexthop := path.GetNexthop()
-	
-	if options != nil && options.Info != nil && options.Info.Address != nil {
-		nexthop = options.Info.Address
-	}
 
 	if nexthop == nil {
 		return false
 	}
 
 	for _, n := range c.set.list {
-
 		if n.Contains(nexthop) {
 			return true
 		}
