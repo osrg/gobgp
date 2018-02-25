@@ -5,31 +5,6 @@ connect with two eBGP peers for IPv4 routes. Even if you are
 interested in other GoBGP use cases (such as IPv6 routes, EVPN, and
 Route Server), this example gives you the basics of GoBGP usage.
 
-## Prerequisites
-
-You need to install [Go 1.7 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` is included in your `$PATH`.
-
-## Installing GoBGP
-
-```bash
-$ go get github.com/osrg/gobgp/gobgpd
-$ go get github.com/osrg/gobgp/gobgp
-```
-
-Finished. No dependency hell (library, package, etc) thanks to Go.
-The first command installs GoBGP daemon (speaking BGP protocol). The
-second one installs GoBGP CLI. The CLI isn't a must but handy when you
-play with GoBGP.
-
-In addition, if you use Bash shell, you can enjoy CLI's tab completion:
-
-```bash
-$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-completion.bash
-$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-static-completion.bash
-$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-dynamic-completion.bash
-$ source gobgp-completion.bash
-```
-
 ## Configuration
 
 GoBGP can be configured via a configuration file or gRPC API. This example
@@ -123,8 +98,6 @@ BGP neighbor is 10.0.255.1, remote AS 65001
     Discarded:              0          0
     Total:                  7          7
 ```
-
-Note that the tab completion works for both peer names and commands.
 
 Check out the global table.
 ```bash
