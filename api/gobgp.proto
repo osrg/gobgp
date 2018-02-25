@@ -965,6 +965,7 @@ enum DefinedType {
   COMMUNITY = 4;
   EXT_COMMUNITY = 5;
   LARGE_COMMUNITY = 6;
+  NEXT_HOP = 7;
 }
 
 message DefinedSet {
@@ -1012,6 +1013,7 @@ message Conditions {
   }
   RouteType route_type = 8;
   MatchSet large_community_set = 9;
+  repeated string next_hop_in_list = 10;
 }
 
 enum RouteAction {

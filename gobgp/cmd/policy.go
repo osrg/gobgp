@@ -482,7 +482,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -639,6 +639,8 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return err
 		}
+	case "next-hop-in-list":
+		stmt.Conditions.BgpConditions.NextHopInList = args
 	default:
 		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type }", usage)
 	}

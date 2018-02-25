@@ -601,7 +601,7 @@ func (s *NextHopSet) ToConfig() []string {
 }
 
 func (s *NextHopSet) String() string {
-	return strings.Join(s.List(), "\n")
+	return "[ " + strings.Join(s.List(), ", ") + " ]"
 }
 
 func (s *NextHopSet) MarshalJSON() ([]byte, error) {
