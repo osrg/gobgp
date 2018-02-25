@@ -1893,7 +1893,6 @@ func NewNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, erro
 	return table.NewNextHopCondition(a)
 }
 
-
 func NewRoutingActionFromApiStruct(a RouteAction) (*table.RoutingAction, error) {
 	if a == RouteAction_NONE {
 		return nil, nil
