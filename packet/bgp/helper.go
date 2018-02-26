@@ -15,10 +15,6 @@
 
 package bgp
 
-import (
-	"net"
-)
-
 func NewTestBGPOpenMessage() *BGPMessage {
 	p1 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapRouteRefresh()})
@@ -90,22 +86,12 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	prefixes4 := []AddrPrefixInterface{NewLabeledIPAddrPrefix(25, "192.168.0.0",
 		*NewMPLSLabelStack(5, 6, 7))}
 
-	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	prefixes5 := []AddrPrefixInterface{
-		NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
-			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
-				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2}),
-		NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
-			&EVPNMacIPAdvertisementRoute{NewRouteDistinguisherFourOctetAS(5, 6),
-				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 3, 48,
-				mac, 32, net.ParseIP("192.2.1.2"),
-				[]uint32{3, 4}}),
-		NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG,
-			&EVPNMulticastEthernetTagRoute{NewRouteDistinguisherFourOctetAS(5, 6), 3, 32, net.ParseIP("192.2.1.2")}),
-		NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE,
-			&EVPNEthernetSegmentRoute{NewRouteDistinguisherFourOctetAS(5, 6),
-				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)},
-				32, net.ParseIP("192.2.1.1")}),
+		NewEVPNEthernetAutoDiscoveryRoute(NewRouteDistinguisherFourOctetAS(5, 6), EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2),
+		NewEVPNMacIPAdvertisementRoute(NewRouteDistinguisherFourOctetAS(5, 6), EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 3, "01:23:45:67:89:ab", "192.2.1.2", []uint32{3, 4}),
+		NewEVPNMulticastEthernetTagRoute(NewRouteDistinguisherFourOctetAS(5, 6), 3, "192.2.1.2"),
+		NewEVPNEthernetSegmentRoute(NewRouteDistinguisherFourOctetAS(5, 6), EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, "192.2.1.1"),
+		NewEVPNIPPrefixRoute(NewRouteDistinguisherFourOctetAS(5, 6), EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 5, 24, "192.2.1.0", "192.3.1.1", 5),
 	}
 
 	p := []PathAttributeInterface{
