@@ -2307,6 +2307,15 @@ func (er *EVPNEthernetAutoDiscoveryRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
+func NewEVPNEthernetAutoDiscoveryRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, label uint32) *EVPNNLRI {
+	return NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, &EVPNEthernetAutoDiscoveryRoute{
+		RD:    rd,
+		ESI:   esi,
+		ETag:  etag,
+		Label: label,
+	})
+}
+
 type EVPNMacIPAdvertisementRoute struct {
 	RD               RouteDistinguisherInterface
 	ESI              EthernetSegmentIdentifier
@@ -2441,6 +2450,30 @@ func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
+func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, macAddress string, ipAddress string, labels []uint32) *EVPNNLRI {
+	mac, _ := net.ParseMAC(macAddress)
+	var ipLen uint8
+	ip := net.ParseIP(ipAddress)
+	if ip != nil {
+		if ipv4 := ip.To4(); ipv4 != nil {
+			ipLen = 32
+			ip = ipv4
+		} else {
+			ipLen = 128
+		}
+	}
+	return NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, &EVPNMacIPAdvertisementRoute{
+		RD:               rd,
+		ESI:              esi,
+		ETag:             etag,
+		MacAddressLength: 6,
+		MacAddress:       mac,
+		IPAddressLength:  ipLen,
+		IPAddress:        ip,
+		Labels:           labels,
+	})
+}
+
 type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
@@ -2522,6 +2555,22 @@ func (er *EVPNMulticastEthernetTagRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
+func NewEVPNMulticastEthernetTagRoute(rd RouteDistinguisherInterface, etag uint32, ipAddress string) *EVPNNLRI {
+	ipLen := uint8(32)
+	ip := net.ParseIP(ipAddress)
+	if ipv4 := ip.To4(); ipv4 != nil {
+		ip = ipv4
+	} else {
+		ipLen = 128
+	}
+	return NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, &EVPNMulticastEthernetTagRoute{
+		RD:              rd,
+		ETag:            etag,
+		IPAddressLength: ipLen,
+		IPAddress:       ip,
+	})
+}
+
 type EVPNEthernetSegmentRoute struct {
 	RD              RouteDistinguisherInterface
 	ESI             EthernetSegmentIdentifier
@@ -2600,6 +2649,22 @@ func (er *EVPNEthernetSegmentRoute) MarshalJSON() ([]byte, error) {
 
 func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
 	return er.RD
+}
+
+func NewEVPNEthernetSegmentRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, ipAddress string) *EVPNNLRI {
+	ipLen := uint8(32)
+	ip := net.ParseIP(ipAddress)
+	if ipv4 := ip.To4(); ipv4 != nil {
+		ip = ipv4
+	} else {
+		ipLen = 128
+	}
+	return NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE, &EVPNEthernetSegmentRoute{
+		RD:              rd,
+		ESI:             esi,
+		IPAddressLength: ipLen,
+		IPAddress:       ip,
+	})
 }
 
 type EVPNIPPrefixRoute struct {
@@ -2734,6 +2799,24 @@ func (er *EVPNIPPrefixRoute) MarshalJSON() ([]byte, error) {
 
 func (er *EVPNIPPrefixRoute) rd() RouteDistinguisherInterface {
 	return er.RD
+}
+
+func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, ipPrefixLength uint8, ipPrefix string, gateway string, label uint32) *EVPNNLRI {
+	ip := net.ParseIP(ipPrefix)
+	gw := net.ParseIP(gateway)
+	if ipv4 := ip.To4(); ipv4 != nil {
+		ip = ipv4
+		gw = gw.To4()
+	}
+	return NewEVPNNLRI(EVPN_IP_PREFIX, &EVPNIPPrefixRoute{
+		RD:             rd,
+		ESI:            esi,
+		ETag:           etag,
+		IPPrefixLength: ipPrefixLength,
+		IPPrefix:       ip,
+		GWIPAddress:    gw,
+		Label:          label,
+	})
 }
 
 type EVPNRouteTypeInterface interface {
