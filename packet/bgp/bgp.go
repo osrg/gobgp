@@ -8170,6 +8170,12 @@ func (i *DefaultPmsiTunnelID) String() string {
 	return string(i.Value)
 }
 
+func NewDefaultPmsiTunnelID(value []byte) *DefaultPmsiTunnelID {
+	return &DefaultPmsiTunnelID{
+		Value: value,
+	}
+}
+
 type IngressReplTunnelID struct {
 	Value net.IP
 }
@@ -8187,6 +8193,16 @@ func (i *IngressReplTunnelID) Serialize() ([]byte, error) {
 
 func (i *IngressReplTunnelID) String() string {
 	return i.Value.String()
+}
+
+func NewIngressReplTunnelID(value string) *IngressReplTunnelID {
+	ip := net.ParseIP(value)
+	if ip == nil {
+		return nil
+	}
+	return &IngressReplTunnelID{
+		Value: ip,
+	}
 }
 
 type PathAttributePmsiTunnel struct {
