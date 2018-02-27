@@ -6,6 +6,7 @@ Package gobgpapi is a generated protocol buffer package.
 
 It is generated from these files:
 	gobgp.proto
+	attribute.proto
 
 It has these top-level messages:
 	GetNeighborRequest
@@ -180,6 +181,78 @@ It has these top-level messages:
 	TableInfo
 	GetRibInfoRequest
 	GetRibInfoResponse
+	OriginAttribute
+	AsSegment
+	AsPathAttribute
+	NextHopAttribute
+	MultiExitDiscAttribute
+	LocalPrefAttribute
+	AtomicAggregateAttribute
+	AggregatorAttribute
+	CommunitiesAttribute
+	OriginatorIdAttribute
+	ClusterListAttribute
+	IPAddressPrefix
+	LabeledIPAddressPrefix
+	EncapsulationNLRI
+	RouteDistinguisherTwoOctetAS
+	RouteDistinguisherIPAddress
+	RouteDistinguisherFourOctetAS
+	EthernetSegmentIdentifier
+	EVPNEthernetAutoDiscoveryRoute
+	EVPNMACIPAdvertisementRoute
+	EVPNInclusiveMulticastEthernetTagRoute
+	EVPNEthernetSegmentRoute
+	EVPNIPPrefixRoute
+	LabeledVPNIPAddressPrefix
+	RouteTargetMembershipNLRI
+	FlowSpecIPPrefix
+	FlowSpecMAC
+	FlowSpecComponentItem
+	FlowSpecComponent
+	FlowSpecNLRI
+	VPNFlowSpecNLRI
+	OpaqueNLRI
+	MpReachNLRIAttribute
+	MpUnreachNLRIAttribute
+	TwoOctetAsSpecificExtended
+	IPv4AddressSpecificExtended
+	FourOctetAsSpecificExtended
+	ValidationExtended
+	ColorExtended
+	EncapExtended
+	DefaultGatewayExtended
+	OpaqueExtended
+	ESILabelExtended
+	ESImportRouteTarget
+	MacMobilityExtended
+	RouterMacExtended
+	TrafficRateExtended
+	TrafficActionExtended
+	RedirectTwoOctetAsSpecificExtended
+	RedirectIPv4AddressSpecificExtended
+	RedirectFourOctetAsSpecificExtended
+	TrafficRemarkExtended
+	UnknownExtended
+	ExtendedCommunitiesAttribute
+	As4PathAttribute
+	As4AggregatorAttribute
+	PmsiTunnelAttribute
+	TunnelEncapSubTLVEncapsulation
+	TunnelEncapSubTLVProtocol
+	TunnelEncapSubTLVColor
+	TunnelEncapSubTLVUnknown
+	TunnelEncapTLV
+	TunnelEncapAttribute
+	IPv6AddressSpecificExtended
+	RedirectIPv6AddressSpecificExtended
+	IP6ExtendedCommunitiesAttribute
+	AigpTLVIGPMetric
+	AigpTLVUnknown
+	AigpAttribute
+	LargeCommunity
+	LargeCommunitiesAttribute
+	UnknownAttribute
 */
 package gobgpapi
 
