@@ -35,7 +35,8 @@ import (
 )
 
 type PolicyOptions struct {
-	Info *PeerInfo
+	Info       *PeerInfo
+	OldNextHop net.IP
 }
 
 type DefinedType int
@@ -1374,6 +1375,15 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	}
 
 	nexthop := path.GetNexthop()
+
+	// In cases where we advertise routes from iBGP to eBGP, we want to filter
+	// on the "original" nexthop. The current paths' nexthop has already been
+	// set and is ready to be advertised as per:
+	// https://tools.ietf.org/html/rfc4271#section-5.1.3
+	if options != nil && options.OldNextHop != nil &&
+		!options.OldNextHop.IsUnspecified() && !options.OldNextHop.Equal(nexthop) {
+		nexthop = options.OldNextHop
+	}
 
 	if nexthop == nil {
 		return false
