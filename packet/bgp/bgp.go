@@ -5213,6 +5213,8 @@ var asPathParamFormatMap = map[uint8]*AsPathParamFormat{
 }
 
 type AsPathParamInterface interface {
+	GetType() uint8
+	GetAS() []uint32
 	Serialize() ([]byte, error)
 	DecodeFromBytes([]byte) error
 	Len() int
@@ -5225,6 +5227,18 @@ type AsPathParam struct {
 	Type uint8
 	Num  uint8
 	AS   []uint16
+}
+
+func (a *AsPathParam) GetType() uint8 {
+	return a.Type
+}
+
+func (a *AsPathParam) GetAS() []uint32 {
+	nums := make([]uint32, 0, len(a.AS))
+	for _, as := range a.AS {
+		nums = append(nums, uint32(as))
+	}
+	return nums
 }
 
 func (a *AsPathParam) Serialize() ([]byte, error) {
@@ -5312,6 +5326,14 @@ type As4PathParam struct {
 	Type uint8
 	Num  uint8
 	AS   []uint32
+}
+
+func (a *As4PathParam) GetType() uint8 {
+	return a.Type
+}
+
+func (a *As4PathParam) GetAS() []uint32 {
+	return a.AS
 }
 
 func (a *As4PathParam) Serialize() ([]byte, error) {

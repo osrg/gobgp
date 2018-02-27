@@ -511,13 +511,14 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	if asPath == nil || len(asPath.Value) == 0 {
 		as = ownAs
 	} else {
-		asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
-		switch asParam.Type {
+		param := asPath.Value[len(asPath.Value)-1]
+		switch param.GetType() {
 		case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
-			if len(asParam.AS) == 0 {
+			asList := param.GetAS()
+			if len(asList) == 0 {
 				as = ownAs
 			} else {
-				as = asParam.AS[len(asParam.AS)-1]
+				as = asList[len(asList)-1]
 			}
 		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 			as = ownAs

@@ -677,10 +677,10 @@ func getPathAttrFromBGPUpdate(m *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAtt
 	return nil
 }
 
-func hasOwnASLoop(ownAS uint32, limit int, aspath *bgp.PathAttributeAsPath) bool {
+func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath) bool {
 	cnt := 0
-	for _, i := range aspath.Value {
-		for _, as := range i.(*bgp.As4PathParam).AS {
+	for _, param := range asPath.Value {
+		for _, as := range param.GetAS() {
 			if as == ownAS {
 				cnt++
 				if cnt > limit {

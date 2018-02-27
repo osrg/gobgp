@@ -173,23 +173,16 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 			}
 		}
 	case *PathAttributeAsPath:
-		getSegType := func(p AsPathParamInterface) uint8 {
-			asParam, y := p.(*As4PathParam)
-			if y {
-				return asParam.Type
-			} else {
-				return p.(*AsPathParam).Type
-			}
-		}
 		if isEBGP {
 			if isConfed {
-				if segType := getSegType(p.Value[0]); segType != BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+				if segType := p.Value[0].GetType(); segType != BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
 					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type is not confederation seq (%d)", segType))
 				}
 			} else {
-				for _, paramIf := range p.Value {
-					segType := getSegType(paramIf)
-					if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+				for _, param := range p.Value {
+					segType := param.GetType()
+					switch segType {
+					case BGP_ASPATH_ATTR_TYPE_CONFED_SET, BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 						err := NewMessageErrorWithErrorHandling(
 							eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, fmt.Sprintf("segment type confederation(%d) found", segType))
 						if err.(*MessageError).Stronger(strongestError) {

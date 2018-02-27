@@ -565,8 +565,8 @@ func checkOriginAsWasNotShown(p *table.Path, shownAs map[uint32]struct{}) bool {
 	if len(asPath) == 0 {
 		return false
 	}
-	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
-	origin := aslist[len(aslist)-1]
+	asList := asPath[len(asPath)-1].GetAS()
+	origin := asList[len(asList)-1]
 
 	if _, ok := shownAs[origin]; ok {
 		return false
@@ -585,8 +585,8 @@ func showValidationInfo(p *table.Path, shownAs map[uint32]struct{}) error {
 
 	status := p.Validation().Status
 	reason := p.Validation().Reason
-	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
-	origin := aslist[len(aslist)-1]
+	asList := asPath[len(asPath)-1].GetAS()
+	origin := asList[len(asList)-1]
 
 	fmt.Printf("Target Prefix: %s, AS: %d\n", p.GetNlri().String(), origin)
 	fmt.Printf("  This route is %s", status)
