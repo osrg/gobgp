@@ -288,7 +288,11 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 				path.SetNexthop(localAddress)
 				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
-				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
+				if path.IsLocal() {
+					path.setPathAttr(bgp.NewPathAttributeOriginatorId(global.Config.RouterId))
+				} else {
+					path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
+				}
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
@@ -1043,7 +1047,7 @@ func (path *Path) GetClusterList() []net.IP {
 
 func (path *Path) GetOrigin() (uint8, error) {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN); attr != nil {
-		return attr.(*bgp.PathAttributeOrigin).Value[0], nil
+		return attr.(*bgp.PathAttributeOrigin).Value, nil
 	}
 	return 0, fmt.Errorf("no origin path attr")
 }

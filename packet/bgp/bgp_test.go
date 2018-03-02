@@ -258,16 +258,7 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal([]byte{0x3, 0xc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x8}, buf)
 
-	subTlv := &TunnelEncapSubTLV{
-		Type:  ENCAP_SUBTLV_TYPE_COLOR,
-		Value: &TunnelEncapSubTLVColor{10},
-	}
-
-	tlv := &TunnelEncapTLV{
-		Type:  TUNNEL_TYPE_VXLAN,
-		Value: []*TunnelEncapSubTLV{subTlv},
-	}
-
+	tlv := NewTunnelEncapTLV(TUNNEL_TYPE_VXLAN, []TunnelEncapSubTLVInterface{NewTunnelEncapSubTLVColor(10)})
 	attr := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv})
 
 	buf1, err := attr.Serialize()
@@ -495,7 +486,7 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 func Test_Aigp(t *testing.T) {
 	assert := assert.New(t)
 	m := NewAigpTLVIgpMetric(1000)
-	a1 := NewPathAttributeAigp([]AigpTLV{m})
+	a1 := NewPathAttributeAigp([]AigpTLVInterface{m})
 	buf1, err := a1.Serialize()
 	assert.Nil(err)
 	a2 := NewPathAttributeAigp(nil)

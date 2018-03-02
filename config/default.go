@@ -236,6 +236,14 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		}
 	}
 
+	if n.RouteReflector.Config.RouteReflectorClient {
+		if n.RouteReflector.Config.RouteReflectorClusterId == "" {
+			n.RouteReflector.Config.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
+		} else if id := net.ParseIP(string(n.RouteReflector.Config.RouteReflectorClusterId)).To4(); id == nil {
+			return fmt.Errorf("route-reflector-cluster-id should be specified in IPv4 address format")
+		}
+	}
+
 	return nil
 }
 

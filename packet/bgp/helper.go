@@ -65,13 +65,9 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 10003, 3<<20, isTransitive),
 		NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 1<<20, 300, isTransitive),
 		NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, "192.2.1.2", 3000, isTransitive),
-		&OpaqueExtended{
-			Value: &DefaultOpaqueExtendedValue{[]byte{255, 1, 2, 3, 4, 5, 6, 7}},
-		},
-		&OpaqueExtended{
-			Value: &ValidationExtended{Value: VALIDATION_STATE_INVALID},
-		},
-		&UnknownExtended{Type: 99, Value: []byte{0, 1, 2, 3, 4, 5, 6, 7}},
+		NewOpaqueExtended(false, []byte{1, 2, 3, 4, 5, 6, 7}),
+		NewValidationExtended(VALIDATION_STATE_INVALID),
+		NewUnknownExtended(99, []byte{0, 1, 2, 3, 4, 5, 6, 7}),
 		NewESILabelExtended(1000, true),
 		NewESImportRouteTarget("11:22:33:44:55:66"),
 		NewMacMobilityExtended(123, false),
@@ -141,8 +137,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 			PathAttribute: PathAttribute{
 				Flags: BGP_ATTR_FLAG_TRANSITIVE,
 				Type:  100,
-				Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 			},
+			Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 		},
 	}
 	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "13.2.3.1")}
