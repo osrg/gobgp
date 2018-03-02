@@ -505,6 +505,10 @@ func (z *zebraClient) loop() {
 							path.VrfIds = []uint16{0}
 						}
 						for _, i := range path.VrfIds {
+							family := path.GetRouteFamily()
+							if (i == zebra.VRF_DEFAULT) && (family == bgp.RF_IPv4_VPN || family == bgp.RF_IPv4_VPN) {
+								continue
+							}
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
 								z.client.SendIPRoute(i, body, isWithdraw)
 							}
