@@ -1046,7 +1046,10 @@ func (p *PrefixDefault) SetPathLocalIdentifier(id uint32) {
 	p.localId = id
 }
 
-func (p *PrefixDefault) decodePathIdentifier(data []byte) ([]byte, error) {
+func (p *PrefixDefault) decodePathIdentifier(data []byte, rf RouteFamily, options []*MarshallingOption) ([]byte, error) {
+	if !IsAddPathEnabled(true, rf, options) {
+		return data, nil
+	}
 	if len(data) < 4 {
 		code := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		subcode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
@@ -1056,57 +1059,116 @@ func (p *PrefixDefault) decodePathIdentifier(data []byte) ([]byte, error) {
 	return data[4:], nil
 }
 
-func (p *PrefixDefault) serializeIdentifier() ([]byte, error) {
+func (p *PrefixDefault) serializeIdentifier(rf RouteFamily, options []*MarshallingOption) ([]byte, error) {
+	if !IsAddPathEnabled(false, rf, options) {
+		return nil, nil
+	}
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, p.PathLocalIdentifier())
 	return buf, nil
 }
 
-type IPAddrPrefixDefault struct {
-	PrefixDefault
-	Length uint8
-	Prefix net.IP
-}
-
-func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen uint8) error {
-	bytelen := (int(bitlen) + 7) / 8
-	if len(data) < bytelen {
+func decodeIPAddrPrefix(data []byte, bitLen uint8, addrLen int) (net.IP, error) {
+	byteLen := (int(bitLen) + 7) / 8
+	if len(data) < byteLen {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		return NewMessageError(eCode, eSubCode, nil, "network bytes is short")
+		return nil, NewMessageError(eCode, eSubCode, nil, "invalid ip prefix byte length")
 	}
-	b := make([]byte, addrlen)
-	copy(b, data[:bytelen])
-	r.Prefix = b
-	return nil
+	prefix := make(net.IP, addrLen)
+	copy(prefix, data[:byteLen])
+	return prefix, nil
 }
 
-func (r *IPAddrPrefixDefault) serializePrefix(bitLen uint8) ([]byte, error) {
+func serializeIPAddrPrefix(prefix net.IP, bitLen uint8) (net.IP, []byte, error) {
 	byteLen := (int(bitLen) + 7) / 8
 	buf := make([]byte, byteLen)
-	copy(buf, r.Prefix)
-	// clear trailing bits in the last byte. rfc doesn't require
-	// this though.
+	copy(buf, prefix)
+	// Clear trailing bits in the last byte. rfc doesn't require this though.
 	rem := bitLen % 8
 	if rem != 0 {
 		mask := 0xff00 >> rem
 		lastByte := buf[byteLen-1] & byte(mask)
 		buf[byteLen-1] = lastByte
 	}
-	r.Prefix = make([]byte, len(r.Prefix))
-	copy(r.Prefix, buf)
-	return buf, nil
+	prefix = make([]byte, len(prefix))
+	copy(prefix, buf)
+	return prefix, buf, nil
 }
 
-func (r *IPAddrPrefixDefault) Len(options ...*MarshallingOption) int {
+type ipAddrPrefix struct {
+	PrefixDefault
+	Length uint8
+	Prefix net.IP
+}
+
+func (r *ipAddrPrefix) decodePrefix(data []byte, bitLen uint8) (err error) {
+	r.Prefix, err = decodeIPAddrPrefix(data, bitLen, net.IPv4len)
+	return err
+}
+
+func (r *ipAddrPrefix) serializePrefix(bitLen uint8) (buf []byte, err error) {
+	r.Prefix, buf, err = serializeIPAddrPrefix(r.Prefix, bitLen)
+	return buf, err
+}
+
+func (r *ipAddrPrefix) AFI() uint16 {
+	return AFI_IP
+}
+
+func (r *ipAddrPrefix) Len(options ...*MarshallingOption) int {
 	return 1 + ((int(r.Length) + 7) / 8)
 }
 
-func (r *IPAddrPrefixDefault) String() string {
+func (r *ipAddrPrefix) String() string {
 	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
 }
 
-func (r *IPAddrPrefixDefault) MarshalJSON() ([]byte, error) {
+func (r *ipAddrPrefix) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: r.String(),
+	})
+}
+
+type ipv6AddrPrefix struct {
+	PrefixDefault
+	Length uint8
+	Prefix net.IP
+}
+
+func (r *ipv6AddrPrefix) decodePrefix(data []byte, bitLen uint8) (err error) {
+	r.Prefix, err = decodeIPAddrPrefix(data, bitLen, net.IPv6len)
+	return err
+}
+
+func (r *ipv6AddrPrefix) serializePrefix(bitLen uint8) (buf []byte, err error) {
+	r.Prefix, buf, err = serializeIPAddrPrefix(r.Prefix, bitLen)
+	return buf, err
+}
+
+func (r *ipv6AddrPrefix) AFI() uint16 {
+	return AFI_IP6
+}
+
+func (r *ipv6AddrPrefix) Len(options ...*MarshallingOption) int {
+	return 1 + ((int(r.Length) + 7) / 8)
+}
+
+func isIPv4MappedIPv6(ip net.IP) bool {
+	return len(ip) == net.IPv6len && ip.To4() != nil
+}
+
+func (r *ipv6AddrPrefix) String() string {
+	prefix := r.Prefix.String()
+	if isIPv4MappedIPv6(r.Prefix) {
+		prefix = "::ffff:" + prefix
+	}
+	return fmt.Sprintf("%s/%d", prefix, r.Length)
+}
+
+func (r *ipv6AddrPrefix) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Prefix string `json:"prefix"`
 	}{
@@ -1115,24 +1177,13 @@ func (r *IPAddrPrefixDefault) MarshalJSON() ([]byte, error) {
 }
 
 type IPAddrPrefix struct {
-	IPAddrPrefixDefault
-	addrlen uint8
+	ipAddrPrefix
 }
 
-func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if r.addrlen == 0 {
-		r.addrlen = 4
-	}
-	f := RF_IPv4_UC
-	if r.addrlen == 16 {
-		f = RF_IPv6_UC
-	}
-	if IsAddPathEnabled(true, f, options) {
-		var err error
-		data, err = r.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) (err error) {
+	data, err = r.decodePathIdentifier(data, RF_IPv4_UC, options)
+	if err != nil {
+		return err
 	}
 	if len(data) < 1 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -1140,21 +1191,13 @@ func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
 	}
 	r.Length = data[0]
-	return r.decodePrefix(data[1:], r.Length, r.addrlen)
+	return r.decodePrefix(data[1:], r.Length)
 }
 
 func (r *IPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	f := RF_IPv4_UC
-	if r.addrlen == 16 {
-		f = RF_IPv6_UC
-	}
-	var buf []byte
-	if IsAddPathEnabled(false, f, options) {
-		var err error
-		buf, err = r.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
+	buf, err := r.serializeIdentifier(RF_IPv4_UC, options)
+	if err != nil {
+		return nil, err
 	}
 	buf = append(buf, r.Length)
 	pbuf, err := r.serializePrefix(r.Length)
@@ -1164,52 +1207,59 @@ func (r *IPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	return append(buf, pbuf...), nil
 }
 
-func (r *IPAddrPrefix) AFI() uint16 {
-	return AFI_IP
-}
-
 func (r *IPAddrPrefix) SAFI() uint8 {
 	return SAFI_UNICAST
 }
 
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 	return &IPAddrPrefix{
-		IPAddrPrefixDefault{
+		ipAddrPrefix: ipAddrPrefix{
 			Length: length,
 			Prefix: net.ParseIP(prefix).To4(),
 		},
-		4,
 	}
-}
-
-func isIPv4MappedIPv6(ip net.IP) bool {
-	return len(ip) == net.IPv6len && ip.To4() != nil
 }
 
 type IPv6AddrPrefix struct {
-	IPAddrPrefix
+	ipv6AddrPrefix
 }
 
-func (r *IPv6AddrPrefix) AFI() uint16 {
-	return AFI_IP6
-}
-
-func (r *IPv6AddrPrefix) String() string {
-	prefix := r.Prefix.String()
-	if isIPv4MappedIPv6(r.Prefix) {
-		prefix = "::ffff:" + prefix
+func (r *IPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) (err error) {
+	data, err = r.decodePathIdentifier(data, RF_IPv6_UC, options)
+	if err != nil {
+		return err
 	}
-	return fmt.Sprintf("%s/%d", prefix, r.Length)
+	if len(data) < 1 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
+	}
+	r.Length = data[0]
+	return r.decodePrefix(data[1:], r.Length)
+}
+
+func (r *IPv6AddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	buf, err := r.serializeIdentifier(RF_IPv4_UC, options)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, r.Length)
+	pbuf, err := r.serializePrefix(r.Length)
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, pbuf...), nil
+}
+
+func (r *IPv6AddrPrefix) SAFI() uint8 {
+	return SAFI_UNICAST
 }
 
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
 	return &IPv6AddrPrefix{
-		IPAddrPrefix{
-			IPAddrPrefixDefault{
-				Length: length,
-				Prefix: net.ParseIP(prefix),
-			},
-			16,
+		ipv6AddrPrefix: ipv6AddrPrefix{
+			Length: length,
+			Prefix: net.ParseIP(prefix),
 		},
 	}
 }
@@ -1577,218 +1627,244 @@ ERR:
 // followed by an IPv4 prefix.
 //
 
+type labeledVPNPrefix struct {
+	Labels MPLSLabelStack
+	RD     RouteDistinguisherInterface
+}
+
+func (l *labeledVPNPrefix) SAFI() uint8 {
+	return SAFI_MPLS_VPN
+}
+
 type LabeledVPNIPAddrPrefix struct {
-	IPAddrPrefixDefault
-	Labels  MPLSLabelStack
-	RD      RouteDistinguisherInterface
-	addrlen uint8
+	ipAddrPrefix
+	labeledVPNPrefix
+}
+
+func (l *LabeledVPNIPAddrPrefix) PrefixLen() uint8 {
+	return l.Length - uint8((l.Labels.Len()+l.RD.Len())*8)
 }
 
 func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	f := RF_IPv4_VPN
-	if l.addrlen == 16 {
-		f = RF_IPv6_VPN
-	}
-	if IsAddPathEnabled(true, f, options) {
-		var err error
-		data, err = l.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+	data, err := l.decodePathIdentifier(data, RF_IPv4_VPN, options)
+	if err != nil {
+		return err
 	}
 	if len(data) < 1 {
-		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "prefix misses length field")
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
 	}
 	l.Length = uint8(data[0])
 	data = data[1:]
-	l.Labels.DecodeFromBytes(data)
-	if int(l.Length)-8*(l.Labels.Len()) < 0 {
-		l.Labels.Labels = []uint32{}
+	err = l.Labels.DecodeFromBytes(data)
+	if err != nil {
+		return err
 	}
 	data = data[l.Labels.Len():]
 	l.RD = GetRouteDistinguisher(data)
+	if err != nil {
+		return err
+	}
 	data = data[l.RD.Len():]
-	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
-	return l.decodePrefix(data, uint8(restbits), l.addrlen)
+	return l.decodePrefix(data, l.PrefixLen())
 }
 
 func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	f := RF_IPv4_VPN
-	if l.addrlen == 16 {
-		f = RF_IPv6_VPN
-	}
-	var buf []byte
-	if IsAddPathEnabled(false, f, options) {
-		var err error
-		buf, err = l.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
+	buf, err := l.serializeIdentifier(RF_IPv4_VPN, options)
+	if err != nil {
+		return nil, err
 	}
 	buf = append(buf, l.Length)
-	lbuf, err := l.Labels.Serialize()
+	lBuf, err := l.Labels.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, lbuf...)
-	rbuf, err := l.RD.Serialize()
+	buf = append(buf, lBuf...)
+	rdBuf, err := l.RD.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, rbuf...)
-	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
-	pbuf, err := l.serializePrefix(uint8(restbits))
+	buf = append(buf, rdBuf...)
+	pBuf, err := l.serializePrefix(l.PrefixLen())
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, pbuf...)
-	return buf, nil
+	return append(buf, pBuf...), nil
 }
 
-func (l *LabeledVPNIPAddrPrefix) AFI() uint16 {
-	return AFI_IP
-}
-
-func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
-	return SAFI_MPLS_VPN
+func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
+	return fmt.Sprintf("%s/%d", l.Prefix, l.PrefixLen())
 }
 
 func (l *LabeledVPNIPAddrPrefix) String() string {
 	return fmt.Sprintf("%s:%s", l.RD, l.IPPrefix())
 }
 
-func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
-	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
-	return fmt.Sprintf("%s/%d", l.IPAddrPrefixDefault.Prefix, masklen)
-}
-
 func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
-	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return json.Marshal(struct {
 		Prefix string                      `json:"prefix"`
 		Labels []uint32                    `json:"labels"`
 		RD     RouteDistinguisherInterface `json:"rd"`
 	}{
-		Prefix: fmt.Sprintf("%s/%d", l.IPAddrPrefixDefault.Prefix, masklen),
+		Prefix: l.IPPrefix(),
 		Labels: l.Labels.Labels,
 		RD:     l.RD,
 	})
 }
 
-func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
-	rdlen := 0
+func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, labels MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
+	rdLen := 0
 	if rd != nil {
-		rdlen = rd.Len()
+		rdLen = rd.Len()
 	}
 	return &LabeledVPNIPAddrPrefix{
-		IPAddrPrefixDefault{
-			Length: length + uint8(8*(label.Len()+rdlen)),
+		ipAddrPrefix: ipAddrPrefix{
+			Length: length + uint8(8*(labels.Len()+rdLen)),
 			Prefix: net.ParseIP(prefix).To4(),
 		},
-		label,
-		rd,
-		4,
+		labeledVPNPrefix: labeledVPNPrefix{
+			Labels: labels,
+			RD:     rd,
+		},
 	}
 }
 
 type LabeledVPNIPv6AddrPrefix struct {
-	LabeledVPNIPAddrPrefix
+	ipv6AddrPrefix
+	labeledVPNPrefix
 }
 
-func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
-	return AFI_IP6
+func (l *LabeledVPNIPv6AddrPrefix) PrefixLen() uint8 {
+	return l.Length - uint8((l.Labels.Len()+l.RD.Len())*8)
 }
 
-func NewLabeledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
-	rdlen := 0
+func (l *LabeledVPNIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	data, err := l.decodePathIdentifier(data, RF_IPv6_VPN, options)
+	if err != nil {
+		return err
+	}
+	if len(data) < 1 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
+	}
+	l.Length = uint8(data[0])
+	data = data[1:]
+	err = l.Labels.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	data = data[l.Labels.Len():]
+	l.RD = GetRouteDistinguisher(data)
+	if err != nil {
+		return err
+	}
+	data = data[l.RD.Len():]
+	return l.decodePrefix(data, l.PrefixLen())
+}
+
+func (l *LabeledVPNIPv6AddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	buf, err := l.serializeIdentifier(RF_IPv6_VPN, options)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, l.Length)
+	lBuf, err := l.Labels.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, lBuf...)
+	rdBuf, err := l.RD.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, rdBuf...)
+	pBuf, err := l.serializePrefix(l.PrefixLen())
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, pBuf...), nil
+}
+
+func (l *LabeledVPNIPv6AddrPrefix) IPPrefix() string {
+	return fmt.Sprintf("%s/%d", l.Prefix, l.PrefixLen())
+}
+
+func (l *LabeledVPNIPv6AddrPrefix) String() string {
+	return fmt.Sprintf("%s:%s", l.RD, l.IPPrefix())
+}
+
+func NewLabeledVPNIPv6AddrPrefix(length uint8, prefix string, labels MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
+	rdLen := 0
 	if rd != nil {
-		rdlen = rd.Len()
+		rdLen = rd.Len()
 	}
 	return &LabeledVPNIPv6AddrPrefix{
-		LabeledVPNIPAddrPrefix{
-			IPAddrPrefixDefault{
-				Length: length + uint8(8*(label.Len()+rdlen)),
-				Prefix: net.ParseIP(prefix),
-			},
-			label,
-			rd,
-			16,
+		ipv6AddrPrefix: ipv6AddrPrefix{
+			Length: length + uint8(8*(labels.Len()+rdLen)),
+			Prefix: net.ParseIP(prefix).To16(),
+		},
+		labeledVPNPrefix: labeledVPNPrefix{
+			Labels: labels,
+			RD:     rd,
 		},
 	}
 }
 
-type LabeledIPAddrPrefix struct {
-	IPAddrPrefixDefault
-	Labels  MPLSLabelStack
-	addrlen uint8
+type labeledPrefix struct {
+	Labels MPLSLabelStack
 }
 
-func (r *LabeledIPAddrPrefix) AFI() uint16 {
-	return AFI_IP
-}
-
-func (r *LabeledIPAddrPrefix) SAFI() uint8 {
+func (l *labeledPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
 }
 
+type LabeledIPAddrPrefix struct {
+	ipAddrPrefix
+	labeledPrefix
+}
+
+func (l *LabeledIPAddrPrefix) PrefixLen() uint8 {
+	return l.Length - uint8(l.Labels.Len()*8)
+}
 func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	f := RF_IPv4_MPLS
-	if l.addrlen == 16 {
-		f = RF_IPv6_MPLS
+	data, err := l.decodePathIdentifier(data, RF_IPv4_MPLS, options)
+	if err != nil {
+		return err
 	}
-	if IsAddPathEnabled(true, f, options) {
-		var err error
-		data, err = l.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+	if len(data) < 1 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
 	}
 	l.Length = uint8(data[0])
 	data = data[1:]
-	l.Labels.DecodeFromBytes(data)
-	if int(l.Length)-8*(l.Labels.Len()) < 0 {
-		l.Labels.Labels = []uint32{}
+	err = l.Labels.DecodeFromBytes(data)
+	if err != nil {
+		return err
 	}
-	restbits := int(l.Length) - 8*(l.Labels.Len())
 	data = data[l.Labels.Len():]
-	l.decodePrefix(data, uint8(restbits), l.addrlen)
+	l.decodePrefix(data, l.PrefixLen())
 	return nil
 }
 
 func (l *LabeledIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	f := RF_IPv4_MPLS
-	if l.addrlen == 16 {
-		f = RF_IPv6_MPLS
-	}
-	var buf []byte
-	if IsAddPathEnabled(false, f, options) {
-		var err error
-		buf, err = l.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
+	buf, err := l.serializeIdentifier(RF_IPv4_MPLS, options)
+	if err != nil {
+		return nil, err
 	}
 	buf = append(buf, l.Length)
-	restbits := int(l.Length) - 8*(l.Labels.Len())
-	lbuf, err := l.Labels.Serialize()
+	lBuf, err := l.Labels.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, lbuf...)
-	pbuf, err := l.serializePrefix(uint8(restbits))
+	buf = append(buf, lBuf...)
+	pBuf, err := l.serializePrefix(l.PrefixLen())
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, pbuf...)
-	return buf, nil
-}
-
-func (l *LabeledIPAddrPrefix) String() string {
-	prefix := l.Prefix.String()
-	if isIPv4MappedIPv6(l.Prefix) {
-		prefix = "::ffff:" + prefix
-	}
-	return fmt.Sprintf("%s/%d", prefix, int(l.Length)-l.Labels.Len()*8)
+	return append(buf, pBuf...), nil
 }
 
 func (l *LabeledIPAddrPrefix) MarshalJSON() ([]byte, error) {
@@ -1801,34 +1877,83 @@ func (l *LabeledIPAddrPrefix) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
+func NewLabeledIPAddrPrefix(length uint8, prefix string, labels MPLSLabelStack) *LabeledIPAddrPrefix {
 	return &LabeledIPAddrPrefix{
-		IPAddrPrefixDefault{
-			Length: length + uint8(label.Len()*8),
+		ipAddrPrefix: ipAddrPrefix{
+			Length: length + uint8(labels.Len()*8),
 			Prefix: net.ParseIP(prefix).To4(),
 		},
-		label,
-		4,
+		labeledPrefix: labeledPrefix{
+			Labels: labels,
+		},
 	}
 }
 
 type LabeledIPv6AddrPrefix struct {
-	LabeledIPAddrPrefix
+	ipv6AddrPrefix
+	labeledPrefix
 }
 
-func (l *LabeledIPv6AddrPrefix) AFI() uint16 {
-	return AFI_IP6
+func (l *LabeledIPv6AddrPrefix) PrefixLen() uint8 {
+	return l.Length - uint8(l.Labels.Len()*8)
+}
+func (l *LabeledIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	data, err := l.decodePathIdentifier(data, RF_IPv6_MPLS, options)
+	if err != nil {
+		return err
+	}
+	if len(data) < 1 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
+	}
+	l.Length = uint8(data[0])
+	data = data[1:]
+	err = l.Labels.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	data = data[l.Labels.Len():]
+	l.decodePrefix(data, l.PrefixLen())
+	return nil
 }
 
-func NewLabeledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
+func (l *LabeledIPv6AddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	buf, err := l.serializeIdentifier(RF_IPv6_MPLS, options)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, l.Length)
+	lBuf, err := l.Labels.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, lBuf...)
+	pBuf, err := l.serializePrefix(l.PrefixLen())
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, pBuf...), nil
+}
+
+func (l *LabeledIPv6AddrPrefix) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string   `json:"prefix"`
+		Labels []uint32 `json:"labels"`
+	}{
+		Prefix: l.String(),
+		Labels: l.Labels.Labels,
+	})
+}
+
+func NewLabeledIPv6AddrPrefix(length uint8, prefix string, labels MPLSLabelStack) *LabeledIPv6AddrPrefix {
 	return &LabeledIPv6AddrPrefix{
-		LabeledIPAddrPrefix{
-			IPAddrPrefixDefault{
-				Length: length + uint8(label.Len()*8),
-				Prefix: net.ParseIP(prefix),
-			},
-			label,
-			16,
+		ipv6AddrPrefix: ipv6AddrPrefix{
+			Length: length + uint8(labels.Len()*8),
+			Prefix: net.ParseIP(prefix).To16(),
+		},
+		labeledPrefix: labeledPrefix{
+			Labels: labels,
 		},
 	}
 }
@@ -1841,26 +1966,23 @@ type RouteTargetMembershipNLRI struct {
 }
 
 func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if IsAddPathEnabled(true, RF_RTC_UC, options) {
-		var err error
-		data, err = n.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+	data, err := n.decodePathIdentifier(data, RF_RTC_UC, options)
+	if err != nil {
+		return err
 	}
 	if len(data) < 1 {
 		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "prefix misses length field")
 	}
 	n.Length = data[0]
 	data = data[1:]
-	if len(data) == 0 {
+	if n.Length == 0 {
 		return nil
-	} else if len(data) != 12 {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all RouteTargetMembershipNLRI bytes available")
+	}
+	if len(data) != 12 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Invalid RouteTargetMembershipNLRI byte length")
 	}
 	n.AS = binary.BigEndian.Uint32(data[0:4])
-	rt, err := ParseExtended(data[4:])
-	n.RouteTarget = rt
+	n.RouteTarget, err = ParseExtended(data[4:])
 	if err != nil {
 		return err
 	}
@@ -1868,26 +1990,23 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*Mar
 }
 
 func (n *RouteTargetMembershipNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	var buf []byte
-	if IsAddPathEnabled(false, RF_RTC_UC, options) {
-		var err error
-		buf, err = n.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
+	buf, err := n.serializeIdentifier(RF_RTC_UC, options)
+	if err != nil {
+		return nil, err
 	}
 	if n.RouteTarget == nil {
 		return append(buf, 0), nil
 	}
-	offset := len(buf)
-	buf = append(buf, make([]byte, 5)...)
-	buf[offset] = 12 * 8
-	binary.BigEndian.PutUint32(buf[offset+1:], n.AS)
-	ebuf, err := n.RouteTarget.Serialize()
+	n.Length = 96 // 12*8
+	buf = append(buf, n.Length)
+	asBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(asBuf, n.AS)
+	buf = append(buf, asBuf...)
+	rtBuf, err := n.RouteTarget.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	return append(buf, ebuf...), nil
+	return append(buf, rtBuf...), nil
 }
 
 func (n *RouteTargetMembershipNLRI) AFI() uint16 {
@@ -1922,7 +2041,7 @@ func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
 }
 
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
-	l := 12 * 8
+	l := 96 // 12*8
 	if as == 0 && target == nil {
 		l = 1
 	}
@@ -2709,12 +2828,9 @@ type EVPNNLRI struct {
 }
 
 func (n *EVPNNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if IsAddPathEnabled(true, RF_EVPN, options) {
-		var err error
-		data, err = n.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+	data, err := n.decodePathIdentifier(data, RF_EVPN, options)
+	if err != nil {
+		return err
 	}
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPNNLRI bytes available")
@@ -2725,33 +2841,25 @@ func (n *EVPNNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) e
 	if len(data) < int(n.Length) {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPNNLRI Route type bytes available")
 	}
-	r, err := getEVPNRouteType(n.RouteType)
+	n.RouteTypeData, err = getEVPNRouteType(n.RouteType)
 	if err != nil {
 		return err
 	}
-	n.RouteTypeData = r
 	return n.RouteTypeData.DecodeFromBytes(data[:n.Length])
 }
 
 func (n *EVPNNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	var buf []byte
-	if IsAddPathEnabled(false, RF_EVPN, options) {
-		var err error
-		buf, err = n.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
-	}
-	offset := len(buf)
-	buf = append(buf, make([]byte, 2)...)
-	buf[offset] = n.RouteType
-	tbuf, err := n.RouteTypeData.Serialize()
-	n.Length = uint8(len(tbuf))
-	buf[offset+1] = n.Length
+	buf, err := n.serializeIdentifier(RF_EVPN, options)
 	if err != nil {
 		return nil, err
 	}
-	return append(buf, tbuf...), nil
+	tBuf, err := n.RouteTypeData.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	n.Length = uint8(len(tBuf))
+	buf = append(buf, n.RouteType, n.Length)
+	return append(buf, tBuf...), nil
 }
 
 func (n *EVPNNLRI) AFI() uint16 {
@@ -2795,97 +2903,127 @@ func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInter
 	}
 }
 
+type encapNLRI struct {
+	Length uint8
+	Prefix net.IP
+}
+
+func (n *encapNLRI) SAFI() uint8 {
+	return SAFI_ENCAPSULATION
+}
+
+func (n *encapNLRI) String() string {
+	return n.Prefix.String()
+}
+
+func (n *encapNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: n.Prefix.String(),
+	})
+}
+
 type EncapNLRI struct {
-	IPAddrPrefixDefault
-	addrlen uint8
+	PrefixDefault
+	encapNLRI
 }
 
 func (n *EncapNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if n.addrlen == 0 {
-		n.addrlen = 4
+	data, err := n.decodePathIdentifier(data, RF_IPv4_ENCAP, options)
+	if err != nil {
+		return err
 	}
-	f := RF_IPv4_ENCAP
-	if n.addrlen == 16 {
-		f = RF_IPv6_ENCAP
-	}
-	if IsAddPathEnabled(true, f, options) {
-		var err error
-		data, err = n.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
-	}
-	if len(data) < 4 {
+	if len(data) != 5 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
+		return NewMessageError(eCode, eSubCode, nil, "invalid ipv4 encapsulation nlri byte length")
 	}
 	n.Length = data[0]
-	if n.addrlen == 0 {
-		n.addrlen = 4
-	}
-	return n.decodePrefix(data[1:], n.Length, n.addrlen)
+	n.Prefix = data[1:5]
+	return nil
 }
 
 func (n *EncapNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	var buf []byte
-	f := RF_IPv4_ENCAP
-	if n.addrlen == 16 {
-		f = RF_IPv6_ENCAP
-	}
-	if IsAddPathEnabled(false, f, options) {
-		var err error
-		buf, err = n.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
-	}
-	if n.Prefix.To4() != nil {
-		buf = append(buf, net.IPv4len*8)
-		n.Prefix = n.Prefix.To4()
-	} else {
-		buf = append(buf, net.IPv6len*8)
-	}
-	n.Length = buf[len(buf)-1]
-	pbuf, err := n.serializePrefix(n.Length)
+	buf, err := n.serializeIdentifier(RF_IPv4_ENCAP, options)
 	if err != nil {
 		return nil, err
 	}
-	return append(buf, pbuf...), nil
-}
-
-func (n *EncapNLRI) String() string {
-	return n.Prefix.String()
+	prefix := n.Prefix.To4()
+	if prefix == nil {
+		return nil, fmt.Errorf("invalid address for ipv4 encapsulation nlri: %s", n.Prefix.String())
+	}
+	n.Prefix = prefix
+	n.Length = 32
+	buf = append(buf, n.Length)
+	return append(buf, n.Prefix...), nil
 }
 
 func (n *EncapNLRI) AFI() uint16 {
 	return AFI_IP
 }
 
-func (n *EncapNLRI) SAFI() uint8 {
-	return SAFI_ENCAPSULATION
+func (n *EncapNLRI) Len(options ...*MarshallingOption) int {
+	return 5
 }
 
 func NewEncapNLRI(endpoint string) *EncapNLRI {
 	return &EncapNLRI{
-		IPAddrPrefixDefault{Length: 32, Prefix: net.ParseIP(endpoint).To4()},
-		4,
+		encapNLRI: encapNLRI{
+			Length: 32,
+			Prefix: net.ParseIP(endpoint).To4(),
+		},
 	}
 }
 
 type Encapv6NLRI struct {
-	EncapNLRI
+	PrefixDefault
+	encapNLRI
+}
+
+func (n *Encapv6NLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	data, err := n.decodePathIdentifier(data, RF_IPv6_ENCAP, options)
+	if err != nil {
+		return err
+	}
+	if len(data) != 17 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "invalid ipv6 encapsulation nlri byte length")
+	}
+	n.Length = data[0]
+	n.Prefix = data[1:17]
+	return nil
+}
+
+func (n *Encapv6NLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	buf, err := n.serializeIdentifier(RF_IPv6_ENCAP, options)
+	if err != nil {
+		return nil, err
+	}
+	prefix := n.Prefix.To16()
+	if prefix == nil {
+		return nil, fmt.Errorf("invalid address for ipv6 encapsulation nlri: %s", n.Prefix.String())
+	}
+	n.Prefix = prefix
+	n.Length = 128
+	buf = append(buf, n.Length)
+	return append(buf, n.Prefix...), nil
 }
 
 func (n *Encapv6NLRI) AFI() uint16 {
 	return AFI_IP6
 }
 
+func (n *Encapv6NLRI) Len(options ...*MarshallingOption) int {
+	return 17
+}
+
 func NewEncapv6NLRI(endpoint string) *Encapv6NLRI {
 	return &Encapv6NLRI{
-		EncapNLRI{
-			IPAddrPrefixDefault{Length: 128, Prefix: net.ParseIP(endpoint)},
-			16,
+		encapNLRI: encapNLRI{
+			Length: 128,
+			Prefix: net.ParseIP(endpoint),
 		},
 	}
 }
@@ -4026,12 +4164,9 @@ func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
 }
 
 func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*MarshallingOption) error {
-	if IsAddPathEnabled(true, rf, options) {
-		var err error
-		data, err = n.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+	data, err := n.decodePathIdentifier(data, rf, options)
+	if err != nil {
+		return err
 	}
 	var length int
 	if (data[0]>>4) == 0xf && len(data) > 2 {
@@ -4065,18 +4200,18 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*
 		case FLOW_SPEC_TYPE_DST_PREFIX:
 			switch {
 			case rf>>16 == AFI_IP:
-				i = NewFlowSpecDestinationPrefix(NewIPAddrPrefix(0, ""))
+				i = NewFlowSpecDestinationPrefix(0, "")
 			case rf>>16 == AFI_IP6:
-				i = NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(0, ""), 0)
+				i = NewFlowSpecDestinationPrefix6(0, 0, "")
 			default:
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
 			switch {
 			case rf>>16 == AFI_IP:
-				i = NewFlowSpecSourcePrefix(NewIPAddrPrefix(0, ""))
+				i = NewFlowSpecSourcePrefix(0, "")
 			case rf>>16 == AFI_IP6:
-				i = NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(0, ""), 0)
+				i = NewFlowSpecSourcePrefix6(0, 0, "")
 			default:
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
@@ -4152,14 +4287,11 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 		buf = append(b, buf...)
 	}
 
-	if IsAddPathEnabled(false, n.rf, options) {
-		id, err := n.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
-		return append(id, buf...), nil
+	id, err := n.serializeIdentifier(n.rf, options)
+	if err != nil {
+		return nil, err
 	}
-	return buf, nil
+	return append(id, buf...), nil
 }
 
 func (n *FlowSpecNLRI) Len(options ...*MarshallingOption) int {
@@ -4431,12 +4563,9 @@ func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption)
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
 	}
-	if IsAddPathEnabled(true, RF_OPAQUE, options) {
-		var err error
-		data, err = n.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
+	data, err := n.decodePathIdentifier(data, RF_OPAQUE, options)
+	if err != nil {
+		return err
 	}
 	n.Length = binary.BigEndian.Uint16(data[0:2])
 	if len(data)-2 < int(n.Length) {
@@ -4455,14 +4584,11 @@ func (n *OpaqueNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	binary.BigEndian.PutUint16(buf, uint16(len(n.Key)))
 	buf = append(buf, n.Key...)
 	buf = append(buf, n.Value...)
-	if IsAddPathEnabled(false, RF_OPAQUE, options) {
-		id, err := n.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
-		return append(id, buf...), nil
+	id, err := n.serializeIdentifier(RF_OPAQUE, options)
+	if err != nil {
+		return nil, err
 	}
-	return buf, nil
+	return append(id, buf...), nil
 }
 
 func (n *OpaqueNLRI) AFI() uint16 {
@@ -9133,48 +9259,64 @@ func (p *PathAttribute) Flat() map[string]string {
 }
 
 func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
-	prefixLen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
+	prefixLen := l.ipAddrPrefix.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return map[string]string{
-		"Prefix":    l.IPAddrPrefixDefault.Prefix.String(),
+		"Prefix":    l.ipAddrPrefix.Prefix.String(),
 		"PrefixLen": fmt.Sprintf("%d", prefixLen),
 		"NLRI":      l.String(),
 		"Label":     l.Labels.String(),
 	}
 }
 
-func (p *IPAddrPrefixDefault) Flat() map[string]string {
-	l := strings.Split(p.String(), "/")
-	if len(l) == 2 {
-		return map[string]string{
-			"Prefix":    l[0],
-			"PrefixLen": l[1],
-		}
+func (r *ipAddrPrefix) Flat() map[string]string {
+	return map[string]string{
+		"Prefix":    r.Prefix.String(),
+		"PrefixLen": fmt.Sprint(r.Length),
 	}
+}
+
+func (r *ipv6AddrPrefix) Flat() map[string]string {
+	return map[string]string{
+		"Prefix":    r.Prefix.String(),
+		"PrefixLen": fmt.Sprint(r.Length),
+	}
+}
+
+func (n *encapNLRI) Flat() map[string]string {
+	return map[string]string{
+		"Prefix": n.Prefix.String(),
+	}
+}
+
+func (n *EVPNNLRI) Flat() map[string]string {
 	return map[string]string{}
 }
 
-func (l *EVPNNLRI) Flat() map[string]string {
+func (n *RouteTargetMembershipNLRI) Flat() map[string]string {
 	return map[string]string{}
 }
-func (l *RouteTargetMembershipNLRI) Flat() map[string]string {
+
+func (n *FlowSpecIPv4Unicast) Flat() map[string]string {
 	return map[string]string{}
 }
-func (l *FlowSpecIPv4Unicast) Flat() map[string]string {
+
+func (n *FlowSpecIPv4VPN) Flat() map[string]string {
 	return map[string]string{}
 }
-func (l *FlowSpecIPv4VPN) Flat() map[string]string {
+
+func (n *FlowSpecIPv6Unicast) Flat() map[string]string {
 	return map[string]string{}
 }
-func (l *FlowSpecIPv6Unicast) Flat() map[string]string {
+
+func (n *FlowSpecIPv6VPN) Flat() map[string]string {
 	return map[string]string{}
 }
-func (l *FlowSpecIPv6VPN) Flat() map[string]string {
+
+func (n *FlowSpecL2VPN) Flat() map[string]string {
 	return map[string]string{}
 }
-func (l *FlowSpecL2VPN) Flat() map[string]string {
-	return map[string]string{}
-}
-func (l *OpaqueNLRI) Flat() map[string]string {
+
+func (n *OpaqueNLRI) Flat() map[string]string {
 	return map[string]string{}
 }
 

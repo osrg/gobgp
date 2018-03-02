@@ -91,6 +91,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// IPv4AddressSpecificExtended
 	buf = make([]byte, 13)
+	buf[0] = 12
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
 	ip := net.ParseIP("10.0.0.1").To4()
@@ -108,6 +109,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// FourOctetAsSpecificExtended
 	buf = make([]byte, 13)
+	buf[0] = 12
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
 	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)                   // subtype
@@ -125,6 +127,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// OpaqueExtended
 	buf = make([]byte, 13)
+	buf[0] = 12
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
@@ -140,6 +143,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// Unknown
 	buf = make([]byte, 13)
+	buf[0] = 12
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = 0x04 // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
