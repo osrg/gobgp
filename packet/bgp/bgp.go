@@ -3298,9 +3298,9 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(prefixLen), prefix.String())), nil
+			return NewFlowSpecDestinationPrefix(uint8(prefixLen), prefix.String()), nil
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(prefixLen), prefix.String())), nil
+			return NewFlowSpecSourcePrefix(uint8(prefixLen), prefix.String()), nil
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	case AFI_IP6:
@@ -3350,9 +3350,9 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
+			return NewFlowSpecDestinationPrefix6(uint8(prefixLen), uint8(offset), prefix.String()), nil
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
+			return NewFlowSpecSourcePrefix6(uint8(prefixLen), uint8(offset), prefix.String()), nil
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	}
@@ -3706,28 +3706,38 @@ type FlowSpecComponentInterface interface {
 	String() string
 }
 
+// RFC5575
+// Encoding: <type (1 octet), prefix-length (1 octet), prefix>
 type flowSpecPrefix struct {
-	Prefix AddrPrefixInterface
+	Length uint8
+	Prefix net.IP
 	typ    BGPFlowSpecType
 }
 
-func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) (err error) {
+	if len(data) < 2 {
+		return fmt.Errorf("not enough byte length for flowSpecPrefix: %d", len(data))
+	}
 	p.typ = BGPFlowSpecType(data[0])
-	return p.Prefix.DecodeFromBytes(data[1:], options...)
+	p.Length = data[1]
+	p.Prefix, err = decodeIPAddrPrefix(data[2:], p.Length, net.IPv4len)
+	return err
 }
 
-func (p *flowSpecPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := []byte{byte(p.Type())}
-	bbuf, err := p.Prefix.Serialize(options...)
+func (p *flowSpecPrefix) Serialize(options ...*MarshallingOption) (buf []byte, err error) {
+	buf = make([]byte, 2)
+	buf[0] = byte(p.Type())
+	buf[1] = p.Length
+	var pBuf []byte
+	p.Prefix, pBuf, err = serializeIPAddrPrefix(p.Prefix, p.Length)
 	if err != nil {
 		return nil, err
 	}
-	return append(buf, bbuf...), nil
+	return append(buf, pBuf...), nil
 }
 
 func (p *flowSpecPrefix) Len(options ...*MarshallingOption) int {
-	buf, _ := p.Serialize(options...)
-	return len(buf)
+	return 2 + (int(p.Length)+7)/8
 }
 
 func (p *flowSpecPrefix) Type() BGPFlowSpecType {
@@ -3735,48 +3745,54 @@ func (p *flowSpecPrefix) Type() BGPFlowSpecType {
 }
 
 func (p *flowSpecPrefix) String() string {
-	return fmt.Sprintf("[%s: %s]", p.Type(), p.Prefix.String())
+	return fmt.Sprintf("[%s: %s/%d]", p.Type(), p.Prefix.String(), p.Length)
 }
 
 func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type  BGPFlowSpecType     `json:"type"`
-		Value AddrPrefixInterface `json:"value"`
+		Type  BGPFlowSpecType `json:"type"`
+		Value string          `json:"value"`
 	}{
 		Type:  p.Type(),
-		Value: p.Prefix,
+		Value: fmt.Sprintf("%s/%d", p.Prefix.String(), p.Length),
 	})
 }
 
+// draft-ietf-idr-flow-spec-v6-09
+// Encoding: <type (1 octet), prefix length (1 octet), prefix offset (1 octet), prefix>
 type flowSpecPrefix6 struct {
-	Prefix AddrPrefixInterface
+	Length uint8
 	Offset uint8
+	Prefix net.IP
 	typ    BGPFlowSpecType
 }
 
-// draft-ietf-idr-flow-spec-v6-06
-// <type (1 octet), prefix length (1 octet), prefix offset(1 octet), prefix>
-func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOption) (err error) {
+	if len(data) < 3 {
+		return fmt.Errorf("not enough byte length for flowSpecPrefix6: %d", len(data))
+	}
 	p.typ = BGPFlowSpecType(data[0])
+	p.Length = data[1]
 	p.Offset = data[2]
-	prefix := append([]byte{data[1]}, data[3:]...)
-	return p.Prefix.DecodeFromBytes(prefix, options...)
+	p.Prefix, err = decodeIPAddrPrefix(data[3:], p.Length, net.IPv6len)
+	return err
 }
 
-func (p *flowSpecPrefix6) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := []byte{byte(p.Type())}
-	bbuf, err := p.Prefix.Serialize(options...)
+func (p *flowSpecPrefix6) Serialize(options ...*MarshallingOption) (buf []byte, err error) {
+	buf = make([]byte, 3)
+	buf[0] = byte(p.Type())
+	buf[1] = p.Length
+	buf[2] = p.Offset
+	var pBuf []byte
+	p.Prefix, pBuf, err = serializeIPAddrPrefix(p.Prefix, p.Length)
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, bbuf[0])
-	buf = append(buf, p.Offset)
-	return append(buf, bbuf[1:]...), nil
+	return append(buf, pBuf...), nil
 }
 
 func (p *flowSpecPrefix6) Len(options ...*MarshallingOption) int {
-	buf, _ := p.Serialize(options...)
-	return len(buf)
+	return 3 + (int(p.Length)+7)/8
 }
 
 func (p *flowSpecPrefix6) Type() BGPFlowSpecType {
@@ -3784,17 +3800,17 @@ func (p *flowSpecPrefix6) Type() BGPFlowSpecType {
 }
 
 func (p *flowSpecPrefix6) String() string {
-	return fmt.Sprintf("[%s: %s/%d]", p.Type(), p.Prefix.String(), p.Offset)
+	return fmt.Sprintf("[%s: %s/%d/%d]", p.Type(), p.Prefix.String(), p.Length, p.Offset)
 }
 
 func (p *flowSpecPrefix6) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type   BGPFlowSpecType     `json:"type"`
-		Value  AddrPrefixInterface `json:"value"`
-		Offset uint8               `json:"offset"`
+		Type   BGPFlowSpecType `json:"type"`
+		Value  string          `json:"value"`
+		Offset uint8           `json:"offset"`
 	}{
 		Type:   p.Type(),
-		Value:  p.Prefix,
+		Value:  fmt.Sprintf("%s/%d", p.Prefix.String(), p.Length),
 		Offset: p.Offset,
 	})
 }
@@ -3803,32 +3819,58 @@ type FlowSpecDestinationPrefix struct {
 	flowSpecPrefix
 }
 
-func NewFlowSpecDestinationPrefix(prefix AddrPrefixInterface) *FlowSpecDestinationPrefix {
-	return &FlowSpecDestinationPrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_DST_PREFIX}}
+func NewFlowSpecDestinationPrefix(length uint8, prefix string) *FlowSpecDestinationPrefix {
+	return &FlowSpecDestinationPrefix{
+		flowSpecPrefix: flowSpecPrefix{
+			Length: length,
+			Prefix: net.ParseIP(prefix).To4(),
+			typ:    FLOW_SPEC_TYPE_DST_PREFIX,
+		},
+	}
 }
 
 type FlowSpecSourcePrefix struct {
 	flowSpecPrefix
 }
 
-func NewFlowSpecSourcePrefix(prefix AddrPrefixInterface) *FlowSpecSourcePrefix {
-	return &FlowSpecSourcePrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_SRC_PREFIX}}
+func NewFlowSpecSourcePrefix(length uint8, prefix string) *FlowSpecSourcePrefix {
+	return &FlowSpecSourcePrefix{
+		flowSpecPrefix: flowSpecPrefix{
+			Length: length,
+			Prefix: net.ParseIP(prefix).To4(),
+			typ:    FLOW_SPEC_TYPE_SRC_PREFIX,
+		},
+	}
 }
 
 type FlowSpecDestinationPrefix6 struct {
 	flowSpecPrefix6
 }
 
-func NewFlowSpecDestinationPrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecDestinationPrefix6 {
-	return &FlowSpecDestinationPrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_DST_PREFIX}}
+func NewFlowSpecDestinationPrefix6(length uint8, offset uint8, prefix string) *FlowSpecDestinationPrefix6 {
+	return &FlowSpecDestinationPrefix6{
+		flowSpecPrefix6: flowSpecPrefix6{
+			Length: length,
+			Offset: offset,
+			Prefix: net.ParseIP(prefix).To16(),
+			typ:    FLOW_SPEC_TYPE_DST_PREFIX,
+		},
+	}
 }
 
 type FlowSpecSourcePrefix6 struct {
 	flowSpecPrefix6
 }
 
-func NewFlowSpecSourcePrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecSourcePrefix6 {
-	return &FlowSpecSourcePrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_SRC_PREFIX}}
+func NewFlowSpecSourcePrefix6(length uint8, offset uint8, prefix string) *FlowSpecSourcePrefix6 {
+	return &FlowSpecSourcePrefix6{
+		flowSpecPrefix6{
+			Length: length,
+			Offset: offset,
+			Prefix: net.ParseIP(prefix).To16(),
+			typ:    FLOW_SPEC_TYPE_SRC_PREFIX,
+		},
+	}
 }
 
 type flowSpecMac struct {
@@ -4338,12 +4380,10 @@ func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
 
 }
 
-//
-// CompareFlowSpecNLRI(n, m) returns
+// CompareFlowSpecNLRI returns
 // -1 when m has precedence
 //  0 when n and m have same precedence
 //  1 when n has precedence
-//
 func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 	family := AfiSafiToRouteFamily(n.AFI(), n.SAFI())
 	if family != AfiSafiToRouteFamily(m.AFI(), m.SAFI()) {
@@ -4379,44 +4419,54 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 			// For IP prefix values (IP destination and source prefix) precedence is
 			// given to the lowest IP value of the common prefix length; if the
 			// common prefix is equal, then the most specific prefix has precedence.
-			var p, q *IPAddrPrefixDefault
+			var pLength, qLength uint8
 			var pCommon, qCommon uint64
 			if n.AFI() == AFI_IP {
+				var pPrefix, qPrefix net.IP
 				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-					p = &v.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
-					q = &w.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					pLength = v.(*FlowSpecDestinationPrefix).Length
+					pPrefix = v.(*FlowSpecDestinationPrefix).Prefix
+					qLength = w.(*FlowSpecDestinationPrefix).Length
+					qPrefix = w.(*FlowSpecDestinationPrefix).Prefix
 				} else {
-					p = &v.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
-					q = &w.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					pLength = v.(*FlowSpecSourcePrefix).Length
+					pPrefix = v.(*FlowSpecSourcePrefix).Prefix
+					qLength = w.(*FlowSpecSourcePrefix).Length
+					qPrefix = w.(*FlowSpecSourcePrefix).Prefix
 				}
-				min := p.Length
-				if q.Length < p.Length {
-					min = q.Length
+				min := pLength
+				if qLength < pLength {
+					min = qLength
 				}
-				pCommon = uint64(binary.BigEndian.Uint32([]byte(p.Prefix.To4())) >> (32 - min))
-				qCommon = uint64(binary.BigEndian.Uint32([]byte(q.Prefix.To4())) >> (32 - min))
+				pCommon = uint64(binary.BigEndian.Uint32([]byte(pPrefix.To4())) >> (32 - min))
+				qCommon = uint64(binary.BigEndian.Uint32([]byte(qPrefix.To4())) >> (32 - min))
 			} else if n.AFI() == AFI_IP6 {
+				var pPrefix, qPrefix net.IP
 				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-					p = &v.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
-					q = &w.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					pLength = v.(*FlowSpecDestinationPrefix6).Length
+					pPrefix = v.(*FlowSpecDestinationPrefix6).Prefix
+					qLength = w.(*FlowSpecDestinationPrefix6).Length
+					qPrefix = w.(*FlowSpecDestinationPrefix6).Prefix
 				} else {
-					p = &v.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
-					q = &w.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					pLength = v.(*FlowSpecDestinationPrefix6).Length
+					pPrefix = v.(*FlowSpecDestinationPrefix6).Prefix
+					qLength = w.(*FlowSpecDestinationPrefix6).Length
+					qPrefix = w.(*FlowSpecDestinationPrefix6).Prefix
 				}
-				min := uint(p.Length)
-				if q.Length < p.Length {
-					min = uint(q.Length)
+				min := pLength
+				if qLength < pLength {
+					min = qLength
 				}
-				var mask uint
+				var mask uint8
 				if min-64 > 0 {
 					mask = min - 64
 				}
-				pCommon = binary.BigEndian.Uint64([]byte(p.Prefix.To16()[:8])) >> mask
-				qCommon = binary.BigEndian.Uint64([]byte(q.Prefix.To16()[:8])) >> mask
+				pCommon = binary.BigEndian.Uint64([]byte(pPrefix.To16()[:8])) >> mask
+				qCommon = binary.BigEndian.Uint64([]byte(qPrefix.To16()[:8])) >> mask
 				if pCommon == qCommon && mask == 0 {
 					mask = 64 - min
-					pCommon = binary.BigEndian.Uint64([]byte(p.Prefix.To16()[8:])) >> mask
-					qCommon = binary.BigEndian.Uint64([]byte(q.Prefix.To16()[8:])) >> mask
+					pCommon = binary.BigEndian.Uint64([]byte(pPrefix.To16()[8:])) >> mask
+					qCommon = binary.BigEndian.Uint64([]byte(qPrefix.To16()[8:])) >> mask
 				}
 			}
 
@@ -4424,9 +4474,9 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 				return invert, nil
 			} else if pCommon > qCommon {
 				return invert * -1, nil
-			} else if p.Length > q.Length {
+			} else if pLength > qLength {
 				return invert, nil
-			} else if p.Length < q.Length {
+			} else if pLength < qLength {
 				return invert * -1, nil
 			}
 

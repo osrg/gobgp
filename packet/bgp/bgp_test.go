@@ -360,8 +360,8 @@ func Test_MPLSLabelStack(t *testing.T) {
 func Test_FlowSpecNlri(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(24, "10.0.0.0"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(24, "10.0.0.0"))
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
 	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
@@ -448,8 +448,8 @@ func Test_IP6FlowSpecExtended(t *testing.T) {
 func Test_FlowSpecNlriv6(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
-	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix6(64, 12, "2001::"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix6(64, 12, "2001::"))
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
 	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
@@ -546,8 +546,8 @@ func Test_NotificationErrorCode(t *testing.T) {
 func Test_FlowSpecNlriVPN(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(24, "10.0.0.0"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(24, "10.0.0.0"))
 	rd, _ := ParseRouteDistinguisher("100:100")
 	n1 := NewFlowSpecIPv4VPN(rd, cmp)
 	buf1, err := n1.Serialize()
@@ -743,7 +743,7 @@ func Test_AddPath(t *testing.T) {
 	}
 	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
-		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0"))})
+		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(24, "10.0.0.0")})
 		n1.SetPathLocalIdentifier(60)
 		bits, err := n1.Serialize(opt)
 		assert.Nil(err)
