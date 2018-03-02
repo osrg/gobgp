@@ -22,8 +22,9 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
-	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (
@@ -265,7 +266,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
-		f := func(p *Path) (uint32, net.HardwareAddr, int) {
+		f := func(p *Path) (bgp.EthernetSegmentIdentifier, net.HardwareAddr, int) {
 			nlri := p.GetNlri().(*bgp.EVPNNLRI)
 			d := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 			ecs := p.GetExtCommunities()
@@ -276,13 +277,14 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 					break
 				}
 			}
-			return d.ETag, d.MacAddress, seq
+			return d.ESI, d.MacAddress, seq
 		}
 		e1, m1, s1 := f(path)
 		e2, m2, s2 := f(path2)
-		if e1 == e2 && bytes.Equal(m1, m2) && s1 > s2 {
+		if bytes.Equal(m1, m2) && !bytes.Equal(e1.Value, e2.Value) && s1 > s2 {
 			path2.IsWithdraw = true
 			dsts = append(dsts, manager.Tables[bgp.RF_EVPN].insert(path2))
+			break
 		}
 	}
 	return dsts
@@ -313,6 +315,10 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 }
 
 func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
+	if SelectionOptions.DisableBestPathSelection {
+		// Note: If best path selection disabled, there is no best path.
+		return nil
+	}
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.Bests(id)...)
@@ -321,7 +327,9 @@ func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily
 }
 
 func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
-	if !UseMultiplePaths.Enabled {
+	if !UseMultiplePaths.Enabled || SelectionOptions.DisableBestPathSelection {
+		// Note: If multi path not enabled or best path selection disabled,
+		// there is no best multi path.
 		return nil
 	}
 	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))

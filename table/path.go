@@ -92,12 +92,12 @@ func NewBitmap(size int) *Bitmap {
 type originInfo struct {
 	nlri               bgp.AddrPrefixInterface
 	source             *PeerInfo
-	timestamp          time.Time
-	noImplicitWithdraw bool
+	timestamp          int64
 	validation         *Validation
-	isFromExternal     bool
 	key                string
 	uuid               uuid.UUID
+	noImplicitWithdraw bool
+	isFromExternal     bool
 	eor                bool
 	stale              bool
 }
@@ -165,7 +165,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		info: &originInfo{
 			nlri:               nlri,
 			source:             source,
-			timestamp:          timestamp,
+			timestamp:          timestamp.Unix(),
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
 		IsWithdraw: isWithdraw,
@@ -288,7 +288,11 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 				path.SetNexthop(localAddress)
 				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
-				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
+				if path.IsLocal() {
+					path.setPathAttr(bgp.NewPathAttributeOriginatorId(global.Config.RouterId))
+				} else {
+					path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
+				}
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
@@ -315,11 +319,11 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 }
 
 func (path *Path) GetTimestamp() time.Time {
-	return path.OriginInfo().timestamp
+	return time.Unix(path.OriginInfo().timestamp, 0)
 }
 
 func (path *Path) setTimestamp(t time.Time) {
-	path.OriginInfo().timestamp = t
+	path.OriginInfo().timestamp = t.Unix()
 }
 
 func (path *Path) IsLocal() bool {
@@ -1043,7 +1047,7 @@ func (path *Path) GetClusterList() []net.IP {
 
 func (path *Path) GetOrigin() (uint8, error) {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN); attr != nil {
-		return attr.(*bgp.PathAttributeOrigin).Value[0], nil
+		return attr.(*bgp.PathAttributeOrigin).Value, nil
 	}
 	return 0, fmt.Errorf("no origin path attr")
 }
@@ -1204,7 +1208,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	default:
 		return p
 	}
-	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
+	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
@@ -1229,7 +1233,7 @@ func (p *Path) ToLocal() *Path {
 	default:
 		return p
 	}
-	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
+	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 
 	if f == bgp.RF_IPv4_VPN {
