@@ -523,6 +523,10 @@ func (z *zebraClient) loop() {
 						}
 						for _, i := range path.VrfIds {
 							vrf := getVrf(uint32(i))
+							family := path.GetRouteFamily()
+							if (i == zebra.VRF_DEFAULT) && (family == bgp.RF_IPv4_VPN || family == bgp.RF_IPv4_VPN) {
+								continue
+							}
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
 								if vrf != nil {
 									body.Tag = vrf.MplsLabel()
