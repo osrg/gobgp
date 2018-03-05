@@ -84,14 +84,15 @@ const (
 	BGP_ASPATH_ATTR_TYPE_CONFED_SET = 4
 )
 
+// ExtendedCommunityAttrType shows the BGP Extended Community Types.
 // RFC7153 5.1. Registries for the "Type" Field
-// RANGE	REGISTRATION PROCEDURES
-// 0x00-0x3F	Transitive First Come First Served
-// 0x40-0x7F	Non-Transitive First Come First Served
-// 0x80-0x8F	Transitive Experimental Use
-// 0x90-0xBF	Transitive Standards Action
-// 0xC0-0xCF	Non-Transitive Experimental Use
-// 0xD0-0xFF	Non-Transitive Standards Action
+// RANGE        REGISTRATION PROCEDURES
+// 0x00-0x3F    Transitive First Come First Served
+// 0x40-0x7F    Non-Transitive First Come First Served
+// 0x80-0x8F    Transitive Experimental Use
+// 0x90-0xBF    Transitive Standards Action
+// 0xC0-0xCF    Non-Transitive Experimental Use
+// 0xD0-0xFF    Non-Transitive Standards Action
 type ExtendedCommunityAttrType uint8
 
 const (
@@ -115,10 +116,11 @@ const (
 	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3      ExtendedCommunityAttrType = 0x82 // RFC7674
 )
 
+// ExtendedCommunityAttrSubType shows the BGP Extended Community Sub-Types.
 // RFC7153 5.2. Registries for the "Sub-Type" Field
-// RANGE	REGISTRATION PROCEDURES
-// 0x00-0xBF	First Come First Served
-// 0xC0-0xFF	IETF Review
+// RANGE        REGISTRATION PROCEDURES
+// 0x00-0xBF    First Come First Served
+// 0xC0-0xFF    IETF Review
 type ExtendedCommunityAttrSubType uint8
 
 const (
@@ -784,7 +786,7 @@ func (c *CapLongLivedGracefulRestart) DecodeFromBytes(data []byte) error {
 
 	valueLen := int(c.CapLen)
 	if valueLen%7 != 0 || len(data) < valueLen {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of long lived graceful restart capablity")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of long lived graceful restart capability")
 	}
 	for i := valueLen; i >= 7; i -= 7 {
 		t := &CapLongLivedGracefulRestartTuple{
@@ -1512,8 +1514,10 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 //
 // The label information carried (as part of NLRI) in the Withdrawn
 // Routes field should be set to 0x800000.
-const WITHDRAW_LABEL = uint32(0x800000)
-const ZERO_LABEL = uint32(0) // some platform uses this as withdraw label
+const (
+	WITHDRAW_LABEL uint32 = 0x800000
+	ZERO_LABEL     uint32 = 0 // some platform uses this as withdraw label
+)
 
 type MPLSLabelStack struct {
 	Labels []uint32
@@ -2136,7 +2140,8 @@ func (esi *EthernetSegmentIdentifier) String() string {
 	return s.String()
 }
 
-// Decode Ethernet Segment Identifier (ESI) from string slice.
+// ParseEthernetSegmentIdentifier decodes Ethernet Segment Identifier (ESI)
+// from string slice.
 //
 // The first element of args should be the Type field (e.g., "ARBITRARY",
 // "arbitrary", "ESI_ARBITRARY" or "esi_arbitrary") and "single-homed" is
@@ -3359,7 +3364,7 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 	return nil, fmt.Errorf("invalid address family: %s", rf.String())
 }
 
-func flowSpecIpProtoParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+func flowSpecIPProtoParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
 	// args: List of pairs of Operator and IP protocol type
 	//
 	// Example:
@@ -3384,7 +3389,7 @@ func flowSpecIpProtoParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (F
 	return parseFlowSpecNumericOpValues(typ, args, f)
 }
 
-func flowSpecTcpFlagParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
+func flowSpecTCPFlagParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
 	// args: List of pairs of Operand and TCP Flags
 	//
 	// Example:
@@ -3624,13 +3629,13 @@ func flowSpecVlanCosParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (
 var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, BGPFlowSpecType, []string) (FlowSpecComponentInterface, error){
 	FLOW_SPEC_TYPE_DST_PREFIX:    flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_SRC_PREFIX:    flowSpecPrefixParser,
-	FLOW_SPEC_TYPE_IP_PROTO:      flowSpecIpProtoParser,
+	FLOW_SPEC_TYPE_IP_PROTO:      flowSpecIPProtoParser,
 	FLOW_SPEC_TYPE_PORT:          flowSpecNumeric2BytesParser,
 	FLOW_SPEC_TYPE_DST_PORT:      flowSpecNumeric2BytesParser,
 	FLOW_SPEC_TYPE_SRC_PORT:      flowSpecNumeric2BytesParser,
 	FLOW_SPEC_TYPE_ICMP_TYPE:     flowSpecNumeric1ByteParser,
 	FLOW_SPEC_TYPE_ICMP_CODE:     flowSpecNumeric1ByteParser,
-	FLOW_SPEC_TYPE_TCP_FLAG:      flowSpecTcpFlagParser,
+	FLOW_SPEC_TYPE_TCP_FLAG:      flowSpecTCPFlagParser,
 	FLOW_SPEC_TYPE_PKT_LEN:       flowSpecNumeric2BytesParser,
 	FLOW_SPEC_TYPE_DSCP:          flowSpecDscpParser,
 	FLOW_SPEC_TYPE_FRAGMENT:      flowSpecFragmentParser,
@@ -4320,7 +4325,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	if length > 0xfff {
 		return nil, fmt.Errorf("Too large: %d", length)
 	} else if length < 0xf0 {
-		length -= 1
+		length--
 		buf = append([]byte{byte(length)}, buf...)
 	} else {
 		length -= 2
@@ -4346,9 +4351,8 @@ func (n *FlowSpecNLRI) Len(options ...*MarshallingOption) int {
 	}
 	if l < 0xf0 {
 		return l + 1
-	} else {
-		return l + 2
 	}
+	return l + 2
 }
 
 func (n *FlowSpecNLRI) String() string {
@@ -5039,7 +5043,7 @@ func NewNotificationErrorCode(code, subcode uint8) NotificationErrorCode {
 	return NotificationErrorCode(uint16(code)<<8 | uint16(subcode))
 }
 
-var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
+var PathAttrFlags = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_ORIGIN:                   BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_AS_PATH:                  BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_NEXT_HOP:                 BGP_ATTR_FLAG_TRANSITIVE,
@@ -7962,35 +7966,35 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
+func (t *TunnelEncapTLV) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
-	for _, t := range p.Value {
-		tBuf, err := t.Serialize()
+	for _, tlv := range t.Value {
+		tBuf, err := tlv.Serialize()
 		if err != nil {
 			return nil, err
 		}
 		buf = append(buf, tBuf...)
 	}
-	binary.BigEndian.PutUint16(buf, uint16(p.Type))
+	binary.BigEndian.PutUint16(buf, uint16(t.Type))
 	binary.BigEndian.PutUint16(buf[2:], uint16(len(buf)-4))
 	return buf, nil
 }
 
-func (p *TunnelEncapTLV) String() string {
-	tlvList := make([]string, len(p.Value), len(p.Value))
-	for i, v := range p.Value {
+func (t *TunnelEncapTLV) String() string {
+	tlvList := make([]string, len(t.Value), len(t.Value))
+	for i, v := range t.Value {
 		tlvList[i] = v.String()
 	}
-	return fmt.Sprintf("{%s: %s}", p.Type, strings.Join(tlvList, ", "))
+	return fmt.Sprintf("{%s: %s}", t.Type, strings.Join(tlvList, ", "))
 }
 
-func (p *TunnelEncapTLV) MarshalJSON() ([]byte, error) {
+func (t *TunnelEncapTLV) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type  TunnelType                   `json:"type"`
 		Value []TunnelEncapSubTLVInterface `json:"value"`
 	}{
-		Type:  p.Type,
-		Value: p.Value,
+		Type:  t.Type,
+		Value: t.Value,
 	})
 }
 
@@ -8915,19 +8919,18 @@ func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttrib
 func NewEndOfRib(family RouteFamily) *BGPMessage {
 	if family == RF_IPv4_UC {
 		return NewBGPUpdateMessage(nil, nil, nil)
-	} else {
-		afi, safi := RouteFamilyToAfiSafi(family)
-		t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
-		unreach := &PathAttributeMpUnreachNLRI{
-			PathAttribute: PathAttribute{
-				Flags: PathAttrFlags[t],
-				Type:  t,
-			},
-			AFI:  afi,
-			SAFI: safi,
-		}
-		return NewBGPUpdateMessage(nil, []PathAttributeInterface{unreach}, nil)
 	}
+	afi, safi := RouteFamilyToAfiSafi(family)
+	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
+	unreach := &PathAttributeMpUnreachNLRI{
+		PathAttribute: PathAttribute{
+			Flags: PathAttrFlags[t],
+			Type:  t,
+		},
+		AFI:  afi,
+		SAFI: safi,
+	}
+	return NewBGPUpdateMessage(nil, []PathAttributeInterface{unreach}, nil)
 }
 
 type BGPNotification struct {
@@ -9370,10 +9373,9 @@ func (n *OpaqueNLRI) Flat() map[string]string {
 	return map[string]string{}
 }
 
-// Update a Flat representation by adding elements of the second
-// one. If two elements use same keys, values are separated with
-// ';'. In this case, it returns an error but the update has been
-// realized.
+// FlatUpdate updates a Flat representation by adding elements of the second
+// one. If two elements use same keys, values are separated with ';'. In this
+// case, it returns an error but the update has been realized.
 func FlatUpdate(f1, f2 map[string]string) error {
 	conflict := false
 	for k2, v2 := range f2 {
@@ -9386,7 +9388,6 @@ func FlatUpdate(f1, f2 map[string]string) error {
 	}
 	if conflict {
 		return fmt.Errorf("Keys conflict")
-	} else {
-		return nil
 	}
+	return nil
 }
