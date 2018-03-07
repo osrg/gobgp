@@ -35,7 +35,8 @@ const (
 	BGP_FSM_ESTABLISHED
 )
 
-// partially taken from http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+// Protocol shows assigned Internet Protocol Numbers.
+// Partially taken from http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
 type Protocol int
 
 const (
@@ -103,8 +104,8 @@ var TCPFlagNameMap = map[TCPFlag]string{
 	TCP_FLAG_ECE:    "E",
 }
 
-// Prepares a sorted list of flags because map iterations does not happen
-// in a consistent order in Golang.
+// TCPSortedFlags prepares a sorted list of flags because map iterations does
+// not happen in a consistent order in Golang.
 var TCPSortedFlags = []TCPFlag{
 	TCP_FLAG_FIN,
 	TCP_FLAG_SYN,
@@ -145,6 +146,8 @@ var BitmaskFlagOpNameMap = map[BitmaskFlagOp]string{
 	BITMASK_FLAG_OP_MATCH: "=",
 }
 
+// BitmaskFlagOpValueMap shows the combinations of the bit flags for the Flow
+// Spec Bitmask operator.
 // Note: Meaning of "" is different from that of the numeric operator because
 // RFC5575 says if the Match bit in the bitmask operand is set, it should be
 // "strictly" matching against the given value.
@@ -194,8 +197,8 @@ var FragmentFlagNameMap = map[FragmentFlag]string{
 	FRAG_FLAG_LAST:  "last-fragment",
 }
 
-// Prepares a sorted list of flags because map iterations does not happen
-// in a consistent order in Golang.
+// FragmentSortedFlags prepares a sorted list of flags because map iterations
+// does not happen in a consistent order in Golang.
 var FragmentSortedFlags = []FragmentFlag{
 	FRAG_FLAG_NOT,
 	FRAG_FLAG_DONT,
@@ -282,7 +285,8 @@ func (f DECNumOp) String() string {
 	return strings.Join(ops, "")
 }
 
-// Potentially taken from https://www.iana.org/assignments/ieee-802-numbers/ieee-802-numbers.xhtml
+// EthernetType shows Ethernet Types.
+// Partially taken from https://www.iana.org/assignments/ieee-802-numbers/ieee-802-numbers.xhtml
 type EthernetType int
 
 const (

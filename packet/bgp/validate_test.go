@@ -366,8 +366,8 @@ func Test_Validate_aspath(t *testing.T) {
 func Test_Validate_flowspec(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(24, "10.0.0.0"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(24, "10.0.0.0"))
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
 	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
@@ -393,8 +393,8 @@ func Test_Validate_flowspec(t *testing.T) {
 	assert.Nil(err)
 
 	cmp = make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(24, "10.0.0.0"))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(24, "10.0.0.0"))
 	n1 = NewFlowSpecIPv4Unicast(cmp)
 	a = NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
 	// Swaps components order to reproduce the rules order violation.

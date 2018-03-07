@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-// Validator for BGPUpdate
+// ValidateUpdateMsg validates the given BGPUpdate message.
 func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool) (bool, error) {
 	var strongestError error
 
@@ -177,9 +177,8 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 			asParam, y := p.(*As4PathParam)
 			if y {
 				return asParam.Type
-			} else {
-				return p.(*AsPathParam).Type
 			}
+			return p.(*AsPathParam).Type
 		}
 		if isEBGP {
 			if isConfed {
