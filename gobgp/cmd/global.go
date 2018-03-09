@@ -1246,15 +1246,21 @@ func modPath(resource string, name, modtype string, args []string) error {
 		ss = append(ss, "<DEC_NUM>")
 		etherTypes := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		ucHelpMsgFmt := fmt.Sprintf(`error: %s
-usage: %s rib -a %%s %s <PREFIX> [identifier <VALUE>] [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE>]`,
+		baseHelpMsgFmt := fmt.Sprintf(`error: %s
+usage: %s rib -a %%s %s <PREFIX> %%s [origin { igp | egp | incomplete }] [aspath <VALUE>] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE>] [aggregator <AS:ADDRESS>]`,
 			err,
 			cmdstr,
 			// <address family>
 			modtype,
+			// <label, rd>
 		)
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf(ucHelpMsgFmt, "ipv4")
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf(ucHelpMsgFmt, "ipv6")
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf(baseHelpMsgFmt, "ipv4", "[identifier <VALUE>]")
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf(baseHelpMsgFmt, "ipv6", "[identifier <VALUE>]")
+		helpErrMap[bgp.RF_IPv4_VPN] = fmt.Errorf(baseHelpMsgFmt, "vpnv4", "label <LABEL> rd <RD> [rt <RT>]")
+		helpErrMap[bgp.RF_IPv6_VPN] = fmt.Errorf(baseHelpMsgFmt, "vpnv6", "label <LABEL> rd <RD> [rt <RT>]")
+		helpErrMap[bgp.RF_IPv4_MPLS] = fmt.Errorf(baseHelpMsgFmt, "ipv4-mpls", "<LABEL>")
+		helpErrMap[bgp.RF_IPv6_MPLS] = fmt.Errorf(baseHelpMsgFmt, "ipv6-mpls", "<LABEL>")
+
 		fsHelpMsgFmt := fmt.Sprintf(`error: %s
 usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
     <THEN> : { %s |
