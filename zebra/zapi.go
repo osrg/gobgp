@@ -616,7 +616,7 @@ const (
 	NEXTHOP_BLACKHOLE
 )
 
-// For FRRouting: versions 4 and 5.
+// For FRRouting: versions 4.
 const (
 	_ NEXTHOP_FLAG = iota
 	FRR_NEXTHOP_IFINDEX
@@ -626,6 +626,21 @@ const (
 	FRR_NEXTHOP_IPV6_IFINDEX
 	FRR_NEXTHOP_BLACKHOLE
 )
+
+// For FRRouting: version 5.
+// go:generate stringer -type=NEXTHOP_TYPE
+type NEXTHOP_TYPE uint8
+
+const {
+	_ NEXTHOP_TYPE = iota
+	FRR5_NEXTHOP_IFINDEX
+	FRR5_NEXTHOP_IPV4
+	FRR5_NEXTHOP_IPV4_IFINDEX
+	FRR5_NEXTHOP_IPV6
+	FRR5_NEXTHOP_IPV6_IFINDEX
+	FRR5_NEXTHOP_BLACKHOLE
+	
+}
 
 // Interface PTM Enable Configuration.
 //go:generate stringer -type=PTM_ENABLE
@@ -2100,6 +2115,9 @@ func (b *ImportLookupBody) String() string {
 		}
 	}
 	return s
+}
+
+type NextHop struct {
 }
 
 type RegisteredNexthop struct {
