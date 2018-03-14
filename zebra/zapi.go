@@ -598,7 +598,7 @@ const (
 	FRR5_FLAG_EVPN_ROUTE   FLAG = 0x400
 )
 
-// Nexthop Flags.
+// Nexthop types.
 //go:generate stringer -type=NEXTHOP_TYPE
 type NEXTHOP_TYPE uint8
 
