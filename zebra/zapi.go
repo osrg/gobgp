@@ -1832,6 +1832,29 @@ type Nexthop struct {
 	Addr    net.IP
 }
 
+/*
+Decoding in FRR/Zebra: master branch.
+vrf_id: uint32
+type: NEXT_HOP_TYPE
+type = black-hole
+	black-hole-type: uint8
+type = NEXT_HOP_IPV4
+	IPv4 address MAX_BYTE_LEN
+type = NEXT_HOP_IPV4_INDEX
+	IPv4 address MAX_BYTE_LEN
+	if_index: uint32
+type = NEXT_HOP_IFINDEX
+	if_index: uint32
+type = NEXT_HOP_IPv6
+	ipv6 address: 16 bytes
+type = NEXT_HOP_IPv6_INDEX
+	ipv6 address: 16 bytes
+	if_index: uint32
+no_mpls_labels: uint8
+read no_mpls_labels, each of size mpls_label_t
+
+*/
+
 func (n *Nexthop) String() string {
 	s := fmt.Sprintf(
 		"type: %s, addr: %s, ifindex: %d, ifname: %s",
