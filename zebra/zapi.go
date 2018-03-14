@@ -1835,7 +1835,7 @@ type Nexthop struct {
 func (n *Nexthop) String() string {
 	s := fmt.Sprintf(
 		"type: %s, addr: %s, ifindex: %d, ifname: %s",
-		n.Type.String(), n.Addr.String(), n.Ifindex, n.Ifname)
+		n.Type, n.Addr.String(), n.Ifindex, n.Ifname)
 	return s
 }
 
