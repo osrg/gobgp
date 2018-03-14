@@ -627,6 +627,18 @@ const (
 	FRR_NEXTHOP_BLACKHOLE
 )
 
+// For FRRouting: verion 5.
+// Black-hole types.
+//go:generate stringer -type=BLACKHOLE_TYPE
+type BLACKHOLE_TYPE uint8
+
+const (
+	BLACKHOLE_UNSPEC BLACKHOLE_TYPE = iota
+	BLACKHOLE_NULL
+	BLACKHOLE_REJECT
+	BLACKHOLE_ADMINPROHIB
+)
+
 // Interface PTM Enable Configuration.
 //go:generate stringer -type=PTM_ENABLE
 type PTM_ENABLE uint8
@@ -1828,8 +1840,11 @@ type NexthopLookupBody struct {
 type Nexthop struct {
 	Ifname  string
 	Ifindex uint32
+	VrfId   uint32
 	Type    NEXTHOP_TYPE
+	BhType  BLACKHOLE_TYPE
 	Addr    net.IP
+	Labels  []uint32
 }
 
 /*
@@ -1857,8 +1872,8 @@ read no_mpls_labels, each of size mpls_label_t
 
 func (n *Nexthop) String() string {
 	s := fmt.Sprintf(
-		"type: %s, addr: %s, ifindex: %d, ifname: %s",
-		n.Type, n.Addr.String(), n.Ifindex, n.Ifname)
+		"vrf_id: %d, type: %s, bh_type: %s, addr: %s, ifindex: %d, ifname: %s, labels: %s",
+		n.VrfId, n.Type, n.BhType, n.Addr.String(), n.Ifindex, n.Ifname, n.Labels)
 	return s
 }
 
@@ -1867,8 +1882,15 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, e
 	if len(nexthops) == 0 {
 		return buf, nil
 	}
-	buf = append(buf, byte(len(nexthops)))
+	if version >= 5 {
+		bbuf := make([]byte, 2)
+		binary.BigEndian.PutUint16(bbuf, uint16(len(nexthops)))
+		buf = append(buf, bbuf...)
+	} else {
+		buf = append(buf, byte(len(nexthops)))
+	}
 
+	nhBlackHole := NEXTHOP_BLACKHOLE
 	nhIfindex := NEXTHOP_IFINDEX
 	nhIfname := NEXTHOP_IFNAME
 	nhIPv4 := NEXTHOP_IPV4
@@ -1878,6 +1900,7 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, e
 	nhIPv6Ifindex := NEXTHOP_IPV6_IFINDEX
 	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
 	if version >= 4 {
+		nhBlackHole = FRR_NEXTHOP_BLACKHOLE
 		nhIfindex = FRR_NEXTHOP_IFINDEX
 		nhIfname = NEXTHOP_TYPE(0)
 		nhIPv4 = FRR_NEXTHOP_IPV4
@@ -1889,9 +1912,17 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, e
 	}
 
 	for _, nh := range nexthops {
+		if version >= 5 {
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, nh.VrfId)
+			buf = append(buf, bbuf...)
+		}
 		buf = append(buf, byte(nh.Type))
 
 		switch nh.Type {
+		case nhBlackHole:
+			buf = append(buf, byte(nh.BhType))
+
 		case nhIfindex, nhIfname:
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
@@ -1903,7 +1934,8 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, e
 			} else {
 				buf = append(buf, nh.Addr.To16()...)
 			}
-			if version >= 4 {
+			if version == 4 {
+
 				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
 				// NEXTHOP_IPV6 have the same structure with
 				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
