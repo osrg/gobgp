@@ -599,12 +599,12 @@ const (
 )
 
 // Nexthop Flags.
-//go:generate stringer -type=NEXTHOP_FLAG
-type NEXTHOP_FLAG uint8
+//go:generate stringer -type=NEXTHOP_TYPE
+type NEXTHOP_TYPE uint8
 
 // For Quagga.
 const (
-	_ NEXTHOP_FLAG = iota
+	_ NEXTHOP_TYPE = iota
 	NEXTHOP_IFINDEX
 	NEXTHOP_IFNAME
 	NEXTHOP_IPV4
@@ -616,9 +616,9 @@ const (
 	NEXTHOP_BLACKHOLE
 )
 
-// For FRRouting: versions 4.
+// For FRRouting: versions 4 and 5.
 const (
-	_ NEXTHOP_FLAG = iota
+	_ NEXTHOP_TYPE = iota
 	FRR_NEXTHOP_IFINDEX
 	FRR_NEXTHOP_IPV4
 	FRR_NEXTHOP_IPV4_IFINDEX
@@ -626,21 +626,6 @@ const (
 	FRR_NEXTHOP_IPV6_IFINDEX
 	FRR_NEXTHOP_BLACKHOLE
 )
-
-// For FRRouting: version 5.
-// go:generate stringer -type=NEXTHOP_TYPE
-type NEXTHOP_TYPE uint8
-
-const {
-	_ NEXTHOP_TYPE = iota
-	FRR5_NEXTHOP_IFINDEX
-	FRR5_NEXTHOP_IPV4
-	FRR5_NEXTHOP_IPV4_IFINDEX
-	FRR5_NEXTHOP_IPV6
-	FRR5_NEXTHOP_IPV6_IFINDEX
-	FRR5_NEXTHOP_BLACKHOLE
-	
-}
 
 // Interface PTM Enable Configuration.
 //go:generate stringer -type=PTM_ENABLE
@@ -1843,7 +1828,7 @@ type NexthopLookupBody struct {
 type Nexthop struct {
 	Ifname  string
 	Ifindex uint32
-	Type    NEXTHOP_FLAG
+	Type    NEXTHOP_TYPE
 	Addr    net.IP
 }
 
@@ -1871,13 +1856,13 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, e
 	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
 	if version >= 4 {
 		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = NEXTHOP_FLAG(0)
+		nhIfname = NEXTHOP_TYPE(0)
 		nhIPv4 = FRR_NEXTHOP_IPV4
 		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = NEXTHOP_FLAG(0)
+		nhIPv4Ifname = NEXTHOP_TYPE(0)
 		nhIPv6 = FRR_NEXTHOP_IPV6
 		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = NEXTHOP_FLAG(0)
+		nhIPv6Ifname = NEXTHOP_TYPE(0)
 	}
 
 	for _, nh := range nexthops {
@@ -1934,13 +1919,13 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, versi
 	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
 	if version >= 4 {
 		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = NEXTHOP_FLAG(0)
+		nhIfname = NEXTHOP_TYPE(0)
 		nhIPv4 = FRR_NEXTHOP_IPV4
 		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = NEXTHOP_FLAG(0)
+		nhIPv4Ifname = NEXTHOP_TYPE(0)
 		nhIPv6 = FRR_NEXTHOP_IPV6
 		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = NEXTHOP_FLAG(0)
+		nhIPv6Ifname = NEXTHOP_TYPE(0)
 	}
 
 	numNexthop := int(data[0])
@@ -1948,7 +1933,7 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, versi
 
 	for i := 0; i < numNexthop; i++ {
 		nh := &Nexthop{}
-		nh.Type = NEXTHOP_FLAG(data[offset])
+		nh.Type = NEXTHOP_TYPE(data[offset])
 		offset += 1
 
 		switch nh.Type {
@@ -2115,9 +2100,6 @@ func (b *ImportLookupBody) String() string {
 		}
 	}
 	return s
-}
-
-type NextHop struct {
 }
 
 type RegisteredNexthop struct {
