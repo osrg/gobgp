@@ -227,26 +227,46 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var prefix net.IP
-	nexthops := make([]net.IP, 0, len(paths))
+	nexthops := make([]*zebra.Nexthop, 0, len(paths))
 	switch path.GetRouteFamily() {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
-		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
-			prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
-		} else {
-			prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
-		}
+	case bgp.RF_IPv4_UC:
+		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		for _, p := range paths {
-			nexthops = append(nexthops, p.GetNexthop().To4())
+			nexthop := &zebra.Nexthop{}
+			// ToDo: initialize nexthop.Type
+			nexthop.Addr = p.GetNexthop().To4()
+			nexthops = append(nexthops, nexthop)
 		}
-	case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
-		if path.GetRouteFamily() == bgp.RF_IPv6_UC {
-			prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
-		} else {
-			prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
-		}
+
+	case bgp.RF_IPv4_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		for _, p := range paths {
-			nexthops = append(nexthops, p.GetNexthop().To16())
+			nexthop := &zebra.Nexthop{}
+			// ToDo: initialize nexthop.Type
+			nexthop.Addr = p.GetNexthop().To4()
+			nexthops = append(nexthops, nexthop)
+			// ToDo: do something about labels
 		}
+
+	case bgp.RF_IPv6_UC:
+		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+		for _, p := range paths {
+			nexthop := &zebra.Nexthop{}
+			// ToDo: initialize nexthop.Type
+			nexthop.Addr = p.GetNexthop().To16()
+			nexthops = append(nexthops)
+		}
+
+	case bgp.RF_IPv6_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+		for _, p := range paths {
+			nexthop := &zebra.Nexthop{}
+			// ToDo: initialize nexthop.Type
+			nexthop.Addr = p.GetNexthop().To16()
+			nexthops = append(nexthops)
+			// ToDo: do something about labels
+		}
+
 	default:
 		return nil, false
 	}
