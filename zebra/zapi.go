@@ -1329,7 +1329,7 @@ type IPRouteBody struct {
 	PrefixLength    uint8
 	SrcPrefix       net.IP
 	SrcPrefixLength uint8
-	Nexthops        []net.IP
+	Nexthops        []Nexthop
 	Ifindexs        []uint32
 	Distance        uint8
 	Metric          uint32
@@ -1379,7 +1379,7 @@ func (b *IPRouteBody) IsWithdraw(zapiVersion uint8) bool {
 		}
 	case 5:
 		switch b.Api {
-		case FRR5_IPV4_ROUTE_DELETE, FRR_IPV6_ROUTE_DELETE:
+		case FRR5_ROUTE_DELETE, FRR5_IPV4_ROUTE_DELETE, FRR_IPV6_ROUTE_DELETE:
 			return true
 		}
 	}
@@ -1412,12 +1412,12 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			}
 
 			for _, v := range b.Nexthops {
-				if v.To4() != nil {
+				if v.Addr.To4() != nil {
 					buf = append(buf, nhfIPv4)
-					buf = append(buf, v.To4()...)
+					buf = append(buf, v.Addr.To4()...)
 				} else {
 					buf = append(buf, nhfIPv6)
-					buf = append(buf, v.To16()...)
+					buf = append(buf, v.Addr.To16()...)
 				}
 			}
 
@@ -1473,12 +1473,12 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			}
 
 			for _, v := range b.Nexthops {
-				if v.To4() != nil {
+				if v.Addr.To4() != nil {
 					buf = append(buf, nhfIPv4)
-					buf = append(buf, v.To4()...)
+					buf = append(buf, v.Addr.To4()...)
 				} else {
 					buf = append(buf, nhfIPv6)
-					buf = append(buf, v.To16()...)
+					buf = append(buf, v.Addr.To16()...)
 				}
 			}
 
@@ -1527,22 +1527,9 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			buf = append(buf, b.SrcPrefix[:byteLen]...)
 		}
 		if b.Message&FRR5_MESSAGE_NEXTHOP > 0 {
-			buf = append(buf, uint8(len(b.Nexthops)+len(b.Ifindexs)))
-			for _, v := range b.Nexthops {
-				if v.To4() != nil {
-					buf = append(buf, nhfIPv4)
-					buf = append(buf, v.To4()...)
-				} else {
-					buf = append(buf, nhfIPv6)
-					buf = append(buf, v.To16()...)
-				}
-			}
-
-			for _, v := range b.Ifindexs {
-				buf = append(buf, nhfIndx)
-				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, v)
-				buf = append(buf, bbuf...)
+			nextHopsBuf, err := serializeNexthops(b.Nexthops, b.Message&FRR5_MESSAGE_LABEL > 0, version)
+			if err != nil {
+				buf = append(buf, nextHopsBuf...)
 			}
 		}
 		if b.Message&FRR5_MESSAGE_DISTANCE > 0 {
@@ -1847,29 +1834,6 @@ type Nexthop struct {
 	Labels  []uint32
 }
 
-/*
-Decoding in FRR/Zebra: master branch.
-vrf_id: uint32
-type: NEXT_HOP_TYPE
-type = black-hole
-	black-hole-type: uint8
-type = NEXT_HOP_IPV4
-	IPv4 address MAX_BYTE_LEN
-type = NEXT_HOP_IPV4_INDEX
-	IPv4 address MAX_BYTE_LEN
-	if_index: uint32
-type = NEXT_HOP_IFINDEX
-	if_index: uint32
-type = NEXT_HOP_IPv6
-	ipv6 address: 16 bytes
-type = NEXT_HOP_IPv6_INDEX
-	ipv6 address: 16 bytes
-	if_index: uint32
-no_mpls_labels: uint8
-read no_mpls_labels, each of size mpls_label_t
-
-*/
-
 func (n *Nexthop) String() string {
 	s := fmt.Sprintf(
 		"vrf_id: %d, type: %s, bh_type: %s, addr: %s, ifindex: %d, ifname: %s, labels: %s",
@@ -1877,7 +1841,7 @@ func (n *Nexthop) String() string {
 	return s
 }
 
-func serializeNexthops(nexthops []*Nexthop, isV4 bool, addLabels bool, version uint8) ([]byte, error) {
+func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]byte, error) {
 	buf := make([]byte, 0)
 	if len(nexthops) == 0 {
 		return buf, nil
@@ -1930,12 +1894,8 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, addLabels bool, version u
 			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
 			buf = append(buf, bbuf...)
 
-		case nhIPv4, nhIPv6:
-			if isV4 {
-				buf = append(buf, nh.Addr.To4()...)
-			} else {
-				buf = append(buf, nh.Addr.To16()...)
-			}
+		case nhIPv4:
+			buf = append(buf, nh.Addr.To4()...)
 			if version == 4 {
 
 				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
@@ -1946,12 +1906,26 @@ func serializeNexthops(nexthops []*Nexthop, isV4 bool, addLabels bool, version u
 				buf = append(buf, bbuf...)
 			}
 
-		case nhIPv4Ifindex, nhIPv4Ifname, nhIPv6Ifindex, nhIPv6Ifname:
-			if isV4 {
-				buf = append(buf, nh.Addr.To4()...)
-			} else {
-				buf = append(buf, nh.Addr.To16()...)
+		case nhIPv6:
+			buf = append(buf, nh.Addr.To16()...)
+			if version == 4 {
+
+				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
+				// NEXTHOP_IPV6 have the same structure with
+				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
+				bbuf := make([]byte, 4)
+				binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+				buf = append(buf, bbuf...)
 			}
+
+		case nhIPv4Ifindex, nhIPv4Ifname:
+			buf = append(buf, nh.Addr.To4()...)
+			bbuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+			buf = append(buf, bbuf...)
+
+		case nhIPv6Ifindex, nhIPv6Ifname:
+			buf = append(buf, nh.Addr.To16()...)
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
 			buf = append(buf, bbuf...)
