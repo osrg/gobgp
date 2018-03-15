@@ -82,6 +82,12 @@ const (
 	CMD_VALIDATION     = "validation"
 )
 
+const (
+	PARAM_FLAG = iota
+	PARAM_SINGLE
+	PARAM_LIST
+)
+
 var subOpts struct {
 	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family"`
 }
@@ -154,11 +160,11 @@ func cidr2prefix(cidr string) string {
 	return buffer.String()[:ones]
 }
 
-func extractReserved(args, keys []string) map[string][]string {
+func extractReserved(args []string, keys map[string]int) (map[string][]string, error) {
 	m := make(map[string][]string, len(keys))
 	var k string
 	isReserved := func(s string) bool {
-		for _, r := range keys {
+		for r := range keys {
 			if s == r {
 				return true
 			}
@@ -173,7 +179,26 @@ func extractReserved(args, keys []string) map[string][]string {
 			m[k] = append(m[k], arg)
 		}
 	}
-	return m
+	for k, v := range m {
+		if k == "" {
+			continue
+		}
+		switch keys[k] {
+		case PARAM_FLAG:
+			if len(v) != 0 {
+				return nil, fmt.Errorf("%s should not have arguments", k)
+			}
+		case PARAM_SINGLE:
+			if len(v) != 1 {
+				return nil, fmt.Errorf("%s should have one argument", k)
+			}
+		case PARAM_LIST:
+			if len(v) == 0 {
+				return nil, fmt.Errorf("%s should have one or more arguments", k)
+			}
+		}
+	}
+	return m, nil
 }
 
 type neighbors []*config.Neighbor
