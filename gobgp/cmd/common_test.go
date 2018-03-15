@@ -25,8 +25,13 @@ import (
 func Test_ExtractReserved(t *testing.T) {
 	assert := assert.New(t)
 	args := strings.Split("10 rt 100:100 med 10 nexthop 10.0.0.1 aigp metric 10 local-pref 100", " ")
-	keys := []string{"rt", "med", "nexthop", "aigp", "local-pref"}
-	m := extractReserved(args, keys)
+	keys := map[string]int{
+		"rt":         PARAM_LIST,
+		"med":        PARAM_SINGLE,
+		"nexthop":    PARAM_SINGLE,
+		"aigp":       PARAM_LIST,
+		"local-pref": PARAM_SINGLE}
+	m, _ := extractReserved(args, keys)
 	fmt.Println(m)
 	assert.True(len(m["rt"]) == 1)
 	assert.True(len(m["med"]) == 1)

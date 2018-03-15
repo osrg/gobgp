@@ -335,7 +335,14 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"match", "then", "rd", "rt"})
+	m, err := extractReserved(args, map[string]int{
+		"match": PARAM_LIST,
+		"then":  PARAM_LIST,
+		"rd":    PARAM_SINGLE,
+		"rt":    PARAM_LIST})
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(m["match"]) == 0 {
 		return nil, nil, fmt.Errorf("specify filtering rules with keyword 'match'")
 	}
@@ -395,7 +402,17 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"esi", "etag", "label", "rd", "rt", "encap", "esi-label"})
+	m, err := extractReserved(args, map[string]int{
+		"esi":       PARAM_LIST,
+		"etag":      PARAM_SINGLE,
+		"label":     PARAM_SINGLE,
+		"rd":        PARAM_SINGLE,
+		"rt":        PARAM_LIST,
+		"encap":     PARAM_SINGLE,
+		"esi-label": PARAM_SINGLE})
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, f := range []string{"esi", "etag", "label", "rd"} {
 		for len(m[f]) == 0 {
 			return nil, nil, fmt.Errorf("specify %s", f)
@@ -457,7 +474,16 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"esi", "etag", "label", "rd", "rt", "encap"})
+	m, err := extractReserved(args, map[string]int{
+		"esi":   PARAM_LIST,
+		"etag":  PARAM_SINGLE,
+		"label": PARAM_SINGLE,
+		"rd":    PARAM_SINGLE,
+		"rt":    PARAM_LIST,
+		"encap": PARAM_SINGLE})
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(m[""]) < 2 {
 		return nil, nil, fmt.Errorf("specify mac and ip address")
 	}
@@ -563,7 +589,14 @@ func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"etag", "rd", "rt", "encap"})
+	m, err := extractReserved(args, map[string]int{
+		"etag":  PARAM_SINGLE,
+		"rd":    PARAM_SINGLE,
+		"rt":    PARAM_LIST,
+		"encap": PARAM_SINGLE})
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(m[""]) < 1 {
 		return nil, nil, fmt.Errorf("specify ip address")
 	}
@@ -628,7 +661,14 @@ func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"esi", "rd", "rt", "encap"})
+	m, err := extractReserved(args, map[string]int{
+		"esi":   PARAM_LIST,
+		"rd":    PARAM_SINGLE,
+		"rt":    PARAM_LIST,
+		"encap": PARAM_SINGLE})
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(m[""]) < 1 {
 		return nil, nil, fmt.Errorf("specify ip address")
 	}
@@ -685,7 +725,18 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
-	m := extractReserved(args, []string{"gw", "esi", "etag", "label", "rd", "rt", "encap", "router-mac"})
+	m, err := extractReserved(args, map[string]int{
+		"gw":         PARAM_SINGLE,
+		"esi":        PARAM_LIST,
+		"etag":       PARAM_SINGLE,
+		"label":      PARAM_SINGLE,
+		"rd":         PARAM_SINGLE,
+		"rt":         PARAM_LIST,
+		"encap":      PARAM_SINGLE,
+		"router-mac": PARAM_SINGLE})
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(m[""]) < 1 {
 		return nil, nil, fmt.Errorf("specify prefix")
 	}
@@ -1155,7 +1206,12 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
 		nlri, extcomms, err = ParseFlowSpecArgs(rf, args)
 	case bgp.RF_OPAQUE:
-		m := extractReserved(args, []string{"key", "value"})
+		m, err := extractReserved(args, map[string]int{
+			"key":   PARAM_SINGLE,
+			"value": PARAM_SINGLE})
+		if err != nil {
+			return nil, err
+		}
 		if len(m["key"]) != 1 {
 			return nil, fmt.Errorf("opaque nlri key missing")
 		}
@@ -1424,10 +1480,13 @@ func showGlobalConfig() error {
 }
 
 func modGlobalConfig(args []string) error {
-	m := extractReserved(args, []string{"as", "router-id", "listen-port",
-		"listen-addresses", "use-multipath"})
-
-	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
+	m, err := extractReserved(args, map[string]int{
+		"as":               PARAM_SINGLE,
+		"router-id":        PARAM_SINGLE,
+		"listen-port":      PARAM_SINGLE,
+		"listen-addresses": PARAM_LIST,
+		"use-multipath":    PARAM_FLAG})
+	if err != nil || len(m["as"]) != 1 || len(m["router-id"]) != 1 {
 		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
 	}
 	asn, err := strconv.ParseUint(m["as"][0], 10, 32)
