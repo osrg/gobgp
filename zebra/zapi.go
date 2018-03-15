@@ -1329,7 +1329,7 @@ type IPRouteBody struct {
 	PrefixLength    uint8
 	SrcPrefix       net.IP
 	SrcPrefixLength uint8
-	Nexthops        []Nexthop
+	Nexthops        []*Nexthop
 	Ifindexs        []uint32
 	Distance        uint8
 	Metric          uint32
@@ -1687,18 +1687,20 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	if len(data[pos:]) != rest {
 		return fmt.Errorf("message length invalid")
 	}
-	b.Nexthops = []net.IP{}
+	b.Nexthops = []*Nexthop{}
 	b.Ifindexs = []uint32{}
 	if version <= 3 {
 		if b.Message&MESSAGE_NEXTHOP > 0 {
 			pos += 1
 			for i := 0; i < numNexthop; i++ {
 				addr := data[pos : pos+int(addrLen)]
-				var nexthop net.IP
+				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop = net.IP(addr).To4()
+					nexthop.Type = NEXTHOP_IPV4
+					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop = net.IP(addr).To16()
+					nexthop.Type = NEXTHOP_IPV6
+					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
 
@@ -1730,11 +1732,13 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 			pos += 1
 			for i := 0; i < numNexthop; i++ {
 				addr := data[pos : pos+int(addrLen)]
-				var nexthop net.IP
+				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop = net.IP(addr).To4()
+					nexthop.Type = FRR_NEXTHOP_IPV4
+					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop = net.IP(addr).To16()
+					nexthop.Type = FRR_NEXTHOP_IPV6
+					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
 
@@ -1766,11 +1770,13 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 			pos += 1
 			for i := 0; i < numNexthop; i++ {
 				addr := data[pos : pos+int(addrLen)]
-				var nexthop net.IP
+				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop = net.IP(addr).To4()
+					nexthop.Type = FRR_NEXTHOP_IPV4
+					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop = net.IP(addr).To16()
+					nexthop.Type = FRR_NEXTHOP_IPV6
+					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
 
