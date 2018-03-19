@@ -233,7 +233,7 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
-			// ToDo: initialize nexthop.Type
+			nexthop.Type = zebra.NEXTHOP_IPV4
 			nexthop.Addr = p.GetNexthop().To4()
 			nexthops = append(nexthops, nexthop)
 		}
@@ -242,7 +242,7 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
-			// ToDo: initialize nexthop.Type
+			nexthop.Type = zebra.NEXTHOP_IPV4
 			nexthop.Addr = p.GetNexthop().To4()
 			nexthops = append(nexthops, nexthop)
 			// ToDo: do something about labels
@@ -252,7 +252,7 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
-			// ToDo: initialize nexthop.Type
+			nexthop.Type = zebra.NEXTHOP_IPV6
 			nexthop.Addr = p.GetNexthop().To16()
 			nexthops = append(nexthops)
 		}
@@ -261,7 +261,7 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
-			// ToDo: initialize nexthop.Type
+			nexthop.Type = zebra.NEXTHOP_IPV6
 			nexthop.Addr = p.GetNexthop().To16()
 			nexthops = append(nexthops)
 			// ToDo: do something about labels
