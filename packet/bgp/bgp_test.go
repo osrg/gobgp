@@ -63,10 +63,17 @@ func Test_Message(t *testing.T) {
 func Test_IPAddrPrefixString(t *testing.T) {
 	ipv4 := NewIPAddrPrefix(24, "129.6.10.0")
 	assert.Equal(t, "129.6.10.0/24", ipv4.String())
-	ipv6 := NewIPv6AddrPrefix(18, "3343:faba:3903::1")
-	assert.Equal(t, "3343:faba:3903::1/18", ipv6.String())
-	ipv6 = NewIPv6AddrPrefix(18, "3343:faba:3903::0")
-	assert.Equal(t, "3343:faba:3903::/18", ipv6.String())
+	ipv4 = NewIPAddrPrefix(24, "129.6.10.1")
+	assert.Equal(t, "129.6.10.0/24", ipv4.String())
+	ipv4 = NewIPAddrPrefix(22, "129.6.129.0")
+	assert.Equal(t, "129.6.128.0/22", ipv4.String())
+
+	ipv6 := NewIPv6AddrPrefix(64, "3343:faba:3903::0")
+	assert.Equal(t, "3343:faba:3903::/64", ipv6.String())
+	ipv6 = NewIPv6AddrPrefix(64, "3343:faba:3903::1")
+	assert.Equal(t, "3343:faba:3903::/64", ipv6.String())
+	ipv6 = NewIPv6AddrPrefix(63, "3343:faba:3903:129::0")
+	assert.Equal(t, "3343:faba:3903:128::/63", ipv6.String())
 }
 
 func Test_RouteTargetMembershipNLRIString(t *testing.T) {
@@ -787,7 +794,7 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 
 func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert := assert.New(t)
-	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.1")
+	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.0")
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_IPv6_UC))
@@ -806,7 +813,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 
 	label := NewMPLSLabelStack(2)
 
-	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.1", *label)
+	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.0", *label)
 	buf1, err = n3.Serialize()
 	assert.Nil(err)
 	n4, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_IPv6_MPLS))
