@@ -2005,39 +2005,23 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, versi
 	if !isV4 {
 		addrLen = net.IPv6len
 	}
-	nhIfindex := QUAGGA_NEXTHOP_IFINDEX
-	nhIfname := QUAGGA_NEXTHOP_IFNAME
-	nhIPv4 := QUAGGA_NEXTHOP_IPV4
-	nhIPv4Ifindex := QUAGGA_NEXTHOP_IPV4_IFINDEX
-	nhIPv4Ifname := QUAGGA_NEXTHOP_IPV4_IFNAME
-	nhIPv6 := QUAGGA_NEXTHOP_IPV6
-	nhIPv6Ifindex := QUAGGA_NEXTHOP_IPV6_IFINDEX
-	nhIPv6Ifname := QUAGGA_NEXTHOP_IPV6_IFNAME
-	if version >= 4 {
-		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = ZAPI_NEXTHOP_TYPE(0)
-		nhIPv4 = FRR_NEXTHOP_IPV4
-		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = ZAPI_NEXTHOP_TYPE(0)
-		nhIPv6 = FRR_NEXTHOP_IPV6
-		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = ZAPI_NEXTHOP_TYPE(0)
-	}
-
 	numNexthop := int(data[0])
 	offset := 1
-
 	for i := 0; i < numNexthop; i++ {
 		nh := &Nexthop{}
-		nh.Type = ZAPI_NEXTHOP_TYPE(data[offset])
+		var ok bool
+		nh.Type, ok = zapiNextHopToNextHopMap[version][ZAPI_NEXTHOP_TYPE(data[offset])]
+		if !ok {
+			return offset, fmt.Errorf("cannot determine next-hop type %d for version %d", data[offset], version)
+		}
 		offset += 1
 
 		switch nh.Type {
-		case nhIfindex, nhIfname:
+		case NEXTHOP_IFINDEX:
 			nh.Ifindex = binary.BigEndian.Uint32(data[offset : offset+4])
 			offset += 4
 
-		case nhIPv4, nhIPv6:
+		case NEXTHOP_IPV4, NEXTHOP_IPV6:
 			if isV4 {
 				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
 			} else {
@@ -2052,7 +2036,7 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, versi
 				offset += 4
 			}
 
-		case nhIPv4Ifindex, nhIPv4Ifname, nhIPv6Ifindex, nhIPv6Ifname:
+		case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV6_IFINDEX:
 			if isV4 {
 				nh.Addr = net.IP(data[offset : offset+addrLen]).To4()
 			} else {
