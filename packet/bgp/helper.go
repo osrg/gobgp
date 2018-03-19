@@ -74,16 +74,16 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	}
 
 	prefixes1 := []AddrPrefixInterface{
-		NewLabeledVPNIPAddrPrefix(20, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
+		NewLabeledVPNIPAddrPrefix(24, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
 			NewRouteDistinguisherTwoOctetAS(256, 10000)),
-		NewLabeledVPNIPAddrPrefix(26, "192.10.8.192", *NewMPLSLabelStack(5, 6, 7, 8),
+		NewLabeledVPNIPAddrPrefix(24, "192.10.8.0", *NewMPLSLabelStack(5, 6, 7, 8),
 			NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001)),
 	}
 
-	prefixes2 := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
+	prefixes2 := []AddrPrefixInterface{NewIPv6AddrPrefix(128,
 		"fe80:1234:1234:5667:8967:af12:8912:1023")}
 
-	prefixes3 := []AddrPrefixInterface{NewLabeledVPNIPv6AddrPrefix(100,
+	prefixes3 := []AddrPrefixInterface{NewLabeledVPNIPv6AddrPrefix(128,
 		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewMPLSLabelStack(5, 6),
 		NewRouteDistinguisherFourOctetAS(5, 6))}
 

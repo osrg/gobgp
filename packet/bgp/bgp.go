@@ -1077,6 +1077,14 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen ui
 	}
 	b := make([]byte, addrlen)
 	copy(b, data[:bytelen])
+	// clear trailing bits in the last byte. rfc doesn't require
+	// this but some bgp implementations need this...
+	rem := bitlen % 8
+	if rem != 0 {
+		mask := 0xff00 >> rem
+		lastByte := b[bytelen-1] & byte(mask)
+		b[bytelen-1] = lastByte
+	}
 	r.Prefix = b
 	return nil
 }
@@ -1085,16 +1093,6 @@ func (r *IPAddrPrefixDefault) serializePrefix(bitLen uint8) ([]byte, error) {
 	byteLen := (int(bitLen) + 7) / 8
 	buf := make([]byte, byteLen)
 	copy(buf, r.Prefix)
-	// clear trailing bits in the last byte. rfc doesn't require
-	// this though.
-	rem := bitLen % 8
-	if rem != 0 {
-		mask := 0xff00 >> rem
-		lastByte := buf[byteLen-1] & byte(mask)
-		buf[byteLen-1] = lastByte
-	}
-	r.Prefix = make([]byte, len(r.Prefix))
-	copy(r.Prefix, buf)
 	return buf, nil
 }
 
@@ -1173,13 +1171,14 @@ func (r *IPAddrPrefix) SAFI() uint8 {
 }
 
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
-	return &IPAddrPrefix{
+	p := &IPAddrPrefix{
 		IPAddrPrefixDefault{
 			Length: length,
-			Prefix: net.ParseIP(prefix).To4(),
 		},
 		4,
 	}
+	p.IPAddrPrefixDefault.decodePrefix(net.ParseIP(prefix).To4(), length, 4)
+	return p
 }
 
 func isIPv4MappedIPv6(ip net.IP) bool {
@@ -1203,15 +1202,16 @@ func (r *IPv6AddrPrefix) String() string {
 }
 
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
-	return &IPv6AddrPrefix{
+	p := &IPv6AddrPrefix{
 		IPAddrPrefix{
 			IPAddrPrefixDefault{
 				Length: length,
-				Prefix: net.ParseIP(prefix),
 			},
 			16,
 		},
 	}
+	p.IPAddrPrefixDefault.decodePrefix(net.ParseIP(prefix), length, 16)
+	return p
 }
 
 const (
