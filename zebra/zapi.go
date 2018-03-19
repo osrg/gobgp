@@ -605,13 +605,10 @@ type NEXTHOP_TYPE uint8
 const (
 	_ NEXTHOP_TYPE = iota
 	NEXTHOP_IFINDEX
-	NEXTHOP_IFNAME
 	NEXTHOP_IPV4
 	NEXTHOP_IPV4_IFINDEX
-	NEXTHOP_IPV4_IFNAME
 	NEXTHOP_IPV6
 	NEXTHOP_IPV6_IFINDEX
-	NEXTHOP_IPV6_IFNAME
 	NEXTHOP_BLACKHOLE
 )
 
@@ -647,13 +644,10 @@ const (
 var nextHopToZapiNextHopMap = map[uint8]map[NEXTHOP_TYPE]ZAPI_NEXTHOP_TYPE{
 	3: {
 		NEXTHOP_IFINDEX:      QUAGGA_NEXTHOP_IFINDEX,
-		NEXTHOP_IFNAME:       QUAGGA_NEXTHOP_IFNAME,
 		NEXTHOP_IPV4:         QUAGGA_NEXTHOP_IPV4,
 		NEXTHOP_IPV4_IFINDEX: QUAGGA_NEXTHOP_IPV4_IFINDEX,
-		NEXTHOP_IPV4_IFNAME:  QUAGGA_NEXTHOP_IPV4_IFNAME,
 		NEXTHOP_IPV6:         QUAGGA_NEXTHOP_IPV6,
 		NEXTHOP_IPV6_IFINDEX: QUAGGA_NEXTHOP_IPV6_IFINDEX,
-		NEXTHOP_IPV6_IFNAME:  QUAGGA_NEXTHOP_IPV6_IFNAME,
 		NEXTHOP_BLACKHOLE:    QUAGGA_NEXTHOP_BLACKHOLE,
 	},
 	4: {
@@ -677,13 +671,13 @@ var nextHopToZapiNextHopMap = map[uint8]map[NEXTHOP_TYPE]ZAPI_NEXTHOP_TYPE{
 var zapiNextHopToNextHopMap = map[uint8]map[ZAPI_NEXTHOP_TYPE]NEXTHOP_TYPE{
 	3: {
 		QUAGGA_NEXTHOP_IFINDEX:      NEXTHOP_IFINDEX,
-		QUAGGA_NEXTHOP_IFNAME:       NEXTHOP_IFNAME,
+		QUAGGA_NEXTHOP_IFNAME:       NEXTHOP_IFINDEX,
 		QUAGGA_NEXTHOP_IPV4:         NEXTHOP_IPV4,
 		QUAGGA_NEXTHOP_IPV4_IFINDEX: NEXTHOP_IPV4_IFINDEX,
-		QUAGGA_NEXTHOP_IPV4_IFNAME:  NEXTHOP_IPV4_IFNAME,
+		QUAGGA_NEXTHOP_IPV4_IFNAME:  NEXTHOP_IPV4_IFINDEX,
 		QUAGGA_NEXTHOP_IPV6:         NEXTHOP_IPV6,
 		QUAGGA_NEXTHOP_IPV6_IFINDEX: NEXTHOP_IPV6_IFINDEX,
-		QUAGGA_NEXTHOP_IPV6_IFNAME:  NEXTHOP_IPV6_IFNAME,
+		QUAGGA_NEXTHOP_IPV6_IFNAME:  NEXTHOP_IPV6_IFINDEX,
 		QUAGGA_NEXTHOP_BLACKHOLE:    NEXTHOP_BLACKHOLE,
 	},
 	4: {
@@ -1773,10 +1767,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 				addr := data[pos : pos+int(addrLen)]
 				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop.Type = QUAGGA_NEXTHOP_IPV4
+					nexthop.Type = zapiNextHopToNextHopMap[version][QUAGGA_NEXTHOP_IPV4]
 					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop.Type = QUAGGA_NEXTHOP_IPV6
+					nexthop.Type = zapiNextHopToNextHopMap[version][QUAGGA_NEXTHOP_IPV6]
 					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
@@ -1811,10 +1805,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 				addr := data[pos : pos+int(addrLen)]
 				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop.Type = FRR_NEXTHOP_IPV4
+					nexthop.Type = zapiNextHopToNextHopMap[version][FRR_NEXTHOP_IPV4]
 					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop.Type = FRR_NEXTHOP_IPV6
+					nexthop.Type = zapiNextHopToNextHopMap[version][FRR_NEXTHOP_IPV6]
 					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
@@ -1849,10 +1843,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 				addr := data[pos : pos+int(addrLen)]
 				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop.Type = FRR_NEXTHOP_IPV4
+					nexthop.Type = zapiNextHopToNextHopMap[version][FRR_NEXTHOP_IPV4]
 					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop.Type = FRR_NEXTHOP_IPV6
+					nexthop.Type = zapiNextHopToNextHopMap[version][FRR_NEXTHOP_IPV6]
 					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
@@ -1936,28 +1930,6 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 	} else {
 		buf = append(buf, byte(len(nexthops)))
 	}
-
-	nhBlackHole := QUAGGA_NEXTHOP_BLACKHOLE
-	nhIfindex := QUAGGA_NEXTHOP_IFINDEX
-	nhIfname := QUAGGA_NEXTHOP_IFNAME
-	nhIPv4 := QUAGGA_NEXTHOP_IPV4
-	nhIPv4Ifindex := QUAGGA_NEXTHOP_IPV4_IFINDEX
-	nhIPv4Ifname := QUAGGA_NEXTHOP_IPV4_IFNAME
-	nhIPv6 := QUAGGA_NEXTHOP_IPV6
-	nhIPv6Ifindex := QUAGGA_NEXTHOP_IPV6_IFINDEX
-	nhIPv6Ifname := QUAGGA_NEXTHOP_IPV6_IFNAME
-	if version >= 4 {
-		nhBlackHole = FRR_NEXTHOP_BLACKHOLE
-		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = ZAPI_NEXTHOP_TYPE(0)
-		nhIPv4 = FRR_NEXTHOP_IPV4
-		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = ZAPI_NEXTHOP_TYPE(0)
-		nhIPv6 = FRR_NEXTHOP_IPV6
-		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = ZAPI_NEXTHOP_TYPE(0)
-	}
-
 	for _, nh := range nexthops {
 		if version >= 5 {
 			bbuf := make([]byte, 4)
@@ -1967,17 +1939,17 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 		buf = append(buf, byte(nh.Type))
 
 		switch nh.Type {
-		case nhBlackHole:
+		case NEXTHOP_BLACKHOLE:
 			if version >= 5 {
-				buf = append(buf, byte(nh.BhType))
+				buf = append(buf, byte(nextHopToZapiNextHopMap[version][nh.Type]))
 			}
 
-		case nhIfindex, nhIfname:
+		case NEXTHOP_IFINDEX:
 			bbuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+			binary.BigEndian.PutUint32(bbuf, uint32(nextHopToZapiNextHopMap[version][nh.Type]))
 			buf = append(buf, bbuf...)
 
-		case nhIPv4:
+		case NEXTHOP_IPV4:
 			buf = append(buf, nh.Addr.To4()...)
 			if version == 4 {
 
@@ -1985,11 +1957,11 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 				// NEXTHOP_IPV6 have the same structure with
 				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
 				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+				binary.BigEndian.PutUint32(bbuf, uint32(nextHopToZapiNextHopMap[version][NEXTHOP_IFINDEX]))
 				buf = append(buf, bbuf...)
 			}
 
-		case nhIPv6:
+		case NEXTHOP_IPV6:
 			buf = append(buf, nh.Addr.To16()...)
 			if version == 4 {
 
@@ -1997,20 +1969,20 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 				// NEXTHOP_IPV6 have the same structure with
 				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
 				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+				binary.BigEndian.PutUint32(bbuf, uint32(nextHopToZapiNextHopMap[version][NEXTHOP_IFINDEX]))
 				buf = append(buf, bbuf...)
 			}
 
-		case nhIPv4Ifindex, nhIPv4Ifname:
+		case NEXTHOP_IPV4_IFINDEX:
 			buf = append(buf, nh.Addr.To4()...)
 			bbuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+			binary.BigEndian.PutUint32(bbuf, uint32(nextHopToZapiNextHopMap[version][NEXTHOP_IPV4_IFINDEX]))
 			buf = append(buf, bbuf...)
 
-		case nhIPv6Ifindex, nhIPv6Ifname:
+		case NEXTHOP_IPV6_IFINDEX:
 			buf = append(buf, nh.Addr.To16()...)
 			bbuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
+			binary.BigEndian.PutUint32(bbuf, uint32(nextHopToZapiNextHopMap[version][NEXTHOP_IPV6_IFINDEX]))
 			buf = append(buf, bbuf...)
 		}
 
