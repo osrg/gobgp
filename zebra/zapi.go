@@ -598,11 +598,10 @@ const (
 	FRR5_FLAG_EVPN_ROUTE   FLAG = 0x400
 )
 
-// Nexthop types.
+// Nexthop type to be used across all ZAPI versions.
 //go:generate stringer -type=NEXTHOP_TYPE
 type NEXTHOP_TYPE uint8
 
-// For Quagga.
 const (
 	_ NEXTHOP_TYPE = iota
 	NEXTHOP_IFINDEX
@@ -616,9 +615,27 @@ const (
 	NEXTHOP_BLACKHOLE
 )
 
+// Nexthop types use by various ZAPI versions.
+//go:generate stringer -type=ZAPI_NEXTHOP_TYPE
+type ZAPI_NEXTHOP_TYPE uint8
+
+// For Quagga.
+const (
+	_ ZAPI_NEXTHOP_TYPE = iota
+	QUAGGA_NEXTHOP_IFINDEX
+	QUAGGA_NEXTHOP_IFNAME
+	QUAGGA_NEXTHOP_IPV4
+	QUAGGA_NEXTHOP_IPV4_IFINDEX
+	QUAGGA_NEXTHOP_IPV4_IFNAME
+	QUAGGA_NEXTHOP_IPV6
+	QUAGGA_NEXTHOP_IPV6_IFINDEX
+	QUAGGA_NEXTHOP_IPV6_IFNAME
+	QUAGGA_NEXTHOP_BLACKHOLE
+)
+
 // For FRRouting: versions 4 and 5.
 const (
-	_ NEXTHOP_TYPE = iota
+	_ ZAPI_NEXTHOP_TYPE = iota
 	FRR_NEXTHOP_IFINDEX
 	FRR_NEXTHOP_IPV4
 	FRR_NEXTHOP_IPV4_IFINDEX
@@ -1397,10 +1414,10 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 		buf[1] = uint8(b.Flags)
 		buf[2] = uint8(b.Message)
 		binary.BigEndian.PutUint16(buf[3:5], uint16(b.SAFI))
-		nhfIPv4 := uint8(NEXTHOP_IPV4)
-		nhfIPv6 := uint8(NEXTHOP_IPV6)
-		nhfIndx := uint8(NEXTHOP_IFINDEX)
-		nhfBlkH := uint8(NEXTHOP_BLACKHOLE)
+		nhfIPv4 := uint8(QUAGGA_NEXTHOP_IPV4)
+		nhfIPv6 := uint8(QUAGGA_NEXTHOP_IPV6)
+		nhfIndx := uint8(QUAGGA_NEXTHOP_IFINDEX)
+		nhfBlkH := uint8(QUAGGA_NEXTHOP_BLACKHOLE)
 		byteLen := (int(b.PrefixLength) + 7) / 8
 		buf = append(buf, b.PrefixLength)
 		buf = append(buf, b.Prefix[:byteLen]...)
@@ -1696,10 +1713,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 				addr := data[pos : pos+int(addrLen)]
 				nexthop := &Nexthop{}
 				if isV4 {
-					nexthop.Type = NEXTHOP_IPV4
+					nexthop.Type = QUAGGA_NEXTHOP_IPV4
 					nexthop.Addr = net.IP(addr).To4()
 				} else {
-					nexthop.Type = NEXTHOP_IPV6
+					nexthop.Type = QUAGGA_NEXTHOP_IPV6
 					nexthop.Addr = net.IP(addr).To16()
 				}
 				b.Nexthops = append(b.Nexthops, nexthop)
@@ -1834,7 +1851,7 @@ type Nexthop struct {
 	Ifname  string
 	Ifindex uint32
 	VrfId   uint32
-	Type    NEXTHOP_TYPE
+	Type    ZAPI_NEXTHOP_TYPE
 	BhType  BLACKHOLE_TYPE
 	Addr    net.IP
 	Labels  []uint32
@@ -1860,25 +1877,25 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 		buf = append(buf, byte(len(nexthops)))
 	}
 
-	nhBlackHole := NEXTHOP_BLACKHOLE
-	nhIfindex := NEXTHOP_IFINDEX
-	nhIfname := NEXTHOP_IFNAME
-	nhIPv4 := NEXTHOP_IPV4
-	nhIPv4Ifindex := NEXTHOP_IPV4_IFINDEX
-	nhIPv4Ifname := NEXTHOP_IPV4_IFNAME
-	nhIPv6 := NEXTHOP_IPV6
-	nhIPv6Ifindex := NEXTHOP_IPV6_IFINDEX
-	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
+	nhBlackHole := QUAGGA_NEXTHOP_BLACKHOLE
+	nhIfindex := QUAGGA_NEXTHOP_IFINDEX
+	nhIfname := QUAGGA_NEXTHOP_IFNAME
+	nhIPv4 := QUAGGA_NEXTHOP_IPV4
+	nhIPv4Ifindex := QUAGGA_NEXTHOP_IPV4_IFINDEX
+	nhIPv4Ifname := QUAGGA_NEXTHOP_IPV4_IFNAME
+	nhIPv6 := QUAGGA_NEXTHOP_IPV6
+	nhIPv6Ifindex := QUAGGA_NEXTHOP_IPV6_IFINDEX
+	nhIPv6Ifname := QUAGGA_NEXTHOP_IPV6_IFNAME
 	if version >= 4 {
 		nhBlackHole = FRR_NEXTHOP_BLACKHOLE
 		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = NEXTHOP_TYPE(0)
+		nhIfname = ZAPI_NEXTHOP_TYPE(0)
 		nhIPv4 = FRR_NEXTHOP_IPV4
 		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = NEXTHOP_TYPE(0)
+		nhIPv4Ifname = ZAPI_NEXTHOP_TYPE(0)
 		nhIPv6 = FRR_NEXTHOP_IPV6
 		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = NEXTHOP_TYPE(0)
+		nhIPv6Ifname = ZAPI_NEXTHOP_TYPE(0)
 	}
 
 	for _, nh := range nexthops {
@@ -1956,23 +1973,23 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, versi
 	if !isV4 {
 		addrLen = net.IPv6len
 	}
-	nhIfindex := NEXTHOP_IFINDEX
-	nhIfname := NEXTHOP_IFNAME
-	nhIPv4 := NEXTHOP_IPV4
-	nhIPv4Ifindex := NEXTHOP_IPV4_IFINDEX
-	nhIPv4Ifname := NEXTHOP_IPV4_IFNAME
-	nhIPv6 := NEXTHOP_IPV6
-	nhIPv6Ifindex := NEXTHOP_IPV6_IFINDEX
-	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
+	nhIfindex := QUAGGA_NEXTHOP_IFINDEX
+	nhIfname := QUAGGA_NEXTHOP_IFNAME
+	nhIPv4 := QUAGGA_NEXTHOP_IPV4
+	nhIPv4Ifindex := QUAGGA_NEXTHOP_IPV4_IFINDEX
+	nhIPv4Ifname := QUAGGA_NEXTHOP_IPV4_IFNAME
+	nhIPv6 := QUAGGA_NEXTHOP_IPV6
+	nhIPv6Ifindex := QUAGGA_NEXTHOP_IPV6_IFINDEX
+	nhIPv6Ifname := QUAGGA_NEXTHOP_IPV6_IFNAME
 	if version >= 4 {
 		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = NEXTHOP_TYPE(0)
+		nhIfname = ZAPI_NEXTHOP_TYPE(0)
 		nhIPv4 = FRR_NEXTHOP_IPV4
 		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = NEXTHOP_TYPE(0)
+		nhIPv4Ifname = ZAPI_NEXTHOP_TYPE(0)
 		nhIPv6 = FRR_NEXTHOP_IPV6
 		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = NEXTHOP_TYPE(0)
+		nhIPv6Ifname = ZAPI_NEXTHOP_TYPE(0)
 	}
 
 	numNexthop := int(data[0])
@@ -1980,7 +1997,7 @@ func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, versi
 
 	for i := 0; i < numNexthop; i++ {
 		nh := &Nexthop{}
-		nh.Type = NEXTHOP_TYPE(data[offset])
+		nh.Type = ZAPI_NEXTHOP_TYPE(data[offset])
 		offset += 1
 
 		switch nh.Type {
