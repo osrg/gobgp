@@ -225,6 +225,7 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 	}
 	path := paths[0]
 
+	msgFlags := zebra.MESSAGE_NEXTHOP
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var prefix net.IP
 	nexthops := make([]*zebra.Nexthop, 0, len(paths))
@@ -239,13 +240,16 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		}
 
 	case bgp.RF_IPv4_VPN:
+		msgFlags |= zebra.FRR5_MESSAGE_LABEL
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
 			nexthop.Type = zebra.NEXTHOP_IPV4
 			nexthop.Addr = p.GetNexthop().To4()
 			nexthops = append(nexthops, nexthop)
-			// ToDo: do something about labels
+			for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
+				nexthop.Labels = append(nexthop.Labels, label)
+			}
 		}
 
 	case bgp.RF_IPv6_UC:
@@ -258,19 +262,22 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		}
 
 	case bgp.RF_IPv6_VPN:
+		msgFlags |= zebra.FRR5_MESSAGE_LABEL
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
 			nexthop.Type = zebra.NEXTHOP_IPV6
 			nexthop.Addr = p.GetNexthop().To16()
 			nexthops = append(nexthops)
-			// ToDo: do something about labels
+			for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
+				nexthop.Labels = append(nexthop.Labels, label)
+			}
 		}
 
 	default:
 		return nil, false
 	}
-	msgFlags := zebra.MESSAGE_NEXTHOP
+
 	plen, _ := strconv.ParseUint(l[1], 10, 8)
 	med, err := path.GetMed()
 	if err == nil {
