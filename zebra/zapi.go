@@ -1048,7 +1048,9 @@ func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) e
 	}
 	log.WithFields(log.Fields{
 		"Topic": "Zebra",
-	}).Debugf("Sending IP route to zebra: vrfid: %d, route: %+v", vrfId, body)
+		"VrfId": vrfId,
+		"body":  body,
+	}).Debugf("send IP route to zebra")
 	return c.SendCommand(command, vrfId, body)
 }
 
