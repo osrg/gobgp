@@ -119,13 +119,7 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewPathAttributeMpUnreachNLRI(prefixes1),
 		//NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
 		//NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
-		&PathAttributeUnknown{
-			PathAttribute: PathAttribute{
-				Flags: BGP_ATTR_FLAG_TRANSITIVE,
-				Type:  100,
-			},
-			Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-		},
+		NewPathAttributeUnknown(BGP_ATTR_FLAG_TRANSITIVE, 100, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),
 	}
 	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "13.2.3.1")}
 	return NewBGPUpdateMessage(w, p, n)
