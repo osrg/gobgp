@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -503,6 +504,7 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 			}
 		}
 	}
+	debug.PrintStack()
 	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
 }
 
