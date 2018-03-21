@@ -1114,6 +1114,8 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						fsm.marshallingOptions = &bgp.MarshallingOption{
 							AddPath: fsm.rfMap,
 						}
+					} else {
+						fsm.marshallingOptions = nil
 					}
 
 					// calculate HoldTime
