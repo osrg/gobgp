@@ -229,6 +229,11 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var prefix net.IP
 	nexthops := make([]*zebra.Nexthop, 0, len(paths))
+	log.WithFields(log.Fields{
+		"Topic": "Zebra",
+		"Path":  path,
+	}).Debugf("newIPRouteBody")
+
 	switch path.GetRouteFamily() {
 	case bgp.RF_IPv4_UC:
 		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
@@ -251,9 +256,6 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 				nexthop.Labels = append(nexthop.Labels, label)
 			}
 		}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("newIPRouteBody for bgp.RF_IPv4_VPN route")
 
 	case bgp.RF_IPv6_UC:
 		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
