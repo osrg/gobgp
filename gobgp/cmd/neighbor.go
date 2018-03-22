@@ -768,7 +768,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	switch r {
 	case CMD_LOCAL, CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED, CMD_ADJ_OUT:
-		if rib.Info("").NumDestination == 0 {
+		if rib.Info("", 0).NumDestination == 0 {
 			peer, err := client.GetNeighbor(name, false)
 			if err != nil {
 				return err
@@ -806,18 +806,10 @@ func showNeighborRib(r string, name string, args []string) error {
 			switch r {
 			case CMD_ACCEPTED:
 				for _, p := range d.GetAllKnownPathList() {
-					if p.Filtered("") > table.POLICY_DIRECTION_NONE {
-						continue
-					}
 					ps = append(ps, p)
 				}
 			case CMD_REJECTED:
-				for _, p := range d.GetAllKnownPathList() {
-					if p.Filtered("") == table.POLICY_DIRECTION_NONE {
-						continue
-					}
-					ps = append(ps, p)
-				}
+				// always nothing
 			default:
 				ps = d.GetAllKnownPathList()
 			}
@@ -871,8 +863,6 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	var err error
 
 	switch strings.ToLower(policyType) {
-	case "in":
-		assignment, err = client.GetRouteServerInPolicy(remoteIP)
 	case "import":
 		assignment, err = client.GetRouteServerImportPolicy(remoteIP)
 	case "export":
@@ -925,8 +915,6 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 		Name: remoteIP,
 	}
 	switch strings.ToLower(policyType) {
-	case "in":
-		assign.Type = table.POLICY_DIRECTION_IN
 	case "import":
 		assign.Type = table.POLICY_DIRECTION_IMPORT
 	case "export":

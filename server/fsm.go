@@ -897,25 +897,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					return fmsg, err
 				}
 
-				// RFC4271 9.1.2 Phase 2: Route Selection
-				//
-				// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
-				// route should be excluded from the Phase 2 decision function.
-				var asLoop bool
-				if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
-					asLoop = hasOwnASLoop(h.fsm.peerInfo.LocalAS, int(h.fsm.pConf.AsPathOptions.Config.AllowOwnAs), attr.(*bgp.PathAttributeAsPath))
-				}
-
 				fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
-				id := h.fsm.pConf.State.NeighborAddress
-				for _, path := range fmsg.PathList {
-					if path.IsEOR() {
-						continue
-					}
-					if asLoop || (h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path, nil) == nil) {
-						path.Filter(id, table.POLICY_DIRECTION_IN)
-					}
-				}
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:
 				// if the length of h.holdTimerResetCh

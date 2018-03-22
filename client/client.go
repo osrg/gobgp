@@ -718,8 +718,6 @@ func (cli *Client) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
 func (cli *Client) getPolicyAssignment(name string, dir table.PolicyDirection) (*table.PolicyAssignment, error) {
 	var typ api.PolicyType
 	switch dir {
-	case table.POLICY_DIRECTION_IN:
-		typ = api.PolicyType_IN
 	case table.POLICY_DIRECTION_IMPORT:
 		typ = api.PolicyType_IMPORT
 	case table.POLICY_DIRECTION_EXPORT:
@@ -768,10 +766,6 @@ func (cli *Client) GetImportPolicy() (*table.PolicyAssignment, error) {
 
 func (cli *Client) GetExportPolicy() (*table.PolicyAssignment, error) {
 	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_EXPORT)
-}
-
-func (cli *Client) GetRouteServerInPolicy(name string) (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_IN)
 }
 
 func (cli *Client) GetRouteServerImportPolicy(name string) (*table.PolicyAssignment, error) {
