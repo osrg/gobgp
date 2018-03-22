@@ -1096,10 +1096,6 @@ func (r *IPAddrPrefixDefault) serializePrefix(bitLen uint8) ([]byte, error) {
 	return buf, nil
 }
 
-func (r *IPAddrPrefixDefault) Len(options ...*MarshallingOption) int {
-	return 1 + ((int(r.Length) + 7) / 8)
-}
-
 func (r *IPAddrPrefixDefault) String() string {
 	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
 }
@@ -1168,6 +1164,10 @@ func (r *IPAddrPrefix) AFI() uint16 {
 
 func (r *IPAddrPrefix) SAFI() uint8 {
 	return SAFI_UNICAST
+}
+
+func (r *IPAddrPrefix) Len(options ...*MarshallingOption) int {
+	return 1 + ((int(r.Length) + 7) / 8)
 }
 
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
@@ -1676,6 +1676,14 @@ func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_VPN
 }
 
+func (l *LabeledVPNIPAddrPrefix) IPPrefixLen() uint8 {
+	return l.Length - 8*uint8(l.Labels.Len()+l.RD.Len())
+}
+
+func (l *LabeledVPNIPAddrPrefix) Len(options ...*MarshallingOption) int {
+	return 1 + l.Labels.Len() + l.RD.Len() + int((l.IPPrefixLen()+7)/8)
+}
+
 func (l *LabeledVPNIPAddrPrefix) String() string {
 	return fmt.Sprintf("%s:%s", l.RD, l.IPPrefix())
 }
@@ -1752,6 +1760,14 @@ func (r *LabeledIPAddrPrefix) AFI() uint16 {
 
 func (r *LabeledIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
+}
+
+func (l *LabeledIPAddrPrefix) IPPrefixLen() uint8 {
+	return l.Length - 8*uint8(l.Labels.Len())
+}
+
+func (l *LabeledIPAddrPrefix) Len(options ...*MarshallingOption) int {
+	return 1 + l.Labels.Len() + int((l.IPPrefixLen()+7)/8)
 }
 
 func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -2212,6 +2228,11 @@ type EVPNEthernetAutoDiscoveryRoute struct {
 	Label uint32
 }
 
+func (er *EVPNEthernetAutoDiscoveryRoute) Len() int {
+	// RD(8) + ESI(10) + ETag(4) + Label(3)
+	return 25
+}
+
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
@@ -2295,6 +2316,12 @@ type EVPNMacIPAdvertisementRoute struct {
 	IPAddressLength  uint8
 	IPAddress        net.IP
 	Labels           []uint32
+}
+
+func (er *EVPNMacIPAdvertisementRoute) Len() int {
+	// RD(8) + ESI(10) + ETag(4) + MacAddressLength(1) + MacAddress(6)
+	// + IPAddressLength(1) + IPAddress(0, 4 or 16) + Labels(3 or 6)
+	return 30 + int(er.IPAddressLength)/8 + len(er.Labels)*3
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
@@ -2421,6 +2448,11 @@ type EVPNMulticastEthernetTagRoute struct {
 	IPAddress       net.IP
 }
 
+func (er *EVPNMulticastEthernetTagRoute) Len() int {
+	// RD(8) + ETag(4) + IPAddressLength(1) + IPAddress(4 or 16)
+	return 13 + int(er.IPAddressLength)/8
+}
+
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
@@ -2495,6 +2527,11 @@ type EVPNEthernetSegmentRoute struct {
 	ESI             EthernetSegmentIdentifier
 	IPAddressLength uint8
 	IPAddress       net.IP
+}
+
+func (er *EVPNEthernetSegmentRoute) Len() int {
+	// RD(8) + ESI(10) + IPAddressLength(1) + IPAddress(4 or 16)
+	return 19 + int(er.IPAddressLength)/8
 }
 
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
@@ -2573,6 +2610,13 @@ type EVPNIPPrefixRoute struct {
 	IPPrefix       net.IP
 	GWIPAddress    net.IP
 	Label          uint32
+}
+
+func (er *EVPNIPPrefixRoute) Len() int {
+	if er.IPPrefix.To4() != nil {
+		return 34
+	}
+	return 58
 }
 
 func (er *EVPNIPPrefixRoute) DecodeFromBytes(data []byte) error {
@@ -2693,6 +2737,7 @@ func (er *EVPNIPPrefixRoute) rd() RouteDistinguisherInterface {
 }
 
 type EVPNRouteTypeInterface interface {
+	Len() int
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	String() string
@@ -2887,6 +2932,10 @@ func (n *EncapNLRI) AFI() uint16 {
 
 func (n *EncapNLRI) SAFI() uint8 {
 	return SAFI_ENCAPSULATION
+}
+
+func (n *EncapNLRI) Len(options ...*MarshallingOption) int {
+	return 1 + len(n.Prefix)
 }
 
 func NewEncapNLRI(endpoint string) *EncapNLRI {
