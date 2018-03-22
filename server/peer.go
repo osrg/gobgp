@@ -300,7 +300,9 @@ func (peer *Peer) markLLGRStale(fs []bgp.RouteFamily) []*table.Path {
 }
 
 func (peer *Peer) stopPeerRestarting() {
+	peer.fsm.mu.Lock()
 	peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+	peer.fsm.mu.Unlock()
 	for _, ch := range peer.llgrEndChs {
 		close(ch)
 	}
@@ -576,7 +578,9 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 }
 
 func (peer *Peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *FsmMsg) {
+	peer.fsm.mu.Lock()
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
+	peer.fsm.mu.Unlock()
 }
 
 func (peer *Peer) StaleAll(rfList []bgp.RouteFamily) {
@@ -596,8 +600,9 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 }
 
 func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
-	// create copy which can be access to without mutex
+	peer.fsm.mu.RLock()
 	conf := *peer.fsm.pConf
+	peer.fsm.mu.RUnlock()
 
 	conf.AfiSafis = make([]config.AfiSafi, len(peer.fsm.pConf.AfiSafis))
 	for i, af := range peer.fsm.pConf.AfiSafis {

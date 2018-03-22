@@ -8,7 +8,7 @@ _dep_ensure: &_dep_ensure
 _unittest: &_unittest
   <<: *_dep_ensure
   script:
-    - go test $(go list ./... | grep -v '/vendor/')
+    - go test -race $(go list ./... | grep -v '/vendor/')
     - go build -o ./gobgp/gobgp   ./gobgp/
     - go build -o ./gobgpd/gobgpd ./gobgpd/
 
