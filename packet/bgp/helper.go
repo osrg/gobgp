@@ -92,17 +92,17 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	prefixes5 := []AddrPrefixInterface{
-		NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0,
+		NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
 			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2}),
-		NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0,
+		NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
 			&EVPNMacIPAdvertisementRoute{NewRouteDistinguisherFourOctetAS(5, 6),
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 3, 48,
 				mac, 32, net.ParseIP("192.2.1.2"),
 				[]uint32{3, 4}}),
-		NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0,
+		NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG,
 			&EVPNMulticastEthernetTagRoute{NewRouteDistinguisherFourOctetAS(5, 6), 3, 32, net.ParseIP("192.2.1.2")}),
-		NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE, 0,
+		NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE,
 			&EVPNEthernetSegmentRoute{NewRouteDistinguisherFourOctetAS(5, 6),
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)},
 				32, net.ParseIP("192.2.1.1")}),

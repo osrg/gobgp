@@ -1194,7 +1194,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 				IPAddress:        old.IPAddress,
 				Labels:           old.Labels,
 			}
-			nlri = bgp.NewEVPNNLRI(n.RouteType, n.Length, new)
+			nlri = bgp.NewEVPNNLRI(n.RouteType, new)
 		case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
 			old := n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute)
 			new := &bgp.EVPNMulticastEthernetTagRoute{
@@ -1203,7 +1203,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 				IPAddressLength: old.IPAddressLength,
 				IPAddress:       old.IPAddress,
 			}
-			nlri = bgp.NewEVPNNLRI(n.RouteType, n.Length, new)
+			nlri = bgp.NewEVPNNLRI(n.RouteType, new)
 		}
 	default:
 		return p

@@ -2855,11 +2855,15 @@ func (n *EVPNNLRI) RD() RouteDistinguisherInterface {
 	return n.RouteTypeData.rd()
 }
 
-func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
+func NewEVPNNLRI(routeType uint8, routeTypeData EVPNRouteTypeInterface) *EVPNNLRI {
+	var l uint8
+	if routeTypeData != nil {
+		l = uint8(routeTypeData.Len())
+	}
 	return &EVPNNLRI{
-		RouteType:     routetype,
-		Length:        length,
-		RouteTypeData: routetypedata,
+		RouteType:     routeType,
+		Length:        l,
+		RouteTypeData: routeTypeData,
 	}
 }
 
@@ -4681,7 +4685,7 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_IPv6_MPLS:
 		prefix = NewLabeledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_EVPN:
-		prefix = NewEVPNNLRI(0, 0, nil)
+		prefix = NewEVPNNLRI(0, nil)
 	case RF_RTC_UC:
 		prefix = &RouteTargetMembershipNLRI{}
 	case RF_IPv4_ENCAP:
