@@ -460,7 +460,7 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 		ETag:  etag,
 		Label: label,
 	}
-	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0, r), extcomms, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, r), extcomms, nil
 }
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -577,7 +577,7 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		Labels:           labels,
 		ETag:             uint32(eTag),
 	}
-	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, r), extcomms, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, r), extcomms, nil
 }
 
 func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -651,7 +651,7 @@ func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 		IPAddress:       ip,
 		ETag:            uint32(eTag),
 	}
-	return bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0, r), extcomms, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, r), extcomms, nil
 }
 
 func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -715,7 +715,7 @@ func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 		IPAddressLength: uint8(ipLen),
 		IPAddress:       ip,
 	}
-	return bgp.NewEVPNNLRI(bgp.EVPN_ETHERNET_SEGMENT_ROUTE, 0, r), extcomms, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_ETHERNET_SEGMENT_ROUTE, r), extcomms, nil
 }
 
 func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -803,7 +803,7 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		GWIPAddress:    gw,
 		Label:          label,
 	}
-	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, 0, r), extcomms, nil
+	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, r), extcomms, nil
 }
 
 func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
