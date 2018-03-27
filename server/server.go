@@ -251,7 +251,11 @@ func (server *BgpServer) Serve() {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 				}).Debugf("Accepted a new dynamic neighbor from:%s", remoteAddr)
-				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, pg.Conf, server.globalRib, server.policy)
+				rib := server.globalRib
+				if pg.Conf.RouteServer.Config.RouteServerClient {
+					rib = server.rsRib
+				}
+				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, pg.Conf, rib, server.policy)
 				if peer == nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
