@@ -26,28 +26,30 @@ $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 ## Documentation
 
 ### Using GoBGP
- * [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
- * CLI
-   * [Typical operation examples](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
-   * [Complete syntax](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-command-syntax.md)
- * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
- * [Route Reflector](https://github.com/osrg/gobgp/blob/master/docs/sources/route-reflector.md)
- * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
- * [FIB manipulation](https://github.com/osrg/gobgp/blob/master/docs/sources/zebra.md)
- * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
- * [BMP](https://github.com/osrg/gobgp/blob/master/docs/sources/bmp.md)
- * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
- * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
- * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
- * [Managing GoBGP with your favorite language with GRPC](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
- * [Using GoBGP as a Go Native BGP library](https://github.com/osrg/gobgp/blob/master/docs/sources/lib.md)
- * [Graceful Restart](https://github.com/osrg/gobgp/blob/master/docs/sources/graceful-restart.md)
- * Data Center Networking
-   * [Unnumbered BGP](https://github.com/osrg/gobgp/blob/master/docs/sources/unnumbered-bgp.md)
+
+- [Getting Started](docs/sources/getting-started.md)
+- CLI
+  - [Typical operation examples](docs/sources/cli-operations.md)
+  - [Complete syntax](docs/sources/cli-command-syntax.md)
+- [Route Server](docs/sources/route-server.md)
+- [Route Reflector](docs/sources/route-reflector.md)
+- [Policy](docs/sources/policy.md)
+- [FIB manipulation](docs/sources/zebra.md)
+- [MRT](docs/sources/mrt.md)
+- [BMP](docs/sources/bmp.md)
+- [EVPN](docs/sources/evpn.md)
+- [Flowspec](docs/sources/flowspec.md)
+- [RPKI](docs/sources/rpki.md)
+- [Managing GoBGP with your favorite language with gRPC](docs/sources/grpc-client.md)
+- [Using GoBGP as a Go Native BGP library](docs/sources/lib.md)
+- [Graceful Restart](docs/sources/graceful-restart.md)
+- Data Center Networking
+  - [Unnumbered BGP](docs/sources/unnumbered-bgp.md)
 
 ### Externals
- * [Tutorial: Using GoBGP as an IXP connecting router](http://www.slideshare.net/shusugimoto1986/tutorial-using-gobgp-as-an-ixp-connecting-router)
- 
+
+- [Tutorial: Using GoBGP as an IXP connecting router](http://www.slideshare.net/shusugimoto1986/tutorial-using-gobgp-as-an-ixp-connecting-router)
+
 ## Community, discussion and support
 
 We have the [Slack](https://slackin-gobgp.mybluemix.net/) and [mailing

@@ -28,8 +28,8 @@ If you don't like `toml`, you can use `json`, `yaml` and `hcl` instead.
     peer-as = 65002
 ```
 
-see [here](https://github.com/osrg/gobgp/blob/master/docs/sources/configuration.md) for
-more complicated configuration.
+See [Configuration Example](configuration.md) for more complicated
+configuration.
 
 ## Starting GoBGP
 
@@ -100,6 +100,7 @@ BGP neighbor is 10.0.255.1, remote AS 65001
 ```
 
 Check out the global table.
+
 ```bash
 $ gobgp global rib
    Network            Next Hop        AS_PATH    Age        Attrs
