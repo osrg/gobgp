@@ -1,4 +1,4 @@
-# Configuration example
+# Configuration Example
 
 ```toml
 [global.config]

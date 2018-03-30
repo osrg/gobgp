@@ -253,7 +253,7 @@ Then the following example shows two OSS BGP implementations can interchange EVP
 
 Topology:
 
-```
+```text
            +------------+
            | GoBGP (RR) |
      +-----| AS 65000   |-----+
@@ -429,7 +429,7 @@ with eBGP and GoBGP interchanges EVPN routes from one YABGP peer to another.
 
 Topology:
 
-```
+```text
            +------------+
            | GoBGP      |
      +-----| AS 65254   |-----+
@@ -501,7 +501,7 @@ In the REST request, you need to specify the `Authorization` header is `admin/ad
 
 Request URL for sending UPDATE messages:
 
-```
+```text
 POST http://10.0.0.1:8801/v1/peer/10.0.0.254/send/update
 ```
 
@@ -608,6 +608,7 @@ curl -X POST -u admin:admin -H 'Content-Type: application/json' http://10.0.0.1:
     }
 }'
 ```
+
 EVPN type 4:
 
 ```bash
