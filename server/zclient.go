@@ -565,6 +565,11 @@ func (z *zebraClient) loop() {
 								if vrf != nil {
 									body.Tag = vrf.MplsLabel()
 								}
+								log.WithFields(log.Fields{
+									"Topic": "Zebra",
+									"VRF":   vrf,
+									"Path":  path,
+								}).Debugf("About to call SendIPRoute")
 								z.client.SendIPRoute(uint32(i), body, isWithdraw)
 							}
 							if body, isWithdraw := newNexthopRegisterBody(pathList{path}, z.nhtManager); body != nil {
