@@ -1056,6 +1056,12 @@ message LocalPrefAction {
   uint32 value = 1;
 }
 
+message AsAppendAction {
+  uint32 asn = 1;
+  uint32 repeat = 2;
+  bool use_right_most = 3;
+}
+
 message Actions {
   RouteAction route_action = 1;
   CommunityAction community = 2;
@@ -1065,6 +1071,7 @@ message Actions {
   NexthopAction nexthop = 6;
   LocalPrefAction local_pref = 7;
   CommunityAction large_community = 8;
+  AsAppendAction as_append = 9;
 }
 
 message Statement {
