@@ -18,6 +18,10 @@ _build: &_build
     - go build -o ./gobgp/gobgp   ./gobgp/
     - go build -o ./gobgpd/gobgpd ./gobgpd/
 
+_node_js: &_node_js
+  language: node_js
+  node_js: "node"
+
 _python: &_python
   language: python
   python: "2.7"
@@ -194,6 +198,13 @@ matrix:
 #
 # Tools
 #
+    - <<: *_node_js
+      env:
+        - DESCRIPTION="markdownlint"
+      before_script:
+        - npm install -g markdownlint-cli
+      script:
+        - markdownlint $(find . -type f -name '*.md' | grep -v '/vendor/')
     - <<: *_python
       env:
         - DESCRIPTION="Tools"
