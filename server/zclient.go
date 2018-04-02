@@ -556,6 +556,10 @@ func (z *zebraClient) loop() {
 							path.VrfIds = []uint16{0}
 						}
 						for _, i := range path.VrfIds {
+							log.WithFields(log.Fields{
+								"Topic":  "Zebra",
+								"VRF ID": i,
+							}).Debugf("Processing path for a VRF")
 							vrf := getVrf(uint32(i))
 							family := path.GetRouteFamily()
 							if (i == zebra.VRF_DEFAULT) && (family == bgp.RF_IPv4_VPN || family == bgp.RF_IPv4_VPN) {
