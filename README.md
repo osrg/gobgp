@@ -34,7 +34,9 @@ $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 - [Route Server](docs/sources/route-server.md)
 - [Route Reflector](docs/sources/route-reflector.md)
 - [Policy](docs/sources/policy.md)
-- [FIB manipulation](docs/sources/zebra.md)
+- Zebra Integration
+  - [FIB manipulation](docs/sources/zebra.md)
+  - [Equal Cost Multipath Routing](docs/sources/zebra-multipath.md)
 - [MRT](docs/sources/mrt.md)
 - [BMP](docs/sources/bmp.md)
 - [EVPN](docs/sources/evpn.md)
@@ -43,6 +45,11 @@ $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 - [Managing GoBGP with your favorite language with gRPC](docs/sources/grpc-client.md)
 - [Using GoBGP as a Go Native BGP library](docs/sources/lib.md)
 - [Graceful Restart](docs/sources/graceful-restart.md)
+- [Additional Paths](docs/sources/add-paths.md)
+- [Peer Group](docs/sources/peer-group.md)
+- [Dynamic Neighbor](docs/sources/dynamic-neighbor.md)
+- [eBGP Multihop](docs/sources/ebgp-multihop.md)
+- [TTL Security](docs/sources/ttl-security.md)
 - Data Center Networking
   - [Unnumbered BGP](docs/sources/unnumbered-bgp.md)
 
