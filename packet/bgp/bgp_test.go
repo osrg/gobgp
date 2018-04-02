@@ -585,7 +585,7 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 		GWIPAddress:    net.IP{10, 10, 10, 10},
 		Label:          1000,
 	}
-	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, 0, r)
+	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_EVPN))
@@ -722,13 +722,13 @@ func Test_AddPath(t *testing.T) {
 	}
 	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_EVPN: BGP_ADD_PATH_BOTH}}
 	{
-		n1 := NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0,
+		n1 := NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
 			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2})
 		n1.SetPathLocalIdentifier(40)
 		bits, err := n1.Serialize(opt)
 		assert.Nil(err)
-		n2 := NewEVPNNLRI(0, 0, nil)
+		n2 := NewEVPNNLRI(0, nil)
 		err = n2.DecodeFromBytes(bits, opt)
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(40))
