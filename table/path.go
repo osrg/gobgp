@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -1242,6 +1243,12 @@ func (p *Path) ToLocal() *Path {
 		path.setPathAttr(bgp.NewPathAttributeNextHop(nh.String()))
 	}
 	path.IsNexthopInvalid = p.IsNexthopInvalid
+	log.WithFields(log.Fields{
+		"Topic":         "Path",
+		"OriginalPath":  p,
+		"LocalizedPath": path,
+	}).Debugf("Converted path to local path")
+	debug.PrintStack()
 	return path
 }
 
