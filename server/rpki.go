@@ -65,9 +65,9 @@ func (r roas) Less(i, j int) bool {
 	r1 := r[i]
 	r2 := r[j]
 
-	if r1.MaxLen < r1.MaxLen {
+	if r1.MaxLen < r2.MaxLen {
 		return true
-	} else if r1.MaxLen > r1.MaxLen {
+	} else if r1.MaxLen > r2.MaxLen {
 		return false
 	}
 
