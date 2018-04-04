@@ -443,31 +443,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		}
 	}
 
-	if peer.ID() == path.GetSource().Address.String() {
-		// Note: multiple paths having the same prefix could exist the
-		// withdrawals list in the case of Route Server setup with
-		// import policies modifying paths. In such case, gobgp sends
-		// duplicated update messages; withdraw messages for the same
-		// prefix.
-		if !peer.isRouteServerClient() {
-			// Say, peer A and B advertized same prefix P, and
-			// best path calculation chose a path from B as best.
-			// When B withdraws prefix P, best path calculation chooses
-			// the path from A as best.
-			// For peers other than A, this path should be advertised
-			// (as implicit withdrawal). However for A, we should advertise
-			// the withdrawal path.
-			// Thing is same when peer A and we advertized prefix P (as local
-			// route), then, we withdraws the prefix.
-			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
-				return old.Clone(true)
-			}
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.ID(),
-			"Data":  path,
-		}).Debug("From me, ignore.")
+	if path = peer.filterPathFromSourcePeer(path, old); path == nil {
 		return nil
 	}
 

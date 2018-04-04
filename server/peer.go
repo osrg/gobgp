@@ -21,10 +21,11 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -313,22 +314,38 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 }
 
 func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
-	// special handling for RTC nlri
-	// see comments in (*Destination).Calculate()
+	// Special handling for RTM NLRI.
 	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
+		// If the given "path" is locally generated and the same with "old", we
+		// assumes "path" was already sent before. This assumption avoids the
+		// infinite UPDATE loop between Route Reflector and its clients.
+		if path.IsLocal() && path == old {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.fsm.pConf.State.NeighborAddress,
+				"Path":  path,
+			}).Debug("given rtm nlri is already sent, skipping to advertise")
+			return nil
+		}
 
-		// If we already sent the same nlri, send unnecessary
-		// update. Fix this after the API change between table
-		// and server packages.
-
-		dst := peer.localRib.GetDestination(path)
-		path = nil
-		// we send a path even if it is not a best path
-		for _, p := range dst.GetKnownPathList(peer.TableID()) {
-			// just take care not to send back it
-			if peer.ID() != p.GetSource().Address.String() {
-				path = p
-				break
+		if old != nil && old.IsLocal() {
+			// We assumes VRF with the specific RT is deleted.
+			path = old.Clone(true)
+		} else if peer.isRouteReflectorClient() {
+			// We need to send the path even if the peer is originator of the
+			// path in order to signal that the client should distribute route
+			// with the given RT.
+		} else {
+			// We send a path even if it is not the best path. See comments in
+			// (*Destination) GetChanges().
+			dst := peer.localRib.GetDestination(path)
+			path = nil
+			for _, p := range dst.GetKnownPathList(peer.TableID()) {
+				// Just take care not to send back.
+				if peer.ID() != p.GetSource().Address.String() {
+					path = p
+					break
+				}
 			}
 		}
 	}
@@ -363,7 +380,7 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		Info: peer.fsm.peerInfo,
 	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
-	// When 'path' is filetered (path == nil), check 'old' has been sent to this peer.
+	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
 	if path == nil && old != nil {
 		o := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
@@ -393,6 +410,41 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		path.RemoveLocalPref()
 	}
 	return path
+}
+
+func (peer *Peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
+	if peer.ID() != path.GetSource().Address.String() {
+		return path
+	}
+
+	// Note: Multiple paths having the same prefix could exist the withdrawals
+	// list in the case of Route Server setup with import policies modifying
+	// paths. In such case, gobgp sends duplicated update messages; withdraw
+	// messages for the same prefix.
+	if !peer.isRouteServerClient() {
+		if peer.isRouteReflectorClient() && path.GetRouteFamily() == bgp.RF_RTC_UC {
+			// When the peer is a Route Reflector client and the given path
+			// contains the Route Tartget Membership NLRI, the path should not
+			// be withdrawn in order to signal the client to distribute routes
+			// with the specific RT to Route Reflector.
+			return path
+		} else if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
+			// Say, peer A and B advertized same prefix P, and best path
+			// calculation chose a path from B as best. When B withdraws prefix
+			// P, best path calculation chooses the path from A as best. For
+			// peers other than A, this path should be advertised (as implicit
+			// withdrawal). However for A, we should advertise the withdrawal
+			// path. Thing is same when peer A and we advertized prefix P (as
+			// local route), then, we withdraws the prefix.
+			return old.Clone(true)
+		}
+	}
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   peer.ID(),
+		"Data":  path,
+	}).Debug("From me, ignore.")
+	return nil
 }
 
 func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
