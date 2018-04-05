@@ -363,6 +363,8 @@ func printStatement(indent int, s *table.Statement) {
 			fmt.Println(ind, "LocalPref: ", t.String())
 		case *table.AsPathPrependAction:
 			fmt.Println(ind, "ASPathPrepend: ", t.String())
+		case *table.AsPathAppendAction:
+			fmt.Println(ind, "ASPathAppend: ", t.String())
 		case *table.NexthopAction:
 			fmt.Println(ind, "Nexthop: ", t.String())
 		}
@@ -664,7 +666,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | large-community | med | local-pref | as-prepend | next-hop }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | large-community | med | local-pref | as-prepend | as-append | next-hop }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -755,6 +757,16 @@ func modAction(name, op string, args []string) error {
 			return err
 		}
 		stmt.Actions.BgpActions.SetAsPathPrepend.RepeatN = uint8(repeat)
+	case "as-append":
+		if len(args) < 2 {
+			return fmt.Errorf("%s as-append { <asn> | first-as } <repeat-value>", usage)
+		}
+		stmt.Actions.BgpActions.SetAsPathAppend.As = args[0]
+		repeat, err := strconv.ParseUint(args[1], 10, 8)
+		if err != nil {
+			return err
+		}
+		stmt.Actions.BgpActions.SetAsPathAppend.RepeatN = uint8(repeat)
 	case "next-hop":
 		if len(args) != 1 {
 			return fmt.Errorf("%s next-hop { <value> | self }", usage)
