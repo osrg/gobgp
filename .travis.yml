@@ -183,6 +183,9 @@ matrix:
         - TEST=vrf_neighbor_test2.py
     - <<: *_docker
       env:
+        - TEST=rtc_test.py
+    - <<: *_docker
+      env:
         - TEST=bgp_unnumbered_test.py
     - <<: *_docker
       env:
