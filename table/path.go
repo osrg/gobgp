@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"runtime/debug"
+	//"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -1248,7 +1248,7 @@ func (p *Path) ToLocal() *Path {
 		"OriginalPath":  p,
 		"LocalizedPath": path,
 	}).Debugf("Converted path to local path")
-	debug.PrintStack()
+	// debug.PrintStack()
 	return path
 }
 

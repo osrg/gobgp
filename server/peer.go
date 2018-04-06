@@ -346,6 +346,10 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		} else {
 			return nil
 		}
+		log.WithFields(log.Fields{
+			"Topic": "Path",
+			"path":  path,
+		}).Debugf("filterpath(): after path is localized for VRF")
 	}
 
 	// replace-peer-as handling
@@ -392,6 +396,10 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	if path != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
 		path.RemoveLocalPref()
 	}
+	log.WithFields(log.Fields{
+		"Topic": "Path",
+		"path":  path,
+	}).Debugf("filterpath(): returning path")
 	return path
 }
 
