@@ -348,8 +348,9 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		}
 		log.WithFields(log.Fields{
 			"Topic": "Path",
-			"path":  path,
-		}).Debugf("filterpath(): after path is localized for VRF")
+			"Path":  path,
+			"Peer":  peer,
+		}).Debugf("filterpath(): localized path for VRF")
 	}
 
 	// replace-peer-as handling
@@ -398,8 +399,9 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	}
 	log.WithFields(log.Fields{
 		"Topic": "Path",
-		"path":  path,
-	}).Debugf("filterpath(): returning path")
+		"Path":  path,
+		"Peer":  peer,
+	}).Debugf("filterpath(): exit")
 	return path
 }
 
