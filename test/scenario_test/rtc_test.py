@@ -74,20 +74,20 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_gobgp_adj_rib_out(self):
         time.sleep(2)
-        self.assertTrue(len(self.g1.get_adj_rib_out(self.g2, rf='ipv4-l3vpn')) == 1)
-        self.assertTrue(len(self.g2.get_adj_rib_out(self.g1, rf='ipv4-l3vpn')) == 1)
+        self.assertEqual(1, len(self.g1.get_adj_rib_out(self.g2, rf='ipv4-l3vpn')))
+        self.assertEqual(1, len(self.g2.get_adj_rib_out(self.g1, rf='ipv4-l3vpn')))
 
     def test_03_add_vrf(self):
         self.g1.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
         time.sleep(2)
-        self.assertTrue(len(self.g1.get_adj_rib_out(self.g2, rf='rtc')) == 3)
-        self.assertTrue(len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')) == 2)
+        self.assertEqual(3, len(self.g1.get_adj_rib_out(self.g2, rf='rtc')))
+        self.assertEqual(2, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
 
     def test_04_del_vrf(self):
         self.g1.local("gobgp vrf del vrf1")
         time.sleep(2)
-        self.assertTrue(len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')) == 1)
-        self.assertTrue(len(self.g1.get_adj_rib_out(self.g2, rf='rtc')) == 2)
+        self.assertEqual(2, len(self.g1.get_adj_rib_out(self.g2, rf='rtc')))
+        self.assertEqual(1, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
 
     def test_05_rr_setup(self):
         gobgp_ctn_image_name = parser_option.gobgp_image
@@ -131,12 +131,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         def check_rtc(client):
             rib = g3.get_adj_rib_out(client, rf='rtc')
-            self.assertTrue(len(rib) == 1)
+            self.assertEqual(1, len(rib))
             path = rib[0]
-            self.assertTrue(path['nexthop'] == g3.peers[client]['local_addr'].split('/')[0])
+            self.assertEqual(g3.peers[client]['local_addr'].split('/')[0], path['nexthop'])
             ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
-            self.assertTrue(len(ids) == 1)
-            self.assertTrue(ids[0] == g3.router_id)
+            self.assertEqual(1, len(ids))
+            self.assertEqual(g3.router_id, ids[0])
 
         check_rtc(g4)
         check_rtc(g5)
@@ -147,12 +147,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         def check_ipv4_l3vpn(client):
             rib = g3.get_adj_rib_out(client, rf='ipv4-l3vpn')
-            self.assertTrue(len(rib) == 1)
+            self.assertEqual(1, len(rib))
             path = rib[0]
-            self.assertTrue(path['nexthop'] != g3.peers[client]['local_addr'].split('/')[0])
+            self.assertNotEqual(g3.peers[client]['local_addr'].split('/')[0], path['nexthop'])
             ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
-            self.assertTrue(len(ids) == 1)
-            self.assertTrue(ids[0] != client.router_id)
+            self.assertEqual(1, len(ids))
+            self.assertNotEqual(client.router_id, ids[0])
 
         check_ipv4_l3vpn(g4)
         check_ipv4_l3vpn(g5)
@@ -182,43 +182,43 @@ class GoBGPTestBase(unittest.TestCase):
         g4 = self.ctns['g4']
         g5 = self.ctns['g5']
 
-        self.assertTrue(len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 0)
-        self.assertTrue(len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 0)
+        self.assertEqual(0, len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
 
         g1.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
         g1.local("gobgp vrf vrf1 rib add 10.0.0.0/24")
 
         time.sleep(1)
 
-        self.assertTrue(len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
-        self.assertTrue(len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 0)
-        self.assertTrue(len(g3.get_adj_rib_in(g1, rf='ipv4-l3vpn')) == 1)
-        self.assertTrue(len(g3.get_adj_rib_in(g2, rf='ipv4-l3vpn')) == 0)
-        self.assertTrue(len(g4.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
-        self.assertTrue(len(g5.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
+        self.assertEqual(2, len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(1, len(g3.get_adj_rib_in(g1, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(g3.get_adj_rib_in(g2, rf='ipv4-l3vpn')))
+        self.assertEqual(2, len(g4.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(2, len(g5.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
 
         g2.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
         g2.local("gobgp vrf vrf2 rib add 20.0.0.0/24")
 
         time.sleep(1)
 
-        self.assertTrue(len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
-        self.assertTrue(len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 0)
-        self.assertTrue(len(g3.get_adj_rib_in(g1, rf='ipv4-l3vpn')) == 1)
-        self.assertTrue(len(g3.get_adj_rib_in(g2, rf='ipv4-l3vpn')) == 0)
-        self.assertTrue(len(g4.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
-        self.assertTrue(len(g5.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
+        self.assertEqual(2, len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(1, len(g3.get_adj_rib_in(g1, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(g3.get_adj_rib_in(g2, rf='ipv4-l3vpn')))
+        self.assertEqual(2, len(g4.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(2, len(g5.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
 
         g4.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
 
         time.sleep(1)
 
-        self.assertTrue(len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
-        self.assertTrue(len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 0)
-        self.assertTrue(len(g3.get_adj_rib_in(g1, rf='ipv4-l3vpn')) == 1)
-        self.assertTrue(len(g3.get_adj_rib_in(g2, rf='ipv4-l3vpn')) == 1)
-        self.assertTrue(len(g4.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 3)
-        self.assertTrue(len(g5.get_adj_rib_in(g3, rf='ipv4-l3vpn')) == 2)
+        self.assertEqual(2, len(g1.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(g2.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(1, len(g3.get_adj_rib_in(g1, rf='ipv4-l3vpn')))
+        self.assertEqual(1, len(g3.get_adj_rib_in(g2, rf='ipv4-l3vpn')))
+        self.assertEqual(3, len(g4.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
+        self.assertEqual(2, len(g5.get_adj_rib_in(g3, rf='ipv4-l3vpn')))
 
 
 if __name__ == '__main__':
