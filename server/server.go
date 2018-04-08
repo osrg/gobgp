@@ -701,7 +701,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 	}
 }
 
-func dstsToPaths(id string, as uint32, dsts []*table.Destination) ([]*table.Path, []*table.Path, [][]*table.Path) {
+func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path) {
 	bestList := make([]*table.Path, 0, len(dsts))
 	oldList := make([]*table.Path, 0, len(dsts))
 	mpathList := make([][]*table.Path, 0, len(dsts))
@@ -717,7 +717,7 @@ func dstsToPaths(id string, as uint32, dsts []*table.Destination) ([]*table.Path
 	return bestList, oldList, mpathList
 }
 
-func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table.Path, dsts []*table.Destination, needOld bool) {
+func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
 	if table.SelectionOptions.DisableBestPathSelection {
 		return
 	}
