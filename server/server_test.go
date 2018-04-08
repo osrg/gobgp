@@ -269,7 +269,7 @@ func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*
 }
 
 func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
-	dsts := make([]*table.Destination, 0)
+	dsts := make([]*table.Update, 0)
 	for _, path := range l {
 		dsts = append(dsts, rib.Update(path)...)
 	}

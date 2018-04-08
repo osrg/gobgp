@@ -31,7 +31,7 @@ import (
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	pathList := make([]*Path, 0)
-	dsts := make([]*Destination, 0)
+	dsts := make([]*Update, 0)
 	for _, path := range ProcessMessage(message, fromPeer, time.Now()) {
 		dsts = append(dsts, manager.Update(path)...)
 	}

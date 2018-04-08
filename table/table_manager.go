@@ -180,15 +180,15 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (tm *TableManager) update(newPath *Path) *Destination {
+func (tm *TableManager) update(newPath *Path) *Update {
 	t := tm.Tables[newPath.GetRouteFamily()]
 	t.validatePath(newPath)
 	dst := t.getOrCreateDest(newPath.GetNlri())
-	d := dst.Calculate(newPath)
+	u := dst.Calculate(newPath)
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)
 	}
-	return d
+	return u
 }
 
 func (manager *TableManager) GetPathListByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Path {
@@ -206,24 +206,24 @@ func (manager *TableManager) GetPathListByPeer(info *PeerInfo, rf bgp.RouteFamil
 	return nil
 }
 
-func (manager *TableManager) Update(newPath *Path) []*Destination {
+func (manager *TableManager) Update(newPath *Path) []*Update {
 	if newPath == nil || newPath.IsEOR() {
 		return nil
 	}
 
-	// normally, we'll have one destination.
-	dsts := make([]*Destination, 0, 1)
+	// Except for a special case with EVPN, we'll have one destination.
+	updates := make([]*Update, 0, 1)
 	family := newPath.GetRouteFamily()
 	if _, ok := manager.Tables[family]; ok {
-		dsts = append(dsts, manager.update(newPath))
+		updates = append(updates, manager.update(newPath))
 
 		if family == bgp.RF_EVPN {
 			for _, p := range manager.handleMacMobility(newPath) {
-				dsts = append(dsts, manager.update(p))
+				updates = append(updates, manager.update(p))
 			}
 		}
 	}
-	return dsts
+	return updates
 }
 
 // EVPN MAC MOBILITY HANDLING
