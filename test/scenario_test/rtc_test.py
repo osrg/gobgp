@@ -34,6 +34,9 @@ class GoBGPTestBase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # +----+              +----+
+        # | g1 |----(iBGP)----| g2 |
+        # +----+              +----+
         gobgp_ctn_image_name = parser_option.gobgp_image
         base.TEST_PREFIX = parser_option.test_prefix
 
@@ -90,6 +93,16 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(1, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
 
     def test_05_rr_setup(self):
+        #               +------+
+        #               |  g3  |
+        #        +------| (RR) |------+
+        #        |      +------+      |
+        #      (iBGP)              (iBGP)
+        #        |                    |
+        # +-------------+      +-------------+
+        # |     g4      |      |     g5      |
+        # | (RR Client) |      | (RR Client) |
+        # +-------------+      +-------------+
         gobgp_ctn_image_name = parser_option.gobgp_image
         g3 = GoBGPContainer(name='g3', asn=65000, router_id='192.168.0.3',
                             ctn_image_name=gobgp_ctn_image_name,
@@ -158,6 +171,24 @@ class GoBGPTestBase(unittest.TestCase):
         check_ipv4_l3vpn(g5)
 
     def test_08_rr_setup2(self):
+        # +----------+            +----------+
+        # |    g1    |---(iBGP)---|    g2    |
+        # | (Non RR  |            | (Non RR  |
+        # |  Client) |            |  Client) |
+        # +----------+            +----------+
+        #      |                        |
+        #      +--(iBGP)--+  +--(iBGP)--+
+        #                 |  |
+        #               +------+
+        #               |  g3  |
+        #        +------| (RR) |------+
+        #        |      +------+      |
+        #      (iBGP)              (iBGP)
+        #        |                    |
+        # +-------------+      +-------------+
+        # |     g4      |      |     g5      |
+        # | (RR Client) |      | (RR Client) |
+        # +-------------+      +-------------+
         g1 = self.ctns['g1']
         g2 = self.ctns['g2']
         g3 = self.ctns['g3']
