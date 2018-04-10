@@ -63,20 +63,14 @@ The following figure shows how policy works in
 
 ![route server policy model](./rs-policy.png)
 
-In route server mode, adding to **Import** and **Export**, we have **In**
-policy.
-
-**Import** and **Export** policies are defined with respect to the
-local routing table. The **Import** policy defines what routes will be
-imported into its local RIBs. The **Export** policy defines what
-routes will be exported from its local RIBs. **In** polices are
-defined with respect to a peer. The **In** policy defines what routes will go
-to other peers' local routing tables.
+In route server mode, **Import** and **Export** policies are defined
+with respect to a peer.  The **Import** policy defines what routes
+will be imported into the master RIB. The **Export** policy defines
+what routes will be exported from the master RIB.
 
 You can check each policy by the following commands.
 
 ```shell
-$ gobgp neighbor <neighbor-addr> policy in
 $ gobgp neighbor <neighbor-addr> policy import
 $ gobgp neighbor <neighbor-addr> policy export
 ```
@@ -836,10 +830,8 @@ and *policy3* is used as the In policy.
   [neighbors.apply-policy.config]
     import-policy-list = ["policy1"]
     export-policy-list = ["policy2"]
-    in-policy-list = ["policy3"]
     default-import-policy = "accept-route"
     default-export-policy = "accept-route"
-    default-in-policy = "accept-route"
 ```
 
 neighbors has a section to specify policies and the section's name is
@@ -849,10 +841,8 @@ apply-policy. The apply-policy has 6 elements.
 |-------------------------|---------------------------------------------------------------------------------------------|----------------|
 | import-policy           | policy-definitions.name for Import policy                                                   | "policy1"      |
 | export-policy           | policy-definitions.name for Export policy                                                   | "policy2"      |
-| in-policy               | policy-definitions.name for In policy                                                       | "policy3"      |
 | default-import-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 | default-export-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
-| default-in-policy       | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 
 ## Policy Configuration Example
 
