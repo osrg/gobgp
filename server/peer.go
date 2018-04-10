@@ -340,7 +340,7 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 			// (*Destination) GetChanges().
 			dst := peer.localRib.GetDestination(path)
 			path = nil
-			for _, p := range dst.GetKnownPathList(peer.TableID()) {
+			for _, p := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
 				// Just take care not to send back.
 				if peer.ID() != p.GetSource().Address.String() {
 					path = p
@@ -453,9 +453,9 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	for _, family := range peer.toGlobalFamilies(rfList) {
 		pl := func() []*table.Path {
 			if peer.isAddPathSendEnabled(family) {
-				return peer.localRib.GetPathList(peer.TableID(), []bgp.RouteFamily{family})
+				return peer.localRib.GetPathList(peer.TableID(), peer.AS(), []bgp.RouteFamily{family})
 			}
-			return peer.localRib.GetBestPathList(peer.TableID(), []bgp.RouteFamily{family})
+			return peer.localRib.GetBestPathList(peer.TableID(), peer.AS(), []bgp.RouteFamily{family})
 		}()
 		for _, path := range pl {
 			if p := peer.filterpath(path, nil); p != nil {
@@ -616,11 +616,16 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 				eor = append(eor, family)
 				continue
 			}
-			if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
-				paths = append(paths, path)
-			} else {
-				paths = append(paths, path.Clone(true))
+			// RFC4271 9.1.2 Phase 2: Route Selection
+			//
+			// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
+			// route should be excluded from the Phase 2 decision function.
+			if aspath := path.GetAsPath(); aspath != nil {
+				if hasOwnASLoop(peer.fsm.peerInfo.LocalAS, int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs), aspath) {
+					continue
+				}
 			}
+			paths = append(paths, path)
 		}
 		return paths, eor, nil
 	}

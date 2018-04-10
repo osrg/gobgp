@@ -51,23 +51,12 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		if path.IsWithdraw {
 			if found {
 				delete(adj.table[rf], key)
-				if old.Filtered(adj.id) != POLICY_DIRECTION_IN {
-					adj.accepted[rf]--
-				}
+				adj.accepted[rf]--
 			}
 		} else {
-			n := path.Filtered(adj.id)
 			if found {
-				o := old.Filtered(adj.id)
-				if o == POLICY_DIRECTION_IN && n == POLICY_DIRECTION_NONE {
-					adj.accepted[rf]++
-				} else if o != POLICY_DIRECTION_IN && n == POLICY_DIRECTION_IN {
-					adj.accepted[rf]--
-				}
 			} else {
-				if n == POLICY_DIRECTION_NONE {
-					adj.accepted[rf]++
-				}
+				adj.accepted[rf]++
 			}
 			if found && old.Equal(path) {
 				path.setTimestamp(old.GetTimestamp())
@@ -79,12 +68,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 
 func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
 	for _, rf := range rfList {
-		adj.accepted[rf] = 0
-		for _, p := range adj.table[rf] {
-			if p.Filtered(adj.id) != POLICY_DIRECTION_IN {
-				adj.accepted[rf]++
-			}
-		}
+		adj.accepted[rf] = len(adj.table[rf])
 	}
 }
 
@@ -92,9 +76,6 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		for _, rr := range adj.table[rf] {
-			if accepted && rr.Filtered(adj.id) == POLICY_DIRECTION_IN {
-				continue
-			}
 			pathList = append(pathList, rr)
 		}
 	}
@@ -137,9 +118,7 @@ func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
 			for _, p := range table {
 				if p.IsStale() {
 					delete(table, p.getPrefix())
-					if p.Filtered(adj.id) == POLICY_DIRECTION_NONE {
-						adj.accepted[rf]--
-					}
+					adj.accepted[rf]--
 					pathList = append(pathList, p.Clone(true))
 				}
 			}
