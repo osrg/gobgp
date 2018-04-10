@@ -82,8 +82,7 @@ func TestCalculate2(t *testing.T) {
 	path1 := ProcessMessage(update1, peer1, time.Now())[0]
 
 	d := NewDestination(nlri, 0)
-	d.AddNewPath(path1)
-	d.Calculate()
+	d.Calculate(path1)
 
 	// suppose peer2 sends grammaatically correct but semantically flawed update message
 	// which has a withdrawal nlri not advertised before
@@ -92,8 +91,7 @@ func TestCalculate2(t *testing.T) {
 	path2 := ProcessMessage(update2, peer2, time.Now())[0]
 	assert.Equal(t, path2.IsWithdraw, true)
 
-	d.AddWithdraw(path2)
-	d.Calculate()
+	d.Calculate(path2)
 
 	// we have a path from peer1 here
 	assert.Equal(t, len(d.knownPathList), 1)
@@ -103,8 +101,7 @@ func TestCalculate2(t *testing.T) {
 	path3 := ProcessMessage(update3, peer2, time.Now())[0]
 	assert.Equal(t, path3.IsWithdraw, false)
 
-	d.AddNewPath(path3)
-	d.Calculate()
+	d.Calculate(path3)
 
 	// this time, we have paths from peer1 and peer2
 	assert.Equal(t, len(d.knownPathList), 2)
@@ -114,8 +111,7 @@ func TestCalculate2(t *testing.T) {
 	update4 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	path4 := ProcessMessage(update4, peer3, time.Now())[0]
 
-	d.AddNewPath(path4)
-	d.Calculate()
+	d.Calculate(path4)
 
 	// we must have paths from peer1, peer2 and peer3
 	assert.Equal(t, len(d.knownPathList), 3)
@@ -193,10 +189,8 @@ func TestTimeTieBreaker(t *testing.T) {
 	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
 
 	d := NewDestination(nlri, 0)
-	d.AddNewPath(path1)
-	d.AddNewPath(path2)
-
-	d.Calculate()
+	d.Calculate(path1)
+	d.Calculate(path2)
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("", 0).GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
@@ -204,10 +198,8 @@ func TestTimeTieBreaker(t *testing.T) {
 	// this option disables tie breaking by age
 	SelectionOptions.ExternalCompareRouterId = true
 	d = NewDestination(nlri, 0)
-	d.AddNewPath(path1)
-	d.AddNewPath(path2)
-
-	d.Calculate()
+	d.Calculate(path1)
+	d.Calculate(path2)
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("", 0).GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
@@ -361,18 +353,16 @@ func TestMultipath(t *testing.T) {
 	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 
 	d := NewDestination(nlri[0], 0)
-	d.AddNewPath(path1)
-	d.AddNewPath(path2)
+	d.Calculate(path2)
 
-	best, old, multi := d.Calculate().GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, old, multi := d.Calculate(path1).GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
-	assert.Equal(t, old, (*Path)(nil))
+	assert.Equal(t, old, path2)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
 
 	path3 := path2.Clone(true)
-	d.AddWithdraw(path3)
-	dd := d.Calculate()
+	dd := d.Calculate(path3)
 	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.Nil(t, best)
 	assert.Equal(t, old, path1)
@@ -390,9 +380,8 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
-	d.AddNewPath(path4)
-
-	best, _, multi = d.Calculate().GetChanges(GLOBAL_RIB_NAME, 0, false)
+	dd = d.Calculate(path4)
+	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
@@ -406,9 +395,7 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
-	d.AddNewPath(path5)
-
-	best, _, multi = d.Calculate().GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, _, multi = d.Calculate(path5).GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 3)
