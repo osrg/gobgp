@@ -146,7 +146,7 @@ func injectMrt() error {
 					for _, p := range paths {
 						dst.AddNewPath(p)
 					}
-					best, _, _ := dst.Calculate().GetChanges(table.GLOBAL_RIB_NAME, false)
+					best, _, _ := dst.Calculate().GetChanges(table.GLOBAL_RIB_NAME, 0, false)
 					if best == nil {
 						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
 					}

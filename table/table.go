@@ -41,6 +41,7 @@ type LookupPrefix struct {
 
 type TableSelectOption struct {
 	ID             string
+	AS             uint32
 	LookupPrefixes []*LookupPrefix
 	VRF            *Vrf
 	adj            bool
@@ -328,10 +329,10 @@ func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	return nlri.String()
 }
 
-func (t *Table) Bests(id string) []*Path {
+func (t *Table) Bests(id string, as uint32) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {
-		path := dst.GetBestPath(id)
+		path := dst.GetBestPath(id, as)
 		if path != nil {
 			paths = append(paths, path)
 		}
@@ -350,10 +351,10 @@ func (t *Table) MultiBests(id string) [][]*Path {
 	return paths
 }
 
-func (t *Table) GetKnownPathList(id string) []*Path {
+func (t *Table) GetKnownPathList(id string, as uint32) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {
-		paths = append(paths, dst.GetKnownPathList(id)...)
+		paths = append(paths, dst.GetKnownPathList(id, as)...)
 	}
 	return paths
 }
@@ -365,6 +366,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	prefixes := make([]*LookupPrefix, 0, len(option))
 	best := false
 	mp := false
+	as := uint32(0)
 	for _, o := range option {
 		if o.ID != "" {
 			id = o.ID
@@ -376,8 +378,9 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		prefixes = append(prefixes, o.LookupPrefixes...)
 		best = o.Best
 		mp = o.MultiPath
+		as = o.AS
 	}
-	dOption := DestinationSelectOption{ID: id, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
+	dOption := DestinationSelectOption{ID: id, AS: as, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
 	dsts := make(map[string]*Destination)
 
 	if len(prefixes) != 0 {
@@ -471,10 +474,10 @@ type TableInfo struct {
 	NumAccepted    int
 }
 
-func (t *Table) Info(id string) *TableInfo {
+func (t *Table) Info(id string, as uint32) *TableInfo {
 	var numD, numP int
 	for _, d := range t.destinations {
-		ps := d.GetKnownPathList(id)
+		ps := d.GetKnownPathList(id, as)
 		if len(ps) > 0 {
 			numD += 1
 			numP += len(ps)

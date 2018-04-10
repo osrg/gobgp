@@ -166,7 +166,7 @@ func TestMonitor(test *testing.T) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if len(rib.GetKnownPathList("")) > 0 {
+		if len(rib.GetKnownPathList("", 0)) > 0 {
 			break
 		}
 		time.Sleep(1)
@@ -269,7 +269,7 @@ func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*
 }
 
 func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
-	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, rib.ProcessPaths(l), false)
+	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, rib.ProcessPaths(l), false)
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}

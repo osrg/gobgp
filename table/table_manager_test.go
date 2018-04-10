@@ -32,7 +32,7 @@ import (
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	pathList := make([]*Path, 0)
 	for _, d := range manager.ProcessPaths(ProcessMessage(message, fromPeer, time.Now())) {
-		b, _, _ := d.GetChanges(GLOBAL_RIB_NAME, false)
+		b, _, _ := d.GetChanges(GLOBAL_RIB_NAME, 0, false)
 		pathList = append(pathList, b)
 	}
 	return pathList, nil

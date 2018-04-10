@@ -388,7 +388,6 @@ func ToPathApi(path *table.Path) *Path {
 		IsWithdraw:         path.IsWithdraw,
 		Validation:         int32(path.ValidationStatus().ToInt()),
 		ValidationDetail:   NewValidationFromTableStruct(path.Validation()),
-		Filtered:           path.Filtered("") == table.POLICY_DIRECTION_IN,
 		Family:             family,
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),
@@ -2132,8 +2131,6 @@ func NewAPIPolicyAssignmentFromTableStruct(t *table.PolicyAssignment) *PolicyAss
 	return &PolicyAssignment{
 		Type: func() PolicyType {
 			switch t.Type {
-			case table.POLICY_DIRECTION_IN:
-				return PolicyType_IN
 			case table.POLICY_DIRECTION_IMPORT:
 				return PolicyType_IMPORT
 			case table.POLICY_DIRECTION_EXPORT:
@@ -2261,8 +2258,6 @@ func toPolicyAssignmentName(a *PolicyAssignment) (string, table.PolicyDirection,
 		}
 	case Resource_LOCAL:
 		switch a.Type {
-		case PolicyType_IN:
-			return a.Name, table.POLICY_DIRECTION_IN, nil
 		case PolicyType_IMPORT:
 			return a.Name, table.POLICY_DIRECTION_IMPORT, nil
 		case PolicyType_EXPORT:

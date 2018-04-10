@@ -135,9 +135,6 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	})
 	path.MarkStale(p.Stale)
 	path.SetUUID(p.Uuid)
-	if p.Filtered {
-		path.Filter("", table.POLICY_DIRECTION_IN)
-	}
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path, nil
 }
