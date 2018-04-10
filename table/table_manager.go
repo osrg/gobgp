@@ -180,65 +180,50 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(dsts []*Destination) []*Destination {
-	emptyDsts := make([]*Destination, 0, len(dsts))
-	clonedDsts := make([]*Destination, 0, len(dsts))
-
-	for _, dst := range dsts {
-		log.WithFields(log.Fields{
-			"Topic": "table",
-			"Key":   dst.GetNlri().String(),
-		}).Debug("Processing destination")
-
-		clonedDsts = append(clonedDsts, dst.Calculate())
-
-		if len(dst.knownPathList) == 0 {
-			emptyDsts = append(emptyDsts, dst)
-		}
-	}
-
-	for _, dst := range emptyDsts {
-		t := manager.Tables[dst.Family()]
+func (tm *TableManager) update(newPath *Path) *Destination {
+	t := tm.Tables[newPath.GetRouteFamily()]
+	t.validatePath(newPath)
+	dst := t.getOrCreateDest(newPath.GetNlri())
+	d := dst.Calculate(newPath)
+	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)
 	}
-	return clonedDsts
+	return d
 }
 
-func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Destination {
+func (manager *TableManager) GetPathListByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Path {
 	if t, ok := manager.Tables[rf]; ok {
-		dsts := t.DeleteDestByPeer(info)
-		return manager.calculate(dsts)
+		pathList := make([]*Path, 0, len(t.destinations))
+		for _, dst := range t.destinations {
+			for _, p := range dst.knownPathList {
+				if p.GetSource().Equal(info) {
+					pathList = append(pathList, p)
+				}
+			}
+		}
+		return pathList
 	}
 	return nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
-	m := make(map[string]bool, len(pathList))
-	dsts := make([]*Destination, 0, len(pathList))
-	for _, path := range pathList {
-		if path == nil || path.IsEOR() {
-			continue
-		}
-		rf := path.GetRouteFamily()
-		if t, ok := manager.Tables[rf]; ok {
-			dst := t.insert(path)
-			key := dst.GetNlri().String()
-			if !m[key] {
-				m[key] = true
-				dsts = append(dsts, dst)
-			}
-			if rf == bgp.RF_EVPN {
-				for _, dst := range manager.handleMacMobility(path) {
-					key := dst.GetNlri().String()
-					if !m[key] {
-						m[key] = true
-						dsts = append(dsts, dst)
-					}
-				}
+func (manager *TableManager) Update(newPath *Path) []*Destination {
+	if newPath == nil || newPath.IsEOR() {
+		return nil
+	}
+
+	// normally, we'll have one destination.
+	dsts := make([]*Destination, 0, 1)
+	family := newPath.GetRouteFamily()
+	if _, ok := manager.Tables[family]; ok {
+		dsts = append(dsts, manager.update(newPath))
+
+		if family == bgp.RF_EVPN {
+			for _, p := range manager.handleMacMobility(newPath) {
+				dsts = append(dsts, manager.update(p))
 			}
 		}
 	}
-	return manager.calculate(dsts)
+	return dsts
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -249,8 +234,8 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 // different Ethernet segment identifier and a higher sequence number
 // than that which it had previously advertised withdraws its MAC/IP
 // Advertisement route.
-func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
-	dsts := make([]*Destination, 0)
+func (manager *TableManager) handleMacMobility(path *Path) []*Path {
+	pathList := make([]*Path, 0)
 	nlri := path.GetNlri().(*bgp.EVPNNLRI)
 	if path.IsWithdraw || path.IsLocal() || nlri.RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 		return nil
@@ -275,12 +260,10 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 		e1, m1, s1 := f(path)
 		e2, m2, s2 := f(path2)
 		if bytes.Equal(m1, m2) && !bytes.Equal(e1.Value, e2.Value) && s1 > s2 {
-			path2.IsWithdraw = true
-			dsts = append(dsts, manager.Tables[bgp.RF_EVPN].insert(path2))
-			break
+			pathList = append(pathList, path2.Clone(true))
 		}
 	}
-	return dsts
+	return pathList
 }
 
 func (manager *TableManager) tables(list ...bgp.RouteFamily) []*Table {

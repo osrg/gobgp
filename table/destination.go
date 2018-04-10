@@ -353,16 +353,6 @@ func (dd *Destination) GetChanges(id string, as uint32, peerDown bool) (*Path, *
 	return best, old, multi
 }
 
-func (dd *Destination) AddWithdraw(withdraw *Path) {
-	dd.validatePath(withdraw)
-	dd.withdrawList = append(dd.withdrawList, withdraw)
-}
-
-func (dd *Destination) AddNewPath(newPath *Path) {
-	dd.validatePath(newPath)
-	dd.newPathList = append(dd.newPathList, newPath)
-}
-
 func (dd *Destination) validatePath(path *Path) {
 	if path == nil || path.GetRouteFamily() != dd.routeFamily {
 
@@ -379,21 +369,25 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate() *Destination {
-	oldKnownPathList := dest.knownPathList
-	newPathList := dest.newPathList
-	// First remove the withdrawn paths.
-	withdrawn := dest.explicitWithdraw()
-	// Do implicit withdrawal
-	dest.implicitWithdraw()
+func (dest *Destination) Calculate(newPath *Path) *Destination {
+	oldKnownPathList := make([]*Path, len(dest.knownPathList))
+	copy(oldKnownPathList, dest.knownPathList)
+	newPathList := make([]*Path, 0)
+	withdrawList := make([]*Path, 0)
 
-	for _, path := range withdrawn {
-		if id := path.GetNlri().PathLocalIdentifier(); id != 0 {
-			dest.localIdMap.Unflag(uint(id))
+	if newPath.IsWithdraw {
+		p := dest.explicitWithdraw(newPath)
+		if p != nil {
+			if id := p.GetNlri().PathLocalIdentifier(); id != 0 {
+				dest.localIdMap.Unflag(uint(id))
+			}
 		}
+		withdrawList = append(withdrawList, newPath)
+	} else {
+		dest.implicitWithdraw(newPath)
+		dest.knownPathList = append(dest.knownPathList, newPath)
+		newPathList = append(newPathList, newPath)
 	}
-	// Collect all new paths into known paths.
-	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 
 	for _, path := range dest.knownPathList {
 		if path.GetNlri().PathLocalIdentifier() == 0 {
@@ -405,8 +399,6 @@ func (dest *Destination) Calculate() *Destination {
 			path.GetNlri().SetPathLocalIdentifier(uint32(id))
 		}
 	}
-	// Clear new paths as we copied them.
-	dest.newPathList = make([]*Path, 0)
 	// Compute new best path
 	dest.computeKnownBestPath()
 
@@ -416,7 +408,7 @@ func (dest *Destination) Calculate() *Destination {
 		knownPathList:    dest.knownPathList,
 		oldKnownPathList: oldKnownPathList,
 		newPathList:      newPathList,
-		withdrawList:     withdrawn,
+		withdrawList:     withdrawList,
 	}
 }
 
@@ -428,113 +420,76 @@ func (dest *Destination) Calculate() *Destination {
 // we can receive withdraws for such paths and withdrawals may not be
 // stopped by the same policies.
 //
-func (dest *Destination) explicitWithdraw() paths {
-
-	// If we have no withdrawals, we have nothing to do.
-	if len(dest.withdrawList) == 0 {
-		return nil
-	}
-
+func (dest *Destination) explicitWithdraw(withdraw *Path) *Path {
 	log.WithFields(log.Fields{
-		"Topic":  "Table",
-		"Key":    dest.GetNlri().String(),
-		"Length": len(dest.withdrawList),
+		"Topic": "Table",
+		"Key":   dest.GetNlri().String(),
 	}).Debug("Removing withdrawals")
 
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.
 	if len(dest.knownPathList) == 0 {
 		log.WithFields(log.Fields{
-			"Topic":  "Table",
-			"Key":    dest.GetNlri().String(),
-			"Length": len(dest.withdrawList),
+			"Topic": "Table",
+			"Key":   dest.GetNlri().String(),
 		}).Debug("Found withdrawals for path(s) that did not get installed")
-		dest.withdrawList = []*Path{}
 		return nil
 	}
 
-	// If we have some known paths and some withdrawals, we find matches and
-	// delete them first.
-	matches := make([]*Path, 0, len(dest.withdrawList)/2)
-	newKnownPaths := make([]*Path, 0, len(dest.knownPathList)/2)
-
 	// Match all withdrawals from destination paths.
-	for _, withdraw := range dest.withdrawList {
-		isFound := false
-		for _, path := range dest.knownPathList {
-			// We have a match if the source and path-id are same.
-			if path.GetSource().Equal(withdraw.GetSource()) && path.GetNlri().PathIdentifier() == withdraw.GetNlri().PathIdentifier() {
-				isFound = true
-				// this path is referenced in peer's adj-rib-in
-				// when there was no policy modification applied.
-				// we could flag IsWithdraw down after use to avoid
-				// a path with IsWithdraw flag exists in adj-rib-in
-				path.IsWithdraw = true
-				withdraw.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
-				matches = append(matches, withdraw)
-			}
-		}
-
-		// We do no have any match for this withdraw.
-		if !isFound {
-			log.WithFields(log.Fields{
-				"Topic": "Table",
-				"Key":   dest.GetNlri().String(),
-				"Path":  withdraw,
-			}).Warn("No matching path for withdraw found, may be path was not installed into table")
+	isFound := -1
+	for i, path := range dest.knownPathList {
+		// We have a match if the source and path-id are same.
+		if path.GetSource().Equal(withdraw.GetSource()) && path.GetNlri().PathIdentifier() == withdraw.GetNlri().PathIdentifier() {
+			isFound = i
+			withdraw.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
 		}
 	}
 
-	for _, path := range dest.knownPathList {
-		if !path.IsWithdraw {
-			newKnownPaths = append(newKnownPaths, path)
-		}
-		// here we flag IsWithdraw down
-		path.IsWithdraw = false
+	// We do no have any match for this withdraw.
+	if isFound == -1 {
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   dest.GetNlri().String(),
+			"Path":  withdraw,
+		}).Warn("No matching path for withdraw found, may be path was not installed into table")
+		return nil
+	} else {
+		p := dest.knownPathList[isFound]
+		dest.knownPathList = append(dest.knownPathList[:isFound], dest.knownPathList[isFound+1:]...)
+		return p
 	}
-
-	dest.knownPathList = newKnownPaths
-	dest.withdrawList = make([]*Path, 0)
-	return matches
 }
 
 // Identifies which of known paths are old and removes them.
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *Destination) implicitWithdraw() paths {
-	newKnownPaths := make([]*Path, 0, len(dest.knownPathList))
-	implicitWithdrawn := make([]*Path, 0, len(dest.knownPathList))
-	for _, path := range dest.knownPathList {
-		found := false
-		for _, newPath := range dest.newPathList {
-			if newPath.NoImplicitWithdraw() {
-				continue
-			}
-			// Here we just check if source is same and not check if path
-			// version num. as newPaths are implicit withdrawal of old
-			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
-			// we get same paths again.
-			if newPath.GetSource().Equal(path.GetSource()) && newPath.GetNlri().PathIdentifier() == path.GetNlri().PathIdentifier() {
-				log.WithFields(log.Fields{
-					"Topic": "Table",
-					"Key":   dest.GetNlri().String(),
-					"Path":  path,
-				}).Debug("Implicit withdrawal of old path, since we have learned new path from the same peer")
-
-				found = true
-				newPath.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
-				break
-			}
+func (dest *Destination) implicitWithdraw(newPath *Path) {
+	found := -1
+	for i, path := range dest.knownPathList {
+		if newPath.NoImplicitWithdraw() {
+			continue
 		}
-		if found {
-			implicitWithdrawn = append(implicitWithdrawn, path)
-		} else {
-			newKnownPaths = append(newKnownPaths, path)
+		// Here we just check if source is same and not check if path
+		// version num. as newPaths are implicit withdrawal of old
+		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
+		// we get same paths again.
+		if newPath.GetSource().Equal(path.GetSource()) && newPath.GetNlri().PathIdentifier() == path.GetNlri().PathIdentifier() {
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   dest.GetNlri().String(),
+				"Path":  path,
+			}).Debug("Implicit withdrawal of old path, since we have learned new path from the same peer")
+
+			found = i
+			newPath.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
+			break
 		}
 	}
-	dest.knownPathList = newKnownPaths
-	return implicitWithdrawn
+	if found != -1 {
+		dest.knownPathList = append(dest.knownPathList[:found], dest.knownPathList[found+1:]...)
+	}
 }
 
 func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {

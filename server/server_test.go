@@ -269,7 +269,11 @@ func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*
 }
 
 func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
-	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, rib.ProcessPaths(l), false)
+	dsts := make([]*table.Destination, 0)
+	for _, path := range l {
+		dsts = append(dsts, rib.Update(path)...)
+	}
+	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
@@ -297,8 +301,9 @@ func TestFilterpathWitheBGP(t *testing.T) {
 
 	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
 	path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
-
-	new, old := process(rib, []*table.Path{path1, path2})
+	rib.Update(path2)
+	d := rib.Update(path1)
+	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
 	assert.Equal(t, new, path1)
 	filterpath(p1, new, old)
 	filterpath(p2, new, old)

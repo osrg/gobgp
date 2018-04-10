@@ -69,37 +69,6 @@ func (t *Table) GetRoutefamily() bgp.RouteFamily {
 	return t.routeFamily
 }
 
-func (t *Table) insert(path *Path) *Destination {
-	t.validatePath(path)
-	dest := t.getOrCreateDest(path.GetNlri())
-
-	if path.IsWithdraw {
-		// withdraw insert
-		dest.AddWithdraw(path)
-	} else {
-		// path insert
-		dest.AddNewPath(path)
-	}
-	return dest
-}
-
-func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
-	dsts := []*Destination{}
-	for _, dst := range t.destinations {
-		match := false
-		for _, p := range dst.knownPathList {
-			if p.GetSource().Equal(peerInfo) {
-				dst.AddWithdraw(p)
-				match = true
-			}
-		}
-		if match {
-			dsts = append(dsts, dst)
-		}
-	}
-	return dsts
-}
-
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 	pathList := make([]*Path, 0)
 	for _, dest := range t.destinations {
