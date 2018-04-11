@@ -127,14 +127,23 @@ func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
 	return pathList
 }
 
-func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) {
+func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) []*Path {
+	pathList := make([]*Path, 0)
 	for _, rf := range rfList {
 		if table, ok := adj.table[rf]; ok {
-			for _, p := range table {
-				p.MarkStale(true)
+			l := make([]*Path, 0, len(table))
+			for k, p := range table {
+				n := p.Clone(false)
+				n.MarkStale(true)
+				table[k] = n
+				l = append(l, n)
+			}
+			if len(l) > 0 {
+				pathList = append(pathList, l...)
 			}
 		}
 	}
+	return pathList
 }
 
 func (adj *AdjRib) Exists(path *Path) bool {
