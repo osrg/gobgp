@@ -768,7 +768,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
 				var p []bgp.RouteFamily
 				p, drop = peer.forwardingPreservedFamilies()
-				peer.StaleAll(p)
+				server.propagateUpdate(peer, peer.StaleAll(p))
 			} else {
 				drop = peer.configuredRFlist()
 			}
