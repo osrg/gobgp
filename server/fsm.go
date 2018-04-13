@@ -1169,6 +1169,21 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 							h.conn.Close()
 							return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 						}
+
+						// RFC 4724 3
+						// The most significant bit is defined as the Restart State (R)
+						// bit, ...(snip)... When set (value 1), this bit
+						// indicates that the BGP speaker has restarted, and its peer MUST
+						// NOT wait for the End-of-RIB marker from the speaker before
+						// advertising routing information to the speaker.
+						if fsm.pConf.GracefulRestart.State.LocalRestarting && cap.Flags&0x08 != 0 {
+							log.WithFields(log.Fields{
+								"Topic": "Peer",
+								"Key":   fsm.pConf.State.NeighborAddress,
+								"State": fsm.state.String(),
+							}).Debug("peer is restarting, skipping sync process")
+							fsm.pConf.GracefulRestart.State.LocalRestarting = false
+						}
 						if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
 							fsm.pConf.GracefulRestart.State.NotificationEnabled = true
 						}
