@@ -363,11 +363,10 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		if _, y := peer.fsm.rfMap[bgp.RF_RTC_UC]; y && path.GetRouteFamily() != bgp.RF_RTC_UC {
 			ignore = true
 			for _, ext := range path.GetExtCommunities() {
-				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
-					rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-					if rt == nil {
-						ignore = false
-					} else if ext.String() == rt.String() {
+				for _, p := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
+					rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+					// Note: nil RT means the default route target
+					if rt == nil || ext.String() == rt.String() {
 						ignore = false
 						break
 					}
@@ -375,6 +374,14 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				if !ignore {
 					break
 				}
+			}
+			if ignore {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.ID(),
+					"Data":  path,
+				}).Debug("Filtered by Route Target Constraint, ignore")
+				return nil
 			}
 		}
 
@@ -404,12 +411,12 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				// RFC4456 8. Avoiding Routing Information Loops
 				// If the local CLUSTER_ID is found in the CLUSTER_LIST,
 				// the advertisement received SHOULD be ignored.
-				for _, clusterId := range path.GetClusterList() {
-					if clusterId.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
+				for _, clusterID := range path.GetClusterList() {
+					if clusterID.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
 						log.WithFields(log.Fields{
 							"Topic":     "Peer",
 							"Key":       peer.ID(),
-							"ClusterID": clusterId,
+							"ClusterID": clusterID,
 							"Data":      path,
 						}).Debug("cluster list path attribute has local cluster id, ignore")
 						return nil
