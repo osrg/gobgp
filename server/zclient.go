@@ -501,10 +501,13 @@ func (z *zebraClient) loop() {
 					}
 				} else {
 					for _, path := range msg.PathList {
-						if len(path.VrfIds) == 0 {
-							path.VrfIds = []uint16{0}
+						vrfs := []uint16{0}
+						if msg.Vrf != nil {
+							if v, ok := msg.Vrf[path.GetNlri().String()]; ok {
+								vrfs = append(vrfs, v)
+							}
 						}
-						for _, i := range path.VrfIds {
+						for _, i := range vrfs {
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
 								z.client.SendIPRoute(i, body, isWithdraw)
 							}
