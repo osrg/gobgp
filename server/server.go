@@ -480,17 +480,22 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 		clonedM[i] = clonePathList(pathList)
 	}
 	clonedB := clonePathList(best)
+	m := make(map[string]uint16)
 	for _, p := range clonedB {
 		switch p.GetRouteFamily() {
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 			for _, vrf := range server.globalRib.Vrfs {
 				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
-					p.VrfIds = append(p.VrfIds, uint16(vrf.Id))
+					m[p.GetNlri().String()] = uint16(vrf.Id)
 				}
 			}
 		}
 	}
-	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
+	w := &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM}
+	if len(m) > 0 {
+		w.Vrf = m
+	}
+	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, w)
 }
 
 func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*table.Path, msg *bgp.BGPMessage, timestamp time.Time, payload []byte) {
@@ -2369,6 +2374,7 @@ type WatchEventTable struct {
 type WatchEventBestPath struct {
 	PathList      []*table.Path
 	MultiPathList [][]*table.Path
+	Vrf           map[string]uint16
 }
 
 type WatchEventMessage struct {

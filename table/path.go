@@ -146,7 +146,6 @@ type Path struct {
 	reason     BestPathReason
 	parent     *Path
 	dels       []bgp.BGPAttrType
-	VrfIds     []uint16
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
 }
