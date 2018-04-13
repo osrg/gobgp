@@ -134,7 +134,6 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 		UnmatchedLength: NewROAListFromApiStructList(p.ValidationDetail.UnmatchedLength),
 	})
 	path.MarkStale(p.Stale)
-	path.SetUUID(p.Uuid)
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path, nil
 }

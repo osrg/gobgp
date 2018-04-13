@@ -392,7 +392,6 @@ func ToPathApi(path *table.Path) *Path {
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
-		Uuid:               path.UUID().Bytes(),
 		IsNexthopInvalid:   path.IsNexthopInvalid,
 		Identifier:         nlri.PathIdentifier(),
 		LocalIdentifier:    nlri.PathLocalIdentifier(),

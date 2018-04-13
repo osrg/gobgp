@@ -28,8 +28,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	uuid "github.com/satori/go.uuid"
-
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 )
@@ -95,7 +93,6 @@ type originInfo struct {
 	timestamp          int64
 	validation         *Validation
 	key                string
-	uuid               uuid.UUID
 	noImplicitWithdraw bool
 	isFromExternal     bool
 	eor                bool
@@ -377,18 +374,6 @@ func (path *Path) IsFromExternal() bool {
 
 func (path *Path) SetIsFromExternal(y bool) {
 	path.OriginInfo().isFromExternal = y
-}
-
-func (path *Path) UUID() uuid.UUID {
-	return path.OriginInfo().uuid
-}
-
-func (path *Path) SetUUID(id []byte) {
-	path.OriginInfo().uuid = uuid.FromBytesOrNil(id)
-}
-
-func (path *Path) AssignNewUUID() {
-	path.OriginInfo().uuid, _ = uuid.NewV4()
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {
@@ -1092,7 +1077,6 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		SourceID:   path.GetSource().ID,
 		NeighborIP: path.GetSource().Address,
 		Stale:      path.IsStale(),
-		UUID:       path.UUID().String(),
 		ID:         path.GetNlri().PathIdentifier(),
 	})
 }

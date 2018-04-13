@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/config"
@@ -115,6 +116,7 @@ type BgpServer struct {
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
 	mrtManager   *mrtManager
+	uuidMap      map[uuid.UUID]string
 }
 
 func NewBgpServer() *BgpServer {
@@ -126,6 +128,7 @@ func NewBgpServer() *BgpServer {
 		roaManager:   roaManager,
 		mgmtCh:       make(chan *mgmtOp, 1),
 		watcherMap:   make(map[WatchEventType][]*Watcher),
+		uuidMap:      make(map[uuid.UUID]string),
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -1262,14 +1265,19 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 	return nil
 }
 
+func pathTokey(path *table.Path) string {
+	return fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.GetNlri().String())
+}
+
 func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []byte, err error) {
 	err = s.mgmtOperation(func() error {
 		if err := s.fixupApiPath(vrfId, pathList); err != nil {
 			return err
 		}
 		if len(pathList) == 1 {
-			pathList[0].AssignNewUUID()
-			uuidBytes = pathList[0].UUID().Bytes()
+			path := pathList[0]
+			id, _ := uuid.NewV4()
+			s.uuidMap[id] = pathTokey(path)
 		}
 		s.propagateUpdate(nil, pathList)
 		return nil
@@ -1277,15 +1285,21 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 	return
 }
 
-func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) error {
+func (s *BgpServer) DeletePath(uuidBytes []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) error {
 	return s.mgmtOperation(func() error {
 		deletePathList := make([]*table.Path, 0)
-		if len(uuid) > 0 {
+		if len(uuidBytes) > 0 {
 			// Delete locally generated path which has the given UUID
 			path := func() *table.Path {
-				for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
-					if path.IsLocal() && len(path.UUID()) > 0 && bytes.Equal(path.UUID().Bytes(), uuid) {
-						return path
+				id, _ := uuid.FromBytes(uuidBytes)
+				if key, ok := s.uuidMap[id]; !ok {
+					return nil
+				} else {
+					for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
+						if path.IsLocal() && key == pathTokey(path) {
+							delete(s.uuidMap, id)
+							return path
+						}
 					}
 				}
 				return nil
@@ -1305,6 +1319,7 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 					deletePathList = append(deletePathList, path.Clone(true))
 				}
 			}
+			s.uuidMap = make(map[uuid.UUID]string)
 		} else {
 			if err := s.fixupApiPath(vrfId, pathList); err != nil {
 				return err
