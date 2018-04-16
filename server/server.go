@@ -359,35 +359,35 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 
-	//iBGP handling
-	if peer.isIBGPPeer() {
-		ignore := false
-		//RFC4684 Constrained Route Distribution
-		if _, y := peer.fsm.rfMap[bgp.RF_RTC_UC]; y && path.GetRouteFamily() != bgp.RF_RTC_UC {
-			ignore = true
-			for _, ext := range path.GetExtCommunities() {
-				for _, p := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
-					rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-					// Note: nil RT means the default route target
-					if rt == nil || ext.String() == rt.String() {
-						ignore = false
-						break
-					}
-				}
-				if !ignore {
+	//RFC4684 Constrained Route Distribution
+	if _, y := peer.fsm.rfMap[bgp.RF_RTC_UC]; y && path.GetRouteFamily() != bgp.RF_RTC_UC {
+		ignore := true
+		for _, ext := range path.GetExtCommunities() {
+			for _, p := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
+				rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+				// Note: nil RT means the default route target
+				if rt == nil || ext.String() == rt.String() {
+					ignore = false
 					break
 				}
 			}
-			if ignore {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.ID(),
-					"Data":  path,
-				}).Debug("Filtered by Route Target Constraint, ignore")
-				return nil
+			if !ignore {
+				break
 			}
 		}
+		if ignore {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID(),
+				"Data":  path,
+			}).Debug("Filtered by Route Target Constraint, ignore")
+			return nil
+		}
+	}
 
+	//iBGP handling
+	if peer.isIBGPPeer() {
+		ignore := false
 		if !path.IsLocal() {
 			ignore = true
 			info := path.GetSource()
