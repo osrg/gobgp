@@ -464,6 +464,354 @@ class GoBGPTestBase(unittest.TestCase):
         self.g4.local("gobgp vrf del vrf2")
         self.g5.local("gobgp vrf del vrf1")
 
+    def test_30_ebgp_setup(self):
+        # +----+              +----+
+        # | g6 |----(eBGP)----| g7 |
+        # +----+              +----+
+        gobgp_ctn_image_name = parser_option.gobgp_image
+        g6 = GoBGPContainer(name='g6', asn=65001, router_id='192.168.0.6',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+        g7 = GoBGPContainer(name='g7', asn=65002, router_id='192.168.0.7',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+
+        time.sleep(max(ctn.run() for ctn in [g6, g7]))
+
+        g6.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        g6.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
+        g7.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        g7.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
+
+        g6.local("gobgp vrf vrf1 rib add 60.0.0.0/24")
+        g6.local("gobgp vrf vrf2 rib add 60.0.0.0/24")
+        g7.local("gobgp vrf vrf1 rib add 70.0.0.0/24")
+        g7.local("gobgp vrf vrf3 rib add 70.0.0.0/24")
+
+        for a, b in combinations([g6, g7], 2):
+            a.add_peer(b, vpn=True, passwd='rtc', graceful_restart=True)
+            b.add_peer(a, vpn=True, passwd='rtc', graceful_restart=True)
+
+        g6.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g7)
+
+        self.__class__.g6 = g6
+        self.__class__.g7 = g7
+
+    def test_31_ebgp_check_adj_rib(self):
+        # VRF<#>  g6   g7
+        #   1     (*)  (*)
+        #   2     (*)
+        #   3          (*)
+        self.assert_adv_count(self.g6, self.g7, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g7, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g7, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g7, self.g6, 'ipv4-l3vpn', 1)
+
+    def test_32_ebgp_add_vrf(self):
+        # VRF<#>  g6   g7
+        #   1     (*)  (*)
+        #   2     (*)
+        #   3     ( )  (*)
+        self.g6.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g6, self.g7, 'rtc', 3)
+        self.assert_adv_count(self.g6, self.g7, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g7, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g7, self.g6, 'ipv4-l3vpn', 2)
+
+    def test_33_ebgp_add_route_on_vrf(self):
+        # VRF<#>  g6   g7
+        #   1     (*)  (*)
+        #   2     (*)
+        #   3     (*)  (*)
+        self.g6.local("gobgp vrf vrf3 rib add 60.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g6, self.g7, 'rtc', 3)
+        self.assert_adv_count(self.g6, self.g7, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g7, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g7, self.g6, 'ipv4-l3vpn', 2)
+
+    def test_34_ebgp_del_route_on_vrf(self):
+        # VRF<#>  g6   g7
+        #   1     (*)  (*)
+        #   2     (*)
+        #   3     ( )  (*)
+        self.g6.local("gobgp vrf vrf3 rib del 60.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g6, self.g7, 'rtc', 3)
+        self.assert_adv_count(self.g6, self.g7, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g7, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g7, self.g6, 'ipv4-l3vpn', 2)
+
+    def test_35_ebgp_del_vrf(self):
+        # VRF<#>  g6   g7
+        #   1     (*)  (*)
+        #   2     (*)
+        #   3          (*)
+        self.g6.local("gobgp vrf del vrf3")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g6, self.g7, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g7, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g7, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g7, self.g6, 'ipv4-l3vpn', 1)
+
+    def test_36_ebgp_del_vrf_with_route(self):
+        # VRF<#>  g6   g7
+        #   1          (*)
+        #   2     (*)
+        #   3          (*)
+        self.g6.local("gobgp vrf del vrf1")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g6, self.g7, 'rtc', 1)
+        self.assert_adv_count(self.g6, self.g7, 'ipv4-l3vpn', 0)
+
+        self.assert_adv_count(self.g7, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g7, self.g6, 'ipv4-l3vpn', 0)
+
+    def test_37_ebgp_cleanup(self):
+        self.g6.local("gobgp vrf del vrf2")
+        self.g7.local("gobgp vrf del vrf1")
+        self.g7.local("gobgp vrf del vrf3")
+
+    def test_40_ibgp_ebgp_setup(self):
+        # +----------+            +----------+
+        # |    g1    |---(iBGP)---|    g2    |
+        # | (Non RR  |            | (Non RR  |
+        # |  Client) |            |  Client) |
+        # +----------+            +----------+
+        #      |                        |
+        #      +--(iBGP)--+  +--(iBGP)--+
+        #                 |  |
+        #               +------+                    +----+              +----+
+        #               |  g3  |----------(eBGP)----| g6 |----(eBGP)----| g7 |
+        #        +------| (RR) |------+             +----+              +----+
+        #        |      +------+      |
+        #      (iBGP)              (iBGP)
+        #        |                    |
+        # +-------------+      +-------------+
+        # |     g4      |      |     g5      |
+        # | (RR Client) |      | (RR Client) |
+        # +-------------+      +-------------+
+        g1, g2, g3, g4, g5, g6, g7 = (
+            self.g1, self.g2, self.g3, self.g4, self.g5, self.g6, self.g7)
+        g3.add_peer(g6, vpn=True)
+        g6.add_peer(g3, vpn=True)
+
+        g1.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        g2.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
+        # g3 (RR)
+        g4.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        g5.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
+        g6.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        g7.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
+
+        g1.local("gobgp vrf vrf1 rib add 10.0.0.0/24")
+        g2.local("gobgp vrf vrf2 rib add 20.0.0.0/24")
+        # g3 (RR)
+        g4.local("gobgp vrf vrf1 rib add 40.0.0.0/24")
+        g5.local("gobgp vrf vrf2 rib add 50.0.0.0/24")
+        g6.local("gobgp vrf vrf1 rib add 60.0.0.0/24")
+        g7.local("gobgp vrf vrf3 rib add 70.0.0.0/24")
+
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g6)
+
+    def test_41_ibgp_ebgp_check_adj_rib(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                             |      (*)
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 1)
+
+    def test_42_01_ibgp_ebgp_add_vrf_on_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                         ( ) |      (*)
+        self.g5.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 3)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_42_02_ibgp_ebgp_add_route_on_vrf_on_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                         (*) |      (*)
+        self.g5.local("gobgp vrf vrf3 rib add 50.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 3)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 3)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_42_03_ibgp_ebgp_del_route_on_vrf_on_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                         ( ) |      (*)
+        self.g5.local("gobgp vrf vrf3 rib del 50.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 3)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_42_04_ibgp_ebgp_del_vrf_on_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                             |      (*)
+        self.g5.local("gobgp vrf del vrf3")
+        time.sleep(2)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 1)
+
+    def test_43_01_ibgp_ebgp_add_vrf_on_non_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3     ( )                     |      (*)
+        self.g1.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 3)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_43_02_ibgp_ebgp_add_route_on_vrf_on_non_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3     (*)                     |      (*)
+        self.g1.local("gobgp vrf vrf3 rib add 10.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 3)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 3)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_43_03_ibgp_ebgp_del_route_on_vrf_on_non_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3     ( )                     |      (*)
+        self.g1.local("gobgp vrf vrf3 rib del 10.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 3)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_43_04_ibgp_ebgp_del_vrf_on_non_rr_client(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                             |      (*)
+        self.g1.local("gobgp vrf del vrf3")
+        time.sleep(2)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 1)
+
+    def test_44_01_ibgp_ebgp_add_vrf_on_ebgp_peer(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |      ( )
+        #   3                             |      (*)
+        self.g7.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 4)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 3)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 1)
+
+    def test_44_02_ibgp_ebgp_add_route_on_ebgp_peer(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |      (*)
+        #   3                             |      (*)
+        self.g7.local("gobgp vrf vrf2 rib add 70.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 4)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 3)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 2)
+
+    def test_44_03_ibgp_ebgp_del_route_on_vrf_on_ebgp_peer(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |      ( )
+        #   3                             |      (*)
+        self.g7.local("gobgp vrf vrf2 rib del 70.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 4)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 3)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 1)
+
+    def test_44_04_ibgp_ebgp_del_vrf_on_ebgp_peer(self):
+        # VRF<#>  g1   g2   g3   g4   g5  | g6   g7
+        #   1     (*)            (*)      | (*)
+        #   2          (*)            (*) |
+        #   3                             |      (*)
+        self.g7.local("gobgp vrf del vrf2")
+        time.sleep(2)
+
+        self.assert_adv_count(self.g3, self.g6, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g6, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g6, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g6, self.g3, 'ipv4-l3vpn', 1)
+
+    def test_45_ibgp_ebgp_cleanup(self):
+        self.g1.local("gobgp vrf del vrf1")
+        self.g2.local("gobgp vrf del vrf2")
+        self.g4.local("gobgp vrf del vrf1")
+        self.g5.local("gobgp vrf del vrf2")
+        self.g6.local("gobgp vrf del vrf1")
+        self.g7.local("gobgp vrf del vrf3")
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
