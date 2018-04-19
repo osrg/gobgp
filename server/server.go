@@ -503,6 +503,10 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 				}
 			}
 		}
+		log.WithFields(log.Fields{
+			"Topic": "Path",
+			"Path":  p,
+		}).Debugf("adding path to list of paths for clients watching best-path event")
 	}
 	debug.PrintStack()
 	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
