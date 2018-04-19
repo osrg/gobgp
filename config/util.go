@@ -216,7 +216,7 @@ func existPeerGroup(n string, b []PeerGroup) int {
 	return -1
 }
 
-func CheckAfiSafisChange(x, y []AfiSafi) bool {
+func isAfiSafiChanged(x, y []AfiSafi) bool {
 	if len(x) != len(y) {
 		return true
 	}
@@ -230,6 +230,14 @@ func CheckAfiSafisChange(x, y []AfiSafi) bool {
 		}
 	}
 	return false
+}
+
+func (n *Neighbor) NeedsResendOpenMessage(new *Neighbor) bool {
+	return !n.Config.Equal(&new.Config) ||
+		!n.Transport.Config.Equal(&new.Transport.Config) ||
+		!n.AddPaths.Config.Equal(&new.AddPaths.Config) ||
+		!n.GracefulRestart.Config.Equal(&new.GracefulRestart.Config) ||
+		isAfiSafiChanged(n.AfiSafis, new.AfiSafis)
 }
 
 func ParseMaskLength(prefix, mask string) (int, int, error) {
