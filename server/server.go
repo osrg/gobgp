@@ -491,10 +491,17 @@ func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 			dst := peer.localRib.GetDestination(path)
 			path = nil
 			for _, p := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
-				// Just take care not to send back.
-				if peer.ID() != p.GetSource().Address.String() {
-					path = p
-					break
+				srcPeer := p.GetSource()
+				if peer.ID() != srcPeer.Address.String() {
+					if srcPeer.RouteReflectorClient {
+						// The path from a RR client is preferred than others
+						// for the case that RR and non RR client peering
+						// (e.g., peering of different RR clusters).
+						path = p
+						break
+					} else if path == nil {
+						path = p
+					}
 				}
 			}
 		}
