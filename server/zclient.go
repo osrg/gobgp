@@ -558,6 +558,7 @@ func (z *zebraClient) loop() {
 						for _, i := range path.VrfIds {
 							log.WithFields(log.Fields{
 								"Topic":  "Zebra",
+								"Path":   path,
 								"VRF ID": i,
 							}).Debugf("Processing path for a VRF")
 							vrf := getVrf(uint32(i))
