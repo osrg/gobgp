@@ -18,7 +18,6 @@ package server
 import (
 	"fmt"
 	"net"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -234,7 +233,6 @@ func newIPRouteBody(dst pathList) (body *zebra.IPRouteBody, isWithdraw bool) {
 		"Topic": "Zebra",
 		"Path":  path,
 	}).Debugf("newIPRouteBody")
-	debug.PrintStack()
 
 	switch path.GetRouteFamily() {
 	case bgp.RF_IPv4_UC:
