@@ -899,7 +899,9 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 				}
 				var candidates []*table.Path
 				if path.IsWithdraw {
-					candidates, _ = server.getBestFromLocal(peer, fs)
+					// Note: The paths to be withdrawn are filtered because the
+					// given RT on RTM NLRI is already removed from adj-RIB-in.
+					_, candidates = server.getBestFromLocal(peer, fs)
 				} else {
 					candidates = server.globalRib.GetBestPathList(peer.TableID(), 0, fs)
 				}
@@ -916,7 +918,8 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 					}
 				}
 				if path.IsWithdraw {
-					paths = server.processOutgoingPaths(peer, nil, paths)
+					// Skips filtering because the paths are already filtered
+					// and the withdrawal does not need the path attributes.
 				} else {
 					paths = server.processOutgoingPaths(peer, paths, nil)
 				}
