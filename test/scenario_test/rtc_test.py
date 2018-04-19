@@ -94,9 +94,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.g1.local("gobgp vrf del vrf1")
         time.sleep(2)
         self.assertEqual(2, len(self.g1.get_adj_rib_out(self.g2, rf='rtc')))
-        # TODO:
-        # g2 should withdraw VPN routes when received a RTM withdrawal.
-        # self.assertEqual(1, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
+        self.assertEqual(1, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
 
     def test_06_rr_setup(self):
         #               +------+
