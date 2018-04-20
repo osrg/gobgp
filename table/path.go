@@ -609,6 +609,7 @@ func (path *Path) String() string {
 	if path.IsWithdraw {
 		s.WriteString(", withdraw")
 	}
+	s.WriteString(fmt.Sprintf("receiveVrfId: %d", path.ReceiveVrfId()))
 	s.WriteString(" }")
 	return s.String()
 }
