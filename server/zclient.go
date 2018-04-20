@@ -551,7 +551,7 @@ func (z *zebraClient) loop() {
 					}
 					for _, path := range msg.PathList {
 						if len(path.VrfIds) == 0 {
-							path.VrfIds = []uint16{0}
+							path.VrfIds = []uint32{0}
 						}
 						for _, i := range path.VrfIds {
 							log.WithFields(log.Fields{

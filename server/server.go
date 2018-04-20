@@ -498,7 +498,7 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 			for _, vrf := range server.globalRib.Vrfs {
 				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
-					p.VrfIds = append(p.VrfIds, uint16(vrf.Id))
+					p.VrfIds = append(p.VrfIds, vrf.Id)
 				}
 			}
 		}
@@ -714,6 +714,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 	if peer != nil && peer.fsm.pConf.Config.Vrf != "" {
 		vrf := server.globalRib.Vrfs[peer.fsm.pConf.Config.Vrf]
 		for idx, path := range pathList {
+			path.SetReceiveVrfId(vrf.Id)
 			pathList[idx] = path.ToGlobal(vrf)
 		}
 	}

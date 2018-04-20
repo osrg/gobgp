@@ -140,15 +140,16 @@ type Validation struct {
 }
 
 type Path struct {
-	info       *originInfo
-	IsWithdraw bool
-	pathAttrs  []bgp.PathAttributeInterface
-	attrsHash  uint32
-	reason     BestPathReason
-	parent     *Path
-	dels       []bgp.BGPAttrType
-	filtered   map[string]PolicyDirection
-	VrfIds     []uint16
+	info         *originInfo
+	IsWithdraw   bool
+	pathAttrs    []bgp.PathAttributeInterface
+	attrsHash    uint32
+	reason       BestPathReason
+	parent       *Path
+	dels         []bgp.BGPAttrType
+	filtered     map[string]PolicyDirection
+	VrfIds       []uint32
+	receiveVrfId uint32 // VRF in which the path was received.
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
 }
@@ -169,9 +170,10 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			timestamp:          timestamp.Unix(),
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
-		IsWithdraw: isWithdraw,
-		pathAttrs:  pattrs,
-		filtered:   make(map[string]PolicyDirection),
+		IsWithdraw:   isWithdraw,
+		pathAttrs:    pattrs,
+		filtered:     make(map[string]PolicyDirection),
+		receiveVrfId: 0,
 	}
 }
 
@@ -335,6 +337,14 @@ func (path *Path) IsIBGP() bool {
 	return path.GetSource().AS == path.GetSource().LocalAS
 }
 
+func (path *Path) ReceiveVrfId() uint32 {
+	return path.receiveVrfId
+}
+
+func (path *Path) SetReceiveVrfId(vrfId uint32) {
+	path.receiveVrfId = vrfId
+}
+
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
 	return &Path{
@@ -342,6 +352,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsWithdraw:       isWithdraw,
 		filtered:         make(map[string]PolicyDirection),
 		IsNexthopInvalid: path.IsNexthopInvalid,
+		receiveVrfId:     path.receiveVrfId,
 	}
 }
 
@@ -1214,6 +1225,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
 	path.IsNexthopInvalid = p.IsNexthopInvalid
+	path.receiveVrfId = p.receiveVrfId
 	return path
 }
 
