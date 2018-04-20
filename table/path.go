@@ -179,6 +179,16 @@ func NewEOR(family bgp.RouteFamily) *Path {
 	}
 }
 
+func NewDefaultRouteTargetPath(source *PeerInfo) *Path {
+	nlri := bgp.NewRouteTargetMembershipNLRI(0, nil)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		bgp.NewPathAttributeAsPath(nil),
+		bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}),
+	}
+	return NewPath(source, nlri, false, attrs, time.Now(), false)
+}
+
 func (path *Path) IsEOR() bool {
 	if path.info != nil && path.info.eor {
 		return true

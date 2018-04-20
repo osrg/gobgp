@@ -1327,9 +1327,15 @@ module gobgp {
   }
 
   grouping route-target-membership-config {
-      leaf deferral-time {
-        type uint16;
-      }
+    leaf deferral-time {
+      type uint16;
+    }
+    leaf advertise-default {
+      description
+        "Configure whether advertise the default route target or not. This can
+        be used only when the given neighbor is a route reflector client.";
+      type boolean;
+    }
   }
 
   grouping afi-safi-state {

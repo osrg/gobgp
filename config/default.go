@@ -203,6 +203,9 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 				n.AfiSafis[i].AddPaths.Config.SendMax = n.AddPaths.Config.SendMax
 			}
 			n.AfiSafis[i].AddPaths.State.SendMax = n.AfiSafis[i].AddPaths.Config.SendMax
+			if !n.RouteReflector.Config.RouteReflectorClient && n.AfiSafis[i].RouteTargetMembership.Config.AdvertiseDefault {
+				return fmt.Errorf("advertise-default can be enabled for only route reflector client")
+			}
 		}
 	}
 

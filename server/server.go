@@ -465,46 +465,8 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 
 func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 	// Special handling for RTM NLRI.
-	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
-		// If the given "path" is locally generated and the same with "old", we
-		// assumes "path" was already sent before. This assumption avoids the
-		// infinite UPDATE loop between Route Reflector and its clients.
-		if path.IsLocal() && path == old {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.fsm.pConf.State.NeighborAddress,
-				"Path":  path,
-			}).Debug("given rtm nlri is already sent, skipping to advertise")
-			return nil
-		}
-
-		if old != nil && old.IsLocal() {
-			// We assumes VRF with the specific RT is deleted.
-			path = old.Clone(true)
-		} else if peer.isRouteReflectorClient() {
-			// We need to send the path even if the peer is originator of the
-			// path in order to signal that the client should distribute route
-			// with the given RT.
-		} else {
-			// We send a path even if it is not the best path. See comments in
-			// (*Destination) GetChanges().
-			dst := peer.localRib.GetDestination(path)
-			path = nil
-			for _, p := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
-				srcPeer := p.GetSource()
-				if peer.ID() != srcPeer.Address.String() {
-					if srcPeer.RouteReflectorClient {
-						// The path from a RR client is preferred than others
-						// for the case that RR and non RR client peering
-						// (e.g., peering of different RR clusters).
-						path = p
-						break
-					} else if path == nil {
-						path = p
-					}
-				}
-			}
-		}
+	if path = peer.filterRTCPath(path, old); path == nil {
+		return nil
 	}
 
 	// only allow vpnv4 and vpnv6 paths to be advertised to VRFed neighbors.
@@ -988,7 +950,9 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table
 	}
 	family := newPath.GetRouteFamily()
 	for _, targetPeer := range server.neighborMap {
-		if (source == nil && targetPeer.isRouteServerClient()) || (source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient()) {
+		if (source == nil && targetPeer.isRouteServerClient()) ||
+			(source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient()) ||
+			(family == bgp.RF_RTC_UC && targetPeer.isAdvertiseDefaultRTEnabled()) {
 			continue
 		}
 		f := func() bgp.RouteFamily {
@@ -1161,6 +1125,16 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 						return nil
 					}, false)
 				}
+			}
+			if peer.isAdvertiseDefaultRTEnabled() {
+				// Insert a RTC path with the default route target.
+				pi := &table.PeerInfo{
+					AS:      server.bgpConfig.Global.Config.As,
+					LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
+				}
+				path := table.NewDefaultRouteTargetPath(pi)
+				server.globalRib.Update(path)
+				sendFsmOutgoingMsg(peer, []*table.Path{path}, nil, false)
 			}
 			if !peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 				// When graceful-restart cap (which means intention

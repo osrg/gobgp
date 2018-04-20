@@ -23,8 +23,9 @@ import (
 	"unsafe"
 
 	"github.com/armon/go-radix"
-	"github.com/osrg/gobgp/packet/bgp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 type LookupOption uint8
@@ -103,9 +104,12 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 	for _, target := range vrf.ImportRt {
 		lhs := target.String()
 		for _, dest := range t.destinations {
-			nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
-			rhs := nlri.RouteTarget.String()
-			if lhs == rhs && isLastTargetUser(vrfs, target) {
+			rhs := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+			if rhs == nil {
+				// Ignores the default route target.
+				continue
+			}
+			if lhs == rhs.String() && isLastTargetUser(vrfs, target) {
 				for _, p := range dest.knownPathList {
 					if p.IsLocal() {
 						pathList = append(pathList, p.Clone(true))
