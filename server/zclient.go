@@ -553,15 +553,16 @@ func (z *zebraClient) loop() {
 						if len(path.VrfIds) == 0 {
 							path.VrfIds = []uint32{0}
 						}
-						for _, i := range path.VrfIds {
+						for _, vrfId := range path.VrfIds {
 							log.WithFields(log.Fields{
-								"Topic":  "Zebra",
-								"Path":   path,
-								"VRF ID": i,
+								"Topic":           "Zebra",
+								"Path":            path,
+								"Received VRF ID": path.ReceiveVrfId(),
+								"VRF ID":          vrfId,
 							}).Debugf("Processing path for a VRF")
-							vrf := getVrf(uint32(i))
+							vrf := getVrf(vrfId)
 							family := path.GetRouteFamily()
-							if (i == zebra.VRF_DEFAULT) && (family == bgp.RF_IPv4_VPN || family == bgp.RF_IPv4_VPN) {
+							if (vrfId == zebra.VRF_DEFAULT) && (family == bgp.RF_IPv4_VPN || family == bgp.RF_IPv4_VPN) {
 								continue
 							}
 							if body, isWithdraw := newIPRouteBody(pathList{path}); body != nil {
@@ -573,10 +574,10 @@ func (z *zebraClient) loop() {
 									"VRF":   vrf,
 									"Path":  path,
 								}).Debugf("About to call SendIPRoute")
-								z.client.SendIPRoute(uint32(i), body, isWithdraw)
+								z.client.SendIPRoute(vrfId, body, isWithdraw)
 							}
 							if body, isWithdraw := newNexthopRegisterBody(pathList{path}, z.nhtManager); body != nil {
-								z.client.SendNexthopRegister(uint32(i), body, isWithdraw)
+								z.client.SendNexthopRegister(vrfId, body, isWithdraw)
 							}
 						}
 					}
