@@ -465,22 +465,23 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
-	// <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
+	// <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>] [default-gateway]
 	// or
-	// <mac address> <ip address> <etag> [esi <esi>] label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
+	// <mac address> <ip address> <etag> [esi <esi>] label <label> rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>] [default-gateway]
 	// or
-	// <mac address> <ip address> <etag> <label> [esi <esi>] rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
+	// <mac address> <ip address> <etag> <label> [esi <esi>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>] [default-gateway]
 	req := 6
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"esi":   PARAM_LIST,
-		"etag":  PARAM_SINGLE,
-		"label": PARAM_SINGLE,
-		"rd":    PARAM_SINGLE,
-		"rt":    PARAM_LIST,
-		"encap": PARAM_SINGLE})
+		"esi":        PARAM_LIST,
+		"etag":       PARAM_SINGLE,
+		"label":      PARAM_SINGLE,
+		"rd":         PARAM_SINGLE,
+		"rt":         PARAM_LIST,
+		"encap":      PARAM_SINGLE,
+		"router-mac": PARAM_SINGLE})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -560,6 +561,15 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	if len(m["encap"]) > 0 {
 		extcomms = append(extcomms, "encap", m["encap"][0])
 	}
+
+	if len(m["router-mac"]) != 0 {
+		_, err := net.ParseMAC(m["router-mac"][0])
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid router-mac address: %s", m["router-mac"][0])
+		}
+		extcomms = append(extcomms, "router-mac", m["router-mac"][0])
+	}
+
 	for _, a := range args {
 		if a == "default-gateway" {
 			extcomms = append(extcomms, "default-gateway")
@@ -1422,7 +1432,7 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`error: %s
 usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ESI> | prefix <PREFIX> } -a evpn
     <A-D>       : esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
-    <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [default-gateway]
+    <MACADV>    : <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>] [default-gateway]
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>] [pmsi <type> [leaf-info-required] <label> <tunnel-id>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
     <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`,
