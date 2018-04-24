@@ -164,6 +164,25 @@ const (
 	AFI_MAX   AFI = 4
 )
 
+// Socket Address Family Identifier.
+//go:generate stringer -type=SOCK_AF
+type SOCK_AF uint8
+
+const (
+	SOCK_AF_UNSPEC = iota
+	SOCK_AF_UNIX
+	SOCK_AF_INET
+	SOCK_AF_AX25
+	SOCK_AF_IPX
+	SOCK_AF_APPLETALK
+	SOCK_AF_NETROM
+	SOCK_AF_BRIDGE
+	SOCK_AF_AAL5
+	SOCK_AF_X25
+	SOCK_AF_INET6
+	SOCK_AF_MAX
+)
+
 // Subsequent Address Family Identifier.
 //go:generate stringer -type=SAFI
 type SAFI uint8
@@ -1408,7 +1427,7 @@ type IPRouteBody struct {
 	Flags           FLAG
 	Message         MESSAGE_FLAG
 	SAFI            SAFI
-	AFI             AFI
+	SockAf          SOCK_AF
 	Prefix          net.IP
 	PrefixLength    uint8
 	SrcPrefix       net.IP
