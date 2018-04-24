@@ -1029,18 +1029,25 @@ func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) e
 			body.Message |= FRR_MESSAGE_TAG
 		}
 	} else { // version >= 5
-		if body.Prefix.To4() != nil {
-			if isWithdraw {
-				command = FRR5_IPV4_ROUTE_DELETE
+		/*
+			if body.Prefix.To4() != nil {
+				if isWithdraw {
+					command = FRR5_IPV4_ROUTE_DELETE
+				} else {
+					command = FRR5_IPV4_ROUTE_ADD
+				}
 			} else {
-				command = FRR5_IPV4_ROUTE_ADD
+				if isWithdraw {
+					command = FRR5_IPV6_ROUTE_DELETE
+				} else {
+					command = FRR5_IPV6_ROUTE_ADD
+				}
 			}
+		*/
+		if isWithdraw {
+			command = FRR5_ROUTE_DELETE
 		} else {
-			if isWithdraw {
-				command = FRR5_IPV6_ROUTE_DELETE
-			} else {
-				command = FRR5_IPV6_ROUTE_ADD
-			}
+			command = FRR5_ROUTE_ADD
 		}
 		if body.Tag != 0 {
 			body.Message |= FRR5_MESSAGE_TAG
