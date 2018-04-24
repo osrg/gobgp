@@ -1408,6 +1408,7 @@ type IPRouteBody struct {
 	Flags           FLAG
 	Message         MESSAGE_FLAG
 	SAFI            SAFI
+	AFI             AFI
 	Prefix          net.IP
 	PrefixLength    uint8
 	SrcPrefix       net.IP
