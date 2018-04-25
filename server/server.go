@@ -494,10 +494,27 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 	}
 	clonedB := clonePathList(best)
 	for _, p := range clonedB {
+		log.WithFields(log.Fields{
+			"Topic":             "Path",
+			"Path route family": p.GetRouteFamily(),
+		}).Debugf("determining route-family of path")
 		switch p.GetRouteFamily() {
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+			log.WithFields(log.Fields{
+				"Topic": "Path",
+			}).Debugf("path route-family is VPN")
 			for _, vrf := range server.globalRib.Vrfs {
+				log.WithFields(log.Fields{
+					"Topic":  "Path",
+					"vrf-ID": vrf.Id,
+					"path":   p,
+				}).Debugf("checking if path can be imported to VRF")
 				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
+					log.WithFields(log.Fields{
+						"Topic":  "Path",
+						"vrf-ID": vrf.Id,
+						"path":   p,
+					}).Debugf("path can be imported to VRF")
 					p.VrfIds = append(p.VrfIds, vrf.Id)
 				}
 			}
