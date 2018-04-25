@@ -1611,6 +1611,9 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			buf = append(buf, bbuf...)
 		}
 	} else { // version >= 5
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("in IPRouteBody.serialize()")
 		buf = make([]byte, 10)
 		buf[0] = uint8(b.Type)
 		binary.BigEndian.PutUint16(buf[1:3], uint16(b.Instance))
