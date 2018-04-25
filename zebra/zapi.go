@@ -2021,7 +2021,6 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 			binary.BigEndian.PutUint32(bbuf, uint32(nextHopToZapiNextHopMap[version][NEXTHOP_IPV6_IFINDEX]))
 			buf = append(buf, bbuf...)
 		}
-
 		if (version >= 5) && addLabels {
 			buf = append(buf, byte(len(nh.Labels)))
 			for _, label := range nh.Labels {
@@ -2029,7 +2028,6 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 				binary.BigEndian.PutUint32(bbuf, label)
 				buf = append(buf, bbuf...)
 			}
-
 		}
 	}
 
