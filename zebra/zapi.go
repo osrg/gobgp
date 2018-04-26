@@ -1630,7 +1630,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			"Topic":            "Zebra",
 			"prefix_len_bytes": byteLen,
 		}).Debugf("IPRouteBody.serialize()")
-		buf = append(buf, b.PrefixLength)
+		buf[10] = b.PrefixLength
 		buf = append(buf, b.Prefix[:byteLen]...)
 		if b.Message&FRR5_MESSAGE_SRCPFX > 0 {
 			log.WithFields(log.Fields{
@@ -1971,6 +1971,7 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 	log.WithFields(log.Fields{
 		"Topic":        "Zebra",
 		"no_next_hops": len(nexthops),
+		"version":      version,
 	}).Debugf("serializing next-hops")
 	if len(nexthops) == 0 {
 		return buf, nil
