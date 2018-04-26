@@ -701,6 +701,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		showAge = false
 	case CMD_VRF:
 		def = bgp.RF_IPv4_UC
+		showBest = true
 	}
 	family, err := checkAddressFamily(def)
 	if err != nil {
