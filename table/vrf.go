@@ -44,6 +44,24 @@ func (v *Vrf) Clone() *Vrf {
 	}
 }
 
+func (v *Vrf) IsImported(path *Path) bool {
+	if path == nil {
+		return false
+	}
+	// When VPNv4/VPNv6 address family, a path having the different RD with the
+	// matched VRF might have cloned paths whose RD is overwritten by the RD
+	// of the matched VRF. Then, here compares the RD of the given path and
+	// this VRF instead of comparing the RTs of the given path and the import
+	// RTs of this VRF. If with other address families, compares the RTs.
+	switch nlri := path.GetNlri().(type) {
+	case *bgp.LabeledVPNIPAddrPrefix:
+		return v.Rd.String() == nlri.RD.String()
+	case *bgp.LabeledVPNIPv6AddrPrefix:
+		return v.Rd.String() == nlri.RD.String()
+	}
+	return CanImportToVrf(v, path)
+}
+
 func isLastTargetUser(vrfs map[string]*Vrf, target bgp.ExtendedCommunityInterface) bool {
 	for _, vrf := range vrfs {
 		for _, rt := range vrf.ImportRt {

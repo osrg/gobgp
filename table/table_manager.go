@@ -211,10 +211,15 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 		return nil
 	}
 
-	// Except for a special case with EVPN, we'll have one destination.
+	// Except for a special case with MPLS-VPN and EVPN, we'll have one
+	// destination.
 	updates := make([]*Update, 0, 1)
 	family := newPath.GetRouteFamily()
 	if _, ok := manager.Tables[family]; ok {
+		for _, p := range manager.clonePathForVrf(newPath) {
+			updates = append(updates, manager.update(p))
+		}
+
 		updates = append(updates, manager.update(newPath))
 
 		if family == bgp.RF_EVPN {
@@ -224,6 +229,56 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 		}
 	}
 	return updates
+}
+
+// clonePathForVrf returns a cloned path list if the given path has RTs which
+// match some import RTs on VRFs, but has the different RD with those VRFs. The
+// returned paths have the same attributes other than the RD and whose RD is
+// overwritten by the RD of the matched VRFs.
+// Please note that the returned list does not include the original path and
+// currently this function clones only VPNv4 or VPNv6 paths for MPLS VPN.
+func (manager *TableManager) clonePathForVrf(path *Path) []*Path {
+	if path == nil {
+		return nil
+	}
+	var rdString string
+	var v4 *bgp.LabeledVPNIPAddrPrefix
+	var v6 *bgp.LabeledVPNIPv6AddrPrefix
+	switch nlri := path.GetNlri().(type) {
+	case *bgp.LabeledVPNIPAddrPrefix:
+		rdString = nlri.RD.String()
+		v4 = nlri
+	case *bgp.LabeledVPNIPv6AddrPrefix:
+		rdString = nlri.RD.String()
+		v6 = nlri
+	default:
+		return nil
+	}
+	if path.IsWithdraw {
+		// The withdrawn path can have no path attribute, then look up global
+		// table to get the path attributes from the existing path.
+		src := path.GetSource()
+		if dest := manager.GetDestination(path); dest != nil {
+			for _, p := range dest.knownPathList {
+				if src.Equal(p.GetSource()) {
+					path = p.Clone(true)
+				}
+			}
+		}
+	}
+	pathList := make([]*Path, 0, len(manager.Vrfs))
+	for _, vrf := range manager.Vrfs {
+		if CanImportToVrf(vrf, path) && vrf.Rd.String() != rdString {
+			var nlri bgp.AddrPrefixInterface
+			if v4 != nil {
+				nlri = bgp.NewLabeledVPNIPAddrPrefix(v4.IPPrefixLen(), v4.Prefix.String(), v4.Labels, vrf.Rd)
+			} else { // if v6 != nil
+				nlri = bgp.NewLabeledVPNIPv6AddrPrefix(v6.IPPrefixLen(), v6.Prefix.String(), v6.Labels, vrf.Rd)
+			}
+			pathList = append(pathList, path.CloneWithNewNlri(path.IsWithdraw, nlri))
+		}
+	}
+	return pathList
 }
 
 // EVPN MAC MOBILITY HANDLING
