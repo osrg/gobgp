@@ -1956,6 +1956,10 @@ func (n *Nexthop) String() string {
 
 func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]byte, error) {
 	buf := make([]byte, 0)
+	log.WithFields(log.Fields{
+		"Topic":        "Zebra",
+		"no_next_hops": len(nexthops),
+	}).Debugf("serializing next-hops")
 	if len(nexthops) == 0 {
 		return buf, nil
 	}
@@ -1987,6 +1991,10 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 
 		case NEXTHOP_IPV4:
 			buf = append(buf, nh.Addr.To4()...)
+			log.WithFields(log.Fields{
+				"Topic":         "Zebra",
+				"next_hop_ipv4": nh.Addr,
+			}).Debugf("serializing an IPv4 next-hop")
 			if version == 4 {
 
 				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
@@ -2022,6 +2030,10 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 			buf = append(buf, bbuf...)
 		}
 		if (version >= 5) && addLabels {
+			log.WithFields(log.Fields{
+				"Topic":     "Zebra",
+				"no_labels": len(nh.Labels),
+			}).Debugf("serializing labels")
 			buf = append(buf, byte(len(nh.Labels)))
 			for _, label := range nh.Labels {
 				bbuf := make([]byte, 4)
