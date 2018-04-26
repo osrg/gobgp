@@ -1626,9 +1626,17 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 		nhfIndx = uint8(FRR_NEXTHOP_IFINDEX)
 		nhfBlkH = uint8(FRR_NEXTHOP_BLACKHOLE)
 		byteLen := (int(b.PrefixLength) + 7) / 8
+		log.WithFields(log.Fields{
+			"Topic":            "Zebra",
+			"prefix_len_bytes": byteLen,
+		}).Debugf("IPRouteBody.serialize()")
 		buf = append(buf, b.PrefixLength)
 		buf = append(buf, b.Prefix[:byteLen]...)
 		if b.Message&FRR5_MESSAGE_SRCPFX > 0 {
+			log.WithFields(log.Fields{
+				"Topic":        "Zebra",
+				"Message_flag": b.Message,
+			}).Debugf("IPRouteBody.serialize() within source-prefix block")
 			byteLen = (int(b.SrcPrefixLength) + 7) / 8
 			buf = append(buf, b.SrcPrefixLength)
 			buf = append(buf, b.SrcPrefix[:byteLen]...)
@@ -1967,6 +1975,9 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 		bbuf := make([]byte, 2)
 		binary.BigEndian.PutUint16(bbuf, uint16(len(nexthops)))
 		buf = append(buf, bbuf...)
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("serializing number of next-hops")
 	} else {
 		buf = append(buf, byte(len(nexthops)))
 	}
