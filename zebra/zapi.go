@@ -1666,6 +1666,10 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			buf = append(buf, bbuf...)
 		}
 	}
+	log.WithFields(log.Fields{
+		"Topic":   "Zebra",
+		"buf_len": len(buf),
+	}).Debugf("Exiting IPRouteBody.serialize()")
 	return buf, nil
 }
 
