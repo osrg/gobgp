@@ -1977,6 +1977,7 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 		buf = append(buf, bbuf...)
 		log.WithFields(log.Fields{
 			"Topic": "Zebra",
+			"buf":   buf,
 		}).Debugf("serializing number of next-hops")
 	} else {
 		buf = append(buf, byte(len(nexthops)))
