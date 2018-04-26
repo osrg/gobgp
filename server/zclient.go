@@ -261,11 +261,16 @@ func newIPRouteBody(dst pathList, tableVrfId uint32) (body *zebra.IPRouteBody, i
 			if receivedVrfId != tableVrfId {
 				for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
 					nexthop.Labels = append(nexthop.Labels, label)
+					log.WithFields(log.Fields{
+						"Topic": "Zebra",
+						"Label": label,
+					}).Debugf("newIPRouteBody IPv4 VPN case appending label")
 				}
 			}
 			log.WithFields(log.Fields{
 				"Topic":         "Zebra",
-				"Path":          path,
+				"Path":          p,
+				"NextHop":       nexthop,
 				"TableVrfId":    tableVrfId,
 				"ReceivedVrfId": receivedVrfId,
 			}).Debugf("newIPRouteBody IPv4 VPN case")
