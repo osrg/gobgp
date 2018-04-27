@@ -2069,6 +2069,10 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 			}).Debugf("serializing labels")
 			buf = append(buf, byte(len(nh.Labels)))
 			for _, label := range nh.Labels {
+				log.WithFields(log.Fields{
+					"Topic": "Zebra",
+					"Label": label,
+				}).Debugf("serializing labels")
 				bbuf := make([]byte, 4)
 				binary.BigEndian.PutUint32(bbuf, label<<12)
 				buf = append(buf, bbuf...)
