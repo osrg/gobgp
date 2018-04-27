@@ -2070,7 +2070,7 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 			buf = append(buf, byte(len(nh.Labels)))
 			for _, label := range nh.Labels {
 				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, label<<8)
+				binary.BigEndian.PutUint32(bbuf, label<<12)
 				buf = append(buf, bbuf...)
 			}
 		}
