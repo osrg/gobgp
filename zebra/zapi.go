@@ -1659,11 +1659,19 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			buf = append(buf, b.Distance)
 		}
 		if b.Message&FRR5_MESSAGE_METRIC > 0 {
+			log.WithFields(log.Fields{
+				"Topic":        "Zebra",
+				"message_flag": b.Message,
+			}).Debugf("IPRouteBody.serialize() adding metric")
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Metric)
 			buf = append(buf, bbuf...)
 		}
 		if b.Message&FRR5_MESSAGE_TAG > 0 {
+			log.WithFields(log.Fields{
+				"Topic":        "Zebra",
+				"message_flag": b.Message,
+			}).Debugf("IPRouteBody.serialize() adding tag")
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Tag)
 			buf = append(buf, bbuf...)
@@ -2062,7 +2070,7 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 			buf = append(buf, byte(len(nh.Labels)))
 			for _, label := range nh.Labels {
 				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, label)
+				binary.BigEndian.PutUint32(bbuf, label<<8)
 				buf = append(buf, bbuf...)
 			}
 		}
