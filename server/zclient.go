@@ -312,7 +312,7 @@ func newIPRouteBody(dst pathList, tableVrfId uint32) (body *zebra.IPRouteBody, i
 	plen, _ := strconv.ParseUint(l[1], 10, 8)
 	med, err := path.GetMed()
 	if err == nil {
-		msgFlags |= zebra.MESSAGE_METRIC
+		msgFlags |= zebra.FRR5_MESSAGE_METRIC
 	}
 	var flags zebra.FLAG
 	info := path.GetSource()
