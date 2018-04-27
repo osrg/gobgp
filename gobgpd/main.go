@@ -188,6 +188,31 @@ func main() {
 						log.Fatalf("failed to set bmp config: %s", err)
 					}
 				}
+				for _, vrf := range newConfig.Vrfs {
+					rd, err := bgp.ParseRouteDistinguisher(vrf.Config.Rd)
+					if err != nil {
+						log.Fatalf("failed to load vrf rd config: %s", err)
+					}
+					importRtList := make([]bgp.ExtendedCommunityInterface, 0, len(vrf.Config.ImportRtList))
+					for _, rtString := range vrf.Config.ImportRtList {
+						rt, err := bgp.ParseRouteTarget(rtString)
+						if err != nil {
+							log.Fatalf("failed to load vrf import rt config: %s", err)
+						}
+						importRtList = append(importRtList, rt)
+					}
+					exportRtList := make([]bgp.ExtendedCommunityInterface, 0, len(vrf.Config.ExportRtList))
+					for _, rtString := range vrf.Config.ExportRtList {
+						rt, err := bgp.ParseRouteTarget(rtString)
+						if err != nil {
+							log.Fatalf("failed to load vrf export rt config: %s", err)
+						}
+						exportRtList = append(exportRtList, rt)
+					}
+					if err := bgpServer.AddVrf(vrf.Config.Name, vrf.Config.Id, rd, importRtList, exportRtList); err != nil {
+						log.Fatalf("failed to set vrf config: %s", err)
+					}
+				}
 				for i, _ := range newConfig.MrtDump {
 					if len(newConfig.MrtDump[i].Config.FileName) == 0 {
 						continue
