@@ -2084,7 +2084,7 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 					"bbuf[1]": bbuf[1],
 					"bbuf[2]": bbuf[2],
 					"bbuf[3]": bbuf[3],
-				})
+				}).Debugf("bbuf for label")
 				buf = append(buf, bbuf...)
 			}
 		}
