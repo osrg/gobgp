@@ -1,11 +1,12 @@
 package config
 
 import (
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"os"
 	"os/signal"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type BgpConfigSet struct {
@@ -14,6 +15,7 @@ type BgpConfigSet struct {
 	PeerGroups        []PeerGroup        `mapstructure:"peer-groups"`
 	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
 	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
+	Vrfs              []Vrf              `mapstructure:"vrfs"`
 	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
 	Zebra             Zebra              `mapstructure:"zebra"`
 	Collector         Collector          `mapstructure:"collector"`
