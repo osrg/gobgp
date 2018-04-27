@@ -2069,21 +2069,23 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 			}).Debugf("serializing labels")
 			buf = append(buf, byte(len(nh.Labels)))
 			for _, label := range nh.Labels {
+				var ntwLabel uint32 = ((label & 0x000000FF) << 12) | ((label & 0x0000FF00) << 4) | ((label & 0x00FF0000) >> 4)
+				bbuf := make([]byte, 4)
 				log.WithFields(log.Fields{
 					"Topic": "Zebra",
 					"Label": label,
 				}).Debugf("serializing labels")
-				bbuf := make([]byte, 4)
-				bbuf[3] = 0
-				bbuf[2] = uint8((label & 0x000000FF) << 12)
-				bbuf[1] = uint8((label & 0x0000FF00) << 4)
-				bbuf[0] = uint8((label & 0x00FF0000) >> 4)
+				bbuf[0] = uint8((ntwLabel & 0xFF000000) >> 24)
+				bbuf[1] = uint8((ntwLabel & 0x00FF0000) >> 16)
+				bbuf[2] = uint8((ntwLabel & 0x0000FF00) >> 8)
+				bbuf[3] = uint8(ntwLabel & 0xFF0000FF)
 				log.WithFields(log.Fields{
-					"Topic":   "Zebra",
-					"bbuf[0]": bbuf[0],
-					"bbuf[1]": bbuf[1],
-					"bbuf[2]": bbuf[2],
-					"bbuf[3]": bbuf[3],
+					"Topic":     "Zebra",
+					"Ntw_label": ntwLabel,
+					"bbuf[0]":   bbuf[0],
+					"bbuf[1]":   bbuf[1],
+					"bbuf[2]":   bbuf[2],
+					"bbuf[3]":   bbuf[3],
 				}).Debugf("bbuf for label")
 				buf = append(buf, bbuf...)
 			}
