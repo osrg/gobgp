@@ -2073,12 +2073,12 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 					"Topic": "Zebra",
 					"Label": label,
 				}).Debugf("serializing labels")
-				var ntwLabel uint32 = ((label & 0x000000FF) << 12) | ((label & 0x0000FF00) << 4) | ((label & 0x00FF0000) >> 4)
+				ntwLabel := label << 12
 				bbuf := make([]byte, 4)
-				bbuf[3] = uint8((ntwLabel & 0xFF000000) >> 24)
-				bbuf[2] = uint8((ntwLabel & 0x00FF0000) >> 16)
-				bbuf[1] = uint8((ntwLabel & 0x0000FF00) >> 8)
-				bbuf[0] = uint8(ntwLabel & 0xFF0000FF)
+				bbuf[2] = uint8((ntwLabel & 0xFF000000) >> 24)
+				bbuf[1] = uint8((ntwLabel & 0x00FF0000) >> 16)
+				bbuf[0] = uint8((ntwLabel & 0x0000FF00) >> 8)
+				bbuf[3] = uint8(ntwLabel & 0xFF0000FF)
 				log.WithFields(log.Fields{
 					"Topic":     "Zebra",
 					"Ntw_label": ntwLabel,
