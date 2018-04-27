@@ -2078,6 +2078,13 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 				bbuf[2] = uint8((label & 0x000000FF) << 12)
 				bbuf[1] = uint8((label & 0x0000FF00) << 4)
 				bbuf[0] = uint8((label & 0x00FF0000) >> 4)
+				log.WithFields(log.Fields{
+					"Topic":   "Zebra",
+					"bbuf[0]": bbuf[0],
+					"bbuf[1]": bbuf[1],
+					"bbuf[2]": bbuf[2],
+					"bbuf[3]": bbuf[3],
+				})
 				buf = append(buf, bbuf...)
 			}
 		}
