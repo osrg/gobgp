@@ -2074,7 +2074,10 @@ func serializeNexthops(nexthops []*Nexthop, addLabels bool, version uint8) ([]by
 					"Label": label,
 				}).Debugf("serializing labels")
 				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, label<<16)
+				bbuf[0] = uint8((label & 0x000FF000) >> 12)
+				bbuf[1] = uint8((label & 0x00000FF0) >> 4)
+				bbuf[2] = uint8((label & 0x0000000F) << 4)
+				bbuf[3] = 0
 				buf = append(buf, bbuf...)
 			}
 		}
