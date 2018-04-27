@@ -250,7 +250,6 @@ func newIPRouteBody(dst pathList, tableVrfId uint32) (body *zebra.IPRouteBody, i
 
 	case bgp.RF_IPv4_VPN:
 		af = zebra.SOCK_AF_INET
-		msgFlags |= zebra.FRR5_MESSAGE_LABEL
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
@@ -259,6 +258,7 @@ func newIPRouteBody(dst pathList, tableVrfId uint32) (body *zebra.IPRouteBody, i
 			nexthop.VrfId = receivedVrfId
 			nexthops = append(nexthops, nexthop)
 			if receivedVrfId != tableVrfId {
+				msgFlags |= zebra.FRR5_MESSAGE_LABEL
 				for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
 					nexthop.Labels = append(nexthop.Labels, label)
 					log.WithFields(log.Fields{
@@ -290,7 +290,6 @@ func newIPRouteBody(dst pathList, tableVrfId uint32) (body *zebra.IPRouteBody, i
 
 	case bgp.RF_IPv6_VPN:
 		af = zebra.SOCK_AF_INET6
-		msgFlags |= zebra.FRR5_MESSAGE_LABEL
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 		for _, p := range paths {
 			nexthop := &zebra.Nexthop{}
@@ -299,6 +298,7 @@ func newIPRouteBody(dst pathList, tableVrfId uint32) (body *zebra.IPRouteBody, i
 			nexthop.VrfId = receivedVrfId
 			nexthops = append(nexthops)
 			if receivedVrfId != tableVrfId {
+				msgFlags |= zebra.FRR5_MESSAGE_LABEL
 				for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
 					nexthop.Labels = append(nexthop.Labels, label)
 				}
