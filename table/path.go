@@ -92,7 +92,6 @@ type originInfo struct {
 	source             *PeerInfo
 	timestamp          int64
 	validation         *Validation
-	key                string
 	noImplicitWithdraw bool
 	isFromExternal     bool
 	eor                bool
@@ -574,10 +573,7 @@ func (path *Path) String() string {
 }
 
 func (path *Path) getPrefix() string {
-	if path.OriginInfo().key == "" {
-		path.OriginInfo().key = path.GetNlri().String()
-	}
-	return path.OriginInfo().key
+	return path.GetNlri().String()
 }
 
 func (path *Path) GetAsPath() *bgp.PathAttributeAsPath {
