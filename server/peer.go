@@ -349,26 +349,46 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		log.WithFields(log.Fields{
 			"Topic": "Path",
 			"Path":  path,
-			"Peer":  peer,
+			"Peer":  peer.ID(),
 			"Vrf":   peer.fsm.pConf.Config.Vrf,
-		}).Debugf("peer.filterpath(): localized path for VRF")
+		}).Debug("Peer.filterpath(): localized path for VRF")
 	}
 
 	// replace-peer-as handling
 	if path != nil && !path.IsWithdraw && peer.fsm.pConf.AsPathOptions.State.ReplacePeerAs {
 		path = path.ReplaceAS(peer.fsm.pConf.Config.LocalAs, peer.fsm.pConf.Config.PeerAs)
+		log.WithFields(log.Fields{
+			"Topic": "Path",
+			"Path":  path,
+			"Peer":  peer.ID(),
+		}).Debug("Peer.filterpath(): after calling ReplaceAS()")
 	}
 
 	if path = filterpath(peer, path, old); path == nil {
 		return nil
 	}
+	log.WithFields(log.Fields{
+		"Topic": "Path",
+		"Path":  path,
+		"Peer":  peer.ID(),
+	}).Debug("Peer.filterpath(): after calling filterpath()")
 
 	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
+	log.WithFields(log.Fields{
+		"Topic": "Path",
+		"Path":  path,
+		"Peer":  peer.ID(),
+	}).Debug("Peer.filterpath(): after calling UpdatePathAttrs()")
 
 	options := &table.PolicyOptions{
 		Info: peer.fsm.peerInfo,
 	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	log.WithFields(log.Fields{
+		"Topic": "Path",
+		"Path":  path,
+		"Peer":  peer.ID(),
+	}).Debug("Peer.filterpath(): after calling ApplyPolicy()")
 	// When 'path' is filetered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
 	if path == nil && old != nil {
@@ -401,8 +421,8 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	log.WithFields(log.Fields{
 		"Topic": "Path",
 		"Path":  path,
-		"Peer":  peer,
-	}).Debugf("peer.filterpath(): exit")
+		"Peer":  peer.ID(),
+	}).Debugf("Peer.filterpath(): exit after removing local-pref")
 	return path
 }
 
