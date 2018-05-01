@@ -349,6 +349,12 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 	if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; !ok {
+		log.WithFields(log.Fields{
+			"Topic":        "Peer",
+			"Key":          peer.ID(),
+			"Data":         path,
+			"Route_family": path.GetRouteFamily(),
+		}).Debug("Wrong route family, ignore...")
 		return nil
 	}
 
@@ -468,6 +474,11 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 	}
 
 	if !peer.isRouteServerClient() && isASLoop(peer, path) {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.ID(),
+			"Data":  path,
+		}).Debug("AS loop, ignore...")
 		return nil
 	}
 	return path

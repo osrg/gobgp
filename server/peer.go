@@ -351,7 +351,7 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 			"Path":  path,
 			"Peer":  peer,
 			"Vrf":   peer.fsm.pConf.Config.Vrf,
-		}).Debugf("filterpath(): localized path for VRF")
+		}).Debugf("peer.filterpath(): localized path for VRF")
 	}
 
 	// replace-peer-as handling
@@ -402,7 +402,7 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		"Topic": "Path",
 		"Path":  path,
 		"Peer":  peer,
-	}).Debugf("filterpath(): exit")
+	}).Debugf("peer.filterpath(): exit")
 	return path
 }
 
