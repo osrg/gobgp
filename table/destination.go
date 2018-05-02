@@ -169,7 +169,6 @@ type Destination struct {
 	routeFamily   bgp.RouteFamily
 	nlri          bgp.AddrPrefixInterface
 	knownPathList []*Path
-	RadixKey      string
 	localIdMap    *Bitmap
 }
 
@@ -183,10 +182,6 @@ func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *
 	// the id zero means id is not allocated yet.
 	if mapSize != 0 {
 		d.localIdMap.Flag(0)
-	}
-	switch d.routeFamily {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
-		d.RadixKey = AddrToRadixkey(nlri)
 	}
 	return d
 }
