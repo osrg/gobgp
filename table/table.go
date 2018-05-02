@@ -200,7 +200,7 @@ func (t *Table) GetSortedDestinations() []*Destination {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
-			r.Insert(dst.RadixKey, dst)
+			r.Insert(AddrToRadixkey(dst.nlri), dst)
 		}
 		r.Walk(func(s string, v interface{}) bool {
 			results = append(results, v.(*Destination))
@@ -241,7 +241,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		k := CidrToRadixkey(prefix.String())
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
-			r.Insert(dst.RadixKey, dst)
+			r.Insert(AddrToRadixkey(dst.nlri), dst)
 		}
 		r.WalkPrefix(k, func(s string, v interface{}) bool {
 			results = append(results, v.(*Destination))
