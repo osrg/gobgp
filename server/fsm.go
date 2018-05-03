@@ -677,10 +677,10 @@ func getPathAttrFromBGPUpdate(m *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAtt
 	return nil
 }
 
-func hasOwnASLoop(ownAS uint32, limit int, aspath *bgp.PathAttributeAsPath) bool {
+func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath) bool {
 	cnt := 0
-	for _, i := range aspath.Value {
-		for _, as := range i.(*bgp.As4PathParam).AS {
+	for _, param := range asPath.Value {
+		for _, as := range param.GetAS() {
 			if as == ownAS {
 				cnt++
 				if cnt > limit {
@@ -1114,6 +1114,8 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						fsm.marshallingOptions = &bgp.MarshallingOption{
 							AddPath: fsm.rfMap,
 						}
+					} else {
+						fsm.marshallingOptions = nil
 					}
 
 					// calculate HoldTime
@@ -1166,6 +1168,21 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 							// send notification?
 							h.conn.Close()
 							return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
+						}
+
+						// RFC 4724 3
+						// The most significant bit is defined as the Restart State (R)
+						// bit, ...(snip)... When set (value 1), this bit
+						// indicates that the BGP speaker has restarted, and its peer MUST
+						// NOT wait for the End-of-RIB marker from the speaker before
+						// advertising routing information to the speaker.
+						if fsm.pConf.GracefulRestart.State.LocalRestarting && cap.Flags&0x08 != 0 {
+							log.WithFields(log.Fields{
+								"Topic": "Peer",
+								"Key":   fsm.pConf.State.NeighborAddress,
+								"State": fsm.state.String(),
+							}).Debug("peer is restarting, skipping sync process")
+							fsm.pConf.GracefulRestart.State.LocalRestarting = false
 						}
 						if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
 							fsm.pConf.GracefulRestart.State.NotificationEnabled = true

@@ -93,8 +93,11 @@ func modVrf(typ string, args []string) error {
 	var err error
 	switch typ {
 	case CMD_ADD:
-		a := extractReserved(args, []string{"rd", "rt", "id"})
-		if len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 || len(a["id"]) > 1 {
+		a, err := extractReserved(args, map[string]int{
+			"rd": PARAM_SINGLE,
+			"rt": PARAM_LIST,
+			"id": PARAM_SINGLE})
+		if err != nil || len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 {
 			return fmt.Errorf("Usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 		}
 		name := a[""][0]

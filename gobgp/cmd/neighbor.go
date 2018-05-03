@@ -565,8 +565,8 @@ func checkOriginAsWasNotShown(p *table.Path, shownAs map[uint32]struct{}) bool {
 	if len(asPath) == 0 {
 		return false
 	}
-	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
-	origin := aslist[len(aslist)-1]
+	asList := asPath[len(asPath)-1].GetAS()
+	origin := asList[len(asList)-1]
 
 	if _, ok := shownAs[origin]; ok {
 		return false
@@ -585,8 +585,8 @@ func showValidationInfo(p *table.Path, shownAs map[uint32]struct{}) error {
 
 	status := p.Validation().Status
 	reason := p.Validation().Reason
-	aslist := asPath[len(asPath)-1].(*bgp.As4PathParam).AS
-	origin := aslist[len(aslist)-1]
+	asList := asPath[len(asPath)-1].GetAS()
+	origin := asList[len(asList)-1]
 
 	fmt.Printf("Target Prefix: %s, AS: %d\n", p.GetNlri().String(), origin)
 	fmt.Printf("  This route is %s", status)
@@ -701,6 +701,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		showAge = false
 	case CMD_VRF:
 		def = bgp.RF_IPv4_UC
+		showBest = true
 	}
 	family, err := checkAddressFamily(def)
 	if err != nil {
@@ -973,13 +974,22 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as", "family", "vrf", "route-reflector-client", "route-server-client", "allow-own-as", "remove-private-as", "replace-peer-as"})
+	params := map[string]int{"interface": PARAM_SINGLE}
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [ <neighbor-address> | interface <neighbor-interface> ]", cmdType)
 	if cmdType == CMD_ADD {
+		params["as"] = PARAM_SINGLE
+		params["family"] = PARAM_SINGLE
+		params["vrf"] = PARAM_SINGLE
+		params["route-reflector-client"] = PARAM_SINGLE
+		params["route-server-client"] = PARAM_FLAG
+		params["allow-own-as"] = PARAM_SINGLE
+		params["remove-private-as"] = PARAM_SINGLE
+		params["replace-peer-as"] = PARAM_FLAG
 		usage += " as <VALUE> [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
 	}
 
-	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["family"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 || len(m["allow-own-as"]) > 1 || len(m["remove-private-as"]) > 1 {
+	m, err := extractReserved(args, params)
+	if err != nil || (len(m[""]) != 1 && len(m["interface"]) != 1) {
 		return fmt.Errorf("%s", usage)
 	}
 	unnumbered := len(m["interface"]) > 0

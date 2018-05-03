@@ -251,7 +251,11 @@ func (server *BgpServer) Serve() {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 				}).Debugf("Accepted a new dynamic neighbor from:%s", remoteAddr)
-				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, pg.Conf, server.globalRib, server.policy)
+				rib := server.globalRib
+				if pg.Conf.RouteServer.Config.RouteServerClient {
+					rib = server.rsRib
+				}
+				peer := newDynamicPeer(&server.bgpConfig.Global, remoteAddr, pg.Conf, rib, server.policy)
 				if peer == nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
@@ -359,11 +363,10 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		if _, y := peer.fsm.rfMap[bgp.RF_RTC_UC]; y && path.GetRouteFamily() != bgp.RF_RTC_UC {
 			ignore = true
 			for _, ext := range path.GetExtCommunities() {
-				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
-					rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-					if rt == nil {
-						ignore = false
-					} else if ext.String() == rt.String() {
+				for _, p := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
+					rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+					// Note: nil RT means the default route target
+					if rt == nil || ext.String() == rt.String() {
 						ignore = false
 						break
 					}
@@ -371,6 +374,14 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				if !ignore {
 					break
 				}
+			}
+			if ignore {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.ID(),
+					"Data":  path,
+				}).Debug("Filtered by Route Target Constraint, ignore")
+				return nil
 			}
 		}
 
@@ -400,12 +411,12 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				// RFC4456 8. Avoiding Routing Information Loops
 				// If the local CLUSTER_ID is found in the CLUSTER_LIST,
 				// the advertisement received SHOULD be ignored.
-				for _, clusterId := range path.GetClusterList() {
-					if clusterId.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
+				for _, clusterID := range path.GetClusterList() {
+					if clusterID.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
 						log.WithFields(log.Fields{
 							"Topic":     "Peer",
 							"Key":       peer.ID(),
-							"ClusterID": clusterId,
+							"ClusterID": clusterID,
 							"Data":      path,
 						}).Debug("cluster list path attribute has local cluster id, ignore")
 						return nil
@@ -439,31 +450,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		}
 	}
 
-	if peer.ID() == path.GetSource().Address.String() {
-		// Note: multiple paths having the same prefix could exist the
-		// withdrawals list in the case of Route Server setup with
-		// import policies modifying paths. In such case, gobgp sends
-		// duplicated update messages; withdraw messages for the same
-		// prefix.
-		if !peer.isRouteServerClient() {
-			// Say, peer A and B advertized same prefix P, and
-			// best path calculation chose a path from B as best.
-			// When B withdraws prefix P, best path calculation chooses
-			// the path from A as best.
-			// For peers other than A, this path should be advertised
-			// (as implicit withdrawal). However for A, we should advertise
-			// the withdrawal path.
-			// Thing is same when peer A and we advertized prefix P (as local
-			// route), then, we withdraws the prefix.
-			if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
-				return old.Clone(true)
-			}
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.ID(),
-			"Data":  path,
-		}).Debug("From me, ignore.")
+	if path = peer.filterPathFromSourcePeer(path, old); path == nil {
 		return nil
 	}
 
