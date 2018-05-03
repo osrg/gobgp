@@ -987,7 +987,6 @@ func modNeighbor(cmdType string, args []string) error {
 		params["replace-peer-as"] = PARAM_FLAG
 		usage += " as <VALUE> [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
 	}
-	errorWithUsage := fmt.Errorf(usage)
 	m, err := extractReserved(args, params)
 	if err != nil || (len(m[""]) != 1 && len(m["interface"]) != 1) {
 		return fmt.Errorf("%s", usage)
