@@ -160,21 +160,21 @@ func (adj *AdjRib) Exists(path *Path) bool {
 }
 
 func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
-	paths := adj.PathList([]bgp.RouteFamily{family}, accepted)
-	dsts := make(map[string]*Destination, len(paths))
-	for _, path := range paths {
-		if d, y := dsts[path.GetNlri().String()]; y {
-			d.knownPathList = append(d.knownPathList, path)
+	m := make(map[string][]*Path)
+	pl := adj.PathList([]bgp.RouteFamily{family}, accepted)
+	for _, path := range pl {
+		key := path.GetNlri().String()
+		if _, y := m[key]; y {
+			m[key] = append(m[key], path)
 		} else {
-			dst := NewDestination(path.GetNlri(), 0)
-			dsts[path.GetNlri().String()] = dst
-			dst.knownPathList = append(dst.knownPathList, path)
+			m[key] = []*Path{path}
 		}
 	}
-	tbl := &Table{
-		routeFamily:  family,
-		destinations: dsts,
+	d := make([]*Destination, 0, len(pl))
+	for _, l := range m {
+		d = append(d, NewDestination(l[0].GetNlri(), 0, l...))
 	}
+	tbl := NewTable(family, d...)
 	option = append(option, TableSelectOption{adj: true})
 	return tbl.Select(option...)
 }
