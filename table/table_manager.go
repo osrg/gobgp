@@ -346,7 +346,7 @@ func (manager *TableManager) GetDestination(path *Path) *Destination {
 	if !ok {
 		return nil
 	}
-	return t.GetDestination(path.getPrefix())
+	return t.GetDestination(path.GetNlri())
 }
 
 func (manager *TableManager) TableInfo(id string, as uint32, family bgp.RouteFamily) (*TableInfo, error) {

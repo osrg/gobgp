@@ -781,14 +781,25 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	if globalOpts.Json {
-		j, _ := json.Marshal(rib.GetDestinations())
+		d := make(map[string]*table.Destination)
+		for _, dst := range rib.GetDestinations() {
+			d[dst.GetNlri().String()] = dst
+		}
+		j, _ := json.Marshal(d)
 		fmt.Println(string(j))
 		return nil
 	}
 
 	if validationTarget != "" {
 		// show RPKI validation info
-		d := rib.GetDestination(validationTarget)
+		addr, _, _ := net.ParseCIDR(validationTarget)
+		var nlri bgp.AddrPrefixInterface
+		if addr.To16() == nil {
+			nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, validationTarget)
+		} else {
+			nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, validationTarget)
+		}
+		d := rib.GetDestination(nlri)
 		if d == nil {
 			fmt.Println("Network not in table")
 			return nil

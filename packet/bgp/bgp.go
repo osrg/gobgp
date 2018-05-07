@@ -4755,12 +4755,32 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
-func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
-	switch AfiSafiToRouteFamily(afi, safi) {
+func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
+	family := AfiSafiToRouteFamily(afi, safi)
+
+	f := func(s string) AddrPrefixInterface {
+		addr, net, _ := net.ParseCIDR(s)
+		len, _ := net.Mask.Size()
+		switch family {
+		case RF_IPv4_UC, RF_IPv4_MC:
+			return NewIPAddrPrefix(uint8(len), addr.String())
+		}
+		return NewIPv6AddrPrefix(uint8(len), addr.String())
+	}
+
+	switch family {
 	case RF_IPv4_UC, RF_IPv4_MC:
-		prefix = NewIPAddrPrefix(0, "")
+		if len(prefixStr) > 0 {
+			prefix = f(prefixStr[0])
+		} else {
+			prefix = NewIPAddrPrefix(0, "")
+		}
 	case RF_IPv6_UC, RF_IPv6_MC:
-		prefix = NewIPv6AddrPrefix(0, "")
+		if len(prefixStr) > 0 {
+			prefix = f(prefixStr[0])
+		} else {
+			prefix = NewIPv6AddrPrefix(0, "")
+		}
 	case RF_IPv4_VPN:
 		prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv6_VPN:

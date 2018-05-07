@@ -2265,9 +2265,15 @@ func (s *BgpServer) ValidateRib(prefix string) error {
 			if t, ok := s.globalRib.Tables[rf]; ok {
 				dsts := t.GetDestinations()
 				if prefix != "" {
-					_, p, _ := net.ParseCIDR(prefix)
-					if dst := t.GetDestination(p.String()); dst != nil {
-						dsts = map[string]*table.Destination{p.String(): dst}
+					addr, _, _ := net.ParseCIDR(prefix)
+					var nlri bgp.AddrPrefixInterface
+					if addr.To16() == nil {
+						nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, prefix)
+					} else {
+						nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, prefix)
+					}
+					if dst := t.GetDestination(nlri); dst != nil {
+						dsts = map[string]*table.Destination{nlri.String(): dst}
 					}
 				}
 				for _, dst := range dsts {
