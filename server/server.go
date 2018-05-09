@@ -192,7 +192,7 @@ func (server *BgpServer) Serve() {
 		if !found {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-			}).Warnf("Cant't find the neighbor %s", e.MsgSrc)
+			}).Warnf("Can't find the neighbor %s", e.MsgSrc)
 			return
 		}
 		if e.Version != peer.fsm.version {
