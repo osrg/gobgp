@@ -357,7 +357,7 @@ type AddPathByStreamClient struct {
 func (c *AddPathByStreamClient) Send(paths ...*table.Path) error {
 	ps := make([]*api.Path, 0, len(paths))
 	for _, p := range paths {
-		ps = append(ps, api.ToPathApi(p, nil))
+		ps = append(ps, api.ToPathApiInBin(p, nil))
 	}
 	return c.stream.Send(&api.InjectMrtRequest{
 		Resource: api.Resource_GLOBAL,
@@ -419,21 +419,10 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 	switch {
 	case len(pathList) != 0:
 		for _, path := range pathList {
-			nlri := path.GetNlri()
-			n, err := nlri.Serialize()
-			if err != nil {
-				return err
-			}
-			p := &api.Path{
-				Nlri:            n,
-				Family:          uint32(path.GetRouteFamily()),
-				Identifier:      nlri.PathIdentifier(),
-				LocalIdentifier: nlri.PathLocalIdentifier(),
-			}
 			reqs = append(reqs, &api.DeletePathRequest{
 				Resource: resource,
 				VrfId:    vrfID,
-				Path:     p,
+				Path:     api.ToPathApi(path, nil),
 			})
 		}
 	default:
