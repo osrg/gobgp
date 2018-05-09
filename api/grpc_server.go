@@ -28,6 +28,7 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
+	"github.com/golang/protobuf/ptypes/any"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -369,26 +370,16 @@ func NewValidationFromTableStruct(v *table.Validation) *RPKIValidation {
 	}
 }
 
-func ToPathApi(path *table.Path, v *table.Validation) *Path {
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation) *Path {
 	nlri := path.GetNlri()
-	n, _ := nlri.Serialize()
-	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
-	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
-		ret := make([][]byte, 0, len(arg))
-		for _, a := range arg {
-			aa, _ := a.Serialize()
-			ret = append(ret, aa)
-		}
-		return ret
-	}(path.GetPathAttrs())
+	family := uint32(path.GetRouteFamily())
 	vv := config.RPKI_VALIDATION_RESULT_TYPE_NONE.ToInt()
 	if v != nil {
 		vv = v.Status.ToInt()
 	}
-
 	p := &Path{
-		Nlri:               n,
-		Pattrs:             pattrs,
+		Nlri:               binNlri,
+		Pattrs:             binPattrs,
 		Age:                path.GetTimestamp().Unix(),
 		IsWithdraw:         path.IsWithdraw,
 		Validation:         int32(vv),
@@ -400,6 +391,8 @@ func ToPathApi(path *table.Path, v *table.Validation) *Path {
 		IsNexthopInvalid:   path.IsNexthopInvalid,
 		Identifier:         nlri.PathIdentifier(),
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
+		AnyNlri:            anyNlri,
+		AnyPattrs:          anyPattrs,
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS
@@ -407,6 +400,33 @@ func ToPathApi(path *table.Path, v *table.Validation) *Path {
 		p.NeighborIp = s.Address.String()
 	}
 	return p
+}
+
+func ToPathApiInBin(path *table.Path, v *table.Validation) *Path {
+	nlri := path.GetNlri()
+	binNlri, _ := nlri.Serialize()
+	if path.IsWithdraw {
+		return toPathAPI(binNlri, nil, nil, nil, path, v)
+	}
+	binPattrs := func(attrs []bgp.PathAttributeInterface) [][]byte {
+		bufList := make([][]byte, 0, len(attrs))
+		for _, a := range attrs {
+			buf, _ := a.Serialize()
+			bufList = append(bufList, buf)
+		}
+		return bufList
+	}(path.GetPathAttrs())
+	return toPathAPI(binNlri, binPattrs, nil, nil, path, v)
+}
+
+func ToPathApi(path *table.Path, v *table.Validation) *Path {
+	nlri := path.GetNlri()
+	anyNlri := MarshalNLRI(nlri)
+	if path.IsWithdraw {
+		return toPathAPI(nil, nil, anyNlri, nil, path, v)
+	}
+	anyPattrs := MarshalPathAttributes(path.GetPathAttrs())
+	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
 }
 
 func getValidation(v []*table.Validation, i int) *table.Validation {
@@ -704,17 +724,12 @@ func (s *Server) DisableNeighbor(ctx context.Context, arg *DisableNeighborReques
 }
 
 func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.Path, error) {
-	var nlri bgp.AddrPrefixInterface
-	var nexthop string
 	var pi *table.PeerInfo
-	var err error
 
 	pathList := make([]*table.Path, 0, len(ApiPathList))
 	for _, path := range ApiPathList {
-		seen := make(map[bgp.BGPAttrType]bool)
-
-		pattr := make([]bgp.PathAttributeInterface, 0)
-		extcomms := make([]bgp.ExtendedCommunityInterface, 0)
+		var nlri bgp.AddrPrefixInterface
+		var nexthop string
 
 		if path.SourceAsn != 0 {
 			pi = &table.PeerInfo{
@@ -723,68 +738,51 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			}
 		}
 
-		if len(path.Nlri) > 0 {
-			afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(path.Family))
-			if nlri, err = bgp.NewPrefixFromRouteFamily(afi, safi); err != nil {
-				return nil, err
-			}
-			err := nlri.DecodeFromBytes(path.Nlri)
-			if err != nil {
-				return nil, err
-			}
-			nlri.SetPathIdentifier(path.Identifier)
+		nlri, err := path.GetNativeNlri()
+		if err != nil {
+			return nil, err
+		}
+		nlri.SetPathIdentifier(path.Identifier)
+
+		attrList, err := path.GetNativePathAttributes()
+		if err != nil {
+			return nil, err
 		}
 
-		for _, attr := range path.Pattrs {
-			p, err := bgp.GetPathAttribute(attr)
-			if err != nil {
-				return nil, err
-			}
-
-			err = p.DecodeFromBytes(attr)
-			if err != nil {
-				return nil, err
-			}
-
-			if _, ok := seen[p.GetType()]; !ok {
-				seen[p.GetType()] = true
+		pattrs := make([]bgp.PathAttributeInterface, 0)
+		seen := make(map[bgp.BGPAttrType]struct{})
+		for _, attr := range attrList {
+			attrType := attr.GetType()
+			if _, ok := seen[attrType]; !ok {
+				seen[attrType] = struct{}{}
 			} else {
-				return nil, fmt.Errorf("the path attribute appears twice. Type : " + strconv.Itoa(int(p.GetType())))
+				return nil, fmt.Errorf("duplicated path attribute type: %d", attrType)
 			}
-			switch p.GetType() {
-			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-				nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
-			case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
-				value := p.(*bgp.PathAttributeExtendedCommunities).Value
-				if len(value) > 0 {
-					extcomms = append(extcomms, value...)
-				}
-			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-				mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-				if len(mpreach.Value) != 1 {
-					return nil, fmt.Errorf("include only one route in mp_reach_nlri")
-				}
-				nlri = mpreach.Value[0]
-				nexthop = mpreach.Nexthop.String()
+
+			switch a := attr.(type) {
+			case *bgp.PathAttributeNextHop:
+				nexthop = a.Value.String()
+			case *bgp.PathAttributeMpReachNLRI:
+				nlri = a.Value[0]
+				nexthop = a.Nexthop.String()
 			default:
-				pattr = append(pattr, p)
+				pattrs = append(pattrs, attr)
 			}
 		}
 
-		if nlri == nil || (!path.IsWithdraw && nexthop == "") {
-			return nil, fmt.Errorf("not found nlri or nexthop")
+		if nlri == nil {
+			return nil, fmt.Errorf("nlri not found")
+		} else if !path.IsWithdraw && nexthop == "" {
+			return nil, fmt.Errorf("nexthop not found")
 		}
 
 		if resource != Resource_VRF && bgp.RouteFamily(path.Family) == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
-			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
+			pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 		} else {
-			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+			pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 		}
 
-		if len(extcomms) > 0 {
-			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
-		}
-		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw)
+		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
 		if path.IsWithdraw == false {
 			total := bytes.NewBuffer(make([]byte, 0))
 			for _, a := range newPath.GetPathAttrs() {

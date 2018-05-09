@@ -21,6 +21,8 @@
 
 syntax = "proto3";
 
+import "google/protobuf/any.proto";
+
 package gobgpapi;
 
 // Interface exported by the server.
@@ -584,6 +586,24 @@ message Path {
   bool is_nexthop_invalid = 17;
   uint32 identifier = 18;
   uint32 local_identifier = 19;
+  // One of the following defined in "api/bgp/attribute.proto":
+  // - IPAddressPrefix
+  // - LabeledIPAddressPrefix
+  // - EncapsulationNLRI
+  // - EVPNEthernetAutoDiscoveryRoute
+  // - EVPNMACIPAdvertisementRoute
+  // - EVPNInclusiveMulticastEthernetTagRoute
+  // - EVPNEthernetSegmentRoute
+  // - EVPNIPPrefixRoute
+  // - LabeledVPNIPAddressPrefix
+  // - RouteTargetMembershipNLRI
+  // - FlowSpecNLRI
+  // - VPNFlowSpecNLRI
+  // - OpaqueNLRI
+  google.protobuf.Any any_nlri = 20;
+  // Each attribute must be on of *Attribute defined in
+  // "api/bgp/attribute.proto".
+  repeated google.protobuf.Any any_pattrs = 21;
 }
 
 message Destination {
