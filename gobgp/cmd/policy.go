@@ -333,6 +333,8 @@ func printStatement(indent int, s *table.Statement) {
 			fmt.Printf("%sExtCommunitySet: %s %s\n", ind, t.Option(), t.Name())
 		case *table.LargeCommunityCondition:
 			fmt.Printf("%sLargeCommunitySet: %s %s\n", ind, t.Option(), t.Name())
+		case *table.NextHopCondition:
+			fmt.Printf("%sNextHopInList: %s\n", ind, t.String())
 		case *table.AsPathLengthCondition:
 			fmt.Printf("%sAsPathLength: %s\n", ind, t.String())
 		case *table.RpkiValidationCondition:
@@ -480,7 +482,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -637,6 +639,8 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return err
 		}
+	case "next-hop-in-list":
+		stmt.Conditions.BgpConditions.NextHopInList = args
 	default:
 		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type }", usage)
 	}

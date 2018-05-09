@@ -374,11 +374,14 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 		return nil
 	}
 
+	// Form the options before modifying the path
+	options := &table.PolicyOptions{
+		Info:       peer.fsm.peerInfo,
+		OldNextHop: path.GetNexthop(),
+	}
+
 	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
 
-	options := &table.PolicyOptions{
-		Info: peer.fsm.peerInfo,
-	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
