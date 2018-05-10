@@ -112,6 +112,10 @@ func NewROAManager(as uint32) (*roaManager, error) {
 	return m, nil
 }
 
+func (c *roaManager) enabled() bool {
+	return len(c.clientMap) != 0
+}
+
 func (m *roaManager) SetAS(as uint32) error {
 	if m.AS != 0 {
 		return fmt.Errorf("AS was already configured")
@@ -570,21 +574,15 @@ func ValidatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	return validation
 }
 
-func (c *roaManager) validate(pathList []*table.Path) {
-	if len(c.clientMap) == 0 {
-		// RPKI isn't enabled
-		return
+func (c *roaManager) validate(path *table.Path) *table.Validation {
+	if len(c.clientMap) == 0 || path.IsWithdraw || path.IsEOR() {
+		// RPKI isn't enabled or invalid path
+		return nil
 	}
-
-	for _, path := range pathList {
-		if path.IsWithdraw || path.IsEOR() {
-			continue
-		}
-		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
-			v := ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
-			path.SetValidation(v)
-		}
+	if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
+		return ValidatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 	}
+	return nil
 }
 
 type roaClient struct {

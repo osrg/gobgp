@@ -58,7 +58,7 @@ func serialize_path(rf C.int, input *C.char) *C.path {
 		return nil
 	}
 	path := C.new_path()
-	p := api.ToPathApi(pp)
+	p := api.ToPathApi(pp, nil)
 	if len(p.Nlri) > 0 {
 		path.nlri.len = C.int(len(p.Nlri))
 		path.nlri.value = C.CString(string(p.Nlri))

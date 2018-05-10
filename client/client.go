@@ -354,7 +354,7 @@ type AddPathByStreamClient struct {
 func (c *AddPathByStreamClient) Send(paths ...*table.Path) error {
 	ps := make([]*api.Path, 0, len(paths))
 	for _, p := range paths {
-		ps = append(ps, api.ToPathApi(p))
+		ps = append(ps, api.ToPathApi(p, nil))
 	}
 	return c.stream.Send(&api.InjectMrtRequest{
 		Resource: api.Resource_GLOBAL,
@@ -385,7 +385,7 @@ func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error)
 		r, err := cli.cli.AddPath(context.Background(), &api.AddPathRequest{
 			Resource: resource,
 			VrfId:    vrfID,
-			Path:     api.ToPathApi(path),
+			Path:     api.ToPathApi(path, nil),
 		})
 		if err != nil {
 			return nil, err

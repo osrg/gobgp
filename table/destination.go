@@ -968,7 +968,7 @@ func (d *Destination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.GetAllKnownPathList())
 }
 
-func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
+func (d *Destination) Select(option ...DestinationSelectOption) *Destination {
 	id := GLOBAL_RIB_NAME
 	var vrf *Vrf
 	adj := false
@@ -989,9 +989,10 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 	}
 	var paths []*Path
 	if adj {
-		paths = old.knownPathList
+		paths = make([]*Path, len(d.knownPathList))
+		copy(paths, d.knownPathList)
 	} else {
-		paths = old.GetKnownPathList(id, as)
+		paths = d.GetKnownPathList(id, as)
 		if vrf != nil {
 			ps := make([]*Path, 0, len(paths))
 			for _, p := range paths {
@@ -1022,12 +1023,7 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 			}
 		}
 	}
-	new := NewDestination(old.nlri, 0)
-	for _, path := range paths {
-		p := path.Clone(path.IsWithdraw)
-		new.knownPathList = append(new.knownPathList, p)
-	}
-	return new
+	return NewDestination(d.nlri, 0, paths...)
 }
 
 type destinations []*Destination

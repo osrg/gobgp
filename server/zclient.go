@@ -471,7 +471,7 @@ func (z *zebraClient) loop() {
 					Tables: make(map[bgp.RouteFamily]*table.Table),
 				}
 				for _, rf := range rfListFromNexthopUpdateBody(body) {
-					rib, err := z.server.GetRib("", rf, nil)
+					rib, _, err := z.server.GetRib("", rf, nil)
 					if err != nil {
 						log.Errorf("failed to get global rib by family %s", rf.String())
 						continue
