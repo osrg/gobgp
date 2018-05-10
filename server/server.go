@@ -2585,6 +2585,7 @@ type WatchEventUpdate struct {
 	Timestamp    time.Time
 	Payload      []byte
 	PostPolicy   bool
+	Init         bool
 	PathList     []*table.Path
 	Neighbor     *config.Neighbor
 }
@@ -2862,24 +2863,19 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				for _, rf := range peer.configuredRFlist() {
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
-					for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false) {
-						msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
-						buf, _ := msgs[0].Serialize()
-						w.notify(&WatchEventUpdate{
-							Message:      msgs[0],
-							PeerAS:       peer.fsm.peerInfo.AS,
-							LocalAS:      peer.fsm.peerInfo.LocalAS,
-							PeerAddress:  peer.fsm.peerInfo.Address,
-							LocalAddress: net.ParseIP(l),
-							PeerID:       peer.fsm.peerInfo.ID,
-							FourBytesAs:  y,
-							Timestamp:    path.GetTimestamp(),
-							Payload:      buf,
-							PostPolicy:   false,
-							Neighbor:     configNeighbor,
-							PathList:     []*table.Path{path},
-						})
-					}
+					w.notify(&WatchEventUpdate{
+						PeerAS:       peer.fsm.peerInfo.AS,
+						LocalAS:      peer.fsm.peerInfo.LocalAS,
+						PeerAddress:  peer.fsm.peerInfo.Address,
+						LocalAddress: net.ParseIP(l),
+						PeerID:       peer.fsm.peerInfo.ID,
+						FourBytesAs:  y,
+						Init:         true,
+						PostPolicy:   false,
+						Neighbor:     configNeighbor,
+						PathList:     peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false),
+					})
+
 					eor := bgp.NewEndOfRib(rf)
 					eorBuf, _ := eor.Serialize()
 					w.notify(&WatchEventUpdate{
@@ -2891,6 +2887,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 						PeerID:       peer.fsm.peerInfo.ID,
 						FourBytesAs:  y,
 						Timestamp:    time.Now(),
+						Init:         true,
 						Payload:      eorBuf,
 						PostPolicy:   false,
 						Neighbor:     configNeighbor,
@@ -2913,21 +2910,17 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 					if peer, ok := s.neighborMap[peerInfo.Address.String()]; ok {
 						configNeighbor = w.s.ToConfig(peer, false)
 					}
-					for _, path := range paths {
-						msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
-						buf, _ := msgs[0].Serialize()
-						w.notify(&WatchEventUpdate{
-							Message:     msgs[0],
-							PeerAS:      peerInfo.AS,
-							PeerAddress: peerInfo.Address,
-							PeerID:      peerInfo.ID,
-							Timestamp:   path.GetTimestamp(),
-							Payload:     buf,
-							PostPolicy:  true,
-							Neighbor:    configNeighbor,
-							PathList:    []*table.Path{path},
-						})
-					}
+
+					w.notify(&WatchEventUpdate{
+						PeerAS:      peerInfo.AS,
+						PeerAddress: peerInfo.Address,
+						PeerID:      peerInfo.ID,
+						PostPolicy:  true,
+						Neighbor:    configNeighbor,
+						PathList:    paths,
+						Init:        true,
+					})
+
 					eor := bgp.NewEndOfRib(rf)
 					eorBuf, _ := eor.Serialize()
 					w.notify(&WatchEventUpdate{
@@ -2939,6 +2932,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 						Payload:     eorBuf,
 						PostPolicy:  true,
 						Neighbor:    configNeighbor,
+						Init:        true,
 					})
 				}
 			}
