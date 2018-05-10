@@ -17,14 +17,15 @@ package server
 
 import (
 	"fmt"
+	"net"
+	"strconv"
+	"time"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
 	log "github.com/sirupsen/logrus"
-	"net"
-	"strconv"
-	"time"
 )
 
 type ribout map[string][]*table.Path
@@ -166,16 +167,22 @@ func (b *bmpClient) loop() {
 							ID:      msg.PeerID,
 						}
 						if msg.Payload == nil {
-							pathList := make([]*table.Path, 0, len(msg.PathList))
-							for _, p := range msg.PathList {
-								if b.ribout.update(p) {
-									pathList = append(pathList, p)
+							var pathList []*table.Path
+							if msg.Init {
+								pathList = msg.PathList
+							} else {
+								for _, p := range msg.PathList {
+									if b.ribout.update(p) {
+										pathList = append(pathList, p)
+									}
 								}
 							}
-							for _, u := range table.CreateUpdateMsgFromPaths(pathList) {
-								payload, _ := u.Serialize()
-								if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, msg.Timestamp.Unix(), payload)); err != nil {
-									return false
+							for _, path := range pathList {
+								for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{path}) {
+									payload, _ := u.Serialize()
+									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, msg.Timestamp.Unix(), payload)); err != nil {
+										return false
+									}
 								}
 							}
 						} else {

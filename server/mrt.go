@@ -88,6 +88,9 @@ func (m *mrtWriter) loop() error {
 			msg := make([]*mrt.MRTMessage, 0, 1)
 			switch e := ev.(type) {
 			case *WatchEventUpdate:
+				if e.Init {
+					return nil
+				}
 				mp := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.String(), e.LocalAddress.String(), e.FourBytesAs, nil)
 				mp.BGPMessagePayload = e.Payload
 				isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetRouteFamily())
