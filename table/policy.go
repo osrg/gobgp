@@ -35,7 +35,8 @@ import (
 )
 
 type PolicyOptions struct {
-	Info *PeerInfo
+	Info             *PeerInfo
+	ValidationResult *Validation
 }
 
 type DefinedType int
@@ -1712,8 +1713,11 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 	return CONDITION_RPKI
 }
 
-func (c *RpkiValidationCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	return c.result == path.ValidationStatus()
+func (c *RpkiValidationCondition) Evaluate(path *Path, options *PolicyOptions) bool {
+	if options != nil && options.ValidationResult != nil {
+		return c.result == options.ValidationResult.Status
+	}
+	return false
 }
 
 func (c *RpkiValidationCondition) Set() DefinedSet {
