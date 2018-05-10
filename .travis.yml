@@ -220,6 +220,10 @@ matrix:
 cache:
   pip: true
 
+addons:
+  apt:
+    update: true
+
 go_import_path: github.com/osrg/gobgp
 
 notifications:
