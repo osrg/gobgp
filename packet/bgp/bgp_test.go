@@ -1191,3 +1191,27 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 		Value: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99},
 	}, esi)
 }
+
+func TestParseBogusShortData(t *testing.T) {
+	var bodies = []BGPBody{
+		&BGPOpen{},
+		&BGPUpdate{},
+		&BGPNotification{},
+		&BGPKeepAlive{},
+		&BGPRouteRefresh{},
+	}
+
+	for _, b := range bodies {
+		b.DecodeFromBytes([]byte{0})
+	}
+}
+
+func TestFuzzCrashers(t *testing.T) {
+	var crashers = []string{
+		"000000000000000000\x01",
+	}
+
+	for _, f := range crashers {
+		ParseBGPMessage([]byte(f))
+	}
+}
