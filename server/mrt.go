@@ -392,12 +392,12 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 }
 
 func (m *mrtManager) disable(c *config.MrtConfig) error {
-	if w, ok := m.writer[c.FileName]; !ok {
+	w, ok := m.writer[c.FileName]
+	if !ok {
 		return fmt.Errorf("%s doesn't exists", c.FileName)
-	} else {
-		w.Stop()
-		delete(m.writer, c.FileName)
 	}
+	w.Stop()
+	delete(m.writer, c.FileName)
 	return nil
 }
 
