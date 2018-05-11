@@ -21,11 +21,12 @@ import (
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -114,12 +115,16 @@ func (m *mrtWriter) loop() error {
 				}
 			case *WatchEventTable:
 				t := uint32(time.Now().Unix())
-				peers := make([]*mrt.Peer, 0, len(e.Neighbor))
+
+				peers := make([]*mrt.Peer, 1, len(e.Neighbor)+1)
+				// Adding dummy Peer record for locally generated routes
+				peers[0] = mrt.NewPeer("0.0.0.0", "0.0.0.0", 0, true)
 				neighborMap := make(map[string]*config.Neighbor)
 				for _, pconf := range e.Neighbor {
 					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.State.NeighborAddress, pconf.Config.PeerAs, true))
 					neighborMap[pconf.State.NeighborAddress] = pconf
 				}
+
 				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterId, "", peers)); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
@@ -177,11 +182,10 @@ func (m *mrtWriter) loop() error {
 					entries := make([]*mrt.RibEntry, 0, len(pathList))
 					entriesAddPath := make([]*mrt.RibEntry, 0, len(pathList))
 					for _, path := range pathList {
-						if path.IsLocal() {
-							continue
-						}
 						isAddPath := false
-						if neighbor, ok := neighborMap[path.GetSource().Address.String()]; ok {
+						if path.IsLocal() {
+							isAddPath = true
+						} else if neighbor, ok := neighborMap[path.GetSource().Address.String()]; ok {
 							isAddPath = neighbor.IsAddPathReceiveEnabled(path.GetRouteFamily())
 						}
 						if !isAddPath {
