@@ -976,7 +976,18 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table
 		if (source == nil && targetPeer.isRouteServerClient()) || (source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient()) {
 			continue
 		}
-		if targetPeer.isAddPathSendEnabled(family) {
+		f := func() bgp.RouteFamily {
+			if targetPeer.fsm.pConf.Config.Vrf != "" {
+				switch family {
+				case bgp.RF_IPv4_VPN:
+					return bgp.RF_IPv4_UC
+				case bgp.RF_IPv6_VPN:
+					return bgp.RF_IPv6_UC
+				}
+			}
+			return family
+		}()
+		if targetPeer.isAddPathSendEnabled(f) {
 			bestList = []*table.Path{newPath}
 			oldList = nil
 		} else if targetPeer.isRouteServerClient() {
