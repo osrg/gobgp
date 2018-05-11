@@ -9222,7 +9222,6 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
 	}
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
-	fmt.Println("XXX", msg.Len, data[16:18])
 	if int(msg.Len) < BGP_HEADER_LENGTH {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
 	}
