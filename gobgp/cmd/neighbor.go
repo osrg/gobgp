@@ -792,7 +792,10 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	if validationTarget != "" {
 		// show RPKI validation info
-		addr, _, _ := net.ParseCIDR(validationTarget)
+		addr, _, err := net.ParseCIDR(validationTarget)
+		if err != nil {
+			return err
+		}
 		var nlri bgp.AddrPrefixInterface
 		if addr.To16() == nil {
 			nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, validationTarget)

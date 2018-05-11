@@ -1158,7 +1158,10 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		if len(args) < 5 || args[1] != "label" || args[3] != "rd" {
 			return nil, fmt.Errorf("invalid format")
 		}
-		ip, nw, _ := net.ParseCIDR(args[0])
+		ip, nw, err := net.ParseCIDR(args[0])
+		if err != nil {
+			return nil, err
+		}
 		ones, _ := nw.Mask.Size()
 
 		label, err := strconv.ParseUint(args[2], 10, 32)
@@ -1190,7 +1193,10 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 			return nil, fmt.Errorf("invalid format")
 		}
 
-		ip, nw, _ := net.ParseCIDR(args[0])
+		ip, nw, err := net.ParseCIDR(args[0])
+		if err != nil {
+			return nil, err
+		}
 		ones, _ := nw.Mask.Size()
 
 		mpls, err := bgp.ParseMPLSLabelStack(args[1])
