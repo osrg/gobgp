@@ -942,6 +942,9 @@ type BGPOpen struct {
 }
 
 func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 10 {
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all BGP Open message bytes available")
+	}
 	msg.Version = data[0]
 	msg.MyAS = binary.BigEndian.Uint16(data[1:3])
 	msg.HoldTime = binary.BigEndian.Uint16(data[3:5])
@@ -9219,6 +9222,7 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
 	}
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
+	fmt.Println("XXX", msg.Len, data[16:18])
 	if int(msg.Len) < BGP_HEADER_LENGTH {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
 	}
@@ -9271,6 +9275,11 @@ func ParseBGPMessage(data []byte, options ...*MarshallingOption) (*BGPMessage, e
 	if err != nil {
 		return nil, err
 	}
+
+	if int(h.Len) > len(data) {
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
+	}
+
 	return parseBody(h, data[19:h.Len], options...)
 }
 
