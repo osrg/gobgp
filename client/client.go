@@ -861,7 +861,7 @@ func (cli *Client) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
 	if err != nil {
 		return nil, err
 	}
-	return api.NewROAListFromApiStructList(rsp.Roas), nil
+	return api.NewROAListFromApiStructList(rsp.Roas)
 }
 
 func (cli *Client) AddRPKIServer(address string, port, lifetime int) error {
