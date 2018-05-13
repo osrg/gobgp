@@ -1156,16 +1156,42 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			} else {
 				// RFC 4724 4.1
 				// Once the session between the Restarting Speaker and the Receiving
-				// Speaker is re-established, the Restarting Speaker will receive and
-				// process BGP messages from its peers.  However, it MUST defer route
-				// selection for an address family until it either (a) ...snip...
-				// or (b) the Selection_Deferral_Timer referred to below has expired.
-				deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.ID(),
-				}).Debugf("Now syncing, suppress sending updates. start deferral timer(%d)", deferral)
-				time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.RouteFamily(0)))
+				// Speaker is re-established, ...snip... it MUST defer route
+				// selection for an address family until it either (a) receives the
+				// End-of-RIB marker from all its peers (excluding the ones with the
+				// "Restart State" bit set in the received capability and excluding the
+				// ones that do not advertise the graceful restart capability) or (b)
+				// the Selection_Deferral_Timer referred to below has expired.
+				allEnd := func() bool {
+					for _, p := range server.neighborMap {
+						if !p.recvedAllEOR() {
+							return false
+						}
+					}
+					return true
+				}()
+				if allEnd {
+					for _, p := range server.neighborMap {
+						p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+						if !p.isGracefulRestartEnabled() {
+							continue
+						}
+						paths, _ := server.getBestFromLocal(p, p.configuredRFlist())
+						if len(paths) > 0 {
+							sendFsmOutgoingMsg(p, paths, nil, false)
+						}
+					}
+					log.WithFields(log.Fields{
+						"Topic": "Server",
+					}).Info("sync finished")
+				} else {
+					deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.ID(),
+					}).Debugf("Now syncing, suppress sending updates. start deferral timer(%d)", deferral)
+					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.RouteFamily(0)))
+				}
 			}
 		} else {
 			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
