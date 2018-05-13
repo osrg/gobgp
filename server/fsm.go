@@ -1163,8 +1163,10 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 								"Topic": "Peer",
 								"Key":   fsm.pConf.State.NeighborAddress,
 								"State": fsm.state.String(),
-							}).Debug("peer is restarting, skipping sync process")
-							fsm.pConf.GracefulRestart.State.LocalRestarting = false
+							}).Debug("peer has restarted, skipping wait for EOR")
+							for i := range fsm.pConf.AfiSafis {
+								fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+							}
 						}
 						if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
 							fsm.pConf.GracefulRestart.State.NotificationEnabled = true
