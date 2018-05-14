@@ -88,7 +88,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(1)
 
-        g2.graceful_restart()
+        g2.stop_gobgp()
         g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g2)
 
         time.sleep(1)
@@ -140,7 +140,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(rib) == 1)
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
-        g2.graceful_restart()
+        g2.stop_gobgp()
         g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g2)
 
         time.sleep(1)

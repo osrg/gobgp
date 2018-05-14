@@ -69,7 +69,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_02_graceful_restart(self):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
-        g1.graceful_restart()
+        g1.stop_gobgp()
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
         self.assertTrue(len(g2.get_global_rib('10.10.20.0/24')) == 1)
         self.assertTrue(len(g2.get_global_rib('10.10.10.0/24')) == 1)
@@ -113,7 +113,7 @@ class GoBGPTestBase(unittest.TestCase):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
-        g1.graceful_restart()
+        g1.stop_gobgp()
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
         self.assertTrue(len(g2.get_global_rib('10.10.20.0/24')) == 1)
         self.assertTrue(len(g2.get_global_rib('10.10.30.0/24')) == 1)
@@ -153,7 +153,7 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
 
-        g1.graceful_restart()
+        g1.stop_gobgp()
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
         g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
 

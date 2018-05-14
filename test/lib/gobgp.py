@@ -113,7 +113,7 @@ class GoBGPContainer(BGPContainer):
         local(cmd, capture=True)
         self.local("{0}/start.sh".format(self.SHARED_VOLUME), detach=True)
 
-    def graceful_restart(self):
+    def stop_gobgp(self):
         self.local("pkill -INT gobgpd")
 
     def _start_zebra(self):
