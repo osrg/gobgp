@@ -110,8 +110,7 @@ class GoBGPTestBase(unittest.TestCase):
         # withdrawn
         self.assertTrue(len(g4.get_global_rib('10.0.0.0/24')) == 0)
 
-        g2._start_gobgp(graceful_restart=True)
-        time.sleep(2)
+        g2.start_gobgp(graceful_restart=True)
         g2.local('gobgp global rib add 10.0.0.0/24')
         g2.local('gobgp global rib add 10.10.0.0/24')
 

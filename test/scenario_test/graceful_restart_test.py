@@ -78,8 +78,7 @@ class GoBGPTestBase(unittest.TestCase):
                 self.assertTrue(p['stale'])
 
         g1.routes = {}
-        g1._start_gobgp(graceful_restart=True)
-        time.sleep(3)
+        g1.start_gobgp(graceful_restart=True)
         g1.add_route('10.10.20.0/24')
 
     def test_03_neighbor_established(self):
@@ -134,7 +133,7 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
 
-        g1._start_gobgp()
+        g1.start_gobgp()
 
         g1.del_peer(g2)
         g1.del_peer(g3)
@@ -157,7 +156,7 @@ class GoBGPTestBase(unittest.TestCase):
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
         g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
 
-        g1._start_gobgp(graceful_restart=True)
+        g1.start_gobgp(graceful_restart=True)
 
         count = 0
         while (g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED
