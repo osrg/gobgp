@@ -160,8 +160,8 @@ class GoBGPTestBase(unittest.TestCase):
         g1._start_gobgp(graceful_restart=True)
 
         count = 0
-        while ((g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED)
-                or (g1.get_neighbor_state(g3) != BGP_FSM_ESTABLISHED)):
+        while (g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED
+               or g1.get_neighbor_state(g3) != BGP_FSM_ESTABLISHED):
             count += 1
             # assert connections are not refused
             self.assertTrue(g1.get_neighbor_state(g2) != BGP_FSM_IDLE)
