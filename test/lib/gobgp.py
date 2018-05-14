@@ -15,6 +15,7 @@
 
 from __future__ import absolute_import
 
+import collections
 import json
 from itertools import chain
 from threading import Thread
@@ -27,7 +28,6 @@ from fabric.utils import indent
 import netaddr
 import toml
 import yaml
-import collections
 
 from lib.base import (
     wait_for_completion,
@@ -112,6 +112,12 @@ class GoBGPContainer(BGPContainer):
         cmd = "chmod 755 {0}/start.sh".format(self.config_dir)
         local(cmd, capture=True)
         self.local("{0}/start.sh".format(self.SHARED_VOLUME), detach=True)
+
+    def start_gobgp(self, graceful_restart=False):
+        if self._is_running():
+            raise RuntimeError('GoBGP is already running')
+        self._start_gobgp(graceful_restart=graceful_restart)
+        self._wait_for_boot()
 
     def stop_gobgp(self):
         self.local("pkill -INT gobgpd")
