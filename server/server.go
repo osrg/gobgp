@@ -270,7 +270,7 @@ func (server *BgpServer) Serve() {
 				server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): peer.fsm.pConf.ApplyPolicy})
 				server.neighborMap[remoteAddr] = peer
 				peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
-				server.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE)
+				server.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
 				peer.PassConn(conn)
 			} else {
 				log.WithFields(log.Fields{
@@ -735,10 +735,10 @@ func newWatchEventPeerState(peer *Peer, m *FsmMsg) *WatchEventPeerState {
 	return e
 }
 
-func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
+func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState, e *FsmMsg) {
 	newState := peer.fsm.state
 	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
-		server.notifyWatcher(WATCH_EVENT_TYPE_PEER_STATE, newWatchEventPeerState(peer))
+		server.notifyWatcher(WATCH_EVENT_TYPE_PEER_STATE, newWatchEventPeerState(peer, e))
 	}
 }
 
@@ -1031,13 +1031,14 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 		peer.fsm.pConf.State.SessionState = config.IntToSessionStateMap[int(nextState)]
 		peer.fsm.StateChange(nextState)
 
+		// PeerDown
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
 			t := time.Now()
 			if t.Sub(time.Unix(peer.fsm.pConf.Timers.State.Uptime, 0)) < FLOP_THRESHOLD {
 				peer.fsm.pConf.State.Flops++
 			}
 			var drop []bgp.RouteFamily
-			if peer.fsm.reason == FSM_GRACEFUL_RESTART {
+			if peer.fsm.reason.Type == FSM_GRACEFUL_RESTART {
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
 				var p []bgp.RouteFamily
 				p, drop = peer.forwardingPreservedFamilies()
@@ -1056,7 +1057,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				peer.stopPeerRestarting()
 				go peer.stopFSM()
 				delete(server.neighborMap, peer.fsm.pConf.State.NeighborAddress)
-				server.broadcastPeerState(peer, oldState)
+				server.broadcastPeerState(peer, oldState, e)
 				return
 			}
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
@@ -1234,7 +1235,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			peer.fsm.pConf.Timers.State = config.TimersState{}
 		}
 		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
-		server.broadcastPeerState(peer, oldState)
+		server.broadcastPeerState(peer, oldState, e)
 	case FSM_MSG_ROUTE_REFRESH:
 		if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED || e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime {
 			return
@@ -2084,7 +2085,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		server.peerGroupMap[name].AddMember(*c)
 	}
 	peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
-	server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE)
+	server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, nil)
 	return nil
 }
 
@@ -2901,7 +2902,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				w.notify(newWatchEventPeerState(peer))
+				w.notify(newWatchEventPeerState(peer, nil))
 			}
 		}
 		if w.opts.initBest && s.active() == nil {
