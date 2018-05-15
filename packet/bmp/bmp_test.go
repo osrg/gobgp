@@ -68,7 +68,7 @@ func Test_PeerUpNotification(t *testing.T) {
 
 func Test_PeerDownNotification(t *testing.T) {
 	p0 := NewBMPPeerHeader(0, 0, 1000, "10.0.0.1", 70000, "10.0.0.2", 1)
-	verify(t, NewBMPPeerDownNotification(*p0, BMP_PEER_DOWN_REASON_UNKNOWN, nil, []byte{0x3, 0xb}))
+	verify(t, NewBMPPeerDownNotification(*p0, BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION, nil, []byte{0x3, 0xb}))
 	m := bgp.NewBGPNotificationMessage(1, 2, nil)
 	verify(t, NewBMPPeerDownNotification(*p0, BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, m, nil))
 }
