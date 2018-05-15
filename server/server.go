@@ -708,12 +708,12 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 	server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
 }
 
-func createWatchEventPeerState(peer *Peer) *WatchEventPeerState {
+func newWatchEventPeerState(peer *Peer, m *FsmMsg) *WatchEventPeerState {
 	_, rport := peer.fsm.RemoteHostPort()
 	laddr, lport := peer.fsm.LocalHostPort()
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	recvOpen := peer.fsm.recvOpen
-	return &WatchEventPeerState{
+	e := &WatchEventPeerState{
 		PeerAS:        peer.fsm.peerInfo.AS,
 		LocalAS:       peer.fsm.peerInfo.LocalAS,
 		PeerAddress:   peer.fsm.peerInfo.Address,
@@ -728,12 +728,17 @@ func createWatchEventPeerState(peer *Peer) *WatchEventPeerState {
 		Timestamp:     time.Now(),
 		PeerInterface: peer.fsm.pConf.Config.NeighborInterface,
 	}
+
+	if m != nil {
+		e.StateReason = m.StateReason
+	}
+	return e
 }
 
 func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
 	newState := peer.fsm.state
 	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
-		server.notifyWatcher(WATCH_EVENT_TYPE_PEER_STATE, createWatchEventPeerState(peer))
+		server.notifyWatcher(WATCH_EVENT_TYPE_PEER_STATE, newWatchEventPeerState(peer))
 	}
 }
 
@@ -2651,6 +2656,7 @@ type WatchEventPeerState struct {
 	SentOpen      *bgp.BGPMessage
 	RecvOpen      *bgp.BGPMessage
 	State         bgp.FSMState
+	StateReason   *FsmStateReason
 	AdminState    AdminState
 	Timestamp     time.Time
 	PeerInterface string
@@ -2895,7 +2901,7 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 				if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				w.notify(createWatchEventPeerState(peer))
+				w.notify(newWatchEventPeerState(peer))
 			}
 		}
 		if w.opts.initBest && s.active() == nil {

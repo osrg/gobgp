@@ -34,6 +34,17 @@ import (
 	"github.com/osrg/gobgp/table"
 )
 
+type PeerDownReason int
+
+const (
+	PEER_DOWN_REASON_UNKNOWN PeerDownReason = iota
+	PEER_DOWN_BY_LOCAL
+	PEER_DOWN_BY_LOCAL_WITHOUT_NOTIFICATION
+	PEER_DOWN_BY_REMOTE
+	PEER_DOWN_BY_REMOTE_WITHOUT_NOTIFICATION
+	PEER_DOWN_BY_BMP_CONFIGURATION
+)
+
 type FsmStateReason string
 
 const (
