@@ -80,9 +80,6 @@ class ZebraNHTTest(unittest.TestCase):
     def setUpClass(cls):
         gobgp_ctn_image_name = parser_option.gobgp_image
         base.TEST_PREFIX = parser_option.test_prefix
-
-        local("echo 'start %s'" % cls.__name__, capture=True)
-
         cls.r1 = GoBGPContainer(
             name='r1', asn=65000, router_id='192.168.0.1',
             ctn_image_name=gobgp_ctn_image_name,
@@ -132,16 +129,20 @@ class ZebraNHTTest(unittest.TestCase):
         time.sleep(wait_time)
 
         cls.br_r1_r2 = Bridge(name='br_r1_r2', subnet='192.168.12.0/24')
-        [cls.br_r1_r2.addif(ctn) for ctn in (cls.r1, cls.r2)]
+        for ctn in (cls.r1, cls.r2):
+            cls.br_r1_r2.addif(ctn)
 
         cls.br_r2_r3 = Bridge(name='br_r2_r3', subnet='192.168.23.0/24')
-        [cls.br_r2_r3.addif(ctn) for ctn in (cls.r2, cls.r3)]
+        for ctn in (cls.r2, cls.r3):
+            cls.br_r2_r3.addif(ctn)
 
         cls.br_r2_r4 = Bridge(name='br_r2_r4', subnet='192.168.24.0/24')
-        [cls.br_r2_r4.addif(ctn) for ctn in (cls.r2, cls.r4)]
+        for ctn in (cls.r2, cls.r4):
+            cls.br_r2_r4.addif(ctn)
 
         cls.br_r3_r4 = Bridge(name='br_r3_r4', subnet='192.168.34.0/24')
-        [cls.br_r3_r4.addif(ctn) for ctn in (cls.r3, cls.r4)]
+        for ctn in (cls.r3, cls.r4):
+            cls.br_r3_r4.addif(ctn)
 
     def test_01_BGP_neighbor_established(self):
         # Test to start BGP connection up between r1-r2.
