@@ -238,16 +238,17 @@ func getBestPath(id string, as uint32, pathList []*Path) *Path {
 		if rsFilter(id, as, p) {
 			continue
 		}
-
-		if !p.IsNexthopInvalid {
-			return p
-		}
+		return p
 	}
 	return nil
 }
 
 func (dd *Destination) GetBestPath(id string, as uint32) *Path {
-	return getBestPath(id, as, dd.knownPathList)
+	p := getBestPath(id, as, dd.knownPathList)
+	if p == nil || p.IsNexthopInvalid {
+		return nil
+	}
+	return p
 }
 
 func (dd *Destination) GetMultiBestPath(id string) []*Path {
@@ -573,6 +574,11 @@ func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, 
 			// For BGP Nexthop Tracking, checks if the nexthop reachability
 			// was changed or not.
 			if best.IsNexthopInvalid != old.IsNexthopInvalid {
+				// If the nexthop of the best path became unreachable, we need
+				// to withdraw that path.
+				if best.IsNexthopInvalid {
+					return best.Clone(true), old
+				}
 				return best, old
 			}
 			return nil, old
