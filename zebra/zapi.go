@@ -571,43 +571,51 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
 		if err != nil {
-			err = fmt.Errorf("failed to read header: %s", err)
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
-			}).Error(err)
+				"Error": err,
+			}).Error("failed to read header")
 			return nil, err
 		}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("read header from zebra: %v", headerBuf)
+
 		hd := &Header{}
 		err = hd.DecodeFromBytes(headerBuf)
 		if err != nil {
-			err = fmt.Errorf("failed to decode header: %s", err)
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
-			}).Error(err)
+				"Data":  headerBuf,
+				"Error": err,
+			}).Error("failed to decode header")
 			return nil, err
 		}
 
 		bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
 		if err != nil {
-			err = fmt.Errorf("failed to read body: %s", err)
 			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Error(err)
+				"Topic":  "Zebra",
+				"Header": hd,
+				"Error":  err,
+			}).Error("failed to read body")
 			return nil, err
 		}
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Debugf("read body from zebra: %v", bodyBuf)
+
 		m, err := ParseMessage(hd, bodyBuf)
 		if err != nil {
+			// Just outputting warnings (not error message) and ignore this
+			// error considering the case that body parser is not implemented
+			// yet.
 			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Warnf("failed to parse message: %s", err)
+				"Topic":  "Zebra",
+				"Header": hd,
+				"Data":   bodyBuf,
+				"Error":  err,
+			}).Warn("failed to decode body")
 			return nil, nil
 		}
+		log.WithFields(log.Fields{
+			"Topic":   "Zebra",
+			"Message": m,
+		}).Debug("read message from zebra")
 
 		return m, nil
 	}
