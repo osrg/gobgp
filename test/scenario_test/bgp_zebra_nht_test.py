@@ -223,6 +223,60 @@ class ZebraNHTTest(unittest.TestCase):
         assert_several_times(f=_f_r2)
         assert_several_times(f=_f_r1)
 
+    def test_06_nexthop_unreachable(self):
+        # Test to update the nexthop state if nexthop become unreachable by
+        # link down. If the link r2-r3 and r2-r4 goes down, there is no route
+        # to r3.
+
+        def _f_r2():
+            self.assertEqual(self.r2.local(
+                "gobgp global rib -a ipv4 10.3.1.0/24"
+                " | grep '^* ' > /dev/null"
+                " && echo OK || echo NG",
+                capture=True), 'OK')
+
+        def _f_r1():
+            self.assertEqual(self.r1.local(
+                "gobgp global rib -a ipv4 10.3.1.0/24"
+                "| grep 'Network not in table' > /dev/null"
+                " && echo OK || echo NG",
+                capture=True), 'OK')
+
+        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
+        self.r3.local('ip link set %s down' % ifname)
+        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
+        self.r4.local('ip link set %s down' % ifname)
+
+        assert_several_times(f=_f_r2, t=120)
+        assert_several_times(f=_f_r1, t=120)
+        # Confirm the stability of the nexthop state
+        for _ in range(10):
+            time.sleep(1)
+            _f_r2()
+            _f_r1()
+
+    def test_07_nexthop_restore(self):
+        # Test to update the nexthop state if nexthop become reachable again.
+        # If the link r2-r3 and r2-r4 goes up again, MED/Metric should be
+        # update with the initial value.
+
+        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
+        med = 20
+
+        def _f_r2():
+            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
+
+        def _f_r1():
+            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
+
+        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
+        self.r3.local('ip link set %s up' % ifname)
+        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
+        self.r4.local('ip link set %s up' % ifname)
+
+        assert_several_times(f=_f_r2)
+        assert_several_times(f=_f_r1)
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
