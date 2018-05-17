@@ -3354,6 +3354,11 @@ func (r *RoutingPolicy) ReplaceStatement(st *Statement) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	for _, c := range st.Conditions {
+		if err = r.validateCondition(c); err != nil {
+			return
+		}
+	}
 	m := r.statementMap
 	name := st.Name
 	if d, ok := m[name]; ok {
