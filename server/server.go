@@ -784,7 +784,9 @@ func (s *BgpServer) getBestFromLocal(peer *Peer, rfList []bgp.RouteFamily) ([]*t
 	}
 	if peer.isGracefulRestartEnabled() {
 		for _, family := range rfList {
-			pathList = append(pathList, table.NewEOR(family))
+			if _, ok := peer.fsm.rfMap[family]; ok {
+				pathList = append(pathList, table.NewEOR(family))
+			}
 		}
 	}
 	return pathList, filtered
