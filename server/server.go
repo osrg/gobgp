@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
-	uuid "github.com/satori/go.uuid"
+	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/config"
@@ -784,7 +784,9 @@ func (s *BgpServer) getBestFromLocal(peer *Peer, rfList []bgp.RouteFamily) ([]*t
 	}
 	if peer.isGracefulRestartEnabled() {
 		for _, family := range rfList {
-			pathList = append(pathList, table.NewEOR(family))
+			if peer.getAddPathMode(family) != bgp.BGP_ADD_PATH_NONE {
+				pathList = append(pathList, table.NewEOR(family))
+			}
 		}
 	}
 	return pathList, filtered
