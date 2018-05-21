@@ -194,11 +194,25 @@ func (server *BgpServer) Serve() {
 				"Topic": "Peer",
 			}).Warnf("Can't find the neighbor %s", e.MsgSrc)
 			return
-		}
-		if e.Version != peer.fsm.version {
+		} else if e.Version != peer.fsm.version {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 			}).Debug("FSM version inconsistent")
+			return
+		} else if peer.fsm.adminState == ADMIN_STATE_DELETED {
+			// The peer is requested to be deleted via API.
+			// When the connection is lost, we delete the peer from neighborMap
+			// and broadcast the message to watchers.
+			if e.MsgType == FSM_MSG_STATE_CHANGE &&
+				e.MsgData.(bgp.FSMState) == bgp.BGP_FSM_IDLE {
+				delete(server.neighborMap, peer.fsm.pConf.Config.NeighborAddress)
+				peer.fsm.state = bgp.BGP_FSM_IDLE
+				server.broadcastPeerState(peer, bgp.BGP_FSM_ESTABLISHED, e)
+				return
+			}
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Debug("the peer is about to be deleted by CLI command, ignoring.")
 			return
 		}
 		server.handleFSMMessage(peer, e)
@@ -2125,12 +2139,19 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 		"Topic": "Peer",
 	}).Infof("Delete a peer configuration for:%s", addr)
 
-	n.fsm.sendNotification(code, subcode, nil, "")
-	n.stopPeerRestarting()
+	// If failed to send NOTIFICATION message, we determine the connection to
+	// this neighbor is already lost. So here drops the info of this neighbor.
+	// Otherwise, waits for this the connection closed.
+	if _, err = n.fsm.sendNotification(code, subcode, nil, ""); err != nil {
+		delete(server.neighborMap, n.fsm.pConf.Config.NeighborAddress)
+	}
 
+	n.stopPeerRestarting()
 	go n.stopFSM()
-	delete(server.neighborMap, addr)
 	server.dropPeerAllRoutes(n, n.configuredRFlist())
+
+	n.fsm.h.changeAdminState(ADMIN_STATE_DELETED)
+
 	return nil
 }
 
