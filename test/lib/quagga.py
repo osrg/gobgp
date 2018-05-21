@@ -204,6 +204,8 @@ class QuaggaBGPContainer(BGPContainer):
             if version == 6:
                 c << 'no bgp default ipv4-unicast'
             c << 'neighbor {0} remote-as {1}'.format(n_addr, info['remote_as'])
+            # For rapid convergence
+            c << 'neighbor {0} advertisement-interval 1'.format(n_addr)
             if info['is_rs_client']:
                 c << 'neighbor {0} route-server-client'.format(n_addr)
             for typ, p in info['policies'].iteritems():
