@@ -167,6 +167,7 @@ const (
 	ADMIN_STATE_UP AdminState = iota
 	ADMIN_STATE_DOWN
 	ADMIN_STATE_PFX_CT
+	ADMIN_STATE_DELETED
 )
 
 func (s AdminState) String() string {
@@ -177,6 +178,8 @@ func (s AdminState) String() string {
 		return "ADMIN_STATE_DOWN"
 	case ADMIN_STATE_PFX_CT:
 		return "ADMIN_STATE_PFX_CT"
+	case ADMIN_STATE_DELETED:
+		return "ADMIN_STATE_DELETED"
 	default:
 		return "Unknown"
 	}
@@ -1737,6 +1740,12 @@ func (h *FSMHandler) changeAdminState(s AdminState) error {
 				"Key":   fsm.pConf.State.NeighborAddress,
 				"State": fsm.state.String(),
 			}).Info("Administrative shutdown(Prefix limit reached)")
+		case ADMIN_STATE_DELETED:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.State.NeighborAddress,
+				"State": fsm.state.String(),
+			}).Info("Deleted")
 		}
 
 	} else {

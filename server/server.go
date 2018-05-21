@@ -1982,8 +1982,12 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		return err
 	}
 
-	if _, y := server.neighborMap[addr]; y {
-		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
+	if n, y := server.neighborMap[addr]; y {
+		if n.fsm.adminState == ADMIN_STATE_DELETED {
+			delete(server.neighborMap, addr)
+		} else {
+			return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
+		}
 	}
 
 	var pgConf *config.PeerGroup
