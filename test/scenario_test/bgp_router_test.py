@@ -321,9 +321,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q3)
 
-        paths = q1.get_global_rib('20.0.0.0/24')
-        self.assertEqual(len(paths), 1)
-        self.assertIn(paths[0]['nexthop'], n_addrs)
+        def f():
+            paths = q1.get_global_rib('20.0.0.0/24')
+            self.assertEqual(len(paths), 1)
+            self.assertIn(paths[0]['nexthop'], n_addrs)
+
+        assert_several_times(f)
 
         g1.del_peer(q3)
         del self.quaggas['q3']
