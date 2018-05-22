@@ -182,6 +182,14 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfs
 }
 
+func (peer *Peer) negotiatedRFList() []bgp.RouteFamily {
+	l := make([]bgp.RouteFamily, 0, len(peer.fsm.rfMap))
+	for family, _ := range peer.fsm.rfMap {
+		l = append(l, family)
+	}
+	return l
+}
+
 func (peer *Peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily {
 	if peer.fsm.pConf.Config.Vrf != "" {
 		fs := make([]bgp.RouteFamily, 0, len(families))
