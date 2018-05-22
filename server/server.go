@@ -992,17 +992,15 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table
 				for _, dst := range dsts {
 					for _, path := range dst.OldKnownPathList {
 						if path.GetSource().Equal(newPath.GetSource()) {
-							p := path.Clone(true)
-							pathIdentifier := newPath.GetNlri().PathIdentifier()
-							p.GetNlri().SetPathIdentifier(pathIdentifier)
-							bestList = []*table.Path{p}
+							extCom := path.GetExtCommunities()
+							if extCom != nil {
+								newPath.SetExtCommunities(extCom, true)
+							}
 						}
 					}
 				}
 			}
-			if bestList == nil {
-				bestList = []*table.Path{newPath}
-			}
+			bestList = []*table.Path{newPath}
 			oldList = nil
 		} else if targetPeer.isRouteServerClient() {
 			bestList, oldList, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)
