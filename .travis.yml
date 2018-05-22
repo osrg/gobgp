@@ -199,6 +199,9 @@ matrix:
     - <<: *_docker
       env:
         - TEST=bgp_confederation_test.py
+    - <<: *_docker
+      env:
+        - TEST=combinations_1_rr_vpnv4_rtc_gr_addpath_test.py
 #
 # Tools
 #
