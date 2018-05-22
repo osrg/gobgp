@@ -891,15 +891,18 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 			// graph that is derived from Route Target membership information.
 			if peer != nil && path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC {
 				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-				fs := make([]bgp.RouteFamily, 0, len(peer.configuredRFlist()))
-				for _, f := range peer.configuredRFlist() {
+				confFamilies := peer.configuredRFlist()
+				fs := make([]bgp.RouteFamily, 0, len(confFamilies))
+				for _, f := range confFamilies {
 					if f != bgp.RF_RTC_UC {
 						fs = append(fs, f)
 					}
 				}
 				var candidates []*table.Path
 				if path.IsWithdraw {
-					candidates, _ = server.getBestFromLocal(peer, peer.configuredRFlist())
+					// Note: The paths to be withdrawn are filtered because the
+					// given RT on RTM NLRI is already removed from adj-RIB-in.
+					_, candidates = server.getBestFromLocal(peer, fs)
 				} else {
 					candidates = server.globalRib.GetBestPathList(peer.TableID(), 0, fs)
 				}
@@ -916,7 +919,8 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 					}
 				}
 				if path.IsWithdraw {
-					paths = server.processOutgoingPaths(peer, nil, paths)
+					// Skips filtering because the paths are already filtered
+					// and the withdrawal does not need the path attributes.
 				} else {
 					paths = server.processOutgoingPaths(peer, paths, nil)
 				}
