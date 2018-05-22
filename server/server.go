@@ -996,7 +996,6 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table
 							pathIdentifier := newPath.GetNlri().PathIdentifier()
 							p.GetNlri().SetPathIdentifier(pathIdentifier)
 							bestList = []*table.Path{p}
-
 						}
 					}
 				}
