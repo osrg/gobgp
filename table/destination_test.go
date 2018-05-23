@@ -421,3 +421,21 @@ func TestIdMap(t *testing.T) {
 	_, err := d.localIdMap.FindandSetZeroBit()
 	assert.NotNil(t, err)
 }
+
+func TestGetWithdrawnPath(t *testing.T) {
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+	}
+	p1 := NewPath(nil, bgp.NewIPAddrPrefix(24, "13.2.3.0"), false, attrs, time.Now(), false)
+	p2 := NewPath(nil, bgp.NewIPAddrPrefix(24, "13.2.4.0"), false, attrs, time.Now(), false)
+	p3 := NewPath(nil, bgp.NewIPAddrPrefix(24, "13.2.5.0"), false, attrs, time.Now(), false)
+
+	u := &Update{
+		KnownPathList:    []*Path{p2},
+		OldKnownPathList: []*Path{p1, p2, p3},
+	}
+
+	l := u.GetWithdrawnPath()
+	assert.Equal(t, len(l), 2)
+	assert.Equal(t, l[0].GetNlri(), p1.GetNlri())
+}
