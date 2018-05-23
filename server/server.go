@@ -988,7 +988,17 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table
 			return family
 		}()
 		if targetPeer.isAddPathSendEnabled(f) {
-			bestList = []*table.Path{newPath}
+			if newPath.IsWithdraw {
+				bestList = func() []*table.Path {
+					l := make([]*table.Path, 0, len(dsts))
+					for _, d := range dsts {
+						l = append(l, d.GetWithdrawnPath()...)
+					}
+					return l
+				}()
+			} else {
+				bestList = []*table.Path{newPath}
+			}
 			oldList = nil
 		} else if targetPeer.isRouteServerClient() {
 			bestList, oldList, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)

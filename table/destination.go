@@ -557,6 +557,29 @@ func getMultiBestPath(id string, pathList []*Path) []*Path {
 	return list
 }
 
+func (u *Update) GetWithdrawnPath() []*Path {
+	if len(u.KnownPathList) == len(u.OldKnownPathList) {
+		return nil
+	}
+
+	l := make([]*Path, 0, len(u.OldKnownPathList))
+
+	for _, p := range u.OldKnownPathList {
+		y := func() bool {
+			for _, old := range u.KnownPathList {
+				if p == old {
+					return true
+				}
+			}
+			return false
+		}()
+		if !y {
+			l = append(l, p.Clone(true))
+		}
+	}
+	return l
+}
+
 func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, []*Path) {
 	best, old := func(id string) (*Path, *Path) {
 		old := getBestPath(id, as, u.OldKnownPathList)
