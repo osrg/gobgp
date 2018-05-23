@@ -63,30 +63,34 @@ class GoBGPTestBase(unittest.TestCase):
         g2.local("gobgp vrf vrf1 rib add 20.0.0.0/24")
         g2.local("gobgp vrf vrf3 rib add 20.0.0.0/24")
 
-        for a, b in combinations(ctns.values(), 2):
-            a.add_peer(b, vpn=True, passwd='rtc', graceful_restart=True)
-            b.add_peer(a, vpn=True, passwd='rtc', graceful_restart=True)
-
         cls.g1 = g1
         cls.g2 = g2
         cls.ctns = ctns
 
-    # test each neighbor state is turned establish
-    def test_01_neighbor_established(self):
+    # Test the problem which was reported on #1682
+    # https://github.com/osrg/gobgp/issues/1682
+    def test_01_neighbor_estabslihed_with_conflict_rtc_config(self):
+        self.g1.add_peer(self.g2, vpn=True, passwd='rtc', graceful_restart=True)
+        self.g2.add_peer(self.g1, vpn=False, passwd='rtc', graceful_restart=True)
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
 
-    def test_02_check_gobgp_adj_rib_out(self):
+    # test each neighbor state is turned establish
+    def test_02_neighbor_established(self):
+        self.g2.update_peer(self.g1, vpn=True, passwd='rtc', graceful_restart=True)
+        self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
+
+    def test_03_check_gobgp_adj_rib_out(self):
         time.sleep(2)
         self.assertEqual(1, len(self.g1.get_adj_rib_out(self.g2, rf='ipv4-l3vpn')))
         self.assertEqual(1, len(self.g2.get_adj_rib_out(self.g1, rf='ipv4-l3vpn')))
 
-    def test_03_add_vrf(self):
+    def test_04_add_vrf(self):
         self.g1.local("gobgp vrf add vrf3 rd 300:300 rt both 300:300")
         time.sleep(2)
         self.assertEqual(3, len(self.g1.get_adj_rib_out(self.g2, rf='rtc')))
         self.assertEqual(2, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
 
-    def test_04_del_vrf(self):
+    def test_05_del_vrf(self):
         self.g1.local("gobgp vrf del vrf1")
         time.sleep(2)
         self.assertEqual(2, len(self.g1.get_adj_rib_out(self.g2, rf='rtc')))
@@ -94,7 +98,7 @@ class GoBGPTestBase(unittest.TestCase):
         # g2 should withdraw VPN routes when received a RTM withdrawal.
         # self.assertEqual(1, len(self.g1.get_adj_rib_in(self.g2, rf='ipv4-l3vpn')))
 
-    def test_05_rr_setup(self):
+    def test_06_rr_setup(self):
         #               +------+
         #               |  g3  |
         #        +------| (RR) |------+
@@ -127,14 +131,14 @@ class GoBGPTestBase(unittest.TestCase):
         for v in [g3, g4, g5]:
             self.ctns[v.name] = v
 
-    def test_06_neighbor_established(self):
+    def test_07_neighbor_established(self):
         g3 = self.ctns['g3']
         g4 = self.ctns['g4']
         g5 = self.ctns['g5']
         g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
         g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g5)
 
-    def test_07_rr_test(self):
+    def test_08_rr_test(self):
         g3 = self.ctns['g3']
         g4 = self.ctns['g4']
         g5 = self.ctns['g5']
@@ -172,7 +176,7 @@ class GoBGPTestBase(unittest.TestCase):
         check_ipv4_l3vpn(g4)
         check_ipv4_l3vpn(g5)
 
-    def test_08_rr_setup2(self):
+    def test_09_rr_setup2(self):
         # +----------+            +----------+
         # |    g1    |---(iBGP)---|    g2    |
         # | (Non RR  |            | (Non RR  |
@@ -208,7 +212,7 @@ class GoBGPTestBase(unittest.TestCase):
         g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
         g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
 
-    def test_09_rr_test2(self):
+    def test_10_rr_test2(self):
         g1 = self.ctns['g1']
         g2 = self.ctns['g2']
         g3 = self.ctns['g3']
