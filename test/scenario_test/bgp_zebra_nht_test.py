@@ -18,41 +18,18 @@ import time
 import unittest
 
 from fabric.api import local
-from fabric.state import env
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
+    assert_several_times,
     Bridge,
     BGP_FSM_ESTABLISHED,
 )
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaOSPFContainer
-
-
-def try_local(command, f=local, ok_ret_codes=None, **kwargs):
-    ok_ret_codes = ok_ret_codes or []
-    orig_ok_ret_codes = list(env.ok_ret_codes)
-    try:
-        env.ok_ret_codes.extend(ok_ret_codes)
-        return f(command, **kwargs)
-    finally:
-        env.ok_ret_codes = orig_ok_ret_codes
-
-
-def wait_for(f, timeout=120):
-    interval = 1
-    count = 0
-    while True:
-        if f():
-            return
-
-        time.sleep(interval)
-        count += interval
-        if count >= timeout:
-            raise Exception('timeout')
 
 
 def get_ifname_with_prefix(prefix, f=local):
@@ -67,6 +44,13 @@ class ZebraNHTTest(unittest.TestCase):
     """
     Test case for Next-Hop Tracking with Zebra integration.
     """
+
+    def _assert_med_equal(self, rt, prefix, med):
+        rib = rt.get_global_rib(prefix=prefix)
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 1)
+        self.assertEqual(rib[0]['paths'][0]['med'], med)
+
     # R1: GoBGP
     # R2: GoBGP + Zebra + OSPFd
     # R3: Zebra + OSPFd
@@ -96,9 +80,6 @@ class ZebraNHTTest(unittest.TestCase):
     def setUpClass(cls):
         gobgp_ctn_image_name = parser_option.gobgp_image
         base.TEST_PREFIX = parser_option.test_prefix
-
-        local("echo 'start %s'" % cls.__name__, capture=True)
-
         cls.r1 = GoBGPContainer(
             name='r1', asn=65000, router_id='192.168.0.1',
             ctn_image_name=gobgp_ctn_image_name,
@@ -148,21 +129,23 @@ class ZebraNHTTest(unittest.TestCase):
         time.sleep(wait_time)
 
         cls.br_r1_r2 = Bridge(name='br_r1_r2', subnet='192.168.12.0/24')
-        [cls.br_r1_r2.addif(ctn) for ctn in (cls.r1, cls.r2)]
+        for ctn in (cls.r1, cls.r2):
+            cls.br_r1_r2.addif(ctn)
 
         cls.br_r2_r3 = Bridge(name='br_r2_r3', subnet='192.168.23.0/24')
-        [cls.br_r2_r3.addif(ctn) for ctn in (cls.r2, cls.r3)]
+        for ctn in (cls.r2, cls.r3):
+            cls.br_r2_r3.addif(ctn)
 
         cls.br_r2_r4 = Bridge(name='br_r2_r4', subnet='192.168.24.0/24')
-        [cls.br_r2_r4.addif(ctn) for ctn in (cls.r2, cls.r4)]
+        for ctn in (cls.r2, cls.r4):
+            cls.br_r2_r4.addif(ctn)
 
         cls.br_r3_r4 = Bridge(name='br_r3_r4', subnet='192.168.34.0/24')
-        [cls.br_r3_r4.addif(ctn) for ctn in (cls.r3, cls.r4)]
+        for ctn in (cls.r3, cls.r4):
+            cls.br_r3_r4.addif(ctn)
 
     def test_01_BGP_neighbor_established(self):
-        """
-        Test to start BGP connection up between r1-r2.
-        """
+        # Test to start BGP connection up between r1-r2.
 
         self.r1.add_peer(self.r2, bridge=self.br_r1_r2.name)
         self.r2.add_peer(self.r1, bridge=self.br_r1_r2.name)
@@ -170,116 +153,129 @@ class ZebraNHTTest(unittest.TestCase):
         self.r1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.r2)
 
     def test_02_OSPF_established(self):
-        """
-        Test to start OSPF connection up between r2-r3 and receive the route
-        to r3's loopback '10.3.1.1'.
-        """
+        # Test to start OSPF connection up between r2-r3 and receive the route
+        # to r3's loopback '10.3.1.1'.
         def _f():
-            return try_local(
+            self.assertEqual(self.r2.local(
                 "vtysh -c 'show ip ospf route'"
-                " | grep '10.3.1.1/32'",
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+                " | grep '10.3.1.1/32' > /dev/null"
+                " && echo OK || echo NG",
+                capture=True), 'OK')
 
-        wait_for(f=_f)
+        assert_several_times(f=_f, t=120)
 
     def test_03_add_ipv4_route(self):
-        """
-        Test to add IPv4 route to '10.3.1.0/24' whose nexthop is r3's
-        loopback '10.3.1.1'.
+        # Test to add IPv4 route to '10.3.1.0/24' whose nexthop is r3's
+        # loopback '10.3.1.1'. Also, test to receive the initial MED/Metric.
 
-        Also, test to receive the initial MED/Metric.
-        """
         # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
         med = 20
 
         def _f_r2():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
 
         def _f_r1():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r1.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
 
         self.r2.local(
             'gobgp global rib add -a ipv4 10.3.1.0/24 nexthop 10.3.1.1')
 
-        wait_for(f=_f_r2)
-        wait_for(f=_f_r1)
+        assert_several_times(f=_f_r2)
+        assert_several_times(f=_f_r1)
 
     def test_04_link_r2_r3_down(self):
-        """
-        Test to update MED to the nexthop if the Metric to that nexthop is
-        changed by the link down.
+        # Test to update MED to the nexthop if the Metric to that nexthop is
+        # changed by the link down. If the link r2-r3 goes down, MED/Metric
+        # should be increased.
 
-        If the link r2-r3 goes down, MED/Metric should be increased.
-        """
         # MED/Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
         med = 30
 
         def _f_r2():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
 
         def _f_r1():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r1.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
 
         ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
         self.r3.local('ip link set %s down' % ifname)
 
-        wait_for(f=_f_r2)
-        wait_for(f=_f_r1)
+        assert_several_times(f=_f_r2)
+        assert_several_times(f=_f_r1)
 
     def test_05_link_r2_r3_restore(self):
-        """
-        Test to update MED to the nexthop if the Metric to that nexthop is
-        changed by the link up again.
+        # Test to update MED to the nexthop if the Metric to that nexthop is
+        # changed by the link up again. If the link r2-r3 goes up again,
+        # MED/Metric should be update with the initial value.
 
-        If the link r2-r3 goes up again, MED/Metric should be update with
-        the initial value.
-        """
         # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
         med = 20
 
         def _f_r2():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r2.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
 
         def _f_r1():
-            return try_local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep 'Med: %d'" % med,
-                f=self.r1.local,
-                ok_ret_codes=[1],  # for the empty case with "grep" command
-                capture=True)
+            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
 
         ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
         self.r3.local('ip link set %s up' % ifname)
 
-        wait_for(f=_f_r2)
-        wait_for(f=_f_r1)
+        assert_several_times(f=_f_r2)
+        assert_several_times(f=_f_r1)
+
+    def test_06_nexthop_unreachable(self):
+        # Test to update the nexthop state if nexthop become unreachable by
+        # link down. If the link r2-r3 and r2-r4 goes down, there is no route
+        # to r3.
+
+        def _f_r2():
+            self.assertEqual(self.r2.local(
+                "gobgp global rib -a ipv4 10.3.1.0/24"
+                " | grep '^* ' > /dev/null"
+                " && echo OK || echo NG",
+                capture=True), 'OK')
+
+        def _f_r1():
+            self.assertEqual(self.r1.local(
+                "gobgp global rib -a ipv4 10.3.1.0/24"
+                "| grep 'Network not in table' > /dev/null"
+                " && echo OK || echo NG",
+                capture=True), 'OK')
+
+        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
+        self.r3.local('ip link set %s down' % ifname)
+        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
+        self.r4.local('ip link set %s down' % ifname)
+
+        assert_several_times(f=_f_r2, t=120)
+        assert_several_times(f=_f_r1, t=120)
+        # Confirm the stability of the nexthop state
+        for _ in range(10):
+            time.sleep(1)
+            _f_r2()
+            _f_r1()
+
+    def test_07_nexthop_restore(self):
+        # Test to update the nexthop state if nexthop become reachable again.
+        # If the link r2-r3 and r2-r4 goes up again, MED/Metric should be
+        # update with the initial value.
+
+        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
+        med = 20
+
+        def _f_r2():
+            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
+
+        def _f_r1():
+            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
+
+        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
+        self.r3.local('ip link set %s up' % ifname)
+        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
+        self.r4.local('ip link set %s up' % ifname)
+
+        assert_several_times(f=_f_r2)
+        assert_several_times(f=_f_r1)
 
 
 if __name__ == '__main__':

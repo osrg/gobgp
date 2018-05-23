@@ -210,7 +210,11 @@ func (m *nexthopTrackingManager) filterPathToRegister(paths pathList) pathList {
 func filterOutExternalPath(paths pathList) pathList {
 	filteredPaths := make(pathList, 0, len(paths))
 	for _, path := range paths {
-		if path == nil || path.IsFromExternal() {
+		// Here filters out:
+		// - Nil path
+		// - External path (advertised from Zebra) in order avoid sending back
+		// - Unreachable path because invalidated by Zebra
+		if path == nil || path.IsFromExternal() || path.IsNexthopInvalid {
 			continue
 		}
 		filteredPaths = append(filteredPaths, path)
