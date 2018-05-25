@@ -171,17 +171,26 @@ class ZebraNHTTest(unittest.TestCase):
         # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
         med = 20
 
-        def _f_r2():
-            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
-
-        def _f_r1():
-            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
-
         self.r2.local(
             'gobgp global rib add -a ipv4 10.3.1.0/24 nexthop 10.3.1.1')
 
-        assert_several_times(f=_f_r2)
-        assert_several_times(f=_f_r1)
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
+
+        # Test if the path, which came after the NEXTHOP_UPDATE message was
+        # received from Zebra, is updated by reflecting the nexthop cache.
+        self.r2.local(
+            'gobgp global rib add -a ipv4 10.3.2.0/24 nexthop 10.3.1.1')
+
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r2, '10.3.2.0/24', med))
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r1, '10.3.2.0/24', med))
+
+        self.r2.local(
+            'gobgp global rib del -a ipv4 10.3.2.0/24')
 
     def test_04_link_r2_r3_down(self):
         # Test to update MED to the nexthop if the Metric to that nexthop is
@@ -191,91 +200,86 @@ class ZebraNHTTest(unittest.TestCase):
         # MED/Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
         med = 30
 
-        def _f_r2():
-            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
-
-        def _f_r1():
-            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
-
         ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
         self.r3.local('ip link set %s down' % ifname)
 
-        assert_several_times(f=_f_r2)
-        assert_several_times(f=_f_r1)
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
 
-    def test_05_link_r2_r3_restore(self):
-        # Test to update MED to the nexthop if the Metric to that nexthop is
-        # changed by the link up again. If the link r2-r3 goes up again,
-        # MED/Metric should be update with the initial value.
-
-        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
-        med = 20
-
-        def _f_r2():
-            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
-
-        def _f_r1():
-            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
-
-        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
-        self.r3.local('ip link set %s up' % ifname)
-
-        assert_several_times(f=_f_r2)
-        assert_several_times(f=_f_r1)
-
-    def test_06_nexthop_unreachable(self):
+    def test_05_nexthop_unreachable(self):
         # Test to update the nexthop state if nexthop become unreachable by
         # link down. If the link r2-r3 and r2-r4 goes down, there is no route
         # to r3.
 
-        def _f_r2():
+        def _f_r2(prefix):
             self.assertEqual(self.r2.local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
-                " | grep '^* ' > /dev/null"
-                " && echo OK || echo NG",
+                "gobgp global rib -a ipv4 %s"
+                " | grep '^* ' > /dev/null"  # not best "*>"
+                " && echo OK || echo NG" % prefix,
                 capture=True), 'OK')
 
-        def _f_r1():
+        def _f_r1(prefix):
             self.assertEqual(self.r1.local(
-                "gobgp global rib -a ipv4 10.3.1.0/24"
+                "gobgp global rib -a ipv4 %s"
                 "| grep 'Network not in table' > /dev/null"
-                " && echo OK || echo NG",
+                " && echo OK || echo NG" % prefix,
                 capture=True), 'OK')
 
-        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
-        self.r3.local('ip link set %s down' % ifname)
         ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
         self.r4.local('ip link set %s down' % ifname)
 
-        assert_several_times(f=_f_r2, t=120)
-        assert_several_times(f=_f_r1, t=120)
+        assert_several_times(f=lambda: _f_r2("10.3.1.0/24"), t=120)
+        assert_several_times(f=lambda: _f_r1("10.3.1.0/24"), t=120)
+
+        # Test if the path, which came after the NEXTHOP_UPDATE message was
+        # received from Zebra, is updated by reflecting the nexthop cache.
+        self.r2.local(
+            'gobgp global rib add -a ipv4 10.3.2.0/24 nexthop 10.3.1.1')
+
+        assert_several_times(f=lambda: _f_r2("10.3.2.0/24"), t=120)
+        assert_several_times(f=lambda: _f_r1("10.3.2.0/24"), t=120)
+
         # Confirm the stability of the nexthop state
         for _ in range(10):
             time.sleep(1)
-            _f_r2()
-            _f_r1()
+            _f_r2("10.3.1.0/24")
+            _f_r1("10.3.1.0/24")
+            _f_r2("10.3.2.0/24")
+            _f_r1("10.3.2.0/24")
+
+    def test_06_link_r2_r4_restore(self):
+        # Test to update the nexthop state if nexthop become reachable again.
+        # If the link r2-r4 goes up again, MED/Metric should be the value of
+        # the path going through r4.
+
+        # MED/Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
+        med = 30
+
+        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
+        self.r4.local('ip link set %s up' % ifname)
+
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
 
     def test_07_nexthop_restore(self):
-        # Test to update the nexthop state if nexthop become reachable again.
-        # If the link r2-r3 and r2-r4 goes up again, MED/Metric should be
-        # update with the initial value.
+        # Test to update the nexthop state if the Metric to that nexthop is
+        # changed. If the link r2-r3 goes up again, MED/Metric should be update
+        # with the initial value.
 
         # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
         med = 20
 
-        def _f_r2():
-            self._assert_med_equal(self.r2, '10.3.1.0/24', med)
-
-        def _f_r1():
-            self._assert_med_equal(self.r1, '10.3.1.0/24', med)
-
         ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
         self.r3.local('ip link set %s up' % ifname)
-        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
-        self.r4.local('ip link set %s up' % ifname)
 
-        assert_several_times(f=_f_r2)
-        assert_several_times(f=_f_r1)
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+        assert_several_times(
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
 
 
 if __name__ == '__main__':
