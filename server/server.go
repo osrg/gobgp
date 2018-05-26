@@ -1006,6 +1006,16 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *Peer, newPath *table
 				}()
 			} else {
 				bestList = []*table.Path{newPath}
+				if newPath.GetRouteFamily() == bgp.RF_RTC_UC {
+					// we assumes that new "path" nlri was already sent before. This assumption avoids the
+					// infinite UPDATE loop between Route Reflector and its clients.
+					for _, old := range dsts[0].OldKnownPathList {
+						if old.IsLocal() {
+							bestList = []*table.Path{}
+							break
+						}
+					}
+				}
 			}
 			oldList = nil
 		} else if targetPeer.isRouteServerClient() {
