@@ -22,18 +22,16 @@ import (
 )
 
 type AdjRib struct {
-	id       string
 	accepted map[bgp.RouteFamily]int
 	table    map[bgp.RouteFamily]map[string]*Path
 }
 
-func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
+func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
 	table := make(map[bgp.RouteFamily]map[string]*Path)
 	for _, rf := range rfList {
 		table[rf] = make(map[string]*Path)
 	}
 	return &AdjRib{
-		id:       id,
 		table:    table,
 		accepted: make(map[bgp.RouteFamily]int),
 	}
