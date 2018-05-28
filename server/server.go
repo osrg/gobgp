@@ -1938,7 +1938,7 @@ func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 		if in {
 			adjRib = peer.adjRibIn
 		} else {
-			adjRib = table.NewAdjRib(id, peer.configuredRFlist())
+			adjRib = table.NewAdjRib(peer.configuredRFlist())
 			accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
 			adjRib.Update(accepted)
 		}
@@ -1983,7 +1983,7 @@ func (s *BgpServer) GetAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 		if in {
 			adjRib = peer.adjRibIn
 		} else {
-			adjRib = table.NewAdjRib(peer.ID(), peer.configuredRFlist())
+			adjRib = table.NewAdjRib(peer.configuredRFlist())
 			accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
 			adjRib.Update(accepted)
 		}
