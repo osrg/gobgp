@@ -117,7 +117,7 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
+	peer.adjRibIn = table.NewAdjRib(rfs)
 	return peer
 }
 
