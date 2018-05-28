@@ -1751,24 +1751,31 @@ func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
 		return err
 	}
 	for _, peer := range peers {
-		pathList := []*table.Path{}
 		families := []bgp.RouteFamily{family}
 		if family == bgp.RouteFamily(0) {
 			families = peer.configuredRFlist()
 		}
+		pathList := make([]*table.Path, 0, peer.adjRibIn.Count(families))
 		for _, path := range peer.adjRibIn.PathList(families, false) {
 			// RFC4271 9.1.2 Phase 2: Route Selection
 			//
 			// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
 			// route should be excluded from the Phase 2 decision function.
+			isLooped := false
 			if aspath := path.GetAsPath(); aspath != nil {
-				if hasOwnASLoop(peer.fsm.peerInfo.LocalAS, int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs), aspath) {
-					continue
-				}
+				isLooped = hasOwnASLoop(peer.fsm.peerInfo.LocalAS, int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs), aspath)
 			}
-			pathList = append(pathList, path.Clone(false))
+			if path.IsAsLooped() != isLooped {
+				// can't modify the existing one. needs to create one
+				path = path.Clone(false)
+				path.SetAsLooped(isLooped)
+				// update accepted counter
+				peer.adjRibIn.Update([]*table.Path{path})
+			}
+			if !path.IsAsLooped() {
+				pathList = append(pathList, path)
+			}
 		}
-		peer.adjRibIn.RefreshAcceptedNumber(families)
 		s.propagateUpdate(peer, pathList)
 	}
 	return err

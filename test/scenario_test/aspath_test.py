@@ -89,7 +89,11 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_04_check_accept_as_loop(self):
         def f():
-            self.assertEqual(len(self.g2.get_global_rib()), 1)
+            adj = self.g2.get_neighbor(self.q1)['state']['adj-table']
+            self.assertTrue('received' in adj)
+            self.assertEqual(adj['received'], 1)
+            self.assertTrue('accepted' in adj)
+            self.assertEqual(adj['accepted'], 1)
 
         assert_several_times(f)
 
