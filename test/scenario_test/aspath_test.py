@@ -73,7 +73,12 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_reject_as_loop(self):
         def f():
-            self.assertEqual(len(self.g2.get_global_rib()), 0)
+            adj = self.g2.get_neighbor(self.q1)['state']['adj-table']
+            self.assertTrue('received' in adj)
+            self.assertEqual(adj['received'], 1)
+            # hacky. 'accepted' is zero so the key was deleted due to
+            # omitempty tag in bgp_configs.go.
+            self.assertFalse('accepted' in adj)
 
         assert_several_times(f)
 
