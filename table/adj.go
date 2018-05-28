@@ -73,12 +73,6 @@ func (adj *AdjRib) Update(pathList []*Path) {
 	}
 }
 
-func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
-	for _, rf := range rfList {
-		adj.accepted[rf] = len(adj.table[rf])
-	}
-}
-
 func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
