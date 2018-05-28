@@ -426,12 +426,6 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	}).Debug("received update")
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	if len(e.PathList) > 0 {
-		peer.adjRibIn.Update(e.PathList)
-		for _, af := range peer.fsm.pConf.AfiSafis {
-			if msg := peer.doPrefixLimit(af.State.Family, &af.PrefixLimit.Config); msg != nil {
-				return nil, nil, msg
-			}
-		}
 		paths := make([]*table.Path, 0, len(e.PathList))
 		eor := []bgp.RouteFamily{}
 		for _, path := range e.PathList {
@@ -456,6 +450,12 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 				}
 			}
 			paths = append(paths, path)
+		}
+		peer.adjRibIn.Update(e.PathList)
+		for _, af := range peer.fsm.pConf.AfiSafis {
+			if msg := peer.doPrefixLimit(af.State.Family, &af.PrefixLimit.Config); msg != nil {
+				return nil, nil, msg
+			}
 		}
 		return paths, eor, nil
 	}
