@@ -36,6 +36,11 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(count, len(src.get_adj_rib_out(dst, rf=rf)))
         self.assertEqual(count, len(dst.get_adj_rib_in(src, rf=rf)))
 
+    def assert_upd_count(self, src, dst, sent, received):
+        messages = src.get_neighbor(dst)['state']['messages']
+        self.assertEqual(messages['sent']['update'], sent)
+        self.assertEqual(messages['received']['update'], received)
+
     @classmethod
     def setUpClass(cls):
         # +----+              +----+
@@ -211,6 +216,12 @@ class GoBGPTestBase(unittest.TestCase):
         self.g4.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
         self.g5.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
         time.sleep(1)
+
+        # Check the counts of the sent UPDATE messages in order to detect the
+        # infinite RTC UPDATE loop.
+        # https://github.com/osrg/gobgp/issues/1630
+        self.assert_upd_count(self.g4, self.g3, sent=1, received=2)
+        self.assert_upd_count(self.g5, self.g3, sent=1, received=2)
 
         def check_rtc(client):
             rib = self.g3.get_adj_rib_out(client, rf='rtc')
@@ -811,6 +822,165 @@ class GoBGPTestBase(unittest.TestCase):
         self.g5.local("gobgp vrf del vrf2")
         self.g6.local("gobgp vrf del vrf1")
         self.g7.local("gobgp vrf del vrf3")
+
+    def test_50_rr_addpath_setup(self):
+        # Test cases for the infinite RTC UPDATE message loop:
+        # https://github.com/osrg/gobgp/issues/1688#issuecomment-391456615
+        # https://github.com/osrg/gobgp/pull/1703
+
+        #               +------+
+        #               |  g3  |
+        #        +------| (RR) |------+
+        #        |      +------+      |
+        # (iBGP+Add-Paths)     (iBGP+Add-Paths)
+        #        |                    |
+        # +-------------+      +-------------+
+        # |     g4      |      |     g5      |
+        # | (RR Client) |      | (RR Client) |
+        # +-------------+      +-------------+
+        g3, g4, g5 = self.g3, self.g4, self.g5
+
+        g3.update_peer(g4, vpn=True, addpath=True, is_rr_client=True)
+        g4.update_peer(g3, vpn=True, addpath=True)
+
+        g3.update_peer(g5, vpn=True, addpath=True, is_rr_client=True)
+        g5.update_peer(g3, vpn=True, addpath=True)
+
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g5)
+
+    def test_51_rr_addpath_check_adj_rib_from_rr(self):
+        # VRF<#>  g3   g4   g5
+        #   1          ( )  ( )
+        #   2
+        #   3
+        self.g4.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        self.g5.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        time.sleep(1)
+
+        # Check the counts of the sent UPDATE messages in order to detect the
+        # infinite RTC UPDATE loop.
+        self.assert_upd_count(self.g4, self.g3, sent=1, received=2)
+        self.assert_upd_count(self.g5, self.g3, sent=1, received=2)
+
+        def check_rtc(client):
+            rib = self.g3.get_adj_rib_out(client, rf='rtc')
+            self.assertEqual(1, len(rib))
+            path = rib[0]
+            self.assertEqual(self.g3.peers[client]['local_addr'].split('/')[0], path['nexthop'])
+            ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
+            self.assertEqual(1, len(ids))
+            self.assertEqual(self.g3.router_id, ids[0])
+
+        check_rtc(self.g4)
+        check_rtc(self.g5)
+
+        # VRF<#>  g3   g4   g5
+        #   1          (*)  (*)
+        #   2
+        #   3
+        self.g4.local("gobgp vrf vrf1 rib add 40.0.0.0/24")
+        self.g5.local("gobgp vrf vrf1 rib add 50.0.0.0/24")
+        time.sleep(1)
+
+        def check_ipv4_l3vpn(client):
+            rib = self.g3.get_adj_rib_out(client, rf='ipv4-l3vpn')
+            self.assertEqual(1, len(rib))
+            path = rib[0]
+            self.assertNotEqual(self.g3.peers[client]['local_addr'].split('/')[0], path['nexthop'])
+            ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
+            self.assertEqual(1, len(ids))
+            self.assertNotEqual(client.router_id, ids[0])
+
+        check_ipv4_l3vpn(self.g4)
+        check_ipv4_l3vpn(self.g5)
+
+    def test_52_rr_addpath_add_vrf(self):
+        # VRF<#>  g3   g4   g5
+        #   1          (*)  (*)
+        #   2          ( )
+        #   3
+        self.g4.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 1)
+
+    def test_53_rr_addpath_add_route_on_vrf(self):
+        # VRF<#>  g3   g4   g5
+        #   1          (*)  (*)
+        #   2          (*)
+        #   3
+        self.g4.local("gobgp vrf vrf2 rib add 40.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 1)
+
+    def test_54_rr_addpath_del_route_on_vrf(self):
+        # Related issue:
+        # https://github.com/osrg/gobgp/issues/1688
+
+        # VRF<#>  g3   g4   g5
+        #   1          ( )  (*)
+        #   2          (*)
+        #   3
+        self.g4.local("gobgp vrf vrf1 rib del 40.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 0)
+
+    def test_55_rr_addpath_del_vrf_with_route(self):
+        # VRF<#>  g3   g4   g5
+        #   1               (*)
+        #   2          (*)
+        #   3
+        self.g4.local("gobgp vrf del vrf1")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 0)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 2)
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 0)
+
+    def test_56_rr_addpath_cleanup(self):
+        self.g4.local("gobgp vrf del vrf2")
+        self.g5.local("gobgp vrf del vrf1")
 
 
 if __name__ == '__main__':
