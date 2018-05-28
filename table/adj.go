@@ -49,12 +49,21 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		if path.IsWithdraw {
 			if found {
 				delete(adj.table[rf], key)
-				adj.accepted[rf]--
+				if !old.IsAsLooped() {
+					adj.accepted[rf]--
+				}
 			}
 		} else {
 			if found {
+				if old.IsAsLooped() && !path.IsAsLooped() {
+					adj.accepted[rf]++
+				} else if !old.IsAsLooped() && path.IsAsLooped() {
+					adj.accepted[rf]--
+				}
 			} else {
-				adj.accepted[rf]++
+				if !path.IsAsLooped() {
+					adj.accepted[rf]++
+				}
 			}
 			if found && old.Equal(path) {
 				path.setTimestamp(old.GetTimestamp())
@@ -74,6 +83,9 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		for _, rr := range adj.table[rf] {
+			if accepted && rr.IsAsLooped() {
+				continue
+			}
 			pathList = append(pathList, rr)
 		}
 	}
@@ -116,7 +128,9 @@ func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
 			for _, p := range table {
 				if p.IsStale() {
 					delete(table, p.getPrefix())
-					adj.accepted[rf]--
+					if !p.IsAsLooped() {
+						adj.accepted[rf]--
+					}
 					pathList = append(pathList, p.Clone(true))
 				}
 			}

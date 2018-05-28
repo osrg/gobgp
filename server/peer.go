@@ -451,6 +451,7 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			// route should be excluded from the Phase 2 decision function.
 			if aspath := path.GetAsPath(); aspath != nil {
 				if hasOwnASLoop(peer.fsm.peerInfo.LocalAS, int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs), aspath) {
+					path.SetAsLooped(true)
 					continue
 				}
 			}
