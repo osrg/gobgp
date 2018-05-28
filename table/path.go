@@ -144,6 +144,7 @@ type Path struct {
 	dels       []bgp.BGPAttrType
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
+	aslooped         bool
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -392,6 +393,14 @@ func (path *Path) MarkStale(s bool) {
 
 func (path *Path) IsStale() bool {
 	return path.OriginInfo().stale
+}
+
+func (path *Path) IsAsLooped() bool {
+	return path.aslooped
+}
+
+func (path *Path) SetAsLooped(y bool) {
+	path.aslooped = y
 }
 
 func (path *Path) IsLLGRStale() bool {
