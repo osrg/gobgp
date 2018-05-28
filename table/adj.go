@@ -144,19 +144,6 @@ func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) []*Path {
 	return pathList
 }
 
-func (adj *AdjRib) Exists(path *Path) bool {
-	if path == nil {
-		return false
-	}
-	family := path.GetRouteFamily()
-	table, ok := adj.table[family]
-	if !ok {
-		return false
-	}
-	_, ok = table[path.getPrefix()]
-	return ok
-}
-
 func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
 	m := make(map[string][]*Path)
 	pl := adj.PathList([]bgp.RouteFamily{family}, accepted)
