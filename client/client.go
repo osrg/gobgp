@@ -507,23 +507,11 @@ func (cli *Client) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterfac
 		return err
 	}
 
-	f := func(comms []bgp.ExtendedCommunityInterface) ([][]byte, error) {
-		var bufs [][]byte
-		for _, c := range comms {
-			buf, err := c.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			bufs = append(bufs, buf)
-		}
-		return bufs, err
-	}
-
-	importRT, err := f(im)
+	importRT, err := bgp.SerializeExtendedCommunities(im)
 	if err != nil {
 		return err
 	}
-	exportRT, err := f(ex)
+	exportRT, err := bgp.SerializeExtendedCommunities(ex)
 	if err != nil {
 		return err
 	}

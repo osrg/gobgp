@@ -6645,6 +6645,19 @@ func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
 	return ParseExtendedCommunity(EC_SUBTYPE_ROUTE_TARGET, rt)
 }
 
+func SerializeExtendedCommunities(comms []ExtendedCommunityInterface) ([][]byte, error) {
+	var bufs [][]byte
+	var err error
+	for _, c := range comms {
+		buf, err := c.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		bufs = append(bufs, buf)
+	}
+	return bufs, err
+}
+
 type ValidationState uint8
 
 const (

@@ -29,6 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -40,6 +41,18 @@ import (
 )
 
 var version = "master"
+
+func serializeRouteTargets(l []string) ([][]byte, error) {
+	rtList := make([]bgp.ExtendedCommunityInterface, 0, len(l))
+	for _, rtString := range l {
+		rt, err := bgp.ParseRouteTarget(rtString)
+		if err != nil {
+			return nil, err
+		}
+		rtList = append(rtList, rt)
+	}
+	return bgp.SerializeExtendedCommunities(rtList)
+}
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
@@ -155,7 +168,7 @@ func main() {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
-	var c *config.BgpConfigSet = nil
+	var c *config.BgpConfigSet
 	for {
 		select {
 		case newConfig := <-configCh:
@@ -165,26 +178,56 @@ func main() {
 
 			if c == nil {
 				c = newConfig
-				if err := bgpServer.Start(&newConfig.Global); err != nil {
+				if _, err := apiServer.StartServer(context.Background(), &api.StartServerRequest{
+					Global: &api.Global{
+						As:               c.Global.Config.As,
+						RouterId:         c.Global.Config.RouterId,
+						ListenPort:       c.Global.Config.Port,
+						ListenAddresses:  c.Global.Config.LocalAddressList,
+						UseMultiplePaths: c.Global.UseMultiplePaths.Config.Enabled,
+					},
+				}); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
+
 				if newConfig.Zebra.Config.Enabled {
-					if err := bgpServer.StartZebraClient(&newConfig.Zebra.Config); err != nil {
+					tps := c.Zebra.Config.RedistributeRouteTypeList
+					l := make([]string, 0, len(tps))
+					for _, t := range tps {
+						l = append(l, string(t))
+					}
+					if _, err := apiServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
+						Url:                  c.Zebra.Config.Url,
+						RouteTypes:           l,
+						Version:              uint32(c.Zebra.Config.Version),
+						NexthopTriggerEnable: c.Zebra.Config.NexthopTriggerEnable,
+						NexthopTriggerDelay:  uint32(c.Zebra.Config.NexthopTriggerDelay),
+					}); err != nil {
 						log.Fatalf("failed to set zebra config: %s", err)
 					}
 				}
+
 				if len(newConfig.Collector.Config.Url) > 0 {
 					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
 						log.Fatalf("failed to set collector config: %s", err)
 					}
 				}
-				for i, _ := range newConfig.RpkiServers {
-					if err := bgpServer.AddRpki(&newConfig.RpkiServers[i].Config); err != nil {
+
+				for _, c := range newConfig.RpkiServers {
+					if _, err := apiServer.AddRpki(context.Background(), &api.AddRpkiRequest{
+						Address:  c.Config.Address,
+						Port:     c.Config.Port,
+						Lifetime: c.Config.RecordLifetime,
+					}); err != nil {
 						log.Fatalf("failed to set rpki config: %s", err)
 					}
 				}
-				for i, _ := range newConfig.BmpServers {
-					if err := bgpServer.AddBmp(&newConfig.BmpServers[i].Config); err != nil {
+				for _, c := range newConfig.BmpServers {
+					if _, err := apiServer.AddBmp(context.Background(), &api.AddBmpRequest{
+						Address: c.Config.Address,
+						Port:    c.Config.Port,
+						Type:    api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+					}); err != nil {
 						log.Fatalf("failed to set bmp config: %s", err)
 					}
 				}
@@ -193,31 +236,38 @@ func main() {
 					if err != nil {
 						log.Fatalf("failed to load vrf rd config: %s", err)
 					}
-					importRtList := make([]bgp.ExtendedCommunityInterface, 0, len(vrf.Config.ImportRtList))
-					for _, rtString := range vrf.Config.ImportRtList {
-						rt, err := bgp.ParseRouteTarget(rtString)
-						if err != nil {
-							log.Fatalf("failed to load vrf import rt config: %s", err)
-						}
-						importRtList = append(importRtList, rt)
+					rdbuf, _ := rd.Serialize()
+
+					importRtList, err := serializeRouteTargets(vrf.Config.ImportRtList)
+					if err != nil {
+						log.Fatalf("failed to load vrf import rt config: %s", err)
 					}
-					exportRtList := make([]bgp.ExtendedCommunityInterface, 0, len(vrf.Config.ExportRtList))
-					for _, rtString := range vrf.Config.ExportRtList {
-						rt, err := bgp.ParseRouteTarget(rtString)
-						if err != nil {
-							log.Fatalf("failed to load vrf export rt config: %s", err)
-						}
-						exportRtList = append(exportRtList, rt)
+					exportRtList, err := serializeRouteTargets(vrf.Config.ExportRtList)
+					if err != nil {
+						log.Fatalf("failed to load vrf export rt config: %s", err)
 					}
-					if err := bgpServer.AddVrf(vrf.Config.Name, vrf.Config.Id, rd, importRtList, exportRtList); err != nil {
+
+					if _, err := apiServer.AddVrf(context.Background(), &api.AddVrfRequest{
+						Vrf: &api.Vrf{
+							Name:     vrf.Config.Name,
+							Rd:       rdbuf,
+							Id:       uint32(vrf.Config.Id),
+							ImportRt: importRtList,
+							ExportRt: exportRtList,
+						},
+					}); err != nil {
 						log.Fatalf("failed to set vrf config: %s", err)
 					}
 				}
-				for i, _ := range newConfig.MrtDump {
-					if len(newConfig.MrtDump[i].Config.FileName) == 0 {
+				for _, c := range newConfig.MrtDump {
+					if len(c.Config.FileName) == 0 {
 						continue
 					}
-					if err := bgpServer.EnableMrt(&newConfig.MrtDump[i].Config); err != nil {
+					if _, err := apiServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
+						DumpType: int32(c.Config.DumpType.ToInt()),
+						Filename: c.Config.FileName,
+						Interval: c.Config.DumpInterval,
+					}); err != nil {
 						log.Fatalf("failed to set mrt config: %s", err)
 					}
 				}
@@ -259,10 +309,10 @@ func main() {
 						}
 						return def
 					}
-					toPolicyDefinitions := func(r []string) []*config.PolicyDefinition {
-						p := make([]*config.PolicyDefinition, 0, len(r))
+					toPolicies := func(r []string) []*table.Policy {
+						p := make([]*table.Policy, 0, len(r))
 						for _, n := range r {
-							p = append(p, &config.PolicyDefinition{
+							p = append(p, &table.Policy{
 								Name: n,
 							})
 						}
@@ -270,12 +320,26 @@ func main() {
 					}
 
 					def := toDefaultTable(a.DefaultImportPolicy)
-					ps := toPolicyDefinitions(a.ImportPolicyList)
-					bgpServer.ReplacePolicyAssignment("", table.POLICY_DIRECTION_IMPORT, ps, def)
+					ps := toPolicies(a.ImportPolicyList)
+					apiServer.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
+						Assignment: api.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+							Name:     "",
+							Type:     table.POLICY_DIRECTION_IMPORT,
+							Policies: ps,
+							Default:  def,
+						}),
+					})
 
 					def = toDefaultTable(a.DefaultExportPolicy)
-					ps = toPolicyDefinitions(a.ExportPolicyList)
-					bgpServer.ReplacePolicyAssignment("", table.POLICY_DIRECTION_EXPORT, ps, def)
+					ps = toPolicies(a.ExportPolicyList)
+					apiServer.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
+						Assignment: api.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+							Name:     "",
+							Type:     table.POLICY_DIRECTION_EXPORT,
+							Policies: ps,
+							Default:  def,
+						}),
+					})
 
 					updatePolicy = true
 
@@ -308,29 +372,40 @@ func main() {
 					log.Warn(err)
 				}
 			}
-			for i, p := range added {
+			for _, p := range added {
 				log.Infof("Peer %v is added", p.State.NeighborAddress)
-				if err := bgpServer.AddNeighbor(&added[i]); err != nil {
+				if _, err := apiServer.AddNeighbor(context.Background(), &api.AddNeighborRequest{
+					Peer: api.NewPeerFromConfigStruct(&p),
+				}); err != nil {
 					log.Warn(err)
 				}
 			}
-			for i, p := range deleted {
+			for _, p := range deleted {
 				log.Infof("Peer %v is deleted", p.State.NeighborAddress)
-				if err := bgpServer.DeleteNeighbor(&deleted[i]); err != nil {
+				if _, err := apiServer.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{
+					Peer: api.NewPeerFromConfigStruct(&p),
+				}); err != nil {
 					log.Warn(err)
 				}
 			}
-			for i, p := range updated {
+			for _, p := range updated {
 				log.Infof("Peer %v is updated", p.State.NeighborAddress)
-				u, err := bgpServer.UpdateNeighbor(&updated[i])
-				if err != nil {
+				if u, err := apiServer.UpdateNeighbor(context.Background(), &api.UpdateNeighborRequest{
+					Peer: api.NewPeerFromConfigStruct(&p),
+				}); err != nil {
 					log.Warn(err)
+				} else {
+					updatePolicy = updatePolicy || u.NeedsSoftResetIn
 				}
-				updatePolicy = updatePolicy || u
 			}
 
 			if updatePolicy {
-				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
+				if _, err := apiServer.SoftResetNeighbor(context.Background(), &api.SoftResetNeighborRequest{
+					Address:   "",
+					Direction: api.SoftResetNeighborRequest_IN,
+				}); err != nil {
+					log.Warn(err)
+				}
 			}
 		case <-sigCh:
 			bgpServer.Shutdown()
