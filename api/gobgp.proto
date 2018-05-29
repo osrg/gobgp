@@ -1076,6 +1076,7 @@ message Statement {
 message Policy {
   string name = 1;
   repeated Statement statements = 2;
+  string plugin_path = 3;
 }
 
 enum PolicyType {

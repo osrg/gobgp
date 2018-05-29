@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"plugin"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -2730,22 +2731,40 @@ func NewStatement(c config.Statement) (*Statement, error) {
 }
 
 type Policy struct {
-	Name       string
-	Statements []*Statement
+	Name            string
+	Statements      []*Statement
+	PluginPath      string
+	PluginApplyFunc func(*Path, *PolicyOptions) (*Path, error)
 }
 
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
 func (p *Policy) Apply(path *Path, options *PolicyOptions) (RouteType, *Path) {
+	var result RouteType
 	for _, stmt := range p.Statements {
-		var result RouteType
 		result, path = stmt.Apply(path, options)
 		if result != ROUTE_TYPE_NONE {
 			return result, path
 		}
 	}
-	return ROUTE_TYPE_NONE, path
+	if p.PluginApplyFunc != nil {
+		var err error
+		path, err = p.PluginApplyFunc(path, options)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Key":   p.Name,
+				"Error": err,
+				"Path":  path,
+			}).Warn("failed to apply policy plugin")
+		}
+		if path == nil {
+			result = ROUTE_TYPE_REJECT
+		}
+		result = ROUTE_TYPE_ACCEPT
+	}
+	return result, path
 }
 
 func (p *Policy) ToConfig() *config.PolicyDefinition {
@@ -2756,6 +2775,7 @@ func (p *Policy) ToConfig() *config.PolicyDefinition {
 	return &config.PolicyDefinition{
 		Name:       p.Name,
 		Statements: ss,
+		PluginPath: p.PluginPath,
 	}
 }
 
@@ -2804,9 +2824,32 @@ func (p *Policy) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToConfig())
 }
 
+func ExtractApplyFuncFromPolicyPlugin(pluginPath string) (func(*Path, *PolicyOptions) (*Path, error), error) {
+	if pluginPath == "" {
+		return nil, nil
+	}
+	p, err := plugin.Open(pluginPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open policy plugin: %s: %s", pluginPath, err.Error())
+	}
+	sym, err := p.Lookup("Apply")
+	if err != nil {
+		return nil, fmt.Errorf("no 'Apply' func in policy plugin: %s: %s", pluginPath, err.Error())
+	}
+	f, ok := sym.(func(*Path, *PolicyOptions) (*Path, error))
+	if !ok {
+		return nil, fmt.Errorf("invalid 'Apply' func definition in policy plugin: %s", pluginPath)
+	}
+	return f, nil
+}
+
 func NewPolicy(c config.PolicyDefinition) (*Policy, error) {
 	if c.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
+	}
+	applyFunc, err := ExtractApplyFuncFromPolicyPlugin(c.PluginPath)
+	if err != nil {
+		return nil, err
 	}
 	var st []*Statement
 	stmts := c.Statements
@@ -2824,8 +2867,10 @@ func NewPolicy(c config.PolicyDefinition) (*Policy, error) {
 		}
 	}
 	return &Policy{
-		Name:       c.Name,
-		Statements: st,
+		Name:            c.Name,
+		Statements:      st,
+		PluginPath:      c.PluginPath,
+		PluginApplyFunc: applyFunc,
 	}, nil
 }
 

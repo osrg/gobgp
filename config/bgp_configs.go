@@ -5824,6 +5824,9 @@ type PolicyDefinition struct {
 	// original -> rpol:statements
 	// Enclosing container for policy statements.
 	Statements []Statement `mapstructure:"statements" json:"statements,omitempty"`
+	// original -> gobgp:plugin-path
+	// Path to policy plugin which must be an shared object.
+	PluginPath string `mapstructure:"plugin-path" json:"plugin-path,omitempty"`
 }
 
 func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
@@ -5848,6 +5851,9 @@ func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
 				return false
 			}
 		}
+	}
+	if lhs.PluginPath != rhs.PluginPath {
+		return false
 	}
 	return true
 }

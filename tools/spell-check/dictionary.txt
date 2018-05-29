@@ -28,6 +28,7 @@ mututally
 nexthop
 nexthops
 nlri
+plugin
 pmsi
 prepend
 reachability

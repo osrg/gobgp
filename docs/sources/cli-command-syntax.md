@@ -479,7 +479,7 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 
 ```shell
 # mod policy
-% gobgp policy { add | del | set } <policy name> [<statement name>...]
+% gobgp policy { add | del | set } <policy name> [<statement name>...] [plugin-path <plugin-path>]
 # show all policies
 % gobgp policy
 # show a specific policy

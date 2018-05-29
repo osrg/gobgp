@@ -2142,6 +2142,7 @@ func toPolicyApi(p *config.PolicyDefinition) *Policy {
 			}
 			return l
 		}(),
+		PluginPath: p.PluginPath,
 	}
 }
 
@@ -2187,6 +2188,10 @@ func NewPolicyFromApiStruct(a *Policy) (*table.Policy, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
 	}
+	applyFunc, err := table.ExtractApplyFuncFromPolicyPlugin(a.PluginPath)
+	if err != nil {
+		return nil, err
+	}
 	stmts := make([]*table.Statement, 0, len(a.Statements))
 	for idx, x := range a.Statements {
 		if x.Name == "" {
@@ -2199,8 +2204,10 @@ func NewPolicyFromApiStruct(a *Policy) (*table.Policy, error) {
 		stmts = append(stmts, y)
 	}
 	return &table.Policy{
-		Name:       a.Name,
-		Statements: stmts,
+		Name:            a.Name,
+		Statements:      stmts,
+		PluginPath:      a.PluginPath,
+		PluginApplyFunc: applyFunc,
 	}, nil
 }
 
