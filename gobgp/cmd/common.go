@@ -281,7 +281,7 @@ func newClient() *cli.Client {
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
 	client, err := cli.New(target, grpcOpts...)
 	if err != nil {
-		exitWithError(err)
+		exitWithError(fmt.Errorf("failed to connect to %s over gRPC: %s", target, err))
 	}
 	return client
 }
