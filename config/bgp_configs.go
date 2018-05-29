@@ -1114,7 +1114,7 @@ type ZebraState struct {
 	// Configure url for zebra.
 	Url string `mapstructure:"url" json:"url,omitempty"`
 	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
+	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
 	// Configure version of zebra protocol.  Default is 2. Supported up to 3.
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
@@ -1135,7 +1135,7 @@ type ZebraConfig struct {
 	// Configure url for zebra.
 	Url string `mapstructure:"url" json:"url,omitempty"`
 	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
+	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
 	// Configure version of zebra protocol.  Default is 2. Supported up to 3.
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`

@@ -36,6 +36,7 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
+	"github.com/osrg/gobgp/zebra"
 )
 
 type Server struct {
@@ -972,17 +973,14 @@ func (s *Server) GetRoa(ctx context.Context, arg *GetRoaRequest) (*GetRoaRespons
 }
 
 func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*EnableZebraResponse, error) {
-	l := make([]config.InstallProtocolType, 0, len(arg.RouteTypes))
 	for _, p := range arg.RouteTypes {
-		if err := config.InstallProtocolType(p).Validate(); err != nil {
+		if _, err := zebra.RouteTypeFromString(p); err != nil {
 			return &EnableZebraResponse{}, err
-		} else {
-			l = append(l, config.InstallProtocolType(p))
 		}
 	}
 	return &EnableZebraResponse{}, s.bgpServer.StartZebraClient(&config.ZebraConfig{
 		Url: arg.Url,
-		RedistributeRouteTypeList: l,
+		RedistributeRouteTypeList: arg.RouteTypes,
 		Version:                   uint8(arg.Version),
 		NexthopTriggerEnable:      arg.NexthopTriggerEnable,
 		NexthopTriggerDelay:       uint8(arg.NexthopTriggerDelay),
