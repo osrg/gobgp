@@ -1191,9 +1191,7 @@ module gobgp {
         "Configure url for zebra.";
     }
     leaf-list redistribute-route-type {
-      type identityref {
-        base ptypes:install-protocol-type;
-      }
+      type string;
     }
     leaf version {
       type uint8;
