@@ -81,6 +81,10 @@ PIDS=("${PIDS[@]}" $!)
 python bgp_unnumbered_test.py --gobgp-image $GOBGP_IMAGE --test-prefix un -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_un.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# combinations tests
+python combinations_1_rr_vpnv4_rtc_gr_addpath_test.py --gobgp-image $GOBGP_IMAGE --test-prefix un -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_cmb1.xml &
+PIDS=("${PIDS[@]}" $!)
+
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
 do
     wait ${PIDS[$i]}
