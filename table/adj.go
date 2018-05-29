@@ -119,9 +119,9 @@ func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		if table, ok := adj.table[rf]; ok {
-			for _, p := range table {
+			for k, p := range table {
 				if p.IsStale() {
-					delete(table, p.getPrefix())
+					delete(table, k)
 					if !p.IsAsLooped() {
 						adj.accepted[rf]--
 					}
