@@ -86,7 +86,15 @@ class GoBGPTestBase(unittest.TestCase):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
+
+        # Confirm the restart timer not expired.
+        self.assertEqual(
+            g2.local(
+                "grep 'graceful restart timer expired' %s/gobgpd.log"
+                " | wc -l" % (g2.SHARED_VOLUME), capture=True),
+            '0')
         time.sleep(1)
+
         self.assertTrue(len(g2.get_global_rib('10.10.20.0/24')) == 1)
         self.assertTrue(len(g2.get_global_rib('10.10.10.0/24')) == 0)
         for d in g2.get_global_rib():
