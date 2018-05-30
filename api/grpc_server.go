@@ -337,6 +337,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			DeferralTime:        uint32(pconf.GracefulRestart.Config.DeferralTime),
 			NotificationEnabled: pconf.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    pconf.GracefulRestart.Config.LongLivedEnabled,
+			LocalRestarting:     pconf.GracefulRestart.State.LocalRestarting,
 		},
 		Transport: &Transport{
 			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
@@ -1295,6 +1296,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.GracefulRestart.Config.DeferralTime = uint16(a.GracefulRestart.DeferralTime)
 		pconf.GracefulRestart.Config.NotificationEnabled = a.GracefulRestart.NotificationEnabled
 		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
+		pconf.GracefulRestart.State.LocalRestarting = a.GracefulRestart.LocalRestarting
 	}
 	ReadApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
 	if a.Transport != nil {
