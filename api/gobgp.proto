@@ -821,6 +821,10 @@ message GracefulRestart {
   bool notification_enabled = 5;
   bool longlived_enabled = 6;
   uint32 stale_routes_time = 7;
+  uint32 peer_restart_time = 8;
+  bool peer_restarting = 9;
+  bool local_restarting = 10;
+  string mode = 11;
 }
 
 message MpGracefulRestartConfig {
