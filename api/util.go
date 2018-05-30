@@ -148,21 +148,15 @@ func NewROAListFromApiStructList(l []*Roa) ([]*table.ROA, error) {
 	roas := make([]*table.ROA, 0, len(l))
 	for _, r := range l {
 		ip := net.ParseIP(r.Prefix)
-		rf, err := func(prefix string) (bgp.RouteFamily, error) {
-			if a, _, err := net.ParseCIDR(prefix); err != nil {
-				return -1, err
-			} else {
-				if a.To4() != nil {
-					return bgp.RF_IPv4_UC, nil
-				} else {
-					return bgp.RF_IPv6_UC, nil
-				}
+		family := bgp.RF_IPv4_UC
+		if ip == nil {
+			return nil, fmt.Errorf("invalid prefix %s", r.Prefix)
+		} else {
+			if ip.To4() == nil {
+				family = bgp.RF_IPv6_UC
 			}
-		}(r.Prefix)
-		if err != nil {
-			return nil, err
 		}
-		afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+		afi, _ := bgp.RouteFamilyToAfiSafi(family)
 		roa := table.NewROA(int(afi), []byte(ip), uint8(r.Prefixlen), uint8(r.Maxlen), r.As, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
 		roas = append(roas, roa)
 	}
