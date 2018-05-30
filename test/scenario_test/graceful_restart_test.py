@@ -72,11 +72,18 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = self.bgpds['g2']
         g1.stop_gobgp()
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
-        self.assertTrue(len(g2.get_global_rib('10.10.20.0/24')) == 1)
-        self.assertTrue(len(g2.get_global_rib('10.10.10.0/24')) == 1)
+        self.assertEqual(len(g2.get_global_rib('10.10.20.0/24')), 1)
+        self.assertEqual(len(g2.get_global_rib('10.10.10.0/24')), 1)
         for d in g2.get_global_rib():
             for p in d['paths']:
                 self.assertTrue(p['stale'])
+
+        # Confirm the paths on the adj-RIB-in table are synced with the Global
+        # table.
+        self.assertEqual(len(g2.get_adj_rib_in(g1, '10.10.20.0/24')), 1)
+        self.assertEqual(len(g2.get_adj_rib_in(g1, '10.10.10.0/24')), 1)
+        for p in g2.get_adj_rib_in(g1):
+            self.assertTrue(p['stale'])
 
         g1.routes = {}
         g1.start_gobgp(graceful_restart=True)
@@ -95,11 +102,18 @@ class GoBGPTestBase(unittest.TestCase):
             '0')
         time.sleep(1)
 
-        self.assertTrue(len(g2.get_global_rib('10.10.20.0/24')) == 1)
-        self.assertTrue(len(g2.get_global_rib('10.10.10.0/24')) == 0)
+        self.assertEqual(len(g2.get_global_rib('10.10.20.0/24')), 1)
+        self.assertEqual(len(g2.get_global_rib('10.10.10.0/24')), 0)
         for d in g2.get_global_rib():
             for p in d['paths']:
                 self.assertFalse(p.get('stale', False))
+
+        # Confirm the stale paths are also removed from the adj-RIB-in table.
+        # https://github.com/osrg/gobgp/pull/1707
+        self.assertEqual(len(g2.get_adj_rib_in(g1, '10.10.20.0/24')), 1)
+        self.assertEqual(len(g2.get_adj_rib_in(g1, '10.10.10.0/24')), 0)
+        for p in g2.get_adj_rib_in(g1):
+            self.assertFalse(p.get('stale', False))
 
     def test_04_add_non_graceful_restart_enabled_peer(self):
         g1 = self.bgpds['g1']
