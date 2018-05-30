@@ -29,6 +29,7 @@ from lib import base
 from lib.base import (
     BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
+    LONG_LIVED_GRACEFUL_RESTART_TIME,
 )
 from lib.gobgp import GoBGPContainer
 
@@ -156,7 +157,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
     def test_05_llgr_restart_timer_expire(self):
-        time.sleep(35)
+        time.sleep(LONG_LIVED_GRACEFUL_RESTART_TIME + 5)
         g3 = self.bgpds['g3']
         rib = g3.get_global_rib('10.10.0.0/24')
         self.assertTrue(len(rib) == 0)
