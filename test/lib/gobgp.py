@@ -30,6 +30,7 @@ import toml
 import yaml
 
 from lib.base import (
+    community_str,
     wait_for_completion,
     BGPContainer,
     CmdBuffer,
@@ -39,7 +40,8 @@ from lib.base import (
     BGP_ATTR_TYPE_LOCAL_PREF,
     BGP_ATTR_TYPE_COMMUNITIES,
     BGP_ATTR_TYPE_MP_REACH_NLRI,
-    community_str,
+    GRACEFUL_RESTART_TIME,
+    LONG_LIVED_GRACEFUL_RESTART_TIME,
 )
 
 
@@ -445,7 +447,7 @@ class GoBGPContainer(BGPContainer):
                     v['prefix-limit'] = {'config': {'max-prefixes': info['prefix_limit'], 'shutdown-threshold-pct': 80}}
 
             if info['graceful_restart'] is not None:
-                n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': 20}}
+                n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': GRACEFUL_RESTART_TIME}}
                 for afi_safi in afi_safi_list:
                     afi_safi['mp-graceful-restart'] = {'config': {'enabled': True}}
 
@@ -453,7 +455,7 @@ class GoBGPContainer(BGPContainer):
                     n['graceful-restart']['config']['restart-time'] = 1
                     n['graceful-restart']['config']['long-lived-enabled'] = True
                     for afi_safi in afi_safi_list:
-                        afi_safi['long-lived-graceful-restart'] = {'config': {'enabled': True, 'restart-time': 30}}
+                        afi_safi['long-lived-graceful-restart'] = {'config': {'enabled': True, 'restart-time': LONG_LIVED_GRACEFUL_RESTART_TIME}}
 
             if info['is_rr_client']:
                 cluster_id = self.router_id
