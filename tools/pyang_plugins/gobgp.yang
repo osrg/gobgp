@@ -991,6 +991,34 @@ module gobgp {
        }
   }
 
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:actions/bgp-pol:bgp-actions" {
+
+    container set-as-path-append {
+      description
+        "action to append the specified AS number to the AS-path a
+        specified number of times";
+
+      leaf repeat-n {
+        type uint8;
+        description "number of times to append the specified AS number";
+      }
+
+      leaf as {
+        type union {
+          type inet:as-number;
+          type string {
+            pattern "first-as";
+          }
+        }
+        description
+          "autonomous system number or 'first-as' which means
+          the rightmost as number in the AS-path to be appendded";
+      }
+    }
+  }
+
   augment "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set" {
     description "alternative for the existing neighbor element";
 

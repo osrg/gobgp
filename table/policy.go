@@ -164,6 +164,7 @@ const (
 	ACTION_EXT_COMMUNITY
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
+	ACTION_AS_PATH_APPEND
 	ACTION_NEXTHOP
 	ACTION_LOCAL_PREF
 	ACTION_LARGE_COMMUNITY
@@ -2348,6 +2349,89 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	return a, nil
 }
 
+type AsPathAppendAction struct {
+	asn          uint32
+	useRightMost bool
+	repeat       uint8
+}
+
+func (a *AsPathAppendAction) Type() ActionType {
+	return ACTION_AS_PATH_APPEND
+}
+
+func (a *AsPathAppendAction) Apply(path *Path, option *PolicyOptions) *Path {
+	var asn uint32
+	if a.useRightMost {
+		aspath := path.GetAsSeqList()
+		if len(aspath) == 0 {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "AsPathAppend Action",
+			}).Warn("aspath length is zero.")
+			return path
+		}
+		asn = aspath[0]
+		if asn == 0 {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "AsPathAppend Action",
+			}).Warn("right-most ASN is not seq")
+			return path
+		}
+	} else {
+		asn = a.asn
+	}
+
+	path.AppendAsn(asn, a.repeat)
+
+	return path
+}
+
+func (a *AsPathAppendAction) ToConfig() *config.SetAsPathAppend {
+	return &config.SetAsPathAppend{
+		RepeatN: uint8(a.repeat),
+		As: func() string {
+			if a.useRightMost {
+				return "first-as"
+			}
+			return fmt.Sprintf("%d", a.asn)
+		}(),
+	}
+}
+
+func (a *AsPathAppendAction) String() string {
+	c := a.ToConfig()
+	return fmt.Sprintf("append %s %d times", c.As, c.RepeatN)
+}
+
+func (a *AsPathAppendAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
+// NewAsPathAppendAction creates AsPathAppendAction object.
+// If ASN cannot be parsed, nil will be returned.
+func NewAsPathAppendAction(action config.SetAsPathAppend) (*AsPathAppendAction, error) {
+	a := &AsPathAppendAction{
+		repeat: action.RepeatN,
+	}
+	switch action.As {
+	case "":
+		if a.repeat == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("specify as to append")
+	case "first-as":
+		a.useRightMost = true
+	default:
+		asn, err := strconv.ParseUint(action.As, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("As number string invalid")
+		}
+		a.asn = uint32(asn)
+	}
+	return a, nil
+}
+
 type NexthopAction struct {
 	value net.IP
 	self  bool
@@ -2495,6 +2579,8 @@ func (s *Statement) ToConfig() *config.Statement {
 				switch a.(type) {
 				case *AsPathPrependAction:
 					act.BgpActions.SetAsPathPrepend = *a.(*AsPathPrependAction).ToConfig()
+				case *AsPathAppendAction:
+					act.BgpActions.SetAsPathAppend = *a.(*AsPathAppendAction).ToConfig()
 				case *CommunityAction:
 					act.BgpActions.SetCommunity = *a.(*CommunityAction).ToConfig()
 				case *ExtCommunityAction:
@@ -2706,6 +2792,9 @@ func NewStatement(c config.Statement) (*Statement, error) {
 		},
 		func() (Action, error) {
 			return NewAsPathPrependAction(c.Actions.BgpActions.SetAsPathPrepend)
+		},
+		func() (Action, error) {
+			return NewAsPathAppendAction(c.Actions.BgpActions.SetAsPathAppend)
 		},
 		func() (Action, error) {
 			return NewNexthopAction(c.Actions.BgpActions.SetNextHop)

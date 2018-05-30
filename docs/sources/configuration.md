@@ -212,6 +212,9 @@
         [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
             as = "last-as"
             repeat-n = 5
+        [policy-definitions.statements.actions.bgp-actions.set-as-path-append]
+            as = "12345"
+            repeat-n = 5
         [policy-definitions.statements.actions]
             route-disposition = "accept-route"
     [[policy-definitions.statements]]

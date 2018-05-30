@@ -186,7 +186,10 @@ func (path *Path) IsEOR() bool {
 	return false
 }
 
-func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
+func cloneAsPathValue(asAttr *bgp.PathAttributeAsPath) []bgp.AsPathParamInterface {
+	if asAttr == nil {
+		return []bgp.AsPathParamInterface{}
+	}
 	newASparams := make([]bgp.AsPathParamInterface, len(asAttr.Value))
 	for i, param := range asAttr.Value {
 		asList := param.GetAS()
@@ -194,7 +197,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 		copy(as, asList)
 		newASparams[i] = bgp.NewAs4PathParam(param.GetType(), as)
 	}
-	return bgp.NewPathAttributeAsPath(newASparams)
+	return newASparams
 }
 
 func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInfo, original *Path) *Path {
@@ -732,37 +735,47 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 		segType = bgp.BGP_ASPATH_ATTR_TYPE_SEQ
 	}
 
-	original := path.GetAsPath()
+	values := cloneAsPathValue(path.GetAsPath())
 
 	asns := make([]uint32, repeat)
 	for i := range asns {
 		asns[i] = asn
 	}
 
-	var asPath *bgp.PathAttributeAsPath
-	if original == nil {
-		asPath = bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{})
-	} else {
-		asPath = cloneAsPath(original)
-	}
-
-	if len(asPath.Value) > 0 {
-		param := asPath.Value[0]
+	if len(values) > 0 {
+		param := values[0]
 		asList := param.GetAS()
 		if param.GetType() == segType {
 			if int(repeat)+len(asList) > 255 {
 				repeat = uint8(255 - len(asList))
 			}
 			newAsList := append(asns[:int(repeat)], asList...)
-			asPath.Value[0] = bgp.NewAs4PathParam(segType, newAsList)
+			values[0] = bgp.NewAs4PathParam(segType, newAsList)
 			asns = asns[int(repeat):]
 		}
 	}
 
 	if len(asns) > 0 {
 		p := bgp.NewAs4PathParam(segType, asns)
-		asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
+		values = append([]bgp.AsPathParamInterface{p}, values...)
 	}
+
+	asPath := bgp.NewPathAttributeAsPath(values)
+	path.setPathAttr(asPath)
+}
+
+func (path *Path) AppendAsn(asn uint32, repeat uint8) {
+	values := cloneAsPathValue(path.GetAsPath())
+
+	asns := make([]uint32, repeat)
+	for i := range asns {
+		asns[i] = asn
+	}
+
+	p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
+	values = append(values, []bgp.AsPathParamInterface{p}...)
+
+	asPath := bgp.NewPathAttributeAsPath(values)
 	path.setPathAttr(asPath)
 }
 

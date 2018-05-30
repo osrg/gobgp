@@ -1707,6 +1707,23 @@ func toStatementApi(s *config.Statement) *Statement {
 				UseLeftMost: useleft,
 			}
 		}(),
+		AsAppend: func() *AsAppendAction {
+			if len(s.Actions.BgpActions.SetAsPathAppend.As) == 0 {
+				return nil
+			}
+			var asn uint64
+			useright := false
+			if s.Actions.BgpActions.SetAsPathAppend.As != "first-as" {
+				asn, _ = strconv.ParseUint(s.Actions.BgpActions.SetAsPathAppend.As, 10, 32)
+			} else {
+				useright = true
+			}
+			return &AsAppendAction{
+				Asn:          uint32(asn),
+				Repeat:       uint32(s.Actions.BgpActions.SetAsPathAppend.RepeatN),
+				UseRightMost: useright,
+			}
+		}(),
 		ExtCommunity: func() *CommunityAction {
 			if len(s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList) == 0 {
 				return nil
@@ -1977,6 +1994,21 @@ func NewAsPathPrependActionFromApiStruct(a *AsPrependAction) (*table.AsPathPrepe
 	})
 }
 
+func NewAsPathAppendActionFromApiStruct(a *AsAppendAction) (*table.AsPathAppendAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewAsPathAppendAction(config.SetAsPathAppend{
+		RepeatN: uint8(a.Repeat),
+		As: func() string {
+			if a.UseRightMost {
+				return "first-as"
+			}
+			return fmt.Sprintf("%d", a.Asn)
+		}(),
+	})
+}
+
 func NewNexthopActionFromApiStruct(a *NexthopAction) (*table.NexthopAction, error) {
 	if a == nil {
 		return nil, nil
@@ -2063,6 +2095,9 @@ func NewStatementFromApiStruct(a *Statement) (*table.Statement, error) {
 			},
 			func() (table.Action, error) {
 				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
+			},
+			func() (table.Action, error) {
+				return NewAsPathAppendActionFromApiStruct(a.Actions.AsAppend)
 			},
 			func() (table.Action, error) {
 				return NewNexthopActionFromApiStruct(a.Actions.Nexthop)

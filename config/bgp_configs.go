@@ -5073,6 +5073,33 @@ func (lhs *SetLargeCommunity) Equal(rhs *SetLargeCommunity) bool {
 	return true
 }
 
+// struct for container gobgp:set-as-path-append.
+// action to append the specified AS number to the AS-path a
+// specified number of times.
+type SetAsPathAppend struct {
+	// original -> gobgp:repeat-n
+	// number of times to append the specified AS number.
+	RepeatN uint8 `mapstructure:"repeat-n" json:"repeat-n,omitempty"`
+	// original -> gobgp:as
+	// gobgp:as's original type is union.
+	// autonomous system number or 'first-as' which means
+	// the rightmost as number in the AS-path to be appendded.
+	As string `mapstructure:"as" json:"as,omitempty"`
+}
+
+func (lhs *SetAsPathAppend) Equal(rhs *SetAsPathAppend) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.RepeatN != rhs.RepeatN {
+		return false
+	}
+	if lhs.As != rhs.As {
+		return false
+	}
+	return true
+}
+
 // struct for container bgp-pol:set-ext-community-method.
 // Option to set communities using an inline list or
 // reference to an existing defined set.
@@ -5258,6 +5285,10 @@ type BgpActions struct {
 	// set the med metric attribute in the route
 	// update.
 	SetMed BgpSetMedType `mapstructure:"set-med" json:"set-med,omitempty"`
+	// original -> gobgp:set-as-path-append
+	// action to append the specified AS number to the AS-path a
+	// specified number of times.
+	SetAsPathAppend SetAsPathAppend `mapstructure:"set-as-path-append" json:"set-as-path-append,omitempty"`
 	// original -> gobgp:set-large-community
 	SetLargeCommunity SetLargeCommunity `mapstructure:"set-large-community" json:"set-large-community,omitempty"`
 }
@@ -5285,6 +5316,9 @@ func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
 		return false
 	}
 	if lhs.SetMed != rhs.SetMed {
+		return false
+	}
+	if !lhs.SetAsPathAppend.Equal(&(rhs.SetAsPathAppend)) {
 		return false
 	}
 	if !lhs.SetLargeCommunity.Equal(&(rhs.SetLargeCommunity)) {

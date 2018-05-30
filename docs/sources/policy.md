@@ -104,6 +104,7 @@ Actions are categorized into attributes below:
 - set next-hop
 - set local-pref
 - prepend AS number in the AS_PATH attribute
+- append AS number in the AS_PATH attribute
 
 When **ALL** conditions in the statement are `true`, the action(s) in the
 statement are executed.
@@ -611,6 +612,13 @@ evaluate routes from neighbors, if matched, action will be applied.
   | as       | AS number to prepend. You can use "last-as" to prepend the leftmost AS number in the aspath attribute.| "65100" |
   | repeat-n | repeat count to prepend AS                                                                            |    5    |
 
+- policy-definitions.statements.actions.bgp-actions.set-as-path-append
+
+  | Element  | Description                                                                                           | Example |
+  |----------|-------------------------------------------------------------------------------------------------------|---------|
+  | as       | AS number to append. You can use "first-as" to append the rightmost AS number in the aspath attribute.| "65100" |
+  | repeat-n | repeat count to append AS                                                                             |    5    |
+
 #### Execution condition of Action
 
  Action statement is executed when the result of each Condition, including
@@ -744,6 +752,9 @@ evaluate routes from neighbors, if matched, action will be applied.
       [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
         as = "65005"
         repeat-n = 5
+      [policy-definitions.statements.actions.bgp-actions.set-as-path-append]
+        as = "first-as"
+        repeat-n = 1
       [policy-definitions.statements.actions.bgp-actions.set-community]
         options = "ADD"
       [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
