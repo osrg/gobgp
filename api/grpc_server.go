@@ -349,6 +349,75 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 	}
 }
 
+func NewPeerGroupFromConfigStruct(pconf *config.PeerGroup) *PeerGroup {
+	families := make([]uint32, 0, len(pconf.AfiSafis))
+	afiSafis := make([]*AfiSafi, 0, len(pconf.AfiSafis))
+	for _, f := range pconf.AfiSafis {
+		families = append(families, extractFamilyFromConfigAfiSafi(&f))
+		if afiSafi := NewAfiSafiFromConfigStruct(&f); afiSafi != nil {
+			afiSafis = append(afiSafis, afiSafi)
+		}
+	}
+
+	timer := pconf.Timers
+	s := pconf.State
+	return &PeerGroup{
+		Families:    families,
+		ApplyPolicy: NewApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
+		Conf: &PeerGroupConf{
+			PeerAs:           pconf.Config.PeerAs,
+			LocalAs:          pconf.Config.LocalAs,
+			PeerType:         uint32(pconf.Config.PeerType.ToInt()),
+			AuthPassword:     pconf.Config.AuthPassword,
+			RouteFlapDamping: pconf.Config.RouteFlapDamping,
+			Description:      pconf.Config.Description,
+			PeerGroupName:    pconf.Config.PeerGroupName,
+		},
+		Info: &PeerGroupState{
+			PeerAs:        s.PeerAs,
+			PeerType:      uint32(s.PeerType.ToInt()),
+			TotalPaths:    s.TotalPaths,
+			TotalPrefixes: s.TotalPrefixes,
+		},
+		Timers: &Timers{
+			Config: &TimersConfig{
+				ConnectRetry:      uint64(timer.Config.ConnectRetry),
+				HoldTime:          uint64(timer.Config.HoldTime),
+				KeepaliveInterval: uint64(timer.Config.KeepaliveInterval),
+			},
+			State: &TimersState{
+				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
+				NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
+				Uptime:             uint64(timer.State.Uptime),
+				Downtime:           uint64(timer.State.Downtime),
+			},
+		},
+		RouteReflector: &RouteReflector{
+			RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
+			RouteReflectorClusterId: string(pconf.RouteReflector.Config.RouteReflectorClusterId),
+		},
+		RouteServer: &RouteServer{
+			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+		},
+		GracefulRestart: &GracefulRestart{
+			Enabled:             pconf.GracefulRestart.Config.Enabled,
+			RestartTime:         uint32(pconf.GracefulRestart.Config.RestartTime),
+			HelperOnly:          pconf.GracefulRestart.Config.HelperOnly,
+			DeferralTime:        uint32(pconf.GracefulRestart.Config.DeferralTime),
+			NotificationEnabled: pconf.GracefulRestart.Config.NotificationEnabled,
+			LonglivedEnabled:    pconf.GracefulRestart.Config.LongLivedEnabled,
+			LocalRestarting:     pconf.GracefulRestart.State.LocalRestarting,
+		},
+		Transport: &Transport{
+			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
+			LocalAddress: pconf.Transport.Config.LocalAddress,
+			PassiveMode:  pconf.Transport.Config.PassiveMode,
+		},
+		AfiSafis: afiSafis,
+		AddPaths: NewAddPathsFromConfigStruct(&pconf.AddPaths),
+	}
+}
+
 func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*GetNeighborResponse, error) {
 	if arg == nil {
 		return nil, fmt.Errorf("invalid request")
@@ -1345,6 +1414,112 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	return pconf, nil
 }
 
+func NewPeerGroupFromAPIStruct(a *PeerGroup) (*config.PeerGroup, error) {
+	pconf := &config.PeerGroup{}
+	if a.Conf != nil {
+		pconf.Config.PeerAs = a.Conf.PeerAs
+		pconf.Config.LocalAs = a.Conf.LocalAs
+		pconf.Config.AuthPassword = a.Conf.AuthPassword
+		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
+		pconf.Config.Description = a.Conf.Description
+		pconf.Config.PeerGroupName = a.Conf.PeerGroupName
+
+		switch a.Conf.RemovePrivateAs {
+		case PeerGroupConf_ALL:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
+		case PeerGroupConf_REPLACE:
+			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
+		}
+
+		for _, af := range a.AfiSafis {
+			afiSafi := config.AfiSafi{}
+			ReadMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, af.MpGracefulRestart)
+			ReadAfiSafiConfigFromAPIStruct(&afiSafi.Config, af.Config)
+			ReadAfiSafiStateFromAPIStruct(&afiSafi.State, af.Config)
+			ReadApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, af.ApplyPolicy)
+			ReadRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, af.RouteSelectionOptions)
+			ReadUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, af.UseMultiplePaths)
+			ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, af.PrefixLimits)
+			ReadRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, af.RouteTargetMembership)
+			ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
+			ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
+			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
+		}
+		// For the backward compatibility, we override AfiSafi configurations
+		// with Peer.Families.
+		for _, family := range a.Families {
+			found := false
+			for _, afiSafi := range pconf.AfiSafis {
+				if uint32(afiSafi.State.Family) == family {
+					// If Peer.Families contains the same address family,
+					// we enable this address family.
+					afiSafi.Config.Enabled = true
+					found = true
+				}
+			}
+			if !found {
+				// If Peer.Families does not contain the same address family,
+				// we append AfiSafi structure with the default value.
+				pconf.AfiSafis = append(pconf.AfiSafis, config.AfiSafi{
+					Config: config.AfiSafiConfig{
+						AfiSafiName: config.AfiSafiType(bgp.RouteFamily(family).String()),
+						Enabled:     true,
+					},
+				})
+			}
+		}
+	}
+
+	if a.Timers != nil {
+		if a.Timers.Config != nil {
+			pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
+			pconf.Timers.Config.HoldTime = float64(a.Timers.Config.HoldTime)
+			pconf.Timers.Config.KeepaliveInterval = float64(a.Timers.Config.KeepaliveInterval)
+			pconf.Timers.Config.MinimumAdvertisementInterval = float64(a.Timers.Config.MinimumAdvertisementInterval)
+		}
+		if a.Timers.State != nil {
+			pconf.Timers.State.KeepaliveInterval = float64(a.Timers.State.KeepaliveInterval)
+			pconf.Timers.State.NegotiatedHoldTime = float64(a.Timers.State.NegotiatedHoldTime)
+			pconf.Timers.State.Uptime = int64(a.Timers.State.Uptime)
+			pconf.Timers.State.Downtime = int64(a.Timers.State.Downtime)
+		}
+	}
+	if a.RouteReflector != nil {
+		pconf.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
+		pconf.RouteReflector.Config.RouteReflectorClient = a.RouteReflector.RouteReflectorClient
+	}
+	if a.RouteServer != nil {
+		pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+	}
+	if a.GracefulRestart != nil {
+		pconf.GracefulRestart.Config.Enabled = a.GracefulRestart.Enabled
+		pconf.GracefulRestart.Config.RestartTime = uint16(a.GracefulRestart.RestartTime)
+		pconf.GracefulRestart.Config.HelperOnly = a.GracefulRestart.HelperOnly
+		pconf.GracefulRestart.Config.DeferralTime = uint16(a.GracefulRestart.DeferralTime)
+		pconf.GracefulRestart.Config.NotificationEnabled = a.GracefulRestart.NotificationEnabled
+		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
+		pconf.GracefulRestart.State.LocalRestarting = a.GracefulRestart.LocalRestarting
+	}
+	ReadApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
+	if a.Transport != nil {
+		pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
+		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
+		pconf.Transport.Config.RemotePort = uint16(a.Transport.RemotePort)
+	}
+	if a.EbgpMultihop != nil {
+		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
+		pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
+	}
+	if a.Info != nil {
+		pconf.State.TotalPaths = a.Info.TotalPaths
+		pconf.State.TotalPrefixes = a.Info.TotalPrefixes
+		pconf.State.PeerAs = a.Info.PeerAs
+		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
+	}
+	ReadAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
+	return pconf, nil
+}
+
 func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*AddNeighborResponse, error) {
 	c, err := NewNeighborFromAPIStruct(arg.Peer)
 	if err != nil {
@@ -1373,6 +1548,42 @@ func (s *Server) UpdateNeighbor(ctx context.Context, arg *UpdateNeighborRequest)
 		return &UpdateNeighborResponse{NeedsSoftResetIn: false}, s.bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 	}
 	return &UpdateNeighborResponse{NeedsSoftResetIn: needsSoftResetIn}, nil
+}
+
+func (s *Server) AddPeerGroup(ctx context.Context, arg *AddPeerGroupRequest) (*AddPeerGroupResponse, error) {
+	c, err := NewPeerGroupFromAPIStruct(arg.PeerGroup)
+	if err != nil {
+		return nil, err
+	}
+	return &AddPeerGroupResponse{}, s.bgpServer.AddPeerGroup(c)
+}
+
+func (s *Server) DeletePeerGroup(ctx context.Context, arg *DeletePeerGroupRequest) (*DeletePeerGroupResponse, error) {
+	return &DeletePeerGroupResponse{}, s.bgpServer.DeletePeerGroup(&config.PeerGroup{Config: config.PeerGroupConfig{
+		PeerGroupName: arg.PeerGroup.Conf.PeerGroupName,
+	}})
+}
+
+func (s *Server) UpdatePeerGroup(ctx context.Context, arg *UpdatePeerGroupRequest) (*UpdatePeerGroupResponse, error) {
+	c, err := NewPeerGroupFromAPIStruct(arg.PeerGroup)
+	if err != nil {
+		return nil, err
+	}
+	needsSoftResetIn, err := s.bgpServer.UpdatePeerGroup(c)
+	if err != nil {
+		return nil, err
+	}
+	if arg.DoSoftResetIn && needsSoftResetIn {
+		return &UpdatePeerGroupResponse{NeedsSoftResetIn: false}, s.bgpServer.SoftResetIn("", bgp.RouteFamily(0))
+	}
+	return &UpdatePeerGroupResponse{NeedsSoftResetIn: needsSoftResetIn}, nil
+}
+
+func (s *Server) AddDynamicNeighbor(ctx context.Context, arg *AddDynamicNeighborRequest) (*AddDynamicNeighborResponse, error) {
+	return &AddDynamicNeighborResponse{}, s.bgpServer.AddDynamicNeighbor(&config.DynamicNeighbor{Config: config.DynamicNeighborConfig{
+		Prefix:    arg.DynamicNeighbor.Prefix,
+		PeerGroup: arg.DynamicNeighbor.PeerGroup,
+	}})
 }
 
 func NewPrefixFromApiStruct(a *Prefix) (*table.Prefix, error) {
