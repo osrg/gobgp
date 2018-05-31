@@ -340,29 +340,48 @@ func main() {
 				}
 				c = newConfig
 			}
-			for i, pg := range addedPg {
+			for _, pg := range addedPg {
 				log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
-				if err := bgpServer.AddPeerGroup(&addedPg[i]); err != nil {
+				if _, err := apiServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+					PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+				}); err != nil {
 					log.Warn(err)
 				}
 			}
-			for i, pg := range deletedPg {
+			for _, pg := range deletedPg {
 				log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
-				if err := bgpServer.DeletePeerGroup(&deletedPg[i]); err != nil {
+				if _, err := apiServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
+					PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+				}); err != nil {
 					log.Warn(err)
 				}
 			}
-			for i, pg := range updatedPg {
+			for _, pg := range updatedPg {
+				log.Infof("PeerGroup %v is updated", pg.State.PeerGroupName)
+				if u, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+					PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+				}); err != nil {
+					log.Warn(err)
+				} else {
+					updatePolicy = updatePolicy || u.NeedsSoftResetIn
+				}
+			}
+			for _, pg := range updatedPg {
 				log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
-				u, err := bgpServer.UpdatePeerGroup(&updatedPg[i])
-				if err != nil {
+				if _, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+					PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+				}); err != nil {
 					log.Warn(err)
 				}
-				updatePolicy = updatePolicy || u
 			}
-			for i, dn := range newConfig.DynamicNeighbors {
+			for _, dn := range newConfig.DynamicNeighbors {
 				log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
-				if err := bgpServer.AddDynamicNeighbor(&newConfig.DynamicNeighbors[i]); err != nil {
+				if _, err := apiServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+					DynamicNeighbor: &api.DynamicNeighbor{
+						Prefix:    dn.Config.Prefix,
+						PeerGroup: dn.Config.PeerGroup,
+					},
+				}); err != nil {
 					log.Warn(err)
 				}
 			}
