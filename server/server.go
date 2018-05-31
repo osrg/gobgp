@@ -1520,6 +1520,12 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 	}
 
 	for _, path := range pathList {
+		if !path.IsWithdraw {
+			if _, err := path.GetOrigin(); err != nil {
+				return err
+			}
+		}
+
 		if path.GetSource() == nil {
 			path.SetSource(pi)
 		}
