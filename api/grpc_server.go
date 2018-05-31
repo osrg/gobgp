@@ -342,6 +342,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		Transport: &Transport{
 			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
 			LocalAddress: pconf.Transport.Config.LocalAddress,
+			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
 		AddPaths: NewAddPathsFromConfigStruct(&pconf.AddPaths),
@@ -1180,6 +1181,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
+		pconf.Config.PeerType = config.IntToPeerTypeMap[int(a.Conf.PeerType)]
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
