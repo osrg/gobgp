@@ -156,6 +156,19 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		return nil
 	}
 
+	if !isWithdraw {
+		originFound := false
+		for _, a := range pattrs {
+			if a.GetType() == bgp.BGP_ATTR_TYPE_ORIGIN {
+				originFound = true
+				break
+			}
+		}
+		if !originFound {
+			pattrs = append(pattrs, bgp.NewPathAttributeOrigin(0))
+		}
+	}
+
 	return &Path{
 		info: &originInfo{
 			nlri:               nlri,
