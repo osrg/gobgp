@@ -38,8 +38,8 @@ class GoBGPTestBase(unittest.TestCase):
 
     def assert_upd_count(self, src, dst, sent, received):
         messages = src.get_neighbor(dst)['state']['messages']
-        self.assertEqual(messages['sent']['update'], sent)
-        self.assertEqual(messages['received']['update'], received)
+        self.assertEqual(messages['sent'].get('update', 0), sent)
+        self.assertEqual(messages['received'].get('update', 0), received)
 
     @classmethod
     def setUpClass(cls):
@@ -208,6 +208,23 @@ class GoBGPTestBase(unittest.TestCase):
         self.__class__.g4 = g4
         self.__class__.g5 = g5
 
+        # add import/export policy to allow peers exchange routes within specific RTs
+        # later tests should not break due to RTC Updates being filtered-out
+        self.g3.local("gobgp policy neighbor add clients-acme {} {}".format(
+            self.g3.peer_name(self.g4),
+            self.g3.peer_name(self.g5)))
+        self.g3.local("gobgp policy ext-community add rts-acme rt:^100:.*$ rt:^200:200$ rt:^300:300$")
+
+        self.g3.local('gobgp policy statement add allow-acme')
+        self.g3.local('gobgp policy statement allow-acme add condition neighbor clients-acme')
+        self.g3.local('gobgp policy statement allow-acme add condition ext-community rts-acme')
+        self.g3.local('gobgp policy statement allow-acme add action accept')
+        self.g3.local('gobgp policy add allow-acme allow-acme')
+
+        self.g3.local('gobgp global policy import add allow-acme default reject')
+        self.g3.local('gobgp global policy export add allow-acme default reject')
+
+
     def test_11_rr_check_adj_rib_from_rr(self):
         # VRF<#>  g3   g4   g5
         #   1          ( )  ( )
@@ -342,6 +359,17 @@ class GoBGPTestBase(unittest.TestCase):
         self.g1.add_peer(self.g3, vpn=True)
         self.g3.add_peer(self.g2, vpn=True)
         self.g2.add_peer(self.g3, vpn=True)
+
+        self.g3.local("gobgp policy neighbor add rr-peers {} {}".format(
+            self.g3.peer_name(self.g1),
+            self.g3.peer_name(self.g2)))
+        self.g3.local('gobgp policy statement add allow-rr-peers')
+        self.g3.local('gobgp policy statement allow-rr-peers add condition neighbor rr-peers')
+        self.g3.local('gobgp policy statement allow-rr-peers add action accept')
+        self.g3.local('gobgp policy add allow-rr-peers allow-rr-peers')
+
+        self.g3.local('gobgp global policy import set allow-acme allow-rr-peers default reject')
+        self.g3.local('gobgp global policy export set allow-acme allow-rr-peers default reject')
 
         self.g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g1)
         self.g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
@@ -617,6 +645,10 @@ class GoBGPTestBase(unittest.TestCase):
             self.g1, self.g2, self.g3, self.g4, self.g5, self.g6, self.g7)
         g3.add_peer(g6, vpn=True)
         g6.add_peer(g3, vpn=True)
+        g3.local("gobgp policy neighbor set rr-peers {} {}".format(
+            g3.peer_name(g1),
+            g3.peer_name(g2),
+            g3.peer_name(g6)))
 
         g1.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
         g2.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")

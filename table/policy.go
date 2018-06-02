@@ -2868,7 +2868,7 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 		return nil
 	}
 
-	if before.IsWithdraw {
+	if before.IsWithdraw || before.GetRouteFamily() == bgp.RF_RTC_UC {
 		return before
 	}
 	result := ROUTE_TYPE_NONE
