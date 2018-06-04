@@ -262,6 +262,13 @@
             options = "remove"
             [policy-definitions.statements.actions.bgp-actions.set-ext-community.set-ext-community-method]
                 communities-list = ["soo:500:600", "rt:700:800"]
+    [[policy-definitions.statements]]
+        [policy-definitions.statements.conditions.bgp-conditions]
+            next-hop-in-list = [
+               "10.0.100.1/32"
+            ]
+        [policy-definitions.statements.actions]
+            route-disposition = "accept-route"
 
 [[policy-definitions]]
     name = "route-type-policy"
