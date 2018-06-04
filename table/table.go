@@ -291,18 +291,16 @@ func (t *Table) setDestination(dst *Destination) {
 }
 
 func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
-	switch t.routeFamily {
-	case bgp.RF_IPv4_UC:
+	switch T := nlri.(type) {
+	case *bgp.IPAddrPrefix:
 		b := make([]byte, 5)
-		ip := nlri.(*bgp.IPAddrPrefix)
-		copy(b, ip.Prefix.To4())
-		b[4] = ip.Length
+		copy(b, T.Prefix.To4())
+		b[4] = T.Length
 		return *(*string)(unsafe.Pointer(&b))
-	case bgp.RF_IPv6_UC:
+	case *bgp.IPv6AddrPrefix:
 		b := make([]byte, 17)
-		ip := nlri.(*bgp.IPv6AddrPrefix)
-		copy(b, ip.Prefix.To16())
-		b[16] = ip.Length
+		copy(b, T.Prefix.To16())
+		b[16] = T.Length
 		return *(*string)(unsafe.Pointer(&b))
 	}
 	return nlri.String()
