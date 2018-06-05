@@ -2063,6 +2063,15 @@ func toStatementApi(s *config.Statement) *Statement {
 	if len(s.Conditions.BgpConditions.NextHopInList) > 0 {
 		cs.NextHopInList = s.Conditions.BgpConditions.NextHopInList
 	}
+	if s.Conditions.BgpConditions.AfiSafiInList != nil {
+		afiSafiIn := make([]Family, 0)
+		for _, afiSafiType := range s.Conditions.BgpConditions.AfiSafiInList {
+			if mapped, ok := bgp.AddressFamilyValueMap[string(afiSafiType)]; ok {
+				afiSafiIn = append(afiSafiIn, Family(mapped))
+			}
+		}
+		cs.AfiSafiIn = afiSafiIn
+	}
 	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
 	as := &Actions{
 		RouteAction: func() RouteAction {
@@ -2323,6 +2332,21 @@ func NewNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, erro
 	return table.NewNextHopCondition(a)
 }
 
+func NewAfiSafiInConditionFromApiStruct(a []Family) (*table.AfiSafiInCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	afiSafiTypes := make([]config.AfiSafiType, 0, len(a))
+	for _, aType := range a {
+		if configType, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(aType)]; ok {
+			afiSafiTypes = append(afiSafiTypes, config.AfiSafiType(configType))
+		} else {
+			return nil, fmt.Errorf("unknown afi-safi-in type value: %d", aType)
+		}
+	}
+	return table.NewAfiSafiInCondition(afiSafiTypes)
+}
+
 func NewRoutingActionFromApiStruct(a RouteAction) (*table.RoutingAction, error) {
 	if a == RouteAction_NONE {
 		return nil, nil
@@ -2454,6 +2478,9 @@ func NewStatementFromApiStruct(a *Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return NewNextHopConditionFromApiStruct(a.Conditions.NextHopInList)
+			},
+			func() (table.Condition, error) {
+				return NewAfiSafiInConditionFromApiStruct(a.Conditions.AfiSafiIn)
 			},
 		}
 		cs = make([]table.Condition, 0, len(cfs))

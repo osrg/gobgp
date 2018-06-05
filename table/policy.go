@@ -157,6 +157,7 @@ const (
 	CONDITION_ROUTE_TYPE
 	CONDITION_LARGE_COMMUNITY
 	CONDITION_NEXT_HOP
+	CONDITION_AFI_SAFI_IN
 )
 
 type ActionType int
@@ -1962,6 +1963,58 @@ func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
 	}, nil
 }
 
+type AfiSafiInCondition struct {
+	routeFamilies []bgp.RouteFamily
+}
+
+func (c *AfiSafiInCondition) Type() ConditionType {
+	return CONDITION_AFI_SAFI_IN
+}
+
+func (c *AfiSafiInCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	for _, rf := range c.routeFamilies {
+		if path.GetRouteFamily() == rf {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *AfiSafiInCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *AfiSafiInCondition) Name() string { return "" }
+
+func (c *AfiSafiInCondition) String() string {
+	tmp := make([]string, 0, len(c.routeFamilies))
+	for _, afiSafi := range c.routeFamilies {
+		tmp = append(tmp, afiSafi.String())
+	}
+	return strings.Join(tmp, " ")
+}
+
+func NewAfiSafiInCondition(afiSafInConfig []config.AfiSafiType) (*AfiSafiInCondition, error) {
+	if afiSafInConfig == nil {
+		return nil, nil
+	}
+
+	routeFamilies := make([]bgp.RouteFamily, 0, len(afiSafInConfig))
+	for _, afiSafiValue := range afiSafInConfig {
+		if err := afiSafiValue.Validate(); err != nil {
+			return nil, err
+		}
+		rf, err := bgp.GetRouteFamily(string(afiSafiValue))
+		if err != nil {
+			return nil, err
+		}
+		routeFamilies = append(routeFamilies, rf)
+	}
+	return &AfiSafiInCondition{
+		routeFamilies: routeFamilies,
+	}, nil
+}
+
 type Action interface {
 	Type() ActionType
 	Apply(*Path, *PolicyOptions) *Path
@@ -2659,6 +2712,13 @@ func (s *Statement) ToConfig() *config.Statement {
 				case *RouteTypeCondition:
 					v := c.(*RouteTypeCondition)
 					cond.BgpConditions.RouteType = v.typ
+				case *AfiSafiInCondition:
+					v := c.(*AfiSafiInCondition)
+					res := make([]config.AfiSafiType, 0, len(v.routeFamilies))
+					for _, rf := range v.routeFamilies {
+						res = append(res, config.AfiSafiType(rf.String()))
+					}
+					cond.BgpConditions.AfiSafiInList = res
 				}
 			}
 			return cond
@@ -2859,6 +2919,9 @@ func NewStatement(c config.Statement) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewNextHopCondition(c.Conditions.BgpConditions.NextHopInList)
+		},
+		func() (Condition, error) {
+			return NewAfiSafiInCondition(c.Conditions.BgpConditions.AfiSafiInList)
 		},
 	}
 	cs = make([]Condition, 0, len(cfs))
@@ -3234,6 +3297,7 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 			c.set = i.(*LargeCommunitySet)
 		}
 	case CONDITION_NEXT_HOP:
+	case CONDITION_AFI_SAFI_IN:
 	case CONDITION_AS_PATH_LENGTH:
 	case CONDITION_RPKI:
 	}

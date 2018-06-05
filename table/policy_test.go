@@ -3058,6 +3058,40 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	assert.Equal(t, m.Evaluate(p, nil), true)
 }
 
+func TestAfiSafiInMatchPath(t *testing.T) {
+	condition, err := NewAfiSafiInCondition([]config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST})
+
+	rtExtCom, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_ROUTE_TARGET, "100:100")
+	assert.NoError(t, err)
+
+	prefixVPNv4 := bgp.NewLabeledVPNIPAddrPrefix(0, "1.1.1.0/24", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(100, 100))
+	prefixVPNv6 := bgp.NewLabeledVPNIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(200, 200))
+	prefixRTC := bgp.NewRouteTargetMembershipNLRI(100, nil)
+	prefixv4 := bgp.NewIPAddrPrefix(0, "1.1.1.0/24")
+	prefixv6 := bgp.NewIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+
+	pathVPNv4 := NewPath(nil, prefixVPNv4, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
+	pathVPNv6 := NewPath(nil, prefixVPNv6, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
+	pathv4 := NewPath(nil, prefixv4, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathv6 := NewPath(nil, prefixv6, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathRTC := NewPath(nil, prefixRTC, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+
+	type Entry struct {
+		path        *Path
+		shouldMatch bool
+	}
+
+	for _, entry := range []Entry{
+		{pathVPNv4, true},
+		{pathVPNv6, true},
+		{pathv4, false},
+		{pathv6, false},
+		{pathRTC, false},
+	} {
+		assert.Equal(t, condition.Evaluate(entry.path, nil), entry.shouldMatch)
+	}
+}
+
 func TestMultipleStatementPolicy(t *testing.T) {
 	r := NewRoutingPolicy()
 	rp := config.RoutingPolicy{

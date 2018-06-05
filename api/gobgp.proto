@@ -1160,6 +1160,7 @@ message Conditions {
   RouteType route_type = 8;
   MatchSet large_community_set = 9;
   repeated string next_hop_in_list = 10;
+  repeated Family afi_safi_in = 11;
 }
 
 enum RouteAction {
