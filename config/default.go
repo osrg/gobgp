@@ -1,10 +1,12 @@
 package config
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"net"
 	"reflect"
+	"strconv"
 
 	"github.com/spf13/viper"
 
@@ -240,9 +242,18 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 
 	if n.RouteReflector.Config.RouteReflectorClient {
 		if n.RouteReflector.Config.RouteReflectorClusterId == "" {
-			n.RouteReflector.Config.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
-		} else if id := net.ParseIP(string(n.RouteReflector.Config.RouteReflectorClusterId)).To4(); id == nil {
-			return fmt.Errorf("route-reflector-cluster-id should be specified in IPv4 address format")
+			n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
+		} else {
+			id := string(n.RouteReflector.Config.RouteReflectorClusterId)
+			if ip := net.ParseIP(id).To4(); ip != nil {
+				n.RouteReflector.State.RouteReflectorClusterId = n.RouteReflector.Config.RouteReflectorClusterId
+			} else if num, err := strconv.ParseUint(id, 10, 32); err == nil {
+				ip = make(net.IP, 4)
+				binary.BigEndian.PutUint32(ip, uint32(num))
+				n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(ip.String())
+			} else {
+				return fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address or 32-bit unsigned integer")
+			}
 		}
 	}
 
