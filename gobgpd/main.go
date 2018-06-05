@@ -439,7 +439,7 @@ func main() {
 				}
 			}
 		case <-sigCh:
-			bgpServer.Shutdown()
+			apiServer.Shutdown(context.Background(), &api.ShutdownRequest{})
 		}
 	}
 }

@@ -3021,3 +3021,8 @@ func (s *Server) AddCollector(ctx context.Context, arg *AddCollectorRequest) (*A
 		TableDumpInterval: arg.TableDumpInterval,
 	})
 }
+
+func (s *Server) Shutdown(ctx context.Context, arg *ShutdownRequest) (*ShutdownResponse, error) {
+	s.bgpServer.Shutdown()
+	return &ShutdownResponse{}, nil
+}
