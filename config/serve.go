@@ -147,9 +147,8 @@ func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolic
 		"Topic": "Config",
 	}).Debugf("New policy:%s", newPolicy)
 
-	var result bool = false
+	var result bool
 	if currentPolicy == nil && newPolicy == nil {
-
 		result = false
 	} else {
 		if currentPolicy != nil && newPolicy != nil {
