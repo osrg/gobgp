@@ -323,7 +323,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		},
 		RouteReflector: &RouteReflector{
 			RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
-			RouteReflectorClusterId: string(pconf.RouteReflector.Config.RouteReflectorClusterId),
+			RouteReflectorClusterId: string(pconf.RouteReflector.State.RouteReflectorClusterId),
 		},
 		RouteServer: &RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
