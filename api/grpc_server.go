@@ -795,6 +795,51 @@ func (s *Server) DisableNeighbor(ctx context.Context, arg *DisableNeighborReques
 	return &DisableNeighborResponse{}, s.bgpServer.DisableNeighbor(arg.Address, arg.Communication)
 }
 
+func (s *Server) UpdatePolicy(ctx context.Context, arg *UpdatePolicyRequest) (*UpdatePolicyResponse, error) {
+	rp, err := NewRoutingPolicyFromApiStruct(arg)
+	if err != nil {
+		return nil, err
+	}
+	return &UpdatePolicyResponse{}, s.bgpServer.UpdatePolicy(*rp)
+}
+
+func NewAPIRoutingPolicyFromConfigStruct(c *config.RoutingPolicy) (*RoutingPolicy, error) {
+	definedSets, err := NewAPIDefinedSetsFromConfigStruct(&c.DefinedSets)
+	if err != nil {
+		return nil, err
+	}
+	policies := make([]*Policy, 0, len(c.PolicyDefinitions))
+	for _, policy := range c.PolicyDefinitions {
+		policies = append(policies, toPolicyApi(&policy))
+	}
+
+	return &RoutingPolicy{
+		DefinedSet:       definedSets,
+		PolicyDefinition: policies,
+	}, nil
+}
+
+func NewRoutingPolicyFromApiStruct(arg *UpdatePolicyRequest) (*config.RoutingPolicy, error) {
+	policyDefinitions := make([]config.PolicyDefinition, 0, len(arg.Policies))
+	for _, p := range arg.Policies {
+		pd, err := NewConfigPolicyFromApiStruct(p)
+		if err != nil {
+			return nil, err
+		}
+		policyDefinitions = append(policyDefinitions, *pd)
+	}
+
+	definedSets, err := NewConfigDefinedSetsFromApiStruct(arg.Sets)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config.RoutingPolicy{
+		DefinedSets:       *definedSets,
+		PolicyDefinitions: policyDefinitions,
+	}, nil
+}
+
 func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.Path, error) {
 	var pi *table.PeerInfo
 
@@ -1603,6 +1648,17 @@ func NewPrefixFromApiStruct(a *Prefix) (*table.Prefix, error) {
 	}, nil
 }
 
+func NewConfigPrefixFromAPIStruct(a *Prefix) (*config.Prefix, error) {
+	_, prefix, err := net.ParseCIDR(a.IpPrefix)
+	if err != nil {
+		return nil, err
+	}
+	return &config.Prefix{
+		IpPrefix:        prefix.String(),
+		MasklengthRange: fmt.Sprintf("%d..%d", a.MaskLengthMin, a.MaskLengthMax),
+	}, nil
+}
+
 func NewAPIPrefixFromConfigStruct(c config.Prefix) (*Prefix, error) {
 	min, max, err := config.ParseMaskLength(c.IpPrefix, c.MasklengthRange)
 	if err != nil {
@@ -1665,6 +1721,137 @@ func NewAPIDefinedSetFromTableStruct(t table.DefinedSet) (*DefinedSet, error) {
 		return nil, fmt.Errorf("invalid defined type")
 	}
 	return a, nil
+}
+
+func NewAPIDefinedSetsFromConfigStruct(t *config.DefinedSets) ([]*DefinedSet, error) {
+	definedSets := make([]*DefinedSet, 0)
+
+	for _, ps := range t.PrefixSets {
+		prefixes := make([]*Prefix, 0)
+		for _, p := range ps.PrefixList {
+			ap, err := NewAPIPrefixFromConfigStruct(p)
+			if err != nil {
+				return nil, err
+			}
+			prefixes = append(prefixes, ap)
+		}
+		definedSets = append(definedSets, &DefinedSet{
+			Type:     DefinedType_PREFIX,
+			Name:     ps.PrefixSetName,
+			Prefixes: prefixes,
+		})
+	}
+
+	for _, ns := range t.NeighborSets {
+		definedSets = append(definedSets, &DefinedSet{
+			Type: DefinedType_NEIGHBOR,
+			Name: ns.NeighborSetName,
+			List: ns.NeighborInfoList,
+		})
+	}
+
+	bs := t.BgpDefinedSets
+	for _, cs := range bs.CommunitySets {
+		definedSets = append(definedSets, &DefinedSet{
+			Type: DefinedType_COMMUNITY,
+			Name: cs.CommunitySetName,
+			List: cs.CommunityList,
+		})
+	}
+
+	for _, es := range bs.ExtCommunitySets {
+		definedSets = append(definedSets, &DefinedSet{
+			Type: DefinedType_EXT_COMMUNITY,
+			Name: es.ExtCommunitySetName,
+			List: es.ExtCommunityList,
+		})
+	}
+
+	for _, ls := range bs.LargeCommunitySets {
+		definedSets = append(definedSets, &DefinedSet{
+			Type: DefinedType_LARGE_COMMUNITY,
+			Name: ls.LargeCommunitySetName,
+			List: ls.LargeCommunityList,
+		})
+	}
+
+	for _, as := range bs.AsPathSets {
+		definedSets = append(definedSets, &DefinedSet{
+			Type: DefinedType_AS_PATH,
+			Name: as.AsPathSetName,
+			List: as.AsPathList,
+		})
+	}
+
+	return definedSets, nil
+}
+
+func NewConfigDefinedSetsFromApiStruct(a []*DefinedSet) (*config.DefinedSets, error) {
+	ps := make([]config.PrefixSet, 0)
+	ns := make([]config.NeighborSet, 0)
+	as := make([]config.AsPathSet, 0)
+	cs := make([]config.CommunitySet, 0)
+	es := make([]config.ExtCommunitySet, 0)
+	ls := make([]config.LargeCommunitySet, 0)
+
+	for _, ds := range a {
+		if ds.Name == "" {
+			return nil, fmt.Errorf("empty neighbor set name")
+		}
+		switch table.DefinedType(ds.Type) {
+		case table.DEFINED_TYPE_PREFIX:
+			prefixes := make([]config.Prefix, 0, len(ds.Prefixes))
+			for _, p := range ds.Prefixes {
+				prefix, err := NewConfigPrefixFromAPIStruct(p)
+				if err != nil {
+					return nil, err
+				}
+				prefixes = append(prefixes, *prefix)
+			}
+			ps = append(ps, config.PrefixSet{
+				PrefixSetName: ds.Name,
+				PrefixList:    prefixes,
+			})
+		case table.DEFINED_TYPE_NEIGHBOR:
+			ns = append(ns, config.NeighborSet{
+				NeighborSetName:  ds.Name,
+				NeighborInfoList: ds.List,
+			})
+		case table.DEFINED_TYPE_AS_PATH:
+			as = append(as, config.AsPathSet{
+				AsPathSetName: ds.Name,
+				AsPathList:    ds.List,
+			})
+		case table.DEFINED_TYPE_COMMUNITY:
+			cs = append(cs, config.CommunitySet{
+				CommunitySetName: ds.Name,
+				CommunityList:    ds.List,
+			})
+		case table.DEFINED_TYPE_EXT_COMMUNITY:
+			es = append(es, config.ExtCommunitySet{
+				ExtCommunitySetName: ds.Name,
+				ExtCommunityList:    ds.List,
+			})
+		case table.DEFINED_TYPE_LARGE_COMMUNITY:
+			ls = append(ls, config.LargeCommunitySet{
+				LargeCommunitySetName: ds.Name,
+				LargeCommunityList:    ds.List,
+			})
+		default:
+			return nil, fmt.Errorf("invalid defined type")
+		}
+	}
+
+	return &config.DefinedSets{
+		PrefixSets:   ps,
+		NeighborSets: ns,
+		BgpDefinedSets: config.BgpDefinedSets{
+			AsPathSets:         as,
+			CommunitySets:      cs,
+			ExtCommunitySets:   es,
+			LargeCommunitySets: ls,
+		},
+	}, nil
 }
 
 func NewDefinedSetFromApiStruct(a *DefinedSet) (table.DefinedSet, error) {
@@ -2421,6 +2608,28 @@ func NewAPIPolicyAssignmentFromTableStruct(t *table.PolicyAssignment) *PolicyAss
 			return l
 		}(),
 	}
+}
+
+func NewConfigPolicyFromApiStruct(a *Policy) (*config.PolicyDefinition, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty policy name")
+	}
+	stmts := make([]config.Statement, 0, len(a.Statements))
+	for idx, x := range a.Statements {
+		if x.Name == "" {
+			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
+		}
+		y, err := NewStatementFromApiStruct(x)
+		if err != nil {
+			return nil, err
+		}
+		stmt := y.ToConfig()
+		stmts = append(stmts, *stmt)
+	}
+	return &config.PolicyDefinition{
+		Name:       a.Name,
+		Statements: stmts,
+	}, nil
 }
 
 func NewPolicyFromApiStruct(a *Policy) (*table.Policy, error) {
