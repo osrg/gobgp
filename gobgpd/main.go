@@ -202,7 +202,11 @@ func main() {
 				}
 
 				if len(newConfig.Collector.Config.Url) > 0 {
-					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
+					if _, err := apiServer.AddCollector(context.Background(), &api.AddCollectorRequest{
+						Url:               c.Collector.Config.Url,
+						DbName:            c.Collector.Config.DbName,
+						TableDumpInterval: c.Collector.Config.TableDumpInterval,
+					}); err != nil {
 						log.Fatalf("failed to set collector config: %s", err)
 					}
 				}

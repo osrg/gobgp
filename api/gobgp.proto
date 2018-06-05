@@ -86,6 +86,7 @@ service GobgpApi {
   rpc DeletePeerGroup(DeletePeerGroupRequest) returns (DeletePeerGroupResponse) {}
   rpc UpdatePeerGroup(UpdatePeerGroupRequest) returns (UpdatePeerGroupResponse) {}
   rpc AddDynamicNeighbor(AddDynamicNeighborRequest) returns (AddDynamicNeighborResponse) {}
+  rpc AddCollector(AddCollectorRequest) returns (AddCollectorResponse) {}
 }
 
 // Constants for address families
@@ -1307,4 +1308,13 @@ message GetRibInfoRequest {
 
 message GetRibInfoResponse {
     TableInfo info = 1;
+}
+
+message AddCollectorRequest {
+  string url = 1;
+  string db_name = 2;
+  uint64 table_dump_interval = 3;
+}
+
+message AddCollectorResponse {
 }
