@@ -187,11 +187,11 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			if rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName)); err != nil {
+			rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName))
+			if err != nil {
 				return err
-			} else {
-				n.AfiSafis[i].State.Family = rf
 			}
+			n.AfiSafis[i].State.Family = rf
 			n.AfiSafis[i].State.AfiSafiName = n.AfiSafis[i].Config.AfiSafiName
 			if !vv.IsSet("afi-safi.config.enabled") {
 				n.AfiSafis[i].Config.Enabled = true
@@ -263,7 +263,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 func SetDefaultGlobalConfigValues(g *Global) error {
 	if len(g.AfiSafis) == 0 {
 		g.AfiSafis = []AfiSafi{}
-		for k, _ := range AfiSafiTypeToIntMap {
+		for k := range AfiSafiTypeToIntMap {
 			g.AfiSafis = append(g.AfiSafis, defaultAfiSafi(k, true))
 		}
 	}
@@ -324,7 +324,7 @@ func setDefaultPolicyConfigValuesWithViper(v *viper.Viper, p *PolicyDefinition) 
 	if err != nil {
 		return err
 	}
-	for i, _ := range p.Statements {
+	for i := range p.Statements {
 		vv := viper.New()
 		if len(stmts) > i {
 			vv.Set("statement", stmts[i])
