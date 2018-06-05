@@ -1874,7 +1874,7 @@ func (s *BgpServer) SoftReset(addr string, family bgp.RouteFamily) error {
 
 func (s *BgpServer) validateTable(r *table.Table) (v []*table.Validation) {
 	if s.roaManager.enabled() {
-		v := make([]*table.Validation, 0, len(r.GetDestinations()))
+		v = make([]*table.Validation, 0, len(r.GetDestinations()))
 		for _, d := range r.GetDestinations() {
 			for _, p := range d.GetAllKnownPathList() {
 				v = append(v, s.roaManager.validate(p))
