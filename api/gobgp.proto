@@ -83,7 +83,7 @@ service GobgpApi {
 
 // Constants for address families
 enum Family {
-  _ = 0;
+  RESERVED = 0;
   IPv4 = 65537;
   IPv6 = 131073;
   IPv4_MC = 65538;
