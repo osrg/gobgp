@@ -87,6 +87,7 @@ service GobgpApi {
   rpc UpdatePeerGroup(UpdatePeerGroupRequest) returns (UpdatePeerGroupResponse) {}
   rpc AddDynamicNeighbor(AddDynamicNeighborRequest) returns (AddDynamicNeighborResponse) {}
   rpc AddCollector(AddCollectorRequest) returns (AddCollectorResponse) {}
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
 }
 
 // Constants for address families
@@ -1317,4 +1318,10 @@ message AddCollectorRequest {
 }
 
 message AddCollectorResponse {
+}
+
+message ShutdownRequest{
+}
+
+message ShutdownResponse{
 }
