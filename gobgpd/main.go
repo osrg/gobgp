@@ -266,8 +266,14 @@ func main() {
 					}
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
-				if err := bgpServer.UpdatePolicy(*p); err != nil {
-					log.Fatalf("failed to set routing policy: %s", err)
+				rp, err := api.NewAPIRoutingPolicyFromConfigStruct(p)
+				if err != nil {
+					log.Warn(err)
+				} else {
+					apiServer.UpdatePolicy(context.Background(), &api.UpdatePolicyRequest{
+						Sets:     rp.DefinedSet,
+						Policies: rp.PolicyDefinition,
+					})
 				}
 
 				added = newConfig.Neighbors
@@ -288,7 +294,15 @@ func main() {
 				if updatePolicy {
 					log.Info("Policy config is updated")
 					p := config.ConfigSetToRoutingPolicy(newConfig)
-					bgpServer.UpdatePolicy(*p)
+					rp, err := api.NewAPIRoutingPolicyFromConfigStruct(p)
+					if err != nil {
+						log.Warn(err)
+					} else {
+						apiServer.UpdatePolicy(context.Background(), &api.UpdatePolicyRequest{
+							Sets:     rp.DefinedSet,
+							Policies: rp.PolicyDefinition,
+						})
+					}
 				}
 				// global policy update
 				if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {

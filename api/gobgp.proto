@@ -76,6 +76,7 @@ service GobgpApi {
   rpc AddPolicy(AddPolicyRequest) returns (AddPolicyResponse) {}
   rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse) {}
   rpc ReplacePolicy(ReplacePolicyRequest) returns (ReplacePolicyResponse) {}
+  rpc UpdatePolicy(UpdatePolicyRequest) returns (UpdatePolicyResponse) {}
   rpc GetPolicyAssignment(GetPolicyAssignmentRequest) returns (GetPolicyAssignmentResponse) {}
   rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (AddPolicyAssignmentResponse) {}
   rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (DeletePolicyAssignmentResponse) {}
@@ -250,6 +251,14 @@ message DisableNeighborRequest {
 }
 
 message DisableNeighborResponse {
+}
+
+message UpdatePolicyRequest {
+  repeated DefinedSet sets = 1;
+  repeated Policy policies = 2;
+}
+
+message UpdatePolicyResponse {
 }
 
 message EnableMrtRequest {
@@ -1227,6 +1236,11 @@ message PolicyAssignment {
   string name = 3;
   repeated Policy policies = 4;
   RouteAction default = 5;
+}
+
+message RoutingPolicy {
+  repeated DefinedSet defined_set = 1;
+  repeated Policy policy_definition = 2;
 }
 
 message Roa {
