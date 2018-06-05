@@ -92,6 +92,7 @@ Conditions are categorized into attributes below:
 - rpki validation result
 - route type (internal/external/local)
 - large community
+- afi-safi in
 
 As showed in the figure above, some of the conditions point to defined sets,
 which are a container for each condition item (e.g. prefixes).
@@ -516,6 +517,8 @@ evaluate routes from neighbors, if matched, action will be applied.
       [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
         operator = "eq"
         value = 2
+      [policy-definitions.statements.conditions.bgp-conditions]
+        afi-safi-in = ["l3vpn-ipv4-unicast", "ipv4-unicast"]
       [policy-definitions.statements.actions]
         route-disposition = "accept-route"
       [policy-definitions.statements.actions.bgp-actions]
