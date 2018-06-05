@@ -3012,5 +3012,12 @@ func (s *Server) GetRibInfo(ctx context.Context, arg *GetRibInfoRequest) (*GetRi
 			NumAccepted:    uint64(info.NumAccepted),
 		},
 	}, nil
+}
 
+func (s *Server) AddCollector(ctx context.Context, arg *AddCollectorRequest) (*AddCollectorResponse, error) {
+	return &AddCollectorResponse{}, s.bgpServer.AddCollector(&config.CollectorConfig{
+		Url:               arg.Url,
+		DbName:            arg.DbName,
+		TableDumpInterval: arg.TableDumpInterval,
+	})
 }
