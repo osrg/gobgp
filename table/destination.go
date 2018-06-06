@@ -128,6 +128,11 @@ func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
 		return false
 	}
 
+	if lhs.Address == nil && rhs.Address == nil {
+		// The both peers are "local"
+		return true
+	}
+
 	if (lhs.AS == rhs.AS) && lhs.ID.Equal(rhs.ID) && lhs.LocalID.Equal(rhs.LocalID) && lhs.Address.Equal(rhs.Address) {
 		return true
 	}
@@ -1025,7 +1030,7 @@ func (d *Destination) Select(option ...DestinationSelectOption) *Destination {
 		if vrf != nil {
 			ps := make([]*Path, 0, len(paths))
 			for _, p := range paths {
-				if CanImportToVrf(vrf, p) {
+				if vrf.IsImported(p) {
 					ps = append(ps, p.ToLocal())
 				}
 			}

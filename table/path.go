@@ -98,6 +98,19 @@ type originInfo struct {
 	stale              bool
 }
 
+func (info *originInfo) Clone(nlri bgp.AddrPrefixInterface) *originInfo {
+	return &originInfo{
+		nlri:               nlri,
+		source:             info.source,
+		timestamp:          info.timestamp,
+		validation:         info.validation,
+		noImplicitWithdraw: info.noImplicitWithdraw,
+		isFromExternal:     info.isFromExternal,
+		eor:                info.eor,
+		stale:              info.stale,
+	}
+}
+
 type RpkiValidationReasonType string
 
 const (
@@ -336,9 +349,20 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 	}
 }
 
+func (path *Path) CloneWithNewNlri(isWithdraw bool, nlri bgp.AddrPrefixInterface) *Path {
+	cloned := path.Clone(isWithdraw)
+	cloned.info = path.OriginInfo().Clone(nlri)
+	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	if attr != nil {
+		oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
+		cloned.setPathAttr(bgp.NewPathAttributeMpReachNLRI(oldNlri.Nexthop.String(), []bgp.AddrPrefixInterface{nlri}))
+	}
+	return cloned
+}
+
 func (path *Path) root() *Path {
 	p := path
-	for p.parent != nil {
+	for p.info == nil && p.parent != nil {
 		p = p.parent
 	}
 	return p
