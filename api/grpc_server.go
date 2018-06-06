@@ -323,7 +323,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		},
 		RouteReflector: &RouteReflector{
 			RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
-			RouteReflectorClusterId: string(pconf.RouteReflector.Config.RouteReflectorClusterId),
+			RouteReflectorClusterId: string(pconf.RouteReflector.State.RouteReflectorClusterId),
 		},
 		RouteServer: &RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
@@ -1662,6 +1662,9 @@ func toStatementApi(s *config.Statement) *Statement {
 	if s.Conditions.BgpConditions.RouteType != "" {
 		cs.RouteType = Conditions_RouteType(s.Conditions.BgpConditions.RouteType.ToInt())
 	}
+	if len(s.Conditions.BgpConditions.NextHopInList) > 0 {
+		cs.NextHopInList = s.Conditions.BgpConditions.NextHopInList
+	}
 	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
 	as := &Actions{
 		RouteAction: func() RouteAction {
@@ -1914,6 +1917,14 @@ func NewLargeCommunityConditionFromApiStruct(a *MatchSet) (*table.LargeCommunity
 	return table.NewLargeCommunityCondition(c)
 }
 
+func NewNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+
+	return table.NewNextHopCondition(a)
+}
+
 func NewRoutingActionFromApiStruct(a RouteAction) (*table.RoutingAction, error) {
 	if a == RouteAction_NONE {
 		return nil, nil
@@ -2042,6 +2053,9 @@ func NewStatementFromApiStruct(a *Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return NewLargeCommunityConditionFromApiStruct(a.Conditions.LargeCommunitySet)
+			},
+			func() (table.Condition, error) {
+				return NewNextHopConditionFromApiStruct(a.Conditions.NextHopInList)
 			},
 		}
 		cs = make([]table.Condition, 0, len(cfs))

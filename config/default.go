@@ -1,10 +1,12 @@
 package config
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"net"
 	"reflect"
+	"strconv"
 
 	"github.com/spf13/viper"
 
@@ -185,11 +187,11 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			if rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName)); err != nil {
+			rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName))
+			if err != nil {
 				return err
-			} else {
-				n.AfiSafis[i].State.Family = rf
 			}
+			n.AfiSafis[i].State.Family = rf
 			n.AfiSafis[i].State.AfiSafiName = n.AfiSafis[i].Config.AfiSafiName
 			if !vv.IsSet("afi-safi.config.enabled") {
 				n.AfiSafis[i].Config.Enabled = true
@@ -240,9 +242,18 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 
 	if n.RouteReflector.Config.RouteReflectorClient {
 		if n.RouteReflector.Config.RouteReflectorClusterId == "" {
-			n.RouteReflector.Config.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
-		} else if id := net.ParseIP(string(n.RouteReflector.Config.RouteReflectorClusterId)).To4(); id == nil {
-			return fmt.Errorf("route-reflector-cluster-id should be specified in IPv4 address format")
+			n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
+		} else {
+			id := string(n.RouteReflector.Config.RouteReflectorClusterId)
+			if ip := net.ParseIP(id).To4(); ip != nil {
+				n.RouteReflector.State.RouteReflectorClusterId = n.RouteReflector.Config.RouteReflectorClusterId
+			} else if num, err := strconv.ParseUint(id, 10, 32); err == nil {
+				ip = make(net.IP, 4)
+				binary.BigEndian.PutUint32(ip, uint32(num))
+				n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(ip.String())
+			} else {
+				return fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address or 32-bit unsigned integer")
+			}
 		}
 	}
 
@@ -252,7 +263,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 func SetDefaultGlobalConfigValues(g *Global) error {
 	if len(g.AfiSafis) == 0 {
 		g.AfiSafis = []AfiSafi{}
-		for k, _ := range AfiSafiTypeToIntMap {
+		for k := range AfiSafiTypeToIntMap {
 			g.AfiSafis = append(g.AfiSafis, defaultAfiSafi(k, true))
 		}
 	}
@@ -313,7 +324,7 @@ func setDefaultPolicyConfigValuesWithViper(v *viper.Viper, p *PolicyDefinition) 
 	if err != nil {
 		return err
 	}
-	for i, _ := range p.Statements {
+	for i := range p.Statements {
 		vv := viper.New()
 		if len(stmts) > i {
 			vv.Set("statement", stmts[i])

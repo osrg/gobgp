@@ -83,7 +83,7 @@ service GobgpApi {
 
 // Constants for address families
 enum Family {
-  _ = 0;
+  RESERVED = 0;
   IPv4 = 65537;
   IPv6 = 131073;
   IPv4_MC = 65538;
@@ -980,6 +980,7 @@ enum DefinedType {
   COMMUNITY = 4;
   EXT_COMMUNITY = 5;
   LARGE_COMMUNITY = 6;
+  NEXT_HOP = 7;
 }
 
 message DefinedSet {
@@ -1027,6 +1028,7 @@ message Conditions {
   }
   RouteType route_type = 8;
   MatchSet large_community_set = 9;
+  repeated string next_hop_in_list = 10;
 }
 
 enum RouteAction {

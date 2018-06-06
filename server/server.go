@@ -531,11 +531,12 @@ func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 
+	options := &table.PolicyOptions{
+		Info:       peer.fsm.peerInfo,
+		OldNextHop: path.GetNexthop(),
+	}
 	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
 
-	options := &table.PolicyOptions{
-		Info: peer.fsm.peerInfo,
-	}
 	if v := s.roaManager.validate(path); v != nil {
 		options.ValidationResult = v
 	}
@@ -1873,7 +1874,7 @@ func (s *BgpServer) SoftReset(addr string, family bgp.RouteFamily) error {
 
 func (s *BgpServer) validateTable(r *table.Table) (v []*table.Validation) {
 	if s.roaManager.enabled() {
-		v := make([]*table.Validation, 0, len(r.GetDestinations()))
+		v = make([]*table.Validation, 0, len(r.GetDestinations()))
 		for _, d := range r.GetDestinations() {
 			for _, p := range d.GetAllKnownPathList() {
 				v = append(v, s.roaManager.validate(p))
