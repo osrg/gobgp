@@ -333,6 +333,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		parent:           path,
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
+		attrsHash:        path.attrsHash,
 	}
 }
 
