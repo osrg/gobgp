@@ -142,7 +142,7 @@ func injectMrt() error {
 				}
 
 				if mrtOpts.Best {
-					dst := table.NewDestination(nlri, 0, paths...)
+					dst := table.NewDestination(nlri, 0, paths[1:]...)
 					best, _, _ := dst.Calculate(paths[0]).GetChanges(table.GLOBAL_RIB_NAME, 0, false)
 					if best == nil {
 						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
