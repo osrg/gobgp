@@ -263,8 +263,8 @@ const (
 	BGP_CAP_FOUR_OCTET_AS_NUMBER        BGPCapabilityCode = 65
 	BGP_CAP_ADD_PATH                    BGPCapabilityCode = 69
 	BGP_CAP_ENHANCED_ROUTE_REFRESH      BGPCapabilityCode = 70
+	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART BGPCapabilityCode = 71
 	BGP_CAP_ROUTE_REFRESH_CISCO         BGPCapabilityCode = 128
-	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART BGPCapabilityCode = 129
 )
 
 var CapNameMap = map[BGPCapabilityCode]string{
