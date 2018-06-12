@@ -135,16 +135,17 @@ type Validation struct {
 }
 
 type Path struct {
-	info       *originInfo
-	IsWithdraw bool
-	pathAttrs  []bgp.PathAttributeInterface
-	attrsHash  uint32
-	reason     BestPathReason
-	parent     *Path
-	dels       []bgp.BGPAttrType
+	info      *originInfo
+	parent    *Path
+	pathAttrs []bgp.PathAttributeInterface
+	dels      []bgp.BGPAttrType
+	attrsHash uint32
+	aslooped  bool
+	reason    BestPathReason
+
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
-	aslooped         bool
+	IsWithdraw       bool
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
