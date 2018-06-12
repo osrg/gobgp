@@ -2408,6 +2408,134 @@ func (s *Server) GetServer(ctx context.Context, arg *GetServerRequest) (*GetServ
 	}, nil
 }
 
+func NewGlobalFromAPIStruct(a *Global) *config.Global {
+	families := make([]config.AfiSafi, 0, len(a.Families))
+	for _, f := range a.Families {
+		name := config.IntToAfiSafiTypeMap[int(f)]
+		rf, _ := bgp.GetRouteFamily(string(name))
+		families = append(families, config.AfiSafi{
+			Config: config.AfiSafiConfig{
+				AfiSafiName: name,
+				Enabled:     true,
+			},
+			State: config.AfiSafiState{
+				AfiSafiName: name,
+				Enabled:     true,
+				Family:      rf,
+			},
+		})
+	}
+
+	applyPolicy := &config.ApplyPolicy{}
+	ReadApplyPolicyFromAPIStruct(applyPolicy, a.ApplyPolicy)
+
+	global := &config.Global{
+		Config: config.GlobalConfig{
+			As:               a.As,
+			RouterId:         a.RouterId,
+			Port:             a.ListenPort,
+			LocalAddressList: a.ListenAddresses,
+		},
+		ApplyPolicy: *applyPolicy,
+		AfiSafis:    families,
+		UseMultiplePaths: config.UseMultiplePaths{
+			Config: config.UseMultiplePathsConfig{
+				Enabled: a.UseMultiplePaths,
+			},
+		},
+	}
+	if a.RouteSelectionOptions != nil {
+		global.RouteSelectionOptions = config.RouteSelectionOptions{
+			Config: config.RouteSelectionOptionsConfig{
+				AlwaysCompareMed:         a.RouteSelectionOptions.AlwaysCompareMed,
+				IgnoreAsPathLength:       a.RouteSelectionOptions.IgnoreAsPathLength,
+				ExternalCompareRouterId:  a.RouteSelectionOptions.ExternalCompareRouterId,
+				AdvertiseInactiveRoutes:  a.RouteSelectionOptions.AdvertiseInactiveRoutes,
+				EnableAigp:               a.RouteSelectionOptions.EnableAigp,
+				IgnoreNextHopIgpMetric:   a.RouteSelectionOptions.IgnoreNextHopIgpMetric,
+				DisableBestPathSelection: a.RouteSelectionOptions.DisableBestPathSelection,
+			},
+		}
+	}
+	if a.DefaultRouteDistance != nil {
+		global.DefaultRouteDistance = config.DefaultRouteDistance{
+			Config: config.DefaultRouteDistanceConfig{
+				ExternalRouteDistance: uint8(a.DefaultRouteDistance.ExternalRouteDistance),
+				InternalRouteDistance: uint8(a.DefaultRouteDistance.InternalRouteDistance),
+			},
+		}
+	}
+	if a.Confederation != nil {
+		global.Confederation = config.Confederation{
+			Config: config.ConfederationConfig{
+				Enabled:      a.Confederation.Enabled,
+				Identifier:   a.Confederation.Identifier,
+				MemberAsList: a.Confederation.MemberAsList,
+			},
+		}
+	}
+	if a.GracefulRestart != nil {
+		global.GracefulRestart = config.GracefulRestart{
+			Config: config.GracefulRestartConfig{
+				Enabled:             a.GracefulRestart.Enabled,
+				RestartTime:         uint16(a.GracefulRestart.RestartTime),
+				StaleRoutesTime:     float64(a.GracefulRestart.StaleRoutesTime),
+				HelperOnly:          a.GracefulRestart.HelperOnly,
+				DeferralTime:        uint16(a.GracefulRestart.DeferralTime),
+				NotificationEnabled: a.GracefulRestart.NotificationEnabled,
+				LongLivedEnabled:    a.GracefulRestart.LonglivedEnabled,
+			},
+		}
+	}
+	return global
+}
+
+func NewGlobalFromConfigStruct(c *config.Global) *Global {
+	families := make([]uint32, 0, len(c.AfiSafis))
+	for _, f := range c.AfiSafis {
+		families = append(families, uint32(config.AfiSafiTypeToIntMap[f.Config.AfiSafiName]))
+	}
+
+	applyPolicy := NewApplyPolicyFromConfigStruct(&c.ApplyPolicy)
+
+	return &Global{
+		As:               c.Config.As,
+		RouterId:         c.Config.RouterId,
+		ListenPort:       c.Config.Port,
+		ListenAddresses:  c.Config.LocalAddressList,
+		Families:         families,
+		UseMultiplePaths: c.UseMultiplePaths.Config.Enabled,
+		RouteSelectionOptions: &RouteSelectionOptionsConfig{
+			AlwaysCompareMed:         c.RouteSelectionOptions.Config.AlwaysCompareMed,
+			IgnoreAsPathLength:       c.RouteSelectionOptions.Config.IgnoreAsPathLength,
+			ExternalCompareRouterId:  c.RouteSelectionOptions.Config.ExternalCompareRouterId,
+			AdvertiseInactiveRoutes:  c.RouteSelectionOptions.Config.AdvertiseInactiveRoutes,
+			EnableAigp:               c.RouteSelectionOptions.Config.EnableAigp,
+			IgnoreNextHopIgpMetric:   c.RouteSelectionOptions.Config.IgnoreNextHopIgpMetric,
+			DisableBestPathSelection: c.RouteSelectionOptions.Config.DisableBestPathSelection,
+		},
+		DefaultRouteDistance: &DefaultRouteDistance{
+			ExternalRouteDistance: uint32(c.DefaultRouteDistance.Config.ExternalRouteDistance),
+			InternalRouteDistance: uint32(c.DefaultRouteDistance.Config.InternalRouteDistance),
+		},
+		Confederation: &Confederation{
+			Enabled:      c.Confederation.Config.Enabled,
+			Identifier:   c.Confederation.Config.Identifier,
+			MemberAsList: c.Confederation.Config.MemberAsList,
+		},
+		GracefulRestart: &GracefulRestart{
+			Enabled:             c.GracefulRestart.Config.Enabled,
+			RestartTime:         uint32(c.GracefulRestart.Config.RestartTime),
+			StaleRoutesTime:     uint32(c.GracefulRestart.Config.StaleRoutesTime),
+			HelperOnly:          c.GracefulRestart.Config.HelperOnly,
+			DeferralTime:        uint32(c.GracefulRestart.Config.DeferralTime),
+			NotificationEnabled: c.GracefulRestart.Config.NotificationEnabled,
+			LonglivedEnabled:    c.GracefulRestart.Config.LongLivedEnabled,
+		},
+		ApplyPolicy: applyPolicy,
+	}
+}
+
 func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*StartServerResponse, error) {
 	if arg == nil || arg.Global == nil {
 		return nil, fmt.Errorf("invalid request")
@@ -2416,36 +2544,10 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 	if net.ParseIP(g.RouterId) == nil {
 		return nil, fmt.Errorf("invalid router-id format: %s", g.RouterId)
 	}
-	families := make([]config.AfiSafi, 0, len(g.Families))
-	for _, f := range g.Families {
-		name := config.AfiSafiType(bgp.RouteFamily(f).String())
-		families = append(families, config.AfiSafi{
-			Config: config.AfiSafiConfig{
-				AfiSafiName: name,
-				Enabled:     true,
-			},
-			State: config.AfiSafiState{
-				AfiSafiName: name,
-			},
-		})
-	}
-	b := &config.BgpConfigSet{
-		Global: config.Global{
-			Config: config.GlobalConfig{
-				As:               g.As,
-				RouterId:         g.RouterId,
-				Port:             g.ListenPort,
-				LocalAddressList: g.ListenAddresses,
-			},
-			AfiSafis: families,
-			UseMultiplePaths: config.UseMultiplePaths{
-				Config: config.UseMultiplePathsConfig{
-					Enabled: g.UseMultiplePaths,
-				},
-			},
-		},
-	}
-	return &StartServerResponse{}, s.bgpServer.Start(&b.Global)
+
+	global := NewGlobalFromAPIStruct(arg.Global)
+
+	return &StartServerResponse{}, s.bgpServer.Start(global)
 }
 
 func (s *Server) StopServer(ctx context.Context, arg *StopServerRequest) (*StopServerResponse, error) {

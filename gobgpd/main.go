@@ -179,13 +179,7 @@ func main() {
 			if c == nil {
 				c = newConfig
 				if _, err := apiServer.StartServer(context.Background(), &api.StartServerRequest{
-					Global: &api.Global{
-						As:               c.Global.Config.As,
-						RouterId:         c.Global.Config.RouterId,
-						ListenPort:       c.Global.Config.Port,
-						ListenAddresses:  c.Global.Config.LocalAddressList,
-						UseMultiplePaths: c.Global.UseMultiplePaths.Config.Enabled,
-					},
+					Global: api.NewGlobalFromConfigStruct(&c.Global),
 				}); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
