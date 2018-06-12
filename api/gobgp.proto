@@ -820,6 +820,7 @@ message GracefulRestart {
   uint32 deferral_time = 4;
   bool notification_enabled = 5;
   bool longlived_enabled = 6;
+  uint32 stale_routes_time = 7;
 }
 
 message MpGracefulRestartConfig {
@@ -857,6 +858,7 @@ message RouteSelectionOptionsConfig {
   bool advertise_inactive_routes = 4;
   bool enable_aigp = 5;
   bool ignore_next_hop_igp_metric = 6;
+  bool disable_best_path_selection = 7;
 }
 
 message RouteSelectionOptionsState {
@@ -866,6 +868,7 @@ message RouteSelectionOptionsState {
   bool advertise_inactive_routes = 4;
   bool enable_aigp = 5;
   bool ignore_next_hop_igp_metric = 6;
+  bool disable_best_path_selection = 7;
 }
 
 message RouteSelectionOptions {
@@ -1153,6 +1156,11 @@ message Vrf {
   uint32 id = 5;
 }
 
+message DefaultRouteDistance {
+  uint32 external_route_distance = 1;
+  uint32 internal_route_distance = 2;
+}
+
 message Global {
   uint32 as = 1;
   string router_id = 2;
@@ -1160,6 +1168,17 @@ message Global {
   repeated string listen_addresses = 4;
   repeated uint32 families = 5;
   bool use_multiple_paths = 6;
+  RouteSelectionOptionsConfig route_selection_options = 7;
+  DefaultRouteDistance default_route_distance = 8;
+  Confederation confederation = 9;
+  GracefulRestart graceful_restart = 10;
+  ApplyPolicy apply_policy = 11;
+}
+
+message Confederation {
+  bool enabled = 1;
+  uint32 identifier = 2;
+  repeated uint32 member_as_list = 3;
 }
 
 message TableInfo {
