@@ -1,4 +1,5 @@
-# Words should be ignored and too specific for adding to dictionary.txt
+# Words should be ignored and too specific for adding to dictionary.txt.
+# Note: Words of this list are case sensitive.
 # Hexadecimal number
 ffff
 FFFF
@@ -33,3 +34,14 @@ Receivedv4
 Receivedv6
 softreset
 stmt
+
+# For api/gobgp.pb.go and api/attribute.pb.go
+AfiSafis
+LonglivedEnabled
+Maxlen
+Nlris
+Pattrs
+Prefixlen
+Tlvs
+Vrfs
+wiretype

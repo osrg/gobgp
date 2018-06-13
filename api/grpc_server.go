@@ -28,7 +28,7 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
-	"github.com/golang/protobuf/ptypes/any"
+	ptypes "github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -442,7 +442,7 @@ func NewValidationFromTableStruct(v *table.Validation) *RPKIValidation {
 	}
 }
 
-func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation) *Path {
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *ptypes.Any, anyPattrs []*ptypes.Any, path *table.Path, v *table.Validation) *Path {
 	nlri := path.GetNlri()
 	family := uint32(path.GetRouteFamily())
 	vv := config.RPKI_VALIDATION_RESULT_TYPE_NONE.ToInt()
