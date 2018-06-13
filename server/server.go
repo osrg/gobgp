@@ -2851,7 +2851,7 @@ func (w *Watcher) Generate(t WatchEventType) error {
 			pathList := func() map[string][]*table.Path {
 				pathList := make(map[string][]*table.Path)
 				for _, t := range rib.Tables {
-					for _, dst := range t.GetSortedDestinations() {
+					for _, dst := range t.GetDestinations() {
 						if paths := dst.GetKnownPathList(id, as); len(paths) > 0 {
 							pathList[dst.GetNlri().String()] = clonePathList(paths)
 						}

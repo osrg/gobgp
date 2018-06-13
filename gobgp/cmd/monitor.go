@@ -23,11 +23,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
 )
 
-func makeMonitorRouteArgs(p *table.Path, showIdentifier bgp.BGPAddPathMode) []interface{} {
+func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []interface{} {
 	pathStr := make([]interface{}, 0)
 
 	// Title
@@ -39,29 +39,39 @@ func makeMonitorRouteArgs(p *table.Path, showIdentifier bgp.BGPAddPathMode) []in
 
 	// NLRI
 	// If Add-Path required, append Path Identifier.
-	nlri := p.GetNlri()
+	nlri, _ := p.GetNativeNlri()
 	if showIdentifier != bgp.BGP_ADD_PATH_NONE {
-		pathStr = append(pathStr, nlri.PathIdentifier())
+		pathStr = append(pathStr, p.GetIdentifier())
 	}
 	pathStr = append(pathStr, nlri)
 
+	attrs, _ := p.GetNativePathAttributes()
 	// Next Hop
 	nexthop := "fictitious"
-	if n := p.GetNexthop(); n != nil {
-		nexthop = p.GetNexthop().String()
+	if n := getNextHopFromPathAttributes(attrs); n != nil {
+		nexthop = n.String()
 	}
 	pathStr = append(pathStr, nexthop)
 
 	// AS_PATH
-	pathStr = append(pathStr, p.GetAsString())
+	aspathstr := func() string {
+		for _, attr := range attrs {
+			switch a := attr.(type) {
+			case *bgp.PathAttributeAsPath:
+				return bgp.AsPathString(a)
+			}
+		}
+		return ""
+	}()
+	pathStr = append(pathStr, aspathstr)
 
 	// Path Attributes
-	pathStr = append(pathStr, getPathAttributeString(p))
+	pathStr = append(pathStr, getPathAttributeString(nlri, attrs))
 
 	return pathStr
 }
 
-func monitorRoute(pathList []*table.Path, showIdentifier bgp.BGPAddPathMode) {
+func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
 	var pathStrs [][]interface{}
 
 	for _, p := range pathList {
@@ -82,7 +92,7 @@ func NewMonitorCmd() *cobra.Command {
 	var current bool
 
 	monitor := func(recver interface {
-		Recv() (*table.Destination, error)
+		Recv() (*api.Destination, error)
 	}, showIdentifier bgp.BGPAddPathMode) {
 		for {
 			dst, err := recver.Recv()
@@ -92,10 +102,10 @@ func NewMonitorCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			if globalOpts.Json {
-				j, _ := json.Marshal(dst.GetAllKnownPathList())
+				j, _ := json.Marshal(dst.Paths)
 				fmt.Println(string(j))
 			} else {
-				monitorRoute(dst.GetAllKnownPathList(), showIdentifier)
+				monitorRoute(dst.Paths, showIdentifier)
 			}
 		}
 	}

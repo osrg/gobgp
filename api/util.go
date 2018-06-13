@@ -16,34 +16,12 @@
 package gobgpapi
 
 import (
-	"fmt"
+	"encoding/json"
 	"net"
-	"time"
 
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
 )
-
-type ToNativeOption struct {
-	LocalAS                 uint32
-	LocalID                 net.IP
-	RouteReflectorClient    bool
-	RouteReflectorClusterID net.IP
-	NLRI                    bgp.AddrPrefixInterface
-}
-
-func (t *Table) ToNativeTable(option ...ToNativeOption) (*table.Table, error) {
-	dsts := make([]*table.Destination, 0, len(t.Destinations))
-	for _, d := range t.Destinations {
-		dst, err := d.ToNativeDestination(option...)
-		if err != nil {
-			return nil, err
-		}
-		dsts = append(dsts, dst)
-	}
-	return table.NewTable(bgp.RouteFamily(t.Family), dsts...), nil
-}
 
 func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error) {
 	afi, safi := bgp.RouteFamilyToAfiSafi(family)
@@ -57,32 +35,32 @@ func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error
 	return nlri, nil
 }
 
-func (d *Destination) ToNativeDestination(option ...ToNativeOption) (*table.Destination, error) {
-	if len(d.Paths) == 0 {
-		return nil, fmt.Errorf("no path in destination")
-	}
-	nlri, err := d.Paths[0].GetNativeNlri()
-	if err != nil {
-		return nil, err
-	}
-	option = append(option, ToNativeOption{
-		NLRI: nlri,
+func (d *Destination) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.Paths)
+}
+
+func (p *Path) MarshalJSON() ([]byte, error) {
+	nlri, _ := p.GetNativeNlri()
+	attrs, _ := p.GetNativePathAttributes()
+	return json.Marshal(struct {
+		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+		Age        int64                        `json:"age"`
+		Best       bool                         `json:"best"`
+		Attrs      []bgp.PathAttributeInterface `json:"attrs"`
+		Stale      bool                         `json:"stale"`
+		Withdrawal bool                         `json:"withdrawal,omitempty"`
+		SourceID   net.IP                       `json:"source-id,omitempty"`
+		NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
+	}{
+		Nlri:       nlri,
+		Age:        p.Age,
+		Best:       p.Best,
+		Attrs:      attrs,
+		Stale:      p.Stale,
+		Withdrawal: p.IsWithdraw,
+		SourceID:   net.ParseIP(p.SourceId),
+		NeighborIP: net.ParseIP(p.NeighborIp),
 	})
-	paths := make([]*table.Path, 0, len(d.Paths))
-	for _, p := range d.Paths {
-		var path *table.Path
-		var err error
-		if p.Identifier > 0 {
-			path, err = p.ToNativePath()
-		} else {
-			path, err = p.ToNativePath(option...)
-		}
-		if err != nil {
-			return nil, err
-		}
-		paths = append(paths, path)
-	}
-	return table.NewDestination(nlri, 0, paths...), nil
 }
 
 func (p *Path) GetNativeNlri() (bgp.AddrPrefixInterface, error) {
@@ -110,72 +88,6 @@ func (p *Path) GetNativePathAttributes() ([]bgp.PathAttributeInterface, error) {
 		return pattrs, nil
 	}
 	return UnmarshalPathAttributes(p.AnyPattrs)
-}
-
-func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
-	info := &table.PeerInfo{
-		AS:      p.SourceAsn,
-		ID:      net.ParseIP(p.SourceId),
-		Address: net.ParseIP(p.NeighborIp),
-	}
-	var nlri bgp.AddrPrefixInterface
-	for _, o := range option {
-		info.LocalAS = o.LocalAS
-		info.LocalID = o.LocalID
-		info.RouteReflectorClient = o.RouteReflectorClient
-		info.RouteReflectorClusterID = o.RouteReflectorClusterID
-		nlri = o.NLRI
-	}
-	if nlri == nil {
-		var err error
-		nlri, err = p.GetNativeNlri()
-		if err != nil {
-			return nil, err
-		}
-	}
-	pattr, err := p.GetNativePathAttributes()
-	if err != nil {
-		return nil, err
-	}
-	t := time.Unix(p.Age, 0)
-	nlri.SetPathIdentifier(p.Identifier)
-	nlri.SetPathLocalIdentifier(p.LocalIdentifier)
-	path := table.NewPath(info, nlri, p.IsWithdraw, pattr, t, false)
-
-	// p.ValidationDetail.* are already validated
-	matched, _ := NewROAListFromApiStructList(p.ValidationDetail.Matched)
-	unmatchedAs, _ := NewROAListFromApiStructList(p.ValidationDetail.UnmatchedAs)
-	unmatchedLength, _ := NewROAListFromApiStructList(p.ValidationDetail.UnmatchedLength)
-
-	path.SetValidation(&table.Validation{
-		Status:          config.IntToRpkiValidationResultTypeMap[int(p.Validation)],
-		Reason:          table.IntToRpkiValidationReasonTypeMap[int(p.ValidationDetail.Reason)],
-		Matched:         matched,
-		UnmatchedAs:     unmatchedAs,
-		UnmatchedLength: unmatchedLength,
-	})
-	path.MarkStale(p.Stale)
-	path.IsNexthopInvalid = p.IsNexthopInvalid
-	return path, nil
-}
-
-func NewROAListFromApiStructList(l []*Roa) ([]*table.ROA, error) {
-	roas := make([]*table.ROA, 0, len(l))
-	for _, r := range l {
-		ip := net.ParseIP(r.Prefix)
-		family := bgp.RF_IPv4_UC
-		if ip == nil {
-			return nil, fmt.Errorf("invalid prefix %s", r.Prefix)
-		} else {
-			if ip.To4() == nil {
-				family = bgp.RF_IPv6_UC
-			}
-		}
-		afi, _ := bgp.RouteFamilyToAfiSafi(family)
-		roa := table.NewROA(int(afi), []byte(ip), uint8(r.Prefixlen), uint8(r.Maxlen), r.As, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
-		roas = append(roas, roa)
-	}
-	return roas, nil
 }
 
 func extractFamilyFromConfigAfiSafi(c *config.AfiSafi) uint32 {
