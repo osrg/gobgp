@@ -90,11 +90,10 @@ func showRPKITable(args []string) error {
 	}
 	fmt.Printf(format, "Network", "Maxlen", "AS", "Server")
 	for _, r := range roas {
-		host, _, _ := net.SplitHostPort(r.Src)
-		if len(args) > 0 && args[0] != host {
+		if len(args) > 0 && args[0] != r.Conf.Address {
 			continue
 		}
-		fmt.Printf(format, r.Prefix.String(), fmt.Sprint(r.MaxLen), fmt.Sprint(r.AS), r.Src)
+		fmt.Printf(format, r.Prefix, fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
 	}
 	return nil
 }

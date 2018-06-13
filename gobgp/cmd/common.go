@@ -353,3 +353,15 @@ func exitWithError(err error) {
 	printError(err)
 	os.Exit(1)
 }
+
+func getNextHopFromPathAttributes(attrs []bgp.PathAttributeInterface) net.IP {
+	for _, attr := range attrs {
+		switch a := attr.(type) {
+		case *bgp.PathAttributeNextHop:
+			return a.Value
+		case *bgp.PathAttributeMpReachNLRI:
+			return a.Nexthop
+		}
+	}
+	return nil
+}
