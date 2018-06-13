@@ -1090,6 +1090,34 @@ type AddrPrefixInterface interface {
 	SetPathLocalIdentifier(uint32)
 }
 
+func LabelString(nlri AddrPrefixInterface) string {
+	label := ""
+	switch n := nlri.(type) {
+	case *LabeledIPAddrPrefix:
+		label = n.Labels.String()
+	case *LabeledIPv6AddrPrefix:
+		label = n.Labels.String()
+	case *LabeledVPNIPAddrPrefix:
+		label = n.Labels.String()
+	case *LabeledVPNIPv6AddrPrefix:
+		label = n.Labels.String()
+	case *EVPNNLRI:
+		switch route := n.RouteTypeData.(type) {
+		case *EVPNEthernetAutoDiscoveryRoute:
+			label = fmt.Sprintf("[%d]", route.Label)
+		case *EVPNMacIPAdvertisementRoute:
+			var l []string
+			for _, i := range route.Labels {
+				l = append(l, strconv.Itoa(int(i)))
+			}
+			label = fmt.Sprintf("[%s]", strings.Join(l, ","))
+		case *EVPNIPPrefixRoute:
+			label = fmt.Sprintf("[%d]", route.Label)
+		}
+	}
+	return label
+}
+
 type PrefixDefault struct {
 	id      uint32
 	localId uint32
@@ -5269,6 +5297,44 @@ type AsPathParamInterface interface {
 	ASLen() int
 	MarshalJSON() ([]byte, error)
 	String() string
+}
+
+func AsPathString(aspath *PathAttributeAsPath) string {
+	s := bytes.NewBuffer(make([]byte, 0, 64))
+	for i, param := range aspath.Value {
+		segType := param.GetType()
+		asList := param.GetAS()
+		if i != 0 {
+			s.WriteString(" ")
+		}
+
+		sep := " "
+		switch segType {
+		case BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+			s.WriteString("(")
+		case BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+			s.WriteString("[")
+			sep = ","
+		case BGP_ASPATH_ATTR_TYPE_SET:
+			s.WriteString("{")
+			sep = ","
+		}
+		for j, as := range asList {
+			s.WriteString(fmt.Sprintf("%d", as))
+			if j != len(asList)-1 {
+				s.WriteString(sep)
+			}
+		}
+		switch segType {
+		case BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+			s.WriteString(")")
+		case BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+			s.WriteString("]")
+		case BGP_ASPATH_ATTR_TYPE_SET:
+			s.WriteString("}")
+		}
+	}
+	return s.String()
 }
 
 type AsPathParam struct {

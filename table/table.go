@@ -18,7 +18,6 @@ package table
 import (
 	"fmt"
 	"net"
-	"sort"
 	"strings"
 	"unsafe"
 
@@ -188,27 +187,6 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 		t.setDestination(dest)
 	}
 	return dest
-}
-
-func (t *Table) GetSortedDestinations() []*Destination {
-	results := make([]*Destination, 0, len(t.GetDestinations()))
-	switch t.routeFamily {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-		r := radix.New()
-		for _, dst := range t.GetDestinations() {
-			r.Insert(AddrToRadixkey(dst.nlri), dst)
-		}
-		r.Walk(func(s string, v interface{}) bool {
-			results = append(results, v.(*Destination))
-			return false
-		})
-	default:
-		for _, dst := range t.GetDestinations() {
-			results = append(results, dst)
-		}
-		sort.Sort(destinations(results))
-	}
-	return results
 }
 
 func (t *Table) GetDestinations() map[string]*Destination {
