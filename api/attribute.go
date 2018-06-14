@@ -19,9 +19,8 @@ import (
 	"fmt"
 	"net"
 
+	ptypes "github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/packet/bgp"
@@ -156,7 +155,7 @@ func (a *ClusterListAttribute) ToNative() (*bgp.PathAttributeClusterList, error)
 	return bgp.NewPathAttributeClusterList(a.Ids), nil
 }
 
-func MarshalRD(rd bgp.RouteDistinguisherInterface) *any.Any {
+func MarshalRD(rd bgp.RouteDistinguisherInterface) *ptypes.Any {
 	var r proto.Message
 	switch v := rd.(type) {
 	case *bgp.RouteDistinguisherTwoOctetAS:
@@ -181,7 +180,7 @@ func MarshalRD(rd bgp.RouteDistinguisherInterface) *any.Any {
 	return a
 }
 
-func UnmarshalRD(a *any.Any) (bgp.RouteDistinguisherInterface, error) {
+func UnmarshalRD(a *ptypes.Any) (bgp.RouteDistinguisherInterface, error) {
 	var value ptypes.DynamicAny
 	if err := ptypes.UnmarshalAny(a, &value); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal route distinguisher: %s", err)
@@ -215,8 +214,8 @@ func (a *EthernetSegmentIdentifier) ToNative() (*bgp.EthernetSegmentIdentifier, 
 	}, nil
 }
 
-func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) []*any.Any {
-	rules := make([]*any.Any, 0, len(values))
+func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) []*ptypes.Any {
+	rules := make([]*ptypes.Any, 0, len(values))
 	for _, value := range values {
 		var rule proto.Message
 		switch v := value.(type) {
@@ -275,7 +274,7 @@ func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) []*any.Any {
 	return rules
 }
 
-func UnmarshalFlowSpecRules(values []*any.Any) ([]bgp.FlowSpecComponentInterface, error) {
+func UnmarshalFlowSpecRules(values []*ptypes.Any) ([]bgp.FlowSpecComponentInterface, error) {
 	rules := make([]bgp.FlowSpecComponentInterface, 0, len(values))
 	for _, an := range values {
 		var rule bgp.FlowSpecComponentInterface
@@ -324,7 +323,7 @@ func UnmarshalFlowSpecRules(values []*any.Any) ([]bgp.FlowSpecComponentInterface
 	return rules, nil
 }
 
-func MarshalNLRI(value bgp.AddrPrefixInterface) *any.Any {
+func MarshalNLRI(value bgp.AddrPrefixInterface) *ptypes.Any {
 	var nlri proto.Message
 
 	switch v := value.(type) {
@@ -446,15 +445,15 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *any.Any {
 	return an
 }
 
-func MarshalNLRIs(values []bgp.AddrPrefixInterface) []*any.Any {
-	nlris := make([]*any.Any, 0, len(values))
+func MarshalNLRIs(values []bgp.AddrPrefixInterface) []*ptypes.Any {
+	nlris := make([]*ptypes.Any, 0, len(values))
 	for _, value := range values {
 		nlris = append(nlris, MarshalNLRI(value))
 	}
 	return nlris
 }
 
-func UnmarshalNLRI(rf bgp.RouteFamily, an *any.Any) (bgp.AddrPrefixInterface, error) {
+func UnmarshalNLRI(rf bgp.RouteFamily, an *ptypes.Any) (bgp.AddrPrefixInterface, error) {
 	var nlri bgp.AddrPrefixInterface
 
 	var value ptypes.DynamicAny
@@ -594,7 +593,7 @@ func UnmarshalNLRI(rf bgp.RouteFamily, an *any.Any) (bgp.AddrPrefixInterface, er
 	return nlri, nil
 }
 
-func UnmarshalNLRIs(rf bgp.RouteFamily, values []*any.Any) ([]bgp.AddrPrefixInterface, error) {
+func UnmarshalNLRIs(rf bgp.RouteFamily, values []*ptypes.Any) ([]bgp.AddrPrefixInterface, error) {
 	nlris := make([]bgp.AddrPrefixInterface, 0, len(values))
 	for _, an := range values {
 		nlri, err := UnmarshalNLRI(rf, an)
@@ -670,7 +669,7 @@ func (a *MpUnreachNLRIAttribute) ToNative() (*bgp.PathAttributeMpUnreachNLRI, er
 	return bgp.NewPathAttributeMpUnreachNLRI(nlris), nil
 }
 
-func MarshalRT(rt bgp.ExtendedCommunityInterface) *any.Any {
+func MarshalRT(rt bgp.ExtendedCommunityInterface) *ptypes.Any {
 	var r proto.Message
 	switch v := rt.(type) {
 	case *bgp.TwoOctetAsSpecificExtended:
@@ -701,7 +700,7 @@ func MarshalRT(rt bgp.ExtendedCommunityInterface) *any.Any {
 	return a
 }
 
-func UnmarshalRT(a *any.Any) (bgp.ExtendedCommunityInterface, error) {
+func UnmarshalRT(a *ptypes.Any) (bgp.ExtendedCommunityInterface, error) {
 	var value ptypes.DynamicAny
 	if err := ptypes.UnmarshalAny(a, &value); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal route target: %s", err)
@@ -722,7 +721,7 @@ func UnmarshalRT(a *any.Any) (bgp.ExtendedCommunityInterface, error) {
 }
 
 func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommunities) *ExtendedCommunitiesAttribute {
-	communities := make([]*any.Any, 0, len(a.Value))
+	communities := make([]*ptypes.Any, 0, len(a.Value))
 	for _, value := range a.Value {
 		var community proto.Message
 		switch v := value.(type) {
@@ -961,7 +960,7 @@ func (a *PmsiTunnelAttribute) ToNative() (*bgp.PathAttributePmsiTunnel, error) {
 func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *TunnelEncapAttribute {
 	tlvs := make([]*TunnelEncapTLV, 0, len(a.Value))
 	for _, v := range a.Value {
-		subTlvs := make([]*any.Any, 0, len(v.Value))
+		subTlvs := make([]*ptypes.Any, 0, len(v.Value))
 		for _, s := range v.Value {
 			var subTlv proto.Message
 			switch sv := s.(type) {
@@ -1027,7 +1026,7 @@ func (a *TunnelEncapAttribute) ToNative() (*bgp.PathAttributeTunnelEncap, error)
 }
 
 func NewIP6ExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeIP6ExtendedCommunities) *IP6ExtendedCommunitiesAttribute {
-	communities := make([]*any.Any, 0, len(a.Value))
+	communities := make([]*ptypes.Any, 0, len(a.Value))
 	for _, value := range a.Value {
 		var community proto.Message
 		switch v := value.(type) {
@@ -1081,7 +1080,7 @@ func (a *IP6ExtendedCommunitiesAttribute) ToNative() (*bgp.PathAttributeIP6Exten
 }
 
 func NewAigpAttributeFromNative(a *bgp.PathAttributeAigp) *AigpAttribute {
-	tlvs := make([]*any.Any, 0, len(a.Values))
+	tlvs := make([]*ptypes.Any, 0, len(a.Values))
 	for _, value := range a.Values {
 		var tlv proto.Message
 		switch v := value.(type) {
@@ -1159,8 +1158,8 @@ func (a *UnknownAttribute) ToNative() (*bgp.PathAttributeUnknown, error) {
 	return bgp.NewPathAttributeUnknown(bgp.BGPAttrFlag(a.Flags), bgp.BGPAttrType(a.Type), a.Value), nil
 }
 
-func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*any.Any {
-	anyList := make([]*any.Any, 0, len(attrList))
+func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*ptypes.Any {
+	anyList := make([]*ptypes.Any, 0, len(attrList))
 	for _, attr := range attrList {
 		switch a := attr.(type) {
 		case *bgp.PathAttributeOrigin:
@@ -1231,7 +1230,7 @@ func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*any.Any {
 	return anyList
 }
 
-func UnmarshalPathAttributes(values []*any.Any) ([]bgp.PathAttributeInterface, error) {
+func UnmarshalPathAttributes(values []*ptypes.Any) ([]bgp.PathAttributeInterface, error) {
 	attrList := make([]bgp.PathAttributeInterface, 0, len(values))
 	typeMap := make(map[bgp.BGPAttrType]struct{})
 	for _, an := range values {
