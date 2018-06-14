@@ -287,6 +287,51 @@ func (c BGPCapabilityCode) String() string {
 	return fmt.Sprintf("UnknownCapability(%d)", c)
 }
 
+var (
+	// Used parsing RouteDistinguisher
+	_regexpRouteDistinguisher = regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)|([\\w]+:[\\w:]*:[\\w]+)):(\\d+)$")
+
+	// Used for operator and value for the FlowSpec numeric type
+	// Example:
+	// re.FindStringSubmatch("&==80")
+	// >>> ["&==80" "&" "==" "80"]
+	_regexpFlowSpecNumericType = regexp.MustCompile("(&?)(==|=|>|>=|<|<=|!|!=|=!)?(\\d+|-\\d|true|false)")
+
+	// - "=!" is used in the old style format of "tcp-flags" and "fragment".
+	// - The value field should be one of the followings:
+	//     * Decimal value (e.g., 80)
+	//     * Combination of the small letters, decimals, "-" and "+"
+	//       (e.g., tcp, ipv4, is-fragment+first-fragment)
+	//     * Capital letters (e.g., SA)
+	_regexpFlowSpecOperator      = regexp.MustCompile("&|=|>|<|!|[\\w\\-+]+")
+	_regexpFlowSpecOperatorValue = regexp.MustCompile("[\\w\\-+]+")
+
+	// Note: "(-*)" and "(.*)" catch the invalid flags
+	// Example: In this case, "Z" is unsupported flag type.
+	// re.FindStringSubmatch("&==-SZU")
+	// >>> ["&==-SZU" "&" "==" "-" "S" "ZU"]
+	_regexpFlowSpecTCPFlag = regexp.MustCompile("(&?)(==|=|!|!=|=!)?(-*)([FSRPAUCE]+)(.*)")
+
+	// Note: "(.*)" catches the invalid flags
+	// re.FindStringSubmatch("&!=+first-fragment+last-fragment+invalid-fragment")
+	// >>> ["&!=+first-fragment+last-fragment+invalid-fragment" "&" "!=" "+first-fragment+last-fragment" "+last-fragment" "+" "last" "+invalid-fragment"]
+	_regexpFlowSpecFragment = regexp.MustCompile("(&?)(==|=|!|!=|=!)?(((\\+)?(dont|is|first|last|not-a)-fragment)+)(.*)")
+
+	// re.FindStringSubmatch("192.168.0.0/24")
+	// >>> ["192.168.0.0/24" "192.168.0.0" "/24" "24"]
+	// re.FindStringSubmatch("192.168.0.1")
+	// >>> ["192.168.0.1" "192.168.0.1" "" ""]
+	_regexpFindIPv4Prefix = regexp.MustCompile("^([\\d.]+)(/(\\d{1,2}))?")
+
+	// re.FindStringSubmatch("2001:dB8::/64")
+	// >>> ["2001:dB8::/64" "2001:dB8::" "/64" "64" "" ""]
+	// re.FindStringSubmatch("2001:dB8::/64/8")
+	// >>> ["2001:dB8::/64/8" "2001:dB8::" "/64" "64" "/8" "8"]
+	// re.FindStringSubmatch("2001:dB8::1")
+	// >>> ["2001:dB8::1" "2001:dB8::1" "" "" "" ""]
+	_regexpFindIPv6Prefix = regexp.MustCompile("^([a-fA-F\\d:.]+)(/(\\d{1,3}))?(/(\\d{1,3}))?")
+)
+
 type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -1430,8 +1475,7 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 }
 
 func parseRdAndRt(input string) ([]string, error) {
-	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)|([\\w]+:[\\w:]*:[\\w]+)):(\\d+)$")
-	elems := exp.FindStringSubmatch(input)
+	elems := _regexpRouteDistinguisher.FindStringSubmatch(input)
 	if len(elems) != 11 {
 		return nil, fmt.Errorf("failed to parse")
 	}
@@ -3142,22 +3186,12 @@ var FlowSpecValueMap = map[string]BGPFlowSpecType{
 // fmt.Printf("%q", normalizeFlowSpecOpValues(args))
 // >>> ["<=80" "tcp" "!=udp" "=!SA" "&=U" "!F" "=is-fragment+last-fragment"]
 func normalizeFlowSpecOpValues(args []string) []string {
-	// Note:
-	// - "=!" is used in the old style format of "tcp-flags" and "fragment".
-	// - The value field should be one of the followings:
-	//     * Decimal value (e.g., 80)
-	//     * Combination of the small letters, decimals, "-" and "+"
-	//       (e.g., tcp, ipv4, is-fragment+first-fragment)
-	//     * Capital letters (e.g., SA)
-	re := regexp.MustCompile("&|=|>|<|!|[\\w\\-+]+")
-	reValue := regexp.MustCompile("[\\w\\-+]+")
-
 	// Extracts keywords from the given args.
 	sub := ""
 	subs := make([]string, 0)
-	for _, s := range re.FindAllString(strings.Join(args, " "), -1) {
+	for _, s := range _regexpFlowSpecOperator.FindAllString(strings.Join(args, " "), -1) {
 		sub += s
-		if reValue.MatchString(s) {
+		if _regexpFlowSpecOperatorValue.MatchString(s) {
 			subs = append(subs, sub)
 			sub = ""
 		}
@@ -3195,12 +3229,8 @@ func parseFlowSpecNumericOperator(submatch []string) (operator uint8, err error)
 func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validationFunc func(uint64) error) (FlowSpecComponentInterface, error) {
 	argsLen := len(args)
 	items := make([]*FlowSpecComponentItem, 0, argsLen)
-	re := regexp.MustCompile("(&?)(==|=|>|>=|<|<=|!|!=|=!)?(\\d+|-\\d|true|false)")
 	for idx, arg := range args {
-		// Example:
-		// re.FindStringSubmatch("&==80")
-		// >>> ["&==80" "&" "==" "80"]
-		m := re.FindStringSubmatch(arg)
+		m := _regexpFlowSpecNumericType.FindStringSubmatch(arg)
 		if len(m) < 4 {
 			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
 		}
@@ -3298,12 +3328,7 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 			return nil, fmt.Errorf("cannot specify offset for ipv4 prefix")
 		}
 		invalidIPv4PrefixError := fmt.Errorf("invalid ipv4 prefix: %s", args[0])
-		re := regexp.MustCompile("^([\\d.]+)(/(\\d{1,2}))?")
-		// re.FindStringSubmatch("192.168.0.0/24")
-		// >>> ["192.168.0.0/24" "192.168.0.0" "/24" "24"]
-		// re.FindStringSubmatch("192.168.0.1")
-		// >>> ["192.168.0.1" "192.168.0.1" "" ""]
-		m := re.FindStringSubmatch(args[0])
+		m := _regexpFindIPv4Prefix.FindStringSubmatch(args[0])
 		if len(m) < 4 {
 			return nil, invalidIPv4PrefixError
 		}
@@ -3331,14 +3356,7 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 			return nil, fmt.Errorf("invalid arguments for ipv6 prefix: %q", args)
 		}
 		invalidIPv6PrefixError := fmt.Errorf("invalid ipv6 prefix: %s", args[0])
-		re := regexp.MustCompile("^([a-fA-F\\d:.]+)(/(\\d{1,3}))?(/(\\d{1,3}))?")
-		// re.FindStringSubmatch("2001:dB8::/64")
-		// >>> ["2001:dB8::/64" "2001:dB8::" "/64" "64" "" ""]
-		// re.FindStringSubmatch("2001:dB8::/64/8")
-		// >>> ["2001:dB8::/64/8" "2001:dB8::" "/64" "64" "/8" "8"]
-		// re.FindStringSubmatch("2001:dB8::1")
-		// >>> ["2001:dB8::1" "2001:dB8::1" "" "" "" ""]
-		m := re.FindStringSubmatch(args[0])
+		m := _regexpFindIPv6Prefix.FindStringSubmatch(args[0])
 		if len(m) < 4 {
 			return nil, invalidIPv6PrefixError
 		}
@@ -3419,13 +3437,9 @@ func flowSpecTcpFlagParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (F
 
 	argsLen := len(args)
 	items := make([]*FlowSpecComponentItem, 0, argsLen)
-	// Note: "(-*)" and "(.*)" catch the invalid flags
-	re := regexp.MustCompile("(&?)(==|=|!|!=|=!)?(-*)([FSRPAUCE]+)(.*)")
+
 	for _, arg := range args {
-		// Example: In this case, "Z" is unsupported flag type.
-		// re.FindStringSubmatch("&==-SZU")
-		// >>> ["&==-SZU" "&" "==" "-" "S" "ZU"]
-		m := re.FindStringSubmatch(arg)
+		m := _regexpFlowSpecTCPFlag.FindStringSubmatch(arg)
 		if len(m) < 6 {
 			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
 		} else if mLast := m[len(m)-1]; mLast != "" || m[3] != "" {
@@ -3475,13 +3489,9 @@ func flowSpecFragmentParser(_ RouteFamily, typ BGPFlowSpecType, args []string) (
 
 	argsLen := len(args)
 	items := make([]*FlowSpecComponentItem, 0, argsLen)
-	// Note: "(.*)" catches the invalid flags
-	re := regexp.MustCompile("(&?)(==|=|!|!=|=!)?(((\\+)?(dont|is|first|last|not-a)-fragment)+)(.*)")
+
 	for _, arg := range args {
-		// Example:
-		// re.FindStringSubmatch("&!=+first-fragment+last-fragment+invalid-fragment")
-		// >>> ["&!=+first-fragment+last-fragment+invalid-fragment" "&" "!=" "+first-fragment+last-fragment" "+last-fragment" "+" "last" "+invalid-fragment"]
-		m := re.FindStringSubmatch(arg)
+		m := _regexpFlowSpecFragment.FindStringSubmatch(arg)
 		if len(m) < 4 {
 			return nil, fmt.Errorf("invalid argument for %s: %s in %q", typ.String(), arg, args)
 		} else if mLast := m[len(m)-1]; mLast != "" {
