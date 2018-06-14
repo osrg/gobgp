@@ -16,10 +16,10 @@
 package cmd
 
 import (
-	"fmt"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_ExtractReserved(t *testing.T) {
@@ -32,7 +32,6 @@ func Test_ExtractReserved(t *testing.T) {
 		"aigp":       PARAM_LIST,
 		"local-pref": PARAM_SINGLE}
 	m, _ := extractReserved(args, keys)
-	fmt.Println(m)
 	assert.True(len(m["rt"]) == 1)
 	assert.True(len(m["med"]) == 1)
 	assert.True(len(m["nexthop"]) == 1)
