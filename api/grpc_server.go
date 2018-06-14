@@ -69,7 +69,7 @@ func (s *Server) Serve() error {
 
 	serve := func(host string) {
 		defer wg.Done()
-		lis, err := net.Listen("tcp", fmt.Sprintf(host))
+		lis, err := net.Listen("tcp", host)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "grpc",

@@ -65,7 +65,7 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 			if i == 0 {
 				buff.WriteString(fmt.Sprintf(format, s.Name(), x))
 			} else {
-				buff.WriteString(fmt.Sprintf(sIndent))
+				buff.WriteString(fmt.Sprint(sIndent))
 				buff.WriteString(fmt.Sprintf(format, "", x))
 			}
 		}
