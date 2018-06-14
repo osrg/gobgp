@@ -38,6 +38,16 @@ func refresh() *BGPMessage {
 	return NewBGPRouteRefreshMessage(1, 2, 10)
 }
 
+var result []string
+
+func BenchmarkNormalizeFlowSpecOpValues(b *testing.B) {
+	var r []string
+	for n := 0; n < b.N; n++ {
+		r = normalizeFlowSpecOpValues([]string{"&<=80"})
+	}
+	result = r
+}
+
 func Test_Message(t *testing.T) {
 	l := []*BGPMessage{keepalive(), notification(), refresh(), NewTestBGPOpenMessage(), NewTestBGPUpdateMessage()}
 	for _, m1 := range l {
@@ -1213,5 +1223,31 @@ func TestFuzzCrashers(t *testing.T) {
 
 	for _, f := range crashers {
 		ParseBGPMessage([]byte(f))
+	}
+}
+
+func TestNormalizeFlowSpecOpValues(t *testing.T) {
+	tests := []struct {
+		msg  string
+		args []string
+		want []string
+	}{
+		{
+			msg:  "valid match",
+			args: []string{"  &  <=80", " tcp  != udp ", " =!   SA   & =U!  F", " =  is-fragment+last-fragment"},
+			want: []string{"<=80", "tcp", "!=udp", "=!SA", "&=U", "!F", "=is-fragment+last-fragment"},
+		},
+		{
+			msg:  "RFC5575 trims & prefix",
+			args: []string{"&<=80"},
+			want: []string{"<=80"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			got := normalizeFlowSpecOpValues(tt.args)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }
