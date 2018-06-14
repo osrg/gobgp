@@ -22,6 +22,7 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -3461,12 +3462,20 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 
 func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*config.DefinedSets, error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 
 	set, ok := r.definedSetMap[typ]
 	if !ok {
 		return nil, fmt.Errorf("invalid defined-set type: %d", typ)
 	}
+
+	var dl DefinedSetList
+	for _, s := range set {
+		dl = append(dl, s)
+	}
+	r.mu.RUnlock()
+
+	sort.Sort(dl)
+
 	sets := &config.DefinedSets{
 		PrefixSets:   make([]config.PrefixSet, 0),
 		NeighborSets: make([]config.NeighborSet, 0),
@@ -3477,7 +3486,7 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*config.Def
 			AsPathSets:         make([]config.AsPathSet, 0),
 		},
 	}
-	for _, s := range set {
+	for _, s := range dl {
 		if name != "" && s.Name() != name {
 			continue
 		}
@@ -3631,10 +3640,17 @@ func (r *RoutingPolicy) ReplaceStatement(st *Statement) (err error) {
 
 func (r *RoutingPolicy) GetAllPolicy() []*config.PolicyDefinition {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 
-	l := make([]*config.PolicyDefinition, 0, len(r.policyMap))
+	var ps Policies
 	for _, p := range r.policyMap {
+		ps = append(ps, p)
+	}
+	r.mu.RUnlock()
+
+	sort.Sort(ps)
+
+	l := make([]*config.PolicyDefinition, 0, len(ps))
+	for _, p := range ps {
 		l = append(l, p.ToConfig())
 	}
 	return l
