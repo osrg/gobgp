@@ -19,10 +19,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/osrg/gobgp/packet/bgp"
 	"math"
 	"net"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (

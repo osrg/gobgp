@@ -473,23 +473,6 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 	return p
 }
 
-func ToPathApiInBin(path *table.Path, v *table.Validation) *Path {
-	nlri := path.GetNlri()
-	binNlri, _ := nlri.Serialize()
-	if path.IsWithdraw {
-		return toPathAPI(binNlri, nil, nil, nil, path, v)
-	}
-	binPattrs := func(attrs []bgp.PathAttributeInterface) [][]byte {
-		bufList := make([][]byte, 0, len(attrs))
-		for _, a := range attrs {
-			buf, _ := a.Serialize()
-			bufList = append(bufList, buf)
-		}
-		return bufList
-	}(path.GetPathAttrs())
-	return toPathAPI(binNlri, binPattrs, nil, nil, path, v)
-}
-
 func ToPathApi(path *table.Path, v *table.Validation) *Path {
 	nlri := path.GetNlri()
 	anyNlri := MarshalNLRI(nlri)
