@@ -24,9 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
-	"github.com/osrg/gobgp/table"
 )
 
 func injectMrt() error {
@@ -45,7 +45,7 @@ func injectMrt() error {
 		return fmt.Errorf("Specified queue size is smaller than 1, refusing to run with unbounded memory usage")
 	}
 
-	ch := make(chan []*table.Path, mrtOpts.QueueSize)
+	ch := make(chan []*api.Path, mrtOpts.QueueSize)
 	go func() {
 
 		var peers []*mrt.Peer
@@ -107,47 +107,53 @@ func injectMrt() error {
 				rib := msg.Body.(*mrt.Rib)
 				nlri := rib.Prefix
 
-				paths := make([]*table.Path, 0, len(rib.Entries))
+				paths := make([]*api.Path, 0, len(rib.Entries))
 
 				for _, e := range rib.Entries {
 					if len(peers) < int(e.PeerIndex) {
 						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers)))
 					}
-					source := &table.PeerInfo{
-						AS: peers[e.PeerIndex].AS,
-						ID: peers[e.PeerIndex].BgpId,
-					}
-					t := time.Unix(int64(e.OriginatedTime), 0)
+					//t := time.Unix(int64(e.OriginatedTime), 0)
 
+					var attrs []bgp.PathAttributeInterface
 					switch subType {
 					case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH:
-						paths = append(paths, table.NewPath(source, nlri, false, e.PathAttributes, t, false))
+						if mrtOpts.NextHop != nil {
+							for i, attr := range e.PathAttributes {
+								if attr.GetType() != bgp.BGP_ATTR_TYPE_NEXT_HOP {
+									e.PathAttributes[i] = bgp.NewPathAttributeNextHop(mrtOpts.NextHop.String())
+									break
+								}
+							}
+						}
+						attrs = e.PathAttributes
 					default:
-						attrs := make([]bgp.PathAttributeInterface, 0, len(e.PathAttributes))
+						attrs = make([]bgp.PathAttributeInterface, 0, len(e.PathAttributes))
 						for _, attr := range e.PathAttributes {
 							if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
 								attrs = append(attrs, attr)
 							} else {
 								a := attr.(*bgp.PathAttributeMpReachNLRI)
-								attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(a.Nexthop.String(), []bgp.AddrPrefixInterface{nlri}))
+								nexthop := a.Nexthop.String()
+								if mrtOpts.NextHop != nil {
+									nexthop = mrtOpts.NextHop.String()
+								}
+								attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 							}
 						}
-						paths = append(paths, table.NewPath(source, nlri, false, attrs, t, false))
 					}
-				}
-				if mrtOpts.NextHop != nil {
-					for _, p := range paths {
-						p.SetNexthop(mrtOpts.NextHop)
-					}
+
+					path := api.NewPath(nlri, false, attrs, time.Unix(int64(e.OriginatedTime), 0))
+					path.SourceAsn = peers[e.PeerIndex].AS
+					path.SourceId = peers[e.PeerIndex].BgpId.String()
+
+					// TODO: compare here if mrtOpts.Best is enabled
+					paths = append(paths, path)
 				}
 
+				// TODO: calculate properly if necessary.
 				if mrtOpts.Best {
-					dst := table.NewDestination(nlri, 0, paths[1:]...)
-					best, _, _ := dst.Calculate(paths[0]).GetChanges(table.GLOBAL_RIB_NAME, 0, false)
-					if best == nil {
-						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
-					}
-					paths = []*table.Path{best}
+					paths = []*api.Path{paths[0]}
 				}
 
 				if idx >= mrtOpts.RecordSkip {

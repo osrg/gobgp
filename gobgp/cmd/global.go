@@ -27,6 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
@@ -1087,11 +1088,11 @@ func extractRouteDistinguisher(args []string) ([]string, bgp.RouteDistinguisherI
 	return args, nil, nil
 }
 
-func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
+func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var err error
-	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
+	attrs := make([]bgp.PathAttributeInterface, 0, 1)
 
 	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
 		extractOrigin,         // 1 ORIGIN
@@ -1274,10 +1275,9 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 			attrs = append(attrs, ip6p)
 		}
 	}
+	sort.Slice(attrs, func(i, j int) bool { return attrs[i].GetType() < attrs[j].GetType() })
 
-	sort.Sort(attrs)
-
-	return table.NewPath(nil, nlri, false, attrs, time.Now(), false), nil
+	return api.NewPath(nlri, false, attrs, time.Now()), nil
 }
 
 func showGlobalRib(args []string) error {
@@ -1460,15 +1460,15 @@ usage: %s rib %s key <KEY> [value <VALUE>]`,
 
 	if modtype == CMD_ADD {
 		if resource == CMD_VRF {
-			_, err = client.AddVRFPath(name, []*table.Path{path})
+			_, err = client.AddVRFPath(name, []*api.Path{path})
 		} else {
-			_, err = client.AddPath([]*table.Path{path})
+			_, err = client.AddPath([]*api.Path{path})
 		}
 	} else {
 		if resource == CMD_VRF {
-			err = client.DeleteVRFPath(name, []*table.Path{path})
+			err = client.DeleteVRFPath(name, []*api.Path{path})
 		} else {
-			err = client.DeletePath([]*table.Path{path})
+			err = client.DeletePath([]*api.Path{path})
 		}
 	}
 	return err
