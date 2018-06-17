@@ -339,14 +339,10 @@ type AddPathByStreamClient struct {
 	stream api.GobgpApi_InjectMrtClient
 }
 
-func (c *AddPathByStreamClient) Send(paths ...*table.Path) error {
-	ps := make([]*api.Path, 0, len(paths))
-	for _, p := range paths {
-		ps = append(ps, api.ToPathApiInBin(p, nil))
-	}
+func (c *AddPathByStreamClient) Send(paths ...*api.Path) error {
 	return c.stream.Send(&api.InjectMrtRequest{
 		Resource: api.Resource_GLOBAL,
-		Paths:    ps,
+		Paths:    paths,
 	})
 }
 
@@ -363,7 +359,7 @@ func (cli *Client) AddPathByStream() (*AddPathByStreamClient, error) {
 	return &AddPathByStreamClient{stream}, nil
 }
 
-func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error) {
+func (cli *Client) addPath(vrfID string, pathList []*api.Path) ([]byte, error) {
 	resource := api.Resource_GLOBAL
 	if vrfID != "" {
 		resource = api.Resource_VRF
@@ -373,7 +369,7 @@ func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error)
 		r, err := cli.cli.AddPath(context.Background(), &api.AddPathRequest{
 			Resource: resource,
 			VrfId:    vrfID,
-			Path:     api.ToPathApi(path, nil),
+			Path:     path,
 		})
 		if err != nil {
 			return nil, err
@@ -383,18 +379,18 @@ func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error)
 	return uuid, nil
 }
 
-func (cli *Client) AddPath(pathList []*table.Path) ([]byte, error) {
+func (cli *Client) AddPath(pathList []*api.Path) ([]byte, error) {
 	return cli.addPath("", pathList)
 }
 
-func (cli *Client) AddVRFPath(vrfID string, pathList []*table.Path) ([]byte, error) {
+func (cli *Client) AddVRFPath(vrfID string, pathList []*api.Path) ([]byte, error) {
 	if vrfID == "" {
 		return nil, fmt.Errorf("VRF ID is empty")
 	}
 	return cli.addPath(vrfID, pathList)
 }
 
-func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, pathList []*table.Path) error {
+func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, pathList []*api.Path) error {
 	var reqs []*api.DeletePathRequest
 
 	resource := api.Resource_GLOBAL
@@ -407,7 +403,7 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 			reqs = append(reqs, &api.DeletePathRequest{
 				Resource: resource,
 				VrfId:    vrfID,
-				Path:     api.ToPathApi(path, nil),
+				Path:     path,
 			})
 		}
 	default:
@@ -427,11 +423,11 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 	return nil
 }
 
-func (cli *Client) DeletePath(pathList []*table.Path) error {
+func (cli *Client) DeletePath(pathList []*api.Path) error {
 	return cli.deletePath(nil, bgp.RouteFamily(0), "", pathList)
 }
 
-func (cli *Client) DeleteVRFPath(vrfID string, pathList []*table.Path) error {
+func (cli *Client) DeleteVRFPath(vrfID string, pathList []*api.Path) error {
 	if vrfID == "" {
 		return fmt.Errorf("VRF ID is empty")
 	}
