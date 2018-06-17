@@ -670,7 +670,7 @@ func showRibInfo(r, name string) error {
 		return err
 	}
 
-	var info *table.TableInfo
+	var info *api.TableInfo
 	switch r {
 	case CMD_GLOBAL:
 		info, err = client.GetRIBInfo(family)
