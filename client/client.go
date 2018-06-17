@@ -304,8 +304,8 @@ func (cli *Client) GetVRFRIB(name string, family bgp.RouteFamily, prefixes []*ap
 	return cli.getRIB(api.Resource_VRF, name, family, prefixes)
 }
 
-func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.RouteFamily) (*table.TableInfo, error) {
-	res, err := cli.cli.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
+func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.RouteFamily) (*api.TableInfo, error) {
+	r, err := cli.cli.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
 		Info: &api.TableInfo{
 			Type:   resource,
 			Name:   name,
@@ -314,28 +314,24 @@ func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.Rou
 	})
 	if err != nil {
 		return nil, err
+	} else {
+		return r.Info, nil
 	}
-	return &table.TableInfo{
-		NumDestination: int(res.Info.NumDestination),
-		NumPath:        int(res.Info.NumPath),
-		NumAccepted:    int(res.Info.NumAccepted),
-	}, nil
-
 }
 
-func (cli *Client) GetRIBInfo(family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetRIBInfo(family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_GLOBAL, "", family)
 }
 
-func (cli *Client) GetLocalRIBInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetLocalRIBInfo(name string, family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_LOCAL, name, family)
 }
 
-func (cli *Client) GetAdjRIBInInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetAdjRIBInInfo(name string, family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_ADJ_IN, name, family)
 }
 
-func (cli *Client) GetAdjRIBOutInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetAdjRIBOutInfo(name string, family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_ADJ_OUT, name, family)
 }
 
