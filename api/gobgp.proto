@@ -646,7 +646,7 @@ message Path {
   // - VPNFlowSpecNLRI
   // - OpaqueNLRI
   google.protobuf.Any any_nlri = 20;
-  // Each attribute must be on of *Attribute defined in
+  // Each attribute must be one of *Attribute defined in
   // "api/bgp/attribute.proto".
   repeated google.protobuf.Any any_pattrs = 21;
 }
@@ -1264,9 +1264,21 @@ message GetRoaResponse {
 
 message Vrf {
   string name = 1;
-  bytes rd = 2;
-  repeated bytes import_rt = 3;
-  repeated bytes export_rt = 4;
+  // Route Distinguisher must be one of
+  // RouteDistinguisherTwoOctetAS,
+  // RouteDistinguisherIPAddressAS,
+  // or RouteDistinguisherFourOctetAS.
+  google.protobuf.Any rd = 2;
+  // List of the Import Route Targets. Each must be one of
+  // TwoOctetAsSpecificExtended,
+  // IPv4AddressSpecificExtended,
+  // or FourOctetAsSpecificExtended.
+  repeated google.protobuf.Any import_rt = 3;
+  // List of the Export Route Targets. Each must be one of
+  // TwoOctetAsSpecificExtended,
+  // IPv4AddressSpecificExtended,
+  // or FourOctetAsSpecificExtended.
+  repeated google.protobuf.Any export_rt = 4;
   uint32 id = 5;
 }
 
