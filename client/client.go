@@ -461,36 +461,12 @@ func (cli *Client) DeletePathByFamily(family bgp.RouteFamily) error {
 	return cli.deletePath(nil, family, "", nil)
 }
 
-func (cli *Client) GetVRF() ([]*table.Vrf, error) {
+func (cli *Client) GetVRF() ([]*api.Vrf, error) {
 	ret, err := cli.cli.GetVrf(context.Background(), &api.GetVrfRequest{})
 	if err != nil {
 		return nil, err
 	}
-	var vrfs []*table.Vrf
-
-	for _, vrf := range ret.Vrfs {
-		rd, err := api.UnmarshalRD(vrf.Rd)
-		if err != nil {
-			return nil, err
-		}
-		importRT, err := api.UnmarshalRTs(vrf.ImportRt)
-		if err != nil {
-			return nil, err
-		}
-		exportRT, err := api.UnmarshalRTs(vrf.ExportRt)
-		if err != nil {
-			return nil, err
-		}
-		vrfs = append(vrfs, &table.Vrf{
-			Name:     vrf.Name,
-			Id:       vrf.Id,
-			Rd:       rd,
-			ImportRt: importRT,
-			ExportRt: exportRT,
-		})
-	}
-
-	return vrfs, nil
+	return ret.Vrfs, nil
 }
 
 func (cli *Client) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) error {

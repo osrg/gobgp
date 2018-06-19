@@ -29,10 +29,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	api "github.com/osrg/gobgp/api"
 	cli "github.com/osrg/gobgp/client"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
 )
 
 const (
@@ -142,9 +142,8 @@ func formatTimedelta(d int64) string {
 
 	if days == 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
-	} else {
-		return fmt.Sprintf("%dd ", days) + fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
 	}
+	return fmt.Sprintf("%dd ", days) + fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
 }
 
 func cidr2prefix(cidr string) string {
@@ -245,7 +244,7 @@ func (c capabilities) Less(i, j int) bool {
 	return c[i].Code() < c[j].Code()
 }
 
-type vrfs []*table.Vrf
+type vrfs []*api.Vrf
 
 func (v vrfs) Len() int {
 	return len(v)
