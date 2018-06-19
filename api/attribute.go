@@ -175,6 +175,10 @@ func MarshalRD(rd bgp.RouteDistinguisherInterface) *any.Any {
 			Assigned: uint32(v.Assigned),
 		}
 	default:
+		log.WithFields(log.Fields{
+			"Topic": "protobuf",
+			"RD":    rd,
+		}).Warn("invalid rd type to marshal")
 		return nil
 	}
 	a, _ := ptypes.MarshalAny(r)
@@ -695,10 +699,22 @@ func MarshalRT(rt bgp.ExtendedCommunityInterface) *any.Any {
 			LocalAdmin:   uint32(v.LocalAdmin),
 		}
 	default:
+		log.WithFields(log.Fields{
+			"Topic": "protobuf",
+			"RT":    rt,
+		}).Warn("invalid rt type to marshal")
 		return nil
 	}
 	a, _ := ptypes.MarshalAny(r)
 	return a
+}
+
+func MarshalRTs(values []bgp.ExtendedCommunityInterface) []*any.Any {
+	rts := make([]*any.Any, 0, len(values))
+	for _, rt := range values {
+		rts = append(rts, MarshalRT(rt))
+	}
+	return rts
 }
 
 func UnmarshalRT(a *any.Any) (bgp.ExtendedCommunityInterface, error) {
@@ -719,6 +735,18 @@ func UnmarshalRT(a *any.Any) (bgp.ExtendedCommunityInterface, error) {
 		return bgp.NewFourOctetAsSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.As, uint16(v.LocalAdmin), v.IsTransitive), nil
 	}
 	return nil, fmt.Errorf("invalid route target type: %s", a.TypeUrl)
+}
+
+func UnmarshalRTs(values []*any.Any) ([]bgp.ExtendedCommunityInterface, error) {
+	rts := make([]bgp.ExtendedCommunityInterface, 0, len(values))
+	for _, an := range values {
+		rt, err := UnmarshalRT(an)
+		if err != nil {
+			return nil, err
+		}
+		rts = append(rts, rt)
+	}
+	return rts, nil
 }
 
 func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommunities) *ExtendedCommunitiesAttribute {

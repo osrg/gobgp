@@ -468,31 +468,23 @@ func (cli *Client) GetVRF() ([]*table.Vrf, error) {
 	}
 	var vrfs []*table.Vrf
 
-	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
-		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
-		for _, rt := range bufs {
-			r, err := bgp.ParseExtended(rt)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, r)
-		}
-		return ret, nil
-	}
-
 	for _, vrf := range ret.Vrfs {
-		importRT, err := f(vrf.ImportRt)
+		rd, err := api.UnmarshalRD(vrf.Rd)
 		if err != nil {
 			return nil, err
 		}
-		exportRT, err := f(vrf.ExportRt)
+		importRT, err := api.UnmarshalRTs(vrf.ImportRt)
+		if err != nil {
+			return nil, err
+		}
+		exportRT, err := api.UnmarshalRTs(vrf.ExportRt)
 		if err != nil {
 			return nil, err
 		}
 		vrfs = append(vrfs, &table.Vrf{
 			Name:     vrf.Name,
 			Id:       vrf.Id,
-			Rd:       bgp.GetRouteDistinguisher(vrf.Rd),
+			Rd:       rd,
 			ImportRt: importRT,
 			ExportRt: exportRT,
 		})
@@ -502,30 +494,16 @@ func (cli *Client) GetVRF() ([]*table.Vrf, error) {
 }
 
 func (cli *Client) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) error {
-	buf, err := rd.Serialize()
-	if err != nil {
-		return err
-	}
-
-	importRT, err := bgp.SerializeExtendedCommunities(im)
-	if err != nil {
-		return err
-	}
-	exportRT, err := bgp.SerializeExtendedCommunities(ex)
-	if err != nil {
-		return err
-	}
-
 	arg := &api.AddVrfRequest{
 		Vrf: &api.Vrf{
 			Name:     name,
-			Rd:       buf,
+			Rd:       api.MarshalRD(rd),
 			Id:       uint32(id),
-			ImportRt: importRT,
-			ExportRt: exportRT,
+			ImportRt: api.MarshalRTs(im),
+			ExportRt: api.MarshalRTs(ex),
 		},
 	}
-	_, err = cli.cli.AddVrf(context.Background(), arg)
+	_, err := cli.cli.AddVrf(context.Background(), arg)
 	return err
 }
 

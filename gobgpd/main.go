@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
 	log "github.com/sirupsen/logrus"
@@ -42,16 +43,16 @@ import (
 
 var version = "master"
 
-func serializeRouteTargets(l []string) ([][]byte, error) {
-	rtList := make([]bgp.ExtendedCommunityInterface, 0, len(l))
+func marshalRouteTargets(l []string) ([]*any.Any, error) {
+	rtList := make([]*any.Any, 0, len(l))
 	for _, rtString := range l {
 		rt, err := bgp.ParseRouteTarget(rtString)
 		if err != nil {
 			return nil, err
 		}
-		rtList = append(rtList, rt)
+		rtList = append(rtList, api.MarshalRT(rt))
 	}
-	return bgp.SerializeExtendedCommunities(rtList)
+	return rtList, nil
 }
 
 func main() {
@@ -234,13 +235,12 @@ func main() {
 					if err != nil {
 						log.Fatalf("failed to load vrf rd config: %s", err)
 					}
-					rdbuf, _ := rd.Serialize()
 
-					importRtList, err := serializeRouteTargets(vrf.Config.ImportRtList)
+					importRtList, err := marshalRouteTargets(vrf.Config.ImportRtList)
 					if err != nil {
 						log.Fatalf("failed to load vrf import rt config: %s", err)
 					}
-					exportRtList, err := serializeRouteTargets(vrf.Config.ExportRtList)
+					exportRtList, err := marshalRouteTargets(vrf.Config.ExportRtList)
 					if err != nil {
 						log.Fatalf("failed to load vrf export rt config: %s", err)
 					}
@@ -248,7 +248,7 @@ func main() {
 					if _, err := apiServer.AddVrf(context.Background(), &api.AddVrfRequest{
 						Vrf: &api.Vrf{
 							Name:     vrf.Config.Name,
-							Rd:       rdbuf,
+							Rd:       api.MarshalRD(rd),
 							Id:       uint32(vrf.Config.Id),
 							ImportRt: importRtList,
 							ExportRt: exportRtList,

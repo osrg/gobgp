@@ -1103,21 +1103,12 @@ func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*Ena
 
 func (s *Server) GetVrf(ctx context.Context, arg *GetVrfRequest) (*GetVrfResponse, error) {
 	toApi := func(v *table.Vrf) *Vrf {
-		f := func(rts []bgp.ExtendedCommunityInterface) [][]byte {
-			ret := make([][]byte, 0, len(rts))
-			for _, rt := range rts {
-				b, _ := rt.Serialize()
-				ret = append(ret, b)
-			}
-			return ret
-		}
-		rd, _ := v.Rd.Serialize()
 		return &Vrf{
 			Name:     v.Name,
-			Rd:       rd,
+			Rd:       MarshalRD(v.Rd),
 			Id:       v.Id,
-			ImportRt: f(v.ImportRt),
-			ExportRt: f(v.ExportRt),
+			ImportRt: MarshalRTs(v.ImportRt),
+			ExportRt: MarshalRTs(v.ExportRt),
 		}
 	}
 	vrfs := s.bgpServer.GetVrf()
@@ -1132,25 +1123,17 @@ func (s *Server) AddVrf(ctx context.Context, arg *AddVrfRequest) (r *AddVrfRespo
 	if arg == nil || arg.Vrf == nil {
 		return nil, fmt.Errorf("invalid request")
 	}
-	rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
-	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
-		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
-		for _, rt := range bufs {
-			r, err := bgp.ParseExtended(rt)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, r)
-		}
-		return ret, nil
-	}
-	im, err := f(arg.Vrf.ImportRt)
+	rd, err := UnmarshalRD(arg.Vrf.Rd)
 	if err != nil {
-		return &AddVrfResponse{}, err
+		return nil, err
 	}
-	ex, err := f(arg.Vrf.ExportRt)
+	im, err := UnmarshalRTs(arg.Vrf.ImportRt)
 	if err != nil {
-		return &AddVrfResponse{}, err
+		return nil, err
+	}
+	ex, err := UnmarshalRTs(arg.Vrf.ExportRt)
+	if err != nil {
+		return nil, err
 	}
 	return &AddVrfResponse{}, s.bgpServer.AddVrf(arg.Vrf.Name, arg.Vrf.Id, rd, im, ex)
 }
