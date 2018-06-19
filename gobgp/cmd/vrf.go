@@ -22,8 +22,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang/protobuf/ptypes/any"
+
 	"github.com/spf13/cobra"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -56,21 +59,35 @@ func showVrfs() error {
 	lines := make([][]string, 0, len(vrfs))
 	for _, v := range vrfs {
 		name := v.Name
-		rd := v.Rd.String()
+		rd, err := api.UnmarshalRD(v.Rd)
+		if err != nil {
+			return err
+		}
+		rdStr := rd.String()
 
-		f := func(rts []bgp.ExtendedCommunityInterface) (string, error) {
+		f := func(rts []*any.Any) (string, error) {
 			ret := make([]string, 0, len(rts))
-			for _, rt := range rts {
+			for _, an := range rts {
+				rt, err := api.UnmarshalRT(an)
+				if err != nil {
+					return "", err
+				}
 				ret = append(ret, rt.String())
 			}
 			return strings.Join(ret, ", "), nil
 		}
 
-		importRts, _ := f(v.ImportRt)
-		exportRts, _ := f(v.ExportRt)
-		lines = append(lines, []string{name, rd, importRts, exportRts, fmt.Sprintf("%d", v.Id)})
+		importRts, err := f(v.ImportRt)
+		if err != nil {
+			return err
+		}
+		exportRts, err := f(v.ExportRt)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, []string{name, rdStr, importRts, exportRts, fmt.Sprintf("%d", v.Id)})
 
-		for i, v := range []int{len(name), len(rd), len(importRts), len(exportRts)} {
+		for i, v := range []int{len(name), len(rdStr), len(importRts), len(exportRts)} {
 			if v > maxLens[i] {
 				maxLens[i] = v + 4
 			}
