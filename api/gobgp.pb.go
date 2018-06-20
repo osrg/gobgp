@@ -7,6 +7,7 @@ Package gobgpapi is a generated protocol buffer package.
 It is generated from these files:
 	gobgp.proto
 	attribute.proto
+	capability.proto
 
 It has these top-level messages:
 	GetNeighborRequest
@@ -274,6 +275,21 @@ It has these top-level messages:
 	LargeCommunity
 	LargeCommunitiesAttribute
 	UnknownAttribute
+	MultiProtocolCapability
+	RouteRefreshCapability
+	CarryingLabelInfoCapability
+	ExtendedNexthopCapabilityTuple
+	ExtendedNexthopCapability
+	GracefulRestartCapabilityTuple
+	GracefulRestartCapability
+	FourOctetASNumberCapability
+	AddPathCapabilityTuple
+	AddPathCapability
+	EnhancedRouteRefreshCapability
+	LongLivedGracefulRestartCapabilityTuple
+	LongLivedGracefulRestartCapability
+	RouteRefreshCiscoCapability
+	UnknownCapability
 */
 package gobgpapi
 
@@ -5870,7 +5886,7 @@ func (m *GetRoaResponse) GetRoas() []*Roa {
 
 type Vrf struct {
 	Name string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	// Route Distinguisher must be on of
+	// Route Distinguisher must be one of
 	// RouteDistinguisherTwoOctetAS,
 	// RouteDistinguisherIPAddressAS,
 	// or RouteDistinguisherFourOctetAS.
