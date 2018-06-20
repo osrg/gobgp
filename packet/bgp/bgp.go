@@ -433,6 +433,14 @@ type CapCarryingLabelInfo struct {
 	DefaultParameterCapability
 }
 
+func NewCapCarryingLabelInfo() *CapCarryingLabelInfo {
+	return &CapCarryingLabelInfo{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_CARRYING_LABEL_INFO,
+		},
+	}
+}
+
 type CapExtendedNexthopTuple struct {
 	NLRIAFI    uint16
 	NLRISAFI   uint16
@@ -879,6 +887,15 @@ func NewCapLongLivedGracefulRestart(tuples []*CapLongLivedGracefulRestartTuple) 
 
 type CapUnknown struct {
 	DefaultParameterCapability
+}
+
+func NewCapUnknown(code BGPCapabilityCode, value []byte) *CapUnknown {
+	return &CapUnknown{
+		DefaultParameterCapability{
+			CapCode:  code,
+			CapValue: value,
+		},
+	}
 }
 
 func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
