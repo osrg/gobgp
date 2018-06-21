@@ -21,19 +21,19 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/table"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 var _regexpCommunity = regexp.MustCompile(`\^\^(\S+)\$\$`)
 
-func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet) string {
+func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet) string {
 	if len(list) == 0 {
 		return "Nothing defined yet\n"
 	}
@@ -41,8 +41,8 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	for _, s := range list {
-		if len(s.Name()) > maxNameLen {
-			maxNameLen = len(s.Name())
+		if len(s.GetName()) > maxNameLen {
+			maxNameLen = len(s.GetName())
 		}
 	}
 	if head {
@@ -55,16 +55,16 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 		buff.WriteString(fmt.Sprintf(format, "NAME", typ))
 	}
 	for _, s := range list {
-		l := s.List()
+		l := s.GetList()
 		if len(l) == 0 {
-			buff.WriteString(fmt.Sprintf(format, s.Name(), ""))
+			buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
 		}
 		for i, x := range l {
 			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
 				x = _regexpCommunity.ReplaceAllString(x, "$1")
 			}
 			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, s.Name(), x))
+				buff.WriteString(fmt.Sprintf(format, s.GetName(), x))
 			} else {
 				buff.WriteString(fmt.Sprint(sIndent))
 				buff.WriteString(fmt.Sprintf(format, "", x))
@@ -75,30 +75,30 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 }
 
 func showDefinedSet(v string, args []string) error {
-	var typ table.DefinedType
+	var typ api.DefinedType
 	switch v {
 	case CMD_PREFIX:
-		typ = table.DEFINED_TYPE_PREFIX
+		typ = api.DefinedType_PREFIX
 	case CMD_NEIGHBOR:
-		typ = table.DEFINED_TYPE_NEIGHBOR
+		typ = api.DefinedType_NEIGHBOR
 	case CMD_ASPATH:
-		typ = table.DEFINED_TYPE_AS_PATH
+		typ = api.DefinedType_AS_PATH
 	case CMD_COMMUNITY:
-		typ = table.DEFINED_TYPE_COMMUNITY
+		typ = api.DefinedType_COMMUNITY
 	case CMD_EXTCOMMUNITY:
-		typ = table.DEFINED_TYPE_EXT_COMMUNITY
+		typ = api.DefinedType_EXT_COMMUNITY
 	case CMD_LARGECOMMUNITY:
-		typ = table.DEFINED_TYPE_LARGE_COMMUNITY
+		typ = api.DefinedType_LARGE_COMMUNITY
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
-	var m table.DefinedSetList
+	var m []*api.DefinedSet
 	if len(args) > 0 {
 		d, err := client.GetDefinedSetByName(typ, args[0])
 		if err != nil {
 			return err
 		}
-		m = table.DefinedSetList([]table.DefinedSet{d})
+		m = []*api.DefinedSet{d}
 	} else {
 		var err error
 		m, err = client.GetDefinedSet(typ)
@@ -116,12 +116,11 @@ func showDefinedSet(v string, args []string) error {
 			fmt.Println(m)
 		} else {
 			for _, p := range m {
-				fmt.Println(p.Name())
+				fmt.Println(p.GetName())
 			}
 		}
 		return nil
 	}
-	sort.Sort(m)
 	var output string
 	switch v {
 	case CMD_PREFIX:
@@ -141,13 +140,13 @@ func showDefinedSet(v string, args []string) error {
 	return nil
 }
 
-func parsePrefixSet(args []string) (table.DefinedSet, error) {
+func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
 	name := args[0]
 	args = args[1:]
-	var list []config.Prefix
+	var list []*api.Prefix
 	if len(args) > 0 {
 		mask := ""
 		if len(args) > 1 {
@@ -157,40 +156,48 @@ func parsePrefixSet(args []string) (table.DefinedSet, error) {
 		if err != nil {
 			return nil, err
 		}
-		prefix := config.Prefix{
-			IpPrefix:        args[0],
-			MasklengthRange: fmt.Sprintf("%d..%d", min, max),
+		prefix := &api.Prefix{
+			IpPrefix:      args[0],
+			MaskLengthMax: uint32(max),
+			MaskLengthMin: uint32(min),
 		}
-		list = []config.Prefix{prefix}
+		list = []*api.Prefix{prefix}
 	}
-	return table.NewPrefixSet(config.PrefixSet{
-		PrefixSetName: name,
-		PrefixList:    list,
-	})
+	return &api.DefinedSet{
+		Type:     api.DefinedType_PREFIX,
+		Name:     name,
+		Prefixes: list,
+	}, nil
 }
 
-func parseNeighborSet(args []string) (table.DefinedSet, error) {
+func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
 	name := args[0]
 	args = args[1:]
+	list := make([]string, 0, len(args[1:]))
 	for _, arg := range args {
 		address := net.ParseIP(arg)
-		if address.To4() == nil && address.To16() == nil {
+		if address.To4() != nil {
+			list = append(list, fmt.Sprintf("%s/32", arg))
+		} else if address.To16() != nil {
+			list = append(list, fmt.Sprintf("%s/128", arg))
+		} else {
 			_, _, err := net.ParseCIDR(arg)
 			if err != nil {
 				return nil, fmt.Errorf("invalid address or prefix: %s\nplease enter ipv4 or ipv6 format", arg)
 			}
 		}
 	}
-	return table.NewNeighborSet(config.NeighborSet{
-		NeighborSetName:  name,
-		NeighborInfoList: args,
-	})
+	return &api.DefinedSet{
+		Type: api.DefinedType_NEIGHBOR,
+		Name: name,
+		List: list,
+	}, nil
 }
 
-func parseAsPathSet(args []string) (table.DefinedSet, error) {
+func parseAsPathSet(args []string) (*api.DefinedSet, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("empty as-path set name")
 	}
@@ -202,64 +209,72 @@ func parseAsPathSet(args []string) (table.DefinedSet, error) {
 			return nil, err
 		}
 	}
-	return table.NewAsPathSet(config.AsPathSet{
-		AsPathSetName: name,
-		AsPathList:    args,
-	})
+	return &api.DefinedSet{
+		Type: api.DefinedType_AS_PATH,
+		Name: name,
+		List: args,
+	}, nil
 }
 
-func parseCommunitySet(args []string) (table.DefinedSet, error) {
+func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("empty community set name")
 	}
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := table.ParseCommunityRegexp(arg); err != nil {
+		if _, err := api.ParseCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
-	return table.NewCommunitySet(config.CommunitySet{
-		CommunitySetName: name,
-		CommunityList:    args,
-	})
+	return &api.DefinedSet{
+		Type: api.DefinedType_COMMUNITY,
+		Name: name,
+		List: args,
+	}, nil
 }
 
-func parseExtCommunitySet(args []string) (table.DefinedSet, error) {
+func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("empty ext-community set name")
 	}
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, _, err := table.ParseExtCommunityRegexp(arg); err != nil {
+		if _, _, err := api.ParseExtCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
-	return table.NewExtCommunitySet(config.ExtCommunitySet{
-		ExtCommunitySetName: name,
-		ExtCommunityList:    args,
-	})
+	return &api.DefinedSet{
+		Type: api.DefinedType_EXT_COMMUNITY,
+		Name: name,
+		List: args,
+	}, nil
 }
 
-func parseLargeCommunitySet(args []string) (table.DefinedSet, error) {
+func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("empty large-community set name")
 	}
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := table.ParseLargeCommunityRegexp(arg); err != nil {
+		if _, err := api.ParseLargeCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
-	return table.NewLargeCommunitySet(config.LargeCommunitySet{
-		LargeCommunitySetName: name,
-		LargeCommunityList:    args,
-	})
+	return &api.DefinedSet{
+		Type: api.DefinedType_LARGE_COMMUNITY,
+		Name: name,
+		List: args,
+	}, nil
 }
 
-func parseDefinedSet(settype string, args []string) (table.DefinedSet, error) {
+func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty large-community set name")
+	}
+
 	switch settype {
 	case CMD_PREFIX:
 		return parsePrefixSet(args)
@@ -288,7 +303,7 @@ var modPolicyUsageFormat = map[string]string{
 }
 
 func modDefinedSet(settype string, modtype string, args []string) error {
-	var d table.DefinedSet
+	var d *api.DefinedSet
 	var err error
 	if len(args) < 1 {
 		return fmt.Errorf(modPolicyUsageFormat[settype], modtype)
@@ -311,7 +326,7 @@ func modDefinedSet(settype string, modtype string, args []string) error {
 	return err
 }
 
-func printStatement(indent int, s *table.Statement) {
+func printStatement(indent int, s *api.Statement) {
 	sIndent := func(indent int) string {
 		return strings.Repeat(" ", indent)
 	}
@@ -320,67 +335,71 @@ func printStatement(indent int, s *table.Statement) {
 
 	ind := sIndent(indent + 4)
 
-	for _, c := range s.Conditions {
-		switch t := c.(type) {
-		case *table.PrefixCondition:
-			fmt.Printf("%sPrefixSet: %s %s\n", ind, t.Option(), t.Name())
-		case *table.NeighborCondition:
-			fmt.Printf("%sNeighborSet: %s %s\n", ind, t.Option(), t.Name())
-		case *table.AsPathCondition:
-			fmt.Printf("%sAsPathSet: %s %s\n", ind, t.Option(), t.Name())
-		case *table.CommunityCondition:
-			fmt.Printf("%sCommunitySet: %s %s\n", ind, t.Option(), t.Name())
-		case *table.ExtCommunityCondition:
-			fmt.Printf("%sExtCommunitySet: %s %s\n", ind, t.Option(), t.Name())
-		case *table.LargeCommunityCondition:
-			fmt.Printf("%sLargeCommunitySet: %s %s\n", ind, t.Option(), t.Name())
-		case *table.NextHopCondition:
-			fmt.Printf("%sNextHopInList: %s\n", ind, t.String())
-		case *table.AsPathLengthCondition:
-			fmt.Printf("%sAsPathLength: %s\n", ind, t.String())
-		case *table.RpkiValidationCondition:
-			fmt.Printf("%sRPKI result: %s\n", ind, t.String())
-		case *table.RouteTypeCondition:
-			fmt.Printf("%sRoute Type: %s\n", ind, t.String())
-		case *table.AfiSafiInCondition:
-			fmt.Printf("%sAFI SAFI In: %s\n", ind, t.String())
+	c := s.Conditions
+	if c.PrefixSet != nil {
+		fmt.Printf("%sPrefixSet: %s %s\n", ind, c.PrefixSet.GetType(), c.PrefixSet.GetName())
+	} else if c.NeighborSet != nil {
+		fmt.Printf("%sNeighborSet: %s %s\n", ind, c.NeighborSet.GetType(), c.NeighborSet.GetName())
+	} else if c.AsPathSet != nil {
+		fmt.Printf("%sAsPathSet: %s %s\n", ind, c.AsPathSet.GetType(), c.AsPathSet.GetName())
+	} else if c.CommunitySet != nil {
+		fmt.Printf("%sCommunitySet: %s %s\n", ind, c.CommunitySet.GetType(), c.CommunitySet.GetName())
+	} else if c.ExtCommunitySet != nil {
+		fmt.Printf("%sExtCommunitySet: %s %s\n", ind, c.ExtCommunitySet.GetType(), c.ExtCommunitySet.GetName())
+	} else if c.LargeCommunitySet != nil {
+		fmt.Printf("%sLargeCommunitySet: %s %s\n", ind, c.LargeCommunitySet.GetType(), c.LargeCommunitySet.GetName())
+	} else if c.NextHopInList != nil {
+		fmt.Printf("%sNextHopInList: %s\n", ind, "[ "+strings.Join(c.NextHopInList, ", ")+" ]")
+	} else if c.AsPathLength != nil {
+		fmt.Printf("%sAsPathLength: %s\n", ind, fmt.Sprintf("%s%d", c.AsPathLength.Type, c.AsPathLength.Length))
+	} else if c.RpkiResult != -1 {
+		fmt.Println(c.RpkiResult)
+		var result string
+		switch c.RpkiResult {
+		case 0:
+			result = "none"
+		case 1:
+			result = "valid"
+		case 2:
+			result = "invalid"
+		case 3:
+			result = "not-found"
 		}
+		fmt.Printf("%sRPKI result: %s\n", ind, result)
+	} else if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
+		fmt.Printf("%sRoute Type: %s\n", ind, c.RouteType.String())
+	} else if c.AfiSafiIn != nil {
+		fmt.Printf("%sAFI SAFI In: %s\n", ind, c.AfiSafiIn)
 	}
 
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
-	for _, a := range s.ModActions {
-		switch t := a.(type) {
-		case *table.RoutingAction:
-			action := "accept"
-			if !t.AcceptRoute {
-				action = "reject"
-			}
-			fmt.Println(ind, action)
-		case *table.CommunityAction:
-			fmt.Println(ind, "Community: ", t.String())
-		case *table.ExtCommunityAction:
-			fmt.Println(ind, "ExtCommunity: ", t.String())
-		case *table.LargeCommunityAction:
-			fmt.Println(ind, "LargeCommunity: ", t.String())
-		case *table.MedAction:
-			fmt.Println(ind, "MED: ", t.String())
-		case *table.LocalPrefAction:
-			fmt.Println(ind, "LocalPref: ", t.String())
-		case *table.AsPathPrependAction:
-			fmt.Println(ind, "ASPathPrepend: ", t.String())
-		case *table.NexthopAction:
-			fmt.Println(ind, "Nexthop: ", t.String())
+	a := s.Actions
+	if a.Community != nil {
+		fmt.Println(ind, "Community: ", a.Community.String())
+	} else if a.ExtCommunity != nil {
+		fmt.Println(ind, "ExtCommunity: ", a.ExtCommunity.String())
+	} else if a.LargeCommunity != nil {
+		fmt.Println(ind, "LargeCommunity: ", a.LargeCommunity.String())
+	} else if a.Med != nil {
+		fmt.Println(ind, "MED: ", a.Med.String())
+	} else if a.LocalPref != nil {
+		fmt.Println(ind, "LocalPref: ", a.LocalPref.String())
+	} else if a.AsPrepend != nil {
+		fmt.Println(ind, "ASPathPrepend: ", a.AsPrepend.String())
+	} else if a.Nexthop != nil {
+		fmt.Println(ind, "Nexthop: ", a.Nexthop.String())
+	}
+
+	if a.RouteAction != api.RouteAction_NONE {
+		action := "accept"
+		if a.RouteAction == api.RouteAction_REJECT {
+			action = "reject"
 		}
+		fmt.Println(ind, action)
 	}
-
-	if s.RouteAction != nil && s.RouteAction.(*table.RoutingAction) != nil {
-		t := s.RouteAction.(*table.RoutingAction)
-		fmt.Println(ind, t.String())
-	}
-
 }
 
-func printPolicy(indent int, pd *table.Policy) {
+func printPolicy(indent int, pd *api.Policy) {
 	for _, s := range pd.Statements {
 		printStatement(indent, s)
 	}
@@ -391,7 +410,7 @@ func showPolicy(args []string) error {
 	if err != nil {
 		return err
 	}
-	var m table.Policies
+	var m []*api.Policy
 	if len(args) > 0 {
 		for _, p := range policies {
 			if args[0] == p.Name {
@@ -416,7 +435,7 @@ func showPolicy(args []string) error {
 		}
 		return nil
 	}
-	sort.Sort(m)
+
 	for _, pd := range m {
 		fmt.Printf("Name %s:\n", pd.Name)
 		printPolicy(4, pd)
@@ -429,7 +448,7 @@ func showStatement(args []string) error {
 	if err != nil {
 		return err
 	}
-	var m []*table.Statement
+	var m []*api.Statement
 	if len(args) > 0 {
 		for _, s := range stmts {
 			if args[0] == s.Name {
@@ -464,7 +483,7 @@ func modStatement(op string, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: gobgp policy statement %s <name>", op)
 	}
-	stmt := &table.Statement{
+	stmt := &api.Statement{
 		Name: args[0],
 	}
 	var err error
@@ -480,8 +499,9 @@ func modStatement(op string, args []string) error {
 }
 
 func modCondition(name, op string, args []string) error {
-	stmt := config.Statement{
-		Name: name,
+	stmt := &api.Statement{
+		Name:       name,
+		Conditions: &api.Conditions{},
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
@@ -491,110 +511,117 @@ func modCondition(name, op string, args []string) error {
 	args = args[1:]
 	switch typ {
 	case "prefix":
+		stmt.Conditions.PrefixSet = &api.MatchSet{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s prefix <set-name> [{ any | invert }]", usage)
 		}
-		stmt.Conditions.MatchPrefixSet.PrefixSet = args[0]
+		stmt.Conditions.PrefixSet.Name = args[0]
 		if len(args) == 1 {
 			break
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.MatchPrefixSet.MatchSetOptions = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+			stmt.Conditions.PrefixSet.Type = api.MatchType_ANY
 		case "invert":
-			stmt.Conditions.MatchPrefixSet.MatchSetOptions = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+			stmt.Conditions.PrefixSet.Type = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s prefix <set-name> [{ any | invert }]", usage)
 		}
 	case "neighbor":
+		stmt.Conditions.NeighborSet = &api.MatchSet{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
 		}
-		stmt.Conditions.MatchNeighborSet.NeighborSet = args[0]
+		stmt.Conditions.NeighborSet.Name = args[0]
 		if len(args) == 1 {
 			break
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.MatchNeighborSet.MatchSetOptions = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+			stmt.Conditions.NeighborSet.Type = api.MatchType_ANY
 		case "invert":
-			stmt.Conditions.MatchNeighborSet.MatchSetOptions = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+			stmt.Conditions.NeighborSet.Type = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
 		}
 	case "as-path":
+		stmt.Conditions.AsPathSet = &api.MatchSet{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s as-path <set-name> [{ any | all | invert }]", usage)
 		}
-		stmt.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = args[0]
+		stmt.Conditions.AsPathSet.Name = args[0]
 		if len(args) == 1 {
 			break
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ANY
+			stmt.Conditions.AsPathSet.Type = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ALL
+			stmt.Conditions.AsPathSet.Type = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_INVERT
+			stmt.Conditions.AsPathSet.Type = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s as-path <set-name> [{ any | all | invert }]", usage)
 		}
 	case "community":
+		stmt.Conditions.CommunitySet = &api.MatchSet{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s community <set-name> [{ any | all | invert }]", usage)
 		}
-		stmt.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = args[0]
+		stmt.Conditions.CommunitySet.Name = args[0]
 		if len(args) == 1 {
 			break
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ANY
+			stmt.Conditions.CommunitySet.Type = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ALL
+			stmt.Conditions.CommunitySet.Type = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_INVERT
+			stmt.Conditions.CommunitySet.Type = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s community <set-name> [{ any | all | invert }]", usage)
 		}
 	case "ext-community":
+		stmt.Conditions.ExtCommunitySet = &api.MatchSet{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
-		stmt.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet = args[0]
+		stmt.Conditions.ExtCommunitySet.Name = args[0]
 		if len(args) == 1 {
 			break
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ANY
+			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ALL
+			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_INVERT
+			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
 	case "large-community":
+		stmt.Conditions.LargeCommunitySet = &api.MatchSet{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
-		stmt.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet = args[0]
+		stmt.Conditions.LargeCommunitySet.Name = args[0]
 		if len(args) == 1 {
 			break
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ANY
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_ALL
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions = config.MATCH_SET_OPTIONS_TYPE_INVERT
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
 	case "as-path-length":
+		stmt.Conditions.AsPathLength = &api.AsPathLength{}
 		if len(args) < 2 {
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}
@@ -602,14 +629,14 @@ func modCondition(name, op string, args []string) error {
 		if err != nil {
 			return err
 		}
-		stmt.Conditions.BgpConditions.AsPathLength.Value = uint32(length)
+		stmt.Conditions.AsPathLength.Length = uint32(length)
 		switch strings.ToLower(args[1]) {
 		case "eq":
-			stmt.Conditions.BgpConditions.AsPathLength.Operator = config.ATTRIBUTE_COMPARISON_EQ
+			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_EQ
 		case "ge":
-			stmt.Conditions.BgpConditions.AsPathLength.Operator = config.ATTRIBUTE_COMPARISON_GE
+			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_GE
 		case "le":
-			stmt.Conditions.BgpConditions.AsPathLength.Operator = config.ATTRIBUTE_COMPARISON_LE
+			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_LE
 		default:
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}
@@ -619,11 +646,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[0]) {
 		case "valid":
-			stmt.Conditions.BgpConditions.RpkiValidationResult = config.RPKI_VALIDATION_RESULT_TYPE_VALID
+			stmt.Conditions.RpkiResult = int32(config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_VALID])
 		case "invalid":
-			stmt.Conditions.BgpConditions.RpkiValidationResult = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+			stmt.Conditions.RpkiResult = int32(config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_INVALID])
 		case "not-found":
-			stmt.Conditions.BgpConditions.RpkiValidationResult = config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+			stmt.Conditions.RpkiResult = int32(config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND])
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
@@ -634,41 +661,34 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[0]) {
 		case "internal":
-			stmt.Conditions.BgpConditions.RouteType = config.ROUTE_TYPE_INTERNAL
+			stmt.Conditions.RouteType = api.Conditions_ROUTE_TYPE_INTERNAL
 		case "external":
-			stmt.Conditions.BgpConditions.RouteType = config.ROUTE_TYPE_EXTERNAL
+			stmt.Conditions.RouteType = api.Conditions_ROUTE_TYPE_EXTERNAL
 		case "local":
-			stmt.Conditions.BgpConditions.RouteType = config.ROUTE_TYPE_LOCAL
+			stmt.Conditions.RouteType = api.Conditions_ROUTE_TYPE_LOCAL
 		default:
 			return err
 		}
 	case "next-hop-in-list":
-		stmt.Conditions.BgpConditions.NextHopInList = args
+		stmt.Conditions.NextHopInList = args
 	case "afi-safi-in":
-		afiSafisInList := make([]config.AfiSafiType, 0, len(args))
+		afiSafisInList := make([]api.Family, 0, len(args))
 		for _, arg := range args {
-			afiSafi := config.AfiSafiType(arg)
-			if err := afiSafi.Validate(); err != nil {
-				return err
-			}
-			afiSafisInList = append(afiSafisInList, afiSafi)
+			afiSafisInList = append(afiSafisInList, api.Family(bgp.AddressFamilyValueMap[arg]))
 		}
-		stmt.Conditions.BgpConditions.AfiSafiInList = afiSafisInList
+		stmt.Conditions.AfiSafiIn = afiSafisInList
 	default:
 		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in }", usage)
 	}
 
-	t, err := table.NewStatement(stmt)
-	if err != nil {
-		return err
-	}
+	var err error
 	switch op {
 	case CMD_ADD:
-		err = client.AddStatement(t)
+		err = client.AddStatement(stmt)
 	case CMD_DEL:
-		err = client.DeleteStatement(t, false)
+		err = client.DeleteStatement(stmt, false)
 	case CMD_SET:
-		err = client.ReplaceStatement(t)
+		err = client.ReplaceStatement(stmt)
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -676,8 +696,9 @@ func modCondition(name, op string, args []string) error {
 }
 
 func modAction(name, op string, args []string) error {
-	stmt := config.Statement{
-		Name: name,
+	stmt := &api.Statement{
+		Name:    name,
+		Actions: &api.Actions{},
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
@@ -687,73 +708,80 @@ func modAction(name, op string, args []string) error {
 	args = args[1:]
 	switch typ {
 	case "reject":
-		stmt.Actions.RouteDisposition = config.ROUTE_DISPOSITION_REJECT_ROUTE
+		stmt.Actions.RouteAction = api.RouteAction_REJECT
 	case "accept":
-		stmt.Actions.RouteDisposition = config.ROUTE_DISPOSITION_ACCEPT_ROUTE
+		stmt.Actions.RouteAction = api.RouteAction_ACCEPT
 	case "community":
+		stmt.Actions.Community = &api.CommunityAction{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
 		}
-		stmt.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList = args[1:]
+		stmt.Actions.Community.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.BgpActions.SetCommunity.Options = string(config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD)
+			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.BgpActions.SetCommunity.Options = string(config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE)
+			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.BgpActions.SetCommunity.Options = string(config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE)
+			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
 		}
 	case "ext-community":
+		stmt.Actions.ExtCommunity = &api.CommunityAction{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
 		}
-		stmt.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList = args[1:]
+		stmt.Actions.ExtCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.BgpActions.SetExtCommunity.Options = string(config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD)
+			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.BgpActions.SetExtCommunity.Options = string(config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE)
+			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.BgpActions.SetExtCommunity.Options = string(config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE)
+			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
 		}
 	case "large-community":
+		stmt.Actions.LargeCommunity = &api.CommunityAction{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
 		}
-		stmt.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList = args[1:]
+		stmt.Actions.LargeCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.BgpActions.SetLargeCommunity.Options = config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD
+			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.BgpActions.SetLargeCommunity.Options = config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE
+			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.BgpActions.SetLargeCommunity.Options = config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
+			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
 		}
 	case "med":
+		stmt.Actions.Med = &api.MedAction{}
 		if len(args) < 2 {
 			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}
-		med, err := strconv.ParseUint(args[1], 10, 32)
+		med, err := strconv.ParseInt(args[1], 10, 32)
 		if err != nil {
 			return err
 		}
+		stmt.Actions.Med.Value = int64(med)
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.BgpActions.SetMed = config.BgpSetMedType(fmt.Sprintf("+%d", med))
+			stmt.Actions.Med.Type = api.MedActionType_MED_MOD
 		case "sub":
-			stmt.Actions.BgpActions.SetMed = config.BgpSetMedType(fmt.Sprintf("-%d", med))
+			stmt.Actions.Med.Type = api.MedActionType_MED_MOD
+			stmt.Actions.Med.Value = -1 * stmt.Actions.Med.Value
 		case "set":
-			stmt.Actions.BgpActions.SetMed = config.BgpSetMedType(fmt.Sprintf("%d", med))
+			stmt.Actions.Med.Type = api.MedActionType_MED_REPLACE
 		default:
 			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}
 	case "local-pref":
+		stmt.Actions.LocalPref = &api.LocalPrefAction{}
 		if len(args) < 1 {
 			return fmt.Errorf("%s local-pref <value>", usage)
 		}
@@ -761,34 +789,34 @@ func modAction(name, op string, args []string) error {
 		if err != nil {
 			return err
 		}
-		stmt.Actions.BgpActions.SetLocalPref = uint32(value)
+		stmt.Actions.LocalPref.Value = uint32(value)
 	case "as-prepend":
+		stmt.Actions.AsPrepend = &api.AsPrependAction{}
 		if len(args) < 2 {
 			return fmt.Errorf("%s as-prepend { <asn> | last-as } <repeat-value>", usage)
 		}
-		stmt.Actions.BgpActions.SetAsPathPrepend.As = args[0]
+		asn, _ := strconv.ParseUint(args[0], 10, 32)
+		stmt.Actions.AsPrepend.Asn = uint32(asn)
 		repeat, err := strconv.ParseUint(args[1], 10, 8)
 		if err != nil {
 			return err
 		}
-		stmt.Actions.BgpActions.SetAsPathPrepend.RepeatN = uint8(repeat)
+		stmt.Actions.AsPrepend.Repeat = uint32(repeat)
 	case "next-hop":
+		stmt.Actions.Nexthop = &api.NexthopAction{}
 		if len(args) != 1 {
 			return fmt.Errorf("%s next-hop { <value> | self }", usage)
 		}
-		stmt.Actions.BgpActions.SetNextHop = config.BgpNextHopType(args[0])
+		stmt.Actions.Nexthop.Address = args[0]
 	}
-	t, err := table.NewStatement(stmt)
-	if err != nil {
-		return err
-	}
+	var err error
 	switch op {
 	case CMD_ADD:
-		err = client.AddStatement(t)
+		err = client.AddStatement(stmt)
 	case CMD_DEL:
-		err = client.DeleteStatement(t, false)
+		err = client.DeleteStatement(stmt, false)
 	case CMD_SET:
-		err = client.ReplaceStatement(t)
+		err = client.ReplaceStatement(stmt)
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -801,17 +829,16 @@ func modPolicy(modtype string, args []string) error {
 	}
 	name := args[0]
 	args = args[1:]
-	stmts := make([]config.Statement, 0, len(args))
+	stmts := make([]*api.Statement, 0, len(args))
 	for _, n := range args {
-		stmts = append(stmts, config.Statement{Name: n})
+		stmts = append(stmts, &api.Statement{Name: n})
 	}
-	policy, err := table.NewPolicy(config.PolicyDefinition{
+	policy := &api.Policy{
 		Name:       name,
 		Statements: stmts,
-	})
-	if err != nil {
-		return err
 	}
+
+	var err error
 	switch modtype {
 	case CMD_ADD:
 		err = client.AddPolicy(policy, true)

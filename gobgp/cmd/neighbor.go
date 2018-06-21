@@ -29,7 +29,6 @@ import (
 
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
 
 	api "github.com/osrg/gobgp/api"
 )
@@ -918,7 +917,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 }
 
 func showNeighborPolicy(remoteIP, policyType string, indent int) error {
-	var assignment *table.PolicyAssignment
+	var assignment *api.PolicyAssignment
 	var err error
 
 	switch strings.ToLower(policyType) {
