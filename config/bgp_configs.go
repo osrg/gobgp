@@ -3334,12 +3334,22 @@ func (lhs *LongLivedGracefulRestart) Equal(rhs *LongLivedGracefulRestart) bool {
 type RouteTargetMembershipState struct {
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
+	// original -> gobgp:advertise-default
+	// gobgp:advertise-default's original type is boolean.
+	// Configure whether advertise the default route target or not. This can
+	// be used only when the given neighbor is a route reflector client.
+	AdvertiseDefault bool `mapstructure:"advertise-default" json:"advertise-default,omitempty"`
 }
 
 // struct for container gobgp:config.
 type RouteTargetMembershipConfig struct {
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
+	// original -> gobgp:advertise-default
+	// gobgp:advertise-default's original type is boolean.
+	// Configure whether advertise the default route target or not. This can
+	// be used only when the given neighbor is a route reflector client.
+	AdvertiseDefault bool `mapstructure:"advertise-default" json:"advertise-default,omitempty"`
 }
 
 func (lhs *RouteTargetMembershipConfig) Equal(rhs *RouteTargetMembershipConfig) bool {
@@ -3347,6 +3357,9 @@ func (lhs *RouteTargetMembershipConfig) Equal(rhs *RouteTargetMembershipConfig) 
 		return false
 	}
 	if lhs.DeferralTime != rhs.DeferralTime {
+		return false
+	}
+	if lhs.AdvertiseDefault != rhs.AdvertiseDefault {
 		return false
 	}
 	return true

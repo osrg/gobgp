@@ -168,6 +168,15 @@ func (peer *Peer) isDynamicNeighbor() bool {
 	return peer.fsm.pConf.Config.NeighborAddress == "" && peer.fsm.pConf.Config.NeighborInterface == ""
 }
 
+func (peer *Peer) isAdvertiseDefaultRTEnabled() bool {
+	for _, afiSafi := range peer.fsm.pConf.AfiSafis {
+		if afiSafi.State.Family == bgp.RF_RTC_UC && afiSafi.RouteTargetMembership.Config.AdvertiseDefault {
+			return true
+		}
+	}
+	return false
+}
+
 func (peer *Peer) recvedAllEOR() bool {
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if s := a.MpGracefulRestart.State; s.Enabled && !s.EndOfRibReceived {
@@ -319,6 +328,73 @@ func (peer *Peer) stopPeerRestarting() {
 
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return peer.adjRibIn.PathList(rfList, true)
+}
+
+func (peer *Peer) filterRTCPath(path, old *table.Path) *table.Path {
+	if path == nil || path.GetRouteFamily() != bgp.RF_RTC_UC {
+		return path
+	}
+
+	rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+	isAdvDefaultRT := peer.isAdvertiseDefaultRTEnabled()
+	if rt != nil && isAdvDefaultRT {
+		// If "advertise-default" is enabled, the default route tartget is
+		// already advertised to this peer, then there is no other path to be
+		// advertised.
+		return nil
+	} else if rt == nil && !isAdvDefaultRT {
+		// Avoid the default route target to be advertised to the peers which
+		// "advertise-default" is disabled.
+		return nil
+	}
+
+	if path.IsWithdraw {
+		return path
+	}
+
+	if path.IsLocal() && path == old {
+		// We assumes "path" was already sent before. This assumption avoids
+		// the infinite UPDATE loop between a Route Reflector and its clients.
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.fsm.pConf.State.NeighborAddress,
+			"Path":  path,
+		}).Debug("given rtm nlri is already sent, skipping to advertise")
+		return nil
+	}
+
+	if old != nil && old.IsLocal() {
+		// We assumes VRF with the specific RT is deleted.
+		return old.Clone(true)
+	}
+
+	if peer.isRouteReflectorClient() {
+		// We need to send the path even if the peer is the originator of the
+		// given path in order to signal that the client should distribute
+		// route with the given RT.
+		return path
+	}
+
+	// We send a path even if it is not the best path. See comments in
+	// (*Destination) GetChanges().
+	dst := peer.localRib.GetDestination(path)
+	path = nil
+	for _, p := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
+		srcPeer := p.GetSource()
+		if peer.ID() != srcPeer.Address.String() {
+			if srcPeer.RouteReflectorClient {
+				// The path from a RR client is preferred than others for the
+				// case that RR and non RR client peering (e.g., peering of
+				// different RR clusters).
+				path = p
+				break
+			} else if path == nil {
+				path = p
+			}
+		}
+	}
+
+	return path
 }
 
 func (peer *Peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {

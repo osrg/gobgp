@@ -388,7 +388,15 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-unicast'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l2vpn-evpn'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'rtc'}, 'route-target-membership': {'config': {'deferral-time': 10}}})
+                if info['is_rr_client'] and info['advertise_default_rt']:
+                    afi_safi_list.append(
+                        {'config': {'afi-safi-name': 'rtc'},
+                         'route-target-membership': {'config': {'deferral-time': 10,
+                                                                'advertise-default': True}}})
+                else:
+                    afi_safi_list.append(
+                        {'config': {'afi-safi-name': 'rtc'},
+                         'route-target-membership': {'config': {'deferral-time': 10}}})
 
             if info['flowspec']:
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-flowspec'}})

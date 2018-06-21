@@ -982,6 +982,134 @@ class GoBGPTestBase(unittest.TestCase):
         self.g4.local("gobgp vrf del vrf2")
         self.g5.local("gobgp vrf del vrf1")
 
+    def test_60_adv_default_rt_setup(self):
+        #               +------+
+        #               |  g3  |
+        #        +------| (RR) |------+
+        #        |      +------+      |
+        #      (iBGP)              (iBGP)
+        #        |                    |
+        # +-------------+      +-------------+
+        # |     g4      |      |     g5      |
+        # | (RR Client) |      | (RR Client) |
+        # +-------------+      +-------------+
+        g3, g4, g5 = self.g3, self.g4, self.g5
+
+        g3.update_peer(g4, vpn=True, is_rr_client=True, advertise_default_rt=True)
+        g4.update_peer(g3, vpn=True)
+
+        g3.update_peer(g5, vpn=True, is_rr_client=True, advertise_default_rt=True)
+        g5.update_peer(g3, vpn=True)
+
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g5)
+
+    def test_61_adv_default_rt_check_adj_rib_from_rr(self):
+        # VRF<#>  g3   g4   g5
+        #   1          ( )  ( )
+        #   2
+        #   3
+        self.g4.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        self.g5.local("gobgp vrf add vrf1 rd 100:100 rt both 100:100")
+        time.sleep(1)
+
+        def check_rtc(client):
+            rib = self.g3.get_adj_rib_out(client, rf='rtc')
+            self.assertEqual(1, len(rib))
+            path = rib[0]
+            self.assertEqual('0:default', path['prefix'])  # default RT
+            self.assertEqual(self.g3.peers[client]['local_addr'].split('/')[0], path['nexthop'])
+            ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
+            self.assertEqual(1, len(ids))
+            self.assertEqual(self.g3.router_id, ids[0])
+
+        check_rtc(self.g4)
+        check_rtc(self.g5)
+
+        # VRF<#>  g3   g4   g5
+        #   1          (*)  (*)
+        #   2
+        #   3
+        self.g4.local("gobgp vrf vrf1 rib add 40.0.0.0/24")
+        self.g5.local("gobgp vrf vrf1 rib add 50.0.0.0/24")
+        time.sleep(1)
+
+        def check_ipv4_l3vpn(client):
+            rib = self.g3.get_adj_rib_out(client, rf='ipv4-l3vpn')
+            self.assertEqual(1, len(rib))
+            path = rib[0]
+            self.assertNotEqual(self.g3.peers[client]['local_addr'].split('/')[0], path['nexthop'])
+            ids = [attr['value'] for attr in path['attrs'] if attr['type'] == base.BGP_ATTR_TYPE_ORIGINATOR_ID]
+            self.assertEqual(1, len(ids))
+            self.assertNotEqual(client.router_id, ids[0])
+
+        check_ipv4_l3vpn(self.g4)
+        check_ipv4_l3vpn(self.g5)
+
+    def test_62_adv_default_rt_add_vrf(self):
+        # VRF<#>  g3   g4   g5
+        #   1          (*)  (*)
+        #   2          ( )
+        #   3
+        self.g4.local("gobgp vrf add vrf2 rd 200:200 rt both 200:200")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 1)  # default RT
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 1)  # default RT
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 1)
+
+    def test_63_adv_default_rt_add_route_on_vrf(self):
+        # VRF<#>  g3   g4   g5
+        #   1          (*)  (*)
+        #   2          (*)
+        #   3
+        self.g4.local("gobgp vrf vrf2 rib add 40.0.0.0/24")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 2)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 2)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 1)  # default RT
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 1)  # default RT
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 1)
+
+    def test_64_adv_default_rt_del_vrf_with_route(self):
+        # VRF<#>  g3   g4   g5
+        #   1               (*)
+        #   2          (*)
+        #   3
+        self.g4.local("gobgp vrf del vrf1")
+        time.sleep(1)
+
+        self.assert_adv_count(self.g4, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g4, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g4, 'rtc', 1)  # default RT
+        self.assert_adv_count(self.g3, self.g4, 'ipv4-l3vpn', 0)
+
+        self.assert_adv_count(self.g5, self.g3, 'rtc', 1)
+        self.assert_adv_count(self.g5, self.g3, 'ipv4-l3vpn', 1)
+
+        self.assert_adv_count(self.g3, self.g5, 'rtc', 1)  # default RT
+        self.assert_adv_count(self.g3, self.g5, 'ipv4-l3vpn', 0)
+
+    def test_65_adv_default_rt_cleanup(self):
+        self.g4.local("gobgp vrf del vrf2")
+        self.g5.local("gobgp vrf del vrf1")
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
