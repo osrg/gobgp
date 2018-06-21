@@ -1938,7 +1938,7 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*Mar
 		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "prefix misses length field")
 	}
 	n.Length = data[0]
-	data = data[1:]
+	data = data[1 : n.Length/8+1]
 	if len(data) == 0 {
 		return nil
 	} else if len(data) != 12 {
@@ -1967,7 +1967,7 @@ func (n *RouteTargetMembershipNLRI) Serialize(options ...*MarshallingOption) ([]
 	}
 	offset := len(buf)
 	buf = append(buf, make([]byte, 5)...)
-	buf[offset] = 12 * 8
+	buf[offset] = 96
 	binary.BigEndian.PutUint32(buf[offset+1:], n.AS)
 	ebuf, err := n.RouteTarget.Serialize()
 	if err != nil {
