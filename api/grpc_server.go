@@ -241,14 +241,13 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 	if pconf.Transport.State.LocalAddress != "" {
 		localAddress = pconf.Transport.State.LocalAddress
 	}
-	var remoteCap, localCap [][]byte
-	for _, c := range pconf.State.RemoteCapabilityList {
-		cBuf, _ := c.Serialize()
-		remoteCap = append(remoteCap, cBuf)
+	remoteCap, err := MarshalCapabilities(pconf.State.RemoteCapabilityList)
+	if err != nil {
+		return nil
 	}
-	for _, c := range pconf.State.LocalCapabilityList {
-		cBuf, _ := c.Serialize()
-		localCap = append(localCap, cBuf)
+	localCap, err := MarshalCapabilities(pconf.State.LocalCapabilityList)
+	if err != nil {
+		return nil
 	}
 	var removePrivateAs PeerConf_RemovePrivateAs
 	switch pconf.Config.RemovePrivateAs {
@@ -1292,23 +1291,11 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
-		f := func(bufs [][]byte) ([]bgp.ParameterCapabilityInterface, error) {
-			var caps []bgp.ParameterCapabilityInterface
-			for _, buf := range bufs {
-				c, err := bgp.DecodeCapability(buf)
-				if err != nil {
-					return nil, err
-				}
-				caps = append(caps, c)
-			}
-			return caps, nil
-		}
-
-		localCaps, err := f(a.Conf.LocalCap)
+		localCaps, err := UnmarshalCapabilities(a.Conf.LocalCap)
 		if err != nil {
 			return nil, err
 		}
-		remoteCaps, err := f(a.Conf.RemoteCap)
+		remoteCaps, err := UnmarshalCapabilities(a.Conf.RemoteCap)
 		if err != nil {
 			return nil, err
 		}

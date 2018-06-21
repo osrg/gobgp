@@ -631,7 +631,7 @@ message Path {
   bool is_nexthop_invalid = 17;
   uint32 identifier = 18;
   uint32 local_identifier = 19;
-  // One of the following defined in "api/bgp/attribute.proto":
+  // One of the following defined in "api/attribute.proto":
   // - IPAddressPrefix
   // - LabeledIPAddressPrefix
   // - EncapsulationNLRI
@@ -647,7 +647,7 @@ message Path {
   // - OpaqueNLRI
   google.protobuf.Any any_nlri = 20;
   // Each attribute must be one of *Attribute defined in
-  // "api/bgp/attribute.proto".
+  // "api/attribute.proto".
   repeated google.protobuf.Any any_pattrs = 21;
 }
 
@@ -772,8 +772,10 @@ message PeerConf {
   RemovePrivateAs remove_private_as = 8;
   bool route_flap_damping = 9;
   uint32 send_community = 10;
-  repeated bytes remote_cap = 11;
-  repeated bytes local_cap = 12;
+  // Each attribute must be one of *Capability defined in
+  // "api/capability.proto".
+  repeated google.protobuf.Any remote_cap = 11;
+  repeated google.protobuf.Any local_cap = 12;
   string id = 13;
   // Note: Regarding to the consistency with OpenConfig model, list of
   // PrefixLimit should be removed from here, and list of PrefixLimit in
