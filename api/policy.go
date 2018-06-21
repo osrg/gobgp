@@ -25,8 +25,9 @@ import (
 )
 
 var (
-	repexpCommunity      = regexp.MustCompile("(\\d+.)*\\d+:\\d+")
-	regexpLargeCommunity = regexp.MustCompile("\\d+:\\d+:\\d+")
+	repexpCommunity       = regexp.MustCompile("(\\d+.)*\\d+:\\d+")
+	regexpLargeCommunity  = regexp.MustCompile("\\d+:\\d+:\\d+")
+	regexpCommunityString = regexp.MustCompile("[\\^\\$]")
 )
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
@@ -76,4 +77,78 @@ func ParseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("invalid large-community format: %s", arg)
 	}
 	return exp, nil
+}
+
+func (s *MatchSet) PrettyString() string {
+	var typ string
+	switch s.Type {
+	case MatchType_ALL:
+		typ = "all"
+	case MatchType_ANY:
+		typ = "any"
+	case MatchType_INVERT:
+		typ = "invert"
+	}
+	return fmt.Sprintf("%s %s", typ, s.GetName())
+}
+
+func (s *AsPathLength) PrettyString() string {
+	var typ string
+	switch s.Type {
+	case AsPathLengthType_EQ:
+		typ = "="
+	case AsPathLengthType_GE:
+		typ = ">="
+	case AsPathLengthType_LE:
+		typ = "<="
+	}
+	return fmt.Sprintf("%s%d", typ, s.Length)
+}
+
+func (s Conditions_RouteType) PrettyString() string {
+	switch s {
+	case Conditions_ROUTE_TYPE_EXTERNAL:
+		return "external"
+	case Conditions_ROUTE_TYPE_INTERNAL:
+		return "internal"
+	case Conditions_ROUTE_TYPE_LOCAL:
+		return "local"
+	}
+	return "unknown"
+}
+
+func (a *CommunityAction) PrettyString() string {
+	l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
+	var typ string
+	switch a.Type {
+	case CommunityActionType_COMMUNITY_ADD:
+		typ = "add"
+	case CommunityActionType_COMMUNITY_REMOVE:
+		typ = "remove"
+	case CommunityActionType_COMMUNITY_REPLACE:
+		typ = "replace"
+	}
+	return fmt.Sprintf("%s[%s]", typ, l)
+}
+
+func (a *MedAction) PrettyString() string {
+	if a.Type == MedActionType_MED_MOD && a.Value > 0 {
+		return fmt.Sprintf("+%d", a.Value)
+	}
+	return fmt.Sprintf("%d", a.Value)
+}
+
+func (a *LocalPrefAction) PrettyString() string {
+	return fmt.Sprintf("%d", a.Value)
+}
+
+func (a *NexthopAction) PrettyString() string {
+	if a.Self {
+		return "self"
+	}
+	return a.Address
+}
+
+func (a *AsPrependAction) PrettyString() string {
+	return fmt.Sprintf("prepend %d %d times", a.Asn, a.Repeat)
 }
