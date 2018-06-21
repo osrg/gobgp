@@ -29,7 +29,6 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
 )
 
 type Client struct {
@@ -474,7 +473,7 @@ func (cli *Client) DeleteVRF(name string) error {
 	return err
 }
 
-func (cli *Client) getDefinedSet(typ table.DefinedType, name string) ([]table.DefinedSet, error) {
+func (cli *Client) getDefinedSet(typ api.DefinedType, name string) ([]*api.DefinedSet, error) {
 	ret, err := cli.cli.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{
 		Type: api.DefinedType(typ),
 		Name: name,
@@ -482,22 +481,14 @@ func (cli *Client) getDefinedSet(typ table.DefinedType, name string) ([]table.De
 	if err != nil {
 		return nil, err
 	}
-	ds := make([]table.DefinedSet, 0, len(ret.Sets))
-	for _, s := range ret.Sets {
-		d, err := api.NewDefinedSetFromApiStruct(s)
-		if err != nil {
-			return nil, err
-		}
-		ds = append(ds, d)
-	}
-	return ds, nil
+	return ret.Sets, nil
 }
 
-func (cli *Client) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, error) {
+func (cli *Client) GetDefinedSet(typ api.DefinedType) ([]*api.DefinedSet, error) {
 	return cli.getDefinedSet(typ, "")
 }
 
-func (cli *Client) GetDefinedSetByName(typ table.DefinedType, name string) (table.DefinedSet, error) {
+func (cli *Client) GetDefinedSetByName(typ api.DefinedType, name string) (*api.DefinedSet, error) {
 	sets, err := cli.getDefinedSet(typ, name)
 	if err != nil {
 		return nil, err
@@ -510,99 +501,67 @@ func (cli *Client) GetDefinedSetByName(typ table.DefinedType, name string) (tabl
 	return sets[0], nil
 }
 
-func (cli *Client) AddDefinedSet(d table.DefinedSet) error {
-	a, err := api.NewAPIDefinedSetFromTableStruct(d)
-	if err != nil {
-		return err
-	}
-	_, err = cli.cli.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{
-		Set: a,
+func (cli *Client) AddDefinedSet(d *api.DefinedSet) error {
+	_, err := cli.cli.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{
+		Set: d,
 	})
 	return err
 }
 
-func (cli *Client) DeleteDefinedSet(d table.DefinedSet, all bool) error {
-	a, err := api.NewAPIDefinedSetFromTableStruct(d)
-	if err != nil {
-		return err
-	}
-	_, err = cli.cli.DeleteDefinedSet(context.Background(), &api.DeleteDefinedSetRequest{
-		Set: a,
+func (cli *Client) DeleteDefinedSet(d *api.DefinedSet, all bool) error {
+	_, err := cli.cli.DeleteDefinedSet(context.Background(), &api.DeleteDefinedSetRequest{
+		Set: d,
 		All: all,
 	})
 	return err
 }
 
-func (cli *Client) ReplaceDefinedSet(d table.DefinedSet) error {
-	a, err := api.NewAPIDefinedSetFromTableStruct(d)
-	if err != nil {
-		return err
-	}
-	_, err = cli.cli.ReplaceDefinedSet(context.Background(), &api.ReplaceDefinedSetRequest{
-		Set: a,
+func (cli *Client) ReplaceDefinedSet(d *api.DefinedSet) error {
+	_, err := cli.cli.ReplaceDefinedSet(context.Background(), &api.ReplaceDefinedSetRequest{
+		Set: d,
 	})
 	return err
 }
 
-func (cli *Client) GetStatement() ([]*table.Statement, error) {
+func (cli *Client) GetStatement() ([]*api.Statement, error) {
 	ret, err := cli.cli.GetStatement(context.Background(), &api.GetStatementRequest{})
 	if err != nil {
 		return nil, err
 	}
-	sts := make([]*table.Statement, 0, len(ret.Statements))
-	for _, s := range ret.Statements {
-		st, err := api.NewStatementFromApiStruct(s)
-		if err != nil {
-			return nil, err
-		}
-		sts = append(sts, st)
-	}
-	return sts, nil
+	return ret.Statements, nil
 }
 
-func (cli *Client) AddStatement(t *table.Statement) error {
-	a := api.NewAPIStatementFromTableStruct(t)
+func (cli *Client) AddStatement(t *api.Statement) error {
 	_, err := cli.cli.AddStatement(context.Background(), &api.AddStatementRequest{
-		Statement: a,
+		Statement: t,
 	})
 	return err
 }
 
-func (cli *Client) DeleteStatement(t *table.Statement, all bool) error {
-	a := api.NewAPIStatementFromTableStruct(t)
+func (cli *Client) DeleteStatement(t *api.Statement, all bool) error {
 	_, err := cli.cli.DeleteStatement(context.Background(), &api.DeleteStatementRequest{
-		Statement: a,
+		Statement: t,
 		All:       all,
 	})
 	return err
 }
 
-func (cli *Client) ReplaceStatement(t *table.Statement) error {
-	a := api.NewAPIStatementFromTableStruct(t)
+func (cli *Client) ReplaceStatement(t *api.Statement) error {
 	_, err := cli.cli.ReplaceStatement(context.Background(), &api.ReplaceStatementRequest{
-		Statement: a,
+		Statement: t,
 	})
 	return err
 }
 
-func (cli *Client) GetPolicy() ([]*table.Policy, error) {
+func (cli *Client) GetPolicy() ([]*api.Policy, error) {
 	ret, err := cli.cli.GetPolicy(context.Background(), &api.GetPolicyRequest{})
 	if err != nil {
 		return nil, err
 	}
-	pols := make([]*table.Policy, 0, len(ret.Policies))
-	for _, p := range ret.Policies {
-		pol, err := api.NewPolicyFromApiStruct(p)
-		if err != nil {
-			return nil, err
-		}
-		pols = append(pols, pol)
-	}
-	return pols, nil
+	return ret.Policies, nil
 }
 
-func (cli *Client) AddPolicy(t *table.Policy, refer bool) error {
-	a := api.NewAPIPolicyFromTableStruct(t)
+func (cli *Client) AddPolicy(a *api.Policy, refer bool) error {
 	_, err := cli.cli.AddPolicy(context.Background(), &api.AddPolicyRequest{
 		Policy:                  a,
 		ReferExistingStatements: refer,
@@ -610,8 +569,7 @@ func (cli *Client) AddPolicy(t *table.Policy, refer bool) error {
 	return err
 }
 
-func (cli *Client) DeletePolicy(t *table.Policy, all, preserve bool) error {
-	a := api.NewAPIPolicyFromTableStruct(t)
+func (cli *Client) DeletePolicy(a *api.Policy, all, preserve bool) error {
 	_, err := cli.cli.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
 		Policy:             a,
 		All:                all,
@@ -620,8 +578,7 @@ func (cli *Client) DeletePolicy(t *table.Policy, all, preserve bool) error {
 	return err
 }
 
-func (cli *Client) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
-	a := api.NewAPIPolicyFromTableStruct(t)
+func (cli *Client) ReplacePolicy(a *api.Policy, refer, preserve bool) error {
 	_, err := cli.cli.ReplacePolicy(context.Background(), &api.ReplacePolicyRequest{
 		Policy:                  a,
 		ReferExistingStatements: refer,
@@ -630,14 +587,7 @@ func (cli *Client) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
 	return err
 }
 
-func (cli *Client) getPolicyAssignment(name string, dir table.PolicyDirection) (*table.PolicyAssignment, error) {
-	var typ api.PolicyType
-	switch dir {
-	case table.POLICY_DIRECTION_IMPORT:
-		typ = api.PolicyType_IMPORT
-	case table.POLICY_DIRECTION_EXPORT:
-		typ = api.PolicyType_EXPORT
-	}
+func (cli *Client) getPolicyAssignment(name string, typ api.PolicyType) (*api.PolicyAssignment, error) {
 	resource := api.Resource_GLOBAL
 	if name != "" {
 		resource = api.Resource_LOCAL
@@ -654,41 +604,28 @@ func (cli *Client) getPolicyAssignment(name string, dir table.PolicyDirection) (
 		return nil, err
 	}
 
-	def := table.ROUTE_TYPE_ACCEPT
-	if ret.Assignment.Default == api.RouteAction_REJECT {
-		def = table.ROUTE_TYPE_REJECT
-	}
-
-	pols := make([]*table.Policy, 0, len(ret.Assignment.Policies))
-	for _, p := range ret.Assignment.Policies {
-		pol, err := api.NewPolicyFromApiStruct(p)
-		if err != nil {
-			return nil, err
-		}
-		pols = append(pols, pol)
-	}
-	return &table.PolicyAssignment{
+	return &api.PolicyAssignment{
 		Name:     name,
-		Type:     dir,
-		Policies: pols,
-		Default:  def,
+		Type:     typ,
+		Policies: ret.Assignment.Policies,
+		Default:  ret.Assignment.Default,
 	}, nil
 }
 
-func (cli *Client) GetImportPolicy() (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_IMPORT)
+func (cli *Client) GetImportPolicy() (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment("", api.PolicyType_IMPORT)
 }
 
-func (cli *Client) GetExportPolicy() (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_EXPORT)
+func (cli *Client) GetExportPolicy() (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment("", api.PolicyType_EXPORT)
 }
 
-func (cli *Client) GetRouteServerImportPolicy(name string) (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_IMPORT)
+func (cli *Client) GetRouteServerImportPolicy(name string) (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment(name, api.PolicyType_IMPORT)
 }
 
-func (cli *Client) GetRouteServerExportPolicy(name string) (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_EXPORT)
+func (cli *Client) GetRouteServerExportPolicy(name string) (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment(name, api.PolicyType_EXPORT)
 }
 
 func (cli *Client) AddPolicyAssignment(assignment *api.PolicyAssignment) error {
