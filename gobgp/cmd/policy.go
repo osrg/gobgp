@@ -337,23 +337,22 @@ func printStatement(indent int, s *api.Statement) {
 
 	c := s.Conditions
 	if c.PrefixSet != nil {
-		fmt.Printf("%sPrefixSet: %s %s\n", ind, c.PrefixSet.GetType(), c.PrefixSet.GetName())
+		fmt.Printf("%sPrefixSet: %s \n", ind, c.PrefixSet.PrettyString())
 	} else if c.NeighborSet != nil {
-		fmt.Printf("%sNeighborSet: %s %s\n", ind, c.NeighborSet.GetType(), c.NeighborSet.GetName())
+		fmt.Printf("%sNeighborSet: %s\n", ind, c.NeighborSet.PrettyString())
 	} else if c.AsPathSet != nil {
-		fmt.Printf("%sAsPathSet: %s %s\n", ind, c.AsPathSet.GetType(), c.AsPathSet.GetName())
+		fmt.Printf("%sAsPathSet: %s \n", ind, c.AsPathSet.PrettyString())
 	} else if c.CommunitySet != nil {
-		fmt.Printf("%sCommunitySet: %s %s\n", ind, c.CommunitySet.GetType(), c.CommunitySet.GetName())
+		fmt.Printf("%sCommunitySet: %s\n", ind, c.CommunitySet.PrettyString())
 	} else if c.ExtCommunitySet != nil {
-		fmt.Printf("%sExtCommunitySet: %s %s\n", ind, c.ExtCommunitySet.GetType(), c.ExtCommunitySet.GetName())
+		fmt.Printf("%sExtCommunitySet: %s\n", ind, c.ExtCommunitySet.PrettyString())
 	} else if c.LargeCommunitySet != nil {
-		fmt.Printf("%sLargeCommunitySet: %s %s\n", ind, c.LargeCommunitySet.GetType(), c.LargeCommunitySet.GetName())
+		fmt.Printf("%sLargeCommunitySet: %s\n", ind, c.LargeCommunitySet.PrettyString())
 	} else if c.NextHopInList != nil {
 		fmt.Printf("%sNextHopInList: %s\n", ind, "[ "+strings.Join(c.NextHopInList, ", ")+" ]")
 	} else if c.AsPathLength != nil {
-		fmt.Printf("%sAsPathLength: %s\n", ind, fmt.Sprintf("%s%d", c.AsPathLength.Type, c.AsPathLength.Length))
+		fmt.Printf("%sAsPathLength: %s\n", ind, c.AsPathLength.PrettyString())
 	} else if c.RpkiResult != -1 {
-		fmt.Println(c.RpkiResult)
 		var result string
 		switch c.RpkiResult {
 		case 0:
@@ -367,7 +366,7 @@ func printStatement(indent int, s *api.Statement) {
 		}
 		fmt.Printf("%sRPKI result: %s\n", ind, result)
 	} else if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
-		fmt.Printf("%sRoute Type: %s\n", ind, c.RouteType.String())
+		fmt.Printf("%sRoute Type: %s\n", ind, c.RouteType.PrettyString())
 	} else if c.AfiSafiIn != nil {
 		fmt.Printf("%sAFI SAFI In: %s\n", ind, c.AfiSafiIn)
 	}
@@ -375,19 +374,19 @@ func printStatement(indent int, s *api.Statement) {
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 	a := s.Actions
 	if a.Community != nil {
-		fmt.Println(ind, "Community: ", a.Community.String())
+		fmt.Println(ind, "Community: ", a.Community.PrettyString())
 	} else if a.ExtCommunity != nil {
-		fmt.Println(ind, "ExtCommunity: ", a.ExtCommunity.String())
+		fmt.Println(ind, "ExtCommunity: ", a.ExtCommunity.PrettyString())
 	} else if a.LargeCommunity != nil {
-		fmt.Println(ind, "LargeCommunity: ", a.LargeCommunity.String())
+		fmt.Println(ind, "LargeCommunity: ", a.LargeCommunity.PrettyString())
 	} else if a.Med != nil {
-		fmt.Println(ind, "MED: ", a.Med.String())
+		fmt.Println(ind, "MED: ", a.Med.PrettyString())
 	} else if a.LocalPref != nil {
-		fmt.Println(ind, "LocalPref: ", a.LocalPref.String())
+		fmt.Println(ind, "LocalPref: ", a.LocalPref.PrettyString())
 	} else if a.AsPrepend != nil {
-		fmt.Println(ind, "ASPathPrepend: ", a.AsPrepend.String())
+		fmt.Println(ind, "ASPathPrepend: ", a.AsPrepend.PrettyString())
 	} else if a.Nexthop != nil {
-		fmt.Println(ind, "Nexthop: ", a.Nexthop.String())
+		fmt.Println(ind, "Nexthop: ", a.Nexthop.PrettyString())
 	}
 
 	if a.RouteAction != api.RouteAction_NONE {
