@@ -23,10 +23,13 @@ import (
 	"strings"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 )
+
+var log = config.Logger
 
 const (
 	HEADER_MARKER     = 255
@@ -544,7 +547,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 			if more {
 				b, err := m.Serialize()
 				if err != nil {
-					log.WithFields(log.Fields{
+					log.WithFields(logrus.Fields{
 						"Topic": "Zebra",
 					}).Warnf("failed to serialize: %s", m)
 					continue
@@ -552,7 +555,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 
 				_, err = conn.Write(b)
 				if err != nil {
-					log.WithFields(log.Fields{
+					log.WithFields(logrus.Fields{
 						"Topic": "Zebra",
 					}).Errorf("failed to write: %s", err)
 					close(outgoing)
@@ -571,7 +574,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Zebra",
 				"Error": err,
 			}).Error("failed to read header")
@@ -581,7 +584,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 		hd := &Header{}
 		err = hd.DecodeFromBytes(headerBuf)
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Zebra",
 				"Data":  headerBuf,
 				"Error": err,
@@ -591,7 +594,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 
 		bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":  "Zebra",
 				"Header": hd,
 				"Error":  err,
@@ -604,7 +607,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 			// Just outputting warnings (not error message) and ignore this
 			// error considering the case that body parser is not implemented
 			// yet.
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":  "Zebra",
 				"Header": hd,
 				"Data":   bodyBuf,
@@ -612,7 +615,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 			}).Warn("failed to decode body")
 			return nil, nil
 		}
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic":   "Zebra",
 			"Message": m,
 		}).Debug("read message from zebra")
@@ -657,12 +660,12 @@ func (c *Client) Receive() chan *Message {
 func (c *Client) Send(m *Message) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Zebra",
 			}).Debugf("recovered: %s", err)
 		}
 	}()
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":  "Zebra",
 		"Header": m.Header,
 		"Body":   m.Body,

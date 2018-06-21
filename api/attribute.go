@@ -22,7 +22,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/packet/bgp"
 )
@@ -175,7 +175,7 @@ func MarshalRD(rd bgp.RouteDistinguisherInterface) *any.Any {
 			Assigned: uint32(v.Assigned),
 		}
 	default:
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "protobuf",
 			"RD":    rd,
 		}).Warn("invalid rd type to marshal")
@@ -699,7 +699,7 @@ func MarshalRT(rt bgp.ExtendedCommunityInterface) *any.Any {
 			LocalAdmin:   uint32(v.LocalAdmin),
 		}
 	default:
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "protobuf",
 			"RT":    rt,
 		}).Warn("invalid rt type to marshal")
@@ -847,7 +847,7 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 				Value: v.Value,
 			}
 		default:
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":     "protobuf",
 				"Community": value,
 			}).Warn("unsupported extended community")
@@ -1072,7 +1072,7 @@ func NewIP6ExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeIP6Extende
 				LocalAdmin: uint32(v.LocalAdmin),
 			}
 		default:
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":     "protobuf",
 				"Attribute": value,
 			}).Warn("invalid ipv6 extended community")

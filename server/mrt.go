@@ -21,7 +21,7 @@ import (
 	"os"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -105,7 +105,7 @@ func (m *mrtWriter) loop() error {
 					subtype = mrt.MESSAGE_AS4
 				}
 				if bm, err := mrt.NewMRTMessage(uint32(e.Timestamp.Unix()), mrt.BGP4MP, subtype, mp); err != nil {
-					log.WithFields(log.Fields{
+					log.WithFields(logrus.Fields{
 						"Topic": "mrt",
 						"Data":  e,
 						"Error": err,
@@ -126,7 +126,7 @@ func (m *mrtWriter) loop() error {
 				}
 
 				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterId, "", peers)); err != nil {
-					log.WithFields(log.Fields{
+					log.WithFields(logrus.Fields{
 						"Topic": "mrt",
 						"Data":  e,
 						"Error": err,
@@ -168,7 +168,7 @@ func (m *mrtWriter) loop() error {
 				appendTableDumpMsg := func(path *table.Path, entries []*mrt.RibEntry, isAddPath bool) {
 					st := subtype(path, isAddPath)
 					if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetNlri(), entries)); err != nil {
-						log.WithFields(log.Fields{
+						log.WithFields(logrus.Fields{
 							"Topic": "mrt",
 							"Data":  e,
 							"Error": err,
@@ -219,7 +219,7 @@ func (m *mrtWriter) loop() error {
 				if _, err := m.file.Write(buf); err == nil {
 					m.file.Sync()
 				} else {
-					log.WithFields(log.Fields{
+					log.WithFields(logrus.Fields{
 						"Topic": "mrt",
 						"Error": err,
 					}).Warn("Can't write to destination MRT file")
@@ -230,7 +230,7 @@ func (m *mrtWriter) loop() error {
 			for _, e := range events {
 				for _, m := range serialize(e) {
 					if buf, err := m.Serialize(); err != nil {
-						log.WithFields(log.Fields{
+						log.WithFields(logrus.Fields{
 							"Topic": "mrt",
 							"Data":  e,
 							"Error": err,
@@ -254,7 +254,7 @@ func (m *mrtWriter) loop() error {
 			if err == nil {
 				m.file = file
 			} else {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "mrt",
 					"Error": err,
 				}).Warn("can't rotate MRT file")
@@ -287,7 +287,7 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 	if interval != 0 {
 		realname = time.Now().Format(filename)
 	}
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":         "mrt",
 		"Filename":      realname,
 		"Dump Interval": interval,
@@ -306,7 +306,7 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 
 	if j > 0 {
 		if err := os.MkdirAll(realname[0:j-1], 0755); err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "mrt",
 				"Error": err,
 			}).Warn("can't create MRT destination directory")
@@ -316,7 +316,7 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 
 	file, err := os.OpenFile(realname, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "mrt",
 			"Error": err,
 		}).Warn("can't create MRT destination file")
@@ -355,7 +355,7 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 
 	setRotationMin := func() {
 		if rInterval < MIN_ROTATION_INTERVAL {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "MRT",
 			}).Infof("minimum mrt rotation interval is %d seconds", MIN_ROTATION_INTERVAL)
 			rInterval = MIN_ROTATION_INTERVAL
@@ -365,7 +365,7 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 	if c.DumpType == config.MRT_TYPE_TABLE {
 		if rInterval == 0 {
 			if dInterval < MIN_DUMP_INTERVAL {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "MRT",
 				}).Infof("minimum mrt dump interval is %d seconds", MIN_DUMP_INTERVAL)
 				dInterval = MIN_DUMP_INTERVAL

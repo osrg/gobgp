@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"net"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
@@ -54,19 +54,19 @@ type TCPDialer struct {
 
 func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	if d.AuthPassword != "" {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting md5 for active connection is not supported")
 	}
 	if d.Ttl != 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting ttl for active connection is not supported")
 	}
 	if d.TtlMin != 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting min ttl for active connection is not supported")

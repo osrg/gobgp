@@ -21,11 +21,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
 )
 
 type ribout map[string][]*table.Path
@@ -82,7 +83,7 @@ func (r ribout) update(p *table.Path) bool {
 func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
-		log.WithFields(log.Fields{"Topic": "bmp"}).Debugf("Connecting BMP server:%s", b.host)
+		log.WithFields(logrus.Fields{"Topic": "bmp"}).Debugf("Connecting BMP server:%s", b.host)
 		conn, err := net.Dial("tcp", b.host)
 		if err != nil {
 			select {
@@ -95,7 +96,7 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 				interval *= 2
 			}
 		} else {
-			log.WithFields(log.Fields{"Topic": "bmp"}).Infof("BMP server is connected:%s", b.host)
+			log.WithFields(logrus.Fields{"Topic": "bmp"}).Infof("BMP server is connected:%s", b.host)
 			return conn.(*net.TCPConn)
 		}
 	}
@@ -116,7 +117,7 @@ func (b *bmpClient) loop() {
 			ops := []WatchOption{WatchPeerState(true)}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				log.WithFields(
-					log.Fields{"Topic": "bmp"},
+					logrus.Fields{"Topic": "bmp"},
 				).Warn("both option for route-monitoring-policy is obsoleted")
 			}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
@@ -136,7 +137,7 @@ func (b *bmpClient) loop() {
 
 			var tickerCh <-chan time.Time
 			if b.c.StatisticsTimeout == 0 {
-				log.WithFields(log.Fields{"Topic": "bmp"}).Debug("statistics reports disabled")
+				log.WithFields(logrus.Fields{"Topic": "bmp"}).Debug("statistics reports disabled")
 			} else {
 				t := time.NewTicker(time.Duration(b.c.StatisticsTimeout) * time.Second)
 				defer t.Stop()

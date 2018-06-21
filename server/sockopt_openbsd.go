@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -320,12 +320,12 @@ func saAdd(address, key string) error {
 func saDelete(address string) error {
 	if spi, y := spiInMap[address]; y {
 		if err := rfkeyRequest(SADB_DELETE, address, "", spi, ""); err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Peer",
 				"Key":   address,
 			}).Info("failed to delete md5 for incoming")
 		} else {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Peer",
 				"Key":   address,
 			}).Info("can't find spi for md5 for incoming")
@@ -333,12 +333,12 @@ func saDelete(address string) error {
 	}
 	if spi, y := spiOutMap[address]; y {
 		if err := rfkeyRequest(SADB_DELETE, "", address, spi, ""); err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Peer",
 				"Key":   address,
 			}).Info("failed to delete md5 for outgoing")
 		} else {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Peer",
 				"Key":   address,
 			}).Info("can't find spi for md5 for outgoing")
@@ -433,19 +433,19 @@ type TCPDialer struct {
 
 func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	if d.AuthPassword != "" {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting md5 for active connection is not supported")
 	}
 	if d.Ttl != 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting ttl for active connection is not supported")
 	}
 	if d.TtlMin != 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting min ttl for active connection is not supported")

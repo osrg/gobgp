@@ -5,9 +5,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
+
+// Logger is the global log handler for GoBGP
+var Logger = logrus.New()
+var log = Logger
 
 type BgpConfigSet struct {
 	Global            Global             `mapstructure:"global"`
@@ -48,7 +52,7 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 			goto ERROR
 		}
 		if cnt == 0 {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 			}).Info("Finished reading the config file")
 		}
@@ -57,12 +61,12 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 		goto NEXT
 	ERROR:
 		if cnt == 0 {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 				"Error": err,
 			}).Fatalf("Can't read config file %s", path)
 		} else {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 				"Error": err,
 			}).Warningf("Can't read config file %s", path)
@@ -70,7 +74,7 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 	NEXT:
 		select {
 		case <-sigCh:
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 			}).Info("Reload the config file")
 		}
@@ -93,10 +97,10 @@ func UpdatePeerGroupConfig(curC, newC *BgpConfigSet) ([]PeerGroup, []PeerGroup, 
 		if idx := existPeerGroup(n.Config.PeerGroupName, curC.PeerGroups); idx < 0 {
 			addedPg = append(addedPg, n)
 		} else if !n.Equal(&curC.PeerGroups[idx]) {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 			}).Debugf("Current peer-group config:%s", curC.PeerGroups[idx])
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 			}).Debugf("New peer-group config:%s", n)
 			updatedPg = append(updatedPg, n)
@@ -120,10 +124,10 @@ func UpdateNeighborConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []N
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else if !n.Equal(&curC.Neighbors[idx]) {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 			}).Debugf("Current neighbor config:%s", curC.Neighbors[idx])
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Config",
 			}).Debugf("New neighbor config:%s", n)
 			updated = append(updated, n)
@@ -140,10 +144,10 @@ func UpdateNeighborConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []N
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {
 
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Config",
 	}).Debugf("Current policy:%s", currentPolicy)
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Config",
 	}).Debugf("New policy:%s", newPolicy)
 

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/packet/bgp"
 )
@@ -132,7 +132,7 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 	if _, ok := manager.Vrfs[name]; ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":    "Vrf",
 		"Key":      name,
 		"Rd":       rd,
@@ -167,7 +167,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	for _, t := range manager.Tables {
 		msgs = append(msgs, t.deletePathsByVrf(vrf)...)
 	}
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":    "Vrf",
 		"Key":      vrf.Name,
 		"Rd":       vrf.Rd,

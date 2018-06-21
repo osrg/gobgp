@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -74,14 +74,14 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		},
 	}
 	if err := config.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   neighborAddress,
 		}).Debugf("Can't overwrite neighbor config: %s", err)
 		return nil
 	}
 	if err := config.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   neighborAddress,
 		}).Debugf("Can't set default config: %s", err)
@@ -200,7 +200,7 @@ func (peer *Peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily
 			case bgp.RF_IPv6_UC:
 				fs = append(fs, bgp.RF_IPv6_VPN)
 			default:
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic":  "Peer",
 					"Key":    peer.ID(),
 					"Family": f,
@@ -348,7 +348,7 @@ func (peer *Peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 			return old.Clone(true)
 		}
 	}
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Peer",
 		"Key":   peer.ID(),
 		"Data":  path,
@@ -362,14 +362,14 @@ func (peer *Peer) doPrefixLimit(k bgp.RouteFamily, c *config.PrefixLimitConfig) 
 		pct := int(c.ShutdownThresholdPct)
 		if pct > 0 && !peer.prefixLimitWarned[k] && count > (maxPrefixes*pct/100) {
 			peer.prefixLimitWarned[k] = true
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":         "Peer",
 				"Key":           peer.ID(),
 				"AddressFamily": k.String(),
 			}).Warnf("prefix limit %d%% reached", pct)
 		}
 		if count > maxPrefixes {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":         "Peer",
 				"Key":           peer.ID(),
 				"AddressFamily": k.String(),
@@ -395,7 +395,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 		if p, ok := m[e.State.Family]; !ok {
 			return fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":                   "Peer",
 				"Key":                     peer.ID(),
 				"AddressFamily":           e.Config.AfiSafiName,
@@ -417,7 +417,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":       "Peer",
 		"Key":         peer.fsm.pConf.State.NeighborAddress,
 		"nlri":        update.NLRI,
@@ -431,7 +431,7 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 		for _, path := range e.PathList {
 			if path.IsEOR() {
 				family := path.GetRouteFamily()
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic":         "Peer",
 					"Key":           peer.ID(),
 					"AddressFamily": family,
@@ -475,7 +475,7 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 	case peer.fsm.connCh <- conn:
 	default:
 		conn.Close()
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   peer.ID(),
 		}).Warn("accepted conn is closed to avoid be blocked")
@@ -490,7 +490,7 @@ func (peer *Peer) stopFSM() error {
 	failed := false
 	addr := peer.fsm.pConf.State.NeighborAddress
 	t1 := time.AfterFunc(time.Minute*5, func() {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 		}).Warnf("Failed to free the fsm.h.t for %s", addr)
 		failed = true
@@ -499,7 +499,7 @@ func (peer *Peer) stopFSM() error {
 	peer.fsm.h.t.Wait()
 	t1.Stop()
 	if !failed {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Debug("freed fsm.h.t")
@@ -507,7 +507,7 @@ func (peer *Peer) stopFSM() error {
 	}
 	failed = false
 	t2 := time.AfterFunc(time.Minute*5, func() {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 		}).Warnf("Failed to free the fsm.t for %s", addr)
 		failed = true
@@ -516,7 +516,7 @@ func (peer *Peer) stopFSM() error {
 	peer.fsm.t.Wait()
 	t2.Stop()
 	if !failed {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Debug("freed fsm.t")

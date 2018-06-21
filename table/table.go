@@ -23,9 +23,13 @@ import (
 	"unsafe"
 
 	"github.com/armon/go-radix"
+	"github.com/sirupsen/logrus"
+
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
+
+var log = config.Logger
 
 type LookupOption uint8
 
@@ -136,13 +140,13 @@ func (t *Table) deleteDest(dest *Destination) {
 
 func (t *Table) validatePath(path *Path) {
 	if path == nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
 		}).Error("path is nil")
 	}
 	if path.GetRouteFamily() != t.routeFamily {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic":      "Table",
 			"Key":        t.routeFamily,
 			"Prefix":     path.GetNlri().String(),
@@ -154,7 +158,7 @@ func (t *Table) validatePath(path *Path) {
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
 			if !y {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "Table",
 					"Key":   t.routeFamily,
 					"As":    as,
@@ -163,13 +167,13 @@ func (t *Table) validatePath(path *Path) {
 		}
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
 		}).Fatal("AS4_PATH must be converted to AS_PATH")
 	}
 	if path.GetNlri() == nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
 		}).Fatal("path's nlri is nil")
@@ -180,7 +184,7 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 	dest := t.GetDestination(nlri)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 			"Nlri":  nlri,
 		}).Debugf("create Destination")

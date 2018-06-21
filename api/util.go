@@ -25,6 +25,8 @@ import (
 	"github.com/osrg/gobgp/table"
 )
 
+var log = config.Logger
+
 type ToNativeOption struct {
 	LocalAS                 uint32
 	LocalID                 net.IP

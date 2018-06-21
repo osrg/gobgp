@@ -48,7 +48,10 @@
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
-    "ptypes/any"
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
   ]
   revision = "748d386b5c1ea99658fd69fe9f03991ce86a90c1"
 
@@ -144,8 +147,8 @@
     ".",
     "hooks/syslog"
   ]
-  revision = "a3f95b5c423586578a4e099b11a46c2479628cac"
-  version = "1.0.2"
+  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
+  version = "v1.0.5"
 
 [[projects]]
   branch = "master"
@@ -209,6 +212,12 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/crypto"
+  packages = ["ssh/terminal"]
+  revision = "7f39a6fea4fe9364fb61e1def6a268a51b4f3a06"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -224,8 +233,11 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix"]
-  revision = "e312636bdaa2fac4f0acde9d17ab9fbad2b4ad10"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "ad87a3a340fa7f3bed189293fbfa7a9b7e021ae1"
 
 [[projects]]
   branch = "master"
@@ -285,6 +297,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6100eb99bf349d89739e85e9549f95a8351710d0e70e63057b82c213fbab07fd"
+  inputs-digest = "b6d3a8726570620e3d59704a462d15f2748ec61f79bf7e7a8fd79a06d9385479"
   solver-name = "gps-cdcl"
   solver-version = 1

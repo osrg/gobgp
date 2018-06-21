@@ -29,7 +29,7 @@ import (
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -42,6 +42,7 @@ import (
 )
 
 var version = "master"
+var log = config.Logger
 
 func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	rtList := make([]*any.Any, 0, len(l))
@@ -106,17 +107,17 @@ func main() {
 
 	switch opts.LogLevel {
 	case "debug":
-		log.SetLevel(log.DebugLevel)
+		log.SetLevel(logrus.DebugLevel)
 	case "info":
-		log.SetLevel(log.InfoLevel)
+		log.SetLevel(logrus.InfoLevel)
 	default:
-		log.SetLevel(log.InfoLevel)
+		log.SetLevel(logrus.InfoLevel)
 	}
 
 	if opts.DisableStdlog == true {
-		log.SetOutput(ioutil.Discard)
+		log.Out = ioutil.Discard
 	} else {
-		log.SetOutput(os.Stdout)
+		log.Out = os.Stdout
 	}
 
 	if opts.UseSyslog != "" {
@@ -127,12 +128,12 @@ func main() {
 
 	if opts.LogPlain {
 		if opts.DisableStdlog {
-			log.SetFormatter(&log.TextFormatter{
+			log.Formatter = &logrus.TextFormatter{
 				DisableColors: true,
-			})
+			}
 		}
 	} else {
-		log.SetFormatter(&log.JSONFormatter{})
+		log.Formatter = &logrus.JSONFormatter{}
 	}
 
 	configCh := make(chan *config.BgpConfigSet)

@@ -17,11 +17,13 @@ package server
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/influxdata/influxdb/client/v2"
+	"github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 type Collector struct {
@@ -111,11 +113,11 @@ func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 	}
 
 	if err := bgp.FlatUpdate(tags, path.GetNlri().Flat()); err != nil {
-		log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("NLRI FlatUpdate failed")
+		log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Error("NLRI FlatUpdate failed")
 	}
 	for _, p := range path.GetPathAttrs() {
 		if err := bgp.FlatUpdate(tags, p.Flat()); err != nil {
-			log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("PathAttr FlatUpdate failed")
+			log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Error("PathAttr FlatUpdate failed")
 		}
 	}
 	return fields, tags
@@ -173,15 +175,15 @@ func (c *Collector) loop() {
 			switch msg := ev.(type) {
 			case *WatchEventUpdate:
 				if err := c.writeUpdate(msg); err != nil {
-					log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to write update event message")
+					log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Error("Failed to write update event message")
 				}
 			case *WatchEventPeerState:
 				if err := c.writePeer(msg); err != nil {
-					log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to write state changed event message")
+					log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Error("Failed to write state changed event message")
 				}
 			case *WatchEventAdjIn:
 				if err := c.writeTable(msg); err != nil {
-					log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to write Adj-In event message")
+					log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Error("Failed to write Adj-In event message")
 				}
 			}
 		}
@@ -199,13 +201,13 @@ func NewCollector(s *BgpServer, url, dbName string, interval uint64) (*Collector
 	_, _, err = c.Ping(0)
 	if err != nil {
 		log.Error("can not connect to InfluxDB")
-		log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to connect to InfluxDB")
+		log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Error("Failed to connect to InfluxDB")
 		return nil, err
 	}
 
 	q := client.NewQuery("CREATE DATABASE "+dbName, "", "")
 	if response, err := c.Query(q); err != nil || response.Error() != nil {
-		log.WithFields(log.Fields{"Type": "collector", "Error": err}).Errorf("Failed to create database:%s", dbName)
+		log.WithFields(logrus.Fields{"Type": "collector", "Error": err}).Errorf("Failed to create database:%s", dbName)
 		return nil, err
 	}
 

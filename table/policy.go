@@ -26,9 +26,8 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
-
 	radix "github.com/armon/go-radix"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -334,7 +333,7 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 		exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
 		elems := exp.FindStringSubmatch(maskRange)
 		if len(elems) != 3 {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":           "Policy",
 				"Type":            "Prefix",
 				"MaskRangeFormat": maskRange,
@@ -1370,7 +1369,7 @@ func (c *NextHopCondition) String() string {
 // If NextHopSet's length is zero, return true.
 func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	if len(c.set.list) == 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Policy",
 		}).Debug("NextHop doesn't have elements")
 		return true
@@ -1518,7 +1517,7 @@ func (c *NeighborCondition) Option() MatchOption {
 // If NeighborList's length is zero, return true.
 func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	if len(c.set.list) == 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Policy",
 		}).Debug("NeighborList doesn't have elements")
 		return true
@@ -2408,7 +2407,7 @@ func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	}
 
 	if err != nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Policy",
 			"Type":  "Med Action",
 			"Error": err,
@@ -2506,7 +2505,7 @@ func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
 	if a.useLeftMost {
 		aspath := path.GetAsSeqList()
 		if len(aspath) == 0 {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Policy",
 				"Type":  "AsPathPrepend Action",
 			}).Warn("aspath length is zero.")
@@ -2514,7 +2513,7 @@ func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
 		}
 		asn = aspath[0]
 		if asn == 0 {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Policy",
 				"Type":  "AsPathPrepend Action",
 			}).Warn("left-most ASN is not seq")
@@ -3692,7 +3691,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 			err = fmt.Errorf("can't delete. policy %s is in use", name)
 			return
 		}
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Policy",
 			"Key":   name,
 		}).Debug("delete policy")
@@ -3703,7 +3702,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	if err == nil && !preserve {
 		for _, st := range y.Statements {
 			if !r.statementInUse(st) {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "Policy",
 					"Key":   st.Name,
 				}).Debug("delete unused statement")
@@ -3753,7 +3752,7 @@ func (r *RoutingPolicy) ReplacePolicy(x *Policy, refer, preserve bool) (err erro
 	if err == nil && !preserve {
 		for _, st := range ys {
 			if !r.statementInUse(st) {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "Policy",
 					"Key":   st.Name,
 				}).Debug("delete unused statement")
@@ -3902,7 +3901,7 @@ func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.App
 
 	if rp != nil {
 		if err := r.reload(*rp); err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Policy",
 			}).Errorf("failed to create routing policy: %s", err)
 			return err
@@ -3913,7 +3912,7 @@ func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.App
 		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IN, POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 			ps, def, err := r.getAssignmentFromConfig(dir, c)
 			if err != nil {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "Policy",
 					"Dir":   dir,
 				}).Errorf("failed to get policy info: %s", err)

@@ -13,7 +13,7 @@ package main
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -23,7 +23,8 @@ import (
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	log := config.Logger
+	log.SetLevel(logrus.DebugLevel)
 	s := gobgp.NewBgpServer()
 	go s.Serve()
 

@@ -19,12 +19,15 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/osrg/gobgp/packet/bmp"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"os"
 	"strconv"
+
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bmp"
 )
+
+var log = config.Logger
 
 func connLoop(conn *net.TCPConn) {
 	addr := conn.RemoteAddr()

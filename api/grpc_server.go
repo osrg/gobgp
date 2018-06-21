@@ -29,7 +29,7 @@ import (
 
 	farm "github.com/dgryski/go-farm"
 	"github.com/golang/protobuf/ptypes/any"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
@@ -71,7 +71,7 @@ func (s *Server) Serve() error {
 		defer wg.Done()
 		lis, err := net.Listen("tcp", host)
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "grpc",
 				"Key":   host,
 				"Error": err,
@@ -79,7 +79,7 @@ func (s *Server) Serve() error {
 			return
 		}
 		err = s.grpcServer.Serve(lis)
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "grpc",
 			"Key":   host,
 			"Error": err,

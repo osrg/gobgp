@@ -26,7 +26,6 @@ import (
 	"strings"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
 	lSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )
 

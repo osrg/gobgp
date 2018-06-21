@@ -19,8 +19,9 @@ import (
 	"bytes"
 	"reflect"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
@@ -148,7 +149,7 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 				if p.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET {
 					typ = "CONFED_SET"
 				}
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "Table",
 				}).Warnf("AS4_PATH contains %s segment %s. ignore", typ, p.String())
 				continue
@@ -159,7 +160,7 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	if asLen+asConfedLen < as4Len {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 		}).Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH")
 		return nil

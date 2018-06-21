@@ -55,7 +55,7 @@
 
 [[constraint]]
   name = "github.com/sirupsen/logrus"
-  version = "1.0.2"
+  version = "1.0.5"
 
 [[constraint]]
   branch = "master"

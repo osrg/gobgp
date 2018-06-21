@@ -23,11 +23,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -255,7 +256,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 }
 
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(logrus.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
@@ -278,7 +279,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 }
 
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(logrus.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 

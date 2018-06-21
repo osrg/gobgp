@@ -23,7 +23,7 @@ import (
 	"net"
 	"sort"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -258,7 +258,7 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 func (dd *Destination) validatePath(path *Path) {
 	if path == nil || path.GetRouteFamily() != dd.routeFamily {
 
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic":      "Table",
 			"Key":        dd.GetNlri().String(),
 			"Path":       path,
@@ -317,7 +317,7 @@ func (dest *Destination) Calculate(newPath *Path) *Update {
 // stopped by the same policies.
 //
 func (dest *Destination) explicitWithdraw(withdraw *Path) *Path {
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 		"Key":   dest.GetNlri().String(),
 	}).Debug("Removing withdrawals")
@@ -325,7 +325,7 @@ func (dest *Destination) explicitWithdraw(withdraw *Path) *Path {
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.
 	if len(dest.knownPathList) == 0 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 			"Key":   dest.GetNlri().String(),
 		}).Debug("Found withdrawals for path(s) that did not get installed")
@@ -344,7 +344,7 @@ func (dest *Destination) explicitWithdraw(withdraw *Path) *Path {
 
 	// We do no have any match for this withdraw.
 	if isFound == -1 {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 			"Key":   dest.GetNlri().String(),
 			"Path":  withdraw,
@@ -372,7 +372,7 @@ func (dest *Destination) implicitWithdraw(newPath *Path) {
 		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 		// we get same paths again.
 		if newPath.GetSource().Equal(path.GetSource()) && newPath.GetNlri().PathIdentifier() == path.GetNlri().PathIdentifier() {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic": "Table",
 				"Key":   dest.GetNlri().String(),
 				"Path":  path,
@@ -390,7 +390,7 @@ func (dest *Destination) implicitWithdraw(newPath *Path) {
 
 func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 	if SelectionOptions.DisableBestPathSelection {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 		}).Debug("computeKnownBestPath skipped")
 		return nil, BPR_DISABLED, nil
@@ -402,7 +402,7 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 		return nil, BPR_UNKNOWN, nil
 	}
 
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("computeKnownBestPath knownPathList: %d", len(dest.knownPathList))
 
@@ -516,7 +516,7 @@ func (dst *Destination) sort() {
 			var e error = nil
 			better, e = compareByRouterID(path1, path2)
 			if e != nil {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"Topic": "Table",
 					"Error": e,
 				}).Error("Could not get best path by comparing router ID")
@@ -664,7 +664,7 @@ func compareByReachableNexthop(path1, path2 *Path) *Path {
 	//
 	//	If no path matches this criteria, return nil.
 	//	For BGP Nexthop Tracking, evaluates next-hop is validated by IGP.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("enter compareByReachableNexthop -- path1: %s, path2: %s", path1, path2)
 
@@ -684,7 +684,7 @@ func compareByHighestWeight(path1, path2 *Path) *Path {
 	//	is configured.
 	//	Return:
 	//	nil if best path among given paths cannot be decided, else best path.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("enter compareByHighestWeight -- path1: %s, path2: %s", path1, path2)
 	return nil
@@ -699,7 +699,7 @@ func compareByLocalPref(path1, path2 *Path) *Path {
 	//	we return None.
 	//
 	//	# Default local-pref values is 100
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByLocalPref")
 	localPref1, _ := path1.GetLocalPref()
@@ -722,7 +722,7 @@ func compareByLocalOrigin(path1, path2 *Path) *Path {
 	// Returns None if given paths have same source.
 	//
 	// If both paths are from same sources we cannot compare them here.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByLocalOrigin")
 	if path1.GetSource().Equal(path2.GetSource()) {
@@ -747,12 +747,12 @@ func compareByASPath(path1, path2 *Path) *Path {
 	// Shortest as-path length is preferred. If both path have same lengths,
 	// we return None.
 	if SelectionOptions.IgnoreAsPathLength {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 		}).Debug("compareByASPath -- skip")
 		return nil
 	}
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByASPath")
 	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
@@ -761,7 +761,7 @@ func compareByASPath(path1, path2 *Path) *Path {
 	// With addpath support, we could compare paths from API don't
 	// AS_PATH. No need to warn here.
 	if !path1.IsLocal() && !path2.IsLocal() && (attribute1 == nil || attribute2 == nil) {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic":   "Table",
 			"Key":     "compareByASPath",
 			"ASPath1": attribute1,
@@ -772,7 +772,7 @@ func compareByASPath(path1, path2 *Path) *Path {
 	l1 := path1.GetAsPathLen()
 	l2 := path2.GetAsPathLen()
 
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("compareByASPath -- l1: %d, l2: %d", l1, l2)
 	if l1 > l2 {
@@ -789,14 +789,14 @@ func compareByOrigin(path1, path2 *Path) *Path {
 	//
 	//	IGP is preferred over EGP; EGP is preferred over Incomplete.
 	//	If both paths have same origin, we return None.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByOrigin")
 	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 
 	if attribute1 == nil || attribute2 == nil {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic":   "Table",
 			"Key":     "compareByOrigin",
 			"Origin1": attribute1,
@@ -807,7 +807,7 @@ func compareByOrigin(path1, path2 *Path) *Path {
 
 	origin1 := attribute1.(*bgp.PathAttributeOrigin).Value
 	origin2 := attribute2.(*bgp.PathAttributeOrigin).Value
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("compareByOrigin -- origin1: %d, origin2: %d", origin1, origin2)
 
@@ -855,7 +855,7 @@ func compareByMED(path1, path2 *Path) *Path {
 	}()
 
 	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 		}).Debug("enter compareByMED")
 		getMed := func(path *Path) uint32 {
@@ -869,7 +869,7 @@ func compareByMED(path1, path2 *Path) *Path {
 
 		med1 := getMed(path1)
 		med2 := getMed(path2)
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 		}).Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
 		if med1 == med2 {
@@ -879,7 +879,7 @@ func compareByMED(path1, path2 *Path) *Path {
 		}
 		return path2
 	} else {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Table",
 		}).Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
 		return nil
@@ -892,11 +892,11 @@ func compareByASNumber(path1, path2 *Path) *Path {
 	//
 	//eBGP path is preferred over iBGP. If both paths are from same kind of
 	//peers, return None.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByASNumber")
 
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.GetSource().AS, path2.GetSource().AS)
 	// Path from confederation member should be treated as internal (IBGP learned) path.
@@ -919,7 +919,7 @@ func compareByIGPCost(path1, path2 *Path) *Path {
 	//
 	//	Return None if igp cost is same.
 	// Currently BGPS has no concept of IGP and IGP cost.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debugf("enter compareByIGPCost -- path1: %v, path2: %v", path1, path2)
 	return nil
@@ -932,7 +932,7 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	//	not pick best-path based on this criteria.
 	//	RFC: http://tools.ietf.org/html/rfc5004
 	//	We pick best path between two iBGP paths as usual.
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareByRouterID")
 

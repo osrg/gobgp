@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/osrg/gobgp/config"
@@ -1011,7 +1011,7 @@ func TestAsPathCondition(t *testing.T) {
 		for _, a := range v {
 			result := c.Evaluate(a.path, nil)
 			if a.result != result {
-				log.WithFields(log.Fields{
+				log.WithFields(logrus.Fields{
 					"EXP":      k,
 					"ASSTR":    a.path.GetAsString(),
 					"Expected": a.result,

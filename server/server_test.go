@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/osrg/gobgp/config"
@@ -420,7 +420,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 
 func TestPeerGroup(test *testing.T) {
 	assert := assert.New(test)
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(logrus.DebugLevel)
 	s := NewBgpServer()
 	go s.Serve()
 	err := s.Start(&config.Global{
@@ -504,7 +504,7 @@ func TestPeerGroup(test *testing.T) {
 
 func TestDynamicNeighbor(t *testing.T) {
 	assert := assert.New(t)
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(logrus.DebugLevel)
 	s1 := NewBgpServer()
 	go s1.Serve()
 	err := s1.Start(&config.Global{

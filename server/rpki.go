@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/armon/go-radix"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 
 	"github.com/osrg/gobgp/config"
@@ -230,12 +230,12 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		if ev.EventType == CONNECTED {
 			ev.conn.Close()
 		}
-		log.WithFields(log.Fields{"Topic": "rpki"}).Errorf("Can't find %s ROA server configuration", ev.Src)
+		log.WithFields(logrus.Fields{"Topic": "rpki"}).Errorf("Can't find %s ROA server configuration", ev.Src)
 		return
 	}
 	switch ev.EventType {
 	case DISCONNECTED:
-		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is disconnected", ev.Src)
+		log.WithFields(logrus.Fields{"Topic": "rpki"}).Infof("ROA server %s is disconnected", ev.Src)
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.endOfData = false
@@ -246,7 +246,7 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 		client.oldSessionID = client.sessionID
 	case CONNECTED:
-		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is connected", ev.Src)
+		log.WithFields(logrus.Fields{"Topic": "rpki"}).Infof("ROA server %s is connected", ev.Src)
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		go client.established()
@@ -261,9 +261,9 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		// all stale ROAs were deleted -> timer was cancelled
 		// so should not be here.
 		if client.oldSessionID != client.sessionID {
-			log.WithFields(log.Fields{"Topic": "rpki"}).Infof("Reconnected to %s. Ignore timeout", client.host)
+			log.WithFields(logrus.Fields{"Topic": "rpki"}).Infof("Reconnected to %s. Ignore timeout", client.host)
 		} else {
-			log.WithFields(log.Fields{"Topic": "rpki"}).Infof("Deleting all ROAs due to timeout with:%s", client.host)
+			log.WithFields(logrus.Fields{"Topic": "rpki"}).Infof("Deleting all ROAs due to timeout with:%s", client.host)
 			m.deleteAllROA(client.host)
 		}
 	}
@@ -296,7 +296,7 @@ func (m *roaManager) deleteROA(roa *table.ROA) {
 			return
 		}
 	}
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":         "rpki",
 		"Prefix":        roa.Prefix.Prefix.String(),
 		"Prefix Length": roa.Prefix.Length,
@@ -399,7 +399,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			received.Error++
 		}
 	} else {
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "rpki",
 			"Host":  client.host,
 			"Error": err,

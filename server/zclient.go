@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
@@ -233,7 +233,7 @@ func newPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	origin := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
 	pattr = append(pattr, origin)
 
-	log.WithFields(log.Fields{
+	log.WithFields(logrus.Fields{
 		"Topic":        "Zebra",
 		"RouteType":    body.Type.String(),
 		"Flag":         body.Flags.String(),
@@ -262,7 +262,7 @@ func newPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 		}
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 	default:
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Zebra",
 		}).Errorf("unsupport address family: %s", family)
 		return nil
@@ -303,7 +303,7 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 	for _, rf := range rfList {
 		tbl, _, err := z.server.GetRib("", rf, nil)
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":  "Zebra",
 				"Family": rf.String(),
 				"Error":  err,
@@ -320,7 +320,7 @@ func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
 	paths = z.nexthopCache.applyToPathList(paths)
 	if len(paths) > 0 {
 		if err := z.server.UpdatePath("", paths); err != nil {
-			log.WithFields(log.Fields{
+			log.WithFields(logrus.Fields{
 				"Topic":    "Zebra",
 				"PathList": paths,
 			}).Error("failed to update nexthop reachability")
@@ -345,7 +345,7 @@ func (z *zebraClient) loop() {
 			case *zebra.IPRouteBody:
 				if path := newPathFromIPRouteMessage(msg); path != nil {
 					if _, err := z.server.AddPath("", []*table.Path{path}); err != nil {
-						log.WithFields(log.Fields{
+						log.WithFields(logrus.Fields{
 							"Topic": "Zebra",
 							"Path":  path,
 							"Error": err,
@@ -425,7 +425,7 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 			break
 		}
 		// Retry with another Zebra message version
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"Topic": "Zebra",
 		}).Warnf("cannot connect to Zebra with message version %d. going to retry another version...", ver)
 	}
