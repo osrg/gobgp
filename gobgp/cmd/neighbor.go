@@ -953,35 +953,42 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	return nil
 }
 
-func extractDefaultAction(args []string) ([]string, table.RouteType, error) {
+func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 	for idx, arg := range args {
 		if arg == "default" {
 			if len(args) < (idx + 2) {
-				return nil, table.ROUTE_TYPE_NONE, fmt.Errorf("specify default action [accept|reject]")
+				return nil, api.RouteAction_NONE, fmt.Errorf("specify default action [accept|reject]")
 			}
 			typ := args[idx+1]
 			switch strings.ToLower(typ) {
 			case "accept":
-				return append(args[:idx], args[idx+2:]...), table.ROUTE_TYPE_ACCEPT, nil
+				return append(args[:idx], args[idx+2:]...), api.RouteAction_ACCEPT, nil
 			case "reject":
-				return append(args[:idx], args[idx+2:]...), table.ROUTE_TYPE_REJECT, nil
+				return append(args[:idx], args[idx+2:]...), api.RouteAction_REJECT, nil
 			default:
-				return nil, table.ROUTE_TYPE_NONE, fmt.Errorf("invalid default action")
+				return nil, api.RouteAction_NONE, fmt.Errorf("invalid default action")
 			}
 		}
 	}
-	return args, table.ROUTE_TYPE_NONE, nil
+	return args, api.RouteAction_NONE, nil
 }
 
 func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
-	assign := &table.PolicyAssignment{
-		Name: remoteIP,
+	resource := api.Resource_GLOBAL
+	if remoteIP != "" {
+		resource = api.Resource_LOCAL
 	}
+
+	assign := &api.PolicyAssignment{
+		Name:     remoteIP,
+		Resource: resource,
+	}
+
 	switch strings.ToLower(policyType) {
 	case "import":
-		assign.Type = table.POLICY_DIRECTION_IMPORT
+		assign.Type = api.PolicyType_IMPORT
 	case "export":
-		assign.Type = table.POLICY_DIRECTION_EXPORT
+		assign.Type = api.PolicyType_EXPORT
 	}
 
 	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)
@@ -996,16 +1003,16 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 			return fmt.Errorf("%s <policy name>... [default {%s|%s}]", usage, "accept", "reject")
 		}
 		var err error
-		var def table.RouteType
+		var def api.RouteAction
 		args, def, err = extractDefaultAction(args)
 		if err != nil {
 			return fmt.Errorf("%s\n%s <policy name>... [default {%s|%s}]", err, usage, "accept", "reject")
 		}
 		assign.Default = def
 	}
-	ps := make([]*table.Policy, 0, len(args))
+	ps := make([]*api.Policy, 0, len(args))
 	for _, name := range args {
-		ps = append(ps, &table.Policy{Name: name})
+		ps = append(ps, &api.Policy{Name: name})
 	}
 	assign.Policies = ps
 	switch cmdType {
