@@ -691,24 +691,23 @@ func (cli *Client) GetRouteServerExportPolicy(name string) (*table.PolicyAssignm
 	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_EXPORT)
 }
 
-func (cli *Client) AddPolicyAssignment(assignment *table.PolicyAssignment) error {
+func (cli *Client) AddPolicyAssignment(assignment *api.PolicyAssignment) error {
 	_, err := cli.cli.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
-		Assignment: api.NewAPIPolicyAssignmentFromTableStruct(assignment),
+		Assignment: assignment,
 	})
 	return err
 }
 
-func (cli *Client) DeletePolicyAssignment(assignment *table.PolicyAssignment, all bool) error {
-	a := api.NewAPIPolicyAssignmentFromTableStruct(assignment)
+func (cli *Client) DeletePolicyAssignment(assignment *api.PolicyAssignment, all bool) error {
 	_, err := cli.cli.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{
-		Assignment: a,
+		Assignment: assignment,
 		All:        all})
 	return err
 }
 
-func (cli *Client) ReplacePolicyAssignment(assignment *table.PolicyAssignment) error {
+func (cli *Client) ReplacePolicyAssignment(assignment *api.PolicyAssignment) error {
 	_, err := cli.cli.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
-		Assignment: api.NewAPIPolicyAssignmentFromTableStruct(assignment),
+		Assignment: assignment,
 	})
 	return err
 }
