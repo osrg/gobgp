@@ -38,6 +38,16 @@ func refresh() *BGPMessage {
 	return NewBGPRouteRefreshMessage(1, 2, 10)
 }
 
+var result []string
+
+func BenchmarkNormalizeFlowSpecOpValues(b *testing.B) {
+	var r []string
+	for n := 0; n < b.N; n++ {
+		r = normalizeFlowSpecOpValues([]string{"&<=80"})
+	}
+	result = r
+}
+
 func Test_Message(t *testing.T) {
 	l := []*BGPMessage{keepalive(), notification(), refresh(), NewTestBGPOpenMessage(), NewTestBGPUpdateMessage()}
 	for _, m1 := range l {
@@ -81,7 +91,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// TwoOctetAsSpecificExtended
 	buf := make([]byte, 13)
-	buf[0] = 12
+	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC) // typehigh
 	binary.BigEndian.PutUint16(buf[7:9], 65000)
@@ -98,6 +108,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// IPv4AddressSpecificExtended
 	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
 	ip := net.ParseIP("10.0.0.1").To4()
@@ -115,6 +126,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// FourOctetAsSpecificExtended
 	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
 	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)                   // subtype
@@ -132,6 +144,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// OpaqueExtended
 	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
@@ -147,6 +160,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 	// Unknown
 	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = 0x04 // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
@@ -1213,5 +1227,31 @@ func TestFuzzCrashers(t *testing.T) {
 
 	for _, f := range crashers {
 		ParseBGPMessage([]byte(f))
+	}
+}
+
+func TestNormalizeFlowSpecOpValues(t *testing.T) {
+	tests := []struct {
+		msg  string
+		args []string
+		want []string
+	}{
+		{
+			msg:  "valid match",
+			args: []string{"  &  <=80", " tcp  != udp ", " =!   SA   & =U!  F", " =  is-fragment+last-fragment"},
+			want: []string{"<=80", "tcp", "!=udp", "=!SA", "&=U", "!F", "=is-fragment+last-fragment"},
+		},
+		{
+			msg:  "RFC5575 trims & prefix",
+			args: []string{"&<=80"},
+			want: []string{"<=80"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			got := normalizeFlowSpecOpValues(tt.args)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }

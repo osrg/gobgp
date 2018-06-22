@@ -61,7 +61,7 @@ func (d *Destination) ToNativeDestination(option ...ToNativeOption) (*table.Dest
 	if len(d.Paths) == 0 {
 		return nil, fmt.Errorf("no path in destination")
 	}
-	nlri, err := getNLRI(bgp.RouteFamily(d.Paths[0].Family), d.Paths[0].Nlri)
+	nlri, err := d.Paths[0].GetNativeNlri()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,30 @@ func (d *Destination) ToNativeDestination(option ...ToNativeOption) (*table.Dest
 }
 
 func (p *Path) GetNativeNlri() (bgp.AddrPrefixInterface, error) {
-	return getNLRI(bgp.RouteFamily(p.Family), p.Nlri)
+	if len(p.Nlri) > 0 {
+		return getNLRI(bgp.RouteFamily(p.Family), p.Nlri)
+	}
+	return UnmarshalNLRI(bgp.RouteFamily(p.Family), p.AnyNlri)
+}
+
+func (p *Path) GetNativePathAttributes() ([]bgp.PathAttributeInterface, error) {
+	pattrsLen := len(p.Pattrs)
+	if pattrsLen > 0 {
+		pattrs := make([]bgp.PathAttributeInterface, 0, pattrsLen)
+		for _, attr := range p.Pattrs {
+			a, err := bgp.GetPathAttribute(attr)
+			if err != nil {
+				return nil, err
+			}
+			err = a.DecodeFromBytes(attr)
+			if err != nil {
+				return nil, err
+			}
+			pattrs = append(pattrs, a)
+		}
+		return pattrs, nil
+	}
+	return UnmarshalPathAttributes(p.AnyPattrs)
 }
 
 func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
@@ -105,22 +128,14 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	}
 	if nlri == nil {
 		var err error
-		nlri, err = getNLRI(bgp.RouteFamily(p.Family), p.Nlri)
+		nlri, err = p.GetNativeNlri()
 		if err != nil {
 			return nil, err
 		}
 	}
-	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
-	for _, attr := range p.Pattrs {
-		p, err := bgp.GetPathAttribute(attr)
-		if err != nil {
-			return nil, err
-		}
-		err = p.DecodeFromBytes(attr)
-		if err != nil {
-			return nil, err
-		}
-		pattr = append(pattr, p)
+	pattr, err := p.GetNativePathAttributes()
+	if err != nil {
+		return nil, err
 	}
 	t := time.Unix(p.Age, 0)
 	nlri.SetPathIdentifier(p.Identifier)

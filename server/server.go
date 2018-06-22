@@ -1378,7 +1378,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 	return
 }
 
-func (s *BgpServer) StartCollector(c *config.CollectorConfig) error {
+func (s *BgpServer) AddCollector(c *config.CollectorConfig) error {
 	return s.mgmtOperation(func() error {
 		_, err := NewCollector(s, c.Url, c.DbName, c.TableDumpInterval)
 		return err
@@ -1593,6 +1593,7 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 			path := pathList[0]
 			id, _ := uuid.NewV4()
 			s.uuidMap[id] = pathTokey(path)
+			uuidBytes = id.Bytes()
 		}
 		s.propagateUpdate(nil, pathList)
 		return nil

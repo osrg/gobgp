@@ -357,7 +357,7 @@ type AddPathByStreamClient struct {
 func (c *AddPathByStreamClient) Send(paths ...*table.Path) error {
 	ps := make([]*api.Path, 0, len(paths))
 	for _, p := range paths {
-		ps = append(ps, api.ToPathApi(p, nil))
+		ps = append(ps, api.ToPathApiInBin(p, nil))
 	}
 	return c.stream.Send(&api.InjectMrtRequest{
 		Resource: api.Resource_GLOBAL,
@@ -419,21 +419,10 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 	switch {
 	case len(pathList) != 0:
 		for _, path := range pathList {
-			nlri := path.GetNlri()
-			n, err := nlri.Serialize()
-			if err != nil {
-				return err
-			}
-			p := &api.Path{
-				Nlri:            n,
-				Family:          uint32(path.GetRouteFamily()),
-				Identifier:      nlri.PathIdentifier(),
-				LocalIdentifier: nlri.PathLocalIdentifier(),
-			}
 			reqs = append(reqs, &api.DeletePathRequest{
 				Resource: resource,
 				VrfId:    vrfID,
-				Path:     p,
+				Path:     api.ToPathApi(path, nil),
 			})
 		}
 	default:
@@ -472,83 +461,25 @@ func (cli *Client) DeletePathByFamily(family bgp.RouteFamily) error {
 	return cli.deletePath(nil, family, "", nil)
 }
 
-func (cli *Client) GetVRF() ([]*table.Vrf, error) {
+func (cli *Client) GetVRF() ([]*api.Vrf, error) {
 	ret, err := cli.cli.GetVrf(context.Background(), &api.GetVrfRequest{})
 	if err != nil {
 		return nil, err
 	}
-	var vrfs []*table.Vrf
-
-	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
-		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
-		for _, rt := range bufs {
-			r, err := bgp.ParseExtended(rt)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, r)
-		}
-		return ret, nil
-	}
-
-	for _, vrf := range ret.Vrfs {
-		importRT, err := f(vrf.ImportRt)
-		if err != nil {
-			return nil, err
-		}
-		exportRT, err := f(vrf.ExportRt)
-		if err != nil {
-			return nil, err
-		}
-		vrfs = append(vrfs, &table.Vrf{
-			Name:     vrf.Name,
-			Id:       vrf.Id,
-			Rd:       bgp.GetRouteDistinguisher(vrf.Rd),
-			ImportRt: importRT,
-			ExportRt: exportRT,
-		})
-	}
-
-	return vrfs, nil
+	return ret.Vrfs, nil
 }
 
 func (cli *Client) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) error {
-	buf, err := rd.Serialize()
-	if err != nil {
-		return err
-	}
-
-	f := func(comms []bgp.ExtendedCommunityInterface) ([][]byte, error) {
-		var bufs [][]byte
-		for _, c := range comms {
-			buf, err := c.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			bufs = append(bufs, buf)
-		}
-		return bufs, err
-	}
-
-	importRT, err := f(im)
-	if err != nil {
-		return err
-	}
-	exportRT, err := f(ex)
-	if err != nil {
-		return err
-	}
-
 	arg := &api.AddVrfRequest{
 		Vrf: &api.Vrf{
 			Name:     name,
-			Rd:       buf,
+			Rd:       api.MarshalRD(rd),
 			Id:       uint32(id),
-			ImportRt: importRT,
-			ExportRt: exportRT,
+			ImportRt: api.MarshalRTs(im),
+			ExportRt: api.MarshalRTs(ex),
 		},
 	}
-	_, err = cli.cli.AddVrf(context.Background(), arg)
+	_, err := cli.cli.AddVrf(context.Background(), arg)
 	return err
 }
 

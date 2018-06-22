@@ -169,7 +169,7 @@ func TestMonitor(test *testing.T) {
 		if len(rib.GetKnownPathList("", 0)) > 0 {
 			break
 		}
-		time.Sleep(1)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Test WatchUpdate with "current" flag.
