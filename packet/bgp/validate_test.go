@@ -56,12 +56,12 @@ func Test_Validate_CapV6(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdateV6().Body.(*BGPUpdate)
 	res, err := ValidateUpdateMsg(message, map[RouteFamily]BGPAddPathMode{RF_IPv6_UC: BGP_ADD_PATH_BOTH}, false, false)
-	assert.Equal(true, res)
 	assert.NoError(err)
+	assert.True(res)
 
 	res, err = ValidateUpdateMsg(message, map[RouteFamily]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false)
-	require.NoError(t, err)
-	assert.Equal(false, res)
+	assert.Error(err)
+	assert.False(res)
 }
 
 func Test_Validate_OK(t *testing.T) {

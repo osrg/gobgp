@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -53,15 +54,17 @@ func Test_Message(t *testing.T) {
 
 	for _, m1 := range l {
 		buf1, err := m1.Serialize()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		t.Log("LEN =", len(buf1))
 		m2, err := ParseBGPMessage(buf1)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// FIXME: shouldn't but workaround for some structs.
+		_, err = m2.Serialize()
+		assert.NoError(t, err)
 
-		assert.Equal(t, m1, m2)
+		assert.True(t, reflect.DeepEqual(m1, m2))
 	}
 }
 
