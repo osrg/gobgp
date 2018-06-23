@@ -57,9 +57,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 			reach = a
 		case *bgp.PathAttributeMpUnreachNLRI:
 			l := make([]bgp.AddrPrefixInterface, 0, len(a.Value))
-			for _, nlri := range a.Value {
-				l = append(l, nlri)
-			}
+			l = append(l, a.Value...)
 			dels = append(dels, l...)
 		default:
 			attrs = append(attrs, attr)

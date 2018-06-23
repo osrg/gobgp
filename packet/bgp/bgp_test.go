@@ -19,11 +19,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
-	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func keepalive() *BGPMessage {
@@ -50,23 +50,18 @@ func BenchmarkNormalizeFlowSpecOpValues(b *testing.B) {
 
 func Test_Message(t *testing.T) {
 	l := []*BGPMessage{keepalive(), notification(), refresh(), NewTestBGPOpenMessage(), NewTestBGPUpdateMessage()}
+
 	for _, m1 := range l {
-		buf1, _ := m1.Serialize()
+		buf1, err := m1.Serialize()
+		require.NoError(t, err)
+
 		t.Log("LEN =", len(buf1))
 		m2, err := ParseBGPMessage(buf1)
-		if err != nil {
-			t.Error(err)
-		}
-		// FIXME: shouldn't but workaround for some structs.
-		buf2, _ := m2.Serialize()
+		require.NoError(t, err)
 
-		if reflect.DeepEqual(m1, m2) == true {
-			t.Log("OK")
-		} else {
-			t.Error("Something wrong")
-			t.Error(len(buf1), m1, buf1)
-			t.Error(len(buf2), m2, buf2)
-		}
+		// FIXME: shouldn't but workaround for some structs.
+
+		assert.Equal(t, m1, m2)
 	}
 }
 
@@ -395,26 +390,24 @@ func Test_FlowSpecNlri(t *testing.T) {
 	lastFragment := uint64(0x08)
 	item5 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
 	item6 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND, lastFragment)
+
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5, item6}))
 	item7 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
 	item8 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND|BITMASK_FLAG_OP_NOT, TCP_FLAG_URGENT)
+
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item7, item8}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
+
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
+
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_UC))
 	assert.Nil(err)
+
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	if reflect.DeepEqual(n1, n2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+	// should be equal
+	assert.Equal(n1, n2)
 }
 
 func Test_FlowSpecExtended(t *testing.T) {
@@ -428,42 +421,36 @@ func Test_FlowSpecExtended(t *testing.T) {
 	exts = append(exts, NewTrafficRemarkExtended(10))
 	m1 := NewPathAttributeExtendedCommunities(exts)
 	buf1, err := m1.Serialize()
-	assert.Nil(err)
+	require.NoError(t, err)
+
 	m2 := NewPathAttributeExtendedCommunities(nil)
 	err = m2.DecodeFromBytes(buf1)
-	assert.Nil(err)
-	buf2, _ := m2.Serialize()
-	if reflect.DeepEqual(m1, m2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), m1, buf1)
-		t.Error(len(buf2), m2, buf2)
-	}
+	require.NoError(t, err)
+
+	_, err = m2.Serialize()
+	require.NoError(t, err)
+
+	assert.Equal(m1, m2)
 }
 
 func Test_IP6FlowSpecExtended(t *testing.T) {
-	assert := assert.New(t)
 	exts := make([]ExtendedCommunityInterface, 0)
 	exts = append(exts, NewRedirectIPv6AddressSpecificExtended("2001:db8::68", 1000))
 	m1 := NewPathAttributeIP6ExtendedCommunities(exts)
 	buf1, err := m1.Serialize()
-	assert.Nil(err)
+	require.NoError(t, err)
+
 	m2 := NewPathAttributeIP6ExtendedCommunities(nil)
 	err = m2.DecodeFromBytes(buf1)
-	assert.Nil(err)
-	buf2, _ := m2.Serialize()
-	if reflect.DeepEqual(m1, m2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), m1, buf1)
-		t.Error(len(buf2), m2, buf2)
-	}
+	require.NoError(t, err)
+
+	_, err = m2.Serialize()
+	require.NoError(t, err)
+
+	assert.Equal(t, m1, m2)
 }
 
 func Test_FlowSpecNlriv6(t *testing.T) {
-	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
 	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
@@ -488,20 +475,18 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
 	n1 := NewFlowSpecIPv6Unicast(cmp)
 	buf1, err := n1.Serialize()
-	assert.Nil(err)
+	require.NoError(t, err)
+
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv6_UC))
-	assert.Nil(err)
+	require.NoError(t, err)
+
 	err = n2.DecodeFromBytes(buf1)
-	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	if reflect.DeepEqual(n1, n2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+	require.NoError(t, err)
+
+	_, err = n2.Serialize()
+	require.NoError(t, err)
+
+	assert.Equal(t, n1, n2)
 }
 
 func Test_Aigp(t *testing.T) {
@@ -509,19 +494,13 @@ func Test_Aigp(t *testing.T) {
 	m := NewAigpTLVIgpMetric(1000)
 	a1 := NewPathAttributeAigp([]AigpTLVInterface{m})
 	buf1, err := a1.Serialize()
-	assert.Nil(err)
+	require.NoError(t, err)
+
 	a2 := NewPathAttributeAigp(nil)
 	err = a2.DecodeFromBytes(buf1)
-	assert.Nil(err)
-	buf2, _ := a2.Serialize()
-	if reflect.DeepEqual(a1, a2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), a1, buf1)
-		t.Error(len(buf2), a2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+	require.NoError(t, err)
+
+	assert.Equal(a1, a2)
 }
 
 func Test_FlowSpecNlriL2(t *testing.T) {
@@ -540,15 +519,8 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	if reflect.DeepEqual(n1, n2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+
+	assert.Equal(n1, n2)
 }
 
 func Test_NotificationErrorCode(t *testing.T) {
@@ -572,16 +544,9 @@ func Test_FlowSpecNlriVPN(t *testing.T) {
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_VPN))
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
-	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	if reflect.DeepEqual(n1, n2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+	require.NoError(t, err)
+
+	assert.Equal(n1, n2)
 }
 
 func Test_EVPNIPPrefixRoute(t *testing.T) {
@@ -606,17 +571,8 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	t.Log(n1.RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value, n2.(*EVPNNLRI).RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value)
-	t.Log(reflect.DeepEqual(n1.RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value, n2.(*EVPNNLRI).RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value))
-	if reflect.DeepEqual(n1, n2) {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+
+	assert.Equal(n1, n2)
 }
 
 func Test_CapExtendedNexthop(t *testing.T) {
@@ -627,15 +583,8 @@ func Test_CapExtendedNexthop(t *testing.T) {
 	assert.Nil(err)
 	n2, err := DecodeCapability(buf1)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	if reflect.DeepEqual(n1, n2) {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+
+	assert.Equal(n1, n2)
 }
 
 func Test_AddPath(t *testing.T) {
@@ -815,15 +764,8 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
-	if reflect.DeepEqual(n1, n2) {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n1, buf1)
-		t.Error(len(buf2), n2, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+
+	assert.Equal(n1, n2)
 
 	label := NewMPLSLabelStack(2)
 
@@ -834,16 +776,8 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert.Nil(err)
 	err = n4.DecodeFromBytes(buf1)
 	assert.Nil(err)
-	buf2, _ = n3.Serialize()
-	t.Log(n3, n4)
-	if reflect.DeepEqual(n3, n4) {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), n3, buf1)
-		t.Error(len(buf2), n4, buf2)
-		t.Log(bytes.Equal(buf1, buf2))
-	}
+
+	assert.Equal(n3, n4)
 }
 
 func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
@@ -1133,7 +1067,7 @@ func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 
 	// "single-homed"
 	esiZero := EthernetSegmentIdentifier{}
-	args := make([]string, 0, 0)
+	args := make([]string, 0)
 	esi, err := ParseEthernetSegmentIdentifier(args)
 	assert.Nil(err)
 	assert.Equal(esiZero, esi)

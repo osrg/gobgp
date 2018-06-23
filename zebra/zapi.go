@@ -907,7 +907,7 @@ func (b *HelloBody) Serialize(version uint8) ([]byte, error) {
 	if version <= 3 {
 		return []byte{uint8(b.RedistDefault)}, nil
 	} else { // version >= 4
-		buf := make([]byte, 3, 3)
+		buf := make([]byte, 3)
 		buf[0] = uint8(b.RedistDefault)
 		binary.BigEndian.PutUint16(buf[1:3], b.Instance)
 		return buf, nil
@@ -942,7 +942,7 @@ func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
 	if version <= 3 {
 		return []byte{uint8(b.Redist)}, nil
 	} else { // version >= 4
-		buf := make([]byte, 4, 4)
+		buf := make([]byte, 4)
 		buf[0] = uint8(b.Afi)
 		buf[1] = uint8(b.Redist)
 		binary.BigEndian.PutUint16(buf[2:4], b.Instance)
@@ -1405,71 +1405,6 @@ func (n *Nexthop) String() string {
 		"type: %s, addr: %s, ifindex: %d, ifname: %s",
 		n.Type.String(), n.Addr.String(), n.Ifindex, n.Ifname)
 	return s
-}
-
-func serializeNexthops(nexthops []*Nexthop, isV4 bool, version uint8) ([]byte, error) {
-	buf := make([]byte, 0)
-	if len(nexthops) == 0 {
-		return buf, nil
-	}
-	buf = append(buf, byte(len(nexthops)))
-
-	nhIfindex := NEXTHOP_IFINDEX
-	nhIfname := NEXTHOP_IFNAME
-	nhIPv4 := NEXTHOP_IPV4
-	nhIPv4Ifindex := NEXTHOP_IPV4_IFINDEX
-	nhIPv4Ifname := NEXTHOP_IPV4_IFNAME
-	nhIPv6 := NEXTHOP_IPV6
-	nhIPv6Ifindex := NEXTHOP_IPV6_IFINDEX
-	nhIPv6Ifname := NEXTHOP_IPV6_IFNAME
-	if version >= 4 {
-		nhIfindex = FRR_NEXTHOP_IFINDEX
-		nhIfname = NEXTHOP_FLAG(0)
-		nhIPv4 = FRR_NEXTHOP_IPV4
-		nhIPv4Ifindex = FRR_NEXTHOP_IPV4_IFINDEX
-		nhIPv4Ifname = NEXTHOP_FLAG(0)
-		nhIPv6 = FRR_NEXTHOP_IPV6
-		nhIPv6Ifindex = FRR_NEXTHOP_IPV6_IFINDEX
-		nhIPv6Ifname = NEXTHOP_FLAG(0)
-	}
-
-	for _, nh := range nexthops {
-		buf = append(buf, byte(nh.Type))
-
-		switch nh.Type {
-		case nhIfindex, nhIfname:
-			bbuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
-			buf = append(buf, bbuf...)
-
-		case nhIPv4, nhIPv6:
-			if isV4 {
-				buf = append(buf, nh.Addr.To4()...)
-			} else {
-				buf = append(buf, nh.Addr.To16()...)
-			}
-			if version >= 4 {
-				// On FRRouting version 3.0 or later, NEXTHOP_IPV4 and
-				// NEXTHOP_IPV6 have the same structure with
-				// NEXTHOP_TYPE_IPV4_IFINDEX and NEXTHOP_TYPE_IPV6_IFINDEX.
-				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
-				buf = append(buf, bbuf...)
-			}
-
-		case nhIPv4Ifindex, nhIPv4Ifname, nhIPv6Ifindex, nhIPv6Ifname:
-			if isV4 {
-				buf = append(buf, nh.Addr.To4()...)
-			} else {
-				buf = append(buf, nh.Addr.To16()...)
-			}
-			bbuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(bbuf, nh.Ifindex)
-			buf = append(buf, bbuf...)
-		}
-	}
-
-	return buf, nil
 }
 
 func decodeNexthopsFromBytes(nexthops *[]*Nexthop, data []byte, isV4 bool, version uint8) (int, error) {

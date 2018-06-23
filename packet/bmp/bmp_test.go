@@ -16,27 +16,21 @@
 package bmp
 
 import (
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/stretchr/testify/assert"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/osrg/gobgp/packet/bgp"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func verify(t *testing.T, m1 *BMPMessage) {
 	buf1, _ := m1.Serialize()
 	m2, err := ParseBMPMessage(buf1)
-	if err != nil {
-		t.Error(err)
-	}
-	buf2, _ := m2.Serialize()
+	require.NoError(t, err)
 
-	if reflect.DeepEqual(m1, m2) == true {
-		t.Log("OK")
-	} else {
-		t.Error("Something wrong")
-		t.Error(len(buf1), m1, buf1)
-		t.Error(len(buf2), m2, buf2)
-	}
+	assert.Equal(t, m1, m2)
 }
 
 func Test_Initiation(t *testing.T) {

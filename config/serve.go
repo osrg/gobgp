@@ -68,12 +68,10 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 			}).Warningf("Can't read config file %s", path)
 		}
 	NEXT:
-		select {
-		case <-sigCh:
-			log.WithFields(log.Fields{
-				"Topic": "Config",
-			}).Info("Reload the config file")
-		}
+		<-sigCh
+		log.WithFields(log.Fields{
+			"Topic": "Config",
+		}).Info("Reload the config file")
 	}
 }
 

@@ -877,18 +877,21 @@ func toAs4Value(s string) (uint32, error) {
 	return uint32(i), nil
 }
 
+var (
+	_regexpASPathGroups  = regexp.MustCompile("[{}]")
+	_regexpASPathSegment = regexp.MustCompile(`,|\s+`)
+)
+
 func newAsPath(aspath string) (bgp.PathAttributeInterface, error) {
 	// For the first step, parses "aspath" into a list of uint32 list.
 	// e.g.) "10 20 {30,40} 50" -> [][]uint32{{10, 20}, {30, 40}, {50}}
-	exp := regexp.MustCompile("[{}]")
-	segments := exp.Split(aspath, -1)
+	segments := _regexpASPathGroups.Split(aspath, -1)
 	asPathPrams := make([]bgp.AsPathParamInterface, 0, len(segments))
-	exp = regexp.MustCompile(",|\\s+")
 	for idx, segment := range segments {
 		if segment == "" {
 			continue
 		}
-		nums := exp.Split(segment, -1)
+		nums := _regexpASPathSegment.Split(segment, -1)
 		asNums := make([]uint32, 0, len(nums))
 		for _, n := range nums {
 			if n == "" {
@@ -1071,22 +1074,6 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 	return args, nil, nil
 }
 
-func extractRouteDistinguisher(args []string) ([]string, bgp.RouteDistinguisherInterface, error) {
-	for idx, arg := range args {
-		if arg == "rd" {
-			if len(args) < (idx + 1) {
-				return nil, nil, fmt.Errorf("invalid rd format")
-			}
-			rd, err := bgp.ParseRouteDistinguisher(args[idx+1])
-			if err != nil {
-				return nil, nil, err
-			}
-			return append(args[:idx], args[idx+2:]...), rd, nil
-		}
-	}
-	return args, nil, nil
-}
-
 func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
@@ -1250,7 +1237,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 		attrs = append(attrs, mpreach)
 	}
 
-	if extcomms != nil && len(extcomms) > 0 {
+	if extcomms != nil {
 		extcomms, err := ParseExtendedCommunities(extcomms)
 		if err != nil {
 			return nil, err

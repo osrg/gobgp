@@ -201,9 +201,7 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	newIntfParams := make([]bgp.AsPathParamInterface, 0, len(asAttr.Value))
-	for _, p := range newParams {
-		newIntfParams = append(newIntfParams, p)
-	}
+	newIntfParams = append(newIntfParams, newParams...)
 
 	msg.PathAttributes[asAttrPos] = bgp.NewPathAttributeAsPath(newIntfParams)
 	return nil
@@ -384,7 +382,7 @@ func (p *packerV4) add(path *Path) {
 	if cages, y := p.hashmap[key]; y {
 		added := false
 		for _, c := range cages {
-			if bytes.Compare(c.attrsBytes, attrsB.Bytes()) == 0 {
+			if bytes.Equal(c.attrsBytes, attrsB.Bytes()) {
 				c.paths = append(c.paths, path)
 				added = true
 				break

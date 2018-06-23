@@ -24,11 +24,12 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrefixCalcurateNoRange(t *testing.T) {
@@ -3060,6 +3061,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 
 func TestAfiSafiInMatchPath(t *testing.T) {
 	condition, err := NewAfiSafiInCondition([]config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST})
+	require.NoError(t, err)
 
 	rtExtCom, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_ROUTE_TARGET, "100:100")
 	assert.NoError(t, err)

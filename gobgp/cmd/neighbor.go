@@ -129,11 +129,11 @@ func showNeighbors(vrf string) error {
 		}
 		timedelta = append(timedelta, timeStr)
 	}
-	var format string
-	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
+
+	format := "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
 	format += " %-11s |%9s %9s\n"
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
-	format_fsm := func(admin config.AdminState, fsm config.SessionState) string {
+	formatFsm := func(admin config.AdminState, fsm config.SessionState) string {
 		switch admin {
 		case config.ADMIN_STATE_DOWN:
 			return "Idle(Admin)"
@@ -164,7 +164,7 @@ func showNeighbors(vrf string) error {
 		if n.Config.NeighborInterface != "" {
 			neigh = n.Config.NeighborInterface
 		}
-		fmt.Printf(format, neigh, getASN(n), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
+		fmt.Printf(format, neigh, getASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
 	}
 
 	return nil
@@ -422,11 +422,7 @@ func showNeighbor(args []string) error {
 	return nil
 }
 
-type AsPathFormat struct {
-	start     string
-	end       string
-	separator string
-}
+type AsPathFormat struct{}
 
 func getPathSymbolString(p *table.Path, idx int, showBest bool) string {
 	symbols := ""
@@ -825,9 +821,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			var ps []*table.Path
 			switch r {
 			case CMD_ACCEPTED:
-				for _, p := range d.GetAllKnownPathList() {
-					ps = append(ps, p)
-				}
+				ps = append(ps, d.GetAllKnownPathList()...)
 			case CMD_REJECTED:
 				// always nothing
 			default:

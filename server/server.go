@@ -242,10 +242,12 @@ func (server *BgpServer) Serve() {
 					}
 					return true
 				}(peer.fsm.pConf.Transport.Config.LocalAddress)
-				if localAddrValid == false {
+
+				if !localAddrValid {
 					conn.Close()
 					return
 				}
+
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
@@ -1375,7 +1377,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			}).Panic("unknown msg type")
 		}
 	}
-	return
 }
 
 func (s *BgpServer) AddCollector(c *config.CollectorConfig) error {
@@ -1828,7 +1829,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		if len(pathList) > 0 {
 			sendFsmOutgoingMsg(peer, pathList, nil, false)
 		}
-		if deferral == false && len(filtered) > 0 {
+		if !deferral && len(filtered) > 0 {
 			withdrawnList := make([]*table.Path, 0, len(filtered))
 			for _, p := range filtered {
 				withdrawnList = append(withdrawnList, p.Clone(true))
@@ -2293,7 +2294,8 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 		if original.Config.AdminDown != c.Config.AdminDown {
 			sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
 			state := "Admin Down"
-			if c.Config.AdminDown == false {
+
+			if !c.Config.AdminDown {
 				state = "Admin Up"
 			}
 			log.WithFields(log.Fields{
@@ -2734,7 +2736,6 @@ type watchOptions struct {
 	initPeerState  bool
 	tableName      string
 	recvMessage    bool
-	sentMessage    bool
 }
 
 type WatchOption func(*watchOptions)
@@ -2859,16 +2860,10 @@ func (w *Watcher) notify(v WatchEvent) {
 }
 
 func (w *Watcher) loop() {
-	for {
-		select {
-		case ev, ok := <-w.ch.Out():
-			if !ok {
-				close(w.realCh)
-				return
-			}
-			w.realCh <- ev.(WatchEvent)
-		}
+	for ev := range w.ch.Out() {
+		w.realCh <- ev.(WatchEvent)
 	}
+	close(w.realCh)
 }
 
 func (w *Watcher) Stop() {
