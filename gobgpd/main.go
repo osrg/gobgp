@@ -113,7 +113,7 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
-	if opts.DisableStdlog == true {
+	if opts.DisableStdlog {
 		log.SetOutput(ioutil.Discard)
 	} else {
 		log.SetOutput(os.Stdout)

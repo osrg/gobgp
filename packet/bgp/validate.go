@@ -274,7 +274,7 @@ func validateAsPathValueBytes(data []byte) (bool, error) {
 				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH the number of AS is incorrect")
 			}
 			segLength := int(asNum)
-			if use4byte == true {
+			if use4byte {
 				segLength *= 4
 			} else {
 				segLength *= 2

@@ -255,18 +255,6 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, dd.knownPathList)
 }
 
-func (dd *Destination) validatePath(path *Path) {
-	if path == nil || path.GetRouteFamily() != dd.routeFamily {
-
-		log.WithFields(log.Fields{
-			"Topic":      "Table",
-			"Key":        dd.GetNlri().String(),
-			"Path":       path,
-			"ExpectedRF": dd.routeFamily,
-		}).Error("path is nil or invalid route family")
-	}
-}
-
 // Calculates best-path among known paths for this destination.
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
@@ -530,10 +518,7 @@ func (dst *Destination) sort() {
 
 		better.reason = reason
 
-		if better == path1 {
-			return true
-		}
-		return false
+		return better == path1
 	})
 }
 

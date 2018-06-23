@@ -154,7 +154,9 @@ func modVrf(typ string, args []string) error {
 				return err
 			}
 		}
-		err = client.AddVRF(name, int(id), rd, importRt, exportRt)
+		if err := client.AddVRF(name, int(id), rd, importRt, exportRt); err != nil {
+			return err
+		}
 	case CMD_DEL:
 		if len(args) != 1 {
 			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")

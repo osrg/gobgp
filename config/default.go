@@ -30,7 +30,7 @@ var configuredFields map[string]interface{}
 
 func RegisterConfiguredFields(addr string, n interface{}) {
 	if configuredFields == nil {
-		configuredFields = make(map[string]interface{}, 0)
+		configuredFields = make(map[string]interface{})
 	}
 	configuredFields[addr] = n
 }

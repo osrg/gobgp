@@ -16,10 +16,13 @@
 package server
 
 import (
+	"context"
 	"net"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -277,14 +280,8 @@ func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
-	for idx, path := range news {
-		var old *table.Path
-		if olds != nil {
-			old = olds[idx]
-		}
-		return path, old
-	}
-	return nil, nil
+
+	return news[0], olds[0]
 }
 
 func TestFilterpathWitheBGP(t *testing.T) {
@@ -656,22 +653,25 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	// Create dummy session which does NOT send BGP OPEN message in order to
 	// cause Graceful Restart timer expired.
 	var conn net.Conn
-	for {
-		time.Sleep(time.Second)
-		var err error
-		conn, err = net.Dial("tcp", "127.0.0.1:10179")
-		if err != nil {
-			log.Warn("net.Dial:", err)
-		}
-		break
-	}
+
+	conn, err = net.Dial("tcp", "127.0.0.1:10179")
+	require.NoError(t, err)
 	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
 
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
-		time.Sleep(time.Second)
 		if s1.GetNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_IDLE {
 			break
+		}
+
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			t.Fatalf("failed to enter IDLE state in the deadline")
+			return
 		}
 	}
 }

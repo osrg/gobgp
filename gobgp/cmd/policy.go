@@ -31,6 +31,8 @@ import (
 	"github.com/osrg/gobgp/table"
 )
 
+var _regexpCommunity = regexp.MustCompile(`\^\^(\S+)\$\$`)
+
 func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet) string {
 	if len(list) == 0 {
 		return "Nothing defined yet\n"
@@ -59,8 +61,7 @@ func formatDefinedSet(head bool, typ string, indent int, list []table.DefinedSet
 		}
 		for i, x := range l {
 			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
-				exp := regexp.MustCompile("\\^\\^(\\S+)\\$\\$")
-				x = exp.ReplaceAllString(x, "$1")
+				x = _regexpCommunity.ReplaceAllString(x, "$1")
 			}
 			if i == 0 {
 				buff.WriteString(fmt.Sprintf(format, s.Name(), x))
@@ -778,6 +779,9 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.BgpActions.SetNextHop = config.BgpNextHopType(args[0])
 	}
 	t, err := table.NewStatement(stmt)
+	if err != nil {
+		return err
+	}
 	switch op {
 	case CMD_ADD:
 		err = client.AddStatement(t)

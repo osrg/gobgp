@@ -283,10 +283,6 @@ type zebraClient struct {
 	dead         chan struct{}
 }
 
-func (z *zebraClient) stop() {
-	close(z.dead)
-}
-
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
 	rib := &table.TableManager{
 		Tables: make(map[bgp.RouteFamily]*table.Table),
@@ -326,7 +322,6 @@ func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
 			}).Error("failed to update nexthop reachability")
 		}
 	}
-	return
 }
 
 func (z *zebraClient) loop() {

@@ -687,31 +687,30 @@ func (s *Server) MonitorRib(arg *MonitorRibRequest, stream GobgpApi_MonitorRibSe
 			}
 			return nil
 		}
-		for {
-			select {
-			case ev := <-w.Event():
-				switch msg := ev.(type) {
-				case *server.WatchEventBestPath:
-					if err := sendPath(func() []*table.Path {
-						if len(msg.MultiPathList) > 0 {
-							l := make([]*table.Path, 0)
-							for _, p := range msg.MultiPathList {
-								l = append(l, p...)
-							}
-							return l
-						} else {
-							return msg.PathList
+
+		for ev := range w.Event() {
+			switch msg := ev.(type) {
+			case *server.WatchEventBestPath:
+				if err := sendPath(func() []*table.Path {
+					if len(msg.MultiPathList) > 0 {
+						l := make([]*table.Path, 0)
+						for _, p := range msg.MultiPathList {
+							l = append(l, p...)
 						}
-					}()); err != nil {
-						return err
+						return l
+					} else {
+						return msg.PathList
 					}
-				case *server.WatchEventUpdate:
-					if err := sendPath(msg.PathList); err != nil {
-						return err
-					}
+				}()); err != nil {
+					return err
+				}
+			case *server.WatchEventUpdate:
+				if err := sendPath(msg.PathList); err != nil {
+					return err
 				}
 			}
 		}
+		return nil
 	}()
 }
 
@@ -723,40 +722,38 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 		w := s.bgpServer.Watch(server.WatchPeerState(arg.Current))
 		defer func() { w.Stop() }()
 
-		for {
-			select {
-			case ev := <-w.Event():
-				switch msg := ev.(type) {
-				case *server.WatchEventPeerState:
-					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() && arg.Name != msg.PeerInterface {
-						continue
-					}
-					if err := stream.Send(&Peer{
-						Conf: &PeerConf{
-							PeerAs:            msg.PeerAS,
-							LocalAs:           msg.LocalAS,
-							NeighborAddress:   msg.PeerAddress.String(),
-							Id:                msg.PeerID.String(),
-							NeighborInterface: msg.PeerInterface,
-						},
-						Info: &PeerState{
-							PeerAs:          msg.PeerAS,
-							LocalAs:         msg.LocalAS,
-							NeighborAddress: msg.PeerAddress.String(),
-							BgpState:        msg.State.String(),
-							AdminState:      PeerState_AdminState(msg.AdminState),
-						},
-						Transport: &Transport{
-							LocalAddress: msg.LocalAddress.String(),
-							LocalPort:    uint32(msg.LocalPort),
-							RemotePort:   uint32(msg.PeerPort),
-						},
-					}); err != nil {
-						return err
-					}
+		for ev := range w.Event() {
+			switch msg := ev.(type) {
+			case *server.WatchEventPeerState:
+				if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() && arg.Name != msg.PeerInterface {
+					continue
+				}
+				if err := stream.Send(&Peer{
+					Conf: &PeerConf{
+						PeerAs:            msg.PeerAS,
+						LocalAs:           msg.LocalAS,
+						NeighborAddress:   msg.PeerAddress.String(),
+						Id:                msg.PeerID.String(),
+						NeighborInterface: msg.PeerInterface,
+					},
+					Info: &PeerState{
+						PeerAs:          msg.PeerAS,
+						LocalAs:         msg.LocalAS,
+						NeighborAddress: msg.PeerAddress.String(),
+						BgpState:        msg.State.String(),
+						AdminState:      PeerState_AdminState(msg.AdminState),
+					},
+					Transport: &Transport{
+						LocalAddress: msg.LocalAddress.String(),
+						LocalPort:    uint32(msg.LocalPort),
+						RemotePort:   uint32(msg.PeerPort),
+					},
+				}); err != nil {
+					return err
 				}
 			}
 		}
+		return nil
 	}()
 }
 
@@ -899,7 +896,7 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 		}
 
 		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
-		if path.IsWithdraw == false {
+		if !path.IsWithdraw {
 			total := bytes.NewBuffer(make([]byte, 0))
 			for _, a := range newPath.GetPathAttrs() {
 				if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
@@ -1660,33 +1657,23 @@ func NewAPIDefinedSetFromTableStruct(t table.DefinedSet) (*DefinedSet, error) {
 	case table.DEFINED_TYPE_NEIGHBOR:
 		s := t.(*table.NeighborSet)
 		c := s.ToConfig()
-		for _, n := range c.NeighborInfoList {
-			a.List = append(a.List, n)
-		}
+		a.List = append(a.List, c.NeighborInfoList...)
 	case table.DEFINED_TYPE_AS_PATH:
 		s := t.(*table.AsPathSet)
 		c := s.ToConfig()
-		for _, n := range c.AsPathList {
-			a.List = append(a.List, n)
-		}
+		a.List = append(a.List, c.AsPathList...)
 	case table.DEFINED_TYPE_COMMUNITY:
 		s := t.(*table.CommunitySet)
 		c := s.ToConfig()
-		for _, n := range c.CommunityList {
-			a.List = append(a.List, n)
-		}
+		a.List = append(a.List, c.CommunityList...)
 	case table.DEFINED_TYPE_EXT_COMMUNITY:
 		s := t.(*table.ExtCommunitySet)
 		c := s.ToConfig()
-		for _, n := range c.ExtCommunityList {
-			a.List = append(a.List, n)
-		}
+		a.List = append(a.List, c.ExtCommunityList...)
 	case table.DEFINED_TYPE_LARGE_COMMUNITY:
 		s := t.(*table.LargeCommunitySet)
 		c := s.ToConfig()
-		for _, n := range c.LargeCommunityList {
-			a.List = append(a.List, n)
-		}
+		a.List = append(a.List, c.LargeCommunityList...)
 	default:
 		return nil, fmt.Errorf("invalid defined type")
 	}
@@ -1874,6 +1861,8 @@ func NewDefinedSetFromApiStruct(a *DefinedSet) (table.DefinedSet, error) {
 	}
 }
 
+var _regexpPrefixMaskLengthRange = regexp.MustCompile(`(\d+)\.\.(\d+)`)
+
 func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (*GetDefinedSetResponse, error) {
 	cd, err := s.bgpServer.GetDefinedSet(table.DefinedType(arg.Type), arg.Name)
 	if err != nil {
@@ -1887,8 +1876,7 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (
 			Prefixes: func() []*Prefix {
 				l := make([]*Prefix, 0, len(cs.PrefixList))
 				for _, p := range cs.PrefixList {
-					exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
-					elems := exp.FindStringSubmatch(p.MasklengthRange)
+					elems := _regexpPrefixMaskLengthRange.FindStringSubmatch(p.MasklengthRange)
 					min, _ := strconv.ParseUint(elems[1], 10, 32)
 					max, _ := strconv.ParseUint(elems[2], 10, 32)
 
@@ -1981,6 +1969,8 @@ func NewAPIStatementFromTableStruct(t *table.Statement) *Statement {
 	return toStatementApi(t.ToConfig())
 }
 
+var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
+
 func toStatementApi(s *config.Statement) *Statement {
 	cs := &Conditions{}
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
@@ -2066,8 +2056,7 @@ func toStatementApi(s *config.Statement) *Statement {
 			if len(medStr) == 0 {
 				return nil
 			}
-			re := regexp.MustCompile("([+-]?)(\\d+)")
-			matches := re.FindStringSubmatch(medStr)
+			matches := _regexpMedActionType.FindStringSubmatch(medStr)
 			if len(matches) == 0 {
 				return nil
 			}

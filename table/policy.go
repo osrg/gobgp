@@ -26,12 +26,11 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
-
-	radix "github.com/armon/go-radix"
-
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+
+	radix "github.com/armon/go-radix"
+	log "github.com/sirupsen/logrus"
 )
 
 type PolicyOptions struct {
@@ -310,6 +309,8 @@ func (p *Prefix) PrefixString() string {
 	return p.Prefix.String()
 }
 
+var _regexpPrefixRange = regexp.MustCompile(`(\d+)\.\.(\d+)`)
+
 func NewPrefix(c config.Prefix) (*Prefix, error) {
 	_, prefix, err := net.ParseCIDR(c.IpPrefix)
 	if err != nil {
@@ -325,28 +326,30 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 		AddressFamily: rf,
 	}
 	maskRange := c.MasklengthRange
+
 	if maskRange == "" {
 		l, _ := prefix.Mask.Size()
 		maskLength := uint8(l)
 		p.MasklengthRangeMax = maskLength
 		p.MasklengthRangeMin = maskLength
-	} else {
-		exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
-		elems := exp.FindStringSubmatch(maskRange)
-		if len(elems) != 3 {
-			log.WithFields(log.Fields{
-				"Topic":           "Policy",
-				"Type":            "Prefix",
-				"MaskRangeFormat": maskRange,
-			}).Warn("mask length range format is invalid.")
-			return nil, fmt.Errorf("mask length range format is invalid")
-		}
-		// we've already checked the range is sane by regexp
-		min, _ := strconv.ParseUint(elems[1], 10, 8)
-		max, _ := strconv.ParseUint(elems[2], 10, 8)
-		p.MasklengthRangeMin = uint8(min)
-		p.MasklengthRangeMax = uint8(max)
+		return p, nil
 	}
+
+	elems := _regexpPrefixRange.FindStringSubmatch(maskRange)
+	if len(elems) != 3 {
+		log.WithFields(log.Fields{
+			"Topic":           "Policy",
+			"Type":            "Prefix",
+			"MaskRangeFormat": maskRange,
+		}).Warn("mask length range format is invalid.")
+		return nil, fmt.Errorf("mask length range format is invalid")
+	}
+
+	// we've already checked the range is sane by regexp
+	min, _ := strconv.ParseUint(elems[1], 10, 8)
+	max, _ := strconv.ParseUint(elems[2], 10, 8)
+	p.MasklengthRangeMin = uint8(min)
+	p.MasklengthRangeMax = uint8(max)
 	return p, nil
 }
 
@@ -824,32 +827,35 @@ func (m *singleAsPathMatch) Match(aspath []uint32) bool {
 	return false
 }
 
+var (
+	_regexpLeftMostRe = regexp.MustCompile(`$\^([0-9]+)_^`)
+	_regexpOriginRe   = regexp.MustCompile(`^_([0-9]+)\$$`)
+	_regexpIncludeRe  = regexp.MustCompile("^_([0-9]+)_$")
+	_regexpOnlyRe     = regexp.MustCompile(`^\^([0-9]+)\$$`)
+)
+
 func NewSingleAsPathMatch(arg string) *singleAsPathMatch {
-	leftMostRe := regexp.MustCompile("$\\^([0-9]+)_^")
-	originRe := regexp.MustCompile("^_([0-9]+)\\$$")
-	includeRe := regexp.MustCompile("^_([0-9]+)_$")
-	onlyRe := regexp.MustCompile("^\\^([0-9]+)\\$$")
 	switch {
-	case leftMostRe.MatchString(arg):
-		asn, _ := strconv.ParseUint(leftMostRe.FindStringSubmatch(arg)[1], 10, 32)
+	case _regexpLeftMostRe.MatchString(arg):
+		asn, _ := strconv.ParseUint(_regexpLeftMostRe.FindStringSubmatch(arg)[1], 10, 32)
 		return &singleAsPathMatch{
 			asn:  uint32(asn),
 			mode: LEFT_MOST,
 		}
-	case originRe.MatchString(arg):
-		asn, _ := strconv.ParseUint(originRe.FindStringSubmatch(arg)[1], 10, 32)
+	case _regexpOriginRe.MatchString(arg):
+		asn, _ := strconv.ParseUint(_regexpOriginRe.FindStringSubmatch(arg)[1], 10, 32)
 		return &singleAsPathMatch{
 			asn:  uint32(asn),
 			mode: ORIGIN,
 		}
-	case includeRe.MatchString(arg):
-		asn, _ := strconv.ParseUint(includeRe.FindStringSubmatch(arg)[1], 10, 32)
+	case _regexpIncludeRe.MatchString(arg):
+		asn, _ := strconv.ParseUint(_regexpIncludeRe.FindStringSubmatch(arg)[1], 10, 32)
 		return &singleAsPathMatch{
 			asn:  uint32(asn),
 			mode: INCLUDE,
 		}
-	case onlyRe.MatchString(arg):
-		asn, _ := strconv.ParseUint(onlyRe.FindStringSubmatch(arg)[1], 10, 32)
+	case _regexpOnlyRe.MatchString(arg):
+		asn, _ := strconv.ParseUint(_regexpOnlyRe.FindStringSubmatch(arg)[1], 10, 32)
 		return &singleAsPathMatch{
 			asn:  uint32(asn),
 			mode: ONLY,
@@ -1092,13 +1098,15 @@ func (s *CommunitySet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.ToConfig())
 }
 
+var _regexpCommunity = regexp.MustCompile(`(\d+):(\d+)`)
+
 func ParseCommunity(arg string) (uint32, error) {
 	i, err := strconv.ParseUint(arg, 10, 32)
 	if err == nil {
 		return uint32(i), nil
 	}
-	exp := regexp.MustCompile("(\\d+):(\\d+)")
-	elems := exp.FindStringSubmatch(arg)
+
+	elems := _regexpCommunity.FindStringSubmatch(arg)
 	if len(elems) == 3 {
 		fst, _ := strconv.ParseUint(elems[1], 10, 16)
 		snd, _ := strconv.ParseUint(elems[2], 10, 16)
@@ -1143,24 +1151,25 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 	return bgp.ParseExtendedCommunity(subtype, value)
 }
 
+var _regexpCommunity2 = regexp.MustCompile(`(\d+.)*\d+:\d+`)
+
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	i, err := strconv.ParseUint(arg, 10, 32)
 	if err == nil {
-		return regexp.MustCompile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff)), nil
+		return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
 	}
-	if regexp.MustCompile("(\\d+.)*\\d+:\\d+").MatchString(arg) {
-		return regexp.MustCompile(fmt.Sprintf("^%s$", arg)), nil
+
+	if _regexpCommunity2.MatchString(arg) {
+		return regexp.Compile(fmt.Sprintf("^%s$", arg))
 	}
+
 	for i, v := range bgp.WellKnownCommunityNameMap {
 		if strings.Replace(strings.ToLower(arg), "_", "-", -1) == v {
-			return regexp.MustCompile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff)), nil
+			return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
 		}
 	}
-	exp, err := regexp.Compile(arg)
-	if err != nil {
-		return nil, fmt.Errorf("invalid community format: %s", arg)
-	}
-	return exp, nil
+
+	return regexp.Compile(arg)
 }
 
 func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *regexp.Regexp, error) {
@@ -1311,14 +1320,17 @@ func (s *LargeCommunitySet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.ToConfig())
 }
 
+var _regexpCommunityLarge = regexp.MustCompile(`\d+:\d+:\d+`)
+
 func ParseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
-	if regexp.MustCompile("\\d+:\\d+:\\d+").MatchString(arg) {
-		return regexp.MustCompile(fmt.Sprintf("^%s$", arg)), nil
+	if _regexpCommunityLarge.MatchString(arg) {
+		return regexp.Compile(fmt.Sprintf("^%s$", arg))
 	}
 	exp, err := regexp.Compile(arg)
 	if err != nil {
-		return nil, fmt.Errorf("invalid large-community format: %s", arg)
+		return nil, fmt.Errorf("invalid large-community format: %v", err)
 	}
+
 	return exp, nil
 }
 
@@ -2079,7 +2091,7 @@ func RegexpRemoveCommunities(path *Path, exps []*regexp.Regexp) {
 				break
 			}
 		}
-		if match == false {
+		if !match {
 			newComms = append(newComms, comm)
 		}
 	}
@@ -2102,7 +2114,7 @@ func RegexpRemoveExtCommunities(path *Path, exps []*regexp.Regexp, subtypes []bg
 				break
 			}
 		}
-		if match == false {
+		if !match {
 			newComms = append(newComms, comm)
 		}
 	}
@@ -2121,7 +2133,7 @@ func RegexpRemoveLargeCommunities(path *Path, exps []*regexp.Regexp) {
 				break
 			}
 		}
-		if match == false {
+		if !match {
 			newComms = append(newComms, comm)
 		}
 	}
@@ -2163,10 +2175,12 @@ func (a *CommunityAction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.ToConfig())
 }
 
+// TODO: this is not efficient use of regexp, probably slow
+var _regexpCommunityReplaceString = regexp.MustCompile(`[\^\$]`)
+
 func (a *CommunityAction) String() string {
 	list := a.ToConfig().SetCommunityMethod.CommunitiesList
-	exp := regexp.MustCompile("[\\^\\$]")
-	l := exp.ReplaceAllString(strings.Join(list, ", "), "")
+	l := _regexpCommunityReplaceString.ReplaceAllString(strings.Join(list, ", "), "")
 	return fmt.Sprintf("%s[%s]", a.action, l)
 }
 
@@ -2260,8 +2274,7 @@ func (a *ExtCommunityAction) ToConfig() *config.SetExtCommunity {
 
 func (a *ExtCommunityAction) String() string {
 	list := a.ToConfig().SetExtCommunityMethod.CommunitiesList
-	exp := regexp.MustCompile("[\\^\\$]")
-	l := exp.ReplaceAllString(strings.Join(list, ", "), "")
+	l := _regexpCommunityReplaceString.ReplaceAllString(strings.Join(list, ", "), "")
 	return fmt.Sprintf("%s[%s]", a.action, l)
 }
 
@@ -2349,8 +2362,7 @@ func (a *LargeCommunityAction) ToConfig() *config.SetLargeCommunity {
 
 func (a *LargeCommunityAction) String() string {
 	list := a.ToConfig().SetLargeCommunityMethod.CommunitiesList
-	exp := regexp.MustCompile("[\\^\\$]")
-	l := exp.ReplaceAllString(strings.Join(list, ", "), "")
+	l := _regexpCommunityReplaceString.ReplaceAllString(strings.Join(list, ", "), "")
 	return fmt.Sprintf("%s[%s]", a.action, l)
 }
 
@@ -2439,12 +2451,14 @@ func (a *MedAction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.ToConfig())
 }
 
+var _regexpParseMedAction = regexp.MustCompile(`^(\+|\-)?(\d+)$`)
+
 func NewMedAction(c config.BgpSetMedType) (*MedAction, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	exp := regexp.MustCompile("^(\\+|\\-)?(\\d+)$")
-	elems := exp.FindStringSubmatch(string(c))
+
+	elems := _regexpParseMedAction.FindStringSubmatch(string(c))
 	if len(elems) != 3 {
 		return nil, fmt.Errorf("invalid med action format")
 	}

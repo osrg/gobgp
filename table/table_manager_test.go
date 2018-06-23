@@ -18,12 +18,10 @@ package table
 import (
 	_ "fmt"
 	"net"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/osrg/gobgp/packet/bgp"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,16 +38,6 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 		pathList = append(pathList, b)
 	}
 	return pathList, nil
-}
-
-func getLogger(lv log.Level) *log.Logger {
-	var l *log.Logger = &log.Logger{
-		Out:       os.Stderr,
-		Formatter: new(log.JSONFormatter),
-		Hooks:     make(map[log.Level][]log.Hook),
-		Level:     lv,
-	}
-	return l
 }
 
 func peerR1() *PeerInfo {

@@ -407,7 +407,7 @@ func (path *Path) SetAsLooped(y bool) {
 
 func (path *Path) IsLLGRStale() bool {
 	for _, c := range path.GetCommunities() {
-		if c == bgp.COMMUNITY_LLGR_STALE {
+		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
 			return true
 		}
 	}
@@ -798,7 +798,6 @@ func (path *Path) RemovePrivateAS(localAS uint32, option config.RemovePrivateAsO
 		}
 		path.setPathAttr(bgp.NewPathAttributeAsPath(newASParams))
 	}
-	return
 }
 
 func (path *Path) removeConfedAs() {
@@ -925,9 +924,7 @@ func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
 	eCommunityList := make([]bgp.ExtendedCommunityInterface, 0)
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES); attr != nil {
 		eCommunities := attr.(*bgp.PathAttributeExtendedCommunities).Value
-		for _, eCommunity := range eCommunities {
-			eCommunityList = append(eCommunityList, eCommunity)
-		}
+		eCommunityList = append(eCommunityList, eCommunities...)
 	}
 	return eCommunityList
 }
@@ -951,9 +948,7 @@ func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
 	if a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY); a != nil {
 		v := a.(*bgp.PathAttributeLargeCommunities).Values
 		ret := make([]*bgp.LargeCommunity, 0, len(v))
-		for _, c := range v {
-			ret = append(ret, c)
-		}
+		ret = append(ret, v...)
 		return ret
 	}
 	return nil
@@ -979,20 +974,19 @@ func (path *Path) GetMed() (uint32, error) {
 
 // SetMed replace, add or subtraction med with new ones.
 func (path *Path) SetMed(med int64, doReplace bool) error {
-
 	parseMed := func(orgMed uint32, med int64, doReplace bool) (*bgp.PathAttributeMultiExitDisc, error) {
-		newMed := &bgp.PathAttributeMultiExitDisc{}
 		if doReplace {
-			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(med))
-		} else {
-			if int64(orgMed)+med < 0 {
-				return nil, fmt.Errorf("med value invalid. it's underflow threshold.")
-			} else if int64(orgMed)+med > int64(math.MaxUint32) {
-				return nil, fmt.Errorf("med value invalid. it's overflow threshold.")
-			}
-			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med))
+			return bgp.NewPathAttributeMultiExitDisc(uint32(med)), nil
 		}
-		return newMed, nil
+
+		medVal := int64(orgMed) + med
+		if medVal < 0 {
+			return nil, fmt.Errorf("med value invalid. it's underflow threshold: %v", medVal)
+		} else if medVal > int64(math.MaxUint32) {
+			return nil, fmt.Errorf("med value invalid. it's overflow threshold: %v", medVal)
+		}
+
+		return bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med)), nil
 	}
 
 	m := uint32(0)

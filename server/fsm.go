@@ -23,14 +23,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/eapache/channels"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/tomb.v2"
-
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
+
+	"github.com/eapache/channels"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/tomb.v2"
 )
 
 type PeerDownReason int
@@ -1048,9 +1048,7 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 	if caps, y := capMap[bgp.BGP_CAP_ADD_PATH]; y {
 		items := make([]*bgp.CapAddPathTuple, 0, len(caps))
 		for _, c := range caps {
-			for _, i := range c.(*bgp.CapAddPath).Tuples {
-				items = append(items, i)
-			}
+			items = append(items, c.(*bgp.CapAddPath).Tuples...)
 		}
 		capMap[bgp.BGP_CAP_ADD_PATH] = []bgp.ParameterCapabilityInterface{bgp.NewCapAddPath(items)}
 	}
