@@ -546,7 +546,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Zebra",
-					}).Warnf("failed to serialize: %s", m)
+					}).Warnf("failed to serialize: %v", m)
 					continue
 				}
 

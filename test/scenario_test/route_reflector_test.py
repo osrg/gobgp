@@ -241,7 +241,6 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_12_routes_from_separate_rts_peers_are_isolated_by_rr(self):
         self.tyrell1.local("gobgp vrf add a1 rd 100:100 rt both 100:100")
-        self.tyrell1.local("gobgp vrf add a1 rd 100:100 rt both 100:100")
         self.tyrell1.local("gobgp vrf a1 rib add 10.10.0.0/16 local-pref 200")
         self.tyrell1.local("gobgp vrf a1 rib add 10.30.0.0/16")
         time.sleep(1)
