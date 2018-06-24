@@ -594,7 +594,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: config.GracefulRestart{
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
-				RestartTime: 10,
+				RestartTime: 1,
 			},
 		},
 	}
@@ -610,7 +610,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			Port:     -1,
 		},
 	})
-	assert.Nil(err)
+	require.NoError(t, err)
 	defer s2.Stop()
 
 	m := &config.Neighbor{
@@ -626,7 +626,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: config.GracefulRestart{
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
-				RestartTime: 10,
+				RestartTime: 1,
 			},
 		},
 	}
@@ -658,7 +658,8 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	// this seems to take around 22 seconds... need to address this whole thing
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
