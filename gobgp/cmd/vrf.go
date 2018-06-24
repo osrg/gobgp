@@ -22,12 +22,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/protobuf/ptypes/any"
-
-	"github.com/spf13/cobra"
-
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
+
+	"github.com/golang/protobuf/ptypes/any"
+	"github.com/spf13/cobra"
 )
 
 func getVrfs() (vrfs, error) {
@@ -167,7 +166,6 @@ func modVrf(typ string, args []string) error {
 }
 
 func NewVrfCmd() *cobra.Command {
-
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {

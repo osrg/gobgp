@@ -1711,8 +1711,8 @@ func (s *BgpServer) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInte
 			AS:      s.bgpConfig.Global.Config.As,
 			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
-		if pathList, e := s.globalRib.AddVrf(name, id, rd, im, ex, pi); e != nil {
-			return e
+		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
+			return err
 		} else if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
 		}
