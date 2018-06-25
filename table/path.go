@@ -22,8 +22,6 @@ import (
 	"math"
 	"net"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -610,39 +608,7 @@ func (path *Path) GetAsPathLen() int {
 func (path *Path) GetAsString() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
 	if aspath := path.GetAsPath(); aspath != nil {
-		for i, param := range aspath.Value {
-			segType := param.GetType()
-			asList := param.GetAS()
-			if i != 0 {
-				s.WriteString(" ")
-			}
-
-			sep := " "
-			switch segType {
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
-				s.WriteString("(")
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
-				s.WriteString("[")
-				sep = ","
-			case bgp.BGP_ASPATH_ATTR_TYPE_SET:
-				s.WriteString("{")
-				sep = ","
-			}
-			for j, as := range asList {
-				s.WriteString(fmt.Sprintf("%d", as))
-				if j != len(asList)-1 {
-					s.WriteString(sep)
-				}
-			}
-			switch segType {
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
-				s.WriteString(")")
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
-				s.WriteString("]")
-			case bgp.BGP_ASPATH_ATTR_TYPE_SET:
-				s.WriteString("}")
-			}
-		}
+		return bgp.AsPathString(aspath)
 	}
 	return s.String()
 }
@@ -677,31 +643,7 @@ func (path *Path) getAsListOfSpecificType(getAsSeq, getAsSet bool) []uint32 {
 }
 
 func (path *Path) GetLabelString() string {
-	label := ""
-	switch n := path.GetNlri().(type) {
-	case *bgp.LabeledIPAddrPrefix:
-		label = n.Labels.String()
-	case *bgp.LabeledIPv6AddrPrefix:
-		label = n.Labels.String()
-	case *bgp.LabeledVPNIPAddrPrefix:
-		label = n.Labels.String()
-	case *bgp.LabeledVPNIPv6AddrPrefix:
-		label = n.Labels.String()
-	case *bgp.EVPNNLRI:
-		switch route := n.RouteTypeData.(type) {
-		case *bgp.EVPNEthernetAutoDiscoveryRoute:
-			label = fmt.Sprintf("[%d]", route.Label)
-		case *bgp.EVPNMacIPAdvertisementRoute:
-			var l []string
-			for _, i := range route.Labels {
-				l = append(l, strconv.Itoa(int(i)))
-			}
-			label = fmt.Sprintf("[%s]", strings.Join(l, ","))
-		case *bgp.EVPNIPPrefixRoute:
-			label = fmt.Sprintf("[%d]", route.Label)
-		}
-	}
-	return label
+	return bgp.LabelString(path.GetNlri())
 }
 
 // PrependAsn prepends AS number.

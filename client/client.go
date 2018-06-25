@@ -29,7 +29,6 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
 )
 
 type Client struct {
@@ -244,24 +243,17 @@ func (cli *Client) SoftReset(addr string, family bgp.RouteFamily) error {
 	return cli.softreset(addr, family, api.SoftResetNeighborRequest_BOTH)
 }
 
-func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
-	prefixList := make([]*api.TableLookupPrefix, 0, len(prefixes))
-	for _, p := range prefixes {
-		prefixList = append(prefixList, &api.TableLookupPrefix{
-			Prefix:       p.Prefix,
-			LookupOption: api.TableLookupOption(p.LookupOption),
-		})
-	}
+func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFamily, prefixes []*api.TableLookupPrefix) (*api.Table, error) {
 	stream, err := cli.cli.GetPath(context.Background(), &api.GetPathRequest{
 		Type:     resource,
 		Family:   uint32(family),
 		Name:     name,
-		Prefixes: prefixList,
+		Prefixes: prefixes,
 	})
 	if err != nil {
 		return nil, err
 	}
-	pathMap := make(map[string][]*table.Path)
+	pathMap := make(map[string][]*api.Path)
 	for {
 		p, err := stream.Recv()
 		if err != nil {
@@ -274,49 +266,45 @@ func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFa
 		if err != nil {
 			return nil, err
 		}
-		var path *table.Path
-		if p.Identifier > 0 {
-			path, err = p.ToNativePath()
-		} else {
-			path, err = p.ToNativePath(api.ToNativeOption{
-				NLRI: nlri,
-			})
-		}
-		if err != nil {
-			return nil, err
-		}
 		nlriStr := nlri.String()
-		pathMap[nlriStr] = append(pathMap[nlriStr], path)
+		pathMap[nlriStr] = append(pathMap[nlriStr], p)
 	}
-	dstList := make([]*table.Destination, 0, len(pathMap))
+	dstList := make([]*api.Destination, 0, len(pathMap))
 	for _, pathList := range pathMap {
-		dstList = append(dstList, table.NewDestination(pathList[0].GetNlri(), 0, pathList...))
+		nlri, _ := pathList[0].GetNativeNlri()
+		dstList = append(dstList, &api.Destination{
+			Prefix: nlri.String(),
+			Paths:  pathList,
+		})
 	}
-	return table.NewTable(family, dstList...), nil
+	return &api.Table{
+		Family:       uint32(family),
+		Destinations: dstList,
+	}, nil
 }
 
-func (cli *Client) GetRIB(family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetRIB(family bgp.RouteFamily, prefixes []*api.TableLookupPrefix) (*api.Table, error) {
 	return cli.getRIB(api.Resource_GLOBAL, "", family, prefixes)
 }
 
-func (cli *Client) GetLocalRIB(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetLocalRIB(name string, family bgp.RouteFamily, prefixes []*api.TableLookupPrefix) (*api.Table, error) {
 	return cli.getRIB(api.Resource_LOCAL, name, family, prefixes)
 }
 
-func (cli *Client) GetAdjRIBIn(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetAdjRIBIn(name string, family bgp.RouteFamily, prefixes []*api.TableLookupPrefix) (*api.Table, error) {
 	return cli.getRIB(api.Resource_ADJ_IN, name, family, prefixes)
 }
 
-func (cli *Client) GetAdjRIBOut(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetAdjRIBOut(name string, family bgp.RouteFamily, prefixes []*api.TableLookupPrefix) (*api.Table, error) {
 	return cli.getRIB(api.Resource_ADJ_OUT, name, family, prefixes)
 }
 
-func (cli *Client) GetVRFRIB(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (*table.Table, error) {
+func (cli *Client) GetVRFRIB(name string, family bgp.RouteFamily, prefixes []*api.TableLookupPrefix) (*api.Table, error) {
 	return cli.getRIB(api.Resource_VRF, name, family, prefixes)
 }
 
-func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.RouteFamily) (*table.TableInfo, error) {
-	res, err := cli.cli.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
+func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.RouteFamily) (*api.TableInfo, error) {
+	r, err := cli.cli.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
 		Info: &api.TableInfo{
 			Type:   resource,
 			Name:   name,
@@ -325,28 +313,24 @@ func (cli *Client) getRIBInfo(resource api.Resource, name string, family bgp.Rou
 	})
 	if err != nil {
 		return nil, err
+	} else {
+		return r.Info, nil
 	}
-	return &table.TableInfo{
-		NumDestination: int(res.Info.NumDestination),
-		NumPath:        int(res.Info.NumPath),
-		NumAccepted:    int(res.Info.NumAccepted),
-	}, nil
-
 }
 
-func (cli *Client) GetRIBInfo(family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetRIBInfo(family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_GLOBAL, "", family)
 }
 
-func (cli *Client) GetLocalRIBInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetLocalRIBInfo(name string, family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_LOCAL, name, family)
 }
 
-func (cli *Client) GetAdjRIBInInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetAdjRIBInInfo(name string, family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_ADJ_IN, name, family)
 }
 
-func (cli *Client) GetAdjRIBOutInfo(name string, family bgp.RouteFamily) (*table.TableInfo, error) {
+func (cli *Client) GetAdjRIBOutInfo(name string, family bgp.RouteFamily) (*api.TableInfo, error) {
 	return cli.getRIBInfo(api.Resource_ADJ_OUT, name, family)
 }
 
@@ -354,14 +338,10 @@ type AddPathByStreamClient struct {
 	stream api.GobgpApi_InjectMrtClient
 }
 
-func (c *AddPathByStreamClient) Send(paths ...*table.Path) error {
-	ps := make([]*api.Path, 0, len(paths))
-	for _, p := range paths {
-		ps = append(ps, api.ToPathApiInBin(p, nil))
-	}
+func (c *AddPathByStreamClient) Send(paths ...*api.Path) error {
 	return c.stream.Send(&api.InjectMrtRequest{
 		Resource: api.Resource_GLOBAL,
-		Paths:    ps,
+		Paths:    paths,
 	})
 }
 
@@ -378,7 +358,7 @@ func (cli *Client) AddPathByStream() (*AddPathByStreamClient, error) {
 	return &AddPathByStreamClient{stream}, nil
 }
 
-func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error) {
+func (cli *Client) addPath(vrfID string, pathList []*api.Path) ([]byte, error) {
 	resource := api.Resource_GLOBAL
 	if vrfID != "" {
 		resource = api.Resource_VRF
@@ -388,7 +368,7 @@ func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error)
 		r, err := cli.cli.AddPath(context.Background(), &api.AddPathRequest{
 			Resource: resource,
 			VrfId:    vrfID,
-			Path:     api.ToPathApi(path, nil),
+			Path:     path,
 		})
 		if err != nil {
 			return nil, err
@@ -398,18 +378,18 @@ func (cli *Client) addPath(vrfID string, pathList []*table.Path) ([]byte, error)
 	return uuid, nil
 }
 
-func (cli *Client) AddPath(pathList []*table.Path) ([]byte, error) {
+func (cli *Client) AddPath(pathList []*api.Path) ([]byte, error) {
 	return cli.addPath("", pathList)
 }
 
-func (cli *Client) AddVRFPath(vrfID string, pathList []*table.Path) ([]byte, error) {
+func (cli *Client) AddVRFPath(vrfID string, pathList []*api.Path) ([]byte, error) {
 	if vrfID == "" {
 		return nil, fmt.Errorf("VRF ID is empty")
 	}
 	return cli.addPath(vrfID, pathList)
 }
 
-func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, pathList []*table.Path) error {
+func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, pathList []*api.Path) error {
 	var reqs []*api.DeletePathRequest
 
 	resource := api.Resource_GLOBAL
@@ -422,7 +402,7 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 			reqs = append(reqs, &api.DeletePathRequest{
 				Resource: resource,
 				VrfId:    vrfID,
-				Path:     api.ToPathApi(path, nil),
+				Path:     path,
 			})
 		}
 	default:
@@ -442,11 +422,11 @@ func (cli *Client) deletePath(uuid []byte, f bgp.RouteFamily, vrfID string, path
 	return nil
 }
 
-func (cli *Client) DeletePath(pathList []*table.Path) error {
+func (cli *Client) DeletePath(pathList []*api.Path) error {
 	return cli.deletePath(nil, bgp.RouteFamily(0), "", pathList)
 }
 
-func (cli *Client) DeleteVRFPath(vrfID string, pathList []*table.Path) error {
+func (cli *Client) DeleteVRFPath(vrfID string, pathList []*api.Path) error {
 	if vrfID == "" {
 		return fmt.Errorf("VRF ID is empty")
 	}
@@ -493,7 +473,7 @@ func (cli *Client) DeleteVRF(name string) error {
 	return err
 }
 
-func (cli *Client) getDefinedSet(typ table.DefinedType, name string) ([]table.DefinedSet, error) {
+func (cli *Client) getDefinedSet(typ api.DefinedType, name string) ([]*api.DefinedSet, error) {
 	ret, err := cli.cli.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{
 		Type: api.DefinedType(typ),
 		Name: name,
@@ -501,22 +481,14 @@ func (cli *Client) getDefinedSet(typ table.DefinedType, name string) ([]table.De
 	if err != nil {
 		return nil, err
 	}
-	ds := make([]table.DefinedSet, 0, len(ret.Sets))
-	for _, s := range ret.Sets {
-		d, err := api.NewDefinedSetFromApiStruct(s)
-		if err != nil {
-			return nil, err
-		}
-		ds = append(ds, d)
-	}
-	return ds, nil
+	return ret.Sets, nil
 }
 
-func (cli *Client) GetDefinedSet(typ table.DefinedType) ([]table.DefinedSet, error) {
+func (cli *Client) GetDefinedSet(typ api.DefinedType) ([]*api.DefinedSet, error) {
 	return cli.getDefinedSet(typ, "")
 }
 
-func (cli *Client) GetDefinedSetByName(typ table.DefinedType, name string) (table.DefinedSet, error) {
+func (cli *Client) GetDefinedSetByName(typ api.DefinedType, name string) (*api.DefinedSet, error) {
 	sets, err := cli.getDefinedSet(typ, name)
 	if err != nil {
 		return nil, err
@@ -529,99 +501,67 @@ func (cli *Client) GetDefinedSetByName(typ table.DefinedType, name string) (tabl
 	return sets[0], nil
 }
 
-func (cli *Client) AddDefinedSet(d table.DefinedSet) error {
-	a, err := api.NewAPIDefinedSetFromTableStruct(d)
-	if err != nil {
-		return err
-	}
-	_, err = cli.cli.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{
-		Set: a,
+func (cli *Client) AddDefinedSet(d *api.DefinedSet) error {
+	_, err := cli.cli.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{
+		Set: d,
 	})
 	return err
 }
 
-func (cli *Client) DeleteDefinedSet(d table.DefinedSet, all bool) error {
-	a, err := api.NewAPIDefinedSetFromTableStruct(d)
-	if err != nil {
-		return err
-	}
-	_, err = cli.cli.DeleteDefinedSet(context.Background(), &api.DeleteDefinedSetRequest{
-		Set: a,
+func (cli *Client) DeleteDefinedSet(d *api.DefinedSet, all bool) error {
+	_, err := cli.cli.DeleteDefinedSet(context.Background(), &api.DeleteDefinedSetRequest{
+		Set: d,
 		All: all,
 	})
 	return err
 }
 
-func (cli *Client) ReplaceDefinedSet(d table.DefinedSet) error {
-	a, err := api.NewAPIDefinedSetFromTableStruct(d)
-	if err != nil {
-		return err
-	}
-	_, err = cli.cli.ReplaceDefinedSet(context.Background(), &api.ReplaceDefinedSetRequest{
-		Set: a,
+func (cli *Client) ReplaceDefinedSet(d *api.DefinedSet) error {
+	_, err := cli.cli.ReplaceDefinedSet(context.Background(), &api.ReplaceDefinedSetRequest{
+		Set: d,
 	})
 	return err
 }
 
-func (cli *Client) GetStatement() ([]*table.Statement, error) {
+func (cli *Client) GetStatement() ([]*api.Statement, error) {
 	ret, err := cli.cli.GetStatement(context.Background(), &api.GetStatementRequest{})
 	if err != nil {
 		return nil, err
 	}
-	sts := make([]*table.Statement, 0, len(ret.Statements))
-	for _, s := range ret.Statements {
-		st, err := api.NewStatementFromApiStruct(s)
-		if err != nil {
-			return nil, err
-		}
-		sts = append(sts, st)
-	}
-	return sts, nil
+	return ret.Statements, nil
 }
 
-func (cli *Client) AddStatement(t *table.Statement) error {
-	a := api.NewAPIStatementFromTableStruct(t)
+func (cli *Client) AddStatement(t *api.Statement) error {
 	_, err := cli.cli.AddStatement(context.Background(), &api.AddStatementRequest{
-		Statement: a,
+		Statement: t,
 	})
 	return err
 }
 
-func (cli *Client) DeleteStatement(t *table.Statement, all bool) error {
-	a := api.NewAPIStatementFromTableStruct(t)
+func (cli *Client) DeleteStatement(t *api.Statement, all bool) error {
 	_, err := cli.cli.DeleteStatement(context.Background(), &api.DeleteStatementRequest{
-		Statement: a,
+		Statement: t,
 		All:       all,
 	})
 	return err
 }
 
-func (cli *Client) ReplaceStatement(t *table.Statement) error {
-	a := api.NewAPIStatementFromTableStruct(t)
+func (cli *Client) ReplaceStatement(t *api.Statement) error {
 	_, err := cli.cli.ReplaceStatement(context.Background(), &api.ReplaceStatementRequest{
-		Statement: a,
+		Statement: t,
 	})
 	return err
 }
 
-func (cli *Client) GetPolicy() ([]*table.Policy, error) {
+func (cli *Client) GetPolicy() ([]*api.Policy, error) {
 	ret, err := cli.cli.GetPolicy(context.Background(), &api.GetPolicyRequest{})
 	if err != nil {
 		return nil, err
 	}
-	pols := make([]*table.Policy, 0, len(ret.Policies))
-	for _, p := range ret.Policies {
-		pol, err := api.NewPolicyFromApiStruct(p)
-		if err != nil {
-			return nil, err
-		}
-		pols = append(pols, pol)
-	}
-	return pols, nil
+	return ret.Policies, nil
 }
 
-func (cli *Client) AddPolicy(t *table.Policy, refer bool) error {
-	a := api.NewAPIPolicyFromTableStruct(t)
+func (cli *Client) AddPolicy(a *api.Policy, refer bool) error {
 	_, err := cli.cli.AddPolicy(context.Background(), &api.AddPolicyRequest{
 		Policy:                  a,
 		ReferExistingStatements: refer,
@@ -629,8 +569,7 @@ func (cli *Client) AddPolicy(t *table.Policy, refer bool) error {
 	return err
 }
 
-func (cli *Client) DeletePolicy(t *table.Policy, all, preserve bool) error {
-	a := api.NewAPIPolicyFromTableStruct(t)
+func (cli *Client) DeletePolicy(a *api.Policy, all, preserve bool) error {
 	_, err := cli.cli.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
 		Policy:             a,
 		All:                all,
@@ -639,8 +578,7 @@ func (cli *Client) DeletePolicy(t *table.Policy, all, preserve bool) error {
 	return err
 }
 
-func (cli *Client) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
-	a := api.NewAPIPolicyFromTableStruct(t)
+func (cli *Client) ReplacePolicy(a *api.Policy, refer, preserve bool) error {
 	_, err := cli.cli.ReplacePolicy(context.Background(), &api.ReplacePolicyRequest{
 		Policy:                  a,
 		ReferExistingStatements: refer,
@@ -649,14 +587,7 @@ func (cli *Client) ReplacePolicy(t *table.Policy, refer, preserve bool) error {
 	return err
 }
 
-func (cli *Client) getPolicyAssignment(name string, dir table.PolicyDirection) (*table.PolicyAssignment, error) {
-	var typ api.PolicyType
-	switch dir {
-	case table.POLICY_DIRECTION_IMPORT:
-		typ = api.PolicyType_IMPORT
-	case table.POLICY_DIRECTION_EXPORT:
-		typ = api.PolicyType_EXPORT
-	}
+func (cli *Client) getPolicyAssignment(name string, typ api.PolicyType) (*api.PolicyAssignment, error) {
 	resource := api.Resource_GLOBAL
 	if name != "" {
 		resource = api.Resource_LOCAL
@@ -673,61 +604,47 @@ func (cli *Client) getPolicyAssignment(name string, dir table.PolicyDirection) (
 		return nil, err
 	}
 
-	def := table.ROUTE_TYPE_ACCEPT
-	if ret.Assignment.Default == api.RouteAction_REJECT {
-		def = table.ROUTE_TYPE_REJECT
-	}
-
-	pols := make([]*table.Policy, 0, len(ret.Assignment.Policies))
-	for _, p := range ret.Assignment.Policies {
-		pol, err := api.NewPolicyFromApiStruct(p)
-		if err != nil {
-			return nil, err
-		}
-		pols = append(pols, pol)
-	}
-	return &table.PolicyAssignment{
+	return &api.PolicyAssignment{
 		Name:     name,
-		Type:     dir,
-		Policies: pols,
-		Default:  def,
+		Type:     typ,
+		Policies: ret.Assignment.Policies,
+		Default:  ret.Assignment.Default,
 	}, nil
 }
 
-func (cli *Client) GetImportPolicy() (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_IMPORT)
+func (cli *Client) GetImportPolicy() (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment("", api.PolicyType_IMPORT)
 }
 
-func (cli *Client) GetExportPolicy() (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment("", table.POLICY_DIRECTION_EXPORT)
+func (cli *Client) GetExportPolicy() (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment("", api.PolicyType_EXPORT)
 }
 
-func (cli *Client) GetRouteServerImportPolicy(name string) (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_IMPORT)
+func (cli *Client) GetRouteServerImportPolicy(name string) (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment(name, api.PolicyType_IMPORT)
 }
 
-func (cli *Client) GetRouteServerExportPolicy(name string) (*table.PolicyAssignment, error) {
-	return cli.getPolicyAssignment(name, table.POLICY_DIRECTION_EXPORT)
+func (cli *Client) GetRouteServerExportPolicy(name string) (*api.PolicyAssignment, error) {
+	return cli.getPolicyAssignment(name, api.PolicyType_EXPORT)
 }
 
-func (cli *Client) AddPolicyAssignment(assignment *table.PolicyAssignment) error {
+func (cli *Client) AddPolicyAssignment(assignment *api.PolicyAssignment) error {
 	_, err := cli.cli.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
-		Assignment: api.NewAPIPolicyAssignmentFromTableStruct(assignment),
+		Assignment: assignment,
 	})
 	return err
 }
 
-func (cli *Client) DeletePolicyAssignment(assignment *table.PolicyAssignment, all bool) error {
-	a := api.NewAPIPolicyAssignmentFromTableStruct(assignment)
+func (cli *Client) DeletePolicyAssignment(assignment *api.PolicyAssignment, all bool) error {
 	_, err := cli.cli.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{
-		Assignment: a,
+		Assignment: assignment,
 		All:        all})
 	return err
 }
 
-func (cli *Client) ReplacePolicyAssignment(assignment *table.PolicyAssignment) error {
+func (cli *Client) ReplacePolicyAssignment(assignment *api.PolicyAssignment) error {
 	_, err := cli.cli.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
-		Assignment: api.NewAPIPolicyAssignmentFromTableStruct(assignment),
+		Assignment: assignment,
 	})
 	return err
 }
@@ -788,14 +705,14 @@ func (cli *Client) GetRPKI() ([]*config.RpkiServer, error) {
 	return servers, nil
 }
 
-func (cli *Client) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
+func (cli *Client) GetROA(family bgp.RouteFamily) ([]*api.Roa, error) {
 	rsp, err := cli.cli.GetRoa(context.Background(), &api.GetRoaRequest{
 		Family: uint32(family),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return api.NewROAListFromApiStructList(rsp.Roas)
+	return rsp.Roas, nil
 }
 
 func (cli *Client) AddRPKIServer(address string, port, lifetime int) error {
@@ -874,12 +791,8 @@ type MonitorRIBClient struct {
 	stream api.GobgpApi_MonitorRibClient
 }
 
-func (c *MonitorRIBClient) Recv() (*table.Destination, error) {
-	d, err := c.stream.Recv()
-	if err != nil {
-		return nil, err
-	}
-	return d.ToNativeDestination()
+func (c *MonitorRIBClient) Recv() (*api.Destination, error) {
+	return c.stream.Recv()
 }
 
 func (cli *Client) MonitorRIB(family bgp.RouteFamily, current bool) (*MonitorRIBClient, error) {
