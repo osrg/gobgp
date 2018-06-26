@@ -19,8 +19,8 @@ import (
 	"bytes"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/eapache/channels"
@@ -111,7 +111,7 @@ type BgpServer struct {
 	globalRib    *table.TableManager
 	rsRib        *table.TableManager
 	roaManager   *roaManager
-	shutdown     bool
+	shutdownWG   *sync.WaitGroup
 	watcherMap   map[WatchEventType][]*Watcher
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
@@ -1231,7 +1231,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				}
 			}
 		} else {
-			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
+			if server.shutdownWG != nil && nextState == bgp.BGP_FSM_IDLE {
 				die := true
 				for _, p := range server.neighborMap {
 					if p.fsm.state != bgp.BGP_FSM_IDLE {
@@ -1240,7 +1240,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					}
 				}
 				if die {
-					os.Exit(0)
+					server.shutdownWG.Done()
 				}
 			}
 			peer.fsm.pConf.Timers.State.Downtime = time.Now().Unix()
@@ -1414,18 +1414,26 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) error {
 
 func (s *BgpServer) Shutdown() {
 	s.mgmtOperation(func() error {
-		s.shutdown = true
-		stateOp := AdminStateOperation{ADMIN_STATE_DOWN, nil}
+		s.shutdownWG = new(sync.WaitGroup)
+		s.shutdownWG.Add(1)
+		stateOp := AdminStateOperation{
+			State:         ADMIN_STATE_DOWN,
+			Communication: nil,
+		}
 		for _, p := range s.neighborMap {
 			p.fsm.adminStateCh <- stateOp
-		}
-		// the main goroutine waits for peers' goroutines to stop but if no peer is configured, needs to die immediately.
-		if len(s.neighborMap) == 0 {
-			os.Exit(0)
 		}
 		// TODO: call fsmincomingCh.Close()
 		return nil
 	}, false)
+
+	// Waits for all goroutines per peer to stop.
+	// Note: This should not be wrapped with s.mgmtOperation() in order to
+	// avoid the deadlock in the main goroutine of BgpServer.
+	if s.shutdownWG != nil {
+		s.shutdownWG.Wait()
+		s.shutdownWG = nil
+	}
 }
 
 func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) error {
