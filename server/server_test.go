@@ -676,3 +676,32 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		}
 	}
 }
+
+func TestFamiliesForSoftreset(t *testing.T) {
+	f := func(f bgp.RouteFamily) config.AfiSafi {
+		return config.AfiSafi{
+			State: config.AfiSafiState{
+				Family: f,
+			},
+		}
+	}
+	peer := &Peer{
+		fsm: &FSM{
+			pConf: &config.Neighbor{
+				AfiSafis: []config.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
+			},
+		},
+	}
+
+	families := familiesForSoftreset(peer, bgp.RF_IPv4_UC)
+	assert.Equal(t, len(families), 1)
+	assert.Equal(t, families[0], bgp.RF_IPv4_UC)
+
+	families = familiesForSoftreset(peer, bgp.RF_RTC_UC)
+	assert.Equal(t, len(families), 1)
+	assert.Equal(t, families[0], bgp.RF_RTC_UC)
+
+	families = familiesForSoftreset(peer, bgp.RouteFamily(0))
+	assert.Equal(t, len(families), 2)
+	assert.NotContains(t, families, bgp.RF_RTC_UC)
+}
