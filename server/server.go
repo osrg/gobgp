@@ -1782,7 +1782,9 @@ func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
 		if family == bgp.RouteFamily(0) {
 			families = peer.configuredRFlist()
 		}
-		families = filterFamilyList(families, bgp.RF_RTC_UC)
+		if family != bgp.RF_RTC_UC {
+			families = filterFamilyList(families, bgp.RF_RTC_UC)
+		}
 		pathList := make([]*table.Path, 0, peer.adjRibIn.Count(families))
 		for _, path := range peer.adjRibIn.PathList(families, false) {
 			// RFC4271 9.1.2 Phase 2: Route Selection
@@ -1823,7 +1825,9 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		if family == bgp.RouteFamily(0) {
 			families = peer.negotiatedRFList()
 		}
-		families = filterFamilyList(families, bgp.RF_RTC_UC)
+		if family != bgp.RF_RTC_UC {
+			families = filterFamilyList(families, bgp.RF_RTC_UC)
+		}
 
 		if deferral {
 			_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
