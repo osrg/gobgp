@@ -466,7 +466,7 @@ func (fsm *FSM) connectLoop() error {
 			}).Debug("stop connect loop")
 			return nil
 		case <-timer.C:
-			if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
+			if fsm.state == bgp.BGP_FSM_ACTIVE {
 				go connect()
 			}
 		case <-fsm.getActiveCh:
