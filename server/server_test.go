@@ -676,3 +676,16 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterFamilyList(t *testing.T) {
+	families := []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_RTC_UC}
+	families = filterFamilyList(families, bgp.RF_RTC_UC)
+	assert.Equal(t, len(families), 1)
+	assert.Equal(t, families[0], bgp.RF_IPv4_UC)
+
+	families = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_RTC_UC, bgp.RF_IPv6_UC}
+	families = filterFamilyList(families, bgp.RF_RTC_UC)
+	families = filterFamilyList(families, bgp.RF_IPv4_UC)
+	assert.Equal(t, len(families), 1)
+	assert.Equal(t, families[0], bgp.RF_IPv6_UC)
+}
