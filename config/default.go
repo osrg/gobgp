@@ -496,7 +496,9 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.TtlSecurity.Config, &pg.TtlSecurity.Config, "neighbor.ttl-security.config", v)
 
 	if !v.IsSet("neighbor.afi-safis") {
-		c.AfiSafis = pg.AfiSafis
+		for _, afiSafi := range pg.AfiSafis {
+			c.AfiSafis = append(c.AfiSafis, afiSafi)
+		}
 	}
 
 	return nil
