@@ -25,9 +25,9 @@ import (
 )
 
 var (
-	repexpCommunity       = regexp.MustCompile("(\\d+.)*\\d+:\\d+")
-	regexpLargeCommunity  = regexp.MustCompile("\\d+:\\d+:\\d+")
-	regexpCommunityString = regexp.MustCompile("[\\^\\$]")
+	repexpCommunity       = regexp.MustCompile(`(\d+.)*\d+:\d+`)
+	regexpLargeCommunity  = regexp.MustCompile(`\d+:\d+:\d+`)
+	regexpCommunityString = regexp.MustCompile(`[\^\$]`)
 )
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
