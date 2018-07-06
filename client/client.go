@@ -29,6 +29,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/server"
 )
 
 type Client struct {
@@ -149,7 +150,7 @@ func (cli *Client) getNeighbor(name string, afi int, vrf string, enableAdvertise
 				continue
 			}
 		}
-		n, err := api.NewNeighborFromAPIStruct(p)
+		n, err := server.NewNeighborFromAPIStruct(p)
 		if err != nil {
 			return nil, err
 		}
@@ -186,19 +187,19 @@ func (cli *Client) GetNeighbor(name string, options ...bool) (*config.Neighbor, 
 }
 
 func (cli *Client) AddNeighbor(c *config.Neighbor) error {
-	peer := api.NewPeerFromConfigStruct(c)
+	peer := server.NewPeerFromConfigStruct(c)
 	_, err := cli.cli.AddNeighbor(context.Background(), &api.AddNeighborRequest{Peer: peer})
 	return err
 }
 
 func (cli *Client) DeleteNeighbor(c *config.Neighbor) error {
-	peer := api.NewPeerFromConfigStruct(c)
+	peer := server.NewPeerFromConfigStruct(c)
 	_, err := cli.cli.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{Peer: peer})
 	return err
 }
 
 func (cli *Client) UpdateNeighbor(c *config.Neighbor, doSoftResetIn bool) (bool, error) {
-	peer := api.NewPeerFromConfigStruct(c)
+	peer := server.NewPeerFromConfigStruct(c)
 	response, err := cli.cli.UpdateNeighbor(context.Background(), &api.UpdateNeighborRequest{Peer: peer, DoSoftResetIn: doSoftResetIn})
 	return response.NeedsSoftResetIn, err
 }
@@ -833,7 +834,7 @@ func (c *MonitorNeighborStateClient) Recv() (*config.Neighbor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return api.NewNeighborFromAPIStruct(p)
+	return server.NewNeighborFromAPIStruct(p)
 }
 
 func (cli *Client) MonitorNeighborState(name string, current bool) (*MonitorNeighborStateClient, error) {

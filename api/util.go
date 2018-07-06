@@ -20,7 +20,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -107,23 +106,4 @@ func (p *Path) GetNativePathAttributes() ([]bgp.PathAttributeInterface, error) {
 		return pattrs, nil
 	}
 	return UnmarshalPathAttributes(p.AnyPattrs)
-}
-
-func extractFamilyFromConfigAfiSafi(c *config.AfiSafi) uint32 {
-	if c == nil {
-		return 0
-	}
-	// If address family value is already stored in AfiSafiState structure,
-	// we prefer to use this value.
-	if c.State.Family != 0 {
-		return uint32(c.State.Family)
-	}
-	// In case that Neighbor structure came from CLI or gRPC, address family
-	// value in AfiSafiState structure can be omitted.
-	// Here extracts value from AfiSafiName field in AfiSafiConfig structure.
-	if rf, err := bgp.GetRouteFamily(string(c.Config.AfiSafiName)); err == nil {
-		return uint32(rf)
-	}
-	// Ignores invalid address family name
-	return 0
 }
