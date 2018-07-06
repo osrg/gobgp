@@ -158,7 +158,7 @@ func main() {
 		grpcOpts = []grpc.ServerOption{grpc.Creds(creds)}
 	}
 	// start grpc Server
-	apiServer := api.NewServer(bgpServer, grpc.NewServer(grpcOpts...), opts.GrpcHosts)
+	apiServer := server.NewServer(bgpServer, grpc.NewServer(grpcOpts...), opts.GrpcHosts)
 	go func() {
 		if err := apiServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -184,7 +184,7 @@ func main() {
 				if c == nil {
 					c = newConfig
 					if _, err := apiServer.StartServer(context.Background(), &api.StartServerRequest{
-						Global: api.NewGlobalFromConfigStruct(&c.Global),
+						Global: server.NewGlobalFromConfigStruct(&c.Global),
 					}); err != nil {
 						log.Fatalf("failed to set global config: %s", err)
 					}
@@ -274,7 +274,7 @@ func main() {
 						}
 					}
 					p := config.ConfigSetToRoutingPolicy(newConfig)
-					rp, err := api.NewAPIRoutingPolicyFromConfigStruct(p)
+					rp, err := server.NewAPIRoutingPolicyFromConfigStruct(p)
 					if err != nil {
 						log.Warn(err)
 					} else {
@@ -302,7 +302,7 @@ func main() {
 					if updatePolicy {
 						log.Info("Policy config is updated")
 						p := config.ConfigSetToRoutingPolicy(newConfig)
-						rp, err := api.NewAPIRoutingPolicyFromConfigStruct(p)
+						rp, err := server.NewAPIRoutingPolicyFromConfigStruct(p)
 						if err != nil {
 							log.Warn(err)
 						} else {
@@ -338,7 +338,7 @@ func main() {
 						def := toDefaultTable(a.DefaultImportPolicy)
 						ps := toPolicies(a.ImportPolicyList)
 						apiServer.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
-							Assignment: api.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+							Assignment: server.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 								Name:     "",
 								Type:     table.POLICY_DIRECTION_IMPORT,
 								Policies: ps,
@@ -349,7 +349,7 @@ func main() {
 						def = toDefaultTable(a.DefaultExportPolicy)
 						ps = toPolicies(a.ExportPolicyList)
 						apiServer.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
-							Assignment: api.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+							Assignment: server.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 								Name:     "",
 								Type:     table.POLICY_DIRECTION_EXPORT,
 								Policies: ps,
@@ -365,7 +365,7 @@ func main() {
 				for _, pg := range addedPg {
 					log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
 					if _, err := apiServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
-						PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -373,7 +373,7 @@ func main() {
 				for _, pg := range deletedPg {
 					log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
 					if _, err := apiServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
-						PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -381,7 +381,7 @@ func main() {
 				for _, pg := range updatedPg {
 					log.Infof("PeerGroup %v is updated", pg.State.PeerGroupName)
 					if u, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					} else {
@@ -391,7 +391,7 @@ func main() {
 				for _, pg := range updatedPg {
 					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
 					if _, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: api.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -410,7 +410,7 @@ func main() {
 				for _, p := range added {
 					log.Infof("Peer %v is added", p.State.NeighborAddress)
 					if _, err := apiServer.AddNeighbor(context.Background(), &api.AddNeighborRequest{
-						Peer: api.NewPeerFromConfigStruct(&p),
+						Peer: server.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -418,7 +418,7 @@ func main() {
 				for _, p := range deleted {
 					log.Infof("Peer %v is deleted", p.State.NeighborAddress)
 					if _, err := apiServer.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{
-						Peer: api.NewPeerFromConfigStruct(&p),
+						Peer: server.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -426,7 +426,7 @@ func main() {
 				for _, p := range updated {
 					log.Infof("Peer %v is updated", p.State.NeighborAddress)
 					if u, err := apiServer.UpdateNeighbor(context.Background(), &api.UpdateNeighborRequest{
-						Peer: api.NewPeerFromConfigStruct(&p),
+						Peer: server.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
 					} else {

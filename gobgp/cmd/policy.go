@@ -31,7 +31,131 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
-var _regexpCommunity = regexp.MustCompile(`\^\^(\S+)\$\$`)
+var (
+	_regexpCommunity      = regexp.MustCompile(`\^\^(\S+)\$\$`)
+	repexpCommunity       = regexp.MustCompile(`(\d+.)*\d+:\d+`)
+	regexpLargeCommunity  = regexp.MustCompile(`\d+:\d+:\d+`)
+	regexpCommunityString = regexp.MustCompile(`[\^\$]`)
+)
+
+func parseCommunityRegexp(arg string) (*regexp.Regexp, error) {
+	i, err := strconv.ParseUint(arg, 10, 32)
+	if err == nil {
+		return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
+	}
+	if repexpCommunity.MatchString(arg) {
+		return regexp.Compile(fmt.Sprintf("^%s$", arg))
+	}
+	for i, v := range bgp.WellKnownCommunityNameMap {
+		if strings.Replace(strings.ToLower(arg), "_", "-", -1) == v {
+			return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
+		}
+	}
+	exp, err := regexp.Compile(arg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid community format: %s", arg)
+	}
+	return exp, nil
+}
+
+func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *regexp.Regexp, error) {
+	var subtype bgp.ExtendedCommunityAttrSubType
+	elems := strings.SplitN(arg, ":", 2)
+	if len(elems) < 2 {
+		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo]:<value>)")
+	}
+	switch strings.ToLower(elems[0]) {
+	case "rt":
+		subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
+	case "soo":
+		subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+	default:
+		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
+	}
+	exp, err := parseCommunityRegexp(elems[1])
+	return subtype, exp, err
+}
+
+func ParseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
+	if regexpLargeCommunity.MatchString(arg) {
+		return regexp.Compile(fmt.Sprintf("^%s$", arg))
+	}
+	exp, err := regexp.Compile(arg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid large-community format: %s", arg)
+	}
+	return exp, nil
+}
+
+func (s *MatchSet) PrettyString() string {
+	var typ string
+	switch s.Type {
+	case MatchType_ALL:
+		typ = "all"
+	case MatchType_ANY:
+		typ = "any"
+	case MatchType_INVERT:
+		typ = "invert"
+	}
+	return fmt.Sprintf("%s %s", typ, s.GetName())
+}
+
+func (s *AsPathLength) PrettyString() string {
+	var typ string
+	switch s.Type {
+	case AsPathLengthType_EQ:
+		typ = "="
+	case AsPathLengthType_GE:
+		typ = ">="
+	case AsPathLengthType_LE:
+		typ = "<="
+	}
+	return fmt.Sprintf("%s%d", typ, s.Length)
+}
+
+func (s Conditions_RouteType) PrettyString() string {
+	switch s {
+	case Conditions_ROUTE_TYPE_EXTERNAL:
+		return "external"
+	case Conditions_ROUTE_TYPE_INTERNAL:
+		return "internal"
+	case Conditions_ROUTE_TYPE_LOCAL:
+		return "local"
+	}
+	return "unknown"
+}
+
+func actionPrettyString(v interface{}) string {
+	switch a := v.(type) {
+	case *api.CommunityAction:
+		l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
+		var typ string
+		switch a.Type {
+		case CommunityActionType_COMMUNITY_ADD:
+			typ = "add"
+		case CommunityActionType_COMMUNITY_REMOVE:
+			typ = "remove"
+		case CommunityActionType_COMMUNITY_REPLACE:
+			typ = "replace"
+		}
+		return fmt.Sprintf("%s[%s]", typ, l)
+	case *api.MedAction:
+		if a.Type == MedActionType_MED_MOD && a.Value > 0 {
+			return fmt.Sprintf("+%d", a.Value)
+		}
+		return fmt.Sprintf("%d", a.Value)
+	case *api.LocalPrefAction:
+		return fmt.Sprintf("%d", a.Value)
+	case *api.NexthopAction:
+		if a.Self {
+			return "self"
+		}
+		return a.Address
+	case *api.AsPrependAction:
+		return fmt.Sprintf("prepend %d %d times", a.Asn, a.Repeat)
+	}
+	return "unknown"
+}
 
 func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet) string {
 	if len(list) == 0 {
@@ -374,7 +498,7 @@ func printStatement(indent int, s *api.Statement) {
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 	a := s.Actions
 	if a.Community != nil {
-		fmt.Println(ind, "Community: ", a.Community.PrettyString())
+		fmt.Println(ind, "Community: ", actionPrettyString(a.Community))
 	} else if a.ExtCommunity != nil {
 		fmt.Println(ind, "ExtCommunity: ", a.ExtCommunity.PrettyString())
 	} else if a.LargeCommunity != nil {

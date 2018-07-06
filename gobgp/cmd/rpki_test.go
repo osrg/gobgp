@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/server"
 )
@@ -32,7 +31,7 @@ func TestShowRPKITable(test *testing.T) {
 	s := server.NewBgpServer()
 	go s.Serve()
 
-	g := api.NewGrpcServer(s, ":50051")
+	g := server.NewGrpcServer(s, ":50051")
 	go g.Serve()
 
 	err := s.Start(&config.Global{

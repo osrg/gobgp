@@ -14,7 +14,6 @@ package main
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	gobgp "github.com/osrg/gobgp/server"
@@ -29,7 +28,7 @@ func main() {
 
 	// start grpc api server. this is not mandatory
 	// but you will be able to use `gobgp` cmd with this.
-	g := api.NewGrpcServer(s, ":50051")
+	g := gobgp.NewGrpcServer(s, ":50051")
 	go g.Serve()
 
 	// global configuration

@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/server"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +28,7 @@ func TestGetNeighbor(test *testing.T) {
 	assert := assert.New(test)
 	s := server.NewBgpServer()
 	go s.Serve()
-	g := api.NewGrpcServer(s, ":50051")
+	g := server.NewGrpcServer(s, ":50051")
 	go g.Serve()
 	time.Sleep(time.Second)
 	cli, err := New("")
