@@ -76,7 +76,7 @@ func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 	return subtype, exp, err
 }
 
-func ParseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
+func parseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	if regexpLargeCommunity.MatchString(arg) {
 		return regexp.Compile(fmt.Sprintf("^%s$", arg))
 	}
@@ -87,60 +87,56 @@ func ParseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	return exp, nil
 }
 
-func (s *MatchSet) PrettyString() string {
-	var typ string
-	switch s.Type {
-	case MatchType_ALL:
-		typ = "all"
-	case MatchType_ANY:
-		typ = "any"
-	case MatchType_INVERT:
-		typ = "invert"
-	}
-	return fmt.Sprintf("%s %s", typ, s.GetName())
-}
-
-func (s *AsPathLength) PrettyString() string {
-	var typ string
-	switch s.Type {
-	case AsPathLengthType_EQ:
-		typ = "="
-	case AsPathLengthType_GE:
-		typ = ">="
-	case AsPathLengthType_LE:
-		typ = "<="
-	}
-	return fmt.Sprintf("%s%d", typ, s.Length)
-}
-
-func (s Conditions_RouteType) PrettyString() string {
+func routeTypePrettyString(s api.Conditions_RouteType) string {
 	switch s {
-	case Conditions_ROUTE_TYPE_EXTERNAL:
+	case api.Conditions_ROUTE_TYPE_EXTERNAL:
 		return "external"
-	case Conditions_ROUTE_TYPE_INTERNAL:
+	case api.Conditions_ROUTE_TYPE_INTERNAL:
 		return "internal"
-	case Conditions_ROUTE_TYPE_LOCAL:
+	case api.Conditions_ROUTE_TYPE_LOCAL:
 		return "local"
 	}
 	return "unknown"
 }
 
-func actionPrettyString(v interface{}) string {
+func prettyString(v interface{}) string {
 	switch a := v.(type) {
+	case *api.MatchSet:
+		var typ string
+		switch a.Type {
+		case api.MatchType_ALL:
+			typ = "all"
+		case api.MatchType_ANY:
+			typ = "any"
+		case api.MatchType_INVERT:
+			typ = "invert"
+		}
+		return fmt.Sprintf("%s %s", typ, a.GetName())
+	case *api.AsPathLength:
+		var typ string
+		switch a.Type {
+		case api.AsPathLengthType_EQ:
+			typ = "="
+		case api.AsPathLengthType_GE:
+			typ = ">="
+		case api.AsPathLengthType_LE:
+			typ = "<="
+		}
+		return fmt.Sprintf("%s%d", typ, a.Length)
 	case *api.CommunityAction:
 		l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
 		var typ string
 		switch a.Type {
-		case CommunityActionType_COMMUNITY_ADD:
+		case api.CommunityActionType_COMMUNITY_ADD:
 			typ = "add"
-		case CommunityActionType_COMMUNITY_REMOVE:
+		case api.CommunityActionType_COMMUNITY_REMOVE:
 			typ = "remove"
-		case CommunityActionType_COMMUNITY_REPLACE:
+		case api.CommunityActionType_COMMUNITY_REPLACE:
 			typ = "replace"
 		}
 		return fmt.Sprintf("%s[%s]", typ, l)
 	case *api.MedAction:
-		if a.Type == MedActionType_MED_MOD && a.Value > 0 {
+		if a.Type == api.MedActionType_MED_MOD && a.Value > 0 {
 			return fmt.Sprintf("+%d", a.Value)
 		}
 		return fmt.Sprintf("%d", a.Value)
@@ -347,7 +343,7 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := api.ParseCommunityRegexp(arg); err != nil {
+		if _, err := parseCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -365,7 +361,7 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, _, err := api.ParseExtCommunityRegexp(arg); err != nil {
+		if _, _, err := parseExtCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -383,7 +379,7 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := api.ParseLargeCommunityRegexp(arg); err != nil {
+		if _, err := parseLargeCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -461,21 +457,21 @@ func printStatement(indent int, s *api.Statement) {
 
 	c := s.Conditions
 	if c.PrefixSet != nil {
-		fmt.Printf("%sPrefixSet: %s \n", ind, c.PrefixSet.PrettyString())
+		fmt.Printf("%sPrefixSet: %s \n", ind, prettyString(c.PrefixSet))
 	} else if c.NeighborSet != nil {
-		fmt.Printf("%sNeighborSet: %s\n", ind, c.NeighborSet.PrettyString())
+		fmt.Printf("%sNeighborSet: %s\n", ind, prettyString(c.NeighborSet))
 	} else if c.AsPathSet != nil {
-		fmt.Printf("%sAsPathSet: %s \n", ind, c.AsPathSet.PrettyString())
+		fmt.Printf("%sAsPathSet: %s \n", ind, prettyString(c.AsPathSet))
 	} else if c.CommunitySet != nil {
-		fmt.Printf("%sCommunitySet: %s\n", ind, c.CommunitySet.PrettyString())
+		fmt.Printf("%sCommunitySet: %s\n", ind, prettyString(c.CommunitySet))
 	} else if c.ExtCommunitySet != nil {
-		fmt.Printf("%sExtCommunitySet: %s\n", ind, c.ExtCommunitySet.PrettyString())
+		fmt.Printf("%sExtCommunitySet: %s\n", ind, prettyString(c.ExtCommunitySet))
 	} else if c.LargeCommunitySet != nil {
-		fmt.Printf("%sLargeCommunitySet: %s\n", ind, c.LargeCommunitySet.PrettyString())
+		fmt.Printf("%sLargeCommunitySet: %s\n", ind, prettyString(c.LargeCommunitySet))
 	} else if c.NextHopInList != nil {
 		fmt.Printf("%sNextHopInList: %s\n", ind, "[ "+strings.Join(c.NextHopInList, ", ")+" ]")
 	} else if c.AsPathLength != nil {
-		fmt.Printf("%sAsPathLength: %s\n", ind, c.AsPathLength.PrettyString())
+		fmt.Printf("%sAsPathLength: %s\n", ind, prettyString(c.AsPathLength))
 	} else if c.RpkiResult != -1 {
 		var result string
 		switch c.RpkiResult {
@@ -490,7 +486,7 @@ func printStatement(indent int, s *api.Statement) {
 		}
 		fmt.Printf("%sRPKI result: %s\n", ind, result)
 	} else if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
-		fmt.Printf("%sRoute Type: %s\n", ind, c.RouteType.PrettyString())
+		fmt.Printf("%sRoute Type: %s\n", ind, routeTypePrettyString(c.RouteType))
 	} else if c.AfiSafiIn != nil {
 		fmt.Printf("%sAFI SAFI In: %s\n", ind, c.AfiSafiIn)
 	}
@@ -498,19 +494,19 @@ func printStatement(indent int, s *api.Statement) {
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 	a := s.Actions
 	if a.Community != nil {
-		fmt.Println(ind, "Community: ", actionPrettyString(a.Community))
+		fmt.Println(ind, "Community: ", prettyString(a.Community))
 	} else if a.ExtCommunity != nil {
-		fmt.Println(ind, "ExtCommunity: ", a.ExtCommunity.PrettyString())
+		fmt.Println(ind, "ExtCommunity: ", prettyString(a.ExtCommunity))
 	} else if a.LargeCommunity != nil {
-		fmt.Println(ind, "LargeCommunity: ", a.LargeCommunity.PrettyString())
+		fmt.Println(ind, "LargeCommunity: ", prettyString(a.LargeCommunity))
 	} else if a.Med != nil {
-		fmt.Println(ind, "MED: ", a.Med.PrettyString())
+		fmt.Println(ind, "MED: ", prettyString(a.Med))
 	} else if a.LocalPref != nil {
-		fmt.Println(ind, "LocalPref: ", a.LocalPref.PrettyString())
+		fmt.Println(ind, "LocalPref: ", prettyString(a.LocalPref))
 	} else if a.AsPrepend != nil {
-		fmt.Println(ind, "ASPathPrepend: ", a.AsPrepend.PrettyString())
+		fmt.Println(ind, "ASPathPrepend: ", prettyString(a.AsPrepend))
 	} else if a.Nexthop != nil {
-		fmt.Println(ind, "Nexthop: ", a.Nexthop.PrettyString())
+		fmt.Println(ind, "Nexthop: ", prettyString(a.Nexthop))
 	}
 
 	if a.RouteAction != api.RouteAction_NONE {
