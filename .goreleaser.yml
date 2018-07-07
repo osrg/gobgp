@@ -4,6 +4,7 @@
 builds:
   - main: ./cmd/gobgp/
     binary: gobgp
+    ldflags: -s -extldflags "-static"
     goos:
       - linux
     goarch:
@@ -14,6 +15,7 @@ builds:
 
   - main: ./cmd/gobgpd/
     binary: gobgpd
+    ldflags: -s -extldflags "-static"
     goos:
       - linux
     goarch:
