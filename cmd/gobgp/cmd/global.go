@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/cobra"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
 
@@ -1265,7 +1266,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	}
 	sort.Slice(attrs, func(i, j int) bool { return attrs[i].GetType() < attrs[j].GetType() })
 
-	return api.NewPath(nlri, false, attrs, time.Now()), nil
+	return apiutil.NewPath(nlri, false, attrs, time.Now()), nil
 }
 
 func showGlobalRib(args []string) error {

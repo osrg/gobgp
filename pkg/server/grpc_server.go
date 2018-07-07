@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/internal/pkg/zebra"
@@ -260,11 +261,11 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
 	if pconf.Transport.State.LocalAddress != "" {
 		localAddress = pconf.Transport.State.LocalAddress
 	}
-	remoteCap, err := api.MarshalCapabilities(pconf.State.RemoteCapabilityList)
+	remoteCap, err := apiutil.MarshalCapabilities(pconf.State.RemoteCapabilityList)
 	if err != nil {
 		return nil
 	}
-	localCap, err := api.MarshalCapabilities(pconf.State.LocalCapabilityList)
+	localCap, err := apiutil.MarshalCapabilities(pconf.State.LocalCapabilityList)
 	if err != nil {
 		return nil
 	}
@@ -494,11 +495,11 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 
 func ToPathApi(path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
-	anyNlri := api.MarshalNLRI(nlri)
+	anyNlri := apiutil.MarshalNLRI(nlri)
 	if path.IsWithdraw {
 		return toPathAPI(nil, nil, anyNlri, nil, path, v)
 	}
-	anyPattrs := api.MarshalPathAttributes(path.GetPathAttrs())
+	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
 	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
 }
 
@@ -853,13 +854,13 @@ func (s *Server) api2PathList(resource api.Resource, ApiPathList []*api.Path) ([
 			}
 		}
 
-		nlri, err := path.GetNativeNlri()
+		nlri, err := apiutil.GetNativeNlri(path)
 		if err != nil {
 			return nil, err
 		}
 		nlri.SetPathIdentifier(path.Identifier)
 
-		attrList, err := path.GetNativePathAttributes()
+		attrList, err := apiutil.GetNativePathAttributes(path)
 		if err != nil {
 			return nil, err
 		}
@@ -1103,10 +1104,10 @@ func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVr
 	toApi := func(v *table.Vrf) *api.Vrf {
 		return &api.Vrf{
 			Name:     v.Name,
-			Rd:       api.MarshalRD(v.Rd),
+			Rd:       apiutil.MarshalRD(v.Rd),
 			Id:       v.Id,
-			ImportRt: api.MarshalRTs(v.ImportRt),
-			ExportRt: api.MarshalRTs(v.ExportRt),
+			ImportRt: apiutil.MarshalRTs(v.ImportRt),
+			ExportRt: apiutil.MarshalRTs(v.ExportRt),
 		}
 	}
 	vrfs := s.bgpServer.GetVrf()
@@ -1121,15 +1122,15 @@ func (s *Server) AddVrf(ctx context.Context, arg *api.AddVrfRequest) (r *api.Add
 	if arg == nil || arg.Vrf == nil {
 		return nil, fmt.Errorf("invalid request")
 	}
-	rd, err := api.UnmarshalRD(arg.Vrf.Rd)
+	rd, err := apiutil.UnmarshalRD(arg.Vrf.Rd)
 	if err != nil {
 		return nil, err
 	}
-	im, err := api.UnmarshalRTs(arg.Vrf.ImportRt)
+	im, err := apiutil.UnmarshalRTs(arg.Vrf.ImportRt)
 	if err != nil {
 		return nil, err
 	}
-	ex, err := api.UnmarshalRTs(arg.Vrf.ExportRt)
+	ex, err := apiutil.UnmarshalRTs(arg.Vrf.ExportRt)
 	if err != nil {
 		return nil, err
 	}
@@ -1290,11 +1291,11 @@ func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
-		localCaps, err := api.UnmarshalCapabilities(a.Conf.LocalCap)
+		localCaps, err := apiutil.UnmarshalCapabilities(a.Conf.LocalCap)
 		if err != nil {
 			return nil, err
 		}
-		remoteCaps, err := api.UnmarshalCapabilities(a.Conf.RemoteCap)
+		remoteCaps, err := apiutil.UnmarshalCapabilities(a.Conf.RemoteCap)
 		if err != nil {
 			return nil, err
 		}

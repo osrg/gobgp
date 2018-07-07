@@ -35,6 +35,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
@@ -50,7 +51,7 @@ func marshalRouteTargets(l []string) ([]*any.Any, error) {
 		if err != nil {
 			return nil, err
 		}
-		rtList = append(rtList, api.MarshalRT(rt))
+		rtList = append(rtList, apiutil.MarshalRT(rt))
 	}
 	return rtList, nil
 }
@@ -252,7 +253,7 @@ func main() {
 						if _, err := apiServer.AddVrf(context.Background(), &api.AddVrfRequest{
 							Vrf: &api.Vrf{
 								Name:     vrf.Config.Name,
-								Rd:       api.MarshalRD(rd),
+								Rd:       apiutil.MarshalRD(rd),
 								Id:       uint32(vrf.Config.Id),
 								ImportRt: importRtList,
 								ExportRt: exportRtList,

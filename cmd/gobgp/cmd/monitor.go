@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
@@ -39,13 +40,13 @@ func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []inte
 
 	// NLRI
 	// If Add-Path required, append Path Identifier.
-	nlri, _ := p.GetNativeNlri()
+	nlri, _ := apiutil.GetNativeNlri(p)
 	if showIdentifier != bgp.BGP_ADD_PATH_NONE {
 		pathStr = append(pathStr, p.GetIdentifier())
 	}
 	pathStr = append(pathStr, nlri)
 
-	attrs, _ := p.GetNativePathAttributes()
+	attrs, _ := apiutil.GetNativePathAttributes(p)
 	// Next Hop
 	nexthop := "fictitious"
 	if n := getNextHopFromPathAttributes(attrs); n != nil {
@@ -102,7 +103,7 @@ func NewMonitorCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			if globalOpts.Json {
-				j, _ := json.Marshal(dst.Paths)
+				j, _ := json.Marshal(apiutil.NewDestination(dst))
 				fmt.Println(string(j))
 			} else {
 				monitorRoute(dst.Paths, showIdentifier)
