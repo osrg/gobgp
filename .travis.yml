@@ -9,13 +9,13 @@ _unittest: &_unittest
   <<: *_dep_ensure
   script:
     - go test $(go list ./... | grep -v '/vendor/') -timeout 120s
-    - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
+    - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
 _build: &_build
   <<: *_dep_ensure
   script:
-    - go build -o ./gobgp/gobgp   ./gobgp/
-    - go build -o ./gobgpd/gobgpd ./gobgpd/
+    - go build -o ./cmd/gobgp/gobgp   ./cmd/gobgp/
+    - go build -o ./cmd/gobgpd/gobgpd ./cmd/gobgpd/
 
 _node_js: &_node_js
   language: node_js
@@ -114,10 +114,10 @@ matrix:
         - test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
         - test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
         - megacheck $(go list ./... | grep -v '/vendor/')
-    - <<: *_dep_ensure
-      env:
-        - DESCRIPTION="build_embeded_go.py"
-      script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
+#    - <<: *_dep_ensure
+#      env:
+#        - DESCRIPTION="build_embeded_go.py"
+#      script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 #
 # Docker
 #

@@ -20,7 +20,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
 func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error) {

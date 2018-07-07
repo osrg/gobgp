@@ -11,7 +11,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/jessevdk/go-flags"
-	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/internal/pkg/config"
 )
 
 type QuaggaConfig struct {

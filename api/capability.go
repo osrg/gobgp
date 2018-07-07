@@ -21,8 +21,7 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
-
-	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
 func NewMultiProtocolCapability(a *bgp.CapMultiProtocol) *MultiProtocolCapability {

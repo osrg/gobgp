@@ -19,10 +19,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/osrg/gobgp/packet/bgp"
-
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
 

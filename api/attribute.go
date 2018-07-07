@@ -22,9 +22,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/osrg/gobgp/packet/bgp"
 )
 
 func NewOriginAttributeFromNative(a *bgp.PathAttributeOrigin) *OriginAttribute {

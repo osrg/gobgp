@@ -18,9 +18,8 @@ package gobgpapi
 import (
 	"testing"
 
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/osrg/gobgp/packet/bgp"
 )
 
 func Test_MultiProtocolCapability(t *testing.T) {

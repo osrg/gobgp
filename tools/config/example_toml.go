@@ -3,8 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/BurntSushi/toml"
-	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/internal/pkg/config"
 )
 
 func main() {
