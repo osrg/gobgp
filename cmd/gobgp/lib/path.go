@@ -37,6 +37,7 @@ import (
 	"strings"
 
 	"github.com/osrg/gobgp/cmd/gobgp/cmd"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
@@ -57,14 +58,14 @@ func serialize_path(rf C.int, input *C.char) *C.path {
 		return nil
 	}
 	path := C.new_path()
-	if nlri, err := p.GetNativeNlri(); err != nil {
+	if nlri, err := apiutil.GetNativeNlri(p); err != nil {
 		return nil
 	} else {
 		buf, _ := nlri.Serialize()
 		path.nlri.len = C.int(len(buf))
 		path.nlri.value = C.CString(string(buf))
 	}
-	attrs, err := p.GetNativePathAttributes()
+	attrs, err := apiutil.GetNativePathAttributes(p)
 	if err != nil {
 		return nil
 	}

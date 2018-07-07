@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/cobra"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
@@ -478,7 +479,7 @@ func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttrib
 }
 
 func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
-	nlri, _ := p.GetNativeNlri()
+	nlri, _ := apiutil.GetNativeNlri(p)
 
 	// Path Symbols (e.g. "*>")
 	args := []interface{}{getPathSymbolString(p, idx, showBest)}
@@ -501,7 +502,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 		args = append(args, label)
 	}
 
-	attrs, _ := p.GetNativePathAttributes()
+	attrs, _ := apiutil.GetNativePathAttributes(p)
 	// Next Hop
 	nexthop := "fictitious"
 	if n := getNextHopFromPathAttributes(attrs); n != nil {
@@ -591,14 +592,14 @@ func checkOriginAsWasNotShown(p *api.Path, asPath []bgp.AsPathParamInterface, sh
 
 func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 	var asPath []bgp.AsPathParamInterface
-	attrs, _ := p.GetNativePathAttributes()
+	attrs, _ := apiutil.GetNativePathAttributes(p)
 	for _, attr := range attrs {
 		if attr.GetType() == bgp.BGP_ATTR_TYPE_AS_PATH {
 			asPath = attr.(*bgp.PathAttributeAsPath).Value
 		}
 	}
 
-	nlri, _ := p.GetNativeNlri()
+	nlri, _ := apiutil.GetNativeNlri(p)
 	if len(asPath) == 0 {
 		return fmt.Errorf("The path to %s was locally generated.\n", nlri.String())
 	} else if !checkOriginAsWasNotShown(p, asPath, shownAs) {
@@ -802,9 +803,9 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	if globalOpts.Json {
-		d := make(map[string]*api.Destination)
+		d := make(map[string]*apiutil.Destination)
 		for _, dst := range rib.GetDestinations() {
-			d[dst.Prefix] = dst
+			d[dst.Prefix] = apiutil.NewDestination(dst)
 		}
 		j, _ := json.Marshal(d)
 		fmt.Println(string(j))

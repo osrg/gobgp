@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
 )
@@ -143,7 +144,7 @@ func injectMrt() error {
 						}
 					}
 
-					path := api.NewPath(nlri, false, attrs, time.Unix(int64(e.OriginatedTime), 0))
+					path := apiutil.NewPath(nlri, false, attrs, time.Unix(int64(e.OriginatedTime), 0))
 					path.SourceAsn = peers[e.PeerIndex].AS
 					path.SourceId = peers[e.PeerIndex].BgpId.String()
 

@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 
 	"github.com/golang/protobuf/ptypes/any"
@@ -58,7 +58,7 @@ func showVrfs() error {
 	lines := make([][]string, 0, len(vrfs))
 	for _, v := range vrfs {
 		name := v.Name
-		rd, err := api.UnmarshalRD(v.Rd)
+		rd, err := apiutil.UnmarshalRD(v.Rd)
 		if err != nil {
 			return err
 		}
@@ -67,7 +67,7 @@ func showVrfs() error {
 		f := func(rts []*any.Any) (string, error) {
 			ret := make([]string, 0, len(rts))
 			for _, an := range rts {
-				rt, err := api.UnmarshalRT(an)
+				rt, err := apiutil.UnmarshalRT(an)
 				if err != nil {
 					return "", err
 				}

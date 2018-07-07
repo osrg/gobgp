@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,7 +31,7 @@ func Test_ParsePath(t *testing.T) {
 	path, err := ParsePath(bgp.RF_IPv4_UC, strings.Split(buf, " "))
 	assert.Nil(err)
 	i := 0
-	attrs, _ := path.GetNativePathAttributes()
+	attrs, _ := apiutil.GetNativePathAttributes(path)
 	for _, a := range attrs {
 		assert.True(i < int(a.GetType()))
 		i = int(a.GetType())

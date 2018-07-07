@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/server"
@@ -263,7 +264,7 @@ func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFa
 			}
 			return nil, err
 		}
-		nlri, err := p.GetNativeNlri()
+		nlri, err := apiutil.GetNativeNlri(p)
 		if err != nil {
 			return nil, err
 		}
@@ -272,7 +273,7 @@ func (cli *Client) getRIB(resource api.Resource, name string, family bgp.RouteFa
 	}
 	dstList := make([]*api.Destination, 0, len(pathMap))
 	for _, pathList := range pathMap {
-		nlri, _ := pathList[0].GetNativeNlri()
+		nlri, _ := apiutil.GetNativeNlri(pathList[0])
 		dstList = append(dstList, &api.Destination{
 			Prefix: nlri.String(),
 			Paths:  pathList,
@@ -454,10 +455,10 @@ func (cli *Client) AddVRF(name string, id int, rd bgp.RouteDistinguisherInterfac
 	arg := &api.AddVrfRequest{
 		Vrf: &api.Vrf{
 			Name:     name,
-			Rd:       api.MarshalRD(rd),
+			Rd:       apiutil.MarshalRD(rd),
 			Id:       uint32(id),
-			ImportRt: api.MarshalRTs(im),
-			ExportRt: api.MarshalRTs(ex),
+			ImportRt: apiutil.MarshalRTs(im),
+			ExportRt: apiutil.MarshalRTs(ex),
 		},
 	}
 	_, err := cli.cli.AddVrf(context.Background(), arg)
