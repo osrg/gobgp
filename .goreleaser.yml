@@ -2,7 +2,7 @@
 # .goreleaser.yml
 # Build customization
 builds:
-  - main: ./gobgp/
+  - main: ./cmd/gobgp/
     binary: gobgp
     goos:
       - linux
@@ -12,7 +12,7 @@ builds:
       - arm
       - arm64
 
-  - main: ./gobgpd/
+  - main: ./cmd/gobgpd/
     binary: gobgpd
     goos:
       - linux

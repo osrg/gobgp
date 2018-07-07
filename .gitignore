@@ -3,8 +3,8 @@
 *.a
 *.so
 *.pyc
-gobgp/gobgp
-gobgpd/gobgpd
+cmd/gobgp/gobgp
+cmd/gobgpd/gobgpd
 
 # Folders
 _obj
