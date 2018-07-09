@@ -1291,12 +1291,7 @@ func UnmarshalPathAttributes(values []*any.Any) ([]bgp.PathAttributeInterface, e
 		case *ClusterListAttribute:
 			attr, err = v.ToNative()
 		case *MpReachNLRIAttribute:
-			var nlri *bgp.PathAttributeMpReachNLRI
-			nlri, err = v.ToNative()
-			if len(nlri.Value) > 1 {
-				return nil, fmt.Errorf("multiple nlri in a single mp_reach_nlri are not supported")
-			}
-			attr = nlri
+			attr, err = v.ToNative()
 		case *MpUnreachNLRIAttribute:
 			attr, err = v.ToNative()
 		case *ExtendedCommunitiesAttribute:
