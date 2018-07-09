@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/osrg/gobgp/config"
@@ -193,6 +194,7 @@ type FSM struct {
 	t                    tomb.Tomb
 	gConf                *config.Global
 	pConf                *config.Neighbor
+	lock                 sync.RWMutex
 	state                bgp.FSMState
 	reason               *FsmStateReason
 	conn                 net.Conn
@@ -367,6 +369,9 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 }
 
 func (fsm *FSM) sendNotificationFromErrorMsg(e *bgp.MessageError) (*bgp.BGPMessage, error) {
+	fsm.lock.Lock()
+	defer fsm.lock.Unlock()
+
 	if fsm.h != nil && fsm.h.conn != nil {
 		m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
 		b, _ := m.Serialize()
@@ -1560,7 +1565,9 @@ func (h *FSMHandler) recvMessageloop() error {
 
 func (h *FSMHandler) established() (bgp.FSMState, *FsmStateReason) {
 	fsm := h.fsm
+	fsm.lock.Lock()
 	h.conn = fsm.conn
+	fsm.lock.Unlock()
 	h.t.Go(h.sendMessageloop)
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
@@ -1673,11 +1680,13 @@ func (h *FSMHandler) loop() error {
 		// The main goroutine sent the notificaiton due to
 		// deconfiguration or something.
 		reason := fsm.reason
+		fsm.lock.Lock()
 		if fsm.h.sentNotification != nil {
 			reason.Type = FSM_NOTIFICATION_SENT
 			reason.PeerDownReason = PEER_DOWN_BY_LOCAL
 			reason.BGPNotification = fsm.h.sentNotification
 		}
+		fsm.lock.Unlock()
 		log.WithFields(log.Fields{
 			"Topic":  "Peer",
 			"Key":    fsm.pConf.State.NeighborAddress,
