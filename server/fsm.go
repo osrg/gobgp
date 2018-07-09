@@ -217,6 +217,7 @@ type FSM struct {
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
+	fsm.lock.Lock()
 	state := &fsm.pConf.State.Messages
 	timer := &fsm.pConf.Timers
 	if isIn {
@@ -263,6 +264,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 			state.Sent.Discarded++
 		}
 	}
+	fsm.lock.Unlock()
 }
 
 func (fsm *FSM) bmpStatsUpdate(statType uint16, increment int) {
@@ -1598,6 +1600,7 @@ func (h *FSMHandler) established() (bgp.FSMState, *FsmStateReason) {
 		case err := <-h.stateReasonCh:
 			h.conn.Close()
 			h.t.Kill(nil)
+			fsm.lock.RLock()
 			if s := fsm.pConf.GracefulRestart.State; s.Enabled &&
 				(s.NotificationEnabled && err.Type == FSM_NOTIFICATION_RECV ||
 					err.Type == FSM_READ_FAILED ||
@@ -1610,6 +1613,7 @@ func (h *FSMHandler) established() (bgp.FSMState, *FsmStateReason) {
 				}).Info("peer graceful restart")
 				fsm.gracefulRestartTimer.Reset(time.Duration(fsm.pConf.GracefulRestart.State.PeerRestartTime) * time.Second)
 			}
+			fsm.lock.RUnlock()
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
 			log.WithFields(log.Fields{
