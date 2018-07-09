@@ -223,7 +223,7 @@ matrix:
 cache:
   pip: true
 
-go_import_path: github.com/jserrano/gobgp
+go_import_path: github.com/osrg/gobgp
 
 notifications:
  slack:
