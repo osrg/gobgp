@@ -8,7 +8,7 @@ _dep_ensure: &_dep_ensure
 _unittest: &_unittest
   <<: *_dep_ensure
   script:
-    - go test -race $(go list ./... | grep -v '/vendor/') -timeout 120s
+    - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') $(go list ./... | grep -v '/vendor/') -timeout 120s
     - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
 _build: &_build
