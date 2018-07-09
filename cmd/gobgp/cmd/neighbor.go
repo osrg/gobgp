@@ -1044,7 +1044,8 @@ func modNeighbor(cmdType string, args []string) error {
 		params["allow-own-as"] = PARAM_SINGLE
 		params["remove-private-as"] = PARAM_SINGLE
 		params["replace-peer-as"] = PARAM_FLAG
-		usage += " [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]"
+		params["ebgp-multihop-ttl"] = PARAM_SINGLE
+		usage += " [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]"
 	}
 
 	m, err := extractReserved(args, params)
@@ -1145,6 +1146,18 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		if _, ok := m["replace-peer-as"]; ok {
 			peer.AsPathOptions.Config.ReplacePeerAs = true
+		}
+		if len(m["ebgp-multihop-ttl"]) == 1 {
+			ttl, err := strconv.ParseUint(m["ebgp-multihop-ttl"][0], 10, 32)
+			if err != nil {
+				return err
+			}
+			peer.EbgpMultihop = config.EbgpMultihop{
+				Config: config.EbgpMultihopConfig{
+					Enabled:     true,
+					MultihopTtl: uint8(ttl),
+				},
+			}
 		}
 		return nil
 	}
