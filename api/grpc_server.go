@@ -279,6 +279,10 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			RemovePrivateAs:   removePrivateAs,
 			ReplacePeerAs:     pconf.AsPathOptions.Config.ReplacePeerAs,
 		},
+		EbgpMultihop: &EbgpMultihop{
+			Enabled:     pconf.EbgpMultihop.Config.Enabled,
+			MultihopTtl: uint32(pconf.EbgpMultihop.Config.MultihopTtl),
+		},
 		Info: &PeerState{
 			BgpState:   string(s.SessionState),
 			AdminState: PeerState_AdminState(s.AdminState.ToInt()),
