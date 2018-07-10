@@ -926,9 +926,12 @@ func (s *BgpServer) handleRouteRefresh(peer *Peer, e *FsmMsg) []*table.Path {
 
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 	rs := peer != nil && peer.isRouteServerClient()
-	peer.fsm.lock.RLock()
-	vrf := !rs && peer != nil && peer.fsm.pConf.Config.Vrf != ""
-	peer.fsm.lock.RUnlock()
+	vrf := false
+	if peer != nil {
+		peer.fsm.lock.RLock()
+		vrf = !rs && peer.fsm.pConf.Config.Vrf != ""
+		peer.fsm.lock.RUnlock()
+	}
 
 	tableId := table.GLOBAL_RIB_NAME
 	rib := server.globalRib
