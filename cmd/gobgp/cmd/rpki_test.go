@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -54,8 +55,9 @@ func TestShowRPKITable(test *testing.T) {
 
 	globalOpts.Host = "127.0.0.1"
 	globalOpts.Port = 50052
-	client = newClient()
-	defer client.Close()
+	ctx = context.Background()
+	client, err = newClient(ctx)
+	assert.Nil(err)
 
 	// Wait for downloading ROA info
 	for i := 0; ; i++ {

@@ -16,11 +16,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 
-	cli "github.com/osrg/gobgp/internal/pkg/client"
+	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +38,8 @@ var globalOpts struct {
 	CaFile       string
 }
 
-var client *cli.Client
+var client api.GobgpApiClient
+var ctx context.Context
 
 func NewRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
@@ -53,7 +55,12 @@ func NewRootCmd() *cobra.Command {
 			}
 
 			if !globalOpts.GenCmpl {
-				client = newClient()
+				var err error
+				ctx = context.Background()
+				client, err = newClient(ctx)
+				if err != nil {
+					exitWithError(err)
+				}
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -64,9 +71,6 @@ func NewRootCmd() *cobra.Command {
 			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if client != nil {
-				client.Close()
-			}
 		},
 	}
 

@@ -480,7 +480,7 @@ func TestBMP(t *testing.T) {
 }
 
 func unreachIndex(msgs []*bgp.BGPMessage) int {
-	for i, _ := range msgs {
+	for i := range msgs {
 		for _, a := range msgs[i].Body.(*bgp.BGPUpdate).PathAttributes {
 			if a.GetType() == bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 				return i

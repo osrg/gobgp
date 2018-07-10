@@ -29,7 +29,6 @@ import (
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
-	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
 
 	"github.com/osrg/gobgp/pkg/packet/bgp"
@@ -1447,38 +1446,44 @@ usage: %s rib %s key <KEY> [value <VALUE>]`,
 		return err
 	}
 
+	r := api.Resource_GLOBAL
+	if resource == CMD_VRF {
+		r = api.Resource_VRF
+	}
+
 	if modtype == CMD_ADD {
-		if resource == CMD_VRF {
-			_, err = client.AddVRFPath(name, []*api.Path{path})
-		} else {
-			_, err = client.AddPath([]*api.Path{path})
-		}
+		_, err = client.AddPath(ctx, &api.AddPathRequest{
+			Resource: r,
+			VrfId:    name,
+			Path:     path,
+		})
 	} else {
-		if resource == CMD_VRF {
-			err = client.DeleteVRFPath(name, []*api.Path{path})
-		} else {
-			err = client.DeletePath([]*api.Path{path})
-		}
+		_, err = client.DeletePath(ctx, &api.DeletePathRequest{
+			Resource: r,
+			VrfId:    name,
+			Path:     path,
+		})
 	}
 	return err
 }
 
 func showGlobalConfig() error {
-	g, err := client.GetServer()
+	r, err := client.GetBgp(ctx, &api.GetBgpRequest{})
 	if err != nil {
 		return err
 	}
 	if globalOpts.Json {
-		j, _ := json.Marshal(g)
+		j, _ := json.Marshal(r.Global)
 		fmt.Println(string(j))
 		return nil
 	}
-	fmt.Println("AS:       ", g.Config.As)
-	fmt.Println("Router-ID:", g.Config.RouterId)
-	if len(g.Config.LocalAddressList) > 0 {
-		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.Config.Port, strings.Join(g.Config.LocalAddressList, ", "))
+	g := r.Global
+	fmt.Println("AS:       ", g.As)
+	fmt.Println("Router-ID:", g.RouterId)
+	if len(g.ListenAddresses) > 0 {
+		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
 	}
-	if g.UseMultiplePaths.Config.Enabled {
+	if g.UseMultiplePaths {
 		fmt.Printf("Multipath: enabled")
 	}
 	return nil
@@ -1515,19 +1520,16 @@ func modGlobalConfig(args []string) error {
 	if _, ok := m["use-multipath"]; ok {
 		useMultipath = true
 	}
-	return client.StartServer(&config.Global{
-		Config: config.GlobalConfig{
+	_, err = client.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
 			As:               uint32(asn),
 			RouterId:         id.String(),
-			Port:             int32(port),
-			LocalAddressList: m["listen-addresses"],
-		},
-		UseMultiplePaths: config.UseMultiplePaths{
-			Config: config.UseMultiplePathsConfig{
-				Enabled: useMultipath,
-			},
+			ListenPort:       int32(port),
+			ListenAddresses:  m["listen-addresses"],
+			UseMultiplePaths: useMultipath,
 		},
 	})
+	return err
 }
 
 func NewGlobalCmd() *cobra.Command {
@@ -1577,7 +1579,10 @@ func NewGlobalCmd() *cobra.Command {
 					if err != nil {
 						exitWithError(err)
 					}
-					if err = client.DeletePathByFamily(family); err != nil {
+					if _, err = client.DeletePath(ctx, &api.DeletePathRequest{
+						Resource: api.Resource_GLOBAL,
+						Family:   uint32(family),
+					}); err != nil {
 						exitWithError(err)
 					}
 				},
@@ -1643,7 +1648,7 @@ func NewGlobalCmd() *cobra.Command {
 	allCmd := &cobra.Command{
 		Use: CMD_ALL,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := client.StopServer(); err != nil {
+			if _, err := client.StopBgp(ctx, &api.StopBgpRequest{}); err != nil {
 				exitWithError(err)
 			}
 		},

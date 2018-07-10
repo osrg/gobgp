@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"regexp"
 	"strconv"
@@ -212,20 +213,28 @@ func showDefinedSet(v string, args []string) error {
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
-	var m []*api.DefinedSet
+	m := make([]*api.DefinedSet, 0)
+	var name string
 	if len(args) > 0 {
-		d, err := client.GetDefinedSetByName(typ, args[0])
-		if err != nil {
-			return err
-		}
-		m = []*api.DefinedSet{d}
-	} else {
-		var err error
-		m, err = client.GetDefinedSet(typ)
-		if err != nil {
-			return err
-		}
+		name = args[0]
 	}
+	stream, err := client.ListDefinedSet(ctx, &api.ListDefinedSetRequest{
+		Type: typ,
+		Name: name,
+	})
+	if err != nil {
+		return err
+	}
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		m = append(m, r.Set)
+	}
+
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
 		fmt.Println(string(j))
@@ -433,15 +442,22 @@ func modDefinedSet(settype string, modtype string, args []string) error {
 	}
 	switch modtype {
 	case CMD_ADD:
-		err = client.AddDefinedSet(d)
+		_, err = client.AddDefinedSet(ctx, &api.AddDefinedSetRequest{
+			Set: d,
+		})
 	case CMD_DEL:
 		all := false
 		if len(args) < 2 {
 			all = true
 		}
-		err = client.DeleteDefinedSet(d, all)
+		_, err = client.DeleteDefinedSet(ctx, &api.DeleteDefinedSetRequest{
+			Set: d,
+			All: all,
+		})
 	case CMD_SET:
-		err = client.ReplaceDefinedSet(d)
+		_, err = client.ReplaceDefinedSet(ctx, &api.ReplaceDefinedSetRequest{
+			Set: d,
+		})
 	}
 	return err
 }
@@ -525,10 +541,21 @@ func printPolicy(indent int, pd *api.Policy) {
 }
 
 func showPolicy(args []string) error {
-	policies, err := client.GetPolicy()
+	policies := make([]*api.Policy, 0)
+	stream, err := client.ListPolicy(ctx, &api.ListPolicyRequest{})
 	if err != nil {
 		return err
 	}
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil
+		}
+		policies = append(policies, r.Policy)
+	}
+
 	var m []*api.Policy
 	if len(args) > 0 {
 		for _, p := range policies {
@@ -563,10 +590,21 @@ func showPolicy(args []string) error {
 }
 
 func showStatement(args []string) error {
-	stmts, err := client.GetStatement()
+	stmts := make([]*api.Statement, 0)
+	stream, err := client.ListStatement(ctx, &api.ListStatementRequest{})
 	if err != nil {
 		return err
 	}
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		stmts = append(stmts, r.Statement)
+	}
+
 	var m []*api.Statement
 	if len(args) > 0 {
 		for _, s := range stmts {
@@ -608,9 +646,14 @@ func modStatement(op string, args []string) error {
 	var err error
 	switch op {
 	case CMD_ADD:
-		err = client.AddStatement(stmt)
+		_, err = client.AddStatement(ctx, &api.AddStatementRequest{
+			Statement: stmt,
+		})
 	case CMD_DEL:
-		err = client.DeleteStatement(stmt, true)
+		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
+			Statement: stmt,
+			All:       true,
+		})
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -803,11 +846,17 @@ func modCondition(name, op string, args []string) error {
 	var err error
 	switch op {
 	case CMD_ADD:
-		err = client.AddStatement(stmt)
+		_, err = client.AddStatement(ctx, &api.AddStatementRequest{
+			Statement: stmt,
+		})
 	case CMD_DEL:
-		err = client.DeleteStatement(stmt, false)
+		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
+			Statement: stmt,
+		})
 	case CMD_SET:
-		err = client.ReplaceStatement(stmt)
+		_, err = client.ReplaceStatement(ctx, &api.ReplaceStatementRequest{
+			Statement: stmt,
+		})
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -931,11 +980,17 @@ func modAction(name, op string, args []string) error {
 	var err error
 	switch op {
 	case CMD_ADD:
-		err = client.AddStatement(stmt)
+		_, err = client.AddStatement(ctx, &api.AddStatementRequest{
+			Statement: stmt,
+		})
 	case CMD_DEL:
-		err = client.DeleteStatement(stmt, false)
+		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
+			Statement: stmt,
+		})
 	case CMD_SET:
-		err = client.ReplaceStatement(stmt)
+		_, err = client.ReplaceStatement(ctx, &api.ReplaceStatementRequest{
+			Statement: stmt,
+		})
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -960,15 +1015,26 @@ func modPolicy(modtype string, args []string) error {
 	var err error
 	switch modtype {
 	case CMD_ADD:
-		err = client.AddPolicy(policy, true)
+		_, err = client.AddPolicy(ctx, &api.AddPolicyRequest{
+			Policy:                  policy,
+			ReferExistingStatements: true,
+		})
 	case CMD_DEL:
 		all := false
 		if len(args) < 1 {
 			all = true
 		}
-		err = client.DeletePolicy(policy, all, true)
+		_, err = client.DeletePolicy(ctx, &api.DeletePolicyRequest{
+			Policy:             policy,
+			All:                all,
+			PreserveStatements: true,
+		})
 	case CMD_SET:
-		err = client.ReplacePolicy(policy, true, true)
+		_, err = client.ReplacePolicy(ctx, &api.ReplacePolicyRequest{
+			Policy:                  policy,
+			PreserveStatements:      true,
+			ReferExistingStatements: true,
+		})
 	}
 	return err
 }

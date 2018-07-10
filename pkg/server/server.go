@@ -1913,7 +1913,7 @@ func (s *BgpServer) DeleteVrf(name string) error {
 
 func (s *BgpServer) Stop() error {
 	return s.mgmtOperation(func() error {
-		for k, _ := range s.neighborMap {
+		for k := range s.neighborMap {
 			if err := s.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
 				NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED); err != nil {
 				return err

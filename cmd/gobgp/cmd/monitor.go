@@ -93,20 +93,20 @@ func NewMonitorCmd() *cobra.Command {
 	var current bool
 
 	monitor := func(recver interface {
-		Recv() (*api.Destination, error)
+		Recv() (*api.MonitorTableResponse, error)
 	}, showIdentifier bgp.BGPAddPathMode) {
 		for {
-			dst, err := recver.Recv()
+			r, err := recver.Recv()
 			if err == io.EOF {
 				break
 			} else if err != nil {
 				exitWithError(err)
 			}
 			if globalOpts.Json {
-				j, _ := json.Marshal(apiutil.NewDestination(dst))
+				j, _ := json.Marshal(apiutil.NewDestination(&api.Destination{Paths: []*api.Path{r.Path}}))
 				fmt.Println(string(j))
 			} else {
-				monitorRoute(dst.Paths, showIdentifier)
+				monitorRoute([]*api.Path{r.Path}, bgp.BGP_ADD_PATH_NONE)
 			}
 		}
 	}
@@ -118,7 +118,11 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			recver, err := client.MonitorRIB(family, current)
+			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
+				Type:    api.Resource_GLOBAL,
+				Family:  uint32(family),
+				Current: current,
+			})
 			if err != nil {
 				exitWithError(err)
 			}
@@ -140,24 +144,28 @@ func NewMonitorCmd() *cobra.Command {
 			if len(args) > 0 {
 				name = args[0]
 			}
-			stream, err := client.MonitorNeighborState(name, current)
+			stream, err := client.MonitorPeer(ctx, &api.MonitorPeerRequest{
+				Address: name,
+				Current: current,
+			})
 			if err != nil {
 				exitWithError(err)
 			}
 			for {
-				s, err := stream.Recv()
+				r, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
 					exitWithError(err)
 				}
+				s := r.Peer
 				if globalOpts.Json {
 					j, _ := json.Marshal(s)
 					fmt.Println(string(j))
 				} else {
-					addr := s.State.NeighborAddress
-					if s.Config.NeighborInterface != "" {
-						addr = fmt.Sprintf("%s(%s)", addr, s.Config.NeighborInterface)
+					addr := s.Conf.NeighborAddress
+					if s.Conf.NeighborInterface != "" {
+						addr = fmt.Sprintf("%s(%s)", addr, s.Conf.NeighborInterface)
 					}
 					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", addr, s.State.SessionState, s.State.AdminState)
 				}
@@ -180,7 +188,12 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			recver, err := client.MonitorAdjRIBIn(name, family, current)
+			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
+				Type:    api.Resource_ADJ_IN,
+				Name:    name,
+				Family:  uint32(family),
+				Current: current,
+			})
 			if err != nil {
 				exitWithError(err)
 			}

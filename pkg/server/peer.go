@@ -206,7 +206,7 @@ func (peer *Peer) negotiatedRFList() []bgp.RouteFamily {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	l := make([]bgp.RouteFamily, 0, len(peer.fsm.rfMap))
-	for family, _ := range peer.fsm.rfMap {
+	for family := range peer.fsm.rfMap {
 		l = append(l, family)
 	}
 	return l

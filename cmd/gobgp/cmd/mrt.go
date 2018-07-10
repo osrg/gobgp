@@ -171,20 +171,19 @@ func injectMrt() error {
 		close(ch)
 	}()
 
-	stream, err := client.AddPathByStream()
+	stream, err := client.AddPathStream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to add path: %s", err)
 	}
 
 	for paths := range ch {
-		err = stream.Send(paths...)
+		err = stream.Send(&api.AddPathStreamRequest{
+			Resource: api.Resource_GLOBAL,
+			Paths:    paths,
+		})
 		if err != nil {
 			return fmt.Errorf("failed to send: %s", err)
 		}
-	}
-
-	if err := stream.Close(); err != nil {
-		return fmt.Errorf("failed to send: %s", err)
 	}
 	return nil
 }

@@ -73,12 +73,12 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_reject_as_loop(self):
         def f():
-            adj = self.g2.get_neighbor(self.q1)['state']['adj-table']
-            self.assertTrue('received' in adj)
-            self.assertEqual(adj['received'], 1)
+            s = self.g2.get_neighbor(self.q1)['state']
+            self.assertTrue('received' in s)
+            self.assertEqual(s.get('received', 0), 1)
             # hacky. 'accepted' is zero so the key was deleted due to
             # omitempty tag in bgp_configs.go.
-            self.assertFalse('accepted' in adj)
+            self.assertFalse('accepted' in s)
 
         assert_several_times(f)
 
@@ -89,11 +89,11 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_04_check_accept_as_loop(self):
         def f():
-            adj = self.g2.get_neighbor(self.q1)['state']['adj-table']
-            self.assertTrue('received' in adj)
-            self.assertEqual(adj['received'], 1)
-            self.assertTrue('accepted' in adj)
-            self.assertEqual(adj['accepted'], 1)
+            s = self.g2.get_neighbor(self.q1)['state']
+            self.assertTrue('received' in s)
+            self.assertEqual(s.get('received', 0), 1)
+            self.assertTrue('accepted' in s)
+            self.assertEqual(s.get('accepted', 0), 1)
 
         assert_several_times(f)
 

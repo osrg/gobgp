@@ -18,10 +18,12 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 
@@ -29,13 +31,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func getVrfs() (vrfs, error) {
-	ret, err := client.GetVRF()
+func getVrfs() ([]*api.Vrf, error) {
+	stream, err := client.ListVrf(ctx, &api.ListVrfRequest{})
 	if err != nil {
 		return nil, err
 	}
-	sort.Sort(vrfs(ret))
-	return ret, nil
+	vrfs := make([]*api.Vrf, 0)
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		vrfs = append(vrfs, r.Vrf)
+	}
+	sort.Slice(vrfs, func(i, j int) bool {
+		return vrfs[i].Name < vrfs[j].Name
+	})
+	return vrfs, nil
 }
 
 func showVrfs() error {
@@ -106,7 +120,6 @@ func showVrf(name string) error {
 }
 
 func modVrf(typ string, args []string) error {
-	var err error
 	switch typ {
 	case CMD_ADD:
 		a, err := extractReserved(args, map[string]int{
@@ -153,16 +166,26 @@ func modVrf(typ string, args []string) error {
 				return err
 			}
 		}
-		if err := client.AddVRF(name, int(id), rd, importRt, exportRt); err != nil {
-			return err
-		}
+		_, err = client.AddVrf(ctx, &api.AddVrfRequest{
+			Vrf: &api.Vrf{
+				Name:     name,
+				Rd:       apiutil.MarshalRD(rd),
+				ImportRt: apiutil.MarshalRTs(importRt),
+				ExportRt: apiutil.MarshalRTs(exportRt),
+				Id:       uint32(id),
+			},
+		})
+		return err
 	case CMD_DEL:
 		if len(args) != 1 {
 			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")
 		}
-		err = client.DeleteVRF(args[0])
+		_, err := client.DeleteVrf(ctx, &api.DeleteVrfRequest{
+			Name: args[0],
+		})
+		return err
 	}
-	return err
+	return nil
 }
 
 func NewVrfCmd() *cobra.Command {
@@ -199,7 +222,7 @@ func NewVrfCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 1 {
-				var vs vrfs
+				var vs []*api.Vrf
 				vs, err = getVrfs()
 				if err != nil {
 					exitWithError(err)
