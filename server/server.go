@@ -195,7 +195,10 @@ func (server *BgpServer) Serve() {
 			}).Warnf("Can't find the neighbor %s", e.MsgSrc)
 			return
 		}
-		if e.Version != peer.fsm.version {
+		peer.fsm.lock.RLock()
+		versionMismatch := e.Version != peer.fsm.version
+		peer.fsm.lock.RUnlock()
+		if versionMismatch {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 			}).Debug("FSM version inconsistent")
@@ -211,12 +214,17 @@ func (server *BgpServer) Serve() {
 			remoteAddr := ipaddr.String()
 			peer, found := server.neighborMap[remoteAddr]
 			if found {
-				if peer.fsm.adminState != ADMIN_STATE_UP {
+				peer.fsm.lock.RLock()
+				adminStateNotUp := peer.fsm.adminState != ADMIN_STATE_UP
+				peer.fsm.lock.RUnlock()
+				if adminStateNotUp {
+					peer.fsm.lock.RLock()
 					log.WithFields(log.Fields{
 						"Topic":       "Peer",
 						"Remote Addr": remoteAddr,
 						"Admin State": peer.fsm.adminState,
 					}).Debug("New connection for non admin-state-up peer")
+					peer.fsm.lock.RUnlock()
 					conn.Close()
 					return
 				}
@@ -269,7 +277,9 @@ func (server *BgpServer) Serve() {
 					conn.Close()
 					return
 				}
+				peer.fsm.lock.RLock()
 				server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): peer.fsm.pConf.ApplyPolicy})
+				peer.fsm.lock.RUnlock()
 				server.neighborMap[remoteAddr] = peer
 				peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 				server.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
@@ -354,6 +364,9 @@ func isASLoop(peer *Peer, path *table.Path) bool {
 }
 
 func filterpath(peer *Peer, path, old *table.Path) *table.Path {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+
 	if path == nil {
 		return nil
 	}
@@ -466,6 +479,9 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 }
 
 func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+
 	// Special handling for RTM NLRI.
 	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
 		// If the given "path" is locally generated and the same with "old", we
@@ -615,10 +631,11 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 }
 
 func (s *BgpServer) ToConfig(peer *Peer, getAdvertised bool) *config.Neighbor {
-	// create copy which can be access to without mutex
 	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+
+	// create copy which can be access to without mutex
 	conf := *peer.fsm.pConf
-	peer.fsm.lock.RUnlock()
 
 	conf.AfiSafis = make([]config.AfiSafi, len(peer.fsm.pConf.AfiSafis))
 	for i, af := range peer.fsm.pConf.AfiSafis {
