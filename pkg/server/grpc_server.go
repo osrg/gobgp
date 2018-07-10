@@ -329,6 +329,10 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
 			PeerType:        uint32(s.PeerType.ToInt()),
 			NeighborAddress: pconf.State.NeighborAddress,
 		},
+		EbgpMultihop: &api.EbgpMultihop{
+			Enabled:     pconf.EbgpMultihop.Config.Enabled,
+			MultihopTtl: uint32(pconf.EbgpMultihop.Config.MultihopTtl),
+		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
 				ConnectRetry:      uint64(timer.Config.ConnectRetry),
