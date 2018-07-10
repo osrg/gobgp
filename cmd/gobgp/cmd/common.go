@@ -17,21 +17,18 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os"
-	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	api "github.com/osrg/gobgp/api"
-	cli "github.com/osrg/gobgp/internal/pkg/client"
-	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
@@ -183,63 +180,8 @@ func extractReserved(args []string, keys map[string]int) (map[string][]string, e
 	return m, nil
 }
 
-type neighbors []*config.Neighbor
-
-func (n neighbors) Len() int {
-	return len(n)
-}
-
-func (n neighbors) Swap(i, j int) {
-	n[i], n[j] = n[j], n[i]
-}
-
-func (n neighbors) Less(i, j int) bool {
-	p1 := n[i].State.NeighborAddress
-	p2 := n[j].State.NeighborAddress
-	p1Isv4 := !strings.Contains(p1, ":")
-	p2Isv4 := !strings.Contains(p2, ":")
-	if p1Isv4 != p2Isv4 {
-		return p1Isv4
-	}
-	addrlen := 128
-	if p1Isv4 {
-		addrlen = 32
-	}
-	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", p1, addrlen)),
-		cidr2prefix(fmt.Sprintf("%s/%d", p2, addrlen))}
-	return strings.Less(0, 1)
-}
-
-type capabilities []bgp.ParameterCapabilityInterface
-
-func (c capabilities) Len() int {
-	return len(c)
-}
-
-func (c capabilities) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (c capabilities) Less(i, j int) bool {
-	return c[i].Code() < c[j].Code()
-}
-
-type vrfs []*api.Vrf
-
-func (v vrfs) Len() int {
-	return len(v)
-}
-
-func (v vrfs) Swap(i, j int) {
-	v[i], v[j] = v[j], v[i]
-}
-
-func (v vrfs) Less(i, j int) bool {
-	return v[i].Name < v[j].Name
-}
-
-func newClient() *cli.Client {
-	var grpcOpts []grpc.DialOption
+func newClient(ctx context.Context) (api.GobgpApiClient, error) {
+	grpcOpts := []grpc.DialOption{grpc.WithTimeout(time.Second), grpc.WithBlock()}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
 		if globalOpts.CaFile == "" {
@@ -251,18 +193,21 @@ func newClient() *cli.Client {
 				exitWithError(err)
 			}
 		}
-		grpcOpts = []grpc.DialOption{
-			grpc.WithTimeout(time.Second),
-			grpc.WithBlock(),
-			grpc.WithTransportCredentials(creds),
-		}
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(creds))
+	} else {
+		grpcOpts = append(grpcOpts, grpc.WithInsecure())
 	}
+
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
-	client, err := cli.New(target, grpcOpts...)
-	if err != nil {
-		exitWithError(fmt.Errorf("failed to connect to %s over gRPC: %s", target, err))
+	if target == "" {
+		target = ":50051"
 	}
-	return client
+
+	conn, err := grpc.DialContext(ctx, target, grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return api.NewGobgpApiClient(conn), nil
 }
 
 func addr2AddressFamily(a net.IP) bgp.RouteFamily {

@@ -205,7 +205,7 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 
 	asns := make([]uint16, 255)
-	for i, _ := range asns {
+	for i := range asns {
 		asns[i] = 65000 + uint16(i)
 	}
 

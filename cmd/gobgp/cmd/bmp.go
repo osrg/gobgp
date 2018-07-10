@@ -20,7 +20,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/osrg/gobgp/internal/pkg/config"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/pkg/packet/bmp"
 	"github.com/spf13/cobra"
 )
@@ -49,29 +49,28 @@ func modBmpServer(cmdType string, args []string) error {
 	var err error
 	switch cmdType {
 	case CMD_ADD:
-		policyType := config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY
+		policyType := api.AddBmpRequest_PRE
 		if len(args) > 1 {
 			switch args[1] {
-			case "pre":
 			case "post":
-				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY
+				policyType = api.AddBmpRequest_POST
 			case "both":
-				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH
+				policyType = api.AddBmpRequest_BOTH
 			case "local-rib":
-				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB
+				policyType = api.AddBmpRequest_LOCAL
 			case "all":
-				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL
+				policyType = api.AddBmpRequest_ALL
 			default:
 				return fmt.Errorf("invalid bmp policy type. valid type is {pre|post|both|local-rib|all}")
 			}
 		}
-		err = client.AddBMP(&config.BmpServerConfig{
+		_, err = client.AddBmp(ctx, &api.AddBmpRequest{
 			Address: address,
 			Port:    port,
-			RouteMonitoringPolicy: policyType,
+			Type:    policyType,
 		})
 	case CMD_DEL:
-		err = client.DeleteBMP(&config.BmpServerConfig{
+		_, err = client.DeleteBmp(ctx, &api.DeleteBmpRequest{
 			Address: address,
 			Port:    port,
 		})
@@ -80,7 +79,6 @@ func modBmpServer(cmdType string, args []string) error {
 }
 
 func NewBmpCmd() *cobra.Command {
-
 	bmpCmd := &cobra.Command{
 		Use: CMD_BMP,
 	}

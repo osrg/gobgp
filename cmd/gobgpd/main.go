@@ -175,7 +175,7 @@ func main() {
 		for {
 			select {
 			case <-sigCh:
-				apiServer.Shutdown(context.Background(), &api.ShutdownRequest{})
+				apiServer.StopBgp(context.Background(), &api.StopBgpRequest{})
 				return
 			case newConfig := <-configCh:
 				var added, deleted, updated []config.Neighbor
@@ -184,7 +184,7 @@ func main() {
 
 				if c == nil {
 					c = newConfig
-					if _, err := apiServer.StartServer(context.Background(), &api.StartServerRequest{
+					if _, err := apiServer.StartBgp(context.Background(), &api.StartBgpRequest{
 						Global: server.NewGlobalFromConfigStruct(&c.Global),
 					}); err != nil {
 						log.Fatalf("failed to set global config: %s", err)
@@ -208,13 +208,7 @@ func main() {
 					}
 
 					if len(newConfig.Collector.Config.Url) > 0 {
-						if _, err := apiServer.AddCollector(context.Background(), &api.AddCollectorRequest{
-							Url:               c.Collector.Config.Url,
-							DbName:            c.Collector.Config.DbName,
-							TableDumpInterval: c.Collector.Config.TableDumpInterval,
-						}); err != nil {
-							log.Fatalf("failed to set collector config: %s", err)
-						}
+						log.Fatal("collector feature is not supported")
 					}
 
 					for _, c := range newConfig.RpkiServers {
@@ -374,7 +368,7 @@ func main() {
 				for _, pg := range deletedPg {
 					log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
 					if _, err := apiServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
-						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
+						Name: pg.Config.PeerGroupName,
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -410,7 +404,7 @@ func main() {
 				}
 				for _, p := range added {
 					log.Infof("Peer %v is added", p.State.NeighborAddress)
-					if _, err := apiServer.AddNeighbor(context.Background(), &api.AddNeighborRequest{
+					if _, err := apiServer.AddPeer(context.Background(), &api.AddPeerRequest{
 						Peer: server.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
@@ -418,15 +412,15 @@ func main() {
 				}
 				for _, p := range deleted {
 					log.Infof("Peer %v is deleted", p.State.NeighborAddress)
-					if _, err := apiServer.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{
-						Peer: server.NewPeerFromConfigStruct(&p),
+					if _, err := apiServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
+						Address: p.State.NeighborAddress,
 					}); err != nil {
 						log.Warn(err)
 					}
 				}
 				for _, p := range updated {
 					log.Infof("Peer %v is updated", p.State.NeighborAddress)
-					if u, err := apiServer.UpdateNeighbor(context.Background(), &api.UpdateNeighborRequest{
+					if u, err := apiServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
 						Peer: server.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
@@ -436,9 +430,10 @@ func main() {
 				}
 
 				if updatePolicy {
-					if _, err := apiServer.SoftResetNeighbor(context.Background(), &api.SoftResetNeighborRequest{
+					if _, err := apiServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
 						Address:   "",
-						Direction: api.SoftResetNeighborRequest_IN,
+						Direction: api.ResetPeerRequest_IN,
+						Soft:      true,
 					}); err != nil {
 						log.Warn(err)
 					}

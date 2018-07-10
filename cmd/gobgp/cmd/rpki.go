@@ -17,18 +17,31 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"strconv"
 	"time"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/spf13/cobra"
 )
 
 func showRPKIServer(args []string) error {
-	servers, err := client.GetRPKI()
+	servers := make([]*api.Rpki, 0)
+	stream, err := client.ListRpki(ctx, &api.ListRpkiRequest{})
 	if err != nil {
 		fmt.Println(err)
 		return err
+	}
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		servers = append(servers, r.Server)
 	}
 	if len(args) == 0 {
 		format := "%-23s %-6s %-10s %s\n"
@@ -41,32 +54,32 @@ func showRPKIServer(args []string) error {
 				uptime = fmt.Sprint(formatTimedelta(int64(time.Since(time.Unix(r.State.Uptime, 0)).Seconds())))
 			}
 
-			fmt.Printf(format, net.JoinHostPort(r.Config.Address, fmt.Sprintf("%d", r.Config.Port)), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordsV4, r.State.RecordsV6))
+			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, fmt.Sprintf("%d", r.Conf.RemotePort)), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
 		}
 		return nil
 	}
 
 	for _, r := range servers {
-		if r.Config.Address == args[0] {
+		if r.Conf.Address == args[0] {
 			up := "Down"
 			if r.State.Up {
 				up = "Up"
 			}
-			fmt.Printf("Session: %s, State: %s\n", r.Config.Address, up)
-			fmt.Println("  Port:", r.Config.Port)
-			fmt.Println("  Serial:", r.State.SerialNumber)
-			fmt.Printf("  Prefix: %d/%d\n", r.State.PrefixesV4, r.State.PrefixesV6)
-			fmt.Printf("  Record: %d/%d\n", r.State.RecordsV4, r.State.RecordsV6)
+			fmt.Printf("Session: %s, State: %s\n", r.Conf.Address, up)
+			fmt.Println("  Port:", r.Conf.RemotePort)
+			fmt.Println("  Serial:", r.State.Serial)
+			fmt.Printf("  Prefix: %d/%d\n", r.State.PrefixIpv4, r.State.PrefixIpv6)
+			fmt.Printf("  Record: %d/%d\n", r.State.RecordIpv4, r.State.RecordIpv6)
 			fmt.Println("  Message statistics:")
-			fmt.Printf("    Receivedv4:    %10d\n", r.State.RpkiMessages.RpkiReceived.Ipv4Prefix)
-			fmt.Printf("    Receivedv6:    %10d\n", r.State.RpkiMessages.RpkiReceived.Ipv4Prefix)
-			fmt.Printf("    SerialNotify:  %10d\n", r.State.RpkiMessages.RpkiReceived.SerialNotify)
-			fmt.Printf("    CacheReset:    %10d\n", r.State.RpkiMessages.RpkiReceived.CacheReset)
-			fmt.Printf("    CacheResponse: %10d\n", r.State.RpkiMessages.RpkiReceived.CacheResponse)
-			fmt.Printf("    EndOfData:     %10d\n", r.State.RpkiMessages.RpkiReceived.EndOfData)
-			fmt.Printf("    Error:         %10d\n", r.State.RpkiMessages.RpkiReceived.Error)
-			fmt.Printf("    SerialQuery:   %10d\n", r.State.RpkiMessages.RpkiSent.SerialQuery)
-			fmt.Printf("    ResetQuery:    %10d\n", r.State.RpkiMessages.RpkiSent.ResetQuery)
+			fmt.Printf("    Receivedv4:    %10d\n", r.State.ReceivedIpv4)
+			fmt.Printf("    Receivedv6:    %10d\n", r.State.ReceivedIpv6)
+			fmt.Printf("    SerialNotify:  %10d\n", r.State.SerialNotify)
+			fmt.Printf("    CacheReset:    %10d\n", r.State.CacheReset)
+			fmt.Printf("    CacheResponse: %10d\n", r.State.CacheResponse)
+			fmt.Printf("    EndOfData:     %10d\n", r.State.EndOfData)
+			fmt.Printf("    Error:         %10d\n", r.State.Error)
+			fmt.Printf("    SerialQuery:   %10d\n", r.State.SerialQuery)
+			fmt.Printf("    ResetQuery:    %10d\n", r.State.ResetQuery)
 		}
 	}
 	return nil
@@ -77,9 +90,21 @@ func showRPKITable(args []string) error {
 	if err != nil {
 		exitWithError(err)
 	}
-	roas, err := client.GetROA(family)
+	stream, err := client.ListRpkiTable(ctx, &api.ListRpkiTableRequest{
+		Family: uint32(family),
+	})
 	if err != nil {
 		exitWithError(err)
+	}
+	roas := make([]*api.Roa, 0)
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			exitWithError(err)
+		}
+		roas = append(roas, r.Roa)
 	}
 
 	var format string
@@ -94,7 +119,7 @@ func showRPKITable(args []string) error {
 		if len(args) > 0 && args[0] != r.Conf.Address {
 			continue
 		}
-		fmt.Printf(format, r.Prefix, fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
+		fmt.Printf(format, r.Prefix, fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))))
 	}
 	return nil
 }
@@ -120,15 +145,25 @@ func NewRPKICmd() *cobra.Command {
 			var err error
 			switch args[1] {
 			case "add":
-				err = client.AddRPKIServer(addr.String(), 323, 0)
-			case "reset":
-				err = client.ResetRPKIServer(addr.String())
-			case "softreset":
-				err = client.SoftResetRPKIServer(addr.String())
+				_, err = client.AddRpki(ctx, &api.AddRpkiRequest{
+					Address: addr.String(),
+					Port:    323,
+				})
+			case "reset", "softreset":
+				_, err = client.ResetRpki(ctx, &api.ResetRpkiRequest{
+					Address: addr.String(),
+					Soft: func() bool {
+						return args[1] != "reset"
+					}(),
+				})
 			case "enable":
-				err = client.EnableRPKIServer(addr.String())
+				_, err = client.EnableRpki(ctx, &api.EnableRpkiRequest{
+					Address: addr.String(),
+				})
 			case "disable":
-				err = client.DisableRPKIServer(addr.String())
+				_, err = client.DisableRpki(ctx, &api.DisableRpkiRequest{
+					Address: addr.String(),
+				})
 			default:
 				exitWithError(fmt.Errorf("unknown operation: %s", args[1]))
 			}
@@ -146,17 +181,6 @@ func NewRPKICmd() *cobra.Command {
 		},
 	}
 	tableCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
-
-	validateCmd := &cobra.Command{
-		Use: "validate",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := client.ValidateRIBWithRPKI(args...); err != nil {
-				exitWithError(err)
-			}
-		},
-	}
-	rpkiCmd.AddCommand(validateCmd)
-
 	rpkiCmd.AddCommand(tableCmd)
 	return rpkiCmd
 }

@@ -38,8 +38,8 @@ class GoBGPTestBase(unittest.TestCase):
 
     def assert_upd_count(self, src, dst, sent, received):
         messages = src.get_neighbor(dst)['state']['messages']
-        self.assertEqual(messages['sent']['update'], sent)
-        self.assertEqual(messages['received']['update'], received)
+        self.assertEqual(messages['sent'].get('update', 0), sent)
+        self.assertEqual(messages['received'].get('update', 0), received)
 
     @classmethod
     def setUpClass(cls):

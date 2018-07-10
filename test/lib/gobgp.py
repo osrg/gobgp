@@ -42,6 +42,9 @@ from lib.base import (
     BGP_ATTR_TYPE_MP_REACH_NLRI,
     GRACEFUL_RESTART_TIME,
     LONG_LIVED_GRACEFUL_RESTART_TIME,
+    BGP_FSM_IDLE,
+    BGP_FSM_ACTIVE,
+    BGP_FSM_ESTABLISHED,
 )
 
 
@@ -299,7 +302,14 @@ class GoBGPContainer(BGPContainer):
         return json.loads(self.local(cmd, capture=True))
 
     def get_neighbor_state(self, peer):
-        return self.get_neighbor(peer)['state']['session-state']
+        s = self.get_neighbor(peer)['state']['session_state']
+        if s == 1:
+            return BGP_FSM_IDLE
+        elif s == 3:
+            return BGP_FSM_ACTIVE
+        elif s == 6:
+            return BGP_FSM_ESTABLISHED
+        return "unknown"
 
     def clear_policy(self):
         self.policies = {}
