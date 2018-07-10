@@ -371,10 +371,11 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 }
 
 func (fsm *FSM) sendNotificationFromErrorMsg(e *bgp.MessageError) (*bgp.BGPMessage, error) {
-	fsm.lock.Lock()
-	defer fsm.lock.Unlock()
+	fsm.lock.RLock()
+	established := fsm.h != nil && fsm.h.conn != nil
+	fsm.lock.RUnlock()
 
-	if fsm.h != nil && fsm.h.conn != nil {
+	if established {
 		m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
 		b, _ := m.Serialize()
 		_, err := fsm.h.conn.Write(b)
