@@ -707,12 +707,13 @@ func (s *BgpServer) ToConfig(peer *Peer, getAdvertised bool) *config.Neighbor {
 }
 
 func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*table.Path, msg *bgp.BGPMessage, timestamp time.Time, payload []byte) {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-
 	if !server.isWatched(WATCH_EVENT_TYPE_PRE_UPDATE) || peer == nil {
 		return
 	}
+
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+
 	cloned := clonePathList(pathList)
 	if len(cloned) == 0 {
 		return
@@ -737,11 +738,13 @@ func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*ta
 }
 
 func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*table.Path) {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
 	if !server.isWatched(WATCH_EVENT_TYPE_POST_UPDATE) || peer == nil {
 		return
 	}
+
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+
 	cloned := clonePathList(pathList)
 	if len(cloned) == 0 {
 		return
