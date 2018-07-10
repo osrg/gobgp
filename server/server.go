@@ -616,7 +616,7 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 
 func (s *BgpServer) ToConfig(peer *Peer, getAdvertised bool) *config.Neighbor {
 	// create copy which can be access to without mutex
-	peer.fsm.lock.Rlock()
+	peer.fsm.lock.RLock()
 	conf := *peer.fsm.pConf
 	peer.fsm.lock.RUnlock()
 
