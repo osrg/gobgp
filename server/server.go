@@ -281,8 +281,9 @@ func (server *BgpServer) Serve() {
 					return
 				}
 				peer.fsm.lock.RLock()
-				server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): peer.fsm.pConf.ApplyPolicy})
+				policy := peer.fsm.pConf.ApplyPolicy
 				peer.fsm.lock.RUnlock()
+				server.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): policy})
 				server.neighborMap[remoteAddr] = peer
 				peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 				server.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
@@ -560,11 +561,13 @@ func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 	if path != nil && !path.IsWithdraw && peer.fsm.pConf.AsPathOptions.State.ReplacePeerAs {
 		path = path.ReplaceAS(peer.fsm.pConf.Config.LocalAs, peer.fsm.pConf.Config.PeerAs)
 	}
+	peer.fsm.lock.RUnlock()
 
 	if path = filterpath(peer, path, old); path == nil {
 		return nil
 	}
 
+	peer.fsm.lock.RLock()
 	options := &table.PolicyOptions{
 		Info:       peer.fsm.peerInfo,
 		OldNextHop: path.GetNexthop(),
