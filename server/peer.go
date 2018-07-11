@@ -545,12 +545,9 @@ func (peer *Peer) stopFSM() error {
 		}).Warnf("Failed to free the fsm.h.t for %s", addr)
 		failed = true
 	})
-	peer.fsm.lock.RLock()
-	t := peer.fsm.h.t
-	peer.fsm.lock.RUnlock()
 
-	t.Kill(nil)
-	t.Wait()
+	peer.fsm.h.t.Kill(nil)
+	peer.fsm.h.t.Wait()
 	t1.Stop()
 	if !failed {
 		log.WithFields(log.Fields{
@@ -566,8 +563,8 @@ func (peer *Peer) stopFSM() error {
 		}).Warnf("Failed to free the fsm.t for %s", addr)
 		failed = true
 	})
-	t.Kill(nil)
-	t.Wait()
+	peer.fsm.h.t.Kill(nil)
+	peer.fsm.h.t.Wait()
 	t2.Stop()
 	if !failed {
 		log.WithFields(log.Fields{

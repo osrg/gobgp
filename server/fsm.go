@@ -889,7 +889,7 @@ func (h *FSMHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 				"State": h.fsm.state.String(),
 				"error": e,
 			}).Warn("the received Update message was treated as withdraw")
-			h.fsm.lock.RLock()
+			h.fsm.lock.RUnlock()
 		case bgp.ERROR_HANDLING_AFISAFI_DISABLE:
 			rf := extractRouteFamily(factor.ErrorAttribute)
 			if rf == nil {
