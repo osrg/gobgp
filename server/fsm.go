@@ -568,7 +568,7 @@ func (h *FSMHandler) idle() (bgp.FSMState, *FsmStateReason) {
 			adminStateUp := fsm.adminState == ADMIN_STATE_UP
 			fsm.lock.RUnlock()
 
-			if adminStateUp{
+			if adminStateUp {
 				fsm.lock.Lock()
 				log.WithFields(log.Fields{
 					"Topic":    "Peer",
