@@ -258,25 +258,25 @@ func classifyFamilies(all, part []bgp.RouteFamily) ([]bgp.RouteFamily, []bgp.Rou
 
 func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
 	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
 			list = append(list, a.State.Family)
 		}
 	}
+	peer.fsm.lock.RUnlock()
 	return classifyFamilies(peer.configuredRFlist(), list)
 }
 
 func (peer *Peer) llgrFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
 	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if a.LongLivedGracefulRestart.State.Enabled {
 			list = append(list, a.State.Family)
 		}
 	}
+	peer.fsm.lock.RUnlock()
 	return classifyFamilies(peer.configuredRFlist(), list)
 }
 
@@ -563,8 +563,8 @@ func (peer *Peer) stopFSM() error {
 		}).Warnf("Failed to free the fsm.t for %s", addr)
 		failed = true
 	})
-	peer.fsm.h.t.Kill(nil)
-	peer.fsm.h.t.Wait()
+	peer.fsm.t.Kill(nil)
+	peer.fsm.t.Wait()
 	t2.Stop()
 	if !failed {
 		log.WithFields(log.Fields{

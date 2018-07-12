@@ -1720,8 +1720,9 @@ func (h *FSMHandler) recvMessageloop() error {
 
 func (h *FSMHandler) established() (bgp.FSMState, *FsmStateReason) {
 	fsm := h.fsm
-	fsm.lock.RLock()
+	fsm.lock.Lock()
 	h.conn = fsm.conn
+	fsm.lock.Unlock()
 	h.t.Go(h.sendMessageloop)
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
@@ -1730,11 +1731,12 @@ func (h *FSMHandler) established() (bgp.FSMState, *FsmStateReason) {
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
 		holdTimer = &time.Timer{}
 	} else {
+		fsm.lock.RLock()
 		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
+		fsm.lock.RUnlock()
 	}
 
 	fsm.gracefulRestartTimer.Stop()
-	fsm.lock.RUnlock()
 
 	for {
 		select {

@@ -714,13 +714,11 @@ func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*ta
 		return
 	}
 
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-
 	cloned := clonePathList(pathList)
 	if len(cloned) == 0 {
 		return
 	}
+	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
 	ev := &WatchEventUpdate{
@@ -737,6 +735,7 @@ func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *Peer, pathList []*ta
 		PathList:     cloned,
 		Neighbor:     server.ToConfig(peer, false),
 	}
+	peer.fsm.lock.RUnlock()
 	server.notifyWatcher(WATCH_EVENT_TYPE_PRE_UPDATE, ev)
 }
 
@@ -745,13 +744,11 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 		return
 	}
 
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-
 	cloned := clonePathList(pathList)
 	if len(cloned) == 0 {
 		return
 	}
+	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
 	ev := &WatchEventUpdate{
@@ -766,6 +763,7 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *Peer, pathList []*t
 		PathList:     cloned,
 		Neighbor:     server.ToConfig(peer, false),
 	}
+	peer.fsm.lock.RUnlock()
 	server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
 }
 
@@ -810,7 +808,6 @@ func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState, e
 func (server *BgpServer) notifyMessageWatcher(peer *Peer, timestamp time.Time, msg *bgp.BGPMessage, isSent bool) {
 	// validation should be done in the caller of this function
 	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
 	ev := &WatchEventMessage{
@@ -824,6 +821,7 @@ func (server *BgpServer) notifyMessageWatcher(peer *Peer, timestamp time.Time, m
 		Timestamp:    timestamp,
 		IsSent:       isSent,
 	}
+	peer.fsm.lock.RUnlock()
 	if !isSent {
 		server.notifyWatcher(WATCH_EVENT_TYPE_RECV_MSG, ev)
 	}
