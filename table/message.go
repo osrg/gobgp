@@ -285,6 +285,7 @@ type packer struct {
 
 type packerMP struct {
 	packer
+	hashmap     map[uint32][]*cage
 	paths       []*Path
 	withdrawals []*Path
 }
@@ -302,7 +303,34 @@ func (p *packerMP) add(path *Path) {
 		return
 	}
 
-	p.paths = append(p.paths, path)
+	key := path.GetHash()
+	attrsB := bytes.NewBuffer(make([]byte, 0))
+	for _, attr := range path.GetPathAttrs() {
+		switch a := attr.(type) {
+		case *bgp.PathAttributeMpReachNLRI:
+			attrsB.Write(a.Nexthop)
+			attrsB.Write(a.LinkLocalNexthop)
+		default:
+			b, _ := a.Serialize()
+			attrsB.Write(b)
+		}
+	}
+
+	if cages, y := p.hashmap[key]; y {
+		added := false
+		for _, c := range cages {
+			if bytes.Compare(c.attrsBytes, attrsB.Bytes()) == 0 {
+				c.paths = append(c.paths, path)
+				added = true
+				break
+			}
+		}
+		if !added {
+			p.hashmap[key] = append(p.hashmap[key], newCage(attrsB.Bytes(), path))
+		}
+	} else {
+		p.hashmap[key] = []*cage{newCage(attrsB.Bytes(), path)}
+	}
 }
 
 func createMPReachMessage(path *Path) *bgp.BGPMessage {
@@ -319,6 +347,51 @@ func createMPReachMessage(path *Path) *bgp.BGPMessage {
 }
 
 func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
+	split := func(paths []*Path) ([]bgp.PathAttributeInterface, []*Path) {
+		attrs := make([]bgp.PathAttributeInterface, 0, len(paths[0].GetPathAttrs()))
+		mprnlris := make([]bgp.AddrPrefixInterface, 0, len(paths))
+		for _, a := range paths[0].GetPathAttrs() {
+			if a.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+				attrs = append(attrs, a)
+			}
+		}
+		attrsLen := 0
+		for _, a := range attrs {
+			attrsLen += a.Len()
+		}
+		total := (19 + 2 + 2 + attrsLen)
+		i := 0
+		for _, path := range paths {
+			oattrs := path.GetPathAttrs()
+			for _, a := range oattrs {
+				if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+					total = total + a.Len()
+					if total > bgp.BGP_MAX_MESSAGE_LENGTH {
+						attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(paths[0].GetNexthop().String(), mprnlris))
+						return attrs, paths[i:]
+					} else {
+						mprnlris = append(mprnlris, path.GetNlri())
+						i++
+					}
+				}
+			}
+		}
+
+		attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(paths[0].GetNexthop().String(), mprnlris))
+		return attrs, paths[i:]
+	}
+
+	loop := func(paths []*Path, cb func([]bgp.PathAttributeInterface)) {
+		var attribs []bgp.PathAttributeInterface
+		for {
+			if len(paths) == 0 {
+				break
+			}
+			attribs, paths = split(paths)
+			cb(attribs)
+		}
+	}
+
 	msgs := make([]*bgp.BGPMessage, 0, p.packer.total)
 
 	for _, path := range p.withdrawals {
@@ -326,8 +399,14 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeMpUnreachNLRI(nlris)}, nil))
 	}
 
-	for _, path := range p.paths {
-		msgs = append(msgs, createMPReachMessage(path))
+	for _, cages := range p.hashmap {
+		for _, c := range cages {
+			paths := c.paths
+			loop(paths, func(attribs []bgp.PathAttributeInterface) {
+				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attribs, nil))
+			})
+
+		}
 	}
 
 	if p.eof {
@@ -341,6 +420,7 @@ func newPackerMP(f bgp.RouteFamily) *packerMP {
 		packer: packer{
 			family: f,
 		},
+		hashmap:     make(map[uint32][]*cage),
 		withdrawals: make([]*Path, 0),
 		paths:       make([]*Path, 0),
 	}
