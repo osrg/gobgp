@@ -1004,114 +1004,112 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 		fmsg.MsgData = m
 
 		h.fsm.lock.RLock()
-		notEstablishedState := h.fsm.state != bgp.BGP_FSM_ESTABLISHED
+		establishedState := h.fsm.state != bgp.BGP_FSM_ESTABLISHED
 		h.fsm.lock.RUnlock()
 
-		if notEstablishedState {
-			break
-		}
+		if establishedState {
+			switch m.Header.Type {
+			case bgp.BGP_MSG_ROUTE_REFRESH:
+				fmsg.MsgType = FSM_MSG_ROUTE_REFRESH
+			case bgp.BGP_MSG_UPDATE:
+				body := m.Body.(*bgp.BGPUpdate)
+				isEBGP := h.fsm.pConf.IsEBGPPeer(h.fsm.gConf)
+				isConfed := h.fsm.pConf.IsConfederationMember(h.fsm.gConf)
 
-		switch m.Header.Type {
-		case bgp.BGP_MSG_ROUTE_REFRESH:
-			fmsg.MsgType = FSM_MSG_ROUTE_REFRESH
-		case bgp.BGP_MSG_UPDATE:
-			body := m.Body.(*bgp.BGPUpdate)
-			isEBGP := h.fsm.pConf.IsEBGPPeer(h.fsm.gConf)
-			isConfed := h.fsm.pConf.IsConfederationMember(h.fsm.gConf)
+				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
+				copy(fmsg.payload, headerBuf)
+				copy(fmsg.payload[len(headerBuf):], bodyBuf)
 
-			fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
-			copy(fmsg.payload, headerBuf)
-			copy(fmsg.payload[len(headerBuf):], bodyBuf)
-
-			h.fsm.lock.RLock()
-			rfMap := h.fsm.rfMap
-			h.fsm.lock.RUnlock()
-			ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed)
-			if !ok {
-				handling = h.handlingError(m, err, useRevisedError)
-			}
-			if handling == bgp.ERROR_HANDLING_SESSION_RESET {
 				h.fsm.lock.RLock()
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   h.fsm.pConf.State.NeighborAddress,
-					"State": h.fsm.state.String(),
-					"error": err,
-				}).Warn("Session will be reset due to malformed BGP update message")
+				rfMap := h.fsm.rfMap
 				h.fsm.lock.RUnlock()
-				fmsg.MsgData = err
-				return fmsg, err
-			}
+				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed)
+				if !ok {
+					handling = h.handlingError(m, err, useRevisedError)
+				}
+				if handling == bgp.ERROR_HANDLING_SESSION_RESET {
+					h.fsm.lock.RLock()
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   h.fsm.pConf.State.NeighborAddress,
+						"State": h.fsm.state.String(),
+						"error": err,
+					}).Warn("Session will be reset due to malformed BGP update message")
+					h.fsm.lock.RUnlock()
+					fmsg.MsgData = err
+					return fmsg, err
+				}
 
-			if routes := len(body.WithdrawnRoutes); routes > 0 {
-				h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
-				h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
-			} else if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
-				mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
-				if routes = len(mpUnreach.Value); routes > 0 {
+				if routes := len(body.WithdrawnRoutes); routes > 0 {
 					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
 					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+				} else if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
+					mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
+					if routes = len(mpUnreach.Value); routes > 0 {
+						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
+						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+					}
 				}
-			}
 
-			table.UpdatePathAttrs4ByteAs(body)
-			if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
-				fmsg.MsgData = err
-				return fmsg, err
-			}
+				table.UpdatePathAttrs4ByteAs(body)
+				if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
+					fmsg.MsgData = err
+					return fmsg, err
+				}
 
-			h.fsm.lock.RLock()
-			peerInfo := h.fsm.peerInfo
-			h.fsm.lock.RUnlock()
-			fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.timestamp)
-			fallthrough
-		case bgp.BGP_MSG_KEEPALIVE:
-			// if the length of h.holdTimerResetCh
-			// isn't zero, the timer will be reset
-			// soon anyway.
-			select {
-			case h.holdTimerResetCh <- true:
-			default:
-			}
-			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
+				h.fsm.lock.RLock()
+				peerInfo := h.fsm.peerInfo
+				h.fsm.lock.RUnlock()
+				fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.timestamp)
+				fallthrough
+			case bgp.BGP_MSG_KEEPALIVE:
+				// if the length of h.holdTimerResetCh
+				// isn't zero, the timer will be reset
+				// soon anyway.
+				select {
+				case h.holdTimerResetCh <- true:
+				default:
+				}
+				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
+					return nil, nil
+				}
+			case bgp.BGP_MSG_NOTIFICATION:
+				body := m.Body.(*bgp.BGPNotification)
+				if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+					communication, rest := decodeAdministrativeCommunication(body.Data)
+					h.fsm.lock.RLock()
+					log.WithFields(log.Fields{
+						"Topic":               "Peer",
+						"Key":                 h.fsm.pConf.State.NeighborAddress,
+						"Code":                body.ErrorCode,
+						"Subcode":             body.ErrorSubcode,
+						"Communicated-Reason": communication,
+						"Data":                rest,
+					}).Warn("received notification")
+					h.fsm.lock.RUnlock()
+				} else {
+					h.fsm.lock.RLock()
+					log.WithFields(log.Fields{
+						"Topic":   "Peer",
+						"Key":     h.fsm.pConf.State.NeighborAddress,
+						"Code":    body.ErrorCode,
+						"Subcode": body.ErrorSubcode,
+						"Data":    body.Data,
+					}).Warn("received notification")
+					h.fsm.lock.RUnlock()
+				}
+
+				h.fsm.lock.RLock()
+				s := h.fsm.pConf.GracefulRestart.State
+				hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
+				h.fsm.lock.RUnlock()
+				if hardReset {
+					sendToStateReasonCh(FSM_HARD_RESET, m)
+				} else {
+					sendToStateReasonCh(FSM_NOTIFICATION_RECV, m)
+				}
 				return nil, nil
 			}
-		case bgp.BGP_MSG_NOTIFICATION:
-			body := m.Body.(*bgp.BGPNotification)
-			if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-				communication, rest := decodeAdministrativeCommunication(body.Data)
-				h.fsm.lock.RLock()
-				log.WithFields(log.Fields{
-					"Topic":               "Peer",
-					"Key":                 h.fsm.pConf.State.NeighborAddress,
-					"Code":                body.ErrorCode,
-					"Subcode":             body.ErrorSubcode,
-					"Communicated-Reason": communication,
-					"Data":                rest,
-				}).Warn("received notification")
-				h.fsm.lock.RUnlock()
-			} else {
-				h.fsm.lock.RLock()
-				log.WithFields(log.Fields{
-					"Topic":   "Peer",
-					"Key":     h.fsm.pConf.State.NeighborAddress,
-					"Code":    body.ErrorCode,
-					"Subcode": body.ErrorSubcode,
-					"Data":    body.Data,
-				}).Warn("received notification")
-				h.fsm.lock.RUnlock()
-			}
-
-			h.fsm.lock.RLock()
-			s := h.fsm.pConf.GracefulRestart.State
-			hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
-			h.fsm.lock.RUnlock()
-			if hardReset {
-				sendToStateReasonCh(FSM_HARD_RESET, m)
-			} else {
-				sendToStateReasonCh(FSM_NOTIFICATION_RECV, m)
-			}
-			return nil, nil
 		}
 	}
 	return fmsg, nil
