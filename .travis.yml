@@ -8,10 +8,8 @@ _dep_ensure: &_dep_ensure
 _unittest: &_unittest
   <<: *_dep_ensure
   script:
-    - go test $(go list ./... | grep -v '/vendor/')
+    - go test $(go list ./... | grep -v '/vendor/') -timeout 120s
     - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
-    - go build -o ./gobgp/gobgp   ./gobgp/
-    - go build -o ./gobgpd/gobgpd ./gobgpd/
 
 _build: &_build
   <<: *_dep_ensure
@@ -52,13 +50,14 @@ env:
 matrix:
   allow_failures:
     - go: tip
+
   include:
 #
 # Unit Tests
 #
     - <<: *_unittest
       env:
-        - DESCRIPTION="Unit Tests"
+        - DESCRIPTION="Unit Tests Tip"
       go: tip
     - <<: *_unittest
       env:
@@ -66,16 +65,20 @@ matrix:
       go: 1.9
     - <<: *_unittest
       env:
-        - DESCRIPTION="Unit Tests + goreleaser"
+        - DESCRIPTION="Tests + goreleaser + cover"
       go: "1.10"
+      script:
+        - go test $(go list ./... | grep -v '/vendor/') -coverprofile=coverage.txt -covermode=atomic
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
+        - bash <(curl -s https://codecov.io/bash)
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests on i386"
       before_script:
         - export GOARCH="386"
         - go env
+
 #
 # Cross-compile
 #
@@ -105,12 +108,12 @@ matrix:
 #
     - <<: *_dep_ensure
       env:
-        - DESCRIPTION="go fmt"
-      script: test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
-    - <<: *_dep_ensure
-      env:
-        - DESCRIPTION="go vet"
-      script: test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
+        - DESCRIPTION="go fmt + vet + megacheck"
+      before_script: go get -u honnef.co/go/tools/cmd/megacheck
+      script:
+        - test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
+        - test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
+        - megacheck $(go list ./... | grep -v '/vendor/')
     - <<: *_dep_ensure
       env:
         - DESCRIPTION="build_embeded_go.py"

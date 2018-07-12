@@ -22,12 +22,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/protobuf/ptypes/any"
-
-	"github.com/spf13/cobra"
-
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
+
+	"github.com/golang/protobuf/ptypes/any"
+	"github.com/spf13/cobra"
 )
 
 func getVrfs() (vrfs, error) {
@@ -154,7 +153,9 @@ func modVrf(typ string, args []string) error {
 				return err
 			}
 		}
-		err = client.AddVRF(name, int(id), rd, importRt, exportRt)
+		if err := client.AddVRF(name, int(id), rd, importRt, exportRt); err != nil {
+			return err
+		}
 	case CMD_DEL:
 		if len(args) != 1 {
 			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")
@@ -165,7 +166,6 @@ func modVrf(typ string, args []string) error {
 }
 
 func NewVrfCmd() *cobra.Command {
-
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {

@@ -16,10 +16,13 @@
 package server
 
 import (
+	"context"
 	"net"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -277,14 +280,8 @@ func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
-	for idx, path := range news {
-		var old *table.Path
-		if olds != nil {
-			old = olds[idx]
-		}
-		return path, old
-	}
-	return nil, nil
+
+	return news[0], olds[0]
 }
 
 func TestFilterpathWitheBGP(t *testing.T) {
@@ -597,7 +594,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: config.GracefulRestart{
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
-				RestartTime: 10,
+				RestartTime: 1,
 			},
 		},
 	}
@@ -613,7 +610,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			Port:     -1,
 		},
 	})
-	assert.Nil(err)
+	require.NoError(t, err)
 	defer s2.Stop()
 
 	m := &config.Neighbor{
@@ -629,7 +626,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: config.GracefulRestart{
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
-				RestartTime: 10,
+				RestartTime: 1,
 			},
 		},
 	}
@@ -656,22 +653,55 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	// Create dummy session which does NOT send BGP OPEN message in order to
 	// cause Graceful Restart timer expired.
 	var conn net.Conn
-	for {
-		time.Sleep(time.Second)
-		var err error
-		conn, err = net.Dial("tcp", "127.0.0.1:10179")
-		if err != nil {
-			log.Warn("net.Dial:", err)
-		}
-		break
-	}
+
+	conn, err = net.Dial("tcp", "127.0.0.1:10179")
+	require.NoError(t, err)
 	defer conn.Close()
+
+	// this seems to take around 22 seconds... need to address this whole thing
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
-		time.Sleep(time.Second)
 		if s1.GetNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_IDLE {
 			break
 		}
+
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			t.Fatalf("failed to enter IDLE state in the deadline")
+			return
+		}
 	}
+}
+
+func TestFamiliesForSoftreset(t *testing.T) {
+	f := func(f bgp.RouteFamily) config.AfiSafi {
+		return config.AfiSafi{
+			State: config.AfiSafiState{
+				Family: f,
+			},
+		}
+	}
+	peer := &Peer{
+		fsm: &FSM{
+			pConf: &config.Neighbor{
+				AfiSafis: []config.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
+			},
+		},
+	}
+
+	families := familiesForSoftreset(peer, bgp.RF_IPv4_UC)
+	assert.Equal(t, len(families), 1)
+	assert.Equal(t, families[0], bgp.RF_IPv4_UC)
+
+	families = familiesForSoftreset(peer, bgp.RF_RTC_UC)
+	assert.Equal(t, len(families), 1)
+	assert.Equal(t, families[0], bgp.RF_RTC_UC)
+
+	families = familiesForSoftreset(peer, bgp.RouteFamily(0))
+	assert.Equal(t, len(families), 2)
+	assert.NotContains(t, families, bgp.RF_RTC_UC)
 }

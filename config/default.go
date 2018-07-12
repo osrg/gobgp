@@ -30,7 +30,7 @@ var configuredFields map[string]interface{}
 
 func RegisterConfiguredFields(addr string, n interface{}) {
 	if configuredFields == nil {
-		configuredFields = make(map[string]interface{}, 0)
+		configuredFields = make(map[string]interface{})
 	}
 	configuredFields[addr] = n
 }
@@ -496,7 +496,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.TtlSecurity.Config, &pg.TtlSecurity.Config, "neighbor.ttl-security.config", v)
 
 	if !v.IsSet("neighbor.afi-safis") {
-		c.AfiSafis = pg.AfiSafis
+		c.AfiSafis = append(c.AfiSafis, pg.AfiSafis...)
 	}
 
 	return nil

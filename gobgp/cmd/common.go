@@ -97,23 +97,6 @@ var neighborsOpts struct {
 	Transport string `short:"t" long:"transport" description:"specifying a transport protocol"`
 }
 
-var conditionOpts struct {
-	Prefix       string `long:"prefix" description:"specifying a prefix set name of policy"`
-	Neighbor     string `long:"neighbor" description:"specifying a neighbor set name of policy"`
-	AsPath       string `long:"aspath" description:"specifying an as set name of policy"`
-	Community    string `long:"community" description:"specifying a community set name of policy"`
-	ExtCommunity string `long:"extcommunity" description:"specifying a extended community set name of policy"`
-	AsPathLength string `long:"aspath-len" description:"specifying an as path length of policy (<operator>,<numeric>)"`
-}
-
-var actionOpts struct {
-	RouteAction         string `long:"route-action" description:"specifying a route action of policy (accept | reject)"`
-	CommunityAction     string `long:"community" description:"specifying a community action of policy"`
-	MedAction           string `long:"med" description:"specifying a med action of policy"`
-	AsPathPrependAction string `long:"as-prepend" description:"specifying a as-prepend action of policy"`
-	NexthopAction       string `long:"next-hop" description:"specifying a next-hop action of policy"`
-}
-
 var mrtOpts struct {
 	OutputDir   string
 	FileFormat  string
@@ -216,10 +199,7 @@ func (n neighbors) Less(i, j int) bool {
 	p1Isv4 := !strings.Contains(p1, ":")
 	p2Isv4 := !strings.Contains(p2, ":")
 	if p1Isv4 != p2Isv4 {
-		if p1Isv4 {
-			return true
-		}
-		return false
+		return p1Isv4
 	}
 	addrlen := 128
 	if p1Isv4 {
@@ -352,4 +332,16 @@ func printError(err error) {
 func exitWithError(err error) {
 	printError(err)
 	os.Exit(1)
+}
+
+func getNextHopFromPathAttributes(attrs []bgp.PathAttributeInterface) net.IP {
+	for _, attr := range attrs {
+		switch a := attr.(type) {
+		case *bgp.PathAttributeNextHop:
+			return a.Value
+		case *bgp.PathAttributeMpReachNLRI:
+			return a.Nexthop
+		}
+	}
+	return nil
 }

@@ -19,8 +19,8 @@ import (
 	"bytes"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/eapache/channels"
@@ -111,7 +111,7 @@ type BgpServer struct {
 	globalRib    *table.TableManager
 	rsRib        *table.TableManager
 	roaManager   *roaManager
-	shutdown     bool
+	shutdownWG   *sync.WaitGroup
 	watcherMap   map[WatchEventType][]*Watcher
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
@@ -242,10 +242,12 @@ func (server *BgpServer) Serve() {
 					}
 					return true
 				}(peer.fsm.pConf.Transport.Config.LocalAddress)
-				if localAddrValid == false {
+
+				if !localAddrValid {
 					conn.Close()
 					return
 				}
+
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
@@ -1231,7 +1233,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				}
 			}
 		} else {
-			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
+			if server.shutdownWG != nil && nextState == bgp.BGP_FSM_IDLE {
 				die := true
 				for _, p := range server.neighborMap {
 					if p.fsm.state != bgp.BGP_FSM_IDLE {
@@ -1240,7 +1242,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					}
 				}
 				if die {
-					os.Exit(0)
+					server.shutdownWG.Done()
 				}
 			}
 			peer.fsm.pConf.Timers.State.Downtime = time.Now().Unix()
@@ -1375,7 +1377,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			}).Panic("unknown msg type")
 		}
 	}
-	return
 }
 
 func (s *BgpServer) AddCollector(c *config.CollectorConfig) error {
@@ -1414,18 +1415,26 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) error {
 
 func (s *BgpServer) Shutdown() {
 	s.mgmtOperation(func() error {
-		s.shutdown = true
-		stateOp := AdminStateOperation{ADMIN_STATE_DOWN, nil}
+		s.shutdownWG = new(sync.WaitGroup)
+		s.shutdownWG.Add(1)
+		stateOp := AdminStateOperation{
+			State:         ADMIN_STATE_DOWN,
+			Communication: nil,
+		}
 		for _, p := range s.neighborMap {
 			p.fsm.adminStateCh <- stateOp
-		}
-		// the main goroutine waits for peers' goroutines to stop but if no peer is configured, needs to die immediately.
-		if len(s.neighborMap) == 0 {
-			os.Exit(0)
 		}
 		// TODO: call fsmincomingCh.Close()
 		return nil
 	}, false)
+
+	// Waits for all goroutines per peer to stop.
+	// Note: This should not be wrapped with s.mgmtOperation() in order to
+	// avoid the deadlock in the main goroutine of BgpServer.
+	if s.shutdownWG != nil {
+		s.shutdownWG.Wait()
+		s.shutdownWG = nil
+	}
 }
 
 func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) error {
@@ -1710,8 +1719,8 @@ func (s *BgpServer) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInte
 			AS:      s.bgpConfig.Global.Config.As,
 			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
-		if pathList, e := s.globalRib.AddVrf(name, id, rd, im, ex, pi); e != nil {
-			return e
+		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
+			return err
 		} else if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
 		}
@@ -1753,16 +1762,28 @@ func (s *BgpServer) Stop() error {
 	}, true)
 }
 
+func familiesForSoftreset(peer *Peer, family bgp.RouteFamily) []bgp.RouteFamily {
+	if family == bgp.RouteFamily(0) {
+		configured := peer.configuredRFlist()
+		families := make([]bgp.RouteFamily, 0, len(configured))
+		for _, f := range configured {
+			if f != bgp.RF_RTC_UC {
+				families = append(families, f)
+			}
+		}
+		return families
+	}
+	return []bgp.RouteFamily{family}
+}
+
 func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
 	peers, err := s.addrToPeers(addr)
 	if err != nil {
 		return err
 	}
 	for _, peer := range peers {
-		families := []bgp.RouteFamily{family}
-		if family == bgp.RouteFamily(0) {
-			families = peer.configuredRFlist()
-		}
+		families := familiesForSoftreset(peer, family)
+
 		pathList := make([]*table.Path, 0, peer.adjRibIn.Count(families))
 		for _, path := range peer.adjRibIn.PathList(families, false) {
 			// RFC4271 9.1.2 Phase 2: Route Selection
@@ -1798,11 +1819,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 			continue
 		}
-
-		families := []bgp.RouteFamily{family}
-		if family == bgp.RouteFamily(0) {
-			families = peer.negotiatedRFList()
-		}
+		families := familiesForSoftreset(peer, family)
 
 		if deferral {
 			_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
@@ -1828,7 +1845,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		if len(pathList) > 0 {
 			sendFsmOutgoingMsg(peer, pathList, nil, false)
 		}
-		if deferral == false && len(filtered) > 0 {
+		if !deferral && len(filtered) > 0 {
 			withdrawnList := make([]*table.Path, 0, len(filtered))
 			for _, p := range filtered {
 				withdrawnList = append(withdrawnList, p.Clone(true))
@@ -2293,7 +2310,8 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 		if original.Config.AdminDown != c.Config.AdminDown {
 			sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
 			state := "Admin Down"
-			if c.Config.AdminDown == false {
+
+			if !c.Config.AdminDown {
 				state = "Admin Up"
 			}
 			log.WithFields(log.Fields{
@@ -2734,7 +2752,6 @@ type watchOptions struct {
 	initPeerState  bool
 	tableName      string
 	recvMessage    bool
-	sentMessage    bool
 }
 
 type WatchOption func(*watchOptions)
@@ -2834,7 +2851,7 @@ func (w *Watcher) Generate(t WatchEventType) error {
 			pathList := func() map[string][]*table.Path {
 				pathList := make(map[string][]*table.Path)
 				for _, t := range rib.Tables {
-					for _, dst := range t.GetSortedDestinations() {
+					for _, dst := range t.GetDestinations() {
 						if paths := dst.GetKnownPathList(id, as); len(paths) > 0 {
 							pathList[dst.GetNlri().String()] = clonePathList(paths)
 						}
@@ -2859,16 +2876,10 @@ func (w *Watcher) notify(v WatchEvent) {
 }
 
 func (w *Watcher) loop() {
-	for {
-		select {
-		case ev, ok := <-w.ch.Out():
-			if !ok {
-				close(w.realCh)
-				return
-			}
-			w.realCh <- ev.(WatchEvent)
-		}
+	for ev := range w.ch.Out() {
+		w.realCh <- ev.(WatchEvent)
 	}
+	close(w.realCh)
 }
 
 func (w *Watcher) Stop() {

@@ -22,8 +22,6 @@ import (
 	"math"
 	"net"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -407,7 +405,7 @@ func (path *Path) SetAsLooped(y bool) {
 
 func (path *Path) IsLLGRStale() bool {
 	for _, c := range path.GetCommunities() {
-		if c == bgp.COMMUNITY_LLGR_STALE {
+		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
 			return true
 		}
 	}
@@ -610,39 +608,7 @@ func (path *Path) GetAsPathLen() int {
 func (path *Path) GetAsString() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
 	if aspath := path.GetAsPath(); aspath != nil {
-		for i, param := range aspath.Value {
-			segType := param.GetType()
-			asList := param.GetAS()
-			if i != 0 {
-				s.WriteString(" ")
-			}
-
-			sep := " "
-			switch segType {
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
-				s.WriteString("(")
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
-				s.WriteString("[")
-				sep = ","
-			case bgp.BGP_ASPATH_ATTR_TYPE_SET:
-				s.WriteString("{")
-				sep = ","
-			}
-			for j, as := range asList {
-				s.WriteString(fmt.Sprintf("%d", as))
-				if j != len(asList)-1 {
-					s.WriteString(sep)
-				}
-			}
-			switch segType {
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
-				s.WriteString(")")
-			case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
-				s.WriteString("]")
-			case bgp.BGP_ASPATH_ATTR_TYPE_SET:
-				s.WriteString("}")
-			}
-		}
+		return bgp.AsPathString(aspath)
 	}
 	return s.String()
 }
@@ -677,31 +643,7 @@ func (path *Path) getAsListOfSpecificType(getAsSeq, getAsSet bool) []uint32 {
 }
 
 func (path *Path) GetLabelString() string {
-	label := ""
-	switch n := path.GetNlri().(type) {
-	case *bgp.LabeledIPAddrPrefix:
-		label = n.Labels.String()
-	case *bgp.LabeledIPv6AddrPrefix:
-		label = n.Labels.String()
-	case *bgp.LabeledVPNIPAddrPrefix:
-		label = n.Labels.String()
-	case *bgp.LabeledVPNIPv6AddrPrefix:
-		label = n.Labels.String()
-	case *bgp.EVPNNLRI:
-		switch route := n.RouteTypeData.(type) {
-		case *bgp.EVPNEthernetAutoDiscoveryRoute:
-			label = fmt.Sprintf("[%d]", route.Label)
-		case *bgp.EVPNMacIPAdvertisementRoute:
-			var l []string
-			for _, i := range route.Labels {
-				l = append(l, strconv.Itoa(int(i)))
-			}
-			label = fmt.Sprintf("[%s]", strings.Join(l, ","))
-		case *bgp.EVPNIPPrefixRoute:
-			label = fmt.Sprintf("[%d]", route.Label)
-		}
-	}
-	return label
+	return bgp.LabelString(path.GetNlri())
 }
 
 // PrependAsn prepends AS number.
@@ -798,7 +740,6 @@ func (path *Path) RemovePrivateAS(localAS uint32, option config.RemovePrivateAsO
 		}
 		path.setPathAttr(bgp.NewPathAttributeAsPath(newASParams))
 	}
-	return
 }
 
 func (path *Path) removeConfedAs() {
@@ -925,9 +866,7 @@ func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
 	eCommunityList := make([]bgp.ExtendedCommunityInterface, 0)
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES); attr != nil {
 		eCommunities := attr.(*bgp.PathAttributeExtendedCommunities).Value
-		for _, eCommunity := range eCommunities {
-			eCommunityList = append(eCommunityList, eCommunity)
-		}
+		eCommunityList = append(eCommunityList, eCommunities...)
 	}
 	return eCommunityList
 }
@@ -951,9 +890,7 @@ func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
 	if a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY); a != nil {
 		v := a.(*bgp.PathAttributeLargeCommunities).Values
 		ret := make([]*bgp.LargeCommunity, 0, len(v))
-		for _, c := range v {
-			ret = append(ret, c)
-		}
+		ret = append(ret, v...)
 		return ret
 	}
 	return nil
@@ -979,20 +916,19 @@ func (path *Path) GetMed() (uint32, error) {
 
 // SetMed replace, add or subtraction med with new ones.
 func (path *Path) SetMed(med int64, doReplace bool) error {
-
 	parseMed := func(orgMed uint32, med int64, doReplace bool) (*bgp.PathAttributeMultiExitDisc, error) {
-		newMed := &bgp.PathAttributeMultiExitDisc{}
 		if doReplace {
-			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(med))
-		} else {
-			if int64(orgMed)+med < 0 {
-				return nil, fmt.Errorf("med value invalid. it's underflow threshold.")
-			} else if int64(orgMed)+med > int64(math.MaxUint32) {
-				return nil, fmt.Errorf("med value invalid. it's overflow threshold.")
-			}
-			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med))
+			return bgp.NewPathAttributeMultiExitDisc(uint32(med)), nil
 		}
-		return newMed, nil
+
+		medVal := int64(orgMed) + med
+		if medVal < 0 {
+			return nil, fmt.Errorf("med value invalid. it's underflow threshold: %v", medVal)
+		} else if medVal > int64(math.MaxUint32) {
+			return nil, fmt.Errorf("med value invalid. it's overflow threshold: %v", medVal)
+		}
+
+		return bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med)), nil
 	}
 
 	m := uint32(0)

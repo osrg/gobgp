@@ -31,7 +31,8 @@ func Test_ParsePath(t *testing.T) {
 	path, err := ParsePath(bgp.RF_IPv4_UC, strings.Split(buf, " "))
 	assert.Nil(err)
 	i := 0
-	for _, a := range path.GetPathAttrs() {
+	attrs, _ := path.GetNativePathAttributes()
+	for _, a := range attrs {
 		assert.True(i < int(a.GetType()))
 		i = int(a.GetType())
 	}

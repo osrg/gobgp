@@ -42,8 +42,8 @@ type PeerGroup struct {
 func NewPeerGroup(c *config.PeerGroup) *PeerGroup {
 	return &PeerGroup{
 		Conf:             c,
-		members:          make(map[string]config.Neighbor, 0),
-		dynamicNeighbors: make(map[string]*config.DynamicNeighbor, 0),
+		members:          make(map[string]config.Neighbor),
+		dynamicNeighbors: make(map[string]*config.DynamicNeighbor),
 	}
 }
 
@@ -293,7 +293,7 @@ func (peer *Peer) markLLGRStale(fs []bgp.RouteFamily) []*table.Path {
 	for i, p := range paths {
 		doStale := true
 		for _, c := range p.GetCommunities() {
-			if c == bgp.COMMUNITY_NO_LLGR {
+			if c == uint32(bgp.COMMUNITY_NO_LLGR) {
 				doStale = false
 				p = p.Clone(true)
 				break
@@ -301,7 +301,7 @@ func (peer *Peer) markLLGRStale(fs []bgp.RouteFamily) []*table.Path {
 		}
 		if doStale {
 			p = p.Clone(false)
-			p.SetCommunities([]uint32{bgp.COMMUNITY_LLGR_STALE}, false)
+			p.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE)}, false)
 		}
 		paths[i] = p
 	}
@@ -315,10 +315,6 @@ func (peer *Peer) stopPeerRestarting() {
 	}
 	peer.llgrEndChs = make([]chan struct{}, 0)
 
-}
-
-func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
-	return peer.adjRibIn.PathList(rfList, true)
 }
 
 func (peer *Peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {

@@ -255,18 +255,6 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, dd.knownPathList)
 }
 
-func (dd *Destination) validatePath(path *Path) {
-	if path == nil || path.GetRouteFamily() != dd.routeFamily {
-
-		log.WithFields(log.Fields{
-			"Topic":      "Table",
-			"Key":        dd.GetNlri().String(),
-			"Path":       path,
-			"ExpectedRF": dd.routeFamily,
-		}).Error("path is nil or invalid route family")
-	}
-}
-
 // Calculates best-path among known paths for this destination.
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
@@ -530,10 +518,7 @@ func (dst *Destination) sort() {
 
 		better.reason = reason
 
-		if better == path1 {
-			return true
-		}
-		return false
+		return better == path1
 	})
 }
 
@@ -1053,46 +1038,4 @@ func (d *Destination) Select(option ...DestinationSelectOption) *Destination {
 		}
 	}
 	return NewDestination(d.nlri, 0, paths...)
-}
-
-type destinations []*Destination
-
-func (d destinations) Len() int {
-	return len(d)
-}
-
-func (d destinations) Swap(i, j int) {
-	d[i], d[j] = d[j], d[i]
-}
-
-func (d destinations) Less(i, j int) bool {
-	switch d[i].routeFamily {
-	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
-		var s, t *bgp.FlowSpecNLRI
-		switch d[i].routeFamily {
-		case bgp.RF_FS_IPv4_UC:
-			s = &d[i].nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
-			t = &d[j].nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
-		case bgp.RF_FS_IPv6_UC:
-			s = &d[i].nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
-			t = &d[j].nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
-		case bgp.RF_FS_IPv4_VPN:
-			s = &d[i].nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
-			t = &d[j].nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
-		case bgp.RF_FS_IPv6_VPN:
-			s = &d[i].nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
-			t = &d[j].nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
-		case bgp.RF_FS_L2_VPN:
-			s = &d[i].nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
-			t = &d[j].nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
-		}
-		if r, _ := bgp.CompareFlowSpecNLRI(s, t); r >= 0 {
-			return true
-		} else {
-			return false
-		}
-	default:
-		strings := sort.StringSlice{d[i].nlri.String(), d[j].nlri.String()}
-		return strings.Less(0, 1)
-	}
 }
