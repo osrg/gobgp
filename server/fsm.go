@@ -1004,7 +1004,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 		fmsg.MsgData = m
 
 		h.fsm.lock.RLock()
-		establishedState := h.fsm.state != bgp.BGP_FSM_ESTABLISHED
+		establishedState := h.fsm.state == bgp.BGP_FSM_ESTABLISHED
 		h.fsm.lock.RUnlock()
 
 		if establishedState {
