@@ -24,17 +24,16 @@ import (
 	"sync"
 	"time"
 
-	api "github.com/osrg/gobgp/api"
+	"github.com/eapache/channels"
+	uuid "github.com/satori/go.uuid"
+	log "github.com/sirupsen/logrus"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/internal/pkg/zebra"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
-
-	"github.com/eapache/channels"
-	uuid "github.com/satori/go.uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 type TCPListener struct {
@@ -987,7 +986,19 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) {
 					// given RT on RTM NLRI is already removed from adj-RIB-in.
 					_, candidates = server.getBestFromLocal(peer, fs)
 				} else {
-					candidates = server.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+					// https://github.com/osrg/gobgp/issues/1777
+					// Ignore duplicate Membership announcements
+					membershipsForSource := server.globalRib.GetPathListWithSource(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_RTC_UC}, path.GetSource())
+					found := false
+					for _, membership := range membershipsForSource {
+						if membership.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget.String() == rt.String() {
+							found = true
+							break
+						}
+					}
+					if !found {
+						candidates = server.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+					}
 				}
 				paths := make([]*table.Path, 0, len(candidates))
 				for _, p := range candidates {
