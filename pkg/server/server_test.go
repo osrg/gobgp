@@ -22,14 +22,15 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/internal/pkg/config"
-	"github.com/osrg/gobgp/internal/pkg/table"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
+	"github.com/osrg/gobgp/internal/pkg/config"
+	"github.com/osrg/gobgp/internal/pkg/table"
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
 func TestModPolicyAssign(t *testing.T) {
@@ -721,4 +722,212 @@ func TestFamiliesForSoftreset(t *testing.T) {
 	families = familiesForSoftreset(peer, bgp.RouteFamily(0))
 	assert.Equal(t, len(families), 2)
 	assert.NotContains(t, families, bgp.RF_RTC_UC)
+}
+
+func runNewServer(ctx context.Context, as uint32, routerId string, listenPort int32) (*BgpServer, error) {
+	s := NewBgpServer()
+	ctxInner, cancelInner := context.WithCancel(ctx)
+	go s.Serve()
+	go func() {
+		<-ctxInner.Done()
+		stopCtx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := s.StopBgp(stopCtx, &api.StopBgpRequest{}); err != nil {
+			log.Fatalf("Failed to stop server %s: %s", s.bgpConfig.Global.Config.RouterId, err)
+		}
+	}()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         as,
+			RouterId:   routerId,
+			ListenPort: listenPort,
+		},
+	})
+	if err != nil {
+		cancelInner()
+		return nil, err
+	}
+
+	return s, nil
+}
+
+func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []config.AfiSafiType) error {
+	for i, server := range servers {
+		for j, peer := range servers {
+			if i == j {
+				continue
+			}
+
+			neighborConfig := &config.Neighbor{
+				Config: config.NeighborConfig{
+					NeighborAddress: "127.0.0.1",
+					PeerAs:          peer.bgpConfig.Global.Config.As,
+				},
+				AfiSafis: config.AfiSafis{},
+				Transport: config.Transport{
+					Config: config.TransportConfig{
+						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+					},
+				},
+			}
+
+			// first server to get neighbor config is passive to hopefully make handshake faster
+			if j > i {
+				neighborConfig.Transport.Config.PassiveMode = true
+			}
+
+			for _, family := range families {
+				neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, config.AfiSafi{
+					Config: config.AfiSafiConfig{
+						AfiSafiName: family,
+						Enabled:     true,
+					},
+				})
+			}
+
+			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: NewPeerFromConfigStruct(neighborConfig)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func parseRDRT(rdStr string) (bgp.RouteDistinguisherInterface, bgp.ExtendedCommunityInterface, error) {
+	rd, err := bgp.ParseRouteDistinguisher(rdStr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rt, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_ROUTE_TARGET, rdStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	return rd, rt, nil
+}
+
+func addVrf(t *testing.T, ctx context.Context, s *BgpServer, vrfName, rdStr string, id uint32) {
+	rd, rt, err := parseRDRT(rdStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := &api.AddVrfRequest{
+		Vrf: &api.Vrf{
+			Name:     vrfName,
+			ImportRt: apiutil.MarshalRTs([]bgp.ExtendedCommunityInterface{rt}),
+			ExportRt: apiutil.MarshalRTs([]bgp.ExtendedCommunityInterface{rt}),
+			Rd:       apiutil.MarshalRD(rd),
+			Id:       id,
+		},
+	}
+	if err = s.AddVrf(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
+	// missing it may cause Test_DialTCP_FDleak to fail
+	defer time.Sleep(time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	log.SetLevel(log.DebugLevel)
+
+	s1, err := runNewServer(ctx, 1, "1.1.1.1", 10179)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2, err := runNewServer(ctx, 1, "2.2.2.2", 20179)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addVrf(t, ctx, s1, "vrf1", "111:111", 1)
+	addVrf(t, ctx, s2, "vrf1", "111:111", 1)
+
+	if err = peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	watcher := s1.Watch(WatchUpdate(true))
+
+	// Add route to vrf1 on s2
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("2.2.2.2"),
+	}
+	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
+	path := apiutil.NewPath(prefix, false, attrs, time.Now())
+
+	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
+		Resource: api.Resource_VRF,
+		VrfId:    "vrf1",
+		Path:     path,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// s1 should receive this route from s2
+
+	for found := false; !found; {
+		select {
+		case ev := <-watcher.Event():
+			switch msg := ev.(type) {
+			case *WatchEventUpdate:
+				for _, path := range msg.PathList {
+					log.Infof("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if vpnPath.Prefix.Equal(prefix.Prefix) {
+							log.Infof("tester found expected prefix: %s", vpnPath.Prefix)
+							found = true
+						} else {
+							log.Infof("unknown prefix %s != %s", vpnPath.Prefix, prefix.Prefix)
+						}
+					}
+				}
+			}
+		case <-ctx.Done():
+			t.Fatalf("timeout while waiting for update path event")
+		}
+	}
+
+	// fabricate duplicated rtc message from s1
+	// s2 should not send vpn route again
+	_, rt, err := parseRDRT("111:111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rtcNLRI := bgp.NewRouteTargetMembershipNLRI(1, rt)
+	rtcPath := table.NewPath(&table.PeerInfo{
+		AS:      1,
+		Address: net.ParseIP("127.0.0.1"),
+		LocalID: net.ParseIP("2.2.2.2"),
+		ID:      net.ParseIP("1.1.1.1"),
+	}, rtcNLRI, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("1.1.1.1"),
+	}, time.Now(), false)
+
+	s1Peer := s2.neighborMap["127.0.0.1"]
+	s2.propagateUpdate(s1Peer, []*table.Path{rtcPath})
+
+	awaitUpdateCtx, _ := context.WithTimeout(ctx, time.Second)
+	for done := false; !done; {
+		select {
+		case ev := <-watcher.Event():
+			switch msg := ev.(type) {
+			case *WatchEventUpdate:
+				for _, path := range msg.PathList {
+					log.Infof("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						t.Fatalf("vpn prefix %s was unexpectedly received", vpnPath.Prefix)
+					}
+				}
+			}
+		case <-awaitUpdateCtx.Done():
+			log.Infof("await update done")
+			done = true
+		}
+	}
 }
