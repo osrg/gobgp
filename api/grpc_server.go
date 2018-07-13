@@ -345,6 +345,10 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		},
 		AfiSafis: afiSafis,
 		AddPaths: NewAddPathsFromConfigStruct(&pconf.AddPaths),
+		EbgpMultihop: &EbgpMultihop{
+			Enabled:     pconf.EbgpMultihop.Config.Enabled,
+			MultihopTtl: uint32(pconf.EbgpMultihop.Config.MultihopTtl),
+		},
 	}
 }
 
