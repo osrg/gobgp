@@ -8444,7 +8444,13 @@ func (p *PathAttributePmsiTunnel) MarshalJSON() ([]byte, error) {
 
 func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, label uint32, id PmsiTunnelIDInterface) *PathAttributePmsiTunnel {
 	// Flags(1) + TunnelType(1) + Label(3) + TunnelID(variable)
-	l := 5 + id.Len()
+	l := 5
+	if id != nil {
+		l += id.Len()
+	} else {
+		l += net.IPv4len
+	}
+
 	t := BGP_ATTR_TYPE_PMSI_TUNNEL
 	return &PathAttributePmsiTunnel{
 		PathAttribute: PathAttribute{
