@@ -30,7 +30,7 @@ func TestShowRPKITable(test *testing.T) {
 	s := server.NewBgpServer()
 	go s.Serve()
 
-	g := server.NewGrpcServer(s, ":50051")
+	g := server.NewGrpcServer(s, ":50052")
 	go g.Serve()
 
 	err := s.Start(&config.Global{
@@ -53,7 +53,7 @@ func TestShowRPKITable(test *testing.T) {
 	assert.Nil(err)
 
 	globalOpts.Host = "127.0.0.1"
-	globalOpts.Port = 50051
+	globalOpts.Port = 50052
 	client = newClient()
 	defer client.Close()
 
