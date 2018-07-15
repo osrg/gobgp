@@ -452,7 +452,7 @@ func (fsm *FSM) connectLoop() error {
 			}).Debugf("failed to connect: %s", err)
 		}
 
-		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
+		if fsm.state == bgp.BGP_FSM_ACTIVE {
 			timer.Reset(time.Duration(tick) * time.Second)
 		}
 	}
