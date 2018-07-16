@@ -93,10 +93,10 @@ func UpdatePeerGroupConfig(curC, newC *BgpConfigSet) ([]PeerGroup, []PeerGroup, 
 		} else if !n.Equal(&curC.PeerGroups[idx]) {
 			log.WithFields(log.Fields{
 				"Topic": "Config",
-			}).Debugf("Current peer-group config:%s", curC.PeerGroups[idx])
+			}).Debugf("Current peer-group config:%v", curC.PeerGroups[idx])
 			log.WithFields(log.Fields{
 				"Topic": "Config",
-			}).Debugf("New peer-group config:%s", n)
+			}).Debugf("New peer-group config:%v", n)
 			updatedPg = append(updatedPg, n)
 		}
 	}
@@ -120,10 +120,10 @@ func UpdateNeighborConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []N
 		} else if !n.Equal(&curC.Neighbors[idx]) {
 			log.WithFields(log.Fields{
 				"Topic": "Config",
-			}).Debugf("Current neighbor config:%s", curC.Neighbors[idx])
+			}).Debugf("Current neighbor config:%v", curC.Neighbors[idx])
 			log.WithFields(log.Fields{
 				"Topic": "Config",
-			}).Debugf("New neighbor config:%s", n)
+			}).Debugf("New neighbor config:%v", n)
 			updated = append(updated, n)
 		}
 	}
@@ -140,10 +140,10 @@ func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolic
 
 	log.WithFields(log.Fields{
 		"Topic": "Config",
-	}).Debugf("Current policy:%s", currentPolicy)
+	}).Debugf("Current policy:%v", currentPolicy)
 	log.WithFields(log.Fields{
 		"Topic": "Config",
-	}).Debugf("New policy:%s", newPolicy)
+	}).Debugf("New policy:%v", newPolicy)
 
 	var result bool
 	if currentPolicy == nil && newPolicy == nil {
