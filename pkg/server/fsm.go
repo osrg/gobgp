@@ -413,7 +413,7 @@ func (fsm *FSM) connectLoop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.State.NeighborAddress,
-			}).Warn("failed to resolve local address: %s", err)
+			}).Warnf("failed to resolve local address: %s", err)
 			return
 		}
 		var conn net.Conn
