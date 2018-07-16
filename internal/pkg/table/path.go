@@ -305,7 +305,7 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.State.NeighborAddress,
-		}).Warnf("invalid peer type: %d", peer.State.PeerType)
+		}).Warnf("invalid peer type: %v", peer.State.PeerType)
 	}
 	return path
 }
