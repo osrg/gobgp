@@ -1822,6 +1822,9 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		families := familiesForSoftreset(peer, family)
 
 		if deferral {
+			if family == bgp.RouteFamily(0) {
+				families = peer.configuredRFlist()
+			}
 			_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
 			if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
