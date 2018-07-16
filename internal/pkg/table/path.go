@@ -984,7 +984,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return false
 	}
 
-	if lhs.GetSource() != rhs.GetSource() {
+	if !lhs.GetSource().Equal(rhs.GetSource()) {
 		return false
 	}
 

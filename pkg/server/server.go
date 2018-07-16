@@ -471,7 +471,7 @@ func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 		// If the given "path" is locally generated and the same with "old", we
 		// assumes "path" was already sent before. This assumption avoids the
 		// infinite UPDATE loop between Route Reflector and its clients.
-		if path.IsLocal() && path == old {
+		if path.IsLocal() && path.Equal(old) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.fsm.pConf.State.NeighborAddress,
