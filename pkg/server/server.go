@@ -1930,6 +1930,9 @@ func (s *BgpServer) Stop() error {
 func familiesForSoftreset(peer *Peer, family bgp.RouteFamily) []bgp.RouteFamily {
 	if family == bgp.RouteFamily(0) {
 		configured := peer.configuredRFlist()
+		if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+			return configured
+		}
 		families := make([]bgp.RouteFamily, 0, len(configured))
 		for _, f := range configured {
 			if f != bgp.RF_RTC_UC {
