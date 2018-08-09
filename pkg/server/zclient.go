@@ -297,7 +297,7 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 	}
 
 	for _, rf := range rfList {
-		tbl, _, err := z.server.GetRib("", rf, nil)
+		tbl, _, err := z.server.getRib("", rf, nil)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic":  "Zebra",
@@ -315,7 +315,7 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
 	paths = z.nexthopCache.applyToPathList(paths)
 	if len(paths) > 0 {
-		if err := z.server.UpdatePath("", paths); err != nil {
+		if err := z.server.updatePath("", paths); err != nil {
 			log.WithFields(log.Fields{
 				"Topic":    "Zebra",
 				"PathList": paths,
@@ -339,7 +339,7 @@ func (z *zebraClient) loop() {
 			switch body := msg.Body.(type) {
 			case *zebra.IPRouteBody:
 				if path := newPathFromIPRouteMessage(msg); path != nil {
-					if _, err := z.server.AddPath("", []*table.Path{path}); err != nil {
+					if err := z.server.addPathList("", []*table.Path{path}); err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Zebra",
 							"Path":  path,
@@ -395,7 +395,7 @@ func (z *zebraClient) loop() {
 			case *WatchEventUpdate:
 				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
 					vrfID := uint16(0)
-					for _, vrf := range z.server.GetVrf() {
+					for _, vrf := range z.server.listVrf() {
 						if vrf.Name == msg.Neighbor.Config.Vrf {
 							vrfID = uint16(vrf.Id)
 						}
