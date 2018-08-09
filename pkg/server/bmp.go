@@ -225,7 +225,7 @@ func (b *bmpClient) loop() {
 						}
 					}
 				case <-tickerCh:
-					neighborList := b.s.GetNeighbor("", true)
+					neighborList := b.s.getNeighbor("", true)
 					for _, n := range neighborList {
 						if n.State.SessionState != config.SESSION_STATE_ESTABLISHED {
 							continue
