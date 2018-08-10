@@ -114,10 +114,10 @@ matrix:
         - test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
         - test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
         - megacheck $(go list ./... | grep -v '/vendor/')
-#    - <<: *_dep_ensure
-#      env:
-#        - DESCRIPTION="build_embeded_go.py"
-#      script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
+    - <<: *_dep_ensure
+      env:
+        - DESCRIPTION="build_embeded_go.py"
+      script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 #
 # Docker
 #
