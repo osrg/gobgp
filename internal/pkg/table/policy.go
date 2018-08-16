@@ -3566,12 +3566,15 @@ func (r *RoutingPolicy) ReplaceDefinedSet(a DefinedSet) (err error) {
 	return err
 }
 
-func (r *RoutingPolicy) GetStatement() []*config.Statement {
+func (r *RoutingPolicy) GetStatement(name string) []*config.Statement {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	l := make([]*config.Statement, 0, len(r.statementMap))
 	for _, st := range r.statementMap {
+		if name != "" && name != st.Name {
+			continue
+		}
 		l = append(l, st.ToConfig())
 	}
 	return l
@@ -3638,11 +3641,14 @@ func (r *RoutingPolicy) ReplaceStatement(st *Statement) (err error) {
 	return err
 }
 
-func (r *RoutingPolicy) GetAllPolicy() []*config.PolicyDefinition {
+func (r *RoutingPolicy) GetPolicy(name string) []*config.PolicyDefinition {
 	r.mu.RLock()
 
 	var ps Policies
 	for _, p := range r.policyMap {
+		if name != "" && name != p.Name {
+			continue
+		}
 		ps = append(ps, p)
 	}
 	r.mu.RUnlock()
