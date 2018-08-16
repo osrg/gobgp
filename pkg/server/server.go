@@ -423,21 +423,6 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 			if info.AS != peer.AS() {
 				ignore = false
 			}
-			// RFC4456 8. Avoiding Routing Information Loops
-			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
-			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-			peer.fsm.lock.RLock()
-			routerId := peer.fsm.gConf.Config.RouterId
-			peer.fsm.lock.RUnlock()
-			if id := path.GetOriginatorID(); routerId == id.String() {
-				log.WithFields(log.Fields{
-					"Topic":        "Peer",
-					"Key":          peer.ID(),
-					"OriginatorID": id,
-					"Data":         path,
-				}).Debug("Originator ID is mine, ignore")
-				return nil
-			}
 			if info.RouteReflectorClient {
 				ignore = false
 			}
