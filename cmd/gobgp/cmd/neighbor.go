@@ -162,7 +162,7 @@ func showNeighbors(vrf string) error {
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
 	formatFsm := func(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
 		switch admin {
-		case api.PeerState_UP:
+		case api.PeerState_DOWN:
 			return "Idle(Admin)"
 		case api.PeerState_PFX_CT:
 			return "Idle(PfxCt)"
@@ -170,8 +170,11 @@ func showNeighbors(vrf string) error {
 
 		switch fsm {
 		case api.PeerState_UNKNOWN:
-			return "Idle"
+			// should never happen
+			return "Unknown"
 		case api.PeerState_IDLE:
+			return "Idle"
+		case api.PeerState_CONNECT:
 			return "Connect"
 		case api.PeerState_ACTIVE:
 			return "Active"
