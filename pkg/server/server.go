@@ -3011,18 +3011,10 @@ func (s *BgpServer) ReplaceDefinedSet(ctx context.Context, r *api.ReplaceDefined
 	}, false)
 }
 
-func (s *BgpServer) GetStatement() (l []*config.Statement) {
-	s.mgmtOperation(func() error {
-		l = s.policy.GetStatement()
-		return nil
-	}, false)
-	return l
-}
-
 func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementRequest) ([]*api.Statement, error) {
 	l := make([]*api.Statement, 0)
 	s.mgmtOperation(func() error {
-		for _, st := range s.policy.GetStatement() {
+		for _, st := range s.policy.GetStatement(r.Name) {
 			l = append(l, toStatementApi(st))
 		}
 		return nil
@@ -3072,7 +3064,7 @@ func (s *BgpServer) ReplaceStatement(ctx context.Context, r *api.ReplaceStatemen
 func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest) ([]*api.Policy, error) {
 	l := make([]*api.Policy, 0)
 	s.mgmtOperation(func() error {
-		for _, p := range s.policy.GetAllPolicy() {
+		for _, p := range s.policy.GetPolicy(r.Name) {
 			l = append(l, toPolicyApi(p))
 		}
 		return nil

@@ -32,6 +32,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetStatement(t *testing.T) {
+	r := NewRoutingPolicy()
+	r.statementMap["statement1"] = &Statement{Name: "statement1"}
+	r.statementMap["statement2"] = &Statement{Name: "statement2"}
+	assert.Equal(t, len(r.GetStatement("")), 2)
+	assert.Equal(t, len(r.GetStatement("statement1")), 1)
+	assert.Equal(t, len(r.GetStatement("unknown")), 0)
+}
+
+func TestGetPolicy(t *testing.T) {
+	r := NewRoutingPolicy()
+	r.policyMap["p1"] = &Policy{Name: "p1"}
+	r.policyMap["p2"] = &Policy{Name: "p2"}
+	assert.Equal(t, len(r.GetPolicy("")), 2)
+	assert.Equal(t, len(r.GetPolicy("p1")), 1)
+	assert.Equal(t, len(r.GetPolicy("unknown")), 0)
+}
 func TestPrefixCalcurateNoRange(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
