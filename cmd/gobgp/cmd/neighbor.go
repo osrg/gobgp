@@ -1072,6 +1072,8 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 	resource := api.Resource_GLOBAL
 	if remoteIP != "" {
 		resource = api.Resource_LOCAL
+	} else {
+		remoteIP = GLOBAL_RIB_NAME
 	}
 
 	assign := &api.PolicyAssignment{

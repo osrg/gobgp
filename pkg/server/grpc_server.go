@@ -2300,32 +2300,6 @@ func (s *Server) ReplacePolicy(ctx context.Context, r *api.ReplacePolicyRequest)
 	return &empty.Empty{}, s.bgpServer.ReplacePolicy(ctx, r)
 }
 
-func toPolicyAssignmentName(a *api.PolicyAssignment) (string, table.PolicyDirection, error) {
-	switch a.Resource {
-	case api.Resource_GLOBAL:
-		switch a.Type {
-		case api.PolicyDirection_IMPORT:
-			return "", table.POLICY_DIRECTION_IMPORT, nil
-		case api.PolicyDirection_EXPORT:
-			return "", table.POLICY_DIRECTION_EXPORT, nil
-		default:
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
-		}
-	case api.Resource_LOCAL:
-		switch a.Type {
-		case api.PolicyDirection_IMPORT:
-			return a.Name, table.POLICY_DIRECTION_IMPORT, nil
-		case api.PolicyDirection_EXPORT:
-			return a.Name, table.POLICY_DIRECTION_EXPORT, nil
-		default:
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
-		}
-	default:
-		return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid resource type")
-	}
-
-}
-
 func (s *Server) ListPolicyAssignment(r *api.ListPolicyAssignmentRequest, stream api.GobgpApi_ListPolicyAssignmentServer) error {
 	l, err := s.bgpServer.ListPolicyAssignment(context.Background(), r)
 	if err == nil {

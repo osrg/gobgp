@@ -3114,63 +3114,86 @@ func (s *BgpServer) ReplacePolicy(ctx context.Context, r *api.ReplacePolicyReque
 	}, false)
 }
 
-func (server *BgpServer) toPolicyInfo(name string, dir table.PolicyDirection) (string, error) {
+func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, table.PolicyDirection, error) {
 	if name == "" {
-		switch dir {
-		case table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT:
-			return table.GLOBAL_RIB_NAME, nil
-		}
-		return "", fmt.Errorf("invalid policy type")
+		return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("empty table name")
+	}
+
+	if name == table.GLOBAL_RIB_NAME {
+		name = table.GLOBAL_RIB_NAME
 	} else {
-		peer, ok := server.neighborMap[name]
+		peer, ok := s.neighborMap[name]
 		if !ok {
-			return "", fmt.Errorf("not found peer %s", name)
+			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", name)
 		}
 		if !peer.isRouteServerClient() {
-			return "", fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", name)
+			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", name)
 		}
-		return peer.ID(), nil
+		name = peer.ID()
 	}
+	switch dir {
+	case api.PolicyDirection_IMPORT:
+		return name, table.POLICY_DIRECTION_IMPORT, nil
+	case api.PolicyDirection_EXPORT:
+		return name, table.POLICY_DIRECTION_EXPORT, nil
+	}
+	return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
 }
 
 func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyAssignmentRequest) ([]*api.PolicyAssignment, error) {
 	a := make([]*api.PolicyAssignment, 0)
 	err := s.mgmtOperation(func() error {
-		if r == nil || r.Direction == api.PolicyDirection_UNKNOWN {
+		if r == nil {
 			return fmt.Errorf("invalid request")
 		}
-		dir := func() table.PolicyDirection {
-			if r.Direction == api.PolicyDirection_EXPORT {
-				return table.POLICY_DIRECTION_EXPORT
-			}
-			return table.POLICY_DIRECTION_IMPORT
-		}()
 
-		id, err := s.toPolicyInfo(r.Name, dir)
-		if err != nil {
-			return err
+		names := make([]string, 0, len(s.neighborMap)+1)
+		if r.Name == "" {
+			names = append(names, table.GLOBAL_RIB_NAME)
+			for name := range s.neighborMap {
+				names = append(names, name)
+			}
+		} else {
+			names = append(names, r.Name)
 		}
-		rt, l, err := s.policy.GetPolicyAssignment(id, dir)
-		if err != nil {
-			return err
+		dirs := make([]api.PolicyDirection, 0, 2)
+		if r.Direction == api.PolicyDirection_UNKNOWN {
+			dirs = []api.PolicyDirection{api.PolicyDirection_EXPORT, api.PolicyDirection_IMPORT}
+		} else {
+			dirs = append(dirs, r.Direction)
 		}
 
-		policies := make([]*table.Policy, 0, len(l))
-		for _, p := range l {
-			t, err := table.NewPolicy(*p)
-			if err != nil {
-				return err
+		for _, name := range names {
+			for _, dir := range dirs {
+				id, dir, err := s.toPolicyInfo(name, dir)
+				if err != nil {
+					return err
+				}
+				rt, l, err := s.policy.GetPolicyAssignment(id, dir)
+				if err != nil {
+					return err
+				}
+				if len(l) == 0 {
+					continue
+				}
+				policies := make([]*table.Policy, 0, len(l))
+				for _, p := range l {
+					np, err := table.NewPolicy(*p)
+					if err != nil {
+						return err
+					}
+					policies = append(policies, np)
+				}
+				t := &table.PolicyAssignment{
+					Name:     name,
+					Type:     dir,
+					Default:  rt,
+					Policies: policies,
+				}
+				a = append(a, NewAPIPolicyAssignmentFromTableStruct(t))
 			}
-			policies = append(policies, t)
 		}
-		t := &table.PolicyAssignment{
-			Name:     r.Name,
-			Type:     dir,
-			Default:  rt,
-			Policies: policies,
-		}
-		a = append(a, NewAPIPolicyAssignmentFromTableStruct(t))
-		return err
+		return nil
 	}, false)
 	return a, err
 }
@@ -3180,12 +3203,7 @@ func (s *BgpServer) AddPolicyAssignment(ctx context.Context, r *api.AddPolicyAss
 		if r == nil || r.Assignment == nil {
 			return fmt.Errorf("invalid request")
 		}
-		name, dir, err := toPolicyAssignmentName(r.Assignment)
-		if err != nil {
-			return err
-		}
-
-		id, err := s.toPolicyInfo(name, dir)
+		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Type)
 		if err != nil {
 			return err
 		}
@@ -3198,12 +3216,7 @@ func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePol
 		if r == nil || r.Assignment == nil {
 			return fmt.Errorf("invalid request")
 		}
-		name, dir, err := toPolicyAssignmentName(r.Assignment)
-		if err != nil {
-			return err
-		}
-
-		id, err := s.toPolicyInfo(name, dir)
+		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Type)
 		if err != nil {
 			return err
 		}
@@ -3211,17 +3224,12 @@ func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePol
 	}, false)
 }
 
-//func (s *BgpServer) ReplacePolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, def table.RouteType) error {
 func (s *BgpServer) ReplacePolicyAssignment(ctx context.Context, r *api.ReplacePolicyAssignmentRequest) error {
 	return s.mgmtOperation(func() error {
 		if r == nil || r.Assignment == nil {
 			return fmt.Errorf("invalid request")
 		}
-		name, dir, err := toPolicyAssignmentName(r.Assignment)
-		if err != nil {
-			return err
-		}
-		id, err := s.toPolicyInfo(name, dir)
+		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Type)
 		if err != nil {
 			return err
 		}
