@@ -77,15 +77,12 @@ type PolicyDirection int
 
 const (
 	POLICY_DIRECTION_NONE PolicyDirection = iota
-	POLICY_DIRECTION_IN
 	POLICY_DIRECTION_IMPORT
 	POLICY_DIRECTION_EXPORT
 )
 
 func (d PolicyDirection) String() string {
 	switch d {
-	case POLICY_DIRECTION_IN:
-		return "in"
 	case POLICY_DIRECTION_IMPORT:
 		return "import"
 	case POLICY_DIRECTION_EXPORT:
@@ -3109,8 +3106,6 @@ func (p Policies) Less(i, j int) bool {
 }
 
 type Assignment struct {
-	inPolicies          []*Policy
-	defaultInPolicy     RouteType
 	importPolicies      []*Policy
 	defaultImportPolicy RouteType
 	exportPolicies      []*Policy
@@ -3161,8 +3156,6 @@ func (r *RoutingPolicy) getPolicy(id string, dir PolicyDirection) []*Policy {
 		return nil
 	}
 	switch dir {
-	case POLICY_DIRECTION_IN:
-		return a.inPolicies
 	case POLICY_DIRECTION_IMPORT:
 		return a.importPolicies
 	case POLICY_DIRECTION_EXPORT:
@@ -3178,8 +3171,6 @@ func (r *RoutingPolicy) getDefaultPolicy(id string, dir PolicyDirection) RouteTy
 		return ROUTE_TYPE_NONE
 	}
 	switch dir {
-	case POLICY_DIRECTION_IN:
-		return a.defaultInPolicy
 	case POLICY_DIRECTION_IMPORT:
 		return a.defaultImportPolicy
 	case POLICY_DIRECTION_EXPORT:
@@ -3196,8 +3187,6 @@ func (r *RoutingPolicy) setPolicy(id string, dir PolicyDirection, policies []*Po
 		a = &Assignment{}
 	}
 	switch dir {
-	case POLICY_DIRECTION_IN:
-		a.inPolicies = policies
 	case POLICY_DIRECTION_IMPORT:
 		a.importPolicies = policies
 	case POLICY_DIRECTION_EXPORT:
@@ -3213,8 +3202,6 @@ func (r *RoutingPolicy) setDefaultPolicy(id string, dir PolicyDirection, typ Rou
 		a = &Assignment{}
 	}
 	switch dir {
-	case POLICY_DIRECTION_IN:
-		a.defaultInPolicy = typ
 	case POLICY_DIRECTION_IMPORT:
 		a.defaultImportPolicy = typ
 	case POLICY_DIRECTION_EXPORT:
@@ -3230,9 +3217,6 @@ func (r *RoutingPolicy) getAssignmentFromConfig(dir PolicyDirection, a config.Ap
 	def := ROUTE_TYPE_ACCEPT
 	c := a.Config
 	switch dir {
-	case POLICY_DIRECTION_IN:
-		names = c.InPolicyList
-		cdef = c.DefaultInPolicy
 	case POLICY_DIRECTION_IMPORT:
 		names = c.ImportPolicyList
 		cdef = c.DefaultImportPolicy
@@ -3719,7 +3703,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	}
 	inUse := func(ids []string) bool {
 		for _, id := range ids {
-			for _, dir := range []PolicyDirection{POLICY_DIRECTION_IN, POLICY_DIRECTION_EXPORT, POLICY_DIRECTION_EXPORT} {
+			for _, dir := range []PolicyDirection{POLICY_DIRECTION_EXPORT, POLICY_DIRECTION_EXPORT} {
 				for _, y := range r.getPolicy(id, dir) {
 					if x.Name == y.Name {
 						return true
@@ -3953,7 +3937,7 @@ func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.App
 	}
 
 	for id, c := range ap {
-		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IN, POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 			ps, def, err := r.getAssignmentFromConfig(dir, c)
 			if err != nil {
 				log.WithFields(log.Fields{
