@@ -68,14 +68,14 @@ func (m nexthopStateCache) updateByNexthopUpdate(body *zebra.NexthopUpdateBody) 
 	if len(body.Nexthops) == 0 {
 		// If NEXTHOP_UPDATE message does not contain any nexthop, the given
 		// nexthop is unreachable.
-		if _, ok := m[body.Prefix.String()]; !ok {
+		if _, ok := m[body.Prefix.Prefix.String()]; !ok {
 			// Zebra will send an empty NEXTHOP_UPDATE message as the fist
 			// response for the NEXTHOP_REGISTER message. Here ignores it.
 			return false
 		}
-		m[body.Prefix.String()] = math.MaxUint32 // means unreachable
+		m[body.Prefix.Prefix.String()] = math.MaxUint32 // means unreachable
 	} else {
-		m[body.Prefix.String()] = body.Metric
+		m[body.Prefix.Prefix.String()] = body.Metric
 	}
 	return true
 }
@@ -125,7 +125,9 @@ func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool
 
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var prefix net.IP
-	nexthops := make([]net.IP, 0, len(paths))
+	//nexthops := make([]net.IP, 0, len(paths))
+	var nexthop zebra.Nexthop
+	nexthops := make([]zebra.Nexthop, 0, len(paths))
 	switch path.GetRouteFamily() {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
 		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
@@ -134,7 +136,8 @@ func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool
 			prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 		}
 		for _, p := range paths {
-			nexthops = append(nexthops, p.GetNexthop().To4())
+			nexthop.Gate = p.GetNexthop().To4()
+			nexthops = append(nexthops, nexthop)
 		}
 	case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
 		if path.GetRouteFamily() == bgp.RF_IPv6_UC {
@@ -143,7 +146,8 @@ func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool
 			prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 		}
 		for _, p := range paths {
-			nexthops = append(nexthops, p.GetNexthop().To16())
+			nexthop.Gate = p.GetNexthop().To16()
+			nexthops = append(nexthops, nexthop)
 		}
 	default:
 		return nil, false
@@ -162,14 +166,16 @@ func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool
 		flags = zebra.FLAG_INTERNAL
 	}
 	return &zebra.IPRouteBody{
-		Type:         zebra.ROUTE_BGP,
-		Flags:        flags,
-		SAFI:         zebra.SAFI_UNICAST,
-		Message:      msgFlags,
-		Prefix:       prefix,
-		PrefixLength: uint8(plen),
-		Nexthops:     nexthops,
-		Metric:       med,
+		Type:    zebra.ROUTE_BGP,
+		Flags:   flags,
+		SAFI:    zebra.SAFI_UNICAST,
+		Message: msgFlags,
+		Prefix: zebra.Prefix{
+			Prefix:    prefix,
+			PrefixLen: uint8(plen),
+		},
+		Nexthops: nexthops,
+		Metric:   med,
 	}, path.IsWithdraw
 }
 
@@ -222,11 +228,11 @@ func newNexthopUnregisterBody(family uint16, prefix net.IP) *zebra.NexthopRegist
 	}
 }
 
-func newPathFromIPRouteMessage(m *zebra.Message) *table.Path {
+func newPathFromIPRouteMessage(m *zebra.Message, version uint8) *table.Path {
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
-	family := body.RouteFamily()
-	isWithdraw := body.IsWithdraw()
+	family := body.RouteFamily(version)
+	isWithdraw := body.IsWithdraw(version)
 
 	var nlri bgp.AddrPrefixInterface
 	pattr := make([]bgp.PathAttributeInterface, 0)
@@ -238,10 +244,10 @@ func newPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 		"RouteType":    body.Type.String(),
 		"Flag":         body.Flags.String(),
 		"Message":      body.Message,
-		"Prefix":       body.Prefix,
-		"PrefixLength": body.PrefixLength,
+		"Family":       body.Prefix.Family,
+		"Prefix":       body.Prefix.Prefix,
+		"PrefixLength": body.Prefix.PrefixLen,
 		"Nexthop":      body.Nexthops,
-		"IfIndex":      body.Ifindexs,
 		"Metric":       body.Metric,
 		"Distance":     body.Distance,
 		"Mtu":          body.Mtu,
@@ -250,15 +256,15 @@ func newPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 
 	switch family {
 	case bgp.RF_IPv4_UC:
-		nlri = bgp.NewIPAddrPrefix(body.PrefixLength, body.Prefix.String())
+		nlri = bgp.NewIPAddrPrefix(body.Prefix.PrefixLen, body.Prefix.Prefix.String())
 		if len(body.Nexthops) > 0 {
-			pattr = append(pattr, bgp.NewPathAttributeNextHop(body.Nexthops[0].String()))
+			pattr = append(pattr, bgp.NewPathAttributeNextHop(body.Nexthops[0].Gate.String()))
 		}
 	case bgp.RF_IPv6_UC:
-		nlri = bgp.NewIPv6AddrPrefix(body.PrefixLength, body.Prefix.String())
+		nlri = bgp.NewIPv6AddrPrefix(body.Prefix.PrefixLen, body.Prefix.Prefix.String())
 		nexthop := ""
 		if len(body.Nexthops) > 0 {
-			nexthop = body.Nexthops[0].String()
+			nexthop = body.Nexthops[0].Gate.String()
 		}
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 	default:
@@ -289,10 +295,10 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 	}
 
 	var rfList []bgp.RouteFamily
-	switch body.Family {
-	case uint16(syscall.AF_INET):
+	switch body.Prefix.Family {
+	case syscall.AF_INET:
 		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN}
-	case uint16(syscall.AF_INET6):
+	case syscall.AF_INET6:
 		rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
 	}
 
@@ -309,7 +315,7 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 		rib.Tables[rf] = tbl
 	}
 
-	return rib.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix)
+	return rib.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix.Prefix)
 }
 
 func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
@@ -338,7 +344,7 @@ func (z *zebraClient) loop() {
 		case msg := <-z.client.Receive():
 			switch body := msg.Body.(type) {
 			case *zebra.IPRouteBody:
-				if path := newPathFromIPRouteMessage(msg); path != nil {
+				if path := newPathFromIPRouteMessage(msg, z.client.Version); path != nil {
 					if err := z.server.addPathList("", []*table.Path{path}); err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Zebra",
@@ -355,8 +361,8 @@ func (z *zebraClient) loop() {
 				if len(paths) == 0 {
 					// If there is no path bound for the given nexthop, send
 					// NEXTHOP_UNREGISTER message.
-					z.client.SendNexthopRegister(msg.Header.VrfId, newNexthopUnregisterBody(body.Family, body.Prefix), true)
-					delete(z.nexthopCache, body.Prefix.String())
+					z.client.SendNexthopRegister(msg.Header.VrfId, newNexthopUnregisterBody(uint16(body.Prefix.Family), body.Prefix.Prefix), true)
+					delete(z.nexthopCache, body.Prefix.Prefix.String())
 				}
 				z.updatePathByNexthopCache(paths)
 			}
@@ -376,7 +382,7 @@ func (z *zebraClient) loop() {
 				} else {
 					z.updatePathByNexthopCache(msg.PathList)
 					for _, path := range msg.PathList {
-						vrfs := []uint16{0}
+						vrfs := []uint32{0}
 						if msg.Vrf != nil {
 							if v, ok := msg.Vrf[path.GetNlri().String()]; ok {
 								vrfs = append(vrfs, v)
@@ -394,10 +400,10 @@ func (z *zebraClient) loop() {
 				}
 			case *WatchEventUpdate:
 				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
-					vrfID := uint16(0)
+					vrfID := uint32(0)
 					for _, vrf := range z.server.listVrf() {
 						if vrf.Name == msg.Neighbor.Config.Vrf {
-							vrfID = uint16(vrf.Id)
+							vrfID = uint32(vrf.Id)
 						}
 					}
 					z.client.SendNexthopRegister(vrfID, body, false)
@@ -414,7 +420,7 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	}
 	var cli *zebra.Client
 	var err error
-	for _, ver := range []uint8{version, 2, 3, 4} {
+	for _, ver := range []uint8{version, 2, 3, 4, 5} {
 		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, ver)
 		if err == nil {
 			break
@@ -433,7 +439,7 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	// cli.SendRouterIDAdd()
 	cli.SendInterfaceAdd()
 	for _, typ := range protos {
-		t, err := zebra.RouteTypeFromString(typ)
+		t, err := zebra.RouteTypeFromString(typ, version)
 		if err != nil {
 			return nil, err
 		}
