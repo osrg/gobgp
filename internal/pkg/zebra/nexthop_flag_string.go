@@ -2,16 +2,40 @@
 
 package zebra
 
-import "fmt"
+import "strconv"
 
-const _NEXTHOP_FLAG_name = "NEXTHOP_IFINDEXNEXTHOP_IFNAMENEXTHOP_IPV4NEXTHOP_IPV4_IFINDEXNEXTHOP_IPV4_IFNAMENEXTHOP_IPV6NEXTHOP_IPV6_IFINDEXNEXTHOP_IPV6_IFNAMENEXTHOP_BLACKHOLE"
+const (
+	_NEXTHOP_FLAG_name_0 = "NEXTHOP_FLAG_ACTIVENEXTHOP_FLAG_FIB"
+	_NEXTHOP_FLAG_name_1 = "NEXTHOP_FLAG_RECURSIVE"
+	_NEXTHOP_FLAG_name_2 = "NEXTHOP_FLAG_ONLINK"
+	_NEXTHOP_FLAG_name_3 = "NEXTHOP_FLAG_MATCHED"
+	_NEXTHOP_FLAG_name_4 = "NEXTHOP_FLAG_FILTERED"
+	_NEXTHOP_FLAG_name_5 = "NEXTHOP_FLAG_DUPLICATE"
+	_NEXTHOP_FLAG_name_6 = "NEXTHOP_FLAG_EVPN_RVTEP"
+)
 
-var _NEXTHOP_FLAG_index = [...]uint8{0, 15, 29, 41, 61, 80, 92, 112, 131, 148}
+var (
+	_NEXTHOP_FLAG_index_0 = [...]uint8{0, 19, 35}
+)
 
 func (i NEXTHOP_FLAG) String() string {
-	i -= 1
-	if i >= NEXTHOP_FLAG(len(_NEXTHOP_FLAG_index)-1) {
-		return fmt.Sprintf("NEXTHOP_FLAG(%d)", i+1)
+	switch {
+	case 1 <= i && i <= 2:
+		i -= 1
+		return _NEXTHOP_FLAG_name_0[_NEXTHOP_FLAG_index_0[i]:_NEXTHOP_FLAG_index_0[i+1]]
+	case i == 4:
+		return _NEXTHOP_FLAG_name_1
+	case i == 8:
+		return _NEXTHOP_FLAG_name_2
+	case i == 16:
+		return _NEXTHOP_FLAG_name_3
+	case i == 32:
+		return _NEXTHOP_FLAG_name_4
+	case i == 64:
+		return _NEXTHOP_FLAG_name_5
+	case i == 128:
+		return _NEXTHOP_FLAG_name_6
+	default:
+		return "NEXTHOP_FLAG(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _NEXTHOP_FLAG_name[_NEXTHOP_FLAG_index[i]:_NEXTHOP_FLAG_index[i+1]]
 }

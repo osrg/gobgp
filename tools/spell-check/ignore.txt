@@ -33,3 +33,6 @@ Receivedv4
 Receivedv6
 softreset
 stmt
+SRCPFX
+IFINDEX
+BLACKHOLE
