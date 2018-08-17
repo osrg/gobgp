@@ -2559,7 +2559,7 @@ func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi Ethernet
 		RD:               rd,
 		ESI:              esi,
 		ETag:             etag,
-		MacAddressLength: 6,
+		MacAddressLength: 48,
 		MacAddress:       mac,
 		IPAddressLength:  ipLen,
 		IPAddress:        ip,
