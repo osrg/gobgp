@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"runtime"
 	"testing"
@@ -69,21 +70,95 @@ func TestModPolicyAssign(t *testing.T) {
 	r := f([]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}, &config.PolicyDefinition{Name: "p2"}, &config.PolicyDefinition{Name: "p3"}})
 	r.Type = api.PolicyDirection_IMPORT
 	r.Default = api.RouteAction_ACCEPT
+	r.Name = table.GLOBAL_RIB_NAME
 	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
 
-	ps, err := s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{Direction: api.PolicyDirection_IMPORT})
+	r.Type = api.PolicyDirection_EXPORT
+	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: r})
+	assert.Nil(err)
+
+	ps, err := s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+		Name:      table.GLOBAL_RIB_NAME,
+		Direction: api.PolicyDirection_IMPORT})
 	assert.Nil(err)
 	assert.Equal(len(ps[0].Policies), 3)
 
 	r = f([]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}})
 	r.Type = api.PolicyDirection_IMPORT
 	r.Default = api.RouteAction_ACCEPT
+	r.Name = table.GLOBAL_RIB_NAME
 	err = s.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
 
-	ps, _ = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{Direction: api.PolicyDirection_IMPORT})
+	ps, _ = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+		Name:      table.GLOBAL_RIB_NAME,
+		Direction: api.PolicyDirection_IMPORT})
 	assert.Equal(len(ps[0].Policies), 2)
+
+	ps, _ = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+		Name: table.GLOBAL_RIB_NAME,
+	})
+	assert.Equal(len(ps), 2)
+}
+
+func TestListPolicyAssignment(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.Nil(err)
+
+	for i := 1; i < 4; i++ {
+		addr := fmt.Sprintf("127.0.0.%d", i)
+		p := &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: addr,
+				PeerAs:          uint32(i + 1),
+			},
+			RouteServer: &api.RouteServer{
+				RouteServerClient: true,
+			},
+		}
+		err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p})
+		assert.Nil(err)
+
+		err = s.AddPolicy(context.Background(),
+			&api.AddPolicyRequest{Policy: NewAPIPolicyFromTableStruct(&table.Policy{Name: fmt.Sprintf("p%d", i)})})
+		assert.Nil(err)
+
+		pa := &api.PolicyAssignment{
+			Type:     api.PolicyDirection_IMPORT,
+			Default:  api.RouteAction_ACCEPT,
+			Name:     addr,
+			Policies: []*api.Policy{&api.Policy{Name: fmt.Sprintf("p%d", i)}},
+		}
+		err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: pa})
+		assert.Nil(err)
+	}
+
+	ps, err := s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+		Name: table.GLOBAL_RIB_NAME,
+	})
+	assert.Nil(err)
+	assert.Equal(len(ps), 0)
+
+	ps, err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{})
+	assert.Nil(err)
+	assert.Equal(len(ps), 3)
+
+	ps, err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+		Direction: api.PolicyDirection_EXPORT,
+	})
+	assert.Nil(err)
+	assert.Equal(len(ps), 0)
 }
 
 func TestMonitor(test *testing.T) {
