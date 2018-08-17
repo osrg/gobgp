@@ -621,13 +621,13 @@ func (server *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*ta
 		clonedM[i] = clonePathList(pathList)
 	}
 	clonedB := clonePathList(best)
-	m := make(map[string]uint16)
+	m := make(map[string]uint32)
 	for _, p := range clonedB {
 		switch p.GetRouteFamily() {
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 			for _, vrf := range server.globalRib.Vrfs {
 				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
-					m[p.GetNlri().String()] = uint16(vrf.Id)
+					m[p.GetNlri().String()] = uint32(vrf.Id)
 				}
 			}
 		}
@@ -1547,7 +1547,7 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 		}
 
 		for _, p := range r.RouteTypes {
-			if _, err := zebra.RouteTypeFromString(p); err != nil {
+			if _, err := zebra.RouteTypeFromString(p, uint8(r.Version)); err != nil {
 				return err
 			}
 		}
@@ -3387,7 +3387,7 @@ type WatchEventTable struct {
 type WatchEventBestPath struct {
 	PathList      []*table.Path
 	MultiPathList [][]*table.Path
-	Vrf           map[string]uint16
+	Vrf           map[string]uint32
 }
 
 type WatchEventMessage struct {

@@ -38,23 +38,31 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		Command: zebra.IPV4_ROUTE_ADD,
 	}
 	b := &zebra.IPRouteBody{
-		Type:         zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
-		Flags:        zebra.FLAG(zebra.FLAG_SELECTED),
-		Message:      zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
-		SAFI:         zebra.SAFI(zebra.SAFI_UNICAST),
-		Prefix:       net.ParseIP("192.168.100.0"),
-		PrefixLength: uint8(24),
-		Nexthops:     []net.IP{net.ParseIP("0.0.0.0")},
-		Ifindexs:     []uint32{1},
-		Distance:     uint8(0),
-		Metric:       uint32(100),
-		Mtu:          uint32(0),
-		Api:          zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
+		Type:    zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
+		Flags:   zebra.FLAG(zebra.FLAG_SELECTED),
+		Message: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
+		SAFI:    zebra.SAFI(zebra.SAFI_UNICAST),
+		Prefix: zebra.Prefix{
+			Prefix:    net.ParseIP("192.168.100.0"),
+			PrefixLen: uint8(24),
+		},
+		Nexthops: []zebra.Nexthop{
+			{
+				Gate: net.ParseIP("0.0.0.0"),
+			},
+			{
+				Ifindex: uint32(1),
+			},
+		},
+		Distance: uint8(0),
+		Metric:   uint32(100),
+		Mtu:      uint32(0),
+		Api:      zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
 	}
 	m.Header = *h
 	m.Body = b
 
-	path := newPathFromIPRouteMessage(m)
+	path := newPathFromIPRouteMessage(m, 2)
 	pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("0.0.0.0", pp.GetNexthop().String())
@@ -68,7 +76,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = newPathFromIPRouteMessage(m)
+	path = newPathFromIPRouteMessage(m, 2)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("0.0.0.0", pp.GetNexthop().String())
@@ -81,13 +89,13 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	// IPv6 Route Add
 	h.Command = zebra.IPV6_ROUTE_ADD
 	b.Api = zebra.IPV6_ROUTE_ADD
-	b.Prefix = net.ParseIP("2001:db8:0:f101::")
-	b.PrefixLength = uint8(64)
-	b.Nexthops = []net.IP{net.ParseIP("::")}
+	b.Prefix.Prefix = net.ParseIP("2001:db8:0:f101::")
+	b.Prefix.PrefixLen = uint8(64)
+	b.Nexthops = []zebra.Nexthop{{Gate: net.ParseIP("::")}}
 	m.Header = *h
 	m.Body = b
 
-	path = newPathFromIPRouteMessage(m)
+	path = newPathFromIPRouteMessage(m, 2)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("::", pp.GetNexthop().String())
@@ -103,7 +111,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = newPathFromIPRouteMessage(m)
+	path = newPathFromIPRouteMessage(m, 2)
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("::", pp.GetNexthop().String())
