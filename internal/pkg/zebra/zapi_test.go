@@ -200,7 +200,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	assert.Equal(byte(24), buf[5])
 	ip = net.ParseIP("192.168.100.0").To4()
 	assert.Equal([]byte(ip)[0:3], buf[6:9])
-    assert.Equal(byte(2), buf[9])
+	assert.Equal(byte(2), buf[9])
 	assert.Equal(byte(NEXTHOP_TYPE_IPV4), buf[10])
 	assert.Equal(byte(NEXTHOP_TYPE_IFINDEX), buf[15])
 	assert.Equal(byte(0x0), buf[20])
