@@ -1040,7 +1040,7 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	}
 
 	fmt.Printf("%s policy:\n", strings.Title(policyType))
-	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), assignment.Default.String())
+	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), assignment.DefaultAction.String())
 	for _, p := range assignment.Policies {
 		fmt.Printf("%sName %s:\n", strings.Repeat(" ", indent), p.Name)
 		printPolicy(indent+4, p)
@@ -1069,23 +1069,19 @@ func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 }
 
 func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
-	resource := api.Resource_GLOBAL
-	if remoteIP != "" {
-		resource = api.Resource_LOCAL
-	} else {
+	if remoteIP == "" {
 		remoteIP = GLOBAL_RIB_NAME
 	}
 
 	assign := &api.PolicyAssignment{
-		Name:     remoteIP,
-		Resource: resource,
+		Name: remoteIP,
 	}
 
 	switch strings.ToLower(policyType) {
 	case "import":
-		assign.Type = api.PolicyDirection_IMPORT
+		assign.Direction = api.PolicyDirection_IMPORT
 	case "export":
-		assign.Type = api.PolicyDirection_EXPORT
+		assign.Direction = api.PolicyDirection_EXPORT
 	}
 
 	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)
@@ -1105,7 +1101,7 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 		if err != nil {
 			return fmt.Errorf("%s\n%s <policy name>... [default {%s|%s}]", err, usage, "accept", "reject")
 		}
-		assign.Default = def
+		assign.DefaultAction = def
 	}
 	ps := make([]*api.Policy, 0, len(args))
 	for _, name := range args {
@@ -1118,7 +1114,7 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 			Assignment: assign,
 		})
 	case CMD_SET:
-		_, err = client.ReplacePolicyAssignment(ctx, &api.ReplacePolicyAssignmentRequest{
+		_, err = client.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 			Assignment: assign,
 		})
 	case CMD_DEL:

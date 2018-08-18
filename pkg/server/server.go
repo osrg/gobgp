@@ -1613,22 +1613,63 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 	return nil
 }
 
-func (s *BgpServer) UpdatePolicy(ctx context.Context, r *api.UpdatePolicyRequest) error {
+func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) error {
 	rp, err := NewRoutingPolicyFromApiStruct(r)
 	if err != nil {
 		return err
 	}
 
+	getConfig := func(id string) (*config.ApplyPolicy, error) {
+		f := func(id string, dir table.PolicyDirection) (config.DefaultPolicyType, []string, error) {
+			rt, policies, err := s.policy.GetPolicyAssignment(id, dir)
+			if err != nil {
+				return config.DEFAULT_POLICY_TYPE_REJECT_ROUTE, nil, err
+			}
+			names := make([]string, 0, len(policies))
+			for _, p := range policies {
+				names = append(names, p.Name)
+			}
+			t := config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			if rt == table.ROUTE_TYPE_REJECT {
+				t = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+			}
+			return t, names, nil
+		}
+
+		c := &config.ApplyPolicy{}
+		rt, policies, err := f(id, table.POLICY_DIRECTION_IMPORT)
+		if err != nil {
+			return nil, err
+		}
+		c.Config.ImportPolicyList = policies
+		c.Config.DefaultImportPolicy = rt
+		rt, policies, err = f(id, table.POLICY_DIRECTION_EXPORT)
+		if err != nil {
+			return nil, err
+		}
+		c.Config.ExportPolicyList = policies
+		c.Config.DefaultExportPolicy = rt
+		return c, nil
+	}
+
 	return s.mgmtOperation(func() error {
 		ap := make(map[string]config.ApplyPolicy, len(s.neighborMap)+1)
-		ap[table.GLOBAL_RIB_NAME] = s.bgpConfig.Global.ApplyPolicy
+		a, err := getConfig(table.GLOBAL_RIB_NAME)
+		if err != nil {
+			return err
+		}
+		ap[table.GLOBAL_RIB_NAME] = *a
 		for _, peer := range s.neighborMap {
 			peer.fsm.lock.RLock()
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.fsm.pConf.State.NeighborAddress,
 			}).Info("call set policy")
-			ap[peer.ID()] = peer.fsm.pConf.ApplyPolicy
+			a, err := getConfig(peer.ID())
+			if err != nil {
+				return err
+			}
+			ap[peer.ID()] = *a
 			peer.fsm.lock.RUnlock()
 		}
 		return s.policy.Reset(rp, ap)
@@ -2970,10 +3011,10 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 
 func (s *BgpServer) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetRequest) error {
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Set == nil {
+		if r == nil || r.DefinedSet == nil {
 			return fmt.Errorf("invalid request")
 		}
-		set, err := NewDefinedSetFromApiStruct(r.Set)
+		set, err := NewDefinedSetFromApiStruct(r.DefinedSet)
 		if err != nil {
 			return err
 		}
@@ -2983,27 +3024,14 @@ func (s *BgpServer) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetReque
 
 func (s *BgpServer) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSetRequest) error {
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Set == nil {
+		if r == nil || r.DefinedSet == nil {
 			return fmt.Errorf("invalid request")
 		}
-		set, err := NewDefinedSetFromApiStruct(r.Set)
+		set, err := NewDefinedSetFromApiStruct(r.DefinedSet)
 		if err != nil {
 			return err
 		}
 		return s.policy.DeleteDefinedSet(set, r.All)
-	}, false)
-}
-
-func (s *BgpServer) ReplaceDefinedSet(ctx context.Context, r *api.ReplaceDefinedSetRequest) error {
-	return s.mgmtOperation(func() error {
-		if r == nil || r.Set == nil {
-			return fmt.Errorf("invalid request")
-		}
-		set, err := NewDefinedSetFromApiStruct(r.Set)
-		if err != nil {
-			return err
-		}
-		return s.policy.ReplaceDefinedSet(set)
 	}, false)
 }
 
@@ -3039,19 +3067,6 @@ func (s *BgpServer) DeleteStatement(ctx context.Context, r *api.DeleteStatementR
 		st, err := NewStatementFromApiStruct(r.Statement)
 		if err == nil {
 			err = s.policy.DeleteStatement(st, r.All)
-		}
-		return err
-	}, false)
-}
-
-func (s *BgpServer) ReplaceStatement(ctx context.Context, r *api.ReplaceStatementRequest) error {
-	return s.mgmtOperation(func() error {
-		if r == nil || r.Statement == nil {
-			return fmt.Errorf("invalid request")
-		}
-		st, err := NewStatementFromApiStruct(r.Statement)
-		if err == nil {
-			err = s.policy.ReplaceStatement(st)
 		}
 		return err
 	}, false)
@@ -3098,19 +3113,6 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 		l = append(l, table.GLOBAL_RIB_NAME)
 
 		return s.policy.DeletePolicy(p, r.All, r.PreserveStatements, l)
-	}, false)
-}
-
-func (s *BgpServer) ReplacePolicy(ctx context.Context, r *api.ReplacePolicyRequest) error {
-	return s.mgmtOperation(func() error {
-		if r == nil || r.Policy == nil {
-			return fmt.Errorf("invalid request")
-		}
-		p, err := NewPolicyFromApiStruct(r.Policy)
-		if err == nil {
-			err = s.policy.ReplacePolicy(p, r.ReferExistingStatements, r.PreserveStatements)
-		}
-		return err
 	}, false)
 }
 
@@ -3169,20 +3171,12 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 				if err != nil {
 					return err
 				}
-				rt, l, err := s.policy.GetPolicyAssignment(id, dir)
+				rt, policies, err := s.policy.GetPolicyAssignment(id, dir)
 				if err != nil {
 					return err
 				}
-				if len(l) == 0 {
+				if len(policies) == 0 {
 					continue
-				}
-				policies := make([]*table.Policy, 0, len(l))
-				for _, p := range l {
-					np, err := table.NewPolicy(*p)
-					if err != nil {
-						return err
-					}
-					policies = append(policies, np)
 				}
 				t := &table.PolicyAssignment{
 					Name:     name,
@@ -3203,11 +3197,11 @@ func (s *BgpServer) AddPolicyAssignment(ctx context.Context, r *api.AddPolicyAss
 		if r == nil || r.Assignment == nil {
 			return fmt.Errorf("invalid request")
 		}
-		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Type)
+		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
 		}
-		return s.policy.AddPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.Default))
+		return s.policy.AddPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.DefaultAction))
 	}, false)
 }
 
@@ -3216,7 +3210,7 @@ func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePol
 		if r == nil || r.Assignment == nil {
 			return fmt.Errorf("invalid request")
 		}
-		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Type)
+		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
 		}
@@ -3224,16 +3218,16 @@ func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePol
 	}, false)
 }
 
-func (s *BgpServer) ReplacePolicyAssignment(ctx context.Context, r *api.ReplacePolicyAssignmentRequest) error {
+func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAssignmentRequest) error {
 	return s.mgmtOperation(func() error {
 		if r == nil || r.Assignment == nil {
 			return fmt.Errorf("invalid request")
 		}
-		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Type)
+		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
 		}
-		return s.policy.ReplacePolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.Default))
+		return s.policy.SetPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.DefaultAction))
 	}, false)
 }
 

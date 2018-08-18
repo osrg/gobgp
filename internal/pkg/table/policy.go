@@ -3534,22 +3534,6 @@ func (r *RoutingPolicy) DeleteDefinedSet(a DefinedSet, all bool) (err error) {
 	return err
 }
 
-func (r *RoutingPolicy) ReplaceDefinedSet(a DefinedSet) (err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if m, ok := r.definedSetMap[a.Type()]; !ok {
-		err = fmt.Errorf("invalid defined-set type: %d", a.Type())
-	} else {
-		if d, ok := m[a.Name()]; !ok {
-			err = fmt.Errorf("not found defined-set: %s", a.Name())
-		} else {
-			err = d.Replace(a)
-		}
-	}
-	return err
-}
-
 func (r *RoutingPolicy) GetStatement(name string) []*config.Statement {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -3600,25 +3584,6 @@ func (r *RoutingPolicy) DeleteStatement(st *Statement, all bool) (err error) {
 		} else {
 			err = d.Remove(st)
 		}
-	} else {
-		err = fmt.Errorf("not found statement: %s", name)
-	}
-	return err
-}
-
-func (r *RoutingPolicy) ReplaceStatement(st *Statement) (err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for _, c := range st.Conditions {
-		if err = r.validateCondition(c); err != nil {
-			return
-		}
-	}
-	m := r.statementMap
-	name := st.Name
-	if d, ok := m[name]; ok {
-		err = d.Replace(st)
 	} else {
 		err = fmt.Errorf("not found statement: %s", name)
 	}
@@ -3734,67 +3699,13 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	return err
 }
 
-func (r *RoutingPolicy) ReplacePolicy(x *Policy, refer, preserve bool) (err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for _, st := range x.Statements {
-		for _, c := range st.Conditions {
-			if err = r.validateCondition(c); err != nil {
-				return
-			}
-		}
-	}
-
-	pMap := r.policyMap
-	sMap := r.statementMap
-	name := x.Name
-	y, ok := pMap[name]
-	if !ok {
-		err = fmt.Errorf("not found policy: %s", name)
-		return
-	}
-	if refer {
-		if err = x.FillUp(sMap); err != nil {
-			return
-		}
-	} else {
-		for _, st := range x.Statements {
-			if _, ok := sMap[st.Name]; ok {
-				err = fmt.Errorf("statement %s already defined", st.Name)
-				return
-			}
-			sMap[st.Name] = st
-		}
-	}
-
-	ys := y.Statements
-	err = y.Replace(x)
-	if err == nil && !preserve {
-		for _, st := range ys {
-			if !r.statementInUse(st) {
-				log.WithFields(log.Fields{
-					"Topic": "Policy",
-					"Key":   st.Name,
-				}).Debug("delete unused statement")
-				delete(sMap, st.Name)
-			}
-		}
-	}
-	return err
-}
-
-func (r *RoutingPolicy) GetPolicyAssignment(id string, dir PolicyDirection) (RouteType, []*config.PolicyDefinition, error) {
+func (r *RoutingPolicy) GetPolicyAssignment(id string, dir PolicyDirection) (RouteType, []*Policy, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	rt := r.getDefaultPolicy(id, dir)
-
-	ps := r.getPolicy(id, dir)
-	l := make([]*config.PolicyDefinition, 0, len(ps))
-	for _, p := range ps {
-		l = append(l, p.ToConfig())
-	}
+	l := make([]*Policy, 0)
+	l = append(l, r.getPolicy(id, dir)...)
 	return rt, l, nil
 }
 
@@ -3889,7 +3800,7 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 	return err
 }
 
-func (r *RoutingPolicy) ReplacePolicyAssignment(id string, dir PolicyDirection, policies []*config.PolicyDefinition, def RouteType) (err error) {
+func (r *RoutingPolicy) SetPolicyAssignment(id string, dir PolicyDirection, policies []*config.PolicyDefinition, def RouteType) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
