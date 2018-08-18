@@ -232,7 +232,7 @@ func showDefinedSet(v string, args []string) error {
 		} else if err != nil {
 			return err
 		}
-		m = append(m, r.Set)
+		m = append(m, r.DefinedSet)
 	}
 
 	if globalOpts.Json {
@@ -443,7 +443,7 @@ func modDefinedSet(settype string, modtype string, args []string) error {
 	switch modtype {
 	case CMD_ADD:
 		_, err = client.AddDefinedSet(ctx, &api.AddDefinedSetRequest{
-			Set: d,
+			DefinedSet: d,
 		})
 	case CMD_DEL:
 		all := false
@@ -451,12 +451,8 @@ func modDefinedSet(settype string, modtype string, args []string) error {
 			all = true
 		}
 		_, err = client.DeleteDefinedSet(ctx, &api.DeleteDefinedSetRequest{
-			Set: d,
-			All: all,
-		})
-	case CMD_SET:
-		_, err = client.ReplaceDefinedSet(ctx, &api.ReplaceDefinedSetRequest{
-			Set: d,
+			DefinedSet: d,
+			All:        all,
 		})
 	}
 	return err
@@ -853,10 +849,6 @@ func modCondition(name, op string, args []string) error {
 		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
 			Statement: stmt,
 		})
-	case CMD_SET:
-		_, err = client.ReplaceStatement(ctx, &api.ReplaceStatementRequest{
-			Statement: stmt,
-		})
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -987,10 +979,6 @@ func modAction(name, op string, args []string) error {
 		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
 			Statement: stmt,
 		})
-	case CMD_SET:
-		_, err = client.ReplaceStatement(ctx, &api.ReplaceStatementRequest{
-			Statement: stmt,
-		})
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
@@ -1029,12 +1017,6 @@ func modPolicy(modtype string, args []string) error {
 			All:                all,
 			PreserveStatements: true,
 		})
-	case CMD_SET:
-		_, err = client.ReplacePolicy(ctx, &api.ReplacePolicyRequest{
-			Policy:                  policy,
-			PreserveStatements:      true,
-			ReferExistingStatements: true,
-		})
 	}
 	return err
 }
@@ -1059,7 +1041,7 @@ func NewPolicyCmd() *cobra.Command {
 				}
 			},
 		}
-		for _, w := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+		for _, w := range []string{CMD_ADD, CMD_DEL} {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(c *cobra.Command, args []string) {
@@ -1074,7 +1056,7 @@ func NewPolicyCmd() *cobra.Command {
 	}
 
 	stmtCmdImpl := &cobra.Command{}
-	for _, v := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+	for _, v := range []string{CMD_ADD, CMD_DEL} {
 		cmd := &cobra.Command{
 			Use: v,
 		}
@@ -1130,7 +1112,7 @@ func NewPolicyCmd() *cobra.Command {
 	}
 	policyCmd.AddCommand(stmtCmd)
 
-	for _, v := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+	for _, v := range []string{CMD_ADD, CMD_DEL} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(c *cobra.Command, args []string) {

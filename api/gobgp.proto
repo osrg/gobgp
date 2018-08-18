@@ -64,23 +64,20 @@ service GobgpApi {
   rpc AddPolicy(AddPolicyRequest) returns (google.protobuf.Empty);
   rpc DeletePolicy(DeletePolicyRequest) returns (google.protobuf.Empty);
   rpc ListPolicy(ListPolicyRequest) returns (stream ListPolicyResponse);
-  rpc ReplacePolicy(ReplacePolicyRequest) returns (google.protobuf.Empty);
-  rpc UpdatePolicy(UpdatePolicyRequest) returns (google.protobuf.Empty);
+  rpc SetPolicies(SetPoliciesRequest) returns (google.protobuf.Empty);
 
   rpc AddDefinedSet(AddDefinedSetRequest) returns (google.protobuf.Empty);
   rpc DeleteDefinedSet(DeleteDefinedSetRequest) returns (google.protobuf.Empty);
   rpc ListDefinedSet(ListDefinedSetRequest) returns (stream ListDefinedSetResponse);
-  rpc ReplaceDefinedSet(ReplaceDefinedSetRequest) returns (google.protobuf.Empty);
 
   rpc AddStatement(AddStatementRequest) returns (google.protobuf.Empty);
   rpc DeleteStatement(DeleteStatementRequest) returns (google.protobuf.Empty);
   rpc ListStatement(ListStatementRequest) returns (stream ListStatementResponse);
-  rpc ReplaceStatement(ReplaceStatementRequest) returns (google.protobuf.Empty);
 
   rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (google.protobuf.Empty);
   rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (google.protobuf.Empty);
   rpc ListPolicyAssignment(ListPolicyAssignmentRequest) returns (stream ListPolicyAssignmentResponse);
-  rpc ReplacePolicyAssignment(ReplacePolicyAssignmentRequest) returns (google.protobuf.Empty);
+  rpc SetPolicyAssignment(SetPolicyAssignmentRequest) returns (google.protobuf.Empty);
 
   rpc AddRpki(AddRpkiRequest) returns (google.protobuf.Empty);
   rpc DeleteRpki(DeleteRpkiRequest) returns (google.protobuf.Empty);
@@ -325,27 +322,18 @@ message ListPolicyResponse {
   Policy policy = 1;
 }
 
-message ReplacePolicyRequest {
-  Policy policy = 1;
-  // if this flag is set, gobgpd won't define new statements
-  // but refer existing statements using statement's names in this arguments.
-  bool refer_existing_statements = 2;
-  // if this flag is set, gobgpd won't delete any statements
-  // even if some statements get not used by any policy by this operation.
-  bool preserve_statements = 3;
-}
-
-message UpdatePolicyRequest {
-  repeated DefinedSet sets = 1;
+message SetPoliciesRequest {
+  repeated DefinedSet defined_sets = 1;
   repeated Policy policies = 2;
+  repeated PolicyAssignment assignments = 3;
 }
 
 message AddDefinedSetRequest {
-  DefinedSet set = 1;
+  DefinedSet defined_set = 1;
 }
 
 message DeleteDefinedSetRequest {
-  DefinedSet set = 1;
+  DefinedSet defined_set = 1;
   bool all = 2;
 }
 
@@ -355,11 +343,7 @@ message ListDefinedSetRequest {
 }
 
 message ListDefinedSetResponse {
-  DefinedSet set = 1;
-}
-
-message ReplaceDefinedSetRequest {
-  DefinedSet set = 1;
+  DefinedSet defined_set = 1;
 }
 
 message AddStatementRequest {
@@ -376,10 +360,6 @@ message ListStatementRequest {
 }
 
 message ListStatementResponse {
-  Statement statement = 1;
-}
-
-message ReplaceStatementRequest {
   Statement statement = 1;
 }
 
@@ -401,7 +381,7 @@ message ListPolicyAssignmentResponse {
   PolicyAssignment assignment = 1;
 }
 
-message ReplacePolicyAssignmentRequest {
+message SetPolicyAssignmentRequest {
   PolicyAssignment assignment = 1;
 }
 
@@ -1111,16 +1091,15 @@ enum PolicyDirection {
 }
 
 message PolicyAssignment {
-  PolicyDirection type = 1;
-  Resource resource = 2;
-  string name = 3;
+  string name = 1;
+  PolicyDirection direction = 2;
   repeated Policy policies = 4;
-  RouteAction default = 5;
+  RouteAction default_action = 5;
 }
 
 message RoutingPolicy {
-  repeated DefinedSet defined_set = 1;
-  repeated Policy policy_definition = 2;
+  repeated DefinedSet defined_sets = 1;
+  repeated Policy policies = 2;
 }
 
 message Roa {

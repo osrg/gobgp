@@ -215,7 +215,10 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'] == u'10.20.0.0/24')
 
     def test_15_route_type_condition_internal(self):
-        self.gobgp.local('gobgp policy statement st2 set condition route-type internal')
+        self.gobgp.local('gobgp policy statement st22 add action accept')
+        self.gobgp.local('gobgp policy statement st22 add condition route-type internal')
+        self.gobgp.local('gobgp policy add p2 st22')
+        self.gobgp.local('gobgp policy del p2 st2')
         for q in self.quaggas.itervalues():
             self.gobgp.softreset(q, type='out')
 
@@ -231,7 +234,10 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'] == u'10.30.0.0/24')
 
     def test_16_route_type_condition_external(self):
-        self.gobgp.local('gobgp policy statement st2 set condition route-type external')
+        self.gobgp.local('gobgp policy statement st222 add action accept')
+        self.gobgp.local('gobgp policy statement st222 add condition route-type external')
+        self.gobgp.local('gobgp policy add p2 st222')
+        self.gobgp.local('gobgp policy del p2 st22')
         for q in self.quaggas.itervalues():
             self.gobgp.softreset(q, type='out')
 

@@ -131,12 +131,12 @@ func NewAfiSafiConfigFromConfigStruct(c *config.AfiSafi) *api.AfiSafiConfig {
 func NewApplyPolicyFromConfigStruct(c *config.ApplyPolicy) *api.ApplyPolicy {
 	applyPolicy := &api.ApplyPolicy{
 		ImportPolicy: &api.PolicyAssignment{
-			Type:    api.PolicyDirection_IMPORT,
-			Default: api.RouteAction(c.Config.DefaultImportPolicy.ToInt()),
+			Direction:     api.PolicyDirection_IMPORT,
+			DefaultAction: api.RouteAction(c.Config.DefaultImportPolicy.ToInt()),
 		},
 		ExportPolicy: &api.PolicyAssignment{
-			Type:    api.PolicyDirection_EXPORT,
-			Default: api.RouteAction(c.Config.DefaultExportPolicy.ToInt()),
+			Direction:     api.PolicyDirection_EXPORT,
+			DefaultAction: api.RouteAction(c.Config.DefaultExportPolicy.ToInt()),
 		},
 	}
 
@@ -639,8 +639,8 @@ func (s *Server) DisablePeer(ctx context.Context, r *api.DisablePeerRequest) (*e
 	return &empty.Empty{}, s.bgpServer.DisableNeighbor(ctx, r)
 }
 
-func (s *Server) UpdatePolicy(ctx context.Context, r *api.UpdatePolicyRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, s.bgpServer.UpdatePolicy(ctx, r)
+func (s *Server) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.bgpServer.SetPolicies(ctx, r)
 }
 
 func NewAPIRoutingPolicyFromConfigStruct(c *config.RoutingPolicy) (*api.RoutingPolicy, error) {
@@ -654,12 +654,12 @@ func NewAPIRoutingPolicyFromConfigStruct(c *config.RoutingPolicy) (*api.RoutingP
 	}
 
 	return &api.RoutingPolicy{
-		DefinedSet:       definedSets,
-		PolicyDefinition: policies,
+		DefinedSets: definedSets,
+		Policies:    policies,
 	}, nil
 }
 
-func NewRoutingPolicyFromApiStruct(arg *api.UpdatePolicyRequest) (*config.RoutingPolicy, error) {
+func NewRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.RoutingPolicy, error) {
 	policyDefinitions := make([]config.PolicyDefinition, 0, len(arg.Policies))
 	for _, p := range arg.Policies {
 		pd, err := NewConfigPolicyFromApiStruct(p)
@@ -669,7 +669,7 @@ func NewRoutingPolicyFromApiStruct(arg *api.UpdatePolicyRequest) (*config.Routin
 		policyDefinitions = append(policyDefinitions, *pd)
 	}
 
-	definedSets, err := NewConfigDefinedSetsFromApiStruct(arg.Sets)
+	definedSets, err := NewConfigDefinedSetsFromApiStruct(arg.DefinedSets)
 	if err != nil {
 		return nil, err
 	}
@@ -910,19 +910,19 @@ func ReadApplyPolicyFromAPIStruct(c *config.ApplyPolicy, a *api.ApplyPolicy) {
 		return
 	}
 	if a.ImportPolicy != nil {
-		c.Config.DefaultImportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ImportPolicy.Default)]
+		c.Config.DefaultImportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ImportPolicy.DefaultAction)]
 		for _, p := range a.ImportPolicy.Policies {
 			c.Config.ImportPolicyList = append(c.Config.ImportPolicyList, p.Name)
 		}
 	}
 	if a.ExportPolicy != nil {
-		c.Config.DefaultExportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ExportPolicy.Default)]
+		c.Config.DefaultExportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ExportPolicy.DefaultAction)]
 		for _, p := range a.ExportPolicy.Policies {
 			c.Config.ExportPolicyList = append(c.Config.ExportPolicyList, p.Name)
 		}
 	}
 	if a.InPolicy != nil {
-		c.Config.DefaultInPolicy = config.IntToDefaultPolicyTypeMap[int(a.InPolicy.Default)]
+		c.Config.DefaultInPolicy = config.IntToDefaultPolicyTypeMap[int(a.InPolicy.DefaultAction)]
 		for _, p := range a.InPolicy.Policies {
 			c.Config.InPolicyList = append(c.Config.InPolicyList, p.Name)
 		}
@@ -1582,7 +1582,7 @@ func (s *Server) ListDefinedSet(r *api.ListDefinedSetRequest, stream api.GobgpAp
 		return err
 	}
 	for _, set := range sets {
-		if err := stream.Send(&api.ListDefinedSetResponse{Set: set}); err != nil {
+		if err := stream.Send(&api.ListDefinedSetResponse{DefinedSet: set}); err != nil {
 			return err
 		}
 	}
@@ -1595,10 +1595,6 @@ func (s *Server) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetRequest)
 
 func (s *Server) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSetRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, s.bgpServer.DeleteDefinedSet(ctx, r)
-}
-
-func (s *Server) ReplaceDefinedSet(ctx context.Context, r *api.ReplaceDefinedSetRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, s.bgpServer.ReplaceDefinedSet(ctx, r)
 }
 
 func NewAPIStatementFromTableStruct(t *table.Statement) *api.Statement {
@@ -2157,10 +2153,6 @@ func (s *Server) DeleteStatement(ctx context.Context, r *api.DeleteStatementRequ
 	return &empty.Empty{}, s.bgpServer.DeleteStatement(ctx, r)
 }
 
-func (s *Server) ReplaceStatement(ctx context.Context, r *api.ReplaceStatementRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, s.bgpServer.ReplaceStatement(ctx, r)
-}
-
 func NewAPIPolicyFromTableStruct(p *table.Policy) *api.Policy {
 	return toPolicyApi(p.ToConfig())
 }
@@ -2180,7 +2172,7 @@ func toPolicyApi(p *config.PolicyDefinition) *api.Policy {
 
 func NewAPIPolicyAssignmentFromTableStruct(t *table.PolicyAssignment) *api.PolicyAssignment {
 	return &api.PolicyAssignment{
-		Type: func() api.PolicyDirection {
+		Direction: func() api.PolicyDirection {
 			switch t.Type {
 			case table.POLICY_DIRECTION_IMPORT:
 				return api.PolicyDirection_IMPORT
@@ -2190,7 +2182,7 @@ func NewAPIPolicyAssignmentFromTableStruct(t *table.PolicyAssignment) *api.Polic
 			log.Errorf("invalid policy-type: %s", t.Type)
 			return api.PolicyDirection_UNKNOWN
 		}(),
-		Default: func() api.RouteAction {
+		DefaultAction: func() api.RouteAction {
 			switch t.Default {
 			case table.ROUTE_TYPE_ACCEPT:
 				return api.RouteAction_ACCEPT
@@ -2200,12 +2192,6 @@ func NewAPIPolicyAssignmentFromTableStruct(t *table.PolicyAssignment) *api.Polic
 			return api.RouteAction_NONE
 		}(),
 		Name: t.Name,
-		Resource: func() api.Resource {
-			if t.Name != "" {
-				return api.Resource_LOCAL
-			}
-			return api.Resource_GLOBAL
-		}(),
 		Policies: func() []*api.Policy {
 			l := make([]*api.Policy, 0)
 			for _, p := range t.Policies {
@@ -2296,10 +2282,6 @@ func (s *Server) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest) (
 	return &empty.Empty{}, s.bgpServer.DeletePolicy(ctx, r)
 }
 
-func (s *Server) ReplacePolicy(ctx context.Context, r *api.ReplacePolicyRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, s.bgpServer.ReplacePolicy(ctx, r)
-}
-
 func (s *Server) ListPolicyAssignment(r *api.ListPolicyAssignmentRequest, stream api.GobgpApi_ListPolicyAssignmentServer) error {
 	l, err := s.bgpServer.ListPolicyAssignment(context.Background(), r)
 	if err == nil {
@@ -2339,8 +2321,8 @@ func (s *Server) DeletePolicyAssignment(ctx context.Context, r *api.DeletePolicy
 	return &empty.Empty{}, s.bgpServer.DeletePolicyAssignment(ctx, r)
 }
 
-func (s *Server) ReplacePolicyAssignment(ctx context.Context, r *api.ReplacePolicyAssignmentRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, s.bgpServer.ReplacePolicyAssignment(ctx, r)
+func (s *Server) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAssignmentRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.bgpServer.SetPolicyAssignment(ctx, r)
 }
 
 func (s *Server) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetBgpResponse, error) {
