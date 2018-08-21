@@ -108,7 +108,7 @@ class GoBGPContainer(BGPContainer):
 
     def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
-        c << '#!/bin/bash'
+        c << '#!/bin/sh'
         c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} -t {3} > ' \
              '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '', self.config_format)
 
