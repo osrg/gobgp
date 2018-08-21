@@ -41,7 +41,7 @@ class BirdContainer(BGPContainer):
 
     def _start_bird(self):
         c = CmdBuffer()
-        c << '#!/bin/bash'
+        c << '#!/bin/sh'
         c << 'bird'
         cmd = 'echo "{0:s}" > {1}/start.sh'.format(c, self.config_dir)
         local(cmd)
