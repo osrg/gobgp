@@ -273,7 +273,7 @@ class QuaggaBGPContainer(BGPContainer):
 
     def reload_config(self):
         for daemon in self._get_enabled_daemons():
-            self.local('pkill {0} -SIGHUP'.format(daemon), capture=True)
+            self.local('pkill -SIGHUP {0}'.format(daemon), capture=True)
         self._wait_for_boot()
 
     def _vtysh_add_route_map(self, path):

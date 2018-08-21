@@ -572,8 +572,8 @@ class GoBGPContainer(BGPContainer):
 
     def reload_config(self):
         for daemon in self._get_enabled_quagga_daemons():
-            self.local('pkill {0} -SIGHUP'.format(daemon), capture=True)
-        self.local('pkill gobgpd -SIGHUP', capture=True)
+            self.local('pkill -SIGHUP {0}'.format(daemon), capture=True)
+        self.local('pkill -SIGHUP gobgpd', capture=True)
         self._wait_for_boot()
 
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
