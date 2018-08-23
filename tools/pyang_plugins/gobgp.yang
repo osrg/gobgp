@@ -887,11 +887,6 @@ module gobgp {
     leaf remote-port {
       type inet:port-number;
     }
-
-    leaf ttl {
-      description "TTL value for BGP packets";
-      type uint8;
-    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {
