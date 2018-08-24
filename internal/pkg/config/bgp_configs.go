@@ -2515,9 +2515,6 @@ type TransportConfig struct {
 	// original -> gobgp:remote-port
 	// gobgp:remote-port's original type is inet:port-number.
 	RemotePort uint16 `mapstructure:"remote-port" json:"remote-port,omitempty"`
-	// original -> gobgp:ttl
-	// TTL value for BGP packets.
-	Ttl uint8 `mapstructure:"ttl" json:"ttl,omitempty"`
 }
 
 func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
@@ -2537,9 +2534,6 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 		return false
 	}
 	if lhs.RemotePort != rhs.RemotePort {
-		return false
-	}
-	if lhs.Ttl != rhs.Ttl {
 		return false
 	}
 	return true
