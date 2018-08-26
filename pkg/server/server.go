@@ -1859,7 +1859,6 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 		if err != nil {
 			return err
 		}
-		f := bgp.RouteFamily(r.Family)
 
 		if len(r.Uuid) > 0 {
 			// Delete locally generated path which has the given UUID
@@ -1884,8 +1883,9 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 		} else if len(pathList) == 0 {
 			// Delete all locally generated paths
 			families := s.globalRib.GetRFlist()
-			if f != 0 {
-				families = []bgp.RouteFamily{f}
+			if r.Family != nil {
+				families = []bgp.RouteFamily{bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))}
+
 			}
 			for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families) {
 				if path.IsLocal() {
@@ -2297,7 +2297,10 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest) ([]*ap
 	}
 
 	in := false
-	family := bgp.RouteFamily(r.Family)
+	family := bgp.RouteFamily(0)
+	if r.Family != nil {
+		family = bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+	}
 	var err error
 	switch r.Type {
 	case api.Resource_LOCAL, api.Resource_GLOBAL:
@@ -2390,7 +2393,10 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 	if r == nil || r.Name == "" {
 		return nil, fmt.Errorf("invalid request")
 	}
-	family := bgp.RouteFamily(r.Family)
+	family := bgp.RouteFamily(0)
+	if r.Family != nil {
+		family = bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+	}
 	var in bool
 	var err error
 	var info *table.TableInfo
@@ -3287,7 +3293,11 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest) (l []*
 func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableRequest) (l []*api.Roa, err error) {
 	s.mgmtOperation(func() error {
 		var roas []*table.ROA
-		roas, err = s.roaManager.GetRoa(bgp.RouteFamily(r.Family))
+		family := bgp.RouteFamily(0)
+		if r.Family != nil {
+			family = bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+		}
+		roas, err = s.roaManager.GetRoa(family)
 		if err == nil {
 			l = append(l, NewRoaListFromTableStructList(roas)...)
 		}

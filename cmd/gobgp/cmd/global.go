@@ -1273,11 +1273,11 @@ func showGlobalRib(args []string) error {
 }
 
 func modPath(resource string, name, modtype string, args []string) error {
-	rf, err := checkAddressFamily(bgp.RF_IPv4_UC)
+	f, err := checkAddressFamily(IPv4_UC)
 	if err != nil {
 		return err
 	}
-
+	rf := apiutil.ToRouteFamily(f)
 	path, err := ParsePath(rf, args)
 	if err != nil {
 		cmdstr := "global"
@@ -1575,13 +1575,13 @@ func NewGlobalCmd() *cobra.Command {
 			subcmd := &cobra.Command{
 				Use: CMD_ALL,
 				Run: func(cmd *cobra.Command, args []string) {
-					family, err := checkAddressFamily(bgp.RouteFamily(0))
+					family, err := checkAddressFamily(IPv4_UC)
 					if err != nil {
 						exitWithError(err)
 					}
 					if _, err = client.DeletePath(ctx, &api.DeletePathRequest{
 						Resource: api.Resource_GLOBAL,
-						Family:   uint32(family),
+						Family:   family,
 					}); err != nil {
 						exitWithError(err)
 					}

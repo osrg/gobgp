@@ -23,7 +23,6 @@ import (
 	"time"
 
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/spf13/cobra"
 )
 
@@ -86,12 +85,12 @@ func showRPKIServer(args []string) error {
 }
 
 func showRPKITable(args []string) error {
-	family, err := checkAddressFamily(bgp.RouteFamily(0))
+	family, err := checkAddressFamily(IPv4_UC)
 	if err != nil {
 		exitWithError(err)
 	}
 	stream, err := client.ListRpkiTable(ctx, &api.ListRpkiTableRequest{
-		Family: uint32(family),
+		Family: family,
 	})
 	if err != nil {
 		exitWithError(err)
@@ -108,8 +107,7 @@ func showRPKITable(args []string) error {
 	}
 
 	var format string
-	afi, _ := bgp.RouteFamilyToAfiSafi(family)
-	if afi == bgp.AFI_IP {
+	if family.Afi == api.Family_AFI_IP {
 		format = "%-18s %-6s %-10s %s\n"
 	} else {
 		format = "%-42s %-6s %-10s %s\n"

@@ -122,8 +122,10 @@ func extractFamilyFromConfigAfiSafi(c *config.AfiSafi) uint32 {
 }
 
 func NewAfiSafiConfigFromConfigStruct(c *config.AfiSafi) *api.AfiSafiConfig {
+	rf := extractFamilyFromConfigAfiSafi(c)
+	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(rf))
 	return &api.AfiSafiConfig{
-		Family:  extractFamilyFromConfigAfiSafi(c),
+		Family:  &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
 		Enabled: c.Config.Enabled,
 	}
 }
@@ -186,9 +188,9 @@ func NewPrefixLimitFromConfigStruct(c *config.AfiSafi) *api.PrefixLimit {
 	if c.PrefixLimit.Config.MaxPrefixes == 0 {
 		return nil
 	}
-
+	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(c.State.Family))
 	return &api.PrefixLimit{
-		Family:               uint32(c.State.Family),
+		Family:               &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
 		MaxPrefixes:          c.PrefixLimit.Config.MaxPrefixes,
 		ShutdownThresholdPct: uint32(c.PrefixLimit.Config.ShutdownThresholdPct),
 	}
@@ -459,7 +461,6 @@ func NewValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
 
 func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
-	family := uint32(path.GetRouteFamily())
 	vv := config.RPKI_VALIDATION_RESULT_TYPE_NONE.ToInt()
 	if v != nil {
 		vv = v.Status.ToInt()
@@ -471,7 +472,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		IsWithdraw:         path.IsWithdraw,
 		Validation:         int32(vv),
 		ValidationDetail:   NewValidationFromTableStruct(v),
-		Family:             family,
+		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
@@ -543,7 +544,8 @@ func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_
 
 		sendPath := func(pathList []*table.Path) error {
 			for _, path := range pathList {
-				if path == nil || (arg.Family != 0 && bgp.RouteFamily(arg.Family) != path.GetRouteFamily()) {
+				f := bgp.AfiSafiToRouteFamily(uint16(arg.Family.Afi), uint8(arg.Family.Safi))
+				if path == nil || (arg.Family != nil && f != path.GetRouteFamily()) {
 					continue
 				}
 				if err := stream.Send(&api.MonitorTableResponse{Path: ToPathApi(path, nil)}); err != nil {
@@ -732,8 +734,8 @@ func api2PathList(resource api.Resource, ApiPathList []*api.Path) ([]*table.Path
 		} else if !path.IsWithdraw && nexthop == "" {
 			return nil, fmt.Errorf("nexthop not found")
 		}
-
-		if resource != api.Resource_VRF && bgp.RouteFamily(path.Family) == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
+		rf := bgp.AfiSafiToRouteFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
+		if resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 			pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 		} else {
 			pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
@@ -885,7 +887,8 @@ func ReadAfiSafiConfigFromAPIStruct(c *config.AfiSafiConfig, a *api.AfiSafiConfi
 	if c == nil || a == nil {
 		return
 	}
-	c.AfiSafiName = config.AfiSafiType(bgp.RouteFamily(a.Family).String())
+	rf := bgp.AfiSafiToRouteFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
+	c.AfiSafiName = config.AfiSafiType(rf.String())
 	c.Enabled = a.Enabled
 }
 
@@ -894,7 +897,7 @@ func ReadAfiSafiStateFromAPIStruct(s *config.AfiSafiState, a *api.AfiSafiConfig)
 		return
 	}
 	// Store only address family value for the convenience
-	s.Family = bgp.RouteFamily(a.Family)
+	s.Family = bgp.AfiSafiToRouteFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
 }
 
 func ReadPrefixLimitFromAPIStruct(c *config.PrefixLimit, a *api.PrefixLimit) {
@@ -1075,7 +1078,8 @@ func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			for _, afiSafi := range pconf.AfiSafis {
 				// If Peer.Conf.PrefixLimits contains the configuration for
 				// the same address family, we override AfiSafi.PrefixLimit.
-				if uint32(afiSafi.State.Family) == prefixLimit.Family {
+				rf := bgp.AfiSafiToRouteFamily(uint16(prefixLimit.Family.Afi), uint8(prefixLimit.Family.Safi))
+				if uint32(afiSafi.State.Family) == uint32(rf) {
 					ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, prefixLimit)
 				}
 			}
@@ -1656,10 +1660,11 @@ func toStatementApi(s *config.Statement) *api.Statement {
 		cs.NextHopInList = s.Conditions.BgpConditions.NextHopInList
 	}
 	if s.Conditions.BgpConditions.AfiSafiInList != nil {
-		afiSafiIn := make([]api.Family, 0)
+		afiSafiIn := make([]*api.Family, 0)
 		for _, afiSafiType := range s.Conditions.BgpConditions.AfiSafiInList {
 			if mapped, ok := bgp.AddressFamilyValueMap[string(afiSafiType)]; ok {
-				afiSafiIn = append(afiSafiIn, api.Family(mapped))
+				afi, safi := bgp.RouteFamilyToAfiSafi(mapped)
+				afiSafiIn = append(afiSafiIn, &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)})
 			}
 		}
 		cs.AfiSafiIn = afiSafiIn
@@ -1923,13 +1928,14 @@ func NewNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, erro
 	return table.NewNextHopCondition(a)
 }
 
-func NewAfiSafiInConditionFromApiStruct(a []api.Family) (*table.AfiSafiInCondition, error) {
+func NewAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
 	afiSafiTypes := make([]config.AfiSafiType, 0, len(a))
 	for _, aType := range a {
-		if configType, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(aType)]; ok {
+		rf := bgp.AfiSafiToRouteFamily(uint16(aType.Afi), uint8(aType.Safi))
+		if configType, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(rf)]; ok {
 			afiSafiTypes = append(afiSafiTypes, config.AfiSafiType(configType))
 		} else {
 			return nil, fmt.Errorf("unknown afi-safi-in type value: %d", aType)

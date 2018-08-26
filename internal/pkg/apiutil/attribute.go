@@ -612,7 +612,7 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) *api.MpR
 		}
 	}
 	return &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.AfiSafiToRouteFamily(a.AFI, a.SAFI)),
+		Family:   ToApiFamily(a.AFI, a.SAFI),
 		NextHops: nexthops,
 		Nlris:    MarshalNLRIs(a.Value),
 	}
@@ -620,7 +620,7 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) *api.MpR
 
 func NewMpUnreachNLRIAttributeFromNative(a *bgp.PathAttributeMpUnreachNLRI) *api.MpUnreachNLRIAttribute {
 	return &api.MpUnreachNLRIAttribute{
-		Family: uint32(bgp.AfiSafiToRouteFamily(a.AFI, a.SAFI)),
+		Family: ToApiFamily(a.AFI, a.SAFI),
 		Nlris:  MarshalNLRIs(a.Value),
 	}
 }
@@ -1153,7 +1153,7 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 		}
 		return bgp.NewPathAttributeClusterList(a.Ids), nil
 	case *api.MpReachNLRIAttribute:
-		rf := bgp.RouteFamily(a.Family)
+		rf := ToRouteFamily(a.Family)
 		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
 		if err != nil {
 			return nil, err
@@ -1182,7 +1182,7 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 		attr.LinkLocalNexthop = linkLocalNexthop
 		return attr, nil
 	case *api.MpUnreachNLRIAttribute:
-		rf := bgp.RouteFamily(a.Family)
+		rf := ToRouteFamily(a.Family)
 		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
 		if err != nil {
 			return nil, err

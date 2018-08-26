@@ -214,7 +214,10 @@ func Test_MpReachNLRIAttribute_IPv4_UC(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv4_UC),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -253,7 +256,10 @@ func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv6_UC),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_UNICAST,
+		},
 		NextHops: []string{"2001:db8::1", "2001:db8::2"},
 		Nlris:    nlris,
 	}
@@ -294,7 +300,10 @@ func Test_MpReachNLRIAttribute_IPv4_MPLS(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv4_MPLS),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_MPLS_LABEL,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -335,7 +344,10 @@ func Test_MpReachNLRIAttribute_IPv6_MPLS(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv6_MPLS),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_MPLS_LABEL,
+		},
 		NextHops: []string{"2001:db8::1"},
 		Nlris:    nlris,
 	}
@@ -372,7 +384,10 @@ func Test_MpReachNLRIAttribute_IPv4_ENCAP(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv4_ENCAP),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_ENCAPSULATION,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -409,7 +424,10 @@ func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv6_ENCAP),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_ENCAPSULATION,
+		},
 		NextHops: []string{"2001:db8::1"},
 		Nlris:    nlris,
 	}
@@ -453,7 +471,10 @@ func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_EVPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_EVPN,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -499,7 +520,10 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_EVPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_EVPN,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -538,7 +562,10 @@ func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_EVPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_EVPN,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -581,7 +608,10 @@ func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_EVPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_EVPN,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -627,7 +657,10 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_EVPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_EVPN,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -667,7 +700,10 @@ func Test_MpReachNLRIAttribute_IPv4_VPN(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv4_VPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_MPLS_VPN,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -707,7 +743,10 @@ func Test_MpReachNLRIAttribute_IPv6_VPN(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_IPv6_VPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_MPLS_VPN,
+		},
 		NextHops: []string{"2001:db8::1"},
 		Nlris:    nlris,
 	}
@@ -747,7 +786,10 @@ func Test_MpReachNLRIAttribute_RTC_UC(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family:   uint32(bgp.RF_RTC_UC),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_ROUTE_TARGET_CONSTRAINTS,
+		},
 		NextHops: []string{"192.168.1.1"},
 		Nlris:    nlris,
 	}
@@ -806,7 +848,10 @@ func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family: uint32(bgp.RF_FS_IPv4_UC),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_FLOW_SPEC_UNICAST,
+		},
 		// NextHops: // No nexthop required
 		Nlris: nlris,
 	}
@@ -872,7 +917,10 @@ func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family: uint32(bgp.RF_FS_IPv4_VPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_FLOW_SPEC_VPN,
+		},
 		// NextHops: // No nexthop required
 		Nlris: nlris,
 	}
@@ -931,7 +979,10 @@ func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family: uint32(bgp.RF_FS_IPv6_UC),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_FLOW_SPEC_UNICAST,
+		},
 		// NextHops: // No nexthop required
 		Nlris: nlris,
 	}
@@ -997,7 +1048,10 @@ func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family: uint32(bgp.RF_FS_IPv6_VPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_FLOW_SPEC_VPN,
+		},
 		// NextHops: // No nexthop required
 		Nlris: nlris,
 	}
@@ -1061,7 +1115,10 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpReachNLRIAttribute{
-		Family: uint32(bgp.RF_FS_L2_VPN),
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_FLOW_SPEC_VPN,
+		},
 		// NextHops: // No nexthop required
 		Nlris: nlris,
 	}
@@ -1100,8 +1157,11 @@ func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 	nlris = append(nlris, a)
 
 	input := &api.MpUnreachNLRIAttribute{
-		Family: uint32(bgp.RF_IPv4_UC),
-		Nlris:  nlris,
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		},
+		Nlris: nlris,
 	}
 
 	a, err = ptypes.MarshalAny(input)
