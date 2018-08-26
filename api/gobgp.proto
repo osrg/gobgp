@@ -96,32 +96,6 @@ service GobgpApi {
   rpc DeleteBmp(DeleteBmpRequest) returns (google.protobuf.Empty);
 }
 
-// Constants for address families
-enum Family {
-  RESERVED = 0;
-  IPv4 = 65537;
-  IPv6 = 131073;
-  IPv4_MC = 65538;
-  IPv6_MC = 131074;
-  IPv4_MPLS = 65540;
-  IPv6_MPLS = 131076;
-  IPv4_VPN = 65664;
-  IPv6_VPN = 131200;
-  IPv4_VPN_MC = 65665;
-  IPv6_VPN_MC = 131201;
-  VPLS = 1638465;
-  EVPN = 1638470;
-  RTC = 65668;
-  IPv4_ENCAP = 65543;
-  IPv6_ENCAP = 131079;
-  FLOW_SPEC_IPv4 = 65669;
-  FLOW_SPEC_IPv6 = 131205;
-  FLOW_SPEC_IPv4_VPN = 65670;
-  FLOW_SPEC_IPv6_VPN = 131206;
-  FLOW_SPEC_L2_VPN = 1638534;
-  OPAQUE = 1074594033;
-}
-
 message StartBgpRequest {
   Global global = 1;
 }
@@ -237,7 +211,7 @@ message AddPathResponse {
 message DeletePathRequest {
   Resource resource = 1;
   string vrf_id = 2;
-  uint32 family = 3;
+  Family family = 3;
   Path path = 4;
   bytes uuid = 5;
 }
@@ -245,7 +219,7 @@ message DeletePathRequest {
 message ListPathRequest {
   Resource type = 1;
   string name = 2;
-  uint32 family = 3;
+  Family family = 3;
   repeated TableLookupPrefix prefixes = 4;
 }
 
@@ -261,7 +235,7 @@ message AddPathStreamRequest {
 
 message GetTableRequest {
   Resource type = 1;
-  uint32 family = 2;
+  Family family = 2;
   string name = 3;
 }
 
@@ -274,7 +248,7 @@ message GetTableResponse {
 message MonitorTableRequest {
   Resource type = 1;
   string name = 2;
-  uint32 family = 3;
+  Family family = 3;
   bool current = 4;
   bool post_policy = 5;
 }
@@ -397,7 +371,7 @@ message DeleteRpkiRequest {
 }
 
 message ListRpkiRequest {
-  uint32 family = 1;
+  Family family = 1;
 }
 
 message ListRpkiResponse {
@@ -421,7 +395,7 @@ message ResetRpkiRequest {
 }
 
 message ListRpkiTableRequest {
-  uint32 family = 1;
+  Family family = 1;
 }
 
 message ListRpkiTableResponse {
@@ -463,6 +437,35 @@ message DeleteBmpRequest {
   uint32 port = 2;
 }
 
+message Family {
+  enum Afi {
+    AFI_UNKNOWN = 0;
+    AFI_IP = 1;
+    AFI_IP6 = 2;
+    AFI_L2VPN = 25;
+    AFI_OPAQUE = 16397;
+  }
+
+  enum Safi {
+    SAFI_UNKNOWN = 0;
+    SAFI_UNICAST = 1;
+    SAFI_MULTICAST = 2;
+    SAFI_MPLS_LABEL = 4;
+    SAFI_ENCAPSULATION = 7;
+    SAFI_VPLS = 65;
+    SAFI_EVPN = 70;
+    SAFI_MPLS_VPN = 128;
+    SAFI_MPLS_VPN_MULTICAST = 129;
+    SAFI_ROUTE_TARGET_CONSTRAINTS = 132;
+    SAFI_FLOW_SPEC_UNICAST = 133;
+    SAFI_FLOW_SPEC_VPN = 134;
+    SAFI_KEY_VALUE = 241;
+  }
+
+  Afi afi = 1;
+  Safi safi = 2;
+}
+
 enum Resource {
   GLOBAL = 0;
   LOCAL = 1;
@@ -501,7 +504,7 @@ message Path {
   int32 validation = 6; // remains for backword compatibility
   RPKIValidation validation_detail = 7;
   bool no_implicit_withdraw = 8;
-  uint32 family = 9;
+  Family family = 9;
   uint32 source_asn = 10;
   string source_id = 11;
   bool filtered = 12;
@@ -598,7 +601,7 @@ message ApplyPolicy {
 }
 
 message PrefixLimit {
-  uint32 family = 1;
+  Family family = 1;
   uint32 max_prefixes = 2;
   uint32 shutdown_threshold_pct = 3;
 }
@@ -805,12 +808,12 @@ message MpGracefulRestart {
 }
 
 message AfiSafiConfig {
-  uint32 family = 1;
+  Family family = 1;
   bool enabled = 2;
 }
 
 message AfiSafiState {
-  uint32 family = 1;
+  Family family = 1;
   bool enabled = 2;
   uint32 total_paths = 3;
   uint32 total_prefixes = 4;

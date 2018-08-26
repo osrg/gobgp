@@ -26,8 +26,9 @@ import (
 )
 
 func NewMultiProtocolCapability(a *bgp.CapMultiProtocol) *api.MultiProtocolCapability {
+	afi, safi := bgp.RouteFamilyToAfiSafi(a.CapValue)
 	return &api.MultiProtocolCapability{
-		Family: api.Family(a.CapValue),
+		Family: ToApiFamily(afi, safi),
 	}
 }
 
@@ -43,8 +44,8 @@ func NewExtendedNexthopCapability(a *bgp.CapExtendedNexthop) *api.ExtendedNextho
 	tuples := make([]*api.ExtendedNexthopCapabilityTuple, 0, len(a.Tuples))
 	for _, t := range a.Tuples {
 		tuples = append(tuples, &api.ExtendedNexthopCapabilityTuple{
-			NlriFamily:    api.Family(bgp.AfiSafiToRouteFamily(t.NLRIAFI, uint8(t.NLRISAFI))),
-			NexthopFamily: api.Family(bgp.AfiSafiToRouteFamily(t.NexthopAFI, bgp.SAFI_UNICAST)),
+			NlriFamily:    ToApiFamily(t.NLRIAFI, uint8(t.NLRISAFI)),
+			NexthopFamily: ToApiFamily(t.NexthopAFI, bgp.SAFI_UNICAST),
 		})
 	}
 	return &api.ExtendedNexthopCapability{
@@ -56,7 +57,7 @@ func NewGracefulRestartCapability(a *bgp.CapGracefulRestart) *api.GracefulRestar
 	tuples := make([]*api.GracefulRestartCapabilityTuple, 0, len(a.Tuples))
 	for _, t := range a.Tuples {
 		tuples = append(tuples, &api.GracefulRestartCapabilityTuple{
-			Family: api.Family(bgp.AfiSafiToRouteFamily(t.AFI, uint8(t.SAFI))),
+			Family: ToApiFamily(t.AFI, t.SAFI),
 			Flags:  uint32(t.Flags),
 		})
 	}
@@ -76,8 +77,9 @@ func NewFourOctetASNumberCapability(a *bgp.CapFourOctetASNumber) *api.FourOctetA
 func NewAddPathCapability(a *bgp.CapAddPath) *api.AddPathCapability {
 	tuples := make([]*api.AddPathCapabilityTuple, 0, len(a.Tuples))
 	for _, t := range a.Tuples {
+		afi, safi := bgp.RouteFamilyToAfiSafi(t.RouteFamily)
 		tuples = append(tuples, &api.AddPathCapabilityTuple{
-			Family: api.Family(t.RouteFamily),
+			Family: ToApiFamily(afi, safi),
 			Mode:   api.AddPathMode(t.Mode),
 		})
 	}
@@ -94,7 +96,7 @@ func NewLongLivedGracefulRestartCapability(a *bgp.CapLongLivedGracefulRestart) *
 	tuples := make([]*api.LongLivedGracefulRestartCapabilityTuple, 0, len(a.Tuples))
 	for _, t := range a.Tuples {
 		tuples = append(tuples, &api.LongLivedGracefulRestartCapabilityTuple{
-			Family: api.Family(bgp.AfiSafiToRouteFamily(t.AFI, uint8(t.SAFI))),
+			Family: ToApiFamily(t.AFI, uint8(t.SAFI)),
 			Flags:  uint32(t.Flags),
 			Time:   t.RestartTime,
 		})
@@ -165,7 +167,7 @@ func unmarshalCapability(a *any.Any) (bgp.ParameterCapabilityInterface, error) {
 	}
 	switch a := value.Message.(type) {
 	case *api.MultiProtocolCapability:
-		return bgp.NewCapMultiProtocol(bgp.RouteFamily(a.Family)), nil
+		return bgp.NewCapMultiProtocol(ToRouteFamily(a.Family)), nil
 	case *api.RouteRefreshCapability:
 		return bgp.NewCapRouteRefresh(), nil
 	case *api.CarryingLabelInfoCapability:
@@ -174,15 +176,15 @@ func unmarshalCapability(a *any.Any) (bgp.ParameterCapabilityInterface, error) {
 		tuples := make([]*bgp.CapExtendedNexthopTuple, 0, len(a.Tuples))
 		for _, t := range a.Tuples {
 			var nhAfi uint16
-			switch t.NexthopFamily {
-			case api.Family_IPv4:
+			switch t.NexthopFamily.Afi {
+			case api.Family_AFI_IP:
 				nhAfi = bgp.AFI_IP
-			case api.Family_IPv6:
+			case api.Family_AFI_IP6:
 				nhAfi = bgp.AFI_IP6
 			default:
 				return nil, fmt.Errorf("invalid address family for nexthop afi in extended nexthop capability: %s", t.NexthopFamily)
 			}
-			tuples = append(tuples, bgp.NewCapExtendedNexthopTuple(bgp.RouteFamily(t.NlriFamily), nhAfi))
+			tuples = append(tuples, bgp.NewCapExtendedNexthopTuple(ToRouteFamily(t.NlriFamily), nhAfi))
 		}
 		return bgp.NewCapExtendedNexthop(tuples), nil
 	case *api.GracefulRestartCapability:
@@ -192,7 +194,7 @@ func unmarshalCapability(a *any.Any) (bgp.ParameterCapabilityInterface, error) {
 			if t.Flags&0x80 > 0 {
 				forward = true
 			}
-			tuples = append(tuples, bgp.NewCapGracefulRestartTuple(bgp.RouteFamily(t.Family), forward))
+			tuples = append(tuples, bgp.NewCapGracefulRestartTuple(ToRouteFamily(t.Family), forward))
 		}
 		var restarting bool
 		if a.Flags&0x08 > 0 {
@@ -208,7 +210,7 @@ func unmarshalCapability(a *any.Any) (bgp.ParameterCapabilityInterface, error) {
 	case *api.AddPathCapability:
 		tuples := make([]*bgp.CapAddPathTuple, 0, len(a.Tuples))
 		for _, t := range a.Tuples {
-			tuples = append(tuples, bgp.NewCapAddPathTuple(bgp.RouteFamily(t.Family), bgp.BGPAddPathMode(t.Mode)))
+			tuples = append(tuples, bgp.NewCapAddPathTuple(ToRouteFamily(t.Family), bgp.BGPAddPathMode(t.Mode)))
 		}
 		return bgp.NewCapAddPath(tuples), nil
 	case *api.EnhancedRouteRefreshCapability:
@@ -220,7 +222,7 @@ func unmarshalCapability(a *any.Any) (bgp.ParameterCapabilityInterface, error) {
 			if t.Flags&0x80 > 0 {
 				forward = true
 			}
-			tuples = append(tuples, bgp.NewCapLongLivedGracefulRestartTuple(bgp.RouteFamily(t.Family), forward, t.Time))
+			tuples = append(tuples, bgp.NewCapLongLivedGracefulRestartTuple(ToRouteFamily(t.Family), forward, t.Time))
 		}
 		return bgp.NewCapLongLivedGracefulRestart(tuples), nil
 	case *api.RouteRefreshCiscoCapability:

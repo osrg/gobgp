@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/osrg/gobgp/internal/pkg/apiutil"
+
 	"github.com/spf13/cobra"
 
 	api "github.com/osrg/gobgp/api"
@@ -830,9 +832,10 @@ func modCondition(name, op string, args []string) error {
 	case "next-hop-in-list":
 		stmt.Conditions.NextHopInList = args
 	case "afi-safi-in":
-		afiSafisInList := make([]api.Family, 0, len(args))
+		afiSafisInList := make([]*api.Family, 0, len(args))
 		for _, arg := range args {
-			afiSafisInList = append(afiSafisInList, api.Family(bgp.AddressFamilyValueMap[arg]))
+			afi, safi := bgp.RouteFamilyToAfiSafi(bgp.AddressFamilyValueMap[arg])
+			afiSafisInList = append(afiSafisInList, apiutil.ToApiFamily(afi, safi))
 		}
 		stmt.Conditions.AfiSafiIn = afiSafisInList
 	default:

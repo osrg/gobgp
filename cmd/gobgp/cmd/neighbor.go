@@ -453,7 +453,8 @@ func showNeighbor(args []string) error {
 				fmt.Println("  Prefix Limits:")
 				first = false
 			}
-			fmt.Printf("    %s:\tMaximum prefixes allowed %d", bgp.AddressFamilyNameMap[bgp.RouteFamily(limit.Family)], limit.MaxPrefixes)
+			rf := apiutil.ToRouteFamily(limit.Family)
+			fmt.Printf("    %s:\tMaximum prefixes allowed %d", bgp.AddressFamilyNameMap[rf], limit.MaxPrefixes)
 			if limit.ShutdownThresholdPct > 0 {
 				fmt.Printf(", Threshold for warning message %d%%\n", limit.ShutdownThresholdPct)
 			} else {
@@ -698,7 +699,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 func showRibInfo(r, name string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
 	if r == CMD_GLOBAL {
-		def = bgp.RF_IPv4_UC
+		def = IPv4_UC
 	}
 	family, err := checkAddressFamily(def)
 	if err != nil {
@@ -720,7 +721,7 @@ func showRibInfo(r, name string) error {
 	}
 	rsp, err := client.GetTable(ctx, &api.GetTableRequest{
 		Type:   t,
-		Family: uint32(family),
+		Family: family,
 		Name:   name,
 	})
 
@@ -760,21 +761,22 @@ func showNeighborRib(r string, name string, args []string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
 	case CMD_GLOBAL:
-		def = bgp.RF_IPv4_UC
+		def = IPv4_UC
 		showBest = true
 	case CMD_LOCAL:
 		showBest = true
 	case CMD_ADJ_OUT:
 		showAge = false
 	case CMD_VRF:
-		def = bgp.RF_IPv4_UC
+		def = IPv4_UC
 		showBest = true
 	}
 	family, err := checkAddressFamily(def)
 	if err != nil {
 		return err
 	}
-	switch family {
+	rf := apiutil.ToRouteFamily(family)
+	switch rf {
 	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_EVPN:
 		showLabel = true
 	}
@@ -782,7 +784,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	var filter []*api.TableLookupPrefix
 	if len(args) > 0 {
 		target := args[0]
-		switch family {
+		switch rf {
 		case bgp.RF_EVPN:
 			// Uses target as EVPN Route Type string
 		default:
@@ -832,7 +834,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
 		Type:     t,
-		Family:   uint32(family),
+		Family:   family,
 		Name:     name,
 		Prefixes: filter,
 	})
@@ -906,7 +908,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	} else {
 		// show RIB
 		var dsts []*api.Destination
-		switch family {
+		switch rf {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			type d struct {
 				prefix net.IP
@@ -1219,8 +1221,12 @@ func modNeighbor(cmdType string, args []string) error {
 		if len(m["family"]) == 1 {
 			peer.AfiSafis = make([]*api.AfiSafi, 0) // for the case of CMD_UPDATE
 			for _, f := range strings.Split(m["family"][0], ",") {
-				family := config.AfiSafiType(f).ToInt()
-				peer.AfiSafis = append(peer.AfiSafis, &api.AfiSafi{Config: &api.AfiSafiConfig{Family: uint32(family)}})
+				rf, err := bgp.GetRouteFamily(f)
+				if err != nil {
+					return err
+				}
+				afi, safi := bgp.RouteFamilyToAfiSafi(rf)
+				peer.AfiSafis = append(peer.AfiSafis, &api.AfiSafi{Config: &api.AfiSafiConfig{Family: apiutil.ToApiFamily(afi, safi)}})
 			}
 		}
 		if len(m["vrf"]) == 1 {
