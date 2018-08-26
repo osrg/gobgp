@@ -114,13 +114,13 @@ func NewMonitorCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			family, err := checkAddressFamily(bgp.RouteFamily(0))
+			family, err := checkAddressFamily(IPv4_UC)
 			if err != nil {
 				exitWithError(err)
 			}
 			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
 				Type:    api.Resource_GLOBAL,
-				Family:  uint32(family),
+				Family:  family,
 				Current: current,
 			})
 			if err != nil {
@@ -184,14 +184,14 @@ func NewMonitorCmd() *cobra.Command {
 				}
 				name = args[0]
 			}
-			family, err := checkAddressFamily(bgp.RouteFamily(0))
+			family, err := checkAddressFamily(IPv4_UC)
 			if err != nil {
 				exitWithError(err)
 			}
 			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
 				Type:    api.Resource_ADJ_IN,
 				Name:    name,
-				Family:  uint32(family),
+				Family:  family,
 				Current: current,
 			})
 			if err != nil {
