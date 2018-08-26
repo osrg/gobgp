@@ -28,7 +28,10 @@ func Test_MultiProtocolCapability(t *testing.T) {
 	assert := assert.New(t)
 
 	input := &api.MultiProtocolCapability{
-		Family: api.Family_IPv4,
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		},
 	}
 
 	a, err := ptypes.MarshalAny(input)
@@ -76,8 +79,14 @@ func Test_ExtendedNexthopCapability(t *testing.T) {
 	input := &api.ExtendedNexthopCapability{
 		Tuples: []*api.ExtendedNexthopCapabilityTuple{
 			{
-				NlriFamily:    api.Family_IPv4,
-				NexthopFamily: api.Family_IPv6,
+				NlriFamily: &api.Family{
+					Afi:  api.Family_AFI_IP,
+					Safi: api.Family_SAFI_UNICAST,
+				},
+				NexthopFamily: &api.Family{
+					Afi:  api.Family_AFI_IP6,
+					Safi: api.Family_SAFI_UNICAST,
+				},
 			},
 		},
 	}
@@ -104,8 +113,11 @@ func Test_GracefulRestartCapability(t *testing.T) {
 		Time:  90,
 		Tuples: []*api.GracefulRestartCapabilityTuple{
 			{
-				Family: api.Family_IPv4,
-				Flags:  0x80, // forward
+				Family: &api.Family{
+					Afi:  api.Family_AFI_IP,
+					Safi: api.Family_SAFI_UNICAST,
+				},
+				Flags: 0x80, // forward
 			},
 		},
 	}
@@ -152,8 +164,11 @@ func Test_AddPathCapability(t *testing.T) {
 	input := &api.AddPathCapability{
 		Tuples: []*api.AddPathCapabilityTuple{
 			{
-				Family: api.Family_IPv4,
-				Mode:   api.AddPathMode_MODE_BOTH,
+				Family: &api.Family{
+					Afi:  api.Family_AFI_IP,
+					Safi: api.Family_SAFI_UNICAST,
+				},
+				Mode: api.AddPathMode_MODE_BOTH,
 			},
 		},
 	}
@@ -192,9 +207,12 @@ func Test_LongLivedGracefulRestartCapability(t *testing.T) {
 	input := &api.LongLivedGracefulRestartCapability{
 		Tuples: []*api.LongLivedGracefulRestartCapabilityTuple{
 			{
-				Family: api.Family_IPv4,
-				Flags:  0x80, // forward
-				Time:   90,
+				Family: &api.Family{
+					Afi:  api.Family_AFI_IP,
+					Safi: api.Family_SAFI_UNICAST,
+				},
+				Flags: 0x80, // forward
+				Time:  90,
 			},
 		},
 	}

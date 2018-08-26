@@ -22,6 +22,7 @@
 syntax = "proto3";
 
 import "google/protobuf/any.proto";
+import "gobgp.proto";
 
 package gobgpapi;
 
@@ -267,7 +268,7 @@ message OpaqueNLRI {
 }
 
 message MpReachNLRIAttribute {
-    uint32 family = 1;
+    gobgpapi.Family family = 1;
     repeated string next_hops = 2;
     // Each NLRI must be one of:
     // - IPAddressPrefix
@@ -287,7 +288,7 @@ message MpReachNLRIAttribute {
 }
 
 message MpUnreachNLRIAttribute {
-    uint32 family = 1;
+    gobgpapi.Family family = 1;
     // The same as NLRI field of MpReachNLRIAttribute
     repeated google.protobuf.Any nlris = 3;
 }
