@@ -282,8 +282,9 @@ func (peer *Peer) llgrFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
 
 func (peer *Peer) isLLGREnabledFamily(family bgp.RouteFamily) bool {
 	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-	if !peer.fsm.pConf.GracefulRestart.Config.LongLivedEnabled {
+	llgrEnabled := peer.fsm.pConf.GracefulRestart.Config.LongLivedEnabled
+	peer.fsm.lock.RUnlock()
+	if !llgrEnabled {
 		return false
 	}
 	fs, _ := peer.llgrFamilies()
