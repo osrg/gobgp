@@ -232,10 +232,13 @@ class Bridge(object):
         local("docker network connect {0} {1}".format(self.name, ctn.docker_name()))
         i = [x for x in Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values() if x['Name'] == ctn.docker_name()][0]
         if self.subnet.version == 4:
+            eth = 'eth{0}'.format(len(ctn.ip_addrs))
             addr = i['IPv4Address']
+            ctn.ip_addrs.append((eth, addr, self.name))
         else:
+            eth = 'eth{0}'.format(len(ctn.ip6_addrs))
             addr = i['IPv6Address']
-        ctn.ip_addrs.append(('eth1', addr, self.name))
+            ctn.ip6_addrs.append((eth, addr, self.name))
 
     def delete(self):
         try_several_times(lambda: local("docker network rm {0}".format(self.name)))
