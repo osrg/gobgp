@@ -226,10 +226,15 @@ class Bridge(object):
         return "{0}/{1}".format(self._ip_generator.next(),
                                 self.subnet.prefixlen)
 
-    def addif(self, ctn):
+    def addif(self, ctn, ip_addr=''):
         _name = ctn.next_if_name()
         self.ctns.append(ctn)
-        local("docker network connect {0} {1}".format(self.name, ctn.docker_name()))
+        ip = ''
+        if not ip_addr == '':
+            ip = '--ip {0}'.format(ip_addr)
+            if self.subnet.version == 6:
+                ip = '--ip6 {0}'.format(ip_addr)
+        local("docker network connect {0} {1} {2}".format(ip, self.name, ctn.docker_name()))
         i = [x for x in Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values() if x['Name'] == ctn.docker_name()][0]
         if self.subnet.version == 4:
             eth = 'eth{0}'.format(len(ctn.ip_addrs))
