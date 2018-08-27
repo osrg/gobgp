@@ -173,8 +173,8 @@ class GoBGPTestBase(unittest.TestCase):
         [self.bridges['br02_v6'].addif(ctn) for ctn in [g1, q1]]
         [self.bridges['br03_v6'].addif(ctn) for ctn in [q1, o2]]
 
-        g1.add_peer(q1, bridge=self.bridges['br02_v6'].name)
-        q1.add_peer(g1, bridge=self.bridges['br02_v6'].name)
+        g1.add_peer(q1, bridge=self.bridges['br02_v6'].name, v6=True)
+        q1.add_peer(g1, bridge=self.bridges['br02_v6'].name, v6=True)
 
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q1)
 
@@ -190,15 +190,15 @@ class GoBGPTestBase(unittest.TestCase):
         o2 = self.others['ipv6'][1]
 
         # set o1's default gateway as g1
-        g1_addr = g1.ip_addrs[1][1].split('/')[0]
+        g1_addr = [a for a in g1.ip6_addrs if a[2] == self.bridges['br01_v6'].name][0][1].split('/')[0]
         o1.add_static_route(self.bridges['br03_v6'].subnet, g1_addr)
 
         # set o2's default gateway as q1
-        q1_addr = q1.ip_addrs[2][1].split('/')[0]
+        q1_addr = [a for a in q1.ip6_addrs if a[2] == self.bridges['br03_v6'].name][0][1].split('/')[0]
         o2.add_static_route(self.bridges['br01_v6'].subnet, q1_addr)
 
         # test reachability between o1 and o2
-        addrs = [e[1] for e in o2.ip_addrs if 'br03_v6' in e[2]]
+        addrs = [e[1] for e in o2.ip6_addrs if 'br03_v6' in e[2]]
         self.assertTrue(len(addrs) == 1)
         o2_addr = addrs[0]
         o1.get_reachability(o2_addr)
