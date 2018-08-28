@@ -447,7 +447,8 @@ func showNeighbor(args []string) error {
 	fmt.Printf("    Received:      %10d\n", p.State.Received)
 	fmt.Printf("    Accepted:      %10d\n", p.State.Accepted)
 	first := true
-	for _, limit := range p.Conf.PrefixLimits {
+	for _, a := range p.AfiSafis {
+		limit := a.PrefixLimits
 		if limit.MaxPrefixes > 0 {
 			if first {
 				fmt.Println("  Prefix Limits:")
