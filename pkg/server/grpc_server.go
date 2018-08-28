@@ -237,14 +237,8 @@ func NewAfiSafiFromConfigStruct(c *config.AfiSafi) *api.AfiSafi {
 }
 
 func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
-	families := make([]uint32, 0, len(pconf.AfiSafis))
-	prefixLimits := make([]*api.PrefixLimit, 0, len(pconf.AfiSafis))
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
-		families = append(families, extractFamilyFromConfigAfiSafi(&f))
-		if prefixLimit := NewPrefixLimitFromConfigStruct(&f); prefixLimit != nil {
-			prefixLimits = append(prefixLimits, prefixLimit)
-		}
 		if afiSafi := NewAfiSafiFromConfigStruct(&f); afiSafi != nil {
 			afiSafis = append(afiSafis, afiSafi)
 		}
@@ -272,7 +266,6 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
 		removePrivateAs = api.PeerConf_REPLACE
 	}
 	return &api.Peer{
-		Families:    families,
 		ApplyPolicy: NewApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerConf{
 			NeighborAddress:   pconf.Config.NeighborAddress,
@@ -286,8 +279,6 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
 			PeerGroup:         pconf.Config.PeerGroup,
 			RemoteCap:         remoteCap,
 			LocalCap:          localCap,
-			PrefixLimits:      prefixLimits,
-			LocalAddress:      localAddress,
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
 			AllowOwnAs:        uint32(pconf.AsPathOptions.Config.AllowOwnAs),
@@ -360,7 +351,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
 		},
 		Transport: &api.Transport{
 			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
-			LocalAddress: pconf.Transport.Config.LocalAddress,
+			LocalAddress: localAddress,
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
@@ -369,10 +360,8 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *api.Peer {
 }
 
 func NewPeerGroupFromConfigStruct(pconf *config.PeerGroup) *api.PeerGroup {
-	families := make([]uint32, 0, len(pconf.AfiSafis))
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
-		families = append(families, extractFamilyFromConfigAfiSafi(&f))
 		if afiSafi := NewAfiSafiFromConfigStruct(&f); afiSafi != nil {
 			afiSafis = append(afiSafis, afiSafi)
 		}
@@ -381,7 +370,6 @@ func NewPeerGroupFromConfigStruct(pconf *config.PeerGroup) *api.PeerGroup {
 	timer := pconf.Timers
 	s := pconf.State
 	return &api.PeerGroup{
-		Families:    families,
 		ApplyPolicy: NewApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerGroupConf{
 			PeerAs:           pconf.Config.PeerAs,
@@ -461,16 +449,11 @@ func NewValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
 
 func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
-	vv := config.RPKI_VALIDATION_RESULT_TYPE_NONE.ToInt()
-	if v != nil {
-		vv = v.Status.ToInt()
-	}
 	p := &api.Path{
 		Nlri:               binNlri,
 		Pattrs:             binPattrs,
 		Age:                path.GetTimestamp().Unix(),
 		IsWithdraw:         path.IsWithdraw,
-		Validation:         int32(vv),
 		ValidationDetail:   NewValidationFromTableStruct(v),
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.IsStale(),
@@ -1049,41 +1032,6 @@ func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
 		}
-		// For the backward compatibility, we override AfiSafi configurations
-		// with Peer.Families.
-		for _, family := range a.Families {
-			found := false
-			for _, afiSafi := range pconf.AfiSafis {
-				if uint32(afiSafi.State.Family) == family {
-					// If Peer.Families contains the same address family,
-					// we enable this address family.
-					afiSafi.Config.Enabled = true
-					found = true
-				}
-			}
-			if !found {
-				// If Peer.Families does not contain the same address family,
-				// we append AfiSafi structure with the default value.
-				pconf.AfiSafis = append(pconf.AfiSafis, config.AfiSafi{
-					Config: config.AfiSafiConfig{
-						AfiSafiName: config.AfiSafiType(bgp.RouteFamily(family).String()),
-						Enabled:     true,
-					},
-				})
-			}
-		}
-		// For the backward compatibility, we override AfiSafi configurations
-		// with Peer.Conf.PrefixLimits.
-		for _, prefixLimit := range a.Conf.PrefixLimits {
-			for _, afiSafi := range pconf.AfiSafis {
-				// If Peer.Conf.PrefixLimits contains the configuration for
-				// the same address family, we override AfiSafi.PrefixLimit.
-				rf := bgp.AfiSafiToRouteFamily(uint16(prefixLimit.Family.Afi), uint8(prefixLimit.Family.Safi))
-				if uint32(afiSafi.State.Family) == uint32(rf) {
-					ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, prefixLimit)
-				}
-			}
-		}
 	}
 
 	if a.Timers != nil {
@@ -1191,29 +1139,6 @@ func NewPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 			ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
 			ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
-		}
-		// For the backward compatibility, we override AfiSafi configurations
-		// with Peer.Families.
-		for _, family := range a.Families {
-			found := false
-			for _, afiSafi := range pconf.AfiSafis {
-				if uint32(afiSafi.State.Family) == family {
-					// If Peer.Families contains the same address family,
-					// we enable this address family.
-					afiSafi.Config.Enabled = true
-					found = true
-				}
-			}
-			if !found {
-				// If Peer.Families does not contain the same address family,
-				// we append AfiSafi structure with the default value.
-				pconf.AfiSafis = append(pconf.AfiSafis, config.AfiSafi{
-					Config: config.AfiSafiConfig{
-						AfiSafiName: config.AfiSafiType(bgp.RouteFamily(family).String()),
-						Enabled:     true,
-					},
-				})
-			}
 		}
 	}
 
