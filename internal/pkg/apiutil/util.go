@@ -69,7 +69,7 @@ func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttr
 		AnyPattrs:  MarshalPathAttributes(attrs),
 		Age:        age.Unix(),
 		IsWithdraw: isWithdraw,
-		Family:     uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())),
+		Family:     ToApiFamily(nlri.AFI(), nlri.SAFI()),
 		Identifier: nlri.PathIdentifier(),
 	}
 }
@@ -88,9 +88,9 @@ func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error
 
 func GetNativeNlri(p *api.Path) (bgp.AddrPrefixInterface, error) {
 	if len(p.Nlri) > 0 {
-		return getNLRI(bgp.RouteFamily(p.Family), p.Nlri)
+		return getNLRI(ToRouteFamily(p.Family), p.Nlri)
 	}
-	return UnmarshalNLRI(bgp.RouteFamily(p.Family), p.AnyNlri)
+	return UnmarshalNLRI(ToRouteFamily(p.Family), p.AnyNlri)
 }
 
 func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) {
@@ -111,4 +111,15 @@ func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) 
 		return pattrs, nil
 	}
 	return UnmarshalPathAttributes(p.AnyPattrs)
+}
+
+func ToRouteFamily(f *api.Family) bgp.RouteFamily {
+	return bgp.AfiSafiToRouteFamily(uint16(f.Afi), uint8(f.Safi))
+}
+
+func ToApiFamily(afi uint16, safi uint8) *api.Family {
+	return &api.Family{
+		Afi:  api.Family_Afi(afi),
+		Safi: api.Family_Safi(safi),
+	}
 }
