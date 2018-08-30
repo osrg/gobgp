@@ -15,7 +15,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 
 ## To start developing GoBGP
 
-You need a working [Go environment](https://golang.org/doc/install) (1.9 or newer).
+You need a working [Go environment](https://golang.org/doc/install) (1.10 or newer).
 
 ```bash
 $ go get -u github.com/golang/dep/cmd/dep

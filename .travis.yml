@@ -62,7 +62,7 @@ matrix:
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests"
-      go: 1.9
+      go: 1.11
     - <<: *_unittest
       env:
         - DESCRIPTION="Tests + goreleaser + cover"
@@ -87,9 +87,9 @@ matrix:
 # See https://github.com/travis-ci/travis-ci/issues/6126
     - <<: *_build
       env:
-        - GOOS="windows"
+        - GOOS="openbsd"
       before_script:
-        - export GOOS="windows"
+        - export GOOS="openbsd"
         - go env
     - <<: *_build
       env:
