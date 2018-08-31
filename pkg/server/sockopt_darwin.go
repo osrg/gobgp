@@ -19,7 +19,7 @@ package server
 import (
 	"fmt"
 	"net"
-	"os"
+	"strings"
 	"syscall"
 )
 
@@ -27,36 +27,25 @@ func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return fmt.Errorf("setting md5 is not supported")
 }
 
-func setsockoptIpTtl(fd int, family int, value int) error {
-	level := syscall.IPPROTO_IP
-	name := syscall.IP_TTL
-	if family == syscall.AF_INET6 {
-		level = syscall.IPPROTO_IPV6
-		name = syscall.IPV6_UNICAST_HOPS
-	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
-}
-
 func setListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPListener(l)
+	family := extractFamilyFromTCPListener(l)
+	sc, err := l.SyscallConn()
 	if err != nil {
 		return err
 	}
-
-	defer fi.Close()
-
-	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+	return setsockoptIpTtl(sc, family, ttl)
 }
 
 func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	family := syscall.AF_INET
+	if strings.Contains(conn.RemoteAddr().String(), "[") {
+		family = syscall.AF_INET6
+	}
+	sc, err := conn.SyscallConn()
 	if err != nil {
 		return err
 	}
-
-	defer fi.Close()
-
-	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+	return setsockoptIpTtl(sc, family, ttl)
 }
 
 func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
