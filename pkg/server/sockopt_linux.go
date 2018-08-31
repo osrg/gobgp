@@ -57,6 +57,53 @@ func buildTcpMD5Sig(address string, key string) (tcpmd5sig, error) {
 	return t, nil
 }
 
+func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+	t, err := buildTcpMD5Sig(address, key)
+	if err != nil {
+		return err
+	}
+	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
+
+	sc, err := l.SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setsockOptString(sc, syscall.IPPROTO_TCP, TCP_MD5SIG, string(b[:]))
+}
+
+func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
+	family := extractFamilyFromTCPListener(l)
+	sc, err := l.SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(sc, family, ttl)
+}
+
+func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+	family := extractFamilyFromTCPConn(conn)
+	sc, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(sc, family, ttl)
+}
+
+func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+	family := extractFamilyFromTCPConn(conn)
+	sc, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	level := syscall.IPPROTO_IP
+	name := syscall.IP_MINTTL
+	if family == syscall.AF_INET6 {
+		level = syscall.IPPROTO_IPV6
+		name = IPV6_MINHOPCOUNT
+	}
+	return setsockOptInt(sc, level, name, ttl)
+}
+
 func setsockoptTcpMD5Sig(fd int, address string, key string) error {
 	t, err := buildTcpMD5Sig(address, key)
 	if err != nil {
@@ -66,17 +113,7 @@ func setsockoptTcpMD5Sig(fd int, address string, key string) error {
 	return os.NewSyscallError("setsockopt", syscall.SetsockoptString(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, string(b[:])))
 }
 
-func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	fi, _, err := extractFileAndFamilyFromTCPListener(l)
-	if err != nil {
-		return err
-	}
-	defer fi.Close()
-
-	return setsockoptTcpMD5Sig(int(fi.Fd()), address, key)
-}
-
-func setsockoptIpTtl(fd int, family int, value int) error {
+func setsockoptIpTtl2(fd int, family int, value int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_TTL
 	if family == syscall.AF_INET6 {
@@ -84,26 +121,6 @@ func setsockoptIpTtl(fd int, family int, value int) error {
 		name = syscall.IPV6_UNICAST_HOPS
 	}
 	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
-}
-
-func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPListener(l)
-	if err != nil {
-		return err
-	}
-	defer fi.Close()
-
-	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
-}
-
-func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
-	if err != nil {
-		return err
-	}
-	defer fi.Close()
-
-	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
 }
 
 func setsockoptIpMinTtl(fd int, family int, value int) error {
@@ -114,16 +131,6 @@ func setsockoptIpMinTtl(fd int, family int, value int) error {
 		name = IPV6_MINHOPCOUNT
 	}
 	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
-}
-
-func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
-	if err != nil {
-		return err
-	}
-	defer fi.Close()
-
-	return setsockoptIpMinTtl(int(fi.Fd()), family, ttl)
 }
 
 type TCPDialer struct {
@@ -208,7 +215,7 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	}
 
 	if d.Ttl != 0 {
-		if err = setsockoptIpTtl(fd, family, int(d.Ttl)); err != nil {
+		if err = setsockoptIpTtl2(fd, family, int(d.Ttl)); err != nil {
 			return nil, err
 		}
 	}

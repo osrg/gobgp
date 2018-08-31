@@ -45,11 +45,8 @@ func (l *TCPListener) Close() error {
 	if err := l.l.Close(); err != nil {
 		return err
 	}
-	t := time.NewTicker(time.Second)
 	select {
 	case <-l.ch:
-	case <-t.C:
-		return fmt.Errorf("close timeout")
 	}
 	return nil
 }

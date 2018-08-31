@@ -17,7 +17,6 @@ package server
 
 import (
 	"net"
-	"os"
 	"strings"
 	"syscall"
 
@@ -66,52 +65,52 @@ func decodeAdministrativeCommunication(data []byte) (string, []byte) {
 	return string(data[1 : communicationLen+1]), data[communicationLen+1:]
 }
 
-func extractFileAndFamilyFromTCPListener(l *net.TCPListener) (*os.File, int, error) {
-	// Note #1: TCPListener.File() has the unexpected side-effect of putting
-	// the original socket into blocking mode. See Note #2.
-	fi, err := l.File()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Note #2: Call net.FileListener() to put the original socket back into
-	// non-blocking mode.
-	fl, err := net.FileListener(fi)
-	if err != nil {
-		fi.Close()
-		return nil, 0, err
-	}
-	fl.Close()
-
+func extractFamilyFromTCPListener(l *net.TCPListener) int {
 	family := syscall.AF_INET
 	if strings.Contains(l.Addr().String(), "[") {
 		family = syscall.AF_INET6
 	}
-
-	return fi, family, nil
+	return family
 }
 
-func extractFileAndFamilyFromTCPConn(conn *net.TCPConn) (*os.File, int, error) {
-	// Note #1: TCPConn.File() has the unexpected side-effect of putting
-	// the original socket into blocking mode. See Note #2.
-	fi, err := conn.File()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Note #2: Call net.FileConn() to put the original socket back into
-	// non-blocking mode.
-	fc, err := net.FileConn(fi)
-	if err != nil {
-		fi.Close()
-		return nil, 0, err
-	}
-	fc.Close()
-
+func extractFamilyFromTCPConn(conn *net.TCPConn) int {
 	family := syscall.AF_INET
 	if strings.Contains(conn.RemoteAddr().String(), "[") {
 		family = syscall.AF_INET6
 	}
+	return family
+}
 
-	return fi, family, nil
+func setsockOptString(sc syscall.RawConn, level int, opt int, str string) error {
+	var opterr error
+	fn := func(s uintptr) {
+		opterr = syscall.SetsockoptString(int(s), level, opt, str)
+	}
+	err := sc.Control(fn)
+	if opterr == nil {
+		return err
+	}
+	return opterr
+}
+
+func setsockOptInt(sc syscall.RawConn, level, name, value int) error {
+	var opterr error
+	fn := func(s uintptr) {
+		opterr = syscall.SetsockoptInt(int(s), level, name, value)
+	}
+	err := sc.Control(fn)
+	if opterr == nil {
+		return err
+	}
+	return opterr
+}
+
+func setsockoptIpTtl(sc syscall.RawConn, family int, value int) error {
+	level := syscall.IPPROTO_IP
+	name := syscall.IP_TTL
+	if family == syscall.AF_INET6 {
+		level = syscall.IPPROTO_IPV6
+		name = syscall.IPV6_UNICAST_HOPS
+	}
+	return setsockOptInt(sc, level, name, value)
 }

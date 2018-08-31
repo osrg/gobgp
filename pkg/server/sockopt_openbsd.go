@@ -352,9 +352,9 @@ const (
 	IPV6_MINHOPCOUNT = 73  // Generalized TTL Security Mechanism (RFC5082)
 )
 
-func setsockoptTcpMD5Sig(fd int, address string, key string) error {
-	if err := syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, 1); err != nil {
-		return os.NewSyscallError("setsockopt", err)
+func setsockoptTcpMD5Sig(sc syscall.RawConn, address string, key string) error {
+	if err := setsockOptInt(sc, syscall.IPPROTO_TCP, TCP_MD5SIG, 1); err != nil {
+		return err
 	}
 	if len(key) > 0 {
 		return saAdd(address, key)
@@ -363,59 +363,44 @@ func setsockoptTcpMD5Sig(fd int, address string, key string) error {
 }
 
 func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	fi, _, err := extractFileAndFamilyFromTCPListener(l)
-	defer fi.Close()
+	sc, err := l.SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptTcpMD5Sig(int(fi.Fd()), address, key)
-}
-
-func setsockoptIpTtl(fd int, family int, value int) error {
-	level := syscall.IPPROTO_IP
-	name := syscall.IP_TTL
-	if family == syscall.AF_INET6 {
-		level = syscall.IPPROTO_IPV6
-		name = syscall.IPV6_UNICAST_HOPS
-	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
+	return setsockoptTcpMD5Sig(sc, address, key)
 }
 
 func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPListener(l)
-	defer fi.Close()
+	family := extractFamilyFromTCPListener(l)
+	sc, err := l.SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+	return setsockoptIpTtl(sc, family, ttl)
 }
 
 func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
-	defer fi.Close()
+	family := extractFamilyFromTCPConn(conn)
+	sc, err := conn.SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+	return setsockoptIpTtl(sc, family, ttl)
 }
 
-func setsockoptIpMinTtl(fd int, family int, value int) error {
+func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+	family := extractFamilyFromTCPConn(conn)
+	sc, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_MINTTL
 	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
 		name = IPV6_MINHOPCOUNT
 	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
-}
-
-func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
-	defer fi.Close()
-	if err != nil {
-		return err
-	}
-	return setsockoptIpMinTtl(int(fi.Fd()), family, ttl)
+	return setsockOptInt(sc, level, name, ttl)
 }
 
 type TCPDialer struct {
