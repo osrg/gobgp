@@ -552,7 +552,7 @@ class BGPContainer(Container):
         while True:
             res = self.local(cmd, capture=True)
             print colors.yellow(res)
-            if '1 packets received' in res and '0% packet loss':
+            if ('1 packets received' in res or '1 received' in res) and '0% packet loss' in res:
                 break
             time.sleep(interval)
             count += interval
