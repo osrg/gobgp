@@ -1428,6 +1428,11 @@ func Test_TunnelEncapAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	subTlvs = append(subTlvs, a)
+	a, err = ptypes.MarshalAny(&api.TunnelEncapSubTLVUDPDestPort{
+		Port: 400,
+	})
+	assert.Nil(err)
+	subTlvs = append(subTlvs, a)
 	a, err = ptypes.MarshalAny(&api.TunnelEncapSubTLVUnknown{
 		Type:  0xff, // Max of uint8
 		Value: []byte{0x55, 0x66, 0x77, 0x88},
