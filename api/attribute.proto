@@ -613,6 +613,10 @@ message TunnelEncapSubTLVSRSegmentList {
   repeated google.protobuf.Any segments = 2;
 }
 
+message TunnelEncapSubTLVUDPDestPort {
+    uint32 port = 1;
+}
+
 message TunnelEncapSubTLVUnknown {
   uint32 type = 1;
   bytes value = 2;

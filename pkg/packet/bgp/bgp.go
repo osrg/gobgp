@@ -257,6 +257,7 @@ const (
 	ENCAP_SUBTLV_TYPE_ENCAPSULATION         EncapSubTLVType = 1
 	ENCAP_SUBTLV_TYPE_PROTOCOL              EncapSubTLVType = 2
 	ENCAP_SUBTLV_TYPE_COLOR                 EncapSubTLVType = 4
+	ENCAP_SUBTLV_TYPE_UDP_DEST_PORT         EncapSubTLVType = 8
 	ENCAP_SUBTLV_TYPE_SRPREFERENCE          EncapSubTLVType = 12
 	ENCAP_SUBTLV_TYPE_SRBINDING_SID         EncapSubTLVType = 13
 	ENCAP_SUBTLV_TYPE_SRENLP                EncapSubTLVType = 14
@@ -11596,6 +11597,52 @@ func NewTunnelEncapSubTLVColor(color uint32) *TunnelEncapSubTLVColor {
 	}
 }
 
+type TunnelEncapSubTLVUDPDestPort struct {
+	TunnelEncapSubTLV
+	UDPDestPort uint16
+}
+
+func (t *TunnelEncapSubTLVUDPDestPort) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if t.Length < 2 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLVUDPDestPort bytes available")
+	}
+	t.UDPDestPort = binary.BigEndian.Uint16(value[0:2])
+	return nil
+}
+
+func (t *TunnelEncapSubTLVUDPDestPort) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, t.UDPDestPort)
+	return t.TunnelEncapSubTLV.Serialize(buf)
+}
+
+func (t *TunnelEncapSubTLVUDPDestPort) String() string {
+	return fmt.Sprintf("{UDPDestPort: %d}", t.UDPDestPort)
+}
+
+func (t *TunnelEncapSubTLVUDPDestPort) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type        EncapSubTLVType `json:"type"`
+		UDPDestPort uint16          `json:"port"`
+	}{
+		Type:        t.Type,
+		UDPDestPort: t.UDPDestPort,
+	})
+}
+
+func NewTunnelEncapSubTLVUDPDestPort(port uint16) *TunnelEncapSubTLVUDPDestPort {
+	return &TunnelEncapSubTLVUDPDestPort{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type: ENCAP_SUBTLV_TYPE_UDP_DEST_PORT,
+		},
+		UDPDestPort: port,
+	}
+}
+
 type TunnelEncapTLV struct {
 	Type   TunnelType
 	Length uint16
@@ -11628,6 +11675,8 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 			subTlv = &TunnelEncapSubTLVProtocol{}
 		case ENCAP_SUBTLV_TYPE_COLOR:
 			subTlv = &TunnelEncapSubTLVColor{}
+		case ENCAP_SUBTLV_TYPE_UDP_DEST_PORT:
+			subTlv = &TunnelEncapSubTLVUDPDestPort{}
 		case ENCAP_SUBTLV_TYPE_SRPREFERENCE:
 			subTlv = &TunnelEncapSubTLVSRPreference{}
 		case ENCAP_SUBTLV_TYPE_SRBINDING_SID:
