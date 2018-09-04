@@ -5,7 +5,7 @@ openconfig yang files (see https://github.com/openconfig/public).
 
 Prerequisites
 =============
-Please confirm $GOPATH is configured before the following steps.
+Please confirm $GOPATH is configured before the following steps. Note that you need to use Python 2.
 
 How to use
 ==========
