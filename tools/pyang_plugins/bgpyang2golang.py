@@ -16,8 +16,9 @@
 from __future__ import print_function
 
 import sys
-from pyang import plugin
 from collections import namedtuple
+
+from pyang import plugin
 
 _COPYRIGHT_NOTICE = """
 // DO NOT EDIT
@@ -95,8 +96,8 @@ def emit_go(ctx, fd):
     done = set()
 
     # emit
-    generate_header(ctx, fd)
-    generate_common_functions(ctx, fd)
+    generate_header(fd)
+    generate_common_functions(fd)
 
     for mod in ctx.module_deps:
         if mod not in _module_excluded:
@@ -227,7 +228,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
             # case translation required
             elif is_translation_required(type_obj):
                 print('// original type is list of %s' % type_obj.arg, file=fd)
-                emit_type_name = '[]'+translate_type(type_name)
+                emit_type_name = '[]' + translate_type(type_name)
 
             # case other primitives
             elif is_builtin_type(type_obj):
@@ -245,11 +246,11 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
             t = ctx.golang_struct_names[key]
             val_name_go = t.golang_name
             if len(t.i_children) == 1 and is_list(t.i_children[0]):
-                l = t.i_children[0]
-                emit_type_name = '[]' + l.golang_name
+                c = t.i_children[0]
+                emit_type_name = '[]' + c.golang_name
                 equal_type = EQUAL_TYPE_MAP
-                equal_data = l.search_one('key').arg
-                leaf = l.search_one('leaf').search_one('type')
+                equal_data = c.search_one('key').arg
+                leaf = c.search_one('leaf').search_one('type')
                 if leaf.arg == 'leafref' and leaf.search_one('path').arg.startswith('../config'):
                     equal_data = 'config.' + equal_data
             else:
@@ -518,66 +519,66 @@ def emit_description(stmt, fd):
 
 
 def emit_enum(prefix, name, stmt, substmts, fd):
-        type_name_org = name
-        type_name = stmt.golang_name
-        print('// typedef for identity %s:%s.' % (prefix, type_name_org), file=fd)
-        emit_description(stmt, fd)
-        print('type %s string' % type_name, file=fd)
+    type_name_org = name
+    type_name = stmt.golang_name
+    print('// typedef for identity %s:%s.' % (prefix, type_name_org), file=fd)
+    emit_description(stmt, fd)
+    print('type %s string' % type_name, file=fd)
 
-        const_prefix = convert_const_prefix(type_name_org)
-        print('const (', file=fd)
-        m = {}
+    const_prefix = convert_const_prefix(type_name_org)
+    print('const (', file=fd)
+    m = {}
 
-        if is_choice(stmt) and is_enum_choice(stmt):
-            n = namedtuple('Statement', ['arg'])
-            n.arg = 'none'
-            substmts = [n] + substmts
+    if is_choice(stmt) and is_enum_choice(stmt):
+        n = namedtuple('Statement', ['arg'])
+        n.arg = 'none'
+        substmts = [n] + substmts
 
-        for sub in substmts:
-            enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-            m[sub.arg.lower()] = enum_name
-            print(' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower()), file=fd)
-        print(')\n', file=fd)
+    for sub in substmts:
+        enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+        m[sub.arg.lower()] = enum_name
+        print(' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower()), file=fd)
+    print(')\n', file=fd)
 
-        print('var %sToIntMap = map[%s]int {' % (type_name, type_name), file=fd)
-        for i, sub in enumerate(substmts):
-            enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-            print(' %s: %d,' % (enum_name, i), file=fd)
+    print('var %sToIntMap = map[%s]int {' % (type_name, type_name), file=fd)
+    for i, sub in enumerate(substmts):
+        enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+        print(' %s: %d,' % (enum_name, i), file=fd)
+    print('}\n', file=fd)
+
+    print('func (v %s) ToInt() int {' % type_name, file=fd)
+    print('i, ok := %sToIntMap[v]' % type_name, file=fd)
+    print('if !ok {', file=fd)
+    print('return -1', file=fd)
+    print('}', file=fd)
+    print('return i', file=fd)
+    print('}', file=fd)
+
+    print('var IntTo%sMap = map[int]%s {' % (type_name, type_name), file=fd)
+    for i, sub in enumerate(substmts):
+        enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+        print(' %d: %s,' % (i, enum_name), file=fd)
+    print('}\n', file=fd)
+
+    print('func (v %s) Validate() error {' % type_name, file=fd)
+    print('if _, ok := %sToIntMap[v]; !ok {' % type_name, file=fd)
+    print('return fmt.Errorf("invalid %s: %%s", v)' % type_name, file=fd)
+    print('}', file=fd)
+    print('return nil', file=fd)
+    print('}\n', file=fd)
+
+    if stmt.search_one('default'):
+        default = stmt.search_one('default')
+        print('func (v %s) Default() %s {' % (type_name, type_name), file=fd)
+        print('return %s' % m[default.arg.lower()], file=fd)
         print('}\n', file=fd)
 
-        print('func (v %s) ToInt() int {' % type_name, file=fd)
-        print('i, ok := %sToIntMap[v]' % type_name, file=fd)
-        print('if !ok {', file=fd)
-        print('return -1', file=fd)
+        print('func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name), file=fd)
+        print(' if string(v) == "" {', file=fd)
+        print(' return v.Default()', file=fd)
         print('}', file=fd)
-        print('return i', file=fd)
+        print(' return v', file=fd)
         print('}', file=fd)
-
-        print('var IntTo%sMap = map[int]%s {' % (type_name, type_name), file=fd)
-        for i, sub in enumerate(substmts):
-            enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-            print(' %d: %s,' % (i, enum_name), file=fd)
-        print('}\n', file=fd)
-
-        print('func (v %s) Validate() error {' % type_name, file=fd)
-        print('if _, ok := %sToIntMap[v]; !ok {' % type_name, file=fd)
-        print('return fmt.Errorf("invalid %s: %%s", v)' % type_name, file=fd)
-        print('}', file=fd)
-        print('return nil', file=fd)
-        print('}\n', file=fd)
-
-        if stmt.search_one('default'):
-            default = stmt.search_one('default')
-            print('func (v %s) Default() %s {' % (type_name, type_name), file=fd)
-            print('return %s' % m[default.arg.lower()], file=fd)
-            print('}\n', file=fd)
-
-            print('func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name), file=fd)
-            print(' if string(v) == "" {', file=fd)
-            print(' return v.Default()', file=fd)
-            print('}', file=fd)
-            print(' return v', file=fd)
-            print('}', file=fd)
 
 
 def emit_typedef(ctx, mod, fd):
@@ -694,6 +695,7 @@ def is_choice(s):
 def is_enum_choice(s):
     return all(e.search_one('type').arg in _type_enum_case for e in s.i_children)
 
+
 _type_enum_case = [
     'empty',
 ]
@@ -759,7 +761,7 @@ _typedef_exclude = [
 ]
 
 
-def generate_header(ctx, fd):
+def generate_header(fd):
     print(_COPYRIGHT_NOTICE, file=fd)
     print('package config', file=fd)
     print('', file=fd)
@@ -771,7 +773,7 @@ def generate_header(ctx, fd):
     print('', file=fd)
 
 
-def generate_common_functions(ctx, fd):
+def generate_common_functions(fd):
     print('func mapkey(index int, name string) string {', file=fd)
     print('if name != "" {', file=fd)
     print('return name', file=fd)
@@ -790,7 +792,6 @@ def translate_type(key):
 # 'hoge-hoge' -> 'HogeHoge'
 def convert_to_golang(type_string):
     a = type_string.split('.')
-    a = [x.capitalize() for x in a]  # XXX locale sensitive
     return '.'.join(''.join(t.capitalize() for t in x.split('-')) for x in a)
 
 
