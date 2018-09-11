@@ -51,6 +51,7 @@ const (
 	VALID
 	NOT_FOUND
 	INVALID
+	COLOR
 )
 
 var ExtCommNameMap = map[ExtCommType]string{
@@ -68,6 +69,7 @@ var ExtCommNameMap = map[ExtCommType]string{
 	VALID:           "valid",
 	NOT_FOUND:       "not-found",
 	INVALID:         "invalid",
+	COLOR:           "color",
 }
 
 var ExtCommValueMap = map[string]ExtCommType{
@@ -85,6 +87,7 @@ var ExtCommValueMap = map[string]ExtCommType{
 	ExtCommNameMap[VALID]:           VALID,
 	ExtCommNameMap[NOT_FOUND]:       NOT_FOUND,
 	ExtCommNameMap[INVALID]:         INVALID,
+	ExtCommNameMap[COLOR]:           COLOR,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -274,6 +277,17 @@ func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{bgp.NewValidationExtended(typ)}, nil
 }
 
+func colorParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) != 2 || args[0] != ExtCommNameMap[COLOR] {
+		return nil, fmt.Errorf("invalid color")
+	}
+	color, err := strconv.ParseUint(args[1], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid color")
+	}
+	return []bgp.ExtendedCommunityInterface{bgp.NewColorExtended(uint32(color))}, nil
+}
+
 var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
 	ACCEPT:          nil,
 	DISCARD:         rateLimitParser,
@@ -289,6 +303,7 @@ var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	VALID:           validationParser,
 	NOT_FOUND:       validationParser,
 	INVALID:         validationParser,
+	COLOR:           colorParser,
 }
 
 func ParseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, error) {
