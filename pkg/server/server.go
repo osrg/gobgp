@@ -1664,6 +1664,7 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 			}).Info("call set policy")
 			a, err := getConfig(peer.ID())
 			if err != nil {
+				peer.fsm.lock.RUnlock()
 				return err
 			}
 			ap[peer.ID()] = *a
@@ -2126,12 +2127,12 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 			if restarting {
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+				peer.fsm.lock.Unlock()
 				log.WithFields(log.Fields{
 					"Topic":    "Peer",
 					"Key":      peer.ID(),
 					"Families": families,
 				}).Debug("deferral timer expired")
-				peer.fsm.lock.Unlock()
 			} else if y && !c.MpGracefulRestart.State.EndOfRibReceived {
 				log.WithFields(log.Fields{
 					"Topic":    "Peer",

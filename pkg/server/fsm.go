@@ -1349,6 +1349,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, *FsmStateReason) {
 							}).Warn("restart flag is not set")
 							// send notification?
 							h.conn.Close()
+							fsm.lock.Unlock()
 							return bgp.BGP_FSM_IDLE, NewFsmStateReason(FSM_INVALID_MSG, nil, nil)
 						}
 
