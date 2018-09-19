@@ -449,7 +449,7 @@ func showNeighbor(args []string) error {
 	first := true
 	for _, a := range p.AfiSafis {
 		limit := a.PrefixLimits
-		if limit.MaxPrefixes > 0 {
+		if limit != nil && limit.MaxPrefixes > 0 {
 			if first {
 				fmt.Println("  Prefix Limits:")
 				first = false
