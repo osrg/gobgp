@@ -183,7 +183,7 @@ func showNeighbors(vrf string) error {
 		case api.PeerState_OPENCONFIRM:
 			return "Confirm"
 		case api.PeerState_ESTABLISHED:
-			return "Establ"
+			return "Established"
 		default:
 			return string(fsm)
 		}

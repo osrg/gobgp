@@ -559,8 +559,8 @@ $ gobgpd -f gobgpd.toml
 
 $ gobgp neighbor
 Peer        AS  Up/Down State       |#Received  Accepted
-10.0.0.1 65001 hh:mm:ss Establ      |        0         0
-10.0.0.2 65002 hh:mm:ss Establ      |        0         0
+10.0.0.1 65001 hh:mm:ss Established |        0         0
+10.0.0.2 65002 hh:mm:ss Established |        0         0
 ```
 
 ### Advertising EVPN route
@@ -730,8 +730,8 @@ Then, check statistics of neighbors for confirming the number of re-advertised r
 # GoBGP
 $ gobgp neighbor
 Peer        AS  Up/Down State       |#Received  Accepted
-10.0.0.1 65001 hh:mm:ss Establ      |        4         4
-10.0.0.2 65002 hh:mm:ss Establ      |        0         0
+10.0.0.1 65001 hh:mm:ss Established |        4         4
+10.0.0.2 65002 hh:mm:ss Established |        0         0
 
 $ gobgp neighbor 10.0.0.2
 BGP neighbor is 10.0.0.2, remote AS 65002

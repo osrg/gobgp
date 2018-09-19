@@ -71,8 +71,8 @@ Let's show the information of all the peers.
 ```bash
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
-10.0.255.1 65001 00:00:14 Establ      |          1        5        5
-10.0.255.2 65002 00:00:14 Establ      |          5        2        2
+10.0.255.1 65001 00:00:14 Established |          1        5        5
+10.0.255.2 65002 00:00:14 Established |          5        2        2
 ```
 
 Want to see the details of a particular peer?
