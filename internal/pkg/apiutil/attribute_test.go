@@ -652,6 +652,7 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 		IpPrefixLen: 24,
 		IpPrefix:    "192.168.101.0",
 		Label:       200,
+		GwAddress:   "172.16.101.1",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
