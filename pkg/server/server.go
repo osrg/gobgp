@@ -1780,7 +1780,12 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 				// MAC Mobility Extended Community
 				paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, []bgp.RouteFamily{bgp.RF_EVPN})
 				if m := getMacMobilityExtendedCommunity(r.ETag, r.MacAddress, paths); m != nil {
-					path.SetExtCommunities([]bgp.ExtendedCommunityInterface{m}, false)
+					pm := getMacMobilityExtendedCommunity(r.ETag, r.MacAddress, []*table.Path{path})
+					if pm == nil {
+						path.SetExtCommunities([]bgp.ExtendedCommunityInterface{m}, false)
+					} else if pm != nil && pm.Sequence < m.Sequence {
+						path.IsWithdraw = true
+					}
 				}
 			case *bgp.EVPNEthernetSegmentRoute:
 				// RFC7432: BGP MPLS-Based Ethernet VPN
