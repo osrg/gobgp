@@ -232,6 +232,12 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 // different Ethernet segment identifier and a higher sequence number
 // than that which it had previously advertised withdraws its MAC/IP
 // Advertisement route.
+// ......
+// If the PE is the originator of the MAC route and it receives the same
+// MAC address with the same sequence number that it generated, it will
+// compare its own IP address with the IP address of the remote PE and
+// will select the lowest IP.  If its own route is not the best one, it
+// will withdraw the route.
 func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 	pathList := make([]*Path, 0)
 	nlri := path.GetNlri().(*bgp.EVPNNLRI)
@@ -242,7 +248,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
-		f := func(p *Path) (bgp.EthernetSegmentIdentifier, net.HardwareAddr, int) {
+		f := func(p *Path) (bgp.EthernetSegmentIdentifier, uint32, net.HardwareAddr, int, net.IP) {
 			nlri := p.GetNlri().(*bgp.EVPNNLRI)
 			d := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 			ecs := p.GetExtCommunities()
@@ -253,12 +259,14 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 					break
 				}
 			}
-			return d.ESI, d.MacAddress, seq
+			return d.ESI, d.ETag, d.MacAddress, seq, p.info.source.Address
 		}
-		e1, m1, s1 := f(path)
-		e2, m2, s2 := f(path2)
-		if bytes.Equal(m1, m2) && !bytes.Equal(e1.Value, e2.Value) && s1 > s2 {
-			pathList = append(pathList, path2.Clone(true))
+		e1, et1, m1, s1, i1 := f(path)
+		e2, et2, m2, s2, i2 := f(path2)
+		if et1 == et2 && bytes.Equal(m1, m2) && !bytes.Equal(e1.Value, e2.Value) {
+			if s1 > s2 || s1 == s2 && bytes.Compare(i1, i2) < 0 {
+				pathList = append(pathList, path2.Clone(true))
+			}
 		}
 	}
 	return pathList
