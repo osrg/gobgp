@@ -372,8 +372,7 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	}
 
 	if rhs.tree.Len() == 0 {
-		// if the to be appended set is empty
-		// then we should return directly
+		// return directly if it is to append an empty set
 		return nil
 	}
 
