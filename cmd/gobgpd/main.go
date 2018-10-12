@@ -130,7 +130,10 @@ func main() {
 
 	log.Info("gobgpd started")
 	bgpServer := server.NewBgpServer()
-	go bgpServer.Serve()
+	go server.RunWithGoroutineStorage("none", "main::bgpServer.Serve", func() error {
+		bgpServer.Serve()
+		return nil
+	})()
 
 	var grpcOpts []grpc.ServerOption
 	if opts.TLS {

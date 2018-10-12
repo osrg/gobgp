@@ -217,6 +217,13 @@ type FSM struct {
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
+	MustBeNamedThread(
+		"FSMHandler::loop",
+		"FSMHandler::opensent.recvMessage",
+		"FSMHandler::openconfirm.recvMessage",
+		"FSMHandler::established.recvMessageloop",
+		"FSMHandler::established.sendMessageloop",
+	)
 	fsm.lock.Lock()
 	defer fsm.lock.Unlock()
 	state := &fsm.pConf.State.Messages
@@ -268,6 +275,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 }
 
 func (fsm *FSM) bmpStatsUpdate(statType uint16, increment int) {
+	MustBeNamedThread("FSMHandler::established.recvMessageloop")
 	fsm.lock.Lock()
 	defer fsm.lock.Unlock()
 	stats := &fsm.pConf.State.Messages.Received
@@ -307,7 +315,9 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		version:              fsmVersion,
 	}
 	fsm.gracefulRestartTimer.Stop()
-	fsm.t.Go(fsm.connectLoop)
+	fsm.t.Go(RunWithGoroutineStorage("main::bgpServer.Serve", "NewFSM::connectLoop", func() error {
+		return fsm.connectLoop()
+	}))
 	return fsm
 }
 
@@ -488,7 +498,10 @@ func (fsm *FSM) connectLoop() error {
 			ready := fsm.state == bgp.BGP_FSM_ACTIVE
 			fsm.lock.RUnlock()
 			if ready {
-				go connect()
+				go RunWithGoroutineStorage("NewFSM::connectLoop", "connectLoop::connect", func() error {
+					connect()
+					return nil
+				})()
 			}
 		case <-fsm.getActiveCh:
 			timer.Reset(time.Duration(r.Intn(minConnectRetry)+minConnectRetry) * time.Second)
@@ -518,7 +531,9 @@ func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *F
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
 	}
-	fsm.t.Go(h.loop)
+	fsm.t.Go(RunWithGoroutineStorage("main::bgpServer.Serve", "fsm::NewFSMHandler", func() error {
+		return h.loop()
+	}))
 	return h
 }
 
@@ -611,6 +626,7 @@ func (h *FSMHandler) active() (bgp.FSMState, *FsmStateReason) {
 			if !ok {
 				break
 			}
+			MustBeNamedThread("FSMHandler::loop")
 			fsm.lock.Lock()
 			fsm.conn = conn
 			fsm.lock.Unlock()
@@ -842,6 +858,7 @@ func extractRouteFamily(p *bgp.PathAttributeInterface) *bgp.RouteFamily {
 }
 
 func (h *FSMHandler) afiSafiDisable(rf bgp.RouteFamily) string {
+	MustBeNamedThread("No threads hit yet")
 	h.fsm.lock.Lock()
 	defer h.fsm.lock.Unlock()
 
@@ -1197,7 +1214,9 @@ func (h *FSMHandler) opensent() (bgp.FSMState, *FsmStateReason) {
 	h.conn = fsm.conn
 	fsm.lock.RUnlock()
 
-	h.t.Go(h.recvMessage)
+	h.t.Go(RunWithGoroutineStorage("FSMHandler::loop", "FSMHandler::opensent.recvMessage", func() error {
+		return h.recvMessage()
+	}))
 
 	// RFC 4271 P.60
 	// sets its HoldTimer to a large value
@@ -1248,6 +1267,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, *FsmStateReason) {
 			case *bgp.BGPMessage:
 				m := e.MsgData.(*bgp.BGPMessage)
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
+					MustBeNamedThread("FSMHandler::loop")
 					fsm.lock.Lock()
 					fsm.recvOpen = m
 
@@ -1451,7 +1471,9 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, *FsmStateReason) {
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
-	h.t.Go(h.recvMessage)
+	h.t.Go(RunWithGoroutineStorage("FSMHandler::loop", "FSMHandler::openconfirm.recvMessage", func() error {
+		return h.recvMessage()
+	}))
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1709,12 +1731,17 @@ func (h *FSMHandler) recvMessageloop() error {
 
 func (h *FSMHandler) established() (bgp.FSMState, *FsmStateReason) {
 	fsm := h.fsm
+	MustBeNamedThread("FSMHandler::loop")
 	fsm.lock.Lock()
 	h.conn = fsm.conn
 	fsm.lock.Unlock()
-	h.t.Go(h.sendMessageloop)
+	h.t.Go(RunWithGoroutineStorage("FSMHandler::loop", "FSMHandler::established.sendMessageloop", func() error {
+		return h.sendMessageloop()
+	}))
 	h.msgCh = h.incoming
-	h.t.Go(h.recvMessageloop)
+	h.t.Go(RunWithGoroutineStorage("FSMHandler::loop", "FSMHandler::established.recvMessageloop", func() error {
+		return h.recvMessageloop()
+	}))
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1823,7 +1850,9 @@ func (h *FSMHandler) loop() error {
 		return nil
 	}
 
-	h.t.Go(f)
+	h.t.Go(RunWithGoroutineStorage("fsm::NewFSMHandler", "FSMHandler::loop", func() error {
+		return f()
+	}))
 
 	nextState := <-ch
 
@@ -1876,6 +1905,7 @@ func (h *FSMHandler) loop() error {
 }
 
 func (h *FSMHandler) changeAdminState(s AdminState) error {
+	MustBeNamedThread("No threads hit yet")
 	h.fsm.lock.Lock()
 	defer h.fsm.lock.Unlock()
 

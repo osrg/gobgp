@@ -76,7 +76,7 @@ func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpList
 	}
 
 	closeCh := make(chan struct{})
-	go func() error {
+	go RunWithGoroutineStorage("main::bgpServer.Serve", "NewTCPListener", func() error {
 		for {
 			conn, err := l.AcceptTCP()
 			if err != nil {
@@ -89,7 +89,7 @@ func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpList
 			}
 			ch <- conn
 		}
-	}()
+	})()
 	return &tcpListener{
 		l:  l,
 		ch: closeCh,
@@ -1129,6 +1129,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 	switch e.MsgType {
 	case FSM_MSG_STATE_CHANGE:
 		nextState := e.MsgData.(bgp.FSMState)
+		MustBeNamedThread("main::bgpServer.Serve")
 		peer.fsm.lock.Lock()
 		oldState := bgp.FSMState(peer.fsm.pConf.State.SessionState.ToInt())
 		peer.fsm.pConf.State.SessionState = config.IntToSessionStateMap[int(nextState)]
@@ -1143,6 +1144,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 		// PeerDown
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
 			t := time.Now()
+			MustBeNamedThread("main::bgpServer.Serve")
 			peer.fsm.lock.Lock()
 			if t.Sub(time.Unix(peer.fsm.pConf.Timers.State.Uptime, 0)) < flopThreshold {
 				peer.fsm.pConf.State.Flops++
@@ -1151,6 +1153,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 			peer.fsm.lock.Unlock()
 			var drop []bgp.RouteFamily
 			if graceful {
+				MustBeNamedThread("main::bgpServer.Serve")
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
 				peer.fsm.lock.Unlock()
@@ -1164,6 +1167,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 			peer.DropAll(drop)
 			server.dropPeerAllRoutes(peer, drop)
 
+			MustBeNamedThread("main::bgpServer.Serve")
 			peer.fsm.lock.Lock()
 			if peer.fsm.pConf.Config.PeerAs == 0 {
 				peer.fsm.pConf.State.PeerAs = 0
@@ -1173,7 +1177,10 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 
 			if peer.isDynamicNeighbor() {
 				peer.stopPeerRestarting()
-				go peer.stopFSM()
+				go RunWithGoroutineStorage("main::bgpServer.Serve", "handleFSMMessage::stopFSM", func() error {
+					peer.stopFSM()
+					return nil
+				})()
 				peer.fsm.lock.RLock()
 				delete(server.neighborMap, peer.fsm.pConf.State.NeighborAddress)
 				peer.fsm.lock.RUnlock()
@@ -1203,47 +1210,51 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 				for _, f := range llgr {
 					endCh := make(chan struct{})
 					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
-					go func(family bgp.RouteFamily, endCh chan struct{}) {
-						t := peer.llgrRestartTime(family)
-						timer := time.NewTimer(time.Second * time.Duration(t))
+					go RunWithGoroutineStorage("main::bgpServer.Serve", "handleFSMMessage::llgr", func() error {
+						func(family bgp.RouteFamily, endCh chan struct{}) {
+							t := peer.llgrRestartTime(family)
+							timer := time.NewTimer(time.Second * time.Duration(t))
 
-						log.WithFields(log.Fields{
-							"Topic":  "Peer",
-							"Key":    peer.ID(),
-							"Family": family,
-						}).Debugf("start LLGR restart timer (%d sec) for %s", t, family)
-
-						select {
-						case <-timer.C:
-							server.mgmtOperation(func() error {
-								log.WithFields(log.Fields{
-									"Topic":  "Peer",
-									"Key":    peer.ID(),
-									"Family": family,
-								}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
-								peer.DropAll([]bgp.RouteFamily{family})
-								server.dropPeerAllRoutes(peer, []bgp.RouteFamily{family})
-
-								// when all llgr restart timer expired, stop PeerRestarting
-								if peer.llgrRestartTimerExpired(family) {
-									peer.stopPeerRestarting()
-								}
-								return nil
-							}, false)
-						case <-endCh:
 							log.WithFields(log.Fields{
 								"Topic":  "Peer",
 								"Key":    peer.ID(),
 								"Family": family,
-							}).Debugf("stop LLGR restart timer (%d sec) for %s", t, family)
-						}
-					}(f, endCh)
+							}).Debugf("start LLGR restart timer (%d sec) for %s", t, family)
+
+							select {
+							case <-timer.C:
+								server.mgmtOperation(func() error {
+									log.WithFields(log.Fields{
+										"Topic":  "Peer",
+										"Key":    peer.ID(),
+										"Family": family,
+									}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
+									peer.DropAll([]bgp.RouteFamily{family})
+									server.dropPeerAllRoutes(peer, []bgp.RouteFamily{family})
+
+									// when all llgr restart timer expired, stop PeerRestarting
+									if peer.llgrRestartTimerExpired(family) {
+										peer.stopPeerRestarting()
+									}
+									return nil
+								}, false)
+							case <-endCh:
+								log.WithFields(log.Fields{
+									"Topic":  "Peer",
+									"Key":    peer.ID(),
+									"Family": family,
+								}).Debugf("stop LLGR restart timer (%d sec) for %s", t, family)
+							}
+						}(f, endCh)
+						return nil
+					})()
 				}
 			} else {
 				// RFC 4724 4.2
 				// If the session does not get re-established within the "Restart Time"
 				// that the peer advertised previously, the Receiving Speaker MUST
 				// delete all the stale routes from the peer that it is retaining.
+				MustBeNamedThread("No threads hit yet")
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
 				peer.fsm.lock.Unlock()
@@ -1258,6 +1269,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
 			// may include zone info
+			MustBeNamedThread("main::bgpServer.Serve")
 			peer.fsm.lock.Lock()
 			peer.fsm.pConf.Transport.State.LocalAddress = laddr
 			// exclude zone info
@@ -1326,6 +1338,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 				}()
 				if allEnd {
 					for _, p := range server.neighborMap {
+						MustBeNamedThread("main::bgpServer.Serve")
 						p.fsm.lock.Lock()
 						p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 						p.fsm.lock.Unlock()
@@ -1367,6 +1380,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 					server.shutdownWG.Done()
 				}
 			}
+			MustBeNamedThread("main::bgpServer.Serve")
 			peer.fsm.lock.Lock()
 			peer.fsm.pConf.Timers.State.Downtime = time.Now().Unix()
 			peer.fsm.lock.Unlock()
@@ -1376,6 +1390,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 		adminStateDown := peer.fsm.adminState == ADMIN_STATE_DOWN
 		peer.fsm.lock.RUnlock()
 		if adminStateDown {
+			MustBeNamedThread("No threads hit yet")
 			peer.fsm.lock.Lock()
 			peer.fsm.pConf.State = config.NeighborState{}
 			peer.fsm.pConf.State.NeighborAddress = peer.fsm.pConf.Config.NeighborAddress
@@ -1435,6 +1450,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 					}
 					for i, a := range peerAfiSafis {
 						if a.State.Family == f {
+							MustBeNamedThread("main::bgpServer.Serve")
 							peer.fsm.lock.Lock()
 							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
 							peer.fsm.lock.Unlock()
@@ -1464,6 +1480,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 					}()
 					if allEnd {
 						for _, p := range server.neighborMap {
+							MustBeNamedThread("main::bgpServer.Serve")
 							p.fsm.lock.Lock()
 							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 							p.fsm.lock.Unlock()
@@ -2128,6 +2145,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 			restarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
 			peer.fsm.lock.RUnlock()
 			if restarting {
+				MustBeNamedThread("No threads hit yet")
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 				peer.fsm.lock.Unlock()
@@ -2656,7 +2674,10 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 	n.fsm.sendNotification(code, subcode, nil, "")
 	n.stopPeerRestarting()
 
-	go n.stopFSM()
+	go RunWithGoroutineStorage("No threads hit yet", "deleteNeighbor", func() error {
+		n.stopFSM()
+		return nil
+	})()
 	delete(server.neighborMap, addr)
 	server.dropPeerAllRoutes(n, n.configuredRFlist())
 	return nil
@@ -3728,7 +3749,10 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 			register(WATCH_EVENT_TYPE_RECV_MSG, w)
 		}
 
-		go w.loop()
+		go RunWithGoroutineStorage("No threads hit yet", "Watch", func() error {
+			w.loop()
+			return nil
+		})()
 		return nil
 	}, false)
 	return w

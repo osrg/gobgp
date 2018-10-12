@@ -18,6 +18,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/osrg/gobgp/internal/pkg/config"
@@ -26,7 +27,68 @@ import (
 
 	"github.com/eapache/channels"
 	log "github.com/sirupsen/logrus"
+	"github.com/jtolds/gls"
 )
+
+type Values map[interface{}]interface{}
+
+var (
+	goroutineLock sync.RWMutex
+	goroutineData map[uint]Values
+)
+
+func init() {
+	goroutineData = map[uint]Values{}
+}
+
+func GetValues() *Values {
+	id, ok := gls.GetGoroutineId()
+	if !ok {
+		panic("Couldn't get the current goroutine id")
+	}
+
+	goroutineLock.Lock()
+	defer goroutineLock.Unlock()
+
+	values, ok := goroutineData[id]
+	if !ok {
+		values = Values{}
+		goroutineData[id] = values
+	}
+	return &values
+}
+
+func GetGoroutineValue(key string) interface{} {
+	return (*GetValues())[key]
+}
+
+func SetGoroutineValue(key string, value interface{}) {
+	(*GetValues())[key] = value
+}
+
+func RunWithGoroutineStorage(parent, name string, callback func() error) func() error {
+	if parent != "none" {
+		MustBeNamedThread(parent)
+	}
+	return func() error {
+		var err error
+		gls.EnsureGoroutineId(func(_ uint) {
+			SetGoroutineValue("name", name)
+			err = callback()
+		})
+		return err
+	}
+}
+
+func MustBeNamedThread(names ...string) {
+	actual := GetGoroutineValue("name").(string)
+	for _, name := range names {
+		if name == actual {
+			return
+		}
+	}
+	panic(fmt.Sprintf("Expected thread name: %s but got %s", names, actual))
+}
 
 const (
 	flopThreshold   = time.Second * 30
@@ -342,6 +404,7 @@ func (peer *peer) markLLGRStale(fs []bgp.RouteFamily) []*table.Path {
 }
 
 func (peer *peer) stopPeerRestarting() {
+	MustBeNamedThread("main::bgpServer.Serve")
 	peer.fsm.lock.Lock()
 	defer peer.fsm.lock.Unlock()
 	peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
@@ -443,6 +506,7 @@ func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 			}
 		}
 	}
+	MustBeNamedThread("No threads hit yet")
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.AfiSafis = c
 	peer.fsm.lock.Unlock()
@@ -459,6 +523,7 @@ func (peer *peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 		"withdrawals": update.WithdrawnRoutes,
 		"attributes":  update.PathAttributes,
 	}).Debug("received update")
+	MustBeNamedThread("main::bgpServer.Serve")
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	peer.fsm.lock.Unlock()
@@ -526,6 +591,7 @@ func (peer *peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 
 func (peer *peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *FsmMsg) {
 	handler := NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
+	MustBeNamedThread("main::bgpServer.Serve")
 	peer.fsm.lock.Lock()
 	peer.fsm.h = handler
 	peer.fsm.lock.Unlock()
