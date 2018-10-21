@@ -398,8 +398,8 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	}
 	if b.Zebra.Config.Version < 2 {
 		b.Zebra.Config.Version = 2
-	} else if b.Zebra.Config.Version > 5 {
-		b.Zebra.Config.Version = 5
+	} else if b.Zebra.Config.Version > 6 {
+		b.Zebra.Config.Version = 6
 	}
 	if !v.IsSet("zebra.config.nexthop-trigger-enable") && !b.Zebra.Config.NexthopTriggerEnable && b.Zebra.Config.Version > 2 {
 		b.Zebra.Config.NexthopTriggerEnable = true

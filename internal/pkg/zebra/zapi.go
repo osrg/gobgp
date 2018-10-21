@@ -110,7 +110,7 @@ func HeaderSize(version uint8) uint16 {
 	switch version {
 	case 3, 4:
 		return 8
-	case 5:
+	case 5, 6:
 		return 10
 	default:
 		return 6
@@ -185,6 +185,102 @@ const (
 //go:generate stringer -type=API_TYPE
 type API_TYPE uint16
 
+// For FRRouting version 6. (ZAPI version 6)
+const (
+	FRR_ZAPI6_INTERFACE_ADD API_TYPE = iota
+	FRR_ZAPI6_INTERFACE_DELETE
+	FRR_ZAPI6_INTERFACE_ADDRESS_ADD
+	FRR_ZAPI6_INTERFACE_ADDRESS_DELETE
+	FRR_ZAPI6_INTERFACE_UP
+	FRR_ZAPI6_INTERFACE_DOWN
+	FRR_ZAPI6_INTERFACE_SET_MASTER
+	FRR_ZAPI6_ROUTE_ADD
+	FRR_ZAPI6_ROUTE_DELETE
+	FRR_ZAPI6_ROUTE_NOTIFY_OWNER
+	FRR_ZAPI6_REDISTRIBUTE_ADD
+	FRR_ZAPI6_REDISTRIBUTE_DELETE
+	FRR_ZAPI6_REDISTRIBUTE_DEFAULT_ADD
+	FRR_ZAPI6_REDISTRIBUTE_DEFAULT_DELETE
+	FRR_ZAPI6_ROUTER_ID_ADD
+	FRR_ZAPI6_ROUTER_ID_DELETE
+	FRR_ZAPI6_ROUTER_ID_UPDATE
+	FRR_ZAPI6_HELLO
+	FRR_ZAPI6_CAPABILITIES
+	FRR_ZAPI6_NEXTHOP_REGISTER
+	FRR_ZAPI6_NEXTHOP_UNREGISTER
+	FRR_ZAPI6_NEXTHOP_UPDATE
+	FRR_ZAPI6_INTERFACE_NBR_ADDRESS_ADD
+	FRR_ZAPI6_INTERFACE_NBR_ADDRESS_DELETE
+	FRR_ZAPI6_INTERFACE_BFD_DEST_UPDATE
+	FRR_ZAPI6_IMPORT_ROUTE_REGISTER
+	FRR_ZAPI6_IMPORT_ROUTE_UNREGISTER
+	FRR_ZAPI6_IMPORT_CHECK_UPDATE
+	FRR_ZAPI6_IPV4_ROUTE_IPV6_NEXTHOP_ADD
+	FRR_ZAPI6_BFD_DEST_REGISTER
+	FRR_ZAPI6_BFD_DEST_DEREGISTER
+	FRR_ZAPI6_BFD_DEST_UPDATE
+	FRR_ZAPI6_BFD_DEST_REPLAY
+	FRR_ZAPI6_REDISTRIBUTE_ROUTE_ADD
+	FRR_ZAPI6_REDISTRIBUTE_ROUTE_DEL
+	FRR_ZAPI6_VRF_UNREGISTER
+	FRR_ZAPI6_VRF_ADD
+	FRR_ZAPI6_VRF_DELETE
+	FRR_ZAPI6_VRF_LABEL
+	FRR_ZAPI6_INTERFACE_VRF_UPDATE
+	FRR_ZAPI6_BFD_CLIENT_REGISTER
+	FRR_ZAPI6_BFD_CLIENT_DEREGISTER
+	FRR_ZAPI6_INTERFACE_ENABLE_RADV
+	FRR_ZAPI6_INTERFACE_DISABLE_RADV
+	FRR_ZAPI6_IPV4_NEXTHOP_LOOKUP_MRIB
+	FRR_ZAPI6_INTERFACE_LINK_PARAMS
+	FRR_ZAPI6_MPLS_LABELS_ADD
+	FRR_ZAPI6_MPLS_LABELS_DELETE
+	FRR_ZAPI6_IPMR_ROUTE_STATS
+	FRR_ZAPI6_LABEL_MANAGER_CONNECT
+	FRR_ZAPI6_GET_LABEL_CHUNK
+	FRR_ZAPI6_RELEASE_LABEL_CHUNK
+	FRR_ZAPI6_FEC_REGISTER
+	FRR_ZAPI6_FEC_UNREGISTER
+	FRR_ZAPI6_FEC_UPDATE
+	FRR_ZAPI6_ADVERTISE_DEFAULT_GW
+	FRR_ZAPI6_ADVERTISE_SUBNET
+	FRR_ZAPI6_ADVERTISE_ALL_VNI
+	FRR_ZAPI6_LOCAL_ES_ADD
+	FRR_ZAPI6_LOCAL_ES_DEL
+	FRR_ZAPI6_VNI_ADD
+	FRR_ZAPI6_VNI_DEL
+	FRR_ZAPI6_L3VNI_ADD
+	FRR_ZAPI6_L3VNI_DEL
+	FRR_ZAPI6_REMOTE_VTEP_ADD
+	FRR_ZAPI6_REMOTE_VTEP_DEL
+	FRR_ZAPI6_MACIP_ADD
+	FRR_ZAPI6_MACIP_DEL
+	FRR_ZAPI6_IP_PREFIX_ROUTE_ADD
+	FRR_ZAPI6_IP_PREFIX_ROUTE_DEL
+	FRR_ZAPI6_REMOTE_MACIP_ADD
+	FRR_ZAPI6_REMOTE_MACIP_DEL
+	FRR_ZAPI6_PW_ADD
+	FRR_ZAPI6_PW_DELETE
+	FRR_ZAPI6_PW_SET
+	FRR_ZAPI6_PW_UNSET
+	FRR_ZAPI6_PW_STATUS_UPDATE
+	FRR_ZAPI6_RULE_ADD
+	FRR_ZAPI6_RULE_DELETE
+	FRR_ZAPI6_RULE_NOTIFY_OWNER
+	FRR_ZAPI6_TABLE_MANAGER_CONNECT
+	FRR_ZAPI6_GET_TABLE_CHUNK
+	FRR_ZAPI6_RELEASE_TABLE_CHUNK
+	FRR_ZAPI6_IPSET_CREATE
+	FRR_ZAPI6_IPSET_DESTROY
+	FRR_ZAPI6_IPSET_ENTRY_ADD
+	FRR_ZAPI6_IPSET_ENTRY_DELETE
+	FRR_ZAPI6_IPSET_NOTIFY_OWNER
+	FRR_ZAPI6_IPSET_ENTRY_NOTIFY_OWNER
+	FRR_ZAPI6_IPTABLE_ADD
+	FRR_ZAPI6_IPTABLE_DELETE
+	FRR_ZAPI6_IPTABLE_NOTIFY_OWNER
+)
+
 // For FRRouting version 4 and 5. (ZAPI version 5)
 const (
 	FRR_ZAPI5_INTERFACE_ADD API_TYPE = iota
@@ -240,6 +336,7 @@ const (
 	FRR_ZAPI5_MPLS_LABELS_DELETE
 	FRR_ZAPI5_IPMR_ROUTE_STATS
 	FRR_ZAPI5_LABEL_MANAGER_CONNECT
+	FRR_ZAPI5_LABEL_MANAGER_CONNECT_ASYNC
 	FRR_ZAPI5_GET_LABEL_CHUNK
 	FRR_ZAPI5_RELEASE_LABEL_CHUNK
 	FRR_ZAPI5_FEC_REGISTER
@@ -385,6 +482,38 @@ const (
 //go:generate stringer -type=ROUTE_TYPE
 type ROUTE_TYPE uint8
 
+// For FRRouting version 6 (ZAPI version 6).
+const (
+	FRR_ZAPI6_ROUTE_SYSTEM ROUTE_TYPE = iota
+	FRR_ZAPI6_ROUTE_KERNEL
+	FRR_ZAPI6_ROUTE_CONNECT
+	FRR_ZAPI6_ROUTE_STATIC
+	FRR_ZAPI6_ROUTE_RIP
+	FRR_ZAPI6_ROUTE_RIPNG
+	FRR_ZAPI6_ROUTE_OSPF
+	FRR_ZAPI6_ROUTE_OSPF6
+	FRR_ZAPI6_ROUTE_ISIS
+	FRR_ZAPI6_ROUTE_BGP
+	FRR_ZAPI6_ROUTE_PIM
+	FRR_ZAPI6_ROUTE_EIGRP
+	FRR_ZAPI6_ROUTE_NHRP
+	FRR_ZAPI6_ROUTE_HSLS
+	FRR_ZAPI6_ROUTE_OLSR
+	FRR_ZAPI6_ROUTE_TABLE
+	FRR_ZAPI6_ROUTE_LDP
+	FRR_ZAPI6_ROUTE_VNC
+	FRR_ZAPI6_ROUTE_VNC_DIRECT
+	FRR_ZAPI6_ROUTE_VNC_DIRECT_RH
+	FRR_ZAPI6_ROUTE_BGP_DIRECT
+	FRR_ZAPI6_ROUTE_BGP_DIRECT_EXT
+	FRR_ZAPI6_ROUTE_BABEL
+	FRR_ZAPI6_ROUTE_SHARP
+	FRR_ZAPI6_ROUTE_PBR
+	FRR_ZAPI6_ROUTE_BFD
+	FRR_ZAPI6_ROUTE_ALL
+	FRR_ZAPI6_ROUTE_MAX
+)
+
 // For FRRouting version 4 and 5 (ZAPI version 5).
 const (
 	FRR_ZAPI5_ROUTE_SYSTEM ROUTE_TYPE = iota
@@ -460,6 +589,37 @@ const (
 	ROUTE_BABEL
 	ROUTE_MAX
 )
+
+var routeTypeValueMapFrrZapi6 = map[string]ROUTE_TYPE{
+	"system":             FRR_ZAPI6_ROUTE_SYSTEM,
+	"kernel":             FRR_ZAPI6_ROUTE_KERNEL,
+	"connect":            FRR_ZAPI6_ROUTE_CONNECT, // hack for backward compatibility
+	"directly-connected": FRR_ZAPI6_ROUTE_CONNECT,
+	"static":             FRR_ZAPI6_ROUTE_STATIC,
+	"rip":                FRR_ZAPI6_ROUTE_RIP,
+	"ripng":              FRR_ZAPI6_ROUTE_RIPNG,
+	"ospf":               FRR_ZAPI6_ROUTE_OSPF,
+	"ospf3":              FRR_ZAPI6_ROUTE_OSPF6,
+	"isis":               FRR_ZAPI6_ROUTE_ISIS,
+	"bgp":                FRR_ZAPI6_ROUTE_BGP,
+	"pim":                FRR_ZAPI6_ROUTE_PIM,
+	"eigrp":              FRR_ZAPI6_ROUTE_EIGRP,
+	"nhrp":               FRR_ZAPI6_ROUTE_EIGRP,
+	"hsls":               FRR_ZAPI6_ROUTE_HSLS,
+	"olsr":               FRR_ZAPI6_ROUTE_OLSR,
+	"table":              FRR_ZAPI6_ROUTE_TABLE,
+	"ldp":                FRR_ZAPI6_ROUTE_LDP,
+	"vnc":                FRR_ZAPI6_ROUTE_VNC,
+	"vnc-direct":         FRR_ZAPI6_ROUTE_VNC_DIRECT,
+	"vnc-direct-rh":      FRR_ZAPI6_ROUTE_VNC_DIRECT_RH,
+	"bgp-direct":         FRR_ZAPI6_ROUTE_BGP_DIRECT,
+	"bgp-direct-ext":     FRR_ZAPI6_ROUTE_BGP_DIRECT_EXT,
+	"babel":              FRR_ZAPI6_ROUTE_BABEL,
+	"sharp":              FRR_ZAPI6_ROUTE_SHARP,
+	"pbr":                FRR_ZAPI6_ROUTE_PBR,
+	"bfd":                FRR_ZAPI6_ROUTE_BFD,
+	"all":                FRR_ZAPI6_ROUTE_ALL,
+}
 
 var routeTypeValueMapFrrZapi5 = map[string]ROUTE_TYPE{
 	"system":             FRR_ZAPI5_ROUTE_SYSTEM,
@@ -538,8 +698,10 @@ func RouteTypeFromString(typ string, version uint8) (ROUTE_TYPE, error) {
 	delegateRouteTypeValueMap := routeTypeValueMap
 	if version == 4 {
 		delegateRouteTypeValueMap = routeTypeValueMapFrr
-	} else if version >= 5 {
+	} else if version == 5 {
 		delegateRouteTypeValueMap = routeTypeValueMapFrrZapi5
+	} else if version >= 6 {
+		delegateRouteTypeValueMap = routeTypeValueMapFrrZapi6
 	}
 	t, ok := delegateRouteTypeValueMap[typ]
 	if ok {
@@ -597,7 +759,7 @@ func ipFromFamily(family uint8, buf []byte) net.IP {
 // API Message Flags.
 type MESSAGE_FLAG uint8
 
-// For FRRouting version 4 and 5 (ZAPI version 5).
+// For FRRouting version 4, 5 and 6 (ZAPI version 5 and 6).
 const (
 	FRR_ZAPI5_MESSAGE_NEXTHOP  MESSAGE_FLAG = 0x01
 	FRR_ZAPI5_MESSAGE_DISTANCE MESSAGE_FLAG = 0x02
@@ -606,6 +768,7 @@ const (
 	FRR_ZAPI5_MESSAGE_MTU      MESSAGE_FLAG = 0x10
 	FRR_ZAPI5_MESSAGE_SRCPFX   MESSAGE_FLAG = 0x20
 	FRR_ZAPI5_MESSAGE_LABEL    MESSAGE_FLAG = 0x40
+	FRR_ZAPI5_MESSAGE_TABLEID  MESSAGE_FLAG = 0x80
 )
 
 // For FRRouting.
@@ -633,7 +796,7 @@ func (t MESSAGE_FLAG) String(version uint8) string {
 	var ss []string
 	if (version <= 3 && t&MESSAGE_NEXTHOP > 0) ||
 		(version == 4 && t&FRR_MESSAGE_NEXTHOP > 0) ||
-		(version == 5 && t&FRR_ZAPI5_MESSAGE_NEXTHOP > 0) {
+		(version >= 5 && t&FRR_ZAPI5_MESSAGE_NEXTHOP > 0) {
 		ss = append(ss, "NEXTHOP")
 	}
 	if (version <= 3 && t&MESSAGE_IFINDEX > 0) || (version == 4 && t&FRR_MESSAGE_IFINDEX > 0) {
@@ -641,27 +804,27 @@ func (t MESSAGE_FLAG) String(version uint8) string {
 	}
 	if (version <= 3 && t&MESSAGE_DISTANCE > 0) ||
 		(version == 4 && t&FRR_MESSAGE_DISTANCE > 0) ||
-		(version == 5 && t&FRR_ZAPI5_MESSAGE_DISTANCE > 0) {
+		(version >= 5 && t&FRR_ZAPI5_MESSAGE_DISTANCE > 0) {
 		ss = append(ss, "DISTANCE")
 	}
 	if (version <= 3 && t&MESSAGE_METRIC > 0) ||
 		(version == 4 && t&FRR_MESSAGE_METRIC > 0) ||
-		(version == 5 && t&FRR_ZAPI5_MESSAGE_METRIC > 0) {
+		(version >= 5 && t&FRR_ZAPI5_MESSAGE_METRIC > 0) {
 		ss = append(ss, "METRIC")
 	}
 	if (version <= 3 && t&MESSAGE_MTU > 0) || (version == 4 && t&FRR_MESSAGE_MTU > 0) ||
-		(version == 5 && t&FRR_ZAPI5_MESSAGE_MTU > 0) {
+		(version >= 5 && t&FRR_ZAPI5_MESSAGE_MTU > 0) {
 		ss = append(ss, "MTU")
 	}
 	if (version <= 3 && t&MESSAGE_TAG > 0) || (version == 4 && t&FRR_MESSAGE_TAG > 0) ||
-		(version == 5 && t&FRR_ZAPI5_MESSAGE_TAG > 0) {
+		(version >= 5 && t&FRR_ZAPI5_MESSAGE_TAG > 0) {
 		ss = append(ss, "TAG")
 	}
 	if (version == 4 && t&FRR_MESSAGE_SRCPFX > 0) ||
-		(version == 5 && t&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
+		(version >= 5 && t&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
 		ss = append(ss, "SRCPFX")
 	}
-	if version == 5 && t&FRR_ZAPI5_MESSAGE_LABEL > 0 {
+	if version >= 5 && t&FRR_ZAPI5_MESSAGE_LABEL > 0 {
 		ss = append(ss, "LABLE")
 	}
 
@@ -672,17 +835,18 @@ func (t MESSAGE_FLAG) String(version uint8) string {
 type FLAG uint64
 
 const (
-	FLAG_INTERNAL     FLAG = 0x01
-	FLAG_SELFROUTE    FLAG = 0x02
-	FLAG_BLACKHOLE    FLAG = 0x04
-	FLAG_IBGP         FLAG = 0x08
-	FLAG_SELECTED     FLAG = 0x10
-	FLAG_CHANGED      FLAG = 0x20
-	FLAG_STATIC       FLAG = 0x40
-	FLAG_REJECT       FLAG = 0x80
-	FLAG_SCOPE_LINK   FLAG = 0x100
-	FLAG_FIB_OVERRIDE FLAG = 0x200
-	FLAG_EVPN_ROUTE   FLAG = 0x400
+	FLAG_INTERNAL        FLAG = 0x01
+	FLAG_SELFROUTE       FLAG = 0x02
+	FLAG_BLACKHOLE       FLAG = 0x04
+	FLAG_IBGP            FLAG = 0x08
+	FLAG_SELECTED        FLAG = 0x10
+	FLAG_CHANGED         FLAG = 0x20
+	FLAG_STATIC          FLAG = 0x40
+	FLAG_REJECT          FLAG = 0x80
+	FLAG_SCOPE_LINK      FLAG = 0x100
+	FLAG_FIB_OVERRIDE    FLAG = 0x200
+	FLAG_EVPN_ROUTE      FLAG = 0x400
+	FLAG_RR_USE_DISTANCE FLAG = 0x800
 )
 
 func (t FLAG) String() string {
@@ -719,6 +883,9 @@ func (t FLAG) String() string {
 	}
 	if t&FLAG_EVPN_ROUTE > 0 {
 		ss = append(ss, "FLAG_EVPN_ROUTE")
+	}
+	if t&FLAG_RR_USE_DISTANCE > 0 {
+		ss = append(ss, "FLAG_RR_USE_DISTANCE")
 	}
 
 	return strings.Join(ss, "|")
@@ -805,8 +972,8 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	incoming := make(chan *Message, 64)
 	if version < 2 {
 		version = 2
-	} else if version > 5 {
-		version = 5
+	} else if version > 6 {
+		version = 6
 	}
 
 	c := &Client{
@@ -973,8 +1140,10 @@ func (c *Client) SendHello() error {
 		command := HELLO
 		if c.Version == 4 {
 			command = FRR_HELLO
-		} else if c.Version >= 5 {
+		} else if c.Version == 5 {
 			command = FRR_ZAPI5_HELLO
+		} else if c.Version >= 6 {
+			command = FRR_ZAPI6_HELLO
 		}
 		body := &HelloBody{
 			RedistDefault: c.redistDefault,
@@ -989,8 +1158,10 @@ func (c *Client) SendRouterIDAdd() error {
 	command := ROUTER_ID_ADD
 	if c.Version == 4 {
 		command = FRR_ROUTER_ID_ADD
-	} else if c.Version >= 5 {
+	} else if c.Version == 5 {
 		command = FRR_ZAPI5_ROUTER_ID_ADD
+	} else if c.Version >= 6 {
+		command = FRR_ZAPI6_ROUTER_ID_ADD
 	}
 	return c.SendCommand(command, VRF_DEFAULT, nil)
 }
@@ -1015,8 +1186,10 @@ func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint32) error {
 			})
 		} else { // version >= 4
 			command = FRR_REDISTRIBUTE_ADD
-			if c.Version >= 5 {
+			if c.Version == 5 {
 				command = FRR_ZAPI5_REDISTRIBUTE_ADD
+			} else if c.Version >= 6 {
+				command = FRR_ZAPI6_REDISTRIBUTE_ADD
 			}
 			for _, afi := range []AFI{AFI_IP, AFI_IP6} {
 				bodies = append(bodies, &RedistributeBody{
@@ -1040,8 +1213,10 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 		command := REDISTRIBUTE_DELETE
 		if c.Version == 4 {
 			command = FRR_REDISTRIBUTE_DELETE
-		} else if c.Version >= 5 {
+		} else if c.Version == 5 {
 			command = FRR_ZAPI5_REDISTRIBUTE_DELETE
+		} else if c.Version >= 6 {
+			command = FRR_ZAPI6_REDISTRIBUTE_DELETE
 		}
 		body := &RedistributeBody{
 			Redist: t,
@@ -1080,7 +1255,7 @@ func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) e
 				command = FRR_IPV6_ROUTE_ADD
 			}
 		}
-	} else { // version >= 5
+	} else { // version >= 5 (version 6 uses the same value as version 5)
 		if isWithdraw {
 			command = FRR_ZAPI5_ROUTE_DELETE
 		} else {
@@ -1101,17 +1276,23 @@ func (c *Client) SendNexthopRegister(vrfId uint32, body *NexthopRegisterBody, is
 		if isWithdraw {
 			command = NEXTHOP_UNREGISTER
 		}
-	} else if c.Version == 4 { // version >= 4
+	} else if c.Version == 4 { // version == 4
 		if isWithdraw {
 			command = FRR_NEXTHOP_UNREGISTER
 		} else {
 			command = FRR_NEXTHOP_REGISTER
 		}
-	} else { // version >= 5
+	} else if c.Version == 5 { // version == 5
 		if isWithdraw {
 			command = FRR_ZAPI5_NEXTHOP_UNREGISTER
 		} else {
 			command = FRR_ZAPI5_NEXTHOP_REGISTER
+		}
+	} else { // version >= 6
+		if isWithdraw {
+			command = FRR_ZAPI6_NEXTHOP_UNREGISTER
+		} else {
+			command = FRR_ZAPI6_NEXTHOP_REGISTER
 		}
 	}
 	return c.SendCommand(command, vrfId, body)
@@ -1141,7 +1322,7 @@ func (h *Header) Serialize() ([]byte, error) {
 	case 3, 4:
 		binary.BigEndian.PutUint16(buf[4:6], uint16(h.VrfId))
 		binary.BigEndian.PutUint16(buf[6:8], uint16(h.Command))
-	case 5:
+	case 5, 6:
 		binary.BigEndian.PutUint32(buf[4:8], uint32(h.VrfId))
 		binary.BigEndian.PutUint16(buf[8:10], uint16(h.Command))
 	default:
@@ -1166,7 +1347,7 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 	case 3, 4:
 		h.VrfId = uint32(binary.BigEndian.Uint16(data[4:6]))
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[6:8]))
-	case 5:
+	case 5, 6:
 		h.VrfId = binary.BigEndian.Uint32(data[4:8])
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[8:10]))
 	default:
@@ -1266,7 +1447,7 @@ func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-//  Reference: zebra_redistribute_send function in lib/zclient.c of Quagga1.2.x (ZAPI4)
+//  Reference: zebra_redistribute_send function in lib/zclient.c of Quagga1.2.x (ZAPI3)
 //  Reference: zebra_redistribute_send function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_redistribute_send function in lib/zclient.c of FRR5.x (ZAPI5)
 func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
@@ -1544,9 +1725,14 @@ func (b *IPRouteBody) IsWithdraw(version uint8) bool {
 		case FRR_IPV4_ROUTE_DELETE, FRR_IPV6_ROUTE_DELETE, FRR_REDISTRIBUTE_IPV4_DEL, FRR_REDISTRIBUTE_IPV6_DEL:
 			return true
 		}
-	} else if version >= 5 {
+	} else if version == 5 {
 		switch b.Api {
-		case FRR_ZAPI5_ROUTE_DELETE, FRR_ZAPI5_REDISTRIBUTE_ROUTE_DEL:
+		case FRR_ZAPI5_ROUTE_DELETE, FRR_ZAPI5_IPV4_ROUTE_DELETE, FRR_ZAPI5_IPV6_ROUTE_DELETE, FRR_ZAPI5_REDISTRIBUTE_ROUTE_DEL:
+			return true
+		}
+	} else if version >= 6 {
+		switch b.Api {
+		case FRR_ZAPI6_ROUTE_DELETE, FRR_ZAPI6_REDISTRIBUTE_ROUTE_DEL:
 			return true
 		}
 	}
@@ -1597,27 +1783,27 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 	buf = append(buf, b.Prefix.Prefix[:byteLen]...)
 
 	if (version == 4 && b.Message&FRR_MESSAGE_SRCPFX > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
 		byteLen = (int(b.SrcPrefix.PrefixLen) + 7) / 8
 		buf = append(buf, b.SrcPrefix.PrefixLen)
 		buf = append(buf, b.SrcPrefix.Prefix[:byteLen]...)
 	}
 	if (version <= 3 && b.Message&MESSAGE_NEXTHOP > 0) ||
 		(version == 4 && b.Message&FRR_MESSAGE_NEXTHOP > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_NEXTHOP > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_NEXTHOP > 0) {
 		if version < 5 {
 			if b.Flags&FLAG_BLACKHOLE > 0 {
 				buf = append(buf, []byte{1, uint8(NEXTHOP_TYPE_BLACKHOLE)}...)
 			} else {
 				buf = append(buf, uint8(len(b.Nexthops)))
 			}
-		} else { // version == 5
+		} else { // version >= 5
 			bbuf := make([]byte, 2)
 			binary.BigEndian.PutUint16(bbuf, uint16(len(b.Nexthops)))
 			buf = append(buf, bbuf...)
 		}
 		for _, nexthop := range b.Nexthops {
-			if version == 5 {
+			if version >= 5 {
 				bbuf := make([]byte, 4)
 				binary.BigEndian.PutUint32(bbuf, nexthop.VrfId)
 				buf = append(buf, bbuf...)
@@ -1630,7 +1816,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 					} else {
 						nexthop.Type = FRR_NEXTHOP_TYPE_IPV4
 					}
-					if version == 5 && nexthop.Ifindex > 0 {
+					if version >= 5 && nexthop.Ifindex > 0 {
 						nexthop.Type = FRR_NEXTHOP_TYPE_IPV4_IFINDEX
 					}
 				} else if nexthop.Gate.To16() != nil {
@@ -1639,7 +1825,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 					} else {
 						nexthop.Type = FRR_NEXTHOP_TYPE_IPV6
 					}
-					if version == 5 && nexthop.Ifindex > 0 {
+					if version >= 5 && nexthop.Ifindex > 0 {
 						nexthop.Type = FRR_NEXTHOP_TYPE_IPV6_IFINDEX
 					}
 				} else if nexthop.Ifindex > 0 {
@@ -1679,7 +1865,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			} else if version >= 5 && nexthop.Type == FRR_NEXTHOP_TYPE_BLACKHOLE {
 				buf = append(buf, uint8(nexthop.BlackholeType))
 			}
-			if version == 5 && b.Message&FRR_ZAPI5_MESSAGE_LABEL > 0 {
+			if version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_LABEL > 0 {
 				buf = append(buf, nexthop.LabelNum)
 				bbuf := make([]byte, 4)
 				binary.BigEndian.PutUint32(bbuf, nexthop.MplsLabels[0])
@@ -1688,26 +1874,26 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 		}
 		if (version <= 3 && b.Message&MESSAGE_DISTANCE > 0) ||
 			(version == 4 && b.Message&FRR_MESSAGE_DISTANCE > 0) ||
-			(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_DISTANCE > 0) {
+			(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_DISTANCE > 0) {
 			buf = append(buf, b.Distance)
 		}
 		if (version <= 3 && b.Message&MESSAGE_METRIC > 0) ||
 			(version == 4 && b.Message&FRR_MESSAGE_METRIC > 0) ||
-			(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_METRIC > 0) {
+			(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_METRIC > 0) {
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Metric)
 			buf = append(buf, bbuf...)
 		}
 		if (version <= 3 && b.Message&MESSAGE_MTU > 0) ||
 			(version == 4 && b.Message&FRR_MESSAGE_MTU > 0) ||
-			(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_MTU > 0) {
+			(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_MTU > 0) {
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Mtu)
 			buf = append(buf, bbuf...)
 		}
 		if (version <= 3 && b.Message&MESSAGE_TAG > 0) ||
 			(version == 4 && b.Message&FRR_MESSAGE_TAG > 0) ||
-			(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_TAG > 0) {
+			(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_TAG > 0) {
 			bbuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(bbuf, b.Tag)
 			buf = append(buf, bbuf...)
@@ -1775,7 +1961,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	pos += byteLen
 
 	if (version == 4 && b.Message&FRR_MESSAGE_SRCPFX > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
 		if pos+1 > rest {
 			return fmt.Errorf("MESSAGE_SRCPFX message length invalid pos:%d rest:%d", pos, rest)
 		}
@@ -1797,7 +1983,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	b.Nexthops = []Nexthop{}
 	if (version <= 3 && b.Message&MESSAGE_NEXTHOP > 0) ||
 		(version == 4 && b.Message&FRR_MESSAGE_NEXTHOP > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_NEXTHOP > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_NEXTHOP > 0) {
 		var numNexthop uint16
 		if version <= 4 {
 			if pos+1 > rest {
@@ -1915,7 +2101,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	if (version <= 3 && b.Message&MESSAGE_DISTANCE > 0) ||
 		(version == 4 && b.Message&FRR_MESSAGE_DISTANCE > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_DISTANCE > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_DISTANCE > 0) {
 		if pos+1 > rest {
 			return fmt.Errorf("MESSAGE_DISTANCE message length invalid pos:%d rest:%d", pos, rest)
 		}
@@ -1924,7 +2110,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	}
 	if (version <= 3 && b.Message&MESSAGE_METRIC > 0) ||
 		(version == 4 && b.Message&FRR_MESSAGE_METRIC > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_METRIC > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_METRIC > 0) {
 		if pos+4 > rest {
 			return fmt.Errorf("MESSAGE_METRIC message length invalid pos:%d rest:%d", pos, rest)
 		}
@@ -1933,7 +2119,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	}
 	if (version <= 3 && b.Message&MESSAGE_MTU > 0) ||
 		(version == 4 && b.Message&FRR_MESSAGE_MTU > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_MTU > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_MTU > 0) {
 		if pos+4 > rest {
 			return fmt.Errorf("MESSAGE_MTU message length invalid pos:%d rest:%d", pos, rest)
 		}
@@ -1942,7 +2128,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	}
 	if (version <= 3 && b.Message&MESSAGE_TAG > 0) ||
 		(version == 4 && b.Message&FRR_MESSAGE_TAG > 0) ||
-		(version == 5 && b.Message&FRR_ZAPI5_MESSAGE_TAG > 0) {
+		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_TAG > 0) {
 		if pos+4 > rest {
 			return fmt.Errorf("MESSAGE_TAG message length invalid pos:%d rest:%d", pos, rest)
 		}
@@ -2518,12 +2704,53 @@ func (m *Message) parseFrrZapi5Message(data []byte) error {
 	return m.Body.DecodeFromBytes(data, m.Header.Version)
 }
 
+func (m *Message) parseFrrZapi6Message(data []byte) error {
+	switch m.Header.Command {
+	case FRR_ZAPI6_INTERFACE_ADD, FRR_ZAPI6_INTERFACE_DELETE, FRR_ZAPI6_INTERFACE_UP, FRR_ZAPI6_INTERFACE_DOWN:
+		m.Body = &InterfaceUpdateBody{}
+	case FRR_ZAPI6_INTERFACE_ADDRESS_ADD, FRR_ZAPI6_INTERFACE_ADDRESS_DELETE:
+		m.Body = &InterfaceAddressUpdateBody{}
+	case FRR_ZAPI6_ROUTER_ID_UPDATE:
+		m.Body = &RouterIDUpdateBody{}
+	case FRR_ZAPI6_NEXTHOP_UPDATE:
+		m.Body = &NexthopUpdateBody{}
+	case FRR_ZAPI6_INTERFACE_NBR_ADDRESS_ADD, FRR_ZAPI6_INTERFACE_NBR_ADDRESS_DELETE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_INTERFACE_BFD_DEST_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_IMPORT_CHECK_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_BFD_DEST_REPLAY:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_REDISTRIBUTE_ROUTE_ADD, FRR_ZAPI6_REDISTRIBUTE_ROUTE_DEL:
+		m.Body = &IPRouteBody{Api: m.Header.Command}
+	case FRR_ZAPI6_INTERFACE_VRF_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_INTERFACE_LINK_PARAMS:
+		// TODO
+		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_PW_STATUS_UPDATE:
+		// TODO
+		m.Body = &UnknownBody{}
+	default:
+		m.Body = &UnknownBody{}
+	}
+	return m.Body.DecodeFromBytes(data, m.Header.Version)
+}
+
 func ParseMessage(hdr *Header, data []byte) (m *Message, err error) {
 	m = &Message{Header: *hdr}
 	if m.Header.Version == 4 {
 		err = m.parseFrrMessage(data)
 	} else if m.Header.Version == 5 {
 		err = m.parseFrrZapi5Message(data)
+	} else if m.Header.Version == 6 {
+		err = m.parseFrrZapi6Message(data)
 	} else {
 		err = m.parseMessage(data)
 	}

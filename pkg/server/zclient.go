@@ -420,7 +420,7 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	}
 	var cli *zebra.Client
 	var err error
-	for _, ver := range []uint8{version, 2, 3, 4, 5} {
+	for _, ver := range []uint8{version, 2, 3, 4, 5, 6} {
 		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, ver)
 		if err == nil {
 			break
