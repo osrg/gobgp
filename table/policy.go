@@ -364,6 +364,13 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
+
+	if rhs.tree.Len() == 0 {
+		// if the to be appended set is empty
+		// then we should return directly
+		return nil
+	}
+
 	// if either is empty, family can be ignored.
 	if lhs.tree.Len() != 0 && rhs.tree.Len() != 0 {
 		_, w, _ := lhs.tree.Minimum()
