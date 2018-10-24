@@ -133,7 +133,6 @@ func showNeighbors(vrf string) error {
 		return strings.Less(0, 1)
 	})
 
-	now := time.Now()
 	for _, n := range m {
 		if i := len(n.Conf.NeighborInterface); i > maxaddrlen {
 			maxaddrlen = i
@@ -143,14 +142,7 @@ func showNeighbors(vrf string) error {
 		if l := len(getASN(n)); l > maxaslen {
 			maxaslen = l
 		}
-		timeStr := "never"
-		if n.Timers.State.Uptime != 0 {
-			t := int64(n.Timers.State.Downtime)
-			if n.State.SessionState == api.PeerState_ESTABLISHED {
-				t = int64(n.Timers.State.Uptime)
-			}
-			timeStr = FormatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
-		}
+		timeStr := CalculateTimeDelta(n)
 		if len(timeStr) > maxtimelen {
 			maxtimelen = len(timeStr)
 		}

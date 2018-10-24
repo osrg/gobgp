@@ -128,6 +128,19 @@ func FormatTimedelta(d int64) string {
 	return fmt.Sprintf("%dd ", days) + fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
 }
 
+func CalculateTimeDelta(n *api.Peer) string {
+	now := time.Now()
+	timeStr := "never"
+	if n.Timers.State.Uptime != 0 {
+		t := int64(n.Timers.State.Downtime)
+		if n.State.SessionState == api.PeerState_ESTABLISHED {
+			t = int64(n.Timers.State.Uptime)
+		}
+		timeStr = FormatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
+	}
+	return timeStr
+}
+
 func FormatFsm(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
 	switch admin {
 	case api.PeerState_DOWN:
