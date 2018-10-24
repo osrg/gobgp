@@ -128,6 +128,35 @@ func FormatTimedelta(d int64) string {
 	return fmt.Sprintf("%dd ", days) + fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
 }
 
+func FormatFsm(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
+	switch admin {
+	case api.PeerState_DOWN:
+		return "Idle(Admin)"
+	case api.PeerState_PFX_CT:
+		return "Idle(PfxCt)"
+	}
+
+	switch fsm {
+	case api.PeerState_UNKNOWN:
+		// should never happen
+		return "Unknown"
+	case api.PeerState_IDLE:
+		return "Idle"
+	case api.PeerState_CONNECT:
+		return "Connect"
+	case api.PeerState_ACTIVE:
+		return "Active"
+	case api.PeerState_OPENSENT:
+		return "Sent"
+	case api.PeerState_OPENCONFIRM:
+		return "Confirm"
+	case api.PeerState_ESTABLISHED:
+		return "Establ"
+	default:
+		return string(fsm)
+	}
+}
+
 func cidr2prefix(cidr string) string {
 	_, n, err := net.ParseCIDR(cidr)
 	if err != nil {

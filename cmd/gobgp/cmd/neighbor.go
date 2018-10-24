@@ -160,41 +160,12 @@ func showNeighbors(vrf string) error {
 	format := "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
 	format += " %-11s |%9s %9s\n"
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
-	formatFsm := func(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
-		switch admin {
-		case api.PeerState_DOWN:
-			return "Idle(Admin)"
-		case api.PeerState_PFX_CT:
-			return "Idle(PfxCt)"
-		}
-
-		switch fsm {
-		case api.PeerState_UNKNOWN:
-			// should never happen
-			return "Unknown"
-		case api.PeerState_IDLE:
-			return "Idle"
-		case api.PeerState_CONNECT:
-			return "Connect"
-		case api.PeerState_ACTIVE:
-			return "Active"
-		case api.PeerState_OPENSENT:
-			return "Sent"
-		case api.PeerState_OPENCONFIRM:
-			return "Confirm"
-		case api.PeerState_ESTABLISHED:
-			return "Establ"
-		default:
-			return string(fsm)
-		}
-	}
-
 	for i, n := range m {
 		neigh := n.State.NeighborAddress
 		if n.Conf.NeighborInterface != "" {
 			neigh = n.Conf.NeighborInterface
 		}
-		fmt.Printf(format, neigh, getASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.Received), fmt.Sprint(n.State.Accepted))
+		fmt.Printf(format, neigh, getASN(n), timedelta[i], FormatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.Received), fmt.Sprint(n.State.Accepted))
 	}
 
 	return nil
