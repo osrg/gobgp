@@ -133,6 +133,7 @@ func showNeighbors(vrf string) error {
 		return strings.Less(0, 1)
 	})
 
+	now := time.Now()
 	for _, n := range m {
 		if i := len(n.Conf.NeighborInterface); i > maxaddrlen {
 			maxaddrlen = i
@@ -142,7 +143,7 @@ func showNeighbors(vrf string) error {
 		if l := len(getASN(n)); l > maxaslen {
 			maxaslen = l
 		}
-		timeStr := CalculateTimeDelta(n)
+		timeStr := CalculateTimeDelta(n, now)
 		if len(timeStr) > maxtimelen {
 			maxtimelen = len(timeStr)
 		}
