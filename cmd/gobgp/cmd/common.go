@@ -109,7 +109,7 @@ var mrtOpts struct {
 	NextHop     net.IP `long:"nexthop" description:"Rewrite nexthop"`
 }
 
-func formatTimedelta(d int64) string {
+func FormatTimedelta(d int64) string {
 	u := uint64(d)
 	neg := d < 0
 	if neg {

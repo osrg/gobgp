@@ -50,7 +50,7 @@ func showRPKIServer(args []string) error {
 			uptime := "never"
 			if r.State.Up {
 				s = "Up"
-				uptime = fmt.Sprint(formatTimedelta(int64(time.Since(time.Unix(r.State.Uptime, 0)).Seconds())))
+				uptime = fmt.Sprint(FormatTimedelta(int64(time.Since(time.Unix(r.State.Uptime, 0)).Seconds())))
 			}
 
 			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, fmt.Sprintf("%d", r.Conf.RemotePort)), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))

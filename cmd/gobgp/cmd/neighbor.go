@@ -149,7 +149,7 @@ func showNeighbors(vrf string) error {
 			if n.State.SessionState == api.PeerState_ESTABLISHED {
 				t = int64(n.Timers.State.Uptime)
 			}
-			timeStr = formatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
+			timeStr = FormatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
 		}
 		if len(timeStr) > maxtimelen {
 			maxtimelen = len(timeStr)
@@ -237,7 +237,7 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  BGP version 4, remote router ID %s\n", id)
 	fmt.Printf("  BGP state = %s", p.State.SessionState)
 	if p.Timers.State.Uptime > 0 {
-		fmt.Printf(", up for %s\n", formatTimedelta(int64(p.Timers.State.Uptime)-time.Now().Unix()))
+		fmt.Printf(", up for %s\n", FormatTimedelta(int64(p.Timers.State.Uptime)-time.Now().Unix()))
 	} else {
 		fmt.Print("\n")
 	}
@@ -567,7 +567,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	// Age
 	if showAge {
 		t := time.Unix(p.Age, 0)
-		args = append(args, formatTimedelta(int64(now.Sub(t).Seconds())))
+		args = append(args, FormatTimedelta(int64(now.Sub(t).Seconds())))
 	}
 
 	// Path Attributes
