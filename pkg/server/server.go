@@ -2893,9 +2893,10 @@ func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) erro
 		}
 		peers, _ := s.addrToPeers(addr)
 		for _, peer := range peers {
-			peer.fsm.lock.Lock()
-			peer.fsm.idleHoldTime = peer.fsm.pConf.Timers.Config.IdleHoldTimeAfterReset
-			peer.fsm.lock.Unlock()
+			select {
+			case peer.fsm.idleHoldTimeC <- peer.fsm.pConf.Timers.Config.IdleHoldTimeAfterReset:
+			default:
+			}
 		}
 		return nil
 	}, true)

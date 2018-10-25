@@ -199,7 +199,7 @@ type FSM struct {
 	reason               *FsmStateReason
 	conn                 net.Conn
 	connCh               chan net.Conn
-	idleHoldTime         float64
+	idleHoldTimeC        chan float64
 	opensentHoldTime     float64
 	adminState           AdminState
 	adminStateCh         chan AdminStateOperation
@@ -294,6 +294,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		pConf:                pConf,
 		state:                bgp.BGP_FSM_IDLE,
 		connCh:               make(chan net.Conn, 1),
+		idleHoldTimeC:        make(chan float64, 1),
 		opensentHoldTime:     float64(HOLDTIME_OPENSENT),
 		adminState:           adminState,
 		adminStateCh:         make(chan AdminStateOperation, 1),
@@ -527,9 +528,13 @@ func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *F
 func (h *FSMHandler) idle() (bgp.FSMState, *FsmStateReason) {
 	fsm := h.fsm
 
-	fsm.lock.RLock()
-	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.idleHoldTime))
-	fsm.lock.RUnlock()
+	var holdTime float64
+	select {
+	case holdTime = <-fsm.idleHoldTimeC:
+	default:
+		holdTime = HOLDTIME_IDLE
+	}
+	idleHoldTimer := time.NewTimer(time.Second * time.Duration(holdTime))
 
 	for {
 		select {
@@ -569,14 +574,13 @@ func (h *FSMHandler) idle() (bgp.FSMState, *FsmStateReason) {
 			fsm.lock.RUnlock()
 
 			if adminStateUp {
-				fsm.lock.Lock()
+				fsm.lock.RLock()
 				log.WithFields(log.Fields{
 					"Topic":    "Peer",
 					"Key":      fsm.pConf.State.NeighborAddress,
-					"Duration": fsm.idleHoldTime,
+					"Duration": holdTime,
 				}).Debug("IdleHoldTimer expired")
-				fsm.idleHoldTime = HOLDTIME_IDLE
-				fsm.lock.Unlock()
+				fsm.lock.RUnlock()
 				return bgp.BGP_FSM_ACTIVE, NewFsmStateReason(FSM_IDLE_HOLD_TIMER_EXPIRED, nil, nil)
 
 			} else {
@@ -593,9 +597,7 @@ func (h *FSMHandler) idle() (bgp.FSMState, *FsmStateReason) {
 
 				case ADMIN_STATE_UP:
 					// restart idle hold timer
-					fsm.lock.RLock()
-					idleHoldTimer.Reset(time.Second * time.Duration(fsm.idleHoldTime))
-					fsm.lock.RUnlock()
+					idleHoldTimer.Reset(time.Second * time.Duration(holdTime))
 				}
 			}
 		}
