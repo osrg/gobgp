@@ -312,9 +312,6 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 }
 
 func (fsm *FSM) StateChange(nextState bgp.FSMState) {
-	fsm.lock.Lock()
-	defer fsm.lock.Unlock()
-
 	log.WithFields(log.Fields{
 		"Topic":  "Peer",
 		"Key":    fsm.pConf.State.NeighborAddress,
