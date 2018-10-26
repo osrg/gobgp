@@ -88,9 +88,7 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		return nil
 	}
 	peer := newPeer(g, &conf, loc, policy)
-	peer.fsm.lock.Lock()
 	peer.fsm.state = bgp.BGP_FSM_ACTIVE
-	peer.fsm.lock.Unlock()
 	return peer
 }
 
