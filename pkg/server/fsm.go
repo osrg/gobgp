@@ -1250,25 +1250,20 @@ func (h *FSMHandler) opensent() (bgp.FSMState, *FsmStateReason) {
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
 					fsm.lock.Lock()
 					fsm.recvOpen = m
-					fsm.lock.Unlock()
 
 					body := m.Body.(*bgp.BGPOpen)
 
-					fsm.lock.RLock()
 					fsmPeerAS := fsm.pConf.Config.PeerAs
-					fsm.lock.RUnlock()
 					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS)
 					if err != nil {
+						fsm.lock.Unlock()
 						m, _ := fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, NewFsmStateReason(FSM_INVALID_MSG, m, nil)
 					}
 
 					// ASN negotiation was skipped
-					fsm.lock.RLock()
 					asnNegotiationSkipped := fsm.pConf.Config.PeerAs == 0
-					fsm.lock.RUnlock()
 					if asnNegotiationSkipped {
-						fsm.lock.Lock()
 						typ := config.PEER_TYPE_EXTERNAL
 						if fsm.peerInfo.LocalAS == peerAs {
 							typ = config.PEER_TYPE_INTERNAL
@@ -1279,13 +1274,9 @@ func (h *FSMHandler) opensent() (bgp.FSMState, *FsmStateReason) {
 							"Key":   fsm.pConf.State.NeighborAddress,
 							"State": fsm.state.String(),
 						}).Infof("skipped asn negotiation: peer-as: %d, peer-type: %s", peerAs, typ)
-						fsm.lock.Unlock()
 					} else {
-						fsm.lock.Lock()
 						fsm.pConf.State.PeerType = fsm.pConf.Config.PeerType
-						fsm.lock.Unlock()
 					}
-					fsm.lock.Lock()
 					fsm.pConf.State.PeerAs = peerAs
 					fsm.peerInfo.AS = peerAs
 					fsm.peerInfo.ID = body.ID
