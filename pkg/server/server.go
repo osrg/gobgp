@@ -2477,7 +2477,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest) ([]*ap
 				continue
 			}
 			// FIXME: should remove toConfig() conversion
-			l = append(l, NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised)))
+			l = append(l, config.NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised)))
 		}
 		return nil
 	}, false)

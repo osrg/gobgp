@@ -185,7 +185,7 @@ func main() {
 				if c == nil {
 					c = newConfig
 					if _, err := apiServer.StartBgp(context.Background(), &api.StartBgpRequest{
-						Global: server.NewGlobalFromConfigStruct(&c.Global),
+						Global: config.NewGlobalFromConfigStruct(&c.Global),
 					}); err != nil {
 						log.Fatalf("failed to set global config: %s", err)
 					}
@@ -360,7 +360,7 @@ func main() {
 				for _, pg := range addedPg {
 					log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
 					if _, err := apiServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
-						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -376,7 +376,7 @@ func main() {
 				for _, pg := range updatedPg {
 					log.Infof("PeerGroup %v is updated", pg.State.PeerGroupName)
 					if u, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					} else {
@@ -386,7 +386,7 @@ func main() {
 				for _, pg := range updatedPg {
 					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
 					if _, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: server.NewPeerGroupFromConfigStruct(&pg),
+						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -405,7 +405,7 @@ func main() {
 				for _, p := range added {
 					log.Infof("Peer %v is added", p.State.NeighborAddress)
 					if _, err := apiServer.AddPeer(context.Background(), &api.AddPeerRequest{
-						Peer: server.NewPeerFromConfigStruct(&p),
+						Peer: config.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
 					}
@@ -421,7 +421,7 @@ func main() {
 				for _, p := range updated {
 					log.Infof("Peer %v is updated", p.State.NeighborAddress)
 					if u, err := apiServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
-						Peer: server.NewPeerFromConfigStruct(&p),
+						Peer: config.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
 					} else {

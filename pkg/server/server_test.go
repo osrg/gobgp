@@ -218,7 +218,7 @@ func TestMonitor(test *testing.T) {
 			},
 		},
 	}
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: NewPeerFromConfigStruct(m)})
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 
 	for {
@@ -566,7 +566,7 @@ func TestPeerGroup(test *testing.T) {
 		},
 	}
 	config.RegisterConfiguredFields("127.0.0.1", configured)
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: NewPeerFromConfigStruct(n)})
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(n)})
 	assert.Nil(err)
 
 	t := NewBgpServer()
@@ -597,7 +597,7 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: NewPeerFromConfigStruct(m)})
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 
 	for {
@@ -669,7 +669,7 @@ func TestDynamicNeighbor(t *testing.T) {
 			},
 		},
 	}
-	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: NewPeerFromConfigStruct(m)})
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 
 	assert.Nil(err)
 
@@ -886,7 +886,7 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 				})
 			}
 
-			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: NewPeerFromConfigStruct(neighborConfig)}); err != nil {
+			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
 				t.Fatal(err)
 			}
 		}
