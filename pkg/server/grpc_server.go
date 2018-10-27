@@ -104,7 +104,7 @@ func (s *Server) ListPeer(r *api.ListPeerRequest, stream api.GobgpApi_ListPeerSe
 	return err
 }
 
-func NewValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
+func newValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
 	if v == nil {
 		return &api.RPKIValidation{}
 	}
@@ -123,7 +123,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		Pattrs:             binPattrs,
 		Age:                path.GetTimestamp().Unix(),
 		IsWithdraw:         path.IsWithdraw,
-		ValidationDetail:   NewValidationFromTableStruct(v),
+		ValidationDetail:   newValidationFromTableStruct(v),
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),
@@ -142,7 +142,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 	return p
 }
 
-func ToPathApi(path *table.Path, v *table.Validation) *api.Path {
+func toPathApi(path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
 	anyNlri := apiutil.MarshalNLRI(nlri)
 	if path.IsWithdraw {
@@ -200,7 +200,7 @@ func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_
 				if path == nil || (arg.Family != nil && f != path.GetRouteFamily()) {
 					continue
 				}
-				if err := stream.Send(&api.MonitorTableResponse{Path: ToPathApi(path, nil)}); err != nil {
+				if err := stream.Send(&api.MonitorTableResponse{Path: toPathApi(path, nil)}); err != nil {
 					return err
 				}
 			}
@@ -298,13 +298,13 @@ func (s *Server) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) (*e
 }
 
 func NewAPIRoutingPolicyFromConfigStruct(c *config.RoutingPolicy) (*api.RoutingPolicy, error) {
-	definedSets, err := NewAPIDefinedSetsFromConfigStruct(&c.DefinedSets)
+	definedSets, err := newAPIDefinedSetsFromConfigStruct(&c.DefinedSets)
 	if err != nil {
 		return nil, err
 	}
 	policies := make([]*api.Policy, 0, len(c.PolicyDefinitions))
 	for _, policy := range c.PolicyDefinitions {
-		policies = append(policies, toPolicyApi(&policy))
+		policies = append(policies, table.ToPolicyApi(&policy))
 	}
 
 	return &api.RoutingPolicy{
@@ -323,7 +323,7 @@ func NewRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.Routing
 		policyDefinitions = append(policyDefinitions, *pd)
 	}
 
-	definedSets, err := NewConfigDefinedSetsFromApiStruct(arg.DefinedSets)
+	definedSets, err := newConfigDefinedSetsFromApiStruct(arg.DefinedSets)
 	if err != nil {
 		return nil, err
 	}
@@ -909,7 +909,7 @@ func (s *Server) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNeighb
 	return &empty.Empty{}, s.bgpServer.AddDynamicNeighbor(ctx, r)
 }
 
-func NewPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
+func newPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
 	_, prefix, err := net.ParseCIDR(a.IpPrefix)
 	if err != nil {
 		return nil, err
@@ -926,7 +926,7 @@ func NewPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
 	}, nil
 }
 
-func NewConfigPrefixFromAPIStruct(a *api.Prefix) (*config.Prefix, error) {
+func newConfigPrefixFromAPIStruct(a *api.Prefix) (*config.Prefix, error) {
 	_, prefix, err := net.ParseCIDR(a.IpPrefix)
 	if err != nil {
 		return nil, err
@@ -937,7 +937,7 @@ func NewConfigPrefixFromAPIStruct(a *api.Prefix) (*config.Prefix, error) {
 	}, nil
 }
 
-func NewAPIPrefixFromConfigStruct(c config.Prefix) (*api.Prefix, error) {
+func newAPIPrefixFromConfigStruct(c config.Prefix) (*api.Prefix, error) {
 	min, max, err := config.ParseMaskLength(c.IpPrefix, c.MasklengthRange)
 	if err != nil {
 		return nil, err
@@ -949,55 +949,13 @@ func NewAPIPrefixFromConfigStruct(c config.Prefix) (*api.Prefix, error) {
 	}, nil
 }
 
-func NewAPIDefinedSetFromTableStruct(t table.DefinedSet) (*api.DefinedSet, error) {
-	a := &api.DefinedSet{
-		Type: api.DefinedType(t.Type()),
-		Name: t.Name(),
-	}
-	switch t.Type() {
-	case table.DEFINED_TYPE_PREFIX:
-		s := t.(*table.PrefixSet)
-		c := s.ToConfig()
-		for _, p := range c.PrefixList {
-			ap, err := NewAPIPrefixFromConfigStruct(p)
-			if err != nil {
-				return nil, err
-			}
-			a.Prefixes = append(a.Prefixes, ap)
-		}
-	case table.DEFINED_TYPE_NEIGHBOR:
-		s := t.(*table.NeighborSet)
-		c := s.ToConfig()
-		a.List = append(a.List, c.NeighborInfoList...)
-	case table.DEFINED_TYPE_AS_PATH:
-		s := t.(*table.AsPathSet)
-		c := s.ToConfig()
-		a.List = append(a.List, c.AsPathList...)
-	case table.DEFINED_TYPE_COMMUNITY:
-		s := t.(*table.CommunitySet)
-		c := s.ToConfig()
-		a.List = append(a.List, c.CommunityList...)
-	case table.DEFINED_TYPE_EXT_COMMUNITY:
-		s := t.(*table.ExtCommunitySet)
-		c := s.ToConfig()
-		a.List = append(a.List, c.ExtCommunityList...)
-	case table.DEFINED_TYPE_LARGE_COMMUNITY:
-		s := t.(*table.LargeCommunitySet)
-		c := s.ToConfig()
-		a.List = append(a.List, c.LargeCommunityList...)
-	default:
-		return nil, fmt.Errorf("invalid defined type")
-	}
-	return a, nil
-}
-
-func NewAPIDefinedSetsFromConfigStruct(t *config.DefinedSets) ([]*api.DefinedSet, error) {
+func newAPIDefinedSetsFromConfigStruct(t *config.DefinedSets) ([]*api.DefinedSet, error) {
 	definedSets := make([]*api.DefinedSet, 0)
 
 	for _, ps := range t.PrefixSets {
 		prefixes := make([]*api.Prefix, 0)
 		for _, p := range ps.PrefixList {
-			ap, err := NewAPIPrefixFromConfigStruct(p)
+			ap, err := newAPIPrefixFromConfigStruct(p)
 			if err != nil {
 				return nil, err
 			}
@@ -1054,7 +1012,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *config.DefinedSets) ([]*api.DefinedSet
 	return definedSets, nil
 }
 
-func NewConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*config.DefinedSets, error) {
+func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*config.DefinedSets, error) {
 	ps := make([]config.PrefixSet, 0)
 	ns := make([]config.NeighborSet, 0)
 	as := make([]config.AsPathSet, 0)
@@ -1070,7 +1028,7 @@ func NewConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*config.DefinedSets
 		case table.DEFINED_TYPE_PREFIX:
 			prefixes := make([]config.Prefix, 0, len(ds.Prefixes))
 			for _, p := range ds.Prefixes {
-				prefix, err := NewConfigPrefixFromAPIStruct(p)
+				prefix, err := newConfigPrefixFromAPIStruct(p)
 				if err != nil {
 					return nil, err
 				}
@@ -1122,7 +1080,7 @@ func NewConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*config.DefinedSets
 	}, nil
 }
 
-func NewDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
+func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
@@ -1130,7 +1088,7 @@ func NewDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 	case table.DEFINED_TYPE_PREFIX:
 		prefixes := make([]*table.Prefix, 0, len(a.Prefixes))
 		for _, p := range a.Prefixes {
-			prefix, err := NewPrefixFromApiStruct(p)
+			prefix, err := newPrefixFromApiStruct(p)
 			if err != nil {
 				return nil, err
 			}
@@ -1195,25 +1153,30 @@ func (s *Server) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSetRe
 	return &empty.Empty{}, s.bgpServer.DeleteDefinedSet(ctx, r)
 }
 
-func NewAPIStatementFromTableStruct(t *table.Statement) *api.Statement {
-	return toStatementApi(t.ToConfig())
-}
-
 var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
+
+func matchSetOptionsRestrictedTypeToAPI(t config.MatchSetOptionsRestrictedType) api.MatchType {
+	t = t.DefaultAsNeeded()
+	switch t {
+	case config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:
+		return api.MatchType_ANY
+	case config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT:
+		return api.MatchType_INVERT
+	}
+	return api.MatchType_ANY
+}
 
 func toStatementApi(s *config.Statement) *api.Statement {
 	cs := &api.Conditions{}
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
-		o, _ := table.NewMatchOption(s.Conditions.MatchPrefixSet.MatchSetOptions)
 		cs.PrefixSet = &api.MatchSet{
-			Type: api.MatchType(o),
+			Type: matchSetOptionsRestrictedTypeToAPI(s.Conditions.MatchPrefixSet.MatchSetOptions),
 			Name: s.Conditions.MatchPrefixSet.PrefixSet,
 		}
 	}
 	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
-		o, _ := table.NewMatchOption(s.Conditions.MatchNeighborSet.MatchSetOptions)
 		cs.NeighborSet = &api.MatchSet{
-			Type: api.MatchType(o),
+			Type: matchSetOptionsRestrictedTypeToAPI(s.Conditions.MatchNeighborSet.MatchSetOptions),
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
@@ -1396,7 +1359,7 @@ func toConfigMatchSetOptionRestricted(a api.MatchType) (config.MatchSetOptionsRe
 	return typ, nil
 }
 
-func NewPrefixConditionFromApiStruct(a *api.MatchSet) (*table.PrefixCondition, error) {
+func newPrefixConditionFromApiStruct(a *api.MatchSet) (*table.PrefixCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1411,7 +1374,7 @@ func NewPrefixConditionFromApiStruct(a *api.MatchSet) (*table.PrefixCondition, e
 	return table.NewPrefixCondition(c)
 }
 
-func NewNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborCondition, error) {
+func newNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1426,7 +1389,7 @@ func NewNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborConditio
 	return table.NewNeighborCondition(c)
 }
 
-func NewAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLengthCondition, error) {
+func newAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLengthCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1436,7 +1399,7 @@ func NewAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLe
 	})
 }
 
-func NewAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, error) {
+func newAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1451,14 +1414,14 @@ func NewAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, e
 	return table.NewAsPathCondition(c)
 }
 
-func NewRpkiValidationConditionFromApiStruct(a int32) (*table.RpkiValidationCondition, error) {
+func newRpkiValidationConditionFromApiStruct(a int32) (*table.RpkiValidationCondition, error) {
 	if a < 1 {
 		return nil, nil
 	}
 	return table.NewRpkiValidationCondition(config.IntToRpkiValidationResultTypeMap[int(a)])
 }
 
-func NewRouteTypeConditionFromApiStruct(a api.Conditions_RouteType) (*table.RouteTypeCondition, error) {
+func newRouteTypeConditionFromApiStruct(a api.Conditions_RouteType) (*table.RouteTypeCondition, error) {
 	if a == 0 {
 		return nil, nil
 	}
@@ -1469,7 +1432,7 @@ func NewRouteTypeConditionFromApiStruct(a api.Conditions_RouteType) (*table.Rout
 	return table.NewRouteTypeCondition(typ)
 }
 
-func NewCommunityConditionFromApiStruct(a *api.MatchSet) (*table.CommunityCondition, error) {
+func newCommunityConditionFromApiStruct(a *api.MatchSet) (*table.CommunityCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1484,7 +1447,7 @@ func NewCommunityConditionFromApiStruct(a *api.MatchSet) (*table.CommunityCondit
 	return table.NewCommunityCondition(c)
 }
 
-func NewExtCommunityConditionFromApiStruct(a *api.MatchSet) (*table.ExtCommunityCondition, error) {
+func newExtCommunityConditionFromApiStruct(a *api.MatchSet) (*table.ExtCommunityCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1499,7 +1462,7 @@ func NewExtCommunityConditionFromApiStruct(a *api.MatchSet) (*table.ExtCommunity
 	return table.NewExtCommunityCondition(c)
 }
 
-func NewLargeCommunityConditionFromApiStruct(a *api.MatchSet) (*table.LargeCommunityCondition, error) {
+func newLargeCommunityConditionFromApiStruct(a *api.MatchSet) (*table.LargeCommunityCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1514,7 +1477,7 @@ func NewLargeCommunityConditionFromApiStruct(a *api.MatchSet) (*table.LargeCommu
 	return table.NewLargeCommunityCondition(c)
 }
 
-func NewNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, error) {
+func newNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1522,7 +1485,7 @@ func NewNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, erro
 	return table.NewNextHopCondition(a)
 }
 
-func NewAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondition, error) {
+func newAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondition, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1538,7 +1501,7 @@ func NewAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondit
 	return table.NewAfiSafiInCondition(afiSafiTypes)
 }
 
-func NewRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, error) {
+func newRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, error) {
 	if a == api.RouteAction_NONE {
 		return nil, nil
 	}
@@ -1551,7 +1514,7 @@ func NewRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, err
 	}, nil
 }
 
-func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAction, error) {
+func newCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAction, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1563,7 +1526,7 @@ func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAc
 	})
 }
 
-func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommunityAction, error) {
+func newExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommunityAction, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1575,7 +1538,7 @@ func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommu
 	})
 }
 
-func NewLargeCommunityActionFromApiStruct(a *api.CommunityAction) (*table.LargeCommunityAction, error) {
+func newLargeCommunityActionFromApiStruct(a *api.CommunityAction) (*table.LargeCommunityAction, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1587,21 +1550,21 @@ func NewLargeCommunityActionFromApiStruct(a *api.CommunityAction) (*table.LargeC
 	})
 }
 
-func NewMedActionFromApiStruct(a *api.MedAction) (*table.MedAction, error) {
+func newMedActionFromApiStruct(a *api.MedAction) (*table.MedAction, error) {
 	if a == nil {
 		return nil, nil
 	}
 	return table.NewMedActionFromApiStruct(table.MedActionType(a.Type), a.Value), nil
 }
 
-func NewLocalPrefActionFromApiStruct(a *api.LocalPrefAction) (*table.LocalPrefAction, error) {
+func newLocalPrefActionFromApiStruct(a *api.LocalPrefAction) (*table.LocalPrefAction, error) {
 	if a == nil || a.Value == 0 {
 		return nil, nil
 	}
 	return table.NewLocalPrefAction(a.Value)
 }
 
-func NewAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*table.AsPathPrependAction, error) {
+func newAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*table.AsPathPrependAction, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1616,7 +1579,7 @@ func NewAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*table.AsPathP
 	})
 }
 
-func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, error) {
+func newNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, error) {
 	if a == nil {
 		return nil, nil
 	}
@@ -1630,7 +1593,7 @@ func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, 
 	))
 }
 
-func NewStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
+func newStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty statement name")
 	}
@@ -1641,37 +1604,37 @@ func NewStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 	if a.Conditions != nil {
 		cfs := []func() (table.Condition, error){
 			func() (table.Condition, error) {
-				return NewPrefixConditionFromApiStruct(a.Conditions.PrefixSet)
+				return newPrefixConditionFromApiStruct(a.Conditions.PrefixSet)
 			},
 			func() (table.Condition, error) {
-				return NewNeighborConditionFromApiStruct(a.Conditions.NeighborSet)
+				return newNeighborConditionFromApiStruct(a.Conditions.NeighborSet)
 			},
 			func() (table.Condition, error) {
-				return NewAsPathLengthConditionFromApiStruct(a.Conditions.AsPathLength)
+				return newAsPathLengthConditionFromApiStruct(a.Conditions.AsPathLength)
 			},
 			func() (table.Condition, error) {
-				return NewRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
+				return newRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
 			},
 			func() (table.Condition, error) {
-				return NewRouteTypeConditionFromApiStruct(a.Conditions.RouteType)
+				return newRouteTypeConditionFromApiStruct(a.Conditions.RouteType)
 			},
 			func() (table.Condition, error) {
-				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet)
+				return newAsPathConditionFromApiStruct(a.Conditions.AsPathSet)
 			},
 			func() (table.Condition, error) {
-				return NewCommunityConditionFromApiStruct(a.Conditions.CommunitySet)
+				return newCommunityConditionFromApiStruct(a.Conditions.CommunitySet)
 			},
 			func() (table.Condition, error) {
-				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet)
+				return newExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet)
 			},
 			func() (table.Condition, error) {
-				return NewLargeCommunityConditionFromApiStruct(a.Conditions.LargeCommunitySet)
+				return newLargeCommunityConditionFromApiStruct(a.Conditions.LargeCommunitySet)
 			},
 			func() (table.Condition, error) {
-				return NewNextHopConditionFromApiStruct(a.Conditions.NextHopInList)
+				return newNextHopConditionFromApiStruct(a.Conditions.NextHopInList)
 			},
 			func() (table.Condition, error) {
-				return NewAfiSafiInConditionFromApiStruct(a.Conditions.AfiSafiIn)
+				return newAfiSafiInConditionFromApiStruct(a.Conditions.AfiSafiIn)
 			},
 		}
 		cs = make([]table.Condition, 0, len(cfs))
@@ -1686,31 +1649,31 @@ func NewStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 		}
 	}
 	if a.Actions != nil {
-		ra, err = NewRoutingActionFromApiStruct(a.Actions.RouteAction)
+		ra, err = newRoutingActionFromApiStruct(a.Actions.RouteAction)
 		if err != nil {
 			return nil, err
 		}
 		afs := []func() (table.Action, error){
 			func() (table.Action, error) {
-				return NewCommunityActionFromApiStruct(a.Actions.Community)
+				return newCommunityActionFromApiStruct(a.Actions.Community)
 			},
 			func() (table.Action, error) {
-				return NewExtCommunityActionFromApiStruct(a.Actions.ExtCommunity)
+				return newExtCommunityActionFromApiStruct(a.Actions.ExtCommunity)
 			},
 			func() (table.Action, error) {
-				return NewLargeCommunityActionFromApiStruct(a.Actions.LargeCommunity)
+				return newLargeCommunityActionFromApiStruct(a.Actions.LargeCommunity)
 			},
 			func() (table.Action, error) {
-				return NewMedActionFromApiStruct(a.Actions.Med)
+				return newMedActionFromApiStruct(a.Actions.Med)
 			},
 			func() (table.Action, error) {
-				return NewLocalPrefActionFromApiStruct(a.Actions.LocalPref)
+				return newLocalPrefActionFromApiStruct(a.Actions.LocalPref)
 			},
 			func() (table.Action, error) {
-				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
+				return newAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
 			},
 			func() (table.Action, error) {
-				return NewNexthopActionFromApiStruct(a.Actions.Nexthop)
+				return newNexthopActionFromApiStruct(a.Actions.Nexthop)
 			},
 		}
 		as = make([]table.Action, 0, len(afs))
@@ -1753,55 +1716,6 @@ func (s *Server) DeleteStatement(ctx context.Context, r *api.DeleteStatementRequ
 	return &empty.Empty{}, s.bgpServer.DeleteStatement(ctx, r)
 }
 
-func NewAPIPolicyFromTableStruct(p *table.Policy) *api.Policy {
-	return toPolicyApi(p.ToConfig())
-}
-
-func toPolicyApi(p *config.PolicyDefinition) *api.Policy {
-	return &api.Policy{
-		Name: p.Name,
-		Statements: func() []*api.Statement {
-			l := make([]*api.Statement, 0)
-			for _, s := range p.Statements {
-				l = append(l, toStatementApi(&s))
-			}
-			return l
-		}(),
-	}
-}
-
-func NewAPIPolicyAssignmentFromTableStruct(t *table.PolicyAssignment) *api.PolicyAssignment {
-	return &api.PolicyAssignment{
-		Direction: func() api.PolicyDirection {
-			switch t.Type {
-			case table.POLICY_DIRECTION_IMPORT:
-				return api.PolicyDirection_IMPORT
-			case table.POLICY_DIRECTION_EXPORT:
-				return api.PolicyDirection_EXPORT
-			}
-			log.Errorf("invalid policy-type: %s", t.Type)
-			return api.PolicyDirection_UNKNOWN
-		}(),
-		DefaultAction: func() api.RouteAction {
-			switch t.Default {
-			case table.ROUTE_TYPE_ACCEPT:
-				return api.RouteAction_ACCEPT
-			case table.ROUTE_TYPE_REJECT:
-				return api.RouteAction_REJECT
-			}
-			return api.RouteAction_NONE
-		}(),
-		Name: t.Name,
-		Policies: func() []*api.Policy {
-			l := make([]*api.Policy, 0)
-			for _, p := range t.Policies {
-				l = append(l, NewAPIPolicyFromTableStruct(p))
-			}
-			return l
-		}(),
-	}
-}
-
 func NewConfigPolicyFromApiStruct(a *api.Policy) (*config.PolicyDefinition, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
@@ -1811,7 +1725,7 @@ func NewConfigPolicyFromApiStruct(a *api.Policy) (*config.PolicyDefinition, erro
 		if x.Name == "" {
 			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
 		}
-		y, err := NewStatementFromApiStruct(x)
+		y, err := newStatementFromApiStruct(x)
 		if err != nil {
 			return nil, err
 		}
@@ -1833,7 +1747,7 @@ func NewPolicyFromApiStruct(a *api.Policy) (*table.Policy, error) {
 		if x.Name == "" {
 			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
 		}
-		y, err := NewStatementFromApiStruct(x)
+		y, err := newStatementFromApiStruct(x)
 		if err != nil {
 			return nil, err
 		}

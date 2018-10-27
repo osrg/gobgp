@@ -2331,7 +2331,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest) ([]*ap
 				Paths:  make([]*api.Path, 0, len(dst.GetAllKnownPathList())),
 			}
 			for i, path := range dst.GetAllKnownPathList() {
-				p := ToPathApi(path, getValidation(v, idx))
+				p := toPathApi(path, getValidation(v, idx))
 				idx++
 				if i == 0 && !table.SelectionOptions.DisableBestPathSelection {
 					switch r.Type {
@@ -3023,7 +3023,7 @@ func (s *BgpServer) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetReque
 		if r == nil || r.DefinedSet == nil {
 			return fmt.Errorf("invalid request")
 		}
-		set, err := NewDefinedSetFromApiStruct(r.DefinedSet)
+		set, err := newDefinedSetFromApiStruct(r.DefinedSet)
 		if err != nil {
 			return err
 		}
@@ -3036,7 +3036,7 @@ func (s *BgpServer) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSe
 		if r == nil || r.DefinedSet == nil {
 			return fmt.Errorf("invalid request")
 		}
-		set, err := NewDefinedSetFromApiStruct(r.DefinedSet)
+		set, err := newDefinedSetFromApiStruct(r.DefinedSet)
 		if err != nil {
 			return err
 		}
@@ -3060,7 +3060,7 @@ func (s *BgpServer) AddStatement(ctx context.Context, r *api.AddStatementRequest
 		if r == nil || r.Statement == nil {
 			return fmt.Errorf("invalid request")
 		}
-		st, err := NewStatementFromApiStruct(r.Statement)
+		st, err := newStatementFromApiStruct(r.Statement)
 		if err != nil {
 			return err
 		}
@@ -3073,7 +3073,7 @@ func (s *BgpServer) DeleteStatement(ctx context.Context, r *api.DeleteStatementR
 		if r == nil || r.Statement == nil {
 			return fmt.Errorf("invalid request")
 		}
-		st, err := NewStatementFromApiStruct(r.Statement)
+		st, err := newStatementFromApiStruct(r.Statement)
 		if err == nil {
 			err = s.policy.DeleteStatement(st, r.All)
 		}
@@ -3085,7 +3085,7 @@ func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest) ([
 	l := make([]*api.Policy, 0)
 	s.mgmtOperation(func() error {
 		for _, p := range s.policy.GetPolicy(r.Name) {
-			l = append(l, toPolicyApi(p))
+			l = append(l, table.ToPolicyApi(p))
 		}
 		return nil
 	}, false)
@@ -3193,7 +3193,7 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 					Default:  rt,
 					Policies: policies,
 				}
-				a = append(a, NewAPIPolicyAssignmentFromTableStruct(t))
+				a = append(a, table.NewAPIPolicyAssignmentFromTableStruct(t))
 			}
 		}
 		return nil

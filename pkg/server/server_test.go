@@ -48,19 +48,19 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.Nil(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
 	assert.Nil(err)
 
-	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: NewAPIPolicyFromTableStruct(&table.Policy{Name: "p2"})})
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p2"})})
 	assert.Nil(err)
 
-	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: NewAPIPolicyFromTableStruct(&table.Policy{Name: "p3"})})
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p3"})})
 	assert.Nil(err)
 
 	f := func(l []*config.PolicyDefinition) *api.PolicyAssignment {
 		pl := make([]*api.Policy, 0, len(l))
 		for _, d := range l {
-			pl = append(pl, toPolicyApi(d))
+			pl = append(pl, table.ToPolicyApi(d))
 		}
 		return &api.PolicyAssignment{
 			Policies: pl,
@@ -132,7 +132,7 @@ func TestListPolicyAssignment(t *testing.T) {
 		assert.Nil(err)
 
 		err = s.AddPolicy(context.Background(),
-			&api.AddPolicyRequest{Policy: NewAPIPolicyFromTableStruct(&table.Policy{Name: fmt.Sprintf("p%d", i)})})
+			&api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: fmt.Sprintf("p%d", i)})})
 		assert.Nil(err)
 
 		pa := &api.PolicyAssignment{
