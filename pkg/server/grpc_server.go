@@ -110,9 +110,9 @@ func newValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
 	}
 	return &api.RPKIValidation{
 		Reason:          api.RPKIValidation_Reason(v.Reason.ToInt()),
-		Matched:         NewRoaListFromTableStructList(v.Matched),
-		UnmatchedAs:     NewRoaListFromTableStructList(v.UnmatchedAs),
-		UnmatchedLength: NewRoaListFromTableStructList(v.UnmatchedLength),
+		Matched:         newRoaListFromTableStructList(v.Matched),
+		UnmatchedAs:     newRoaListFromTableStructList(v.UnmatchedAs),
+		UnmatchedLength: newRoaListFromTableStructList(v.UnmatchedLength),
 	}
 }
 
@@ -1668,7 +1668,7 @@ func newPolicyFromApiStruct(a *api.Policy) (*table.Policy, error) {
 	}, nil
 }
 
-func NewRoaListFromTableStructList(origin []*table.ROA) []*api.Roa {
+func newRoaListFromTableStructList(origin []*table.ROA) []*api.Roa {
 	l := make([]*api.Roa, 0)
 	for _, r := range origin {
 		host, portStr, _ := net.SplitHostPort(r.Src)

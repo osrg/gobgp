@@ -3302,7 +3302,7 @@ func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableReque
 		}
 		roas, err = s.roaManager.GetRoa(family)
 		if err == nil {
-			l = append(l, NewRoaListFromTableStructList(roas)...)
+			l = append(l, newRoaListFromTableStructList(roas)...)
 		}
 		return nil
 	}, false)
