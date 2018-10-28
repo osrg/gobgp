@@ -2576,7 +2576,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 
 func (s *BgpServer) AddPeerGroup(ctx context.Context, r *api.AddPeerGroupRequest) error {
 	return s.mgmtOperation(func() error {
-		c, err := NewPeerGroupFromAPIStruct(r.PeerGroup)
+		c, err := newPeerGroupFromAPIStruct(r.PeerGroup)
 		if err != nil {
 			return err
 		}
@@ -2586,7 +2586,7 @@ func (s *BgpServer) AddPeerGroup(ctx context.Context, r *api.AddPeerGroupRequest
 
 func (s *BgpServer) AddPeer(ctx context.Context, r *api.AddPeerRequest) error {
 	return s.mgmtOperation(func() error {
-		c, err := NewNeighborFromAPIStruct(r.Peer)
+		c, err := newNeighborFromAPIStruct(r.Peer)
 		if err != nil {
 			return err
 		}
@@ -2712,7 +2712,7 @@ func (s *BgpServer) updatePeerGroup(pg *config.PeerGroup) (needsSoftResetIn bool
 func (s *BgpServer) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupRequest) (rsp *api.UpdatePeerGroupResponse, err error) {
 	doSoftreset := false
 	err = s.mgmtOperation(func() error {
-		pg, err := NewPeerGroupFromAPIStruct(r.PeerGroup)
+		pg, err := newPeerGroupFromAPIStruct(r.PeerGroup)
 		if err != nil {
 			return err
 		}
@@ -2820,7 +2820,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 func (s *BgpServer) UpdateNeighbor(ctx context.Context, r *api.UpdatePeerRequest) (rsp *api.UpdatePeerResponse, err error) {
 	doSoftReset := false
 	err = s.mgmtOperation(func() error {
-		c, err := NewNeighborFromAPIStruct(r.Peer)
+		c, err := newNeighborFromAPIStruct(r.Peer)
 		if err != nil {
 			return err
 		}

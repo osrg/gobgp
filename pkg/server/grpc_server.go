@@ -510,7 +510,7 @@ func (s *Server) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) (*empty
 	return &empty.Empty{}, s.bgpServer.DeleteVrf(ctx, r)
 }
 
-func ReadMpGracefulRestartFromAPIStruct(c *config.MpGracefulRestart, a *api.MpGracefulRestart) {
+func readMpGracefulRestartFromAPIStruct(c *config.MpGracefulRestart, a *api.MpGracefulRestart) {
 	if c == nil || a == nil {
 		return
 	}
@@ -519,7 +519,7 @@ func ReadMpGracefulRestartFromAPIStruct(c *config.MpGracefulRestart, a *api.MpGr
 	}
 }
 
-func ReadAfiSafiConfigFromAPIStruct(c *config.AfiSafiConfig, a *api.AfiSafiConfig) {
+func readAfiSafiConfigFromAPIStruct(c *config.AfiSafiConfig, a *api.AfiSafiConfig) {
 	if c == nil || a == nil {
 		return
 	}
@@ -528,7 +528,7 @@ func ReadAfiSafiConfigFromAPIStruct(c *config.AfiSafiConfig, a *api.AfiSafiConfi
 	c.Enabled = a.Enabled
 }
 
-func ReadAfiSafiStateFromAPIStruct(s *config.AfiSafiState, a *api.AfiSafiConfig) {
+func readAfiSafiStateFromAPIStruct(s *config.AfiSafiState, a *api.AfiSafiConfig) {
 	if s == nil || a == nil {
 		return
 	}
@@ -536,7 +536,7 @@ func ReadAfiSafiStateFromAPIStruct(s *config.AfiSafiState, a *api.AfiSafiConfig)
 	s.Family = bgp.AfiSafiToRouteFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
 }
 
-func ReadPrefixLimitFromAPIStruct(c *config.PrefixLimit, a *api.PrefixLimit) {
+func readPrefixLimitFromAPIStruct(c *config.PrefixLimit, a *api.PrefixLimit) {
 	if c == nil || a == nil {
 		return
 	}
@@ -544,7 +544,7 @@ func ReadPrefixLimitFromAPIStruct(c *config.PrefixLimit, a *api.PrefixLimit) {
 	c.Config.ShutdownThresholdPct = config.Percentage(a.ShutdownThresholdPct)
 }
 
-func ReadApplyPolicyFromAPIStruct(c *config.ApplyPolicy, a *api.ApplyPolicy) {
+func readApplyPolicyFromAPIStruct(c *config.ApplyPolicy, a *api.ApplyPolicy) {
 	if c == nil || a == nil {
 		return
 	}
@@ -568,7 +568,7 @@ func ReadApplyPolicyFromAPIStruct(c *config.ApplyPolicy, a *api.ApplyPolicy) {
 	}
 }
 
-func ReadRouteSelectionOptionsFromAPIStruct(c *config.RouteSelectionOptions, a *api.RouteSelectionOptions) {
+func readRouteSelectionOptionsFromAPIStruct(c *config.RouteSelectionOptions, a *api.RouteSelectionOptions) {
 	if c == nil || a == nil {
 		return
 	}
@@ -582,7 +582,7 @@ func ReadRouteSelectionOptionsFromAPIStruct(c *config.RouteSelectionOptions, a *
 	}
 }
 
-func ReadUseMultiplePathsFromAPIStruct(c *config.UseMultiplePaths, a *api.UseMultiplePaths) {
+func readUseMultiplePathsFromAPIStruct(c *config.UseMultiplePaths, a *api.UseMultiplePaths) {
 	if c == nil || a == nil {
 		return
 	}
@@ -606,7 +606,7 @@ func ReadUseMultiplePathsFromAPIStruct(c *config.UseMultiplePaths, a *api.UseMul
 	}
 }
 
-func ReadRouteTargetMembershipFromAPIStruct(c *config.RouteTargetMembership, a *api.RouteTargetMembership) {
+func readRouteTargetMembershipFromAPIStruct(c *config.RouteTargetMembership, a *api.RouteTargetMembership) {
 	if c == nil || a == nil {
 		return
 	}
@@ -615,7 +615,7 @@ func ReadRouteTargetMembershipFromAPIStruct(c *config.RouteTargetMembership, a *
 	}
 }
 
-func ReadLongLivedGracefulRestartFromAPIStruct(c *config.LongLivedGracefulRestart, a *api.LongLivedGracefulRestart) {
+func readLongLivedGracefulRestartFromAPIStruct(c *config.LongLivedGracefulRestart, a *api.LongLivedGracefulRestart) {
 	if c == nil || a == nil {
 		return
 	}
@@ -625,7 +625,7 @@ func ReadLongLivedGracefulRestartFromAPIStruct(c *config.LongLivedGracefulRestar
 	}
 }
 
-func ReadAddPathsFromAPIStruct(c *config.AddPaths, a *api.AddPaths) {
+func readAddPathsFromAPIStruct(c *config.AddPaths, a *api.AddPaths) {
 	if c == nil || a == nil {
 		return
 	}
@@ -635,7 +635,7 @@ func ReadAddPathsFromAPIStruct(c *config.AddPaths, a *api.AddPaths) {
 	}
 }
 
-func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
+func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 	pconf := &config.Neighbor{}
 	if a.Conf != nil {
 		pconf.Config.PeerAs = a.Conf.PeerAs
@@ -673,16 +673,16 @@ func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 
 		for _, af := range a.AfiSafis {
 			afiSafi := config.AfiSafi{}
-			ReadMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, af.MpGracefulRestart)
-			ReadAfiSafiConfigFromAPIStruct(&afiSafi.Config, af.Config)
-			ReadAfiSafiStateFromAPIStruct(&afiSafi.State, af.Config)
-			ReadApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, af.ApplyPolicy)
-			ReadRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, af.RouteSelectionOptions)
-			ReadUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, af.UseMultiplePaths)
-			ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, af.PrefixLimits)
-			ReadRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, af.RouteTargetMembership)
-			ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
-			ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
+			readMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, af.MpGracefulRestart)
+			readAfiSafiConfigFromAPIStruct(&afiSafi.Config, af.Config)
+			readAfiSafiStateFromAPIStruct(&afiSafi.State, af.Config)
+			readApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, af.ApplyPolicy)
+			readRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, af.RouteSelectionOptions)
+			readUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, af.UseMultiplePaths)
+			readPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, af.PrefixLimits)
+			readRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, af.RouteTargetMembership)
+			readLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
+			readAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
 		}
 	}
@@ -717,7 +717,7 @@ func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
 		pconf.GracefulRestart.State.LocalRestarting = a.GracefulRestart.LocalRestarting
 	}
-	ReadApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
+	readApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
 	if a.Transport != nil {
 		pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
@@ -758,11 +758,11 @@ func NewNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			}
 		}
 	}
-	ReadAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
+	readAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
 	return pconf, nil
 }
 
-func NewPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
+func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 	pconf := &config.PeerGroup{}
 	if a.Conf != nil {
 		pconf.Config.PeerAs = a.Conf.PeerAs
@@ -781,16 +781,16 @@ func NewPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 
 		for _, af := range a.AfiSafis {
 			afiSafi := config.AfiSafi{}
-			ReadMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, af.MpGracefulRestart)
-			ReadAfiSafiConfigFromAPIStruct(&afiSafi.Config, af.Config)
-			ReadAfiSafiStateFromAPIStruct(&afiSafi.State, af.Config)
-			ReadApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, af.ApplyPolicy)
-			ReadRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, af.RouteSelectionOptions)
-			ReadUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, af.UseMultiplePaths)
-			ReadPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, af.PrefixLimits)
-			ReadRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, af.RouteTargetMembership)
-			ReadLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
-			ReadAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
+			readMpGracefulRestartFromAPIStruct(&afiSafi.MpGracefulRestart, af.MpGracefulRestart)
+			readAfiSafiConfigFromAPIStruct(&afiSafi.Config, af.Config)
+			readAfiSafiStateFromAPIStruct(&afiSafi.State, af.Config)
+			readApplyPolicyFromAPIStruct(&afiSafi.ApplyPolicy, af.ApplyPolicy)
+			readRouteSelectionOptionsFromAPIStruct(&afiSafi.RouteSelectionOptions, af.RouteSelectionOptions)
+			readUseMultiplePathsFromAPIStruct(&afiSafi.UseMultiplePaths, af.UseMultiplePaths)
+			readPrefixLimitFromAPIStruct(&afiSafi.PrefixLimit, af.PrefixLimits)
+			readRouteTargetMembershipFromAPIStruct(&afiSafi.RouteTargetMembership, af.RouteTargetMembership)
+			readLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
+			readAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
 		}
 	}
@@ -825,7 +825,7 @@ func NewPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
 		pconf.GracefulRestart.State.LocalRestarting = a.GracefulRestart.LocalRestarting
 	}
-	ReadApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
+	readApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
 	if a.Transport != nil {
 		pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
@@ -841,7 +841,7 @@ func NewPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		pconf.State.PeerAs = a.Info.PeerAs
 		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
 	}
-	ReadAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
+	readAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
 	return pconf, nil
 }
 
@@ -1771,7 +1771,7 @@ func newGlobalFromAPIStruct(a *api.Global) *config.Global {
 	}
 
 	applyPolicy := &config.ApplyPolicy{}
-	ReadApplyPolicyFromAPIStruct(applyPolicy, a.ApplyPolicy)
+	readApplyPolicyFromAPIStruct(applyPolicy, a.ApplyPolicy)
 
 	global := &config.Global{
 		Config: config.GlobalConfig{
