@@ -3097,7 +3097,7 @@ func (s *BgpServer) AddPolicy(ctx context.Context, r *api.AddPolicyRequest) erro
 		if r == nil || r.Policy == nil {
 			return fmt.Errorf("invalid request")
 		}
-		p, err := NewPolicyFromApiStruct(r.Policy)
+		p, err := newPolicyFromApiStruct(r.Policy)
 		if err == nil {
 			err = s.policy.AddPolicy(p, r.ReferExistingStatements)
 		}
@@ -3110,7 +3110,7 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 		if r == nil || r.Policy == nil {
 			return fmt.Errorf("invalid request")
 		}
-		p, err := NewPolicyFromApiStruct(r.Policy)
+		p, err := newPolicyFromApiStruct(r.Policy)
 		if err != nil {
 			return err
 		}

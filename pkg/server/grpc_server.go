@@ -300,7 +300,7 @@ func (s *Server) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) (*e
 func NewRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.RoutingPolicy, error) {
 	policyDefinitions := make([]config.PolicyDefinition, 0, len(arg.Policies))
 	for _, p := range arg.Policies {
-		pd, err := NewConfigPolicyFromApiStruct(p)
+		pd, err := newConfigPolicyFromApiStruct(p)
 		if err != nil {
 			return nil, err
 		}
@@ -1625,7 +1625,7 @@ func (s *Server) DeleteStatement(ctx context.Context, r *api.DeleteStatementRequ
 	return &empty.Empty{}, s.bgpServer.DeleteStatement(ctx, r)
 }
 
-func NewConfigPolicyFromApiStruct(a *api.Policy) (*config.PolicyDefinition, error) {
+func newConfigPolicyFromApiStruct(a *api.Policy) (*config.PolicyDefinition, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
 	}
@@ -1647,7 +1647,7 @@ func NewConfigPolicyFromApiStruct(a *api.Policy) (*config.PolicyDefinition, erro
 	}, nil
 }
 
-func NewPolicyFromApiStruct(a *api.Policy) (*table.Policy, error) {
+func newPolicyFromApiStruct(a *api.Policy) (*table.Policy, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
 	}
