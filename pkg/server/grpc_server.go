@@ -297,22 +297,6 @@ func (s *Server) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) (*e
 	return &empty.Empty{}, s.bgpServer.SetPolicies(ctx, r)
 }
 
-func NewAPIRoutingPolicyFromConfigStruct(c *config.RoutingPolicy) (*api.RoutingPolicy, error) {
-	definedSets, err := newAPIDefinedSetsFromConfigStruct(&c.DefinedSets)
-	if err != nil {
-		return nil, err
-	}
-	policies := make([]*api.Policy, 0, len(c.PolicyDefinitions))
-	for _, policy := range c.PolicyDefinitions {
-		policies = append(policies, table.ToPolicyApi(&policy))
-	}
-
-	return &api.RoutingPolicy{
-		DefinedSets: definedSets,
-		Policies:    policies,
-	}, nil
-}
-
 func NewRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.RoutingPolicy, error) {
 	policyDefinitions := make([]config.PolicyDefinition, 0, len(arg.Policies))
 	for _, p := range arg.Policies {
@@ -935,81 +919,6 @@ func newConfigPrefixFromAPIStruct(a *api.Prefix) (*config.Prefix, error) {
 		IpPrefix:        prefix.String(),
 		MasklengthRange: fmt.Sprintf("%d..%d", a.MaskLengthMin, a.MaskLengthMax),
 	}, nil
-}
-
-func newAPIPrefixFromConfigStruct(c config.Prefix) (*api.Prefix, error) {
-	min, max, err := config.ParseMaskLength(c.IpPrefix, c.MasklengthRange)
-	if err != nil {
-		return nil, err
-	}
-	return &api.Prefix{
-		IpPrefix:      c.IpPrefix,
-		MaskLengthMin: uint32(min),
-		MaskLengthMax: uint32(max),
-	}, nil
-}
-
-func newAPIDefinedSetsFromConfigStruct(t *config.DefinedSets) ([]*api.DefinedSet, error) {
-	definedSets := make([]*api.DefinedSet, 0)
-
-	for _, ps := range t.PrefixSets {
-		prefixes := make([]*api.Prefix, 0)
-		for _, p := range ps.PrefixList {
-			ap, err := newAPIPrefixFromConfigStruct(p)
-			if err != nil {
-				return nil, err
-			}
-			prefixes = append(prefixes, ap)
-		}
-		definedSets = append(definedSets, &api.DefinedSet{
-			Type:     api.DefinedType_PREFIX,
-			Name:     ps.PrefixSetName,
-			Prefixes: prefixes,
-		})
-	}
-
-	for _, ns := range t.NeighborSets {
-		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_NEIGHBOR,
-			Name: ns.NeighborSetName,
-			List: ns.NeighborInfoList,
-		})
-	}
-
-	bs := t.BgpDefinedSets
-	for _, cs := range bs.CommunitySets {
-		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_COMMUNITY,
-			Name: cs.CommunitySetName,
-			List: cs.CommunityList,
-		})
-	}
-
-	for _, es := range bs.ExtCommunitySets {
-		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_EXT_COMMUNITY,
-			Name: es.ExtCommunitySetName,
-			List: es.ExtCommunityList,
-		})
-	}
-
-	for _, ls := range bs.LargeCommunitySets {
-		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_LARGE_COMMUNITY,
-			Name: ls.LargeCommunitySetName,
-			List: ls.LargeCommunityList,
-		})
-	}
-
-	for _, as := range bs.AsPathSets {
-		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_AS_PATH,
-			Name: as.AsPathSetName,
-			List: as.AsPathList,
-		})
-	}
-
-	return definedSets, nil
 }
 
 func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*config.DefinedSets, error) {

@@ -4117,3 +4117,19 @@ func NewAPIPolicyAssignmentFromTableStruct(t *PolicyAssignment) *api.PolicyAssig
 		}(),
 	}
 }
+
+func NewAPIRoutingPolicyFromConfigStruct(c *config.RoutingPolicy) (*api.RoutingPolicy, error) {
+	definedSets, err := config.NewAPIDefinedSetsFromConfigStruct(&c.DefinedSets)
+	if err != nil {
+		return nil, err
+	}
+	policies := make([]*api.Policy, 0, len(c.PolicyDefinitions))
+	for _, policy := range c.PolicyDefinitions {
+		policies = append(policies, ToPolicyApi(&policy))
+	}
+
+	return &api.RoutingPolicy{
+		DefinedSets: definedSets,
+		Policies:    policies,
+	}, nil
+}

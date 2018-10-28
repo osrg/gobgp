@@ -269,7 +269,7 @@ func main() {
 						}
 					}
 					p := config.ConfigSetToRoutingPolicy(newConfig)
-					rp, err := server.NewAPIRoutingPolicyFromConfigStruct(p)
+					rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
 					if err != nil {
 						log.Warn(err)
 					} else {
@@ -297,7 +297,7 @@ func main() {
 					if updatePolicy {
 						log.Info("Policy config is updated")
 						p := config.ConfigSetToRoutingPolicy(newConfig)
-						rp, err := server.NewAPIRoutingPolicyFromConfigStruct(p)
+						rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
 						if err != nil {
 							log.Warn(err)
 						} else {
