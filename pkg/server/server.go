@@ -1928,7 +1928,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
 		}
 
-		c := NewGlobalFromAPIStruct(g)
+		c := newGlobalFromAPIStruct(g)
 		if err := config.SetDefaultGlobalConfigValues(c); err != nil {
 			return err
 		}

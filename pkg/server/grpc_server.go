@@ -1752,7 +1752,7 @@ func (s *Server) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetBgpR
 	return s.bgpServer.GetBgp(ctx, r)
 }
 
-func NewGlobalFromAPIStruct(a *api.Global) *config.Global {
+func newGlobalFromAPIStruct(a *api.Global) *config.Global {
 	families := make([]config.AfiSafi, 0, len(a.Families))
 	for _, f := range a.Families {
 		name := config.IntToAfiSafiTypeMap[int(f)]
