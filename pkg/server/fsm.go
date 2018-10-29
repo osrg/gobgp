@@ -408,8 +408,8 @@ func (fsm *FSM) connectLoop() error {
 	fsm.lock.RLock()
 	tick := int(fsm.pConf.Timers.Config.ConnectRetry)
 	fsm.lock.RUnlock()
-	if tick < MIN_CONNECT_RETRY {
-		tick = MIN_CONNECT_RETRY
+	if tick < minConnectRetry {
+		tick = minConnectRetry
 	}
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -438,7 +438,7 @@ func (fsm *FSM) connectLoop() error {
 		d := tcpDialer{
 			Dialer: net.Dialer{
 				LocalAddr: laddr,
-				Timeout:   time.Duration(MIN_CONNECT_RETRY-1) * time.Second,
+				Timeout:   time.Duration(minConnectRetry-1) * time.Second,
 			},
 			AuthPassword: fsm.pConf.Config.AuthPassword,
 		}
@@ -493,7 +493,7 @@ func (fsm *FSM) connectLoop() error {
 				go connect()
 			}
 		case <-fsm.getActiveCh:
-			timer.Reset(time.Duration(r.Intn(MIN_CONNECT_RETRY)+MIN_CONNECT_RETRY) * time.Second)
+			timer.Reset(time.Duration(r.Intn(minConnectRetry)+minConnectRetry) * time.Second)
 		}
 	}
 }
