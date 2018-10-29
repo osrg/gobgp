@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	TCP_MD5SIG       = 0x10 // TCP MD5 Signature (RFC2385)
-	IPV6_MINHOPCOUNT = 73   // Generalized TTL Security Mechanism (RFC5082)
+	tcpMD5SIG       = 0x10 // TCP MD5 Signature (RFC2385)
+	ipv6MinHopCount = 73   // Generalized TTL Security Mechanism (RFC5082)
 )
 
 func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
@@ -32,7 +32,7 @@ func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 		return err
 	}
 	// always enable and assumes that the configuration is done by setkey()
-	return setsockOptInt(sc, syscall.IPPROTO_TCP, TCP_MD5SIG, 1)
+	return setsockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
 }
 
 func setListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
@@ -63,7 +63,7 @@ func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	name := syscall.IP_MINTTL
 	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
-		name = IPV6_MINHOPCOUNT
+		name = ipv6MinHopCount
 	}
 	return setsockOptInt(sc, level, name, ttl)
 }

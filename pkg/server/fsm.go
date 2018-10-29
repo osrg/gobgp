@@ -435,7 +435,7 @@ func (fsm *FSM) connectLoop() error {
 			return
 		}
 		var conn net.Conn
-		d := TCPDialer{
+		d := tcpDialer{
 			Dialer: net.Dialer{
 				LocalAddr: laddr,
 				Timeout:   time.Duration(MIN_CONNECT_RETRY-1) * time.Second,
@@ -443,12 +443,12 @@ func (fsm *FSM) connectLoop() error {
 			AuthPassword: fsm.pConf.Config.AuthPassword,
 		}
 		if fsm.pConf.TtlSecurity.Config.Enabled {
-			d.Ttl = 255
-			d.TtlMin = fsm.pConf.TtlSecurity.Config.TtlMin
+			d.TTL = 255
+			d.TTLMin = fsm.pConf.TtlSecurity.Config.TtlMin
 		} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
-			d.Ttl = 1
+			d.TTL = 1
 			if fsm.pConf.EbgpMultihop.Config.Enabled {
-				d.Ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
+				d.TTL = fsm.pConf.EbgpMultihop.Config.MultihopTtl
 			}
 		}
 		conn, err = d.DialTCP(addr, port)
@@ -634,7 +634,7 @@ func (h *FSMHandler) active() (bgp.FSMState, *FsmStateReason) {
 				ttl = int(fsm.pConf.Transport.Config.Ttl)
 			}
 			if ttl != 0 {
-				if err := SetTcpTTLSockopt(conn.(*net.TCPConn), ttl); err != nil {
+				if err := setTCPTTLSockopt(conn.(*net.TCPConn), ttl); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   fsm.pConf.Config.NeighborAddress,
@@ -643,7 +643,7 @@ func (h *FSMHandler) active() (bgp.FSMState, *FsmStateReason) {
 				}
 			}
 			if ttlMin != 0 {
-				if err := SetTcpMinTTLSockopt(conn.(*net.TCPConn), ttlMin); err != nil {
+				if err := setTCPMinTTLSockopt(conn.(*net.TCPConn), ttlMin); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   fsm.pConf.Config.NeighborAddress,

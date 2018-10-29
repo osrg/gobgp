@@ -88,7 +88,7 @@ func Test_DialTCP_FDleak(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		laddr, _ := net.ResolveTCPAddr("tcp", net.JoinHostPort("127.0.0.1", "0"))
-		d := TCPDialer{
+		d := tcpDialer{
 			Dialer: net.Dialer{
 				LocalAddr: laddr,
 				Timeout:   1 * time.Second,

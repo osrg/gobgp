@@ -23,49 +23,49 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return setTcpMD5SigSockopt(l, address, key)
 }
 
-func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
+func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
 	return setListenTcpTTLSockopt(l, ttl)
 }
 
-func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setTcpTTLSockopt(conn, ttl)
 }
 
-func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setTcpMinTTLSockopt(conn, ttl)
 }
 
-type TCPDialer struct {
+type tcpDialer struct {
 	net.Dialer
 
 	// MD5 authentication password.
 	AuthPassword string
 
 	// The TTL value to set outgoing connection.
-	Ttl uint8
+	TTL uint8
 
 	// The minimum TTL value for incoming packets.
-	TtlMin uint8
+	TTLMin uint8
 }
 
-func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
+func (d *tcpDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	if d.AuthPassword != "" {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting md5 for active connection is not supported")
 	}
-	if d.Ttl != 0 {
+	if d.TTL != 0 {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Warn("setting ttl for active connection is not supported")
 	}
-	if d.TtlMin != 0 {
+	if d.TTLMin != 0 {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   addr,

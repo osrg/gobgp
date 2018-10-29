@@ -36,23 +36,21 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
-type TCPListener struct {
+type tcpListener struct {
 	l  *net.TCPListener
 	ch chan struct{}
 }
 
-func (l *TCPListener) Close() error {
+func (l *tcpListener) Close() error {
 	if err := l.l.Close(); err != nil {
 		return err
 	}
-	select {
-	case <-l.ch:
-	}
+	<-l.ch
 	return nil
 }
 
 // avoid mapped IPv6 address
-func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPListener, error) {
+func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpListener, error) {
 	proto := "tcp4"
 	if ip := net.ParseIP(address); ip == nil {
 		return nil, fmt.Errorf("can't listen on %s", address)
@@ -70,7 +68,7 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 	}
 	// Note: Set TTL=255 for incoming connection listener in order to accept
 	// connection in case for the neighbor has TTL Security settings.
-	if err := SetListenTcpTTLSockopt(l, 255); err != nil {
+	if err := setListenTCPTTLSockopt(l, 255); err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   addr,
@@ -92,7 +90,7 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 			ch <- conn
 		}
 	}()
-	return &TCPListener{
+	return &tcpListener{
 		l:  l,
 		ch: closeCh,
 	}, nil
@@ -106,7 +104,7 @@ type BgpServer struct {
 
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
-	listeners    []*TCPListener
+	listeners    []*tcpListener
 	neighborMap  map[string]*Peer
 	peerGroupMap map[string]*PeerGroup
 	globalRib    *table.TableManager
@@ -184,7 +182,7 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 }
 
 func (server *BgpServer) Serve() {
-	server.listeners = make([]*TCPListener, 0, 2)
+	server.listeners = make([]*tcpListener, 0, 2)
 	server.fsmincomingCh = channels.NewInfiniteChannel()
 	server.fsmStateCh = make(chan *FsmMsg, 4096)
 
@@ -1936,7 +1934,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		if c.Config.Port > 0 {
 			acceptCh := make(chan *net.TCPConn, 4096)
 			for _, addr := range c.Config.LocalAddressList {
-				l, err := NewTCPListener(addr, uint32(c.Config.Port), acceptCh)
+				l, err := newTCPListener(addr, uint32(c.Config.Port), acceptCh)
 				if err != nil {
 					return err
 				}
@@ -2546,7 +2544,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	if server.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range server.Listeners(addr) {
 			if c.Config.AuthPassword != "" {
-				if err := SetTcpMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
+				if err := setTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   addr,
@@ -2644,7 +2642,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
 	}
 	for _, l := range server.Listeners(addr) {
-		if err := SetTcpMD5SigSockopt(l, addr, ""); err != nil {
+		if err := setTCPMD5SigSockopt(l, addr, ""); err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   addr,

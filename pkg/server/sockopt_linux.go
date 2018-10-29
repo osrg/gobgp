@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	TCP_MD5SIG       = 14 // TCP MD5 Signature (RFC2385)
-	IPV6_MINHOPCOUNT = 73 // Generalized TTL Security Mechanism (RFC5082)
+	tcpMD5SIG       = 14 // TCP MD5 Signature (RFC2385)
+	ipv6MinHopCount = 73 // Generalized TTL Security Mechanism (RFC5082)
 )
 
 type tcpmd5sig struct {
@@ -57,7 +57,7 @@ func buildTcpMD5Sig(address string, key string) (tcpmd5sig, error) {
 	return t, nil
 }
 
-func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	t, err := buildTcpMD5Sig(address, key)
 	if err != nil {
 		return err
@@ -68,10 +68,10 @@ func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	if err != nil {
 		return err
 	}
-	return setsockOptString(sc, syscall.IPPROTO_TCP, TCP_MD5SIG, string(b[:]))
+	return setsockOptString(sc, syscall.IPPROTO_TCP, tcpMD5SIG, string(b[:]))
 }
 
-func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
+func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
 	family := extractFamilyFromTCPListener(l)
 	sc, err := l.SyscallConn()
 	if err != nil {
@@ -80,7 +80,7 @@ func SetListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
 	return setsockoptIpTtl(sc, family, ttl)
 }
 
-func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
 	family := extractFamilyFromTCPConn(conn)
 	sc, err := conn.SyscallConn()
 	if err != nil {
@@ -89,7 +89,7 @@ func SetTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setsockoptIpTtl(sc, family, ttl)
 }
 
-func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	family := extractFamilyFromTCPConn(conn)
 	sc, err := conn.SyscallConn()
 	if err != nil {
@@ -99,7 +99,7 @@ func SetTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	name := syscall.IP_MINTTL
 	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
-		name = IPV6_MINHOPCOUNT
+		name = ipv6MinHopCount
 	}
 	return setsockOptInt(sc, level, name, ttl)
 }
@@ -110,7 +110,7 @@ func setsockoptTcpMD5Sig(fd int, address string, key string) error {
 		return err
 	}
 	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptString(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, string(b[:])))
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptString(fd, syscall.IPPROTO_TCP, tcpMD5SIG, string(b[:])))
 }
 
 func setsockoptIpTtl2(fd int, family int, value int) error {
@@ -128,25 +128,25 @@ func setsockoptIpMinTtl(fd int, family int, value int) error {
 	name := syscall.IP_MINTTL
 	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
-		name = IPV6_MINHOPCOUNT
+		name = ipv6MinHopCount
 	}
 	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
 }
 
-type TCPDialer struct {
+type tcpDialer struct {
 	net.Dialer
 
 	// MD5 authentication password.
 	AuthPassword string
 
 	// The TTL value to set outgoing connection.
-	Ttl uint8
+	TTL uint8
 
 	// The minimum TTL value for incoming packets.
-	TtlMin uint8
+	TTLMin uint8
 }
 
-func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
+func (d *tcpDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	var family int
 	var ra, la syscall.Sockaddr
 
@@ -214,14 +214,14 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 		}
 	}
 
-	if d.Ttl != 0 {
-		if err = setsockoptIpTtl2(fd, family, int(d.Ttl)); err != nil {
+	if d.TTL != 0 {
+		if err = setsockoptIpTtl2(fd, family, int(d.TTL)); err != nil {
 			return nil, err
 		}
 	}
 
-	if d.TtlMin != 0 {
-		if err = setsockoptIpMinTtl(fd, family, int(d.Ttl)); err != nil {
+	if d.TTLMin != 0 {
+		if err = setsockoptIpMinTtl(fd, family, int(d.TTL)); err != nil {
 			return nil, err
 		}
 	}
