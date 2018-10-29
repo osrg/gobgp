@@ -56,14 +56,14 @@ func strToASParam(str string) *bgp.PathAttributeAsPath {
 }
 
 func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidationResultType {
-	r := ValidatePath(65500, tree, cidr, strToASParam(aspathStr))
+	r := validatePath(65500, tree, cidr, strToASParam(aspathStr))
 	return r.Status
 }
 
 func TestValidate0(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 32, 100, ""))
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
 
@@ -92,7 +92,7 @@ func TestValidate0(t *testing.T) {
 func TestValidate1(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	var r config.RpkiValidationResultType
@@ -108,7 +108,7 @@ func TestValidate1(t *testing.T) {
 func TestValidate2(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 
 	var r config.RpkiValidationResultType
 
@@ -123,7 +123,7 @@ func TestValidate2(t *testing.T) {
 func TestValidate3(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	var r config.RpkiValidationResultType
@@ -135,7 +135,7 @@ func TestValidate3(t *testing.T) {
 	r = validateOne(tree, "10.0.0.0/17", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
-	manager, _ = NewROAManager(0)
+	manager, _ = newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	tree = manager.Roas[bgp.RF_IPv4_UC]
@@ -146,7 +146,7 @@ func TestValidate3(t *testing.T) {
 func TestValidate4(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
 
@@ -162,7 +162,7 @@ func TestValidate4(t *testing.T) {
 func TestValidate5(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 17, 17, 65000, ""))
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
 
@@ -175,7 +175,7 @@ func TestValidate5(t *testing.T) {
 func TestValidate6(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
 
 	var r config.RpkiValidationResultType
@@ -193,7 +193,7 @@ func TestValidate6(t *testing.T) {
 func TestValidate7(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	var r config.RpkiValidationResultType
@@ -211,7 +211,7 @@ func TestValidate7(t *testing.T) {
 func TestValidate8(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 0, ""))
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
@@ -227,7 +227,7 @@ func TestValidate8(t *testing.T) {
 func TestValidate9(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, ""))
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 
@@ -243,7 +243,7 @@ func TestValidate9(t *testing.T) {
 func TestValidate10(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := NewROAManager(0)
+	manager, _ := newROAManager(0)
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 0, ""))
 	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 

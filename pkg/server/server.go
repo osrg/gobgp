@@ -121,7 +121,7 @@ type BgpServer struct {
 }
 
 func NewBgpServer() *BgpServer {
-	roaManager, _ := NewROAManager(0)
+	roaManager, _ := newROAManager(0)
 	s := &BgpServer{
 		neighborMap:  make(map[string]*Peer),
 		peerGroupMap: make(map[string]*PeerGroup),
