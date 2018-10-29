@@ -229,7 +229,7 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchBestPath.
-	w := s.Watch(WatchBestPath(false))
+	w := s.watch(watchBestPath(false))
 
 	// Advertises a route.
 	attrs := []bgp.PathAttributeInterface{
@@ -240,7 +240,7 @@ func TestMonitor(test *testing.T) {
 		log.Fatal(err)
 	}
 	ev := <-w.Event()
-	b := ev.(*WatchEventBestPath)
+	b := ev.(*watchEventBestPath)
 	assert.Equal(1, len(b.PathList))
 	assert.Equal("10.0.0.0/24", b.PathList[0].GetNlri().String())
 	assert.False(b.PathList[0].IsWithdraw)
@@ -251,7 +251,7 @@ func TestMonitor(test *testing.T) {
 		log.Fatal(err)
 	}
 	ev = <-w.Event()
-	b = ev.(*WatchEventBestPath)
+	b = ev.(*watchEventBestPath)
 	assert.Equal(1, len(b.PathList))
 	assert.Equal("10.0.0.0/24", b.PathList[0].GetNlri().String())
 	assert.True(b.PathList[0].IsWithdraw)
@@ -276,16 +276,16 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchUpdate with "current" flag.
-	w = s.Watch(WatchUpdate(true))
+	w = s.watch(watchUpdate(true))
 
 	// Test the initial route.
 	ev = <-w.Event()
-	u := ev.(*WatchEventUpdate)
+	u := ev.(*watchEventUpdate)
 	assert.Equal(1, len(u.PathList))
 	assert.Equal("10.1.0.0/24", u.PathList[0].GetNlri().String())
 	assert.False(u.PathList[0].IsWithdraw)
 	ev = <-w.Event()
-	u = ev.(*WatchEventUpdate)
+	u = ev.(*watchEventUpdate)
 	assert.Equal(len(u.PathList), 0) // End of RIB
 
 	// Advertises an additional route.
@@ -293,7 +293,7 @@ func TestMonitor(test *testing.T) {
 		log.Fatal(err)
 	}
 	ev = <-w.Event()
-	u = ev.(*WatchEventUpdate)
+	u = ev.(*watchEventUpdate)
 	assert.Equal(1, len(u.PathList))
 	assert.Equal("10.2.0.0/24", u.PathList[0].GetNlri().String())
 	assert.False(u.PathList[0].IsWithdraw)
@@ -304,7 +304,7 @@ func TestMonitor(test *testing.T) {
 		log.Fatal(err)
 	}
 	ev = <-w.Event()
-	u = ev.(*WatchEventUpdate)
+	u = ev.(*watchEventUpdate)
 	assert.Equal(1, len(u.PathList))
 	assert.Equal("10.2.0.0/24", u.PathList[0].GetNlri().String())
 	assert.True(u.PathList[0].IsWithdraw)
@@ -952,7 +952,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err = peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher := s1.Watch(WatchUpdate(true))
+	watcher := s1.watch(watchUpdate(true))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -976,7 +976,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		select {
 		case ev := <-watcher.Event():
 			switch msg := ev.(type) {
-			case *WatchEventUpdate:
+			case *watchEventUpdate:
 				for _, path := range msg.PathList {
 					log.Infof("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
@@ -1019,7 +1019,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		select {
 		case ev := <-watcher.Event():
 			switch msg := ev.(type) {
-			case *WatchEventUpdate:
+			case *watchEventUpdate:
 				for _, path := range msg.PathList {
 					log.Infof("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {

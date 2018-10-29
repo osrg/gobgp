@@ -174,15 +174,15 @@ func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_
 	if arg == nil {
 		return fmt.Errorf("invalid request")
 	}
-	w, err := func() (*Watcher, error) {
+	w, err := func() (*watcher, error) {
 		switch arg.Type {
 		case api.Resource_GLOBAL:
-			return s.bgpServer.Watch(WatchBestPath(arg.Current)), nil
+			return s.bgpServer.watch(watchBestPath(arg.Current)), nil
 		case api.Resource_ADJ_IN:
 			if arg.PostPolicy {
-				return s.bgpServer.Watch(WatchPostUpdate(arg.Current)), nil
+				return s.bgpServer.watch(watchPostUpdate(arg.Current)), nil
 			}
-			return s.bgpServer.Watch(WatchUpdate(arg.Current)), nil
+			return s.bgpServer.watch(watchUpdate(arg.Current)), nil
 		default:
 			return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
 		}
@@ -209,7 +209,7 @@ func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_
 
 		for ev := range w.Event() {
 			switch msg := ev.(type) {
-			case *WatchEventBestPath:
+			case *watchEventBestPath:
 				if err := sendPath(func() []*table.Path {
 					if len(msg.MultiPathList) > 0 {
 						l := make([]*table.Path, 0)
@@ -223,7 +223,7 @@ func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_
 				}()); err != nil {
 					return err
 				}
-			case *WatchEventUpdate:
+			case *watchEventUpdate:
 				if err := sendPath(msg.PathList); err != nil {
 					return err
 				}
@@ -238,12 +238,12 @@ func (s *Server) MonitorPeer(arg *api.MonitorPeerRequest, stream api.GobgpApi_Mo
 		return fmt.Errorf("invalid request")
 	}
 	return func() error {
-		w := s.bgpServer.Watch(WatchPeerState(arg.Current))
+		w := s.bgpServer.watch(watchPeerState(arg.Current))
 		defer func() { w.Stop() }()
 
 		for ev := range w.Event() {
 			switch msg := ev.(type) {
-			case *WatchEventPeerState:
+			case *watchEventPeerState:
 				if len(arg.Address) > 0 && arg.Address != msg.PeerAddress.String() && arg.Address != msg.PeerInterface {
 					continue
 				}
