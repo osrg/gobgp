@@ -1611,7 +1611,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 }
 
 func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) error {
-	rp, err := NewRoutingPolicyFromApiStruct(r)
+	rp, err := newRoutingPolicyFromApiStruct(r)
 	if err != nil {
 		return err
 	}

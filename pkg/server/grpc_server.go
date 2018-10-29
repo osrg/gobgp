@@ -297,7 +297,7 @@ func (s *Server) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) (*e
 	return &empty.Empty{}, s.bgpServer.SetPolicies(ctx, r)
 }
 
-func NewRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.RoutingPolicy, error) {
+func newRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.RoutingPolicy, error) {
 	policyDefinitions := make([]config.PolicyDefinition, 0, len(arg.Policies))
 	for _, p := range arg.Policies {
 		pd, err := newConfigPolicyFromApiStruct(p)
