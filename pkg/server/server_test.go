@@ -805,7 +805,7 @@ func TestFamiliesForSoftreset(t *testing.T) {
 		}
 	}
 	peer := &peer{
-		fsm: &FSM{
+		fsm: &fsm{
 			pConf: &config.Neighbor{
 				AfiSafis: []config.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 			},

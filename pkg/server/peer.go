@@ -96,7 +96,7 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 
 type peer struct {
 	tableId           string
-	fsm               *FSM
+	fsm               *fsm
 	adjRibIn          *table.AdjRib
 	outgoing          *channels.InfiniteChannel
 	policy            *table.RoutingPolicy
@@ -110,7 +110,7 @@ func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		outgoing:          channels.NewInfiniteChannel(),
 		localRib:          loc,
 		policy:            policy,
-		fsm:               NewFSM(g, conf, policy),
+		fsm:               newFSM(g, conf, policy),
 		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
 	if peer.isRouteServerClient() {
@@ -441,7 +441,7 @@ func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 			}).Warnf("update prefix limit configuration")
 			peer.prefixLimitWarned[e.State.Family] = false
 			if msg := peer.doPrefixLimit(e.State.Family, &e.PrefixLimit.Config); msg != nil {
-				sendFsmOutgoingMsg(peer, nil, msg, true)
+				sendfsmOutgoingMsg(peer, nil, msg, true)
 			}
 		}
 	}
@@ -451,7 +451,7 @@ func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 	return nil
 }
 
-func (peer *peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
+func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
 	log.WithFields(log.Fields{
@@ -526,8 +526,8 @@ func (peer *peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	return nil, nil, nil
 }
 
-func (peer *peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *FsmMsg) {
-	handler := NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
+func (peer *peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *fsmMsg) {
+	handler := newFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
 	peer.fsm.lock.Lock()
 	peer.fsm.h = handler
 	peer.fsm.lock.Unlock()

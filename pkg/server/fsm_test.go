@@ -308,15 +308,15 @@ func TestCheckOwnASLoop(t *testing.T) {
 	assert.False(hasOwnASLoop(65200, 0, aspath))
 }
 
-func makePeerAndHandler() (*peer, *FSMHandler) {
+func makePeerAndHandler() (*peer, *fsmHandler) {
 	p := &peer{
-		fsm:      NewFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
+		fsm:      newFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
 		outgoing: channels.NewInfiniteChannel(),
 	}
 
-	h := &FSMHandler{
+	h := &fsmHandler{
 		fsm:           p.fsm,
-		stateReasonCh: make(chan FsmStateReason, 2),
+		stateReasonCh: make(chan fsmStateReason, 2),
 		incoming:      channels.NewInfiniteChannel(),
 		outgoing:      p.outgoing,
 	}

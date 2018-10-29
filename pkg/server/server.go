@@ -99,7 +99,7 @@ func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpList
 type BgpServer struct {
 	bgpConfig     config.Bgp
 	fsmincomingCh *channels.InfiniteChannel
-	fsmStateCh    chan *FsmMsg
+	fsmStateCh    chan *fsmMsg
 	acceptCh      chan *net.TCPConn
 
 	mgmtCh       chan *mgmtOp
@@ -184,9 +184,9 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 func (server *BgpServer) Serve() {
 	server.listeners = make([]*tcpListener, 0, 2)
 	server.fsmincomingCh = channels.NewInfiniteChannel()
-	server.fsmStateCh = make(chan *FsmMsg, 4096)
+	server.fsmStateCh = make(chan *fsmMsg, 4096)
 
-	handleFsmMsg := func(e *FsmMsg) {
+	handlefsmMsg := func(e *fsmMsg) {
 		peer, found := server.neighborMap[e.MsgSrc]
 		if !found {
 			log.WithFields(log.Fields{
@@ -306,7 +306,7 @@ func (server *BgpServer) Serve() {
 		for {
 			select {
 			case e := <-server.fsmStateCh:
-				handleFsmMsg(e)
+				handlefsmMsg(e)
 			default:
 				goto CONT
 			}
@@ -324,9 +324,9 @@ func (server *BgpServer) Serve() {
 			if !ok {
 				continue
 			}
-			handleFsmMsg(e.(*FsmMsg))
+			handlefsmMsg(e.(*fsmMsg))
 		case e := <-server.fsmStateCh:
-			handleFsmMsg(e)
+			handlefsmMsg(e)
 		}
 	}
 }
@@ -349,8 +349,8 @@ func (server *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup 
 	return longestPG
 }
 
-func sendFsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
-	peer.outgoing.In() <- &FsmOutgoingMsg{
+func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
+	peer.outgoing.In() <- &fsmOutgoingMsg{
 		Paths:        paths,
 		Notification: notification,
 		StayIdle:     stayIdle,
@@ -751,7 +751,7 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*t
 	server.notifyWatcher(WATCH_EVENT_TYPE_POST_UPDATE, ev)
 }
 
-func newWatchEventPeerState(peer *peer, m *FsmMsg) *WatchEventPeerState {
+func newWatchEventPeerState(peer *peer, m *fsmMsg) *WatchEventPeerState {
 	_, rport := peer.fsm.RemoteHostPort()
 	laddr, lport := peer.fsm.LocalHostPort()
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
@@ -780,7 +780,7 @@ func newWatchEventPeerState(peer *peer, m *FsmMsg) *WatchEventPeerState {
 	return e
 }
 
-func (server *BgpServer) broadcastPeerState(peer *peer, oldState bgp.FSMState, e *FsmMsg) {
+func (server *BgpServer) broadcastPeerState(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	peer.fsm.lock.RLock()
 	newState := peer.fsm.state
 	peer.fsm.lock.RUnlock()
@@ -876,7 +876,7 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 	return outgoing
 }
 
-func (s *BgpServer) handleRouteRefresh(peer *peer, e *FsmMsg) []*table.Path {
+func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	m := e.MsgData.(*bgp.BGPMessage)
 	rr := m.Body.(*bgp.BGPRouteRefresh)
 	rf := bgp.AfiSafiToRouteFamily(rr.AFI, rr.SAFI)
@@ -1013,7 +1013,7 @@ func (server *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				} else {
 					paths = server.processOutgoingPaths(peer, paths, nil)
 				}
-				sendFsmOutgoingMsg(peer, paths, nil, false)
+				sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
 		}
 
@@ -1120,12 +1120,12 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table
 			oldList = nil
 		}
 		if paths := server.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
-			sendFsmOutgoingMsg(targetPeer, paths, nil, false)
+			sendfsmOutgoingMsg(targetPeer, paths, nil, false)
 		}
 	}
 }
 
-func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
+func (server *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	switch e.MsgType {
 	case FSM_MSG_STATE_CHANGE:
 		nextState := e.MsgData.(bgp.FSMState)
@@ -1305,7 +1305,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 				}
 
 				if len(pathList) > 0 {
-					sendFsmOutgoingMsg(peer, pathList, nil, false)
+					sendfsmOutgoingMsg(peer, pathList, nil, false)
 				}
 			} else {
 				// RFC 4724 4.1
@@ -1334,7 +1334,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 						}
 						paths, _ := server.getBestFromLocal(p, p.configuredRFlist())
 						if len(paths) > 0 {
-							sendFsmOutgoingMsg(p, paths, nil, false)
+							sendfsmOutgoingMsg(p, paths, nil, false)
 						}
 					}
 					log.WithFields(log.Fields{
@@ -1394,13 +1394,13 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 			return
 		}
 		if paths := server.handleRouteRefresh(peer, e); len(paths) > 0 {
-			sendFsmOutgoingMsg(peer, paths, nil, false)
+			sendfsmOutgoingMsg(peer, paths, nil, false)
 			return
 		}
 	case FSM_MSG_BGP_MESSAGE:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
-			sendFsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
+			sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
 			return
 		case *bgp.BGPMessage:
 			server.notifyRecvMessageWatcher(peer, e.timestamp, m)
@@ -1413,7 +1413,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 			}
 			pathList, eor, notification := peer.handleUpdate(e)
 			if notification != nil {
-				sendFsmOutgoingMsg(peer, nil, notification, true)
+				sendfsmOutgoingMsg(peer, nil, notification, true)
 				return
 			}
 			if m.Header.Type == bgp.BGP_MSG_UPDATE {
@@ -1472,7 +1472,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 							}
 							paths, _ := server.getBestFromLocal(p, p.negotiatedRFList())
 							if len(paths) > 0 {
-								sendFsmOutgoingMsg(p, paths, nil, false)
+								sendfsmOutgoingMsg(p, paths, nil, false)
 							}
 						}
 						log.WithFields(log.Fields{
@@ -1521,7 +1521,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 						}
 					}
 					if paths, _ := server.getBestFromLocal(peer, families); len(paths) > 0 {
-						sendFsmOutgoingMsg(peer, paths, nil, false)
+						sendfsmOutgoingMsg(peer, paths, nil, false)
 					}
 				}
 			}
@@ -2149,14 +2149,14 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 
 		pathList, filtered := s.getBestFromLocal(peer, families)
 		if len(pathList) > 0 {
-			sendFsmOutgoingMsg(peer, pathList, nil, false)
+			sendfsmOutgoingMsg(peer, pathList, nil, false)
 		}
 		if !deferral && len(filtered) > 0 {
 			withdrawnList := make([]*table.Path, 0, len(filtered))
 			for _, p := range filtered {
 				withdrawnList = append(withdrawnList, p.Clone(true))
 			}
-			sendFsmOutgoingMsg(peer, withdrawnList, nil, false)
+			sendfsmOutgoingMsg(peer, withdrawnList, nil, false)
 		}
 	}
 	return nil
@@ -2852,7 +2852,7 @@ func (s *BgpServer) sendNotification(op, addr string, subcode uint8, data []byte
 	if err == nil {
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, data)
 		for _, peer := range peers {
-			sendFsmOutgoingMsg(peer, nil, m, false)
+			sendfsmOutgoingMsg(peer, nil, m, false)
 		}
 	}
 	return err
@@ -2907,7 +2907,7 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 		return err
 	}
 	for _, peer := range peers {
-		f := func(stateOp *AdminStateOperation, message string) {
+		f := func(stateOp *adminStateOperation, message string) {
 			select {
 			case peer.fsm.adminStateCh <- *stateOp:
 				peer.fsm.lock.RLock()
@@ -2923,9 +2923,9 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 			}
 		}
 		if enable {
-			f(&AdminStateOperation{ADMIN_STATE_UP, nil}, "ADMIN_STATE_UP requested")
+			f(&adminStateOperation{ADMIN_STATE_UP, nil}, "ADMIN_STATE_UP requested")
 		} else {
-			f(&AdminStateOperation{ADMIN_STATE_DOWN, newAdministrativeCommunication(communication)}, "ADMIN_STATE_DOWN requested")
+			f(&adminStateOperation{ADMIN_STATE_DOWN, newAdministrativeCommunication(communication)}, "ADMIN_STATE_DOWN requested")
 		}
 	}
 	return nil
@@ -3381,8 +3381,8 @@ type WatchEventPeerState struct {
 	SentOpen      *bgp.BGPMessage
 	RecvOpen      *bgp.BGPMessage
 	State         bgp.FSMState
-	StateReason   *FsmStateReason
-	AdminState    AdminState
+	StateReason   *fsmStateReason
+	AdminState    adminState
 	Timestamp     time.Time
 	PeerInterface string
 }
