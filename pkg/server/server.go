@@ -1254,7 +1254,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 				// If the session does not get re-established within the "Restart Time"
 				// that the peer advertised previously, the Receiving Speaker MUST
 				// delete all the stale routes from the peer that it is retaining.
-				MustBeNamedThread("No threads hit yet")
+				MustBeNamedThread("No threads hit yet") // Probably main::bgpServer.Serve
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
 				peer.fsm.lock.Unlock()
@@ -1390,7 +1390,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *FsmMsg) {
 		adminStateDown := peer.fsm.adminState == ADMIN_STATE_DOWN
 		peer.fsm.lock.RUnlock()
 		if adminStateDown {
-			MustBeNamedThread("No threads hit yet")
+			MustBeNamedThread("No threads hit yet") // Probably main::bgpServer.Serve
 			peer.fsm.lock.Lock()
 			peer.fsm.pConf.State = config.NeighborState{}
 			peer.fsm.pConf.State.NeighborAddress = peer.fsm.pConf.Config.NeighborAddress
@@ -2145,7 +2145,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 			restarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
 			peer.fsm.lock.RUnlock()
 			if restarting {
-				MustBeNamedThread("No threads hit yet")
+				MustBeNamedThread("No threads hit yet") // Probably the grpc server
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 				peer.fsm.lock.Unlock()

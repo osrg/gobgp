@@ -1,0 +1,171 @@
+pkg/server/fsm.go:7
+  - FSM::bgpMessageStateUpdate
+    - Modifies:
+      - pConf.State.Messages.Received.Discarded++
+      - pConf.State.Messages.Received.Keepalive++
+      - pConf.State.Messages.Received.Notification++
+      - pConf.State.Messages.Received.Open++
+      - pConf.State.Messages.Received.Refresh++
+      - pConf.State.Messages.Received.Total++
+      - pConf.State.Messages.Received.Update++
+      - pConf.State.Messages.Sent.Discarded++
+      - pConf.State.Messages.Sent.Keepalive++
+      - pConf.State.Messages.Sent.Notification++
+      - pConf.State.Messages.Sent.Open++
+      - pConf.State.Messages.Sent.Refresh++
+      - pConf.State.Messages.Sent.Total++
+      - pConf.State.Messages.Sent.Update++
+      - pConf.Timers.State.UpdateRecvTime
+  - FSM::bmpStatsUpdate
+    - Modifies:
+      - pConf.State.Messages.Received.WithdrawUpdate
+      - pConf.State.Messages.Received.WithdrawPrefix
+  - FSMHandler::active
+    - Modifies:
+      - conn
+  - FSMHandler::afiSafiDisable
+    - Modifies:
+      - pConf.AfiSafis[i].State.Enabled
+      - fsm.capMap[bgp.BGP_CAP_MULTIPROTOCOL]
+  - FSMHandler::opensent
+    - Modifies:
+      - recvOpen = m
+      - pConf.State.PeerType
+      - pConf.State.PeerAs = peerAs
+      - peerInfo.AS = peerAs
+      - peerInfo.ID = body.ID
+      - pConf.State.PeerType
+      - pConf.State.PeerAs
+      - peerInfo.AS
+      - peerInfo.ID
+      - capMap
+      - rfMap
+      - marshallingOptions
+      - pConf.Timers.State.NegotiatedHoldTime
+      - pConf.Timers.State.KeepaliveInterval
+      - pConf.GracefulRestart.State.Enabled
+      - pConf.GracefulRestart.State.PeerRestartTime
+      - pConf.AfiSafis[i].MpGracefulRestart.State.Enabled
+      - pConf.AfiSafis[i].MpGracefulRestart.State.Received
+      - h.conn.Close
+      - pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived 
+      - pConf.GracefulRestart.State.LongLivedEnabled
+      - pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled
+      - pConf.AfiSafis[i].LongLivedGracefulRestart.State.Received
+      - pConf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTime
+  - FSMHandler::established
+    - Modifies:
+      - h.conn
+        - Is this just to pass the connection to the 
+  - changeAdminState
+    - Modifies:
+      - adminState = s
+      - pConf.State.AdminDown = !
+
+pkg/server/peer.go:4
+  - updatePrefixLimitConfig
+    - Modifies:
+      - pConf.AfiSafis
+  - handleUpdate
+    - Modifies:
+      - pConf.Timers.State.UpdateRecvTime
+  - startFSMHandler
+    - Modifies:
+      - h
+    - Notes:
+      - This might not need a lock at all. I just wonder about the third
+        invocation of it. It confuses me.
+  - stopPeerRestarting
+    - Modifies:
+      - pConf.GracefulRestart.State.PeerRestarting
+      - peer.llgrEndChs (closes them and creates a new slice of channels)
+
+pkg/server/server.go:12
+  - softResetOut
+    - Modifies:
+      - pConf.GracefulRestart.State.LocalRestarting = false
+  - handleFSMMessage (this has all but one now)
+    - Modifies:
+        StateChange(nextState)
+      - pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived
+      - pConf.GracefulRestart.State.LocalRestarting
+      - pConf.GracefulRestart.State.PeerRestarting
+      - pConf.State
+      - pConf.State.Flops++
+      - pConf.State.NeighborAddress
+      - pConf.State.PeerAs
+      - pConf.State.SessionState
+      - pConf.Timers.State
+      - pConf.Timers.State.Downtime
+      - pConf.Transport.State.LocalAddress
+      - peerInfo.AS
+      - peerInfo.LocalAddress
+
+
+
+
+
+
+        StateChange(nextState)
+      - adminState = s
+      - capMap
+      - capMap[bgp.BGP_CAP_MULTIPROTOCOL]
+      - conn
+      - h
+      - h.conn
+      - h.conn.Close
+      - marshallingOptions
+      - pConf.AfiSafis
+      - pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled
+      - pConf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTime
+      - pConf.AfiSafis[i].LongLivedGracefulRestart.State.Received
+      - pConf.AfiSafis[i].MpGracefulRestart.State.Enabled
+      - pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived
+      - pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived 
+      - pConf.AfiSafis[i].MpGracefulRestart.State.Received
+      - pConf.AfiSafis[i].State.Enabled
+      - pConf.GracefulRestart.State.Enabled
+      - pConf.GracefulRestart.State.LocalRestarting
+      - pConf.GracefulRestart.State.LocalRestarting = false
+      - pConf.GracefulRestart.State.LongLivedEnabled
+      - pConf.GracefulRestart.State.PeerRestartTime
+      - pConf.GracefulRestart.State.PeerRestarting
+      - pConf.State
+      - pConf.State.AdminDown = !
+      - pConf.State.Flops++
+      - pConf.State.Messages.Received.Discarded++
+      - pConf.State.Messages.Received.Keepalive++
+      - pConf.State.Messages.Received.Notification++
+      - pConf.State.Messages.Received.Open++
+      - pConf.State.Messages.Received.Refresh++
+      - pConf.State.Messages.Received.Total++
+      - pConf.State.Messages.Received.Update++
+      - pConf.State.Messages.Received.WithdrawPrefix
+      - pConf.State.Messages.Received.WithdrawUpdate
+      - pConf.State.Messages.Sent.Discarded++
+      - pConf.State.Messages.Sent.Keepalive++
+      - pConf.State.Messages.Sent.Notification++
+      - pConf.State.Messages.Sent.Open++
+      - pConf.State.Messages.Sent.Refresh++
+      - pConf.State.Messages.Sent.Total++
+      - pConf.State.Messages.Sent.Update++
+      - pConf.State.NeighborAddress
+      - pConf.State.PeerAs
+      - pConf.State.PeerAs = peerAs
+      - pConf.State.PeerType
+      - pConf.State.SessionState
+      - pConf.Timers.State
+      - pConf.Timers.State.Downtime
+      - pConf.Timers.State.KeepaliveInterval
+      - pConf.Timers.State.NegotiatedHoldTime
+      - pConf.Timers.State.UpdateRecvTime
+      - pConf.Transport.State.LocalAddress
+      - peerInfo.AS
+      - peerInfo.AS = peerAs
+      - peerInfo.ID
+      - peerInfo.ID = body.ID
+      - peerInfo.LocalAddress
+      - recvOpen = m
+      - rfMap
+
+      - peer.llgrEndChs (closes them and creates a new slice of channels)
