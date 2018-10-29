@@ -150,7 +150,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         # test reachability between o1 and o2
         addrs = [e[1] for e in o2.ip_addrs if 'br03_v4' in e[2]]
-        self.assertTrue(len(addrs) == 1)
+        self.assertEqual(len(addrs), 1)
         o2_addr = addrs[0]
         o1.get_reachability(o2_addr)
 
@@ -199,7 +199,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         # test reachability between o1 and o2
         addrs = [e[1] for e in o2.ip6_addrs if 'br03_v6' in e[2]]
-        self.assertTrue(len(addrs) == 1)
+        self.assertEqual(len(addrs), 1)
         o2_addr = addrs[0]
         o1.get_reachability(o2_addr)
 

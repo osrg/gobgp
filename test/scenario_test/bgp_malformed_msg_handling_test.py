@@ -68,9 +68,9 @@ class GoBGPTestBase(unittest.TestCase):
 
         # Confirm the path is added
         dests = self.g1.get_global_rib()
-        self.assertTrue(len(dests) == 1)
+        self.assertEqual(len(dests), 1)
         routes = dests[0]['paths']
-        self.assertTrue(len(routes) == 1)
+        self.assertEqual(len(routes), 1)
 
         # Confirm the attribute 'AGGREGATOR(type=7)' is discarded
         for d in routes[0]['attrs']:
@@ -94,8 +94,8 @@ class GoBGPTestBase(unittest.TestCase):
 
         # Confirm the number of path in RIB is only one
         dests = self.g1.get_global_rib()
-        self.assertTrue(len(dests) == 1)
-        self.assertTrue(dests[0]['paths'][0]['nlri']['prefix'] == '20.0.0.0/24')
+        self.assertEqual(len(dests), 1)
+        self.assertEqual(dests[0]['paths'][0]['nlri']['prefix'], '20.0.0.0/24')
 
 
 if __name__ == '__main__':

@@ -86,12 +86,12 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(2)
 
         lines = self.g2.local("ip netns exec ns01 ip r", capture=True).split('\n')
-        self.assertTrue(len(lines) == 1)
-        self.assertTrue(lines[0].split(' ')[0] == '10.0.0.0/24')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '10.0.0.0/24')
 
         lines = self.g2.local("ip netns exec ns02 ip r", capture=True).split('\n')
-        self.assertTrue(len(lines) == 1)
-        self.assertTrue(lines[0].split(' ')[0] == '20.0.0.0/24')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '20.0.0.0/24')
 
 
 if __name__ == '__main__':

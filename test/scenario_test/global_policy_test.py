@@ -85,7 +85,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_03_add_peer(self):
         q = ExaBGPContainer(name='q4', asn=65004, router_id='192.168.0.5')
@@ -96,7 +96,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
         self.quaggas['q4'] = q
         for q in self.quaggas.itervalues():
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_04_disable_peer(self):
         q3 = self.quaggas['q3']
@@ -106,7 +106,7 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             if q.name == 'q3':
                 continue
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_05_enable_peer(self):
         q3 = self.quaggas['q3']
@@ -114,7 +114,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q3)
 
         for q in self.quaggas.itervalues():
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_06_disable_peer2(self):
         q3 = self.quaggas['q3']
@@ -130,7 +130,7 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             if q.name == 'q3':
                 continue
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_07_adv_to_one_peer(self):
         self.gobgp.local('gobgp policy neighbor add ns0 {0}'.format(self.gobgp.peers[self.quaggas['q1']]['neigh_addr'].split('/')[0]))
@@ -148,9 +148,9 @@ class GoBGPTestBase(unittest.TestCase):
                 continue
             paths = self.gobgp.get_adj_rib_out(q)
             if q == self.quaggas['q1']:
-                self.assertTrue(len(paths) == 2)
+                self.assertEqual(len(paths), 2)
             else:
-                self.assertTrue(len(paths) == 0)
+                self.assertEqual(len(paths), 0)
 
     def test_09_change_global_policy(self):
         self.gobgp.local('gobgp policy statement st0 add action community add 65100:10')
@@ -164,7 +164,7 @@ class GoBGPTestBase(unittest.TestCase):
                 continue
             paths = self.gobgp.get_adj_rib_out(q)
             if q != self.quaggas['q3']:
-                self.assertTrue(len(paths) == 2)
+                self.assertEqual(len(paths), 2)
             for path in paths:
                 if q == self.quaggas['q1']:
                     self.assertTrue(community_exists(path, '65100:10'))
@@ -194,7 +194,7 @@ class GoBGPTestBase(unittest.TestCase):
             self.assertTrue(path['local-pref'] is None)
         q5 = self.quaggas['q5']
         for path in self.gobgp.get_adj_rib_out(q5):
-            self.assertTrue(path['local-pref'] == 300)
+            self.assertEqual(path['local-pref'], 300)
 
     def test_14_route_type_condition_local(self):
         self.gobgp.local('gobgp policy statement st2 add action accept')
@@ -205,14 +205,14 @@ class GoBGPTestBase(unittest.TestCase):
             self.gobgp.softreset(q, type='out')
 
         q1 = self.quaggas['q1']
-        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 0)
+        self.assertEqual(len(self.gobgp.get_adj_rib_out(q1)), 0)
 
         self.gobgp.add_route('10.20.0.0/24')
 
         time.sleep(1)
 
-        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 1)
-        self.assertTrue(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'] == u'10.20.0.0/24')
+        self.assertEqual(len(self.gobgp.get_adj_rib_out(q1)), 1)
+        self.assertEqual(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'], u'10.20.0.0/24')
 
     def test_15_route_type_condition_internal(self):
         self.gobgp.local('gobgp policy statement st22 add action accept')
@@ -223,15 +223,15 @@ class GoBGPTestBase(unittest.TestCase):
             self.gobgp.softreset(q, type='out')
 
         q1 = self.quaggas['q1']
-        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 0)
+        self.assertEqual(len(self.gobgp.get_adj_rib_out(q1)), 0)
 
         q5 = self.quaggas['q5']
         q5.add_route('10.30.0.0/24')
 
         time.sleep(1)
 
-        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 1)
-        self.assertTrue(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'] == u'10.30.0.0/24')
+        self.assertEqual(len(self.gobgp.get_adj_rib_out(q1)), 1)
+        self.assertEqual(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'], u'10.30.0.0/24')
 
     def test_16_route_type_condition_external(self):
         self.gobgp.local('gobgp policy statement st222 add action accept')
@@ -247,19 +247,19 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.add_route('10.40.0.0/24')
         time.sleep(1)
         num2 = len(self.gobgp.get_adj_rib_out(q1))
-        self.assertTrue(num1 == num2)
+        self.assertEqual(num1, num2)
 
         q5 = self.quaggas['q5']
         q5.add_route('10.50.0.0/24')
         time.sleep(1)
         num3 = len(self.gobgp.get_adj_rib_out(q1))
-        self.assertTrue(num1 == num3)
+        self.assertEqual(num1, num3)
 
         q2 = self.quaggas['q2']
         q2.add_route('10.60.0.0/24')
         time.sleep(1)
         num4 = len(self.gobgp.get_adj_rib_out(q1))
-        self.assertTrue(num1 + 1 == num4)
+        self.assertEqual(num1 + 1, num4)
 
     def test_17_multi_statement(self):
         self.gobgp.local('gobgp policy statement st3 add action med set 100')
@@ -270,11 +270,11 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.add_route('10.70.0.0/24')
         time.sleep(1)
         rib = self.gobgp.get_global_rib('10.70.0.0/24')
-        self.assertTrue(len(rib) == 1)
-        self.assertTrue(len(rib[0]['paths']) == 1)
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 1)
         path = rib[0]['paths'][0]
-        self.assertTrue(path['med'] == 100)
-        self.assertTrue(path['local-pref'] == 100)
+        self.assertEqual(path['med'], 100)
+        self.assertEqual(path['local-pref'], 100)
 
     def test_18_reject_policy(self):
         self.gobgp.local('gobgp global policy import set default reject')
@@ -286,7 +286,7 @@ class GoBGPTestBase(unittest.TestCase):
         # them
         for v in self.gobgp.get_global_rib():
             for p in v['paths']:
-                self.assertTrue(p['nexthop'] == '0.0.0.0')
+                self.assertEqual(p['nexthop'], '0.0.0.0')
 
 
 if __name__ == '__main__':

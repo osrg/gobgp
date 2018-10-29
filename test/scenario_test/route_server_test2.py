@@ -81,8 +81,8 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_03_check_neighbor_rib(self):
         rib = self.gobgp.get_local_rib(self.clients['e2'])
-        self.assertTrue(len(rib) == 1)
-        self.assertTrue(len(rib[0]['paths']) == 1)
+        self.assertEqual(len(rib), 1)
+        self.assertEqual(len(rib[0]['paths']), 1)
         path = rib[0]['paths'][0]
         self.assertTrue(65001 not in path['aspath'])
 
@@ -90,9 +90,9 @@ class GoBGPTestBase(unittest.TestCase):
         self.clients['g2'].local('gobgp global rib del 10.0.0.0/24')
         time.sleep(1)
         s = self.gobgp.get_neighbor(self.clients['g2'])['state']
-        self.assertTrue(s.get('advertised', 0) == 1)
-        self.assertTrue(s.get('accepted') == None)  # means info['accepted'] == 0
-        self.assertTrue(s.get('received') == None)  # means info['received'] == 0
+        self.assertEqual(s.get('advertised', 0), 1)
+        self.assertEqual(s.get('accepted'), None)  # means info['accepted'] == 0
+        self.assertEqual(s.get('received'), None)  # means info['received'] == 0
 
 
 if __name__ == '__main__':

@@ -107,14 +107,14 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
 
         num2 = g2.get_neighbor(g1)['state']['messages']['received'].get('update', 0)
-        self.assertTrue((num + 1) == num2)
+        self.assertEqual((num + 1), num2)
 
         g3.softreset(g1, type='out')
 
         time.sleep(1)
 
         num3 = g2.get_neighbor(g1)['state']['messages']['received'].get('update', 0)
-        self.assertTrue(num2 == num3)
+        self.assertEqual(num2, num3)
 
     def test_03_softresetin_test2(self):
         g1 = self.gobgp
@@ -131,7 +131,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         num1 = g2.get_neighbor(g1)['state']['messages']['received'].get('update', 0)
 
-        self.assertTrue(num == num1)
+        self.assertEqual(num, num1)
 
 
 if __name__ == '__main__':

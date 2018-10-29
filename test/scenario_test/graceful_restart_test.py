@@ -129,7 +129,7 @@ class GoBGPTestBase(unittest.TestCase):
         g3.add_peer(g1)
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g3)
         time.sleep(1)
-        self.assertTrue(len(g3.get_global_rib('10.10.20.0/24')) == 1)
+        self.assertEqual(len(g3.get_global_rib('10.10.20.0/24')), 1)
 
     def test_05_graceful_restart(self):
         g1 = self.bgpds['g1']
@@ -137,19 +137,19 @@ class GoBGPTestBase(unittest.TestCase):
         g3 = self.bgpds['g3']
         g1.stop_gobgp()
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
-        self.assertTrue(len(g2.get_global_rib('10.10.20.0/24')) == 1)
-        self.assertTrue(len(g2.get_global_rib('10.10.30.0/24')) == 1)
+        self.assertEqual(len(g2.get_global_rib('10.10.20.0/24')), 1)
+        self.assertEqual(len(g2.get_global_rib('10.10.30.0/24')), 1)
         for d in g2.get_global_rib():
             for p in d['paths']:
                 self.assertTrue(p['stale'])
 
-        self.assertTrue(len(g3.get_global_rib('10.10.20.0/24')) == 0)
-        self.assertTrue(len(g3.get_global_rib('10.10.30.0/24')) == 1)
+        self.assertEqual(len(g3.get_global_rib('10.10.20.0/24')), 0)
+        self.assertEqual(len(g3.get_global_rib('10.10.30.0/24')), 1)
 
     def test_06_test_restart_timer_expire(self):
         time.sleep(GRACEFUL_RESTART_TIME + 5)
         g2 = self.bgpds['g2']
-        self.assertTrue(len(g2.get_global_rib()) == 0)
+        self.assertEqual(len(g2.get_global_rib()), 0)
 
     def test_07_multineighbor_established(self):
         g1 = self.bgpds['g1']

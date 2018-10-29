@@ -94,7 +94,7 @@ class GoBGPTestBase(unittest.TestCase):
                     time.sleep(self.wait_per_retry)
                     continue
 
-                self.assertTrue(len(local_rib) == 4)
+                self.assertEqual(len(local_rib), 4)
                 done = True
 
             if done:

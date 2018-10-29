@@ -83,11 +83,11 @@ class GoBGPTestBase(unittest.TestCase):
                       '-a evpn macadv 11:22:33:44:55:66 10.0.0.1 esi AS 1 1 1 etag 1000 label 1000 '
                       'rd 10:10 rt 10:10')
         grib = self.g1.get_global_rib(rf='evpn')
-        self.assertTrue(len(grib) == 1)
+        self.assertEqual(len(grib), 1)
         dst = grib[0]
-        self.assertTrue(len(dst['paths']) == 1)
+        self.assertEqual(len(dst['paths']), 1)
         path = dst['paths'][0]
-        self.assertTrue(path['nexthop'] == '0.0.0.0')
+        self.assertEqual(path['nexthop'], '0.0.0.0')
 
         interval = 1
         timeout = int(30 / interval)
@@ -101,9 +101,9 @@ class GoBGPTestBase(unittest.TestCase):
                 time.sleep(interval)
                 continue
 
-            self.assertTrue(len(grib) == 1)
+            self.assertEqual(len(grib), 1)
             dst = grib[0]
-            self.assertTrue(len(dst['paths']) == 1)
+            self.assertEqual(len(dst['paths']), 1)
             path = dst['paths'][0]
             n_addrs = [i[1].split('/')[0] for i in self.g1.ip_addrs]
             self.assertTrue(path['nexthop'] in n_addrs)
@@ -117,13 +117,13 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(3)
 
         grib = self.g1.get_global_rib(rf='evpn')
-        self.assertTrue(len(grib) == 1)
+        self.assertEqual(len(grib), 1)
         dst = grib[0]
-        self.assertTrue(len(dst['paths']) == 1)
+        self.assertEqual(len(dst['paths']), 1)
         path = dst['paths'][0]
         n_addrs = [i[1].split('/')[0] for i in self.g2.ip_addrs]
         self.assertTrue(path['nexthop'] in n_addrs)
-        self.assertTrue(get_mac_mobility_sequence(path['attrs']) == 0)
+        self.assertEqual(get_mac_mobility_sequence(path['attrs']), 0)
 
     def test_04_check_mac_mobility_again(self):
         self.g1.local('gobgp global rib add '
@@ -133,13 +133,13 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(3)
 
         grib = self.g2.get_global_rib(rf='evpn')
-        self.assertTrue(len(grib) == 1)
+        self.assertEqual(len(grib), 1)
         dst = grib[0]
-        self.assertTrue(len(dst['paths']) == 1)
+        self.assertEqual(len(dst['paths']), 1)
         path = dst['paths'][0]
         n_addrs = [i[1].split('/')[0] for i in self.g1.ip_addrs]
         self.assertTrue(path['nexthop'] in n_addrs)
-        self.assertTrue(get_mac_mobility_sequence(path['attrs']) == 1)
+        self.assertEqual(get_mac_mobility_sequence(path['attrs']), 1)
 
 
 if __name__ == '__main__':

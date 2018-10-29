@@ -86,7 +86,7 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
 
         rib = self.g2.get_global_rib(rf='ipv4')
-        self.assertTrue(len(rib) == 1)
+        self.assertEqual(len(rib), 1)
 
 
 if __name__ == '__main__':

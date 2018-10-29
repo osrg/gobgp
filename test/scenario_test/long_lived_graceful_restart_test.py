@@ -94,22 +94,22 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(1)
 
-        self.assertTrue(len(g1.get_global_rib('10.0.0.0/24')) == 1)
+        self.assertEqual(len(g1.get_global_rib('10.0.0.0/24')), 1)
         # 10.10.0.0/24 is announced with no-llgr community
         # must not exist in the rib
-        self.assertTrue(len(g1.get_global_rib('10.10.0.0/24')) == 0)
+        self.assertEqual(len(g1.get_global_rib('10.10.0.0/24')), 0)
         for d in g1.get_global_rib():
             for p in d['paths']:
                 self.assertTrue(p['stale'])
 
-        self.assertTrue(len(g3.get_global_rib('10.0.0.0/24')) == 1)
+        self.assertEqual(len(g3.get_global_rib('10.0.0.0/24')), 1)
         # check llgr-stale community is added to 10.0.0.0/24
         r = g3.get_global_rib('10.0.0.0/24')[0]['paths'][0]
         comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
         self.assertTrue(0xffff0006 in comms)
         # g4 is not llgr capable, llgr-stale route must be
         # withdrawn
-        self.assertTrue(len(g4.get_global_rib('10.0.0.0/24')) == 0)
+        self.assertEqual(len(g4.get_global_rib('10.0.0.0/24')), 0)
 
         g2.start_gobgp(graceful_restart=True)
         g2.local('gobgp global rib add 10.0.0.0/24')
@@ -122,8 +122,8 @@ class GoBGPTestBase(unittest.TestCase):
         # g4 = self.bgpds['g4']
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
         time.sleep(1)
-        self.assertTrue(len(g1.get_global_rib('10.0.0.0/24')) == 1)
-        self.assertTrue(len(g1.get_global_rib('10.10.0.0/24')) == 1)
+        self.assertEqual(len(g1.get_global_rib('10.0.0.0/24')), 1)
+        self.assertEqual(len(g1.get_global_rib('10.10.0.0/24')), 1)
         for d in g1.get_global_rib():
             for p in d['paths']:
                 self.assertFalse(p.get('stale', False))
@@ -137,7 +137,7 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
         # check g2's path is chosen as best and advertised
         rib = g3.get_global_rib('10.0.0.0/24')
-        self.assertTrue(len(rib) == 1)
+        self.assertEqual(len(rib), 1)
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
         g2.stop_gobgp()
@@ -148,19 +148,19 @@ class GoBGPTestBase(unittest.TestCase):
         # llgr_stale route depreference must happend
         # check g4's path is chosen as best and advertised
         rib = g3.get_global_rib('10.0.0.0/24')
-        self.assertTrue(len(rib) == 1)
+        self.assertEqual(len(rib), 1)
         self.assertTrue(g4.asn in rib[0]['paths'][0]['aspath'])
 
         # if no candidate exists, llgr_stale route will be chosen as best
         rib = g3.get_global_rib('10.10.0.0/24')
-        self.assertTrue(len(rib) == 1)
+        self.assertEqual(len(rib), 1)
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
     def test_05_llgr_restart_timer_expire(self):
         time.sleep(LONG_LIVED_GRACEFUL_RESTART_TIME + 5)
         g3 = self.bgpds['g3']
         rib = g3.get_global_rib('10.10.0.0/24')
-        self.assertTrue(len(rib) == 0)
+        self.assertEqual(len(rib), 0)
 
 
 if __name__ == '__main__':

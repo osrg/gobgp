@@ -88,7 +88,7 @@ class GoBGPTestBase(unittest.TestCase):
                     time.sleep(self.wait_per_retry)
                     continue
 
-                self.assertTrue(len(local_rib) == (len(self.quaggas) - 1))
+                self.assertEqual(len(local_rib), (len(self.quaggas) - 1))
 
                 for c in self.quaggas.itervalues():
                     if rs_client != c:
@@ -113,7 +113,7 @@ class GoBGPTestBase(unittest.TestCase):
                     time.sleep(self.wait_per_retry)
                     continue
 
-                self.assertTrue(len(global_rib) == len(self.quaggas))
+                self.assertEqual(len(global_rib), len(self.quaggas))
 
                 for c in self.quaggas.itervalues():
                     for r in c.routes:
@@ -137,7 +137,7 @@ class GoBGPTestBase(unittest.TestCase):
     # check gobgp's global rib. when configured as route-server, global rib
     # must be empty
     def test_03_check_gobgp_global_rib(self):
-        self.assertTrue(len(self.gobgp.get_global_rib()) == 0)
+        self.assertEqual(len(self.gobgp.get_global_rib()), 0)
 
     # check routes are properly advertised to route-server-client
     def test_04_check_rs_clients_rib(self):

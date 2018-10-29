@@ -91,7 +91,7 @@ class GoBGPIPv6Test(unittest.TestCase):
                     time.sleep(self.wait_per_retry)
                     continue
 
-                self.assertTrue(len(local_rib) == (len(ctns) - 1))
+                self.assertEqual(len(local_rib), (len(ctns) - 1))
 
                 for c in ctns.itervalues():
                     if rs_client != c:
@@ -116,7 +116,7 @@ class GoBGPIPv6Test(unittest.TestCase):
                     time.sleep(self.wait_per_retry)
                     continue
 
-                self.assertTrue(len(global_rib) == len(ctns))
+                self.assertEqual(len(global_rib), len(ctns))
 
                 for c in ctns.itervalues():
                     for r in c.routes:
@@ -159,12 +159,12 @@ class GoBGPIPv6Test(unittest.TestCase):
 
     def test_08_check_rib(self):
         for q in self.ipv4s.itervalues():
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
-            self.assertTrue(len(q.get_global_rib()) == len(q.routes))
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
+            self.assertEqual(len(q.get_global_rib()), len(q.routes))
 
         for q in self.ipv6s.itervalues():
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q, rf='ipv6')) == 0)
-            self.assertTrue(len(q.get_global_rib(rf='ipv6')) == len(q.routes))
+            self.assertEqual(len(self.gobgp.get_adj_rib_out(q, rf='ipv6')), 0)
+            self.assertEqual(len(q.get_global_rib(rf='ipv6')), len(q.routes))
 
 
 if __name__ == '__main__':
