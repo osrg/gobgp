@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	MIN_ROTATION_INTERVAL = 60
-	MIN_DUMP_INTERVAL     = 60
+	minRotationInterval = 60
+	minDumpInterval     = 60
 )
 
 type mrtWriter struct {
@@ -354,21 +354,21 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 	dInterval := c.DumpInterval
 
 	setRotationMin := func() {
-		if rInterval < MIN_ROTATION_INTERVAL {
+		if rInterval < minRotationInterval {
 			log.WithFields(log.Fields{
 				"Topic": "MRT",
-			}).Infof("minimum mrt rotation interval is %d seconds", MIN_ROTATION_INTERVAL)
-			rInterval = MIN_ROTATION_INTERVAL
+			}).Infof("minimum mrt rotation interval is %d seconds", minRotationInterval)
+			rInterval = minRotationInterval
 		}
 	}
 
 	if c.DumpType == config.MRT_TYPE_TABLE {
 		if rInterval == 0 {
-			if dInterval < MIN_DUMP_INTERVAL {
+			if dInterval < minDumpInterval {
 				log.WithFields(log.Fields{
 					"Topic": "MRT",
-				}).Infof("minimum mrt dump interval is %d seconds", MIN_DUMP_INTERVAL)
-				dInterval = MIN_DUMP_INTERVAL
+				}).Infof("minimum mrt dump interval is %d seconds", minDumpInterval)
+				dInterval = minDumpInterval
 			}
 		} else if dInterval == 0 {
 			setRotationMin()

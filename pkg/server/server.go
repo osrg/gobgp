@@ -214,7 +214,7 @@ func (server *BgpServer) Serve() {
 			peer, found := server.neighborMap[remoteAddr]
 			if found {
 				peer.fsm.lock.RLock()
-				adminStateNotUp := peer.fsm.adminState != ADMIN_STATE_UP
+				adminStateNotUp := peer.fsm.adminState != adminStateUp
 				peer.fsm.lock.RUnlock()
 				if adminStateNotUp {
 					peer.fsm.lock.RLock()
@@ -1127,7 +1127,7 @@ func (server *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table
 
 func (server *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	switch e.MsgType {
-	case FSM_MSG_STATE_CHANGE:
+	case fsmMsgStateChange:
 		nextState := e.MsgData.(bgp.FSMState)
 		peer.fsm.lock.Lock()
 		oldState := bgp.FSMState(peer.fsm.pConf.State.SessionState.ToInt())
@@ -1147,7 +1147,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if t.Sub(time.Unix(peer.fsm.pConf.Timers.State.Uptime, 0)) < flopThreshold {
 				peer.fsm.pConf.State.Flops++
 			}
-			graceful := peer.fsm.reason.Type == FSM_GRACEFUL_RESTART
+			graceful := peer.fsm.reason.Type == fsmGracefulRestart
 			peer.fsm.lock.Unlock()
 			var drop []bgp.RouteFamily
 			if graceful {
@@ -1373,7 +1373,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		}
 		// clear counter
 		peer.fsm.lock.RLock()
-		adminStateDown := peer.fsm.adminState == ADMIN_STATE_DOWN
+		adminStateDown := peer.fsm.adminState == adminStateDown
 		peer.fsm.lock.RUnlock()
 		if adminStateDown {
 			peer.fsm.lock.Lock()
@@ -1385,7 +1385,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		}
 		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer, oldState, e)
-	case FSM_MSG_ROUTE_REFRESH:
+	case fsmMsgRouteRefresh:
 		peer.fsm.lock.RLock()
 		notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
 		beforeUptime := e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime
@@ -1397,7 +1397,7 @@ func (server *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			sendfsmOutgoingMsg(peer, paths, nil, false)
 			return
 		}
-	case FSM_MSG_BGP_MESSAGE:
+	case fsmMsgBGPMessage:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
 			sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
@@ -2923,9 +2923,9 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 			}
 		}
 		if enable {
-			f(&adminStateOperation{ADMIN_STATE_UP, nil}, "ADMIN_STATE_UP requested")
+			f(&adminStateOperation{adminStateUp, nil}, "adminStateUp requested")
 		} else {
-			f(&adminStateOperation{ADMIN_STATE_DOWN, newAdministrativeCommunication(communication)}, "ADMIN_STATE_DOWN requested")
+			f(&adminStateOperation{adminStateDown, newAdministrativeCommunication(communication)}, "adminStateDown requested")
 		}
 	}
 	return nil
