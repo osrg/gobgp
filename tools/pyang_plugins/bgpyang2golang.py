@@ -546,14 +546,6 @@ def emit_enum(prefix, name, stmt, substmts, fd):
         print(' %s: %d,' % (enum_name, i), file=fd)
     print('}\n', file=fd)
 
-    print('func (v %s) ToInt() int {' % type_name, file=fd)
-    print('i, ok := %sToIntMap[v]' % type_name, file=fd)
-    print('if !ok {', file=fd)
-    print('return -1', file=fd)
-    print('}', file=fd)
-    print('return i', file=fd)
-    print('}', file=fd)
-
     print('var IntTo%sMap = map[int]%s {' % (type_name, type_name), file=fd)
     for i, sub in enumerate(substmts):
         enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
@@ -579,6 +571,19 @@ def emit_enum(prefix, name, stmt, substmts, fd):
         print('}', file=fd)
         print(' return v', file=fd)
         print('}', file=fd)
+
+        print('func (v %s) ToInt() int {' % type_name, file=fd)
+        print('_v := v.DefaultAsNeeded()')
+        print('i, ok := %sToIntMap[_v]' % type_name, file=fd)
+
+    else:
+        print('func (v %s) ToInt() int {' % type_name, file=fd)
+        print('i, ok := %sToIntMap[v]' % type_name, file=fd)
+    print('if !ok {', file=fd)
+    print('return -1', file=fd)
+    print('}', file=fd)
+    print('return i', file=fd)
+    print('}', file=fd)
 
 
 def emit_typedef(ctx, mod, fd):
