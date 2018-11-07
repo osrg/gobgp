@@ -34,71 +34,71 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
-type ExtCommType int
+type extCommType int
 
 const (
-	ACCEPT ExtCommType = iota
-	DISCARD
-	RATE
-	REDIRECT
-	MARK
-	ACTION
-	RT
-	ENCAP
-	ESI_LABEL
-	ROUTER_MAC
-	DEFAULT_GATEWAY
-	VALID
-	NOT_FOUND
-	INVALID
-	COLOR
+	ctAccept extCommType = iota
+	ctDiscard
+	ctRate
+	ctRedirect
+	ctMark
+	ctAction
+	ctRT
+	ctEncap
+	ctESILabel
+	ctRouterMAC
+	ctDefaultGateway
+	ctValid
+	ctNotFound
+	ctInvalid
+	ctColor
 )
 
-var ExtCommNameMap = map[ExtCommType]string{
-	ACCEPT:          "accept",
-	DISCARD:         "discard",
-	RATE:            "rate-limit",
-	REDIRECT:        "redirect",
-	MARK:            "mark",
-	ACTION:          "action",
-	RT:              "rt",
-	ENCAP:           "encap",
-	ESI_LABEL:       "esi-label",
-	ROUTER_MAC:      "router-mac",
-	DEFAULT_GATEWAY: "default-gateway",
-	VALID:           "valid",
-	NOT_FOUND:       "not-found",
-	INVALID:         "invalid",
-	COLOR:           "color",
+var extCommNameMap = map[extCommType]string{
+	ctAccept:         "accept",
+	ctDiscard:        "discard",
+	ctRate:           "rate-limit",
+	ctRedirect:       "redirect",
+	ctMark:           "mark",
+	ctAction:         "action",
+	ctRT:             "rt",
+	ctEncap:          "encap",
+	ctESILabel:       "esi-label",
+	ctRouterMAC:      "router-mac",
+	ctDefaultGateway: "default-gateway",
+	ctValid:          "valid",
+	ctNotFound:       "not-found",
+	ctInvalid:        "invalid",
+	ctColor:          "color",
 }
 
-var ExtCommValueMap = map[string]ExtCommType{
-	ExtCommNameMap[ACCEPT]:          ACCEPT,
-	ExtCommNameMap[DISCARD]:         DISCARD,
-	ExtCommNameMap[RATE]:            RATE,
-	ExtCommNameMap[REDIRECT]:        REDIRECT,
-	ExtCommNameMap[MARK]:            MARK,
-	ExtCommNameMap[ACTION]:          ACTION,
-	ExtCommNameMap[RT]:              RT,
-	ExtCommNameMap[ENCAP]:           ENCAP,
-	ExtCommNameMap[ESI_LABEL]:       ESI_LABEL,
-	ExtCommNameMap[ROUTER_MAC]:      ROUTER_MAC,
-	ExtCommNameMap[DEFAULT_GATEWAY]: DEFAULT_GATEWAY,
-	ExtCommNameMap[VALID]:           VALID,
-	ExtCommNameMap[NOT_FOUND]:       NOT_FOUND,
-	ExtCommNameMap[INVALID]:         INVALID,
-	ExtCommNameMap[COLOR]:           COLOR,
+var extCommValueMap = map[string]extCommType{
+	extCommNameMap[ctAccept]:         ctAccept,
+	extCommNameMap[ctDiscard]:        ctDiscard,
+	extCommNameMap[ctRate]:           ctRate,
+	extCommNameMap[ctRedirect]:       ctRedirect,
+	extCommNameMap[ctMark]:           ctMark,
+	extCommNameMap[ctAction]:         ctAction,
+	extCommNameMap[ctRT]:             ctRT,
+	extCommNameMap[ctEncap]:          ctEncap,
+	extCommNameMap[ctESILabel]:       ctESILabel,
+	extCommNameMap[ctRouterMAC]:      ctRouterMAC,
+	extCommNameMap[ctDefaultGateway]: ctDefaultGateway,
+	extCommNameMap[ctValid]:          ctValid,
+	extCommNameMap[ctNotFound]:       ctNotFound,
+	extCommNameMap[ctInvalid]:        ctInvalid,
+	extCommNameMap[ctColor]:          ctColor,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	exp := regexp.MustCompile(fmt.Sprintf("^(%s|(%s) (\\d+)(\\.(\\d+))?)( as (\\d+))?$", ExtCommNameMap[DISCARD], ExtCommNameMap[RATE]))
+	exp := regexp.MustCompile(fmt.Sprintf("^(%s|(%s) (\\d+)(\\.(\\d+))?)( as (\\d+))?$", extCommNameMap[ctDiscard], extCommNameMap[ctRate]))
 	elems := exp.FindStringSubmatch(strings.Join(args, " "))
 	if len(elems) != 8 {
 		return nil, fmt.Errorf("invalid rate-limit")
 	}
 	var rate float32
 	var as uint64
-	if elems[2] == ExtCommNameMap[RATE] {
+	if elems[2] == extCommNameMap[ctRate] {
 		f, err := strconv.ParseFloat(elems[3]+elems[4], 32)
 		if err != nil {
 			return nil, err
@@ -116,7 +116,7 @@ func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[REDIRECT] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctRedirect] {
 		return nil, fmt.Errorf("invalid redirect")
 	}
 	rt, err := bgp.ParseRouteTarget(strings.Join(args[1:], " "))
@@ -141,7 +141,7 @@ func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func markParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[MARK] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctMark] {
 		return nil, fmt.Errorf("invalid mark")
 	}
 	dscp, err := strconv.ParseUint(args[1], 10, 8)
@@ -152,7 +152,7 @@ func markParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func actionParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[ACTION] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctAction] {
 		return nil, fmt.Errorf("invalid action")
 	}
 	sample := false
@@ -172,7 +172,7 @@ func actionParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func rtParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[RT] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctRT] {
 		return nil, fmt.Errorf("invalid rt")
 	}
 	exts := make([]bgp.ExtendedCommunityInterface, 0, len(args[1:]))
@@ -187,7 +187,7 @@ func rtParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[ENCAP] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctEncap] {
 		return nil, fmt.Errorf("invalid encap")
 	}
 	var typ bgp.TunnelType
@@ -215,7 +215,7 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func esiLabelParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[ESI_LABEL] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctESILabel] {
 		return nil, fmt.Errorf("invalid esi-label")
 	}
 	label, err := strconv.ParseUint(args[1], 10, 32)
@@ -241,7 +241,7 @@ func esiLabelParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func routerMacParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 2 || args[0] != ExtCommNameMap[ROUTER_MAC] {
+	if len(args) < 2 || args[0] != extCommNameMap[ctRouterMAC] {
 		return nil, fmt.Errorf("invalid router's mac")
 	}
 	hw, err := net.ParseMAC(args[1])
@@ -253,7 +253,7 @@ func routerMacParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func defaultGatewayParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) < 1 || args[0] != ExtCommNameMap[DEFAULT_GATEWAY] {
+	if len(args) < 1 || args[0] != extCommNameMap[ctDefaultGateway] {
 		return nil, fmt.Errorf("invalid default-gateway")
 	}
 	return []bgp.ExtendedCommunityInterface{bgp.NewDefaultGatewayExtended()}, nil
@@ -278,7 +278,7 @@ func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 }
 
 func colorParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
-	if len(args) != 2 || args[0] != ExtCommNameMap[COLOR] {
+	if len(args) != 2 || args[0] != extCommNameMap[ctColor] {
 		return nil, fmt.Errorf("invalid color")
 	}
 	color, err := strconv.ParseUint(args[1], 10, 32)
@@ -288,33 +288,33 @@ func colorParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{bgp.NewColorExtended(uint32(color))}, nil
 }
 
-var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
-	ACCEPT:          nil,
-	DISCARD:         rateLimitParser,
-	RATE:            rateLimitParser,
-	REDIRECT:        redirectParser,
-	MARK:            markParser,
-	ACTION:          actionParser,
-	RT:              rtParser,
-	ENCAP:           encapParser,
-	ESI_LABEL:       esiLabelParser,
-	ROUTER_MAC:      routerMacParser,
-	DEFAULT_GATEWAY: defaultGatewayParser,
-	VALID:           validationParser,
-	NOT_FOUND:       validationParser,
-	INVALID:         validationParser,
-	COLOR:           colorParser,
+var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
+	ctAccept:         nil,
+	ctDiscard:        rateLimitParser,
+	ctRate:           rateLimitParser,
+	ctRedirect:       redirectParser,
+	ctMark:           markParser,
+	ctAction:         actionParser,
+	ctRT:             rtParser,
+	ctEncap:          encapParser,
+	ctESILabel:       esiLabelParser,
+	ctRouterMAC:      routerMacParser,
+	ctDefaultGateway: defaultGatewayParser,
+	ctValid:          validationParser,
+	ctNotFound:       validationParser,
+	ctInvalid:        validationParser,
+	ctColor:          colorParser,
 }
 
-func ParseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	idxs := make([]struct {
-		t ExtCommType
+		t extCommType
 		i int
-	}, 0, len(ExtCommNameMap))
+	}, 0, len(extCommNameMap))
 	for idx, v := range args {
-		if t, ok := ExtCommValueMap[v]; ok {
+		if t, ok := extCommValueMap[v]; ok {
 			idxs = append(idxs, struct {
-				t ExtCommType
+				t extCommType
 				i int
 			}{t, idx})
 		}
@@ -322,7 +322,7 @@ func ParseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 	exts := make([]bgp.ExtendedCommunityInterface, 0, len(idxs))
 	for i, idx := range idxs {
 		var a []string
-		f := ExtCommParserMap[idx.t]
+		f := extCommParserMap[idx.t]
 		if i < len(idxs)-1 {
 			a = args[:idxs[i+1].i-idx.i]
 			args = args[(idxs[i+1].i - idx.i):]
@@ -345,7 +345,7 @@ func ParseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 	return exts, nil
 }
 
-func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// match <rule>... [then <action>...] [rd <rd>] [rt <rt>...]
 	req := 3 // match <key1> <arg1> [<key2> <arg2>...]
@@ -353,10 +353,10 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"match": PARAM_LIST,
-		"then":  PARAM_LIST,
-		"rd":    PARAM_SINGLE,
-		"rt":    PARAM_LIST})
+		"match": paramList,
+		"then":  paramList,
+		"rd":    paramSingle,
+		"rt":    paramList})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -412,7 +412,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	return nlri, extcomms, nil
 }
 
-func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
 	req := 8
@@ -420,13 +420,13 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"esi":       PARAM_LIST,
-		"etag":      PARAM_SINGLE,
-		"label":     PARAM_SINGLE,
-		"rd":        PARAM_SINGLE,
-		"rt":        PARAM_LIST,
-		"encap":     PARAM_SINGLE,
-		"esi-label": PARAM_SINGLE})
+		"esi":       paramList,
+		"etag":      paramSingle,
+		"label":     paramSingle,
+		"rd":        paramSingle,
+		"rt":        paramList,
+		"encap":     paramSingle,
+		"esi-label": paramSingle})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -480,7 +480,7 @@ func ParseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, r), extcomms, nil
 }
 
-func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>] [default-gateway]
 	// or
@@ -492,13 +492,13 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"esi":        PARAM_LIST,
-		"etag":       PARAM_SINGLE,
-		"label":      PARAM_SINGLE,
-		"rd":         PARAM_SINGLE,
-		"rt":         PARAM_LIST,
-		"encap":      PARAM_SINGLE,
-		"router-mac": PARAM_SINGLE})
+		"esi":        paramList,
+		"etag":       paramSingle,
+		"label":      paramSingle,
+		"rd":         paramSingle,
+		"rt":         paramList,
+		"encap":      paramSingle,
+		"router-mac": paramSingle})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -607,7 +607,7 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, r), extcomms, nil
 }
 
-func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
 	// or
@@ -617,10 +617,10 @@ func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"etag":  PARAM_SINGLE,
-		"rd":    PARAM_SINGLE,
-		"rt":    PARAM_LIST,
-		"encap": PARAM_SINGLE})
+		"etag":  paramSingle,
+		"rd":    paramSingle,
+		"rt":    paramList,
+		"encap": paramSingle})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -681,7 +681,7 @@ func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 	return bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, r), extcomms, nil
 }
 
-func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 5
@@ -689,10 +689,10 @@ func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"esi":   PARAM_LIST,
-		"rd":    PARAM_SINGLE,
-		"rt":    PARAM_LIST,
-		"encap": PARAM_SINGLE})
+		"esi":   paramList,
+		"rd":    paramSingle,
+		"rt":    paramList,
+		"encap": paramSingle})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -745,7 +745,7 @@ func ParseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 	return bgp.NewEVPNNLRI(bgp.EVPN_ETHERNET_SEGMENT_ROUTE, r), extcomms, nil
 }
 
-func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 5
@@ -753,14 +753,14 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"gw":         PARAM_SINGLE,
-		"esi":        PARAM_LIST,
-		"etag":       PARAM_SINGLE,
-		"label":      PARAM_SINGLE,
-		"rd":         PARAM_SINGLE,
-		"rt":         PARAM_LIST,
-		"encap":      PARAM_SINGLE,
-		"router-mac": PARAM_SINGLE})
+		"gw":         paramSingle,
+		"esi":        paramList,
+		"etag":       paramSingle,
+		"label":      paramSingle,
+		"rd":         paramSingle,
+		"rt":         paramList,
+		"encap":      paramSingle,
+		"router-mac": paramSingle})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -833,7 +833,7 @@ func ParseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, r), extcomms, nil
 }
 
-func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	if len(args) < 1 {
 		return nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
 	}
@@ -841,15 +841,15 @@ func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	args = args[1:]
 	switch subtype {
 	case "a-d":
-		return ParseEvpnEthernetAutoDiscoveryArgs(args)
+		return parseEvpnEthernetAutoDiscoveryArgs(args)
 	case "macadv":
-		return ParseEvpnMacAdvArgs(args)
+		return parseEvpnMacAdvArgs(args)
 	case "multicast":
-		return ParseEvpnMulticastArgs(args)
+		return parseEvpnMulticastArgs(args)
 	case "esi":
-		return ParseEvpnEthernetSegmentArgs(args)
+		return parseEvpnEthernetSegmentArgs(args)
 	case "prefix":
-		return ParseEvpnIPPrefixArgs(args)
+		return parseEvpnIPPrefixArgs(args)
 	}
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }
@@ -1091,7 +1091,7 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 	return args, nil, nil
 }
 
-func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
+func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var err error
@@ -1222,13 +1222,13 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(ones), ip.String(), *mpls)
 		}
 	case bgp.RF_EVPN:
-		nlri, extcomms, err = ParseEvpnArgs(args)
+		nlri, extcomms, err = parseEvpnArgs(args)
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
-		nlri, extcomms, err = ParseFlowSpecArgs(rf, args)
+		nlri, extcomms, err = parseFlowSpecArgs(rf, args)
 	case bgp.RF_OPAQUE:
 		m, err := extractReserved(args, map[string]int{
-			"key":   PARAM_SINGLE,
-			"value": PARAM_SINGLE})
+			"key":   paramSingle,
+			"value": paramSingle})
 		if err != nil {
 			return nil, err
 		}
@@ -1255,7 +1255,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	}
 
 	if extcomms != nil {
-		extcomms, err := ParseExtendedCommunities(extcomms)
+		extcomms, err := parseExtendedCommunities(extcomms)
 		if err != nil {
 			return nil, err
 		}
@@ -1284,19 +1284,19 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 }
 
 func showGlobalRib(args []string) error {
-	return showNeighborRib(CMD_GLOBAL, "", args)
+	return showNeighborRib(cmdGlobal, "", args)
 }
 
 func modPath(resource string, name, modtype string, args []string) error {
-	f, err := checkAddressFamily(IPv4_UC)
+	f, err := checkAddressFamily(ipv4UC)
 	if err != nil {
 		return err
 	}
 	rf := apiutil.ToRouteFamily(f)
-	path, err := ParsePath(rf, args)
+	path, err := parsePath(rf, args)
 	if err != nil {
 		cmdstr := "global"
-		if resource == CMD_VRF {
+		if resource == cmdVRF {
 			cmdstr = fmt.Sprintf("vrf %s", name)
 		}
 		rdHelpMsgFmt := `
@@ -1357,12 +1357,12 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
 			// "" or " [rt <RT>]"
 			// <help message for RD>
 			// <MATCH>
-			ExtCommNameMap[ACCEPT],
-			ExtCommNameMap[DISCARD],
-			ExtCommNameMap[RATE],
-			ExtCommNameMap[REDIRECT],
-			ExtCommNameMap[MARK],
-			ExtCommNameMap[ACTION],
+			extCommNameMap[ctAccept],
+			extCommNameMap[ctDiscard],
+			extCommNameMap[ctRate],
+			extCommNameMap[ctRedirect],
+			extCommNameMap[ctMark],
+			extCommNameMap[ctAction],
 		)
 		baseFsMatchExpr := fmt.Sprintf(`
     <MATCH> : { %s <PREFIX> [<OFFSET>] |
@@ -1462,11 +1462,11 @@ usage: %s rib %s key <KEY> [value <VALUE>]`,
 	}
 
 	r := api.Resource_GLOBAL
-	if resource == CMD_VRF {
+	if resource == cmdVRF {
 		r = api.Resource_VRF
 	}
 
-	if modtype == CMD_ADD {
+	if modtype == cmdAdd {
 		_, err = client.AddPath(ctx, &api.AddPathRequest{
 			Resource: r,
 			VrfId:    name,
@@ -1506,11 +1506,11 @@ func showGlobalConfig() error {
 
 func modGlobalConfig(args []string) error {
 	m, err := extractReserved(args, map[string]int{
-		"as":               PARAM_SINGLE,
-		"router-id":        PARAM_SINGLE,
-		"listen-port":      PARAM_SINGLE,
-		"listen-addresses": PARAM_LIST,
-		"use-multipath":    PARAM_FLAG})
+		"as":               paramSingle,
+		"router-id":        paramSingle,
+		"listen-port":      paramSingle,
+		"listen-addresses": paramList,
+		"use-multipath":    paramFlag})
 	if err != nil || len(m["as"]) != 1 || len(m["router-id"]) != 1 {
 		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
 	}
@@ -1547,9 +1547,9 @@ func modGlobalConfig(args []string) error {
 	return err
 }
 
-func NewGlobalCmd() *cobra.Command {
+func newGlobalCmd() *cobra.Command {
 	globalCmd := &cobra.Command{
-		Use: CMD_GLOBAL,
+		Use: cmdGlobal,
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) != 0 {
@@ -1564,7 +1564,7 @@ func NewGlobalCmd() *cobra.Command {
 	}
 
 	ribCmd := &cobra.Command{
-		Use: CMD_RIB,
+		Use: cmdRib,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := showGlobalRib(args); err != nil {
 				exitWithError(err)
@@ -1574,11 +1574,11 @@ func NewGlobalCmd() *cobra.Command {
 
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				err := modPath(CMD_GLOBAL, "", cmd.Use, args)
+				err := modPath(cmdGlobal, "", cmd.Use, args)
 				if err != nil {
 					exitWithError(err)
 				}
@@ -1586,11 +1586,11 @@ func NewGlobalCmd() *cobra.Command {
 		}
 		ribCmd.AddCommand(cmd)
 
-		if v == CMD_DEL {
+		if v == cmdDel {
 			subcmd := &cobra.Command{
-				Use: CMD_ALL,
+				Use: cmdAll,
 				Run: func(cmd *cobra.Command, args []string) {
-					family, err := checkAddressFamily(IPv4_UC)
+					family, err := checkAddressFamily(ipv4UC)
 					if err != nil {
 						exitWithError(err)
 					}
@@ -1607,9 +1607,9 @@ func NewGlobalCmd() *cobra.Command {
 	}
 
 	summaryCmd := &cobra.Command{
-		Use: CMD_SUMMARY,
+		Use: cmdSummary,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := showRibInfo(CMD_GLOBAL, ""); err != nil {
+			if err := showRibInfo(cmdGlobal, ""); err != nil {
 				exitWithError(err)
 			}
 		},
@@ -1617,12 +1617,12 @@ func NewGlobalCmd() *cobra.Command {
 	ribCmd.AddCommand(summaryCmd)
 
 	policyCmd := &cobra.Command{
-		Use: CMD_POLICY,
+		Use: cmdPolicy,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
 				exitWithError(fmt.Errorf("usage: gobgp global policy [{ import | export }]"))
 			}
-			for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
+			for _, v := range []string{cmdImport, cmdExport} {
 				if err := showNeighborPolicy("", v, 4); err != nil {
 					exitWithError(err)
 				}
@@ -1630,7 +1630,7 @@ func NewGlobalCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
+	for _, v := range []string{cmdImport, cmdExport} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
@@ -1640,7 +1640,7 @@ func NewGlobalCmd() *cobra.Command {
 			},
 		}
 
-		for _, w := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+		for _, w := range []string{cmdAdd, cmdDel, cmdSet} {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
@@ -1657,11 +1657,11 @@ func NewGlobalCmd() *cobra.Command {
 	}
 
 	delCmd := &cobra.Command{
-		Use: CMD_DEL,
+		Use: cmdDel,
 	}
 
 	allCmd := &cobra.Command{
-		Use: CMD_ALL,
+		Use: cmdAll,
 		Run: func(cmd *cobra.Command, args []string) {
 			if _, err := client.StopBgp(ctx, &api.StopBgpRequest{}); err != nil {
 				exitWithError(err)

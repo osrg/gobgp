@@ -28,7 +28,7 @@ func Test_ParsePath(t *testing.T) {
 	assert := assert.New(t)
 	buf := "10.0.0.0/24 rt 100:100 med 10 nexthop 10.0.0.1 aigp metric 10 local-pref 100"
 
-	path, err := ParsePath(bgp.RF_IPv4_UC, strings.Split(buf, " "))
+	path, err := parsePath(bgp.RF_IPv4_UC, strings.Split(buf, " "))
 	assert.Nil(err)
 	i := 0
 	attrs, _ := apiutil.GetNativePathAttributes(path)

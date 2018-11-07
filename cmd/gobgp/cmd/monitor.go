@@ -88,7 +88,7 @@ func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
 	}
 }
 
-func NewMonitorCmd() *cobra.Command {
+func newMonitorCmd() *cobra.Command {
 
 	var current bool
 
@@ -112,9 +112,9 @@ func NewMonitorCmd() *cobra.Command {
 	}
 
 	ribCmd := &cobra.Command{
-		Use: CMD_RIB,
+		Use: cmdRib,
 		Run: func(cmd *cobra.Command, args []string) {
-			family, err := checkAddressFamily(IPv4_UC)
+			family, err := checkAddressFamily(ipv4UC)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -132,12 +132,12 @@ func NewMonitorCmd() *cobra.Command {
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
 	globalCmd := &cobra.Command{
-		Use: CMD_GLOBAL,
+		Use: cmdGlobal,
 	}
 	globalCmd.AddCommand(ribCmd)
 
 	neighborCmd := &cobra.Command{
-		Use:  fmt.Sprintf("%s [<neighbor address>]", CMD_NEIGHBOR),
+		Use:  fmt.Sprintf("%s [<neighbor address>]", cmdNeighbor),
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			name := ""
@@ -174,7 +174,7 @@ func NewMonitorCmd() *cobra.Command {
 	}
 
 	adjInCmd := &cobra.Command{
-		Use: CMD_ADJ_IN,
+		Use: cmdAdjIn,
 		Run: func(cmd *cobra.Command, args []string) {
 			name := ""
 			if len(args) > 0 {
@@ -184,7 +184,7 @@ func NewMonitorCmd() *cobra.Command {
 				}
 				name = args[0]
 			}
-			family, err := checkAddressFamily(IPv4_UC)
+			family, err := checkAddressFamily(ipv4UC)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -203,7 +203,7 @@ func NewMonitorCmd() *cobra.Command {
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
 	monitorCmd := &cobra.Command{
-		Use: CMD_MONITOR,
+		Use: cmdMonitor,
 	}
 	monitorCmd.AddCommand(globalCmd)
 	monitorCmd.AddCommand(neighborCmd)

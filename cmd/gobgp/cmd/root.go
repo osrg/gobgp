@@ -92,14 +92,14 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.TLS, "tls", "", false, "connection uses TLS if true, else plain TCP")
 	rootCmd.PersistentFlags().StringVarP(&globalOpts.CaFile, "tls-ca-file", "", "", "The file containing the CA root cert file")
 
-	globalCmd := NewGlobalCmd()
-	neighborCmd := NewNeighborCmd()
-	vrfCmd := NewVrfCmd()
-	policyCmd := NewPolicyCmd()
-	monitorCmd := NewMonitorCmd()
-	mrtCmd := NewMrtCmd()
-	rpkiCmd := NewRPKICmd()
-	bmpCmd := NewBmpCmd()
+	globalCmd := newGlobalCmd()
+	neighborCmd := newNeighborCmd()
+	vrfCmd := newVrfCmd()
+	policyCmd := newPolicyCmd()
+	monitorCmd := newMonitorCmd()
+	mrtCmd := newMrtCmd()
+	rpkiCmd := newRPKICmd()
+	bmpCmd := newBmpCmd()
 	rootCmd.AddCommand(globalCmd, neighborCmd, vrfCmd, policyCmd, monitorCmd, mrtCmd, rpkiCmd, bmpCmd)
 	return rootCmd
 }

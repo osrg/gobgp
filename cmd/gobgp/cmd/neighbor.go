@@ -466,8 +466,6 @@ func showNeighbor(args []string) error {
 	return nil
 }
 
-type AsPathFormat struct{}
-
 func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 	symbols := ""
 	if p.Stale {
@@ -699,8 +697,8 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 
 func showRibInfo(r, name string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
-	if r == CMD_GLOBAL {
-		def = IPv4_UC
+	if r == cmdGlobal {
+		def = ipv4UC
 	}
 	family, err := checkAddressFamily(def)
 	if err != nil {
@@ -709,13 +707,13 @@ func showRibInfo(r, name string) error {
 
 	var t api.Resource
 	switch r {
-	case CMD_GLOBAL:
+	case cmdGlobal:
 		t = api.Resource_GLOBAL
-	case CMD_LOCAL:
+	case cmdLocal:
 		t = api.Resource_LOCAL
-	case CMD_ADJ_IN:
+	case cmdAdjIn:
 		t = api.Resource_ADJ_IN
-	case CMD_ADJ_OUT:
+	case cmdAdjOut:
 		t = api.Resource_ADJ_OUT
 	default:
 		return fmt.Errorf("invalid resource to show RIB info: %s", r)
@@ -761,15 +759,15 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
-	case CMD_GLOBAL:
-		def = IPv4_UC
+	case cmdGlobal:
+		def = ipv4UC
 		showBest = true
-	case CMD_LOCAL:
+	case cmdLocal:
 		showBest = true
-	case CMD_ADJ_OUT:
+	case cmdAdjOut:
 		showAge = false
-	case CMD_VRF:
-		def = IPv4_UC
+	case cmdVRF:
+		def = ipv4UC
 		showBest = true
 	}
 	family, err := checkAddressFamily(def)
@@ -801,7 +799,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			} else if args[0] == "shorter-prefixes" {
 				option = api.TableLookupOption_LOOKUP_SHORTER
 			} else if args[0] == "validation" {
-				if r != CMD_ADJ_IN {
+				if r != cmdAdjIn {
 					return fmt.Errorf("RPKI information is supported for only adj-in.")
 				}
 				validationTarget = target
@@ -819,17 +817,17 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	var t api.Resource
 	switch r {
-	case CMD_GLOBAL:
+	case cmdGlobal:
 		t = api.Resource_GLOBAL
-	case CMD_LOCAL:
+	case cmdLocal:
 		t = api.Resource_LOCAL
-	case CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED:
+	case cmdAdjIn, cmdAccepted, cmdRejected:
 		t = api.Resource_ADJ_IN
 		showIdentifier = bgp.BGP_ADD_PATH_RECEIVE
-	case CMD_ADJ_OUT:
+	case cmdAdjOut:
 		t = api.Resource_ADJ_OUT
 		showIdentifier = bgp.BGP_ADD_PATH_SEND
-	case CMD_VRF:
+	case cmdVRF:
 		t = api.Resource_VRF
 	}
 
@@ -855,7 +853,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	switch r {
-	case CMD_LOCAL, CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED, CMD_ADJ_OUT:
+	case cmdLocal, cmdAdjIn, cmdAccepted, cmdRejected, cmdAdjOut:
 		if len(rib) == 0 {
 			stream, err := client.ListPeer(ctx, &api.ListPeerRequest{
 				Address: name,
@@ -935,7 +933,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 		for _, d := range dsts {
 			switch r {
-			case CMD_ACCEPTED:
+			case cmdAccepted:
 				l := make([]*api.Path, 0, len(d.Paths))
 				for _, p := range d.GetPaths() {
 					if !p.Filtered {
@@ -943,7 +941,7 @@ func showNeighborRib(r string, name string, args []string) error {
 					}
 				}
 				d.Paths = l
-			case CMD_REJECTED:
+			case cmdRejected:
 				// always nothing
 				d.Paths = []*api.Path{}
 			default:
@@ -966,13 +964,13 @@ func resetNeighbor(cmd string, remoteIP string, args []string) error {
 	soft := true
 	dir := api.ResetPeerRequest_BOTH
 	switch cmd {
-	case CMD_RESET:
+	case cmdReset:
 		soft = false
 		comm = neighborsOpts.Reason
-	case CMD_SOFT_RESET:
-	case CMD_SOFT_RESET_IN:
+	case cmdSoftReset:
+	case cmdSoftResetIn:
 		dir = api.ResetPeerRequest_IN
-	case CMD_SOFT_RESET_OUT:
+	case cmdSoftResetOut:
 		dir = api.ResetPeerRequest_OUT
 	}
 	_, err := client.ResetPeer(ctx, &api.ResetPeerRequest{
@@ -989,19 +987,19 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 		return fmt.Errorf("Too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
 	}
 	switch cmd {
-	case CMD_SHUTDOWN:
-		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead\n", CMD_SHUTDOWN, CMD_DISABLE)
+	case cmdShutdown:
+		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead\n", cmdShutdown, cmdDisable)
 		_, err := client.ShutdownPeer(ctx, &api.ShutdownPeerRequest{
 			Address:       remoteIP,
 			Communication: neighborsOpts.Reason,
 		})
 		return err
-	case CMD_ENABLE:
+	case cmdEnable:
 		_, err := client.EnablePeer(ctx, &api.EnablePeerRequest{
 			Address: remoteIP,
 		})
 		return err
-	case CMD_DISABLE:
+	case cmdDisable:
 		_, err := client.DisablePeer(ctx, &api.DisablePeerRequest{
 			Address: remoteIP,
 		})
@@ -1073,7 +1071,7 @@ func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 
 func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
 	if remoteIP == "" {
-		remoteIP = GLOBAL_RIB_NAME
+		remoteIP = globalRIBName
 	}
 
 	assign := &api.PolicyAssignment{
@@ -1094,7 +1092,7 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 
 	var err error
 	switch cmdType {
-	case CMD_ADD, CMD_SET:
+	case cmdAdd, cmdSet:
 		if len(args) < 1 {
 			return fmt.Errorf("%s <policy name>... [default {%s|%s}]", usage, "accept", "reject")
 		}
@@ -1112,15 +1110,15 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 	}
 	assign.Policies = ps
 	switch cmdType {
-	case CMD_ADD:
+	case cmdAdd:
 		_, err = client.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{
 			Assignment: assign,
 		})
-	case CMD_SET:
+	case cmdSet:
 		_, err = client.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 			Assignment: assign,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		all := false
 		if len(args) == 0 {
 			all = true
@@ -1135,24 +1133,24 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 
 func modNeighbor(cmdType string, args []string) error {
 	params := map[string]int{
-		"interface": PARAM_SINGLE,
+		"interface": paramSingle,
 	}
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [ <neighbor-address> | interface <neighbor-interface> ]", cmdType)
-	if cmdType == CMD_ADD {
+	if cmdType == cmdAdd {
 		usage += " as <VALUE>"
-	} else if cmdType == CMD_UPDATE {
+	} else if cmdType == cmdUpdate {
 		usage += " [ as <VALUE> ]"
 	}
-	if cmdType == CMD_ADD || cmdType == CMD_UPDATE {
-		params["as"] = PARAM_SINGLE
-		params["family"] = PARAM_SINGLE
-		params["vrf"] = PARAM_SINGLE
-		params["route-reflector-client"] = PARAM_SINGLE
-		params["route-server-client"] = PARAM_FLAG
-		params["allow-own-as"] = PARAM_SINGLE
-		params["remove-private-as"] = PARAM_SINGLE
-		params["replace-peer-as"] = PARAM_FLAG
-		params["ebgp-multihop-ttl"] = PARAM_SINGLE
+	if cmdType == cmdAdd || cmdType == cmdUpdate {
+		params["as"] = paramSingle
+		params["family"] = paramSingle
+		params["vrf"] = paramSingle
+		params["route-reflector-client"] = paramSingle
+		params["route-server-client"] = paramFlag
+		params["allow-own-as"] = paramSingle
+		params["remove-private-as"] = paramSingle
+		params["replace-peer-as"] = paramFlag
+		params["ebgp-multihop-ttl"] = paramSingle
 		usage += " [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]"
 	}
 
@@ -1182,7 +1180,7 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		var peer *api.Peer
 		switch cmdType {
-		case CMD_ADD, CMD_DEL:
+		case cmdAdd, cmdDel:
 			peer = &api.Peer{
 				Conf:  &api.PeerConf{},
 				State: &api.PeerState{},
@@ -1193,7 +1191,7 @@ func modNeighbor(cmdType string, args []string) error {
 				peer.Conf.NeighborAddress = addr
 			}
 			peer.State.NeighborAddress = addr
-		case CMD_UPDATE:
+		case cmdUpdate:
 			stream, err := client.ListPeer(ctx, &api.ListPeerRequest{
 				Address: addr,
 			})
@@ -1220,7 +1218,7 @@ func modNeighbor(cmdType string, args []string) error {
 			peer.Conf.PeerAs = uint32(as)
 		}
 		if len(m["family"]) == 1 {
-			peer.AfiSafis = make([]*api.AfiSafi, 0) // for the case of CMD_UPDATE
+			peer.AfiSafis = make([]*api.AfiSafi, 0) // for the case of cmdUpdate
 			for _, f := range strings.Split(m["family"][0], ",") {
 				rf, err := bgp.GetRouteFamily(f)
 				if err != nil {
@@ -1281,19 +1279,19 @@ func modNeighbor(cmdType string, args []string) error {
 	}
 
 	switch cmdType {
-	case CMD_ADD:
+	case cmdAdd:
 		if err = updateNeighborConfig(n); err != nil {
 			return err
 		}
 		_, err = client.AddPeer(ctx, &api.AddPeerRequest{
 			Peer: n,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		_, err = client.DeletePeer(ctx, &api.DeletePeerRequest{
 			Address:   n.Conf.NeighborAddress,
 			Interface: n.Conf.NeighborInterface,
 		})
-	case CMD_UPDATE:
+	case cmdUpdate:
 		if err = updateNeighborConfig(n); err != nil {
 			return err
 		}
@@ -1305,7 +1303,7 @@ func modNeighbor(cmdType string, args []string) error {
 	return err
 }
 
-func NewNeighborCmd() *cobra.Command {
+func newNeighborCmd() *cobra.Command {
 
 	neighborCmdImpl := &cobra.Command{}
 
@@ -1315,9 +1313,9 @@ func NewNeighborCmd() *cobra.Command {
 	}
 
 	c := make([]cmds, 0, 3)
-	c = append(c, cmds{[]string{CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT, CMD_ACCEPTED, CMD_REJECTED}, showNeighborRib})
-	c = append(c, cmds{[]string{CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT}, resetNeighbor})
-	c = append(c, cmds{[]string{CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE}, stateChangeNeighbor})
+	c = append(c, cmds{[]string{cmdLocal, cmdAdjIn, cmdAdjOut, cmdAccepted, cmdRejected}, showNeighborRib})
+	c = append(c, cmds{[]string{cmdReset, cmdSoftReset, cmdSoftResetIn, cmdSoftResetOut}, resetNeighbor})
+	c = append(c, cmds{[]string{cmdShutdown, cmdEnable, cmdDisable}, stateChangeNeighbor})
 
 	getPeer := func(addr string) (*api.Peer, error) {
 		var r *api.ListPeerResponse
@@ -1341,7 +1339,7 @@ func NewNeighborCmd() *cobra.Command {
 				Run: func(cmd *cobra.Command, args []string) {
 					addr := ""
 					switch name {
-					case CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN:
+					case cmdReset, cmdSoftReset, cmdSoftResetIn, cmdSoftResetOut, cmdShutdown:
 						if args[len(args)-1] == "all" {
 							addr = "all"
 						}
@@ -1361,10 +1359,10 @@ func NewNeighborCmd() *cobra.Command {
 			}
 			neighborCmdImpl.AddCommand(c)
 			switch name {
-			case CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT:
+			case cmdLocal, cmdAdjIn, cmdAdjOut:
 				n := name
 				c.AddCommand(&cobra.Command{
-					Use: CMD_SUMMARY,
+					Use: cmdSummary,
 					Run: func(cmd *cobra.Command, args []string) {
 						if err := showRibInfo(n, args[len(args)-1]); err != nil {
 							exitWithError(err)
@@ -1376,14 +1374,14 @@ func NewNeighborCmd() *cobra.Command {
 	}
 
 	policyCmd := &cobra.Command{
-		Use: CMD_POLICY,
+		Use: cmdPolicy,
 		Run: func(cmd *cobra.Command, args []string) {
 			peer, err := getPeer(args[0])
 			if err != nil {
 				exitWithError(err)
 			}
 			remoteIP := peer.State.NeighborAddress
-			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
+			for _, v := range []string{cmdIn, cmdImport, cmdExport} {
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
 					exitWithError(err)
 				}
@@ -1391,7 +1389,7 @@ func NewNeighborCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
+	for _, v := range []string{cmdIn, cmdImport, cmdExport} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
@@ -1407,7 +1405,7 @@ func NewNeighborCmd() *cobra.Command {
 			},
 		}
 
-		for _, w := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+		for _, w := range []string{cmdAdd, cmdDel, cmdSet} {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
@@ -1432,7 +1430,7 @@ func NewNeighborCmd() *cobra.Command {
 	neighborCmdImpl.AddCommand(policyCmd)
 
 	neighborCmd := &cobra.Command{
-		Use: CMD_NEIGHBOR,
+		Use: cmdNeighbor,
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 0 {
@@ -1450,7 +1448,7 @@ func NewNeighborCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_ADD, CMD_DEL, CMD_UPDATE} {
+	for _, v := range []string{cmdAdd, cmdDel, cmdUpdate} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(c *cobra.Command, args []string) {

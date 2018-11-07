@@ -48,7 +48,7 @@ func modBmpServer(cmdType string, args []string) error {
 
 	var err error
 	switch cmdType {
-	case CMD_ADD:
+	case cmdAdd:
 		policyType := api.AddBmpRequest_PRE
 		if len(args) > 1 {
 			switch args[1] {
@@ -69,7 +69,7 @@ func modBmpServer(cmdType string, args []string) error {
 			Port:    port,
 			Type:    policyType,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		_, err = client.DeleteBmp(ctx, &api.DeleteBmpRequest{
 			Address: address,
 			Port:    port,
@@ -78,12 +78,12 @@ func modBmpServer(cmdType string, args []string) error {
 	return err
 }
 
-func NewBmpCmd() *cobra.Command {
+func newBmpCmd() *cobra.Command {
 	bmpCmd := &cobra.Command{
-		Use: CMD_BMP,
+		Use: cmdBMP,
 	}
 
-	for _, w := range []string{CMD_ADD, CMD_DEL} {
+	for _, w := range []string{cmdAdd, cmdDel} {
 		subcmd := &cobra.Command{
 			Use: w,
 			Run: func(cmd *cobra.Command, args []string) {

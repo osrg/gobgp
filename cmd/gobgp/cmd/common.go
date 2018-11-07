@@ -31,59 +31,56 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
-const GLOBAL_RIB_NAME = "global"
+const globalRIBName = "global"
 
 const (
-	CMD_GLOBAL         = "global"
-	CMD_NEIGHBOR       = "neighbor"
-	CMD_POLICY         = "policy"
-	CMD_RIB            = "rib"
-	CMD_ADD            = "add"
-	CMD_DEL            = "del"
-	CMD_ALL            = "all"
-	CMD_SET            = "set"
-	CMD_LOCAL          = "local"
-	CMD_ADJ_IN         = "adj-in"
-	CMD_ADJ_OUT        = "adj-out"
-	CMD_RESET          = "reset"
-	CMD_SOFT_RESET     = "softreset"
-	CMD_SOFT_RESET_IN  = "softresetin"
-	CMD_SOFT_RESET_OUT = "softresetout"
-	CMD_SHUTDOWN       = "shutdown"
-	CMD_ENABLE         = "enable"
-	CMD_DISABLE        = "disable"
-	CMD_PREFIX         = "prefix"
-	CMD_ASPATH         = "as-path"
-	CMD_COMMUNITY      = "community"
-	CMD_EXTCOMMUNITY   = "ext-community"
-	CMD_IMPORT         = "import"
-	CMD_EXPORT         = "export"
-	CMD_IN             = "in"
-	CMD_MONITOR        = "monitor"
-	CMD_MRT            = "mrt"
-	CMD_DUMP           = "dump"
-	CMD_INJECT         = "inject"
-	CMD_RPKI           = "rpki"
-	CMD_RPKI_TABLE     = "table"
-	CMD_RPKI_SERVER    = "server"
-	CMD_VRF            = "vrf"
-	CMD_ACCEPTED       = "accepted"
-	CMD_REJECTED       = "rejected"
-	CMD_STATEMENT      = "statement"
-	CMD_CONDITION      = "condition"
-	CMD_ACTION         = "action"
-	CMD_UPDATE         = "update"
-	CMD_ROTATE         = "rotate"
-	CMD_BMP            = "bmp"
-	CMD_LARGECOMMUNITY = "large-community"
-	CMD_SUMMARY        = "summary"
-	CMD_VALIDATION     = "validation"
+	cmdGlobal         = "global"
+	cmdNeighbor       = "neighbor"
+	cmdPolicy         = "policy"
+	cmdRib            = "rib"
+	cmdAdd            = "add"
+	cmdDel            = "del"
+	cmdAll            = "all"
+	cmdSet            = "set"
+	cmdLocal          = "local"
+	cmdAdjIn          = "adj-in"
+	cmdAdjOut         = "adj-out"
+	cmdReset          = "reset"
+	cmdSoftReset      = "softreset"
+	cmdSoftResetIn    = "softresetin"
+	cmdSoftResetOut   = "softresetout"
+	cmdShutdown       = "shutdown"
+	cmdEnable         = "enable"
+	cmdDisable        = "disable"
+	cmdPrefix         = "prefix"
+	cmdAspath         = "as-path"
+	cmdCommunity      = "community"
+	cmdExtcommunity   = "ext-community"
+	cmdImport         = "import"
+	cmdExport         = "export"
+	cmdIn             = "in"
+	cmdMonitor        = "monitor"
+	cmdMRT            = "mrt"
+	cmdInject         = "inject"
+	cmdRPKI           = "rpki"
+	cmdRPKITable      = "table"
+	cmdRPKIServer     = "server"
+	cmdVRF            = "vrf"
+	cmdAccepted       = "accepted"
+	cmdRejected       = "rejected"
+	cmdStatement      = "statement"
+	cmdCondition      = "condition"
+	cmdAction         = "action"
+	cmdUpdate         = "update"
+	cmdBMP            = "bmp"
+	cmdLargecommunity = "large-community"
+	cmdSummary        = "summary"
 )
 
 const (
-	PARAM_FLAG = iota
-	PARAM_SINGLE
-	PARAM_LIST
+	paramFlag = iota
+	paramSingle
+	paramList
 )
 
 var subOpts struct {
@@ -164,15 +161,15 @@ func extractReserved(args []string, keys map[string]int) (map[string][]string, e
 			continue
 		}
 		switch keys[k] {
-		case PARAM_FLAG:
+		case paramFlag:
 			if len(v) != 0 {
 				return nil, fmt.Errorf("%s should not have arguments", k)
 			}
-		case PARAM_SINGLE:
+		case paramSingle:
 			if len(v) != 1 {
 				return nil, fmt.Errorf("%s should have one argument", k)
 			}
-		case PARAM_LIST:
+		case paramList:
 			if len(v) == 0 {
 				return nil, fmt.Errorf("%s should have one or more arguments", k)
 			}
@@ -227,67 +224,67 @@ func addr2AddressFamily(a net.IP) *api.Family {
 }
 
 var (
-	IPv4_UC = &api.Family{
+	ipv4UC = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_UNICAST,
 	}
-	IPv6_UC = &api.Family{
+	ipv6UC = &api.Family{
 		Afi:  api.Family_AFI_IP6,
 		Safi: api.Family_SAFI_UNICAST,
 	}
-	IPv4_VPN = &api.Family{
+	ipv4VPN = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_MPLS_VPN,
 	}
-	IPv6_VPN = &api.Family{
+	ipv6VPN = &api.Family{
 		Afi:  api.Family_AFI_IP6,
 		Safi: api.Family_SAFI_MPLS_VPN,
 	}
-	IPv4_MPLS = &api.Family{
+	ipv4MPLS = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_MPLS_LABEL,
 	}
-	IPv6_MPLS = &api.Family{
+	ipv6MPLS = &api.Family{
 		Afi:  api.Family_AFI_IP6,
 		Safi: api.Family_SAFI_MPLS_LABEL,
 	}
-	EVPN = &api.Family{
+	evpn = &api.Family{
 		Afi:  api.Family_AFI_L2VPN,
 		Safi: api.Family_SAFI_EVPN,
 	}
-	IPv4_ENCAP = &api.Family{
+	ipv4Encap = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_ENCAPSULATION,
 	}
-	IPv6_ENCAP = &api.Family{
+	ipv6Encap = &api.Family{
 		Afi:  api.Family_AFI_IP6,
 		Safi: api.Family_SAFI_ENCAPSULATION,
 	}
-	RTC = &api.Family{
+	rtc = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_ROUTE_TARGET_CONSTRAINTS,
 	}
-	IPv4_FS = &api.Family{
+	ipv4Flowspec = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_FLOW_SPEC_UNICAST,
 	}
-	IPv6_FS = &api.Family{
+	ipv6Flowspec = &api.Family{
 		Afi:  api.Family_AFI_IP6,
 		Safi: api.Family_SAFI_FLOW_SPEC_UNICAST,
 	}
-	IPv4_VPN_FS = &api.Family{
+	ipv4VPNflowspec = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_FLOW_SPEC_VPN,
 	}
-	IPv6_VPN_FS = &api.Family{
+	ipv6VPNflowspec = &api.Family{
 		Afi:  api.Family_AFI_IP6,
 		Safi: api.Family_SAFI_FLOW_SPEC_VPN,
 	}
-	L2_VPN_FS = &api.Family{
+	l2VPNflowspec = &api.Family{
 		Afi:  api.Family_AFI_L2VPN,
 		Safi: api.Family_SAFI_FLOW_SPEC_VPN,
 	}
-	OPAQUE = &api.Family{
+	opaque = &api.Family{
 		Afi:  api.Family_AFI_OPAQUE,
 		Safi: api.Family_SAFI_KEY_VALUE,
 	}
@@ -298,37 +295,37 @@ func checkAddressFamily(def *api.Family) (*api.Family, error) {
 	var e error
 	switch subOpts.AddressFamily {
 	case "ipv4", "v4", "4":
-		f = IPv4_UC
+		f = ipv4UC
 	case "ipv6", "v6", "6":
-		f = IPv6_UC
+		f = ipv6UC
 	case "ipv4-l3vpn", "vpnv4", "vpn-ipv4":
-		f = IPv4_VPN
+		f = ipv4VPN
 	case "ipv6-l3vpn", "vpnv6", "vpn-ipv6":
-		f = IPv6_VPN
+		f = ipv6VPN
 	case "ipv4-labeled", "ipv4-labelled", "ipv4-mpls":
-		f = IPv4_MPLS
+		f = ipv4MPLS
 	case "ipv6-labeled", "ipv6-labelled", "ipv6-mpls":
-		f = IPv6_MPLS
+		f = ipv6MPLS
 	case "evpn":
-		f = EVPN
+		f = evpn
 	case "encap", "ipv4-encap":
-		f = IPv4_ENCAP
+		f = ipv4Encap
 	case "ipv6-encap":
-		f = IPv6_ENCAP
+		f = ipv6Encap
 	case "rtc":
-		f = RTC
+		f = rtc
 	case "ipv4-flowspec", "ipv4-flow", "flow4":
-		f = IPv4_FS
+		f = ipv4Flowspec
 	case "ipv6-flowspec", "ipv6-flow", "flow6":
-		f = IPv6_FS
+		f = ipv6Flowspec
 	case "ipv4-l3vpn-flowspec", "ipv4vpn-flowspec", "flowvpn4":
-		f = IPv4_VPN_FS
+		f = ipv4VPNflowspec
 	case "ipv6-l3vpn-flowspec", "ipv6vpn-flowspec", "flowvpn6":
-		f = IPv6_VPN_FS
+		f = ipv6VPNflowspec
 	case "l2vpn-flowspec":
-		f = L2_VPN_FS
+		f = l2VPNflowspec
 	case "opaque":
-		f = OPAQUE
+		f = opaque
 	case "":
 		f = def
 	default:
