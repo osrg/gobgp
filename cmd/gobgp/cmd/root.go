@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"time"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
@@ -43,6 +44,7 @@ var ctx context.Context
 
 func NewRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
+	var cancel context.CancelFunc
 	rootCmd := &cobra.Command{
 		Use: "gobgp",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -56,9 +58,10 @@ func NewRootCmd() *cobra.Command {
 
 			if !globalOpts.GenCmpl {
 				var err error
-				ctx = context.Background()
+				ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 				client, err = newClient(ctx)
 				if err != nil {
+					cancel()
 					exitWithError(err)
 				}
 			}
@@ -71,6 +74,10 @@ func NewRootCmd() *cobra.Command {
 			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			// if children declare thier own, cancel is not called. Doesn't matter because the command will exit soon.
+			if cancel != nil {
+				cancel()
+			}
 		},
 	}
 
