@@ -23,7 +23,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -183,7 +182,7 @@ func extractReserved(args []string, keys map[string]int) (map[string][]string, e
 }
 
 func newClient(ctx context.Context) (api.GobgpApiClient, error) {
-	grpcOpts := []grpc.DialOption{grpc.WithTimeout(time.Second), grpc.WithBlock()}
+	grpcOpts := []grpc.DialOption{grpc.WithBlock()}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
 		if globalOpts.CaFile == "" {
