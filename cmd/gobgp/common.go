@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package main
 
 import (
 	"bytes"
@@ -93,8 +93,6 @@ var neighborsOpts struct {
 }
 
 var mrtOpts struct {
-	OutputDir   string
-	FileFormat  string
 	Filename    string `long:"filename" description:"MRT file name"`
 	RecordCount int64  `long:"count" description:"Number of records to inject"`
 	RecordSkip  int64  `long:"skip" description:"Number of records to skip before injecting"`

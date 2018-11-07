@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/osrg/gobgp/cmd/gobgp/cmd"
 	"google.golang.org/grpc"
 )
 
@@ -31,5 +30,5 @@ func main() {
 		os.Exit(0)
 	}
 	grpc.EnableTracing = false
-	cmd.NewRootCmd().Execute()
+	newRootCmd().Execute()
 }
