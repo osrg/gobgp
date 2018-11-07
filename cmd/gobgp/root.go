@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package main
 
 import (
 	"context"
@@ -42,7 +42,7 @@ var globalOpts struct {
 var client api.GobgpApiClient
 var ctx context.Context
 
-func NewRootCmd() *cobra.Command {
+func newRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
 	var cancel context.CancelFunc
 	rootCmd := &cobra.Command{
