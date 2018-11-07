@@ -188,9 +188,9 @@ func injectMrt() error {
 	return nil
 }
 
-func NewMrtCmd() *cobra.Command {
+func newMrtCmd() *cobra.Command {
 	globalInjectCmd := &cobra.Command{
-		Use: CMD_GLOBAL,
+		Use: cmdGlobal,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
 				exitWithError(fmt.Errorf("usage: gobgp mrt inject global <filename> [<count> [<skip>]]"))
@@ -220,12 +220,12 @@ func NewMrtCmd() *cobra.Command {
 	}
 
 	injectCmd := &cobra.Command{
-		Use: CMD_INJECT,
+		Use: cmdInject,
 	}
 	injectCmd.AddCommand(globalInjectCmd)
 
 	mrtCmd := &cobra.Command{
-		Use: CMD_MRT,
+		Use: cmdMRT,
 	}
 	mrtCmd.AddCommand(injectCmd)
 

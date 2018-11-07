@@ -85,7 +85,7 @@ func showRPKIServer(args []string) error {
 }
 
 func showRPKITable(args []string) error {
-	family, err := checkAddressFamily(IPv4_UC)
+	family, err := checkAddressFamily(ipv4UC)
 	if err != nil {
 		exitWithError(err)
 	}
@@ -122,13 +122,13 @@ func showRPKITable(args []string) error {
 	return nil
 }
 
-func NewRPKICmd() *cobra.Command {
+func newRPKICmd() *cobra.Command {
 	rpkiCmd := &cobra.Command{
-		Use: CMD_RPKI,
+		Use: cmdRPKI,
 	}
 
 	serverCmd := &cobra.Command{
-		Use: CMD_RPKI_SERVER,
+		Use: cmdRPKIServer,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 || len(args) == 1 {
 				showRPKIServer(args)
@@ -173,7 +173,7 @@ func NewRPKICmd() *cobra.Command {
 	rpkiCmd.AddCommand(serverCmd)
 
 	tableCmd := &cobra.Command{
-		Use: CMD_RPKI_TABLE,
+		Use: cmdRPKITable,
 		Run: func(cmd *cobra.Command, args []string) {
 			showRPKITable(args)
 		},

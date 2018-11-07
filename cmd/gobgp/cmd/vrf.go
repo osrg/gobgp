@@ -116,16 +116,16 @@ func showVrfs() error {
 }
 
 func showVrf(name string) error {
-	return showNeighborRib(CMD_VRF, name, nil)
+	return showNeighborRib(cmdVRF, name, nil)
 }
 
 func modVrf(typ string, args []string) error {
 	switch typ {
-	case CMD_ADD:
+	case cmdAdd:
 		a, err := extractReserved(args, map[string]int{
-			"rd": PARAM_SINGLE,
-			"rt": PARAM_LIST,
-			"id": PARAM_SINGLE})
+			"rd": paramSingle,
+			"rt": paramList,
+			"id": paramSingle})
 		if err != nil || len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 {
 			return fmt.Errorf("Usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 		}
@@ -176,7 +176,7 @@ func modVrf(typ string, args []string) error {
 			},
 		})
 		return err
-	case CMD_DEL:
+	case cmdDel:
 		if len(args) != 1 {
 			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")
 		}
@@ -188,9 +188,9 @@ func modVrf(typ string, args []string) error {
 	return nil
 }
 
-func NewVrfCmd() *cobra.Command {
+func newVrfCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
-		Use: CMD_RIB,
+		Use: cmdRib,
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 1 {
@@ -204,11 +204,11 @@ func NewVrfCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				err := modPath(CMD_VRF, args[len(args)-1], cmd.Use, args[:len(args)-1])
+				err := modPath(cmdVRF, args[len(args)-1], cmd.Use, args[:len(args)-1])
 				if err != nil {
 					exitWithError(err)
 				}
@@ -218,7 +218,7 @@ func NewVrfCmd() *cobra.Command {
 	}
 
 	neighborCmd := &cobra.Command{
-		Use: CMD_NEIGHBOR,
+		Use: cmdNeighbor,
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 1 {
@@ -252,7 +252,7 @@ func NewVrfCmd() *cobra.Command {
 	vrfCmdImpl.AddCommand(ribCmd, neighborCmd)
 
 	vrfCmd := &cobra.Command{
-		Use: CMD_VRF,
+		Use: cmdVRF,
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 0 {
@@ -269,7 +269,7 @@ func NewVrfCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {

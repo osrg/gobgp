@@ -200,17 +200,17 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 func showDefinedSet(v string, args []string) error {
 	var typ api.DefinedType
 	switch v {
-	case CMD_PREFIX:
+	case cmdPrefix:
 		typ = api.DefinedType_PREFIX
-	case CMD_NEIGHBOR:
+	case cmdNeighbor:
 		typ = api.DefinedType_NEIGHBOR
-	case CMD_ASPATH:
+	case cmdAspath:
 		typ = api.DefinedType_AS_PATH
-	case CMD_COMMUNITY:
+	case cmdCommunity:
 		typ = api.DefinedType_COMMUNITY
-	case CMD_EXTCOMMUNITY:
+	case cmdExtcommunity:
 		typ = api.DefinedType_EXT_COMMUNITY
-	case CMD_LARGECOMMUNITY:
+	case cmdLargecommunity:
 		typ = api.DefinedType_LARGE_COMMUNITY
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
@@ -254,17 +254,17 @@ func showDefinedSet(v string, args []string) error {
 	}
 	var output string
 	switch v {
-	case CMD_PREFIX:
+	case cmdPrefix:
 		output = formatDefinedSet(true, "PREFIX", 0, m)
-	case CMD_NEIGHBOR:
+	case cmdNeighbor:
 		output = formatDefinedSet(true, "ADDRESS", 0, m)
-	case CMD_ASPATH:
+	case cmdAspath:
 		output = formatDefinedSet(true, "AS-PATH", 0, m)
-	case CMD_COMMUNITY:
+	case cmdCommunity:
 		output = formatDefinedSet(true, "COMMUNITY", 0, m)
-	case CMD_EXTCOMMUNITY:
+	case cmdExtcommunity:
 		output = formatDefinedSet(true, "EXT-COMMUNITY", 0, m)
-	case CMD_LARGECOMMUNITY:
+	case cmdLargecommunity:
 		output = formatDefinedSet(true, "LARGE-COMMUNITY", 0, m)
 	}
 	fmt.Print(output)
@@ -407,17 +407,17 @@ func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 	}
 
 	switch settype {
-	case CMD_PREFIX:
+	case cmdPrefix:
 		return parsePrefixSet(args)
-	case CMD_NEIGHBOR:
+	case cmdNeighbor:
 		return parseNeighborSet(args)
-	case CMD_ASPATH:
+	case cmdAspath:
 		return parseAsPathSet(args)
-	case CMD_COMMUNITY:
+	case cmdCommunity:
 		return parseCommunitySet(args)
-	case CMD_EXTCOMMUNITY:
+	case cmdExtcommunity:
 		return parseExtCommunitySet(args)
-	case CMD_LARGECOMMUNITY:
+	case cmdLargecommunity:
 		return parseLargeCommunitySet(args)
 	default:
 		return nil, fmt.Errorf("invalid defined set type: %s", settype)
@@ -425,12 +425,12 @@ func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 }
 
 var modPolicyUsageFormat = map[string]string{
-	CMD_PREFIX:         "usage: policy prefix %s <name> [<prefix> [<mask range>]]",
-	CMD_NEIGHBOR:       "usage: policy neighbor %s <name> [<neighbor address>...]",
-	CMD_ASPATH:         "usage: policy aspath %s <name> [<regexp>...]",
-	CMD_COMMUNITY:      "usage: policy community %s <name> [<regexp>...]",
-	CMD_EXTCOMMUNITY:   "usage: policy extcommunity %s <name> [<regexp>...]",
-	CMD_LARGECOMMUNITY: "usage: policy large-community %s <name> [<regexp>...]",
+	cmdPrefix:         "usage: policy prefix %s <name> [<prefix> [<mask range>]]",
+	cmdNeighbor:       "usage: policy neighbor %s <name> [<neighbor address>...]",
+	cmdAspath:         "usage: policy aspath %s <name> [<regexp>...]",
+	cmdCommunity:      "usage: policy community %s <name> [<regexp>...]",
+	cmdExtcommunity:   "usage: policy extcommunity %s <name> [<regexp>...]",
+	cmdLargecommunity: "usage: policy large-community %s <name> [<regexp>...]",
 }
 
 func modDefinedSet(settype string, modtype string, args []string) error {
@@ -443,11 +443,11 @@ func modDefinedSet(settype string, modtype string, args []string) error {
 		return err
 	}
 	switch modtype {
-	case CMD_ADD:
+	case cmdAdd:
 		_, err = client.AddDefinedSet(ctx, &api.AddDefinedSetRequest{
 			DefinedSet: d,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		all := false
 		if len(args) < 2 {
 			all = true
@@ -643,11 +643,11 @@ func modStatement(op string, args []string) error {
 	}
 	var err error
 	switch op {
-	case CMD_ADD:
+	case cmdAdd:
 		_, err = client.AddStatement(ctx, &api.AddStatementRequest{
 			Statement: stmt,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
 			Statement: stmt,
 			All:       true,
@@ -844,11 +844,11 @@ func modCondition(name, op string, args []string) error {
 
 	var err error
 	switch op {
-	case CMD_ADD:
+	case cmdAdd:
 		_, err = client.AddStatement(ctx, &api.AddStatementRequest{
 			Statement: stmt,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
 			Statement: stmt,
 		})
@@ -974,11 +974,11 @@ func modAction(name, op string, args []string) error {
 	}
 	var err error
 	switch op {
-	case CMD_ADD:
+	case cmdAdd:
 		_, err = client.AddStatement(ctx, &api.AddStatementRequest{
 			Statement: stmt,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		_, err = client.DeleteStatement(ctx, &api.DeleteStatementRequest{
 			Statement: stmt,
 		})
@@ -1005,12 +1005,12 @@ func modPolicy(modtype string, args []string) error {
 
 	var err error
 	switch modtype {
-	case CMD_ADD:
+	case cmdAdd:
 		_, err = client.AddPolicy(ctx, &api.AddPolicyRequest{
 			Policy:                  policy,
 			ReferExistingStatements: true,
 		})
-	case CMD_DEL:
+	case cmdDel:
 		all := false
 		if len(args) < 1 {
 			all = true
@@ -1024,9 +1024,9 @@ func modPolicy(modtype string, args []string) error {
 	return err
 }
 
-func NewPolicyCmd() *cobra.Command {
+func newPolicyCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
-		Use: CMD_POLICY,
+		Use: cmdPolicy,
 		Run: func(cmd *cobra.Command, args []string) {
 			err := showPolicy(args)
 			if err != nil {
@@ -1035,7 +1035,7 @@ func NewPolicyCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_COMMUNITY, CMD_EXTCOMMUNITY, CMD_LARGECOMMUNITY} {
+	for _, v := range []string{cmdPrefix, cmdNeighbor, cmdAspath, cmdCommunity, cmdExtcommunity, cmdLargecommunity} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
@@ -1044,7 +1044,7 @@ func NewPolicyCmd() *cobra.Command {
 				}
 			},
 		}
-		for _, w := range []string{CMD_ADD, CMD_DEL} {
+		for _, w := range []string{cmdAdd, cmdDel} {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(c *cobra.Command, args []string) {
@@ -1059,18 +1059,18 @@ func NewPolicyCmd() *cobra.Command {
 	}
 
 	stmtCmdImpl := &cobra.Command{}
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
 			Use: v,
 		}
-		for _, w := range []string{CMD_CONDITION, CMD_ACTION} {
+		for _, w := range []string{cmdCondition, cmdAction} {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(c *cobra.Command, args []string) {
 					name := args[len(args)-1]
 					args = args[:len(args)-1]
 					var err error
-					if c.Use == CMD_CONDITION {
+					if c.Use == cmdCondition {
 						err = modCondition(name, cmd.Use, args)
 					} else {
 						err = modAction(name, cmd.Use, args)
@@ -1086,7 +1086,7 @@ func NewPolicyCmd() *cobra.Command {
 	}
 
 	stmtCmd := &cobra.Command{
-		Use: CMD_STATEMENT,
+		Use: cmdStatement,
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) < 2 {
@@ -1101,7 +1101,7 @@ func NewPolicyCmd() *cobra.Command {
 			}
 		},
 	}
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(c *cobra.Command, args []string) {
@@ -1115,7 +1115,7 @@ func NewPolicyCmd() *cobra.Command {
 	}
 	policyCmd.AddCommand(stmtCmd)
 
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(c *cobra.Command, args []string) {
