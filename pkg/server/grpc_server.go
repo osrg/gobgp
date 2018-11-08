@@ -171,62 +171,18 @@ func (s *Server) ListPath(r *api.ListPathRequest, stream api.GobgpApi_ListPathSe
 }
 
 func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_MonitorTableServer) error {
-	if arg == nil {
-		return fmt.Errorf("invalid request")
-	}
-	w, err := func() (*watcher, error) {
-		switch arg.Type {
-		case api.Resource_GLOBAL:
-			return s.bgpServer.watch(watchBestPath(arg.Current)), nil
-		case api.Resource_ADJ_IN:
-			if arg.PostPolicy {
-				return s.bgpServer.watch(watchPostUpdate(arg.Current)), nil
-			}
-			return s.bgpServer.watch(watchUpdate(arg.Current)), nil
-		default:
-			return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
-		}
-	}()
+	tm, err := s.bgpServer.NewTableMonitor(arg)
 	if err != nil {
-		return nil
+		return err
 	}
-
 	return func() error {
-		defer func() { w.Stop() }()
+		defer tm.Close()
 
-		sendPath := func(pathList []*table.Path) error {
-			for _, path := range pathList {
-				f := bgp.AfiSafiToRouteFamily(uint16(arg.Family.Afi), uint8(arg.Family.Safi))
-				if path == nil || (arg.Family != nil && f != path.GetRouteFamily()) {
-					continue
-				}
-				if err := stream.Send(&api.MonitorTableResponse{Path: toPathApi(path, nil)}); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-
-		for ev := range w.Event() {
-			switch msg := ev.(type) {
-			case *watchEventBestPath:
-				if err := sendPath(func() []*table.Path {
-					if len(msg.MultiPathList) > 0 {
-						l := make([]*table.Path, 0)
-						for _, p := range msg.MultiPathList {
-							l = append(l, p...)
-						}
-						return l
-					} else {
-						return msg.PathList
-					}
-				}()); err != nil {
-					return err
-				}
-			case *watchEventUpdate:
-				if err := sendPath(msg.PathList); err != nil {
-					return err
-				}
+		for v := range tm.Inbox {
+			if err := stream.Send(&api.MonitorTableResponse{
+				Path: v,
+			}); err != nil {
+				return err
 			}
 		}
 		return nil

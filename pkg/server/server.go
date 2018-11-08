@@ -3340,6 +3340,89 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
+type TableMonitor struct {
+	Inbox chan *api.Path
+	done  chan interface{}
+	w     *watcher
+}
+
+func (tm *TableMonitor) Close() {
+	close(tm.done)
+}
+
+func (s *BgpServer) NewTableMonitor(r *api.MonitorTableRequest) (*TableMonitor, error) {
+	if r == nil {
+		return nil, fmt.Errorf("nil request")
+	}
+	w, err := func() (*watcher, error) {
+		switch r.Type {
+		case api.Resource_GLOBAL:
+			return s.watch(watchBestPath(r.Current)), nil
+		case api.Resource_ADJ_IN:
+			if r.PostPolicy {
+				return s.watch(watchPostUpdate(r.Current)), nil
+			}
+			return s.watch(watchUpdate(r.Current)), nil
+		default:
+			return nil, fmt.Errorf("unsupported resource type: %v", r.Type)
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	tm := &TableMonitor{
+		Inbox: make(chan *api.Path),
+		done:  make(chan interface{}),
+		w:     w,
+	}
+	go func() {
+		defer func() {
+			close(tm.Inbox)
+			tm.w.Stop()
+		}()
+		family := bgp.RouteFamily(0)
+		if r.Family != nil {
+			family = bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+		}
+
+		for {
+			select {
+			case ev := <-tm.w.Event():
+				var pl []*table.Path
+				switch msg := ev.(type) {
+				case *watchEventBestPath:
+					if len(msg.MultiPathList) > 0 {
+						l := make([]*table.Path, 0)
+						for _, p := range msg.MultiPathList {
+							l = append(l, p...)
+						}
+						pl = l
+					} else {
+						pl = msg.PathList
+					}
+				case *watchEventUpdate:
+					pl = msg.PathList
+				}
+				for _, path := range pl {
+					if path == nil || (r.Family != nil && family != path.GetRouteFamily()) {
+						continue
+					}
+					select {
+					case tm.Inbox <- toPathApi(path, nil):
+					case <-tm.done:
+						return
+					}
+				}
+			case <-tm.done:
+				return
+			}
+		}
+	}()
+
+	return tm, nil
+}
+
 type PeerMonitor struct {
 	Inbox chan *api.Peer
 	done  chan interface{}
