@@ -137,12 +137,12 @@ func (m *mrtWriter) loop() error {
 				}
 
 				idx := func(p *table.Path) uint16 {
-					for i, pconf := range e.Neighbor {
-						if p.GetSource().Address.String() == pconf.State.NeighborAddress {
+					for i, peer := range peers {
+						if peer.IpAddress.String() == p.GetSource().Address.String() {
 							return uint16(i)
 						}
 					}
-					return uint16(len(e.Neighbor))
+					return uint16(len(peers))
 				}
 
 				subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
