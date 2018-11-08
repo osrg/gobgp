@@ -234,43 +234,18 @@ func (s *Server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_
 }
 
 func (s *Server) MonitorPeer(arg *api.MonitorPeerRequest, stream api.GobgpApi_MonitorPeerServer) error {
-	if arg == nil {
-		return fmt.Errorf("invalid request")
+	pm, err := s.bgpServer.NewPeerMonitor(arg)
+	if err != nil {
+		return err
 	}
 	return func() error {
-		w := s.bgpServer.watch(watchPeerState(arg.Current))
-		defer func() { w.Stop() }()
+		defer pm.Close()
 
-		for ev := range w.Event() {
-			switch msg := ev.(type) {
-			case *watchEventPeerState:
-				if len(arg.Address) > 0 && arg.Address != msg.PeerAddress.String() && arg.Address != msg.PeerInterface {
-					continue
-				}
-				if err := stream.Send(&api.MonitorPeerResponse{
-					Peer: &api.Peer{
-						Conf: &api.PeerConf{
-							PeerAs:            msg.PeerAS,
-							LocalAs:           msg.LocalAS,
-							NeighborAddress:   msg.PeerAddress.String(),
-							Id:                msg.PeerID.String(),
-							NeighborInterface: msg.PeerInterface,
-						},
-						State: &api.PeerState{
-							PeerAs:          msg.PeerAS,
-							LocalAs:         msg.LocalAS,
-							NeighborAddress: msg.PeerAddress.String(),
-							SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
-							AdminState:      api.PeerState_AdminState(msg.AdminState),
-						},
-						Transport: &api.Transport{
-							LocalAddress: msg.LocalAddress.String(),
-							LocalPort:    uint32(msg.LocalPort),
-							RemotePort:   uint32(msg.PeerPort),
-						},
-					}}); err != nil {
-					return err
-				}
+		for v := range pm.Inbox {
+			if err := stream.Send(&api.MonitorPeerResponse{
+				Peer: v,
+			}); err != nil {
+				return err
 			}
 		}
 		return nil
