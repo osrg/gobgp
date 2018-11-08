@@ -180,7 +180,7 @@ func (b *bmpClient) loop() {
 							for _, path := range pathList {
 								for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{path}) {
 									payload, _ := u.Serialize()
-									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, msg.Timestamp.Unix(), payload)); err != nil {
+									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, path.GetTimestamp().Unix(), payload)); err != nil {
 										return false
 									}
 								}
