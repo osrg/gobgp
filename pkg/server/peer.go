@@ -497,8 +497,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			// RFC4456 8. Avoiding Routing Information Loops
 			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
 			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-			peer.fsm.lock.RLock()
 			isIBGPPeer := peer.isIBGPPeer()
+			peer.fsm.lock.RLock()
 			routerId := peer.fsm.gConf.Config.RouterId
 			peer.fsm.lock.RUnlock()
 			if isIBGPPeer {
