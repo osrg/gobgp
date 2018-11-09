@@ -27,11 +27,6 @@ func main() {
 	s := gobgp.NewBgpServer()
 	go s.Serve()
 
-	// start grpc api server. this is not mandatory
-	// but you will be able to use `gobgp` cmd with this.
-	g := gobgp.NewGrpcServer(s, ":50051")
-	go g.Serve()
-
 	// global configuration
 	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{

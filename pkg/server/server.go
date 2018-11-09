@@ -27,6 +27,7 @@ import (
 	"github.com/eapache/channels"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
@@ -96,6 +97,25 @@ func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpList
 	}, nil
 }
 
+type options struct {
+	grpcAddress string
+	grpcOption  []grpc.ServerOption
+}
+
+type ServerOption func(*options)
+
+func GrpcListenAddress(addr string) ServerOption {
+	return func(o *options) {
+		o.grpcAddress = addr
+	}
+}
+
+func GrpcOption(opt []grpc.ServerOption) ServerOption {
+	return func(o *options) {
+		o.grpcOption = opt
+	}
+}
+
 type BgpServer struct {
 	bgpConfig     config.Bgp
 	fsmincomingCh *channels.InfiniteChannel
@@ -118,7 +138,12 @@ type BgpServer struct {
 	uuidMap      map[uuid.UUID]string
 }
 
-func NewBgpServer() *BgpServer {
+func NewBgpServer(opt ...ServerOption) *BgpServer {
+	opts := options{}
+	for _, o := range opt {
+		o(&opts)
+	}
+
 	roaManager, _ := newROAManager(0)
 	s := &BgpServer{
 		neighborMap:  make(map[string]*peer),
@@ -131,6 +156,16 @@ func NewBgpServer() *BgpServer {
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
+	if len(opts.grpcAddress) != 0 {
+		grpc.EnableTracing = false
+		api := newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
+		go func() {
+			if err := api.serve(); err != nil {
+				log.Fatalf("failed to listen grpc port: %s", err)
+			}
+		}()
+
+	}
 	return s
 }
 
@@ -2815,7 +2850,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 	return needsSoftResetIn, err
 }
 
-func (s *BgpServer) UpdateNeighbor(ctx context.Context, r *api.UpdatePeerRequest) (rsp *api.UpdatePeerResponse, err error) {
+func (s *BgpServer) UpdatePeer(ctx context.Context, r *api.UpdatePeerRequest) (rsp *api.UpdatePeerResponse, err error) {
 	doSoftReset := false
 	err = s.mgmtOperation(func() error {
 		c, err := newNeighborFromAPIStruct(r.Peer)
@@ -2931,13 +2966,13 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 	return nil
 }
 
-func (s *BgpServer) EnableNeighbor(ctx context.Context, r *api.EnablePeerRequest) error {
+func (s *BgpServer) EnablePeer(ctx context.Context, r *api.EnablePeerRequest) error {
 	return s.mgmtOperation(func() error {
 		return s.setAdminState(r.Address, "", true)
 	}, true)
 }
 
-func (s *BgpServer) DisableNeighbor(ctx context.Context, r *api.DisablePeerRequest) error {
+func (s *BgpServer) DisablePeer(ctx context.Context, r *api.DisablePeerRequest) error {
 	return s.mgmtOperation(func() error {
 		return s.setAdminState(r.Address, r.Communication, false)
 	}, true)

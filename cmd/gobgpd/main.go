@@ -146,25 +146,19 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Info("gobgpd started")
-	bgpServer := server.NewBgpServer()
-	go bgpServer.Serve()
-
-	var grpcOpts []grpc.ServerOption
+	maxSize := 256 << 20
+	grpcOpts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxSize), grpc.MaxSendMsgSize(maxSize)}
 	if opts.TLS {
 		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
 			log.Fatalf("Failed to generate credentials: %v", err)
 		}
-		grpcOpts = []grpc.ServerOption{grpc.Creds(creds)}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	// start grpc Server
-	apiServer := server.NewServer(bgpServer, grpc.NewServer(grpcOpts...), opts.GrpcHosts)
-	go func() {
-		if err := apiServer.Serve(); err != nil {
-			log.Fatalf("failed to listen grpc port: %s", err)
-		}
-	}()
+
+	log.Info("gobgpd started")
+	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts))
+	go bgpServer.Serve()
 
 	if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
@@ -175,7 +169,7 @@ func main() {
 		for {
 			select {
 			case <-sigCh:
-				apiServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+				bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
 				return
 			case newConfig := <-configCh:
 				var added, deleted, updated []config.Neighbor
@@ -184,7 +178,7 @@ func main() {
 
 				if c == nil {
 					c = newConfig
-					if _, err := apiServer.StartBgp(context.Background(), &api.StartBgpRequest{
+					if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
 						Global: config.NewGlobalFromConfigStruct(&c.Global),
 					}); err != nil {
 						log.Fatalf("failed to set global config: %s", err)
@@ -196,7 +190,7 @@ func main() {
 						for _, t := range tps {
 							l = append(l, string(t))
 						}
-						if _, err := apiServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
+						if err := bgpServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
 							Url:                  c.Zebra.Config.Url,
 							RouteTypes:           l,
 							Version:              uint32(c.Zebra.Config.Version),
@@ -212,7 +206,7 @@ func main() {
 					}
 
 					for _, c := range newConfig.RpkiServers {
-						if _, err := apiServer.AddRpki(context.Background(), &api.AddRpkiRequest{
+						if err := bgpServer.AddRpki(context.Background(), &api.AddRpkiRequest{
 							Address:  c.Config.Address,
 							Port:     c.Config.Port,
 							Lifetime: c.Config.RecordLifetime,
@@ -221,7 +215,7 @@ func main() {
 						}
 					}
 					for _, c := range newConfig.BmpServers {
-						if _, err := apiServer.AddBmp(context.Background(), &api.AddBmpRequest{
+						if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
 							Address: c.Config.Address,
 							Port:    c.Config.Port,
 							Type:    api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
@@ -244,7 +238,7 @@ func main() {
 							log.Fatalf("failed to load vrf export rt config: %s", err)
 						}
 
-						if _, err := apiServer.AddVrf(context.Background(), &api.AddVrfRequest{
+						if err := bgpServer.AddVrf(context.Background(), &api.AddVrfRequest{
 							Vrf: &api.Vrf{
 								Name:     vrf.Config.Name,
 								Rd:       apiutil.MarshalRD(rd),
@@ -260,7 +254,7 @@ func main() {
 						if len(c.Config.FileName) == 0 {
 							continue
 						}
-						if _, err := apiServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
+						if err := bgpServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
 							DumpType: int32(c.Config.DumpType.ToInt()),
 							Filename: c.Config.FileName,
 							Interval: c.Config.DumpInterval,
@@ -273,7 +267,7 @@ func main() {
 					if err != nil {
 						log.Warn(err)
 					} else {
-						apiServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+						bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
 							DefinedSets: rp.DefinedSets,
 							Policies:    rp.Policies,
 						})
@@ -301,7 +295,7 @@ func main() {
 						if err != nil {
 							log.Warn(err)
 						} else {
-							apiServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+							bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
 								DefinedSets: rp.DefinedSets,
 								Policies:    rp.Policies,
 							})
@@ -332,7 +326,7 @@ func main() {
 
 						def := toDefaultTable(a.DefaultImportPolicy)
 						ps := toPolicies(a.ImportPolicyList)
-						apiServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+						bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
 							Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 								Name:     table.GLOBAL_RIB_NAME,
 								Type:     table.POLICY_DIRECTION_IMPORT,
@@ -343,7 +337,7 @@ func main() {
 
 						def = toDefaultTable(a.DefaultExportPolicy)
 						ps = toPolicies(a.ExportPolicyList)
-						apiServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+						bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
 							Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 								Name:     table.GLOBAL_RIB_NAME,
 								Type:     table.POLICY_DIRECTION_EXPORT,
@@ -359,7 +353,7 @@ func main() {
 				}
 				for _, pg := range addedPg {
 					log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
-					if _, err := apiServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+					if err := bgpServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
 						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
@@ -367,7 +361,7 @@ func main() {
 				}
 				for _, pg := range deletedPg {
 					log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
-					if _, err := apiServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
+					if err := bgpServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
 						Name: pg.Config.PeerGroupName,
 					}); err != nil {
 						log.Warn(err)
@@ -375,7 +369,7 @@ func main() {
 				}
 				for _, pg := range updatedPg {
 					log.Infof("PeerGroup %v is updated", pg.State.PeerGroupName)
-					if u, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+					if u, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
 						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
@@ -385,7 +379,7 @@ func main() {
 				}
 				for _, pg := range updatedPg {
 					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
-					if _, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+					if _, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
 						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
@@ -393,7 +387,7 @@ func main() {
 				}
 				for _, dn := range newConfig.DynamicNeighbors {
 					log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
-					if _, err := apiServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+					if err := bgpServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
 						DynamicNeighbor: &api.DynamicNeighbor{
 							Prefix:    dn.Config.Prefix,
 							PeerGroup: dn.Config.PeerGroup,
@@ -404,7 +398,7 @@ func main() {
 				}
 				for _, p := range added {
 					log.Infof("Peer %v is added", p.State.NeighborAddress)
-					if _, err := apiServer.AddPeer(context.Background(), &api.AddPeerRequest{
+					if err := bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{
 						Peer: config.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
@@ -412,7 +406,7 @@ func main() {
 				}
 				for _, p := range deleted {
 					log.Infof("Peer %v is deleted", p.State.NeighborAddress)
-					if _, err := apiServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
+					if err := bgpServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
 						Address: p.State.NeighborAddress,
 					}); err != nil {
 						log.Warn(err)
@@ -420,7 +414,7 @@ func main() {
 				}
 				for _, p := range updated {
 					log.Infof("Peer %v is updated", p.State.NeighborAddress)
-					if u, err := apiServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
+					if u, err := bgpServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
 						Peer: config.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
@@ -430,7 +424,7 @@ func main() {
 				}
 
 				if updatePolicy {
-					if _, err := apiServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
+					if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
 						Address:   "",
 						Direction: api.ResetPeerRequest_IN,
 						Soft:      true,
