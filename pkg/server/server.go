@@ -737,6 +737,7 @@ func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *peer, pathList []*ta
 	if len(cloned) == 0 {
 		return
 	}
+	n := server.toConfig(peer, false)
 	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
@@ -752,7 +753,7 @@ func (server *BgpServer) notifyPrePolicyUpdateWatcher(peer *peer, pathList []*ta
 		Payload:      payload,
 		PostPolicy:   false,
 		PathList:     cloned,
-		Neighbor:     server.toConfig(peer, false),
+		Neighbor:     n,
 	}
 	peer.fsm.lock.RUnlock()
 	server.notifyWatcher(watchEventTypePreUpdate, ev)
@@ -767,6 +768,7 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*t
 	if len(cloned) == 0 {
 		return
 	}
+	n := server.toConfig(peer, false)
 	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
@@ -780,7 +782,7 @@ func (server *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*t
 		Timestamp:    cloned[0].GetTimestamp(),
 		PostPolicy:   true,
 		PathList:     cloned,
-		Neighbor:     server.toConfig(peer, false),
+		Neighbor:     n,
 	}
 	peer.fsm.lock.RUnlock()
 	server.notifyWatcher(watchEventTypePostUpdate, ev)
