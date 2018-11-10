@@ -698,14 +698,16 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *config.Neighbor {
 		}
 	}
 
-	peer.fsm.lock.RLock()
 	conf.State.RemoteCapabilityList = remoteCap
-	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
 
+	peer.fsm.lock.RLock()
+	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
 	conf.State.SessionState = config.IntToSessionStateMap[int(peer.fsm.state)]
 	conf.State.AdminState = config.IntToAdminStateMap[int(peer.fsm.adminState)]
+	state := peer.fsm.state
+	peer.fsm.lock.RUnlock()
 
-	if peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
+	if state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
 		if getAdvertised {
 			pathList, filtered := s.getBestFromLocal(peer, rfList)
@@ -717,14 +719,15 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *config.Neighbor {
 		conf.State.AdjTable.Received = uint32(peer.adjRibIn.Count(rfList))
 		conf.State.AdjTable.Accepted = uint32(peer.adjRibIn.Accepted(rfList))
 
+		peer.fsm.lock.RLock()
 		conf.Transport.State.LocalAddress, conf.Transport.State.LocalPort = peer.fsm.LocalHostPort()
 		_, conf.Transport.State.RemotePort = peer.fsm.RemoteHostPort()
 		buf, _ := peer.fsm.recvOpen.Serialize()
 		// need to copy all values here
 		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
 		conf.State.RemoteRouterId = peer.fsm.peerInfo.ID.To4().String()
+		peer.fsm.lock.RUnlock()
 	}
-	peer.fsm.lock.RUnlock()
 	return &conf
 }
 
