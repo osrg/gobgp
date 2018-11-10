@@ -215,6 +215,7 @@ func (peer *peer) negotiatedRFList() []bgp.RouteFamily {
 }
 
 func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily {
+	id := peer.ID()
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	if peer.fsm.pConf.Config.Vrf != "" {
@@ -228,7 +229,7 @@ func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily
 			default:
 				log.WithFields(log.Fields{
 					"Topic":  "Peer",
-					"Key":    peer.ID(),
+					"Key":    id,
 					"Family": f,
 					"VRF":    peer.fsm.pConf.Config.Vrf,
 				}).Warn("invalid family configured for neighbor with vrf")

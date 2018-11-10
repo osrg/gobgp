@@ -1695,13 +1695,12 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 				"Topic": "Peer",
 				"Key":   peer.fsm.pConf.State.NeighborAddress,
 			}).Info("call set policy")
+			peer.fsm.lock.RUnlock()
 			a, err := getConfig(peer.ID())
 			if err != nil {
-				peer.fsm.lock.RUnlock()
 				return err
 			}
 			ap[peer.ID()] = *a
-			peer.fsm.lock.RUnlock()
 		}
 		return s.policy.Reset(rp, ap)
 	}, false)
