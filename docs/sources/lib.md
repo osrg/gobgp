@@ -39,15 +39,8 @@ func main() {
 	}
 
 	// monitor the change of the peer state
-	if pm, err := s.NewPeerMonitor(&api.MonitorPeerRequest{}); err != nil {
+	if err := s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer){log.Info(p)}); err != nil {
 		log.Fatal(err)
-	} else {
-		defer pm.Close()
-		go func() {
-		      for v := range pm.Inbox {
-				  log.Info(v)
-		      }
-		}()
 	}
 
 	// neighbor configuration
