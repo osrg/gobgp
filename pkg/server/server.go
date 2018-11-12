@@ -1599,14 +1599,14 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 
 func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 	return s.mgmtOperation(func() error {
-		t, ok := api.AddBmpRequest_MonitoringPolicy_name[int32(r.Type)]
+		_, ok := api.AddBmpRequest_MonitoringPolicy_name[int32(r.Type)]
 		if !ok {
 			return fmt.Errorf("invalid bmp route monitoring policy: %v", r.Type)
 		}
 		return s.bmpManager.addServer(&config.BmpServerConfig{
 			Address: r.Address,
 			Port:    r.Port,
-			RouteMonitoringPolicy: config.BmpRouteMonitoringPolicyType(t),
+			RouteMonitoringPolicy: config.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Type)],
 		})
 	}, true)
 }
