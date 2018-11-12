@@ -282,15 +282,15 @@ func (m *mrtWriter) loop() error {
 	}
 }
 
-func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
+func mrtFileOpen(filename string, rInterval uint64) (*os.File, error) {
 	realname := filename
-	if interval != 0 {
+	if rInterval != 0 {
 		realname = time.Now().Format(filename)
 	}
 	log.WithFields(log.Fields{
-		"Topic":         "mrt",
-		"Filename":      realname,
-		"Dump Interval": interval,
+		"Topic":            "mrt",
+		"Filename":         realname,
+		"RotationInterval": rInterval,
 	}).Debug("Setting new MRT destination file")
 
 	i := len(realname)

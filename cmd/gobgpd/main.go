@@ -255,9 +255,10 @@ func main() {
 							continue
 						}
 						if err := bgpServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
-							DumpType: int32(c.Config.DumpType.ToInt()),
-							Filename: c.Config.FileName,
-							Interval: c.Config.DumpInterval,
+							DumpType:         int32(c.Config.DumpType.ToInt()),
+							Filename:         c.Config.FileName,
+							DumpInterval:     c.Config.DumpInterval,
+							RotationInterval: c.Config.RotationInterval,
 						}); err != nil {
 							log.Fatalf("failed to set mrt config: %s", err)
 						}

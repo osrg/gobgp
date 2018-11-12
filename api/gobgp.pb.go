@@ -2258,9 +2258,10 @@ func (m *EnableZebraRequest) GetNexthopTriggerDelay() uint32 {
 }
 
 type EnableMrtRequest struct {
-	DumpType int32  `protobuf:"varint,1,opt,name=dump_type,json=dumpType" json:"dump_type,omitempty"`
-	Filename string `protobuf:"bytes,2,opt,name=filename" json:"filename,omitempty"`
-	Interval uint64 `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
+	DumpType         int32  `protobuf:"varint,1,opt,name=dump_type,json=dumpType" json:"dump_type,omitempty"`
+	Filename         string `protobuf:"bytes,2,opt,name=filename" json:"filename,omitempty"`
+	DumpInterval     uint64 `protobuf:"varint,3,opt,name=dump_interval" json:"dump_interval,omitempty"`
+	RotationInterval uint64 `protobuf:"varint,4,opt,name=rotation_interval" json:"rotation_interval,omitempty"`
 }
 
 func (m *EnableMrtRequest) Reset()                    { *m = EnableMrtRequest{} }
@@ -2282,9 +2283,16 @@ func (m *EnableMrtRequest) GetFilename() string {
 	return ""
 }
 
-func (m *EnableMrtRequest) GetInterval() uint64 {
+func (m *EnableMrtRequest) GetDumpInterval() uint64 {
 	if m != nil {
-		return m.Interval
+		return m.DumpInterval
+	}
+	return 0
+}
+
+func (m *EnableMrtRequest) GetRotationInterval() uint64 {
+	if m != nil {
+		return m.RotationInterval
 	}
 	return 0
 }

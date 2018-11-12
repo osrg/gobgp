@@ -3280,7 +3280,8 @@ func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAss
 func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) error {
 	return s.mgmtOperation(func() error {
 		return s.mrtManager.enable(&config.MrtConfig{
-			RotationInterval: r.Interval,
+			DumpInterval:     r.DumpInterval,
+			RotationInterval: r.RotationInterval,
 			DumpType:         config.IntToMrtTypeMap[int(r.DumpType)],
 			FileName:         r.Filename,
 		})
