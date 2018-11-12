@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -176,7 +177,7 @@ func extractReserved(args []string, keys map[string]int) (map[string][]string, e
 	return m, nil
 }
 
-func newClient(ctx context.Context) (api.GobgpApiClient, error) {
+func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, error) {
 	grpcOpts := []grpc.DialOption{grpc.WithBlock()}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
@@ -198,12 +199,12 @@ func newClient(ctx context.Context) (api.GobgpApiClient, error) {
 	if target == "" {
 		target = ":50051"
 	}
-
-	conn, err := grpc.DialContext(ctx, target, grpcOpts...)
+	cc, cancel := context.WithTimeout(ctx, time.Second)
+	conn, err := grpc.DialContext(cc, target, grpcOpts...)
 	if err != nil {
-		return nil, err
+		return nil, cancel, err
 	}
-	return api.NewGobgpApiClient(conn), nil
+	return api.NewGobgpApiClient(conn), cancel, nil
 }
 
 func addr2AddressFamily(a net.IP) *api.Family {

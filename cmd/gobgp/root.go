@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
-	"time"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
@@ -58,8 +57,8 @@ func newRootCmd() *cobra.Command {
 
 			if !globalOpts.GenCmpl {
 				var err error
-				ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-				client, err = newClient(ctx)
+				ctx = context.Background()
+				client, cancel, err = newClient(ctx)
 				if err != nil {
 					cancel()
 					exitWithError(err)
