@@ -456,6 +456,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			AllowOwnAs:        uint32(pconf.AsPathOptions.Config.AllowOwnAs),
 			RemovePrivateAs:   removePrivateAs,
 			ReplacePeerAs:     pconf.AsPathOptions.Config.ReplacePeerAs,
+			AdminDown:         pconf.Config.AdminDown,
 		},
 		State: &api.PeerState{
 			SessionState: api.PeerState_SessionState(api.PeerState_SessionState_value[strings.ToUpper(string(s.SessionState))]),

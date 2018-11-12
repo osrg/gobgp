@@ -2958,6 +2958,7 @@ type PeerConf struct {
 	Vrf               string                 `protobuf:"bytes,15,opt,name=vrf" json:"vrf,omitempty"`
 	AllowOwnAs        uint32                 `protobuf:"varint,16,opt,name=allow_own_as,json=allowOwnAs" json:"allow_own_as,omitempty"`
 	ReplacePeerAs     bool                   `protobuf:"varint,17,opt,name=replace_peer_as,json=replacePeerAs" json:"replace_peer_as,omitempty"`
+	AdminDown         bool                   `protobuf:"varint,18,opt,name=admin_down,json=adminDown" json:"admin_down,omitempty"`
 }
 
 func (m *PeerConf) Reset()                    { *m = PeerConf{} }
