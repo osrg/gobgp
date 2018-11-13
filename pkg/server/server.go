@@ -1607,6 +1607,7 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 			Address: r.Address,
 			Port:    r.Port,
 			RouteMonitoringPolicy: config.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Type)],
+			StatisticsTimeout:     uint16(r.StatisticsTimeout),
 		})
 	}, true)
 }

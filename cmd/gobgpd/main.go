@@ -216,9 +216,10 @@ func main() {
 					}
 					for _, c := range newConfig.BmpServers {
 						if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
-							Address: c.Config.Address,
-							Port:    c.Config.Port,
-							Type:    api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+							Address:           c.Config.Address,
+							Port:              c.Config.Port,
+							Type:              api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+							StatisticsTimeout: int32(c.Config.StatisticsTimeout),
 						}); err != nil {
 							log.Fatalf("failed to set bmp config: %s", err)
 						}

@@ -431,6 +431,7 @@ message AddBmpRequest {
     ALL = 4;
   }
   MonitoringPolicy type = 3;
+  int32 StatisticsTimeout = 4;
 }
 
 message DeleteBmpRequest {
