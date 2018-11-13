@@ -78,9 +78,10 @@ func TestModPolicyAssign(t *testing.T) {
 	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
 
-	ps, err := s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	var ps []*api.PolicyAssignment
+	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name:      table.GLOBAL_RIB_NAME,
-		Direction: api.PolicyDirection_IMPORT})
+		Direction: api.PolicyDirection_IMPORT}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
 	assert.Equal(len(ps[0].Policies), 3)
 
@@ -91,14 +92,16 @@ func TestModPolicyAssign(t *testing.T) {
 	err = s.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
 
-	ps, _ = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	ps = []*api.PolicyAssignment{}
+	s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name:      table.GLOBAL_RIB_NAME,
-		Direction: api.PolicyDirection_IMPORT})
+		Direction: api.PolicyDirection_IMPORT}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Equal(len(ps[0].Policies), 2)
 
-	ps, _ = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	ps = []*api.PolicyAssignment{}
+	s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name: table.GLOBAL_RIB_NAME,
-	})
+	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Equal(len(ps), 2)
 }
 
@@ -145,19 +148,22 @@ func TestListPolicyAssignment(t *testing.T) {
 		assert.Nil(err)
 	}
 
-	ps, err := s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	ps := []*api.PolicyAssignment{}
+	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name: table.GLOBAL_RIB_NAME,
-	})
+	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
 	assert.Equal(len(ps), 0)
 
-	ps, err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{})
+	ps = []*api.PolicyAssignment{}
+	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
 	assert.Equal(len(ps), 3)
 
-	ps, err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	ps = []*api.PolicyAssignment{}
+	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Direction: api.PolicyDirection_EXPORT,
-	})
+	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
 	assert.Equal(len(ps), 0)
 }
