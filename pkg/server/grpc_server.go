@@ -140,9 +140,6 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 func toPathApi(path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
 	anyNlri := apiutil.MarshalNLRI(nlri)
-	if path.IsWithdraw {
-		return toPathAPI(nil, nil, anyNlri, nil, path, v)
-	}
 	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
 	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
 }
