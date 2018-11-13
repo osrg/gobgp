@@ -169,7 +169,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	return s
 }
 
-func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
+func (server *BgpServer) listListeners(addr string) []*net.TCPListener {
 	list := make([]*net.TCPListener, 0, len(server.listeners))
 	rhs := net.ParseIP(addr).To4() != nil
 	for _, l := range server.listeners {
@@ -2581,7 +2581,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}
 
 	if server.bgpConfig.Global.Config.Port > 0 {
-		for _, l := range server.Listeners(addr) {
+		for _, l := range server.listListeners(addr) {
 			if c.Config.AuthPassword != "" {
 				if err := setTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
 					log.WithFields(log.Fields{
@@ -2680,7 +2680,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 	if !y {
 		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
 	}
-	for _, l := range server.Listeners(addr) {
+	for _, l := range server.listListeners(addr) {
 		if err := setTCPMD5SigSockopt(l, addr, ""); err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
