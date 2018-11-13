@@ -230,7 +230,7 @@ func (b *bmpClient) loop() {
 						if n.State.SessionState != config.SESSION_STATE_ESTABLISHED {
 							continue
 						}
-						if err := write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, 0, n)); err != nil {
+						if err := write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, time.Now().Unix(), n)); err != nil {
 							return false
 						}
 					}

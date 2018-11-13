@@ -104,6 +104,10 @@ var mrtOpts struct {
 	NextHop     net.IP `long:"nexthop" description:"Rewrite nexthop"`
 }
 
+var bmpOpts struct {
+	StatisticsTimeout int `short:s long:"statistics-timeout" description:"Interval for Statistics Report"`
+}
+
 func formatTimedelta(d int64) string {
 	u := uint64(d)
 	neg := d < 0

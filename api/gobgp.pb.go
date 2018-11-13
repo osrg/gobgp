@@ -2306,9 +2306,10 @@ func (*DisableMrtRequest) ProtoMessage()               {}
 func (*DisableMrtRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{64} }
 
 type AddBmpRequest struct {
-	Address string                         `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
-	Port    uint32                         `protobuf:"varint,2,opt,name=port" json:"port,omitempty"`
-	Type    AddBmpRequest_MonitoringPolicy `protobuf:"varint,3,opt,name=type,enum=gobgpapi.AddBmpRequest_MonitoringPolicy" json:"type,omitempty"`
+	Address           string                         `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+	Port              uint32                         `protobuf:"varint,2,opt,name=port" json:"port,omitempty"`
+	Type              AddBmpRequest_MonitoringPolicy `protobuf:"varint,3,opt,name=type,enum=gobgpapi.AddBmpRequest_MonitoringPolicy" json:"type,omitempty"`
+	StatisticsTimeout int32                          `protobuf:"varint,4,opt,name=statistics_timeout" json:"statistics_timeout,omitempty"`
 }
 
 func (m *AddBmpRequest) Reset()                    { *m = AddBmpRequest{} }
@@ -2335,6 +2336,13 @@ func (m *AddBmpRequest) GetType() AddBmpRequest_MonitoringPolicy {
 		return m.Type
 	}
 	return AddBmpRequest_PRE
+}
+
+func (m *AddBmpRequest) GetStatisticsTimeout() int32 {
+	if m != nil {
+		return m.StatisticsTimeout
+	}
+	return 0
 }
 
 type DeleteBmpRequest struct {
