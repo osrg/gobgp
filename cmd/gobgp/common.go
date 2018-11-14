@@ -105,7 +105,7 @@ var mrtOpts struct {
 }
 
 var bmpOpts struct {
-	StatisticsTimeout int `short:s long:"statistics-timeout" description:"Interval for Statistics Report"`
+	StatisticsTimeout int `short:"s" long:"statistics-timeout" description:"Interval for Statistics Report"`
 }
 
 func formatTimedelta(d int64) string {
