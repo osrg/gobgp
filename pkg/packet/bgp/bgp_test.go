@@ -1192,3 +1192,14 @@ func TestNormalizeFlowSpecOpValues(t *testing.T) {
 		})
 	}
 }
+
+func Test_PathAttributeNextHop(t *testing.T) {
+	f := func(addr string) {
+		b, _ := NewPathAttributeNextHop(addr).Serialize()
+		p := PathAttributeNextHop{}
+		p.DecodeFromBytes(b)
+		assert.Equal(t, addr, p.Value.String())
+	}
+	f("192.0.2.1")
+	f("2001:db8::68")
+}

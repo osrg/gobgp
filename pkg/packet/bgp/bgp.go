@@ -5654,15 +5654,22 @@ func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
+func NewPathAttributeNextHop(addr string) *PathAttributeNextHop {
 	t := BGP_ATTR_TYPE_NEXT_HOP
+	ip := net.ParseIP(addr)
+	l := net.IPv4len
+	if ip.To4() == nil {
+		l = net.IPv6len
+	} else {
+		ip = ip.To4()
+	}
 	return &PathAttributeNextHop{
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[t],
 			Type:   t,
-			Length: 4,
+			Length: uint16(l),
 		},
-		Value: net.ParseIP(value).To4(),
+		Value: ip,
 	}
 }
 
