@@ -946,8 +946,7 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	rfList := []bgp.RouteFamily{rf}
 	accepted, filtered := s.getBestFromLocal(peer, rfList)
 	for _, path := range filtered {
-		path.IsWithdraw = true
-		accepted = append(accepted, path)
+		accepted = append(accepted, path.Clone(true))
 	}
 	return accepted
 }
