@@ -222,6 +222,11 @@ message ListPathRequest {
   string name = 2;
   Family family = 3;
   repeated TableLookupPrefix prefixes = 4;
+  enum SortType {
+    NONE = 0;
+    PREFIX = 1;
+  }
+  SortType sort_type = 5;
 }
 
 message ListPathResponse {
@@ -499,8 +504,24 @@ message RPKIValidation{
 }
 
 message Path {
-  bytes nlri = 1;
-  repeated bytes pattrs = 2;
+  // One of the following defined in "api/attribute.proto":
+  // - IPAddressPrefix
+  // - LabeledIPAddressPrefix
+  // - EncapsulationNLRI
+  // - EVPNEthernetAutoDiscoveryRoute
+  // - EVPNMACIPAdvertisementRoute
+  // - EVPNInclusiveMulticastEthernetTagRoute
+  // - EVPNEthernetSegmentRoute
+  // - EVPNIPPrefixRoute
+  // - LabeledVPNIPAddressPrefix
+  // - RouteTargetMembershipNLRI
+  // - FlowSpecNLRI
+  // - VPNFlowSpecNLRI
+  // - OpaqueNLRI
+  google.protobuf.Any nlri = 1;
+  // Each attribute must be one of *Attribute defined in
+  // "api/attribute.proto".
+  repeated google.protobuf.Any pattrs = 2;
   google.protobuf.Timestamp age = 3;
   bool best = 4;
   bool is_withdraw = 5;
@@ -517,24 +538,8 @@ message Path {
   bool is_nexthop_invalid = 17;
   uint32 identifier = 18;
   uint32 local_identifier = 19;
-  // One of the following defined in "api/attribute.proto":
-  // - IPAddressPrefix
-  // - LabeledIPAddressPrefix
-  // - EncapsulationNLRI
-  // - EVPNEthernetAutoDiscoveryRoute
-  // - EVPNMACIPAdvertisementRoute
-  // - EVPNInclusiveMulticastEthernetTagRoute
-  // - EVPNEthernetSegmentRoute
-  // - EVPNIPPrefixRoute
-  // - LabeledVPNIPAddressPrefix
-  // - RouteTargetMembershipNLRI
-  // - FlowSpecNLRI
-  // - VPNFlowSpecNLRI
-  // - OpaqueNLRI
-  google.protobuf.Any any_nlri = 20;
-  // Each attribute must be one of *Attribute defined in
-  // "api/attribute.proto".
-  repeated google.protobuf.Any any_pattrs = 21;
+  bytes nlri_binary = 20;
+  repeated bytes pattrs_binary = 21;
 }
 
 message Destination {

@@ -118,8 +118,8 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 	nlri := path.GetNlri()
 	t, _ := ptypes.TimestampProto(path.GetTimestamp())
 	p := &api.Path{
-		Nlri:               binNlri,
-		Pattrs:             binPattrs,
+		Nlri:               anyNlri,
+		Pattrs:             anyPattrs,
 		Age:                t,
 		IsWithdraw:         path.IsWithdraw,
 		ValidationDetail:   newValidationFromTableStruct(v),
@@ -130,8 +130,8 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		IsNexthopInvalid:   path.IsNexthopInvalid,
 		Identifier:         nlri.PathIdentifier(),
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
-		AnyNlri:            anyNlri,
-		AnyPattrs:          anyPattrs,
+		NlriBinary:         binNlri,
+		PattrsBinary:       binPattrs,
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS

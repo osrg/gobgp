@@ -74,8 +74,8 @@ func main() {
 	_, err := s.AddPath(context.Background(), &api.AddPathRequest{
 		Path: &api.Path{
 			Family:    &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
-			AnyNlri:   nlri,
-			AnyPattrs: attrs,
+			Nlri:   nlri,
+			Pattrs: attrs,
 		},
 	})
 	if err != nil {

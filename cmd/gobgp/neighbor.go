@@ -837,6 +837,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		Family:   family,
 		Name:     name,
 		Prefixes: filter,
+		SortType: api.ListPathRequest_PREFIX,
 	})
 	if err != nil {
 		return err
