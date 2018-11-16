@@ -28,6 +28,7 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
@@ -115,10 +116,11 @@ func newValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
 
 func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
+	t, _ := ptypes.TimestampProto(path.GetTimestamp())
 	p := &api.Path{
 		Nlri:               binNlri,
 		Pattrs:             binPattrs,
-		Age:                path.GetTimestamp().Unix(),
+		Age:                t,
 		IsWithdraw:         path.IsWithdraw,
 		ValidationDetail:   newValidationFromTableStruct(v),
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
@@ -615,8 +617,6 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		if a.Timers.State != nil {
 			pconf.Timers.State.KeepaliveInterval = float64(a.Timers.State.KeepaliveInterval)
 			pconf.Timers.State.NegotiatedHoldTime = float64(a.Timers.State.NegotiatedHoldTime)
-			pconf.Timers.State.Uptime = int64(a.Timers.State.Uptime)
-			pconf.Timers.State.Downtime = int64(a.Timers.State.Downtime)
 		}
 	}
 	if a.RouteReflector != nil {
@@ -723,8 +723,6 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		if a.Timers.State != nil {
 			pconf.Timers.State.KeepaliveInterval = float64(a.Timers.State.KeepaliveInterval)
 			pconf.Timers.State.NegotiatedHoldTime = float64(a.Timers.State.NegotiatedHoldTime)
-			pconf.Timers.State.Uptime = int64(a.Timers.State.Uptime)
-			pconf.Timers.State.Downtime = int64(a.Timers.State.Downtime)
 		}
 	}
 	if a.RouteReflector != nil {

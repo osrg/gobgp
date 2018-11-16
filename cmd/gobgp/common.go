@@ -108,7 +108,8 @@ var bmpOpts struct {
 	StatisticsTimeout int `short:"s" long:"statistics-timeout" description:"Interval for Statistics Report"`
 }
 
-func formatTimedelta(d int64) string {
+func formatTimedelta(t time.Time) string {
+	d := time.Now().Unix() - t.Unix()
 	u := uint64(d)
 	neg := d < 0
 	if neg {

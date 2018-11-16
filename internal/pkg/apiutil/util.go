@@ -20,6 +20,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
@@ -49,9 +50,10 @@ func NewDestination(dst *api.Destination) *Destination {
 	for _, p := range dst.Paths {
 		nlri, _ := GetNativeNlri(p)
 		attrs, _ := GetNativePathAttributes(p)
+		t, _ := ptypes.Timestamp(p.Age)
 		l = append(l, &Path{
 			Nlri:       nlri,
-			Age:        p.Age,
+			Age:        t.Unix(),
 			Best:       p.Best,
 			Attrs:      attrs,
 			Stale:      p.Stale,
@@ -64,10 +66,11 @@ func NewDestination(dst *api.Destination) *Destination {
 }
 
 func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, age time.Time) *api.Path {
+	t, _ := ptypes.TimestampProto(age)
 	return &api.Path{
 		AnyNlri:    MarshalNLRI(nlri),
 		AnyPattrs:  MarshalPathAttributes(attrs),
-		Age:        age.Unix(),
+		Age:        t,
 		IsWithdraw: isWithdraw,
 		Family:     ToApiFamily(nlri.AFI(), nlri.SAFI()),
 		Identifier: nlri.PathIdentifier(),

@@ -23,6 +23,7 @@ syntax = "proto3";
 
 import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 package gobgpapi;
 
@@ -500,7 +501,7 @@ message RPKIValidation{
 message Path {
   bytes nlri = 1;
   repeated bytes pattrs = 2;
-  int64 age = 3;
+  google.protobuf.Timestamp age = 3;
   bool best = 4;
   bool is_withdraw = 5;
   RPKIValidation validation_detail = 7;
@@ -748,8 +749,8 @@ message TimersState{
   uint64 keepalive_interval = 3;
   uint64 minimum_advertisement_interval = 4;
   uint64 negotiated_hold_time = 5;
-  uint64 uptime = 6;
-  uint64 downtime = 7;
+  google.protobuf.Timestamp uptime = 6;
+  google.protobuf.Timestamp downtime = 7;
 }
 
 message Transport {
@@ -1153,8 +1154,8 @@ message RPKIConf {
 }
 
 message RPKIState {
-  int64 uptime = 1;
-  int64 downtime = 2;
+  google.protobuf.Timestamp uptime = 1;
+  google.protobuf.Timestamp downtime = 2;
   bool  up = 3;
   uint32 record_ipv4 = 4;
   uint32 record_ipv6 = 5;

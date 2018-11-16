@@ -22,7 +22,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
@@ -408,6 +411,14 @@ func newAfiSafiFromConfigStruct(c *AfiSafi) *api.AfiSafi {
 	}
 }
 
+func ProtoTimestamp(secs int64) *timestamp.Timestamp {
+	if secs == 0 {
+		return nil
+	}
+	t, _ := ptypes.TimestampProto(time.Unix(secs, 0))
+	return t
+}
+
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -502,8 +513,8 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			State: &api.TimersState{
 				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
 				NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
-				Uptime:             uint64(timer.State.Uptime),
-				Downtime:           uint64(timer.State.Downtime),
+				Uptime:             ProtoTimestamp(timer.State.Uptime),
+				Downtime:           ProtoTimestamp(timer.State.Downtime),
 			},
 		},
 		RouteReflector: &api.RouteReflector{
@@ -568,8 +579,8 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			State: &api.TimersState{
 				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
 				NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
-				Uptime:             uint64(timer.State.Uptime),
-				Downtime:           uint64(timer.State.Downtime),
+				Uptime:             ProtoTimestamp(timer.State.Uptime),
+				Downtime:           ProtoTimestamp(timer.State.Downtime),
 			},
 		},
 		RouteReflector: &api.RouteReflector{

@@ -3380,8 +3380,8 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn fun
 					RemotePort: uint32(r.Config.Port),
 				},
 				State: &api.RPKIState{
-					Uptime:        r.State.Uptime,
-					Downtime:      r.State.Downtime,
+					Uptime:        config.ProtoTimestamp(r.State.Uptime),
+					Downtime:      config.ProtoTimestamp(r.State.Downtime),
 					Up:            r.State.Up,
 					RecordIpv4:    r.State.RecordsV4,
 					RecordIpv6:    r.State.RecordsV6,
