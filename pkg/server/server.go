@@ -944,10 +944,7 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 		return nil
 	}
 	rfList := []bgp.RouteFamily{rf}
-	accepted, filtered := s.getBestFromLocal(peer, rfList)
-	for _, path := range filtered {
-		accepted = append(accepted, path.Clone(true))
-	}
+	accepted, _ := s.getBestFromLocal(peer, rfList)
 	return accepted
 }
 
@@ -2195,16 +2192,20 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 			}
 		}
 
-		pathList, filtered := s.getBestFromLocal(peer, families)
+		pathList, _ := s.getBestFromLocal(peer, families)
 		if len(pathList) > 0 {
-			sendfsmOutgoingMsg(peer, pathList, nil, false)
-		}
-		if !deferral && len(filtered) > 0 {
-			withdrawnList := make([]*table.Path, 0, len(filtered))
-			for _, p := range filtered {
-				withdrawnList = append(withdrawnList, p.Clone(true))
+			if deferral {
+				pathList = func() []*table.Path {
+					l := make([]*table.Path, 0, len(pathList))
+					for _, p := range pathList {
+						if !p.IsWithdraw {
+							l = append(l, p)
+						}
+					}
+					return l
+				}()
 			}
-			sendfsmOutgoingMsg(peer, withdrawnList, nil, false)
+			sendfsmOutgoingMsg(peer, pathList, nil, false)
 		}
 	}
 	return nil
