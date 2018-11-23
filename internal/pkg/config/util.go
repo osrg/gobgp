@@ -460,8 +460,6 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			RouteFlapDamping:  pconf.Config.RouteFlapDamping,
 			Description:       pconf.Config.Description,
 			PeerGroup:         pconf.Config.PeerGroup,
-			RemoteCap:         remoteCap,
-			LocalCap:          localCap,
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
 			AllowOwnAs:        uint32(pconf.AsPathOptions.Config.AllowOwnAs),
@@ -499,6 +497,8 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			PeerType:        uint32(s.PeerType.ToInt()),
 			NeighborAddress: pconf.State.NeighborAddress,
 			Queues:          &api.Queues{},
+			RemoteCap:       remoteCap,
+			LocalCap:        localCap,
 		},
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,

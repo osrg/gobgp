@@ -578,16 +578,18 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
-		localCaps, err := apiutil.UnmarshalCapabilities(a.Conf.LocalCap)
-		if err != nil {
-			return nil, err
+		if a.State != nil {
+			localCaps, err := apiutil.UnmarshalCapabilities(a.State.LocalCap)
+			if err != nil {
+				return nil, err
+			}
+			remoteCaps, err := apiutil.UnmarshalCapabilities(a.State.RemoteCap)
+			if err != nil {
+				return nil, err
+			}
+			pconf.State.LocalCapabilityList = localCaps
+			pconf.State.RemoteCapabilityList = remoteCaps
 		}
-		remoteCaps, err := apiutil.UnmarshalCapabilities(a.Conf.RemoteCap)
-		if err != nil {
-			return nil, err
-		}
-		pconf.State.LocalCapabilityList = localCaps
-		pconf.State.RemoteCapabilityList = remoteCaps
 
 		pconf.State.RemoteRouterId = a.Conf.Id
 

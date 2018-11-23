@@ -280,10 +280,10 @@ func showNeighbor(args []string) error {
 		}
 		return nil
 	}
-	lcaps, _ := apiutil.UnmarshalCapabilities(p.Conf.LocalCap)
+	lcaps, _ := apiutil.UnmarshalCapabilities(p.State.LocalCap)
 	caps = append(caps, lcaps...)
 
-	rcaps, _ := apiutil.UnmarshalCapabilities(p.Conf.RemoteCap)
+	rcaps, _ := apiutil.UnmarshalCapabilities(p.State.RemoteCap)
 	for _, c := range rcaps {
 		if lookup(c, caps) == nil {
 			caps = append(caps, c)
