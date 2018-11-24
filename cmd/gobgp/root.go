@@ -73,7 +73,7 @@ func newRootCmd() *cobra.Command {
 			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			// if children declare thier own, cancel is not called. Doesn't matter because the command will exit soon.
+			// if children declare their own, cancel is not called. Doesn't matter because the command will exit soon.
 			if cancel != nil {
 				cancel()
 			}
