@@ -539,7 +539,6 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
-		AddPaths: newAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 
@@ -605,7 +604,6 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
-		AddPaths: newAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 
