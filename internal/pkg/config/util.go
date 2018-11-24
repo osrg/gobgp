@@ -452,7 +452,6 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerConf{
 			NeighborAddress:   pconf.Config.NeighborAddress,
-			Id:                s.RemoteRouterId,
 			PeerAs:            pconf.Config.PeerAs,
 			LocalAs:           pconf.Config.LocalAs,
 			PeerType:          uint32(pconf.Config.PeerType.ToInt()),
@@ -499,6 +498,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			Queues:          &api.Queues{},
 			RemoteCap:       remoteCap,
 			LocalCap:        localCap,
+			RouterId:        s.RemoteRouterId,
 		},
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
