@@ -501,7 +501,7 @@ func (dst *Destination) sort() {
 			reason = BPR_OLDER
 		}
 		if better == nil {
-			var e error = nil
+			var e error
 			better, e = compareByRouterID(path1, path2)
 			if e != nil {
 				log.WithFields(log.Fields{
