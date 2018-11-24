@@ -89,10 +89,15 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_withdraw_path(self):
         self.clients['g2'].local('gobgp global rib del 10.0.0.0/24')
         time.sleep(1)
-        s = self.gobgp.get_neighbor(self.clients['g2'])['state']
-        self.assertEqual(s.get('advertised', 0), 1)
-        self.assertEqual(s.get('accepted'), None)  # means info['accepted'] == 0
-        self.assertEqual(s.get('received'), None)  # means info['received'] == 0
+        afisafis = self.gobgp.get_neighbor(self.clients['g2'])['afi_safis']
+        advertised = 0
+        for afisafi in afisafis:
+            s = afisafi.get('state')
+            advertised += s.get('advertised')
+            self.assertEqual(s.get('accepted'), None)  # means info['accepted'] == 0
+            self.assertEqual(s.get('received'), None)  # means info['received'] == 0
+
+        self.assertEqual(advertised, 1)
 
 
 if __name__ == '__main__':

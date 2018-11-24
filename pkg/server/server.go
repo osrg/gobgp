@@ -708,17 +708,6 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *config.Neighbor {
 	peer.fsm.lock.RUnlock()
 
 	if state == bgp.BGP_FSM_ESTABLISHED {
-		rfList := peer.configuredRFlist()
-		if getAdvertised {
-			pathList, filtered := s.getBestFromLocal(peer, rfList)
-			conf.State.AdjTable.Advertised = uint32(len(pathList))
-			conf.State.AdjTable.Filtered = uint32(len(filtered))
-		} else {
-			conf.State.AdjTable.Advertised = 0
-		}
-		conf.State.AdjTable.Received = uint32(peer.adjRibIn.Count(rfList))
-		conf.State.AdjTable.Accepted = uint32(peer.adjRibIn.Accepted(rfList))
-
 		peer.fsm.lock.RLock()
 		conf.Transport.State.LocalAddress, conf.Transport.State.LocalPort = peer.fsm.LocalHostPort()
 		_, conf.Transport.State.RemotePort = peer.fsm.RemoteHostPort()
@@ -2528,7 +2517,34 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 				continue
 			}
 			// FIXME: should remove toConfig() conversion
-			l = append(l, config.NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised)))
+			p := config.NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised))
+			for _, family := range peer.configuredRFlist() {
+				for i, afisafi := range p.AfiSafis {
+					if afisafi.Config.Enabled != true {
+						continue
+					}
+					afi, safi := bgp.RouteFamilyToAfiSafi(family)
+					c := afisafi.Config
+					if c.Family != nil && c.Family.Afi == api.Family_Afi(afi) && c.Family.Safi == api.Family_Safi(safi) {
+						flist := []bgp.RouteFamily{family}
+						received := uint32(peer.adjRibIn.Count(flist))
+						accepted := uint32(peer.adjRibIn.Accepted(flist))
+						advertised := uint32(0)
+						if getAdvertised == true {
+							pathList, _ := s.getBestFromLocal(peer, flist)
+							advertised = uint32(len(pathList))
+						}
+						p.AfiSafis[i].State = &api.AfiSafiState{
+							Family:     c.Family,
+							Enabled:    true,
+							Received:   received,
+							Accepted:   accepted,
+							Advertised: advertised,
+						}
+					}
+				}
+			}
+			l = append(l, p)
 		}
 		return nil
 	}, false)

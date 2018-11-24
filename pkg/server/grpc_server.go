@@ -651,9 +651,6 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.State.SessionState = config.SessionState(strings.ToUpper(string(a.State.SessionState)))
 		pconf.State.AdminState = config.IntToAdminStateMap[int(a.State.AdminState)]
 
-		pconf.State.AdjTable.Received = a.State.Received
-		pconf.State.AdjTable.Accepted = a.State.Accepted
-		pconf.State.AdjTable.Advertised = a.State.Advertised
 		pconf.State.PeerAs = a.State.PeerAs
 		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.State.PeerType)]
 		pconf.State.NeighborAddress = a.State.NeighborAddress

@@ -73,12 +73,18 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_reject_as_loop(self):
         def f():
-            s = self.g2.get_neighbor(self.q1)['state']
-            self.assertTrue('received' in s)
-            self.assertEqual(s.get('received', 0), 1)
-            # hacky. 'accepted' is zero so the key was deleted due to
-            # omitempty tag in bgp_configs.go.
-            self.assertFalse('accepted' in s)
+            r = self.g2.get_neighbor(self.q1)
+            self.assertTrue('afi_safis' in r)
+            received = 0
+            for afisafi in r['afi_safis']:
+                self.assertTrue('state' in afisafi)
+                s = afisafi.get('state')
+                self.assertTrue('received' in s)
+                received += s.get('received')
+                # hacky. 'accepted' is zero so the key was deleted due to
+                # omitempty tag in bgp_configs.go.
+                self.assertFalse(s.get('accepted'), None)
+            self.assertEqual(received, 1)
 
         assert_several_times(f)
 
@@ -89,11 +95,17 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_04_check_accept_as_loop(self):
         def f():
-            s = self.g2.get_neighbor(self.q1)['state']
-            self.assertTrue('received' in s)
-            self.assertEqual(s.get('received', 0), 1)
-            self.assertTrue('accepted' in s)
-            self.assertEqual(s.get('accepted', 0), 1)
+            r = self.g2.get_neighbor(self.q1)
+            self.assertTrue('afi_safis' in r)
+            received = 0
+            accepted = 0
+            for afisafi in r['afi_safis']:
+                self.assertTrue('state' in afisafi)
+                s = afisafi.get('state')
+                received += s.get('received')
+                accepted += s.get('accepted')
+            self.assertEqual(received, 1)
+            self.assertEqual(accepted, 1)
 
         assert_several_times(f)
 

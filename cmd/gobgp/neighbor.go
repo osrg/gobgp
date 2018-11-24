@@ -95,6 +95,27 @@ func getASN(p *api.Peer) string {
 	return asn
 }
 
+func counter(p *api.Peer) (uint32, uint32, uint32, error) {
+	accepted := uint32(0)
+	received := uint32(0)
+	advertised := uint32(0)
+	for _, afisafi := range p.AfiSafis {
+		if subOpts.AddressFamily != "" {
+			f, e := checkAddressFamily(&api.Family{})
+			if e != nil {
+				return 0, 0, 0, e
+			}
+			if f.Afi != afisafi.State.Family.Afi || f.Safi != afisafi.State.Family.Safi {
+				continue
+			}
+		}
+		accepted += afisafi.State.Accepted
+		received += afisafi.State.Received
+		advertised += afisafi.State.Advertised
+	}
+	return received, accepted, advertised, nil
+}
+
 func showNeighbors(vrf string) error {
 	m, err := getNeighbors(vrf)
 	if err != nil {
@@ -194,7 +215,8 @@ func showNeighbors(vrf string) error {
 		if n.Conf.NeighborInterface != "" {
 			neigh = n.Conf.NeighborInterface
 		}
-		fmt.Printf(format, neigh, getASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.Received), fmt.Sprint(n.State.Accepted))
+		received, accepted, _, _ := counter(n)
+		fmt.Printf(format, neigh, getASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(received), fmt.Sprint(accepted))
 	}
 
 	return nil
@@ -434,6 +456,10 @@ func showNeighbor(args []string) error {
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
 	}
+	received, accepted, advertised, e := counter(p)
+	if e != nil {
+		return e
+	}
 	fmt.Print("  Message statistics:\n")
 	fmt.Print("                         Sent       Rcvd\n")
 	fmt.Printf("    Opens:         %10d %10d\n", p.State.Messages.Sent.Open, p.State.Messages.Received.Open)
@@ -444,9 +470,9 @@ func showNeighbor(args []string) error {
 	fmt.Printf("    Discarded:     %10d %10d\n", p.State.Messages.Sent.Discarded, p.State.Messages.Received.Discarded)
 	fmt.Printf("    Total:         %10d %10d\n", p.State.Messages.Sent.Total, p.State.Messages.Received.Total)
 	fmt.Print("  Route statistics:\n")
-	fmt.Printf("    Advertised:    %10d\n", p.State.Advertised)
-	fmt.Printf("    Received:      %10d\n", p.State.Received)
-	fmt.Printf("    Accepted:      %10d\n", p.State.Accepted)
+	fmt.Printf("    Advertised:    %10d\n", advertised)
+	fmt.Printf("    Received:      %10d\n", received)
+	fmt.Printf("    Accepted:      %10d\n", accepted)
 	first := true
 	for _, a := range p.AfiSafis {
 		limit := a.PrefixLimits

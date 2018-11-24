@@ -701,16 +701,13 @@ message PeerState {
       PFX_CT = 2; // prefix counter over limit
   }
   AdminState admin_state = 15;
-  uint32 received = 16;
-  uint32 accepted = 17;
-  uint32 advertised = 18;
-  uint32 out_q = 19;
-  uint32 flops = 20;
+  uint32 out_q = 16;
+  uint32 flops = 17;
   // Each attribute must be one of *Capability defined in
   // "api/capability.proto".
-  repeated google.protobuf.Any remote_cap = 21;
-  repeated google.protobuf.Any local_cap = 22;
-  string router_id = 23;
+  repeated google.protobuf.Any remote_cap = 18;
+  repeated google.protobuf.Any local_cap = 19;
+  string router_id = 20;
 }
 
 message Messages {
