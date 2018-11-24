@@ -231,8 +231,8 @@ func showNeighbor(args []string) error {
 	}
 
 	id := "unknown"
-	if p.Conf.Id != "" {
-		id = p.Conf.Id
+	if p.State != nil && p.State.RouterId != "" {
+		id = p.State.RouterId
 	}
 	fmt.Printf("  BGP version 4, remote router ID %s\n", id)
 	fmt.Printf("  BGP state = %s", p.State.SessionState)

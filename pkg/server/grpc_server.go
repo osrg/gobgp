@@ -589,9 +589,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			}
 			pconf.State.LocalCapabilityList = localCaps
 			pconf.State.RemoteCapabilityList = remoteCaps
-		}
 
-		pconf.State.RemoteRouterId = a.Conf.Id
+			pconf.State.RemoteRouterId = a.State.RouterId
+		}
 
 		for _, af := range a.AfiSafis {
 			afiSafi := config.AfiSafi{}
