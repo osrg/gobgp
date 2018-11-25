@@ -571,7 +571,6 @@ message Peer {
   RouteServer route_server = 8;
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
-  AddPaths add_paths = 11;
 }
 
 message PeerGroup {
@@ -585,7 +584,6 @@ message PeerGroup {
   RouteServer route_server = 8;
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
-  AddPaths add_paths = 11;
 }
 
 message DynamicNeighbor {
@@ -809,8 +807,9 @@ message AfiSafiConfig {
 message AfiSafiState {
   Family family = 1;
   bool enabled = 2;
-  uint32 total_paths = 3;
-  uint32 total_prefixes = 4;
+  uint32 received = 3;
+  uint32 accepted = 4;
+  uint32 advertised = 5;
 }
 
 message RouteSelectionOptionsConfig {
@@ -915,7 +914,8 @@ message LongLivedGracefulRestart {
 message AfiSafi {
   MpGracefulRestart mp_graceful_restart = 1;
   AfiSafiConfig config = 2;
-  ApplyPolicy apply_policy = 3;
+  AfiSafiState state = 3;
+  ApplyPolicy apply_policy = 4;
   // TODO:
   // Support the following structures:
   // - Ipv4Unicast
@@ -928,12 +928,12 @@ message AfiSafi {
   // - L3vpnIpv6Multicast
   // - L2vpnVpls
   // - L2vpnEvpn
-  RouteSelectionOptions route_selection_options = 4;
-  UseMultiplePaths use_multiple_paths = 5;
-  PrefixLimit prefix_limits = 6;
-  RouteTargetMembership route_target_membership = 7;
-  LongLivedGracefulRestart long_lived_graceful_restart = 8;
-  AddPaths add_paths = 9;
+  RouteSelectionOptions route_selection_options = 5;
+  UseMultiplePaths use_multiple_paths = 6;
+  PrefixLimit prefix_limits = 7;
+  RouteTargetMembership route_target_membership = 8;
+  LongLivedGracefulRestart long_lived_graceful_restart = 9;
+  AddPaths add_paths = 10;
 }
 
 message AddPathsConfig {

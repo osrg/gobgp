@@ -209,12 +209,12 @@ func isAfiSafiChanged(x, y []AfiSafi) bool {
 	if len(x) != len(y) {
 		return true
 	}
-	m := make(map[string]bool)
-	for _, e := range x {
-		m[string(e.Config.AfiSafiName)] = true
+	m := make(map[string]AfiSafi)
+	for i, e := range x {
+		m[string(e.Config.AfiSafiName)] = x[i]
 	}
 	for _, e := range y {
-		if !m[string(e.Config.AfiSafiName)] {
+		if v, ok := m[string(e.Config.AfiSafiName)]; !ok || !v.Config.Equal(&e.Config) || !v.AddPaths.Config.Equal(&e.AddPaths.Config) {
 			return true
 		}
 	}
@@ -539,7 +539,6 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
-		AddPaths: newAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 
@@ -605,7 +604,6 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
-		AddPaths: newAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 

@@ -197,11 +197,15 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			}
 			n.AfiSafis[i].MpGracefulRestart.State.Enabled = n.AfiSafis[i].MpGracefulRestart.Config.Enabled
 			if !vv.IsSet("afi-safi.add-paths.config.receive") {
-				n.AfiSafis[i].AddPaths.Config.Receive = n.AddPaths.Config.Receive
+				if n.AddPaths.Config.Receive == true {
+					n.AfiSafis[i].AddPaths.Config.Receive = n.AddPaths.Config.Receive
+				}
 			}
 			n.AfiSafis[i].AddPaths.State.Receive = n.AfiSafis[i].AddPaths.Config.Receive
 			if !vv.IsSet("afi-safi.add-paths.config.send-max") {
-				n.AfiSafis[i].AddPaths.Config.SendMax = n.AddPaths.Config.SendMax
+				if n.AddPaths.Config.SendMax != 0 {
+					n.AfiSafis[i].AddPaths.Config.SendMax = n.AddPaths.Config.SendMax
+				}
 			}
 			n.AfiSafis[i].AddPaths.State.SendMax = n.AfiSafis[i].AddPaths.Config.SendMax
 		}

@@ -30,3 +30,29 @@ func TestDetectConfigFileType(t *testing.T) {
 	assert.Equal("yaml", detectConfigFileType("bgpd.yml", "xxx"))
 	assert.Equal("json", detectConfigFileType("bgpd.json", "xxx"))
 }
+
+func TestIsAfiSafiChanged(t *testing.T) {
+	v4 := AfiSafi{
+		Config: AfiSafiConfig{
+			AfiSafiName: AFI_SAFI_TYPE_IPV4_UNICAST,
+		},
+	}
+	v6 := AfiSafi{
+		Config: AfiSafiConfig{
+			AfiSafiName: AFI_SAFI_TYPE_IPV6_UNICAST,
+		},
+	}
+	old := []AfiSafi{v4}
+	new := []AfiSafi{v4}
+	assert.False(t, isAfiSafiChanged(old, new))
+
+	new = append(new, v6)
+	assert.True(t, isAfiSafiChanged(old, new))
+
+	new = []AfiSafi{v6}
+	assert.True(t, isAfiSafiChanged(old, new))
+	v4ap := v4
+	v4ap.AddPaths.Config.Receive = true
+	new = []AfiSafi{v4ap}
+	assert.True(t, isAfiSafiChanged(old, new))
+}

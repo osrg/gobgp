@@ -678,7 +678,6 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 			}
 		}
 	}
-	readAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
 	return pconf, nil
 }
 
@@ -759,7 +758,6 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		pconf.State.PeerAs = a.Info.PeerAs
 		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
 	}
-	readAddPathsFromAPIStruct(&pconf.AddPaths, a.AddPaths)
 	return pconf, nil
 }
 
