@@ -2542,7 +2542,7 @@ func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
 		asn = a.asn
 	}
 
-	confed := option != nil && option.Info.Confederation
+	confed := option != nil && option.Info != nil && option.Info.Confederation
 	path.PrependAsn(asn, a.repeat, confed)
 
 	return path
