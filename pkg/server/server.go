@@ -2181,20 +2181,16 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 			}
 		}
 
-		pathList, _ := s.getBestFromLocal(peer, families)
+		pathList, filtered := s.getBestFromLocal(peer, families)
 		if len(pathList) > 0 {
-			if deferral {
-				pathList = func() []*table.Path {
-					l := make([]*table.Path, 0, len(pathList))
-					for _, p := range pathList {
-						if !p.IsWithdraw {
-							l = append(l, p)
-						}
-					}
-					return l
-				}()
-			}
 			sendfsmOutgoingMsg(peer, pathList, nil, false)
+		}
+		if !deferral && len(filtered) > 0 {
+			withdrawnList := make([]*table.Path, 0, len(filtered))
+			for _, p := range filtered {
+				withdrawnList = append(withdrawnList, p.Clone(true))
+			}
+			sendfsmOutgoingMsg(peer, withdrawnList, nil, false)
 		}
 	}
 	return nil
