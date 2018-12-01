@@ -1,7 +1,7 @@
 language: go
 
 _dep_ensure: &_dep_ensure
-  go: "1.10"
+  go: "1.11"
   before_install: go get -u github.com/golang/dep/cmd/dep
   install: $GOPATH/bin/dep ensure
 
@@ -66,7 +66,7 @@ matrix:
     - <<: *_unittest
       env:
         - DESCRIPTION="Tests + goreleaser + cover"
-      go: "1.10"
+      go: "1.11"
       script:
         - go test $(go list ./... | grep -v '/vendor/') -coverprofile=coverage.txt -covermode=atomic
       after_success:

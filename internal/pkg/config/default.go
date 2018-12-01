@@ -197,7 +197,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			}
 			n.AfiSafis[i].MpGracefulRestart.State.Enabled = n.AfiSafis[i].MpGracefulRestart.Config.Enabled
 			if !vv.IsSet("afi-safi.add-paths.config.receive") {
-				if n.AddPaths.Config.Receive == true {
+				if n.AddPaths.Config.Receive {
 					n.AfiSafis[i].AddPaths.Config.Receive = n.AddPaths.Config.Receive
 				}
 			}

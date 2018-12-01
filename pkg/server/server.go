@@ -1589,8 +1589,8 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 			return fmt.Errorf("invalid bmp route monitoring policy: %v", r.Type)
 		}
 		return s.bmpManager.addServer(&config.BmpServerConfig{
-			Address: r.Address,
-			Port:    r.Port,
+			Address:               r.Address,
+			Port:                  r.Port,
 			RouteMonitoringPolicy: config.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Type)],
 			StatisticsTimeout:     uint16(r.StatisticsTimeout),
 		})
@@ -2520,7 +2520,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 			p := config.NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised))
 			for _, family := range peer.configuredRFlist() {
 				for i, afisafi := range p.AfiSafis {
-					if afisafi.Config.Enabled != true {
+					if !afisafi.Config.Enabled {
 						continue
 					}
 					afi, safi := bgp.RouteFamilyToAfiSafi(family)
@@ -2530,7 +2530,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 						received := uint32(peer.adjRibIn.Count(flist))
 						accepted := uint32(peer.adjRibIn.Accepted(flist))
 						advertised := uint32(0)
-						if getAdvertised == true {
+						if getAdvertised {
 							pathList, _ := s.getBestFromLocal(peer, flist)
 							advertised = uint32(len(pathList))
 						}

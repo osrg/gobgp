@@ -22,6 +22,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/eapache/channels"
@@ -428,28 +429,32 @@ func (fsm *fsm) connectLoop() error {
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   fsm.pConf.State.NeighborAddress,
+				"Key":   addr,
 			}).Warnf("failed to resolve local address: %s", err)
 			return
 		}
-		var conn net.Conn
-		d := tcpDialer{
-			Dialer: net.Dialer{
-				LocalAddr: laddr,
-				Timeout:   time.Duration(minConnectRetry-1) * time.Second,
-			},
-			AuthPassword: fsm.pConf.Config.AuthPassword,
-		}
+		password := fsm.pConf.Config.AuthPassword
+		ttl := uint8(0)
+		ttlMin := uint8(0)
+
 		if fsm.pConf.TtlSecurity.Config.Enabled {
-			d.TTL = 255
-			d.TTLMin = fsm.pConf.TtlSecurity.Config.TtlMin
+			ttl = 255
+			ttlMin = fsm.pConf.TtlSecurity.Config.TtlMin
 		} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
-			d.TTL = 1
+			ttl = 1
 			if fsm.pConf.EbgpMultihop.Config.Enabled {
-				d.TTL = fsm.pConf.EbgpMultihop.Config.MultihopTtl
+				ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
 			}
 		}
-		conn, err = d.DialTCP(addr, port)
+
+		d := net.Dialer{
+			LocalAddr: laddr,
+			Timeout:   time.Duration(minConnectRetry-1) * time.Second,
+			Control: func(network, address string, c syscall.RawConn) error {
+				return dialerControl(network, address, c, ttl, ttlMin, password)
+			},
+		}
+		conn, err := d.Dial("tcp", net.JoinHostPort(addr, fmt.Sprintf("%d", port)))
 		if err == nil {
 			select {
 			case fsm.connCh <- conn:
@@ -458,13 +463,13 @@ func (fsm *fsm) connectLoop() error {
 				conn.Close()
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
-					"Key":   fsm.pConf.State.NeighborAddress,
+					"Key":   addr,
 				}).Warn("active conn is closed to avoid being blocked")
 			}
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   fsm.pConf.State.NeighborAddress,
+				"Key":   addr,
 			}).Debugf("failed to connect: %s", err)
 		}
 
