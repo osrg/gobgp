@@ -169,6 +169,8 @@ func TestListPolicyAssignment(t *testing.T) {
 }
 
 func TestMonitor(test *testing.T) {
+	minConnectRetry = 5
+
 	assert := assert.New(test)
 	s := NewBgpServer()
 	go s.Serve()
@@ -220,7 +222,7 @@ func TestMonitor(test *testing.T) {
 		},
 		Timers: config.Timers{
 			Config: config.TimersConfig{
-				ConnectRetry: 10,
+				ConnectRetry: 5,
 			},
 		},
 	}
@@ -526,6 +528,8 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 }
 
 func TestPeerGroup(test *testing.T) {
+	minConnectRetry = 5
+
 	assert := assert.New(test)
 	log.SetLevel(log.DebugLevel)
 	s := NewBgpServer()
@@ -545,6 +549,11 @@ func TestPeerGroup(test *testing.T) {
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
+		Timers: config.Timers{
+			Config: config.TimersConfig{
+				ConnectRetry: 5,
+			},
+		},
 	}
 	err = s.addPeerGroup(g)
 	assert.Nil(err)
@@ -557,6 +566,11 @@ func TestPeerGroup(test *testing.T) {
 		Transport: config.Transport{
 			Config: config.TransportConfig{
 				PassiveMode: true,
+			},
+		},
+		Timers: config.Timers{
+			Config: config.TimersConfig{
+				ConnectRetry: 5,
 			},
 		},
 	}
@@ -599,7 +613,7 @@ func TestPeerGroup(test *testing.T) {
 		},
 		Timers: config.Timers{
 			Config: config.TimersConfig{
-				ConnectRetry: 10,
+				ConnectRetry: 5,
 			},
 		},
 	}
@@ -615,6 +629,8 @@ func TestPeerGroup(test *testing.T) {
 }
 
 func TestDynamicNeighbor(t *testing.T) {
+	minConnectRetry = 5
+
 	assert := assert.New(t)
 	log.SetLevel(log.DebugLevel)
 	s1 := NewBgpServer()
@@ -633,6 +649,11 @@ func TestDynamicNeighbor(t *testing.T) {
 		Config: config.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
+		},
+		Timers: config.Timers{
+			Config: config.TimersConfig{
+				ConnectRetry: 5,
+			},
 		},
 	}
 	err = s1.addPeerGroup(g)
@@ -671,7 +692,7 @@ func TestDynamicNeighbor(t *testing.T) {
 		},
 		Timers: config.Timers{
 			Config: config.TimersConfig{
-				ConnectRetry: 10,
+				ConnectRetry: 5,
 			},
 		},
 	}
@@ -688,6 +709,8 @@ func TestDynamicNeighbor(t *testing.T) {
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
+	minConnectRetry = 5
+
 	assert := assert.New(t)
 	s1 := NewBgpServer()
 	go s1.Serve()
@@ -714,7 +737,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: config.GracefulRestart{
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
-				RestartTime: 1,
+				RestartTime: 5,
 			},
 		},
 	}
@@ -751,7 +774,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 		Timers: config.Timers{
 			Config: config.TimersConfig{
-				ConnectRetry: 10,
+				ConnectRetry: 5,
 			},
 		},
 	}
@@ -831,30 +854,19 @@ func TestFamiliesForSoftreset(t *testing.T) {
 	assert.NotContains(t, families, bgp.RF_RTC_UC)
 }
 
-func runNewServer(ctx context.Context, as uint32, routerID string, listenPort int32) (*BgpServer, context.CancelFunc, error) {
+func runNewServer(as uint32, routerID string, listenPort int32) *BgpServer {
 	s := NewBgpServer()
-	ctxInner, cancelInner := context.WithCancel(ctx)
 	go s.Serve()
-	go func() {
-		<-ctxInner.Done()
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.StopBgp(stopCtx, &api.StopBgpRequest{}); err != nil {
-			log.Fatalf("Failed to stop server %s: %s", s.bgpConfig.Global.Config.RouterId, err)
-		}
-		cancel()
-	}()
-
-	err := s.StartBgp(ctx, &api.StartBgpRequest{
+	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
 			As:         as,
 			RouterId:   routerID,
 			ListenPort: listenPort,
 		},
-	})
-	if err != nil {
-		s = nil
+	}); err != nil {
+		log.Fatalf("Failed to start server %s: %s", s.bgpConfig.Global.Config.RouterId, err)
 	}
-	return s, cancelInner, err
+	return s
 }
 
 func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []config.AfiSafiType) error {
@@ -873,6 +885,11 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 				Transport: config.Transport{
 					Config: config.TransportConfig{
 						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+					},
+				},
+				Timers: config.Timers{
+					Config: config.TimersConfig{
+						ConnectRetry: 5,
 					},
 				},
 			}
@@ -913,7 +930,7 @@ func parseRDRT(rdStr string) (bgp.RouteDistinguisherInterface, bgp.ExtendedCommu
 	return rd, rt, nil
 }
 
-func addVrf(t *testing.T, ctx context.Context, s *BgpServer, vrfName, rdStr string, id uint32) {
+func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, id uint32) {
 	rd, rt, err := parseRDRT(rdStr)
 	if err != nil {
 		t.Fatal(err)
@@ -928,34 +945,24 @@ func addVrf(t *testing.T, ctx context.Context, s *BgpServer, vrfName, rdStr stri
 			Id:       id,
 		},
 	}
-	if err = s.AddVrf(ctx, req); err != nil {
+	if err = s.AddVrf(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
-	// missing it may cause Test_DialTCP_FDleak to fail
-	defer time.Sleep(time.Second)
+	minConnectRetry = 5
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	log.SetLevel(log.DebugLevel)
 
-	s1, cf1, err := runNewServer(ctx, 1, "1.1.1.1", 10179)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { cf1() }()
-	s2, cf2, err := runNewServer(ctx, 1, "2.2.2.2", 20179)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { cf2() }()
+	s1 := runNewServer(1, "1.1.1.1", 10179)
+	s2 := runNewServer(1, "2.2.2.2", 20179)
 
-	addVrf(t, ctx, s1, "vrf1", "111:111", 1)
-	addVrf(t, ctx, s2, "vrf1", "111:111", 1)
+	addVrf(t, s1, "vrf1", "111:111", 1)
+	addVrf(t, s2, "vrf1", "111:111", 1)
 
-	if err = peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
 	watcher := s1.watch(watchUpdate(true))
@@ -977,7 +984,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	}
 
 	// s1 should receive this route from s2
-
+	t1 := time.NewTimer(time.Duration(30 * time.Second))
 	for found := false; !found; {
 		select {
 		case ev := <-watcher.Event():
@@ -995,10 +1002,11 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 					}
 				}
 			}
-		case <-ctx.Done():
+		case <-t1.C:
 			t.Fatalf("timeout while waiting for update path event")
 		}
 	}
+	t1.Stop()
 
 	// fabricate duplicated rtc message from s1
 	// s2 should not send vpn route again
@@ -1020,7 +1028,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	s1Peer := s2.neighborMap["127.0.0.1"]
 	s2.propagateUpdate(s1Peer, []*table.Path{rtcPath})
 
-	awaitUpdateCtx, cancel := context.WithTimeout(ctx, time.Second)
+	t2 := time.NewTimer(time.Duration(2 * time.Second))
 	for done := false; !done; {
 		select {
 		case ev := <-watcher.Event():
@@ -1033,11 +1041,12 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 					}
 				}
 			}
-		//case <-timer.C:
-		case <-awaitUpdateCtx.Done():
+		case <-t2.C:
 			log.Infof("await update done")
 			done = true
 		}
 	}
-	cancel()
+
+	s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 }

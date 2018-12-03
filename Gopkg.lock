@@ -337,14 +337,6 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:61a650a53e5e865a91ae9581f02990a4b6e3afcb8d280f19b1e67a3c284944e6"
-  name = "gopkg.in/tomb.v2"
-  packages = ["."]
-  pruneopts = ""
-  revision = "d5d1b5820637886def9eef33e03a27a9f166942c"
-
-[[projects]]
-  branch = "v2"
   digest = "1:f776026dedad7a9fef3c65180084620ca3684a87a177f5da8837755a1f8fa4fd"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -377,7 +369,6 @@
     "golang.org/x/net/context",
     "google.golang.org/grpc",
     "google.golang.org/grpc/credentials",
-    "gopkg.in/tomb.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
