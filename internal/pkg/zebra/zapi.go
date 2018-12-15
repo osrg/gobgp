@@ -104,7 +104,7 @@ const (
 
 const VRF_DEFAULT = 0
 const MAXPATH_NUM = 64
-const MPLS_MAX_LABLE = 16
+const MPLS_MAX_LABEL = 16
 
 func HeaderSize(version uint8) uint16 {
 	switch version {
@@ -825,7 +825,7 @@ func (t MESSAGE_FLAG) String(version uint8) string {
 		ss = append(ss, "SRCPFX")
 	}
 	if version >= 5 && t&FRR_ZAPI5_MESSAGE_LABEL > 0 {
-		ss = append(ss, "LABLE")
+		ss = append(ss, "LABEL")
 	}
 
 	return strings.Join(ss, "|")
@@ -2205,8 +2205,8 @@ func decodeNexthopsFromBytes(nexthops *[]Nexthop, data []byte, family uint8, ver
 		if version >= 5 {
 			nexthop.LabelNum = data[offset]
 			offset += 1
-			if nexthop.LabelNum > MPLS_MAX_LABLE {
-				nexthop.LabelNum = MPLS_MAX_LABLE
+			if nexthop.LabelNum > MPLS_MAX_LABEL {
+				nexthop.LabelNum = MPLS_MAX_LABEL
 			}
 			var n uint8
 			for ; n < nexthop.LabelNum; n++ {
