@@ -9,19 +9,9 @@ modern environment and implemented in a modern programming language,
 
 ----
 
-## To start using GoBGP
+## Install
 
 Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
-
-## To start developing GoBGP
-
-You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer).
-
-```bash
-$ go get -u github.com/golang/dep/cmd/dep
-$ go get github.com/osrg/gobgp
-$ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
-```
 
 ## Documentation
 
@@ -64,7 +54,8 @@ list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
 questions, discussion, suggestions, etc.
 
 You have code or documentation for GoBGP? Awesome! Send a pull
-request. No CLA, board members, governance, or other mess.
+request. No CLA, board members, governance, or other mess. See [`BUILD.md`](BUILD.md) for info on
+code contributing.
 
 ## Licensing
 
