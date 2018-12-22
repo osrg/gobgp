@@ -159,10 +159,9 @@ func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool
 		msgFlags |= zebra.MESSAGE_METRIC
 	}
 	var flags zebra.FLAG
-	info := path.GetSource()
-	if info.AS == info.LocalAS {
+	if path.IsIBGP() {
 		flags = zebra.FLAG_IBGP | zebra.FLAG_INTERNAL
-	} else if info.MultihopTtl > 0 {
+	} else if path.GetSource().MultihopTtl > 0 {
 		flags = zebra.FLAG_INTERNAL
 	}
 	return &zebra.IPRouteBody{

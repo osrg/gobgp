@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1049,4 +1051,122 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 
 	s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 	s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+}
+
+func TestAddDeletePath(t *testing.T) {
+	ctx := context.Background()
+	s := runNewServer(1, "1.1.1.1", 10179)
+
+	nlri, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+		Prefix:    "10.0.0.0",
+		PrefixLen: 24,
+	})
+
+	a1, _ := ptypes.MarshalAny(&api.OriginAttribute{
+		Origin: 0,
+	})
+	a2, _ := ptypes.MarshalAny(&api.NextHopAttribute{
+		NextHop: "10.0.0.1",
+	})
+	attrs := []*any.Any{a1, a2}
+
+	family := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	listRib := func() []*api.Destination {
+		l := make([]*api.Destination, 0)
+		s.ListPath(ctx, &api.ListPathRequest{Type: api.Resource_GLOBAL, Family: family}, func(d *api.Destination) { l = append(l, d) })
+		return l
+	}
+
+	var err error
+	// DeletePath(AddPath()) without PeerInfo
+	getPath := func() *api.Path {
+		return &api.Path{
+			Family: family,
+			Nlri:   nlri,
+			Pattrs: attrs,
+		}
+	}
+
+	p1 := getPath()
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p1,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p1,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 0)
+
+	// DeletePath(ListPath()) without PeerInfo
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p1,
+	})
+	assert.Nil(t, err)
+	l := listRib()
+	assert.Equal(t, len(l), 1)
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     l[0].Paths[0],
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 0)
+
+	p2 := getPath()
+	p2.SourceAsn = 1
+	p2.SourceId = "1.1.1.1"
+
+	// DeletePath(AddPath()) with PeerInfo
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 0)
+
+	// DeletePath(ListPath()) with PeerInfo
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p2,
+	})
+	assert.Nil(t, err)
+	l = listRib()
+	assert.Equal(t, len(l), 1)
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     l[0].Paths[0],
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 0)
+
+	// DeletePath(AddPath()) with different PeerInfo
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
+	p3 := getPath()
+	p3.SourceAsn = 2
+	p3.SourceId = "1.1.1.2"
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		Resource: api.Resource_GLOBAL,
+		Path:     p3,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
 }

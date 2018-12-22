@@ -1769,20 +1769,11 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 }
 
 func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
-	pi := &table.PeerInfo{
-		AS:      s.bgpConfig.Global.Config.As,
-		LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
-	}
-
 	for _, path := range pathList {
 		if !path.IsWithdraw {
 			if _, err := path.GetOrigin(); err != nil {
 				return err
 			}
-		}
-
-		if path.GetSource() == nil {
-			path.SetSource(pi)
 		}
 
 		if vrfId != "" {
@@ -1854,15 +1845,14 @@ func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
 	var uuidBytes []byte
 	err := s.mgmtOperation(func() error {
-		pathList, err := api2PathList(r.Resource, []*api.Path{r.Path})
+		path, err := api2Path(r.Resource, r.Path, false)
 		if err != nil {
 			return err
 		}
-		err = s.addPathList(r.VrfId, pathList)
+		err = s.addPathList(r.VrfId, []*table.Path{path})
 		if err != nil {
 			return err
 		}
-		path := pathList[0]
 		id, _ := uuid.NewV4()
 		s.uuidMap[id] = pathTokey(path)
 		uuidBytes = id.Bytes()
@@ -1877,8 +1867,8 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 
 		pathList, err := func() ([]*table.Path, error) {
 			if r.Path != nil {
-				r.Path.IsWithdraw = true
-				return api2PathList(r.Resource, []*api.Path{r.Path})
+				path, err := api2Path(r.Resource, r.Path, true)
+				return []*table.Path{path}, err
 			}
 			return []*table.Path{}, nil
 		}()

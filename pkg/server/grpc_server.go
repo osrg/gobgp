@@ -239,81 +239,77 @@ func newRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*config.Routing
 	}, nil
 }
 
-func api2PathList(resource api.Resource, ApiPathList []*api.Path) ([]*table.Path, error) {
+func api2Path(resource api.Resource, path *api.Path, isWithdraw bool) (*table.Path, error) {
 	var pi *table.PeerInfo
+	var nlri bgp.AddrPrefixInterface
+	var nexthop string
 
-	pathList := make([]*table.Path, 0, len(ApiPathList))
-	for _, path := range ApiPathList {
-		var nlri bgp.AddrPrefixInterface
-		var nexthop string
-
-		if path.SourceAsn != 0 {
-			pi = &table.PeerInfo{
-				AS:      path.SourceAsn,
-				LocalID: net.ParseIP(path.SourceId),
-			}
+	if path.SourceAsn != 0 {
+		pi = &table.PeerInfo{
+			AS: path.SourceAsn,
+			ID: net.ParseIP(path.SourceId),
 		}
-
-		nlri, err := apiutil.GetNativeNlri(path)
-		if err != nil {
-			return nil, err
-		}
-		nlri.SetPathIdentifier(path.Identifier)
-
-		attrList, err := apiutil.GetNativePathAttributes(path)
-		if err != nil {
-			return nil, err
-		}
-
-		pattrs := make([]bgp.PathAttributeInterface, 0)
-		seen := make(map[bgp.BGPAttrType]struct{})
-		for _, attr := range attrList {
-			attrType := attr.GetType()
-			if _, ok := seen[attrType]; !ok {
-				seen[attrType] = struct{}{}
-			} else {
-				return nil, fmt.Errorf("duplicated path attribute type: %d", attrType)
-			}
-
-			switch a := attr.(type) {
-			case *bgp.PathAttributeNextHop:
-				nexthop = a.Value.String()
-			case *bgp.PathAttributeMpReachNLRI:
-				nlri = a.Value[0]
-				nexthop = a.Nexthop.String()
-			default:
-				pattrs = append(pattrs, attr)
-			}
-		}
-
-		if nlri == nil {
-			return nil, fmt.Errorf("nlri not found")
-		} else if !path.IsWithdraw && nexthop == "" {
-			return nil, fmt.Errorf("nexthop not found")
-		}
-		rf := bgp.AfiSafiToRouteFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
-		if resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
-			pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
-		} else {
-			pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
-		}
-
-		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
-		if !path.IsWithdraw {
-			total := bytes.NewBuffer(make([]byte, 0))
-			for _, a := range newPath.GetPathAttrs() {
-				if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-					continue
-				}
-				b, _ := a.Serialize()
-				total.Write(b)
-			}
-			newPath.SetHash(farm.Hash32(total.Bytes()))
-		}
-		newPath.SetIsFromExternal(path.IsFromExternal)
-		pathList = append(pathList, newPath)
 	}
-	return pathList, nil
+
+	nlri, err := apiutil.GetNativeNlri(path)
+	if err != nil {
+		return nil, err
+	}
+	nlri.SetPathIdentifier(path.Identifier)
+
+	attrList, err := apiutil.GetNativePathAttributes(path)
+	if err != nil {
+		return nil, err
+	}
+
+	pattrs := make([]bgp.PathAttributeInterface, 0)
+	seen := make(map[bgp.BGPAttrType]struct{})
+	for _, attr := range attrList {
+		attrType := attr.GetType()
+		if _, ok := seen[attrType]; !ok {
+			seen[attrType] = struct{}{}
+		} else {
+			return nil, fmt.Errorf("duplicated path attribute type: %d", attrType)
+		}
+
+		switch a := attr.(type) {
+		case *bgp.PathAttributeNextHop:
+			nexthop = a.Value.String()
+		case *bgp.PathAttributeMpReachNLRI:
+			nlri = a.Value[0]
+			nexthop = a.Nexthop.String()
+		default:
+			pattrs = append(pattrs, attr)
+		}
+	}
+
+	if nlri == nil {
+		return nil, fmt.Errorf("nlri not found")
+	} else if !path.IsWithdraw && nexthop == "" {
+		return nil, fmt.Errorf("nexthop not found")
+	}
+	rf := bgp.AfiSafiToRouteFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
+	if resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
+		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
+	} else {
+		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+	}
+
+	doWithdraw := (isWithdraw || path.IsWithdraw)
+	newPath := table.NewPath(pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
+	if !doWithdraw {
+		total := bytes.NewBuffer(make([]byte, 0))
+		for _, a := range newPath.GetPathAttrs() {
+			if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+				continue
+			}
+			b, _ := a.Serialize()
+			total.Write(b)
+		}
+		newPath.SetHash(farm.Hash32(total.Bytes()))
+	}
+	newPath.SetIsFromExternal(path.IsFromExternal)
+	return newPath, nil
 }
 
 func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
@@ -344,9 +340,13 @@ func (s *server) AddPathStream(stream api.GobgpApi_AddPathStreamServer) error {
 		if arg.Resource != api.Resource_GLOBAL && arg.Resource != api.Resource_VRF {
 			return fmt.Errorf("unsupported resource: %s", arg.Resource)
 		}
-		pathList, err := api2PathList(arg.Resource, arg.Paths)
-		if err != nil {
-			return err
+		pathList := make([]*table.Path, 0, len(arg.Paths))
+		for _, apiPath := range arg.Paths {
+			if path, err := api2Path(arg.Resource, apiPath, apiPath.IsWithdraw); err != nil {
+				return err
+			} else {
+				pathList = append(pathList, path)
+			}
 		}
 		err = s.bgpServer.addPathList(arg.VrfId, pathList)
 		if err != nil {
