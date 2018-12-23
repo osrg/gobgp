@@ -978,9 +978,9 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	path := apiutil.NewPath(prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		Resource: api.Resource_VRF,
-		VrfId:    "vrf1",
-		Path:     path,
+		TableType: api.TableType_VRF,
+		VrfId:     "vrf1",
+		Path:      path,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1077,7 +1077,7 @@ func TestAddDeletePath(t *testing.T) {
 
 	listRib := func() []*api.Destination {
 		l := make([]*api.Destination, 0)
-		s.ListPath(ctx, &api.ListPathRequest{Type: api.Resource_GLOBAL, Family: family}, func(d *api.Destination) { l = append(l, d) })
+		s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: family}, func(d *api.Destination) { l = append(l, d) })
 		return l
 	}
 
@@ -1093,29 +1093,29 @@ func TestAddDeletePath(t *testing.T) {
 
 	p1 := getPath()
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p1,
+		TableType: api.TableType_GLOBAL,
+		Path:      p1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p1,
+		TableType: api.TableType_GLOBAL,
+		Path:      p1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 0)
 
 	// DeletePath(ListPath()) without PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p1,
+		TableType: api.TableType_GLOBAL,
+		Path:      p1,
 	})
 	assert.Nil(t, err)
 	l := listRib()
 	assert.Equal(t, len(l), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     l[0].Paths[0],
+		TableType: api.TableType_GLOBAL,
+		Path:      l[0].Paths[0],
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 0)
@@ -1126,37 +1126,37 @@ func TestAddDeletePath(t *testing.T) {
 
 	// DeletePath(AddPath()) with PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p2,
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p2,
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 0)
 
 	// DeletePath(ListPath()) with PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p2,
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
 	})
 	assert.Nil(t, err)
 	l = listRib()
 	assert.Equal(t, len(l), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     l[0].Paths[0],
+		TableType: api.TableType_GLOBAL,
+		Path:      l[0].Paths[0],
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 0)
 
 	// DeletePath(AddPath()) with different PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p2,
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 1)
@@ -1164,8 +1164,8 @@ func TestAddDeletePath(t *testing.T) {
 	p3.SourceAsn = 2
 	p3.SourceId = "1.1.1.2"
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     p3,
+		TableType: api.TableType_GLOBAL,
+		Path:      p3,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 1)

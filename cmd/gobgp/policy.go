@@ -106,7 +106,7 @@ func prettyString(v interface{}) string {
 	switch a := v.(type) {
 	case *api.MatchSet:
 		var typ string
-		switch a.Type {
+		switch a.MatchType {
 		case api.MatchType_ALL:
 			typ = "all"
 		case api.MatchType_ANY:
@@ -117,7 +117,7 @@ func prettyString(v interface{}) string {
 		return fmt.Sprintf("%s %s", typ, a.GetName())
 	case *api.AsPathLength:
 		var typ string
-		switch a.Type {
+		switch a.LengthType {
 		case api.AsPathLengthType_EQ:
 			typ = "="
 		case api.AsPathLengthType_GE:
@@ -129,7 +129,7 @@ func prettyString(v interface{}) string {
 	case *api.CommunityAction:
 		l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
 		var typ string
-		switch a.Type {
+		switch a.ActionType {
 		case api.CommunityActionType_COMMUNITY_ADD:
 			typ = "add"
 		case api.CommunityActionType_COMMUNITY_REMOVE:
@@ -139,7 +139,7 @@ func prettyString(v interface{}) string {
 		}
 		return fmt.Sprintf("%s[%s]", typ, l)
 	case *api.MedAction:
-		if a.Type == api.MedActionType_MED_MOD && a.Value > 0 {
+		if a.ActionType == api.MedActionType_MED_MOD && a.Value > 0 {
 			return fmt.Sprintf("+%d", a.Value)
 		}
 		return fmt.Sprintf("%d", a.Value)
@@ -221,8 +221,8 @@ func showDefinedSet(v string, args []string) error {
 		name = args[0]
 	}
 	stream, err := client.ListDefinedSet(ctx, &api.ListDefinedSetRequest{
-		Type: typ,
-		Name: name,
+		DefinedType: typ,
+		Name:        name,
 	})
 	if err != nil {
 		return err
@@ -295,9 +295,9 @@ func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 		list = []*api.Prefix{prefix}
 	}
 	return &api.DefinedSet{
-		Type:     api.DefinedType_PREFIX,
-		Name:     name,
-		Prefixes: list,
+		DefinedType: api.DefinedType_PREFIX,
+		Name:        name,
+		Prefixes:    list,
 	}, nil
 }
 
@@ -322,9 +322,9 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_NEIGHBOR,
-		Name: name,
-		List: list,
+		DefinedType: api.DefinedType_NEIGHBOR,
+		Name:        name,
+		List:        list,
 	}, nil
 }
 
@@ -341,9 +341,9 @@ func parseAsPathSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_AS_PATH,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_AS_PATH,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -359,9 +359,9 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_COMMUNITY,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_COMMUNITY,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -377,9 +377,9 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_EXT_COMMUNITY,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_EXT_COMMUNITY,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -395,9 +395,9 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_LARGE_COMMUNITY,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_LARGE_COMMUNITY,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -681,9 +681,9 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.PrefixSet.Type = api.MatchType_ANY
+			stmt.Conditions.PrefixSet.MatchType = api.MatchType_ANY
 		case "invert":
-			stmt.Conditions.PrefixSet.Type = api.MatchType_INVERT
+			stmt.Conditions.PrefixSet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s prefix <set-name> [{ any | invert }]", usage)
 		}
@@ -698,9 +698,9 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.NeighborSet.Type = api.MatchType_ANY
+			stmt.Conditions.NeighborSet.MatchType = api.MatchType_ANY
 		case "invert":
-			stmt.Conditions.NeighborSet.Type = api.MatchType_INVERT
+			stmt.Conditions.NeighborSet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
 		}
@@ -715,11 +715,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.AsPathSet.Type = api.MatchType_ANY
+			stmt.Conditions.AsPathSet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.AsPathSet.Type = api.MatchType_ALL
+			stmt.Conditions.AsPathSet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.AsPathSet.Type = api.MatchType_INVERT
+			stmt.Conditions.AsPathSet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s as-path <set-name> [{ any | all | invert }]", usage)
 		}
@@ -734,11 +734,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.CommunitySet.Type = api.MatchType_ANY
+			stmt.Conditions.CommunitySet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.CommunitySet.Type = api.MatchType_ALL
+			stmt.Conditions.CommunitySet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.CommunitySet.Type = api.MatchType_INVERT
+			stmt.Conditions.CommunitySet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -753,11 +753,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_ANY
+			stmt.Conditions.ExtCommunitySet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_ALL
+			stmt.Conditions.ExtCommunitySet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_INVERT
+			stmt.Conditions.ExtCommunitySet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -772,11 +772,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ANY
+			stmt.Conditions.LargeCommunitySet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ALL
+			stmt.Conditions.LargeCommunitySet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_INVERT
+			stmt.Conditions.LargeCommunitySet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -792,11 +792,11 @@ func modCondition(name, op string, args []string) error {
 		stmt.Conditions.AsPathLength.Length = uint32(length)
 		switch strings.ToLower(args[1]) {
 		case "eq":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_EQ
+			stmt.Conditions.AsPathLength.LengthType = api.AsPathLengthType_EQ
 		case "ge":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_GE
+			stmt.Conditions.AsPathLength.LengthType = api.AsPathLengthType_GE
 		case "le":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_LE
+			stmt.Conditions.AsPathLength.LengthType = api.AsPathLengthType_LE
 		default:
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}
@@ -882,11 +882,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Community.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_ADD
+			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_REMOVE
+			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_REPLACE
+			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
 		}
@@ -898,11 +898,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.ExtCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
+			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
+			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
+			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
 		}
@@ -914,11 +914,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.LargeCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
+			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
+			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
+			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
 		}
@@ -934,12 +934,12 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Med.Value = int64(med)
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Med.Type = api.MedActionType_MED_MOD
+			stmt.Actions.Med.ActionType = api.MedActionType_MED_MOD
 		case "sub":
-			stmt.Actions.Med.Type = api.MedActionType_MED_MOD
+			stmt.Actions.Med.ActionType = api.MedActionType_MED_MOD
 			stmt.Actions.Med.Value = -1 * stmt.Actions.Med.Value
 		case "set":
-			stmt.Actions.Med.Type = api.MedActionType_MED_REPLACE
+			stmt.Actions.Med.ActionType = api.MedActionType_MED_REPLACE
 		default:
 			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}

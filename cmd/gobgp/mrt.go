@@ -178,8 +178,8 @@ func injectMrt() error {
 
 	for paths := range ch {
 		err = stream.Send(&api.AddPathStreamRequest{
-			Resource: api.Resource_GLOBAL,
-			Paths:    paths,
+			TableType: api.TableType_GLOBAL,
+			Paths:     paths,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to send: %s", err)

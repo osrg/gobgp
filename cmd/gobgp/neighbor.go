@@ -732,23 +732,23 @@ func showRibInfo(r, name string) error {
 		return err
 	}
 
-	var t api.Resource
+	var t api.TableType
 	switch r {
 	case cmdGlobal:
-		t = api.Resource_GLOBAL
+		t = api.TableType_GLOBAL
 	case cmdLocal:
-		t = api.Resource_LOCAL
+		t = api.TableType_LOCAL
 	case cmdAdjIn:
-		t = api.Resource_ADJ_IN
+		t = api.TableType_ADJ_IN
 	case cmdAdjOut:
-		t = api.Resource_ADJ_OUT
+		t = api.TableType_ADJ_OUT
 	default:
 		return fmt.Errorf("invalid resource to show RIB info: %s", r)
 	}
 	rsp, err := client.GetTable(ctx, &api.GetTableRequest{
-		Type:   t,
-		Family: family,
-		Name:   name,
+		TableType: t,
+		Family:    family,
+		Name:      name,
 	})
 
 	if err != nil {
@@ -842,28 +842,28 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 	}
 
-	var t api.Resource
+	var t api.TableType
 	switch r {
 	case cmdGlobal:
-		t = api.Resource_GLOBAL
+		t = api.TableType_GLOBAL
 	case cmdLocal:
-		t = api.Resource_LOCAL
+		t = api.TableType_LOCAL
 	case cmdAdjIn, cmdAccepted, cmdRejected:
-		t = api.Resource_ADJ_IN
+		t = api.TableType_ADJ_IN
 		showIdentifier = bgp.BGP_ADD_PATH_RECEIVE
 	case cmdAdjOut:
-		t = api.Resource_ADJ_OUT
+		t = api.TableType_ADJ_OUT
 		showIdentifier = bgp.BGP_ADD_PATH_SEND
 	case cmdVRF:
-		t = api.Resource_VRF
+		t = api.TableType_VRF
 	}
 
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
-		Type:     t,
-		Family:   family,
-		Name:     name,
-		Prefixes: filter,
-		SortType: api.ListPathRequest_PREFIX,
+		TableType: t,
+		Family:    family,
+		Name:      name,
+		Prefixes:  filter,
+		SortType:  api.ListPathRequest_PREFIX,
 	})
 	if err != nil {
 		return err

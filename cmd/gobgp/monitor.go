@@ -122,9 +122,9 @@ func newMonitorCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
-				Type:    api.Resource_GLOBAL,
-				Family:  family,
-				Current: current,
+				TableType: api.TableType_GLOBAL,
+				Family:    family,
+				Current:   current,
 			})
 			if err != nil {
 				exitWithError(err)
@@ -192,10 +192,10 @@ func newMonitorCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
-				Type:    api.Resource_ADJ_IN,
-				Name:    name,
-				Family:  family,
-				Current: current,
+				TableType: api.TableType_ADJ_IN,
+				Name:      name,
+				Family:    family,
+				Current:   current,
 			})
 			if err != nil {
 				exitWithError(err)

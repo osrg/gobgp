@@ -1461,22 +1461,22 @@ usage: %s rib %s key <KEY> [value <VALUE>]`,
 		return err
 	}
 
-	r := api.Resource_GLOBAL
+	r := api.TableType_GLOBAL
 	if resource == cmdVRF {
-		r = api.Resource_VRF
+		r = api.TableType_VRF
 	}
 
 	if modtype == cmdAdd {
 		_, err = client.AddPath(ctx, &api.AddPathRequest{
-			Resource: r,
-			VrfId:    name,
-			Path:     path,
+			TableType: r,
+			VrfId:     name,
+			Path:      path,
 		})
 	} else {
 		_, err = client.DeletePath(ctx, &api.DeletePathRequest{
-			Resource: r,
-			VrfId:    name,
-			Path:     path,
+			TableType: r,
+			VrfId:     name,
+			Path:      path,
 		})
 	}
 	return err
@@ -1595,8 +1595,8 @@ func newGlobalCmd() *cobra.Command {
 						exitWithError(err)
 					}
 					if _, err = client.DeletePath(ctx, &api.DeletePathRequest{
-						Resource: api.Resource_GLOBAL,
-						Family:   family,
+						TableType: api.TableType_GLOBAL,
+						Family:    family,
 					}); err != nil {
 						exitWithError(err)
 					}

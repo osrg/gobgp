@@ -74,7 +74,7 @@ func modBmpServer(cmdType string, args []string) error {
 		_, err = client.AddBmp(ctx, &api.AddBmpRequest{
 			Address:           address,
 			Port:              port,
-			Type:              policyType,
+			Policy:            policyType,
 			StatisticsTimeout: int32(statisticsTimeout),
 		})
 	case cmdDel:
