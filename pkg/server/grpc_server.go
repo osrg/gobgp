@@ -102,12 +102,12 @@ func (s *server) ListPeer(r *api.ListPeerRequest, stream api.GobgpApi_ListPeerSe
 	return s.bgpServer.ListPeer(ctx, r, fn)
 }
 
-func newValidationFromTableStruct(v *table.Validation) *api.RPKIValidation {
+func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	if v == nil {
-		return &api.RPKIValidation{}
+		return &api.Validation{}
 	}
-	return &api.RPKIValidation{
-		Reason:          api.RPKIValidation_Reason(v.Reason.ToInt()),
+	return &api.Validation{
+		Reason:          api.Validation_Reason(v.Reason.ToInt()),
 		Matched:         newRoaListFromTableStructList(v.Matched),
 		UnmatchedAs:     newRoaListFromTableStructList(v.UnmatchedAs),
 		UnmatchedLength: newRoaListFromTableStructList(v.UnmatchedLength),
@@ -122,7 +122,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		Pattrs:             anyPattrs,
 		Age:                t,
 		IsWithdraw:         path.IsWithdraw,
-		ValidationDetail:   newValidationFromTableStruct(v),
+		Validation:         newValidationFromTableStruct(v),
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.IsStale(),
 		IsFromExternal:     path.IsFromExternal(),

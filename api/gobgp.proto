@@ -482,7 +482,7 @@ enum TableType {
   VRF = 4;
 }
 
-message RPKIValidation{
+message Validation {
   enum State {
     STATE_NONE = 0;
     STATE_NOT_FOUND = 1;
@@ -525,7 +525,7 @@ message Path {
   google.protobuf.Timestamp age = 3;
   bool best = 4;
   bool is_withdraw = 5;
-  RPKIValidation validation_detail = 7;
+  Validation validation = 7;
   bool no_implicit_withdraw = 8;
   Family family = 9;
   uint32 source_asn = 10;

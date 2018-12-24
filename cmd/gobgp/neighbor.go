@@ -498,13 +498,13 @@ func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 	if p.Stale {
 		symbols += "S"
 	}
-	if v := p.GetValidationDetail(); v != nil {
+	if v := p.GetValidation(); v != nil {
 		switch v.State {
-		case api.RPKIValidation_STATE_NOT_FOUND:
+		case api.Validation_STATE_NOT_FOUND:
 			symbols += "N"
-		case api.RPKIValidation_STATE_VALID:
+		case api.Validation_STATE_VALID:
 			symbols += "V"
-		case api.RPKIValidation_STATE_INVALID:
+		case api.Validation_STATE_INVALID:
 			symbols += "I"
 		}
 
@@ -673,23 +673,23 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 		return nil
 	}
 
-	status := p.GetValidationDetail().State
-	reason := p.GetValidationDetail().Reason
+	status := p.GetValidation().State
+	reason := p.GetValidation().Reason
 	asList := asPath[len(asPath)-1].GetAS()
 	origin := asList[len(asList)-1]
 
 	fmt.Printf("Target Prefix: %s, AS: %d\n", nlri.String(), origin)
 	fmt.Printf("  This route is %s", status)
 	switch status {
-	case api.RPKIValidation_STATE_INVALID:
+	case api.Validation_STATE_INVALID:
 		fmt.Printf("  reason: %s\n", reason)
 		switch reason {
-		case api.RPKIValidation_REASON_AS:
+		case api.Validation_REASON_AS:
 			fmt.Println("  No VRP ASN matches the route origin ASN.")
-		case api.RPKIValidation_REASON_LENGTH:
+		case api.Validation_REASON_LENGTH:
 			fmt.Println("  Route Prefix length is greater than the maximum length allowed by VRP(s) matching this route origin ASN.")
 		}
-	case api.RPKIValidation_STATE_NOT_FOUND:
+	case api.Validation_STATE_NOT_FOUND:
 		fmt.Println("\n  No VRP Covers the Route Prefix")
 	default:
 		fmt.Print("\n\n")
@@ -713,11 +713,11 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 	}
 
 	fmt.Println("  Matched VRPs: ")
-	printVRPs(p.GetValidationDetail().Matched)
+	printVRPs(p.GetValidation().Matched)
 	fmt.Println("  Unmatched AS VRPs: ")
-	printVRPs(p.GetValidationDetail().UnmatchedAs)
+	printVRPs(p.GetValidation().UnmatchedAs)
 	fmt.Println("  Unmatched Length VRPs: ")
-	printVRPs(p.GetValidationDetail().UnmatchedLength)
+	printVRPs(p.GetValidation().UnmatchedLength)
 
 	return nil
 }
