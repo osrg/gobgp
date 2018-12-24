@@ -1,9 +1,6 @@
 # Managing GoBGP with Your Favorite Language
 
-This page explains how to managing GoBGP with your favorite Language.
-You can use any language supported by [gRPC](http://www.grpc.io/) (10
-languages are supported now). This page gives an example in Python,
-Ruby, C++, Node.js, and Java. It assumes that you use Ubuntu 16.04 (64bit).
+This page explains how to managing GoBGP with your favorite Language. You can use any language supported by [gRPC](http://www.grpc.io/) (10 languages are supported now). This page gives an example in Python and C++.
 
 ## Contents
 
@@ -13,8 +10,7 @@ Ruby, C++, Node.js, and Java. It assumes that you use Ubuntu 16.04 (64bit).
 
 ## Prerequisite
 
-We assumes that you have the relevant tools installed to generate the server and client interface for your favorite language from proto files. Please refer to [the official docs of gRPC](http://www.grpc.io/docs/) for
-details.
+We assumes that you have the relevant tools installed to generate the server and client interface for your favorite language from proto files. Please refer to [the official docs of gRPC](http://www.grpc.io/docs/) for details.
 
 ## Python
 
