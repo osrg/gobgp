@@ -16,42 +16,36 @@ Ruby, C++, Node.js, and Java. It assumes that you use Ubuntu 16.04 (64bit).
 
 ## Prerequisite
 
-We assumes that you have finished installing `protoc`
-[protocol buffer](https://github.com/google/protobuf) compiler to generate stub
-server and client code and "protobuf runtime" for your favorite language.
-
-Please refer to [the official docs of gRPC](http://www.grpc.io/docs/) for
+We assumes that you have the relevant tools installed to generate the server and client interface for your favorite language from proto files. Please refer to [the official docs of gRPC](http://www.grpc.io/docs/) for
 details.
 
 ## Python
 
-### Generating Stub Code
+### Generating Interface
 
-We need to generate stub code GoBGP at first.
+You need to generate the server and client interface from GoBGP proto files at first.
 
 ```bash
-$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/python
-$ GOBGP_API=$GOPATH/src/github.com/osrg/gobgp/api
-$ protoc  -I $GOBGP_API --python_out=. --grpc_out=. --plugin=protoc-gen-grpc=`which grpc_python_plugin` $GOBGP_API/gobgp.proto
+$ python -m grpc_tools.protoc -I./api --python_out=. --grpc_python_out=. api/gobgp.proto api/attribute.proto api/capability.proto
 ```
 
-### Get Neighbor
+### Adding Path
 
-['tools/grpc/python/get_neighbor.py'](https://github.com/osrg/gobgp/blob/master/tools/grpc/python/get_neighbor.py)
-shows an example for getting neighbor's information.
+[`tools/grpc/python/add_path.py`](https://github.com/osrg/gobgp/blob/master/tools/grpc/python/add_path.py)
+shows an example for adding a route.
 Let's run this script.
 
 ```bash
-$ python get_neighbor.py 172.18.0.2
-BGP neighbor is 10.0.0.2, remote AS 65002
-  BGP version 4, remote router ID
-  BGP state = active, up for 0
-  BGP OutQ = 0, Flops = 0
-  Hold time is 0, keepalive interval is 0 seconds
-  Configured hold time is 90, keepalive interval is 30 seconds
+$ PYTHONPATH=$PYTHONPATH:. python add_path.py
 ```
 
-We got the neighbor information successfully.
+See if he route was added to the global rib.
+
+```bash
+$ gobgp g r
+   Network              Next Hop             AS_PATH              Age        Attrs
+*> 10.0.0.0/24          1.1.1.1              100 200              00:08:02   [{Origin: ?}]
+```
 
 ## Ruby
 
