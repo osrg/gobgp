@@ -39,7 +39,7 @@ Let's run this script.
 $ PYTHONPATH=$PYTHONPATH:. python add_path.py
 ```
 
-See if he route was added to the global rib.
+See if the route was added to the global rib.
 
 ```bash
 $ gobgp g r
@@ -77,40 +77,31 @@ BGP neighbor is 10.0.0.2, remote AS 65002
 
 ## C++
 
-We use .so compilation with golang, please use only 1.5 or newer version of Go
-Lang.
+### Generating Interface and Binary
 
-['tools/grpc/cpp/gobgp_api_client.cc'](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/gobgp_api_client.cc)
-shows an example for getting neighbor's information.
-
-We provide
-['tools/grpc/cpp/build.sh'](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/build.sh)
-to build this sample code.
-This script also generates stub codes and builds GoBGP shared library.
-
-Let's build the sample code:
+Use [`tools/grpc/cpp/Makefile`](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/Makefile).
 
 ```bash
-$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/cpp
-$ bash build.sh
+$ cd tools/grpc/cpp
+$ make
+ ```
+
+The above to generate the server and client interface and the binary to add a route by using `AddPath` API, ['tools/grpc/cpp/add_path.cc'](https://github.com/osrg/gobgp/blob/master/tools/grpc/cpp/add_path.cc).
+
+### Adding Path
+
+Let's run the binary.
+
+```bash
+$ ./add_path
 ```
 
-### Let's run it
+See if he route was added to the global rib.
 
 ```bash
-$ ./gobgp_api_client 172.18.0.2
-BGP neighbor is: 10.0.0.2, remote AS: 1
-	BGP version: 4, remote route ID
-	BGP state = active, up for 0
-	BGP OutQ = 0, Flops = 0
-	Hold time is 0, keepalive interval is 0seconds
-	Configured hold time is 90
-BGP neighbor is: 10.0.0.3, remote AS: 1
-	BGP version: 4, remote route ID
-	BGP state = active, up for 0
-	BGP OutQ = 0, Flops = 0
-	Hold time is 0, keepalive interval is 0seconds
-	Configured hold time is 90
+$ gobgp g r
+   Network              Next Hop             AS_PATH              Age        Attrs
+*> 10.0.0.0/24          1.1.1.1                                   00:13:26   [{Origin: i} {Communities: 0:100}]
 ```
 
 ## Node.js
