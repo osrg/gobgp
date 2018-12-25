@@ -10,7 +10,11 @@ $ go get github.com/osrg/gobgp
 $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 ```
 
-Now ready to build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
+Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
+
+## Layout
+
+The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-standards/project-layout).
 
 ## Changing the gRPC API
 
