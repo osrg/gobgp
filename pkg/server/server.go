@@ -2474,25 +2474,6 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetB
 	return rsp, nil
 }
 
-func (s *BgpServer) getNeighbor(address string, getAdvertised bool) []*config.Neighbor {
-	var l []*config.Neighbor
-	s.mgmtOperation(func() error {
-		l = make([]*config.Neighbor, 0, len(s.neighborMap))
-		for k, peer := range s.neighborMap {
-			peer.fsm.lock.RLock()
-			neighborIface := peer.fsm.pConf.Config.NeighborInterface
-			peer.fsm.lock.RUnlock()
-			if address != "" && address != k && address != neighborIface {
-				continue
-			}
-			// FIXME: should remove toConfig() conversion
-			l = append(l, s.toConfig(peer, getAdvertised))
-		}
-		return nil
-	}, false)
-	return l
-}
-
 func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn func(*api.Peer)) error {
 	var l []*api.Peer
 	s.mgmtOperation(func() error {

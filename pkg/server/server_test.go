@@ -228,15 +228,17 @@ func TestMonitor(test *testing.T) {
 			},
 		},
 	}
+	ch := make(chan struct{})
+	go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
+		if peer.State.SessionState == api.PeerState_ESTABLISHED {
+			close(ch)
+		}
+	})
+
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 
-	for {
-		time.Sleep(time.Second)
-		if t.getNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
-			break
-		}
-	}
+	<-ch
 
 	// Test WatchBestPath.
 	w := s.watch(watchBestPath(false))
@@ -619,15 +621,15 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
+	ch := make(chan struct{})
+	go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
+		if peer.State.SessionState == api.PeerState_ESTABLISHED {
+			close(ch)
+		}
+	})
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
-
-	for {
-		time.Sleep(time.Second)
-		if t.getNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
-			break
-		}
-	}
+	<-ch
 }
 
 func TestDynamicNeighbor(t *testing.T) {
@@ -698,16 +700,15 @@ func TestDynamicNeighbor(t *testing.T) {
 			},
 		},
 	}
-	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
-
-	assert.Nil(err)
-
-	for {
-		time.Sleep(time.Second)
-		if s2.getNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
-			break
+	ch := make(chan struct{})
+	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
+		if peer.State.SessionState == api.PeerState_ESTABLISHED {
+			close(ch)
 		}
-	}
+	})
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
+	assert.Nil(err)
+	<-ch
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
@@ -780,16 +781,15 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			},
 		},
 	}
+	ch := make(chan struct{})
+	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
+		if peer.State.SessionState == api.PeerState_ESTABLISHED {
+			close(ch)
+		}
+	})
 	err = s2.addNeighbor(m)
 	assert.Nil(err)
-
-	// Waiting for BGP session established.
-	for {
-		time.Sleep(time.Second)
-		if s2.getNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_ESTABLISHED {
-			break
-		}
-	}
+	<-ch
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
@@ -812,14 +812,18 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	done := make(chan struct{})
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
-		if s1.getNeighbor("", false)[0].State.SessionState == config.SESSION_STATE_IDLE {
-			break
-		}
+		s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
+			if peer.State.SessionState == api.PeerState_IDLE {
+				close(done)
+			}
+		})
 
 		select {
-		case <-time.After(time.Second):
+		case <-done:
+			return
 		case <-ctx.Done():
 			t.Fatalf("failed to enter IDLE state in the deadline")
 			return
