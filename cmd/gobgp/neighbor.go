@@ -95,10 +95,10 @@ func getASN(p *api.Peer) string {
 	return asn
 }
 
-func counter(p *api.Peer) (uint32, uint32, uint32, error) {
-	accepted := uint32(0)
-	received := uint32(0)
-	advertised := uint32(0)
+func counter(p *api.Peer) (uint64, uint64, uint64, error) {
+	accepted := uint64(0)
+	received := uint64(0)
+	advertised := uint64(0)
 	for _, afisafi := range p.AfiSafis {
 		if subOpts.AddressFamily != "" {
 			f, e := checkAddressFamily(&api.Family{})

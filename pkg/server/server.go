@@ -2517,12 +2517,12 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 					c := afisafi.Config
 					if c.Family != nil && c.Family.Afi == api.Family_Afi(afi) && c.Family.Safi == api.Family_Safi(safi) {
 						flist := []bgp.RouteFamily{family}
-						received := uint32(peer.adjRibIn.Count(flist))
-						accepted := uint32(peer.adjRibIn.Accepted(flist))
-						advertised := uint32(0)
+						received := uint64(peer.adjRibIn.Count(flist))
+						accepted := uint64(peer.adjRibIn.Accepted(flist))
+						advertised := uint64(0)
 						if getAdvertised {
 							pathList, _ := s.getBestFromLocal(peer, flist)
-							advertised = uint32(len(pathList))
+							advertised = uint64(len(pathList))
 						}
 						p.AfiSafis[i].State = &api.AfiSafiState{
 							Family:     c.Family,

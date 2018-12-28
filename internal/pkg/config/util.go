@@ -471,13 +471,15 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			AdminState:   api.PeerState_AdminState(s.AdminState.ToInt()),
 			Messages: &api.Messages{
 				Received: &api.Message{
-					Notification: s.Messages.Received.Notification,
-					Update:       s.Messages.Received.Update,
-					Open:         s.Messages.Received.Open,
-					Keepalive:    s.Messages.Received.Keepalive,
-					Refresh:      s.Messages.Received.Refresh,
-					Discarded:    s.Messages.Received.Discarded,
-					Total:        s.Messages.Received.Total,
+					Notification:   s.Messages.Received.Notification,
+					Update:         s.Messages.Received.Update,
+					Open:           s.Messages.Received.Open,
+					Keepalive:      s.Messages.Received.Keepalive,
+					Refresh:        s.Messages.Received.Refresh,
+					Discarded:      s.Messages.Received.Discarded,
+					Total:          s.Messages.Received.Total,
+					WithdrawUpdate: uint64(s.Messages.Received.WithdrawUpdate),
+					WithdrawPrefix: uint64(s.Messages.Received.WithdrawPrefix),
 				},
 				Sent: &api.Message{
 					Notification: s.Messages.Sent.Notification,

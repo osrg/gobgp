@@ -723,6 +723,8 @@ message Message {
   uint64 refresh = 5;
   uint64 discarded = 6;
   uint64 total = 7;
+  uint64 withdraw_update = 8;
+  uint64 withdraw_prefix = 9;
 }
 
 message Queues {
@@ -804,9 +806,9 @@ message AfiSafiConfig {
 message AfiSafiState {
   Family family = 1;
   bool enabled = 2;
-  uint32 received = 3;
-  uint32 accepted = 4;
-  uint32 advertised = 5;
+  uint64 received = 3;
+  uint64 accepted = 4;
+  uint64 advertised = 5;
 }
 
 message RouteSelectionOptionsConfig {
