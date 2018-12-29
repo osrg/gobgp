@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/osrg/gobgp/internal/pkg/zebra"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/bmp"
 	"github.com/osrg/gobgp/pkg/packet/rtr"
@@ -400,10 +401,10 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	if b.Zebra.Config.Url == "" {
 		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
 	}
-	if b.Zebra.Config.Version < 2 {
-		b.Zebra.Config.Version = 2
-	} else if b.Zebra.Config.Version > 6 {
-		b.Zebra.Config.Version = 6
+	if b.Zebra.Config.Version < zebra.MinZapiVer {
+		b.Zebra.Config.Version = zebra.MinZapiVer
+	} else if b.Zebra.Config.Version > zebra.MaxZapiVer {
+		b.Zebra.Config.Version = zebra.MaxZapiVer
 	}
 	if !v.IsSet("zebra.config.nexthop-trigger-enable") && !b.Zebra.Config.NexthopTriggerEnable && b.Zebra.Config.Version > 2 {
 		b.Zebra.Config.NexthopTriggerEnable = true
