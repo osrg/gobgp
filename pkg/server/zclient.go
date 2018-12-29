@@ -341,6 +341,9 @@ func (z *zebraClient) loop() {
 		case <-z.dead:
 			return
 		case msg := <-z.client.Receive():
+			if msg == nil {
+				break
+			}
 			switch body := msg.Body.(type) {
 			case *zebra.IPRouteBody:
 				if path := newPathFromIPRouteMessage(msg, z.client.Version); path != nil {
@@ -419,19 +422,39 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	}
 	var cli *zebra.Client
 	var err error
-	for _, ver := range []uint8{version, 2, 3, 4, 5, 6} {
+	var usingVersion uint8
+	var zapivers [zebra.MAX_ZAPIVER - zebra.MIN_ZAPIVER + 1]uint8
+	zapivers[0] = version
+	for elem, ver := 1, zebra.MIN_ZAPIVER; elem < len(zapivers) && ver <= zebra.MAX_ZAPIVER; elem++ {
+		if version == ver && ver < zebra.MAX_ZAPIVER {
+			ver++
+		}
+		zapivers[elem] = ver
+		ver++
+	}
+	for elem, ver := range zapivers {
 		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, ver)
-		if err == nil {
+		if cli != nil && err == nil {
+			usingVersion = ver
 			break
 		}
 		// Retry with another Zebra message version
 		log.WithFields(log.Fields{
 			"Topic": "Zebra",
-		}).Warnf("cannot connect to Zebra with message version %d. going to retry another version...", ver)
+		}).Warnf("cannot connect to Zebra with message version %d.", ver)
+		if elem < len(zapivers)-1 {
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Warnf("going to retry another version %d.", zapivers[elem+1])
+		}
 	}
-	if cli == nil {
+	if cli == nil || err != nil {
 		return nil, err
 	}
+	log.WithFields(log.Fields{
+		"Topic": "Zebra",
+	}).Infof("success to connect to Zebra with message version %d.", usingVersion)
+
 	// Note: HELLO/ROUTER_ID_ADD messages are automatically sent to negotiate
 	// the Zebra message version in zebra.NewClient().
 	// cli.SendHello()
