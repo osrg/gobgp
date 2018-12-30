@@ -423,10 +423,10 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	var cli *zebra.Client
 	var err error
 	var usingVersion uint8
-	var zapivers [zebra.MAX_ZAPIVER - zebra.MIN_ZAPIVER + 1]uint8
+	var zapivers [zebra.MaxZapiVer - zebra.MinZapiVer + 1]uint8
 	zapivers[0] = version
-	for elem, ver := 1, zebra.MIN_ZAPIVER; elem < len(zapivers) && ver <= zebra.MAX_ZAPIVER; elem++ {
-		if version == ver && ver < zebra.MAX_ZAPIVER {
+	for elem, ver := 1, zebra.MinZapiVer; elem < len(zapivers) && ver <= zebra.MaxZapiVer; elem++ {
+		if version == ver && ver < zebra.MaxZapiVer {
 			ver++
 		}
 		zapivers[elem] = ver

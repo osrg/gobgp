@@ -37,8 +37,8 @@ const (
 )
 
 const (
-	MIN_ZAPIVER uint8 = 2
-	MAX_ZAPIVER uint8 = 6
+	MinZapiVer uint8 = 2
+	MaxZapiVer uint8 = 6
 )
 
 // Internal Interface Status.
@@ -976,10 +976,10 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	}
 	outgoing := make(chan *Message)
 	incoming := make(chan *Message, 64)
-	if version < MIN_ZAPIVER {
-		version = MIN_ZAPIVER
-	} else if version > MAX_ZAPIVER {
-		version = MAX_ZAPIVER
+	if version < MinZapiVer {
+		version = MinZapiVer
+	} else if version > MaxZapiVer {
+		version = MaxZapiVer
 	}
 
 	c := &Client{

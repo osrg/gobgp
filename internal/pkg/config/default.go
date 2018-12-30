@@ -401,10 +401,10 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	if b.Zebra.Config.Url == "" {
 		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
 	}
-	if b.Zebra.Config.Version < zebra.MIN_ZAPIVER {
-		b.Zebra.Config.Version = zebra.MIN_ZAPIVER
-	} else if b.Zebra.Config.Version > zebra.MAX_ZAPIVER {
-		b.Zebra.Config.Version = zebra.MAX_ZAPIVER
+	if b.Zebra.Config.Version < zebra.MinZapiVer {
+		b.Zebra.Config.Version = zebra.MinZapiVer
+	} else if b.Zebra.Config.Version > zebra.MaxZapiVer {
+		b.Zebra.Config.Version = zebra.MaxZapiVer
 	}
 	if !v.IsSet("zebra.config.nexthop-trigger-enable") && !b.Zebra.Config.NexthopTriggerEnable && b.Zebra.Config.Version > 2 {
 		b.Zebra.Config.NexthopTriggerEnable = true
