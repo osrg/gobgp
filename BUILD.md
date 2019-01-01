@@ -12,6 +12,10 @@ $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
 
+## Releases
+
+GoBGP releases are time-based. Minor releases will occur every month ([Semantic Versioning](https://semver.org/)). Major releases occur only when absolutely necessary.
+
 ## Layout
 
 The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-standards/project-layout).
