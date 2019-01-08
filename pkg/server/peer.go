@@ -32,8 +32,6 @@ const (
 	flopThreshold = time.Second * 30
 )
 
-var minConnectRetry = 10
-
 type peerGroup struct {
 	Conf             *config.PeerGroup
 	members          map[string]config.Neighbor

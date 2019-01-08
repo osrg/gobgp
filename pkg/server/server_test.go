@@ -171,8 +171,6 @@ func TestListPolicyAssignment(t *testing.T) {
 }
 
 func TestMonitor(test *testing.T) {
-	minConnectRetry = 5
-
 	assert := assert.New(test)
 	s := NewBgpServer()
 	go s.Serve()
@@ -220,11 +218,6 @@ func TestMonitor(test *testing.T) {
 		Transport: config.Transport{
 			Config: config.TransportConfig{
 				RemotePort: 10179,
-			},
-		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
 			},
 		},
 	}
@@ -532,8 +525,6 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 }
 
 func TestPeerGroup(test *testing.T) {
-	minConnectRetry = 5
-
 	assert := assert.New(test)
 	log.SetLevel(log.DebugLevel)
 	s := NewBgpServer()
@@ -553,11 +544,6 @@ func TestPeerGroup(test *testing.T) {
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
-			},
-		},
 	}
 	err = s.addPeerGroup(g)
 	assert.Nil(err)
@@ -570,11 +556,6 @@ func TestPeerGroup(test *testing.T) {
 		Transport: config.Transport{
 			Config: config.TransportConfig{
 				PassiveMode: true,
-			},
-		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
 			},
 		},
 	}
@@ -615,11 +596,6 @@ func TestPeerGroup(test *testing.T) {
 				RemotePort: 10179,
 			},
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
-			},
-		},
 	}
 	ch := make(chan struct{})
 	go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
@@ -633,8 +609,6 @@ func TestPeerGroup(test *testing.T) {
 }
 
 func TestDynamicNeighbor(t *testing.T) {
-	minConnectRetry = 5
-
 	assert := assert.New(t)
 	log.SetLevel(log.DebugLevel)
 	s1 := NewBgpServer()
@@ -653,11 +627,6 @@ func TestDynamicNeighbor(t *testing.T) {
 		Config: config.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
-		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
-			},
 		},
 	}
 	err = s1.addPeerGroup(g)
@@ -694,11 +663,6 @@ func TestDynamicNeighbor(t *testing.T) {
 				RemotePort: 10179,
 			},
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
-			},
-		},
 	}
 	ch := make(chan struct{})
 	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
@@ -712,8 +676,6 @@ func TestDynamicNeighbor(t *testing.T) {
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
-	minConnectRetry = 5
-
 	assert := assert.New(t)
 	s1 := NewBgpServer()
 	go s1.Serve()
@@ -740,7 +702,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: config.GracefulRestart{
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
-				RestartTime: 5,
+				RestartTime: minConnectRetryInterval,
 			},
 		},
 	}
@@ -773,11 +735,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			Config: config.GracefulRestartConfig{
 				Enabled:     true,
 				RestartTime: 1,
-			},
-		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				ConnectRetry: 5,
 			},
 		},
 	}
@@ -893,11 +850,6 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
 					},
 				},
-				Timers: config.Timers{
-					Config: config.TimersConfig{
-						ConnectRetry: 5,
-					},
-				},
 			}
 
 			// first server to get neighbor config is passive to hopefully make handshake faster
@@ -957,8 +909,6 @@ func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, id uint32) {
 }
 
 func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
-	minConnectRetry = 5
-
 	ctx := context.Background()
 	log.SetLevel(log.DebugLevel)
 

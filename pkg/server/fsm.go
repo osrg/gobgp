@@ -35,6 +35,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	minConnectRetryInterval = 10
+)
+
 type peerDownReason int
 
 const (
@@ -509,13 +513,13 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fsm := h.fsm
 
-	tick, addr, port, password, ttl, ttlMin, localAddress := func() (int, string, int, string, uint8, uint8, string) {
+	retry, addr, port, password, ttl, ttlMin, localAddress := func() (int, string, int, string, uint8, uint8, string) {
 		fsm.lock.RLock()
 		defer fsm.lock.RUnlock()
 
 		tick := int(fsm.pConf.Timers.Config.ConnectRetry)
-		if tick < minConnectRetry {
-			tick = minConnectRetry
+		if tick < minConnectRetryInterval {
+			tick = minConnectRetryInterval
 		}
 
 		addr := fsm.pConf.State.NeighborAddress
@@ -539,6 +543,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.LocalAddress
 	}()
 
+	tick := minConnectRetryInterval
 	for {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		timer := time.NewTimer(time.Duration(r.Intn(tick)+tick) * time.Second)
@@ -603,6 +608,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				}).Debugf("failed to connect: %s", err)
 			}
 		}
+		tick = retry
 	}
 }
 
