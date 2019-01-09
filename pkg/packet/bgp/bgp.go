@@ -2496,7 +2496,7 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	case 128:
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
 
 	for _, l := range er.Labels {
@@ -2614,7 +2614,7 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	case 128:
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
 	if err != nil {
 		return nil, err
@@ -2714,7 +2714,7 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	case 128:
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
 	return buf, nil
 }
@@ -3980,10 +3980,6 @@ func (v *FlowSpecComponentItem) Len() int {
 }
 
 func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
-	if v.Op > math.MaxUint8 {
-		return nil, fmt.Errorf("invalid op size: %d", v.Op)
-	}
-
 	order := uint32(math.Log2(float64(v.Len())))
 	buf := make([]byte, 1+(1<<order))
 	buf[0] = byte(uint32(v.Op) | order<<4)
@@ -4358,7 +4354,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	}
 	length := n.Len(options...)
 	if length > 0xfff {
-		return nil, fmt.Errorf("Too large: %d", length)
+		return nil, fmt.Errorf("too large: %d", length)
 	} else if length < 0xf0 {
 		length -= 1
 		buf = append([]byte{byte(length)}, buf...)
@@ -4666,7 +4662,7 @@ func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption)
 
 func (n *OpaqueNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	if len(n.Key) > math.MaxUint16 {
-		return nil, fmt.Errorf("Key length too big")
+		return nil, fmt.Errorf("key length too big")
 	}
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(len(n.Key)))
@@ -9677,7 +9673,7 @@ func FlatUpdate(f1, f2 map[string]string) error {
 		}
 	}
 	if conflict {
-		return fmt.Errorf("Keys conflict")
+		return fmt.Errorf("keys conflict")
 	} else {
 		return nil
 	}

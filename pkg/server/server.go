@@ -1798,7 +1798,7 @@ func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
 					if pm == nil {
 						path.SetExtCommunities([]bgp.ExtendedCommunityInterface{m}, false)
 					} else if pm != nil && pm.Sequence < m.Sequence {
-						return fmt.Errorf("Invalid MAC mobility sequence number")
+						return fmt.Errorf("invalid MAC mobility sequence number")
 					}
 				}
 			case *bgp.EVPNEthernetSegmentRoute:
@@ -1893,7 +1893,7 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 				return nil
 			}()
 			if path == nil {
-				return fmt.Errorf("Can't find a specified path")
+				return fmt.Errorf("can't find a specified path")
 			}
 			deletePathList = append(deletePathList, path.Clone(true))
 		} else if len(pathList) == 0 {
@@ -2238,10 +2238,10 @@ func (s *BgpServer) getRib(addr string, family bgp.RouteFamily, prefixes []*tabl
 		if len(addr) > 0 {
 			peer, ok := s.neighborMap[addr]
 			if !ok {
-				return fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 			}
 			if !peer.isRouteServerClient() {
-				return fmt.Errorf("Neighbor %v doesn't have local rib", addr)
+				return fmt.Errorf("neighbor %v doesn't have local rib", addr)
 			}
 			id = peer.ID()
 			as = peer.AS()
@@ -2289,7 +2289,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 	err = s.mgmtOperation(func() error {
 		peer, ok := s.neighborMap[addr]
 		if !ok {
-			return fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 		}
 		id := peer.ID()
 		as := peer.AS()
@@ -2386,10 +2386,10 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.RouteFamily) (info *table
 		if len(addr) > 0 {
 			peer, ok := s.neighborMap[addr]
 			if !ok {
-				return fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 			}
 			if !peer.isRouteServerClient() {
-				return fmt.Errorf("Neighbor %v doesn't have local rib", addr)
+				return fmt.Errorf("neighbor %v doesn't have local rib", addr)
 			}
 			id = peer.ID()
 			as = peer.AS()
@@ -2405,7 +2405,7 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 	err = s.mgmtOperation(func() error {
 		peer, ok := s.neighborMap[addr]
 		if !ok {
-			return fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 		}
 
 		var adjRib *table.AdjRib
@@ -2533,7 +2533,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 func (s *BgpServer) addPeerGroup(c *config.PeerGroup) error {
 	name := c.Config.PeerGroupName
 	if _, y := s.peerGroupMap[name]; y {
-		return fmt.Errorf("Can't overwrite the existing peer-group: %s", name)
+		return fmt.Errorf("can't overwrite the existing peer-group: %s", name)
 	}
 
 	log.WithFields(log.Fields{
@@ -2553,7 +2553,7 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}
 
 	if _, y := s.neighborMap[addr]; y {
-		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
+		return fmt.Errorf("can't overwrite the existing peer: %s", addr)
 	}
 
 	var pgConf *config.PeerGroup
@@ -2653,7 +2653,7 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 
 func (s *BgpServer) deletePeerGroup(name string) error {
 	if _, y := s.peerGroupMap[name]; !y {
-		return fmt.Errorf("Can't delete a peer-group %s which does not exist", name)
+		return fmt.Errorf("can't delete a peer-group %s which does not exist", name)
 	}
 
 	log.WithFields(log.Fields{
@@ -2687,7 +2687,7 @@ func (s *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) erro
 	}
 	n, y := s.neighborMap[addr]
 	if !y {
-		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
+		return fmt.Errorf("can't delete a peer configuration for %s", addr)
 	}
 	for _, l := range s.listListeners(addr) {
 		if err := setTCPMD5SigSockopt(l, addr, ""); err != nil {
@@ -2740,7 +2740,7 @@ func (s *BgpServer) updatePeerGroup(pg *config.PeerGroup) (needsSoftResetIn bool
 
 	_, ok := s.peerGroupMap[name]
 	if !ok {
-		return false, fmt.Errorf("Peer-group %s doesn't exist.", name)
+		return false, fmt.Errorf("peer-group %s doesn't exist", name)
 	}
 	s.peerGroupMap[name].Conf = pg
 
@@ -2786,7 +2786,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 
 	peer, ok := s.neighborMap[addr]
 	if !ok {
-		return needsSoftResetIn, fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+		return needsSoftResetIn, fmt.Errorf("neighbor that has %v doesn't exist", addr)
 	}
 
 	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
@@ -2885,7 +2885,7 @@ func (s *BgpServer) addrToPeers(addr string) (l []*peer, err error) {
 	}
 	p, found := s.neighborMap[addr]
 	if !found {
-		return l, fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+		return l, fmt.Errorf("neighbor that has %v doesn't exist", addr)
 	}
 	return []*peer{p}, nil
 }
@@ -3748,10 +3748,10 @@ func (w *watcher) Generate(t watchEventType) error {
 			if len(w.opts.tableName) > 0 {
 				peer, ok := w.s.neighborMap[w.opts.tableName]
 				if !ok {
-					return fmt.Errorf("Neighbor that has %v doesn't exist.", w.opts.tableName)
+					return fmt.Errorf("neighbor that has %v doesn't exist", w.opts.tableName)
 				}
 				if !peer.isRouteServerClient() {
-					return fmt.Errorf("Neighbor %v doesn't have local rib", w.opts.tableName)
+					return fmt.Errorf("neighbor %v doesn't have local rib", w.opts.tableName)
 				}
 				id = peer.ID()
 				as = peer.AS()

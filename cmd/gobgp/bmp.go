@@ -53,7 +53,7 @@ func modBmpServer(cmdType string, args []string) error {
 		if bmpOpts.StatisticsTimeout >= 0 && bmpOpts.StatisticsTimeout <= 65535 {
 			statisticsTimeout = bmpOpts.StatisticsTimeout
 		} else {
-			return fmt.Errorf("invalid statistics-timeout value. it must be in the range 0-65535. default value is 0 and means disabled.")
+			return fmt.Errorf("invalid statistics-timeout value. it must be in the range 0-65535. default value is 0 and means disabled")
 		}
 
 		policyType := api.AddBmpRequest_PRE

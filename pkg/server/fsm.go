@@ -1957,7 +1957,7 @@ func (h *fsmHandler) changeadminState(s adminState) error {
 			"State": fsm.state.String(),
 		}).Warn("cannot change to the same state")
 
-		return fmt.Errorf("cannot change to the same state.")
+		return fmt.Errorf("cannot change to the same state")
 	}
 	return nil
 }

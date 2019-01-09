@@ -2586,7 +2586,7 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	default:
 		asn, err := strconv.ParseUint(action.As, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("As number string invalid")
+			return nil, fmt.Errorf("AS number string invalid")
 		}
 		a.asn = uint32(asn)
 	}
@@ -2692,39 +2692,28 @@ func (s *Statement) ToConfig() *config.Statement {
 		Conditions: func() config.Conditions {
 			cond := config.Conditions{}
 			for _, c := range s.Conditions {
-				switch c.(type) {
+				switch v := c.(type) {
 				case *PrefixCondition:
-					v := c.(*PrefixCondition)
 					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *NeighborCondition:
-					v := c.(*NeighborCondition)
 					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *AsPathLengthCondition:
-					v := c.(*AsPathLengthCondition)
 					cond.BgpConditions.AsPathLength = config.AsPathLength{Operator: config.IntToAttributeComparisonMap[int(v.operator)], Value: v.length}
 				case *AsPathCondition:
-					v := c.(*AsPathCondition)
 					cond.BgpConditions.MatchAsPathSet = config.MatchAsPathSet{AsPathSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *CommunityCondition:
-					v := c.(*CommunityCondition)
 					cond.BgpConditions.MatchCommunitySet = config.MatchCommunitySet{CommunitySet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *ExtCommunityCondition:
-					v := c.(*ExtCommunityCondition)
 					cond.BgpConditions.MatchExtCommunitySet = config.MatchExtCommunitySet{ExtCommunitySet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *LargeCommunityCondition:
-					v := c.(*LargeCommunityCondition)
 					cond.BgpConditions.MatchLargeCommunitySet = config.MatchLargeCommunitySet{LargeCommunitySet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *NextHopCondition:
-					v := c.(*NextHopCondition)
 					cond.BgpConditions.NextHopInList = v.set.List()
 				case *RpkiValidationCondition:
-					v := c.(*RpkiValidationCondition)
 					cond.BgpConditions.RpkiValidationResult = v.result
 				case *RouteTypeCondition:
-					v := c.(*RouteTypeCondition)
 					cond.BgpConditions.RouteType = v.typ
 				case *AfiSafiInCondition:
-					v := c.(*AfiSafiInCondition)
 					res := make([]config.AfiSafiType, 0, len(v.routeFamilies))
 					for _, rf := range v.routeFamilies {
 						res = append(res, config.AfiSafiType(rf.String()))
@@ -2747,21 +2736,21 @@ func (s *Statement) ToConfig() *config.Statement {
 				act.RouteDisposition = config.ROUTE_DISPOSITION_NONE
 			}
 			for _, a := range s.ModActions {
-				switch a.(type) {
+				switch v := a.(type) {
 				case *AsPathPrependAction:
-					act.BgpActions.SetAsPathPrepend = *a.(*AsPathPrependAction).ToConfig()
+					act.BgpActions.SetAsPathPrepend = *v.ToConfig()
 				case *CommunityAction:
-					act.BgpActions.SetCommunity = *a.(*CommunityAction).ToConfig()
+					act.BgpActions.SetCommunity = *v.ToConfig()
 				case *ExtCommunityAction:
-					act.BgpActions.SetExtCommunity = *a.(*ExtCommunityAction).ToConfig()
+					act.BgpActions.SetExtCommunity = *v.ToConfig()
 				case *LargeCommunityAction:
-					act.BgpActions.SetLargeCommunity = *a.(*LargeCommunityAction).ToConfig()
+					act.BgpActions.SetLargeCommunity = *v.ToConfig()
 				case *MedAction:
-					act.BgpActions.SetMed = a.(*MedAction).ToConfig()
+					act.BgpActions.SetMed = v.ToConfig()
 				case *LocalPrefAction:
-					act.BgpActions.SetLocalPref = a.(*LocalPrefAction).ToConfig()
+					act.BgpActions.SetLocalPref = v.ToConfig()
 				case *NexthopAction:
-					act.BgpActions.SetNextHop = a.(*NexthopAction).ToConfig()
+					act.BgpActions.SetNextHop = v.ToConfig()
 				}
 			}
 			return act
@@ -3414,13 +3403,13 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 			return err
 		}
 		if _, ok := pmap[y.Name]; ok {
-			return fmt.Errorf("duplicated policy name. policy name must be unique.")
+			return fmt.Errorf("duplicated policy name. policy name must be unique")
 		}
 		pmap[y.Name] = y
 		for _, s := range y.Statements {
 			_, ok := smap[s.Name]
 			if ok {
-				return fmt.Errorf("duplicated statement name. statement name must be unique.")
+				return fmt.Errorf("duplicated statement name. statement name must be unique")
 			}
 			smap[s.Name] = s
 		}
@@ -3480,19 +3469,19 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*config.Def
 		if name != "" && s.Name() != name {
 			continue
 		}
-		switch s.(type) {
+		switch v := s.(type) {
 		case *PrefixSet:
-			sets.PrefixSets = append(sets.PrefixSets, *s.(*PrefixSet).ToConfig())
+			sets.PrefixSets = append(sets.PrefixSets, *v.ToConfig())
 		case *NeighborSet:
-			sets.NeighborSets = append(sets.NeighborSets, *s.(*NeighborSet).ToConfig())
+			sets.NeighborSets = append(sets.NeighborSets, *v.ToConfig())
 		case *CommunitySet:
-			sets.BgpDefinedSets.CommunitySets = append(sets.BgpDefinedSets.CommunitySets, *s.(*CommunitySet).ToConfig())
+			sets.BgpDefinedSets.CommunitySets = append(sets.BgpDefinedSets.CommunitySets, *v.ToConfig())
 		case *ExtCommunitySet:
-			sets.BgpDefinedSets.ExtCommunitySets = append(sets.BgpDefinedSets.ExtCommunitySets, *s.(*ExtCommunitySet).ToConfig())
+			sets.BgpDefinedSets.ExtCommunitySets = append(sets.BgpDefinedSets.ExtCommunitySets, *v.ToConfig())
 		case *LargeCommunitySet:
-			sets.BgpDefinedSets.LargeCommunitySets = append(sets.BgpDefinedSets.LargeCommunitySets, *s.(*LargeCommunitySet).ToConfig())
+			sets.BgpDefinedSets.LargeCommunitySets = append(sets.BgpDefinedSets.LargeCommunitySets, *v.ToConfig())
 		case *AsPathSet:
-			sets.BgpDefinedSets.AsPathSets = append(sets.BgpDefinedSets.AsPathSets, *s.(*AsPathSet).ToConfig())
+			sets.BgpDefinedSets.AsPathSets = append(sets.BgpDefinedSets.AsPathSets, *v.ToConfig())
 		}
 	}
 	return sets, nil

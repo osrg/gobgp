@@ -869,6 +869,7 @@ func modAction(name, op string, args []string) error {
 	}
 	typ := args[0]
 	args = args[1:]
+	cmd := "{ add | remove | replace } <value>..."
 	switch typ {
 	case "reject":
 		stmt.Actions.RouteAction = api.RouteAction_REJECT
@@ -877,7 +878,7 @@ func modAction(name, op string, args []string) error {
 	case "community":
 		stmt.Actions.Community = &api.CommunityAction{}
 		if len(args) < 1 {
-			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s community %s", usage, cmd)
 		}
 		stmt.Actions.Community.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
@@ -888,12 +889,12 @@ func modAction(name, op string, args []string) error {
 		case "replace":
 			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
-			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s community %s", usage, cmd)
 		}
 	case "ext-community":
 		stmt.Actions.ExtCommunity = &api.CommunityAction{}
 		if len(args) < 1 {
-			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s ext-community %s", usage, cmd)
 		}
 		stmt.Actions.ExtCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
@@ -904,12 +905,12 @@ func modAction(name, op string, args []string) error {
 		case "replace":
 			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
-			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s ext-community %s", usage, cmd)
 		}
 	case "large-community":
 		stmt.Actions.LargeCommunity = &api.CommunityAction{}
 		if len(args) < 1 {
-			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s large-community %s", usage, cmd)
 		}
 		stmt.Actions.LargeCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
@@ -920,7 +921,7 @@ func modAction(name, op string, args []string) error {
 		case "replace":
 			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
-			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s large-community %s", usage, cmd)
 		}
 	case "med":
 		stmt.Actions.Med = &api.MedAction{}

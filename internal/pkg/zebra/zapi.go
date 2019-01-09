@@ -1352,20 +1352,20 @@ func (h *Header) Serialize() ([]byte, error) {
 		binary.BigEndian.PutUint32(buf[4:8], uint32(h.VrfId))
 		binary.BigEndian.PutUint16(buf[8:10], uint16(h.Command))
 	default:
-		return nil, fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
+		return nil, fmt.Errorf("unsupported ZAPI version: %d", h.Version)
 	}
 	return buf, nil
 }
 
 func (h *Header) DecodeFromBytes(data []byte) error {
 	if uint16(len(data)) < 4 {
-		return fmt.Errorf("Not all ZAPI message header")
+		return fmt.Errorf("not all ZAPI message header")
 	}
 	h.Len = binary.BigEndian.Uint16(data[0:2])
 	h.Marker = data[2]
 	h.Version = data[3]
 	if uint16(len(data)) < HeaderSize(h.Version) {
-		return fmt.Errorf("Not all ZAPI message header")
+		return fmt.Errorf("not all ZAPI message header")
 	}
 	switch h.Version {
 	case 2:
@@ -1377,7 +1377,7 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 		h.VrfId = binary.BigEndian.Uint32(data[4:8])
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[8:10]))
 	default:
-		return fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
+		return fmt.Errorf("unsupported ZAPI version: %d", h.Version)
 	}
 	return nil
 }

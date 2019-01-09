@@ -668,7 +668,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 
 	nlri, _ := apiutil.GetNativeNlri(p)
 	if len(asPath) == 0 {
-		return fmt.Errorf("The path to %s was locally generated.\n", nlri.String())
+		return fmt.Errorf("the path to %s was locally generated", nlri.String())
 	} else if !checkOriginAsWasNotShown(p, asPath, shownAs) {
 		return nil
 	}
@@ -827,7 +827,7 @@ func showNeighborRib(r string, name string, args []string) error {
 				option = api.TableLookupOption_LOOKUP_SHORTER
 			} else if args[0] == "validation" {
 				if r != cmdAdjIn {
-					return fmt.Errorf("RPKI information is supported for only adj-in.")
+					return fmt.Errorf("RPKI information is supported for only adj-in")
 				}
 				validationTarget = target
 			} else {
@@ -894,10 +894,10 @@ func showNeighborRib(r string, name string, args []string) error {
 				return err
 			}
 			if r == nil {
-				return fmt.Errorf("Neighbor %v is not found", name)
+				return fmt.Errorf("neighbor %v is not found", name)
 			}
 			if r.Peer.State.SessionState != api.PeerState_ESTABLISHED {
-				return fmt.Errorf("Neighbor %v's BGP session is not established", name)
+				return fmt.Errorf("neighbor %v's BGP session is not established", name)
 			}
 		}
 	}
@@ -986,7 +986,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 func resetNeighbor(cmd string, remoteIP string, args []string) error {
 	if reasonLen := len(neighborsOpts.Reason); reasonLen > bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX {
-		return fmt.Errorf("Too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
+		return fmt.Errorf("too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
 	}
 	var comm string
 	soft := true
@@ -1012,7 +1012,7 @@ func resetNeighbor(cmd string, remoteIP string, args []string) error {
 
 func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	if reasonLen := len(neighborsOpts.Reason); reasonLen > bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX {
-		return fmt.Errorf("Too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
+		return fmt.Errorf("too long reason for shutdown communication (max %d bytes)", bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
 	}
 	switch cmd {
 	case cmdShutdown:

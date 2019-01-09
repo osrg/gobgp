@@ -580,5 +580,5 @@ func (peer *peer) stopFSM() error {
 		}).Debug("freed fsm.h.t")
 		cleanInfiniteChannel(peer.outgoing)
 	}
-	return fmt.Errorf("Failed to free FSM for %s", addr)
+	return fmt.Errorf("failed to free FSM for %s", addr)
 }

@@ -123,18 +123,14 @@ func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch rt.(type) {
+	switch r := rt.(type) {
 	case *bgp.TwoOctetAsSpecificExtended:
-		r := rt.(*bgp.TwoOctetAsSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectTwoOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
 	case *bgp.IPv4AddressSpecificExtended:
-		r := rt.(*bgp.IPv4AddressSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv4AddressSpecificExtended(r.IPv4.String(), r.LocalAdmin)}, nil
 	case *bgp.FourOctetAsSpecificExtended:
-		r := rt.(*bgp.FourOctetAsSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectFourOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
 	case *bgp.IPv6AddressSpecificExtended:
-		r := rt.(*bgp.IPv6AddressSpecificExtended)
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv6AddressSpecificExtended(r.IPv6.String(), r.LocalAdmin)}, nil
 	}
 	return nil, fmt.Errorf("invalid redirect")
@@ -1241,7 +1237,7 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]), nil)
 		}
 	default:
-		return nil, fmt.Errorf("Unsupported route family: %s", rf)
+		return nil, fmt.Errorf("unsupported route family: %s", rf)
 	}
 	if err != nil {
 		return nil, err

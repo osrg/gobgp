@@ -470,7 +470,7 @@ func (m *roaManager) GetServers() []*config.RpkiServer {
 
 func (m *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 	if len(m.clientMap) == 0 {
-		return []*table.ROA{}, fmt.Errorf("RPKI server isn't configured.")
+		return []*table.ROA{}, fmt.Errorf("RPKI server isn't configured")
 	}
 	var rfList []bgp.RouteFamily
 	switch family {

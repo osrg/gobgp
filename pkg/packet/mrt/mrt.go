@@ -461,7 +461,7 @@ type Rib struct {
 
 func (u *Rib) DecodeFromBytes(data []byte) error {
 	if len(data) < 4 {
-		return fmt.Errorf("Not all RibIpv4Unicast message bytes available")
+		return fmt.Errorf("not all RibIpv4Unicast message bytes available")
 	}
 	u.SequenceNumber = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
@@ -665,9 +665,9 @@ type BGP4MPHeader struct {
 
 func (m *BGP4MPHeader) decodeFromBytes(data []byte) ([]byte, error) {
 	if m.isAS4 && len(data) < 8 {
-		return nil, fmt.Errorf("Not all BGP4MPMessageAS4 bytes available")
+		return nil, fmt.Errorf("not all BGP4MPMessageAS4 bytes available")
 	} else if !m.isAS4 && len(data) < 4 {
-		return nil, fmt.Errorf("Not all BGP4MPMessageAS bytes available")
+		return nil, fmt.Errorf("not all BGP4MPMessageAS bytes available")
 	}
 
 	if m.isAS4 {
@@ -735,7 +735,7 @@ func newBGP4MPHeader(peeras, localas uint32, intfindex uint16, peerip, localip s
 		if paddr != nil && laddr != nil {
 			af = bgp.AFI_IP6
 		} else {
-			return nil, fmt.Errorf("Peer IP Address and Local IP Address must have the same address family")
+			return nil, fmt.Errorf("peer IP Address and Local IP Address must have the same address family")
 		}
 	}
 	return &BGP4MPHeader{
@@ -761,7 +761,7 @@ func (m *BGP4MPStateChange) DecodeFromBytes(data []byte) error {
 		return err
 	}
 	if len(rest) < 4 {
-		return fmt.Errorf("Not all BGP4MPStateChange bytes available")
+		return fmt.Errorf("not all BGP4MPStateChange bytes available")
 	}
 	m.OldState = BGPState(binary.BigEndian.Uint16(rest[:2]))
 	m.NewState = BGPState(binary.BigEndian.Uint16(rest[2:4]))
@@ -804,7 +804,7 @@ func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
 	}
 
 	if len(rest) < bgp.BGP_HEADER_LENGTH {
-		return fmt.Errorf("Not all BGP4MPMessageAS4 bytes available")
+		return fmt.Errorf("not all BGP4MPMessageAS4 bytes available")
 	}
 
 	msg, err := bgp.ParseBGPMessage(rest)
@@ -903,7 +903,7 @@ func SplitMrt(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
 func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 	if len(data) < int(h.Len) {
-		return nil, fmt.Errorf("Not all MRT message bytes available. expected: %d, actual: %d", int(h.Len), len(data))
+		return nil, fmt.Errorf("not all MRT message bytes available. expected: %d, actual: %d", int(h.Len), len(data))
 	}
 	msg := &MRTMessage{Header: *h}
 	switch h.Type {
@@ -940,7 +940,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 		case RIB_GENERIC_ADDPATH:
 			isAddPath = true
 		default:
-			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %v\n", subType)
+			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %v", subType)
 		}
 
 		if msg.Body == nil {
@@ -993,10 +993,10 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 				isAddPath:    true,
 			}
 		default:
-			return nil, fmt.Errorf("unsupported bgp4mp subtype: %v\n", subType)
+			return nil, fmt.Errorf("unsupported bgp4mp subtype: %v", subType)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported type: %v\n", h.Type)
+		return nil, fmt.Errorf("unsupported type: %v", h.Type)
 	}
 	err := msg.Body.DecodeFromBytes(data)
 	if err != nil {

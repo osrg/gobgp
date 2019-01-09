@@ -43,7 +43,7 @@ func injectMrt() error {
 
 	var idx int64
 	if mrtOpts.QueueSize < 1 {
-		return fmt.Errorf("Specified queue size is smaller than 1, refusing to run with unbounded memory usage")
+		return fmt.Errorf("specified queue size is smaller than 1, refusing to run with unbounded memory usage")
 	}
 
 	ch := make(chan []*api.Path, mrtOpts.QueueSize)
@@ -112,7 +112,7 @@ func injectMrt() error {
 
 				for _, e := range rib.Entries {
 					if len(peers) < int(e.PeerIndex) {
-						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers)))
+						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)", e.PeerIndex, len(peers)))
 					}
 					//t := time.Unix(int64(e.OriginatedTime), 0)
 

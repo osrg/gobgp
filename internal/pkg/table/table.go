@@ -75,13 +75,13 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 		for _, p := range dest.knownPathList {
 			var rd bgp.RouteDistinguisherInterface
 			nlri := p.GetNlri()
-			switch nlri.(type) {
+			switch v := nlri.(type) {
 			case *bgp.LabeledVPNIPAddrPrefix:
-				rd = nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
+				rd = v.RD
 			case *bgp.LabeledVPNIPv6AddrPrefix:
-				rd = nlri.(*bgp.LabeledVPNIPv6AddrPrefix).RD
+				rd = v.RD
 			case *bgp.EVPNNLRI:
-				rd = nlri.(*bgp.EVPNNLRI).RD()
+				rd = v.RD()
 			default:
 				return pathList
 			}

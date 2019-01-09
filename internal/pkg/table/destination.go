@@ -933,7 +933,7 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	}
 
 	if !SelectionOptions.ExternalCompareRouterId && path1.IsIBGP() != path2.IsIBGP() {
-		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
+		return nil, fmt.Errorf("this method does not support comparing ebgp with ibgp path")
 	}
 
 	// At least one path is not coming from NC, so we get local bgp id.

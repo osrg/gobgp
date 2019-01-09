@@ -355,7 +355,7 @@ func SplitRTR(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
 	totalLen := binary.BigEndian.Uint32(data[4:8])
 	if totalLen < RTR_MIN_LEN {
-		return 0, nil, fmt.Errorf("Invalid length: %d", totalLen)
+		return 0, nil, fmt.Errorf("invalid length: %d", totalLen)
 	}
 	if uint32(len(data)) < totalLen {
 		return 0, nil, nil
@@ -385,7 +385,7 @@ func ParseRTR(data []byte) (RTRMessage, error) {
 	case RTR_ERROR_REPORT:
 		msg = &RTRErrorReport{}
 	default:
-		return nil, fmt.Errorf("unknown RTR message type %d:", data[1])
+		return nil, fmt.Errorf("unknown RTR message type %d", data[1])
 	}
 	err := msg.DecodeFromBytes(data)
 	return msg, err
