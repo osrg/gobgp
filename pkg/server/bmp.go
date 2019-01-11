@@ -277,7 +277,19 @@ func bmpPeerDown(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
 	}
 	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress.String(), ev.PeerAS, ev.PeerID.String(), float64(ev.Timestamp.Unix()))
-	return bmp.NewBMPPeerDownNotification(*ph, uint8(ev.StateReason.peerDownReason), ev.StateReason.BGPNotification, ev.StateReason.Data)
+
+	reasonCode := bmp.BMP_peerDownByUnknownReason
+	switch ev.StateReason.Type {
+	case fsmDying, fsmInvalidMsg, fsmNotificationSent, fsmHoldTimerExpired, fsmIdleTimerExpired, fsmRestartTimerExpired:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION
+	case fsmAdminDown:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
+	case fsmNotificationRecv, fsmGracefulRestart, fsmHardReset:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
+	case fsmReadFailed, fsmWriteFailed:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
+	}
+	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.BGPNotification, ev.StateReason.Data)
 }
 
 func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {

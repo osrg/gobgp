@@ -39,15 +39,6 @@ const (
 	minConnectRetryInterval = 10
 )
 
-type peerDownReason int
-
-const (
-	peerDownByLocal peerDownReason = iota
-	peerDownByLocalWithoutNotification
-	peerDownByRemote
-	peerDownByRemoteWithoutNotification
-)
-
 type fsmStateReasonType uint8
 
 const (
@@ -70,26 +61,13 @@ const (
 
 type fsmStateReason struct {
 	Type            fsmStateReasonType
-	peerDownReason  peerDownReason
 	BGPNotification *bgp.BGPMessage
 	Data            []byte
 }
 
 func newfsmStateReason(typ fsmStateReasonType, notif *bgp.BGPMessage, data []byte) *fsmStateReason {
-	var reasonCode peerDownReason
-	switch typ {
-	case fsmDying, fsmInvalidMsg, fsmNotificationSent, fsmHoldTimerExpired, fsmIdleTimerExpired, fsmRestartTimerExpired:
-		reasonCode = peerDownByLocal
-	case fsmAdminDown:
-		reasonCode = peerDownByLocalWithoutNotification
-	case fsmNotificationRecv, fsmGracefulRestart, fsmHardReset:
-		reasonCode = peerDownByRemote
-	case fsmReadFailed, fsmWriteFailed:
-		reasonCode = peerDownByRemoteWithoutNotification
-	}
 	return &fsmStateReason{
 		Type:            typ,
-		peerDownReason:  reasonCode,
 		BGPNotification: notif,
 		Data:            data,
 	}
@@ -1892,7 +1870,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 		reason := fsm.reason
 		if fsm.h.sentNotification != nil {
 			reason.Type = fsmNotificationSent
-			reason.peerDownReason = peerDownByLocal
 			reason.BGPNotification = fsm.h.sentNotification
 		}
 		log.WithFields(log.Fields{
