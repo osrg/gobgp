@@ -261,6 +261,7 @@ const (
 	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC   AfiSafiType = "l3vpn-ipv6-flowspec"
 	AFI_SAFI_TYPE_L2VPN_FLOWSPEC        AfiSafiType = "l2vpn-flowspec"
 	AFI_SAFI_TYPE_OPAQUE                AfiSafiType = "opaque"
+	AFI_SAFI_TYPE_LS                    AfiSafiType = "ls"
 )
 
 var AfiSafiTypeToIntMap = map[AfiSafiType]int{
@@ -285,6 +286,7 @@ var AfiSafiTypeToIntMap = map[AfiSafiType]int{
 	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC:   18,
 	AFI_SAFI_TYPE_L2VPN_FLOWSPEC:        19,
 	AFI_SAFI_TYPE_OPAQUE:                20,
+	AFI_SAFI_TYPE_LS:                    21,
 }
 
 var IntToAfiSafiTypeMap = map[int]AfiSafiType{
@@ -309,6 +311,7 @@ var IntToAfiSafiTypeMap = map[int]AfiSafiType{
 	18: AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC,
 	19: AFI_SAFI_TYPE_L2VPN_FLOWSPEC,
 	20: AFI_SAFI_TYPE_OPAQUE,
+	21: AFI_SAFI_TYPE_LS,
 }
 
 func (v AfiSafiType) Validate() error {

@@ -292,6 +292,10 @@ var (
 		Afi:  api.Family_AFI_OPAQUE,
 		Safi: api.Family_SAFI_KEY_VALUE,
 	}
+	ls = &api.Family{
+		Afi:  api.Family_AFI_LS,
+		Safi: api.Family_SAFI_LS,
+	}
 )
 
 func checkAddressFamily(def *api.Family) (*api.Family, error) {
@@ -330,6 +334,8 @@ func checkAddressFamily(def *api.Family) (*api.Family, error) {
 		f = l2VPNflowspec
 	case "opaque":
 		f = opaque
+	case "ls", "linkstate", "bgpls":
+		f = ls
 	case "":
 		f = def
 	default:
