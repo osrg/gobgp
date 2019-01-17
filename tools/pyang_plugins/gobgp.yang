@@ -148,6 +148,13 @@ module gobgp {
     reference "https://tools.ietf.org/html/draft-lapukhov-bgp-opaque-signaling-01";
   }
 
+  identity LS {
+    base bgp-types:afi-safi-type;
+    description
+      "Linkstate (AFI,SAFI = 16388,71)";
+    reference "RFC7752";
+  }
+
   grouping gobgp-message-counter {
     description
       "Counters for all BGPMessage types";

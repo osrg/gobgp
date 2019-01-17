@@ -319,6 +319,88 @@ func UnmarshalFlowSpecRules(values []*any.Any) ([]bgp.FlowSpecComponentInterface
 	return rules, nil
 }
 
+func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) *api.LsNodeDescriptor {
+	return &api.LsNodeDescriptor{
+		Asn:         d.Asn,
+		BgpLsId:     d.BGPLsID,
+		OspfAreaId:  d.OspfAreaID,
+		Pseudonode:  d.PseudoNode,
+		IgpRouterId: d.IGPRouterID,
+	}
+}
+
+func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) *api.LsLinkDescriptor {
+	return &api.LsLinkDescriptor{
+		LinkLocalId:       uint32OrDefault(n.LinkLocalID),
+		LinkRemoteId:      uint32OrDefault(n.LinkRemoteID),
+		InterfaceAddrIpv4: ipOrDefault(n.InterfaceAddrIPv4),
+		NeighborAddrIpv4:  ipOrDefault(n.NeighborAddrIPv4),
+		InterfaceAddrIpv6: ipOrDefault(n.InterfaceAddrIPv6),
+		NeighborAddrIpv6:  ipOrDefault(n.NeighborAddrIPv6),
+	}
+}
+
+func MarshalLsPrefixDescriptor(d *bgp.LsPrefixDescriptor) *api.LsPrefixDescriptor {
+	p := &api.LsPrefixDescriptor{
+		OspfRouteType: d.OSPFRouteType.String(),
+	}
+
+	for _, ip := range d.IPReachability {
+		p.IpReachability = append(p.IpReachability, ip.String())
+	}
+
+	return p
+}
+
+func MarshalLsNodeNLRI(n *bgp.LsNodeNLRI) *any.Any {
+	node := &api.LsNodeNLRI{
+		LocalNode: MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
+	}
+	a, _ := ptypes.MarshalAny(node)
+
+	return a
+}
+
+func MarshalLsLinkNLRI(n *bgp.LsLinkNLRI) *any.Any {
+	desc := &bgp.LsLinkDescriptor{}
+	desc.ParseTLVs(n.LinkDesc)
+
+	link := &api.LsLinkNLRI{
+		LocalNode:      MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
+		RemoteNode:     MarshalLsNodeDescriptor(n.RemoteNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
+		LinkDescriptor: MarshalLsLinkDescriptor(desc),
+	}
+	a, _ := ptypes.MarshalAny(link)
+
+	return a
+}
+
+func MarshalLsPrefixV4NLRI(n *bgp.LsPrefixV4NLRI) *any.Any {
+	desc := &bgp.LsPrefixDescriptor{}
+	desc.ParseTLVs(n.PrefixDesc, false)
+
+	prefix := &api.LsPrefixV4NLRI{
+		LocalNode:        MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
+		PrefixDescriptor: MarshalLsPrefixDescriptor(desc),
+	}
+	a, _ := ptypes.MarshalAny(prefix)
+
+	return a
+}
+
+func MarshalLsPrefixV6NLRI(n *bgp.LsPrefixV6NLRI) *any.Any {
+	desc := &bgp.LsPrefixDescriptor{}
+	desc.ParseTLVs(n.PrefixDesc, true)
+
+	prefix := &api.LsPrefixV6NLRI{
+		LocalNode:        MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
+		PrefixDescriptor: MarshalLsPrefixDescriptor(desc),
+	}
+	a, _ := ptypes.MarshalAny(prefix)
+
+	return a
+}
+
 func MarshalNLRI(value bgp.AddrPrefixInterface) *any.Any {
 	var nlri proto.Message
 
@@ -435,6 +517,32 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *any.Any {
 		nlri = &api.VPNFlowSpecNLRI{
 			Rd:    MarshalRD(v.RD()),
 			Rules: MarshalFlowSpecRules(v.Value),
+		}
+	case *bgp.LsAddrPrefix:
+		switch n := v.NLRI.(type) {
+		case *bgp.LsNodeNLRI:
+			nlri = &api.LsAddrPrefix{
+				Type: api.LsNLRIType_LS_NLRI_NODE,
+				Nlri: MarshalLsNodeNLRI(n),
+			}
+
+		case *bgp.LsLinkNLRI:
+			nlri = &api.LsAddrPrefix{
+				Type: api.LsNLRIType_LS_NLRI_LINK,
+				Nlri: MarshalLsLinkNLRI(n),
+			}
+
+		case *bgp.LsPrefixV4NLRI:
+			nlri = &api.LsAddrPrefix{
+				Type: api.LsNLRIType_LS_NLRI_PREFIX_V4,
+				Nlri: MarshalLsPrefixV4NLRI(n),
+			}
+
+		case *bgp.LsPrefixV6NLRI:
+			nlri = &api.LsAddrPrefix{
+				Type: api.LsNLRIType_LS_NLRI_PREFIX_V6,
+				Nlri: MarshalLsPrefixV6NLRI(n),
+			}
 		}
 	}
 
@@ -1011,6 +1119,129 @@ func NewLargeCommunitiesAttributeFromNative(a *bgp.PathAttributeLargeCommunities
 	}
 }
 
+func stringOrDefault(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func bytesOrDefault(b *[]byte) []byte {
+	if b == nil {
+		return []byte{}
+	}
+	return *b
+}
+
+func ipOrDefault(ip *net.IP) string {
+	if ip == nil {
+		return ""
+	}
+	return ip.String()
+}
+
+func uint32OrDefault(i *uint32) uint32 {
+	if i == nil {
+		return 0
+	}
+	return *i
+}
+
+func float32OrDefault(f *float32) float32 {
+	if f == nil {
+		return 0.0
+	}
+	return *f
+}
+
+func NewLsAttributeFromNative(a *bgp.PathAttributeLs) *api.LsAttribute {
+	attr := a.Extract()
+
+	apiAttr := &api.LsAttribute{
+		Node: &api.LsAttributeNode{
+			Name:            stringOrDefault(attr.Node.Name),
+			Opaque:          bytesOrDefault(attr.Node.Opaque),
+			IsisArea:        bytesOrDefault(attr.Node.IsisArea),
+			LocalRouterId:   ipOrDefault(attr.Node.LocalRouterID),
+			LocalRouterIdV6: ipOrDefault(attr.Node.LocalRouterIDv6),
+
+			SrAlgorithms: bytesOrDefault(attr.Node.SrAlgorithms),
+		},
+		Link: &api.LsAttributeLink{
+			Name:             stringOrDefault(attr.Link.Name),
+			Opaque:           bytesOrDefault(attr.Link.Opaque),
+			LocalRouterId:    ipOrDefault(attr.Link.LocalRouterID),
+			LocalRouterIdV6:  ipOrDefault(attr.Link.LocalRouterIDv6),
+			RemoteRouterId:   ipOrDefault(attr.Link.RemoteRouterID),
+			RemoteRouterIdV6: ipOrDefault(attr.Link.RemoteRouterIDv6),
+			AdminGroup:       uint32OrDefault(attr.Link.AdminGroup),
+			DefaultTeMetric:  uint32OrDefault(attr.Link.DefaultTEMetric),
+			IgpMetric:        uint32OrDefault(attr.Link.IGPMetric),
+
+			Bandwidth:           float32OrDefault(attr.Link.Bandwidth),
+			ReservableBandwidth: float32OrDefault(attr.Link.ReservableBandwidth),
+			SrAdjacencySid:      uint32OrDefault(attr.Link.SrAdjacencySID),
+		},
+		Prefix: &api.LsAttributePrefix{
+			Opaque: bytesOrDefault(attr.Prefix.Opaque),
+
+			SrPrefixSid: uint32OrDefault(attr.Prefix.SrPrefixSID),
+		},
+	}
+
+	if attr.Node.Flags != nil {
+		apiAttr.Node.Flags = &api.LsNodeFlags{
+			Overload: attr.Node.Flags.Overload,
+			Attached: attr.Node.Flags.Attached,
+			External: attr.Node.Flags.External,
+			Abr:      attr.Node.Flags.ABR,
+			Router:   attr.Node.Flags.Router,
+			V6:       attr.Node.Flags.V6,
+		}
+	}
+
+	if attr.Node.SrCapabilties != nil {
+		apiAttr.Node.SrCapabilities = &api.LsSrCapabilities{
+			Ipv4Supported: attr.Node.SrCapabilties.IPv4Supported,
+			Ipv6Supported: attr.Node.SrCapabilties.IPv6Supported,
+		}
+
+		for _, r := range attr.Node.SrCapabilties.Ranges {
+			apiAttr.Node.SrCapabilities.Ranges = append(apiAttr.Node.SrCapabilities.Ranges, &api.LsSrRange{
+				Begin: r.Begin,
+				End:   r.End,
+			})
+		}
+	}
+
+	if attr.Node.SrLocalBlock != nil {
+		apiAttr.Node.SrLocalBlock = &api.LsSrLocalBlock{}
+		for _, r := range attr.Node.SrLocalBlock.Ranges {
+			apiAttr.Node.SrLocalBlock.Ranges = append(apiAttr.Node.SrLocalBlock.Ranges, &api.LsSrRange{
+				Begin: r.Begin,
+				End:   r.End,
+			})
+		}
+	}
+
+	if attr.Link.UnreservedBandwidth != nil {
+		for _, f := range attr.Link.UnreservedBandwidth {
+			apiAttr.Link.UnreservedBandwidth = append(apiAttr.Link.UnreservedBandwidth, f)
+		}
+	}
+
+	if attr.Prefix.IGPFlags != nil {
+		apiAttr.Prefix.IgpFlags = &api.LsIGPFlags{
+			Down:          attr.Prefix.IGPFlags.Down,
+			NoUnicast:     attr.Prefix.IGPFlags.NoUnicast,
+			LocalAddress:  attr.Prefix.IGPFlags.LocalAddress,
+			PropagateNssa: attr.Prefix.IGPFlags.PropagateNSSA,
+		}
+	}
+
+	return apiAttr
+}
+
 func NewUnknownAttributeFromNative(a *bgp.PathAttributeUnknown) *api.UnknownAttribute {
 	return &api.UnknownAttribute{
 		Flags: uint32(a.Flags),
@@ -1082,6 +1313,9 @@ func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*any.Any {
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeLargeCommunities:
 			n, _ := ptypes.MarshalAny(NewLargeCommunitiesAttributeFromNative(a))
+			anyList = append(anyList, n)
+		case *bgp.PathAttributeLs:
+			n, _ := ptypes.MarshalAny(NewLsAttributeFromNative(a))
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeUnknown:
 			n, _ := ptypes.MarshalAny(NewUnknownAttributeFromNative(a))

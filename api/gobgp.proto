@@ -451,6 +451,7 @@ message Family {
     AFI_IP = 1;
     AFI_IP6 = 2;
     AFI_L2VPN = 25;
+    AFI_LS = 16388;
     AFI_OPAQUE = 16397;
   }
 
@@ -462,6 +463,7 @@ message Family {
     SAFI_ENCAPSULATION = 7;
     SAFI_VPLS = 65;
     SAFI_EVPN = 70;
+    SAFI_LS = 71;
     SAFI_MPLS_VPN = 128;
     SAFI_MPLS_VPN_MULTICAST = 129;
     SAFI_ROUTE_TARGET_CONSTRAINTS = 132;
@@ -518,6 +520,7 @@ message Path {
   // - FlowSpecNLRI
   // - VPNFlowSpecNLRI
   // - OpaqueNLRI
+  // - LsAddrPrefix
   google.protobuf.Any nlri = 1;
   // Each attribute must be one of *Attribute defined in
   // "api/attribute.proto".

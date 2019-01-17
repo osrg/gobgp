@@ -267,6 +267,69 @@ message OpaqueNLRI {
     bytes value = 2;
 }
 
+message LsNodeDescriptor {
+    uint32 asn = 1;
+    uint32 bgp_ls_id = 2;
+    uint32 ospf_area_id = 3;
+    bool pseudonode = 4;
+    string igp_router_id = 5;
+}
+
+message LsLinkDescriptor {
+    uint32 link_local_id = 1;
+    uint32 link_remote_id = 2;
+    string interface_addr_ipv4 = 3;
+    string neighbor_addr_ipv4 = 4;
+    string interface_addr_ipv6 = 5;
+    string neighbor_addr_ipv6 = 6;
+}
+
+message LsPrefixDescriptor {
+    repeated string ip_reachability = 1;
+    string ospf_route_type = 2;
+}
+
+message LsNodeNLRI {
+    LsNodeDescriptor local_node = 1;
+}
+
+message LsLinkNLRI {
+    LsNodeDescriptor local_node = 1;
+    LsNodeDescriptor remote_node = 2;
+    LsLinkDescriptor link_descriptor = 3;
+}
+
+message LsPrefixV4NLRI {
+    LsNodeDescriptor local_node = 1;
+    LsPrefixDescriptor prefix_descriptor = 2;
+}
+
+message LsPrefixV6NLRI {
+    LsNodeDescriptor local_node = 1;
+    LsPrefixDescriptor prefix_descriptor = 2;
+}
+
+// Based om RFC 7752, Table 1.
+enum LsNLRIType {
+    LS_NLRI_UNKNOWN = 0;
+    LS_NLRI_NODE = 1;
+    LS_NLRI_LINK = 2;
+    LS_NLRI_PREFIX_V4 = 3;
+    LS_NLRI_PREFIX_V6 = 4;
+}
+
+// LsAddrPrefix represents the NLRI for:
+// - AFI=16388, SAFI=71
+message LsAddrPrefix {
+    LsNLRIType type = 1;
+    // One of:
+    // - LsNodeNLRI
+    // - LsLinkNLRI
+    // - LsPrefixV4NLRI
+    // - LsPrefixV6NLRI
+    google.protobuf.Any nlri = 2;
+}
+
 message MpReachNLRIAttribute {
     gobgpapi.Family family = 1;
     repeated string next_hops = 2;
@@ -284,6 +347,7 @@ message MpReachNLRIAttribute {
     // - FlowSpecNLRI
     // - VPNFlowSpecNLRI
     // - OpaqueNLRI
+    // - LsAddrPrefix
     repeated google.protobuf.Any nlris = 3;
 }
 
@@ -496,6 +560,81 @@ message LargeCommunity {
 
 message LargeCommunitiesAttribute {
     repeated LargeCommunity communities = 1;
+}
+
+message LsNodeFlags {
+    bool overload = 1;
+    bool attached = 2;
+    bool external = 3;
+    bool abr = 4;
+    bool router = 5;
+    bool v6 = 6;
+}
+
+message LsIGPFlags {
+    bool down = 1;
+    bool no_unicast = 2;
+    bool local_address = 3;
+    bool propagate_nssa = 4;
+}
+
+message LsSrRange {
+    uint32 begin = 1;
+    uint32 end = 2;
+}
+
+message LsSrCapabilities {
+    bool ipv4_supported = 1;
+    bool ipv6_supported = 2;
+    repeated LsSrRange ranges = 3;
+}
+
+message LsSrLocalBlock {
+    repeated LsSrRange ranges = 1;
+}
+
+message LsAttributeNode {
+    string name = 1;
+    LsNodeFlags flags = 2;
+    string local_router_id = 3;
+    string local_router_id_v6 = 4;
+    bytes isis_area = 5;
+    bytes opaque = 6;
+
+    LsSrCapabilities sr_capabilities = 7;
+    bytes sr_algorithms = 8;
+    LsSrLocalBlock sr_local_block = 9;
+}
+
+message LsAttributeLink {
+    string name = 1;
+    string local_router_id = 2;
+    string local_router_id_v6 = 3;
+    string remote_router_id = 4;
+    string remote_router_id_v6 = 5;
+    uint32 admin_group = 6;
+    uint32 default_te_metric = 7;
+    uint32 igp_metric = 8;
+    bytes opaque = 9;
+
+    float bandwidth = 10;
+    float reservable_bandwidth = 11;
+    repeated float unreserved_bandwidth = 12;
+
+    uint32 sr_adjacency_sid = 13;
+}
+
+message LsAttributePrefix {
+    LsIGPFlags igp_flags = 1;
+    bytes opaque = 2;
+
+    uint32 sr_prefix_sid = 3;
+}
+
+message LsAttribute {
+    LsAttributeNode node = 1;
+    LsAttributeLink link = 2;
+    LsAttributePrefix prefix = 3;
 }
 
 message UnknownAttribute {
