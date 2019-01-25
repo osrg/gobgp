@@ -1151,15 +1151,12 @@ func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path
 }
 
 func (s *BgpServer) deleteDynamicNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
-	if peer.isDynamicNeighbor() {
-		peer.stopPeerRestarting()
-		go peer.stopFSM()
-		peer.fsm.lock.RLock()
-		delete(s.neighborMap, peer.fsm.pConf.State.NeighborAddress)
-		peer.fsm.lock.RUnlock()
-		s.broadcastPeerState(peer, oldState, e)
-		return
-	}
+	peer.stopPeerRestarting()
+	go peer.stopFSM()
+	peer.fsm.lock.RLock()
+	delete(s.neighborMap, peer.fsm.pConf.State.NeighborAddress)
+	peer.fsm.lock.RUnlock()
+	s.broadcastPeerState(peer, oldState, e)
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
@@ -1208,8 +1205,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 			peer.fsm.lock.Unlock()
 
-			if !graceful {
+			if !graceful && peer.isDynamicNeighbor() {
 				s.deleteDynamicNeighbor(peer, oldState, e)
+				return
 			}
 
 		} else if nextStateIdle {
@@ -1282,7 +1280,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				peer.DropAll(peer.configuredRFlist())
 				s.dropPeerAllRoutes(peer, peer.configuredRFlist())
 
-				s.deleteDynamicNeighbor(peer, oldState, e)
+				if peer.isDynamicNeighbor() {
+					s.deleteDynamicNeighbor(peer, oldState, e)
+					return
+				}
 			}
 		}
 
