@@ -943,7 +943,12 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 			l := make([]*d, 0, len(rib))
 			for _, dst := range rib {
-				_, p, _ := net.ParseCIDR(dst.Prefix)
+				prefix := dst.Prefix
+				if t == api.TableType_VRF {
+					s := strings.Split(prefix, ":")
+					prefix = s[len(s)-1]
+				}
+				_, p, _ := net.ParseCIDR(prefix)
 				l = append(l, &d{prefix: p.IP, dst: dst})
 			}
 
