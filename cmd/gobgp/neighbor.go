@@ -1054,6 +1054,9 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	default:
 		return fmt.Errorf("invalid policy type: choose from (in|import|export)")
 	}
+	if remoteIP == "" {
+		remoteIP = globalRIBName
+	}
 	stream, err := client.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{
 		Name:      remoteIP,
 		Direction: dir,
