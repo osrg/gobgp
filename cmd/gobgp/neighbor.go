@@ -1052,7 +1052,7 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	case "export":
 		dir = api.PolicyDirection_EXPORT
 	default:
-		return fmt.Errorf("invalid policy type: choose from (in|import|export)")
+		return fmt.Errorf("invalid policy type: choose from (import|export)")
 	}
 	if remoteIP == "" {
 		remoteIP = globalRIBName
@@ -1417,7 +1417,7 @@ func newNeighborCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			remoteIP := peer.State.NeighborAddress
-			for _, v := range []string{cmdIn, cmdImport, cmdExport} {
+			for _, v := range []string{cmdImport, cmdExport} {
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
 					exitWithError(err)
 				}
@@ -1425,7 +1425,7 @@ func newNeighborCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{cmdIn, cmdImport, cmdExport} {
+	for _, v := range []string{cmdImport, cmdExport} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {

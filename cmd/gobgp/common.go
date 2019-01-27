@@ -59,7 +59,6 @@ const (
 	cmdExtcommunity   = "ext-community"
 	cmdImport         = "import"
 	cmdExport         = "export"
-	cmdIn             = "in"
 	cmdMonitor        = "monitor"
 	cmdMRT            = "mrt"
 	cmdInject         = "inject"
