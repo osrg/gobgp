@@ -3258,8 +3258,10 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 		names := make([]string, 0, len(s.neighborMap)+1)
 		if r.Name == "" {
 			names = append(names, table.GLOBAL_RIB_NAME)
-			for name := range s.neighborMap {
-				names = append(names, name)
+			for name, peer := range s.neighborMap {
+				if peer.isRouteServerClient() {
+					names = append(names, name)
+				}
 			}
 		} else {
 			names = append(names, r.Name)
