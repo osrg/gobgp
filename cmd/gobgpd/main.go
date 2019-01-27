@@ -56,6 +56,51 @@ func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	return rtList, nil
 }
 
+func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig) {
+	toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
+		var def table.RouteType
+		switch r {
+		case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
+			def = table.ROUTE_TYPE_ACCEPT
+		case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
+			def = table.ROUTE_TYPE_REJECT
+		}
+		return def
+	}
+	toPolicies := func(r []string) []*table.Policy {
+		p := make([]*table.Policy, 0, len(r))
+		for _, n := range r {
+			p = append(p, &table.Policy{
+				Name: n,
+			})
+		}
+		return p
+	}
+
+	def := toDefaultTable(a.DefaultImportPolicy)
+	ps := toPolicies(a.ImportPolicyList)
+	bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+			Name:     table.GLOBAL_RIB_NAME,
+			Type:     table.POLICY_DIRECTION_IMPORT,
+			Policies: ps,
+			Default:  def,
+		}),
+	})
+
+	def = toDefaultTable(a.DefaultExportPolicy)
+	ps = toPolicies(a.ExportPolicyList)
+	bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+			Name:     table.GLOBAL_RIB_NAME,
+			Type:     table.POLICY_DIRECTION_EXPORT,
+			Policies: ps,
+			Default:  def,
+		}),
+	})
+
+}
+
 func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM)
@@ -275,6 +320,8 @@ func main() {
 						})
 					}
 
+					assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
+
 					added = newConfig.Neighbors
 					addedPg = newConfig.PeerGroups
 					if opts.GracefulRestart {
@@ -284,7 +331,6 @@ func main() {
 							}
 						}
 					}
-
 				} else {
 					addedPg, deletedPg, updatedPg = config.UpdatePeerGroupConfig(c, newConfig)
 					added, deleted, updated = config.UpdateNeighborConfig(c, newConfig)
@@ -305,51 +351,8 @@ func main() {
 					}
 					// global policy update
 					if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
-						a := newConfig.Global.ApplyPolicy.Config
-						toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
-							var def table.RouteType
-							switch r {
-							case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
-								def = table.ROUTE_TYPE_ACCEPT
-							case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
-								def = table.ROUTE_TYPE_REJECT
-							}
-							return def
-						}
-						toPolicies := func(r []string) []*table.Policy {
-							p := make([]*table.Policy, 0, len(r))
-							for _, n := range r {
-								p = append(p, &table.Policy{
-									Name: n,
-								})
-							}
-							return p
-						}
-
-						def := toDefaultTable(a.DefaultImportPolicy)
-						ps := toPolicies(a.ImportPolicyList)
-						bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
-							Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
-								Name:     table.GLOBAL_RIB_NAME,
-								Type:     table.POLICY_DIRECTION_IMPORT,
-								Policies: ps,
-								Default:  def,
-							}),
-						})
-
-						def = toDefaultTable(a.DefaultExportPolicy)
-						ps = toPolicies(a.ExportPolicyList)
-						bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
-							Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
-								Name:     table.GLOBAL_RIB_NAME,
-								Type:     table.POLICY_DIRECTION_EXPORT,
-								Policies: ps,
-								Default:  def,
-							}),
-						})
-
+						assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
 						updatePolicy = true
-
 					}
 					c = newConfig
 				}
