@@ -49,7 +49,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 
 ## Community, discussion and support
 
-We have the [Slack](https://slackin-gobgp.mybluemix.net/) and [mailing
+We have the [Slack](https://slackin-gobgp.now.sh/) and [mailing
 list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
 questions, discussion, suggestions, etc.
 
