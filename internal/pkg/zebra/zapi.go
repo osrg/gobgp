@@ -1690,10 +1690,14 @@ type Nexthop struct {
 }
 
 func (n *Nexthop) String() string {
-	s := fmt.Sprintf(
-		"type: %s, gate: %s, ifindex: %d",
-		n.Type.String(), n.Gate.String(), n.Ifindex)
-	return s
+	s := make([]string, 0)
+	s = append(s, fmt.Sprintf(
+		"type: %s, gate: %s, ifindex: %d, vrfid: %d, labelnum: %d",
+		n.Type.String(), n.Gate.String(), n.Ifindex, n.VrfId, n.LabelNum))
+	for i := uint8(0); i < n.LabelNum; i++ {
+		s = append(s, fmt.Sprintf("label: %d", n.MplsLabels[i]))
+	}
+	return strings.Join(s, ", ")
 }
 
 type Prefix struct {
@@ -2229,13 +2233,13 @@ func decodeNexthopsFromBytes(nexthops *[]Nexthop, data []byte, family uint8, ver
 			offset += 4
 		}
 		if version >= 5 {
-			nexthop.LabelNum = data[offset]
+			nexthop.LabelNum = uint8(data[offset])
 			offset += 1
 			if nexthop.LabelNum > MPLS_MAX_LABEL {
 				nexthop.LabelNum = MPLS_MAX_LABEL
 			}
-			var n uint8
-			for ; n < nexthop.LabelNum; n++ {
+			nexthop.MplsLabels = make([]uint32, nexthop.LabelNum)
+			for n := uint8(0); n < nexthop.LabelNum; n++ {
 				nexthop.MplsLabels[n] = binary.BigEndian.Uint32(data[offset : offset+4])
 				offset += 4
 			}
