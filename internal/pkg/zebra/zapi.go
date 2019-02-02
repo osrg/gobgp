@@ -1692,7 +1692,7 @@ type Nexthop struct {
 func (n *Nexthop) String() string {
 	s := make([]string, 0)
 	s = append(s, fmt.Sprintf(
-		"type: %s, gate: %s, ifindex: %d, vrfid: %d, labelnum: %d",
+		"type: %s, gate: %s, ifindex: %d, vrf_id: %d, label_num: %d",
 		n.Type.String(), n.Gate.String(), n.Ifindex, n.VrfId, n.LabelNum))
 	for i := uint8(0); i < n.LabelNum; i++ {
 		s = append(s, fmt.Sprintf("label: %d", n.MplsLabels[i]))
