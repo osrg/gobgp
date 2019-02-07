@@ -170,12 +170,14 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GobgpApi_ListPathSe
 func (s *server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_MonitorTableServer) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	var err error
-	s.bgpServer.MonitorTable(ctx, arg, func(p *api.Path) {
-		if err = stream.Send(&api.MonitorTableResponse{
-			Path: p,
-		}); err != nil {
-			cancel()
-			return
+	s.bgpServer.MonitorTable(ctx, arg, func(pl []*api.Path) {
+		for _, p := range pl {
+			if err = stream.Send(&api.MonitorTableResponse{
+				Path: p,
+			}); err != nil {
+				cancel()
+				return
+			}
 		}
 	})
 	<-ctx.Done()

@@ -3477,7 +3477,7 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
-func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest, fn func(*api.Path)) error {
+func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest, fn func([]*api.Path)) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
@@ -3525,16 +3525,22 @@ func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest
 				case *watchEventUpdate:
 					pl = msg.PathList
 				}
+				// Filter path list
+				var finalPl []*api.Path = make([]*api.Path, 0)
+
 				for _, path := range pl {
 					if path == nil || (r.Family != nil && family != path.GetRouteFamily()) {
 						continue
 					}
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						fn(toPathApi(path, nil))
-					}
+
+					finalPl = append(finalPl, toPathApi(path, nil))
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					fn(finalPl)
 				}
 			case <-ctx.Done():
 				return
