@@ -184,7 +184,7 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
 			}
 			for i, x := range l {
-				prefix := fmt.Sprintf("%s (%d - %d)", x.GetIpPrefix(), x.GetMaskLengthMin(), x.GetMaskLengthMax())
+				prefix := fmt.Sprintf("%s %d..%d", x.GetIpPrefix(), x.GetMaskLengthMin(), x.GetMaskLengthMax())
 				if i == 0 {
 					buff.WriteString(fmt.Sprintf(format, s.GetName(), prefix))
 				} else {
