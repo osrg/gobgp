@@ -178,19 +178,35 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 		buff.WriteString(fmt.Sprintf(format, "NAME", typ))
 	}
 	for _, s := range list {
-		l := s.GetList()
-		if len(l) == 0 {
-			buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
-		}
-		for i, x := range l {
-			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
-				x = _regexpCommunity.ReplaceAllString(x, "$1")
+		if typ == "PREFIX" {
+			l := s.GetPrefixes()
+			if len(l) == 0 {
+				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
 			}
-			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, s.GetName(), x))
-			} else {
-				buff.WriteString(fmt.Sprint(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", x))
+			for i, x := range l {
+				prefix := fmt.Sprintf("%s (%d - %d)", x.GetIpPrefix(), x.GetMaskLengthMin(), x.GetMaskLengthMax())
+				if i == 0 {
+					buff.WriteString(fmt.Sprintf(format, s.GetName(), prefix))
+				} else {
+					buff.WriteString(fmt.Sprint(sIndent))
+					buff.WriteString(fmt.Sprintf(format, "", prefix))
+				}
+			}
+		} else {
+			l := s.GetList()
+			if len(l) == 0 {
+				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
+			}
+			for i, x := range l {
+				if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
+					x = _regexpCommunity.ReplaceAllString(x, "$1")
+				}
+				if i == 0 {
+					buff.WriteString(fmt.Sprintf(format, s.GetName(), x))
+				} else {
+					buff.WriteString(fmt.Sprint(sIndent))
+					buff.WriteString(fmt.Sprintf(format, "", x))
+				}
 			}
 		}
 	}
