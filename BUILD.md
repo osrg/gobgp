@@ -5,9 +5,7 @@
 You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer).
 
 ```bash
-$ go get -u github.com/golang/dep/cmd/dep
-$ go get github.com/osrg/gobgp
-$ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
+$ go get github.com/osrg/gobgp/...
 ```
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
