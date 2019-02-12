@@ -3125,7 +3125,7 @@ func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementReque
 	var l []*api.Statement
 	s.mgmtOperation(func() error {
 		s := s.policy.GetStatement(r.Name)
-		l = make([]*api.Statement, len(s))
+		l = make([]*api.Statement, 0, len(s))
 		for _, st := range s {
 			l = append(l, toStatementApi(st))
 		}
