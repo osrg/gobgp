@@ -488,21 +488,29 @@ func printStatement(indent int, s *api.Statement) {
 	c := s.Conditions
 	if c.PrefixSet != nil {
 		fmt.Printf("%sPrefixSet: %s \n", ind, prettyString(c.PrefixSet))
-	} else if c.NeighborSet != nil {
+	}
+	if c.NeighborSet != nil {
 		fmt.Printf("%sNeighborSet: %s\n", ind, prettyString(c.NeighborSet))
-	} else if c.AsPathSet != nil {
+	}
+	if c.AsPathSet != nil {
 		fmt.Printf("%sAsPathSet: %s \n", ind, prettyString(c.AsPathSet))
-	} else if c.CommunitySet != nil {
+	}
+	if c.CommunitySet != nil {
 		fmt.Printf("%sCommunitySet: %s\n", ind, prettyString(c.CommunitySet))
-	} else if c.ExtCommunitySet != nil {
+	}
+	if c.ExtCommunitySet != nil {
 		fmt.Printf("%sExtCommunitySet: %s\n", ind, prettyString(c.ExtCommunitySet))
-	} else if c.LargeCommunitySet != nil {
+	}
+	if c.LargeCommunitySet != nil {
 		fmt.Printf("%sLargeCommunitySet: %s\n", ind, prettyString(c.LargeCommunitySet))
-	} else if c.NextHopInList != nil {
+	}
+	if c.NextHopInList != nil {
 		fmt.Printf("%sNextHopInList: %s\n", ind, "[ "+strings.Join(c.NextHopInList, ", ")+" ]")
-	} else if c.AsPathLength != nil {
+	}
+	if c.AsPathLength != nil {
 		fmt.Printf("%sAsPathLength: %s\n", ind, prettyString(c.AsPathLength))
-	} else if c.RpkiResult != -1 {
+	}
+	if c.RpkiResult != -1 {
 		var result string
 		switch c.RpkiResult {
 		case 0:
@@ -515,9 +523,11 @@ func printStatement(indent int, s *api.Statement) {
 			result = "not-found"
 		}
 		fmt.Printf("%sRPKI result: %s\n", ind, result)
-	} else if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
+	}
+	if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
 		fmt.Printf("%sRoute Type: %s\n", ind, routeTypePrettyString(c.RouteType))
-	} else if c.AfiSafiIn != nil {
+	}
+	if c.AfiSafiIn != nil {
 		fmt.Printf("%sAFI SAFI In: %s\n", ind, c.AfiSafiIn)
 	}
 
@@ -525,17 +535,23 @@ func printStatement(indent int, s *api.Statement) {
 	a := s.Actions
 	if a.Community != nil {
 		fmt.Println(ind, "Community: ", prettyString(a.Community))
-	} else if a.ExtCommunity != nil {
+	}
+	if a.ExtCommunity != nil {
 		fmt.Println(ind, "ExtCommunity: ", prettyString(a.ExtCommunity))
-	} else if a.LargeCommunity != nil {
+	}
+	if a.LargeCommunity != nil {
 		fmt.Println(ind, "LargeCommunity: ", prettyString(a.LargeCommunity))
-	} else if a.Med != nil {
+	}
+	if a.Med != nil {
 		fmt.Println(ind, "MED: ", prettyString(a.Med))
-	} else if a.LocalPref != nil {
+	}
+	if a.LocalPref != nil {
 		fmt.Println(ind, "LocalPref: ", prettyString(a.LocalPref))
-	} else if a.AsPrepend != nil {
+	}
+	if a.AsPrepend != nil {
 		fmt.Println(ind, "ASPathPrepend: ", prettyString(a.AsPrepend))
-	} else if a.Nexthop != nil {
+	}
+	if a.Nexthop != nil {
 		fmt.Println(ind, "Nexthop: ", prettyString(a.Nexthop))
 	}
 
