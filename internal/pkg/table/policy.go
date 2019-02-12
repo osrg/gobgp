@@ -1389,7 +1389,7 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
 		}).Debug("NextHop doesn't have elements")
-		return true
+		return false
 	}
 
 	nexthop := path.GetNexthop()
@@ -1537,7 +1537,7 @@ func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
 		}).Debug("NeighborList doesn't have elements")
-		return true
+		return c.option == MATCH_OPTION_INVERT
 	}
 
 	neighbor := path.GetSource().Address
