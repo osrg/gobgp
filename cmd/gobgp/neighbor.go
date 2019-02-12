@@ -231,7 +231,11 @@ func showNeighbor(args []string) error {
 		return err
 	}
 	r, err := stream.Recv()
-	if err != nil && err != io.EOF {
+	if err != nil {
+		if err == io.EOF {
+			fmt.Printf("BGP neighbor \"%s\" does not exist.", args[0])
+		}
+
 		return err
 	}
 	p := r.Peer
