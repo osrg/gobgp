@@ -1042,7 +1042,6 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 }
 
 func showNeighborPolicy(remoteIP, policyType string, indent int) error {
-	var assignment *api.PolicyAssignment
 	var err error
 	var dir api.PolicyDirection
 
@@ -1064,11 +1063,13 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	if err != nil {
 		return err
 	}
+	assignment := &api.PolicyAssignment{}
 	r, err := stream.Recv()
-	if err != nil {
+	if err == nil {
+		assignment = r.Assignment
+	} else if err != io.EOF {
 		return err
 	}
-	assignment = r.Assignment
 
 	if globalOpts.Json {
 		j, _ := json.Marshal(assignment)
