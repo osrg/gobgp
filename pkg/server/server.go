@@ -1187,6 +1187,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if graceful {
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
+				for i := range peer.fsm.pConf.AfiSafis {
+					peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
+				}
 				peer.fsm.lock.Unlock()
 				var p []bgp.RouteFamily
 				p, drop = peer.forwardingPreservedFamilies()
