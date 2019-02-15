@@ -259,6 +259,7 @@ neighbor-sets has neighbor-set-list, and neighbor-set-list has
 neighbor-set-name and neighbor-info-list as its element. It is necessary to
 specify a neighbor address in neighbor-info-list. neighbor-set-list is used as
 a condition.
+*Attention: an empty neighbor-set will match against ANYTHING and not invert based on the match option*
 
 **neighbor-set-list** has 1 element and list of sub-elements.
 
