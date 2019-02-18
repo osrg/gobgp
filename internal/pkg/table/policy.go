@@ -2992,6 +2992,12 @@ func (p *Policy) Apply(path *Path, options *PolicyOptions) (RouteType, *Path) {
 		var result RouteType
 		result, path = stmt.Apply(path, options)
 		if result != ROUTE_TYPE_NONE {
+			if result == ROUTE_TYPE_ACCEPT {
+				path.AcceptedByPolicy = stmt.Name
+			} else {
+				path.RejectedByPolicy = stmt.Name
+			}
+
 			return result, path
 		}
 	}
@@ -3121,19 +3127,24 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	}
 	result := ROUTE_TYPE_NONE
 	after := before
+	lastPolicy := ""
 	for _, p := range r.getPolicy(id, dir) {
 		result, after = p.Apply(after, options)
+		lastPolicy = p.Name
 		if result != ROUTE_TYPE_NONE {
 			break
 		}
 	}
 	if result == ROUTE_TYPE_NONE {
 		result = r.getDefaultPolicy(id, dir)
+		lastPolicy = "DefaultPolicy"
 	}
 	switch result {
 	case ROUTE_TYPE_ACCEPT:
+		before.AcceptedByPolicy = lastPolicy + "/" + before.AcceptedByPolicy
 		return after
 	default:
+		before.RejectedByPolicy = lastPolicy + "/" + before.RejectedByPolicy
 		return nil
 	}
 }

@@ -144,6 +144,9 @@ type Path struct {
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
 	IsWithdraw       bool
+
+	RejectedByPolicy  string
+	AcceptedByPolicy  string
 }
 
 var localSource = &PeerInfo{}

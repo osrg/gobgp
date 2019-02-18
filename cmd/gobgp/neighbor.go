@@ -581,6 +581,12 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 		args = append(args, formatTimedelta(t))
 	}
 
+	if p.RejectedByPolicy != "" {
+		args = append(args, "R/" + p.RejectedByPolicy)
+	} else if p.AcceptedByPolicy != "" {
+		args = append(args, "A/" + p.AcceptedByPolicy)
+	}
+
 	// Path Attributes
 	pattrstr := getPathAttributeString(nlri, attrs)
 	args = append(args, pattrstr)
@@ -619,8 +625,14 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel bool, showI
 		headers = append(headers, "Age")
 		format += "%-10s "
 	}
+
+	headers = append(headers, "Policy")
+	format += "%-25s"
+
 	headers = append(headers, "Attrs")
 	format += "%-s\n"
+
+
 
 	fmt.Printf(format, headers...)
 	for _, pathStr := range pathStrs {
