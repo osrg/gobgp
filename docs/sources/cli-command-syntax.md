@@ -617,27 +617,7 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 
 ## 6. mrt subcommand
 
-### 6.1 dump mrt records
-
-#### Syntax
-
-```shell
-% gobgp mrt dump rib global [<interval>]
-% gobgp mrt dump rib neighbor <neighbor address> [<interval>]
-```
-
-#### Options
-
-| short  |long    | description                    |
-|--------|--------|--------------------------------|
-| f      | format | filename format                |
-| o      | outdir | output directory of dump files |
-
-#### Example
-
-see [MRT](mrt.md).
-
-### 6.2 inject mrt records
+### 6.1 inject mrt records
 
 #### Syntax
 
