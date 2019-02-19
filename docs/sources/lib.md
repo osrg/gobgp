@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// monitor the change of the peer state
-	if err := s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer){log.Info(p)}); err != nil {
+	if err := s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { log.Info(p) }); err != nil {
 		log.Fatal(err)
 	}
 
@@ -73,7 +73,7 @@ func main() {
 
 	_, err := s.AddPath(context.Background(), &api.AddPathRequest{
 		Path: &api.Path{
-			Family:    &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
 			Nlri:   nlri,
 			Pattrs: attrs,
 		},
@@ -81,6 +81,41 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	v6Family := &api.Family{
+		Afi:  api.Family_AFI_IP6,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	// add v6 route
+	nlri, _ = ptypes.MarshalAny(&api.IPAddressPrefix{
+		PrefixLen: 64,
+		Prefix:    "2001:db8:1::",
+	})
+	v6Attrs, _ := ptypes.MarshalAny(&api.MpReachNLRIAttribute{
+		Family:   v6Family,
+		NextHops: []string{"2001:db8::1"},
+		Nlris:    []*any.Any{nlri},
+	})
+
+	c, _ := ptypes.MarshalAny(&api.CommunitiesAttribute{
+		Communities: []uint32{100, 200},
+	})
+
+	_, err = s.AddPath(context.Background(), &api.AddPathRequest{
+		Path: &api.Path{
+			Family: v6Family,
+			Nlri:   nlri,
+			Pattrs: []*any.Any{a1, v6Attrs, c},
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	s.ListPath(context.Background(), &api.ListPathRequest{Family: v6Family}, func(p *api.Destination) {
+		log.Info(p)
+	})
 
 	// do something useful here instead of exiting
 	time.Sleep(time.Minute * 3)
