@@ -2322,6 +2322,15 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 	return
 }
 
+func contains(s []*table.Path, e *table.Path) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
 	var tbl *table.Table
 	var v []*table.Validation
@@ -2364,21 +2373,37 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 	idx := 0
 	err = func() error {
 		for _, dst := range tbl.GetDestinations() {
+			knownPaths := dst.GetAllKnownPathList()
 			d := api.Destination{
 				Prefix: dst.GetNlri().String(),
-				Paths:  make([]*api.Path, 0, len(dst.GetAllKnownPathList())),
+				Paths:  make([]*api.Path, 0, len(knownPaths)),
 			}
-			for i, path := range dst.GetAllKnownPathList() {
+
+			var bestPaths []*table.Path
+
+			if !table.SelectionOptions.DisableBestPathSelection {
+				if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled {
+					bestPaths = dst.GetMultiBestPath(r.Name)
+				} else if len(knownPaths) > 0 {
+					bestPaths = make([]*table.Path, 0, 1)
+					bestPaths = append(bestPaths, knownPaths[0])
+				}
+			}
+
+			for _, path := range knownPaths {
 				p := toPathApi(path, getValidation(v, idx))
 				idx++
-				if i == 0 && !table.SelectionOptions.DisableBestPathSelection {
-					switch r.TableType {
-					case api.TableType_LOCAL, api.TableType_GLOBAL:
+
+				switch r.TableType {
+				case api.TableType_LOCAL, api.TableType_GLOBAL:
+					if contains(bestPaths, path) {
 						p.Best = true
 					}
 				}
+
 				d.Paths = append(d.Paths, p)
 			}
+
 			select {
 			case <-ctx.Done():
 				return nil

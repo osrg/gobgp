@@ -496,7 +496,7 @@ func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 
 	}
 	if showBest {
-		if idx == 0 && !p.IsNexthopInvalid {
+		if p.Best {
 			symbols += "*>"
 		} else {
 			symbols += "* "
