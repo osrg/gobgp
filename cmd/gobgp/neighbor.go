@@ -708,6 +708,46 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 	return nil
 }
 
+func showPrefixDetails(p *api.Path, shownAs map[uint32]struct{}) error {
+
+	nlri, _ := apiutil.GetNativeNlri(p)
+
+	var asPath []bgp.AsPathParamInterface
+	attrs, _ := apiutil.GetNativePathAttributes(p)
+	for _, attr := range attrs {
+		if attr.GetType() == bgp.BGP_ATTR_TYPE_AS_PATH {
+			asPath = attr.(*bgp.PathAttributeAsPath).Value
+		}
+	}
+
+	if len(asPath) == 0 {
+		return fmt.Errorf("the path to %s was locally generated", nlri.String())
+	}
+
+	state := ""
+	if p.Filtered {
+		state = "Filtered"
+	} else {
+		state = "Accepted"
+	}
+
+	
+	asList := asPath[len(asPath)-1].GetAS()
+	origin := asList[len(asList)-1]
+
+
+	fmt.Printf("Target Prefix: %s, AS: %d\n", nlri.String(), origin)
+	fmt.Printf("  This route is %s\n", state)
+	if p.Filtered {
+		filterPolicy := p.FilteredReason
+		filterStatement := filterPolicy.Statements[0]
+		fmt.Printf("\n  Policy: %s\n", filterPolicy.Name)
+		fmt.Printf("  Statement: %s\n", filterStatement.Name)
+	}
+	
+	return nil
+}
+
 func showRibInfo(r, name string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
 	if r == cmdGlobal {
@@ -769,6 +809,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showLabel := false
 	showIdentifier := bgp.BGP_ADD_PATH_NONE
 	validationTarget := ""
+	detailTarget := ""
 
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
@@ -816,6 +857,8 @@ func showNeighborRib(r string, name string, args []string) error {
 					return fmt.Errorf("RPKI information is supported for only adj-in")
 				}
 				validationTarget = target
+			} else if args[0] == "detail" {
+				detailTarget = target
 			} else {
 				return fmt.Errorf("invalid format for route filtering")
 			}
@@ -844,12 +887,20 @@ func showNeighborRib(r string, name string, args []string) error {
 		t = api.TableType_VRF
 	}
 
+	var policyOptions api.ListPathRequest_PolicyOptions
+
+
+	if detailTarget != "" {
+		policyOptions.ApplyPolicies = true
+	}
+
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
 		TableType: t,
 		Family:    family,
 		Name:      name,
 		Prefixes:  filter,
 		SortType:  api.ListPathRequest_PREFIX,
+		PolicyOptions: &policyOptions,
 	})
 	if err != nil {
 		return err
@@ -906,6 +957,25 @@ func showNeighborRib(r string, name string, args []string) error {
 		shownAs := make(map[uint32]struct{})
 		for _, p := range d.GetPaths() {
 			if err := showValidationInfo(p, shownAs); err != nil {
+				return err
+			}
+		}
+	} else if detailTarget != "" {
+		d := func() *api.Destination {
+			for _, dst := range rib {
+				if dst.Prefix == detailTarget {
+					return dst
+				}
+			}
+			return nil
+		}()
+		if d == nil {
+			fmt.Println("Network not in table")
+			return nil
+		}
+		shownAs := make(map[uint32]struct{})
+		for _, p := range d.GetPaths() {
+			if err := showPrefixDetails(p, shownAs); err != nil {
 				return err
 			}
 		}

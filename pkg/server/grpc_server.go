@@ -114,7 +114,7 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	}
 }
 
-func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation) *api.Path {
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs []*any.Any, path *table.Path, v *table.Validation, po *table.Policy, stmt *table.Statement) *api.Path {
 	nlri := path.GetNlri()
 	t, _ := ptypes.TimestampProto(path.GetTimestamp())
 	p := &api.Path{
@@ -132,7 +132,15 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
+		Filtered: 			(po != nil && stmt != nil),
 	}
+
+	if p.Filtered {
+		policy := &table.Policy{po.Name, []*table.Statement{stmt}}
+		p.FilteredReason = table.NewAPIPolicyFromTableStruct(policy)	
+	}
+
+
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS
 		p.SourceId = s.ID.String()
@@ -141,11 +149,11 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 	return p
 }
 
-func toPathApi(path *table.Path, v *table.Validation) *api.Path {
+func toPathApi(path *table.Path, v *table.Validation, p *table.Policy, stmt *table.Statement) *api.Path {
 	nlri := path.GetNlri()
 	anyNlri := apiutil.MarshalNLRI(nlri)
 	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
-	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
+	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v, p, stmt)
 }
 
 func getValidation(v []*table.Validation, i int) *table.Validation {

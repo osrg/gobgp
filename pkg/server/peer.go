@@ -453,7 +453,7 @@ func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 	return nil
 }
 
-func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
+func (peer *peer) handleUpdate(e *fsmMsg, s *BgpServer) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
 	log.WithFields(log.Fields{
