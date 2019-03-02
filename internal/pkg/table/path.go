@@ -133,13 +133,14 @@ type Validation struct {
 }
 
 type Path struct {
-	info      *originInfo
-	parent    *Path
-	pathAttrs []bgp.PathAttributeInterface
-	dels      []bgp.BGPAttrType
-	attrsHash uint32
-	aslooped  bool
-	reason    BestPathReason
+	info         *originInfo
+	parent       *Path
+	pathAttrs    []bgp.PathAttributeInterface
+	dels         []bgp.BGPAttrType
+	attrsHash    uint32
+	aslooped     bool
+	reason       BestPathReason
+	receiveVrfId uint32 //VRF in which the path was received.
 
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
@@ -167,8 +168,9 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			timestamp:          timestamp.Unix(),
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
-		IsWithdraw: isWithdraw,
-		pathAttrs:  pattrs,
+		IsWithdraw:   isWithdraw,
+		pathAttrs:    pattrs,
+		receiveVrfId: 0,
 	}
 }
 
@@ -332,6 +334,13 @@ func (path *Path) IsIBGP() bool {
 	return (as == path.GetSource().LocalAS) && as != 0
 }
 
+func (path *Path) ReceiveVrfId() uint32 {
+	return path.receiveVrfId
+}
+func (path *Path) SetReceiveVrfId(vrfId uint32) {
+	path.receiveVrfId = vrfId
+}
+
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
 	return &Path{
@@ -339,6 +348,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		attrsHash:        path.attrsHash,
+		receiveVrfId:     path.receiveVrfId,
 	}
 }
 
@@ -580,6 +590,7 @@ func (path *Path) String() string {
 	if path.IsWithdraw {
 		s.WriteString(", withdraw")
 	}
+	s.WriteString(fmt.Sprintf(", receiveVrfId: %d", path.receiveVrfId))
 	s.WriteString(" }")
 	return s.String()
 }
@@ -1069,12 +1080,12 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), v.Rd)
+		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), v.Rd)
+		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
@@ -1098,11 +1109,11 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	switch rf := p.GetRouteFamily(); rf {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
-		nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), vrf.Rd)
+		nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
-		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), vrf.Rd)
+		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
@@ -1138,6 +1149,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
 	path.IsNexthopInvalid = p.IsNexthopInvalid
+	path.receiveVrfId = p.receiveVrfId
 	return path
 }
 

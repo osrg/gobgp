@@ -1121,13 +1121,18 @@ type ZebraState struct {
 	// original -> gobgp:redistribute-route-type
 	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
-	// Configure version of zebra protocol.  Default is 2. Supported up to 3.
+	// Configure version of zebra protocol.  Default is 2.
+	// Supported version are 2 or 3 for Quagga and 4, 5 or 6 for FRRouting.
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 	// original -> gobgp:nexthop-trigger-enable
 	// gobgp:nexthop-trigger-enable's original type is boolean.
 	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
 	// original -> gobgp:nexthop-trigger-delay
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
+	// original -> gobgp:mpls-label-range-size
+	// Configure MPLS label range size which will be requested to
+	// FRR/Zebra.
+	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -1142,13 +1147,18 @@ type ZebraConfig struct {
 	// original -> gobgp:redistribute-route-type
 	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
-	// Configure version of zebra protocol.  Default is 2. Supported up to 3.
+	// Configure version of zebra protocol.  Default is 2.
+	// Supported version are 2 or 3 for Quagga and 4, 5 or 6 for FRRouting.
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 	// original -> gobgp:nexthop-trigger-enable
 	// gobgp:nexthop-trigger-enable's original type is boolean.
 	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
 	// original -> gobgp:nexthop-trigger-delay
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
+	// original -> gobgp:mpls-label-range-size
+	// Configure MPLS label range size which will be requested to
+	// FRR/Zebra.
+	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
 }
 
 func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
@@ -1176,6 +1186,9 @@ func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
 		return false
 	}
 	if lhs.NexthopTriggerDelay != rhs.NexthopTriggerDelay {
+		return false
+	}
+	if lhs.MplsLabelRangeSize != rhs.MplsLabelRangeSize {
 		return false
 	}
 	return true

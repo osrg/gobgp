@@ -178,12 +178,29 @@ const (
 //go:generate stringer -type=SAFI
 type SAFI uint8
 
+// SAFI definition in Zebra of FRRouting 4.x, 5.x, 6.x
+const (
+	_ SAFI = iota
+	FRR_ZAPI5_SAFI_UNICAST
+	FRR_ZAPI5_SAFI_MULTICAST
+	FRR_ZAPI5_SAFI_MPLS_VPN
+	FRR_ZAPI5_SAFI_ENCAP
+	FRR_ZAPI5_SAFI_EVPN
+	FRR_ZAPI5_SAFI_LABELED_UNICAST
+	FRR_ZAPI5_SAFI_FLOWSPEC
+	FRR_ZAPI5_SAFI_MAX
+)
+
+// SAFI definition in Zebra of Quagga and FRRouting 3.x
 const (
 	_ SAFI = iota
 	SAFI_UNICAST
 	SAFI_MULTICAST
-	SAFI_RESERVED_3
-	SAFI_MPLS_VPN
+	FRR_SAFI_MPLS_VPN // SAFI_RESERVED_3 in quagga
+	SAFI_MPLS_VPN     // SAFI_RESERVED_4 in FRRouting 3.x
+	FRR_SAFI_ENCAP
+	FRR_SAFI_EVPN
+	SAFI_ENCAP // SAFI_MAX in FRRouting 3.x
 	SAFI_MAX
 )
 
@@ -243,6 +260,7 @@ const (
 	FRR_ZAPI6_MPLS_LABELS_DELETE
 	FRR_ZAPI6_IPMR_ROUTE_STATS
 	FRR_ZAPI6_LABEL_MANAGER_CONNECT
+	FRR_ZAPI6_LABEL_MANAGER_CONNECT_ASYNC
 	FRR_ZAPI6_GET_LABEL_CHUNK
 	FRR_ZAPI6_RELEASE_LABEL_CHUNK
 	FRR_ZAPI6_FEC_REGISTER
@@ -1020,6 +1038,9 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	// Send HELLO/ROUTER_ID_ADD messages to negotiate the Zebra message version.
 	c.SendHello()
 	c.SendRouterIDAdd()
+	if version >= 4 {
+		c.SendLabelManagerConnect()
+	}
 
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
@@ -1241,6 +1262,10 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 }
 
 func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) error {
+	routeFamily := body.RouteFamily(c.Version)
+	if vrfId == VRF_DEFAULT && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
+		return fmt.Errorf("RF_IPv4_VPN or RF_IPv6_VPN are not suitable for VPN_DEFAULT(default forwarding table).")
+	}
 	command := IPV4_ROUTE_ADD
 	if c.Version <= 3 {
 		if body.Prefix.Prefix.To4() != nil {
@@ -1307,6 +1332,58 @@ func (c *Client) SendNexthopRegister(vrfId uint32, body *NexthopRegisterBody, is
 		} else {
 			command = FRR_ZAPI6_NEXTHOP_REGISTER
 		}
+	}
+	return c.SendCommand(command, vrfId, body)
+}
+
+// Reference: zread_label_manager_connect function in zebra/zserv.c of FRR3.x (ZAPI)
+// Reference: zread_label_manager_connect function in zebra/zapi_msg.c of FRR5.x and 6.x (ZAPI5 and 6)
+
+func (c *Client) SendLabelManagerConnect() error {
+	if c.Version < 4 {
+		return fmt.Errorf("LABEL_MANAGER_CONNECT is not supported in version: %d", c.Version)
+	}
+	command := FRR_LABEL_MANAGER_CONNECT
+	proto := FRR_ROUTE_BGP
+	if c.Version == 5 {
+		command = FRR_ZAPI5_LABEL_MANAGER_CONNECT
+		proto = FRR_ZAPI5_ROUTE_BGP
+	} else if c.Version == 6 {
+		command = FRR_ZAPI6_LABEL_MANAGER_CONNECT
+		proto = FRR_ZAPI6_ROUTE_BGP
+	}
+	return c.SendCommand(
+		command, 0,
+		&LabelManagerConnectBody{
+			RedistDefault: proto,
+			Instance:      0,
+		})
+}
+func (c *Client) SendGetLabelChunk(body *GetLabelChunkBody) error {
+	if c.Version < 4 {
+		return fmt.Errorf("GET_LABEL_CHUNK is not supported in version: %d", c.Version)
+	}
+	command := FRR_GET_LABEL_CHUNK
+	body.Instance = 0
+	if c.Version == 5 {
+		body.Proto = uint8(FRR_ZAPI5_ROUTE_BGP)
+		command = FRR_ZAPI5_GET_LABEL_CHUNK
+	} else if c.Version == 6 {
+		body.Proto = uint8(FRR_ZAPI6_ROUTE_BGP)
+		command = FRR_ZAPI6_GET_LABEL_CHUNK
+	}
+	return c.SendCommand(command, 0, body)
+}
+
+func (c *Client) SendVrfLabel(label uint32, vrfId uint32) error {
+	body := &VrfLabelBody{
+		Label:     label,
+		Afi:       AFI_IP,
+		LabelType: LSP_BGP,
+	}
+	command := FRR_ZAPI5_VRF_LABEL
+	if c.Version == 6 {
+		command = FRR_ZAPI6_VRF_LABEL
 	}
 	return c.SendCommand(command, vrfId, body)
 }
@@ -1735,11 +1812,78 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 			family = syscall.AF_INET6
 		}
 	}
-	switch family {
-	case syscall.AF_INET:
-		return bgp.RF_IPv4_UC
-	case syscall.AF_INET6:
-		return bgp.RF_IPv6_UC
+	if version < 5 {
+		switch family {
+		case syscall.AF_INET:
+			switch b.SAFI {
+			case SAFI_UNICAST:
+				return bgp.RF_IPv4_UC
+			case SAFI_MULTICAST:
+				return bgp.RF_IPv4_MC
+			case SAFI_MPLS_VPN, FRR_SAFI_MPLS_VPN:
+				return bgp.RF_IPv4_VPN
+			case FRR_SAFI_ENCAP, SAFI_ENCAP:
+				return bgp.RF_IPv4_ENCAP
+			}
+		case syscall.AF_INET6:
+			switch b.SAFI {
+			case SAFI_UNICAST:
+				return bgp.RF_IPv6_UC
+			case SAFI_MULTICAST:
+				return bgp.RF_IPv6_MC
+			case SAFI_MPLS_VPN, FRR_SAFI_MPLS_VPN:
+				return bgp.RF_IPv6_VPN
+			case FRR_SAFI_ENCAP, SAFI_ENCAP:
+				return bgp.RF_IPv6_ENCAP
+			}
+		default:
+			switch b.SAFI {
+			case FRR_SAFI_EVPN:
+				return bgp.RF_EVPN
+			default:
+				return bgp.RF_OPAQUE
+			}
+		}
+	} else {
+		switch family {
+		case syscall.AF_INET:
+			switch b.SAFI {
+			case FRR_ZAPI5_SAFI_UNICAST:
+				return bgp.RF_IPv4_UC
+			case FRR_ZAPI5_SAFI_MULTICAST:
+				return bgp.RF_IPv4_MC
+			case FRR_ZAPI5_SAFI_MPLS_VPN:
+				return bgp.RF_IPv4_VPN
+			case FRR_ZAPI5_SAFI_ENCAP:
+				return bgp.RF_IPv4_ENCAP
+			case FRR_ZAPI5_SAFI_LABELED_UNICAST:
+				return bgp.RF_IPv4_MPLS
+			case FRR_ZAPI5_SAFI_FLOWSPEC:
+				return bgp.RF_FS_IPv4_UC
+			}
+		case syscall.AF_INET6:
+			switch b.SAFI {
+			case FRR_ZAPI5_SAFI_UNICAST:
+				return bgp.RF_IPv6_UC
+			case FRR_ZAPI5_SAFI_MULTICAST:
+				return bgp.RF_IPv6_MC
+			case FRR_ZAPI5_SAFI_MPLS_VPN:
+				return bgp.RF_IPv6_VPN
+			case FRR_ZAPI5_SAFI_ENCAP:
+				return bgp.RF_IPv6_ENCAP
+			case FRR_ZAPI5_SAFI_LABELED_UNICAST:
+				return bgp.RF_IPv6_MPLS
+			case FRR_ZAPI5_SAFI_FLOWSPEC:
+				return bgp.RF_FS_IPv6_UC
+			}
+		default:
+			switch b.SAFI {
+			case FRR_ZAPI5_SAFI_EVPN:
+				return bgp.RF_EVPN
+			default:
+				return bgp.RF_OPAQUE
+			}
+		}
 	}
 	return bgp.RF_OPAQUE
 }
@@ -1897,9 +2041,15 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			}
 			if version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_LABEL > 0 {
 				buf = append(buf, nexthop.LabelNum)
-				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, nexthop.MplsLabels[0])
-				buf = append(buf, bbuf...)
+				for i := uint8(0); i < nexthop.LabelNum; i++ {
+					bbuf := make([]byte, 4)
+					/* Frr uses stream_put for mpls label array.
+					   stream_put is unaware of byteorder coversion.
+					   Therefore LittleEndian is used instead of BigEndian. */
+					binary.LittleEndian.PutUint32(bbuf, nexthop.MplsLabels[i])
+					buf = append(buf, bbuf...)
+
+				}
 			}
 		}
 		if (version <= 3 && b.Message&MESSAGE_DISTANCE > 0) ||
@@ -2240,7 +2390,10 @@ func decodeNexthopsFromBytes(nexthops *[]Nexthop, data []byte, family uint8, ver
 			}
 			nexthop.MplsLabels = make([]uint32, nexthop.LabelNum)
 			for n := uint8(0); n < nexthop.LabelNum; n++ {
-				nexthop.MplsLabels[n] = binary.BigEndian.Uint32(data[offset : offset+4])
+				/* Frr uses stream_put for mpls label array.
+				   stream_put is unaware of byteorder coversion.
+				   Therefore LittleEndian is used instead of BigEndian. */
+				nexthop.MplsLabels[n] = binary.LittleEndian.Uint32(data[offset : offset+4])
 				offset += 4
 			}
 		}
@@ -2612,6 +2765,177 @@ func (b *NexthopUpdateBody) String() string {
 	return s
 }
 
+type LabelManagerConnectBody struct {
+	RedistDefault ROUTE_TYPE
+	Instance      uint16
+	// The followings are used in response from Zebra
+	Result uint8 // 0 means success
+}
+
+// Reference: lm_label_manager_connect in lib/zclient.c of FRR
+func (b *LabelManagerConnectBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 3)
+	buf[0] = uint8(b.RedistDefault)
+	binary.BigEndian.PutUint16(buf[1:3], b.Instance)
+	return buf, nil
+}
+
+func (b *LabelManagerConnectBody) DecodeFromBytes(data []byte, version uint8) error {
+	size := 1
+	// FRR v4 may work incorrectly. It returns result only although it uses ZAPI v5.
+	if version >= 4 {
+		size = 4
+	}
+	if len(data) < size {
+		return fmt.Errorf("invalid message length for LABEL_MANAGER_CONNECT response: %d<%d",
+			len(data), size)
+	}
+	if version > 4 {
+		b.RedistDefault = ROUTE_TYPE(data[0])
+		b.Instance = binary.BigEndian.Uint16(data[1:3])
+		data = data[3:]
+	}
+	b.Result = data[0]
+	return nil
+}
+
+func (b *LabelManagerConnectBody) String() string {
+	return fmt.Sprintf(
+		"route_type: %s, instance: %d, result: %d",
+		b.RedistDefault.String(), b.Instance, b.Result)
+}
+
+// Reference: zsend_assign_label_chunk_response in zebra/zserv.c of FRR3.x
+// Reference: zsend_assign_label_chunk_response in zebra/zapi_msg.c of FRR5.x and 6.x
+type GetLabelChunkBody struct {
+	Proto     uint8  // it is appeared in FRR5.x and 6.x
+	Instance  uint16 // it is appeared in FRR5.x and 6.x
+	Keep      uint8
+	ChunkSize uint32
+	// The followings are used in response from Zebra
+	Start uint32
+	End   uint32
+}
+
+// Reference: zread_get_label_chunk in zebra/zserv.c of FRR3.x
+// Reference: zread_get_label_chunk in zebra/zapi_msg.c of FRR5.x and 6.x
+func (b *GetLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 8)
+	pos := 0
+	if version > 4 {
+		buf[pos] = b.Proto
+		binary.BigEndian.PutUint16(buf[pos+1:pos+3], b.Instance)
+		pos += 3
+	}
+	buf[pos] = b.Keep
+	binary.BigEndian.PutUint32(buf[pos+1:pos+5], b.ChunkSize)
+	pos += 5
+	return buf[0:pos], nil
+}
+
+// Reference: zsend_assign_label_chunk_response in zebra/zserv.c of FRR3.x
+// Reference: zsend_assign_label_chunk_response in zebra/zapi_msg.c of FRR5.x and 6.x
+func (b *GetLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+	size := 9
+	if version > 4 {
+		size = 12
+	}
+	if len(data) < size {
+		return fmt.Errorf("invalid message length for GET_LABEL_CHUNK response: %d<%d",
+			len(data), size)
+	}
+	if version > 4 {
+		b.Proto = data[0]
+		b.Instance = binary.BigEndian.Uint16(data[1:3])
+		data = data[3:]
+	}
+	b.Keep = data[0]
+	b.Start = binary.BigEndian.Uint32(data[1:5])
+	b.End = binary.BigEndian.Uint32(data[5:9])
+	return nil
+}
+
+func (b *GetLabelChunkBody) String() string {
+	return fmt.Sprintf(
+		"keep: %d, chunk_size: %d, start: %d, end: %d",
+		b.Keep, b.ChunkSize, b.Start, b.End)
+}
+
+type ReleaseLabelChunkBody struct {
+	Proto    uint8  // it is appeared in FRR5.x and 6.x
+	Instance uint16 // it is appeared in FRR5.x and 6.x
+	Start    uint32
+	End      uint32
+}
+
+func (b *ReleaseLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 11)
+	pos := 0
+	if version > 4 {
+		buf[pos] = b.Proto
+		binary.BigEndian.PutUint16(buf[pos+1:pos+3], b.Instance)
+		pos += 3
+	}
+	binary.BigEndian.PutUint32(buf[pos:pos+4], b.Start)
+	binary.BigEndian.PutUint32(buf[pos+4:pos+8], b.End)
+	pos += 8
+	return buf[0:pos], nil
+}
+
+func (b *ReleaseLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+	// No response from Zebra
+	return nil
+}
+
+func (b *ReleaseLabelChunkBody) String() string {
+	return fmt.Sprintf(
+		"start: %d, end: %d",
+		b.Start, b.End)
+}
+
+//go:generate stringer -type=LSP_TYPE
+type LSP_TYPE uint8
+
+const (
+	LSP_NONE   LSP_TYPE = iota //defined in FRR3 and over
+	LSP_STATIC                 //defined in FRR3 and over
+	LSP_LDP                    //defined in FRR3 and over
+	LSP_BGP                    //defined in FRR4 and over
+	LSP_SR                     //defined in FRR4 and over
+	LSP_SHARP                  //defined in FRR5 and over
+)
+
+type VrfLabelBody struct {
+	Label     uint32
+	Afi       AFI
+	LabelType LSP_TYPE
+}
+
+// Reference: zclient_send_vrf_label in lib/zclient.c of FRR 5.x and 6.x
+func (b *VrfLabelBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint32(buf[0:4], b.Label)
+	buf[4] = uint8(b.Afi)
+	buf[5] = uint8(b.LabelType)
+	return buf, nil
+}
+
+func (b *VrfLabelBody) DecodeFromBytes(data []byte, version uint8) error {
+	if len(data) < 6 {
+		return fmt.Errorf("invalid message length for VRF_LABEL message: %d<6", len(data))
+	}
+	b.Label = binary.BigEndian.Uint32(data[0:4])
+	b.Afi = AFI(data[4])
+	b.LabelType = LSP_TYPE(data[5])
+	return nil
+}
+
+func (b *VrfLabelBody) String() string {
+	return fmt.Sprintf(
+		"label: %d, AFI: %s LSP_type: %s",
+		b.Label, b.Afi, b.LabelType)
+}
+
 type Message struct {
 	Header Header
 	Body   Body
@@ -2689,6 +3013,15 @@ func (m *Message) parseFrrMessage(data []byte) error {
 	case FRR_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &ReleaseLabelChunkBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}
@@ -2728,6 +3061,17 @@ func (m *Message) parseFrrZapi5Message(data []byte) error {
 	case FRR_ZAPI5_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_ZAPI5_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_ZAPI5_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_ZAPI5_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &ReleaseLabelChunkBody{}
+	case FRR_ZAPI5_VRF_LABEL:
+		m.Body = &VrfLabelBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}
@@ -2767,6 +3111,16 @@ func (m *Message) parseFrrZapi6Message(data []byte) error {
 	case FRR_ZAPI6_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_ZAPI6_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_ZAPI6_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+	case FRR_ZAPI6_VRF_LABEL:
+		m.Body = &VrfLabelBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}

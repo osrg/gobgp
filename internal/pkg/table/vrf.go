@@ -20,11 +20,12 @@ import (
 )
 
 type Vrf struct {
-	Name     string
-	Id       uint32
-	Rd       bgp.RouteDistinguisherInterface
-	ImportRt []bgp.ExtendedCommunityInterface
-	ExportRt []bgp.ExtendedCommunityInterface
+	Name      string
+	Id        uint32
+	Rd        bgp.RouteDistinguisherInterface
+	ImportRt  []bgp.ExtendedCommunityInterface
+	ExportRt  []bgp.ExtendedCommunityInterface
+	MplsLabel uint32
 }
 
 func (v *Vrf) Clone() *Vrf {
@@ -33,11 +34,12 @@ func (v *Vrf) Clone() *Vrf {
 		return append(l, rt...)
 	}
 	return &Vrf{
-		Name:     v.Name,
-		Id:       v.Id,
-		Rd:       v.Rd,
-		ImportRt: f(v.ImportRt),
-		ExportRt: f(v.ExportRt),
+		Name:      v.Name,
+		Id:        v.Id,
+		Rd:        v.Rd,
+		ImportRt:  f(v.ImportRt),
+		ExportRt:  f(v.ExportRt),
+		MplsLabel: v.MplsLabel,
 	}
 }
 
