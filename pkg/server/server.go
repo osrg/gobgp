@@ -958,6 +958,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			peer.fsm.lock.RLock()
 			peerVrf := peer.fsm.pConf.Config.Vrf
 			peer.fsm.lock.RUnlock()
+			path.SetReceiveVrfId(rib.Vrfs[peerVrf].Id)
 			path = path.ToGlobal(rib.Vrfs[peerVrf])
 		}
 
@@ -1590,7 +1591,10 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 			protos = append(protos, string(p))
 		}
 		var err error
-		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay))
+		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize)
+		if err == nil && s.globalRib != nil && s.zclient.client.Version >= 4 && r.MplsLabelRangeSize > 0 {
+			err = s.globalRib.EnableMplsLabelAllocation()
+		}
 		return err
 	}, false)
 }
@@ -2029,6 +2033,26 @@ func (s *BgpServer) ListVrf(ctx context.Context, _ *api.ListVrfRequest, fn func(
 	return nil
 }
 
+func assignMplsLabel(s *BgpServer, vrf *table.Vrf) error {
+	var mplsLabel uint32
+	var err error
+	for mplsLabel, err = s.globalRib.AssignMplsLabel(); err != nil; mplsLabel, err = s.globalRib.AssignMplsLabel() {
+		if err = s.zclient.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: s.zclient.mplsLabelRangeSize}); err != nil {
+			return err
+		}
+		labels := <-s.zclient.mplsLabelRangeCh
+		if err = s.globalRib.AllocateMplsLabelRange(labels[0], labels[1]); err != nil {
+			return err
+		}
+	}
+	vrf.MplsLabel = mplsLabel
+	err = s.zclient.client.SendVrfLabel(vrf.MplsLabel, vrf.Id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 	return s.mgmtOperation(func() error {
 		if r == nil || r.Vrf == nil {
@@ -2055,10 +2079,16 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 			AS:      s.bgpConfig.Global.Config.As,
 			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
+
 		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
 			return err
 		} else if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
+		}
+		if vrf, ok := s.globalRib.Vrfs[name]; ok {
+			if s.zclient.mplsLabelRangeSize > 0 {
+				go assignMplsLabel(s, vrf)
+			}
 		}
 		return nil
 	}, true)
