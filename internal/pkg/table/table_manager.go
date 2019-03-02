@@ -177,7 +177,7 @@ func (manager *TableManager) releaseMplsLabel(label uint32) {
 			return
 		}
 	}
-	return
+	//return
 }
 
 func (manager *TableManager) GetRFlist() []bgp.RouteFamily {

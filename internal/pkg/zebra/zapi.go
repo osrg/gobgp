@@ -1264,7 +1264,7 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) error {
 	routeFamily := body.RouteFamily(c.Version)
 	if vrfId == VRF_DEFAULT && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
-		return fmt.Errorf("RF_IPv4_VPN or RF_IPv6_VPN are not suitable for VPN_DEFAULT(default forwarding table).")
+		return fmt.Errorf("RF_IPv4_VPN or RF_IPv6_VPN are not suitable for VPN_DEFAULT(default forwarding table)")
 	}
 	command := IPV4_ROUTE_ADD
 	if c.Version <= 3 {

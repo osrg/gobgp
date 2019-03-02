@@ -2086,7 +2086,7 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 			s.propagateUpdate(nil, pathList)
 		}
 		if vrf, ok := s.globalRib.Vrfs[name]; ok {
-			if s.zclient.mplsLabelRangeSize > 0 {
+			if s.bgpConfig.Zebra.Config.MplsLabelRangeSize > 0 {
 				go assignMplsLabel(s, vrf)
 			}
 		}
