@@ -10,9 +10,12 @@ different routing protocols. GoBGP uses zebra included in
 Assume you finished [Getting Started](getting-started.md)
 and installing Quagga or FRRouting on the same host with GoBGP.
 
-**Note:** For the integration with FRRouting, ONLY version 3.0.x is supported,
-because the API (using Zebra protocol) of FRRouging is updated so fast and its
-backward compatibility is not been kept.
+**Note:** For the integration with FRRouting, version 3.0.x (Zebra API
+version 4), 5.0.x (Zebra API version 5), and 6.0.x (Zebra API version
+6) is supported. FRRouting version 4.0.x is not work correctly,
+because FRRouting version 5.0.x changes zebra message and it doesn't
+keep backward compatibility for FRRouting version 4.0.x although
+FRRouting version 4.0.x and 5.0.x use Zebra API version 5.
 
 ## Contents
 
@@ -47,7 +50,13 @@ You need to enable the zebra feature in the Global configuration as follows.
 - `version` specifies Zebra API version.
   `2` is the version used by Quagga on Ubuntu 16.04 LTS.
   To enable the Next-Hop Tracking features, please specify `3` or later.
-  For connecting to FRRouting, please specify `4`.
+  For connecting to FRRouting 3.0.x, please specify `4`.
+  For connecting to FRRouting 5.0.x, please specify `5`.
+  For connecting to FRRouting 6.0.x, please specify `6`.
+
+- `mpls-label-range-size` specifies mpls label range size for
+  requesting to Zebra. It works with FRRouting 5.0.x or FRRouting
+  6.0.x.
 
 ## Check Routes from zebra
 
