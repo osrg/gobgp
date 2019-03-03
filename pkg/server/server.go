@@ -958,8 +958,10 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			peer.fsm.lock.RLock()
 			peerVrf := peer.fsm.pConf.Config.Vrf
 			peer.fsm.lock.RUnlock()
-			path.SetReceiveVrfId(rib.Vrfs[peerVrf].Id)
 			path = path.ToGlobal(rib.Vrfs[peerVrf])
+			if s.zclient != nil {
+				s.zclient.pathVrf[path] = rib.Vrfs[peerVrf].Id
+			}
 		}
 
 		policyOptions := &table.PolicyOptions{}
@@ -2086,7 +2088,7 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 			s.propagateUpdate(nil, pathList)
 		}
 		if vrf, ok := s.globalRib.Vrfs[name]; ok {
-			if s.bgpConfig.Zebra.Config.MplsLabelRangeSize > 0 {
+			if s.zclient != nil && s.zclient.mplsLabelRangeSize > 0 {
 				go assignMplsLabel(s, vrf)
 			}
 		}
