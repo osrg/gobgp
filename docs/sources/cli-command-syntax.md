@@ -128,7 +128,7 @@ Also, refer to the following for the detail syntax of each address family.
 # add neighbor
 % gobgp neighbor add { <neighbor address> | interface <ifname> } as <as number> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]
 # delete neighbor
-% gobgp neighbor delete { <neighbor address> | interface <ifname> }
+% gobgp neighbor del { <neighbor address> | interface <ifname> }
 % gobgp neighbor <neighbor address> softreset [-a <address family>]
 % gobgp neighbor <neighbor address> softresetin [-a <address family>]
 % gobgp neighbor <neighbor address> softresetout [-a <address family>]
