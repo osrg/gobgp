@@ -76,3 +76,7 @@
 [[constraint]]
   name = "google.golang.org/grpc"
   version = "1.5.1"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/coreos/go-systemd"

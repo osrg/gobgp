@@ -18,6 +18,14 @@
   revision = "1fca145dffbcaa8fe914309b1ec0cfc67500fe61"
 
 [[projects]]
+  branch = "master"
+  digest = "1:af4e29ce389815fea4fdc4b44f746321e1d27fbdf03a14f3350d8fdd7e0707ce"
+  name = "github.com/coreos/go-systemd"
+  packages = ["daemon"]
+  pruneopts = ""
+  revision = "93d5ec2c7f76e57b4f3cb9fa4ee4e3ea43f3e5c9"
+
+[[projects]]
   digest = "1:56c130d885a4aacae1dd9c7b71cfe39912c7ebc1ff7d2b46083c8812996dc43b"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -137,6 +145,25 @@
   packages = ["."]
   pruneopts = ""
   revision = "d0303fe809921458f417bcf828397a65db30a7e4"
+
+[[projects]]
+  digest = "1:6a97b2d47774dd7a34cd89cb796023f8995538f0f00a23c9d7bfe7ad637e9601"
+  name = "github.com/osrg/gobgp"
+  packages = [
+    "api",
+    "internal/pkg/apiutil",
+    "internal/pkg/config",
+    "internal/pkg/table",
+    "internal/pkg/zebra",
+    "pkg/packet/bgp",
+    "pkg/packet/bmp",
+    "pkg/packet/mrt",
+    "pkg/packet/rtr",
+    "pkg/server",
+  ]
+  pruneopts = ""
+  revision = "f4643d090f3546060157dff83231e4aa89e7f483"
+  version = "v2.2.0"
 
 [[projects]]
   digest = "1:049b5bee78dfdc9628ee0e557219c41f683e5b06c5a5f20eaba0105ccc586689"
@@ -349,6 +376,7 @@
   input-imports = [
     "github.com/BurntSushi/toml",
     "github.com/armon/go-radix",
+    "github.com/coreos/go-systemd/daemon",
     "github.com/dgryski/go-farm",
     "github.com/eapache/channels",
     "github.com/golang/protobuf/proto",
@@ -358,6 +386,16 @@
     "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/jessevdk/go-flags",
     "github.com/kr/pretty",
+    "github.com/osrg/gobgp/api",
+    "github.com/osrg/gobgp/internal/pkg/apiutil",
+    "github.com/osrg/gobgp/internal/pkg/config",
+    "github.com/osrg/gobgp/internal/pkg/table",
+    "github.com/osrg/gobgp/internal/pkg/zebra",
+    "github.com/osrg/gobgp/pkg/packet/bgp",
+    "github.com/osrg/gobgp/pkg/packet/bmp",
+    "github.com/osrg/gobgp/pkg/packet/mrt",
+    "github.com/osrg/gobgp/pkg/packet/rtr",
+    "github.com/osrg/gobgp/pkg/server",
     "github.com/satori/go.uuid",
     "github.com/sirupsen/logrus",
     "github.com/sirupsen/logrus/hooks/syslog",

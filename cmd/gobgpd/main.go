@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
@@ -119,6 +120,7 @@ func main() {
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
 		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
+		UseSdNotify     bool   `long:"sdnotify" description:"use sd_notify protocol"`
 		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
 		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
 		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
@@ -205,6 +207,16 @@ func main() {
 	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts))
 	go bgpServer.Serve()
 
+	if opts.UseSdNotify {
+		if status, err := daemon.SdNotify(false, daemon.SdNotifyReady); !status {
+			if err != nil {
+				log.Warnf("Failed to send notification via sd_notify(): %s", err)
+			} else {
+				log.Warnf("The socket sd_notify() isn't available")
+			}
+		}
+	}
+
 	if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
@@ -215,6 +227,9 @@ func main() {
 			select {
 			case <-sigCh:
 				bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+				if opts.UseSdNotify {
+					daemon.SdNotify(false, daemon.SdNotifyStopping)
+				}
 				return
 			case newConfig := <-configCh:
 				var added, deleted, updated []config.Neighbor
