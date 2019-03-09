@@ -4,14 +4,15 @@ Wants=network.target
 After=network.target
 
 [Service]
-Type=simple
+Type=notify
 ExecStartPre=/usr/bin/gobgpd -f /etc/gobgpd/gobgpd.conf -d
-ExecStart=/usr/bin/gobgpd -f /etc/gobgpd/gobgpd.conf
+ExecStart=/usr/bin/gobgpd -f /etc/gobgpd/gobgpd.conf --sdnotify
 ExecReload=/usr/bin/gobgpd -r
 StandardOutput=journal
 StandardError=journal
 User=gobgpd
 Group=gobgpd
+AmbientCapabilities = CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target
