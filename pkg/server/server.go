@@ -2436,7 +2436,7 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 }
 
 func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.GetTableResponse, error) {
-	if r == nil || r.Name == "" {
+	if r == nil {
 		return nil, fmt.Errorf("invalid request")
 	}
 	family := bgp.RouteFamily(0)
