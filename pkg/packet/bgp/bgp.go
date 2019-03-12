@@ -12452,7 +12452,7 @@ type BGPNotification struct {
 
 func (msg *BGPNotification) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 2 {
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all Notificaiton bytes available")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all Notification bytes available")
 	}
 	msg.ErrorCode = data[0]
 	msg.ErrorSubcode = data[1]

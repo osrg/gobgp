@@ -2212,7 +2212,7 @@ type RouteReflectorState struct {
 }
 
 // struct for container bgp:config.
-// Configuraton parameters relating to route reflection
+// Configuration parameters relating to route reflection
 // for the BGP neighbor or group.
 type RouteReflectorConfig struct {
 	// original -> bgp:route-reflector-cluster-id
@@ -2244,7 +2244,7 @@ func (lhs *RouteReflectorConfig) Equal(rhs *RouteReflectorConfig) bool {
 // Route reflector parameters for the BGP neighbor or group.
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
-	// Configuraton parameters relating to route reflection
+	// Configuration parameters relating to route reflection
 	// for the BGP neighbor or group.
 	Config RouteReflectorConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:route-reflector-state
@@ -2625,7 +2625,7 @@ type TimersState struct {
 	// BGP last transitioned out of the Established state.
 	Downtime int64 `mapstructure:"downtime" json:"downtime,omitempty"`
 	// original -> gobgp:update-recv-time
-	// The number of seconds elasped since January 1, 1970 UTC
+	// The number of seconds elapsed since January 1, 1970 UTC
 	// last time the BGP session received an UPDATE message.
 	UpdateRecvTime int64 `mapstructure:"update-recv-time" json:"update-recv-time,omitempty"`
 }
