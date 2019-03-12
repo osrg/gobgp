@@ -2638,7 +2638,7 @@ type TimersState struct {
 	// BGP last transitioned out of the Established state.
 	Downtime int64 `mapstructure:"downtime" json:"downtime,omitempty"`
 	// original -> gobgp:update-recv-time
-	// The number of seconds elasped since January 1, 1970 UTC
+	// The number of seconds elapsed since January 1, 1970 UTC
 	// last time the BGP session received an UPDATE message.
 	UpdateRecvTime int64 `mapstructure:"update-recv-time" json:"update-recv-time,omitempty"`
 }

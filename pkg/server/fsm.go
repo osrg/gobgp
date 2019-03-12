@@ -1865,7 +1865,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	}
 
 	if oldState == bgp.BGP_FSM_ESTABLISHED {
-		// The main goroutine sent the notificaiton due to
+		// The main goroutine sent the notification due to
 		// deconfiguration or something.
 		reason := fsm.reason
 		if fsm.h.sentNotification != nil {
