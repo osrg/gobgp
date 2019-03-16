@@ -263,7 +263,7 @@ module gobgp {
     leaf update-recv-time {
       type int64;
       description
-        "The number of seconds elasped since January 1, 1970 UTC
+        "The number of seconds elapsed since January 1, 1970 UTC
         last time the BGP session received an UPDATE message";
     }
   }
