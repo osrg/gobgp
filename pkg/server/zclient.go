@@ -35,9 +35,6 @@ import (
 // the metric value of math.MaxUint32 means the nexthop is unreachable.
 type nexthopStateCache map[string]uint32
 
-// pathVrfMap stores nexthop vpn id of VPN paths in global rib
-type pathVrfMap map[*table.Path]uint32
-
 func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 	updated := make([]*table.Path, 0, len(paths))
 	for _, path := range paths {
@@ -121,7 +118,7 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 
 func addMessageLabelToIPRouteBody(path *table.Path, vrfId uint32, z *zebraClient, msgFlags *zebra.MESSAGE_FLAG, nexthop *zebra.Nexthop) {
 	v := z.client.Version
-	nhVrfId := z.pathVrf[path]
+	nhVrfId := z.pathVrfMap[path]
 	rf := path.GetRouteFamily()
 	if v > 4 && (rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN) && nhVrfId != vrfId {
 		*msgFlags |= zebra.FRR_ZAPI5_MESSAGE_LABEL
@@ -162,11 +159,11 @@ func newIPRouteBody(dst []*table.Path, vrfId uint32, z *zebraClient) (body *zebr
 		return nil, false
 	}
 	var nhVrfId uint32
-	if nhvrfid, ok := z.pathVrf[path]; ok {
-		// if the path is withdraw, delete path from Map pathVrf after refer the path
+	if nhvrfid, ok := z.pathVrfMap[path]; ok {
+		// if the path is withdraw, delete path from pathVrfMap after refer the path
 		nhVrfId = nhvrfid
 		if isWithdraw {
-			delete(z.pathVrf, path)
+			delete(z.pathVrfMap, path)
 		}
 	} else {
 		nhVrfId = zebra.VRF_DEFAULT
@@ -309,14 +306,19 @@ func newPathFromIPRouteMessage(m *zebra.Message, version uint8) *table.Path {
 	return path
 }
 
+type mplsLabelParameter struct {
+	rangeSize    uint32
+	maps         map[uint64]*table.Bitmap
+	unassinedVrf []*table.Vrf //Vrfs which are not assigned MPLS label
+}
+
 type zebraClient struct {
-	client             *zebra.Client
-	server             *BgpServer
-	nexthopCache       nexthopStateCache
-	pathVrf            pathVrfMap
-	mplsLabelRangeCh   chan [2]uint32 // {start, end}
-	mplsLabelRangeSize uint32
-	dead               chan struct{}
+	client       *zebra.Client
+	server       *BgpServer
+	nexthopCache nexthopStateCache
+	pathVrfMap   map[*table.Path]uint32 //vpn paths and nexthop vpn id
+	mplsLabel    mplsLabelParameter
+	dead         chan struct{}
 }
 
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
@@ -367,10 +369,6 @@ func (z *zebraClient) loop() {
 	}...)
 	defer w.Stop()
 
-	if z.mplsLabelRangeSize > 0 {
-		defer close(z.mplsLabelRangeCh)
-	}
-
 	for {
 		select {
 		case <-z.dead:
@@ -403,7 +401,12 @@ func (z *zebraClient) loop() {
 				}
 				z.updatePathByNexthopCache(paths)
 			case *zebra.GetLabelChunkBody:
-				z.mplsLabelRangeCh <- [2]uint32{body.Start, body.End}
+				startEnd := uint64(body.Start)<<32 | uint64(body.End)
+				z.mplsLabel.maps[startEnd] = table.NewBitmap(int(body.End - body.Start + 1))
+				for _, vrf := range z.mplsLabel.unassinedVrf {
+					z.assignAndSendVrfMplsLabel(vrf)
+				}
+				z.mplsLabel.unassinedVrf = nil
 			}
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
@@ -512,14 +515,67 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		cli.SendRedistribute(t, zebra.VRF_DEFAULT)
 	}
 	w := &zebraClient{
-		client:             cli,
-		server:             s,
-		nexthopCache:       make(nexthopStateCache),
-		pathVrf:            make(pathVrfMap),
-		mplsLabelRangeSize: mplsLabelRangeSize,
-		dead:               make(chan struct{}),
-		mplsLabelRangeCh:   make(chan [2]uint32),
+		client:       cli,
+		server:       s,
+		nexthopCache: make(nexthopStateCache),
+		pathVrfMap:   make(map[*table.Path]uint32),
+		mplsLabel: mplsLabelParameter{
+			rangeSize: mplsLabelRangeSize,
+			maps:      make(map[uint64]*table.Bitmap),
+		},
+		dead: make(chan struct{}),
 	}
 	go w.loop()
+	if mplsLabelRangeSize > 0 {
+		if err = cli.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: mplsLabelRangeSize}); err != nil {
+			return nil, err
+		}
+	}
 	return w, nil
+}
+
+func (z *zebraClient) assignMplsLabel() (uint32, error) {
+	if z.mplsLabel.maps == nil {
+		return 0, nil
+	}
+	var label uint32
+	for startEnd, bitmap := range z.mplsLabel.maps {
+		start := uint32(startEnd >> 32)
+		end := uint32(startEnd & 0xffffffff)
+		l, err := bitmap.FindandSetZeroBit()
+		if err == nil && start+uint32(l) <= end {
+			label = start + uint32(l)
+			break
+		}
+	}
+	if label == 0 {
+		return 0, fmt.Errorf("failed to assign new MPLS label")
+	}
+	return label, nil
+}
+
+func (z *zebraClient) assignAndSendVrfMplsLabel(vrf *table.Vrf) error {
+	var err error
+	if vrf.MplsLabel, err = z.assignMplsLabel(); vrf.MplsLabel > 0 { // success
+		if err = z.client.SendVrfLabel(vrf.MplsLabel, vrf.Id); err != nil {
+			return err
+		}
+	} else if vrf.MplsLabel == 0 { // GetLabelChunk is not performed
+		z.mplsLabel.unassinedVrf = append(z.mplsLabel.unassinedVrf, vrf)
+	}
+	return err
+}
+
+func (z *zebraClient) releaseMplsLabel(label uint32) {
+	if z.mplsLabel.maps == nil {
+		return
+	}
+	for startEnd, bitmap := range z.mplsLabel.maps {
+		start := uint32(startEnd >> 32)
+		end := uint32(startEnd & 0xffffffff)
+		if start <= label && label <= end {
+			bitmap.Unflag(uint(label - start))
+			return
+		}
+	}
 }

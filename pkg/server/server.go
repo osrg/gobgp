@@ -960,7 +960,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			peer.fsm.lock.RUnlock()
 			path = path.ToGlobal(rib.Vrfs[peerVrf])
 			if s.zclient != nil {
-				s.zclient.pathVrf[path] = rib.Vrfs[peerVrf].Id
+				s.zclient.pathVrfMap[path] = rib.Vrfs[peerVrf].Id
 			}
 		}
 
@@ -1594,9 +1594,6 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 		}
 		var err error
 		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize)
-		if err == nil && s.globalRib != nil && s.zclient.client.Version >= 4 && r.MplsLabelRangeSize > 0 {
-			err = s.globalRib.EnableMplsLabelAllocation()
-		}
 		return err
 	}, false)
 }
@@ -2035,26 +2032,6 @@ func (s *BgpServer) ListVrf(ctx context.Context, _ *api.ListVrfRequest, fn func(
 	return nil
 }
 
-func assignMplsLabel(s *BgpServer, vrf *table.Vrf) error {
-	var mplsLabel uint32
-	var err error
-	for mplsLabel, err = s.globalRib.AssignMplsLabel(); err != nil; mplsLabel, err = s.globalRib.AssignMplsLabel() {
-		if err = s.zclient.client.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: s.zclient.mplsLabelRangeSize}); err != nil {
-			return err
-		}
-		labels := <-s.zclient.mplsLabelRangeCh
-		if err = s.globalRib.AllocateMplsLabelRange(labels[0], labels[1]); err != nil {
-			return err
-		}
-	}
-	vrf.MplsLabel = mplsLabel
-	err = s.zclient.client.SendVrfLabel(vrf.MplsLabel, vrf.Id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 	return s.mgmtOperation(func() error {
 		if r == nil || r.Vrf == nil {
@@ -2088,8 +2065,8 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 			s.propagateUpdate(nil, pathList)
 		}
 		if vrf, ok := s.globalRib.Vrfs[name]; ok {
-			if s.zclient != nil && s.zclient.mplsLabelRangeSize > 0 {
-				go assignMplsLabel(s, vrf)
+			if s.zclient != nil && s.zclient.mplsLabel.rangeSize > 0 {
+				s.zclient.assignAndSendVrfMplsLabel(vrf)
 			}
 		}
 		return nil
@@ -2109,6 +2086,10 @@ func (s *BgpServer) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) erro
 			if peerVrf == name {
 				return fmt.Errorf("failed to delete VRF %s: neighbor %s is in use", name, n.ID())
 			}
+		}
+		vrfMplsLabel := s.globalRib.Vrfs[name].MplsLabel
+		if vrfMplsLabel > 0 {
+			s.zclient.releaseMplsLabel(vrfMplsLabel)
 		}
 		pathList, err := s.globalRib.DeleteVrf(name)
 		if err != nil {
