@@ -12318,15 +12318,12 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 			if e.(*MessageError).Stronger(strongestError) {
 				strongestError = e
 			}
-			break
+			return strongestError
 		}
 		data = data[p.Len(options...):]
 		if e == nil || e.(*MessageError).ErrorHandling != ERROR_HANDLING_ATTRIBUTE_DISCARD {
 			msg.PathAttributes = append(msg.PathAttributes, p)
 		}
-	}
-	if strongestError != nil {
-		return strongestError
 	}
 
 	msg.NLRI = make([]*IPAddrPrefix, 0)
@@ -12347,7 +12344,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		msg.NLRI = append(msg.NLRI, n)
 	}
 
-	return nil
+	return strongestError
 }
 
 func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
