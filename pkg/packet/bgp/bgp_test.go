@@ -176,9 +176,30 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 func Test_MalformedUpdateMsg(t *testing.T) {
 	assert := assert.New(t)
+	var bufin []byte
+	var u *BGPUpdate
+	var err error
+
+	// Invalid AS_PATH
+	bufin = []byte{
+		0x00, 0x00, // Withdraws(0)
+		0x00, 0x16, // Attrs Len(22)
+		0x40, 0x01, 0x01, 0x00, // Attr(ORIGIN)
+		0x40, 0x03, 0x04, 0xc0, // Attr(NEXT_HOP)
+		0xa8, 0x01, 0x64,
+		0x40, 0x02, 0x17, // Attr(AS_PATH) - invalid length
+		0x02, 0x03, 0xfd, 0xe8,
+		0xfd, 0xe8, 0xfd, 0xe8,
+		0x08, 0x0a, // NLRI
+	}
+
+	u = &BGPUpdate{}
+	err = u.DecodeFromBytes(bufin)
+	assert.Error(err)
+	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, err.(*MessageError).ErrorHandling)
 
 	// Invalid AGGREGATOR
-	bufin := []byte{
+	bufin = []byte{
 		0x00, 0x00, // Withdraws(0)
 		0x00, 0x16, // Attrs Len(22)
 		0xc0, 0x07, 0x05, // Flag, Type(7), Length(5)
@@ -190,8 +211,8 @@ func Test_MalformedUpdateMsg(t *testing.T) {
 		0x40, 0x02, 0x00, // Attr(AS_PATH)
 	}
 
-	u := &BGPUpdate{}
-	err := u.DecodeFromBytes(bufin)
+	u = &BGPUpdate{}
+	err = u.DecodeFromBytes(bufin)
 	assert.Error(err)
 	assert.Equal(ERROR_HANDLING_ATTRIBUTE_DISCARD, err.(*MessageError).ErrorHandling)
 
