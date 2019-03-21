@@ -12318,6 +12318,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 			if e.(*MessageError).Stronger(strongestError) {
 				strongestError = e
 			}
+			return strongestError
 		}
 		data = data[p.Len(options...):]
 		if e == nil || e.(*MessageError).ErrorHandling != ERROR_HANDLING_ATTRIBUTE_DISCARD {
