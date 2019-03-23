@@ -511,7 +511,7 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sAsPathLength: %s\n", ind, prettyString(c.AsPathLength))
 	}
 	if c.RpkiResult != -1 {
-		fmt.Printf("%sRPKI result: %s\n", ind, strings.TrimLeft(api.Validation_State(c.RpkiResult).String(), "STATE_"))
+		fmt.Printf("%sRPKI result: %s\n", ind, strings.TrimPrefix(api.Validation_State(c.RpkiResult).String(), "STATE_"))
 	}
 	if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
 		fmt.Printf("%sRoute Type: %s\n", ind, routeTypePrettyString(c.RouteType))
