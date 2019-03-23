@@ -36,6 +36,44 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
+func TestStop(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.Nil(err)
+	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	s = NewBgpServer()
+	go s.Serve()
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.Nil(err)
+	p := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "2.2.2.2",
+			PeerAs:          1,
+		},
+		RouteServer: &api.RouteServer{
+			RouteServerClient: true,
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p})
+	assert.Nil(err)
+	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+}
+
 func TestModPolicyAssign(t *testing.T) {
 	assert := assert.New(t)
 	s := NewBgpServer()
@@ -184,18 +222,16 @@ func TestMonitor(test *testing.T) {
 	assert.Nil(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	n := &config.Neighbor{
-		Config: config.NeighborConfig{
+	p1 := &api.Peer{
+		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          2,
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
-				PassiveMode: true,
-			},
+		Transport: &api.Transport{
+			PassiveMode: true,
 		},
 	}
-	err = s.addNeighbor(n)
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.Nil(err)
 
 	t := NewBgpServer()
@@ -210,15 +246,13 @@ func TestMonitor(test *testing.T) {
 	assert.Nil(err)
 	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	m := &config.Neighbor{
-		Config: config.NeighborConfig{
+	p2 := &api.Peer{
+		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          1,
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
-				RemotePort: 10179,
-			},
+		Transport: &api.Transport{
+			RemotePort: 10179,
 		},
 	}
 	ch := make(chan struct{})
@@ -228,7 +262,7 @@ func TestMonitor(test *testing.T) {
 		}
 	})
 
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.Nil(err)
 
 	<-ch
@@ -689,24 +723,20 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	assert.Nil(err)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	n := &config.Neighbor{
-		Config: config.NeighborConfig{
+	p1 := &api.Peer{
+		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          2,
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
-				PassiveMode: true,
-			},
+		Transport: &api.Transport{
+			PassiveMode: true,
 		},
-		GracefulRestart: config.GracefulRestart{
-			Config: config.GracefulRestartConfig{
-				Enabled:     true,
-				RestartTime: minConnectRetryInterval,
-			},
+		GracefulRestart: &api.GracefulRestart{
+			Enabled:     true,
+			RestartTime: minConnectRetryInterval,
 		},
 	}
-	err = s1.addNeighbor(n)
+	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.Nil(err)
 
 	s2 := NewBgpServer()
@@ -721,30 +751,27 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	require.NoError(t, err)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	m := &config.Neighbor{
-		Config: config.NeighborConfig{
+	p2 := &api.Peer{
+		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          1,
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
-				RemotePort: 10179,
-			},
+		Transport: &api.Transport{
+			RemotePort: 10179,
 		},
-		GracefulRestart: config.GracefulRestart{
-			Config: config.GracefulRestartConfig{
-				Enabled:     true,
-				RestartTime: 1,
-			},
+		GracefulRestart: &api.GracefulRestart{
+			Enabled:     true,
+			RestartTime: 1,
 		},
 	}
+
 	ch := make(chan struct{})
 	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
 		if peer.State.SessionState == api.PeerState_ESTABLISHED {
 			close(ch)
 		}
 	})
-	err = s2.addNeighbor(m)
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.Nil(err)
 	<-ch
 

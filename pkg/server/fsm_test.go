@@ -311,15 +311,14 @@ func TestCheckOwnASLoop(t *testing.T) {
 
 func makePeerAndHandler() (*peer, *fsmHandler) {
 	p := &peer{
-		fsm:      newFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
-		outgoing: channels.NewInfiniteChannel(),
+		fsm: newFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
 	}
 
 	h := &fsmHandler{
 		fsm:           p.fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		incoming:      channels.NewInfiniteChannel(),
-		outgoing:      p.outgoing,
+		outgoing:      channels.NewInfiniteChannel(),
 	}
 
 	return p, h
