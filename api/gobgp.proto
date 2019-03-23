@@ -439,6 +439,8 @@ message AddBmpRequest {
   }
   MonitoringPolicy policy = 3;
   int32 StatisticsTimeout = 4;
+  string SysName = 5;
+  string SysDescr = 6;
 }
 
 message DeleteBmpRequest {

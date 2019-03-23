@@ -590,6 +590,18 @@ module gobgp {
         "Enable feature for mirroring of received BGP messages
          mainly for debugging purpose";
     }
+
+    leaf sys-name {
+      type string;
+      description
+        "Reference to the SysName of the BMP server";
+    }
+
+    leaf sys-descr {
+      type string;
+      description
+        "Reference to the SysDescr of the BMP server";
+    }
   }
 
   grouping gobgp-bmp-server-set {
