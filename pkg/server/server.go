@@ -1607,6 +1607,8 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 		return s.bmpManager.addServer(&config.BmpServerConfig{
 			Address:               r.Address,
 			Port:                  r.Port,
+			SysName:               r.SysName,
+			SysDescr:              r.SysDescr,
 			RouteMonitoringPolicy: config.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Policy)],
 			StatisticsTimeout:     uint16(r.StatisticsTimeout),
 		})

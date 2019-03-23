@@ -1416,7 +1416,9 @@ type BmpServerConfig struct {
 	// gobgp:route-mirroring-enabled's original type is boolean.
 	// Enable feature for mirroring of received BGP messages
 	// mainly for debugging purpose.
-	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
+	RouteMirroringEnabled bool   `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
+	SysName               string `mapstructure:"SysName" json:"SysName,omitempty"`
+	SysDescr              string `mapstructure:"SysDescr" json:"SysDescr,omitempty"`
 }
 
 func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {

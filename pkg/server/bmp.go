@@ -154,7 +154,12 @@ func (b *bmpClient) loop() {
 				return err
 			}
 
-			if err := write(bmp.NewBMPInitiation([]bmp.BMPInfoTLVInterface{})); err != nil {
+			tlv := []bmp.BMPInfoTLVInterface{
+				bmp.NewBMPInfoTLVString(bmp.BMP_INIT_TLV_TYPE_SYS_NAME, b.c.SysName),
+				bmp.NewBMPInfoTLVString(bmp.BMP_INIT_TLV_TYPE_SYS_DESCR, b.c.SysDescr),
+			}
+
+			if err := write(bmp.NewBMPInitiation(tlv)); err != nil {
 				return false
 			}
 

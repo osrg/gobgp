@@ -350,6 +350,9 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	}
 
 	for idx, server := range b.BmpServers {
+		if server.Config.SysName == "" || server.Config.SysDescr == "" {
+			return fmt.Errorf("BMP Initiation Message must contain sysDescr and sysName Information TLVs")
+		}
 		if server.Config.Port == 0 {
 			server.Config.Port = bmp.BMP_DEFAULT_PORT
 		}

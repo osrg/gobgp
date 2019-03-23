@@ -2370,6 +2370,8 @@ type AddBmpRequest struct {
 	Port              uint32                         `protobuf:"varint,2,opt,name=port" json:"port,omitempty"`
 	Policy            AddBmpRequest_MonitoringPolicy `protobuf:"varint,3,opt,name=policy,enum=gobgpapi.AddBmpRequest_MonitoringPolicy" json:"policy,omitempty"`
 	StatisticsTimeout int32                          `protobuf:"varint,4,opt,name=StatisticsTimeout,json=statisticsTimeout" json:"StatisticsTimeout,omitempty"`
+	SysName           string                         `protobuf:"bytes,5,opt,name=SysName,proto3" json:"SysName,omitempty"`
+	SysDescr          string                         `protobuf:"bytes,6,opt,name=SysDescr,proto3" json:"SysDescr,omitempty"`
 }
 
 func (m *AddBmpRequest) Reset()                    { *m = AddBmpRequest{} }

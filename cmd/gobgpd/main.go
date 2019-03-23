@@ -28,7 +28,7 @@ import (
 
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/jessevdk/go-flags"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -279,6 +279,8 @@ func main() {
 						if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
 							Address:           c.Config.Address,
 							Port:              c.Config.Port,
+							SysName:           c.Config.SysName,
+							SysDescr:          c.Config.SysDescr,
 							Policy:            api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
 							StatisticsTimeout: int32(c.Config.StatisticsTimeout),
 						}); err != nil {
