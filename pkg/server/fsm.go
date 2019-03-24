@@ -57,6 +57,7 @@ const (
 	fsmOpenMsgReceived
 	fsmOpenMsgNegotiated
 	fsmHardReset
+	fsmDeConfigured
 )
 
 type fsmStateReason struct {

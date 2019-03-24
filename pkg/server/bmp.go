@@ -288,6 +288,8 @@ func bmpPeerDown(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
 	case fsmReadFailed, fsmWriteFailed:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
+	case fsmDeConfigured:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
 	}
 	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.BGPNotification, ev.StateReason.Data)
 }

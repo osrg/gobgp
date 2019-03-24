@@ -337,6 +337,19 @@ func (s *BgpServer) Serve() {
 				"State": state,
 			}).Debug("freed fsm.h")
 
+			if fsm.state == bgp.BGP_FSM_ESTABLISHED {
+				s.notifyWatcher(watchEventTypePeerState, &watchEventPeerState{
+					PeerAS:      fsm.peerInfo.AS,
+					PeerAddress: fsm.peerInfo.Address,
+					PeerID:      fsm.peerInfo.ID,
+					State:       bgp.BGP_FSM_IDLE,
+					Timestamp:   time.Now(),
+					StateReason: &fsmStateReason{
+						Type: fsmDeConfigured,
+					},
+				})
+			}
+
 			cleanInfiniteChannel(fsm.outgoingCh)
 			cleanInfiniteChannel(fsm.incomingCh)
 			s.delIncoming(fsm.incomingCh)
