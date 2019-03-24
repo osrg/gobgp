@@ -1394,12 +1394,12 @@ type BmpServerState struct {
 	// Enable feature for mirroring of received BGP messages
 	// mainly for debugging purpose.
 	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
-	// original -> gobgp:SysName
+	// original -> gobgp:sys-name
 	// Reference to the SysName of the BMP server.
-	Sysname string `mapstructure:"sysname" json:"sysname,omitempty"`
-	// original -> gobgp:SysDescr
+	SysName string `mapstructure:"sys-name" json:"sys-name,omitempty"`
+	// original -> gobgp:sys-descr
 	// Reference to the SysDescr of the BMP server.
-	Sysdescr string `mapstructure:"sysdescr" json:"sysdescr,omitempty"`
+	SysDescr string `mapstructure:"sys-descr" json:"sys-descr,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -1423,12 +1423,12 @@ type BmpServerConfig struct {
 	// Enable feature for mirroring of received BGP messages
 	// mainly for debugging purpose.
 	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
-	// original -> gobgp:SysName
+	// original -> gobgp:sys-name
 	// Reference to the SysName of the BMP server.
-	Sysname string `mapstructure:"sysname" json:"sysname,omitempty"`
-	// original -> gobgp:SysDescr
+	SysName string `mapstructure:"sys-name" json:"sys-name,omitempty"`
+	// original -> gobgp:sys-descr
 	// Reference to the SysDescr of the BMP server.
-	Sysdescr string `mapstructure:"sysdescr" json:"sysdescr,omitempty"`
+	SysDescr string `mapstructure:"sys-descr" json:"sys-descr,omitempty"`
 }
 
 func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
@@ -1450,10 +1450,10 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 	if lhs.RouteMirroringEnabled != rhs.RouteMirroringEnabled {
 		return false
 	}
-	if lhs.Sysname != rhs.Sysname {
+	if lhs.SysName != rhs.SysName {
 		return false
 	}
-	if lhs.Sysdescr != rhs.Sysdescr {
+	if lhs.SysDescr != rhs.SysDescr {
 		return false
 	}
 	return true

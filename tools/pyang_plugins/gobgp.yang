@@ -591,13 +591,13 @@ module gobgp {
          mainly for debugging purpose";
     }
 
-    leaf SysName {
+    leaf sys-name {
       type string;
       description
         "Reference to the SysName of the BMP server";
     }
 
-    leaf SysDescr {
+    leaf sys-descr {
       type string;
       description
         "Reference to the SysDescr of the BMP server";
