@@ -73,6 +73,7 @@ func (s *server) serve() error {
 				"Key":   host,
 				"Error": err,
 			}).Warn("listen failed")
+			lis.Close()
 			return
 		}
 		err = s.grpcServer.Serve(lis)
