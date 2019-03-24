@@ -349,9 +349,13 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		return err
 	}
 
+	bmpSysPrefix := "Gobgp-R"
 	for idx, server := range b.BmpServers {
-		if server.Config.SysName == "" || server.Config.SysDescr == "" {
-			return fmt.Errorf("BMP Initiation Message must contain sysDescr and sysName Information TLVs")
+		if server.Config.SysName == "" {
+			server.Config.SysName = bmpSysPrefix + strconv.Itoa(idx)
+		}
+		if server.Config.SysDescr == "" {
+			server.Config.SysDescr = "Gobgp Version: master"
 		}
 		if server.Config.Port == 0 {
 			server.Config.Port = bmp.BMP_DEFAULT_PORT
