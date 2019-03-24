@@ -3076,6 +3076,30 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	assert.Equal(t, m.Evaluate(p, nil), true)
 }
 
+func TestLargeCommunitiesMatchClearAction(t *testing.T) {
+	coms := []*bgp.LargeCommunity{
+		&bgp.LargeCommunity{ASN: 100, LocalData1: 100, LocalData2: 100},
+		&bgp.LargeCommunity{ASN: 100, LocalData1: 200, LocalData2: 200},
+	}
+	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
+
+	a, err := NewLargeCommunityAction(config.SetLargeCommunity{
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{
+				"100:100:100",
+				"100:200:200",
+			},
+		},
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	})
+
+	assert.Equal(t, err, nil)
+	p = a.Apply(p, nil)
+
+	var lc []*bgp.LargeCommunity
+	assert.Equal(t, lc, p.GetLargeCommunities())
+}
+
 func TestAfiSafiInMatchPath(t *testing.T) {
 	condition, err := NewAfiSafiInCondition([]config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST})
 	require.NoError(t, err)

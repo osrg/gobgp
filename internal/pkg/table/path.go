@@ -900,6 +900,12 @@ func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
 }
 
 func (path *Path) SetLargeCommunities(cs []*bgp.LargeCommunity, doReplace bool) {
+	if len(cs) == 0 && doReplace {
+		// clear large communities
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY)
+		return
+	}
+
 	a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY)
 	if a == nil || doReplace {
 		path.setPathAttr(bgp.NewPathAttributeLargeCommunities(cs))
