@@ -62,30 +62,38 @@ func newAPIserver(b *BgpServer, g *grpc.Server, hosts string) *server {
 func (s *server) serve() error {
 	var wg sync.WaitGroup
 	l := strings.Split(s.hosts, ",")
+	retries := 3
 	wg.Add(len(l))
 
-	serve := func(host string) {
+	serve := func(host string, retries int) {
 		defer wg.Done()
 		lis, err := net.Listen("tcp", host)
-		if err != nil {
+		for k := 1; k <= retries; k++ {
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "grpc",
+					"Key":   host,
+					"Error": err,
+					"Retry": k,
+				}).Warn("listen failed")
+				lis.Close()
+				continue
+			}
+			err = s.grpcServer.Serve(lis)
+			if err == nil {
+				break
+			}
 			log.WithFields(log.Fields{
 				"Topic": "grpc",
 				"Key":   host,
 				"Error": err,
-			}).Warn("listen failed")
-			lis.Close()
-			return
+			}).Warn("accept failed")
 		}
-		err = s.grpcServer.Serve(lis)
-		log.WithFields(log.Fields{
-			"Topic": "grpc",
-			"Key":   host,
-			"Error": err,
-		}).Warn("accept failed")
+
 	}
 
 	for _, host := range l {
-		go serve(host)
+		go serve(host, retries)
 	}
 	wg.Wait()
 	return nil
