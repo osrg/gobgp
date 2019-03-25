@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -161,7 +162,7 @@ func TestListPolicyAssignment(t *testing.T) {
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	for i := 1; i < 4; i++ {
-		addr := fmt.Sprintf("127.0.0.%d", i)
+		addr := "127.0.0." + strconv.Itoa(i)
 		p := &api.Peer{
 			Conf: &api.PeerConf{
 				NeighborAddress: addr,
