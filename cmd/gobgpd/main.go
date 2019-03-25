@@ -28,7 +28,7 @@ import (
 
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/golang/protobuf/ptypes/any"
-	flags "github.com/jessevdk/go-flags"
+	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
