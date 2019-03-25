@@ -17,9 +17,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"strconv"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
@@ -49,7 +49,8 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if globalOpts.PprofPort > 0 {
 				go func() {
-					if err := http.ListenAndServe(fmt.Sprintf("localhost:%d", globalOpts.PprofPort), nil); err != nil {
+					address := "localhost:" + strconv.Itoa(globalOpts.PprofPort)
+					if err := http.ListenAndServe(address, nil); err != nil {
 						exitWithError(err)
 					}
 				}()
