@@ -76,8 +76,13 @@ func (s *server) serve() error {
 					"Error": err,
 					"Retry": k,
 				}).Warn("listen failed")
+
+				e, ok := err.(net.Error)
+				if (ok && e.Temporary()) || (ok && e.Timeout()) {
+					continue
+				}
 				lis.Close()
-				continue
+				break
 			}
 			err = s.grpcServer.Serve(lis)
 			if err == nil {
