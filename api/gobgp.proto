@@ -518,6 +518,7 @@ message Path {
   // - EVPNInclusiveMulticastEthernetTagRoute
   // - EVPNEthernetSegmentRoute
   // - EVPNIPPrefixRoute
+  // - EVPNIPMSIRoute
   // - LabeledVPNIPAddressPrefix
   // - RouteTargetMembershipNLRI
   // - FlowSpecNLRI
