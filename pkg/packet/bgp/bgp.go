@@ -2914,6 +2914,87 @@ func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIde
 	})
 }
 
+type EVPNIPMSIRoute struct {
+	RD   RouteDistinguisherInterface
+	ETag uint32
+	EC   ExtendedCommunityInterface
+}
+
+func (er *EVPNIPMSIRoute) Len() int {
+	// RD(8) + ETag(4) + EC(8)
+	return 20
+}
+
+func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
+
+	er.RD = GetRouteDistinguisher(data[0:8])
+
+	data = data[er.RD.Len():]
+	er.ETag = binary.BigEndian.Uint32(data[0:4])
+
+	data = data[4:]
+	ec, err := ParseExtended(data[0:64])
+	if err != nil {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Parse extended community interface failed"))
+	}
+	er.EC = ec
+	return nil
+}
+
+func (er *EVPNIPMSIRoute) Serialize() ([]byte, error) {
+	buf := make([]byte, 20)
+
+	if er.RD != nil {
+		tbuf, err := er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		copy(buf[0:8], tbuf)
+	}
+
+	binary.BigEndian.PutUint32(buf[8:12], er.ETag)
+
+	ec, err := er.EC.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(buf, ec...), nil
+}
+
+func (er *EVPNIPMSIRoute) String() string {
+	ec := "default"
+	if er.EC != nil {
+		ec = er.EC.String()
+	}
+	return fmt.Sprintf("[rd:%s][etag:%d][EC]:%s]", er.RD, er.ETag, ec)
+}
+
+func (er *EVPNIPMSIRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD   RouteDistinguisherInterface `json:"rd"`
+		ETag uint32                      `json:"etag"`
+		EC   string                      `json:"ec"`
+	}{
+		RD:   er.RD,
+		ETag: er.ETag,
+		EC:   er.EC.String(),
+	})
+}
+
+func (er *EVPNIPMSIRoute) rd() RouteDistinguisherInterface {
+	return er.RD
+}
+
+func NewEVPNIPMSIRoute(rd RouteDistinguisherInterface, etag uint32, ec ExtendedCommunityInterface) *EVPNNLRI {
+
+	return NewEVPNNLRI(EVPN_I_PMSI, &EVPNIPMSIRoute{
+		RD:   rd,
+		ETag: etag,
+		EC:   ec,
+	})
+}
+
 type EVPNRouteTypeInterface interface {
 	Len() int
 	DecodeFromBytes([]byte) error
@@ -2945,6 +3026,7 @@ const (
 	EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3
 	EVPN_ETHERNET_SEGMENT_ROUTE             = 4
 	EVPN_IP_PREFIX                          = 5
+	EVPN_I_PMSI                             = 9
 )
 
 type EVPNNLRI struct {
