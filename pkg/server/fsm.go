@@ -1352,10 +1352,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 								"Key":   fsm.pConf.State.NeighborAddress,
 								"State": fsm.state.String(),
 							}).Warn("restart flag is not set")
-							// send notification?
-							h.conn.Close()
-							fsm.lock.Unlock()
-							return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil)
+							// just ignore
 						}
 
 						// RFC 4724 3
