@@ -421,9 +421,10 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 		case <-ctx.Done():
 			return -1, newfsmStateReason(fsmDying, nil, nil)
 		case <-fsm.gracefulRestartTimer.C:
-			fsm.lock.RLock()
+			fsm.lock.Lock()
 			restarting := fsm.pConf.GracefulRestart.State.PeerRestarting
-			fsm.lock.RUnlock()
+			fsm.pConf.GracefulRestart.State.PeerRestarting = false
+			fsm.lock.Unlock()
 
 			if restarting {
 				fsm.lock.RLock()
@@ -655,9 +656,10 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			// away.
 			return bgp.BGP_FSM_OPENSENT, newfsmStateReason(fsmNewConnection, nil, nil)
 		case <-fsm.gracefulRestartTimer.C:
-			fsm.lock.RLock()
+			fsm.lock.Lock()
 			restarting := fsm.pConf.GracefulRestart.State.PeerRestarting
-			fsm.lock.RUnlock()
+			fsm.pConf.GracefulRestart.State.PeerRestarting = false
+			fsm.lock.Unlock()
 			if restarting {
 				fsm.lock.RLock()
 				log.WithFields(log.Fields{
@@ -1231,9 +1233,10 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			}).Warn("Closed an accepted connection")
 			fsm.lock.RUnlock()
 		case <-fsm.gracefulRestartTimer.C:
-			fsm.lock.RLock()
+			fsm.lock.Lock()
 			restarting := fsm.pConf.GracefulRestart.State.PeerRestarting
-			fsm.lock.RUnlock()
+			fsm.pConf.GracefulRestart.State.PeerRestarting = false
+			fsm.lock.Unlock()
 			if restarting {
 				fsm.lock.RLock()
 				log.WithFields(log.Fields{
@@ -1498,9 +1501,10 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			}).Warn("Closed an accepted connection")
 			fsm.lock.RUnlock()
 		case <-fsm.gracefulRestartTimer.C:
-			fsm.lock.RLock()
+			fsm.lock.Lock()
 			restarting := fsm.pConf.GracefulRestart.State.PeerRestarting
-			fsm.lock.RUnlock()
+			fsm.pConf.GracefulRestart.State.PeerRestarting = false
+			fsm.lock.Unlock()
 			if restarting {
 				fsm.lock.RLock()
 				log.WithFields(log.Fields{
