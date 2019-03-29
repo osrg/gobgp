@@ -868,7 +868,7 @@ func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error
 	}
 	ec, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_SOURCE_AS, m["rt"][0])
 	if err != nil {
-		return nil, nil, fmt.Errorf("Route target parse failed")
+		return nil, nil, fmt.Errorf("route target parse failed")
 	}
 
 	if len(m["encap"]) > 0 {
