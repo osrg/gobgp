@@ -829,6 +829,60 @@ func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, r), extcomms, nil
 }
 
+func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	// Format:
+	// etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+	req := 4
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m, err := extractReserved(args, map[string]int{
+		"etag":  paramSingle,
+		"rd":    paramSingle,
+		"rt":    paramSingle,
+		"encap": paramSingle})
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, f := range []string{"etag", "rd"} {
+		for len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	e, err := strconv.ParseUint(m["etag"][0], 10, 32)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid etag: %s: %s", m["etag"][0], err)
+	}
+	etag := uint32(e)
+
+	extcomms := make([]string, 0)
+	if len(m["rt"]) > 0 {
+		extcomms = append(extcomms, "rt")
+		extcomms = append(extcomms, m["rt"]...)
+	}
+	ec, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_SOURCE_AS, m["rt"][0])
+	if err != nil {
+		return nil, nil, fmt.Errorf("route target parse failed")
+	}
+
+	if len(m["encap"]) > 0 {
+		extcomms = append(extcomms, "encap", m["encap"][0])
+	}
+
+	r := &bgp.EVPNIPMSIRoute{
+		RD:   rd,
+		ETag: etag,
+		EC:   ec,
+	}
+	return bgp.NewEVPNNLRI(bgp.EVPN_I_PMSI, r), extcomms, nil
+}
+
 func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	if len(args) < 1 {
 		return nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
@@ -846,6 +900,8 @@ func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 		return parseEvpnEthernetSegmentArgs(args)
 	case "prefix":
 		return parseEvpnIPPrefixArgs(args)
+	case "i-pmsi":
+		return parseEvpnIPMSIArgs(args)
 	}
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }

@@ -2933,7 +2933,7 @@ func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 
 	data = data[4:]
-	ec, err := ParseExtended(data[0:64])
+	ec, err := ParseExtended(data[0:8])
 	if err != nil {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Parse extended community interface failed"))
 	}
@@ -2967,7 +2967,7 @@ func (er *EVPNIPMSIRoute) String() string {
 	if er.EC != nil {
 		ec = er.EC.String()
 	}
-	return fmt.Sprintf("[rd:%s][etag:%d][EC]:%s]", er.RD, er.ETag, ec)
+	return fmt.Sprintf("[type:I-PMSI][rd:%s][etag:%d][EC:%s]", er.RD, er.ETag, ec)
 }
 
 func (er *EVPNIPMSIRoute) MarshalJSON() ([]byte, error) {
@@ -10011,6 +10011,9 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 		return nil, err
 	}
 	localAdmin, _ := strconv.ParseUint(elems[10], 10, 32)
+	if subtype == EC_SUBTYPE_SOURCE_AS {
+		localAdmin = 0
+	}
 	ip := net.ParseIP(elems[1])
 	isTransitive := true
 	switch {

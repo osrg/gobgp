@@ -239,6 +239,37 @@ $ gobgp global rib -a evpn prefix
 $ gobgp global rib -a evpn del prefix 10.0.0.0/24 172.16.0.1 esi MSTP aa:aa:aa:aa:aa:aa 100 etag 200 label 300 rd 1.1.1.1:65000
 ```
 
+### I-PMSI Route
+
+```bash
+# Add a route
+$ gobgp global rib -a evpn add i-pmsi etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
+
+# Show routes
+$ gobgp global rib -a evpn [i-pmsi]
+
+# Delete route
+$ gobgp global rib -a evpn del i-pmsi etag <etag> rd <rd>
+```
+
+#### Example - I-PMSI Route
+
+```bash
+# Simple case
+$ gobgp global rib -a evpn add i-pmsi etag 100 rd 1.1.1.1:65000 rt 65000:200
+$ gobgp global rib -a evpn i-pmsi
+   Network                                                       Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:I-PMSI][rd:1.1.1.1:65000][etag:100][EC:65000:0]            0.0.0.0                                   00:00:00   [{Origin: ?}
+$ gobgp global rib -a evpn del i-pmsi 10.0.0.0/24 etag 100 rd 1.1.1.1:65000
+
+# With optionals
+$ gobgp global rib -a evpn add i-pmsi etag 100 rd 1.1.1.1:65000 rt 65000:200 encap vxlan pmsi ingress-repl 100 1.1.1.1
+$ gobgp global rib -a evpn i-pmsi
+   Network                                                       Labels     Next Hop             AS_PATH              Age        Attrs
+*> [type:I-PMSI][rd:1.1.1.1:65000][etag:100][EC:65000:0]            0.0.0.0                                   00:00:00   [{Origin: ?} {Pmsi: type: ingress-repl, label: 100, tunnel-id: 1.1.1.1} {Extcomms: [65000:200], [VXLAN]}]
+$ gobgp global rib -a evpn del i-pmsi etag 200 rd 1.1.1.1:65000
+```
+
 ## Reference
 
 ### Router's MAC Option
