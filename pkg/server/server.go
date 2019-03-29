@@ -2417,12 +2417,17 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 				Prefix: dst.GetNlri().String(),
 				Paths:  make([]*api.Path, 0, len(dst.GetAllKnownPathList())),
 			}
-			for i, path := range dst.GetAllKnownPathList() {
+			knownPathList := dst.GetAllKnownPathList()
+			for i, path := range knownPathList {
 				p := toPathApi(path, getValidation(v, idx))
 				idx++
-				if i == 0 && !table.SelectionOptions.DisableBestPathSelection {
-					switch r.TableType {
-					case api.TableType_LOCAL, api.TableType_GLOBAL:
+				if !table.SelectionOptions.DisableBestPathSelection {
+					if i == 0 {
+						switch r.TableType {
+						case api.TableType_LOCAL, api.TableType_GLOBAL:
+							p.Best = true
+						}
+					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
 						p.Best = true
 					}
 				}
