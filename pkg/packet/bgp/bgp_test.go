@@ -697,7 +697,7 @@ func Test_AddPath(t *testing.T) {
 	}
 	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_RTC_UC: BGP_ADD_PATH_BOTH}}
 	{
-		rt, _ := ParseRouteTarget("100:100")
+		rt, _ := ParseRouteTarget(EC_SUBTYPE_ROUTE_TARGET, "100:100")
 		n1 := NewRouteTargetMembershipNLRI(65000, rt)
 		n1.SetPathLocalIdentifier(30)
 		bits, err := n1.Serialize(opt)

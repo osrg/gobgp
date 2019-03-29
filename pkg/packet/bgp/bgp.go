@@ -2933,7 +2933,7 @@ func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 
 	data = data[4:]
-	ec, err := ParseExtended(data[0:64])
+	ec, err := ParseExtended(data[0:8])
 	if err != nil {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Parse extended community interface failed"))
 	}
@@ -10011,6 +10011,9 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 		return nil, err
 	}
 	localAdmin, _ := strconv.ParseUint(elems[10], 10, 32)
+	if subtype == EC_SUBTYPE_SOURCE_AS {
+		localAdmin = 0
+	}
 	ip := net.ParseIP(elems[1])
 	isTransitive := true
 	switch {
@@ -10029,8 +10032,8 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 	}
 }
 
-func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
-	return ParseExtendedCommunity(EC_SUBTYPE_ROUTE_TARGET, rt)
+func ParseRouteTarget(subtype ExtendedCommunityAttrSubType, rt string) (ExtendedCommunityInterface, error) {
+	return ParseExtendedCommunity(subtype, rt)
 }
 
 func SerializeExtendedCommunities(comms []ExtendedCommunityInterface) ([][]byte, error) {

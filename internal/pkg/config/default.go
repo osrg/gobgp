@@ -300,7 +300,7 @@ func setDefaultVrfConfigValues(v *Vrf) error {
 		v.Config.ImportRtList = v.Config.BothRtList
 	}
 	for _, rtString := range v.Config.ImportRtList {
-		_, err := bgp.ParseRouteTarget(rtString)
+		_, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_ROUTE_TARGET, rtString)
 		if err != nil {
 			return fmt.Errorf("invalid import rt for vrf %s: %s", v.Config.Name, rtString)
 		}
@@ -310,7 +310,7 @@ func setDefaultVrfConfigValues(v *Vrf) error {
 		v.Config.ExportRtList = v.Config.BothRtList
 	}
 	for _, rtString := range v.Config.ExportRtList {
-		_, err := bgp.ParseRouteTarget(rtString)
+		_, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_ROUTE_TARGET, rtString)
 		if err != nil {
 			return fmt.Errorf("invalid export rt for vrf %s: %s", v.Config.Name, rtString)
 		}
