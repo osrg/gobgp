@@ -644,11 +644,11 @@ func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 	}
 	peer.fsm.lock.RUnlock()
 
-	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	path, _, _ = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
 	if path == nil && old != nil {
-		o := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
+		o, _, _ := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
 		if o != nil {
 			path = old.Clone(true)
 		}
@@ -1021,7 +1021,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			policyOptions.ValidationResult = v
 		}
 
-		if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
+		if p,_,_ := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
 			path = p
 		} else {
 			path = path.Clone(true)
@@ -1484,7 +1484,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
-			pathList, eor, notification := peer.handleUpdate(e)
+			pathList, eor, notification := peer.handleUpdate(e,s)
 			if notification != nil {
 				sendfsmOutgoingMsg(peer, nil, notification, true)
 				return
@@ -2412,17 +2412,61 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 
 	idx := 0
 	err = func() error {
+
 		for _, dst := range tbl.GetDestinations() {
+
 			d := api.Destination{
 				Prefix: dst.GetNlri().String(),
 				Paths:  make([]*api.Path, 0, len(dst.GetAllKnownPathList())),
 			}
 			knownPathList := dst.GetAllKnownPathList()
-			for i, path := range knownPathList {
-				p := toPathApi(path, getValidation(v, idx))
-				idx++
-				if !table.SelectionOptions.DisableBestPathSelection {
-					if i == 0 {
+			for i, path := range dst.GetAllKnownPathList() {
+				var policy *table.Policy
+				var statement *table.Statement
+				log.Errorf("%+v", r.PolicyOptions)
+				if r.PolicyOptions != nil && (r.PolicyOptions.ApplyPolicies || r.PolicyOptions.PolicyDetails)  {
+					peer, _ := s.neighborMap[r.Name]
+
+					rs := peer != nil && peer.isRouteServerClient()
+					tableId := table.GLOBAL_RIB_NAME
+					if rs {
+						tableId = peer.TableID()
+					}
+
+					policyOptions := &table.PolicyOptions{}
+
+					if v := s.roaManager.validate(path); v != nil {
+						policyOptions.ValidationResult = v
+					}
+
+					if !rs && peer != nil {
+						peer.fsm.lock.RLock()
+						policyOptions.Info = peer.fsm.peerInfo
+						peer.fsm.lock.RUnlock()
+					}
+
+					var direction table.PolicyDirection = table.POLICY_DIRECTION_NONE
+					switch r.TableType {
+					case api.TableType_ADJ_IN:
+						direction = table.POLICY_DIRECTION_IMPORT
+					default:
+						direction = table.POLICY_DIRECTION_EXPORT
+					}
+
+					var p *table.Path
+					p, policy, statement = s.policy.ApplyPolicy(tableId, direction, path, policyOptions)
+					if r.PolicyOptions.ApplyPolicies {
+						if p == nil && !r.PolicyOptions.ApplyRouteDisposition {
+							p = path
+						}
+						path = p
+					}
+				}
+
+				if path != nil {
+					p := toPathApi(path, getValidation(v, idx), policy, statement)
+					idx++
+					if i == 0 && !table.SelectionOptions.DisableBestPathSelection {
 						switch r.TableType {
 						case api.TableType_LOCAL, api.TableType_GLOBAL:
 							p.Best = true
@@ -2430,8 +2474,8 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
 						p.Best = true
 					}
+					d.Paths = append(d.Paths, p)
 				}
-				d.Paths = append(d.Paths, p)
 			}
 			select {
 			case <-ctx.Done():
@@ -3588,7 +3632,7 @@ func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest
 					case <-ctx.Done():
 						return
 					default:
-						fn(toPathApi(path, nil))
+						fn(toPathApi(path, nil, nil, nil))
 					}
 				}
 			case <-ctx.Done():

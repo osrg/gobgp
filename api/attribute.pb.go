@@ -6,12 +6,18 @@ package gobgpapi
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import google_protobuf "github.com/golang/protobuf/ptypes/any"
+import any "github.com/golang/protobuf/ptypes/any"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // Based om RFC 7752, Table 1.
 type LsNLRIType int32
@@ -42,16 +48,40 @@ var LsNLRIType_value = map[string]int32{
 func (x LsNLRIType) String() string {
 	return proto.EnumName(LsNLRIType_name, int32(x))
 }
-func (LsNLRIType) EnumDescriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
-
-type OriginAttribute struct {
-	Origin uint32 `protobuf:"varint,1,opt,name=origin" json:"origin,omitempty"`
+func (LsNLRIType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{0}
 }
 
-func (m *OriginAttribute) Reset()                    { *m = OriginAttribute{} }
-func (m *OriginAttribute) String() string            { return proto.CompactTextString(m) }
-func (*OriginAttribute) ProtoMessage()               {}
-func (*OriginAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
+type OriginAttribute struct {
+	Origin               uint32   `protobuf:"varint,1,opt,name=origin,proto3" json:"origin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *OriginAttribute) Reset()         { *m = OriginAttribute{} }
+func (m *OriginAttribute) String() string { return proto.CompactTextString(m) }
+func (*OriginAttribute) ProtoMessage()    {}
+func (*OriginAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{0}
+}
+func (m *OriginAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_OriginAttribute.Unmarshal(m, b)
+}
+func (m *OriginAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_OriginAttribute.Marshal(b, m, deterministic)
+}
+func (dst *OriginAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_OriginAttribute.Merge(dst, src)
+}
+func (m *OriginAttribute) XXX_Size() int {
+	return xxx_messageInfo_OriginAttribute.Size(m)
+}
+func (m *OriginAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_OriginAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_OriginAttribute proto.InternalMessageInfo
 
 func (m *OriginAttribute) GetOrigin() uint32 {
 	if m != nil {
@@ -61,14 +91,36 @@ func (m *OriginAttribute) GetOrigin() uint32 {
 }
 
 type AsSegment struct {
-	Type    uint32   `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Numbers []uint32 `protobuf:"varint,2,rep,packed,name=numbers" json:"numbers,omitempty"`
+	Type                 uint32   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Numbers              []uint32 `protobuf:"varint,2,rep,packed,name=numbers,proto3" json:"numbers,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AsSegment) Reset()                    { *m = AsSegment{} }
-func (m *AsSegment) String() string            { return proto.CompactTextString(m) }
-func (*AsSegment) ProtoMessage()               {}
-func (*AsSegment) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{1} }
+func (m *AsSegment) Reset()         { *m = AsSegment{} }
+func (m *AsSegment) String() string { return proto.CompactTextString(m) }
+func (*AsSegment) ProtoMessage()    {}
+func (*AsSegment) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{1}
+}
+func (m *AsSegment) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AsSegment.Unmarshal(m, b)
+}
+func (m *AsSegment) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AsSegment.Marshal(b, m, deterministic)
+}
+func (dst *AsSegment) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AsSegment.Merge(dst, src)
+}
+func (m *AsSegment) XXX_Size() int {
+	return xxx_messageInfo_AsSegment.Size(m)
+}
+func (m *AsSegment) XXX_DiscardUnknown() {
+	xxx_messageInfo_AsSegment.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AsSegment proto.InternalMessageInfo
 
 func (m *AsSegment) GetType() uint32 {
 	if m != nil {
@@ -85,13 +137,35 @@ func (m *AsSegment) GetNumbers() []uint32 {
 }
 
 type AsPathAttribute struct {
-	Segments []*AsSegment `protobuf:"bytes,1,rep,name=segments" json:"segments,omitempty"`
+	Segments             []*AsSegment `protobuf:"bytes,1,rep,name=segments,proto3" json:"segments,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
 }
 
-func (m *AsPathAttribute) Reset()                    { *m = AsPathAttribute{} }
-func (m *AsPathAttribute) String() string            { return proto.CompactTextString(m) }
-func (*AsPathAttribute) ProtoMessage()               {}
-func (*AsPathAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{2} }
+func (m *AsPathAttribute) Reset()         { *m = AsPathAttribute{} }
+func (m *AsPathAttribute) String() string { return proto.CompactTextString(m) }
+func (*AsPathAttribute) ProtoMessage()    {}
+func (*AsPathAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{2}
+}
+func (m *AsPathAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AsPathAttribute.Unmarshal(m, b)
+}
+func (m *AsPathAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AsPathAttribute.Marshal(b, m, deterministic)
+}
+func (dst *AsPathAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AsPathAttribute.Merge(dst, src)
+}
+func (m *AsPathAttribute) XXX_Size() int {
+	return xxx_messageInfo_AsPathAttribute.Size(m)
+}
+func (m *AsPathAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_AsPathAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AsPathAttribute proto.InternalMessageInfo
 
 func (m *AsPathAttribute) GetSegments() []*AsSegment {
 	if m != nil {
@@ -101,13 +175,35 @@ func (m *AsPathAttribute) GetSegments() []*AsSegment {
 }
 
 type NextHopAttribute struct {
-	NextHop string `protobuf:"bytes,1,opt,name=next_hop,json=nextHop" json:"next_hop,omitempty"`
+	NextHop              string   `protobuf:"bytes,1,opt,name=next_hop,json=nextHop,proto3" json:"next_hop,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *NextHopAttribute) Reset()                    { *m = NextHopAttribute{} }
-func (m *NextHopAttribute) String() string            { return proto.CompactTextString(m) }
-func (*NextHopAttribute) ProtoMessage()               {}
-func (*NextHopAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{3} }
+func (m *NextHopAttribute) Reset()         { *m = NextHopAttribute{} }
+func (m *NextHopAttribute) String() string { return proto.CompactTextString(m) }
+func (*NextHopAttribute) ProtoMessage()    {}
+func (*NextHopAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{3}
+}
+func (m *NextHopAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_NextHopAttribute.Unmarshal(m, b)
+}
+func (m *NextHopAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_NextHopAttribute.Marshal(b, m, deterministic)
+}
+func (dst *NextHopAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NextHopAttribute.Merge(dst, src)
+}
+func (m *NextHopAttribute) XXX_Size() int {
+	return xxx_messageInfo_NextHopAttribute.Size(m)
+}
+func (m *NextHopAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_NextHopAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NextHopAttribute proto.InternalMessageInfo
 
 func (m *NextHopAttribute) GetNextHop() string {
 	if m != nil {
@@ -117,13 +213,35 @@ func (m *NextHopAttribute) GetNextHop() string {
 }
 
 type MultiExitDiscAttribute struct {
-	Med uint32 `protobuf:"varint,1,opt,name=med" json:"med,omitempty"`
+	Med                  uint32   `protobuf:"varint,1,opt,name=med,proto3" json:"med,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *MultiExitDiscAttribute) Reset()                    { *m = MultiExitDiscAttribute{} }
-func (m *MultiExitDiscAttribute) String() string            { return proto.CompactTextString(m) }
-func (*MultiExitDiscAttribute) ProtoMessage()               {}
-func (*MultiExitDiscAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{4} }
+func (m *MultiExitDiscAttribute) Reset()         { *m = MultiExitDiscAttribute{} }
+func (m *MultiExitDiscAttribute) String() string { return proto.CompactTextString(m) }
+func (*MultiExitDiscAttribute) ProtoMessage()    {}
+func (*MultiExitDiscAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{4}
+}
+func (m *MultiExitDiscAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MultiExitDiscAttribute.Unmarshal(m, b)
+}
+func (m *MultiExitDiscAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MultiExitDiscAttribute.Marshal(b, m, deterministic)
+}
+func (dst *MultiExitDiscAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MultiExitDiscAttribute.Merge(dst, src)
+}
+func (m *MultiExitDiscAttribute) XXX_Size() int {
+	return xxx_messageInfo_MultiExitDiscAttribute.Size(m)
+}
+func (m *MultiExitDiscAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_MultiExitDiscAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MultiExitDiscAttribute proto.InternalMessageInfo
 
 func (m *MultiExitDiscAttribute) GetMed() uint32 {
 	if m != nil {
@@ -133,13 +251,35 @@ func (m *MultiExitDiscAttribute) GetMed() uint32 {
 }
 
 type LocalPrefAttribute struct {
-	LocalPref uint32 `protobuf:"varint,1,opt,name=local_pref,json=localPref" json:"local_pref,omitempty"`
+	LocalPref            uint32   `protobuf:"varint,1,opt,name=local_pref,json=localPref,proto3" json:"local_pref,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LocalPrefAttribute) Reset()                    { *m = LocalPrefAttribute{} }
-func (m *LocalPrefAttribute) String() string            { return proto.CompactTextString(m) }
-func (*LocalPrefAttribute) ProtoMessage()               {}
-func (*LocalPrefAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{5} }
+func (m *LocalPrefAttribute) Reset()         { *m = LocalPrefAttribute{} }
+func (m *LocalPrefAttribute) String() string { return proto.CompactTextString(m) }
+func (*LocalPrefAttribute) ProtoMessage()    {}
+func (*LocalPrefAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{5}
+}
+func (m *LocalPrefAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LocalPrefAttribute.Unmarshal(m, b)
+}
+func (m *LocalPrefAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LocalPrefAttribute.Marshal(b, m, deterministic)
+}
+func (dst *LocalPrefAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LocalPrefAttribute.Merge(dst, src)
+}
+func (m *LocalPrefAttribute) XXX_Size() int {
+	return xxx_messageInfo_LocalPrefAttribute.Size(m)
+}
+func (m *LocalPrefAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_LocalPrefAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LocalPrefAttribute proto.InternalMessageInfo
 
 func (m *LocalPrefAttribute) GetLocalPref() uint32 {
 	if m != nil {
@@ -149,22 +289,66 @@ func (m *LocalPrefAttribute) GetLocalPref() uint32 {
 }
 
 type AtomicAggregateAttribute struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AtomicAggregateAttribute) Reset()                    { *m = AtomicAggregateAttribute{} }
-func (m *AtomicAggregateAttribute) String() string            { return proto.CompactTextString(m) }
-func (*AtomicAggregateAttribute) ProtoMessage()               {}
-func (*AtomicAggregateAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{6} }
+func (m *AtomicAggregateAttribute) Reset()         { *m = AtomicAggregateAttribute{} }
+func (m *AtomicAggregateAttribute) String() string { return proto.CompactTextString(m) }
+func (*AtomicAggregateAttribute) ProtoMessage()    {}
+func (*AtomicAggregateAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{6}
+}
+func (m *AtomicAggregateAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AtomicAggregateAttribute.Unmarshal(m, b)
+}
+func (m *AtomicAggregateAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AtomicAggregateAttribute.Marshal(b, m, deterministic)
+}
+func (dst *AtomicAggregateAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AtomicAggregateAttribute.Merge(dst, src)
+}
+func (m *AtomicAggregateAttribute) XXX_Size() int {
+	return xxx_messageInfo_AtomicAggregateAttribute.Size(m)
+}
+func (m *AtomicAggregateAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_AtomicAggregateAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AtomicAggregateAttribute proto.InternalMessageInfo
 
 type AggregatorAttribute struct {
-	As      uint32 `protobuf:"varint,2,opt,name=as" json:"as,omitempty"`
-	Address string `protobuf:"bytes,3,opt,name=address" json:"address,omitempty"`
+	As                   uint32   `protobuf:"varint,2,opt,name=as,proto3" json:"as,omitempty"`
+	Address              string   `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AggregatorAttribute) Reset()                    { *m = AggregatorAttribute{} }
-func (m *AggregatorAttribute) String() string            { return proto.CompactTextString(m) }
-func (*AggregatorAttribute) ProtoMessage()               {}
-func (*AggregatorAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{7} }
+func (m *AggregatorAttribute) Reset()         { *m = AggregatorAttribute{} }
+func (m *AggregatorAttribute) String() string { return proto.CompactTextString(m) }
+func (*AggregatorAttribute) ProtoMessage()    {}
+func (*AggregatorAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{7}
+}
+func (m *AggregatorAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AggregatorAttribute.Unmarshal(m, b)
+}
+func (m *AggregatorAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AggregatorAttribute.Marshal(b, m, deterministic)
+}
+func (dst *AggregatorAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AggregatorAttribute.Merge(dst, src)
+}
+func (m *AggregatorAttribute) XXX_Size() int {
+	return xxx_messageInfo_AggregatorAttribute.Size(m)
+}
+func (m *AggregatorAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_AggregatorAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AggregatorAttribute proto.InternalMessageInfo
 
 func (m *AggregatorAttribute) GetAs() uint32 {
 	if m != nil {
@@ -181,13 +365,35 @@ func (m *AggregatorAttribute) GetAddress() string {
 }
 
 type CommunitiesAttribute struct {
-	Communities []uint32 `protobuf:"varint,1,rep,packed,name=communities" json:"communities,omitempty"`
+	Communities          []uint32 `protobuf:"varint,1,rep,packed,name=communities,proto3" json:"communities,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *CommunitiesAttribute) Reset()                    { *m = CommunitiesAttribute{} }
-func (m *CommunitiesAttribute) String() string            { return proto.CompactTextString(m) }
-func (*CommunitiesAttribute) ProtoMessage()               {}
-func (*CommunitiesAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{8} }
+func (m *CommunitiesAttribute) Reset()         { *m = CommunitiesAttribute{} }
+func (m *CommunitiesAttribute) String() string { return proto.CompactTextString(m) }
+func (*CommunitiesAttribute) ProtoMessage()    {}
+func (*CommunitiesAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{8}
+}
+func (m *CommunitiesAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CommunitiesAttribute.Unmarshal(m, b)
+}
+func (m *CommunitiesAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CommunitiesAttribute.Marshal(b, m, deterministic)
+}
+func (dst *CommunitiesAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CommunitiesAttribute.Merge(dst, src)
+}
+func (m *CommunitiesAttribute) XXX_Size() int {
+	return xxx_messageInfo_CommunitiesAttribute.Size(m)
+}
+func (m *CommunitiesAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_CommunitiesAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CommunitiesAttribute proto.InternalMessageInfo
 
 func (m *CommunitiesAttribute) GetCommunities() []uint32 {
 	if m != nil {
@@ -197,13 +403,35 @@ func (m *CommunitiesAttribute) GetCommunities() []uint32 {
 }
 
 type OriginatorIdAttribute struct {
-	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *OriginatorIdAttribute) Reset()                    { *m = OriginatorIdAttribute{} }
-func (m *OriginatorIdAttribute) String() string            { return proto.CompactTextString(m) }
-func (*OriginatorIdAttribute) ProtoMessage()               {}
-func (*OriginatorIdAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{9} }
+func (m *OriginatorIdAttribute) Reset()         { *m = OriginatorIdAttribute{} }
+func (m *OriginatorIdAttribute) String() string { return proto.CompactTextString(m) }
+func (*OriginatorIdAttribute) ProtoMessage()    {}
+func (*OriginatorIdAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{9}
+}
+func (m *OriginatorIdAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_OriginatorIdAttribute.Unmarshal(m, b)
+}
+func (m *OriginatorIdAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_OriginatorIdAttribute.Marshal(b, m, deterministic)
+}
+func (dst *OriginatorIdAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_OriginatorIdAttribute.Merge(dst, src)
+}
+func (m *OriginatorIdAttribute) XXX_Size() int {
+	return xxx_messageInfo_OriginatorIdAttribute.Size(m)
+}
+func (m *OriginatorIdAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_OriginatorIdAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_OriginatorIdAttribute proto.InternalMessageInfo
 
 func (m *OriginatorIdAttribute) GetId() string {
 	if m != nil {
@@ -213,13 +441,35 @@ func (m *OriginatorIdAttribute) GetId() string {
 }
 
 type ClusterListAttribute struct {
-	Ids []string `protobuf:"bytes,1,rep,name=ids" json:"ids,omitempty"`
+	Ids                  []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ClusterListAttribute) Reset()                    { *m = ClusterListAttribute{} }
-func (m *ClusterListAttribute) String() string            { return proto.CompactTextString(m) }
-func (*ClusterListAttribute) ProtoMessage()               {}
-func (*ClusterListAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{10} }
+func (m *ClusterListAttribute) Reset()         { *m = ClusterListAttribute{} }
+func (m *ClusterListAttribute) String() string { return proto.CompactTextString(m) }
+func (*ClusterListAttribute) ProtoMessage()    {}
+func (*ClusterListAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{10}
+}
+func (m *ClusterListAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ClusterListAttribute.Unmarshal(m, b)
+}
+func (m *ClusterListAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ClusterListAttribute.Marshal(b, m, deterministic)
+}
+func (dst *ClusterListAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ClusterListAttribute.Merge(dst, src)
+}
+func (m *ClusterListAttribute) XXX_Size() int {
+	return xxx_messageInfo_ClusterListAttribute.Size(m)
+}
+func (m *ClusterListAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_ClusterListAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ClusterListAttribute proto.InternalMessageInfo
 
 func (m *ClusterListAttribute) GetIds() []string {
 	if m != nil {
@@ -232,14 +482,36 @@ func (m *ClusterListAttribute) GetIds() []string {
 // - AFI=1, SAFI=1
 // - AFI=2, SAFI=1
 type IPAddressPrefix struct {
-	PrefixLen uint32 `protobuf:"varint,1,opt,name=prefix_len,json=prefixLen" json:"prefix_len,omitempty"`
-	Prefix    string `protobuf:"bytes,2,opt,name=prefix" json:"prefix,omitempty"`
+	PrefixLen            uint32   `protobuf:"varint,1,opt,name=prefix_len,json=prefixLen,proto3" json:"prefix_len,omitempty"`
+	Prefix               string   `protobuf:"bytes,2,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *IPAddressPrefix) Reset()                    { *m = IPAddressPrefix{} }
-func (m *IPAddressPrefix) String() string            { return proto.CompactTextString(m) }
-func (*IPAddressPrefix) ProtoMessage()               {}
-func (*IPAddressPrefix) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{11} }
+func (m *IPAddressPrefix) Reset()         { *m = IPAddressPrefix{} }
+func (m *IPAddressPrefix) String() string { return proto.CompactTextString(m) }
+func (*IPAddressPrefix) ProtoMessage()    {}
+func (*IPAddressPrefix) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{11}
+}
+func (m *IPAddressPrefix) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_IPAddressPrefix.Unmarshal(m, b)
+}
+func (m *IPAddressPrefix) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_IPAddressPrefix.Marshal(b, m, deterministic)
+}
+func (dst *IPAddressPrefix) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IPAddressPrefix.Merge(dst, src)
+}
+func (m *IPAddressPrefix) XXX_Size() int {
+	return xxx_messageInfo_IPAddressPrefix.Size(m)
+}
+func (m *IPAddressPrefix) XXX_DiscardUnknown() {
+	xxx_messageInfo_IPAddressPrefix.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_IPAddressPrefix proto.InternalMessageInfo
 
 func (m *IPAddressPrefix) GetPrefixLen() uint32 {
 	if m != nil {
@@ -259,15 +531,37 @@ func (m *IPAddressPrefix) GetPrefix() string {
 // - AFI=1, SAFI=4
 // - AFI=2, SAFI=4
 type LabeledIPAddressPrefix struct {
-	Labels    []uint32 `protobuf:"varint,1,rep,packed,name=labels" json:"labels,omitempty"`
-	PrefixLen uint32   `protobuf:"varint,2,opt,name=prefix_len,json=prefixLen" json:"prefix_len,omitempty"`
-	Prefix    string   `protobuf:"bytes,3,opt,name=prefix" json:"prefix,omitempty"`
+	Labels               []uint32 `protobuf:"varint,1,rep,packed,name=labels,proto3" json:"labels,omitempty"`
+	PrefixLen            uint32   `protobuf:"varint,2,opt,name=prefix_len,json=prefixLen,proto3" json:"prefix_len,omitempty"`
+	Prefix               string   `protobuf:"bytes,3,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LabeledIPAddressPrefix) Reset()                    { *m = LabeledIPAddressPrefix{} }
-func (m *LabeledIPAddressPrefix) String() string            { return proto.CompactTextString(m) }
-func (*LabeledIPAddressPrefix) ProtoMessage()               {}
-func (*LabeledIPAddressPrefix) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{12} }
+func (m *LabeledIPAddressPrefix) Reset()         { *m = LabeledIPAddressPrefix{} }
+func (m *LabeledIPAddressPrefix) String() string { return proto.CompactTextString(m) }
+func (*LabeledIPAddressPrefix) ProtoMessage()    {}
+func (*LabeledIPAddressPrefix) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{12}
+}
+func (m *LabeledIPAddressPrefix) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LabeledIPAddressPrefix.Unmarshal(m, b)
+}
+func (m *LabeledIPAddressPrefix) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LabeledIPAddressPrefix.Marshal(b, m, deterministic)
+}
+func (dst *LabeledIPAddressPrefix) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LabeledIPAddressPrefix.Merge(dst, src)
+}
+func (m *LabeledIPAddressPrefix) XXX_Size() int {
+	return xxx_messageInfo_LabeledIPAddressPrefix.Size(m)
+}
+func (m *LabeledIPAddressPrefix) XXX_DiscardUnknown() {
+	xxx_messageInfo_LabeledIPAddressPrefix.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LabeledIPAddressPrefix proto.InternalMessageInfo
 
 func (m *LabeledIPAddressPrefix) GetLabels() []uint32 {
 	if m != nil {
@@ -294,13 +588,35 @@ func (m *LabeledIPAddressPrefix) GetPrefix() string {
 // - AFI=1, SAFI=7
 // - AFI=2, SAFI=7
 type EncapsulationNLRI struct {
-	Address string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+	Address              string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *EncapsulationNLRI) Reset()                    { *m = EncapsulationNLRI{} }
-func (m *EncapsulationNLRI) String() string            { return proto.CompactTextString(m) }
-func (*EncapsulationNLRI) ProtoMessage()               {}
-func (*EncapsulationNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{13} }
+func (m *EncapsulationNLRI) Reset()         { *m = EncapsulationNLRI{} }
+func (m *EncapsulationNLRI) String() string { return proto.CompactTextString(m) }
+func (*EncapsulationNLRI) ProtoMessage()    {}
+func (*EncapsulationNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{13}
+}
+func (m *EncapsulationNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EncapsulationNLRI.Unmarshal(m, b)
+}
+func (m *EncapsulationNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EncapsulationNLRI.Marshal(b, m, deterministic)
+}
+func (dst *EncapsulationNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EncapsulationNLRI.Merge(dst, src)
+}
+func (m *EncapsulationNLRI) XXX_Size() int {
+	return xxx_messageInfo_EncapsulationNLRI.Size(m)
+}
+func (m *EncapsulationNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_EncapsulationNLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EncapsulationNLRI proto.InternalMessageInfo
 
 func (m *EncapsulationNLRI) GetAddress() string {
 	if m != nil {
@@ -310,14 +626,36 @@ func (m *EncapsulationNLRI) GetAddress() string {
 }
 
 type RouteDistinguisherTwoOctetAS struct {
-	Admin    uint32 `protobuf:"varint,1,opt,name=admin" json:"admin,omitempty"`
-	Assigned uint32 `protobuf:"varint,2,opt,name=assigned" json:"assigned,omitempty"`
+	Admin                uint32   `protobuf:"varint,1,opt,name=admin,proto3" json:"admin,omitempty"`
+	Assigned             uint32   `protobuf:"varint,2,opt,name=assigned,proto3" json:"assigned,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouteDistinguisherTwoOctetAS) Reset()                    { *m = RouteDistinguisherTwoOctetAS{} }
-func (m *RouteDistinguisherTwoOctetAS) String() string            { return proto.CompactTextString(m) }
-func (*RouteDistinguisherTwoOctetAS) ProtoMessage()               {}
-func (*RouteDistinguisherTwoOctetAS) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{14} }
+func (m *RouteDistinguisherTwoOctetAS) Reset()         { *m = RouteDistinguisherTwoOctetAS{} }
+func (m *RouteDistinguisherTwoOctetAS) String() string { return proto.CompactTextString(m) }
+func (*RouteDistinguisherTwoOctetAS) ProtoMessage()    {}
+func (*RouteDistinguisherTwoOctetAS) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{14}
+}
+func (m *RouteDistinguisherTwoOctetAS) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouteDistinguisherTwoOctetAS.Unmarshal(m, b)
+}
+func (m *RouteDistinguisherTwoOctetAS) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouteDistinguisherTwoOctetAS.Marshal(b, m, deterministic)
+}
+func (dst *RouteDistinguisherTwoOctetAS) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteDistinguisherTwoOctetAS.Merge(dst, src)
+}
+func (m *RouteDistinguisherTwoOctetAS) XXX_Size() int {
+	return xxx_messageInfo_RouteDistinguisherTwoOctetAS.Size(m)
+}
+func (m *RouteDistinguisherTwoOctetAS) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteDistinguisherTwoOctetAS.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteDistinguisherTwoOctetAS proto.InternalMessageInfo
 
 func (m *RouteDistinguisherTwoOctetAS) GetAdmin() uint32 {
 	if m != nil {
@@ -334,14 +672,36 @@ func (m *RouteDistinguisherTwoOctetAS) GetAssigned() uint32 {
 }
 
 type RouteDistinguisherIPAddress struct {
-	Admin    string `protobuf:"bytes,1,opt,name=admin" json:"admin,omitempty"`
-	Assigned uint32 `protobuf:"varint,2,opt,name=assigned" json:"assigned,omitempty"`
+	Admin                string   `protobuf:"bytes,1,opt,name=admin,proto3" json:"admin,omitempty"`
+	Assigned             uint32   `protobuf:"varint,2,opt,name=assigned,proto3" json:"assigned,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouteDistinguisherIPAddress) Reset()                    { *m = RouteDistinguisherIPAddress{} }
-func (m *RouteDistinguisherIPAddress) String() string            { return proto.CompactTextString(m) }
-func (*RouteDistinguisherIPAddress) ProtoMessage()               {}
-func (*RouteDistinguisherIPAddress) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{15} }
+func (m *RouteDistinguisherIPAddress) Reset()         { *m = RouteDistinguisherIPAddress{} }
+func (m *RouteDistinguisherIPAddress) String() string { return proto.CompactTextString(m) }
+func (*RouteDistinguisherIPAddress) ProtoMessage()    {}
+func (*RouteDistinguisherIPAddress) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{15}
+}
+func (m *RouteDistinguisherIPAddress) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouteDistinguisherIPAddress.Unmarshal(m, b)
+}
+func (m *RouteDistinguisherIPAddress) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouteDistinguisherIPAddress.Marshal(b, m, deterministic)
+}
+func (dst *RouteDistinguisherIPAddress) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteDistinguisherIPAddress.Merge(dst, src)
+}
+func (m *RouteDistinguisherIPAddress) XXX_Size() int {
+	return xxx_messageInfo_RouteDistinguisherIPAddress.Size(m)
+}
+func (m *RouteDistinguisherIPAddress) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteDistinguisherIPAddress.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteDistinguisherIPAddress proto.InternalMessageInfo
 
 func (m *RouteDistinguisherIPAddress) GetAdmin() string {
 	if m != nil {
@@ -358,14 +718,36 @@ func (m *RouteDistinguisherIPAddress) GetAssigned() uint32 {
 }
 
 type RouteDistinguisherFourOctetAS struct {
-	Admin    uint32 `protobuf:"varint,1,opt,name=admin" json:"admin,omitempty"`
-	Assigned uint32 `protobuf:"varint,2,opt,name=assigned" json:"assigned,omitempty"`
+	Admin                uint32   `protobuf:"varint,1,opt,name=admin,proto3" json:"admin,omitempty"`
+	Assigned             uint32   `protobuf:"varint,2,opt,name=assigned,proto3" json:"assigned,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouteDistinguisherFourOctetAS) Reset()                    { *m = RouteDistinguisherFourOctetAS{} }
-func (m *RouteDistinguisherFourOctetAS) String() string            { return proto.CompactTextString(m) }
-func (*RouteDistinguisherFourOctetAS) ProtoMessage()               {}
-func (*RouteDistinguisherFourOctetAS) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{16} }
+func (m *RouteDistinguisherFourOctetAS) Reset()         { *m = RouteDistinguisherFourOctetAS{} }
+func (m *RouteDistinguisherFourOctetAS) String() string { return proto.CompactTextString(m) }
+func (*RouteDistinguisherFourOctetAS) ProtoMessage()    {}
+func (*RouteDistinguisherFourOctetAS) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{16}
+}
+func (m *RouteDistinguisherFourOctetAS) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouteDistinguisherFourOctetAS.Unmarshal(m, b)
+}
+func (m *RouteDistinguisherFourOctetAS) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouteDistinguisherFourOctetAS.Marshal(b, m, deterministic)
+}
+func (dst *RouteDistinguisherFourOctetAS) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteDistinguisherFourOctetAS.Merge(dst, src)
+}
+func (m *RouteDistinguisherFourOctetAS) XXX_Size() int {
+	return xxx_messageInfo_RouteDistinguisherFourOctetAS.Size(m)
+}
+func (m *RouteDistinguisherFourOctetAS) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteDistinguisherFourOctetAS.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteDistinguisherFourOctetAS proto.InternalMessageInfo
 
 func (m *RouteDistinguisherFourOctetAS) GetAdmin() uint32 {
 	if m != nil {
@@ -382,14 +764,36 @@ func (m *RouteDistinguisherFourOctetAS) GetAssigned() uint32 {
 }
 
 type EthernetSegmentIdentifier struct {
-	Type  uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Type                 uint32   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *EthernetSegmentIdentifier) Reset()                    { *m = EthernetSegmentIdentifier{} }
-func (m *EthernetSegmentIdentifier) String() string            { return proto.CompactTextString(m) }
-func (*EthernetSegmentIdentifier) ProtoMessage()               {}
-func (*EthernetSegmentIdentifier) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{17} }
+func (m *EthernetSegmentIdentifier) Reset()         { *m = EthernetSegmentIdentifier{} }
+func (m *EthernetSegmentIdentifier) String() string { return proto.CompactTextString(m) }
+func (*EthernetSegmentIdentifier) ProtoMessage()    {}
+func (*EthernetSegmentIdentifier) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{17}
+}
+func (m *EthernetSegmentIdentifier) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EthernetSegmentIdentifier.Unmarshal(m, b)
+}
+func (m *EthernetSegmentIdentifier) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EthernetSegmentIdentifier.Marshal(b, m, deterministic)
+}
+func (dst *EthernetSegmentIdentifier) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EthernetSegmentIdentifier.Merge(dst, src)
+}
+func (m *EthernetSegmentIdentifier) XXX_Size() int {
+	return xxx_messageInfo_EthernetSegmentIdentifier.Size(m)
+}
+func (m *EthernetSegmentIdentifier) XXX_DiscardUnknown() {
+	xxx_messageInfo_EthernetSegmentIdentifier.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EthernetSegmentIdentifier proto.InternalMessageInfo
 
 func (m *EthernetSegmentIdentifier) GetType() uint32 {
 	if m != nil {
@@ -412,18 +816,40 @@ type EVPNEthernetAutoDiscoveryRoute struct {
 	// - RouteDistinguisherTwoOctetAS
 	// - RouteDistinguisherIPAddressAS
 	// - RouteDistinguisherFourOctetAS
-	Rd          *google_protobuf.Any       `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	Esi         *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi" json:"esi,omitempty"`
-	EthernetTag uint32                     `protobuf:"varint,3,opt,name=ethernet_tag,json=ethernetTag" json:"ethernet_tag,omitempty"`
-	Label       uint32                     `protobuf:"varint,4,opt,name=label" json:"label,omitempty"`
+	Rd                   *any.Any                   `protobuf:"bytes,1,opt,name=rd,proto3" json:"rd,omitempty"`
+	Esi                  *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi,proto3" json:"esi,omitempty"`
+	EthernetTag          uint32                     `protobuf:"varint,3,opt,name=ethernet_tag,json=ethernetTag,proto3" json:"ethernet_tag,omitempty"`
+	Label                uint32                     `protobuf:"varint,4,opt,name=label,proto3" json:"label,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
 }
 
-func (m *EVPNEthernetAutoDiscoveryRoute) Reset()                    { *m = EVPNEthernetAutoDiscoveryRoute{} }
-func (m *EVPNEthernetAutoDiscoveryRoute) String() string            { return proto.CompactTextString(m) }
-func (*EVPNEthernetAutoDiscoveryRoute) ProtoMessage()               {}
-func (*EVPNEthernetAutoDiscoveryRoute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{18} }
+func (m *EVPNEthernetAutoDiscoveryRoute) Reset()         { *m = EVPNEthernetAutoDiscoveryRoute{} }
+func (m *EVPNEthernetAutoDiscoveryRoute) String() string { return proto.CompactTextString(m) }
+func (*EVPNEthernetAutoDiscoveryRoute) ProtoMessage()    {}
+func (*EVPNEthernetAutoDiscoveryRoute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{18}
+}
+func (m *EVPNEthernetAutoDiscoveryRoute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EVPNEthernetAutoDiscoveryRoute.Unmarshal(m, b)
+}
+func (m *EVPNEthernetAutoDiscoveryRoute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EVPNEthernetAutoDiscoveryRoute.Marshal(b, m, deterministic)
+}
+func (dst *EVPNEthernetAutoDiscoveryRoute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EVPNEthernetAutoDiscoveryRoute.Merge(dst, src)
+}
+func (m *EVPNEthernetAutoDiscoveryRoute) XXX_Size() int {
+	return xxx_messageInfo_EVPNEthernetAutoDiscoveryRoute.Size(m)
+}
+func (m *EVPNEthernetAutoDiscoveryRoute) XXX_DiscardUnknown() {
+	xxx_messageInfo_EVPNEthernetAutoDiscoveryRoute.DiscardUnknown(m)
+}
 
-func (m *EVPNEthernetAutoDiscoveryRoute) GetRd() *google_protobuf.Any {
+var xxx_messageInfo_EVPNEthernetAutoDiscoveryRoute proto.InternalMessageInfo
+
+func (m *EVPNEthernetAutoDiscoveryRoute) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
@@ -458,20 +884,42 @@ type EVPNMACIPAdvertisementRoute struct {
 	// - RouteDistinguisherTwoOctetAS
 	// - RouteDistinguisherIPAddressAS
 	// - RouteDistinguisherFourOctetAS
-	Rd          *google_protobuf.Any       `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	Esi         *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi" json:"esi,omitempty"`
-	EthernetTag uint32                     `protobuf:"varint,3,opt,name=ethernet_tag,json=ethernetTag" json:"ethernet_tag,omitempty"`
-	MacAddress  string                     `protobuf:"bytes,4,opt,name=mac_address,json=macAddress" json:"mac_address,omitempty"`
-	IpAddress   string                     `protobuf:"bytes,5,opt,name=ip_address,json=ipAddress" json:"ip_address,omitempty"`
-	Labels      []uint32                   `protobuf:"varint,6,rep,packed,name=labels" json:"labels,omitempty"`
+	Rd                   *any.Any                   `protobuf:"bytes,1,opt,name=rd,proto3" json:"rd,omitempty"`
+	Esi                  *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi,proto3" json:"esi,omitempty"`
+	EthernetTag          uint32                     `protobuf:"varint,3,opt,name=ethernet_tag,json=ethernetTag,proto3" json:"ethernet_tag,omitempty"`
+	MacAddress           string                     `protobuf:"bytes,4,opt,name=mac_address,json=macAddress,proto3" json:"mac_address,omitempty"`
+	IpAddress            string                     `protobuf:"bytes,5,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	Labels               []uint32                   `protobuf:"varint,6,rep,packed,name=labels,proto3" json:"labels,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
 }
 
-func (m *EVPNMACIPAdvertisementRoute) Reset()                    { *m = EVPNMACIPAdvertisementRoute{} }
-func (m *EVPNMACIPAdvertisementRoute) String() string            { return proto.CompactTextString(m) }
-func (*EVPNMACIPAdvertisementRoute) ProtoMessage()               {}
-func (*EVPNMACIPAdvertisementRoute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{19} }
+func (m *EVPNMACIPAdvertisementRoute) Reset()         { *m = EVPNMACIPAdvertisementRoute{} }
+func (m *EVPNMACIPAdvertisementRoute) String() string { return proto.CompactTextString(m) }
+func (*EVPNMACIPAdvertisementRoute) ProtoMessage()    {}
+func (*EVPNMACIPAdvertisementRoute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{19}
+}
+func (m *EVPNMACIPAdvertisementRoute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EVPNMACIPAdvertisementRoute.Unmarshal(m, b)
+}
+func (m *EVPNMACIPAdvertisementRoute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EVPNMACIPAdvertisementRoute.Marshal(b, m, deterministic)
+}
+func (dst *EVPNMACIPAdvertisementRoute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EVPNMACIPAdvertisementRoute.Merge(dst, src)
+}
+func (m *EVPNMACIPAdvertisementRoute) XXX_Size() int {
+	return xxx_messageInfo_EVPNMACIPAdvertisementRoute.Size(m)
+}
+func (m *EVPNMACIPAdvertisementRoute) XXX_DiscardUnknown() {
+	xxx_messageInfo_EVPNMACIPAdvertisementRoute.DiscardUnknown(m)
+}
 
-func (m *EVPNMACIPAdvertisementRoute) GetRd() *google_protobuf.Any {
+var xxx_messageInfo_EVPNMACIPAdvertisementRoute proto.InternalMessageInfo
+
+func (m *EVPNMACIPAdvertisementRoute) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
@@ -520,9 +968,12 @@ type EVPNInclusiveMulticastEthernetTagRoute struct {
 	// - RouteDistinguisherTwoOctetAS
 	// - RouteDistinguisherIPAddressAS
 	// - RouteDistinguisherFourOctetAS
-	Rd          *google_protobuf.Any `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	EthernetTag uint32               `protobuf:"varint,2,opt,name=ethernet_tag,json=ethernetTag" json:"ethernet_tag,omitempty"`
-	IpAddress   string               `protobuf:"bytes,3,opt,name=ip_address,json=ipAddress" json:"ip_address,omitempty"`
+	Rd                   *any.Any `protobuf:"bytes,1,opt,name=rd,proto3" json:"rd,omitempty"`
+	EthernetTag          uint32   `protobuf:"varint,2,opt,name=ethernet_tag,json=ethernetTag,proto3" json:"ethernet_tag,omitempty"`
+	IpAddress            string   `protobuf:"bytes,3,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *EVPNInclusiveMulticastEthernetTagRoute) Reset() {
@@ -531,10 +982,27 @@ func (m *EVPNInclusiveMulticastEthernetTagRoute) Reset() {
 func (m *EVPNInclusiveMulticastEthernetTagRoute) String() string { return proto.CompactTextString(m) }
 func (*EVPNInclusiveMulticastEthernetTagRoute) ProtoMessage()    {}
 func (*EVPNInclusiveMulticastEthernetTagRoute) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{20}
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{20}
+}
+func (m *EVPNInclusiveMulticastEthernetTagRoute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EVPNInclusiveMulticastEthernetTagRoute.Unmarshal(m, b)
+}
+func (m *EVPNInclusiveMulticastEthernetTagRoute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EVPNInclusiveMulticastEthernetTagRoute.Marshal(b, m, deterministic)
+}
+func (dst *EVPNInclusiveMulticastEthernetTagRoute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EVPNInclusiveMulticastEthernetTagRoute.Merge(dst, src)
+}
+func (m *EVPNInclusiveMulticastEthernetTagRoute) XXX_Size() int {
+	return xxx_messageInfo_EVPNInclusiveMulticastEthernetTagRoute.Size(m)
+}
+func (m *EVPNInclusiveMulticastEthernetTagRoute) XXX_DiscardUnknown() {
+	xxx_messageInfo_EVPNInclusiveMulticastEthernetTagRoute.DiscardUnknown(m)
 }
 
-func (m *EVPNInclusiveMulticastEthernetTagRoute) GetRd() *google_protobuf.Any {
+var xxx_messageInfo_EVPNInclusiveMulticastEthernetTagRoute proto.InternalMessageInfo
+
+func (m *EVPNInclusiveMulticastEthernetTagRoute) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
@@ -562,17 +1030,39 @@ type EVPNEthernetSegmentRoute struct {
 	// - RouteDistinguisherTwoOctetAS
 	// - RouteDistinguisherIPAddressAS
 	// - RouteDistinguisherFourOctetAS
-	Rd        *google_protobuf.Any       `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	Esi       *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi" json:"esi,omitempty"`
-	IpAddress string                     `protobuf:"bytes,3,opt,name=ip_address,json=ipAddress" json:"ip_address,omitempty"`
+	Rd                   *any.Any                   `protobuf:"bytes,1,opt,name=rd,proto3" json:"rd,omitempty"`
+	Esi                  *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi,proto3" json:"esi,omitempty"`
+	IpAddress            string                     `protobuf:"bytes,3,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
 }
 
-func (m *EVPNEthernetSegmentRoute) Reset()                    { *m = EVPNEthernetSegmentRoute{} }
-func (m *EVPNEthernetSegmentRoute) String() string            { return proto.CompactTextString(m) }
-func (*EVPNEthernetSegmentRoute) ProtoMessage()               {}
-func (*EVPNEthernetSegmentRoute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{21} }
+func (m *EVPNEthernetSegmentRoute) Reset()         { *m = EVPNEthernetSegmentRoute{} }
+func (m *EVPNEthernetSegmentRoute) String() string { return proto.CompactTextString(m) }
+func (*EVPNEthernetSegmentRoute) ProtoMessage()    {}
+func (*EVPNEthernetSegmentRoute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{21}
+}
+func (m *EVPNEthernetSegmentRoute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EVPNEthernetSegmentRoute.Unmarshal(m, b)
+}
+func (m *EVPNEthernetSegmentRoute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EVPNEthernetSegmentRoute.Marshal(b, m, deterministic)
+}
+func (dst *EVPNEthernetSegmentRoute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EVPNEthernetSegmentRoute.Merge(dst, src)
+}
+func (m *EVPNEthernetSegmentRoute) XXX_Size() int {
+	return xxx_messageInfo_EVPNEthernetSegmentRoute.Size(m)
+}
+func (m *EVPNEthernetSegmentRoute) XXX_DiscardUnknown() {
+	xxx_messageInfo_EVPNEthernetSegmentRoute.DiscardUnknown(m)
+}
 
-func (m *EVPNEthernetSegmentRoute) GetRd() *google_protobuf.Any {
+var xxx_messageInfo_EVPNEthernetSegmentRoute proto.InternalMessageInfo
+
+func (m *EVPNEthernetSegmentRoute) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
@@ -600,21 +1090,43 @@ type EVPNIPPrefixRoute struct {
 	// - RouteDistinguisherTwoOctetAS
 	// - RouteDistinguisherIPAddressAS
 	// - RouteDistinguisherFourOctetAS
-	Rd          *google_protobuf.Any       `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	Esi         *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi" json:"esi,omitempty"`
-	EthernetTag uint32                     `protobuf:"varint,3,opt,name=ethernet_tag,json=ethernetTag" json:"ethernet_tag,omitempty"`
-	IpPrefix    string                     `protobuf:"bytes,4,opt,name=ip_prefix,json=ipPrefix" json:"ip_prefix,omitempty"`
-	IpPrefixLen uint32                     `protobuf:"varint,5,opt,name=ip_prefix_len,json=ipPrefixLen" json:"ip_prefix_len,omitempty"`
-	GwAddress   string                     `protobuf:"bytes,6,opt,name=gw_address,json=gwAddress" json:"gw_address,omitempty"`
-	Label       uint32                     `protobuf:"varint,7,opt,name=label" json:"label,omitempty"`
+	Rd                   *any.Any                   `protobuf:"bytes,1,opt,name=rd,proto3" json:"rd,omitempty"`
+	Esi                  *EthernetSegmentIdentifier `protobuf:"bytes,2,opt,name=esi,proto3" json:"esi,omitempty"`
+	EthernetTag          uint32                     `protobuf:"varint,3,opt,name=ethernet_tag,json=ethernetTag,proto3" json:"ethernet_tag,omitempty"`
+	IpPrefix             string                     `protobuf:"bytes,4,opt,name=ip_prefix,json=ipPrefix,proto3" json:"ip_prefix,omitempty"`
+	IpPrefixLen          uint32                     `protobuf:"varint,5,opt,name=ip_prefix_len,json=ipPrefixLen,proto3" json:"ip_prefix_len,omitempty"`
+	GwAddress            string                     `protobuf:"bytes,6,opt,name=gw_address,json=gwAddress,proto3" json:"gw_address,omitempty"`
+	Label                uint32                     `protobuf:"varint,7,opt,name=label,proto3" json:"label,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
 }
 
-func (m *EVPNIPPrefixRoute) Reset()                    { *m = EVPNIPPrefixRoute{} }
-func (m *EVPNIPPrefixRoute) String() string            { return proto.CompactTextString(m) }
-func (*EVPNIPPrefixRoute) ProtoMessage()               {}
-func (*EVPNIPPrefixRoute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{22} }
+func (m *EVPNIPPrefixRoute) Reset()         { *m = EVPNIPPrefixRoute{} }
+func (m *EVPNIPPrefixRoute) String() string { return proto.CompactTextString(m) }
+func (*EVPNIPPrefixRoute) ProtoMessage()    {}
+func (*EVPNIPPrefixRoute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{22}
+}
+func (m *EVPNIPPrefixRoute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EVPNIPPrefixRoute.Unmarshal(m, b)
+}
+func (m *EVPNIPPrefixRoute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EVPNIPPrefixRoute.Marshal(b, m, deterministic)
+}
+func (dst *EVPNIPPrefixRoute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EVPNIPPrefixRoute.Merge(dst, src)
+}
+func (m *EVPNIPPrefixRoute) XXX_Size() int {
+	return xxx_messageInfo_EVPNIPPrefixRoute.Size(m)
+}
+func (m *EVPNIPPrefixRoute) XXX_DiscardUnknown() {
+	xxx_messageInfo_EVPNIPPrefixRoute.DiscardUnknown(m)
+}
 
-func (m *EVPNIPPrefixRoute) GetRd() *google_protobuf.Any {
+var xxx_messageInfo_EVPNIPPrefixRoute proto.InternalMessageInfo
+
+func (m *EVPNIPPrefixRoute) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
@@ -667,20 +1179,42 @@ func (m *EVPNIPPrefixRoute) GetLabel() uint32 {
 // - AFI=1, SAFI=128
 // - AFI=2, SAFI=128
 type LabeledVPNIPAddressPrefix struct {
-	Labels []uint32 `protobuf:"varint,1,rep,packed,name=labels" json:"labels,omitempty"`
+	Labels []uint32 `protobuf:"varint,1,rep,packed,name=labels,proto3" json:"labels,omitempty"`
 	// One of:
 	// - TwoOctetAsSpecificExtended
 	// - IPv4AddressSpecificExtended
 	// - FourOctetAsSpecificExtended
-	Rd        *google_protobuf.Any `protobuf:"bytes,2,opt,name=rd" json:"rd,omitempty"`
-	PrefixLen uint32               `protobuf:"varint,3,opt,name=prefix_len,json=prefixLen" json:"prefix_len,omitempty"`
-	Prefix    string               `protobuf:"bytes,4,opt,name=prefix" json:"prefix,omitempty"`
+	Rd                   *any.Any `protobuf:"bytes,2,opt,name=rd,proto3" json:"rd,omitempty"`
+	PrefixLen            uint32   `protobuf:"varint,3,opt,name=prefix_len,json=prefixLen,proto3" json:"prefix_len,omitempty"`
+	Prefix               string   `protobuf:"bytes,4,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LabeledVPNIPAddressPrefix) Reset()                    { *m = LabeledVPNIPAddressPrefix{} }
-func (m *LabeledVPNIPAddressPrefix) String() string            { return proto.CompactTextString(m) }
-func (*LabeledVPNIPAddressPrefix) ProtoMessage()               {}
-func (*LabeledVPNIPAddressPrefix) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{23} }
+func (m *LabeledVPNIPAddressPrefix) Reset()         { *m = LabeledVPNIPAddressPrefix{} }
+func (m *LabeledVPNIPAddressPrefix) String() string { return proto.CompactTextString(m) }
+func (*LabeledVPNIPAddressPrefix) ProtoMessage()    {}
+func (*LabeledVPNIPAddressPrefix) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{23}
+}
+func (m *LabeledVPNIPAddressPrefix) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LabeledVPNIPAddressPrefix.Unmarshal(m, b)
+}
+func (m *LabeledVPNIPAddressPrefix) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LabeledVPNIPAddressPrefix.Marshal(b, m, deterministic)
+}
+func (dst *LabeledVPNIPAddressPrefix) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LabeledVPNIPAddressPrefix.Merge(dst, src)
+}
+func (m *LabeledVPNIPAddressPrefix) XXX_Size() int {
+	return xxx_messageInfo_LabeledVPNIPAddressPrefix.Size(m)
+}
+func (m *LabeledVPNIPAddressPrefix) XXX_DiscardUnknown() {
+	xxx_messageInfo_LabeledVPNIPAddressPrefix.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LabeledVPNIPAddressPrefix proto.InternalMessageInfo
 
 func (m *LabeledVPNIPAddressPrefix) GetLabels() []uint32 {
 	if m != nil {
@@ -689,7 +1223,7 @@ func (m *LabeledVPNIPAddressPrefix) GetLabels() []uint32 {
 	return nil
 }
 
-func (m *LabeledVPNIPAddressPrefix) GetRd() *google_protobuf.Any {
+func (m *LabeledVPNIPAddressPrefix) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
@@ -713,18 +1247,40 @@ func (m *LabeledVPNIPAddressPrefix) GetPrefix() string {
 // RouteTargetMembershipNLRI represents the NLRI for:
 // - AFI=1, SAFI=132
 type RouteTargetMembershipNLRI struct {
-	As uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	As uint32 `protobuf:"varint,1,opt,name=as,proto3" json:"as,omitempty"`
 	// One of:
 	// - TwoOctetAsSpecificExtended
 	// - IPv4AddressSpecificExtended
 	// - FourOctetAsSpecificExtended
-	Rt *google_protobuf.Any `protobuf:"bytes,2,opt,name=rt" json:"rt,omitempty"`
+	Rt                   *any.Any `protobuf:"bytes,2,opt,name=rt,proto3" json:"rt,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouteTargetMembershipNLRI) Reset()                    { *m = RouteTargetMembershipNLRI{} }
-func (m *RouteTargetMembershipNLRI) String() string            { return proto.CompactTextString(m) }
-func (*RouteTargetMembershipNLRI) ProtoMessage()               {}
-func (*RouteTargetMembershipNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{24} }
+func (m *RouteTargetMembershipNLRI) Reset()         { *m = RouteTargetMembershipNLRI{} }
+func (m *RouteTargetMembershipNLRI) String() string { return proto.CompactTextString(m) }
+func (*RouteTargetMembershipNLRI) ProtoMessage()    {}
+func (*RouteTargetMembershipNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{24}
+}
+func (m *RouteTargetMembershipNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouteTargetMembershipNLRI.Unmarshal(m, b)
+}
+func (m *RouteTargetMembershipNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouteTargetMembershipNLRI.Marshal(b, m, deterministic)
+}
+func (dst *RouteTargetMembershipNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteTargetMembershipNLRI.Merge(dst, src)
+}
+func (m *RouteTargetMembershipNLRI) XXX_Size() int {
+	return xxx_messageInfo_RouteTargetMembershipNLRI.Size(m)
+}
+func (m *RouteTargetMembershipNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteTargetMembershipNLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteTargetMembershipNLRI proto.InternalMessageInfo
 
 func (m *RouteTargetMembershipNLRI) GetAs() uint32 {
 	if m != nil {
@@ -733,7 +1289,7 @@ func (m *RouteTargetMembershipNLRI) GetAs() uint32 {
 	return 0
 }
 
-func (m *RouteTargetMembershipNLRI) GetRt() *google_protobuf.Any {
+func (m *RouteTargetMembershipNLRI) GetRt() *any.Any {
 	if m != nil {
 		return m.Rt
 	}
@@ -741,17 +1297,39 @@ func (m *RouteTargetMembershipNLRI) GetRt() *google_protobuf.Any {
 }
 
 type FlowSpecIPPrefix struct {
-	Type      uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	PrefixLen uint32 `protobuf:"varint,2,opt,name=prefix_len,json=prefixLen" json:"prefix_len,omitempty"`
-	Prefix    string `protobuf:"bytes,3,opt,name=prefix" json:"prefix,omitempty"`
+	Type      uint32 `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	PrefixLen uint32 `protobuf:"varint,2,opt,name=prefix_len,json=prefixLen,proto3" json:"prefix_len,omitempty"`
+	Prefix    string `protobuf:"bytes,3,opt,name=prefix,proto3" json:"prefix,omitempty"`
 	// IPv6 only
-	Offset uint32 `protobuf:"varint,4,opt,name=offset" json:"offset,omitempty"`
+	Offset               uint32   `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FlowSpecIPPrefix) Reset()                    { *m = FlowSpecIPPrefix{} }
-func (m *FlowSpecIPPrefix) String() string            { return proto.CompactTextString(m) }
-func (*FlowSpecIPPrefix) ProtoMessage()               {}
-func (*FlowSpecIPPrefix) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{25} }
+func (m *FlowSpecIPPrefix) Reset()         { *m = FlowSpecIPPrefix{} }
+func (m *FlowSpecIPPrefix) String() string { return proto.CompactTextString(m) }
+func (*FlowSpecIPPrefix) ProtoMessage()    {}
+func (*FlowSpecIPPrefix) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{25}
+}
+func (m *FlowSpecIPPrefix) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlowSpecIPPrefix.Unmarshal(m, b)
+}
+func (m *FlowSpecIPPrefix) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlowSpecIPPrefix.Marshal(b, m, deterministic)
+}
+func (dst *FlowSpecIPPrefix) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlowSpecIPPrefix.Merge(dst, src)
+}
+func (m *FlowSpecIPPrefix) XXX_Size() int {
+	return xxx_messageInfo_FlowSpecIPPrefix.Size(m)
+}
+func (m *FlowSpecIPPrefix) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlowSpecIPPrefix.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlowSpecIPPrefix proto.InternalMessageInfo
 
 func (m *FlowSpecIPPrefix) GetType() uint32 {
 	if m != nil {
@@ -782,14 +1360,36 @@ func (m *FlowSpecIPPrefix) GetOffset() uint32 {
 }
 
 type FlowSpecMAC struct {
-	Type    uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Address string `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
+	Type                 uint32   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Address              string   `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FlowSpecMAC) Reset()                    { *m = FlowSpecMAC{} }
-func (m *FlowSpecMAC) String() string            { return proto.CompactTextString(m) }
-func (*FlowSpecMAC) ProtoMessage()               {}
-func (*FlowSpecMAC) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{26} }
+func (m *FlowSpecMAC) Reset()         { *m = FlowSpecMAC{} }
+func (m *FlowSpecMAC) String() string { return proto.CompactTextString(m) }
+func (*FlowSpecMAC) ProtoMessage()    {}
+func (*FlowSpecMAC) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{26}
+}
+func (m *FlowSpecMAC) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlowSpecMAC.Unmarshal(m, b)
+}
+func (m *FlowSpecMAC) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlowSpecMAC.Marshal(b, m, deterministic)
+}
+func (dst *FlowSpecMAC) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlowSpecMAC.Merge(dst, src)
+}
+func (m *FlowSpecMAC) XXX_Size() int {
+	return xxx_messageInfo_FlowSpecMAC.Size(m)
+}
+func (m *FlowSpecMAC) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlowSpecMAC.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlowSpecMAC proto.InternalMessageInfo
 
 func (m *FlowSpecMAC) GetType() uint32 {
 	if m != nil {
@@ -807,14 +1407,36 @@ func (m *FlowSpecMAC) GetAddress() string {
 
 type FlowSpecComponentItem struct {
 	// Operator for Numeric type, Operand for Bitmask type
-	Op    uint32 `protobuf:"varint,1,opt,name=op" json:"op,omitempty"`
-	Value uint64 `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
+	Op                   uint32   `protobuf:"varint,1,opt,name=op,proto3" json:"op,omitempty"`
+	Value                uint64   `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FlowSpecComponentItem) Reset()                    { *m = FlowSpecComponentItem{} }
-func (m *FlowSpecComponentItem) String() string            { return proto.CompactTextString(m) }
-func (*FlowSpecComponentItem) ProtoMessage()               {}
-func (*FlowSpecComponentItem) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{27} }
+func (m *FlowSpecComponentItem) Reset()         { *m = FlowSpecComponentItem{} }
+func (m *FlowSpecComponentItem) String() string { return proto.CompactTextString(m) }
+func (*FlowSpecComponentItem) ProtoMessage()    {}
+func (*FlowSpecComponentItem) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{27}
+}
+func (m *FlowSpecComponentItem) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlowSpecComponentItem.Unmarshal(m, b)
+}
+func (m *FlowSpecComponentItem) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlowSpecComponentItem.Marshal(b, m, deterministic)
+}
+func (dst *FlowSpecComponentItem) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlowSpecComponentItem.Merge(dst, src)
+}
+func (m *FlowSpecComponentItem) XXX_Size() int {
+	return xxx_messageInfo_FlowSpecComponentItem.Size(m)
+}
+func (m *FlowSpecComponentItem) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlowSpecComponentItem.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlowSpecComponentItem proto.InternalMessageInfo
 
 func (m *FlowSpecComponentItem) GetOp() uint32 {
 	if m != nil {
@@ -831,14 +1453,36 @@ func (m *FlowSpecComponentItem) GetValue() uint64 {
 }
 
 type FlowSpecComponent struct {
-	Type  uint32                   `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Items []*FlowSpecComponentItem `protobuf:"bytes,2,rep,name=items" json:"items,omitempty"`
+	Type                 uint32                   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Items                []*FlowSpecComponentItem `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
 }
 
-func (m *FlowSpecComponent) Reset()                    { *m = FlowSpecComponent{} }
-func (m *FlowSpecComponent) String() string            { return proto.CompactTextString(m) }
-func (*FlowSpecComponent) ProtoMessage()               {}
-func (*FlowSpecComponent) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{28} }
+func (m *FlowSpecComponent) Reset()         { *m = FlowSpecComponent{} }
+func (m *FlowSpecComponent) String() string { return proto.CompactTextString(m) }
+func (*FlowSpecComponent) ProtoMessage()    {}
+func (*FlowSpecComponent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{28}
+}
+func (m *FlowSpecComponent) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlowSpecComponent.Unmarshal(m, b)
+}
+func (m *FlowSpecComponent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlowSpecComponent.Marshal(b, m, deterministic)
+}
+func (dst *FlowSpecComponent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlowSpecComponent.Merge(dst, src)
+}
+func (m *FlowSpecComponent) XXX_Size() int {
+	return xxx_messageInfo_FlowSpecComponent.Size(m)
+}
+func (m *FlowSpecComponent) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlowSpecComponent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlowSpecComponent proto.InternalMessageInfo
 
 func (m *FlowSpecComponent) GetType() uint32 {
 	if m != nil {
@@ -862,15 +1506,37 @@ type FlowSpecNLRI struct {
 	// - FlowSpecIPPrefix
 	// - FlowSpecMAC
 	// - FlowSpecComponent
-	Rules []*google_protobuf.Any `protobuf:"bytes,1,rep,name=rules" json:"rules,omitempty"`
+	Rules                []*any.Any `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *FlowSpecNLRI) Reset()                    { *m = FlowSpecNLRI{} }
-func (m *FlowSpecNLRI) String() string            { return proto.CompactTextString(m) }
-func (*FlowSpecNLRI) ProtoMessage()               {}
-func (*FlowSpecNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{29} }
+func (m *FlowSpecNLRI) Reset()         { *m = FlowSpecNLRI{} }
+func (m *FlowSpecNLRI) String() string { return proto.CompactTextString(m) }
+func (*FlowSpecNLRI) ProtoMessage()    {}
+func (*FlowSpecNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{29}
+}
+func (m *FlowSpecNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlowSpecNLRI.Unmarshal(m, b)
+}
+func (m *FlowSpecNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlowSpecNLRI.Marshal(b, m, deterministic)
+}
+func (dst *FlowSpecNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlowSpecNLRI.Merge(dst, src)
+}
+func (m *FlowSpecNLRI) XXX_Size() int {
+	return xxx_messageInfo_FlowSpecNLRI.Size(m)
+}
+func (m *FlowSpecNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlowSpecNLRI.DiscardUnknown(m)
+}
 
-func (m *FlowSpecNLRI) GetRules() []*google_protobuf.Any {
+var xxx_messageInfo_FlowSpecNLRI proto.InternalMessageInfo
+
+func (m *FlowSpecNLRI) GetRules() []*any.Any {
 	if m != nil {
 		return m.Rules
 	}
@@ -886,27 +1552,49 @@ type VPNFlowSpecNLRI struct {
 	// - RouteDistinguisherTwoOctetAS
 	// - RouteDistinguisherIPAddressAS
 	// - RouteDistinguisherFourOctetAS
-	Rd *google_protobuf.Any `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
+	Rd *any.Any `protobuf:"bytes,1,opt,name=rd,proto3" json:"rd,omitempty"`
 	// One of:
 	// - FlowSpecIPPrefix
 	// - FlowSpecMAC
 	// - FlowSpecComponent
-	Rules []*google_protobuf.Any `protobuf:"bytes,2,rep,name=rules" json:"rules,omitempty"`
+	Rules                []*any.Any `protobuf:"bytes,2,rep,name=rules,proto3" json:"rules,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *VPNFlowSpecNLRI) Reset()                    { *m = VPNFlowSpecNLRI{} }
-func (m *VPNFlowSpecNLRI) String() string            { return proto.CompactTextString(m) }
-func (*VPNFlowSpecNLRI) ProtoMessage()               {}
-func (*VPNFlowSpecNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{30} }
+func (m *VPNFlowSpecNLRI) Reset()         { *m = VPNFlowSpecNLRI{} }
+func (m *VPNFlowSpecNLRI) String() string { return proto.CompactTextString(m) }
+func (*VPNFlowSpecNLRI) ProtoMessage()    {}
+func (*VPNFlowSpecNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{30}
+}
+func (m *VPNFlowSpecNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_VPNFlowSpecNLRI.Unmarshal(m, b)
+}
+func (m *VPNFlowSpecNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_VPNFlowSpecNLRI.Marshal(b, m, deterministic)
+}
+func (dst *VPNFlowSpecNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_VPNFlowSpecNLRI.Merge(dst, src)
+}
+func (m *VPNFlowSpecNLRI) XXX_Size() int {
+	return xxx_messageInfo_VPNFlowSpecNLRI.Size(m)
+}
+func (m *VPNFlowSpecNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_VPNFlowSpecNLRI.DiscardUnknown(m)
+}
 
-func (m *VPNFlowSpecNLRI) GetRd() *google_protobuf.Any {
+var xxx_messageInfo_VPNFlowSpecNLRI proto.InternalMessageInfo
+
+func (m *VPNFlowSpecNLRI) GetRd() *any.Any {
 	if m != nil {
 		return m.Rd
 	}
 	return nil
 }
 
-func (m *VPNFlowSpecNLRI) GetRules() []*google_protobuf.Any {
+func (m *VPNFlowSpecNLRI) GetRules() []*any.Any {
 	if m != nil {
 		return m.Rules
 	}
@@ -916,14 +1604,36 @@ func (m *VPNFlowSpecNLRI) GetRules() []*google_protobuf.Any {
 // OpaqueNLRI represents the NLRI for:
 // - AFI=16397, SAFI=241
 type OpaqueNLRI struct {
-	Key   []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Key                  []byte   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *OpaqueNLRI) Reset()                    { *m = OpaqueNLRI{} }
-func (m *OpaqueNLRI) String() string            { return proto.CompactTextString(m) }
-func (*OpaqueNLRI) ProtoMessage()               {}
-func (*OpaqueNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{31} }
+func (m *OpaqueNLRI) Reset()         { *m = OpaqueNLRI{} }
+func (m *OpaqueNLRI) String() string { return proto.CompactTextString(m) }
+func (*OpaqueNLRI) ProtoMessage()    {}
+func (*OpaqueNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{31}
+}
+func (m *OpaqueNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_OpaqueNLRI.Unmarshal(m, b)
+}
+func (m *OpaqueNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_OpaqueNLRI.Marshal(b, m, deterministic)
+}
+func (dst *OpaqueNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_OpaqueNLRI.Merge(dst, src)
+}
+func (m *OpaqueNLRI) XXX_Size() int {
+	return xxx_messageInfo_OpaqueNLRI.Size(m)
+}
+func (m *OpaqueNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_OpaqueNLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_OpaqueNLRI proto.InternalMessageInfo
 
 func (m *OpaqueNLRI) GetKey() []byte {
 	if m != nil {
@@ -940,17 +1650,39 @@ func (m *OpaqueNLRI) GetValue() []byte {
 }
 
 type LsNodeDescriptor struct {
-	Asn         uint32 `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
-	BgpLsId     uint32 `protobuf:"varint,2,opt,name=bgp_ls_id,json=bgpLsId" json:"bgp_ls_id,omitempty"`
-	OspfAreaId  uint32 `protobuf:"varint,3,opt,name=ospf_area_id,json=ospfAreaId" json:"ospf_area_id,omitempty"`
-	Pseudonode  bool   `protobuf:"varint,4,opt,name=pseudonode" json:"pseudonode,omitempty"`
-	IgpRouterId string `protobuf:"bytes,5,opt,name=igp_router_id,json=igpRouterId" json:"igp_router_id,omitempty"`
+	Asn                  uint32   `protobuf:"varint,1,opt,name=asn,proto3" json:"asn,omitempty"`
+	BgpLsId              uint32   `protobuf:"varint,2,opt,name=bgp_ls_id,json=bgpLsId,proto3" json:"bgp_ls_id,omitempty"`
+	OspfAreaId           uint32   `protobuf:"varint,3,opt,name=ospf_area_id,json=ospfAreaId,proto3" json:"ospf_area_id,omitempty"`
+	Pseudonode           bool     `protobuf:"varint,4,opt,name=pseudonode,proto3" json:"pseudonode,omitempty"`
+	IgpRouterId          string   `protobuf:"bytes,5,opt,name=igp_router_id,json=igpRouterId,proto3" json:"igp_router_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsNodeDescriptor) Reset()                    { *m = LsNodeDescriptor{} }
-func (m *LsNodeDescriptor) String() string            { return proto.CompactTextString(m) }
-func (*LsNodeDescriptor) ProtoMessage()               {}
-func (*LsNodeDescriptor) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{32} }
+func (m *LsNodeDescriptor) Reset()         { *m = LsNodeDescriptor{} }
+func (m *LsNodeDescriptor) String() string { return proto.CompactTextString(m) }
+func (*LsNodeDescriptor) ProtoMessage()    {}
+func (*LsNodeDescriptor) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{32}
+}
+func (m *LsNodeDescriptor) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsNodeDescriptor.Unmarshal(m, b)
+}
+func (m *LsNodeDescriptor) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsNodeDescriptor.Marshal(b, m, deterministic)
+}
+func (dst *LsNodeDescriptor) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsNodeDescriptor.Merge(dst, src)
+}
+func (m *LsNodeDescriptor) XXX_Size() int {
+	return xxx_messageInfo_LsNodeDescriptor.Size(m)
+}
+func (m *LsNodeDescriptor) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsNodeDescriptor.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsNodeDescriptor proto.InternalMessageInfo
 
 func (m *LsNodeDescriptor) GetAsn() uint32 {
 	if m != nil {
@@ -988,18 +1720,40 @@ func (m *LsNodeDescriptor) GetIgpRouterId() string {
 }
 
 type LsLinkDescriptor struct {
-	LinkLocalId       uint32 `protobuf:"varint,1,opt,name=link_local_id,json=linkLocalId" json:"link_local_id,omitempty"`
-	LinkRemoteId      uint32 `protobuf:"varint,2,opt,name=link_remote_id,json=linkRemoteId" json:"link_remote_id,omitempty"`
-	InterfaceAddrIpv4 string `protobuf:"bytes,3,opt,name=interface_addr_ipv4,json=interfaceAddrIpv4" json:"interface_addr_ipv4,omitempty"`
-	NeighborAddrIpv4  string `protobuf:"bytes,4,opt,name=neighbor_addr_ipv4,json=neighborAddrIpv4" json:"neighbor_addr_ipv4,omitempty"`
-	InterfaceAddrIpv6 string `protobuf:"bytes,5,opt,name=interface_addr_ipv6,json=interfaceAddrIpv6" json:"interface_addr_ipv6,omitempty"`
-	NeighborAddrIpv6  string `protobuf:"bytes,6,opt,name=neighbor_addr_ipv6,json=neighborAddrIpv6" json:"neighbor_addr_ipv6,omitempty"`
+	LinkLocalId          uint32   `protobuf:"varint,1,opt,name=link_local_id,json=linkLocalId,proto3" json:"link_local_id,omitempty"`
+	LinkRemoteId         uint32   `protobuf:"varint,2,opt,name=link_remote_id,json=linkRemoteId,proto3" json:"link_remote_id,omitempty"`
+	InterfaceAddrIpv4    string   `protobuf:"bytes,3,opt,name=interface_addr_ipv4,json=interfaceAddrIpv4,proto3" json:"interface_addr_ipv4,omitempty"`
+	NeighborAddrIpv4     string   `protobuf:"bytes,4,opt,name=neighbor_addr_ipv4,json=neighborAddrIpv4,proto3" json:"neighbor_addr_ipv4,omitempty"`
+	InterfaceAddrIpv6    string   `protobuf:"bytes,5,opt,name=interface_addr_ipv6,json=interfaceAddrIpv6,proto3" json:"interface_addr_ipv6,omitempty"`
+	NeighborAddrIpv6     string   `protobuf:"bytes,6,opt,name=neighbor_addr_ipv6,json=neighborAddrIpv6,proto3" json:"neighbor_addr_ipv6,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsLinkDescriptor) Reset()                    { *m = LsLinkDescriptor{} }
-func (m *LsLinkDescriptor) String() string            { return proto.CompactTextString(m) }
-func (*LsLinkDescriptor) ProtoMessage()               {}
-func (*LsLinkDescriptor) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{33} }
+func (m *LsLinkDescriptor) Reset()         { *m = LsLinkDescriptor{} }
+func (m *LsLinkDescriptor) String() string { return proto.CompactTextString(m) }
+func (*LsLinkDescriptor) ProtoMessage()    {}
+func (*LsLinkDescriptor) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{33}
+}
+func (m *LsLinkDescriptor) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsLinkDescriptor.Unmarshal(m, b)
+}
+func (m *LsLinkDescriptor) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsLinkDescriptor.Marshal(b, m, deterministic)
+}
+func (dst *LsLinkDescriptor) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsLinkDescriptor.Merge(dst, src)
+}
+func (m *LsLinkDescriptor) XXX_Size() int {
+	return xxx_messageInfo_LsLinkDescriptor.Size(m)
+}
+func (m *LsLinkDescriptor) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsLinkDescriptor.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsLinkDescriptor proto.InternalMessageInfo
 
 func (m *LsLinkDescriptor) GetLinkLocalId() uint32 {
 	if m != nil {
@@ -1044,14 +1798,36 @@ func (m *LsLinkDescriptor) GetNeighborAddrIpv6() string {
 }
 
 type LsPrefixDescriptor struct {
-	IpReachability []string `protobuf:"bytes,1,rep,name=ip_reachability,json=ipReachability" json:"ip_reachability,omitempty"`
-	OspfRouteType  string   `protobuf:"bytes,2,opt,name=ospf_route_type,json=ospfRouteType" json:"ospf_route_type,omitempty"`
+	IpReachability       []string `protobuf:"bytes,1,rep,name=ip_reachability,json=ipReachability,proto3" json:"ip_reachability,omitempty"`
+	OspfRouteType        string   `protobuf:"bytes,2,opt,name=ospf_route_type,json=ospfRouteType,proto3" json:"ospf_route_type,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsPrefixDescriptor) Reset()                    { *m = LsPrefixDescriptor{} }
-func (m *LsPrefixDescriptor) String() string            { return proto.CompactTextString(m) }
-func (*LsPrefixDescriptor) ProtoMessage()               {}
-func (*LsPrefixDescriptor) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{34} }
+func (m *LsPrefixDescriptor) Reset()         { *m = LsPrefixDescriptor{} }
+func (m *LsPrefixDescriptor) String() string { return proto.CompactTextString(m) }
+func (*LsPrefixDescriptor) ProtoMessage()    {}
+func (*LsPrefixDescriptor) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{34}
+}
+func (m *LsPrefixDescriptor) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsPrefixDescriptor.Unmarshal(m, b)
+}
+func (m *LsPrefixDescriptor) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsPrefixDescriptor.Marshal(b, m, deterministic)
+}
+func (dst *LsPrefixDescriptor) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsPrefixDescriptor.Merge(dst, src)
+}
+func (m *LsPrefixDescriptor) XXX_Size() int {
+	return xxx_messageInfo_LsPrefixDescriptor.Size(m)
+}
+func (m *LsPrefixDescriptor) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsPrefixDescriptor.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsPrefixDescriptor proto.InternalMessageInfo
 
 func (m *LsPrefixDescriptor) GetIpReachability() []string {
 	if m != nil {
@@ -1068,13 +1844,35 @@ func (m *LsPrefixDescriptor) GetOspfRouteType() string {
 }
 
 type LsNodeNLRI struct {
-	LocalNode *LsNodeDescriptor `protobuf:"bytes,1,opt,name=local_node,json=localNode" json:"local_node,omitempty"`
+	LocalNode            *LsNodeDescriptor `protobuf:"bytes,1,opt,name=local_node,json=localNode,proto3" json:"local_node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *LsNodeNLRI) Reset()                    { *m = LsNodeNLRI{} }
-func (m *LsNodeNLRI) String() string            { return proto.CompactTextString(m) }
-func (*LsNodeNLRI) ProtoMessage()               {}
-func (*LsNodeNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{35} }
+func (m *LsNodeNLRI) Reset()         { *m = LsNodeNLRI{} }
+func (m *LsNodeNLRI) String() string { return proto.CompactTextString(m) }
+func (*LsNodeNLRI) ProtoMessage()    {}
+func (*LsNodeNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{35}
+}
+func (m *LsNodeNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsNodeNLRI.Unmarshal(m, b)
+}
+func (m *LsNodeNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsNodeNLRI.Marshal(b, m, deterministic)
+}
+func (dst *LsNodeNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsNodeNLRI.Merge(dst, src)
+}
+func (m *LsNodeNLRI) XXX_Size() int {
+	return xxx_messageInfo_LsNodeNLRI.Size(m)
+}
+func (m *LsNodeNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsNodeNLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsNodeNLRI proto.InternalMessageInfo
 
 func (m *LsNodeNLRI) GetLocalNode() *LsNodeDescriptor {
 	if m != nil {
@@ -1084,15 +1882,37 @@ func (m *LsNodeNLRI) GetLocalNode() *LsNodeDescriptor {
 }
 
 type LsLinkNLRI struct {
-	LocalNode      *LsNodeDescriptor `protobuf:"bytes,1,opt,name=local_node,json=localNode" json:"local_node,omitempty"`
-	RemoteNode     *LsNodeDescriptor `protobuf:"bytes,2,opt,name=remote_node,json=remoteNode" json:"remote_node,omitempty"`
-	LinkDescriptor *LsLinkDescriptor `protobuf:"bytes,3,opt,name=link_descriptor,json=linkDescriptor" json:"link_descriptor,omitempty"`
+	LocalNode            *LsNodeDescriptor `protobuf:"bytes,1,opt,name=local_node,json=localNode,proto3" json:"local_node,omitempty"`
+	RemoteNode           *LsNodeDescriptor `protobuf:"bytes,2,opt,name=remote_node,json=remoteNode,proto3" json:"remote_node,omitempty"`
+	LinkDescriptor       *LsLinkDescriptor `protobuf:"bytes,3,opt,name=link_descriptor,json=linkDescriptor,proto3" json:"link_descriptor,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *LsLinkNLRI) Reset()                    { *m = LsLinkNLRI{} }
-func (m *LsLinkNLRI) String() string            { return proto.CompactTextString(m) }
-func (*LsLinkNLRI) ProtoMessage()               {}
-func (*LsLinkNLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{36} }
+func (m *LsLinkNLRI) Reset()         { *m = LsLinkNLRI{} }
+func (m *LsLinkNLRI) String() string { return proto.CompactTextString(m) }
+func (*LsLinkNLRI) ProtoMessage()    {}
+func (*LsLinkNLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{36}
+}
+func (m *LsLinkNLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsLinkNLRI.Unmarshal(m, b)
+}
+func (m *LsLinkNLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsLinkNLRI.Marshal(b, m, deterministic)
+}
+func (dst *LsLinkNLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsLinkNLRI.Merge(dst, src)
+}
+func (m *LsLinkNLRI) XXX_Size() int {
+	return xxx_messageInfo_LsLinkNLRI.Size(m)
+}
+func (m *LsLinkNLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsLinkNLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsLinkNLRI proto.InternalMessageInfo
 
 func (m *LsLinkNLRI) GetLocalNode() *LsNodeDescriptor {
 	if m != nil {
@@ -1116,14 +1936,36 @@ func (m *LsLinkNLRI) GetLinkDescriptor() *LsLinkDescriptor {
 }
 
 type LsPrefixV4NLRI struct {
-	LocalNode        *LsNodeDescriptor   `protobuf:"bytes,1,opt,name=local_node,json=localNode" json:"local_node,omitempty"`
-	PrefixDescriptor *LsPrefixDescriptor `protobuf:"bytes,2,opt,name=prefix_descriptor,json=prefixDescriptor" json:"prefix_descriptor,omitempty"`
+	LocalNode            *LsNodeDescriptor   `protobuf:"bytes,1,opt,name=local_node,json=localNode,proto3" json:"local_node,omitempty"`
+	PrefixDescriptor     *LsPrefixDescriptor `protobuf:"bytes,2,opt,name=prefix_descriptor,json=prefixDescriptor,proto3" json:"prefix_descriptor,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
+	XXX_unrecognized     []byte              `json:"-"`
+	XXX_sizecache        int32               `json:"-"`
 }
 
-func (m *LsPrefixV4NLRI) Reset()                    { *m = LsPrefixV4NLRI{} }
-func (m *LsPrefixV4NLRI) String() string            { return proto.CompactTextString(m) }
-func (*LsPrefixV4NLRI) ProtoMessage()               {}
-func (*LsPrefixV4NLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{37} }
+func (m *LsPrefixV4NLRI) Reset()         { *m = LsPrefixV4NLRI{} }
+func (m *LsPrefixV4NLRI) String() string { return proto.CompactTextString(m) }
+func (*LsPrefixV4NLRI) ProtoMessage()    {}
+func (*LsPrefixV4NLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{37}
+}
+func (m *LsPrefixV4NLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsPrefixV4NLRI.Unmarshal(m, b)
+}
+func (m *LsPrefixV4NLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsPrefixV4NLRI.Marshal(b, m, deterministic)
+}
+func (dst *LsPrefixV4NLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsPrefixV4NLRI.Merge(dst, src)
+}
+func (m *LsPrefixV4NLRI) XXX_Size() int {
+	return xxx_messageInfo_LsPrefixV4NLRI.Size(m)
+}
+func (m *LsPrefixV4NLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsPrefixV4NLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsPrefixV4NLRI proto.InternalMessageInfo
 
 func (m *LsPrefixV4NLRI) GetLocalNode() *LsNodeDescriptor {
 	if m != nil {
@@ -1140,14 +1982,36 @@ func (m *LsPrefixV4NLRI) GetPrefixDescriptor() *LsPrefixDescriptor {
 }
 
 type LsPrefixV6NLRI struct {
-	LocalNode        *LsNodeDescriptor   `protobuf:"bytes,1,opt,name=local_node,json=localNode" json:"local_node,omitempty"`
-	PrefixDescriptor *LsPrefixDescriptor `protobuf:"bytes,2,opt,name=prefix_descriptor,json=prefixDescriptor" json:"prefix_descriptor,omitempty"`
+	LocalNode            *LsNodeDescriptor   `protobuf:"bytes,1,opt,name=local_node,json=localNode,proto3" json:"local_node,omitempty"`
+	PrefixDescriptor     *LsPrefixDescriptor `protobuf:"bytes,2,opt,name=prefix_descriptor,json=prefixDescriptor,proto3" json:"prefix_descriptor,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
+	XXX_unrecognized     []byte              `json:"-"`
+	XXX_sizecache        int32               `json:"-"`
 }
 
-func (m *LsPrefixV6NLRI) Reset()                    { *m = LsPrefixV6NLRI{} }
-func (m *LsPrefixV6NLRI) String() string            { return proto.CompactTextString(m) }
-func (*LsPrefixV6NLRI) ProtoMessage()               {}
-func (*LsPrefixV6NLRI) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{38} }
+func (m *LsPrefixV6NLRI) Reset()         { *m = LsPrefixV6NLRI{} }
+func (m *LsPrefixV6NLRI) String() string { return proto.CompactTextString(m) }
+func (*LsPrefixV6NLRI) ProtoMessage()    {}
+func (*LsPrefixV6NLRI) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{38}
+}
+func (m *LsPrefixV6NLRI) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsPrefixV6NLRI.Unmarshal(m, b)
+}
+func (m *LsPrefixV6NLRI) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsPrefixV6NLRI.Marshal(b, m, deterministic)
+}
+func (dst *LsPrefixV6NLRI) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsPrefixV6NLRI.Merge(dst, src)
+}
+func (m *LsPrefixV6NLRI) XXX_Size() int {
+	return xxx_messageInfo_LsPrefixV6NLRI.Size(m)
+}
+func (m *LsPrefixV6NLRI) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsPrefixV6NLRI.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsPrefixV6NLRI proto.InternalMessageInfo
 
 func (m *LsPrefixV6NLRI) GetLocalNode() *LsNodeDescriptor {
 	if m != nil {
@@ -1166,19 +2030,41 @@ func (m *LsPrefixV6NLRI) GetPrefixDescriptor() *LsPrefixDescriptor {
 // LsAddrPrefix represents the NLRI for:
 // - AFI=16388, SAFI=71
 type LsAddrPrefix struct {
-	Type LsNLRIType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.LsNLRIType" json:"type,omitempty"`
+	Type LsNLRIType `protobuf:"varint,1,opt,name=type,proto3,enum=gobgpapi.LsNLRIType" json:"type,omitempty"`
 	// One of:
 	// - LsNodeNLRI
 	// - LsLinkNLRI
 	// - LsPrefixV4NLRI
 	// - LsPrefixV6NLRI
-	Nlri *google_protobuf.Any `protobuf:"bytes,2,opt,name=nlri" json:"nlri,omitempty"`
+	Nlri                 *any.Any `protobuf:"bytes,2,opt,name=nlri,proto3" json:"nlri,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsAddrPrefix) Reset()                    { *m = LsAddrPrefix{} }
-func (m *LsAddrPrefix) String() string            { return proto.CompactTextString(m) }
-func (*LsAddrPrefix) ProtoMessage()               {}
-func (*LsAddrPrefix) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{39} }
+func (m *LsAddrPrefix) Reset()         { *m = LsAddrPrefix{} }
+func (m *LsAddrPrefix) String() string { return proto.CompactTextString(m) }
+func (*LsAddrPrefix) ProtoMessage()    {}
+func (*LsAddrPrefix) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{39}
+}
+func (m *LsAddrPrefix) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsAddrPrefix.Unmarshal(m, b)
+}
+func (m *LsAddrPrefix) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsAddrPrefix.Marshal(b, m, deterministic)
+}
+func (dst *LsAddrPrefix) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsAddrPrefix.Merge(dst, src)
+}
+func (m *LsAddrPrefix) XXX_Size() int {
+	return xxx_messageInfo_LsAddrPrefix.Size(m)
+}
+func (m *LsAddrPrefix) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsAddrPrefix.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsAddrPrefix proto.InternalMessageInfo
 
 func (m *LsAddrPrefix) GetType() LsNLRIType {
 	if m != nil {
@@ -1187,7 +2073,7 @@ func (m *LsAddrPrefix) GetType() LsNLRIType {
 	return LsNLRIType_LS_NLRI_UNKNOWN
 }
 
-func (m *LsAddrPrefix) GetNlri() *google_protobuf.Any {
+func (m *LsAddrPrefix) GetNlri() *any.Any {
 	if m != nil {
 		return m.Nlri
 	}
@@ -1195,8 +2081,8 @@ func (m *LsAddrPrefix) GetNlri() *google_protobuf.Any {
 }
 
 type MpReachNLRIAttribute struct {
-	Family   *Family  `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
-	NextHops []string `protobuf:"bytes,2,rep,name=next_hops,json=nextHops" json:"next_hops,omitempty"`
+	Family   *Family  `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	NextHops []string `protobuf:"bytes,2,rep,name=next_hops,json=nextHops,proto3" json:"next_hops,omitempty"`
 	// Each NLRI must be one of:
 	// - IPAddressPrefix
 	// - LabeledIPAddressPrefix
@@ -1212,13 +2098,35 @@ type MpReachNLRIAttribute struct {
 	// - VPNFlowSpecNLRI
 	// - OpaqueNLRI
 	// - LsAddrPrefix
-	Nlris []*google_protobuf.Any `protobuf:"bytes,3,rep,name=nlris" json:"nlris,omitempty"`
+	Nlris                []*any.Any `protobuf:"bytes,3,rep,name=nlris,proto3" json:"nlris,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *MpReachNLRIAttribute) Reset()                    { *m = MpReachNLRIAttribute{} }
-func (m *MpReachNLRIAttribute) String() string            { return proto.CompactTextString(m) }
-func (*MpReachNLRIAttribute) ProtoMessage()               {}
-func (*MpReachNLRIAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{40} }
+func (m *MpReachNLRIAttribute) Reset()         { *m = MpReachNLRIAttribute{} }
+func (m *MpReachNLRIAttribute) String() string { return proto.CompactTextString(m) }
+func (*MpReachNLRIAttribute) ProtoMessage()    {}
+func (*MpReachNLRIAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{40}
+}
+func (m *MpReachNLRIAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MpReachNLRIAttribute.Unmarshal(m, b)
+}
+func (m *MpReachNLRIAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MpReachNLRIAttribute.Marshal(b, m, deterministic)
+}
+func (dst *MpReachNLRIAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MpReachNLRIAttribute.Merge(dst, src)
+}
+func (m *MpReachNLRIAttribute) XXX_Size() int {
+	return xxx_messageInfo_MpReachNLRIAttribute.Size(m)
+}
+func (m *MpReachNLRIAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_MpReachNLRIAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MpReachNLRIAttribute proto.InternalMessageInfo
 
 func (m *MpReachNLRIAttribute) GetFamily() *Family {
 	if m != nil {
@@ -1234,7 +2142,7 @@ func (m *MpReachNLRIAttribute) GetNextHops() []string {
 	return nil
 }
 
-func (m *MpReachNLRIAttribute) GetNlris() []*google_protobuf.Any {
+func (m *MpReachNLRIAttribute) GetNlris() []*any.Any {
 	if m != nil {
 		return m.Nlris
 	}
@@ -1242,15 +2150,37 @@ func (m *MpReachNLRIAttribute) GetNlris() []*google_protobuf.Any {
 }
 
 type MpUnreachNLRIAttribute struct {
-	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
+	Family *Family `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
 	// The same as NLRI field of MpReachNLRIAttribute
-	Nlris []*google_protobuf.Any `protobuf:"bytes,3,rep,name=nlris" json:"nlris,omitempty"`
+	Nlris                []*any.Any `protobuf:"bytes,3,rep,name=nlris,proto3" json:"nlris,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *MpUnreachNLRIAttribute) Reset()                    { *m = MpUnreachNLRIAttribute{} }
-func (m *MpUnreachNLRIAttribute) String() string            { return proto.CompactTextString(m) }
-func (*MpUnreachNLRIAttribute) ProtoMessage()               {}
-func (*MpUnreachNLRIAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{41} }
+func (m *MpUnreachNLRIAttribute) Reset()         { *m = MpUnreachNLRIAttribute{} }
+func (m *MpUnreachNLRIAttribute) String() string { return proto.CompactTextString(m) }
+func (*MpUnreachNLRIAttribute) ProtoMessage()    {}
+func (*MpUnreachNLRIAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{41}
+}
+func (m *MpUnreachNLRIAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MpUnreachNLRIAttribute.Unmarshal(m, b)
+}
+func (m *MpUnreachNLRIAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MpUnreachNLRIAttribute.Marshal(b, m, deterministic)
+}
+func (dst *MpUnreachNLRIAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MpUnreachNLRIAttribute.Merge(dst, src)
+}
+func (m *MpUnreachNLRIAttribute) XXX_Size() int {
+	return xxx_messageInfo_MpUnreachNLRIAttribute.Size(m)
+}
+func (m *MpUnreachNLRIAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_MpUnreachNLRIAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MpUnreachNLRIAttribute proto.InternalMessageInfo
 
 func (m *MpUnreachNLRIAttribute) GetFamily() *Family {
 	if m != nil {
@@ -1259,7 +2189,7 @@ func (m *MpUnreachNLRIAttribute) GetFamily() *Family {
 	return nil
 }
 
-func (m *MpUnreachNLRIAttribute) GetNlris() []*google_protobuf.Any {
+func (m *MpUnreachNLRIAttribute) GetNlris() []*any.Any {
 	if m != nil {
 		return m.Nlris
 	}
@@ -1267,16 +2197,38 @@ func (m *MpUnreachNLRIAttribute) GetNlris() []*google_protobuf.Any {
 }
 
 type TwoOctetAsSpecificExtended struct {
-	IsTransitive bool   `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive" json:"is_transitive,omitempty"`
-	SubType      uint32 `protobuf:"varint,2,opt,name=sub_type,json=subType" json:"sub_type,omitempty"`
-	As           uint32 `protobuf:"varint,3,opt,name=as" json:"as,omitempty"`
-	LocalAdmin   uint32 `protobuf:"varint,4,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	IsTransitive         bool     `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive,proto3" json:"is_transitive,omitempty"`
+	SubType              uint32   `protobuf:"varint,2,opt,name=sub_type,json=subType,proto3" json:"sub_type,omitempty"`
+	As                   uint32   `protobuf:"varint,3,opt,name=as,proto3" json:"as,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,4,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TwoOctetAsSpecificExtended) Reset()                    { *m = TwoOctetAsSpecificExtended{} }
-func (m *TwoOctetAsSpecificExtended) String() string            { return proto.CompactTextString(m) }
-func (*TwoOctetAsSpecificExtended) ProtoMessage()               {}
-func (*TwoOctetAsSpecificExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{42} }
+func (m *TwoOctetAsSpecificExtended) Reset()         { *m = TwoOctetAsSpecificExtended{} }
+func (m *TwoOctetAsSpecificExtended) String() string { return proto.CompactTextString(m) }
+func (*TwoOctetAsSpecificExtended) ProtoMessage()    {}
+func (*TwoOctetAsSpecificExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{42}
+}
+func (m *TwoOctetAsSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TwoOctetAsSpecificExtended.Unmarshal(m, b)
+}
+func (m *TwoOctetAsSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TwoOctetAsSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *TwoOctetAsSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TwoOctetAsSpecificExtended.Merge(dst, src)
+}
+func (m *TwoOctetAsSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_TwoOctetAsSpecificExtended.Size(m)
+}
+func (m *TwoOctetAsSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_TwoOctetAsSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TwoOctetAsSpecificExtended proto.InternalMessageInfo
 
 func (m *TwoOctetAsSpecificExtended) GetIsTransitive() bool {
 	if m != nil {
@@ -1307,16 +2259,38 @@ func (m *TwoOctetAsSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type IPv4AddressSpecificExtended struct {
-	IsTransitive bool   `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive" json:"is_transitive,omitempty"`
-	SubType      uint32 `protobuf:"varint,2,opt,name=sub_type,json=subType" json:"sub_type,omitempty"`
-	Address      string `protobuf:"bytes,3,opt,name=address" json:"address,omitempty"`
-	LocalAdmin   uint32 `protobuf:"varint,4,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	IsTransitive         bool     `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive,proto3" json:"is_transitive,omitempty"`
+	SubType              uint32   `protobuf:"varint,2,opt,name=sub_type,json=subType,proto3" json:"sub_type,omitempty"`
+	Address              string   `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,4,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *IPv4AddressSpecificExtended) Reset()                    { *m = IPv4AddressSpecificExtended{} }
-func (m *IPv4AddressSpecificExtended) String() string            { return proto.CompactTextString(m) }
-func (*IPv4AddressSpecificExtended) ProtoMessage()               {}
-func (*IPv4AddressSpecificExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{43} }
+func (m *IPv4AddressSpecificExtended) Reset()         { *m = IPv4AddressSpecificExtended{} }
+func (m *IPv4AddressSpecificExtended) String() string { return proto.CompactTextString(m) }
+func (*IPv4AddressSpecificExtended) ProtoMessage()    {}
+func (*IPv4AddressSpecificExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{43}
+}
+func (m *IPv4AddressSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_IPv4AddressSpecificExtended.Unmarshal(m, b)
+}
+func (m *IPv4AddressSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_IPv4AddressSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *IPv4AddressSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IPv4AddressSpecificExtended.Merge(dst, src)
+}
+func (m *IPv4AddressSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_IPv4AddressSpecificExtended.Size(m)
+}
+func (m *IPv4AddressSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_IPv4AddressSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_IPv4AddressSpecificExtended proto.InternalMessageInfo
 
 func (m *IPv4AddressSpecificExtended) GetIsTransitive() bool {
 	if m != nil {
@@ -1347,16 +2321,38 @@ func (m *IPv4AddressSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type FourOctetAsSpecificExtended struct {
-	IsTransitive bool   `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive" json:"is_transitive,omitempty"`
-	SubType      uint32 `protobuf:"varint,2,opt,name=sub_type,json=subType" json:"sub_type,omitempty"`
-	As           uint32 `protobuf:"varint,3,opt,name=as" json:"as,omitempty"`
-	LocalAdmin   uint32 `protobuf:"varint,4,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	IsTransitive         bool     `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive,proto3" json:"is_transitive,omitempty"`
+	SubType              uint32   `protobuf:"varint,2,opt,name=sub_type,json=subType,proto3" json:"sub_type,omitempty"`
+	As                   uint32   `protobuf:"varint,3,opt,name=as,proto3" json:"as,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,4,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FourOctetAsSpecificExtended) Reset()                    { *m = FourOctetAsSpecificExtended{} }
-func (m *FourOctetAsSpecificExtended) String() string            { return proto.CompactTextString(m) }
-func (*FourOctetAsSpecificExtended) ProtoMessage()               {}
-func (*FourOctetAsSpecificExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{44} }
+func (m *FourOctetAsSpecificExtended) Reset()         { *m = FourOctetAsSpecificExtended{} }
+func (m *FourOctetAsSpecificExtended) String() string { return proto.CompactTextString(m) }
+func (*FourOctetAsSpecificExtended) ProtoMessage()    {}
+func (*FourOctetAsSpecificExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{44}
+}
+func (m *FourOctetAsSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FourOctetAsSpecificExtended.Unmarshal(m, b)
+}
+func (m *FourOctetAsSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FourOctetAsSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *FourOctetAsSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FourOctetAsSpecificExtended.Merge(dst, src)
+}
+func (m *FourOctetAsSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_FourOctetAsSpecificExtended.Size(m)
+}
+func (m *FourOctetAsSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_FourOctetAsSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FourOctetAsSpecificExtended proto.InternalMessageInfo
 
 func (m *FourOctetAsSpecificExtended) GetIsTransitive() bool {
 	if m != nil {
@@ -1387,13 +2383,35 @@ func (m *FourOctetAsSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type ValidationExtended struct {
-	State uint32 `protobuf:"varint,1,opt,name=state" json:"state,omitempty"`
+	State                uint32   `protobuf:"varint,1,opt,name=state,proto3" json:"state,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ValidationExtended) Reset()                    { *m = ValidationExtended{} }
-func (m *ValidationExtended) String() string            { return proto.CompactTextString(m) }
-func (*ValidationExtended) ProtoMessage()               {}
-func (*ValidationExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{45} }
+func (m *ValidationExtended) Reset()         { *m = ValidationExtended{} }
+func (m *ValidationExtended) String() string { return proto.CompactTextString(m) }
+func (*ValidationExtended) ProtoMessage()    {}
+func (*ValidationExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{45}
+}
+func (m *ValidationExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ValidationExtended.Unmarshal(m, b)
+}
+func (m *ValidationExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ValidationExtended.Marshal(b, m, deterministic)
+}
+func (dst *ValidationExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidationExtended.Merge(dst, src)
+}
+func (m *ValidationExtended) XXX_Size() int {
+	return xxx_messageInfo_ValidationExtended.Size(m)
+}
+func (m *ValidationExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidationExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ValidationExtended proto.InternalMessageInfo
 
 func (m *ValidationExtended) GetState() uint32 {
 	if m != nil {
@@ -1403,13 +2421,35 @@ func (m *ValidationExtended) GetState() uint32 {
 }
 
 type ColorExtended struct {
-	Color uint32 `protobuf:"varint,1,opt,name=color" json:"color,omitempty"`
+	Color                uint32   `protobuf:"varint,1,opt,name=color,proto3" json:"color,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ColorExtended) Reset()                    { *m = ColorExtended{} }
-func (m *ColorExtended) String() string            { return proto.CompactTextString(m) }
-func (*ColorExtended) ProtoMessage()               {}
-func (*ColorExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{46} }
+func (m *ColorExtended) Reset()         { *m = ColorExtended{} }
+func (m *ColorExtended) String() string { return proto.CompactTextString(m) }
+func (*ColorExtended) ProtoMessage()    {}
+func (*ColorExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{46}
+}
+func (m *ColorExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ColorExtended.Unmarshal(m, b)
+}
+func (m *ColorExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ColorExtended.Marshal(b, m, deterministic)
+}
+func (dst *ColorExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ColorExtended.Merge(dst, src)
+}
+func (m *ColorExtended) XXX_Size() int {
+	return xxx_messageInfo_ColorExtended.Size(m)
+}
+func (m *ColorExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_ColorExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ColorExtended proto.InternalMessageInfo
 
 func (m *ColorExtended) GetColor() uint32 {
 	if m != nil {
@@ -1419,13 +2459,35 @@ func (m *ColorExtended) GetColor() uint32 {
 }
 
 type EncapExtended struct {
-	TunnelType uint32 `protobuf:"varint,1,opt,name=tunnel_type,json=tunnelType" json:"tunnel_type,omitempty"`
+	TunnelType           uint32   `protobuf:"varint,1,opt,name=tunnel_type,json=tunnelType,proto3" json:"tunnel_type,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *EncapExtended) Reset()                    { *m = EncapExtended{} }
-func (m *EncapExtended) String() string            { return proto.CompactTextString(m) }
-func (*EncapExtended) ProtoMessage()               {}
-func (*EncapExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{47} }
+func (m *EncapExtended) Reset()         { *m = EncapExtended{} }
+func (m *EncapExtended) String() string { return proto.CompactTextString(m) }
+func (*EncapExtended) ProtoMessage()    {}
+func (*EncapExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{47}
+}
+func (m *EncapExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EncapExtended.Unmarshal(m, b)
+}
+func (m *EncapExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EncapExtended.Marshal(b, m, deterministic)
+}
+func (dst *EncapExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EncapExtended.Merge(dst, src)
+}
+func (m *EncapExtended) XXX_Size() int {
+	return xxx_messageInfo_EncapExtended.Size(m)
+}
+func (m *EncapExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_EncapExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EncapExtended proto.InternalMessageInfo
 
 func (m *EncapExtended) GetTunnelType() uint32 {
 	if m != nil {
@@ -1435,22 +2497,66 @@ func (m *EncapExtended) GetTunnelType() uint32 {
 }
 
 type DefaultGatewayExtended struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *DefaultGatewayExtended) Reset()                    { *m = DefaultGatewayExtended{} }
-func (m *DefaultGatewayExtended) String() string            { return proto.CompactTextString(m) }
-func (*DefaultGatewayExtended) ProtoMessage()               {}
-func (*DefaultGatewayExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{48} }
+func (m *DefaultGatewayExtended) Reset()         { *m = DefaultGatewayExtended{} }
+func (m *DefaultGatewayExtended) String() string { return proto.CompactTextString(m) }
+func (*DefaultGatewayExtended) ProtoMessage()    {}
+func (*DefaultGatewayExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{48}
+}
+func (m *DefaultGatewayExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DefaultGatewayExtended.Unmarshal(m, b)
+}
+func (m *DefaultGatewayExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DefaultGatewayExtended.Marshal(b, m, deterministic)
+}
+func (dst *DefaultGatewayExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DefaultGatewayExtended.Merge(dst, src)
+}
+func (m *DefaultGatewayExtended) XXX_Size() int {
+	return xxx_messageInfo_DefaultGatewayExtended.Size(m)
+}
+func (m *DefaultGatewayExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_DefaultGatewayExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DefaultGatewayExtended proto.InternalMessageInfo
 
 type OpaqueExtended struct {
-	IsTransitive bool   `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive" json:"is_transitive,omitempty"`
-	Value        []byte `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	IsTransitive         bool     `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive,proto3" json:"is_transitive,omitempty"`
+	Value                []byte   `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *OpaqueExtended) Reset()                    { *m = OpaqueExtended{} }
-func (m *OpaqueExtended) String() string            { return proto.CompactTextString(m) }
-func (*OpaqueExtended) ProtoMessage()               {}
-func (*OpaqueExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{49} }
+func (m *OpaqueExtended) Reset()         { *m = OpaqueExtended{} }
+func (m *OpaqueExtended) String() string { return proto.CompactTextString(m) }
+func (*OpaqueExtended) ProtoMessage()    {}
+func (*OpaqueExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{49}
+}
+func (m *OpaqueExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_OpaqueExtended.Unmarshal(m, b)
+}
+func (m *OpaqueExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_OpaqueExtended.Marshal(b, m, deterministic)
+}
+func (dst *OpaqueExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_OpaqueExtended.Merge(dst, src)
+}
+func (m *OpaqueExtended) XXX_Size() int {
+	return xxx_messageInfo_OpaqueExtended.Size(m)
+}
+func (m *OpaqueExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_OpaqueExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_OpaqueExtended proto.InternalMessageInfo
 
 func (m *OpaqueExtended) GetIsTransitive() bool {
 	if m != nil {
@@ -1467,14 +2573,36 @@ func (m *OpaqueExtended) GetValue() []byte {
 }
 
 type ESILabelExtended struct {
-	IsSingleActive bool   `protobuf:"varint,1,opt,name=is_single_active,json=isSingleActive" json:"is_single_active,omitempty"`
-	Label          uint32 `protobuf:"varint,2,opt,name=label" json:"label,omitempty"`
+	IsSingleActive       bool     `protobuf:"varint,1,opt,name=is_single_active,json=isSingleActive,proto3" json:"is_single_active,omitempty"`
+	Label                uint32   `protobuf:"varint,2,opt,name=label,proto3" json:"label,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ESILabelExtended) Reset()                    { *m = ESILabelExtended{} }
-func (m *ESILabelExtended) String() string            { return proto.CompactTextString(m) }
-func (*ESILabelExtended) ProtoMessage()               {}
-func (*ESILabelExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{50} }
+func (m *ESILabelExtended) Reset()         { *m = ESILabelExtended{} }
+func (m *ESILabelExtended) String() string { return proto.CompactTextString(m) }
+func (*ESILabelExtended) ProtoMessage()    {}
+func (*ESILabelExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{50}
+}
+func (m *ESILabelExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ESILabelExtended.Unmarshal(m, b)
+}
+func (m *ESILabelExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ESILabelExtended.Marshal(b, m, deterministic)
+}
+func (dst *ESILabelExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ESILabelExtended.Merge(dst, src)
+}
+func (m *ESILabelExtended) XXX_Size() int {
+	return xxx_messageInfo_ESILabelExtended.Size(m)
+}
+func (m *ESILabelExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_ESILabelExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ESILabelExtended proto.InternalMessageInfo
 
 func (m *ESILabelExtended) GetIsSingleActive() bool {
 	if m != nil {
@@ -1491,13 +2619,35 @@ func (m *ESILabelExtended) GetLabel() uint32 {
 }
 
 type ESImportRouteTarget struct {
-	EsImport string `protobuf:"bytes,1,opt,name=es_import,json=esImport" json:"es_import,omitempty"`
+	EsImport             string   `protobuf:"bytes,1,opt,name=es_import,json=esImport,proto3" json:"es_import,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ESImportRouteTarget) Reset()                    { *m = ESImportRouteTarget{} }
-func (m *ESImportRouteTarget) String() string            { return proto.CompactTextString(m) }
-func (*ESImportRouteTarget) ProtoMessage()               {}
-func (*ESImportRouteTarget) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{51} }
+func (m *ESImportRouteTarget) Reset()         { *m = ESImportRouteTarget{} }
+func (m *ESImportRouteTarget) String() string { return proto.CompactTextString(m) }
+func (*ESImportRouteTarget) ProtoMessage()    {}
+func (*ESImportRouteTarget) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{51}
+}
+func (m *ESImportRouteTarget) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ESImportRouteTarget.Unmarshal(m, b)
+}
+func (m *ESImportRouteTarget) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ESImportRouteTarget.Marshal(b, m, deterministic)
+}
+func (dst *ESImportRouteTarget) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ESImportRouteTarget.Merge(dst, src)
+}
+func (m *ESImportRouteTarget) XXX_Size() int {
+	return xxx_messageInfo_ESImportRouteTarget.Size(m)
+}
+func (m *ESImportRouteTarget) XXX_DiscardUnknown() {
+	xxx_messageInfo_ESImportRouteTarget.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ESImportRouteTarget proto.InternalMessageInfo
 
 func (m *ESImportRouteTarget) GetEsImport() string {
 	if m != nil {
@@ -1507,14 +2657,36 @@ func (m *ESImportRouteTarget) GetEsImport() string {
 }
 
 type MacMobilityExtended struct {
-	IsSticky    bool   `protobuf:"varint,1,opt,name=is_sticky,json=isSticky" json:"is_sticky,omitempty"`
-	SequenceNum uint32 `protobuf:"varint,2,opt,name=sequence_num,json=sequenceNum" json:"sequence_num,omitempty"`
+	IsSticky             bool     `protobuf:"varint,1,opt,name=is_sticky,json=isSticky,proto3" json:"is_sticky,omitempty"`
+	SequenceNum          uint32   `protobuf:"varint,2,opt,name=sequence_num,json=sequenceNum,proto3" json:"sequence_num,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *MacMobilityExtended) Reset()                    { *m = MacMobilityExtended{} }
-func (m *MacMobilityExtended) String() string            { return proto.CompactTextString(m) }
-func (*MacMobilityExtended) ProtoMessage()               {}
-func (*MacMobilityExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{52} }
+func (m *MacMobilityExtended) Reset()         { *m = MacMobilityExtended{} }
+func (m *MacMobilityExtended) String() string { return proto.CompactTextString(m) }
+func (*MacMobilityExtended) ProtoMessage()    {}
+func (*MacMobilityExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{52}
+}
+func (m *MacMobilityExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MacMobilityExtended.Unmarshal(m, b)
+}
+func (m *MacMobilityExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MacMobilityExtended.Marshal(b, m, deterministic)
+}
+func (dst *MacMobilityExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MacMobilityExtended.Merge(dst, src)
+}
+func (m *MacMobilityExtended) XXX_Size() int {
+	return xxx_messageInfo_MacMobilityExtended.Size(m)
+}
+func (m *MacMobilityExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_MacMobilityExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MacMobilityExtended proto.InternalMessageInfo
 
 func (m *MacMobilityExtended) GetIsSticky() bool {
 	if m != nil {
@@ -1531,13 +2703,35 @@ func (m *MacMobilityExtended) GetSequenceNum() uint32 {
 }
 
 type RouterMacExtended struct {
-	Mac string `protobuf:"bytes,1,opt,name=mac" json:"mac,omitempty"`
+	Mac                  string   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouterMacExtended) Reset()                    { *m = RouterMacExtended{} }
-func (m *RouterMacExtended) String() string            { return proto.CompactTextString(m) }
-func (*RouterMacExtended) ProtoMessage()               {}
-func (*RouterMacExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{53} }
+func (m *RouterMacExtended) Reset()         { *m = RouterMacExtended{} }
+func (m *RouterMacExtended) String() string { return proto.CompactTextString(m) }
+func (*RouterMacExtended) ProtoMessage()    {}
+func (*RouterMacExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{53}
+}
+func (m *RouterMacExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouterMacExtended.Unmarshal(m, b)
+}
+func (m *RouterMacExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouterMacExtended.Marshal(b, m, deterministic)
+}
+func (dst *RouterMacExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouterMacExtended.Merge(dst, src)
+}
+func (m *RouterMacExtended) XXX_Size() int {
+	return xxx_messageInfo_RouterMacExtended.Size(m)
+}
+func (m *RouterMacExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouterMacExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouterMacExtended proto.InternalMessageInfo
 
 func (m *RouterMacExtended) GetMac() string {
 	if m != nil {
@@ -1547,14 +2741,36 @@ func (m *RouterMacExtended) GetMac() string {
 }
 
 type TrafficRateExtended struct {
-	As   uint32  `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	Rate float32 `protobuf:"fixed32,2,opt,name=rate" json:"rate,omitempty"`
+	As                   uint32   `protobuf:"varint,1,opt,name=as,proto3" json:"as,omitempty"`
+	Rate                 float32  `protobuf:"fixed32,2,opt,name=rate,proto3" json:"rate,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TrafficRateExtended) Reset()                    { *m = TrafficRateExtended{} }
-func (m *TrafficRateExtended) String() string            { return proto.CompactTextString(m) }
-func (*TrafficRateExtended) ProtoMessage()               {}
-func (*TrafficRateExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{54} }
+func (m *TrafficRateExtended) Reset()         { *m = TrafficRateExtended{} }
+func (m *TrafficRateExtended) String() string { return proto.CompactTextString(m) }
+func (*TrafficRateExtended) ProtoMessage()    {}
+func (*TrafficRateExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{54}
+}
+func (m *TrafficRateExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TrafficRateExtended.Unmarshal(m, b)
+}
+func (m *TrafficRateExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TrafficRateExtended.Marshal(b, m, deterministic)
+}
+func (dst *TrafficRateExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TrafficRateExtended.Merge(dst, src)
+}
+func (m *TrafficRateExtended) XXX_Size() int {
+	return xxx_messageInfo_TrafficRateExtended.Size(m)
+}
+func (m *TrafficRateExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_TrafficRateExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TrafficRateExtended proto.InternalMessageInfo
 
 func (m *TrafficRateExtended) GetAs() uint32 {
 	if m != nil {
@@ -1571,14 +2787,36 @@ func (m *TrafficRateExtended) GetRate() float32 {
 }
 
 type TrafficActionExtended struct {
-	Terminal bool `protobuf:"varint,1,opt,name=terminal" json:"terminal,omitempty"`
-	Sample   bool `protobuf:"varint,2,opt,name=sample" json:"sample,omitempty"`
+	Terminal             bool     `protobuf:"varint,1,opt,name=terminal,proto3" json:"terminal,omitempty"`
+	Sample               bool     `protobuf:"varint,2,opt,name=sample,proto3" json:"sample,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TrafficActionExtended) Reset()                    { *m = TrafficActionExtended{} }
-func (m *TrafficActionExtended) String() string            { return proto.CompactTextString(m) }
-func (*TrafficActionExtended) ProtoMessage()               {}
-func (*TrafficActionExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{55} }
+func (m *TrafficActionExtended) Reset()         { *m = TrafficActionExtended{} }
+func (m *TrafficActionExtended) String() string { return proto.CompactTextString(m) }
+func (*TrafficActionExtended) ProtoMessage()    {}
+func (*TrafficActionExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{55}
+}
+func (m *TrafficActionExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TrafficActionExtended.Unmarshal(m, b)
+}
+func (m *TrafficActionExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TrafficActionExtended.Marshal(b, m, deterministic)
+}
+func (dst *TrafficActionExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TrafficActionExtended.Merge(dst, src)
+}
+func (m *TrafficActionExtended) XXX_Size() int {
+	return xxx_messageInfo_TrafficActionExtended.Size(m)
+}
+func (m *TrafficActionExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_TrafficActionExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TrafficActionExtended proto.InternalMessageInfo
 
 func (m *TrafficActionExtended) GetTerminal() bool {
 	if m != nil {
@@ -1595,16 +2833,36 @@ func (m *TrafficActionExtended) GetSample() bool {
 }
 
 type RedirectTwoOctetAsSpecificExtended struct {
-	As         uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	LocalAdmin uint32 `protobuf:"varint,2,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	As                   uint32   `protobuf:"varint,1,opt,name=as,proto3" json:"as,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,2,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *RedirectTwoOctetAsSpecificExtended) Reset()         { *m = RedirectTwoOctetAsSpecificExtended{} }
 func (m *RedirectTwoOctetAsSpecificExtended) String() string { return proto.CompactTextString(m) }
 func (*RedirectTwoOctetAsSpecificExtended) ProtoMessage()    {}
 func (*RedirectTwoOctetAsSpecificExtended) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{56}
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{56}
 }
+func (m *RedirectTwoOctetAsSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RedirectTwoOctetAsSpecificExtended.Unmarshal(m, b)
+}
+func (m *RedirectTwoOctetAsSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RedirectTwoOctetAsSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *RedirectTwoOctetAsSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedirectTwoOctetAsSpecificExtended.Merge(dst, src)
+}
+func (m *RedirectTwoOctetAsSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_RedirectTwoOctetAsSpecificExtended.Size(m)
+}
+func (m *RedirectTwoOctetAsSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedirectTwoOctetAsSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedirectTwoOctetAsSpecificExtended proto.InternalMessageInfo
 
 func (m *RedirectTwoOctetAsSpecificExtended) GetAs() uint32 {
 	if m != nil {
@@ -1621,16 +2879,36 @@ func (m *RedirectTwoOctetAsSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type RedirectIPv4AddressSpecificExtended struct {
-	Address    string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
-	LocalAdmin uint32 `protobuf:"varint,2,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	Address              string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,2,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *RedirectIPv4AddressSpecificExtended) Reset()         { *m = RedirectIPv4AddressSpecificExtended{} }
 func (m *RedirectIPv4AddressSpecificExtended) String() string { return proto.CompactTextString(m) }
 func (*RedirectIPv4AddressSpecificExtended) ProtoMessage()    {}
 func (*RedirectIPv4AddressSpecificExtended) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{57}
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{57}
 }
+func (m *RedirectIPv4AddressSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RedirectIPv4AddressSpecificExtended.Unmarshal(m, b)
+}
+func (m *RedirectIPv4AddressSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RedirectIPv4AddressSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *RedirectIPv4AddressSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedirectIPv4AddressSpecificExtended.Merge(dst, src)
+}
+func (m *RedirectIPv4AddressSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_RedirectIPv4AddressSpecificExtended.Size(m)
+}
+func (m *RedirectIPv4AddressSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedirectIPv4AddressSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedirectIPv4AddressSpecificExtended proto.InternalMessageInfo
 
 func (m *RedirectIPv4AddressSpecificExtended) GetAddress() string {
 	if m != nil {
@@ -1647,16 +2925,36 @@ func (m *RedirectIPv4AddressSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type RedirectFourOctetAsSpecificExtended struct {
-	As         uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	LocalAdmin uint32 `protobuf:"varint,2,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	As                   uint32   `protobuf:"varint,1,opt,name=as,proto3" json:"as,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,2,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *RedirectFourOctetAsSpecificExtended) Reset()         { *m = RedirectFourOctetAsSpecificExtended{} }
 func (m *RedirectFourOctetAsSpecificExtended) String() string { return proto.CompactTextString(m) }
 func (*RedirectFourOctetAsSpecificExtended) ProtoMessage()    {}
 func (*RedirectFourOctetAsSpecificExtended) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{58}
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{58}
 }
+func (m *RedirectFourOctetAsSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RedirectFourOctetAsSpecificExtended.Unmarshal(m, b)
+}
+func (m *RedirectFourOctetAsSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RedirectFourOctetAsSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *RedirectFourOctetAsSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedirectFourOctetAsSpecificExtended.Merge(dst, src)
+}
+func (m *RedirectFourOctetAsSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_RedirectFourOctetAsSpecificExtended.Size(m)
+}
+func (m *RedirectFourOctetAsSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedirectFourOctetAsSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedirectFourOctetAsSpecificExtended proto.InternalMessageInfo
 
 func (m *RedirectFourOctetAsSpecificExtended) GetAs() uint32 {
 	if m != nil {
@@ -1673,13 +2971,35 @@ func (m *RedirectFourOctetAsSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type TrafficRemarkExtended struct {
-	Dscp uint32 `protobuf:"varint,1,opt,name=dscp" json:"dscp,omitempty"`
+	Dscp                 uint32   `protobuf:"varint,1,opt,name=dscp,proto3" json:"dscp,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TrafficRemarkExtended) Reset()                    { *m = TrafficRemarkExtended{} }
-func (m *TrafficRemarkExtended) String() string            { return proto.CompactTextString(m) }
-func (*TrafficRemarkExtended) ProtoMessage()               {}
-func (*TrafficRemarkExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{59} }
+func (m *TrafficRemarkExtended) Reset()         { *m = TrafficRemarkExtended{} }
+func (m *TrafficRemarkExtended) String() string { return proto.CompactTextString(m) }
+func (*TrafficRemarkExtended) ProtoMessage()    {}
+func (*TrafficRemarkExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{59}
+}
+func (m *TrafficRemarkExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TrafficRemarkExtended.Unmarshal(m, b)
+}
+func (m *TrafficRemarkExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TrafficRemarkExtended.Marshal(b, m, deterministic)
+}
+func (dst *TrafficRemarkExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TrafficRemarkExtended.Merge(dst, src)
+}
+func (m *TrafficRemarkExtended) XXX_Size() int {
+	return xxx_messageInfo_TrafficRemarkExtended.Size(m)
+}
+func (m *TrafficRemarkExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_TrafficRemarkExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TrafficRemarkExtended proto.InternalMessageInfo
 
 func (m *TrafficRemarkExtended) GetDscp() uint32 {
 	if m != nil {
@@ -1689,14 +3009,36 @@ func (m *TrafficRemarkExtended) GetDscp() uint32 {
 }
 
 type UnknownExtended struct {
-	Type  uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Type                 uint32   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *UnknownExtended) Reset()                    { *m = UnknownExtended{} }
-func (m *UnknownExtended) String() string            { return proto.CompactTextString(m) }
-func (*UnknownExtended) ProtoMessage()               {}
-func (*UnknownExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{60} }
+func (m *UnknownExtended) Reset()         { *m = UnknownExtended{} }
+func (m *UnknownExtended) String() string { return proto.CompactTextString(m) }
+func (*UnknownExtended) ProtoMessage()    {}
+func (*UnknownExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{60}
+}
+func (m *UnknownExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UnknownExtended.Unmarshal(m, b)
+}
+func (m *UnknownExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UnknownExtended.Marshal(b, m, deterministic)
+}
+func (dst *UnknownExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UnknownExtended.Merge(dst, src)
+}
+func (m *UnknownExtended) XXX_Size() int {
+	return xxx_messageInfo_UnknownExtended.Size(m)
+}
+func (m *UnknownExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_UnknownExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UnknownExtended proto.InternalMessageInfo
 
 func (m *UnknownExtended) GetType() uint32 {
 	if m != nil {
@@ -1728,15 +3070,37 @@ type ExtendedCommunitiesAttribute struct {
 	// - RedirectFourOctetAsSpecificExtended
 	// - TrafficRemarkExtended
 	// - UnknownExtended
-	Communities []*google_protobuf.Any `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
+	Communities          []*any.Any `protobuf:"bytes,1,rep,name=communities,proto3" json:"communities,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *ExtendedCommunitiesAttribute) Reset()                    { *m = ExtendedCommunitiesAttribute{} }
-func (m *ExtendedCommunitiesAttribute) String() string            { return proto.CompactTextString(m) }
-func (*ExtendedCommunitiesAttribute) ProtoMessage()               {}
-func (*ExtendedCommunitiesAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{61} }
+func (m *ExtendedCommunitiesAttribute) Reset()         { *m = ExtendedCommunitiesAttribute{} }
+func (m *ExtendedCommunitiesAttribute) String() string { return proto.CompactTextString(m) }
+func (*ExtendedCommunitiesAttribute) ProtoMessage()    {}
+func (*ExtendedCommunitiesAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{61}
+}
+func (m *ExtendedCommunitiesAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ExtendedCommunitiesAttribute.Unmarshal(m, b)
+}
+func (m *ExtendedCommunitiesAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ExtendedCommunitiesAttribute.Marshal(b, m, deterministic)
+}
+func (dst *ExtendedCommunitiesAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ExtendedCommunitiesAttribute.Merge(dst, src)
+}
+func (m *ExtendedCommunitiesAttribute) XXX_Size() int {
+	return xxx_messageInfo_ExtendedCommunitiesAttribute.Size(m)
+}
+func (m *ExtendedCommunitiesAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_ExtendedCommunitiesAttribute.DiscardUnknown(m)
+}
 
-func (m *ExtendedCommunitiesAttribute) GetCommunities() []*google_protobuf.Any {
+var xxx_messageInfo_ExtendedCommunitiesAttribute proto.InternalMessageInfo
+
+func (m *ExtendedCommunitiesAttribute) GetCommunities() []*any.Any {
 	if m != nil {
 		return m.Communities
 	}
@@ -1744,13 +3108,35 @@ func (m *ExtendedCommunitiesAttribute) GetCommunities() []*google_protobuf.Any {
 }
 
 type As4PathAttribute struct {
-	Segments []*AsSegment `protobuf:"bytes,1,rep,name=segments" json:"segments,omitempty"`
+	Segments             []*AsSegment `protobuf:"bytes,1,rep,name=segments,proto3" json:"segments,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
 }
 
-func (m *As4PathAttribute) Reset()                    { *m = As4PathAttribute{} }
-func (m *As4PathAttribute) String() string            { return proto.CompactTextString(m) }
-func (*As4PathAttribute) ProtoMessage()               {}
-func (*As4PathAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{62} }
+func (m *As4PathAttribute) Reset()         { *m = As4PathAttribute{} }
+func (m *As4PathAttribute) String() string { return proto.CompactTextString(m) }
+func (*As4PathAttribute) ProtoMessage()    {}
+func (*As4PathAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{62}
+}
+func (m *As4PathAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_As4PathAttribute.Unmarshal(m, b)
+}
+func (m *As4PathAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_As4PathAttribute.Marshal(b, m, deterministic)
+}
+func (dst *As4PathAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_As4PathAttribute.Merge(dst, src)
+}
+func (m *As4PathAttribute) XXX_Size() int {
+	return xxx_messageInfo_As4PathAttribute.Size(m)
+}
+func (m *As4PathAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_As4PathAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_As4PathAttribute proto.InternalMessageInfo
 
 func (m *As4PathAttribute) GetSegments() []*AsSegment {
 	if m != nil {
@@ -1760,14 +3146,36 @@ func (m *As4PathAttribute) GetSegments() []*AsSegment {
 }
 
 type As4AggregatorAttribute struct {
-	As      uint32 `protobuf:"varint,2,opt,name=as" json:"as,omitempty"`
-	Address string `protobuf:"bytes,3,opt,name=address" json:"address,omitempty"`
+	As                   uint32   `protobuf:"varint,2,opt,name=as,proto3" json:"as,omitempty"`
+	Address              string   `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *As4AggregatorAttribute) Reset()                    { *m = As4AggregatorAttribute{} }
-func (m *As4AggregatorAttribute) String() string            { return proto.CompactTextString(m) }
-func (*As4AggregatorAttribute) ProtoMessage()               {}
-func (*As4AggregatorAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{63} }
+func (m *As4AggregatorAttribute) Reset()         { *m = As4AggregatorAttribute{} }
+func (m *As4AggregatorAttribute) String() string { return proto.CompactTextString(m) }
+func (*As4AggregatorAttribute) ProtoMessage()    {}
+func (*As4AggregatorAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{63}
+}
+func (m *As4AggregatorAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_As4AggregatorAttribute.Unmarshal(m, b)
+}
+func (m *As4AggregatorAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_As4AggregatorAttribute.Marshal(b, m, deterministic)
+}
+func (dst *As4AggregatorAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_As4AggregatorAttribute.Merge(dst, src)
+}
+func (m *As4AggregatorAttribute) XXX_Size() int {
+	return xxx_messageInfo_As4AggregatorAttribute.Size(m)
+}
+func (m *As4AggregatorAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_As4AggregatorAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_As4AggregatorAttribute proto.InternalMessageInfo
 
 func (m *As4AggregatorAttribute) GetAs() uint32 {
 	if m != nil {
@@ -1784,16 +3192,38 @@ func (m *As4AggregatorAttribute) GetAddress() string {
 }
 
 type PmsiTunnelAttribute struct {
-	Flags uint32 `protobuf:"varint,1,opt,name=flags" json:"flags,omitempty"`
-	Type  uint32 `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
-	Label uint32 `protobuf:"varint,3,opt,name=label" json:"label,omitempty"`
-	Id    []byte `protobuf:"bytes,4,opt,name=id,proto3" json:"id,omitempty"`
+	Flags                uint32   `protobuf:"varint,1,opt,name=flags,proto3" json:"flags,omitempty"`
+	Type                 uint32   `protobuf:"varint,2,opt,name=type,proto3" json:"type,omitempty"`
+	Label                uint32   `protobuf:"varint,3,opt,name=label,proto3" json:"label,omitempty"`
+	Id                   []byte   `protobuf:"bytes,4,opt,name=id,proto3" json:"id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *PmsiTunnelAttribute) Reset()                    { *m = PmsiTunnelAttribute{} }
-func (m *PmsiTunnelAttribute) String() string            { return proto.CompactTextString(m) }
-func (*PmsiTunnelAttribute) ProtoMessage()               {}
-func (*PmsiTunnelAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{64} }
+func (m *PmsiTunnelAttribute) Reset()         { *m = PmsiTunnelAttribute{} }
+func (m *PmsiTunnelAttribute) String() string { return proto.CompactTextString(m) }
+func (*PmsiTunnelAttribute) ProtoMessage()    {}
+func (*PmsiTunnelAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{64}
+}
+func (m *PmsiTunnelAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_PmsiTunnelAttribute.Unmarshal(m, b)
+}
+func (m *PmsiTunnelAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_PmsiTunnelAttribute.Marshal(b, m, deterministic)
+}
+func (dst *PmsiTunnelAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PmsiTunnelAttribute.Merge(dst, src)
+}
+func (m *PmsiTunnelAttribute) XXX_Size() int {
+	return xxx_messageInfo_PmsiTunnelAttribute.Size(m)
+}
+func (m *PmsiTunnelAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_PmsiTunnelAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PmsiTunnelAttribute proto.InternalMessageInfo
 
 func (m *PmsiTunnelAttribute) GetFlags() uint32 {
 	if m != nil {
@@ -1824,14 +3254,36 @@ func (m *PmsiTunnelAttribute) GetId() []byte {
 }
 
 type TunnelEncapSubTLVEncapsulation struct {
-	Key    uint32 `protobuf:"varint,1,opt,name=key" json:"key,omitempty"`
-	Cookie []byte `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
+	Key                  uint32   `protobuf:"varint,1,opt,name=key,proto3" json:"key,omitempty"`
+	Cookie               []byte   `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TunnelEncapSubTLVEncapsulation) Reset()                    { *m = TunnelEncapSubTLVEncapsulation{} }
-func (m *TunnelEncapSubTLVEncapsulation) String() string            { return proto.CompactTextString(m) }
-func (*TunnelEncapSubTLVEncapsulation) ProtoMessage()               {}
-func (*TunnelEncapSubTLVEncapsulation) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{65} }
+func (m *TunnelEncapSubTLVEncapsulation) Reset()         { *m = TunnelEncapSubTLVEncapsulation{} }
+func (m *TunnelEncapSubTLVEncapsulation) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapSubTLVEncapsulation) ProtoMessage()    {}
+func (*TunnelEncapSubTLVEncapsulation) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{65}
+}
+func (m *TunnelEncapSubTLVEncapsulation) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TunnelEncapSubTLVEncapsulation.Unmarshal(m, b)
+}
+func (m *TunnelEncapSubTLVEncapsulation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TunnelEncapSubTLVEncapsulation.Marshal(b, m, deterministic)
+}
+func (dst *TunnelEncapSubTLVEncapsulation) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TunnelEncapSubTLVEncapsulation.Merge(dst, src)
+}
+func (m *TunnelEncapSubTLVEncapsulation) XXX_Size() int {
+	return xxx_messageInfo_TunnelEncapSubTLVEncapsulation.Size(m)
+}
+func (m *TunnelEncapSubTLVEncapsulation) XXX_DiscardUnknown() {
+	xxx_messageInfo_TunnelEncapSubTLVEncapsulation.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TunnelEncapSubTLVEncapsulation proto.InternalMessageInfo
 
 func (m *TunnelEncapSubTLVEncapsulation) GetKey() uint32 {
 	if m != nil {
@@ -1848,13 +3300,35 @@ func (m *TunnelEncapSubTLVEncapsulation) GetCookie() []byte {
 }
 
 type TunnelEncapSubTLVProtocol struct {
-	Protocol uint32 `protobuf:"varint,1,opt,name=protocol" json:"protocol,omitempty"`
+	Protocol             uint32   `protobuf:"varint,1,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TunnelEncapSubTLVProtocol) Reset()                    { *m = TunnelEncapSubTLVProtocol{} }
-func (m *TunnelEncapSubTLVProtocol) String() string            { return proto.CompactTextString(m) }
-func (*TunnelEncapSubTLVProtocol) ProtoMessage()               {}
-func (*TunnelEncapSubTLVProtocol) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{66} }
+func (m *TunnelEncapSubTLVProtocol) Reset()         { *m = TunnelEncapSubTLVProtocol{} }
+func (m *TunnelEncapSubTLVProtocol) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapSubTLVProtocol) ProtoMessage()    {}
+func (*TunnelEncapSubTLVProtocol) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{66}
+}
+func (m *TunnelEncapSubTLVProtocol) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TunnelEncapSubTLVProtocol.Unmarshal(m, b)
+}
+func (m *TunnelEncapSubTLVProtocol) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TunnelEncapSubTLVProtocol.Marshal(b, m, deterministic)
+}
+func (dst *TunnelEncapSubTLVProtocol) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TunnelEncapSubTLVProtocol.Merge(dst, src)
+}
+func (m *TunnelEncapSubTLVProtocol) XXX_Size() int {
+	return xxx_messageInfo_TunnelEncapSubTLVProtocol.Size(m)
+}
+func (m *TunnelEncapSubTLVProtocol) XXX_DiscardUnknown() {
+	xxx_messageInfo_TunnelEncapSubTLVProtocol.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TunnelEncapSubTLVProtocol proto.InternalMessageInfo
 
 func (m *TunnelEncapSubTLVProtocol) GetProtocol() uint32 {
 	if m != nil {
@@ -1864,13 +3338,35 @@ func (m *TunnelEncapSubTLVProtocol) GetProtocol() uint32 {
 }
 
 type TunnelEncapSubTLVColor struct {
-	Color uint32 `protobuf:"varint,1,opt,name=color" json:"color,omitempty"`
+	Color                uint32   `protobuf:"varint,1,opt,name=color,proto3" json:"color,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TunnelEncapSubTLVColor) Reset()                    { *m = TunnelEncapSubTLVColor{} }
-func (m *TunnelEncapSubTLVColor) String() string            { return proto.CompactTextString(m) }
-func (*TunnelEncapSubTLVColor) ProtoMessage()               {}
-func (*TunnelEncapSubTLVColor) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{67} }
+func (m *TunnelEncapSubTLVColor) Reset()         { *m = TunnelEncapSubTLVColor{} }
+func (m *TunnelEncapSubTLVColor) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapSubTLVColor) ProtoMessage()    {}
+func (*TunnelEncapSubTLVColor) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{67}
+}
+func (m *TunnelEncapSubTLVColor) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TunnelEncapSubTLVColor.Unmarshal(m, b)
+}
+func (m *TunnelEncapSubTLVColor) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TunnelEncapSubTLVColor.Marshal(b, m, deterministic)
+}
+func (dst *TunnelEncapSubTLVColor) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TunnelEncapSubTLVColor.Merge(dst, src)
+}
+func (m *TunnelEncapSubTLVColor) XXX_Size() int {
+	return xxx_messageInfo_TunnelEncapSubTLVColor.Size(m)
+}
+func (m *TunnelEncapSubTLVColor) XXX_DiscardUnknown() {
+	xxx_messageInfo_TunnelEncapSubTLVColor.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TunnelEncapSubTLVColor proto.InternalMessageInfo
 
 func (m *TunnelEncapSubTLVColor) GetColor() uint32 {
 	if m != nil {
@@ -1880,14 +3376,36 @@ func (m *TunnelEncapSubTLVColor) GetColor() uint32 {
 }
 
 type TunnelEncapSubTLVUnknown struct {
-	Type  uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Type                 uint32   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *TunnelEncapSubTLVUnknown) Reset()                    { *m = TunnelEncapSubTLVUnknown{} }
-func (m *TunnelEncapSubTLVUnknown) String() string            { return proto.CompactTextString(m) }
-func (*TunnelEncapSubTLVUnknown) ProtoMessage()               {}
-func (*TunnelEncapSubTLVUnknown) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{68} }
+func (m *TunnelEncapSubTLVUnknown) Reset()         { *m = TunnelEncapSubTLVUnknown{} }
+func (m *TunnelEncapSubTLVUnknown) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapSubTLVUnknown) ProtoMessage()    {}
+func (*TunnelEncapSubTLVUnknown) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{68}
+}
+func (m *TunnelEncapSubTLVUnknown) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TunnelEncapSubTLVUnknown.Unmarshal(m, b)
+}
+func (m *TunnelEncapSubTLVUnknown) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TunnelEncapSubTLVUnknown.Marshal(b, m, deterministic)
+}
+func (dst *TunnelEncapSubTLVUnknown) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TunnelEncapSubTLVUnknown.Merge(dst, src)
+}
+func (m *TunnelEncapSubTLVUnknown) XXX_Size() int {
+	return xxx_messageInfo_TunnelEncapSubTLVUnknown.Size(m)
+}
+func (m *TunnelEncapSubTLVUnknown) XXX_DiscardUnknown() {
+	xxx_messageInfo_TunnelEncapSubTLVUnknown.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TunnelEncapSubTLVUnknown proto.InternalMessageInfo
 
 func (m *TunnelEncapSubTLVUnknown) GetType() uint32 {
 	if m != nil {
@@ -1904,19 +3422,41 @@ func (m *TunnelEncapSubTLVUnknown) GetValue() []byte {
 }
 
 type TunnelEncapTLV struct {
-	Type uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+	Type uint32 `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Each TLV must be one of:
 	// - TunnelEncapSubTLVEncapsulation
 	// - TunnelEncapSubTLVProtocol
 	// - TunnelEncapSubTLVColor
 	// - TunnelEncapSubTLVUnknown
-	Tlvs []*google_protobuf.Any `protobuf:"bytes,2,rep,name=tlvs" json:"tlvs,omitempty"`
+	Tlvs                 []*any.Any `protobuf:"bytes,2,rep,name=tlvs,proto3" json:"tlvs,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *TunnelEncapTLV) Reset()                    { *m = TunnelEncapTLV{} }
-func (m *TunnelEncapTLV) String() string            { return proto.CompactTextString(m) }
-func (*TunnelEncapTLV) ProtoMessage()               {}
-func (*TunnelEncapTLV) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{69} }
+func (m *TunnelEncapTLV) Reset()         { *m = TunnelEncapTLV{} }
+func (m *TunnelEncapTLV) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapTLV) ProtoMessage()    {}
+func (*TunnelEncapTLV) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{69}
+}
+func (m *TunnelEncapTLV) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TunnelEncapTLV.Unmarshal(m, b)
+}
+func (m *TunnelEncapTLV) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TunnelEncapTLV.Marshal(b, m, deterministic)
+}
+func (dst *TunnelEncapTLV) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TunnelEncapTLV.Merge(dst, src)
+}
+func (m *TunnelEncapTLV) XXX_Size() int {
+	return xxx_messageInfo_TunnelEncapTLV.Size(m)
+}
+func (m *TunnelEncapTLV) XXX_DiscardUnknown() {
+	xxx_messageInfo_TunnelEncapTLV.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TunnelEncapTLV proto.InternalMessageInfo
 
 func (m *TunnelEncapTLV) GetType() uint32 {
 	if m != nil {
@@ -1925,7 +3465,7 @@ func (m *TunnelEncapTLV) GetType() uint32 {
 	return 0
 }
 
-func (m *TunnelEncapTLV) GetTlvs() []*google_protobuf.Any {
+func (m *TunnelEncapTLV) GetTlvs() []*any.Any {
 	if m != nil {
 		return m.Tlvs
 	}
@@ -1933,13 +3473,35 @@ func (m *TunnelEncapTLV) GetTlvs() []*google_protobuf.Any {
 }
 
 type TunnelEncapAttribute struct {
-	Tlvs []*TunnelEncapTLV `protobuf:"bytes,1,rep,name=tlvs" json:"tlvs,omitempty"`
+	Tlvs                 []*TunnelEncapTLV `protobuf:"bytes,1,rep,name=tlvs,proto3" json:"tlvs,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *TunnelEncapAttribute) Reset()                    { *m = TunnelEncapAttribute{} }
-func (m *TunnelEncapAttribute) String() string            { return proto.CompactTextString(m) }
-func (*TunnelEncapAttribute) ProtoMessage()               {}
-func (*TunnelEncapAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{70} }
+func (m *TunnelEncapAttribute) Reset()         { *m = TunnelEncapAttribute{} }
+func (m *TunnelEncapAttribute) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapAttribute) ProtoMessage()    {}
+func (*TunnelEncapAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{70}
+}
+func (m *TunnelEncapAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TunnelEncapAttribute.Unmarshal(m, b)
+}
+func (m *TunnelEncapAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TunnelEncapAttribute.Marshal(b, m, deterministic)
+}
+func (dst *TunnelEncapAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TunnelEncapAttribute.Merge(dst, src)
+}
+func (m *TunnelEncapAttribute) XXX_Size() int {
+	return xxx_messageInfo_TunnelEncapAttribute.Size(m)
+}
+func (m *TunnelEncapAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_TunnelEncapAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TunnelEncapAttribute proto.InternalMessageInfo
 
 func (m *TunnelEncapAttribute) GetTlvs() []*TunnelEncapTLV {
 	if m != nil {
@@ -1949,16 +3511,38 @@ func (m *TunnelEncapAttribute) GetTlvs() []*TunnelEncapTLV {
 }
 
 type IPv6AddressSpecificExtended struct {
-	IsTransitive bool   `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive" json:"is_transitive,omitempty"`
-	SubType      uint32 `protobuf:"varint,2,opt,name=sub_type,json=subType" json:"sub_type,omitempty"`
-	Address      string `protobuf:"bytes,3,opt,name=address" json:"address,omitempty"`
-	LocalAdmin   uint32 `protobuf:"varint,4,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	IsTransitive         bool     `protobuf:"varint,1,opt,name=is_transitive,json=isTransitive,proto3" json:"is_transitive,omitempty"`
+	SubType              uint32   `protobuf:"varint,2,opt,name=sub_type,json=subType,proto3" json:"sub_type,omitempty"`
+	Address              string   `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,4,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *IPv6AddressSpecificExtended) Reset()                    { *m = IPv6AddressSpecificExtended{} }
-func (m *IPv6AddressSpecificExtended) String() string            { return proto.CompactTextString(m) }
-func (*IPv6AddressSpecificExtended) ProtoMessage()               {}
-func (*IPv6AddressSpecificExtended) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{71} }
+func (m *IPv6AddressSpecificExtended) Reset()         { *m = IPv6AddressSpecificExtended{} }
+func (m *IPv6AddressSpecificExtended) String() string { return proto.CompactTextString(m) }
+func (*IPv6AddressSpecificExtended) ProtoMessage()    {}
+func (*IPv6AddressSpecificExtended) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{71}
+}
+func (m *IPv6AddressSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_IPv6AddressSpecificExtended.Unmarshal(m, b)
+}
+func (m *IPv6AddressSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_IPv6AddressSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *IPv6AddressSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IPv6AddressSpecificExtended.Merge(dst, src)
+}
+func (m *IPv6AddressSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_IPv6AddressSpecificExtended.Size(m)
+}
+func (m *IPv6AddressSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_IPv6AddressSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_IPv6AddressSpecificExtended proto.InternalMessageInfo
 
 func (m *IPv6AddressSpecificExtended) GetIsTransitive() bool {
 	if m != nil {
@@ -1989,16 +3573,36 @@ func (m *IPv6AddressSpecificExtended) GetLocalAdmin() uint32 {
 }
 
 type RedirectIPv6AddressSpecificExtended struct {
-	Address    string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
-	LocalAdmin uint32 `protobuf:"varint,2,opt,name=local_admin,json=localAdmin" json:"local_admin,omitempty"`
+	Address              string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	LocalAdmin           uint32   `protobuf:"varint,2,opt,name=local_admin,json=localAdmin,proto3" json:"local_admin,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *RedirectIPv6AddressSpecificExtended) Reset()         { *m = RedirectIPv6AddressSpecificExtended{} }
 func (m *RedirectIPv6AddressSpecificExtended) String() string { return proto.CompactTextString(m) }
 func (*RedirectIPv6AddressSpecificExtended) ProtoMessage()    {}
 func (*RedirectIPv6AddressSpecificExtended) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{72}
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{72}
 }
+func (m *RedirectIPv6AddressSpecificExtended) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RedirectIPv6AddressSpecificExtended.Unmarshal(m, b)
+}
+func (m *RedirectIPv6AddressSpecificExtended) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RedirectIPv6AddressSpecificExtended.Marshal(b, m, deterministic)
+}
+func (dst *RedirectIPv6AddressSpecificExtended) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedirectIPv6AddressSpecificExtended.Merge(dst, src)
+}
+func (m *RedirectIPv6AddressSpecificExtended) XXX_Size() int {
+	return xxx_messageInfo_RedirectIPv6AddressSpecificExtended.Size(m)
+}
+func (m *RedirectIPv6AddressSpecificExtended) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedirectIPv6AddressSpecificExtended.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedirectIPv6AddressSpecificExtended proto.InternalMessageInfo
 
 func (m *RedirectIPv6AddressSpecificExtended) GetAddress() string {
 	if m != nil {
@@ -2018,17 +3622,37 @@ type IP6ExtendedCommunitiesAttribute struct {
 	// Each Community must be one of:
 	// - IPv6AddressSpecificExtended
 	// - RedirectIPv6AddressSpecificExtended
-	Communities []*google_protobuf.Any `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
+	Communities          []*any.Any `protobuf:"bytes,1,rep,name=communities,proto3" json:"communities,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
 func (m *IP6ExtendedCommunitiesAttribute) Reset()         { *m = IP6ExtendedCommunitiesAttribute{} }
 func (m *IP6ExtendedCommunitiesAttribute) String() string { return proto.CompactTextString(m) }
 func (*IP6ExtendedCommunitiesAttribute) ProtoMessage()    {}
 func (*IP6ExtendedCommunitiesAttribute) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{73}
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{73}
+}
+func (m *IP6ExtendedCommunitiesAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_IP6ExtendedCommunitiesAttribute.Unmarshal(m, b)
+}
+func (m *IP6ExtendedCommunitiesAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_IP6ExtendedCommunitiesAttribute.Marshal(b, m, deterministic)
+}
+func (dst *IP6ExtendedCommunitiesAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IP6ExtendedCommunitiesAttribute.Merge(dst, src)
+}
+func (m *IP6ExtendedCommunitiesAttribute) XXX_Size() int {
+	return xxx_messageInfo_IP6ExtendedCommunitiesAttribute.Size(m)
+}
+func (m *IP6ExtendedCommunitiesAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_IP6ExtendedCommunitiesAttribute.DiscardUnknown(m)
 }
 
-func (m *IP6ExtendedCommunitiesAttribute) GetCommunities() []*google_protobuf.Any {
+var xxx_messageInfo_IP6ExtendedCommunitiesAttribute proto.InternalMessageInfo
+
+func (m *IP6ExtendedCommunitiesAttribute) GetCommunities() []*any.Any {
 	if m != nil {
 		return m.Communities
 	}
@@ -2036,13 +3660,35 @@ func (m *IP6ExtendedCommunitiesAttribute) GetCommunities() []*google_protobuf.An
 }
 
 type AigpTLVIGPMetric struct {
-	Metric uint64 `protobuf:"varint,1,opt,name=metric" json:"metric,omitempty"`
+	Metric               uint64   `protobuf:"varint,1,opt,name=metric,proto3" json:"metric,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AigpTLVIGPMetric) Reset()                    { *m = AigpTLVIGPMetric{} }
-func (m *AigpTLVIGPMetric) String() string            { return proto.CompactTextString(m) }
-func (*AigpTLVIGPMetric) ProtoMessage()               {}
-func (*AigpTLVIGPMetric) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{74} }
+func (m *AigpTLVIGPMetric) Reset()         { *m = AigpTLVIGPMetric{} }
+func (m *AigpTLVIGPMetric) String() string { return proto.CompactTextString(m) }
+func (*AigpTLVIGPMetric) ProtoMessage()    {}
+func (*AigpTLVIGPMetric) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{74}
+}
+func (m *AigpTLVIGPMetric) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AigpTLVIGPMetric.Unmarshal(m, b)
+}
+func (m *AigpTLVIGPMetric) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AigpTLVIGPMetric.Marshal(b, m, deterministic)
+}
+func (dst *AigpTLVIGPMetric) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AigpTLVIGPMetric.Merge(dst, src)
+}
+func (m *AigpTLVIGPMetric) XXX_Size() int {
+	return xxx_messageInfo_AigpTLVIGPMetric.Size(m)
+}
+func (m *AigpTLVIGPMetric) XXX_DiscardUnknown() {
+	xxx_messageInfo_AigpTLVIGPMetric.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AigpTLVIGPMetric proto.InternalMessageInfo
 
 func (m *AigpTLVIGPMetric) GetMetric() uint64 {
 	if m != nil {
@@ -2052,14 +3698,36 @@ func (m *AigpTLVIGPMetric) GetMetric() uint64 {
 }
 
 type AigpTLVUnknown struct {
-	Type  uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Type                 uint32   `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AigpTLVUnknown) Reset()                    { *m = AigpTLVUnknown{} }
-func (m *AigpTLVUnknown) String() string            { return proto.CompactTextString(m) }
-func (*AigpTLVUnknown) ProtoMessage()               {}
-func (*AigpTLVUnknown) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{75} }
+func (m *AigpTLVUnknown) Reset()         { *m = AigpTLVUnknown{} }
+func (m *AigpTLVUnknown) String() string { return proto.CompactTextString(m) }
+func (*AigpTLVUnknown) ProtoMessage()    {}
+func (*AigpTLVUnknown) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{75}
+}
+func (m *AigpTLVUnknown) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AigpTLVUnknown.Unmarshal(m, b)
+}
+func (m *AigpTLVUnknown) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AigpTLVUnknown.Marshal(b, m, deterministic)
+}
+func (dst *AigpTLVUnknown) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AigpTLVUnknown.Merge(dst, src)
+}
+func (m *AigpTLVUnknown) XXX_Size() int {
+	return xxx_messageInfo_AigpTLVUnknown.Size(m)
+}
+func (m *AigpTLVUnknown) XXX_DiscardUnknown() {
+	xxx_messageInfo_AigpTLVUnknown.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AigpTLVUnknown proto.InternalMessageInfo
 
 func (m *AigpTLVUnknown) GetType() uint32 {
 	if m != nil {
@@ -2079,15 +3747,37 @@ type AigpAttribute struct {
 	// Each TLV must be one of:
 	// - AigpTLVIGPMetric
 	// - AigpTLVUnknown
-	Tlvs []*google_protobuf.Any `protobuf:"bytes,1,rep,name=tlvs" json:"tlvs,omitempty"`
+	Tlvs                 []*any.Any `protobuf:"bytes,1,rep,name=tlvs,proto3" json:"tlvs,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *AigpAttribute) Reset()                    { *m = AigpAttribute{} }
-func (m *AigpAttribute) String() string            { return proto.CompactTextString(m) }
-func (*AigpAttribute) ProtoMessage()               {}
-func (*AigpAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{76} }
+func (m *AigpAttribute) Reset()         { *m = AigpAttribute{} }
+func (m *AigpAttribute) String() string { return proto.CompactTextString(m) }
+func (*AigpAttribute) ProtoMessage()    {}
+func (*AigpAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{76}
+}
+func (m *AigpAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AigpAttribute.Unmarshal(m, b)
+}
+func (m *AigpAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AigpAttribute.Marshal(b, m, deterministic)
+}
+func (dst *AigpAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AigpAttribute.Merge(dst, src)
+}
+func (m *AigpAttribute) XXX_Size() int {
+	return xxx_messageInfo_AigpAttribute.Size(m)
+}
+func (m *AigpAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_AigpAttribute.DiscardUnknown(m)
+}
 
-func (m *AigpAttribute) GetTlvs() []*google_protobuf.Any {
+var xxx_messageInfo_AigpAttribute proto.InternalMessageInfo
+
+func (m *AigpAttribute) GetTlvs() []*any.Any {
 	if m != nil {
 		return m.Tlvs
 	}
@@ -2095,15 +3785,37 @@ func (m *AigpAttribute) GetTlvs() []*google_protobuf.Any {
 }
 
 type LargeCommunity struct {
-	GlobalAdmin uint32 `protobuf:"varint,1,opt,name=global_admin,json=globalAdmin" json:"global_admin,omitempty"`
-	LocalData1  uint32 `protobuf:"varint,2,opt,name=local_data1,json=localData1" json:"local_data1,omitempty"`
-	LocalData2  uint32 `protobuf:"varint,3,opt,name=local_data2,json=localData2" json:"local_data2,omitempty"`
+	GlobalAdmin          uint32   `protobuf:"varint,1,opt,name=global_admin,json=globalAdmin,proto3" json:"global_admin,omitempty"`
+	LocalData1           uint32   `protobuf:"varint,2,opt,name=local_data1,json=localData1,proto3" json:"local_data1,omitempty"`
+	LocalData2           uint32   `protobuf:"varint,3,opt,name=local_data2,json=localData2,proto3" json:"local_data2,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LargeCommunity) Reset()                    { *m = LargeCommunity{} }
-func (m *LargeCommunity) String() string            { return proto.CompactTextString(m) }
-func (*LargeCommunity) ProtoMessage()               {}
-func (*LargeCommunity) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{77} }
+func (m *LargeCommunity) Reset()         { *m = LargeCommunity{} }
+func (m *LargeCommunity) String() string { return proto.CompactTextString(m) }
+func (*LargeCommunity) ProtoMessage()    {}
+func (*LargeCommunity) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{77}
+}
+func (m *LargeCommunity) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LargeCommunity.Unmarshal(m, b)
+}
+func (m *LargeCommunity) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LargeCommunity.Marshal(b, m, deterministic)
+}
+func (dst *LargeCommunity) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LargeCommunity.Merge(dst, src)
+}
+func (m *LargeCommunity) XXX_Size() int {
+	return xxx_messageInfo_LargeCommunity.Size(m)
+}
+func (m *LargeCommunity) XXX_DiscardUnknown() {
+	xxx_messageInfo_LargeCommunity.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LargeCommunity proto.InternalMessageInfo
 
 func (m *LargeCommunity) GetGlobalAdmin() uint32 {
 	if m != nil {
@@ -2127,13 +3839,35 @@ func (m *LargeCommunity) GetLocalData2() uint32 {
 }
 
 type LargeCommunitiesAttribute struct {
-	Communities []*LargeCommunity `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
+	Communities          []*LargeCommunity `protobuf:"bytes,1,rep,name=communities,proto3" json:"communities,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *LargeCommunitiesAttribute) Reset()                    { *m = LargeCommunitiesAttribute{} }
-func (m *LargeCommunitiesAttribute) String() string            { return proto.CompactTextString(m) }
-func (*LargeCommunitiesAttribute) ProtoMessage()               {}
-func (*LargeCommunitiesAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{78} }
+func (m *LargeCommunitiesAttribute) Reset()         { *m = LargeCommunitiesAttribute{} }
+func (m *LargeCommunitiesAttribute) String() string { return proto.CompactTextString(m) }
+func (*LargeCommunitiesAttribute) ProtoMessage()    {}
+func (*LargeCommunitiesAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{78}
+}
+func (m *LargeCommunitiesAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LargeCommunitiesAttribute.Unmarshal(m, b)
+}
+func (m *LargeCommunitiesAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LargeCommunitiesAttribute.Marshal(b, m, deterministic)
+}
+func (dst *LargeCommunitiesAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LargeCommunitiesAttribute.Merge(dst, src)
+}
+func (m *LargeCommunitiesAttribute) XXX_Size() int {
+	return xxx_messageInfo_LargeCommunitiesAttribute.Size(m)
+}
+func (m *LargeCommunitiesAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_LargeCommunitiesAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LargeCommunitiesAttribute proto.InternalMessageInfo
 
 func (m *LargeCommunitiesAttribute) GetCommunities() []*LargeCommunity {
 	if m != nil {
@@ -2143,18 +3877,40 @@ func (m *LargeCommunitiesAttribute) GetCommunities() []*LargeCommunity {
 }
 
 type LsNodeFlags struct {
-	Overload bool `protobuf:"varint,1,opt,name=overload" json:"overload,omitempty"`
-	Attached bool `protobuf:"varint,2,opt,name=attached" json:"attached,omitempty"`
-	External bool `protobuf:"varint,3,opt,name=external" json:"external,omitempty"`
-	Abr      bool `protobuf:"varint,4,opt,name=abr" json:"abr,omitempty"`
-	Router   bool `protobuf:"varint,5,opt,name=router" json:"router,omitempty"`
-	V6       bool `protobuf:"varint,6,opt,name=v6" json:"v6,omitempty"`
+	Overload             bool     `protobuf:"varint,1,opt,name=overload,proto3" json:"overload,omitempty"`
+	Attached             bool     `protobuf:"varint,2,opt,name=attached,proto3" json:"attached,omitempty"`
+	External             bool     `protobuf:"varint,3,opt,name=external,proto3" json:"external,omitempty"`
+	Abr                  bool     `protobuf:"varint,4,opt,name=abr,proto3" json:"abr,omitempty"`
+	Router               bool     `protobuf:"varint,5,opt,name=router,proto3" json:"router,omitempty"`
+	V6                   bool     `protobuf:"varint,6,opt,name=v6,proto3" json:"v6,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsNodeFlags) Reset()                    { *m = LsNodeFlags{} }
-func (m *LsNodeFlags) String() string            { return proto.CompactTextString(m) }
-func (*LsNodeFlags) ProtoMessage()               {}
-func (*LsNodeFlags) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{79} }
+func (m *LsNodeFlags) Reset()         { *m = LsNodeFlags{} }
+func (m *LsNodeFlags) String() string { return proto.CompactTextString(m) }
+func (*LsNodeFlags) ProtoMessage()    {}
+func (*LsNodeFlags) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{79}
+}
+func (m *LsNodeFlags) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsNodeFlags.Unmarshal(m, b)
+}
+func (m *LsNodeFlags) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsNodeFlags.Marshal(b, m, deterministic)
+}
+func (dst *LsNodeFlags) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsNodeFlags.Merge(dst, src)
+}
+func (m *LsNodeFlags) XXX_Size() int {
+	return xxx_messageInfo_LsNodeFlags.Size(m)
+}
+func (m *LsNodeFlags) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsNodeFlags.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsNodeFlags proto.InternalMessageInfo
 
 func (m *LsNodeFlags) GetOverload() bool {
 	if m != nil {
@@ -2199,16 +3955,38 @@ func (m *LsNodeFlags) GetV6() bool {
 }
 
 type LsIGPFlags struct {
-	Down          bool `protobuf:"varint,1,opt,name=down" json:"down,omitempty"`
-	NoUnicast     bool `protobuf:"varint,2,opt,name=no_unicast,json=noUnicast" json:"no_unicast,omitempty"`
-	LocalAddress  bool `protobuf:"varint,3,opt,name=local_address,json=localAddress" json:"local_address,omitempty"`
-	PropagateNssa bool `protobuf:"varint,4,opt,name=propagate_nssa,json=propagateNssa" json:"propagate_nssa,omitempty"`
+	Down                 bool     `protobuf:"varint,1,opt,name=down,proto3" json:"down,omitempty"`
+	NoUnicast            bool     `protobuf:"varint,2,opt,name=no_unicast,json=noUnicast,proto3" json:"no_unicast,omitempty"`
+	LocalAddress         bool     `protobuf:"varint,3,opt,name=local_address,json=localAddress,proto3" json:"local_address,omitempty"`
+	PropagateNssa        bool     `protobuf:"varint,4,opt,name=propagate_nssa,json=propagateNssa,proto3" json:"propagate_nssa,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsIGPFlags) Reset()                    { *m = LsIGPFlags{} }
-func (m *LsIGPFlags) String() string            { return proto.CompactTextString(m) }
-func (*LsIGPFlags) ProtoMessage()               {}
-func (*LsIGPFlags) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{80} }
+func (m *LsIGPFlags) Reset()         { *m = LsIGPFlags{} }
+func (m *LsIGPFlags) String() string { return proto.CompactTextString(m) }
+func (*LsIGPFlags) ProtoMessage()    {}
+func (*LsIGPFlags) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{80}
+}
+func (m *LsIGPFlags) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsIGPFlags.Unmarshal(m, b)
+}
+func (m *LsIGPFlags) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsIGPFlags.Marshal(b, m, deterministic)
+}
+func (dst *LsIGPFlags) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsIGPFlags.Merge(dst, src)
+}
+func (m *LsIGPFlags) XXX_Size() int {
+	return xxx_messageInfo_LsIGPFlags.Size(m)
+}
+func (m *LsIGPFlags) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsIGPFlags.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsIGPFlags proto.InternalMessageInfo
 
 func (m *LsIGPFlags) GetDown() bool {
 	if m != nil {
@@ -2239,14 +4017,36 @@ func (m *LsIGPFlags) GetPropagateNssa() bool {
 }
 
 type LsSrRange struct {
-	Begin uint32 `protobuf:"varint,1,opt,name=begin" json:"begin,omitempty"`
-	End   uint32 `protobuf:"varint,2,opt,name=end" json:"end,omitempty"`
+	Begin                uint32   `protobuf:"varint,1,opt,name=begin,proto3" json:"begin,omitempty"`
+	End                  uint32   `protobuf:"varint,2,opt,name=end,proto3" json:"end,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LsSrRange) Reset()                    { *m = LsSrRange{} }
-func (m *LsSrRange) String() string            { return proto.CompactTextString(m) }
-func (*LsSrRange) ProtoMessage()               {}
-func (*LsSrRange) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{81} }
+func (m *LsSrRange) Reset()         { *m = LsSrRange{} }
+func (m *LsSrRange) String() string { return proto.CompactTextString(m) }
+func (*LsSrRange) ProtoMessage()    {}
+func (*LsSrRange) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{81}
+}
+func (m *LsSrRange) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsSrRange.Unmarshal(m, b)
+}
+func (m *LsSrRange) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsSrRange.Marshal(b, m, deterministic)
+}
+func (dst *LsSrRange) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsSrRange.Merge(dst, src)
+}
+func (m *LsSrRange) XXX_Size() int {
+	return xxx_messageInfo_LsSrRange.Size(m)
+}
+func (m *LsSrRange) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsSrRange.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsSrRange proto.InternalMessageInfo
 
 func (m *LsSrRange) GetBegin() uint32 {
 	if m != nil {
@@ -2263,15 +4063,37 @@ func (m *LsSrRange) GetEnd() uint32 {
 }
 
 type LsSrCapabilities struct {
-	Ipv4Supported bool         `protobuf:"varint,1,opt,name=ipv4_supported,json=ipv4Supported" json:"ipv4_supported,omitempty"`
-	Ipv6Supported bool         `protobuf:"varint,2,opt,name=ipv6_supported,json=ipv6Supported" json:"ipv6_supported,omitempty"`
-	Ranges        []*LsSrRange `protobuf:"bytes,3,rep,name=ranges" json:"ranges,omitempty"`
+	Ipv4Supported        bool         `protobuf:"varint,1,opt,name=ipv4_supported,json=ipv4Supported,proto3" json:"ipv4_supported,omitempty"`
+	Ipv6Supported        bool         `protobuf:"varint,2,opt,name=ipv6_supported,json=ipv6Supported,proto3" json:"ipv6_supported,omitempty"`
+	Ranges               []*LsSrRange `protobuf:"bytes,3,rep,name=ranges,proto3" json:"ranges,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
 }
 
-func (m *LsSrCapabilities) Reset()                    { *m = LsSrCapabilities{} }
-func (m *LsSrCapabilities) String() string            { return proto.CompactTextString(m) }
-func (*LsSrCapabilities) ProtoMessage()               {}
-func (*LsSrCapabilities) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{82} }
+func (m *LsSrCapabilities) Reset()         { *m = LsSrCapabilities{} }
+func (m *LsSrCapabilities) String() string { return proto.CompactTextString(m) }
+func (*LsSrCapabilities) ProtoMessage()    {}
+func (*LsSrCapabilities) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{82}
+}
+func (m *LsSrCapabilities) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsSrCapabilities.Unmarshal(m, b)
+}
+func (m *LsSrCapabilities) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsSrCapabilities.Marshal(b, m, deterministic)
+}
+func (dst *LsSrCapabilities) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsSrCapabilities.Merge(dst, src)
+}
+func (m *LsSrCapabilities) XXX_Size() int {
+	return xxx_messageInfo_LsSrCapabilities.Size(m)
+}
+func (m *LsSrCapabilities) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsSrCapabilities.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsSrCapabilities proto.InternalMessageInfo
 
 func (m *LsSrCapabilities) GetIpv4Supported() bool {
 	if m != nil {
@@ -2295,13 +4117,35 @@ func (m *LsSrCapabilities) GetRanges() []*LsSrRange {
 }
 
 type LsSrLocalBlock struct {
-	Ranges []*LsSrRange `protobuf:"bytes,1,rep,name=ranges" json:"ranges,omitempty"`
+	Ranges               []*LsSrRange `protobuf:"bytes,1,rep,name=ranges,proto3" json:"ranges,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
 }
 
-func (m *LsSrLocalBlock) Reset()                    { *m = LsSrLocalBlock{} }
-func (m *LsSrLocalBlock) String() string            { return proto.CompactTextString(m) }
-func (*LsSrLocalBlock) ProtoMessage()               {}
-func (*LsSrLocalBlock) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{83} }
+func (m *LsSrLocalBlock) Reset()         { *m = LsSrLocalBlock{} }
+func (m *LsSrLocalBlock) String() string { return proto.CompactTextString(m) }
+func (*LsSrLocalBlock) ProtoMessage()    {}
+func (*LsSrLocalBlock) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{83}
+}
+func (m *LsSrLocalBlock) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsSrLocalBlock.Unmarshal(m, b)
+}
+func (m *LsSrLocalBlock) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsSrLocalBlock.Marshal(b, m, deterministic)
+}
+func (dst *LsSrLocalBlock) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsSrLocalBlock.Merge(dst, src)
+}
+func (m *LsSrLocalBlock) XXX_Size() int {
+	return xxx_messageInfo_LsSrLocalBlock.Size(m)
+}
+func (m *LsSrLocalBlock) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsSrLocalBlock.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsSrLocalBlock proto.InternalMessageInfo
 
 func (m *LsSrLocalBlock) GetRanges() []*LsSrRange {
 	if m != nil {
@@ -2311,21 +4155,43 @@ func (m *LsSrLocalBlock) GetRanges() []*LsSrRange {
 }
 
 type LsAttributeNode struct {
-	Name            string            `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Flags           *LsNodeFlags      `protobuf:"bytes,2,opt,name=flags" json:"flags,omitempty"`
-	LocalRouterId   string            `protobuf:"bytes,3,opt,name=local_router_id,json=localRouterId" json:"local_router_id,omitempty"`
-	LocalRouterIdV6 string            `protobuf:"bytes,4,opt,name=local_router_id_v6,json=localRouterIdV6" json:"local_router_id_v6,omitempty"`
-	IsisArea        []byte            `protobuf:"bytes,5,opt,name=isis_area,json=isisArea,proto3" json:"isis_area,omitempty"`
-	Opaque          []byte            `protobuf:"bytes,6,opt,name=opaque,proto3" json:"opaque,omitempty"`
-	SrCapabilities  *LsSrCapabilities `protobuf:"bytes,7,opt,name=sr_capabilities,json=srCapabilities" json:"sr_capabilities,omitempty"`
-	SrAlgorithms    []byte            `protobuf:"bytes,8,opt,name=sr_algorithms,json=srAlgorithms,proto3" json:"sr_algorithms,omitempty"`
-	SrLocalBlock    *LsSrLocalBlock   `protobuf:"bytes,9,opt,name=sr_local_block,json=srLocalBlock" json:"sr_local_block,omitempty"`
+	Name                 string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Flags                *LsNodeFlags      `protobuf:"bytes,2,opt,name=flags,proto3" json:"flags,omitempty"`
+	LocalRouterId        string            `protobuf:"bytes,3,opt,name=local_router_id,json=localRouterId,proto3" json:"local_router_id,omitempty"`
+	LocalRouterIdV6      string            `protobuf:"bytes,4,opt,name=local_router_id_v6,json=localRouterIdV6,proto3" json:"local_router_id_v6,omitempty"`
+	IsisArea             []byte            `protobuf:"bytes,5,opt,name=isis_area,json=isisArea,proto3" json:"isis_area,omitempty"`
+	Opaque               []byte            `protobuf:"bytes,6,opt,name=opaque,proto3" json:"opaque,omitempty"`
+	SrCapabilities       *LsSrCapabilities `protobuf:"bytes,7,opt,name=sr_capabilities,json=srCapabilities,proto3" json:"sr_capabilities,omitempty"`
+	SrAlgorithms         []byte            `protobuf:"bytes,8,opt,name=sr_algorithms,json=srAlgorithms,proto3" json:"sr_algorithms,omitempty"`
+	SrLocalBlock         *LsSrLocalBlock   `protobuf:"bytes,9,opt,name=sr_local_block,json=srLocalBlock,proto3" json:"sr_local_block,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *LsAttributeNode) Reset()                    { *m = LsAttributeNode{} }
-func (m *LsAttributeNode) String() string            { return proto.CompactTextString(m) }
-func (*LsAttributeNode) ProtoMessage()               {}
-func (*LsAttributeNode) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{84} }
+func (m *LsAttributeNode) Reset()         { *m = LsAttributeNode{} }
+func (m *LsAttributeNode) String() string { return proto.CompactTextString(m) }
+func (*LsAttributeNode) ProtoMessage()    {}
+func (*LsAttributeNode) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{84}
+}
+func (m *LsAttributeNode) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsAttributeNode.Unmarshal(m, b)
+}
+func (m *LsAttributeNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsAttributeNode.Marshal(b, m, deterministic)
+}
+func (dst *LsAttributeNode) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsAttributeNode.Merge(dst, src)
+}
+func (m *LsAttributeNode) XXX_Size() int {
+	return xxx_messageInfo_LsAttributeNode.Size(m)
+}
+func (m *LsAttributeNode) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsAttributeNode.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsAttributeNode proto.InternalMessageInfo
 
 func (m *LsAttributeNode) GetName() string {
 	if m != nil {
@@ -2391,25 +4257,47 @@ func (m *LsAttributeNode) GetSrLocalBlock() *LsSrLocalBlock {
 }
 
 type LsAttributeLink struct {
-	Name                string    `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	LocalRouterId       string    `protobuf:"bytes,2,opt,name=local_router_id,json=localRouterId" json:"local_router_id,omitempty"`
-	LocalRouterIdV6     string    `protobuf:"bytes,3,opt,name=local_router_id_v6,json=localRouterIdV6" json:"local_router_id_v6,omitempty"`
-	RemoteRouterId      string    `protobuf:"bytes,4,opt,name=remote_router_id,json=remoteRouterId" json:"remote_router_id,omitempty"`
-	RemoteRouterIdV6    string    `protobuf:"bytes,5,opt,name=remote_router_id_v6,json=remoteRouterIdV6" json:"remote_router_id_v6,omitempty"`
-	AdminGroup          uint32    `protobuf:"varint,6,opt,name=admin_group,json=adminGroup" json:"admin_group,omitempty"`
-	DefaultTeMetric     uint32    `protobuf:"varint,7,opt,name=default_te_metric,json=defaultTeMetric" json:"default_te_metric,omitempty"`
-	IgpMetric           uint32    `protobuf:"varint,8,opt,name=igp_metric,json=igpMetric" json:"igp_metric,omitempty"`
-	Opaque              []byte    `protobuf:"bytes,9,opt,name=opaque,proto3" json:"opaque,omitempty"`
-	Bandwidth           float32   `protobuf:"fixed32,10,opt,name=bandwidth" json:"bandwidth,omitempty"`
-	ReservableBandwidth float32   `protobuf:"fixed32,11,opt,name=reservable_bandwidth,json=reservableBandwidth" json:"reservable_bandwidth,omitempty"`
-	UnreservedBandwidth []float32 `protobuf:"fixed32,12,rep,packed,name=unreserved_bandwidth,json=unreservedBandwidth" json:"unreserved_bandwidth,omitempty"`
-	SrAdjacencySid      uint32    `protobuf:"varint,13,opt,name=sr_adjacency_sid,json=srAdjacencySid" json:"sr_adjacency_sid,omitempty"`
+	Name                 string    `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	LocalRouterId        string    `protobuf:"bytes,2,opt,name=local_router_id,json=localRouterId,proto3" json:"local_router_id,omitempty"`
+	LocalRouterIdV6      string    `protobuf:"bytes,3,opt,name=local_router_id_v6,json=localRouterIdV6,proto3" json:"local_router_id_v6,omitempty"`
+	RemoteRouterId       string    `protobuf:"bytes,4,opt,name=remote_router_id,json=remoteRouterId,proto3" json:"remote_router_id,omitempty"`
+	RemoteRouterIdV6     string    `protobuf:"bytes,5,opt,name=remote_router_id_v6,json=remoteRouterIdV6,proto3" json:"remote_router_id_v6,omitempty"`
+	AdminGroup           uint32    `protobuf:"varint,6,opt,name=admin_group,json=adminGroup,proto3" json:"admin_group,omitempty"`
+	DefaultTeMetric      uint32    `protobuf:"varint,7,opt,name=default_te_metric,json=defaultTeMetric,proto3" json:"default_te_metric,omitempty"`
+	IgpMetric            uint32    `protobuf:"varint,8,opt,name=igp_metric,json=igpMetric,proto3" json:"igp_metric,omitempty"`
+	Opaque               []byte    `protobuf:"bytes,9,opt,name=opaque,proto3" json:"opaque,omitempty"`
+	Bandwidth            float32   `protobuf:"fixed32,10,opt,name=bandwidth,proto3" json:"bandwidth,omitempty"`
+	ReservableBandwidth  float32   `protobuf:"fixed32,11,opt,name=reservable_bandwidth,json=reservableBandwidth,proto3" json:"reservable_bandwidth,omitempty"`
+	UnreservedBandwidth  []float32 `protobuf:"fixed32,12,rep,packed,name=unreserved_bandwidth,json=unreservedBandwidth,proto3" json:"unreserved_bandwidth,omitempty"`
+	SrAdjacencySid       uint32    `protobuf:"varint,13,opt,name=sr_adjacency_sid,json=srAdjacencySid,proto3" json:"sr_adjacency_sid,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
 }
 
-func (m *LsAttributeLink) Reset()                    { *m = LsAttributeLink{} }
-func (m *LsAttributeLink) String() string            { return proto.CompactTextString(m) }
-func (*LsAttributeLink) ProtoMessage()               {}
-func (*LsAttributeLink) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{85} }
+func (m *LsAttributeLink) Reset()         { *m = LsAttributeLink{} }
+func (m *LsAttributeLink) String() string { return proto.CompactTextString(m) }
+func (*LsAttributeLink) ProtoMessage()    {}
+func (*LsAttributeLink) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{85}
+}
+func (m *LsAttributeLink) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsAttributeLink.Unmarshal(m, b)
+}
+func (m *LsAttributeLink) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsAttributeLink.Marshal(b, m, deterministic)
+}
+func (dst *LsAttributeLink) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsAttributeLink.Merge(dst, src)
+}
+func (m *LsAttributeLink) XXX_Size() int {
+	return xxx_messageInfo_LsAttributeLink.Size(m)
+}
+func (m *LsAttributeLink) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsAttributeLink.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsAttributeLink proto.InternalMessageInfo
 
 func (m *LsAttributeLink) GetName() string {
 	if m != nil {
@@ -2503,15 +4391,37 @@ func (m *LsAttributeLink) GetSrAdjacencySid() uint32 {
 }
 
 type LsAttributePrefix struct {
-	IgpFlags    *LsIGPFlags `protobuf:"bytes,1,opt,name=igp_flags,json=igpFlags" json:"igp_flags,omitempty"`
-	Opaque      []byte      `protobuf:"bytes,2,opt,name=opaque,proto3" json:"opaque,omitempty"`
-	SrPrefixSid uint32      `protobuf:"varint,3,opt,name=sr_prefix_sid,json=srPrefixSid" json:"sr_prefix_sid,omitempty"`
+	IgpFlags             *LsIGPFlags `protobuf:"bytes,1,opt,name=igp_flags,json=igpFlags,proto3" json:"igp_flags,omitempty"`
+	Opaque               []byte      `protobuf:"bytes,2,opt,name=opaque,proto3" json:"opaque,omitempty"`
+	SrPrefixSid          uint32      `protobuf:"varint,3,opt,name=sr_prefix_sid,json=srPrefixSid,proto3" json:"sr_prefix_sid,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
 }
 
-func (m *LsAttributePrefix) Reset()                    { *m = LsAttributePrefix{} }
-func (m *LsAttributePrefix) String() string            { return proto.CompactTextString(m) }
-func (*LsAttributePrefix) ProtoMessage()               {}
-func (*LsAttributePrefix) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{86} }
+func (m *LsAttributePrefix) Reset()         { *m = LsAttributePrefix{} }
+func (m *LsAttributePrefix) String() string { return proto.CompactTextString(m) }
+func (*LsAttributePrefix) ProtoMessage()    {}
+func (*LsAttributePrefix) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{86}
+}
+func (m *LsAttributePrefix) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsAttributePrefix.Unmarshal(m, b)
+}
+func (m *LsAttributePrefix) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsAttributePrefix.Marshal(b, m, deterministic)
+}
+func (dst *LsAttributePrefix) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsAttributePrefix.Merge(dst, src)
+}
+func (m *LsAttributePrefix) XXX_Size() int {
+	return xxx_messageInfo_LsAttributePrefix.Size(m)
+}
+func (m *LsAttributePrefix) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsAttributePrefix.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsAttributePrefix proto.InternalMessageInfo
 
 func (m *LsAttributePrefix) GetIgpFlags() *LsIGPFlags {
 	if m != nil {
@@ -2535,15 +4445,37 @@ func (m *LsAttributePrefix) GetSrPrefixSid() uint32 {
 }
 
 type LsAttribute struct {
-	Node   *LsAttributeNode   `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
-	Link   *LsAttributeLink   `protobuf:"bytes,2,opt,name=link" json:"link,omitempty"`
-	Prefix *LsAttributePrefix `protobuf:"bytes,3,opt,name=prefix" json:"prefix,omitempty"`
+	Node                 *LsAttributeNode   `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	Link                 *LsAttributeLink   `protobuf:"bytes,2,opt,name=link,proto3" json:"link,omitempty"`
+	Prefix               *LsAttributePrefix `protobuf:"bytes,3,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
 }
 
-func (m *LsAttribute) Reset()                    { *m = LsAttribute{} }
-func (m *LsAttribute) String() string            { return proto.CompactTextString(m) }
-func (*LsAttribute) ProtoMessage()               {}
-func (*LsAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{87} }
+func (m *LsAttribute) Reset()         { *m = LsAttribute{} }
+func (m *LsAttribute) String() string { return proto.CompactTextString(m) }
+func (*LsAttribute) ProtoMessage()    {}
+func (*LsAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{87}
+}
+func (m *LsAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LsAttribute.Unmarshal(m, b)
+}
+func (m *LsAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LsAttribute.Marshal(b, m, deterministic)
+}
+func (dst *LsAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LsAttribute.Merge(dst, src)
+}
+func (m *LsAttribute) XXX_Size() int {
+	return xxx_messageInfo_LsAttribute.Size(m)
+}
+func (m *LsAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_LsAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LsAttribute proto.InternalMessageInfo
 
 func (m *LsAttribute) GetNode() *LsAttributeNode {
 	if m != nil {
@@ -2567,15 +4499,37 @@ func (m *LsAttribute) GetPrefix() *LsAttributePrefix {
 }
 
 type UnknownAttribute struct {
-	Flags uint32 `protobuf:"varint,1,opt,name=flags" json:"flags,omitempty"`
-	Type  uint32 `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
-	Value []byte `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Flags                uint32   `protobuf:"varint,1,opt,name=flags,proto3" json:"flags,omitempty"`
+	Type                 uint32   `protobuf:"varint,2,opt,name=type,proto3" json:"type,omitempty"`
+	Value                []byte   `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *UnknownAttribute) Reset()                    { *m = UnknownAttribute{} }
-func (m *UnknownAttribute) String() string            { return proto.CompactTextString(m) }
-func (*UnknownAttribute) ProtoMessage()               {}
-func (*UnknownAttribute) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{88} }
+func (m *UnknownAttribute) Reset()         { *m = UnknownAttribute{} }
+func (m *UnknownAttribute) String() string { return proto.CompactTextString(m) }
+func (*UnknownAttribute) ProtoMessage()    {}
+func (*UnknownAttribute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_attribute_9fa0fa2773513bc8, []int{88}
+}
+func (m *UnknownAttribute) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UnknownAttribute.Unmarshal(m, b)
+}
+func (m *UnknownAttribute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UnknownAttribute.Marshal(b, m, deterministic)
+}
+func (dst *UnknownAttribute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UnknownAttribute.Merge(dst, src)
+}
+func (m *UnknownAttribute) XXX_Size() int {
+	return xxx_messageInfo_UnknownAttribute.Size(m)
+}
+func (m *UnknownAttribute) XXX_DiscardUnknown() {
+	xxx_messageInfo_UnknownAttribute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UnknownAttribute proto.InternalMessageInfo
 
 func (m *UnknownAttribute) GetFlags() uint32 {
 	if m != nil {
@@ -2691,9 +4645,9 @@ func init() {
 	proto.RegisterEnum("gobgpapi.LsNLRIType", LsNLRIType_name, LsNLRIType_value)
 }
 
-func init() { proto.RegisterFile("attribute.proto", fileDescriptor1) }
+func init() { proto.RegisterFile("attribute.proto", fileDescriptor_attribute_9fa0fa2773513bc8) }
 
-var fileDescriptor1 = []byte{
+var fileDescriptor_attribute_9fa0fa2773513bc8 = []byte{
 	// 3014 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x39, 0x4d, 0x73, 0x1b, 0xc7,
 	0xb1, 0x0f, 0x00, 0x49, 0x01, 0x0d, 0x82, 0x00, 0x97, 0x14, 0x0b, 0xa4, 0x24, 0x4b, 0x6f, 0xe5,

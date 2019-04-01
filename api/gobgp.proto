@@ -227,6 +227,12 @@ message ListPathRequest {
     PREFIX = 1;
   }
   SortType sort_type = 5;
+  message PolicyOptions {
+    bool apply_policies = 1;
+    bool apply_route_disposition = 2;
+    bool policy_details = 3;
+  }
+  PolicyOptions policy_options = 6;
 }
 
 message ListPathResponse {
