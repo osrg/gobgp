@@ -638,6 +638,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 	}
 	if a.RouteServer != nil {
 		pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+		pconf.RouteServer.Config.SecondaryRoute = a.RouteServer.SecondaryRoute
 	}
 	if a.GracefulRestart != nil {
 		pconf.GracefulRestart.Config.Enabled = a.GracefulRestart.Enabled
@@ -740,6 +741,7 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 	}
 	if a.RouteServer != nil {
 		pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+		pconf.RouteServer.Config.SecondaryRoute = a.RouteServer.SecondaryRoute
 	}
 	if a.GracefulRestart != nil {
 		pconf.GracefulRestart.Config.Enabled = a.GracefulRestart.Enabled

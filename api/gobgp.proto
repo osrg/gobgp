@@ -772,6 +772,7 @@ message Transport {
 
 message RouteServer {
   bool route_server_client = 1;
+  bool secondary_route = 2;
 }
 
 message GracefulRestart {

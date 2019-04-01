@@ -305,6 +305,15 @@ module gobgp {
       description
         "Configure the neighbor as a route server client.";
     }
+
+    leaf secondary-route {
+      type boolean;
+      default "false";
+      description
+        "if an export policy rejects a selected route, try the next route in
+        order until one that is accepted is found or all routes for the peer
+        are rejected.";
+    }
   }
 
   grouping gobgp-route-server-config-set {

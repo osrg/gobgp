@@ -522,6 +522,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+			SecondaryRoute:    pconf.RouteServer.Config.SecondaryRoute,
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:             pconf.GracefulRestart.Config.Enabled,
@@ -587,6 +588,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+			SecondaryRoute:    pconf.RouteServer.Config.SecondaryRoute,
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:             pconf.GracefulRestart.Config.Enabled,

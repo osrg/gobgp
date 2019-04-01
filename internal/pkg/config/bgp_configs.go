@@ -2020,6 +2020,12 @@ type RouteServerState struct {
 	// gobgp:route-server-client's original type is boolean.
 	// Configure the neighbor as a route server client.
 	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
+	// original -> gobgp:secondary-route
+	// gobgp:secondary-route's original type is boolean.
+	// if an export policy rejects a selected route, try the next route in
+	// order until one that is accepted is found or all routes for the peer
+	// are rejected.
+	SecondaryRoute bool `mapstructure:"secondary-route" json:"secondary-route,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -2030,6 +2036,12 @@ type RouteServerConfig struct {
 	// gobgp:route-server-client's original type is boolean.
 	// Configure the neighbor as a route server client.
 	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
+	// original -> gobgp:secondary-route
+	// gobgp:secondary-route's original type is boolean.
+	// if an export policy rejects a selected route, try the next route in
+	// order until one that is accepted is found or all routes for the peer
+	// are rejected.
+	SecondaryRoute bool `mapstructure:"secondary-route" json:"secondary-route,omitempty"`
 }
 
 func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
@@ -2037,6 +2049,9 @@ func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
 		return false
 	}
 	if lhs.RouteServerClient != rhs.RouteServerClient {
+		return false
+	}
+	if lhs.SecondaryRoute != rhs.SecondaryRoute {
 		return false
 	}
 	return true

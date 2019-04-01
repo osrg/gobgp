@@ -147,6 +147,12 @@ func (peer *peer) isRouteServerClient() bool {
 	return peer.fsm.pConf.RouteServer.Config.RouteServerClient
 }
 
+func (peer *peer) isSecondaryRouteEnabled() bool {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	return peer.fsm.pConf.RouteServer.Config.RouteServerClient && peer.fsm.pConf.RouteServer.Config.SecondaryRoute
+}
+
 func (peer *peer) isRouteReflectorClient() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
