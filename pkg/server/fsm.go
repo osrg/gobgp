@@ -593,16 +593,22 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	c, cancel := context.WithCancel(ctx)
 
+	fsm := h.fsm
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go h.connectLoop(c, &wg)
+
+	fsm.lock.RLock()
+	tryConnect := !fsm.pConf.Transport.Config.PassiveMode
+	fsm.lock.RUnlock()
+	if tryConnect {
+		wg.Add(1)
+		go h.connectLoop(c, &wg)
+	}
 
 	defer func() {
 		cancel()
 		wg.Wait()
 	}()
 
-	fsm := h.fsm
 	for {
 		select {
 		case <-ctx.Done():
