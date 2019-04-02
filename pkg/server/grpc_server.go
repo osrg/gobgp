@@ -118,6 +118,7 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 		return &api.Validation{}
 	}
 	return &api.Validation{
+		State:           api.Validation_State(v.Status.ToInt()),
 		Reason:          api.Validation_Reason(v.Reason.ToInt()),
 		Matched:         newRoaListFromTableStructList(v.Matched),
 		UnmatchedAs:     newRoaListFromTableStructList(v.UnmatchedAs),
