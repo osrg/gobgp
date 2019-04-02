@@ -2258,7 +2258,7 @@ type RouteReflectorState struct {
 }
 
 // struct for container bgp:config.
-// Configuraton parameters relating to route reflection
+// Configuration parameters relating to route reflection
 // for the BGP neighbor or group.
 type RouteReflectorConfig struct {
 	// original -> bgp:route-reflector-cluster-id
@@ -2290,7 +2290,7 @@ func (lhs *RouteReflectorConfig) Equal(rhs *RouteReflectorConfig) bool {
 // Route reflector parameters for the BGP neighbor or group.
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
-	// Configuraton parameters relating to route reflection
+	// Configuration parameters relating to route reflection
 	// for the BGP neighbor or group.
 	Config RouteReflectorConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:route-reflector-state
