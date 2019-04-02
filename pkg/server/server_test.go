@@ -108,7 +108,7 @@ func TestModPolicyAssign(t *testing.T) {
 		}
 	}
 
-	r := f([]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}, &config.PolicyDefinition{Name: "p2"}, &config.PolicyDefinition{Name: "p3"}})
+	r := f([]*config.PolicyDefinition{{Name: "p1"}, {Name: "p2"}, {Name: "p3"}})
 	r.Direction = api.PolicyDirection_IMPORT
 	r.DefaultAction = api.RouteAction_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
@@ -126,7 +126,7 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(len(ps[0].Policies), 3)
 
-	r = f([]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}})
+	r = f([]*config.PolicyDefinition{{Name: "p1"}})
 	r.Direction = api.PolicyDirection_IMPORT
 	r.DefaultAction = api.RouteAction_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
@@ -183,7 +183,7 @@ func TestListPolicyAssignment(t *testing.T) {
 			Direction:     api.PolicyDirection_IMPORT,
 			DefaultAction: api.RouteAction_ACCEPT,
 			Name:          addr,
-			Policies:      []*api.Policy{&api.Policy{Name: fmt.Sprintf("p%d", i)}},
+			Policies:      []*api.Policy{{Name: fmt.Sprintf("p%d", i)}},
 		}
 		err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: pa})
 		assert.Nil(err)
@@ -533,7 +533,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	p, _ := table.NewPolicy(policy)
 	p2.policy.AddPolicy(p, false)
 	policies := []*config.PolicyDefinition{
-		&config.PolicyDefinition{
+		{
 			Name: "policy1",
 		},
 	}

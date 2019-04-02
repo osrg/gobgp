@@ -821,7 +821,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 			args = args[1:]
 		}
-		filter = []*api.TableLookupPrefix{&api.TableLookupPrefix{
+		filter = []*api.TableLookupPrefix{{
 			Prefix:       target,
 			LookupOption: option,
 		},

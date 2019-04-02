@@ -17,19 +17,19 @@ func main() {
 			},
 		},
 		Neighbors: []config.Neighbor{
-			config.Neighbor{
+			{
 				Config: config.NeighborConfig{
 					PeerAs:          12333,
 					AuthPassword:    "apple",
 					NeighborAddress: "192.168.177.33",
 				},
 				AfiSafis: []config.AfiSafi{
-					config.AfiSafi{
+					{
 						Config: config.AfiSafiConfig{
 							AfiSafiName: "ipv4-unicast",
 						},
 					},
-					config.AfiSafi{
+					{
 						Config: config.AfiSafiConfig{
 							AfiSafiName: "ipv6-unicast",
 						},
@@ -44,7 +44,7 @@ func main() {
 				},
 			},
 
-			config.Neighbor{
+			{
 				Config: config.NeighborConfig{
 					PeerAs:          12334,
 					AuthPassword:    "orange",
@@ -52,7 +52,7 @@ func main() {
 				},
 			},
 
-			config.Neighbor{
+			{
 				Config: config.NeighborConfig{
 					PeerAs:          12335,
 					AuthPassword:    "grape",
@@ -81,7 +81,7 @@ func policy() config.RoutingPolicy {
 	ps := config.PrefixSet{
 		PrefixSetName: "ps1",
 		PrefixList: []config.Prefix{
-			config.Prefix{
+			{
 				IpPrefix:        "10.3.192.0/21",
 				MasklengthRange: "21..24",
 			}},
