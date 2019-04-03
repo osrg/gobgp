@@ -2,10 +2,11 @@
 
 ## Building the development environment
 
-You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer).
+You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer) with the module support enabled.
 
 ```bash
-$ go get github.com/osrg/gobgp/...
+$ git clone git://github.com/osrg/gobgp
+$ cd gobgp && go mod download
 ```
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
