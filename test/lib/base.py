@@ -164,10 +164,9 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
 
     c = CmdBuffer()
     c << 'FROM {0}'.format(from_image)
-    c << 'RUN go get -u github.com/golang/dep/cmd/dep'
-    c << 'RUN mkdir -p /go/src/github.com/osrg/'
-    c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
-    c << 'RUN cd /go/src/github.com/osrg/gobgp && dep ensure && go install ./cmd/gobgpd ./cmd/gobgp'
+    c << 'ENV GO111MODULE on'
+    c << 'ADD gobgp /tmp/gobgp'
+    c << 'RUN cd /tmp/gobgp && go install ./cmd/gobgpd ./cmd/gobgp'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:

@@ -1,18 +1,13 @@
 language: go
 
-_dep_ensure: &_dep_ensure
-  go: "1.12"
-  before_install: go get -u github.com/golang/dep/cmd/dep
-  install: $GOPATH/bin/dep ensure
-
 _unittest: &_unittest
-  <<: *_dep_ensure
+  go: "1.12"
   script:
     - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') $(go list ./... | grep -v '/vendor/') -timeout 120s
     - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
 _build: &_build
-  <<: *_dep_ensure
+  go: "1.12"
   script:
     - go build -o ./cmd/gobgp/gobgp   ./cmd/gobgp/
     - go build -o ./cmd/gobgpd/gobgpd ./cmd/gobgpd/
@@ -44,6 +39,7 @@ _docker: &_docker
 
 env:
   global:
+    - GO111MODULE=on
     - DOCKER_IMAGE=gobgp
     - FROM_IMAGE=osrg/quagga
 
@@ -106,7 +102,7 @@ matrix:
 #
 # Misc
 #
-    - <<: *_dep_ensure
+    - go: "1.12"
       env:
         - DESCRIPTION="go fmt + vet + staticcheck"
       before_script: go get -u honnef.co/go/tools/cmd/staticcheck
@@ -114,7 +110,7 @@ matrix:
         - test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
         - go vet $(go list ./... | grep -v '/vendor/')
         - staticcheck $(go list ./... | grep -v '/vendor/')
-    - <<: *_dep_ensure
+    - go: "1.12"
       env:
         - DESCRIPTION="build_embeded_go.py"
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
@@ -222,8 +218,6 @@ matrix:
 
 cache:
   pip: true
-
-go_import_path: github.com/osrg/gobgp
 
 notifications:
  slack:
