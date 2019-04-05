@@ -3,6 +3,7 @@ module github.com/osrg/gobgp
 require (
 	github.com/BurntSushi/toml v0.3.0
 	github.com/armon/go-radix v0.0.0-20170727155443-1fca145dffbc
+	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/davecgh/go-spew v1.1.0 // indirect
 	github.com/dgryski/go-farm v0.0.0-20171119141306-ac7624ea8da3
 	github.com/eapache/channels v1.1.0
