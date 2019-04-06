@@ -37,7 +37,7 @@ var AddPathMode_value = map[string]int32{
 func (x AddPathMode) String() string {
 	return proto.EnumName(AddPathMode_name, int32(x))
 }
-func (AddPathMode) EnumDescriptor() ([]byte, []int) { return fileDescriptor2, []int{0} }
+func (AddPathMode) EnumDescriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
 type MultiProtocolCapability struct {
 	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
@@ -46,7 +46,7 @@ type MultiProtocolCapability struct {
 func (m *MultiProtocolCapability) Reset()                    { *m = MultiProtocolCapability{} }
 func (m *MultiProtocolCapability) String() string            { return proto.CompactTextString(m) }
 func (*MultiProtocolCapability) ProtoMessage()               {}
-func (*MultiProtocolCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{0} }
+func (*MultiProtocolCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
 func (m *MultiProtocolCapability) GetFamily() *Family {
 	if m != nil {
@@ -61,7 +61,7 @@ type RouteRefreshCapability struct {
 func (m *RouteRefreshCapability) Reset()                    { *m = RouteRefreshCapability{} }
 func (m *RouteRefreshCapability) String() string            { return proto.CompactTextString(m) }
 func (*RouteRefreshCapability) ProtoMessage()               {}
-func (*RouteRefreshCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{1} }
+func (*RouteRefreshCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{1} }
 
 type CarryingLabelInfoCapability struct {
 }
@@ -69,7 +69,7 @@ type CarryingLabelInfoCapability struct {
 func (m *CarryingLabelInfoCapability) Reset()                    { *m = CarryingLabelInfoCapability{} }
 func (m *CarryingLabelInfoCapability) String() string            { return proto.CompactTextString(m) }
 func (*CarryingLabelInfoCapability) ProtoMessage()               {}
-func (*CarryingLabelInfoCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{2} }
+func (*CarryingLabelInfoCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{2} }
 
 type ExtendedNexthopCapabilityTuple struct {
 	NlriFamily *Family `protobuf:"bytes,1,opt,name=nlri_family,json=nlriFamily" json:"nlri_family,omitempty"`
@@ -82,7 +82,7 @@ type ExtendedNexthopCapabilityTuple struct {
 func (m *ExtendedNexthopCapabilityTuple) Reset()                    { *m = ExtendedNexthopCapabilityTuple{} }
 func (m *ExtendedNexthopCapabilityTuple) String() string            { return proto.CompactTextString(m) }
 func (*ExtendedNexthopCapabilityTuple) ProtoMessage()               {}
-func (*ExtendedNexthopCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{3} }
+func (*ExtendedNexthopCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{3} }
 
 func (m *ExtendedNexthopCapabilityTuple) GetNlriFamily() *Family {
 	if m != nil {
@@ -105,7 +105,7 @@ type ExtendedNexthopCapability struct {
 func (m *ExtendedNexthopCapability) Reset()                    { *m = ExtendedNexthopCapability{} }
 func (m *ExtendedNexthopCapability) String() string            { return proto.CompactTextString(m) }
 func (*ExtendedNexthopCapability) ProtoMessage()               {}
-func (*ExtendedNexthopCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{4} }
+func (*ExtendedNexthopCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{4} }
 
 func (m *ExtendedNexthopCapability) GetTuples() []*ExtendedNexthopCapabilityTuple {
 	if m != nil {
@@ -122,7 +122,7 @@ type GracefulRestartCapabilityTuple struct {
 func (m *GracefulRestartCapabilityTuple) Reset()                    { *m = GracefulRestartCapabilityTuple{} }
 func (m *GracefulRestartCapabilityTuple) String() string            { return proto.CompactTextString(m) }
 func (*GracefulRestartCapabilityTuple) ProtoMessage()               {}
-func (*GracefulRestartCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{5} }
+func (*GracefulRestartCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{5} }
 
 func (m *GracefulRestartCapabilityTuple) GetFamily() *Family {
 	if m != nil {
@@ -147,7 +147,7 @@ type GracefulRestartCapability struct {
 func (m *GracefulRestartCapability) Reset()                    { *m = GracefulRestartCapability{} }
 func (m *GracefulRestartCapability) String() string            { return proto.CompactTextString(m) }
 func (*GracefulRestartCapability) ProtoMessage()               {}
-func (*GracefulRestartCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{6} }
+func (*GracefulRestartCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{6} }
 
 func (m *GracefulRestartCapability) GetFlags() uint32 {
 	if m != nil {
@@ -177,7 +177,7 @@ type FourOctetASNumberCapability struct {
 func (m *FourOctetASNumberCapability) Reset()                    { *m = FourOctetASNumberCapability{} }
 func (m *FourOctetASNumberCapability) String() string            { return proto.CompactTextString(m) }
 func (*FourOctetASNumberCapability) ProtoMessage()               {}
-func (*FourOctetASNumberCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{7} }
+func (*FourOctetASNumberCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{7} }
 
 func (m *FourOctetASNumberCapability) GetAs() uint32 {
 	if m != nil {
@@ -194,7 +194,7 @@ type AddPathCapabilityTuple struct {
 func (m *AddPathCapabilityTuple) Reset()                    { *m = AddPathCapabilityTuple{} }
 func (m *AddPathCapabilityTuple) String() string            { return proto.CompactTextString(m) }
 func (*AddPathCapabilityTuple) ProtoMessage()               {}
-func (*AddPathCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{8} }
+func (*AddPathCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{8} }
 
 func (m *AddPathCapabilityTuple) GetFamily() *Family {
 	if m != nil {
@@ -217,7 +217,7 @@ type AddPathCapability struct {
 func (m *AddPathCapability) Reset()                    { *m = AddPathCapability{} }
 func (m *AddPathCapability) String() string            { return proto.CompactTextString(m) }
 func (*AddPathCapability) ProtoMessage()               {}
-func (*AddPathCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{9} }
+func (*AddPathCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{9} }
 
 func (m *AddPathCapability) GetTuples() []*AddPathCapabilityTuple {
 	if m != nil {
@@ -232,7 +232,7 @@ type EnhancedRouteRefreshCapability struct {
 func (m *EnhancedRouteRefreshCapability) Reset()                    { *m = EnhancedRouteRefreshCapability{} }
 func (m *EnhancedRouteRefreshCapability) String() string            { return proto.CompactTextString(m) }
 func (*EnhancedRouteRefreshCapability) ProtoMessage()               {}
-func (*EnhancedRouteRefreshCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{10} }
+func (*EnhancedRouteRefreshCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{10} }
 
 type LongLivedGracefulRestartCapabilityTuple struct {
 	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
@@ -246,7 +246,7 @@ func (m *LongLivedGracefulRestartCapabilityTuple) Reset() {
 func (m *LongLivedGracefulRestartCapabilityTuple) String() string { return proto.CompactTextString(m) }
 func (*LongLivedGracefulRestartCapabilityTuple) ProtoMessage()    {}
 func (*LongLivedGracefulRestartCapabilityTuple) Descriptor() ([]byte, []int) {
-	return fileDescriptor2, []int{11}
+	return fileDescriptor1, []int{11}
 }
 
 func (m *LongLivedGracefulRestartCapabilityTuple) GetFamily() *Family {
@@ -278,7 +278,7 @@ func (m *LongLivedGracefulRestartCapability) Reset()         { *m = LongLivedGra
 func (m *LongLivedGracefulRestartCapability) String() string { return proto.CompactTextString(m) }
 func (*LongLivedGracefulRestartCapability) ProtoMessage()    {}
 func (*LongLivedGracefulRestartCapability) Descriptor() ([]byte, []int) {
-	return fileDescriptor2, []int{12}
+	return fileDescriptor1, []int{12}
 }
 
 func (m *LongLivedGracefulRestartCapability) GetTuples() []*LongLivedGracefulRestartCapabilityTuple {
@@ -294,7 +294,7 @@ type RouteRefreshCiscoCapability struct {
 func (m *RouteRefreshCiscoCapability) Reset()                    { *m = RouteRefreshCiscoCapability{} }
 func (m *RouteRefreshCiscoCapability) String() string            { return proto.CompactTextString(m) }
 func (*RouteRefreshCiscoCapability) ProtoMessage()               {}
-func (*RouteRefreshCiscoCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{13} }
+func (*RouteRefreshCiscoCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{13} }
 
 type UnknownCapability struct {
 	Code  uint32 `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
@@ -304,7 +304,7 @@ type UnknownCapability struct {
 func (m *UnknownCapability) Reset()                    { *m = UnknownCapability{} }
 func (m *UnknownCapability) String() string            { return proto.CompactTextString(m) }
 func (*UnknownCapability) ProtoMessage()               {}
-func (*UnknownCapability) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{14} }
+func (*UnknownCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{14} }
 
 func (m *UnknownCapability) GetCode() uint32 {
 	if m != nil {
@@ -339,9 +339,9 @@ func init() {
 	proto.RegisterEnum("gobgpapi.AddPathMode", AddPathMode_name, AddPathMode_value)
 }
 
-func init() { proto.RegisterFile("capability.proto", fileDescriptor2) }
+func init() { proto.RegisterFile("capability.proto", fileDescriptor1) }
 
-var fileDescriptor2 = []byte{
+var fileDescriptor1 = []byte{
 	// 520 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x54, 0x4d, 0x6f, 0xd3, 0x40,
 	0x10, 0xc5, 0x49, 0x88, 0x60, 0xd2, 0x44, 0xee, 0x0a, 0x4a, 0x4a, 0xd4, 0x28, 0xda, 0x0b, 0x01,

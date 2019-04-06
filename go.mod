@@ -9,7 +9,7 @@ require (
 	github.com/eapache/channels v1.1.0
 	github.com/eapache/queue v1.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.4.2 // indirect
-	github.com/golang/protobuf v0.0.0-20170726212829-748d386b5c1e
+	github.com/golang/protobuf v1.0.0
 	github.com/hashicorp/hcl v0.0.0-20170509225359-392dba7d905e // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jessevdk/go-flags v1.3.0
@@ -31,10 +31,9 @@ require (
 	github.com/stretchr/testify v1.1.4
 	github.com/vishvananda/netlink v0.0.0-20170802012344-a95659537721
 	github.com/vishvananda/netns v0.0.0-20170707011535-86bef332bfc3 // indirect
-	golang.org/x/net v0.0.0-20170726083632-f5079bd7f6f7
-	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4 // indirect
-	golang.org/x/sys v0.0.0-20170802141912-e312636bdaa2 // indirect
-	golang.org/x/text v0.0.0-20170730040918-3bd178b88a81 // indirect
+	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
+	golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6 // indirect
+	golang.org/x/sys v0.0.0-20190405154228-4b34438f7a67 // indirect
 	google.golang.org/genproto v0.0.0-20170731182057-09f6ed296fc6 // indirect
 	google.golang.org/grpc v1.5.1
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect

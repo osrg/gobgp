@@ -24,6 +24,7 @@ The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-
 If you change the gRPC API, generate `api/gobgp.pb.go` in the following way:
 
 ```bash
-$ protoc -I ~/protobuf/src -I ${GOBGP}/api --go_out=plugins=grpc:${GOBGP}/api \
-         ${GOBGP}/api/gobgp.proto ${GOBGP}/api/attribute.proto ${GOBGP}/api/capability.proto
+$ ./tools/grpc/genproto.sh
 ```
+
+In order for the script to run, you'll need protoc (version 3.7.1) in your PATH.
