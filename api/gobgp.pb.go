@@ -2265,6 +2265,7 @@ type Path struct {
 	// - EVPNInclusiveMulticastEthernetTagRoute
 	// - EVPNEthernetSegmentRoute
 	// - EVPNIPPrefixRoute
+	// - EVPNIPMSIRoute
 	// - LabeledVPNIPAddressPrefix
 	// - RouteTargetMembershipNLRI
 	// - FlowSpecNLRI
