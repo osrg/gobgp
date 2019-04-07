@@ -4012,13 +4012,18 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 		}
 		if w.opts.initPeerState {
 			for _, peer := range s.neighborMap {
+				m := &fsmMsg{}
 				peer.fsm.lock.RLock()
 				notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
 				peer.fsm.lock.RUnlock()
 				if notEstablished {
-					continue
+					stateReason := newfsmStateReason(fsmNewConnection, nil, nil)
+					m.fsm = peer.fsm
+					m.MsgType = fsmMsgBGPMessage
+					m.MsgSrc = peer.fsm.pConf.State.NeighborAddress
+					m.StateReason = stateReason
 				}
-				w.notify(newWatchEventPeerState(peer, nil))
+				w.notify(newWatchEventPeerState(peer, m))
 			}
 		}
 		if w.opts.initBest && s.active() == nil {
