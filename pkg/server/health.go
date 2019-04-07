@@ -2,9 +2,7 @@ package server
 
 import (
 	"context"
-	"log"
 	"sync"
-	"time"
 
 	api "github.com/osrg/gobgp/api"
 	"google.golang.org/grpc"
@@ -73,6 +71,7 @@ func (c *healthClient) Check(ctx context.Context) (bool, error) {
 	return false, err
 }
 
+/* health check client
 func healthCheck(address string, checkTime time.Duration) {
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
@@ -93,4 +92,4 @@ func healthCheck(address string, checkTime time.Duration) {
 
 		<-time.After(checkTime)
 	}
-}
+}*/
