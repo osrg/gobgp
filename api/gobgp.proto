@@ -95,6 +95,9 @@ service GobgpApi {
 
   rpc AddBmp(AddBmpRequest) returns (google.protobuf.Empty);
   rpc DeleteBmp(DeleteBmpRequest) returns (google.protobuf.Empty);
+
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+
 }
 
 message StartBgpRequest {
@@ -1186,4 +1189,17 @@ message RPKIState {
 message Rpki {
   RPKIConf conf = 1;
   RPKIState state = 2;
+}
+
+message HealthCheckRequest {
+  string service = 1;
+}
+ 
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
 }

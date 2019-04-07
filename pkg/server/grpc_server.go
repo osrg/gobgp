@@ -34,6 +34,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
@@ -439,6 +441,23 @@ func (s *server) AddVrf(ctx context.Context, r *api.AddVrfRequest) (*empty.Empty
 
 func (s *server) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, s.bgpServer.DeleteVrf(ctx, r)
+}
+
+func (s *server) HealthCheck(ctx context.Context, r *api.HealthCheckRequest) (*api.HealthCheckResponse, error) {
+	s.bgpServer.healthManager.mu.Lock()
+	defer s.bgpServer.healthManager.mu.Unlock()
+	if r.Service == "" {
+		// check the server overall health status.
+		return &api.HealthCheckResponse{
+			Status: api.HealthCheckResponse_SERVING,
+		}, nil
+	}
+	if status, ok := s.bgpServer.healthManager.statusMap[r.Service]; ok {
+		return &api.HealthCheckResponse{
+			Status: status,
+		}, nil
+	}
+	return &api.HealthCheckResponse{}, status.Error(codes.NotFound, "unknown service")
 }
 
 func readMpGracefulRestartFromAPIStruct(c *config.MpGracefulRestart, a *api.MpGracefulRestart) {

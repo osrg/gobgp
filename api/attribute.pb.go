@@ -256,6 +256,8 @@ It has these top-level messages:
 	RPKIConf
 	RPKIState
 	Rpki
+	HealthCheckRequest
+	HealthCheckResponse
 */
 package gobgpapi
 

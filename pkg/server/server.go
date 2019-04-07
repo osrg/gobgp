@@ -118,23 +118,24 @@ func GrpcOption(opt []grpc.ServerOption) ServerOption {
 }
 
 type BgpServer struct {
-	bgpConfig    config.Bgp
-	acceptCh     chan *net.TCPConn
-	incomings    []*channels.InfiniteChannel
-	mgmtCh       chan *mgmtOp
-	policy       *table.RoutingPolicy
-	listeners    []*tcpListener
-	neighborMap  map[string]*peer
-	peerGroupMap map[string]*peerGroup
-	globalRib    *table.TableManager
-	rsRib        *table.TableManager
-	roaManager   *roaManager
-	shutdownWG   *sync.WaitGroup
-	watcherMap   map[watchEventType][]*watcher
-	zclient      *zebraClient
-	bmpManager   *bmpClientManager
-	mrtManager   *mrtManager
-	uuidMap      map[uuid.UUID]string
+	bgpConfig     config.Bgp
+	acceptCh      chan *net.TCPConn
+	incomings     []*channels.InfiniteChannel
+	mgmtCh        chan *mgmtOp
+	policy        *table.RoutingPolicy
+	listeners     []*tcpListener
+	neighborMap   map[string]*peer
+	peerGroupMap  map[string]*peerGroup
+	globalRib     *table.TableManager
+	rsRib         *table.TableManager
+	roaManager    *roaManager
+	shutdownWG    *sync.WaitGroup
+	watcherMap    map[watchEventType][]*watcher
+	zclient       *zebraClient
+	bmpManager    *bmpClientManager
+	mrtManager    *mrtManager
+	healthManager *HealthCheckServer
+	uuidMap       map[uuid.UUID]string
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -155,6 +156,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
+	s.healthManager = NewHealthCheckServer()
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		api := newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
