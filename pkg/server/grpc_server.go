@@ -146,11 +146,6 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		Filtered: 			(po != nil && stmt != nil),
 	}
 
-	if p.Filtered {
-		policy := &table.Policy{po.Name, []*table.Statement{stmt}}
-		p.FilteredReason = table.NewAPIPolicyFromTableStruct(policy)	
-	}
-
 
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS
