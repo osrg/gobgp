@@ -5,6 +5,7 @@
 *.pyc
 cmd/gobgp/gobgp
 cmd/gobgpd/gobgpd
+bin/
 
 # Folders
 _obj

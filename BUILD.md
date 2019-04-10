@@ -7,6 +7,7 @@ You need a working [Go environment](https://golang.org/doc/install) (1.11 or new
 ```bash
 $ git clone git://github.com/osrg/gobgp
 $ cd gobgp && go mod download
+$ make build
 ```
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
