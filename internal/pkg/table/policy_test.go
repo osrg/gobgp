@@ -361,7 +361,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath,_ := p.Apply(path1, nil)
+	pType, newPath, _ := p.Apply(path1, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path1)
 

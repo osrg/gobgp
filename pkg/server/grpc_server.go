@@ -144,9 +144,8 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
-		Filtered: 			(po != nil && stmt != nil),
+		Filtered:           (po != nil && stmt != nil),
 	}
-
 
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS

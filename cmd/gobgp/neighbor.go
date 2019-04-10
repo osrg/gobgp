@@ -846,13 +846,12 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	var policyOptions api.ListPathRequest_PolicyOptions
 
-
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
-		TableType: t,
-		Family:    family,
-		Name:      name,
-		Prefixes:  filter,
-		SortType:  api.ListPathRequest_PREFIX,
+		TableType:     t,
+		Family:        family,
+		Name:          name,
+		Prefixes:      filter,
+		SortType:      api.ListPathRequest_PREFIX,
 		PolicyOptions: &policyOptions,
 	})
 	if err != nil {

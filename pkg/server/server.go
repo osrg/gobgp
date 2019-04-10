@@ -685,11 +685,11 @@ func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 	if stop {
 		return path
 	}
-	path,_,_ = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	path, _, _ = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
 	if path == nil && old != nil {
-		o,_,_ := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
+		o, _, _ := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
 		if o != nil {
 			path = old.Clone(true)
 		}
@@ -990,7 +990,7 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []
 		if stop {
 			return nil
 		}
-		path,_,_ = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+		path, _, _ = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 		if path != nil {
 			return s.postFilterpath(peer, path)
 		}
@@ -1114,7 +1114,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			policyOptions.ValidationResult = v
 		}
 
-		if p,_,_ := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
+		if p, _, _ := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
 			path = p
 		} else {
 			path = path.Clone(true)
@@ -1583,7 +1583,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
-			pathList, eor, notification := peer.handleUpdate(e,s)
+			pathList, eor, notification := peer.handleUpdate(e, s)
 			if notification != nil {
 				sendfsmOutgoingMsg(peer, nil, notification, true)
 				return
@@ -2522,9 +2522,8 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 			for i, path := range dst.GetAllKnownPathList() {
 				var policy *table.Policy
 				var statement *table.Statement
-				log.Errorf("%+v", r.PolicyOptions)
-				if r.PolicyOptions != nil && (r.PolicyOptions.ApplyPolicies || r.PolicyOptions.PolicyDetails)  {
-					peer, _ := s.neighborMap[r.Name]
+				if r.PolicyOptions != nil && (r.PolicyOptions.ApplyPolicies || r.PolicyOptions.PolicyDetails) {
+					peer := s.neighborMap[r.Name]
 
 					rs := peer != nil && peer.isRouteServerClient()
 					tableId := table.GLOBAL_RIB_NAME

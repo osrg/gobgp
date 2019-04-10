@@ -2984,7 +2984,6 @@ type Policy struct {
 	Statements []*Statement
 }
 
-
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
@@ -3109,7 +3108,7 @@ type RoutingPolicy struct {
 	mu            sync.RWMutex
 }
 
-func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) (*Path,*Policy, *Statement) {
+func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) (*Path, *Policy, *Statement) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
