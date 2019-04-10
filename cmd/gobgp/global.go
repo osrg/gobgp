@@ -831,7 +831,7 @@ func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 
 func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
-	// etag <etag> rd <rd> [rt <rt>] [encap <encap type>]
+	// etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 4
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))

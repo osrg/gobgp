@@ -2967,7 +2967,7 @@ func (er *EVPNIPMSIRoute) String() string {
 	if er.EC != nil {
 		ec = er.EC.String()
 	}
-	return fmt.Sprintf("[rd:%s][etag:%d][EC]:%s]", er.RD, er.ETag, ec)
+	return fmt.Sprintf("[type:I-PMSI][rd:%s][etag:%d][EC:%s]", er.RD, er.ETag, ec)
 }
 
 func (er *EVPNIPMSIRoute) MarshalJSON() ([]byte, error) {
