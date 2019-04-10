@@ -3003,138 +3003,7 @@ class ExportPolicyExCommunityAdd(object):
 
 
 @register_scenario
-class InPolicyUpdate2(object):
-    """
-    No.47 in-policy update test
-    r1:192.168.2.0
-    r2:192.168.20.0
-    r3:192.168.200.0
-                     -------------------------------------------
-                      | q1                                      |
-    e1 ->(r1,r2,r3)-> | ->(r1,r2)-> rib ->(r1,r2)-> adj-rib-out | ->(r1,r2)-> q1
-                      |                                         |
-                      | q2                                      |
-                      | ->(r1,r3)-> rib ->(r1,r3)-> adj-rib-out | ->(r1,r3)-> q2
-                      -------------------------------------------
-                 |
-      update distribute policy
-                 |
-                 V
-                      -------------------------------------
-                      | q1                                |
-    e1 ->(r1,r2,r3)-> | ->(r1)-> rib ->(r1)-> adj-rib-out | ->(r1)-> q1
-                      |                                   |
-                      | q2                                |
-                      | ->(r1)-> rib ->(r1)-> adj-rib-out | ->(r1)-> q2
-                      -------------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        p0 = {'ip-prefix': '192.168.20.0/24'}
-
-        ps0 = {'prefix-set-name': 'ps0',
-               'prefix-list': [p0]}
-        g1.set_prefix_set(ps0)
-
-        ns0 = {'neighbor-set-name': 'ns0',
-               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'name': 'st0',
-               'conditions': {
-                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': 'reject-route'}}
-
-        policy = {'name': 'policy0',
-                  'statements': [st0]}
-        g1.add_policy(policy, e1, 'in')
-
-        e1.add_route('192.168.2.0/24')
-        e1.add_route('192.168.20.0/24')
-        e1.add_route('192.168.200.0/24')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        wait_for(lambda: len(g1.get_adj_rib_in(e1)) == 3)
-        wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
-        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 2)
-        wait_for(lambda: len(q1.get_global_rib()) == 2)
-        wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
-        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
-        wait_for(lambda: len(q2.get_global_rib()) == 2)
-
-    @staticmethod
-    def setup2(env):
-        g1 = env.g1
-        e1 = env.e1
-        # q1 = env.q1
-        # q2 = env.q2
-        g1.clear_policy()
-
-        p0 = {'ip-prefix': '192.168.20.0/24'}
-        p1 = {'ip-prefix': '192.168.200.0/24'}
-
-        ps0 = {'prefix-set-name': 'ps0',
-               'prefix-list': [p0, p1]}
-        g1.set_prefix_set(ps0)
-
-        ns0 = {'neighbor-set-name': 'ns0',
-               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'name': 'st0',
-               'conditions': {
-                   'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
-                   'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
-               'actions': {'route-disposition': 'reject-route'}}
-
-        policy = {'name': 'policy0',
-                  'statements': [st0]}
-        g1.add_policy(policy, e1, 'in')
-        g1.softreset(e1)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        wait_for(lambda: len(g1.get_adj_rib_in(e1)) == 3)
-        wait_for(lambda: len(g1.get_local_rib(q1)) == 1)
-        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 1)
-        wait_for(lambda: len(q1.get_global_rib()) == 1)
-        wait_for(lambda: len(g1.get_local_rib(q2)) == 1)
-        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
-        wait_for(lambda: len(q2.get_global_rib()) == 1)
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("InPolicyUpdate2").boot(env)
-        lookup_scenario("InPolicyUpdate2").setup(env)
-        lookup_scenario("InPolicyUpdate2").check(env)
-        lookup_scenario("InPolicyUpdate2").setup2(env)
-        lookup_scenario("InPolicyUpdate2").check2(env)
-
-
-@register_scenario
-class InPolicyRejectImplicitWithdraw(object):
+class ImportPolicyRejectImplicitWithdraw(object):
     """
     No.48 in-policy reject test
     g2 (asn: 65002)
@@ -3219,7 +3088,7 @@ class InPolicyRejectImplicitWithdraw(object):
 
         policy = {'name': 'policy0',
                   'statements': [st0]}
-        g1.add_policy(policy, g2, 'in', 'reject')
+        g1.add_policy(policy, g2, 'import', 'reject')
 
         g2.add_route('192.168.0.0/24')
 
@@ -3252,13 +3121,12 @@ class InPolicyRejectImplicitWithdraw(object):
         wait_for(lambda: len(g1.get_local_rib(g4)) == 1)
         wait_for(lambda: len(g1.get_local_rib(g4)[0]['paths']) == 1)
         wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
-        wait_for(lambda: g1.get_neighbor(g2)['state'].get('adj-table', {}).get('accepted', 0) == 1)
         wait_for(lambda: len(g4.get_global_rib()) == 1)
         wait_for(lambda: len(g4.get_global_rib()[0]['paths']) == 1)
 
     @staticmethod
     def setup3(env):
-        env.g2.local('gobgp global rib del 192.168.0.00/24')
+        env.g2.local('gobgp global rib del 192.168.0.0/24')
 
     @staticmethod
     def check3(env):
@@ -3268,22 +3136,21 @@ class InPolicyRejectImplicitWithdraw(object):
         wait_for(lambda: len(g2.get_global_rib()) == 1)
         wait_for(lambda: len(g2.get_global_rib()[0]['paths']) == 1)
         wait_for(lambda: len(g1.get_adj_rib_in(g2)) == 1)
-        wait_for(lambda: g1.get_neighbor(g2)['state'].get('adj-table', {}).get('accepted', 0) == 0)
         wait_for(lambda: len(g1.get_local_rib(g4)) == 0)
         wait_for(lambda: len(g4.get_global_rib()) == 0)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("InPolicyRejectImplicitWithdraw").boot(env)
-        lookup_scenario("InPolicyRejectImplicitWithdraw").setup(env)
-        lookup_scenario("InPolicyRejectImplicitWithdraw").check(env)
-        lookup_scenario("InPolicyRejectImplicitWithdraw").setup2(env)
-        lookup_scenario("InPolicyRejectImplicitWithdraw").check2(env)
-        lookup_scenario("InPolicyRejectImplicitWithdraw").setup3(env)
-        lookup_scenario("InPolicyRejectImplicitWithdraw").check3(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").boot(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").setup(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").check(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").setup2(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").check2(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").setup3(env)
+        lookup_scenario("ImportPolicyRejectImplicitWithdraw").check3(env)
 
 
-class TestGoBGPBase(unittest.TestCase):
+class TestGoBGPBase():
 
     wait_per_retry = 5
     retry_limit = 10

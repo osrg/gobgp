@@ -2,10 +2,11 @@
 
 ## Building the development environment
 
-You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer).
+You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer) with the module support enabled.
 
 ```bash
-$ go get github.com/osrg/gobgp/...
+$ git clone git://github.com/osrg/gobgp
+$ cd gobgp && go mod download
 ```
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
@@ -23,6 +24,7 @@ The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-
 If you change the gRPC API, generate `api/gobgp.pb.go` in the following way:
 
 ```bash
-$ protoc -I ~/protobuf/src -I ${GOBGP}/api --go_out=plugins=grpc:${GOBGP}/api \
-         ${GOBGP}/api/gobgp.proto ${GOBGP}/api/attribute.proto ${GOBGP}/api/capability.proto
+$ ./tools/grpc/genproto.sh
 ```
+
+In order for the script to run, you'll need protoc (version 3.7.1) in your PATH.

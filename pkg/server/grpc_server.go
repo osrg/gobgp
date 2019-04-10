@@ -118,6 +118,7 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 		return &api.Validation{}
 	}
 	return &api.Validation{
+		State:           api.Validation_State(v.Status.ToInt()),
 		Reason:          api.Validation_Reason(v.Reason.ToInt()),
 		Matched:         newRoaListFromTableStructList(v.Matched),
 		UnmatchedAs:     newRoaListFromTableStructList(v.UnmatchedAs),
@@ -641,6 +642,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 	}
 	if a.RouteServer != nil {
 		pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+		pconf.RouteServer.Config.SecondaryRoute = a.RouteServer.SecondaryRoute
 	}
 	if a.GracefulRestart != nil {
 		pconf.GracefulRestart.Config.Enabled = a.GracefulRestart.Enabled
@@ -743,6 +745,7 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 	}
 	if a.RouteServer != nil {
 		pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+		pconf.RouteServer.Config.SecondaryRoute = a.RouteServer.SecondaryRoute
 	}
 	if a.GracefulRestart != nil {
 		pconf.GracefulRestart.Config.Enabled = a.GracefulRestart.Enabled

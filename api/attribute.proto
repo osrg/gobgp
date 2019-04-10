@@ -21,7 +21,7 @@
 
 syntax = "proto3";
 
-import "google/protobuf/any.proto";
+import "any/any.proto";
 import "gobgp.proto";
 
 package gobgpapi;
@@ -183,6 +183,18 @@ message EVPNIPPrefixRoute {
     uint32 label = 7;
 }
 
+// EVPNIPMSIRoute represents the NLRI for:
+// - AFI=25, SAFI=70, RouteType=9
+message EVPNIPMSIRoute {
+    // One of:
+    // - RouteDistinguisherTwoOctetAS
+    // - RouteDistinguisherIPAddressAS
+    // - RouteDistinguisherFourOctetAS
+    google.protobuf.Any rd = 1;
+    uint32 ethernet_tag = 2;
+    google.protobuf.Any rt = 3;
+}
+
 // LabeledVPNIPAddressPrefix represents the NLRI for:
 // - AFI=1, SAFI=128
 // - AFI=2, SAFI=128
@@ -342,6 +354,7 @@ message MpReachNLRIAttribute {
     // - EVPNInclusiveMulticastEthernetTagRoute
     // - EVPNEthernetSegmentRoute
     // - EVPNIPPrefixRoute
+    // - EVPNIPMSIRoute
     // - LabeledVPNIPAddressPrefix
     // - RouteTargetMembershipNLRI
     // - FlowSpecNLRI
