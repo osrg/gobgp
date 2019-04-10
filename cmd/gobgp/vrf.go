@@ -144,7 +144,7 @@ func modVrf(typ string, args []string) error {
 				cur = elem
 				continue
 			}
-			rt, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_ROUTE_TARGET, elem)
+			rt, err := bgp.ParseRouteTarget(elem)
 			if err != nil {
 				return err
 			}

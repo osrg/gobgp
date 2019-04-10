@@ -48,7 +48,7 @@ var version = "master"
 func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	rtList := make([]*any.Any, 0, len(l))
 	for _, rtString := range l {
-		rt, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_ROUTE_TARGET, rtString)
+		rt, err := bgp.ParseRouteTarget(rtString)
 		if err != nil {
 			return nil, err
 		}

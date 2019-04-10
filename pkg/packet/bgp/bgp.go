@@ -10032,8 +10032,8 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 	}
 }
 
-func ParseRouteTarget(subtype ExtendedCommunityAttrSubType, rt string) (ExtendedCommunityInterface, error) {
-	return ParseExtendedCommunity(subtype, rt)
+func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
+	return ParseExtendedCommunity(EC_SUBTYPE_ROUTE_TARGET, rt)
 }
 
 func SerializeExtendedCommunities(comms []ExtendedCommunityInterface) ([][]byte, error) {

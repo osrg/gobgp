@@ -119,7 +119,7 @@ func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	if len(args) < 2 || args[0] != extCommNameMap[ctRedirect] {
 		return nil, fmt.Errorf("invalid redirect")
 	}
-	rt, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_ROUTE_TARGET, strings.Join(args[1:], " "))
+	rt, err := bgp.ParseRouteTarget(strings.Join(args[1:], " "))
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func rtParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	}
 	exts := make([]bgp.ExtendedCommunityInterface, 0, len(args[1:]))
 	for _, arg := range args[1:] {
-		rt, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_ROUTE_TARGET, arg)
+		rt, err := bgp.ParseRouteTarget(arg)
 		if err != nil {
 			return nil, err
 		}
@@ -866,7 +866,7 @@ func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error
 		extcomms = append(extcomms, "rt")
 		extcomms = append(extcomms, m["rt"]...)
 	}
-	ec, err := bgp.ParseRouteTarget(bgp.EC_SUBTYPE_SOURCE_AS, m["rt"][0])
+	ec, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_SOURCE_AS, m["rt"][0])
 	if err != nil {
 		return nil, nil, fmt.Errorf("route target parse failed")
 	}
