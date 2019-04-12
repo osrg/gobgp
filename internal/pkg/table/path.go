@@ -139,7 +139,6 @@ type Path struct {
 	dels      []bgp.BGPAttrType
 	attrsHash uint32
 	aslooped  bool
-	reason    BestPathReason
 
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool

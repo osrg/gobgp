@@ -405,17 +405,19 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 		}
 		return dest.knownPathList[0], BPR_ONLY_PATH, nil
 	}
-	dest.sort()
+	reason := dest.sort()
 	newBest := dest.knownPathList[0]
 	// If the first path has the invalidated next-hop, which evaluated by IGP,
 	// returns no path with the reason of the next-hop reachability.
 	if dest.knownPathList[0].IsNexthopInvalid {
 		return nil, BPR_REACHABLE_NEXT_HOP, nil
 	}
-	return newBest, newBest.reason, nil
+	return newBest, reason, nil
 }
 
-func (dst *Destination) sort() {
+func (dst *Destination) sort() BestPathReason {
+	reason := BPR_UNKNOWN
+
 	sort.SliceStable(dst.knownPathList, func(i, j int) bool {
 		//Compares given paths and returns best path.
 		//
@@ -451,7 +453,6 @@ func (dst *Destination) sort() {
 		path2 := dst.knownPathList[j]
 
 		var better *Path
-		reason := BPR_UNKNOWN
 
 		// draft-uttaro-idr-bgp-persistence-02
 		if better == nil {
@@ -515,11 +516,9 @@ func (dst *Destination) sort() {
 			reason = BPR_UNKNOWN
 			better = path1
 		}
-
-		better.reason = reason
-
 		return better == path1
 	})
+	return reason
 }
 
 type Update struct {
