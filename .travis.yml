@@ -3,7 +3,7 @@ language: go
 _unittest: &_unittest
   go: "1.12"
   script:
-    - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') $(go list ./... | grep -v '/vendor/') -timeout 120s
+    - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') -timeout 120s ./...
     - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
 _build: &_build
@@ -64,7 +64,7 @@ matrix:
         - DESCRIPTION="Tests + goreleaser + cover"
       go: "1.12"
       script:
-        - go test $(go list ./... | grep -v '/vendor/') -coverprofile=coverage.txt -covermode=atomic
+        - go test -coverprofile=coverage.txt -covermode=atomic ./...
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
         - bash <(curl -s https://codecov.io/bash)
@@ -107,9 +107,9 @@ matrix:
         - DESCRIPTION="go fmt + vet + staticcheck"
       before_script: go get -u honnef.co/go/tools/cmd/staticcheck
       script:
-        - test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
-        - go vet $(go list ./... | grep -v '/vendor/')
-        - staticcheck $(go list ./... | grep -v '/vendor/')
+        - test -z "$(go fmt ./...)"
+        - go vet ./...
+        - staticcheck ./...
     - go: "1.12"
       env:
         - DESCRIPTION="build_embeded_go.py"
@@ -207,7 +207,7 @@ matrix:
       before_script:
         - npm install -g markdownlint-cli
       script:
-        - markdownlint $(find . -type f -name '*.md' | grep -v '/vendor/')
+        - markdownlint $(find . -type f -name '*.md')
     - <<: *_python
       env:
         - DESCRIPTION="Tools"
