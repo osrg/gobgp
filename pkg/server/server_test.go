@@ -209,6 +209,251 @@ func TestListPolicyAssignment(t *testing.T) {
 	assert.Equal(len(ps), 0)
 }
 
+func TestListPathEnableFiltered(test *testing.T) {
+	assert := assert.New(test)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 10179,
+		},
+	})
+	assert.Nil(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peer1 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAs:          2,
+		},
+		Transport: &api.Transport{
+			PassiveMode: true,
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
+	assert.Nil(err)
+
+	d1 := &api.DefinedSet{
+		DefinedType: api.DefinedType_PREFIX,
+		Name:        "d1",
+		Prefixes: []*api.Prefix{
+			&api.Prefix{
+				IpPrefix:      "10.1.0.0/24",
+				MaskLengthMax: 24,
+				MaskLengthMin: 24,
+			},
+		},
+	}
+	s1 := &api.Statement{
+		Name: "s1",
+		Conditions: &api.Conditions{
+			PrefixSet: &api.MatchSet{
+				Name: "d1",
+			},
+		},
+		Actions: &api.Actions{
+			RouteAction: api.RouteAction_REJECT,
+		},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
+	assert.Nil(err)
+	p1 := &api.Policy{
+		Name:       "p1",
+		Statements: []*api.Statement{s1},
+	}
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p1})
+	assert.Nil(err)
+	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_IMPORT,
+			Policies:      []*api.Policy{p1},
+			DefaultAction: api.RouteAction_ACCEPT,
+		},
+	})
+	assert.Nil(err)
+
+	t := NewBgpServer()
+	go t.Serve()
+	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	assert.Nil(err)
+	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	family := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	nlri1, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	})
+
+	a1, _ := ptypes.MarshalAny(&api.OriginAttribute{
+		Origin: 0,
+	})
+	a2, _ := ptypes.MarshalAny(&api.NextHopAttribute{
+		NextHop: "10.0.0.1",
+	})
+	attrs := []*any.Any{a1, a2}
+
+	t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri1,
+			Pattrs: attrs,
+		},
+	})
+
+	nlri2, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+		Prefix:    "10.2.0.0",
+		PrefixLen: 24,
+	})
+	t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri2,
+			Pattrs: attrs,
+		},
+	})
+
+	peer2 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAs:          1,
+		},
+		Transport: &api.Transport{
+			RemotePort: 10179,
+		},
+	}
+	ch := make(chan struct{})
+	go s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
+		if peer.State.SessionState == api.PeerState_ESTABLISHED {
+			close(ch)
+		}
+	})
+
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
+	assert.Nil(err)
+	<-ch
+
+	for {
+		count := 0
+		s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_IN, Family: family, Name: "127.0.0.1"}, func(d *api.Destination) {
+			count++
+		})
+		if count == 2 {
+			break
+		}
+	}
+	count := 0
+	s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: family}, func(d *api.Destination) {
+		count++
+	})
+	assert.Equal(1, count)
+
+	filtered := 0
+	s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_IN, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+		if d.Paths[0].Filtered {
+			filtered++
+		}
+	})
+	assert.Equal(1, filtered)
+
+	d2 := &api.DefinedSet{
+		DefinedType: api.DefinedType_PREFIX,
+		Name:        "d2",
+		Prefixes: []*api.Prefix{
+			&api.Prefix{
+				IpPrefix:      "10.3.0.0/24",
+				MaskLengthMax: 24,
+				MaskLengthMin: 24,
+			},
+		},
+	}
+	s2 := &api.Statement{
+		Name: "s2",
+		Conditions: &api.Conditions{
+			PrefixSet: &api.MatchSet{
+				Name: "d2",
+			},
+		},
+		Actions: &api.Actions{
+			RouteAction: api.RouteAction_REJECT,
+		},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d2})
+	assert.Nil(err)
+	p2 := &api.Policy{
+		Name:       "p2",
+		Statements: []*api.Statement{s2},
+	}
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p2})
+	assert.Nil(err)
+	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_EXPORT,
+			Policies:      []*api.Policy{p2},
+			DefaultAction: api.RouteAction_ACCEPT,
+		},
+	})
+	assert.Nil(err)
+
+	nlri3, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+		Prefix:    "10.3.0.0",
+		PrefixLen: 24,
+	})
+	s.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri3,
+			Pattrs: attrs,
+		},
+	})
+
+	nlri4, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+		Prefix:    "10.4.0.0",
+		PrefixLen: 24,
+	})
+	s.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri4,
+			Pattrs: attrs,
+		},
+	})
+
+	count = 0
+	s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: family}, func(d *api.Destination) {
+		count++
+	})
+	assert.Equal(3, count)
+
+	count = 0
+	filtered = 0
+	s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_OUT, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+		count++
+		if d.Paths[0].Filtered {
+			filtered++
+		}
+	})
+	assert.Equal(2, count)
+	assert.Equal(1, filtered)
+}
+
 func TestMonitor(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()

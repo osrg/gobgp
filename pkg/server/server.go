@@ -905,6 +905,13 @@ func (s *BgpServer) notifyRecvMessageWatcher(peer *peer, timestamp time.Time, ms
 	s.notifyMessageWatcher(peer, timestamp, msg, false)
 }
 
+func (s *BgpServer) getPossibleBest(peer *peer, family bgp.RouteFamily) []*table.Path {
+	if peer.isAddPathSendEnabled(family) {
+		return peer.localRib.GetPathList(peer.TableID(), peer.AS(), []bgp.RouteFamily{family})
+	}
+	return peer.localRib.GetBestPathList(peer.TableID(), peer.AS(), []bgp.RouteFamily{family})
+}
+
 func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
@@ -928,13 +935,7 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.RouteFamily) ([]*t
 	}
 
 	for _, family := range peer.toGlobalFamilies(rfList) {
-		pl := func() []*table.Path {
-			if peer.isAddPathSendEnabled(family) {
-				return peer.localRib.GetPathList(peer.TableID(), peer.AS(), []bgp.RouteFamily{family})
-			}
-			return peer.localRib.GetBestPathList(peer.TableID(), peer.AS(), []bgp.RouteFamily{family})
-		}()
-		for _, path := range pl {
+		for _, path := range s.getPossibleBest(peer, family) {
 			if p := s.filterpath(peer, path, nil); p != nil {
 				pathList = append(pathList, p)
 			} else {
@@ -2437,7 +2438,7 @@ func (s *BgpServer) getVrfRib(name string, family bgp.RouteFamily, prefixes []*t
 	return
 }
 
-func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, prefixes []*table.LookupPrefix) (rib *table.Table, v []*table.Validation, err error) {
+func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[string]*table.Path, v []*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		peer, ok := s.neighborMap[addr]
 		if !ok {
@@ -2447,12 +2448,34 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 		as := peer.AS()
 
 		var adjRib *table.AdjRib
+		filtered = make(map[string]*table.Path)
 		if in {
 			adjRib = peer.adjRibIn
+			if enableFiltered {
+				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{family}, true) {
+					if s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, &table.PolicyOptions{}) == nil {
+						filtered[path.GetNlri().String()] = path
+					}
+				}
+			}
 		} else {
 			adjRib = table.NewAdjRib(peer.configuredRFlist())
-			accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
-			adjRib.Update(accepted)
+			if enableFiltered {
+				for _, path := range s.getPossibleBest(peer, family) {
+					path, options, stop := s.prePolicyFilterpath(peer, path, nil)
+					if stop {
+						continue
+					}
+					p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+					if p == nil {
+						filtered[path.GetNlri().String()] = path
+					}
+					adjRib.Update([]*table.Path{path})
+				}
+			} else {
+				accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
+				adjRib.Update(accepted)
+			}
 		}
 		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, AS: as, LookupPrefixes: prefixes})
 		v = s.validateTable(rib)
@@ -2464,6 +2487,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
 	var tbl *table.Table
 	var v []*table.Validation
+	var filtered map[string]*table.Path
 
 	f := func() []*table.LookupPrefix {
 		l := make([]*table.LookupPrefix, 0, len(r.Prefixes))
@@ -2489,7 +2513,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 		in = true
 		fallthrough
 	case api.TableType_ADJ_OUT:
-		tbl, v, err = s.getAdjRib(r.Name, family, in, f())
+		tbl, filtered, v, err = s.getAdjRib(r.Name, family, in, r.EnableFiltered, f())
 	case api.TableType_VRF:
 		tbl, err = s.getVrfRib(r.Name, family, []*table.LookupPrefix{})
 	default:
@@ -2522,7 +2546,13 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 					}
 				}
 				d.Paths = append(d.Paths, p)
+				if r.EnableFiltered {
+					if _, ok := filtered[path.GetNlri().String()]; ok {
+						p.Filtered = true
+					}
+				}
 			}
+
 			select {
 			case <-ctx.Done():
 				return nil

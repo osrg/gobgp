@@ -227,6 +227,7 @@ message ListPathRequest {
     PREFIX = 1;
   }
   SortType sort_type = 5;
+  bool enable_filtered = 6;
 }
 
 message ListPathResponse {
