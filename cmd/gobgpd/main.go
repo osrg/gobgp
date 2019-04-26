@@ -391,21 +391,13 @@ func main() {
 					}
 				}
 				for _, pg := range updatedPg {
-					log.Infof("PeerGroup %v is updated", pg.State.PeerGroupName)
+					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
 					if u, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
 						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
 					} else {
 						updatePolicy = updatePolicy || u.NeedsSoftResetIn
-					}
-				}
-				for _, pg := range updatedPg {
-					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
-					if _, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
-					}); err != nil {
-						log.Warn(err)
 					}
 				}
 				for _, dn := range newConfig.DynamicNeighbors {
