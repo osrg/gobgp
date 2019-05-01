@@ -1916,7 +1916,6 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 			}
 		}
 	}
-	return bgp.RF_OPAQUE
 }
 
 func (b *IPRouteBody) IsWithdraw(version uint8) bool {
