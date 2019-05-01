@@ -1038,8 +1038,9 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	// Send HELLO/ROUTER_ID_ADD messages to negotiate the Zebra message version.
 	c.SendHello()
 	c.SendRouterIDAdd()
-	if version >= 4 {
-		c.SendLabelManagerConnect()
+
+	if version > 4 {
+		c.SendLabelManagerConnectAsync()
 	}
 
 	receiveSingleMsg := func() (*Message, error) {
@@ -1341,7 +1342,7 @@ func (c *Client) SendNexthopRegister(vrfId uint32, body *NexthopRegisterBody, is
 
 func (c *Client) SendLabelManagerConnect() error {
 	if c.Version < 4 {
-		return fmt.Errorf("LABEL_MANAGER_CONNECT is not supported in version: %d", c.Version)
+		return fmt.Errorf("LABEL_MANAGER_CONNECT is not supported in zebra API version: %d", c.Version)
 	}
 	command := FRR_LABEL_MANAGER_CONNECT
 	proto := FRR_ROUTE_BGP
@@ -1359,6 +1360,28 @@ func (c *Client) SendLabelManagerConnect() error {
 			Instance:      0,
 		})
 }
+
+// Reference: zread_label_manager_connect function in zebra/zserv.c of FRR3.x (ZAPI)
+// Reference: zread_label_manager_connect function in zebra/zapi_msg.c of FRR5.x and 6.x (ZAPI5 and 6)
+
+func (c *Client) SendLabelManagerConnectAsync() error {
+	if c.Version < 5 {
+		return fmt.Errorf("LABEL_MANAGER_CONNECT_ASYNC is not supported in zebra API version: %d", c.Version)
+	}
+	command := FRR_ZAPI5_LABEL_MANAGER_CONNECT_ASYNC
+	proto := FRR_ZAPI5_ROUTE_BGP
+	if c.Version == 6 {
+		command = FRR_ZAPI6_LABEL_MANAGER_CONNECT_ASYNC
+		proto = FRR_ZAPI6_ROUTE_BGP
+	}
+	return c.SendCommand(
+		command, 0,
+		&LabelManagerConnectBody{
+			RedistDefault: proto,
+			Instance:      0,
+		})
+}
+
 func (c *Client) SendGetLabelChunk(body *GetLabelChunkBody) error {
 	if c.Version < 4 {
 		return fmt.Errorf("GET_LABEL_CHUNK is not supported in version: %d", c.Version)
@@ -1612,7 +1635,7 @@ type InterfaceUpdateBody struct {
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of FRR5.x (ZAPI5)
 func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
-	if len(data) < INTERFACE_NAMSIZ+29 {
+	if len(data) < INTERFACE_NAMSIZ+33 {
 		return fmt.Errorf("lack of bytes. need %d but %d", INTERFACE_NAMSIZ+29, len(data))
 	}
 
@@ -1647,7 +1670,7 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error 
 		}
 		b.HardwareAddr = data[4 : 4+l]
 	}
-	if version >= 5 {
+	if version >= 3 {
 		LinkParam := data[4+l]
 		if LinkParam > 0 {
 			data = data[5+l:]
@@ -1824,6 +1847,8 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 				return bgp.RF_IPv4_VPN
 			case FRR_SAFI_ENCAP, SAFI_ENCAP:
 				return bgp.RF_IPv4_ENCAP
+			default:
+				return bgp.RF_IPv4_UC
 			}
 		case syscall.AF_INET6:
 			switch b.SAFI {
@@ -1835,6 +1860,8 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 				return bgp.RF_IPv6_VPN
 			case FRR_SAFI_ENCAP, SAFI_ENCAP:
 				return bgp.RF_IPv6_ENCAP
+			default:
+				return bgp.RF_IPv6_UC
 			}
 		default:
 			switch b.SAFI {
@@ -1860,6 +1887,8 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 				return bgp.RF_IPv4_MPLS
 			case FRR_ZAPI5_SAFI_FLOWSPEC:
 				return bgp.RF_FS_IPv4_UC
+			default:
+				return bgp.RF_IPv4_UC
 			}
 		case syscall.AF_INET6:
 			switch b.SAFI {
@@ -1875,6 +1904,8 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 				return bgp.RF_IPv6_MPLS
 			case FRR_ZAPI5_SAFI_FLOWSPEC:
 				return bgp.RF_FS_IPv6_UC
+			default:
+				return bgp.RF_IPv6_UC
 			}
 		default:
 			switch b.SAFI {
@@ -1885,7 +1916,6 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 			}
 		}
 	}
-	return bgp.RF_OPAQUE
 }
 
 func (b *IPRouteBody) IsWithdraw(version uint8) bool {
@@ -2087,7 +2117,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 // Reference: zapi_route_decode function in lib/zclient.c of FRR5.x (ZAPI5)
 func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	if b == nil {
-		return fmt.Errorf("[IPRouteBody DecodeFromBytes] IPRouteBody is nil")
+		return fmt.Errorf("IPRouteBody is nil")
 	}
 	b.Prefix.Family = addressFamilyFromApi(b.Api, version)
 	/* REDSTRIBUTE_IPV4_ADD|DEL and REDSITRBUTE_IPV6_ADD|DEL have merged to
@@ -2126,10 +2156,11 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	b.Prefix.PrefixLen = data[1]
 	if b.Prefix.PrefixLen > addrBitLen {
-		return fmt.Errorf("prefix length is greater than %d", addrByteLen*8)
+		return fmt.Errorf("prefix length %d is greater than %d", b.Prefix.PrefixLen, addrBitLen)
 	}
-	pos := 2
-	rest := len(data[pos:]) + 2
+	data = data[2:]
+	pos := 0
+	rest := len(data)
 
 	buf := make([]byte, addrByteLen)
 	byteLen := int((b.Prefix.PrefixLen + 7) / 8)
@@ -2139,7 +2170,6 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	copy(buf, data[pos:pos+byteLen])
 	b.Prefix.Prefix = ipFromFamily(b.Prefix.Family, buf)
 	pos += byteLen
-
 	if (version == 4 && b.Message&FRR_MESSAGE_SRCPFX > 0) ||
 		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
 		if pos+1 > rest {
@@ -2152,10 +2182,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		pos += 1
 		buf = make([]byte, addrByteLen)
 		byteLen = int((b.SrcPrefix.PrefixLen + 7) / 8)
-		copy(buf, data[pos:pos+byteLen])
 		if pos+byteLen > rest {
 			return fmt.Errorf("MESSAGE_SRCPFX message length invalid pos:%d rest:%d", pos, rest)
 		}
+		copy(buf, data[pos:pos+byteLen])
 		b.SrcPrefix.Prefix = ipFromFamily(b.Prefix.Family, buf)
 		pos += byteLen
 	}
@@ -2316,9 +2346,8 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		pos += 4
 	}
 	if pos != rest {
-		return fmt.Errorf("message length invalid")
+		return fmt.Errorf("message length invalid pos:%d rest:%d", pos, rest)
 	}
-
 	return nil
 }
 
@@ -2388,13 +2417,15 @@ func decodeNexthopsFromBytes(nexthops *[]Nexthop, data []byte, family uint8, ver
 			if nexthop.LabelNum > MPLS_MAX_LABEL {
 				nexthop.LabelNum = MPLS_MAX_LABEL
 			}
-			nexthop.MplsLabels = make([]uint32, nexthop.LabelNum)
-			for n := uint8(0); n < nexthop.LabelNum; n++ {
-				/* Frr uses stream_put for mpls label array.
-				   stream_put is unaware of byteorder coversion.
-				   Therefore LittleEndian is used instead of BigEndian. */
-				nexthop.MplsLabels[n] = binary.LittleEndian.Uint32(data[offset : offset+4])
-				offset += 4
+			if nexthop.LabelNum > 0 {
+				nexthop.MplsLabels = make([]uint32, nexthop.LabelNum)
+				for n := uint8(0); n < nexthop.LabelNum; n++ {
+					/* Frr uses stream_put for mpls label array.
+					   stream_put is unaware of byteorder coversion.
+					   Therefore LittleEndian is used instead of BigEndian. */
+					nexthop.MplsLabels[n] = binary.LittleEndian.Uint32(data[offset : offset+4])
+					offset += 4
+				}
 			}
 		}
 		*nexthops = append(*nexthops, nexthop)
