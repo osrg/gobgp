@@ -52,11 +52,18 @@ You need to enable the zebra feature in the Global configuration as follows.
   To enable the Next-Hop Tracking features, please specify `3` or later.
   For connecting to FRRouting 3.0.x, please specify `4`.
   For connecting to FRRouting 5.0.x, please specify `5`.
-  For connecting to FRRouting 6.0.x, please specify `6`.
+  For connecting to FRRouting 7.0.x, please specify `6`.
 
 - `mpls-label-range-size` specifies mpls label range size for
-  requesting to Zebra. It works with FRRouting 5.0.x or FRRouting
-  6.0.x.
+  requesting to Zebra. It works with FRRouting 5.0.x, FRRouting
+  6.0.x and FRRouting 7.0.x.
+
+- `sotware-name` specifies software name for zebra when only `version`
+  configuration cannot specify software uniquely. This configuration
+  is used with 'version' configuration. For connecting to FRRouting
+  6.0.x, please specify `6` as `version` and `frr6` as
+  `software-name`.  For connecting to FRRouting 4.0.x, please specify
+  `5` as `version` and `frr4` as `software-name`.
 
 ## Check Routes from zebra
 
