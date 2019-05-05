@@ -413,11 +413,25 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 	} else if b.Zebra.Config.Version > zebra.MaxZapiVer {
 		b.Zebra.Config.Version = zebra.MaxZapiVer
 	}
+
 	if !v.IsSet("zebra.config.nexthop-trigger-enable") && !b.Zebra.Config.NexthopTriggerEnable && b.Zebra.Config.Version > 2 {
 		b.Zebra.Config.NexthopTriggerEnable = true
 	}
 	if b.Zebra.Config.NexthopTriggerDelay == 0 {
 		b.Zebra.Config.NexthopTriggerDelay = 5
+	}
+
+	//SoftwareName for Zebra
+	allowableZebraSoftwareName := []string{"", "quagga", "frr3", "frr4", "frr5", "frr6", "frr7"}
+	isAllowable := false
+	for _, allowable := range allowableZebraSoftwareName {
+		if b.Zebra.Config.SoftwareName == allowable {
+			isAllowable = true
+			break
+		}
+	}
+	if isAllowable == false {
+		b.Zebra.Config.SoftwareName = ""
 	}
 
 	list, err := extractArray(v.Get("neighbors"))

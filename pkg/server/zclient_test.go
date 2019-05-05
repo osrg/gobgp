@@ -62,7 +62,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path := newPathFromIPRouteMessage(m, 2)
+	path := newPathFromIPRouteMessage(m, 2, "")
 	pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("0.0.0.0", pp.GetNexthop().String())
@@ -76,7 +76,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = newPathFromIPRouteMessage(m, 2)
+	path = newPathFromIPRouteMessage(m, 2, "")
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("0.0.0.0", pp.GetNexthop().String())
@@ -95,7 +95,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = newPathFromIPRouteMessage(m, 2)
+	path = newPathFromIPRouteMessage(m, 2, "")
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("::", pp.GetNexthop().String())
@@ -111,7 +111,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	path = newPathFromIPRouteMessage(m, 2)
+	path = newPathFromIPRouteMessage(m, 2, "")
 	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 	pp.SetIsFromExternal(path.IsFromExternal())
 	assert.Equal("::", pp.GetNexthop().String())
