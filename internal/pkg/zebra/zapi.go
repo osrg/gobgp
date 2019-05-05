@@ -1066,7 +1066,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8, software 
 		(version == 6 && software != "" && software != "frr6" && software != "frr7") {
 		isAllowableSoftware = false
 	}
-	if isAllowableSoftware == false {
+	if !isAllowableSoftware {
 		log.WithFields(log.Fields{
 			"Topic": "Zebra",
 		}).Warnf("softwareName %s cannot be used with version %d.", software, version)

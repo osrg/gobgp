@@ -430,7 +430,7 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 			break
 		}
 	}
-	if isAllowable == false {
+	if !isAllowable {
 		b.Zebra.Config.SoftwareName = ""
 	}
 
