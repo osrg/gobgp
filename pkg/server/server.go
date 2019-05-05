@@ -1706,7 +1706,7 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 		}
 
 		for _, p := range r.RouteTypes {
-			if _, err := zebra.RouteTypeFromString(p, uint8(r.Version)); err != nil {
+			if _, err := zebra.RouteTypeFromString(p, uint8(r.Version), r.SoftwareName); err != nil {
 				return err
 			}
 		}
@@ -1716,7 +1716,7 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 			protos = append(protos, string(p))
 		}
 		var err error
-		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize)
+		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize, r.SoftwareName)
 		return err
 	}, false)
 }
