@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	HEADER_MARKER     = 255
-	FRR_HEADER_MARKER = 254
-	INTERFACE_NAMSIZ  = 20
+	HEADER_MARKER     uint8 = 255
+	FRR_HEADER_MARKER uint8 = 254
+	INTERFACE_NAMSIZ        = 20
 )
 
 const (
@@ -899,7 +899,7 @@ const (
 
 func (t FLAG) String(version uint8, softwareName string) string {
 	if version == 6 && softwareName != "frr6" {
-		t.stringFrrZapi6()
+		return t.stringFrrZapi6()
 	}
 	return t.string()
 }
@@ -1227,7 +1227,7 @@ func (c *Client) Send(m *Message) {
 }
 
 func (c *Client) SendCommand(command API_TYPE, vrfId uint32, body Body) error {
-	var marker uint8 = HEADER_MARKER
+	marker := HEADER_MARKER
 	if c.Version >= 4 {
 		marker = FRR_HEADER_MARKER
 	}
