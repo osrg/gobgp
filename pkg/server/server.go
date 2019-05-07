@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
-	uuid "github.com/satori/go.uuid"
+	uuid "github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
@@ -1996,9 +1996,10 @@ func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.Ad
 		if err != nil {
 			return err
 		}
-		id, _ := uuid.NewV4()
-		s.uuidMap[id] = pathTokey(path)
-		uuidBytes = id.Bytes()
+		if id, err := uuid.NewRandom(); err == nil {
+			s.uuidMap[id] = pathTokey(path)
+			uuidBytes, _ = id.MarshalBinary()
+		}
 		return nil
 	}, true)
 	return &api.AddPathResponse{Uuid: uuidBytes}, err
