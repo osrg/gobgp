@@ -41,9 +41,8 @@ import (
 	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/server"
+	"github.com/osrg/gobgp/internal/pkg/version"
 )
-
-var version = "master"
 
 func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	rtList := make([]*any.Any, 0, len(l))
@@ -132,7 +131,7 @@ func main() {
 	}
 
 	if opts.Version {
-		fmt.Println("gobgpd version", version)
+		fmt.Println("gobgpd version", version.Version())
 		os.Exit(0)
 	}
 

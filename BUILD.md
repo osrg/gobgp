@@ -15,6 +15,43 @@ Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd
 
 GoBGP releases are time-based. Minor releases will occur every month ([Semantic Versioning](https://semver.org/)). Major releases occur only when absolutely necessary.
 
+## Versioning 
+GoBGP has a internal module for version information. 
+```internal/pkg/version/version.go``` defines the following variables
+
+```MAJOR``` ```MINOR``` ```PATCH``` these constants are for the Semantic Versioning scheme.
+These will be updated upon release by maintainer.
+
+There is also two more variables that are ment to be changed by ldflags; 
+
+```TAG``` is supposed to be used to denote which branch the build is based upon.
+```SHA``` is supposed to be used to inform about which git sha sum the build is based on.
+
+### Examples ### 
+A normal release version of GoBGP Version 2.5.0 should should have;
+```
+const MAJOR uint = 2
+const MINOR uint = 5
+const PATCH uint = 0
+```
+
+If you have a non-standard release and want to show more information for debugging you can set
+TAG to "your_branch_name" and SHA to "XXXYYYZZ"
+
+This will produce a version number of
+
+```2.5.0-your_branch_name+sha.XXXYYYZZ```
+
+To incorporate custom TAG and SHA into your build enviroment you can use the following linkerflags
+```
+-X github.com/osrg/gobgp/internal/pkg/version.TAG=your_branch_name
+-X github.com/osrg/gobgp/internal/pkg/version.SHA=XXXYYYZZ
+```
+
+
+```bash# go build -ldflags "-X github.com/osrg/gobgp/internal/pkg/version.SHA=`git rev-parse --short HEAD`"```
+
+
 ## Layout
 
 The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-standards/project-layout).

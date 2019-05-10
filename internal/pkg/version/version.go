@@ -1,4 +1,4 @@
-// Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2018 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,21 +13,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package version
 
-import (
-	"fmt"
-	"os"
+import "fmt"
 
-	"google.golang.org/grpc"
-)
+const MAJOR uint = 2
+const MINOR uint = 4
+const PATCH uint = 0
 
+var SHA string = ""
+var TAG string = ""
 
-func main() {
-	if len(os.Args) > 1 && os.Args[1] == "--version" {
-		fmt.Println("gobgp version", version.Version())
-		os.Exit(0)
+func Version() string {
+	var suffix string = ""
+	if len(TAG) > 0 {
+		suffix = fmt.Sprintf("-%s", TAG)
 	}
-	grpc.EnableTracing = false
-	newRootCmd().Execute()
+
+	if len(SHA) > 0 {
+		suffix = fmt.Sprintf("%s+sha.%s", suffix, SHA)
+	}
+
+	return fmt.Sprintf("%d.%d.%d%s", MAJOR, MINOR, PATCH, suffix)
 }
