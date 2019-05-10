@@ -11,11 +11,15 @@ Assume you finished [Getting Started](getting-started.md)
 and installing Quagga or FRRouting on the same host with GoBGP.
 
 **Note:** For the integration with FRRouting, version 3.0.x (Zebra API
-version 4), 5.0.x (Zebra API version 5), and 6.0.x (Zebra API version
-6) is supported. FRRouting version 4.0.x is not work correctly,
-because FRRouting version 5.0.x changes zebra message and it doesn't
-keep backward compatibility for FRRouting version 4.0.x although
-FRRouting version 4.0.x and 5.0.x use Zebra API version 5.
+version 4), 5.0.x (Zebra API version 5), and 7.0.x (Zebra API version
+6) are supported as default. FRRouting version 5.0.x changes zebra
+message and it doesn't keep backward compatibility for FRRouting
+version 4.0.x although FRRouting version 4.0.x and 5.0.x use Zebra API
+version 5. Also, FRRouting version 7.0.x changes zebra message and it
+doesn't keep backward compatibility for FRRouting version 6.0.x
+although FRRouting version 6.0.x and 7.0.x use Zebra API version 6. If
+you need to integrate with FRRouting version 4.0.x or 6.0x, please use
+`software-name` configuration.
 
 ## Contents
 
@@ -52,11 +56,18 @@ You need to enable the zebra feature in the Global configuration as follows.
   To enable the Next-Hop Tracking features, please specify `3` or later.
   For connecting to FRRouting 3.0.x, please specify `4`.
   For connecting to FRRouting 5.0.x, please specify `5`.
-  For connecting to FRRouting 6.0.x, please specify `6`.
+  For connecting to FRRouting 7.0.x, please specify `6`.
 
 - `mpls-label-range-size` specifies mpls label range size for
-  requesting to Zebra. It works with FRRouting 5.0.x or FRRouting
-  6.0.x.
+  requesting to Zebra. It works with FRRouting 5.0.x, FRRouting
+  6.0.x and FRRouting 7.0.x.
+
+- `sotware-name` specifies software name for zebra when only `version`
+  configuration cannot specify software uniquely. This configuration
+  is used with 'version' configuration. For connecting to FRRouting
+  6.0.x, please specify `6` as `version` and `frr6` as
+  `software-name`.  For connecting to FRRouting 4.0.x, please specify
+  `5` as `version` and `frr4` as `software-name`.
 
 ## Check Routes from zebra
 

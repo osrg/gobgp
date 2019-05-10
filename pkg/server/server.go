@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
-	uuid "github.com/satori/go.uuid"
+	uuid "github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
@@ -1718,7 +1718,7 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 		}
 
 		for _, p := range r.RouteTypes {
-			if _, err := zebra.RouteTypeFromString(p, uint8(r.Version)); err != nil {
+			if _, err := zebra.RouteTypeFromString(p, uint8(r.Version), r.SoftwareName); err != nil {
 				return err
 			}
 		}
@@ -1728,7 +1728,7 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 			protos = append(protos, string(p))
 		}
 		var err error
-		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize)
+		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize, r.SoftwareName)
 		return err
 	}, false, true)
 }
@@ -2008,9 +2008,10 @@ func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.Ad
 		if err != nil {
 			return err
 		}
-		id, _ := uuid.NewV4()
-		s.uuidMap[id] = pathTokey(path)
-		uuidBytes = id.Bytes()
+		if id, err := uuid.NewRandom(); err == nil {
+			s.uuidMap[id] = pathTokey(path)
+			uuidBytes, _ = id.MarshalBinary()
+		}
 		return nil
 	}, true, true)
 	return &api.AddPathResponse{Uuid: uuidBytes}, err

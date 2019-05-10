@@ -864,9 +864,9 @@ func Test_NexthopRegisterBody(t *testing.T) {
 
 	// Input binary
 	bufIn := []byte{
-		0x01, 0x00, 0x02, 0x20, // connected(1 byte)=1, afi(2 bytes)=AF_INET, prefix_len(1 byte)=32
+		0x01, uint8(syscall.AF_INET >> 8), uint8(syscall.AF_INET & 0xff), 0x20, // connected(1 byte)=1, afi(2 bytes)=AF_INET, prefix_len(1 byte)=32
 		0xc0, 0xa8, 0x01, 0x01, // prefix(4 bytes)="192.168.1.1"
-		0x00, 0x00, 0x0a, 0x80, // connected(1 byte)=0, afi(2 bytes)=AF_INET6, prefix_len(1 byte)=128
+		0x00, uint8(syscall.AF_INET6 >> 8), uint8(syscall.AF_INET6 & 0xff), 0x80, // connected(1 byte)=0, afi(2 bytes)=AF_INET6, prefix_len(1 byte)=128
 		0x20, 0x01, 0x0d, 0xb8, // prefix(16 bytes)="2001:db8:1:1::1"
 		0x00, 0x01, 0x00, 0x01,
 		0x00, 0x00, 0x00, 0x00,
