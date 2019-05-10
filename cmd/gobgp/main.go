@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"google.golang.org/grpc"
+	"github.com/osrg/gobgp/internal/pkg/version"
 )
 
 
