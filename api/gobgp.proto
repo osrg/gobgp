@@ -1140,6 +1140,15 @@ message DefaultRouteDistance {
   uint32 internal_route_distance = 2;
 }
 
+message Version {
+  uint32 major = 1;
+  uint32 minor = 2;
+  uint32 patch = 3;
+  string tag = 4;
+  string sha = 5;
+  string version = 6;
+}
+
 message Global {
   uint32 as = 1;
   string router_id = 2;
@@ -1152,6 +1161,9 @@ message Global {
   Confederation confederation = 9;
   GracefulRestart graceful_restart = 10;
   ApplyPolicy apply_policy = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp reconfigured_at = 13;
+  Version version = 14;
 }
 
 message Confederation {

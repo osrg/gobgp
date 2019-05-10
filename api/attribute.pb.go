@@ -252,6 +252,7 @@ It has these top-level messages:
 	Roa
 	Vrf
 	DefaultRouteDistance
+	Version
 	Global
 	Confederation
 	RPKIConf
