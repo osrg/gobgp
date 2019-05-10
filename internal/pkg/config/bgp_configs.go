@@ -1133,6 +1133,10 @@ type ZebraState struct {
 	// Configure MPLS label range size which will be requested to
 	// FRR/Zebra.
 	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
+	// original -> gobgp:software-name
+	// Configure zebra software name.
+	// quagga, frr3, frr4, frr5, frr6, frr7 can be used.
+	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -1159,6 +1163,10 @@ type ZebraConfig struct {
 	// Configure MPLS label range size which will be requested to
 	// FRR/Zebra.
 	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
+	// original -> gobgp:software-name
+	// Configure zebra software name.
+	// quagga, frr3, frr4, frr5, frr6, frr7 can be used.
+	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 
 func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
@@ -1189,6 +1197,9 @@ func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
 		return false
 	}
 	if lhs.MplsLabelRangeSize != rhs.MplsLabelRangeSize {
+		return false
+	}
+	if lhs.SoftwareName != rhs.SoftwareName {
 		return false
 	}
 	return true

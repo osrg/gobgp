@@ -416,6 +416,7 @@ message EnableZebraRequest {
   bool nexthop_trigger_enable = 4;
   uint32 nexthop_trigger_delay = 5;
   uint32 mpls_label_range_size = 6;
+  string software_name = 7;
 }
 
 message EnableMrtRequest {

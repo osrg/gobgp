@@ -10,6 +10,7 @@ require (
 	github.com/eapache/queue v1.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.4.2 // indirect
 	github.com/golang/protobuf v1.0.0
+	github.com/google/uuid v1.1.1
 	github.com/hashicorp/hcl v0.0.0-20170509225359-392dba7d905e // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jessevdk/go-flags v1.3.0
@@ -20,7 +21,6 @@ require (
 	github.com/pelletier/go-buffruneio v0.2.0 // indirect
 	github.com/pelletier/go-toml v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/satori/go.uuid v0.0.0-20180103174451-36e9d2ebbde5
 	github.com/sirupsen/logrus v0.0.0-20170713114250-a3f95b5c4235
 	github.com/spf13/afero v0.0.0-20170217164146-9be650865eab // indirect
 	github.com/spf13/cast v1.1.0 // indirect

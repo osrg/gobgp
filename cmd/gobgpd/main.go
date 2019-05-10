@@ -256,6 +256,7 @@ func main() {
 							NexthopTriggerEnable: c.Zebra.Config.NexthopTriggerEnable,
 							NexthopTriggerDelay:  uint32(c.Zebra.Config.NexthopTriggerDelay),
 							MplsLabelRangeSize:   uint32(c.Zebra.Config.MplsLabelRangeSize),
+							SoftwareName:         c.Zebra.Config.SoftwareName,
 						}); err != nil {
 							log.Fatalf("failed to set zebra config: %s", err)
 						}
