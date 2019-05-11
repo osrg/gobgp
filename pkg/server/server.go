@@ -211,6 +211,7 @@ type mgmtOp struct {
 	f           func() error
 	errCh       chan error
 	checkActive bool // check BGP global setting is configured before calling f()
+	modify 		bool
 }
 
 func (s *BgpServer) handleMGMTOp(op *mgmtOp) {
@@ -220,18 +221,19 @@ func (s *BgpServer) handleMGMTOp(op *mgmtOp) {
 			return
 		}
 	}
+	if op.modify {
+		s.status.reconfiguredAt = time.Now().Unix()
+	}
 	op.errCh <- op.f()
 }
 
 func (s *BgpServer) mgmtOperation(f func() error, checkActive bool, modify bool) (err error) {
 	ch := make(chan error)
-	if modify {
-		s.status.reconfiguredAt = time.Now().Unix()
-	}
 	defer func() { err = <-ch }()
 	s.mgmtCh <- &mgmtOp{
 		f:           f,
 		errCh:       ch,
+		modify: 	 modify,
 		checkActive: checkActive,
 	}
 	return
