@@ -22,6 +22,7 @@ import (
 	"math"
 	"net"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/osrg/gobgp/internal/pkg/config"
@@ -36,21 +37,31 @@ const (
 
 type Bitmap struct {
 	bitmap []uint64
+	m      *sync.Mutex
 }
 
 func (b *Bitmap) Flag(i uint) {
+	b.m.Lock()
 	b.bitmap[i/64] |= 1 << uint(i%64)
+	b.m.Unlock()
 }
 
 func (b *Bitmap) Unflag(i uint) {
+	b.m.Lock()
 	b.bitmap[i/64] &^= 1 << uint(i%64)
+	b.m.Unlock()
 }
 
 func (b *Bitmap) GetFlag(i uint) bool {
-	return b.bitmap[i/64]&(1<<uint(i%64)) > 0
+	b.m.Lock()
+	flag := b.bitmap[i/64]&(1<<uint(i%64)) > 0
+	b.m.Unlock()
+	return flag
 }
 
 func (b *Bitmap) FindandSetZeroBit() (uint, error) {
+	b.m.Lock()
+	defer b.m.Unlock()
 	for i := 0; i < len(b.bitmap); i++ {
 		if b.bitmap[i] == math.MaxUint64 {
 			continue
@@ -60,7 +71,7 @@ func (b *Bitmap) FindandSetZeroBit() (uint, error) {
 			v := ^b.bitmap[i]
 			if v&(1<<uint64(j)) > 0 {
 				r := i*64 + j
-				b.Flag(uint(r))
+				b.bitmap[uint(r)/64] |= 1 << uint(uint(r)%64)
 				return uint(r), nil
 			}
 		}
@@ -69,12 +80,14 @@ func (b *Bitmap) FindandSetZeroBit() (uint, error) {
 }
 
 func (b *Bitmap) Expand() {
+	b.m.Lock()
 	old := b.bitmap
 	new := make([]uint64, len(old)+1)
 	for i := 0; i < len(old); i++ {
 		new[i] = old[i]
 	}
 	b.bitmap = new
+	b.m.Unlock()
 }
 
 func NewBitmap(size int) *Bitmap {
@@ -82,6 +95,7 @@ func NewBitmap(size int) *Bitmap {
 	if size != 0 {
 		b.bitmap = make([]uint64, (size+64-1)/64)
 	}
+	b.m = &sync.Mutex{}
 	return b
 }
 
