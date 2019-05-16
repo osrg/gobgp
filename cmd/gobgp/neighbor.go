@@ -63,6 +63,9 @@ func getNeighbors(address string, enableAdv bool) ([]*api.Peer, error) {
 		Address:          address,
 		EnableAdvertised: enableAdv,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	l := make([]*api.Peer, 0, 1024)
 	for {
