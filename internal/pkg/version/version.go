@@ -21,17 +21,29 @@ const MAJOR uint = 2
 const MINOR uint = 4
 const PATCH uint = 0
 
-var SHA string = ""
-var TAG string = ""
+var COMMIT string = ""
+var IDENTIFIERS string = ""
+var METADATA string = ""
 
 func Version() string {
 	var suffix string = ""
-	if len(TAG) > 0 {
-		suffix = fmt.Sprintf("-%s", TAG)
+	if len(IDENTIFIERS) > 0 {
+		suffix = fmt.Sprintf("-%s", IDENTIFIERS)
 	}
 
-	if len(SHA) > 0 {
-		suffix = fmt.Sprintf("%s+sha.%s", suffix, SHA)
+	if len(COMMIT) > 0 || len(METADATA) > 0 {
+		suffix = suffix + "+"
+	}
+
+	if len(COMMIT) > 0 {
+		suffix = fmt.Sprintf("%scommit.%s", suffix, COMMIT)
+	}
+
+	if len(METADATA) > 0 {
+		if len(COMMIT) > 0 {
+			suffix = suffix + "."
+		}
+		suffix = suffix + METADATA
 	}
 
 	return fmt.Sprintf("%d.%d.%d%s", MAJOR, MINOR, PATCH, suffix)
