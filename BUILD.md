@@ -35,22 +35,19 @@ const MINOR uint = 5
 const PATCH uint = 0
 ```
 
-If you have a non-standard release and want to show more information for debugging you can set
-TAG to "your_branch_name" and SHA to "XXXYYYZZ"
+If you have a non-standard release and want to have more build information there is some flags to be used.
+`COMMIT`, `IDENTIFIER` and `METADATA`.
+
+```
+go build -ldflags \
+	"-X github.com/osrg/gobgp/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
+	 -X github.com/osrg/gobgp/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
+	 -X github.com/osrg/gobgp/internal/pkg/version.IDENTIFIER=alpha"
+```
 
 This will produce a version number of
 
-```2.5.0-your_branch_name+sha.XXXYYYZZ```
-
-To incorporate custom TAG and SHA into your build enviroment you can use the following linkerflags
-```
--X github.com/osrg/gobgp/internal/pkg/version.TAG=your_branch_name
--X github.com/osrg/gobgp/internal/pkg/version.SHA=XXXYYYZZ
-```
-
-
-```bash# go build -ldflags "-X github.com/osrg/gobgp/internal/pkg/version.SHA=`git rev-parse --short HEAD`"```
-
+```2.5.0-alpaha+commit.XXXYYYZZ.date.20190526```
 
 ## Layout
 
