@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"os"
 
-	"google.golang.org/grpc"
 	"github.com/osrg/gobgp/internal/pkg/version"
+	"google.golang.org/grpc"
 )
-
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--version" {

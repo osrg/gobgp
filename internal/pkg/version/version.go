@@ -22,13 +22,13 @@ const MINOR uint = 4
 const PATCH uint = 0
 
 var COMMIT string = ""
-var IDENTIFIERS string = ""
+var IDENTIFIER string = ""
 var METADATA string = ""
 
 func Version() string {
 	var suffix string = ""
-	if len(IDENTIFIERS) > 0 {
-		suffix = fmt.Sprintf("-%s", IDENTIFIERS)
+	if len(IDENTIFIER) > 0 {
+		suffix = fmt.Sprintf("-%s", IDENTIFIER)
 	}
 
 	if len(COMMIT) > 0 || len(METADATA) > 0 {
