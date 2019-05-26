@@ -36,7 +36,8 @@ func Version() string {
 	}
 
 	if len(COMMIT) > 0 {
-		suffix = fmt.Sprintf("%scommit.%s", suffix, COMMIT)
+		suffix = fmt.Sprintf("%s" + "commit.%s", suffix, COMMIT)
+
 	}
 
 	if len(METADATA) > 0 {
