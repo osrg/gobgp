@@ -162,7 +162,7 @@ func newIPRouteBody(dst []*table.Path, vrfId uint32, z *zebraClient) (body *zebr
 	if nhvrfid, ok := z.pathVrfMap[path]; ok {
 		// if the path is withdraw, delete path from pathVrfMap after refer the path
 		nhVrfId = nhvrfid
-		if isWithdraw {
+		if path.IsWithdraw {
 			delete(z.pathVrfMap, path)
 		}
 	} else {
