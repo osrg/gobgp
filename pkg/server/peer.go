@@ -228,6 +228,10 @@ func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily
 				fs = append(fs, bgp.RF_IPv4_VPN)
 			case bgp.RF_IPv6_UC:
 				fs = append(fs, bgp.RF_IPv6_VPN)
+			case bgp.RF_FS_IPv4_UC:
+				fs = append(fs, bgp.RF_FS_IPv4_VPN)
+			case bgp.RF_FS_IPv6_UC:
+				fs = append(fs, bgp.RF_FS_IPv6_VPN)
 			default:
 				log.WithFields(log.Fields{
 					"Topic":  "Peer",

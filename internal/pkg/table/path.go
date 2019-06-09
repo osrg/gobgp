@@ -1076,10 +1076,20 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 		pathIdentifier := path.GetNlri().PathIdentifier()
 		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
+	case bgp.RF_FS_IPv4_UC:
+		n := nlri.(*bgp.FlowSpecIPv4Unicast)
+		pathIdentifier := path.GetNlri().PathIdentifier()
+		path.OriginInfo().nlri = bgp.NewFlowSpecIPv4VPN(v.Rd, n.FlowSpecNLRI.Value)
+		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
 		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		path.GetNlri().SetPathIdentifier(pathIdentifier)
+	case bgp.RF_FS_IPv6_UC:
+		n := nlri.(*bgp.FlowSpecIPv6Unicast)
+		pathIdentifier := path.GetNlri().PathIdentifier()
+		path.OriginInfo().nlri = bgp.NewFlowSpecIPv6VPN(v.Rd, n.FlowSpecNLRI.Value)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
@@ -1157,17 +1167,39 @@ func (p *Path) ToLocal() *Path {
 		ones, _ := c.Mask.Size()
 		nlri = bgp.NewIPAddrPrefix(uint8(ones), c.IP.String())
 		nlri.SetPathLocalIdentifier(pathId)
+	case bgp.RF_FS_IPv4_VPN:
+		n := nlri.(*bgp.FlowSpecIPv4VPN)
+		nlri = bgp.NewFlowSpecIPv4Unicast(n.FlowSpecNLRI.Value)
+		nlri.SetPathLocalIdentifier(pathId)
 	case bgp.RF_IPv6_VPN:
 		n := nlri.(*bgp.LabeledVPNIPv6AddrPrefix)
 		_, c, _ := net.ParseCIDR(n.IPPrefix())
 		ones, _ := c.Mask.Size()
 		nlri = bgp.NewIPv6AddrPrefix(uint8(ones), c.IP.String())
 		nlri.SetPathLocalIdentifier(pathId)
+	case bgp.RF_FS_IPv6_VPN:
+		n := nlri.(*bgp.FlowSpecIPv6VPN)
+		nlri = bgp.NewFlowSpecIPv6Unicast(n.FlowSpecNLRI.Value)
+		nlri.SetPathLocalIdentifier(pathId)
 	default:
 		return p
 	}
 	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
-	path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
+	switch f {
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+		extcomms := path.GetExtCommunities()
+		newExtComms := make([]bgp.ExtendedCommunityInterface, 0, len(extcomms))
+		for _, extComm := range extcomms {
+			_, subType := extComm.GetTypes()
+			if subType == bgp.EC_SUBTYPE_ROUTE_TARGET {
+				continue
+			}
+			newExtComms = append(newExtComms, extComm)
+		}
+		path.SetExtCommunities(newExtComms, true)
+	}
 
 	if f == bgp.RF_IPv4_VPN {
 		nh := path.GetNexthop()

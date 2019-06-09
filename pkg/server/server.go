@@ -610,7 +610,7 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	peerVrf := peer.fsm.pConf.Config.Vrf
 	peer.fsm.lock.RUnlock()
 	if path != nil && peerVrf != "" {
-		if f := path.GetRouteFamily(); f != bgp.RF_IPv4_VPN && f != bgp.RF_IPv6_VPN {
+		if f := path.GetRouteFamily(); f != bgp.RF_IPv4_VPN && f != bgp.RF_IPv6_VPN && f != bgp.RF_FS_IPv4_VPN && f != bgp.RF_FS_IPv6_VPN {
 			return nil, nil, true
 		}
 		vrf := peer.localRib.Vrfs[peerVrf]
@@ -1242,6 +1242,10 @@ func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path
 					return bgp.RF_IPv4_UC
 				case bgp.RF_IPv6_VPN:
 					return bgp.RF_IPv6_UC
+				case bgp.RF_FS_IPv4_VPN:
+					return bgp.RF_FS_IPv4_UC
+				case bgp.RF_FS_IPv6_VPN:
+					return bgp.RF_FS_IPv6_UC
 				}
 			}
 			return family
@@ -2426,6 +2430,10 @@ func (s *BgpServer) getVrfRib(name string, family bgp.RouteFamily, prefixes []*t
 			af = bgp.RF_IPv4_VPN
 		case bgp.RF_IPv6_UC:
 			af = bgp.RF_IPv6_VPN
+		case bgp.RF_FS_IPv4_UC:
+			af = bgp.RF_FS_IPv4_VPN
+		case bgp.RF_FS_IPv6_UC:
+			af = bgp.RF_FS_IPv6_VPN
 		case bgp.RF_EVPN:
 			af = bgp.RF_EVPN
 		}
@@ -2763,7 +2771,7 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 		}
 		families, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 		for _, f := range families {
-			if f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC {
+			if f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC && f != bgp.RF_FS_IPv4_UC && f != bgp.RF_FS_IPv6_UC {
 				return fmt.Errorf("%s is not supported for VRF enslaved neighbor", f)
 			}
 		}
