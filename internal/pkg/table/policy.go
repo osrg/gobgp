@@ -1070,6 +1070,17 @@ func (lhs *regExpSet) Replace(arg DefinedSet) error {
 
 type CommunitySet struct {
 	regExpSet
+	intSet map[*regexp.Regexp]uint32
+}
+
+func (s *CommunitySet) BuildCache() {
+	s.intSet = make(map[*regexp.Regexp]uint32, len(s.list))
+	for _, comm := range s.list {
+		_int,err := ParseCommunity(comm.String())
+		if err == nil {
+			s.intSet[comm] = _int
+		}
+	}
 }
 
 func (s *CommunitySet) List() []string {
@@ -1673,10 +1684,11 @@ func (c *CommunityCondition) Option() MatchOption {
 func (c *CommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	cs := path.GetCommunities()
 	result := false
-	for _, x := range c.set.list {
+	for _, x := range c.set.intSet {
 		result = false
 		for _, y := range cs {
-			if x.MatchString(fmt.Sprintf("%d:%d", y>>16, y&0x0000ffff)) {
+			if y == x {
+			//if x.MatchString(fmt.Sprintf("%d:%d", y>>16, y&0x0000ffff)) {
 				result = true
 				break
 			}
@@ -1704,14 +1716,16 @@ func NewCommunityCondition(c config.MatchCommunitySet) (*CommunityCondition, err
 	if err != nil {
 		return nil, err
 	}
-	return &CommunityCondition{
+	cc := &CommunityCondition{
 		set: &CommunitySet{
 			regExpSet: regExpSet{
 				name: c.CommunitySet,
 			},
 		},
 		option: o,
-	}, nil
+	}
+	cc.set.BuildCache()
+	return cc, nil
 }
 
 type ExtCommunityCondition struct {
