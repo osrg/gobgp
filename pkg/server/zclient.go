@@ -118,9 +118,8 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 
 func addMessageLabelToIPRouteBody(path *table.Path, vrfId uint32, z *zebraClient, msgFlags *zebra.MESSAGE_FLAG, nexthop *zebra.Nexthop) {
 	v := z.client.Version
-	nhVrfId := z.pathVrfMap[path]
 	rf := path.GetRouteFamily()
-	if v > 4 && (rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN) && nhVrfId != vrfId {
+	if v > 4 && (rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN) {
 		*msgFlags |= zebra.FRR_ZAPI5_MESSAGE_LABEL
 		for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
 			nexthop.LabelNum++
@@ -143,35 +142,32 @@ func newIPRouteBody(dst []*table.Path, vrfId uint32, z *zebraClient) (body *zebr
 	nexthops := make([]zebra.Nexthop, 0, len(paths))
 	msgFlags := zebra.MESSAGE_NEXTHOP
 	switch path.GetRouteFamily() {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
-		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
-			prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
-		} else {
-			prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
-		}
-	case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
-		if path.GetRouteFamily() == bgp.RF_IPv6_UC {
-			prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
-		} else {
-			prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
-		}
+	case bgp.RF_IPv4_UC:
+		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+	case bgp.RF_IPv4_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+	case bgp.RF_IPv6_UC:
+		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+	case bgp.RF_IPv6_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 	default:
 		return nil, false
 	}
-	var nhVrfId uint32
-	if nhvrfid, ok := z.pathVrfMap[path]; ok {
-		// if the path is withdraw, delete path from pathVrfMap after refer the path
-		nhVrfId = nhvrfid
-		if path.IsWithdraw {
-			delete(z.pathVrfMap, path)
+	nhVrfId := uint32(zebra.VRF_DEFAULT)
+	for vrfPath, pathVrfId := range z.pathVrfMap {
+		if path.Equal(vrfPath) {
+			nhVrfId = pathVrfId
+			break
+		} else {
+			continue
 		}
-	} else {
-		nhVrfId = zebra.VRF_DEFAULT
 	}
 	for _, p := range paths {
 		nexthop.Gate = p.GetNexthop()
 		nexthop.VrfId = nhVrfId
-		addMessageLabelToIPRouteBody(path, vrfId, z, &msgFlags, &nexthop)
+		if nhVrfId != vrfId {
+			addMessageLabelToIPRouteBody(path, vrfId, z, &msgFlags, &nexthop)
+		}
 		nexthops = append(nexthops, nexthop)
 	}
 	plen, _ := strconv.ParseUint(l[1], 10, 8)
