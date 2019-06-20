@@ -18,7 +18,7 @@ _node_js: &_node_js
 
 _python: &_python
   language: python
-  python: "2.7"
+  python: "3.6"
 
 _docker: &_docker
   <<: *_python
@@ -31,9 +31,9 @@ _docker: &_docker
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
   install:
     - pip install -r test/pip-requires.txt
-    - fab -f test/lib/base.py make_gobgp_ctn:tag=$DOCKER_IMAGE,from_image=$FROM_IMAGE
+    - fab2 -f test/lib/base.py make_gobgp_ctn:tag=$DOCKER_IMAGE,from_image=$FROM_IMAGE
   script:
-    - PYTHONPATH=test python test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
+    - PYTHONPATH=test python3 test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
   services:
     - docker
 
