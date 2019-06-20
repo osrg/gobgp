@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import json
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
@@ -34,6 +33,7 @@ from lib.base import (
     BGP_ATTR_TYPE_LOCAL_PREF,
     wait_for_completion,
     assert_several_times,
+    local,
 )
 from lib.gobgp import (
     GoBGPContainer,
@@ -77,13 +77,13 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
     def test_02_check_gobgp_global_rib(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             # paths expected to exist in gobgp's global rib
-            routes = q.routes.keys()
+            routes = list(q.routes.keys())
             timeout = 120
             interval = 1
             count = 0
@@ -108,7 +108,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     # check gobgp properly add it's own asn to aspath
     def test_03_check_gobgp_adj_out_rib(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             for path in self.gobgp.get_adj_rib_out(q):
                 asns = path['aspath']
                 self.assertTrue(self.gobgp.asn in asns)
@@ -117,7 +117,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_check_quagga_global_rib(self):
         interval = 1
         timeout = int(120 / interval)
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             done = False
             for _ in range(timeout):
                 if done:
@@ -130,7 +130,7 @@ class GoBGPTestBase(unittest.TestCase):
 
                 self.assertEqual(len(global_rib), len(self.quaggas))
 
-                for c in self.quaggas.itervalues():
+                for c in self.quaggas.values():
                     for r in c.routes:
                         self.assertTrue(r in global_rib)
                 done = True
@@ -208,8 +208,8 @@ class GoBGPTestBase(unittest.TestCase):
             paths = self.gobgp.get_adj_rib_out(q1, '10.0.6.0/24')
             if len(paths) > 0:
                 path = paths[0]
-                print "{0}'s nexthop is {1}".format(path['nlri']['prefix'],
-                                                    path['nexthop'])
+                print("{0}'s nexthop is {1}".format(path['nlri']['prefix'],
+                                                    path['nexthop']))
                 n_addrs = [i[1].split('/')[0] for i in self.gobgp.ip_addrs]
                 if path['nexthop'] in n_addrs:
                     break
@@ -229,7 +229,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(path['aspath']), 0)
 
     def test_11_check_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             paths = self.gobgp.get_adj_rib_out(q, '10.10.0.0/24')
             self.assertEqual(len(paths), 1)
             path = paths[0]
@@ -245,11 +245,11 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(3)
 
-        for route in q1.routes.iterkeys():
+        for route in q1.routes.keys():
             dst = self.gobgp.get_global_rib(route)
             self.assertEqual(len(dst), 0)
 
-            for q in self.quaggas.itervalues():
+            for q in self.quaggas.values():
                 if q is q1:
                     continue
                 paths = self.gobgp.get_adj_rib_out(q, route)
@@ -397,7 +397,7 @@ class GoBGPTestBase(unittest.TestCase):
         wait_for_completion(lambda: len(g1.get_global_rib(prefix)) == 0)
         wait_for_completion(lambda: len(g2.get_global_rib(prefix)) == 0)
 
-        ret = json.loads(r.next())
+        ret = json.loads(next(r))
         self.assertEqual(ret[0]['nlri']['prefix'], prefix)
         self.assertTrue('withdrawal' in ret[0])
 
@@ -416,12 +416,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         cnt2 = 0
         g = next_prefix()
-        n = g.next()
+        n = next(g)
         for path in g1.local("gobgp global rib", capture=True).split('\n')[1:]:
             if [elem for elem in path.split(' ') if elem != ''][1] == n:
                 try:
                     cnt2 += 1
-                    n = g.next()
+                    n = next(g)
                 except StopIteration:
                     break
 
@@ -473,7 +473,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

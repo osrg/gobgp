@@ -13,19 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED
+from lib.base import BGP_FSM_ESTABLISHED, local
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
 
@@ -92,17 +91,17 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
     def test_02_check_gobgp_global_rib(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             # paths expected to exist in gobgp's global rib
             def f():
                 state = self.gobgp.get_neighbor_state(q)
                 self.assertEqual(state, BGP_FSM_ESTABLISHED)
 
-                routes = q.routes.keys()
+                routes = list(q.routes.keys())
                 global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
                 for p in global_rib:
                     if p in routes:
@@ -112,16 +111,16 @@ class GoBGPTestBase(unittest.TestCase):
             wait_for(f)
 
     def test_03_check_gobgp_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             paths = [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q)]
-            for qq in self.quaggas.itervalues():
+            for qq in self.quaggas.values():
                 if q == qq:
                     continue
                 if self.gobgp.peers[q]['is_rr_client']:
-                    for p in qq.routes.keys():
+                    for p in list(qq.routes.keys()):
                         self.assertTrue(p in paths)
                 else:
-                    for p in qq.routes.keys():
+                    for p in list(qq.routes.keys()):
                         if self.gobgp.peers[qq]['is_rr_client']:
                             self.assertTrue(p in paths)
                         else:
@@ -262,7 +261,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

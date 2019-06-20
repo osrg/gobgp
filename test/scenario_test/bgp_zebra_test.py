@@ -13,14 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import print_function
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
@@ -29,6 +26,7 @@ from lib import base
 from lib.base import (
     Bridge,
     BGP_FSM_ESTABLISHED,
+    local,
 )
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer

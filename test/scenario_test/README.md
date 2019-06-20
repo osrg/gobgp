@@ -57,7 +57,7 @@ Execute the following commands inside the VM to install the dependencies:
 
     ```shell
     $ sudo apt-get update
-    $ sudo apt-get install git python-pip python-dev iputils-arping bridge-utils lv
+    $ sudo apt-get install git python3-pip python3-dev iputils-arping bridge-utils lv
     $ sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
     $ sudo chmod 755 /usr/local/bin/pipework
     ```
@@ -91,7 +91,7 @@ You also need this operation at every modification to the source code.
 
 ```shell
 $ cd $GOPATH/src/github.com/osrg/gobgp
-$ sudo fab -f ./test/lib/base.py make_gobgp_ctn --set tag=gobgp
+$ sudo fab2 -r ./test/lib make-gobgp-ctn
 ```
 
 ## Run test
@@ -116,7 +116,7 @@ $ sudo fab -f ./test/lib/base.py make_gobgp_ctn --set tag=gobgp
 
     ```shell
     $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
-    $ sudo -E PYTHONPATH=$GOBGP/test python <scenario test name>.py
+    $ sudo -E PYTHONPATH=$GOBGP/test python3 <scenario test name>.py
     ...
     OK
     ```

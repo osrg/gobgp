@@ -13,19 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED
+from lib.base import BGP_FSM_ESTABLISHED, local
 from lib.gobgp import GoBGPContainer
 
 
@@ -61,7 +60,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        for cli in cls.clients.itervalues():
+        for cli in cls.clients.values():
             g1.add_peer(cli, is_rs_client=True, passwd='passwd', passive=True, prefix_limit=10)
             cli.add_peer(g1, passwd='passwd')
 
@@ -69,7 +68,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for cli in self.clients.itervalues():
+        for cli in self.clients.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=cli)
 
     def test_02_softresetin_test1(self):
@@ -137,7 +136,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],
