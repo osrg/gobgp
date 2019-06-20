@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
@@ -28,6 +27,7 @@ from lib import base
 from lib.base import (
     BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
+    local,
 )
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
@@ -74,7 +74,7 @@ class GoBGPTestBase(unittest.TestCase):
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3}
 
     def check_gobgp_local_rib(self):
-        for rs_client in self.quaggas.itervalues():
+        for rs_client in self.quaggas.values():
             done = False
             for _ in range(self.retry_limit):
                 if done:
@@ -90,7 +90,7 @@ class GoBGPTestBase(unittest.TestCase):
 
                 self.assertEqual(len(local_rib), (len(self.quaggas) - 1))
 
-                for c in self.quaggas.itervalues():
+                for c in self.quaggas.values():
                     if rs_client != c:
                         for r in c.routes:
                             self.assertTrue(r in local_rib)
@@ -102,7 +102,7 @@ class GoBGPTestBase(unittest.TestCase):
             raise AssertionError
 
     def check_rs_client_rib(self):
-        for rs_client in self.quaggas.itervalues():
+        for rs_client in self.quaggas.values():
             done = False
             for _ in range(self.retry_limit):
                 if done:
@@ -115,7 +115,7 @@ class GoBGPTestBase(unittest.TestCase):
 
                 self.assertEqual(len(global_rib), len(self.quaggas))
 
-                for c in self.quaggas.itervalues():
+                for c in self.quaggas.values():
                     for r in c.routes:
                         self.assertTrue(r in global_rib)
 
@@ -127,7 +127,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
     # check advertised routes are stored in route-server's local-rib
@@ -223,8 +223,8 @@ class GoBGPTestBase(unittest.TestCase):
                 time.sleep(self.wait_per_retry)
                 for path in q1.get_global_rib():
                     if path['prefix'] == target_prefix:
-                        print "{0}'s nexthop is {1}".format(path['prefix'],
-                                                            path['nexthop'])
+                        print("{0}'s nexthop is {1}".format(path['prefix'],
+                                                            path['nexthop']))
                         n_addrs = [i[1].split('/')[0] for i in
                                    expected_nexthop.ip_addrs]
                         if path['nexthop'] in n_addrs:
@@ -251,7 +251,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

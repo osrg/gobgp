@@ -13,15 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import print_function
+
+
 
 import json
 import os
-
-from fabric import colors
-from fabric.api import local
-from fabric.utils import indent
 
 from lib.base import (
     FLOWSPEC_NAME_TO_TYPE,
@@ -29,6 +25,9 @@ from lib.base import (
     CmdBuffer,
     try_several_times,
     wait_for_completion,
+    yellow,
+    indent,
+    local,
 )
 
 
@@ -47,7 +46,7 @@ class YABGPContainer(BGPContainer):
         import lib
         mod_dir = os.path.dirname(lib.__file__)
         local('docker cp {0}/yabgp_helper.py'
-              ' {1}:/root/'.format(mod_dir, self.name))
+              ' {1}:/root/'.format(mod_dir, self.docker_name()))
 
     def _start_yabgp(self):
         self.local(
@@ -80,7 +79,7 @@ class YABGPContainer(BGPContainer):
         c << 'format = json'
 
         if self.peers:
-            info = next(iter(self.peers.values()))
+            info = next(iter(list(self.peers.values())))
             remote_as = info['remote_as']
             neigh_addr = info['neigh_addr'].split('/')[0]
             local_as = info['local_as'] or self.asn
@@ -93,8 +92,8 @@ class YABGPContainer(BGPContainer):
             c << 'local_addr = {0}'.format(local_addr)
 
         with open('{0}/yabgp.ini'.format(self.config_dir), 'w') as f:
-            print(colors.yellow('[{0}\'s new yabgp.ini]'.format(self.name)))
-            print(colors.yellow(indent(str(c))))
+            print(yellow('[{0}\'s new yabgp.ini]'.format(self.name)))
+            print(yellow(indent(str(c))))
             f.writelines(str(c))
 
     def reload_config(self):
@@ -401,7 +400,7 @@ class YABGPContainer(BGPContainer):
                   local_pref=None, identifier=None, reload_config=True):
         self.routes.setdefault(route, [])
 
-        for info in self.peers.values():
+        for info in list(self.peers.values()):
             peer = info['neigh_addr'].split('/')[0]
 
             if rf in ['ipv4', 'ipv6']:
@@ -449,7 +448,7 @@ class YABGPContainer(BGPContainer):
             return
         rf = withdraw['rf']
 
-        for info in self.peers.values():
+        for info in list(self.peers.values()):
             peer = info['neigh_addr'].split('/')[0]
 
             if rf in ['ipv4', 'ipv6']:

@@ -13,19 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import time
-
-from fabric import colors
-from fabric.api import local
-from fabric.utils import indent
 
 from lib.base import (
     BGPContainer,
     CmdBuffer,
     try_several_times,
     wait_for_completion,
+    yellow,
+    indent,
+    local,
 )
 
 
@@ -64,7 +63,7 @@ class BirdContainer(BGPContainer):
     def create_config(self):
         c = CmdBuffer()
         c << 'router id {0};'.format(self.router_id)
-        for peer, info in self.peers.iteritems():
+        for peer, info in self.peers.items():
             c << 'protocol bgp {'
             c << '  local as {0};'.format(self.asn)
             n_addr = info['neigh_addr'].split('/')[0]
@@ -73,8 +72,8 @@ class BirdContainer(BGPContainer):
             c << '}'
 
         with open('{0}/bird.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new bird.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
+            print(yellow('[{0}\'s new bird.conf]'.format(self.name)))
+            print(yellow(indent(str(c))))
             f.writelines(str(c))
 
     def reload_config(self):
@@ -122,6 +121,6 @@ class RawBirdContainer(BirdContainer):
 
     def create_config(self):
         with open('{0}/bird.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new bird.conf]'.format(self.name))
-            print colors.yellow(indent(self.config))
+            print(yellow('[{0}\'s new bird.conf]'.format(self.name)))
+            print(yellow(indent(self.config)))
             f.writelines(self.config)

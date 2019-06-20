@@ -18,12 +18,12 @@ import time
 import unittest
 
 import nose
-from fabric.api import local
 
 from lib import base
 from lib.base import (
     BGP_FSM_ESTABLISHED,
     assert_several_times,
+    local,
 )
 from lib.gobgp import GoBGPContainer
 from lib.exabgp import ExaBGPContainer
@@ -252,7 +252,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

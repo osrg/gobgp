@@ -13,12 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import re
-
-from fabric import colors
-from fabric.utils import indent
 import netaddr
 
 from lib.base import (
@@ -31,6 +28,8 @@ from lib.base import (
     BGP_FSM_ESTABLISHED,
     BGP_ATTR_TYPE_MULTI_EXIT_DISC,
     BGP_ATTR_TYPE_LOCAL_PREF,
+    yellow,
+    indent,
 )
 
 
@@ -188,7 +187,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'password zebra'
         c << 'router bgp {0}'.format(self.asn)
         c << 'bgp router-id {0}'.format(self.router_id)
-        if any(info['graceful_restart'] for info in self.peers.itervalues()):
+        if any(info['graceful_restart'] for info in self.peers.values()):
             c << 'bgp graceful-restart'
 
         if 'global' in self.bgpd_config:
@@ -198,7 +197,7 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'bgp confederation peers {0}'.format(' '.join([str(i) for i in conf['member-as-list']]))
 
         version = 4
-        for peer, info in self.peers.iteritems():
+        for peer, info in self.peers.items():
             version = netaddr.IPNetwork(info['neigh_addr']).version
             n_addr = info['neigh_addr'].split('/')[0]
             if version == 6:
@@ -208,7 +207,7 @@ class QuaggaBGPContainer(BGPContainer):
             c << 'neighbor {0} advertisement-interval 1'.format(n_addr)
             if info['is_rs_client']:
                 c << 'neighbor {0} route-server-client'.format(n_addr)
-            for typ, p in info['policies'].iteritems():
+            for typ, p in info['policies'].items():
                 c << 'neighbor {0} route-map {1} {2}'.format(n_addr, p['name'],
                                                              typ)
             if info['passwd']:
@@ -228,7 +227,7 @@ class QuaggaBGPContainer(BGPContainer):
             else:
                 c << 'redistribute connected'
 
-        for name, policy in self.policies.iteritems():
+        for name, policy in self.policies.items():
             c << 'access-list {0} {1} {2}'.format(name, policy['type'],
                                                   policy['match'])
             c << 'route-map {0} permit 10'.format(name)
@@ -242,8 +241,8 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'log file {0}/bgpd.log'.format(self.SHARED_VOLUME)
 
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new bgpd.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
+            print(yellow('[{0}\'s new bgpd.conf]'.format(self.name)))
+            print(yellow(indent(str(c))))
             f.writelines(str(c))
 
     def _create_config_zebra(self):
@@ -258,9 +257,10 @@ class QuaggaBGPContainer(BGPContainer):
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
-            f.writelines(str(c))
+            print(yellow('[{0}\'s new zebra.conf]'.format(self.name)))
+            c = str(c).strip()
+            print(yellow(indent(c)))
+            f.writelines(c)
 
     def vtysh(self, cmd, config=True):
         if not isinstance(cmd, list):
@@ -420,8 +420,8 @@ class RawQuaggaBGPContainer(QuaggaBGPContainer):
 
     def create_config(self):
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new bgpd.conf]'.format(self.name))
-            print colors.yellow(indent(self.config))
+            print(yellow('[{0}\'s new bgpd.conf]'.format(self.name)))
+            print(yellow(indent(self.config)))
             f.writelines(self.config)
 
 
@@ -478,7 +478,7 @@ class QuaggaOSPFContainer(OSPFContainer):
         c = CmdBuffer()
         c << 'hostname zebra'
         c << 'password zebra'
-        for name, settings in self.zebra_config.get('interfaces', {}).items():
+        for name, settings in list(self.zebra_config.get('interfaces', {}).items()):
             c << 'interface {0}'.format(name)
             for setting in settings:
                 c << str(setting)
@@ -492,9 +492,10 @@ class QuaggaOSPFContainer(OSPFContainer):
         c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
-            f.writelines(str(c))
+            print(yellow('[{0}\'s new zebra.conf]'.format(self.name)))
+            c = str(c).strip()
+            print(yellow(indent(c)))
+            f.writelines(c)
 
     def _create_config_ospfd(self):
         c = CmdBuffer()
@@ -503,15 +504,15 @@ class QuaggaOSPFContainer(OSPFContainer):
         c << 'router ospf'
         for redistribute in self.ospfd_config.get('redistributes', []):
             c << ' redistribute {0}'.format(redistribute)
-        for network, area in self.ospfd_config.get('networks', {}).items():
+        for network, area in list(self.ospfd_config.get('networks', {}).items()):
             self.networks[network] = area  # for superclass
             c << ' network {0} area {1}'.format(network, area)
         c << 'log file {0}/ospfd.log'.format(self.SHARED_VOLUME)
         c << ''
 
         with open('{0}/ospfd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new ospfd.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
+            print(yellow('[{0}\'s new ospfd.conf]'.format(self.name)))
+            print(yellow(indent(str(c))))
             f.writelines(str(c))
 
     def _start_zebra(self):
