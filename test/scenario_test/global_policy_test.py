@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
@@ -29,6 +28,7 @@ from lib.base import (
     BGP_FSM_IDLE,
     BGP_FSM_ESTABLISHED,
     BGP_ATTR_TYPE_COMMUNITIES,
+    local,
 )
 from lib.gobgp import GoBGPContainer
 from lib.exabgp import ExaBGPContainer
@@ -80,11 +80,11 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
     def test_02_check_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_03_add_peer(self):
@@ -95,7 +95,7 @@ class GoBGPTestBase(unittest.TestCase):
         q.add_route('10.10.0.0/24')
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
         self.quaggas['q4'] = q
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_04_disable_peer(self):
@@ -103,7 +103,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.disable_peer(q3)
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             if q.name == 'q3':
                 continue
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
@@ -113,7 +113,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.enable_peer(q3)
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q3)
 
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
 
     def test_06_disable_peer2(self):
@@ -127,7 +127,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.disable_peer(q3)
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             if q.name == 'q3':
                 continue
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
@@ -139,11 +139,11 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.local('gobgp policy statement st0 add action accept')
         self.gobgp.local('gobgp policy add p0 st0')
         self.gobgp.local('gobgp global policy export add p0 default reject')
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.softreset(q, type='out')
 
     def test_08_check_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             if q.name == 'q3':
                 continue
             paths = self.gobgp.get_adj_rib_out(q)
@@ -155,11 +155,11 @@ class GoBGPTestBase(unittest.TestCase):
     def test_09_change_global_policy(self):
         self.gobgp.local('gobgp policy statement st0 add action community add 65100:10')
         self.gobgp.local('gobgp global policy export set p0 default accept')
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.softreset(q, type='out')
 
     def test_10_check_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             if q.name == 'q3':
                 continue
             paths = self.gobgp.get_adj_rib_out(q)
@@ -185,7 +185,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.local('gobgp policy statement st1 add action local-pref 300')
         self.gobgp.local('gobgp policy add p1 st1')
         self.gobgp.local('gobgp global policy export set p1 default reject')
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.softreset(q, type='out')
 
     def test_13_check_adj_rib_out(self):
@@ -201,7 +201,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.local('gobgp policy statement st2 add condition route-type local')
         self.gobgp.local('gobgp policy add p2 st2')
         self.gobgp.local('gobgp global policy export set p2 default reject')
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.softreset(q, type='out')
 
         q1 = self.quaggas['q1']
@@ -212,14 +212,14 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
 
         self.assertEqual(len(self.gobgp.get_adj_rib_out(q1)), 1)
-        self.assertEqual(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'], u'10.20.0.0/24')
+        self.assertEqual(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'], '10.20.0.0/24')
 
     def test_15_route_type_condition_internal(self):
         self.gobgp.local('gobgp policy statement st22 add action accept')
         self.gobgp.local('gobgp policy statement st22 add condition route-type internal')
         self.gobgp.local('gobgp policy add p2 st22')
         self.gobgp.local('gobgp policy del p2 st2')
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.softreset(q, type='out')
 
         q1 = self.quaggas['q1']
@@ -231,14 +231,14 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
 
         self.assertEqual(len(self.gobgp.get_adj_rib_out(q1)), 1)
-        self.assertEqual(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'], u'10.30.0.0/24')
+        self.assertEqual(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'], '10.30.0.0/24')
 
     def test_16_route_type_condition_external(self):
         self.gobgp.local('gobgp policy statement st222 add action accept')
         self.gobgp.local('gobgp policy statement st222 add condition route-type external')
         self.gobgp.local('gobgp policy add p2 st222')
         self.gobgp.local('gobgp policy del p2 st22')
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.softreset(q, type='out')
 
         q1 = self.quaggas['q1']
@@ -292,7 +292,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

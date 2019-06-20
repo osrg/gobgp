@@ -13,20 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import print_function
+
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED
+from lib.base import BGP_FSM_ESTABLISHED, local
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
 
@@ -113,7 +112,7 @@ class GoBGPTestBase(unittest.TestCase):
             if routes:
                 break
             time.sleep(1)
-        self.failIf(len(routes) == 0)
+        self.assertFalse(len(routes) == 0)
 
         # Confirm AS_PATH in confederation is removed
         self._check_global_rib_first(self.quaggas['q1'], '10.0.0.0/24', [30, 20, 21])
@@ -133,8 +132,8 @@ class GoBGPTestBase(unittest.TestCase):
                 if len(routes[0]['paths']) == 2:
                     break
             time.sleep(1)
-        self.failIf(len(routes) != 1)
-        self.failIf(len(routes[0]['paths']) != 2)
+        self.assertFalse(len(routes) != 1)
+        self.assertFalse(len(routes[0]['paths']) != 2)
 
         # In g1, there are two routes to 10.0.0.0/24
         # confirm the route from q1 is selected as the best path

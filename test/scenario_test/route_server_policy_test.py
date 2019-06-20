@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 import inspect
 
-from fabric.api import local
 import nose
 from nose.tools import (
     assert_true,
@@ -35,6 +34,7 @@ from lib.base import (
     BGP_FSM_ESTABLISHED,
     BGP_ATTR_TYPE_COMMUNITIES,
     BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+    local,
 )
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
@@ -52,7 +52,7 @@ def register_scenario(cls):
 
 
 def lookup_scenario(name):
-    for value in _SCENARIOS.values():
+    for value in list(_SCENARIOS.values()):
         if value.__name__ == name:
             return value
     return None
@@ -925,9 +925,9 @@ class ImportPolicyAsPathLengthCondition(object):
         g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
-        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn - 10, -1))
+        e1.add_route('192.168.100.0/24', aspath=list(range(e1.asn, e1.asn - 10, -1)))
         # this will pass
-        e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn - 8, -1))
+        e1.add_route('192.168.200.0/24', aspath=list(range(e1.asn, e1.asn - 8, -1)))
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -985,9 +985,9 @@ class ImportPolicyAsPathCondition(object):
         g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
-        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn - 10, -1))
+        e1.add_route('192.168.100.0/24', aspath=list(range(e1.asn, e1.asn - 10, -1)))
         # this will pass
-        e1.add_route('192.168.200.0/24', aspath=range(e1.asn - 1, e1.asn - 10, -1))
+        e1.add_route('192.168.200.0/24', aspath=list(range(e1.asn - 1, e1.asn - 10, -1)))
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -3162,14 +3162,14 @@ class TestGoBGPBase():
         cls.parser_option = parser_option
         cls.executors = []
         if idx == 0:
-            print 'unset test-index. run all test sequential'
-            for _, v in _SCENARIOS.items():
+            print('unset test-index. run all test sequential')
+            for _, v in list(_SCENARIOS.items()):
                 for k, m in inspect.getmembers(v, inspect.isfunction):
                     if k == 'executor':
                         cls.executor = m
                 cls.executors.append(cls.executor)
         elif idx not in _SCENARIOS:
-            print 'invalid test-index. # of scenarios: {0}'.format(len(_SCENARIOS))
+            print('invalid test-index. # of scenarios: {0}'.format(len(_SCENARIOS)))
             sys.exit(1)
         else:
             for k, m in inspect.getmembers(_SCENARIOS[idx], inspect.isfunction):
@@ -3185,7 +3185,7 @@ class TestGoBGPBase():
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

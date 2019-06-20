@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import collections
 import json
@@ -22,9 +22,6 @@ from threading import Thread
 import subprocess
 import os
 
-from fabric import colors
-from fabric.api import local
-from fabric.utils import indent
 import netaddr
 import toml
 import yaml
@@ -45,6 +42,9 @@ from lib.base import (
     BGP_FSM_IDLE,
     BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
+    yellow,
+    indent,
+    local,
 )
 
 
@@ -111,8 +111,7 @@ class GoBGPContainer(BGPContainer):
         c << '#!/bin/sh'
         c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} -t {3} > ' \
              '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '', self.config_format)
-
-        cmd = 'echo "{0:s}" > {1}/start.sh'.format(c, self.config_dir)
+        cmd = 'echo "{0:s}" > {1}/start.sh'.format(str(c), self.config_dir)
         local(cmd, capture=True)
         cmd = "chmod 755 {0}/start.sh".format(self.config_dir)
         local(cmd, capture=True)
@@ -212,7 +211,7 @@ class GoBGPContainer(BGPContainer):
 
     def _get_rib(self, dests_dict):
         dests = []
-        for k, v in dests_dict.items():
+        for k, v in list(dests_dict.items()):
             for p in v:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
@@ -282,7 +281,7 @@ class GoBGPContainer(BGPContainer):
                                                                 adj_type,
                                                                 prefix, rf)
         output = self.local(cmd, capture=True)
-        ret = [p[0] for p in json.loads(output).itervalues()]
+        ret = [p[0] for p in json.loads(output).values()]
         for p in ret:
             p["nexthop"] = self._get_nexthop(p)
             p["aspath"] = self._get_as_path(p)
@@ -313,7 +312,7 @@ class GoBGPContainer(BGPContainer):
 
     def clear_policy(self):
         self.policies = {}
-        for info in self.peers.itervalues():
+        for info in self.peers.values():
             info['policies'] = {}
         self.prefix_set = []
         self.neighbor_set = []
@@ -352,7 +351,7 @@ class GoBGPContainer(BGPContainer):
                 self._create_config_ospfd()
 
     def _merge_dict(self, dct, merge_dct):
-        for k, v in merge_dct.iteritems():
+        for k, v in merge_dct.items():
             if (k in dct and isinstance(dct[k], dict)
                     and isinstance(merge_dct[k], collections.Mapping)):
                 self._merge_dict(dct[k], merge_dct[k])
@@ -380,7 +379,7 @@ class GoBGPContainer(BGPContainer):
         if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
 
-        for peer, info in self.peers.iteritems():
+        for peer, info in self.peers.items():
             afi_safi_list = []
             if info['interface'] != '':
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
@@ -481,7 +480,7 @@ class GoBGPContainer(BGPContainer):
             if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
                 n['apply-policy'] = {'config': {}}
 
-            for typ, p in info.get('policies', {}).iteritems():
+            for typ, p in info.get('policies', {}).items():
                 n['apply-policy']['config']['{0}-policy-list'.format(typ)] = [p['name']]
 
             def _f(v):
@@ -491,7 +490,7 @@ class GoBGPContainer(BGPContainer):
                     return 'accept-route'
                 raise Exception('invalid default policy type {0}'.format(v))
 
-            for typ, d in info.get('default-policy', {}).iteritems():
+            for typ, d in info.get('default-policy', {}).items():
                 n['apply-policy']['config']['default-{0}-policy'.format(typ)] = _f(d)
 
             if info['treat_as_withdraw']:
@@ -510,7 +509,7 @@ class GoBGPContainer(BGPContainer):
             config['defined-sets']['bgp-defined-sets'] = self.bgp_set
 
         policy_list = []
-        for p in self.policies.itervalues():
+        for p in self.policies.values():
             policy = {'name': p['name']}
             if 'statements' in p:
                 policy['statements'] = p['statements']
@@ -525,7 +524,7 @@ class GoBGPContainer(BGPContainer):
                                           'version': self.zapi_version}}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new gobgpd.conf]'.format(self.name))
+            print(yellow('[{0}\'s new gobgpd.conf]'.format(self.name)))
             if self.config_format is 'toml':
                 raw = toml.dumps(config)
             elif self.config_format is 'yaml':
@@ -534,7 +533,8 @@ class GoBGPContainer(BGPContainer):
                 raw = json.dumps(config)
             else:
                 raise Exception('invalid config_format {0}'.format(self.config_format))
-            print colors.yellow(indent(raw))
+            raw = raw.strip()
+            print(yellow(indent(raw)))
             f.write(raw)
 
     def _create_config_zebra(self):
@@ -549,9 +549,10 @@ class GoBGPContainer(BGPContainer):
         c << ''
 
         with open('{0}/zebra.conf'.format(self.quagga_config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new zebra.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
-            f.writelines(str(c))
+            print(yellow('[{0}\'s new zebra.conf]'.format(self.name)))
+            c = str(c).strip()
+            print(yellow(indent(c)))
+            f.writelines(c)
 
     def _create_config_ospfd(self):
         c = CmdBuffer()
@@ -560,14 +561,14 @@ class GoBGPContainer(BGPContainer):
         c << 'router ospf'
         for redistribute in self.ospfd_config.get('redistributes', []):
             c << ' redistribute {0}'.format(redistribute)
-        for network, area in self.ospfd_config.get('networks', {}).items():
+        for network, area in list(self.ospfd_config.get('networks', {}).items()):
             c << ' network {0} area {1}'.format(network, area)
         c << 'log file {0}/ospfd.log'.format(self.QUAGGA_VOLUME)
         c << ''
 
         with open('{0}/ospfd.conf'.format(self.quagga_config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new ospfd.conf]'.format(self.name))
-            print colors.yellow(indent(str(c)))
+            print(yellow('[{0}\'s new ospfd.conf]'.format(self.name)))
+            print(yellow(indent(str(c))))
             f.writelines(str(c))
 
     def reload_config(self):
@@ -671,6 +672,6 @@ class RawGoBGPContainer(GoBGPContainer):
 
     def create_config(self):
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new gobgpd.conf]'.format(self.name))
-            print colors.yellow(indent(self.config))
+            print(yellow('[{0}\'s new gobgpd.conf]'.format(self.name)))
+            print(yellow(indent(self.config)))
             f.write(self.config)

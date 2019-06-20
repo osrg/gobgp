@@ -13,15 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
-from fabric import colors
 
 from lib.base import (
     BGPContainer,
     CmdBuffer,
     try_several_times,
     wait_for_completion,
+    yellow,
 )
 
 
@@ -68,7 +66,7 @@ class ExaBGPContainer(BGPContainer):
         # Manpage of exabgp.conf(5):
         # https://github.com/Exa-Networks/exabgp/blob/master/doc/man/exabgp.conf.5
         cmd = CmdBuffer('\n')
-        for peer, info in self.peers.iteritems():
+        for peer, info in self.peers.items():
             cmd << 'neighbor {0} {{'.format(info['neigh_addr'].split('/')[0])
             cmd << '    router-id {0};'.format(self.router_id)
             cmd << '    local-address {0};'.format(info['local_addr'].split('/')[0])
@@ -94,8 +92,8 @@ class ExaBGPContainer(BGPContainer):
             cmd << '}'
 
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
-            print colors.yellow(str(cmd))
+            print(yellow('[{0}\'s new exabgpd.conf]'.format(self.name)))
+            print(yellow(str(cmd)))
             f.write(str(cmd))
 
     def _is_running(self):
@@ -306,6 +304,6 @@ class RawExaBGPContainer(ExaBGPContainer):
 
     def create_config(self):
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
-            print colors.yellow(self.config)
+            print(yellow('[{0}\'s new exabgpd.conf]'.format(self.name)))
+            print(yellow(self.config))
             f.write(self.config)
