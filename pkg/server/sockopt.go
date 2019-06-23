@@ -39,7 +39,7 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setTcpMinTTLSockopt(conn, ttl)
 }
 
-func dialerControl(network, address string, c syscall.RawConn, ttl, ttlMin uint8, password string) error {
+func dialerControl(network, address string, c syscall.RawConn, ttl, ttlMin uint8, password string, bindInterface stirng) error {
 	if password != "" {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",

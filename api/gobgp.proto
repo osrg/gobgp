@@ -771,6 +771,7 @@ message Transport {
   string remote_address = 5;
   uint32 remote_port = 6;
   uint32 tcp_mss = 7;
+  string bind_interface = 8;
 }
 
 message RouteServer {

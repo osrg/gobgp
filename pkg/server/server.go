@@ -250,6 +250,7 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 		}
 		peer.fsm.lock.RLock()
 		localAddr := peer.fsm.pConf.Transport.Config.LocalAddress
+		bindInterface := peer.fsm.pConf.Transport.Config.BindInterface
 		peer.fsm.lock.RUnlock()
 		localAddrValid := func(laddr string) bool {
 			if laddr == "0.0.0.0" || laddr == "::" {
@@ -262,12 +263,13 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 			}
 
 			host, _, _ := net.SplitHostPort(l.String())
-			if host != laddr {
+			if host != laddr && bindInterface == "" {
 				log.WithFields(log.Fields{
 					"Topic":           "Peer",
 					"Key":             remoteAddr,
 					"Configured addr": laddr,
 					"Addr":            host,
+					"BindInterface":   bindInterface,
 				}).Info("Mismatched local address")
 				return false
 			}

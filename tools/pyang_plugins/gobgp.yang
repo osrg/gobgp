@@ -920,6 +920,11 @@ module gobgp {
       description "TTL value for BGP packets";
       type uint8;
     }
+
+    leaf bind-interface {
+      description "Interface name for binding.";
+      type string;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {
@@ -1238,6 +1243,12 @@ module gobgp {
       description
         "Configure MPLS label range size which will be requested to
         FRR/Zebra.";
+    }
+    leaf software-name {
+      type string;
+      description
+        "Configure zebra software name.
+        quagga, frr3, frr4, frr5, frr6, frr7 can be used.";
     }
   }
 

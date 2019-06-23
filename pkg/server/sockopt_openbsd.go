@@ -403,7 +403,7 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setsockOptInt(sc, level, name, ttl)
 }
 
-func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string) error {
+func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
 	if password != "" {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",

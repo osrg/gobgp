@@ -534,9 +534,10 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			LocalRestarting:     pconf.GracefulRestart.State.LocalRestarting,
 		},
 		Transport: &api.Transport{
-			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
-			LocalAddress: localAddress,
-			PassiveMode:  pconf.Transport.Config.PassiveMode,
+			RemotePort:    uint32(pconf.Transport.Config.RemotePort),
+			LocalAddress:  localAddress,
+			PassiveMode:   pconf.Transport.Config.PassiveMode,
+			BindInterface: pconf.Transport.Config.BindInterface,
 		},
 		AfiSafis: afiSafis,
 	}
