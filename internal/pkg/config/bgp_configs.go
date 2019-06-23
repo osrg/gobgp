@@ -2548,6 +2548,10 @@ type TransportState struct {
 	// Remote port being used by the peer for the TCP session
 	// supporting the BGP session.
 	RemotePort uint16 `mapstructure:"remote-port" json:"remote-port,omitempty"`
+	// original -> bgp:bind-interface
+	// bgp:bind-interface's original type is union.
+	// Interface name for binding.
+	BindInterface string `mapstructure:"bind-interface" json:"bind-interface,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -2580,6 +2584,10 @@ type TransportConfig struct {
 	// original -> gobgp:ttl
 	// TTL value for BGP packets.
 	Ttl uint8 `mapstructure:"ttl" json:"ttl,omitempty"`
+	// original -> bgp:bind-interface
+	// bgp:bind-interface's original type is union.
+	// Interface name for binding.
+	BindInterface string `mapstructure:"bind-interface" json:"bind-interface,omitempty"`
 }
 
 func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
@@ -2602,6 +2610,9 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 		return false
 	}
 	if lhs.Ttl != rhs.Ttl {
+		return false
+	}
+	if lhs.BindInterface != rhs.BindInterface {
 		return false
 	}
 	return true

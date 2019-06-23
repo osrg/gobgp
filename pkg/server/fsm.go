@@ -491,7 +491,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fsm := h.fsm
 
-	retry, addr, port, password, ttl, ttlMin, localAddress := func() (int, string, int, string, uint8, uint8, string) {
+	retry, addr, port, password, ttl, ttlMin, localAddress, bindInterface := func() (int, string, int, string, uint8, uint8, string, string) {
 		fsm.lock.RLock()
 		defer fsm.lock.RUnlock()
 
@@ -518,7 +518,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
 			}
 		}
-		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.LocalAddress
+		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.LocalAddress, fsm.pConf.Transport.Config.BindInterface
 	}()
 
 	tick := minConnectRetryInterval
@@ -553,7 +553,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				LocalAddr: laddr,
 				Timeout:   time.Duration(tick-1) * time.Second,
 				Control: func(network, address string, c syscall.RawConn) error {
-					return dialerControl(network, address, c, ttl, ttlMin, password)
+					return dialerControl(network, address, c, ttl, ttlMin, password, bindInterface)
 				},
 			}
 

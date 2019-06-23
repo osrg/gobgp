@@ -103,7 +103,7 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setsockOptInt(sc, level, name, ttl)
 }
 
-func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string) error {
+func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
 	family := syscall.AF_INET
 	raddr, _ := net.ResolveTCPAddr("tcp", address)
 	if raddr.IP.To4() == nil {
@@ -154,6 +154,16 @@ func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8
 				name = ipv6MinHopCount
 			}
 			sockerr = os.NewSyscallError("setsockopt", syscall.SetsockoptInt(int(fd), level, name, int(minTtl)))
+		}); err != nil {
+			return err
+		}
+		if sockerr != nil {
+			return sockerr
+		}
+	}
+	if bindInterface != "" {
+		if err := c.Control(func(fd uintptr) {
+			sockerr = os.NewSyscallError("setsockopt", syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, bindInterface))
 		}); err != nil {
 			return err
 		}
