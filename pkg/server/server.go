@@ -3340,6 +3340,23 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
+func (s *BgpServer) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) error {
+	var err error = nil
+
+	old := log.GetLevel()
+	new := log.Level(r.Level)
+	log.SetLevel(new)
+	cur := log.GetLevel()
+	if cur == new {
+		log.Infof("SetLogLevel(): old: %v, new: %v", old, new)
+	} else {
+		msg := fmt.Sprintf("SetLogLevel(): old: %v, new: %v, current: %v", old, new, cur)
+		log.Error(msg)
+		err = fmt.Errorf(msg)
+	}
+	return err
+}
+
 type WatchEventType string
 
 const (

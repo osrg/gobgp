@@ -94,6 +94,7 @@ service GobgpApi {
 
   rpc AddBmp(AddBmpRequest) returns (google.protobuf.Empty);
   rpc DeleteBmp(DeleteBmpRequest) returns (google.protobuf.Empty);
+  rpc SetLogLevel(SetLogLevelRequest) returns (google.protobuf.Empty);
 }
 
 message StartBgpRequest {
@@ -1172,4 +1173,11 @@ message RPKIState {
 message Rpki {
   RPKIConf conf = 1;
   RPKIState state = 2;
+}
+
+message SetLogLevelRequest {
+  uint32 level = 1;
+}
+
+message SetLogLevelResponse {
 }
