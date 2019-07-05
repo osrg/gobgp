@@ -1750,6 +1750,6 @@ func (s *server) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.Get
 	return s.bgpServer.GetTable(ctx, r)
 }
 
-func (s *Server) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) (*empty.Empty, error) {
+func (s *server) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, s.bgpServer.SetLogLevel(ctx, r)
 }
