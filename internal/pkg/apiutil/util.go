@@ -20,6 +20,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
@@ -49,9 +50,10 @@ func NewDestination(dst *api.Destination) *Destination {
 	for _, p := range dst.Paths {
 		nlri, _ := GetNativeNlri(p)
 		attrs, _ := GetNativePathAttributes(p)
+		t, _ := ptypes.Timestamp(p.Age)
 		l = append(l, &Path{
 			Nlri:       nlri,
-			Age:        p.Age,
+			Age:        t.Unix(),
 			Best:       p.Best,
 			Attrs:      attrs,
 			Stale:      p.Stale,
@@ -64,10 +66,11 @@ func NewDestination(dst *api.Destination) *Destination {
 }
 
 func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, age time.Time) *api.Path {
+	t, _ := ptypes.TimestampProto(age)
 	return &api.Path{
-		AnyNlri:    MarshalNLRI(nlri),
-		AnyPattrs:  MarshalPathAttributes(attrs),
-		Age:        age.Unix(),
+		Nlri:       MarshalNLRI(nlri),
+		Pattrs:     MarshalPathAttributes(attrs),
+		Age:        t,
 		IsWithdraw: isWithdraw,
 		Family:     ToApiFamily(nlri.AFI(), nlri.SAFI()),
 		Identifier: nlri.PathIdentifier(),
@@ -87,17 +90,17 @@ func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error
 }
 
 func GetNativeNlri(p *api.Path) (bgp.AddrPrefixInterface, error) {
-	if len(p.Nlri) > 0 {
-		return getNLRI(ToRouteFamily(p.Family), p.Nlri)
+	if len(p.NlriBinary) > 0 {
+		return getNLRI(ToRouteFamily(p.Family), p.NlriBinary)
 	}
-	return UnmarshalNLRI(ToRouteFamily(p.Family), p.AnyNlri)
+	return UnmarshalNLRI(ToRouteFamily(p.Family), p.Nlri)
 }
 
 func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) {
-	pattrsLen := len(p.Pattrs)
+	pattrsLen := len(p.PattrsBinary)
 	if pattrsLen > 0 {
 		pattrs := make([]bgp.PathAttributeInterface, 0, pattrsLen)
-		for _, attr := range p.Pattrs {
+		for _, attr := range p.PattrsBinary {
 			a, err := bgp.GetPathAttribute(attr)
 			if err != nil {
 				return nil, err
@@ -110,7 +113,7 @@ func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) 
 		}
 		return pattrs, nil
 	}
-	return UnmarshalPathAttributes(p.AnyPattrs)
+	return UnmarshalPathAttributes(p.Pattrs)
 }
 
 func ToRouteFamily(f *api.Family) bgp.RouteFamily {

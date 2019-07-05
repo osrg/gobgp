@@ -128,7 +128,7 @@ Also, refer to the following for the detail syntax of each address family.
 # add neighbor
 % gobgp neighbor add { <neighbor address> | interface <ifname> } as <as number> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]
 # delete neighbor
-% gobgp neighbor delete { <neighbor address> | interface <ifname> }
+% gobgp neighbor del { <neighbor address> | interface <ifname> }
 % gobgp neighbor <neighbor address> softreset [-a <address family>]
 % gobgp neighbor <neighbor address> softresetin [-a <address family>]
 % gobgp neighbor <neighbor address> softresetout [-a <address family>]
@@ -617,27 +617,7 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 
 ## 6. mrt subcommand
 
-### 6.1 dump mrt records
-
-#### Syntax
-
-```shell
-% gobgp mrt dump rib global [<interval>]
-% gobgp mrt dump rib neighbor <neighbor address> [<interval>]
-```
-
-#### Options
-
-| short  |long    | description                    |
-|--------|--------|--------------------------------|
-| f      | format | filename format                |
-| o      | outdir | output directory of dump files |
-
-#### Example
-
-see [MRT](mrt.md).
-
-### 6.2 inject mrt records
+### 6.1 inject mrt records
 
 #### Syntax
 

@@ -1,7 +1,7 @@
 # GoBGP: BGP implementation in Go
 
 [![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
-[![Slack Status](https://slackin-gobgp.mybluemix.net/badge.svg)](https://slackin-gobgp.mybluemix.net/)
+[![Slack Status](https://slackin-gobgp.now.sh/badge.svg)](https://slackin-gobgp.now.sh/)
 
 GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
@@ -9,19 +9,9 @@ modern environment and implemented in a modern programming language,
 
 ----
 
-## To start using GoBGP
+## Install
 
 Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
-
-## To start developing GoBGP
-
-You need a working [Go environment](https://golang.org/doc/install) (1.10 or newer).
-
-```bash
-$ go get -u github.com/golang/dep/cmd/dep
-$ go get github.com/osrg/gobgp
-$ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
-```
 
 ## Documentation
 
@@ -43,7 +33,9 @@ $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 - [Flowspec](docs/sources/flowspec.md)
 - [RPKI](docs/sources/rpki.md)
 - [Managing GoBGP with your favorite language with gRPC](docs/sources/grpc-client.md)
-- [Using GoBGP as a Go Native BGP library](docs/sources/lib.md)
+- Go Native BGP Library
+  - [Basics](docs/sources/lib.md)
+  - [BGP-LS](docs/sources/lib-ls.md)
 - [Graceful Restart](docs/sources/graceful-restart.md)
 - [Additional Paths](docs/sources/add-paths.md)
 - [Peer Group](docs/sources/peer-group.md)
@@ -59,12 +51,11 @@ $ cd $GOPATH/src/github.com/osrg/gobgp && dep ensure
 
 ## Community, discussion and support
 
-We have the [Slack](https://slackin-gobgp.mybluemix.net/) and [mailing
-list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
-questions, discussion, suggestions, etc.
+We have the [Slack](https://slackin-gobgp.now.sh/) for questions, discussion, suggestions, etc.
 
 You have code or documentation for GoBGP? Awesome! Send a pull
-request. No CLA, board members, governance, or other mess.
+request. No CLA, board members, governance, or other mess. See [`BUILD.md`](BUILD.md) for info on
+code contributing.
 
 ## Licensing
 

@@ -159,6 +159,10 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 		}
 
 		isClassDorE := func(ip net.IP) bool {
+			if ip.To4() == nil {
+				// needs to verify ipv6 too?
+				return false
+			}
 			res := ip[0] & 0xe0
 			return res == 0xe0
 		}

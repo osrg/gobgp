@@ -49,6 +49,13 @@ func modBmpServer(cmdType string, args []string) error {
 	var err error
 	switch cmdType {
 	case cmdAdd:
+		statisticsTimeout := 0
+		if bmpOpts.StatisticsTimeout >= 0 && bmpOpts.StatisticsTimeout <= 65535 {
+			statisticsTimeout = bmpOpts.StatisticsTimeout
+		} else {
+			return fmt.Errorf("invalid statistics-timeout value. it must be in the range 0-65535. default value is 0 and means disabled")
+		}
+
 		policyType := api.AddBmpRequest_PRE
 		if len(args) > 1 {
 			switch args[1] {
@@ -65,9 +72,10 @@ func modBmpServer(cmdType string, args []string) error {
 			}
 		}
 		_, err = client.AddBmp(ctx, &api.AddBmpRequest{
-			Address: address,
-			Port:    port,
-			Type:    policyType,
+			Address:           address,
+			Port:              port,
+			Policy:            policyType,
+			StatisticsTimeout: int32(statisticsTimeout),
 		})
 	case cmdDel:
 		_, err = client.DeleteBmp(ctx, &api.DeleteBmpRequest{
@@ -92,6 +100,9 @@ func newBmpCmd() *cobra.Command {
 					exitWithError(err)
 				}
 			},
+		}
+		if w == cmdAdd {
+			subcmd.PersistentFlags().IntVarP(&bmpOpts.StatisticsTimeout, "statistics-timeout", "s", 0, "Timeout of statistics report")
 		}
 		bmpCmd.AddCommand(subcmd)
 	}

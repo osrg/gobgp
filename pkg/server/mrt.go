@@ -48,16 +48,16 @@ func (m *mrtWriter) Stop() {
 }
 
 func (m *mrtWriter) loop() error {
-	ops := []WatchOption{}
+	ops := []watchOption{}
 	switch m.c.DumpType {
 	case config.MRT_TYPE_UPDATES:
-		ops = append(ops, WatchUpdate(false))
+		ops = append(ops, watchUpdate(false))
 	case config.MRT_TYPE_TABLE:
 		if len(m.c.TableName) > 0 {
-			ops = append(ops, WatchTableName(m.c.TableName))
+			ops = append(ops, watchTableName(m.c.TableName))
 		}
 	}
-	w := m.s.Watch(ops...)
+	w := m.s.watch(ops...)
 	rotator := func() *time.Ticker {
 		if m.rotationInterval == 0 {
 			return &time.Ticker{}
@@ -85,10 +85,10 @@ func (m *mrtWriter) loop() error {
 	}()
 
 	for {
-		serialize := func(ev WatchEvent) []*mrt.MRTMessage {
+		serialize := func(ev watchEvent) []*mrt.MRTMessage {
 			msg := make([]*mrt.MRTMessage, 0, 1)
 			switch e := ev.(type) {
-			case *WatchEventUpdate:
+			case *watchEventUpdate:
 				if e.Init {
 					return nil
 				}
@@ -113,7 +113,7 @@ func (m *mrtWriter) loop() error {
 				} else {
 					msg = append(msg, bm)
 				}
-			case *WatchEventTable:
+			case *watchEventTable:
 				t := uint32(time.Now().Unix())
 
 				peers := make([]*mrt.Peer, 1, len(e.Neighbor)+1)
@@ -125,7 +125,7 @@ func (m *mrtWriter) loop() error {
 					neighborMap[pconf.State.NeighborAddress] = pconf
 				}
 
-				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterId, "", peers)); err != nil {
+				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterID, "", peers)); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
 						"Data":  e,
@@ -137,12 +137,12 @@ func (m *mrtWriter) loop() error {
 				}
 
 				idx := func(p *table.Path) uint16 {
-					for i, pconf := range e.Neighbor {
-						if p.GetSource().Address.String() == pconf.State.NeighborAddress {
+					for i, peer := range peers {
+						if peer.IpAddress.String() == p.GetSource().Address.String() {
 							return uint16(i)
 						}
 					}
-					return uint16(len(e.Neighbor))
+					return uint16(len(peers))
 				}
 
 				subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
@@ -205,8 +205,8 @@ func (m *mrtWriter) loop() error {
 			return msg
 		}
 
-		drain := func(ev WatchEvent) {
-			events := make([]WatchEvent, 0, 1+len(w.Event()))
+		drain := func(ev watchEvent) {
+			events := make([]watchEvent, 0, 1+len(w.Event()))
 			if ev != nil {
 				events = append(events, ev)
 			}
@@ -274,23 +274,23 @@ func (m *mrtWriter) loop() error {
 			if m.c.DumpType == config.MRT_TYPE_UPDATES {
 				rotate()
 			} else {
-				w.Generate(WATCH_EVENT_TYPE_TABLE)
+				w.Generate(watchEventTypeTable)
 			}
 		case <-dump.C:
-			w.Generate(WATCH_EVENT_TYPE_TABLE)
+			w.Generate(watchEventTypeTable)
 		}
 	}
 }
 
-func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
+func mrtFileOpen(filename string, rInterval uint64) (*os.File, error) {
 	realname := filename
-	if interval != 0 {
+	if rInterval != 0 {
 		realname = time.Now().Format(filename)
 	}
 	log.WithFields(log.Fields{
-		"Topic":         "mrt",
-		"Filename":      realname,
-		"Dump Interval": interval,
+		"Topic":            "mrt",
+		"Filename":         realname,
+		"RotationInterval": rInterval,
 	}).Debug("Setting new MRT destination file")
 
 	i := len(realname)

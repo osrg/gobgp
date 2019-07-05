@@ -53,6 +53,7 @@ const (
 	AFI_IP     = 1
 	AFI_IP6    = 2
 	AFI_L2VPN  = 25
+	AFI_LS     = 16388
 	AFI_OPAQUE = 16397
 )
 
@@ -63,6 +64,7 @@ const (
 	SAFI_ENCAPSULATION            = 7
 	SAFI_VPLS                     = 65
 	SAFI_EVPN                     = 70
+	SAFI_LS                       = 71
 	SAFI_MPLS_VPN                 = 128
 	SAFI_MPLS_VPN_MULTICAST       = 129
 	SAFI_ROUTE_TARGET_CONSTRAINTS = 132
@@ -2496,7 +2498,7 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	case 128:
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
 
 	for _, l := range er.Labels {
@@ -2614,7 +2616,7 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	case 128:
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
 	if err != nil {
 		return nil, err
@@ -2714,7 +2716,7 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	case 128:
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
 	return buf, nil
 }
@@ -2912,6 +2914,87 @@ func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIde
 	})
 }
 
+type EVPNIPMSIRoute struct {
+	RD   RouteDistinguisherInterface
+	ETag uint32
+	EC   ExtendedCommunityInterface
+}
+
+func (er *EVPNIPMSIRoute) Len() int {
+	// RD(8) + ETag(4) + EC(8)
+	return 20
+}
+
+func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
+
+	er.RD = GetRouteDistinguisher(data[0:8])
+
+	data = data[er.RD.Len():]
+	er.ETag = binary.BigEndian.Uint32(data[0:4])
+
+	data = data[4:]
+	ec, err := ParseExtended(data[0:8])
+	if err != nil {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Parse extended community interface failed"))
+	}
+	er.EC = ec
+	return nil
+}
+
+func (er *EVPNIPMSIRoute) Serialize() ([]byte, error) {
+	buf := make([]byte, 20)
+
+	if er.RD != nil {
+		tbuf, err := er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		copy(buf[0:8], tbuf)
+	}
+
+	binary.BigEndian.PutUint32(buf[8:12], er.ETag)
+
+	ec, err := er.EC.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(buf, ec...), nil
+}
+
+func (er *EVPNIPMSIRoute) String() string {
+	ec := "default"
+	if er.EC != nil {
+		ec = er.EC.String()
+	}
+	return fmt.Sprintf("[type:I-PMSI][rd:%s][etag:%d][EC:%s]", er.RD, er.ETag, ec)
+}
+
+func (er *EVPNIPMSIRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD   RouteDistinguisherInterface `json:"rd"`
+		ETag uint32                      `json:"etag"`
+		EC   string                      `json:"ec"`
+	}{
+		RD:   er.RD,
+		ETag: er.ETag,
+		EC:   er.EC.String(),
+	})
+}
+
+func (er *EVPNIPMSIRoute) rd() RouteDistinguisherInterface {
+	return er.RD
+}
+
+func NewEVPNIPMSIRoute(rd RouteDistinguisherInterface, etag uint32, ec ExtendedCommunityInterface) *EVPNNLRI {
+
+	return NewEVPNNLRI(EVPN_I_PMSI, &EVPNIPMSIRoute{
+		RD:   rd,
+		ETag: etag,
+		EC:   ec,
+	})
+}
+
 type EVPNRouteTypeInterface interface {
 	Len() int
 	DecodeFromBytes([]byte) error
@@ -2943,6 +3026,7 @@ const (
 	EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3
 	EVPN_ETHERNET_SEGMENT_ROUTE             = 4
 	EVPN_IP_PREFIX                          = 5
+	EVPN_I_PMSI                             = 9
 )
 
 type EVPNNLRI struct {
@@ -3980,10 +4064,6 @@ func (v *FlowSpecComponentItem) Len() int {
 }
 
 func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
-	if v.Op > math.MaxUint8 {
-		return nil, fmt.Errorf("invalid op size: %d", v.Op)
-	}
-
 	order := uint32(math.Log2(float64(v.Len())))
 	buf := make([]byte, 1+(1<<order))
 	buf[0] = byte(uint32(v.Op) | order<<4)
@@ -4358,7 +4438,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	}
 	length := n.Len(options...)
 	if length > 0xfff {
-		return nil, fmt.Errorf("Too large: %d", length)
+		return nil, fmt.Errorf("too large: %d", length)
 	} else if length < 0xf0 {
 		length -= 1
 		buf = append([]byte{byte(length)}, buf...)
@@ -4666,7 +4746,7 @@ func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption)
 
 func (n *OpaqueNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	if len(n.Key) > math.MaxUint16 {
-		return nil, fmt.Errorf("Key length too big")
+		return nil, fmt.Errorf("key length too big")
 	}
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(len(n.Key)))
@@ -4715,6 +4795,3210 @@ func NewOpaqueNLRI(key, value []byte) *OpaqueNLRI {
 	}
 }
 
+type LsNLRIType uint16
+
+const (
+	LS_NLRI_TYPE_UNKNOWN LsNLRIType = iota
+	LS_NLRI_TYPE_NODE
+	LS_NLRI_TYPE_LINK
+	LS_NLRI_TYPE_PREFIX_IPV4
+	LS_NLRI_TYPE_PREFIX_IPV6
+)
+
+type LsNLRIInterface interface {
+	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
+	Len() int
+	Type() LsNLRIType
+	String() string
+}
+
+type LsProtocolID uint8
+
+const (
+	LS_PROTOCOL_UNKNOWN = iota
+	LS_PROTOCOL_ISIS_L1
+	LS_PROTOCOL_ISIS_L2
+	LS_PROTOCOL_OSPF_V2
+	LS_PROTOCOL_DIRECT
+	LS_PROTOCOL_STATIC
+	LS_PROTOCOL_OSPF_V3
+)
+
+func (l LsProtocolID) String() string {
+	switch l {
+	case LS_PROTOCOL_ISIS_L1:
+		return "ISIS-L1"
+	case LS_PROTOCOL_ISIS_L2:
+		return "ISIS-L2"
+	case LS_PROTOCOL_OSPF_V2:
+		return "OSPFv2"
+	case LS_PROTOCOL_DIRECT:
+		return "DIRECT"
+	case LS_PROTOCOL_STATIC:
+		return "STATIC"
+	case LS_PROTOCOL_OSPF_V3:
+		return "OSPFv3"
+	default:
+		return fmt.Sprintf("LsProtocolID(%d)", uint8(l))
+	}
+}
+
+type LsNLRI struct {
+	NLRIType   LsNLRIType
+	Length     uint16
+	ProtocolID LsProtocolID
+	Identifier uint64
+}
+
+const lsNLRIHdrLen = 9
+
+func (l *LsNLRI) DecodeFromBytes(data []byte) error {
+	if len(data) < lsNLRIHdrLen {
+		return malformedAttrListErr("Malformed NLRI")
+	}
+
+	l.ProtocolID = LsProtocolID(data[0])
+	l.Identifier = binary.BigEndian.Uint64(data[1:lsNLRIHdrLen])
+
+	return nil
+}
+
+func (l *LsNLRI) Serialize(value []byte) ([]byte, error) {
+	buf := make([]byte, lsNLRIHdrLen)
+	buf[0] = uint8(l.ProtocolID)
+	binary.BigEndian.PutUint64(buf[1:], l.Identifier)
+	buf = append(buf, value...)
+
+	return buf, nil
+}
+
+func (l *LsNLRI) Len() int {
+	return int(l.Length)
+}
+
+func (l *LsNLRI) Type() LsNLRIType {
+	return l.NLRIType
+}
+
+type LsNodeNLRI struct {
+	LsNLRI
+	LocalNodeDesc LsTLVInterface
+}
+
+func (l *LsNodeNLRI) DecodeFromBytes(data []byte) error {
+	if err := l.LsNLRI.DecodeFromBytes(data); err != nil {
+		return nil
+	}
+
+	tlv := data[lsNLRIHdrLen:]
+	if len(tlv) < tlvHdrLen {
+		return malformedAttrListErr("Malformed Node NLRI")
+	}
+
+	tlvType := LsTLVType(binary.BigEndian.Uint16(tlv[:2]))
+	if tlvType != LS_TLV_LOCAL_NODE_DESC {
+		return malformedAttrListErr("Mandatory TLV missing")
+	}
+
+	l.LocalNodeDesc = &LsTLVNodeDescriptor{}
+	if err := l.LocalNodeDesc.DecodeFromBytes(tlv); err != nil {
+		return malformedAttrListErr(fmt.Sprintf("Malformed Node NLRI: %v", err))
+	}
+
+	return nil
+}
+
+func (l *LsNodeNLRI) String() string {
+	if l.LocalNodeDesc == nil {
+		return "NODE { EMPTY }"
+	}
+
+	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
+	return fmt.Sprintf("NODE { AS:%v BGP-LS ID:%v %v %v:%v }", local.Asn, local.BGPLsID, local.IGPRouterID, l.ProtocolID.String(), l.Identifier)
+}
+
+func (l *LsNodeNLRI) Serialize() ([]byte, error) {
+	if l.LocalNodeDesc == nil {
+		return nil, fmt.Errorf("local node descriptor missing")
+	}
+	ser, err := l.LocalNodeDesc.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return l.LsNLRI.Serialize(ser)
+}
+
+func (l *LsNodeNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsNLRIType       `json:"type"`
+		LocalNode LsNodeDescriptor `json:"local_node_desc"`
+	}{
+		Type:      l.Type(),
+		LocalNode: *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+	})
+}
+
+type LsLinkDescriptor struct {
+	LinkLocalID       *uint32
+	LinkRemoteID      *uint32
+	InterfaceAddrIPv4 *net.IP
+	NeighborAddrIPv4  *net.IP
+	InterfaceAddrIPv6 *net.IP
+	NeighborAddrIPv6  *net.IP
+}
+
+func (l *LsLinkDescriptor) ParseTLVs(tlvs []LsTLVInterface) {
+	for _, tlv := range tlvs {
+		switch v := tlv.(type) {
+		case *LsTLVLinkID:
+			l.LinkLocalID = &v.Local
+			l.LinkRemoteID = &v.Remote
+
+		case *LsTLVIPv4InterfaceAddr:
+			l.InterfaceAddrIPv4 = &v.IP
+
+		case *LsTLVIPv4NeighborAddr:
+			l.NeighborAddrIPv4 = &v.IP
+
+		case *LsTLVIPv6InterfaceAddr:
+			l.InterfaceAddrIPv6 = &v.IP
+
+		case *LsTLVIPv6NeighborAddr:
+			l.NeighborAddrIPv6 = &v.IP
+		}
+	}
+}
+
+func (l *LsLinkDescriptor) String() string {
+	if l.InterfaceAddrIPv4 != nil && l.NeighborAddrIPv4 != nil {
+		return fmt.Sprintf("%v->%v", l.InterfaceAddrIPv4, l.NeighborAddrIPv4)
+	}
+
+	if l.InterfaceAddrIPv6 != nil && l.NeighborAddrIPv6 != nil {
+		return fmt.Sprintf("%v->%v", l.InterfaceAddrIPv6, l.NeighborAddrIPv6)
+	}
+
+	if l.LinkLocalID != nil && l.LinkRemoteID != nil {
+		return fmt.Sprintf("%v->%v", *l.LinkLocalID, *l.LinkRemoteID)
+	}
+
+	return "UNKNOWN"
+}
+
+type LsLinkNLRI struct {
+	LsNLRI
+	LocalNodeDesc  LsTLVInterface
+	RemoteNodeDesc LsTLVInterface
+	LinkDesc       []LsTLVInterface
+}
+
+func (l *LsLinkNLRI) String() string {
+	if l.LocalNodeDesc == nil || l.RemoteNodeDesc == nil {
+		return "LINK { EMPTY }"
+	}
+
+	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
+	remote := l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract()
+	link := &LsLinkDescriptor{}
+	link.ParseTLVs(l.LinkDesc)
+
+	return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v}", local.IGPRouterID, remote.IGPRouterID, link)
+}
+
+func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
+	if err := l.LsNLRI.DecodeFromBytes(data); err != nil {
+		return nil
+	}
+
+	tlv := data[lsNLRIHdrLen:]
+	m := make(map[LsTLVType]bool)
+
+	for len(tlv) >= tlvHdrLen {
+		sub := &LsTLV{}
+		_, err := sub.DecodeFromBytes(tlv)
+		if err != nil {
+			return err
+		}
+		m[sub.Type] = true
+
+		var subTLV LsTLVInterface
+		switch sub.Type {
+		case LS_TLV_LOCAL_NODE_DESC, LS_TLV_REMOTE_NODE_DESC:
+			subTLV = &LsTLVNodeDescriptor{}
+		case LS_TLV_LINK_ID:
+			subTLV = &LsTLVLinkID{}
+		case LS_TLV_IPV4_INTERFACE_ADDR:
+			subTLV = &LsTLVIPv4InterfaceAddr{}
+		case LS_TLV_IPV4_NEIGHBOR_ADDR:
+			subTLV = &LsTLVIPv4NeighborAddr{}
+		case LS_TLV_IPV6_INTERFACE_ADDR:
+			subTLV = &LsTLVIPv6InterfaceAddr{}
+		case LS_TLV_IPV6_NEIGHBOR_ADDR:
+			subTLV = &LsTLVIPv6NeighborAddr{}
+
+		default:
+			tlv = tlv[sub.Len():]
+			l.Length -= uint16(sub.Len())
+			continue
+		}
+
+		if err := subTLV.DecodeFromBytes(tlv); err != nil {
+			return err
+		}
+		tlv = tlv[subTLV.Len():]
+
+		switch sub.Type {
+		case LS_TLV_LOCAL_NODE_DESC:
+			l.LocalNodeDesc = subTLV
+		case LS_TLV_REMOTE_NODE_DESC:
+			l.RemoteNodeDesc = subTLV
+		default:
+			l.LinkDesc = append(l.LinkDesc, subTLV)
+		}
+	}
+
+	required := []LsTLVType{LS_TLV_LOCAL_NODE_DESC, LS_TLV_REMOTE_NODE_DESC}
+	for _, tlv := range required {
+		if _, ok := m[tlv]; !ok {
+			return malformedAttrListErr("Required TLV missing")
+		}
+	}
+
+	return nil
+}
+
+func (l *LsLinkNLRI) Serialize() ([]byte, error) {
+	if l.LocalNodeDesc == nil || l.RemoteNodeDesc == nil {
+		return nil, fmt.Errorf("required TLV missing")
+	}
+
+	buf := make([]byte, 0)
+	s, err := l.LocalNodeDesc.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, s...)
+
+	s, err = l.RemoteNodeDesc.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, s...)
+
+	for _, tlv := range l.LinkDesc {
+		s, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, s...)
+	}
+
+	return l.LsNLRI.Serialize(buf)
+}
+
+func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
+	linkDesc := &LsLinkDescriptor{}
+	linkDesc.ParseTLVs(l.LinkDesc)
+
+	return json.Marshal(struct {
+		Type       LsNLRIType       `json:"type"`
+		LocalNode  LsNodeDescriptor `json:"local_node_desc"`
+		RemoteNode LsNodeDescriptor `json:"remote_node_desc"`
+		LinkDesc   LsLinkDescriptor `json:"link_desc"`
+	}{
+		Type:       l.Type(),
+		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		RemoteNode: *l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		LinkDesc:   *linkDesc,
+	})
+}
+
+type LsPrefixDescriptor struct {
+	IPReachability []net.IPNet
+	OSPFRouteType  LsOspfRouteType
+}
+
+func (l *LsPrefixDescriptor) ParseTLVs(tlvs []LsTLVInterface, ipv6 bool) {
+	for _, tlv := range tlvs {
+		switch v := tlv.(type) {
+		case *LsTLVIPReachability:
+			l.IPReachability = append(l.IPReachability, v.ToIPNet(ipv6))
+
+		case *LsTLVOspfRouteType:
+			l.OSPFRouteType = v.RouteType
+		}
+	}
+}
+
+type LsPrefixV4NLRI struct {
+	LsNLRI
+	LocalNodeDesc LsTLVInterface
+	PrefixDesc    []LsTLVInterface
+}
+
+func (l *LsPrefixV4NLRI) String() string {
+	if l.LocalNodeDesc == nil {
+		return "PREFIXv4 { EMPTY }"
+	}
+
+	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
+	prefix := &LsPrefixDescriptor{}
+	prefix.ParseTLVs(l.PrefixDesc, false)
+	ips := []string{}
+	for _, ip := range prefix.IPReachability {
+		ips = append(ips, ip.String())
+	}
+
+	ospf := ""
+	if prefix.OSPFRouteType != LS_OSPF_ROUTE_TYPE_UNKNOWN {
+		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
+	}
+
+	return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %v PREFIX: %v %v}", local.IGPRouterID, ips, ospf)
+}
+
+func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
+	if err := l.LsNLRI.DecodeFromBytes(data); err != nil {
+		return nil
+	}
+
+	tlv := data[lsNLRIHdrLen:]
+	m := make(map[LsTLVType]bool)
+
+	for len(tlv) >= tlvHdrLen {
+		sub := &LsTLV{}
+		_, err := sub.DecodeFromBytes(tlv)
+		if err != nil {
+			return err
+		}
+		m[sub.Type] = true
+
+		var subTLV LsTLVInterface
+		switch sub.Type {
+		case LS_TLV_LOCAL_NODE_DESC:
+			subTLV = &LsTLVNodeDescriptor{}
+		case LS_TLV_OSPF_ROUTE_TYPE:
+			subTLV = &LsTLVOspfRouteType{}
+		case LS_TLV_IP_REACH_INFO:
+			subTLV = &LsTLVIPReachability{}
+
+		default:
+			tlv = tlv[sub.Len():]
+			l.Length -= uint16(sub.Len())
+			continue
+		}
+
+		if err := subTLV.DecodeFromBytes(tlv); err != nil {
+			return err
+		}
+		tlv = tlv[subTLV.Len():]
+
+		switch sub.Type {
+		case LS_TLV_LOCAL_NODE_DESC:
+			l.LocalNodeDesc = subTLV
+		default:
+			l.PrefixDesc = append(l.PrefixDesc, subTLV)
+		}
+	}
+
+	required := []LsTLVType{LS_TLV_IP_REACH_INFO, LS_TLV_LOCAL_NODE_DESC}
+	for _, tlv := range required {
+		if _, ok := m[tlv]; !ok {
+			return malformedAttrListErr("Required TLV missing")
+		}
+	}
+
+	for _, tlv := range l.PrefixDesc {
+		switch v := tlv.(type) {
+		case *LsTLVIPReachability:
+			if v.PrefixLength > 8*net.IPv4len {
+				return malformedAttrListErr("Unexpected IP Reachability info")
+			}
+		}
+	}
+
+	return nil
+}
+
+func (l *LsPrefixV4NLRI) Serialize() ([]byte, error) {
+	if l.LocalNodeDesc == nil {
+		return nil, fmt.Errorf("required TLV missing")
+	}
+
+	buf := make([]byte, 0)
+	s, err := l.LocalNodeDesc.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, s...)
+
+	for _, tlv := range l.PrefixDesc {
+		s, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, s...)
+	}
+
+	return l.LsNLRI.Serialize(buf)
+}
+
+func (l *LsPrefixV4NLRI) MarshalJSON() ([]byte, error) {
+	prefixDesc := &LsPrefixDescriptor{}
+	prefixDesc.ParseTLVs(l.PrefixDesc, false)
+
+	return json.Marshal(struct {
+		Type       LsNLRIType         `json:"type"`
+		LocalNode  LsNodeDescriptor   `json:"local_node_desc"`
+		PrefixDesc LsPrefixDescriptor `json:"prefix_desc"`
+	}{
+		Type:       l.Type(),
+		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		PrefixDesc: *prefixDesc,
+	})
+}
+
+type LsPrefixV6NLRI struct {
+	LsNLRI
+	LocalNodeDesc LsTLVInterface
+	PrefixDesc    []LsTLVInterface
+}
+
+func (l *LsPrefixV6NLRI) String() string {
+	if l.LocalNodeDesc == nil {
+		return "PREFIXv6 { EMPTY }"
+	}
+
+	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
+	prefix := &LsPrefixDescriptor{}
+	prefix.ParseTLVs(l.PrefixDesc, true)
+	ips := []string{}
+	for _, ip := range prefix.IPReachability {
+		ips = append(ips, ip.String())
+	}
+
+	ospf := ""
+	if prefix.OSPFRouteType != LS_OSPF_ROUTE_TYPE_UNKNOWN {
+		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
+	}
+
+	return fmt.Sprintf("PREFIXv6 { LOCAL_NODE: %v PREFIX: %v %v}", local.IGPRouterID, ips, ospf)
+}
+
+func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
+	if err := l.LsNLRI.DecodeFromBytes(data); err != nil {
+		return nil
+	}
+
+	tlv := data[lsNLRIHdrLen:]
+	m := make(map[LsTLVType]bool)
+
+	for len(tlv) >= tlvHdrLen {
+		sub := &LsTLV{}
+		_, err := sub.DecodeFromBytes(tlv)
+		if err != nil {
+			return err
+		}
+		m[sub.Type] = true
+
+		var subTLV LsTLVInterface
+		switch sub.Type {
+		case LS_TLV_LOCAL_NODE_DESC:
+			subTLV = &LsTLVNodeDescriptor{}
+		case LS_TLV_OSPF_ROUTE_TYPE:
+			subTLV = &LsTLVOspfRouteType{}
+		case LS_TLV_IP_REACH_INFO:
+			subTLV = &LsTLVIPReachability{}
+
+		default:
+			tlv = tlv[sub.Len():]
+			l.Length -= uint16(sub.Len())
+			continue
+		}
+
+		if err := subTLV.DecodeFromBytes(tlv); err != nil {
+			return err
+		}
+		tlv = tlv[subTLV.Len():]
+
+		switch sub.Type {
+		case LS_TLV_LOCAL_NODE_DESC:
+			l.LocalNodeDesc = subTLV
+		default:
+			l.PrefixDesc = append(l.PrefixDesc, subTLV)
+		}
+	}
+
+	required := []LsTLVType{LS_TLV_IP_REACH_INFO, LS_TLV_LOCAL_NODE_DESC}
+	for _, tlv := range required {
+		if _, ok := m[tlv]; !ok {
+			return malformedAttrListErr("Required TLV missing")
+		}
+	}
+
+	return nil
+}
+
+func (l *LsPrefixV6NLRI) Serialize() ([]byte, error) {
+	if l.LocalNodeDesc == nil {
+		return nil, fmt.Errorf("required TLV missing")
+	}
+
+	buf := make([]byte, 0)
+	s, err := l.LocalNodeDesc.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, s...)
+
+	for _, tlv := range l.PrefixDesc {
+		s, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, s...)
+	}
+
+	return l.LsNLRI.Serialize(buf)
+}
+
+func (l *LsPrefixV6NLRI) MarshalJSON() ([]byte, error) {
+	prefixDesc := &LsPrefixDescriptor{}
+	prefixDesc.ParseTLVs(l.PrefixDesc, true)
+
+	return json.Marshal(struct {
+		Type       LsNLRIType         `json:"type"`
+		LocalNode  LsNodeDescriptor   `json:"local_node_desc"`
+		PrefixDesc LsPrefixDescriptor `json:"prefix_desc"`
+	}{
+		Type:       l.Type(),
+		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		PrefixDesc: *prefixDesc,
+	})
+}
+
+type LsTLVType uint16
+
+// Based on https://www.iana.org/assignments/bgp-ls-parameters/bgp-ls-parameters.xhtml
+const (
+	LS_TLV_UNKNOWN LsTLVType = iota
+
+	LS_TLV_LOCAL_NODE_DESC     = 256
+	LS_TLV_REMOTE_NODE_DESC    = 257
+	LS_TLV_LINK_ID             = 258
+	LS_TLV_IPV4_INTERFACE_ADDR = 259
+	LS_TLV_IPV4_NEIGHBOR_ADDR  = 260
+	LS_TLV_IPV6_INTERFACE_ADDR = 261
+	LS_TLV_IPV6_NEIGHBOR_ADDR  = 262
+	LS_TLV_MULTI_TOPO_ID       = 263
+	LS_TLV_OSPF_ROUTE_TYPE     = 264
+	LS_TLV_IP_REACH_INFO       = 265
+
+	LS_TLV_AS                       = 512
+	LS_TLV_BGP_LS_ID                = 513
+	LS_TLV_OSPF_AREA                = 514
+	LS_TLV_IGP_ROUTER_ID            = 515
+	LS_TLV_BGP_ROUTER_ID            = 516 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+	LS_TLV_BGP_CONFEDERATION_MEMBER = 517 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+
+	LS_TLV_NODE_FLAG_BITS        = 1024
+	LS_TLV_OPAQUE_NODE_ATTR      = 1025
+	LS_TLV_NODE_NAME             = 1026
+	LS_TLV_ISIS_AREA             = 1027
+	LS_TLV_IPV4_LOCAL_ROUTER_ID  = 1028
+	LS_TLV_IPV6_LOCAL_ROUTER_ID  = 1029
+	LS_TLV_IPV4_REMOTE_ROUTER_ID = 1030
+	LS_TLV_IPV6_REMOTE_ROUTER_ID = 1031
+
+	LS_TLV_SR_CAPABILITIES = 1034 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_SR_ALGORITHM    = 1035 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_SR_LOCAL_BLOCK  = 1036 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_SRMS_PREFERENCE = 1037 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+
+	LS_TLV_ADMIN_GROUP              = 1088
+	LS_TLV_MAX_LINK_BANDWIDTH       = 1089
+	LS_TLV_MAX_RESERVABLE_BANDWIDTH = 1090
+	LS_TLV_UNRESERVED_BANDWIDTH     = 1091
+	LS_TLV_TE_DEFAULT_METRIC        = 1092
+	LS_TLV_LINK_PROTECTION_TYPE     = 1093 // TODO
+	LS_TLV_MPLS_PROTOCOL_MASK       = 1094 // TODO
+	LS_TLV_IGP_METRIC               = 1095
+	LS_TLV_SRLG                     = 1096 // TODO
+	LS_TLV_OPAQUE_LINK_ATTR         = 1097
+	LS_TLV_LINK_NAME                = 1098
+	LS_TLV_ADJACENCY_SID            = 1099 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_LAN_ADJACENCY_SID        = 1100 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+	LS_TLV_PEER_NODE_SID            = 1101 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+	LS_TLV_PEER_ADJACENCY_SID       = 1102 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+	LS_TLV_PEER_SET_SID             = 1103 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+
+	LS_TLV_RTM_CAPABILITY = 1105 // RFC8169, TODO
+
+	LS_TLV_IGP_FLAGS              = 1152
+	LS_TLV_IGP_ROUTE_TAG          = 1153 // TODO
+	LS_TLV_EXTENDED_ROUTE_TAG     = 1154 // TODO
+	LS_TLV_PREFIX_METRIC          = 1155 // TODO
+	LS_TLV_OSPF_FORWARDING_ADDR   = 1156 // TODO
+	LS_TLV_OPAQUE_PREFIX_ATTR     = 1157
+	LS_TLV_PREFIX_SID             = 1158 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_RANGE                  = 1159 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+	LS_TLV_SID_LABEL_TLV          = 1161 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_PREFIX_ATTRIBUTE_FLAGS = 1170 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+	LS_TLV_SOURCE_ROUTER_ID       = 1171 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+	LS_TLV_L2_BUNDLE_MEMBER_TLV   = 1172 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+)
+
+type LsTLVInterface interface {
+	Len() int
+	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
+	String() string
+	MarshalJSON() ([]byte, error)
+}
+
+type LsTLV struct {
+	Type   LsTLVType
+	Length uint16
+}
+
+func malformedAttrListErr(s string) error {
+	return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, s)
+}
+
+const tlvHdrLen = 4
+
+func (l *LsTLV) Len() int {
+	return int(l.Length) + tlvHdrLen
+}
+
+func (l *LsTLV) Serialize(value []byte) ([]byte, error) {
+	if len(value) != int(l.Length) {
+		return nil, malformedAttrListErr("serialization failed: LS TLV malformed")
+	}
+
+	buf := make([]byte, tlvHdrLen)
+	binary.BigEndian.PutUint16(buf[:2], uint16(l.Type))
+	binary.BigEndian.PutUint16(buf[2:4], uint16(l.Length))
+	buf = append(buf, value...)
+
+	return buf, nil
+}
+
+func (l *LsTLV) DecodeFromBytes(data []byte) ([]byte, error) {
+	if len(data) < tlvHdrLen {
+		return nil, malformedAttrListErr("decoding failed: LS TLV malformed")
+	}
+	l.Type = LsTLVType(binary.BigEndian.Uint16(data[:2]))
+	l.Length = binary.BigEndian.Uint16(data[2:4])
+
+	if len(data) < l.Len() {
+		return nil, malformedAttrListErr("decoding failed: LS TLV malformed")
+	}
+
+	return data[tlvHdrLen:l.Len()], nil
+}
+
+type LsTLVLinkID struct {
+	LsTLV
+	Local  uint32
+	Remote uint32
+}
+
+func (l *LsTLVLinkID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_LINK_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5307#section-1.1
+	if len(value) != 8 {
+		return malformedAttrListErr("Incorrect Link ID length")
+	}
+
+	l.Local = binary.BigEndian.Uint32(value[:4])
+	l.Remote = binary.BigEndian.Uint32(value[4:])
+
+	return nil
+}
+
+func (l *LsTLVLinkID) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint32(buf[:4], l.Local)
+	binary.BigEndian.PutUint32(buf[4:], l.Remote)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVLinkID) String() string {
+	return fmt.Sprintf("{Link ID Remote: %v Local: %v}", l.Local, l.Remote)
+}
+
+func (l *LsTLVLinkID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   LsTLVType `json:"type"`
+		Local  uint32    `json:"local_link_id"`
+		Remote uint32    `json:"remote_link_id"`
+	}{
+		Type:   l.Type,
+		Local:  l.Local,
+		Remote: l.Remote,
+	})
+}
+
+type LsTLVIPv4InterfaceAddr struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVIPv4InterfaceAddr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV4_INTERFACE_ADDR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-3.2
+	if len(value) != 4 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVIPv4InterfaceAddr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVIPv4InterfaceAddr) String() string {
+	return fmt.Sprintf("{IPv4 Interface Address: %v}", l.IP)
+}
+
+func (l *LsTLVIPv4InterfaceAddr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"ipv4_interface_address"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVIPv4NeighborAddr struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVIPv4NeighborAddr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV4_NEIGHBOR_ADDR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-3.3
+	if len(value) != 4 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVIPv4NeighborAddr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVIPv4NeighborAddr) String() string {
+	return fmt.Sprintf("{IPv4 Neighbor Address: %v}", l.IP)
+}
+
+func (l *LsTLVIPv4NeighborAddr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"ipv4_neighbor_address"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVIPv6InterfaceAddr struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVIPv6InterfaceAddr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV6_INTERFACE_ADDR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc6119#section-4.2
+	if len(value) != 16 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	if l.IP.IsLinkLocalUnicast() {
+		return malformedAttrListErr("Unexpected link local address")
+	}
+
+	return nil
+}
+
+func (l *LsTLVIPv6InterfaceAddr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVIPv6InterfaceAddr) String() string {
+	return fmt.Sprintf("{IPv6 Interface Address: %v}", l.IP)
+}
+
+func (l *LsTLVIPv6InterfaceAddr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"ipv6_interface_address"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVIPv6NeighborAddr struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVIPv6NeighborAddr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV6_NEIGHBOR_ADDR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc6119#section-4.3
+	if len(value) != 16 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	if l.IP.IsLinkLocalUnicast() {
+		return malformedAttrListErr("Unexpected link local address")
+	}
+
+	return nil
+}
+
+func (l *LsTLVIPv6NeighborAddr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVIPv6NeighborAddr) String() string {
+	return fmt.Sprintf("{IPv6 Neighbor Address: %v}", l.IP)
+}
+
+func (l *LsTLVIPv6NeighborAddr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"ipv6_neighbor_address"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+// https://tools.ietf.org/html/rfc7752#section-3.3.1.1
+type LsNodeFlags struct {
+	Overload bool `json:"overload"`
+	Attached bool `json:"attached"`
+	External bool `json:"external"`
+	ABR      bool `json:"abr"`
+	Router   bool `json:"router"`
+	V6       bool `json:"v6"`
+}
+
+type LsTLVNodeFlagBits struct {
+	LsTLV
+	Flags uint8
+}
+
+func (l *LsTLVNodeFlagBits) Extract() *LsNodeFlags {
+	return &LsNodeFlags{
+		Overload: (l.Flags & (1 << 7)) > 0,
+		Attached: (l.Flags & (1 << 6)) > 0,
+		External: (l.Flags & (1 << 5)) > 0,
+		ABR:      (l.Flags & (1 << 4)) > 0,
+		Router:   (l.Flags & (1 << 3)) > 0,
+		V6:       (l.Flags & (1 << 2)) > 0,
+	}
+}
+
+func (l *LsTLVNodeFlagBits) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_NODE_FLAG_BITS {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if l.Length != 1 {
+		return malformedAttrListErr("Node Flag Bits TLV malformed")
+	}
+
+	l.Flags = value[0]
+
+	return nil
+}
+
+func (l *LsTLVNodeFlagBits) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize([]byte{l.Flags})
+}
+
+func (l *LsTLVNodeFlagBits) String() string {
+	flags := "XXVRBETO"
+
+	var buf bytes.Buffer
+
+	for i := 0; i < len(flags); i++ {
+		if l.Flags&(1<<uint(i)) > 0 {
+			buf.WriteString(flags[i : i+1])
+		} else {
+			buf.WriteString("*")
+		}
+	}
+
+	return fmt.Sprintf("{Node Flags: %s}", buf.String())
+}
+
+func (l *LsTLVNodeFlagBits) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Flags string    `json:"node_flags"`
+	}{
+		Type:  l.Type,
+		Flags: l.String(),
+	})
+}
+
+type LsTLVNodeName struct {
+	LsTLV
+	Name string
+}
+
+func (l *LsTLVNodeName) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_NODE_NAME {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// RFC5301, section 3.
+	if l.Length < 1 || l.Length > 255 {
+		return malformedAttrListErr("Incorrect Node Name")
+	}
+
+	l.Name = string(value)
+
+	return nil
+}
+
+func (l *LsTLVNodeName) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize([]byte(l.Name))
+}
+
+func (l *LsTLVNodeName) String() string {
+	return fmt.Sprintf("{Node Name: %s}", l.Name)
+}
+
+func (l *LsTLVNodeName) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		Name string    `json:"node_name"`
+	}{
+		Type: l.Type,
+		Name: l.Name,
+	})
+}
+
+type LsTLVIsisArea struct {
+	LsTLV
+	Area []byte
+}
+
+func (l *LsTLVIsisArea) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_ISIS_AREA {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 1 || len(value) > 13 {
+		return malformedAttrListErr("Incorrect ISIS Area size")
+	}
+
+	l.Area = value
+
+	return nil
+}
+
+func (l *LsTLVIsisArea) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.Area)
+}
+
+func (l *LsTLVIsisArea) String() string {
+	return fmt.Sprintf("{ISIS Area ID: %v}", l.Area)
+}
+
+func (l *LsTLVIsisArea) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		Area string    `json:"isis_area_id"`
+	}{
+		Type: l.Type,
+		Area: fmt.Sprintf("%v", l.Area),
+	})
+}
+
+type LsTLVLocalIPv4RouterID struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVLocalIPv4RouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV4_LOCAL_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-4.3
+	if len(value) != 4 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVLocalIPv4RouterID) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVLocalIPv4RouterID) String() string {
+	return fmt.Sprintf("{Local RouterID IPv4: %v}", l.IP)
+}
+
+func (l *LsTLVLocalIPv4RouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"node_local_router_id_ipv4"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVRemoteIPv4RouterID struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVRemoteIPv4RouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV4_REMOTE_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-4.3
+	if len(value) != 4 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVRemoteIPv4RouterID) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVRemoteIPv4RouterID) String() string {
+	return fmt.Sprintf("{Remote RouterID IPv4: %v}", l.IP)
+}
+
+func (l *LsTLVRemoteIPv4RouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"node_remote_router_id_ipv4"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVLocalIPv6RouterID struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVLocalIPv6RouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV6_LOCAL_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc6119#section-4.1
+	if len(value) != 16 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVLocalIPv6RouterID) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVLocalIPv6RouterID) String() string {
+	return fmt.Sprintf("{Local RouterID IPv6: %v}", l.IP)
+}
+
+func (l *LsTLVLocalIPv6RouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"node_local_router_id_ipv6"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVRemoteIPv6RouterID struct {
+	LsTLV
+	IP net.IP
+}
+
+func (l *LsTLVRemoteIPv6RouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IPV6_REMOTE_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc6119#section-4.1
+	if len(value) != 16 {
+		return malformedAttrListErr("Unexpected address size")
+	}
+
+	l.IP = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVRemoteIPv6RouterID) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.IP)
+}
+
+func (l *LsTLVRemoteIPv6RouterID) String() string {
+	return fmt.Sprintf("{Remote RouterID IPv6: %v}", l.IP)
+}
+
+func (l *LsTLVRemoteIPv6RouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"node_remote_router_id_ipv6"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.IP),
+	})
+}
+
+type LsTLVOpaqueNodeAttr struct {
+	LsTLV
+	Attr []byte
+}
+
+func (l *LsTLVOpaqueNodeAttr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_OPAQUE_NODE_ATTR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	l.Attr = value
+
+	return nil
+}
+
+func (l *LsTLVOpaqueNodeAttr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.Attr)
+}
+
+func (l *LsTLVOpaqueNodeAttr) String() string {
+	return fmt.Sprintf("{Opaque attribute: %v}", l.Attr)
+}
+
+func (l *LsTLVOpaqueNodeAttr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"node_opaque_attribute"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.Attr),
+	})
+}
+
+type LsTLVAutonomousSystem struct {
+	LsTLV
+	ASN uint32
+}
+
+func (l *LsTLVAutonomousSystem) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_AS {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.2.1.4
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect AS length")
+	}
+
+	l.ASN = binary.BigEndian.Uint32(value)
+
+	return nil
+}
+
+func (l *LsTLVAutonomousSystem) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.ASN)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVAutonomousSystem) String() string {
+	return fmt.Sprintf("{ASN: %d}", l.ASN)
+}
+
+func (l *LsTLVAutonomousSystem) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		ASN  uint32    `json:"asn"`
+	}{
+		Type: l.Type,
+		ASN:  l.ASN,
+	})
+}
+
+type LsTLVBgpLsID struct {
+	LsTLV
+	BGPLsID uint32
+}
+
+func (l *LsTLVBgpLsID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_BGP_LS_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.2.1.4
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect BGP-LS ID length")
+	}
+
+	l.BGPLsID = binary.BigEndian.Uint32(value)
+
+	return nil
+}
+
+func (l *LsTLVBgpLsID) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.BGPLsID)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVBgpLsID) String() string {
+	return fmt.Sprintf("{BGP LS ID: %d}", l.BGPLsID)
+}
+
+func (l *LsTLVBgpLsID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    LsTLVType `json:"type"`
+		BgpLsID uint32    `json:"bgp_ls_id"`
+	}{
+		Type:    l.Type,
+		BgpLsID: l.BGPLsID,
+	})
+}
+
+type LsTLVIgpRouterID struct {
+	LsTLV
+	RouterID []byte
+}
+
+func (l *LsTLVIgpRouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IGP_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.2.1.4
+	// 6, 7, and 8 are the only valid values.
+	if len(value) < 6 || len(value) > 8 {
+		return malformedAttrListErr("Incorrect IGP Router ID length")
+	}
+
+	l.RouterID = value
+
+	return nil
+}
+
+func (l *LsTLVIgpRouterID) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.RouterID)
+}
+
+func (l *LsTLVIgpRouterID) String() string {
+	return fmt.Sprintf("{IGP Router ID: %v}", l.RouterID)
+}
+
+func (l *LsTLVIgpRouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     LsTLVType `json:"type"`
+		RouterID string    `json:"igp_router_id"`
+	}{
+		Type:     l.Type,
+		RouterID: fmt.Sprintf("%v", l.RouterID),
+	})
+}
+
+type LsTLVOspfAreaID struct {
+	LsTLV
+	AreaID uint32
+}
+
+func (l *LsTLVOspfAreaID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_OSPF_AREA {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.2.1.4
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect OSPF Area ID length")
+	}
+
+	l.AreaID = binary.BigEndian.Uint32(value)
+
+	return nil
+}
+
+func (l *LsTLVOspfAreaID) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.AreaID)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVOspfAreaID) String() string {
+	return fmt.Sprintf("{OSPF Area ID: %d}", l.AreaID)
+}
+
+func (l *LsTLVOspfAreaID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   LsTLVType `json:"type"`
+		AreaID uint32    `json:"ospf_area_id"`
+	}{
+		Type:   l.Type,
+		AreaID: l.AreaID,
+	})
+}
+
+type LsOspfRouteType uint8
+
+const (
+	LS_OSPF_ROUTE_TYPE_UNKNOWN = iota
+	LS_OSPF_ROUTE_TYPE_INTRA_AREA
+	LS_OSPF_ROUTE_TYPE_INTER_AREA
+	LS_OSPF_ROUTE_TYPE_EXTERNAL1
+	LS_OSPF_ROUTE_TYPE_EXTERNAL2
+	LS_OSPF_ROUTE_TYPE_NSSA1
+	LS_OSPF_ROUTE_TYPE_NSSA2
+)
+
+func (l LsOspfRouteType) String() string {
+	switch l {
+	case LS_OSPF_ROUTE_TYPE_INTRA_AREA:
+		return "INTRA-AREA"
+	case LS_OSPF_ROUTE_TYPE_INTER_AREA:
+		return "INTER-AREA"
+	case LS_OSPF_ROUTE_TYPE_EXTERNAL1:
+		return "EXTERNAL1"
+	case LS_OSPF_ROUTE_TYPE_EXTERNAL2:
+		return "EXTERNAL2"
+	case LS_OSPF_ROUTE_TYPE_NSSA1:
+		return "NSSA1"
+	case LS_OSPF_ROUTE_TYPE_NSSA2:
+		return "NSSA2"
+	default:
+		return fmt.Sprintf("LsOspfRouteType(%d)", uint8(l))
+	}
+}
+
+type LsTLVOspfRouteType struct {
+	LsTLV
+	RouteType LsOspfRouteType
+}
+
+func (l *LsTLVOspfRouteType) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_OSPF_ROUTE_TYPE {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.2.3.1
+	if len(value) != 1 {
+		return malformedAttrListErr("Incorrect OSPF Route type length")
+	}
+
+	if value[0] < byte(LS_OSPF_ROUTE_TYPE_INTRA_AREA) || value[0] > LS_OSPF_ROUTE_TYPE_NSSA2 {
+		return malformedAttrListErr("Incorrect OSPF Route type")
+	}
+
+	l.RouteType = LsOspfRouteType(value[0])
+
+	return nil
+}
+
+func (l *LsTLVOspfRouteType) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = byte(l.RouteType)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVOspfRouteType) String() string {
+	return fmt.Sprintf("{OSPF Route Type: %v}", l.RouteType)
+}
+
+func (l *LsTLVOspfRouteType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType `json:"type"`
+		RouteType string    `json:"ospf_route_type"`
+	}{
+		Type:      l.Type,
+		RouteType: l.RouteType.String(),
+	})
+}
+
+type LsTLVIPReachability struct {
+	LsTLV
+	PrefixLength uint8
+	Prefix       []byte
+}
+
+func (l *LsTLVIPReachability) ToIPNet(ipv6 bool) net.IPNet {
+	b := make([]byte, 16)
+	for i := 0; i < int(((l.PrefixLength-1)/8)+1); i++ {
+		b[i] = l.Prefix[i]
+	}
+
+	ip := net.IPv4(b[0], b[1], b[2], b[3]).To4()
+	if ipv6 {
+		ip = net.IP(b).To16()
+	}
+
+	_, n, err := net.ParseCIDR(fmt.Sprintf("%v/%v", ip, l.PrefixLength))
+	if err != nil {
+		return net.IPNet{}
+	}
+
+	return *n
+}
+
+func (l *LsTLVIPReachability) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IP_REACH_INFO {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 2 {
+		return malformedAttrListErr("Incorrect IP reachability Info length")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.2.3.2
+	if value[0] > 128 || value[0] == 0 {
+		return malformedAttrListErr("Incorrect IP prefix length")
+	}
+
+	ll := int(((value[0] - 1) / 8) + 1)
+	if len(value[1:]) != ll {
+		return malformedAttrListErr("Malformed IP reachability TLV")
+	}
+
+	l.PrefixLength = value[0]
+	l.Prefix = value[1 : 1+ll]
+
+	return nil
+}
+
+func (l *LsTLVIPReachability) Serialize() ([]byte, error) {
+	b := []byte{l.PrefixLength}
+
+	return l.LsTLV.Serialize(append(b, l.Prefix...))
+}
+
+func (l *LsTLVIPReachability) String() string {
+	return fmt.Sprintf("{IP Reachability: %v/%v}", l.Prefix, l.PrefixLength)
+}
+
+func (l *LsTLVIPReachability) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type         LsTLVType `json:"type"`
+		PrefixLength uint8     `json:"prefix_length"`
+		Prefix       string    `json:"prefix"`
+	}{
+		Type:         l.Type,
+		PrefixLength: l.PrefixLength,
+		Prefix:       fmt.Sprintf("%v", l.Prefix),
+	})
+}
+
+type LsTLVAdminGroup struct {
+	LsTLV
+	AdminGroup uint32
+}
+
+func (l *LsTLVAdminGroup) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_ADMIN_GROUP {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-3.1
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect Admin Group length")
+	}
+
+	l.AdminGroup = binary.BigEndian.Uint32(value)
+
+	return nil
+}
+
+func (l *LsTLVAdminGroup) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.AdminGroup)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVAdminGroup) String() string {
+	return fmt.Sprintf("{Admin Group: %08x}", l.AdminGroup)
+}
+
+func (l *LsTLVAdminGroup) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type       LsTLVType `json:"type"`
+		AdminGroup string    `json:"admin_group"`
+	}{
+		Type:       l.Type,
+		AdminGroup: fmt.Sprintf("%08x", l.AdminGroup),
+	})
+}
+
+type LsTLVMaxLinkBw struct {
+	LsTLV
+	Bandwidth float32
+}
+
+func (l *LsTLVMaxLinkBw) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_MAX_LINK_BANDWIDTH {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-3.4
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect maximum link bandwidth length")
+	}
+
+	l.Bandwidth = math.Float32frombits(binary.BigEndian.Uint32(value))
+
+	if l.Bandwidth < 0 || math.IsNaN(float64(l.Bandwidth)) || math.IsInf(float64(l.Bandwidth), 0) {
+		return malformedAttrListErr("Incorrect maximum link bandwidth value")
+	}
+
+	return nil
+}
+
+func (l *LsTLVMaxLinkBw) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, math.Float32bits(l.Bandwidth))
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVMaxLinkBw) String() string {
+	return fmt.Sprintf("{Max Link BW: %v}", l.Bandwidth)
+}
+
+func (l *LsTLVMaxLinkBw) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType `json:"type"`
+		Bandwidth float32   `json:"max_link_bw"`
+	}{
+		Type:      l.Type,
+		Bandwidth: l.Bandwidth,
+	})
+}
+
+type LsTLVMaxReservableLinkBw struct {
+	LsTLV
+	Bandwidth float32
+}
+
+func (l *LsTLVMaxReservableLinkBw) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_MAX_RESERVABLE_BANDWIDTH {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-3.5
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect maximum reservable link bandwidth length")
+	}
+
+	l.Bandwidth = math.Float32frombits(binary.BigEndian.Uint32(value))
+
+	if l.Bandwidth < 0 || math.IsNaN(float64(l.Bandwidth)) || math.IsInf(float64(l.Bandwidth), 0) {
+		return malformedAttrListErr("Incorrect maximum reservable link bandwidth value")
+	}
+
+	return nil
+}
+
+func (l *LsTLVMaxReservableLinkBw) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, math.Float32bits(l.Bandwidth))
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVMaxReservableLinkBw) String() string {
+	return fmt.Sprintf("{Max Reservable Link BW: %v}", l.Bandwidth)
+}
+
+func (l *LsTLVMaxReservableLinkBw) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType `json:"type"`
+		Bandwidth float32   `json:"max_reservable_link_bw"`
+	}{
+		Type:      l.Type,
+		Bandwidth: l.Bandwidth,
+	})
+}
+
+type LsTLVUnreservedBw struct {
+	LsTLV
+	Bandwidth [8]float32
+}
+
+func (l *LsTLVUnreservedBw) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_UNRESERVED_BANDWIDTH {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc5305#section-3.6
+	if len(value) != 32 {
+		return malformedAttrListErr("Incorrect unreserved bandwidth length")
+	}
+
+	for i := 0; i < len(l.Bandwidth); i++ {
+		l.Bandwidth[i] = math.Float32frombits(binary.BigEndian.Uint32(value[:4]))
+		value = value[4:]
+
+		if l.Bandwidth[i] < 0 || math.IsNaN(float64(l.Bandwidth[i])) || math.IsInf(float64(l.Bandwidth[i]), 0) {
+			return malformedAttrListErr("Incorrect unreserved bandwidth value")
+		}
+	}
+
+	return nil
+}
+
+func (l *LsTLVUnreservedBw) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+
+	for i := 0; i < len(l.Bandwidth); i++ {
+		b := make([]byte, 4)
+		binary.BigEndian.PutUint32(b, math.Float32bits(l.Bandwidth[i]))
+		buf = append(buf, b...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVUnreservedBw) String() string {
+	return fmt.Sprintf("{Unreserved BW: %v}", l.Bandwidth)
+}
+
+func (l *LsTLVUnreservedBw) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType  `json:"type"`
+		Bandwidth [8]float32 `json:"unreserved_bw"`
+	}{
+		Type:      l.Type,
+		Bandwidth: l.Bandwidth,
+	})
+}
+
+type LsTLVTEDefaultMetric struct {
+	LsTLV
+	Metric uint32
+}
+
+func (l *LsTLVTEDefaultMetric) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_TE_DEFAULT_METRIC {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.3.2.3
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect metric length length")
+	}
+
+	l.Metric = binary.BigEndian.Uint32(value)
+
+	return nil
+}
+
+func (l *LsTLVTEDefaultMetric) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.Metric)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVTEDefaultMetric) String() string {
+	return fmt.Sprintf("{TE Default metric: %d}", l.Metric)
+}
+
+func (l *LsTLVTEDefaultMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type          LsTLVType `json:"type"`
+		DefaultMetric uint32    `json:"te_default_metric"`
+	}{
+		Type:          l.Type,
+		DefaultMetric: l.Metric,
+	})
+}
+
+type LsTLVIGPMetric struct {
+	LsTLV
+	Metric uint32
+}
+
+func (l *LsTLVIGPMetric) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IGP_METRIC {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.3.2.4
+	switch len(value) {
+	case 1:
+		l.Metric = uint32(value[0] & 0x3F)
+
+	case 2:
+		l.Metric = uint32(binary.BigEndian.Uint16(value))
+
+	case 3:
+		l.Metric = binary.BigEndian.Uint32([]byte{0, value[0], value[1], value[2]})
+
+	default:
+		return malformedAttrListErr("Incorrect metric length")
+	}
+
+	return nil
+}
+
+func (l *LsTLVIGPMetric) Serialize() ([]byte, error) {
+	switch l.Length {
+	case 1:
+		return l.LsTLV.Serialize([]byte{uint8(l.Metric) & 0x3F})
+
+	case 2:
+		buf := make([]byte, 2)
+		binary.BigEndian.PutUint16(buf, uint16(l.Metric))
+		return l.LsTLV.Serialize(buf)
+
+	case 3:
+		buf := make([]byte, 4)
+		binary.BigEndian.PutUint32(buf, l.Metric)
+		return l.LsTLV.Serialize(buf[1:])
+
+	default:
+		return nil, malformedAttrListErr("Incorrect metric length")
+	}
+}
+
+func (l *LsTLVIGPMetric) String() string {
+	return fmt.Sprintf("{IGP metric: %d}", l.Metric)
+}
+
+func (l *LsTLVIGPMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   LsTLVType `json:"type"`
+		Metric uint32    `json:"igp_metric"`
+	}{
+		Type:   l.Type,
+		Metric: l.Metric,
+	})
+}
+
+type LsTLVLinkName struct {
+	LsTLV
+	Name string
+}
+
+func (l *LsTLVLinkName) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_LINK_NAME {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.3.2.7
+	if len(value) < 1 || len(value) > 255 {
+		return malformedAttrListErr("Incorrect Link Name")
+	}
+
+	l.Name = string(value)
+
+	return nil
+}
+
+func (l *LsTLVLinkName) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize([]byte(l.Name))
+}
+
+func (l *LsTLVLinkName) String() string {
+	return fmt.Sprintf("{Link Name: %s}", l.Name)
+}
+
+func (l *LsTLVLinkName) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		Name string    `json:"link_name"`
+	}{
+		Type: l.Type,
+		Name: l.Name,
+	})
+}
+
+type LsTLVSrAlgorithm struct {
+	LsTLV
+	Algorithm []byte
+}
+
+func (l *LsTLVSrAlgorithm) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_ALGORITHM {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 1 {
+		return malformedAttrListErr("Incorrect SR algorithm length")
+	}
+
+	l.Algorithm = value
+
+	return nil
+}
+
+func (l *LsTLVSrAlgorithm) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.Algorithm)
+}
+
+func (l *LsTLVSrAlgorithm) String() string {
+	return fmt.Sprintf("{SR Algorithms: %v}", l.Algorithm)
+}
+
+func (l *LsTLVSrAlgorithm) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type       LsTLVType `json:"type"`
+		Algorithms string    `json:"sr_algorithm"`
+	}{
+		Type:       l.Type,
+		Algorithms: fmt.Sprintf("%v", l.Algorithm),
+	})
+}
+
+type LsSrLabelRange struct {
+	Range      uint32
+	FirstLabel LsTLVSIDLabel
+}
+
+type LsTLVSrCapabilities struct {
+	LsTLV
+	Flags  uint8
+	Ranges []LsSrLabelRange
+}
+
+type LsSrRange struct {
+	Begin uint32 `json:"begin"`
+	End   uint32 `json:"end"`
+}
+
+type LsSrCapabilities struct {
+	IPv4Supported bool        `json:"ipv4_supported"`
+	IPv6Supported bool        `json:"ipv6_supported"`
+	Ranges        []LsSrRange `json:"ranges"`
+}
+
+func (l *LsTLVSrCapabilities) Extract() *LsSrCapabilities {
+	lsc := &LsSrCapabilities{
+		IPv4Supported: (l.Flags & (1 << 0)) > 0,
+		IPv6Supported: (l.Flags & (1 << 1)) > 0,
+	}
+
+	for _, r := range l.Ranges {
+		lsc.Ranges = append(lsc.Ranges, LsSrRange{
+			Begin: r.FirstLabel.SID,
+			End:   r.FirstLabel.SID + r.Range,
+		})
+	}
+
+	return lsc
+}
+
+func (l *LsTLVSrCapabilities) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_CAPABILITIES {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 2 {
+		return malformedAttrListErr("Incorrect SR Capabilities length")
+	}
+	l.Flags = value[0]
+
+	// Skip two bytes: flags and reserved.
+	value = value[2:]
+
+	// The value field should be at least eight bytes long. Three bytes
+	// for the range size and five or six bytes for the SID/Label TLV.
+	for len(value) > 8 {
+		// First, parse range size (3 bytes)
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = value[i-1]
+		}
+		r := binary.BigEndian.Uint32(buf)
+		value = value[3:]
+
+		// Second, parse SID/Label sub-TLV.
+		label := LsTLVSIDLabel{}
+		if err := label.DecodeFromBytes(value); err != nil {
+			return err
+		}
+
+		l.Ranges = append(l.Ranges, LsSrLabelRange{
+			Range:      r,
+			FirstLabel: label,
+		})
+
+		value = value[label.Len():]
+	}
+
+	if len(value) > 0 {
+		return malformedAttrListErr("Malformed SR Capabilities TLV")
+	}
+
+	return nil
+}
+
+func (l *LsTLVSrCapabilities) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, 0)
+
+	for _, r := range l.Ranges {
+		b := make([]byte, 4)
+		binary.BigEndian.PutUint32(b, r.Range)
+		buf = append(buf, b[1:]...)
+		ser, err := r.FirstLabel.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, ser...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrCapabilities) String() string {
+	var buf bytes.Buffer
+
+	for _, r := range l.Ranges {
+		buf.WriteString(fmt.Sprintf("%v:%v ", r.FirstLabel.SID, r.FirstLabel.SID+r.Range))
+	}
+
+	return fmt.Sprintf("{SR Capabilities: Flags:%v SRGB Ranges: %v}", l.Flags, buf.String())
+}
+
+func (l *LsTLVSrCapabilities) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   LsTLVType        `json:"type"`
+		Flags  uint8            `json:"flags"`
+		Ranges []LsSrLabelRange `json:"ranges"`
+	}{
+		Type:   l.Type,
+		Flags:  l.Flags,
+		Ranges: l.Ranges,
+	})
+}
+
+type LsTLVSrLocalBlock struct {
+	LsTLV
+	Flags  uint8
+	Ranges []LsSrLabelRange
+}
+
+type LsSrLocalBlock struct {
+	Ranges []LsSrRange `json:"ranges"`
+}
+
+func (l *LsTLVSrLocalBlock) Extract() *LsSrLocalBlock {
+	lb := &LsSrLocalBlock{}
+
+	for _, r := range l.Ranges {
+		lb.Ranges = append(lb.Ranges, LsSrRange{
+			Begin: r.FirstLabel.SID,
+			End:   r.FirstLabel.SID + r.Range,
+		})
+	}
+
+	return lb
+}
+
+func (l *LsTLVSrLocalBlock) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_LOCAL_BLOCK {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 2 {
+		return malformedAttrListErr("Incorrect SR Local Block length")
+	}
+	l.Flags = value[0]
+
+	// Skip two bytes: flags and reserved.
+	value = value[2:]
+
+	// The value field should be at least eight bytes long. Three bytes
+	// for the range size and five or six bytes for the SID/Label TLV.
+	for len(value) > 8 {
+		// First, parse range size (3 bytes)
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = value[i-1]
+		}
+		r := binary.BigEndian.Uint32(buf)
+		value = value[3:]
+
+		// Second, parse SID/Label sub-TLV.
+		label := LsTLVSIDLabel{}
+		if err := label.DecodeFromBytes(value); err != nil {
+			return err
+		}
+
+		l.Ranges = append(l.Ranges, LsSrLabelRange{
+			Range:      r,
+			FirstLabel: label,
+		})
+
+		value = value[label.Len():]
+	}
+
+	if len(value) > 0 {
+		return malformedAttrListErr("Malformed SR Local Block TLV")
+	}
+
+	return nil
+}
+
+func (l *LsTLVSrLocalBlock) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, 0)
+
+	for _, r := range l.Ranges {
+		b := make([]byte, 4)
+		binary.BigEndian.PutUint32(b, r.Range)
+		buf = append(buf, b[1:]...)
+		ser, err := r.FirstLabel.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, ser...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrLocalBlock) String() string {
+	var buf bytes.Buffer
+
+	for _, r := range l.Ranges {
+		buf.WriteString(fmt.Sprintf("%v:%v ", r.FirstLabel.SID, r.FirstLabel.SID+r.Range))
+	}
+
+	return fmt.Sprintf("{SR LocalBlock: Flags:%v SRGB Ranges: %v}", l.Flags, buf.String())
+}
+
+func (l *LsTLVSrLocalBlock) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   LsTLVType        `json:"type"`
+		Flags  uint8            `json:"flags"`
+		Ranges []LsSrLabelRange `json:"ranges"`
+	}{
+		Type:   l.Type,
+		Flags:  l.Flags,
+		Ranges: l.Ranges,
+	})
+}
+
+type LsTLVAdjacencySID struct {
+	LsTLV
+	Flags  uint8
+	Weight uint8
+	SID    uint32
+}
+
+func (l *LsTLVAdjacencySID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_ADJACENCY_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/draft-ietf-idr-bgp-ls-segment-routing-ext-08#section-2.2.1
+	if len(value) != 7 && len(value) != 8 {
+		return malformedAttrListErr("Incorrect Adjacency SID length")
+	}
+
+	l.Flags = value[0]
+	l.Weight = value[1]
+
+	v := value[4:]
+	if len(v) == 4 {
+		l.SID = binary.BigEndian.Uint32(v)
+	} else {
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = v[i-1]
+		}
+		// Label is represented by 20 rightmost bits.
+		l.SID = binary.BigEndian.Uint32(buf) & 0xfffff
+	}
+
+	return nil
+}
+
+func (l *LsTLVAdjacencySID) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Weight)
+	// Reserved
+	buf = append(buf, []byte{0, 0}...)
+
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, l.SID)
+
+	if l.Length == 7 {
+		return l.LsTLV.Serialize(append(buf, b[1:]...))
+	}
+
+	return l.LsTLV.Serialize(append(buf, b...))
+}
+
+func (l *LsTLVAdjacencySID) String() string {
+	return fmt.Sprintf("{Adjacency SID: %v}", l.SID)
+}
+
+func (l *LsTLVAdjacencySID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		SID  uint32    `json:"adjacency_sid"`
+	}{
+		Type: l.Type,
+		SID:  l.SID,
+	})
+}
+
+type LsTLVSIDLabel struct {
+	LsTLV
+	SID uint32
+}
+
+func (l *LsTLVSIDLabel) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SID_LABEL_TLV {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/draft-ietf-idr-bgp-ls-segment-routing-ext-08#section-2.1.1
+	if len(value) != 4 && len(value) != 3 {
+		return malformedAttrListErr("Incorrect SID length")
+	}
+
+	if len(value) == 4 {
+		l.SID = binary.BigEndian.Uint32(value)
+	} else {
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = value[i-1]
+		}
+		// Label is represented by 20 rightmost bits.
+		l.SID = binary.BigEndian.Uint32(buf) & 0xfffff
+	}
+
+	return nil
+}
+
+func (l *LsTLVSIDLabel) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.SID)
+
+	if l.Length == 3 {
+		return l.LsTLV.Serialize(buf[1:])
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSIDLabel) String() string {
+	return fmt.Sprintf("{SID/Label: %v}", l.SID)
+}
+
+func (l *LsTLVSIDLabel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		SID  uint32    `json:"sid_label"`
+	}{
+		Type: l.Type,
+		SID:  l.SID,
+	})
+}
+
+type LsTLVPrefixSID struct {
+	LsTLV
+	Flags     uint8
+	Algorithm uint8
+	SID       uint32
+}
+
+func (l *LsTLVPrefixSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_PREFIX_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/draft-ietf-idr-bgp-ls-segment-routing-ext-08#section-2.3.1
+	if len(value) != 7 && len(value) != 8 {
+		return malformedAttrListErr("Incorrect Prefix SID length")
+	}
+
+	l.Flags = value[0]
+	l.Algorithm = value[1]
+
+	// Flags (1) + Algorithm (1) + Reserved (2)
+	v := value[4:]
+	if len(v) == 4 {
+		l.SID = binary.BigEndian.Uint32(v)
+	} else {
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = v[i-1]
+		}
+		// Label is represented by 20 rightmost bits.
+		l.SID = binary.BigEndian.Uint32(buf) & 0xfffff
+	}
+
+	return nil
+}
+
+func (l *LsTLVPrefixSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Algorithm)
+	// Reserved
+	buf = append(buf, []byte{0, 0}...)
+
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, l.SID)
+
+	if l.Length == 7 {
+		return l.LsTLV.Serialize(append(buf, b[1:]...))
+	}
+
+	return l.LsTLV.Serialize(append(buf, b...))
+}
+
+func (l *LsTLVPrefixSID) String() string {
+	return fmt.Sprintf("{Prefix SID: %v}", l.SID)
+}
+
+func (l *LsTLVPrefixSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		SID  uint32    `json:"prefix_sid"`
+	}{
+		Type: l.Type,
+		SID:  l.SID,
+	})
+}
+
+type LsTLVSourceRouterID struct {
+	LsTLV
+	RouterID []byte
+}
+
+func (l *LsTLVSourceRouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SOURCE_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/draft-ietf-idr-bgp-ls-segment-routing-ext-08#section-2.3.3
+	if len(value) != 4 && len(value) != 16 {
+		return malformedAttrListErr("Incorrect Source Router ID length")
+	}
+
+	l.RouterID = value
+
+	return nil
+}
+
+func (l *LsTLVSourceRouterID) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.RouterID)
+}
+
+func (l *LsTLVSourceRouterID) String() string {
+	return fmt.Sprintf("{Source Router ID: %v}", net.IP(l.RouterID))
+}
+
+func (l *LsTLVSourceRouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     LsTLVType `json:"type"`
+		RouterID string    `json:"source_router_id"`
+	}{
+		Type:     l.Type,
+		RouterID: fmt.Sprintf("%v", net.IP(l.RouterID)),
+	})
+}
+
+type LsTLVOpaqueLinkAttr struct {
+	LsTLV
+	Attr []byte
+}
+
+func (l *LsTLVOpaqueLinkAttr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_OPAQUE_LINK_ATTR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	l.Attr = value
+
+	return nil
+}
+
+func (l *LsTLVOpaqueLinkAttr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.Attr)
+}
+
+func (l *LsTLVOpaqueLinkAttr) String() string {
+	return fmt.Sprintf("{Opaque link attribute: %v}", l.Attr)
+}
+
+func (l *LsTLVOpaqueLinkAttr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"link_opaque_attribute"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.Attr),
+	})
+}
+
+type LsTLVIGPFlags struct {
+	LsTLV
+	Flags uint8
+}
+
+// https://tools.ietf.org/html/rfc7752#section-3.3.3.1
+type LsIGPFlags struct {
+	Down          bool `json:"down"`
+	NoUnicast     bool `json:"no_unicast"`
+	LocalAddress  bool `json:"local_address"`
+	PropagateNSSA bool `json:"propagate_nssa"`
+}
+
+func (l *LsTLVIGPFlags) Extract() *LsIGPFlags {
+	return &LsIGPFlags{
+		Down:          (l.Flags & (1 << 0)) > 0,
+		NoUnicast:     (l.Flags & (1 << 1)) > 0,
+		LocalAddress:  (l.Flags & (1 << 2)) > 0,
+		PropagateNSSA: (l.Flags & (1 << 3)) > 0,
+	}
+}
+
+func (l *LsTLVIGPFlags) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_IGP_FLAGS {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if l.Length != 1 {
+		return malformedAttrListErr("Node Flag Bits TLV malformed")
+	}
+
+	l.Flags = value[0]
+
+	return nil
+}
+
+func (l *LsTLVIGPFlags) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize([]byte{l.Flags})
+}
+
+func (l *LsTLVIGPFlags) String() string {
+	flags := "XXXXPLND"
+
+	var buf bytes.Buffer
+
+	for i := 0; i < len(flags); i++ {
+		if l.Flags&(1<<uint(i)) > 0 {
+			buf.WriteString(flags[i : i+1])
+		} else {
+			buf.WriteString("*")
+		}
+	}
+
+	return fmt.Sprintf("{IGP Flags: %s}", buf.String())
+}
+
+func (l *LsTLVIGPFlags) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Flags string    `json:"igp_flags"`
+	}{
+		Type:  l.Type,
+		Flags: l.String(),
+	})
+}
+
+type LsTLVOpaquePrefixAttr struct {
+	LsTLV
+	Attr []byte
+}
+
+func (l *LsTLVOpaquePrefixAttr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_OPAQUE_PREFIX_ATTR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	l.Attr = value
+
+	return nil
+}
+
+func (l *LsTLVOpaquePrefixAttr) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize(l.Attr)
+}
+
+func (l *LsTLVOpaquePrefixAttr) String() string {
+	return fmt.Sprintf("{Prefix opaque attribute: %v}", l.Attr)
+}
+
+func (l *LsTLVOpaquePrefixAttr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value string    `json:"prefix_opaque_attribute"`
+	}{
+		Type:  l.Type,
+		Value: fmt.Sprintf("%v", l.Attr),
+	})
+}
+
+type LsTLVNodeDescriptor struct {
+	LsTLV
+	SubTLVs []LsTLVInterface
+}
+
+func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
+	tlv, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_LOCAL_NODE_DESC && l.Type != LS_TLV_REMOTE_NODE_DESC {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// RFC7752, 3.2.1.4
+	// There can be at most one instance of each sub-TLV type present in
+	// any Node Descriptor.  The sub-TLVs within a Node Descriptor MUST
+	// be arranged in ascending order by sub-TLV type.
+	prevType := uint16(0)
+	m := make(map[LsTLVType]bool)
+
+	for len(tlv) >= tlvHdrLen {
+		sub := &LsTLV{}
+		_, err := sub.DecodeFromBytes(tlv)
+		if err != nil {
+			return err
+		}
+
+		if uint16(sub.Type) < prevType {
+			return malformedAttrListErr("Incorrect TLV order")
+		}
+		if _, ok := m[sub.Type]; ok {
+			return malformedAttrListErr("Duplicate TLV")
+		}
+		prevType = uint16(sub.Type)
+		m[sub.Type] = true
+
+		var subTLV LsTLVInterface
+		switch sub.Type {
+		case LS_TLV_AS:
+			subTLV = &LsTLVAutonomousSystem{}
+		case LS_TLV_BGP_LS_ID:
+			subTLV = &LsTLVBgpLsID{}
+		case LS_TLV_OSPF_AREA:
+			subTLV = &LsTLVOspfAreaID{}
+		case LS_TLV_IGP_ROUTER_ID:
+			subTLV = &LsTLVIgpRouterID{}
+
+		default:
+			tlv = tlv[sub.Len():]
+			l.Length -= uint16(sub.Len())
+			continue
+		}
+
+		if err := subTLV.DecodeFromBytes(tlv); err != nil {
+			return err
+		}
+		l.SubTLVs = append(l.SubTLVs, subTLV)
+		tlv = tlv[subTLV.Len():]
+	}
+
+	if _, ok := m[LS_TLV_IGP_ROUTER_ID]; !ok {
+		return malformedAttrListErr("Required TLV missing")
+	}
+
+	return nil
+}
+
+func (l *LsTLVNodeDescriptor) Serialize() ([]byte, error) {
+	buf := []byte{}
+	for _, tlv := range l.SubTLVs {
+		ser, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		buf = append(buf, ser...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVNodeDescriptor) String() string {
+	nd := l.Extract()
+
+	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID)
+}
+
+func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		LsNodeDescriptor
+	}{
+		l.Type,
+		*l.Extract(),
+	})
+}
+
+type LsNodeDescriptor struct {
+	Asn         uint32 `json:"asn"`
+	BGPLsID     uint32 `json:"bgp_ls_id"`
+	OspfAreaID  uint32 `json:"ospf_area_id"`
+	PseudoNode  bool   `json:"pseudo_node"`
+	IGPRouterID string `json:"igp_router_id"`
+}
+
+func parseIGPRouterID(id []byte) (string, bool) {
+	switch len(id) {
+	// OSPF or OSPFv3 non-pseudonode
+	case 4:
+		return net.IP(id).String(), false
+
+	// ISIS non-pseudonode
+	case 6:
+		return fmt.Sprintf("%0.2x%0.2x.%0.2x%0.2x.%0.2x%0.2x", id[0], id[1], id[2], id[3], id[4], id[5]), false
+
+	// ISIS pseudonode
+	case 7:
+		return fmt.Sprintf("%0.2x%0.2x.%0.2x%0.2x.%0.2x%0.2x-%0.2x", id[0], id[1], id[2], id[3], id[4], id[5], id[6]), true
+
+	// OSPF or OSPFv3 pseudonode
+	case 8:
+		return fmt.Sprintf("%v:%v", net.IP(id[:4]).String(), net.IP(id[4:]).String()), true
+
+	default:
+		return fmt.Sprintf("%v", id), false
+	}
+}
+
+func (l *LsTLVNodeDescriptor) Extract() *LsNodeDescriptor {
+	nd := &LsNodeDescriptor{}
+
+	for _, tlv := range l.SubTLVs {
+		switch v := tlv.(type) {
+		case *LsTLVAutonomousSystem:
+			nd.Asn = v.ASN
+		case *LsTLVBgpLsID:
+			nd.BGPLsID = v.BGPLsID
+		case *LsTLVOspfAreaID:
+			nd.OspfAreaID = v.AreaID
+		case *LsTLVIgpRouterID:
+			nd.IGPRouterID, nd.PseudoNode = parseIGPRouterID(v.RouterID)
+		}
+	}
+
+	return nd
+}
+
+type LsAddrPrefix struct {
+	PrefixDefault
+	Type   LsNLRIType
+	Length uint16
+	NLRI   LsNLRIInterface
+}
+
+func (l *LsAddrPrefix) AFI() uint16 {
+	return AFI_LS
+}
+
+func (l *LsAddrPrefix) SAFI() uint8 {
+	return SAFI_LS
+}
+
+func (l *LsAddrPrefix) Len(...*MarshallingOption) int {
+	return int(4 + l.Length)
+}
+
+func (l *LsAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 4 {
+		return malformedAttrListErr("Malformed BGP-LS Address Prefix")
+	}
+
+	l.Type = LsNLRIType(binary.BigEndian.Uint16(data[:2]))
+	l.Length = binary.BigEndian.Uint16(data[2:4])
+
+	switch l.Type {
+	case LS_NLRI_TYPE_NODE:
+		node := &LsNodeNLRI{}
+		node.Length = l.Length
+		node.NLRIType = LS_NLRI_TYPE_NODE
+		l.NLRI = node
+
+	case LS_NLRI_TYPE_LINK:
+		link := &LsLinkNLRI{}
+		link.Length = l.Length
+		link.NLRIType = LS_NLRI_TYPE_LINK
+		l.NLRI = link
+
+	case LS_NLRI_TYPE_PREFIX_IPV4:
+		prefixv4 := &LsPrefixV4NLRI{}
+		prefixv4.Length = l.Length
+		prefixv4.NLRIType = LS_NLRI_TYPE_PREFIX_IPV4
+		l.NLRI = prefixv4
+
+	case LS_NLRI_TYPE_PREFIX_IPV6:
+		prefixv6 := &LsPrefixV6NLRI{}
+		prefixv6.Length = l.Length
+		prefixv6.NLRIType = LS_NLRI_TYPE_PREFIX_IPV4
+		l.NLRI = prefixv6
+
+	default:
+		return malformedAttrListErr("Unsupported BGP-LS NLRI")
+	}
+
+	if l.NLRI != nil {
+		return l.NLRI.DecodeFromBytes(data[4:])
+	}
+
+	return nil
+}
+
+func (l *LsAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	if l.NLRI == nil {
+		return nil, fmt.Errorf("empty NLRI")
+	}
+
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf, uint16(l.Type))
+	binary.BigEndian.PutUint16(buf[2:], l.Length)
+
+	ser, err := l.NLRI.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(buf, ser...), nil
+}
+
+func (l *LsAddrPrefix) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}
+
+func (l *LsAddrPrefix) String() string {
+	if l.NLRI == nil {
+		return fmt.Sprintf("NLRI: (nil)")
+	}
+
+	return fmt.Sprintf("NLRI { %v }", l.NLRI.String())
+}
+
+func (l *LsAddrPrefix) Flat() map[string]string {
+	return map[string]string{}
+}
+
+type LsAttributeNode struct {
+	Flags           *LsNodeFlags `json:"flags,omitempty"`
+	Opaque          *[]byte      `json:"opaque,omitempty"`
+	Name            *string      `json:"name,omitempty"`
+	IsisArea        *[]byte      `json:"isis_area,omitempty"`
+	LocalRouterID   *net.IP      `json:"local_router_id_ipv4,omitempty"`
+	LocalRouterIDv6 *net.IP      `json:"local_router_id_ipv6,omitempty"`
+
+	// Segment Routing
+	SrCapabilties *LsSrCapabilities `json:"sr_capabilities,omitempty"`
+	SrAlgorithms  *[]byte           `json:"sr_algorithms,omitempty"`
+	SrLocalBlock  *LsSrLocalBlock   `json:"sr_local_block,omitempty"`
+}
+
+type LsAttributeLink struct {
+	Name             *string `json:"name,omitempty"`
+	LocalRouterID    *net.IP `json:"local_router_id_ipv4,omitempty"`
+	LocalRouterIDv6  *net.IP `json:"local_router_id_ipv6,omitempty"`
+	RemoteRouterID   *net.IP `json:"remote_router_id_ipv4,omitempty"`
+	RemoteRouterIDv6 *net.IP `json:"remote_router_id_ipv6,omitempty"`
+	AdminGroup       *uint32 `json:"admin_group,omitempty"`
+	DefaultTEMetric  *uint32 `json:"default_te_metric,omitempty"`
+	IGPMetric        *uint32 `json:"igp_metric,omitempty"`
+	Opaque           *[]byte `json:"opaque,omitempty"`
+
+	// Bandwidth is expressed in bytes (not bits) per second.
+	Bandwidth           *float32    `json:"bandwidth,omitempty"`
+	ReservableBandwidth *float32    `json:"reservable_bandwidth,omitempty"`
+	UnreservedBandwidth *[8]float32 `json:"unreserved_bandwidth,omitempty"`
+
+	SrAdjacencySID *uint32 `json:"adjacency_sid,omitempty"`
+}
+
+type LsAttributePrefix struct {
+	IGPFlags *LsIGPFlags `json:"igp_flags,omitempty"`
+	Opaque   *[]byte     `json:"opaque,omitempty"`
+
+	SrPrefixSID *uint32 `json:"sr_prefix_sid,omitempty"`
+}
+
+type LsAttribute struct {
+	Node   LsAttributeNode   `json:"node"`
+	Link   LsAttributeLink   `json:"link"`
+	Prefix LsAttributePrefix `json:"prefix"`
+}
+
+type PathAttributeLs struct {
+	PathAttribute
+	TLVs []LsTLVInterface
+}
+
+func (p *PathAttributeLs) Extract() *LsAttribute {
+	l := &LsAttribute{}
+
+	for _, tlv := range p.TLVs {
+		switch v := tlv.(type) {
+		case *LsTLVNodeFlagBits:
+			l.Node.Flags = v.Extract()
+
+		case *LsTLVOpaqueNodeAttr:
+			l.Node.Opaque = &v.Attr
+
+		case *LsTLVNodeName:
+			l.Node.Name = &v.Name
+
+		case *LsTLVIsisArea:
+			l.Node.IsisArea = &v.Area
+
+		case *LsTLVLocalIPv4RouterID:
+			l.Node.LocalRouterID = &v.IP
+			l.Link.LocalRouterID = &v.IP
+
+		case *LsTLVLocalIPv6RouterID:
+			l.Node.LocalRouterIDv6 = &v.IP
+			l.Link.LocalRouterIDv6 = &v.IP
+
+		case *LsTLVSrCapabilities:
+			l.Node.SrCapabilties = v.Extract()
+
+		case *LsTLVSrAlgorithm:
+			l.Node.SrAlgorithms = &v.Algorithm
+
+		case *LsTLVSrLocalBlock:
+			l.Node.SrLocalBlock = v.Extract()
+
+		case *LsTLVRemoteIPv4RouterID:
+			l.Link.RemoteRouterID = &v.IP
+
+		case *LsTLVRemoteIPv6RouterID:
+			l.Link.RemoteRouterIDv6 = &v.IP
+
+		case *LsTLVAdminGroup:
+			l.Link.AdminGroup = &v.AdminGroup
+
+		case *LsTLVMaxLinkBw:
+			l.Link.Bandwidth = &v.Bandwidth
+
+		case *LsTLVMaxReservableLinkBw:
+			l.Link.ReservableBandwidth = &v.Bandwidth
+
+		case *LsTLVUnreservedBw:
+			l.Link.UnreservedBandwidth = &v.Bandwidth
+
+		case *LsTLVTEDefaultMetric:
+			l.Link.DefaultTEMetric = &v.Metric
+
+		case *LsTLVIGPMetric:
+			l.Link.IGPMetric = &v.Metric
+
+		case *LsTLVOpaqueLinkAttr:
+			l.Link.Opaque = &v.Attr
+
+		case *LsTLVLinkName:
+			l.Link.Name = &v.Name
+
+		case *LsTLVAdjacencySID:
+			l.Link.SrAdjacencySID = &v.SID
+
+		case *LsTLVIGPFlags:
+			l.Prefix.IGPFlags = v.Extract()
+
+		case *LsTLVOpaquePrefixAttr:
+			l.Prefix.Opaque = &v.Attr
+
+		case *LsTLVPrefixSID:
+			l.Prefix.SrPrefixSID = &v.SID
+		}
+	}
+
+	return l
+}
+
+func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	tlvs, err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	for len(tlvs) >= tlvHdrLen {
+		t := &LsTLV{}
+		_, err := t.DecodeFromBytes(tlvs)
+		if err != nil {
+			return err
+		}
+
+		var tlv LsTLVInterface
+		switch t.Type {
+		// Node NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.1)
+		case LS_TLV_NODE_FLAG_BITS:
+			tlv = &LsTLVNodeFlagBits{}
+
+		case LS_TLV_OPAQUE_NODE_ATTR:
+			tlv = &LsTLVOpaqueNodeAttr{}
+
+		case LS_TLV_NODE_NAME:
+			tlv = &LsTLVNodeName{}
+
+		case LS_TLV_ISIS_AREA:
+			tlv = &LsTLVIsisArea{}
+
+		// Used by Link NLRI as well.
+		case LS_TLV_IPV4_LOCAL_ROUTER_ID:
+			tlv = &LsTLVLocalIPv4RouterID{}
+
+		// Used by Link NLRI as well.
+		case LS_TLV_IPV6_LOCAL_ROUTER_ID:
+			tlv = &LsTLVLocalIPv6RouterID{}
+
+		// SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Node NLRI
+		case LS_TLV_SR_CAPABILITIES:
+			tlv = &LsTLVSrCapabilities{}
+
+		case LS_TLV_SR_ALGORITHM:
+			tlv = &LsTLVSrAlgorithm{}
+
+		case LS_TLV_SR_LOCAL_BLOCK:
+			tlv = &LsTLVSrLocalBlock{}
+
+		// Link NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.2)
+		case LS_TLV_IPV4_REMOTE_ROUTER_ID:
+			tlv = &LsTLVRemoteIPv4RouterID{}
+
+		case LS_TLV_IPV6_REMOTE_ROUTER_ID:
+			tlv = &LsTLVRemoteIPv6RouterID{}
+
+		case LS_TLV_ADMIN_GROUP:
+			tlv = &LsTLVAdminGroup{}
+
+		case LS_TLV_MAX_LINK_BANDWIDTH:
+			tlv = &LsTLVMaxLinkBw{}
+
+		case LS_TLV_MAX_RESERVABLE_BANDWIDTH:
+			tlv = &LsTLVMaxReservableLinkBw{}
+
+		case LS_TLV_UNRESERVED_BANDWIDTH:
+			tlv = &LsTLVUnreservedBw{}
+
+		case LS_TLV_TE_DEFAULT_METRIC:
+			tlv = &LsTLVTEDefaultMetric{}
+
+		case LS_TLV_IGP_METRIC:
+			tlv = &LsTLVIGPMetric{}
+
+		case LS_TLV_OPAQUE_LINK_ATTR:
+			tlv = &LsTLVOpaqueLinkAttr{}
+
+		case LS_TLV_LINK_NAME:
+			tlv = &LsTLVLinkName{}
+
+		// SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Link NLRI
+		case LS_TLV_ADJACENCY_SID:
+			tlv = &LsTLVAdjacencySID{}
+
+		// Prefix NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.3)
+		case LS_TLV_IGP_FLAGS:
+			tlv = &LsTLVIGPFlags{}
+
+		case LS_TLV_OPAQUE_PREFIX_ATTR:
+			tlv = &LsTLVOpaquePrefixAttr{}
+
+		// SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Prefix NLRI
+		case LS_TLV_PREFIX_SID:
+			tlv = &LsTLVPrefixSID{}
+
+		default:
+			tlvs = tlvs[t.Len():]
+			continue
+		}
+
+		if err := tlv.DecodeFromBytes(tlvs); err != nil {
+			return err
+		}
+		tlvs = tlvs[t.Len():]
+
+		p.TLVs = append(p.TLVs, tlv)
+	}
+
+	return nil
+}
+
+func (p *PathAttributeLs) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	buf := []byte{}
+
+	for _, tlv := range p.TLVs {
+		s, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, s...)
+	}
+
+	return p.PathAttribute.Serialize(buf, options...)
+}
+
+func (p *PathAttributeLs) String() string {
+	var buf bytes.Buffer
+
+	for _, tlv := range p.TLVs {
+		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
+	}
+
+	return fmt.Sprintf("{LsAttributes: %s}", buf.String())
+}
+
+func (p *PathAttributeLs) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Flags BGPAttrFlag `json:"flags"`
+		LsAttribute
+	}{
+		p.GetType(),
+		p.GetFlags(),
+		*p.Extract(),
+	})
+}
+
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
@@ -4754,6 +8038,7 @@ const (
 	RF_FS_IPv6_VPN RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
 	RF_FS_L2_VPN   RouteFamily = AFI_L2VPN<<16 | SAFI_FLOW_SPEC_VPN
 	RF_OPAQUE      RouteFamily = AFI_OPAQUE<<16 | SAFI_KEY_VALUE
+	RF_LS          RouteFamily = AFI_LS<<16 | SAFI_LS
 )
 
 var AddressFamilyNameMap = map[RouteFamily]string{
@@ -4778,6 +8063,7 @@ var AddressFamilyNameMap = map[RouteFamily]string{
 	RF_FS_IPv6_VPN: "l3vpn-ipv6-flowspec",
 	RF_FS_L2_VPN:   "l2vpn-flowspec",
 	RF_OPAQUE:      "opaque",
+	RF_LS:          "ls",
 }
 
 var AddressFamilyValueMap = map[string]RouteFamily{
@@ -4802,6 +8088,7 @@ var AddressFamilyValueMap = map[string]RouteFamily{
 	AddressFamilyNameMap[RF_FS_IPv6_VPN]: RF_FS_IPv6_VPN,
 	AddressFamilyNameMap[RF_FS_L2_VPN]:   RF_FS_L2_VPN,
 	AddressFamilyNameMap[RF_OPAQUE]:      RF_OPAQUE,
+	AddressFamilyNameMap[RF_LS]:          RF_LS,
 }
 
 func GetRouteFamily(name string) (RouteFamily, error) {
@@ -4865,6 +8152,8 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (pref
 		prefix = &FlowSpecL2VPN{FlowSpecNLRI{rf: RF_FS_L2_VPN}}
 	case RF_OPAQUE:
 		prefix = &OpaqueNLRI{}
+	case RF_LS:
+		prefix = &LsAddrPrefix{}
 	default:
 		err = fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}
@@ -4925,9 +8214,12 @@ const (
 	BGP_ATTR_TYPE_PMSI_TUNNEL // = 22
 	BGP_ATTR_TYPE_TUNNEL_ENCAP
 	_
-	BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES             // = 25
-	BGP_ATTR_TYPE_AIGP                                 // = 26
-	BGP_ATTR_TYPE_LARGE_COMMUNITY          BGPAttrType = 32
+	BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES // = 25
+	BGP_ATTR_TYPE_AIGP                     // = 26
+	_
+	_
+	BGP_ATTR_TYPE_LS                          // = 29
+	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 32
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -5121,6 +8413,7 @@ var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES: BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AIGP:                     BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_LARGE_COMMUNITY:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_LS:                       BGP_ATTR_FLAG_OPTIONAL,
 }
 
 // getPathAttrFlags returns BGP Path Attribute flags value from its type and
@@ -5654,15 +8947,22 @@ func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
+func NewPathAttributeNextHop(addr string) *PathAttributeNextHop {
 	t := BGP_ATTR_TYPE_NEXT_HOP
+	ip := net.ParseIP(addr)
+	l := net.IPv4len
+	if ip.To4() == nil {
+		l = net.IPv6len
+	} else {
+		ip = ip.To4()
+	}
 	return &PathAttributeNextHop{
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[t],
 			Type:   t,
-			Length: 4,
+			Length: uint16(l),
 		},
-		Value: net.ParseIP(value).To4(),
+		Value: ip,
 	}
 }
 
@@ -6711,6 +10011,9 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 		return nil, err
 	}
 	localAdmin, _ := strconv.ParseUint(elems[10], 10, 32)
+	if subtype == EC_SUBTYPE_SOURCE_AS {
+		localAdmin = 0
+	}
 	ip := net.ParseIP(elems[1])
 	isTransitive := true
 	switch {
@@ -8996,6 +12299,8 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributeAigp{}, nil
 	case BGP_ATTR_TYPE_LARGE_COMMUNITY:
 		return &PathAttributeLargeCommunities{}, nil
+	case BGP_ATTR_TYPE_LS:
+		return &PathAttributeLs{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }
@@ -9098,6 +12403,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 			if e.(*MessageError).Stronger(strongestError) {
 				strongestError = e
 			}
+			return strongestError
 		}
 		data = data[p.Len(options...):]
 		if e == nil || e.(*MessageError).ErrorHandling != ERROR_HANDLING_ATTRIBUTE_DISCARD {
@@ -9232,7 +12538,7 @@ type BGPNotification struct {
 
 func (msg *BGPNotification) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 2 {
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all Notificaiton bytes available")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all Notification bytes available")
 	}
 	msg.ErrorCode = data[0]
 	msg.ErrorSubcode = data[1]
@@ -9670,7 +12976,7 @@ func FlatUpdate(f1, f2 map[string]string) error {
 		}
 	}
 	if conflict {
-		return fmt.Errorf("Keys conflict")
+		return fmt.Errorf("keys conflict")
 	} else {
 		return nil
 	}

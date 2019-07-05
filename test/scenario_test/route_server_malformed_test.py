@@ -13,20 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 import inspect
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED
+from lib.base import BGP_FSM_ESTABLISHED, local
 from lib.gobgp import GoBGPContainer
 from lib.exabgp import ExaBGPContainer
 
@@ -42,7 +41,7 @@ def register_scenario(cls):
 
 
 def lookup_scenario(name):
-    for value in _SCENARIOS.values():
+    for value in list(_SCENARIOS.values()):
         if value.__name__ == name:
             return value
     return None
@@ -522,14 +521,14 @@ class TestGoBGPBase(unittest.TestCase):
         cls.parser_option = parser_option
         cls.executors = []
         if idx == 0:
-            print 'unset test-index. run all test sequential'
-            for _, v in _SCENARIOS.items():
+            print('unset test-index. run all test sequential')
+            for _, v in list(_SCENARIOS.items()):
                 for k, m in inspect.getmembers(v, inspect.isfunction):
                     if k == 'executor':
                         cls.executor = m
                 cls.executors.append(cls.executor)
         elif idx not in _SCENARIOS:
-            print 'invalid test-index. # of scenarios: {0}'.format(len(_SCENARIOS))
+            print('invalid test-index. # of scenarios: {0}'.format(len(_SCENARIOS)))
             sys.exit(1)
         else:
             for k, m in inspect.getmembers(_SCENARIOS[idx], inspect.isfunction):
@@ -545,7 +544,7 @@ class TestGoBGPBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

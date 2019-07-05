@@ -106,7 +106,7 @@ func prettyString(v interface{}) string {
 	switch a := v.(type) {
 	case *api.MatchSet:
 		var typ string
-		switch a.Type {
+		switch a.MatchType {
 		case api.MatchType_ALL:
 			typ = "all"
 		case api.MatchType_ANY:
@@ -117,7 +117,7 @@ func prettyString(v interface{}) string {
 		return fmt.Sprintf("%s %s", typ, a.GetName())
 	case *api.AsPathLength:
 		var typ string
-		switch a.Type {
+		switch a.LengthType {
 		case api.AsPathLengthType_EQ:
 			typ = "="
 		case api.AsPathLengthType_GE:
@@ -129,7 +129,7 @@ func prettyString(v interface{}) string {
 	case *api.CommunityAction:
 		l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
 		var typ string
-		switch a.Type {
+		switch a.ActionType {
 		case api.CommunityActionType_COMMUNITY_ADD:
 			typ = "add"
 		case api.CommunityActionType_COMMUNITY_REMOVE:
@@ -139,7 +139,7 @@ func prettyString(v interface{}) string {
 		}
 		return fmt.Sprintf("%s[%s]", typ, l)
 	case *api.MedAction:
-		if a.Type == api.MedActionType_MED_MOD && a.Value > 0 {
+		if a.ActionType == api.MedActionType_MED_MOD && a.Value > 0 {
 			return fmt.Sprintf("+%d", a.Value)
 		}
 		return fmt.Sprintf("%d", a.Value)
@@ -178,19 +178,35 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 		buff.WriteString(fmt.Sprintf(format, "NAME", typ))
 	}
 	for _, s := range list {
-		l := s.GetList()
-		if len(l) == 0 {
-			buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
-		}
-		for i, x := range l {
-			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
-				x = _regexpCommunity.ReplaceAllString(x, "$1")
+		if typ == "PREFIX" {
+			l := s.GetPrefixes()
+			if len(l) == 0 {
+				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
 			}
-			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, s.GetName(), x))
-			} else {
-				buff.WriteString(fmt.Sprint(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", x))
+			for i, x := range l {
+				prefix := fmt.Sprintf("%s %d..%d", x.GetIpPrefix(), x.GetMaskLengthMin(), x.GetMaskLengthMax())
+				if i == 0 {
+					buff.WriteString(fmt.Sprintf(format, s.GetName(), prefix))
+				} else {
+					buff.WriteString(fmt.Sprint(sIndent))
+					buff.WriteString(fmt.Sprintf(format, "", prefix))
+				}
+			}
+		} else {
+			l := s.GetList()
+			if len(l) == 0 {
+				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
+			}
+			for i, x := range l {
+				if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
+					x = _regexpCommunity.ReplaceAllString(x, "$1")
+				}
+				if i == 0 {
+					buff.WriteString(fmt.Sprintf(format, s.GetName(), x))
+				} else {
+					buff.WriteString(fmt.Sprint(sIndent))
+					buff.WriteString(fmt.Sprintf(format, "", x))
+				}
 			}
 		}
 	}
@@ -221,8 +237,8 @@ func showDefinedSet(v string, args []string) error {
 		name = args[0]
 	}
 	stream, err := client.ListDefinedSet(ctx, &api.ListDefinedSetRequest{
-		Type: typ,
-		Name: name,
+		DefinedType: typ,
+		Name:        name,
 	})
 	if err != nil {
 		return err
@@ -295,9 +311,9 @@ func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 		list = []*api.Prefix{prefix}
 	}
 	return &api.DefinedSet{
-		Type:     api.DefinedType_PREFIX,
-		Name:     name,
-		Prefixes: list,
+		DefinedType: api.DefinedType_PREFIX,
+		Name:        name,
+		Prefixes:    list,
 	}, nil
 }
 
@@ -322,9 +338,9 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_NEIGHBOR,
-		Name: name,
-		List: list,
+		DefinedType: api.DefinedType_NEIGHBOR,
+		Name:        name,
+		List:        list,
 	}, nil
 }
 
@@ -341,9 +357,9 @@ func parseAsPathSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_AS_PATH,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_AS_PATH,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -359,9 +375,9 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_COMMUNITY,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_COMMUNITY,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -377,9 +393,9 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_EXT_COMMUNITY,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_EXT_COMMUNITY,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -395,9 +411,9 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		Type: api.DefinedType_LARGE_COMMUNITY,
-		Name: name,
-		List: args,
+		DefinedType: api.DefinedType_LARGE_COMMUNITY,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -472,36 +488,35 @@ func printStatement(indent int, s *api.Statement) {
 	c := s.Conditions
 	if c.PrefixSet != nil {
 		fmt.Printf("%sPrefixSet: %s \n", ind, prettyString(c.PrefixSet))
-	} else if c.NeighborSet != nil {
+	}
+	if c.NeighborSet != nil {
 		fmt.Printf("%sNeighborSet: %s\n", ind, prettyString(c.NeighborSet))
-	} else if c.AsPathSet != nil {
+	}
+	if c.AsPathSet != nil {
 		fmt.Printf("%sAsPathSet: %s \n", ind, prettyString(c.AsPathSet))
-	} else if c.CommunitySet != nil {
+	}
+	if c.CommunitySet != nil {
 		fmt.Printf("%sCommunitySet: %s\n", ind, prettyString(c.CommunitySet))
-	} else if c.ExtCommunitySet != nil {
+	}
+	if c.ExtCommunitySet != nil {
 		fmt.Printf("%sExtCommunitySet: %s\n", ind, prettyString(c.ExtCommunitySet))
-	} else if c.LargeCommunitySet != nil {
+	}
+	if c.LargeCommunitySet != nil {
 		fmt.Printf("%sLargeCommunitySet: %s\n", ind, prettyString(c.LargeCommunitySet))
-	} else if c.NextHopInList != nil {
+	}
+	if c.NextHopInList != nil {
 		fmt.Printf("%sNextHopInList: %s\n", ind, "[ "+strings.Join(c.NextHopInList, ", ")+" ]")
-	} else if c.AsPathLength != nil {
+	}
+	if c.AsPathLength != nil {
 		fmt.Printf("%sAsPathLength: %s\n", ind, prettyString(c.AsPathLength))
-	} else if c.RpkiResult != -1 {
-		var result string
-		switch c.RpkiResult {
-		case 0:
-			result = "none"
-		case 1:
-			result = "valid"
-		case 2:
-			result = "invalid"
-		case 3:
-			result = "not-found"
-		}
-		fmt.Printf("%sRPKI result: %s\n", ind, result)
-	} else if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
+	}
+	if c.RpkiResult != -1 {
+		fmt.Printf("%sRPKI result: %s\n", ind, strings.TrimPrefix(api.Validation_State(c.RpkiResult).String(), "STATE_"))
+	}
+	if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
 		fmt.Printf("%sRoute Type: %s\n", ind, routeTypePrettyString(c.RouteType))
-	} else if c.AfiSafiIn != nil {
+	}
+	if c.AfiSafiIn != nil {
 		fmt.Printf("%sAFI SAFI In: %s\n", ind, c.AfiSafiIn)
 	}
 
@@ -509,17 +524,23 @@ func printStatement(indent int, s *api.Statement) {
 	a := s.Actions
 	if a.Community != nil {
 		fmt.Println(ind, "Community: ", prettyString(a.Community))
-	} else if a.ExtCommunity != nil {
+	}
+	if a.ExtCommunity != nil {
 		fmt.Println(ind, "ExtCommunity: ", prettyString(a.ExtCommunity))
-	} else if a.LargeCommunity != nil {
+	}
+	if a.LargeCommunity != nil {
 		fmt.Println(ind, "LargeCommunity: ", prettyString(a.LargeCommunity))
-	} else if a.Med != nil {
+	}
+	if a.Med != nil {
 		fmt.Println(ind, "MED: ", prettyString(a.Med))
-	} else if a.LocalPref != nil {
+	}
+	if a.LocalPref != nil {
 		fmt.Println(ind, "LocalPref: ", prettyString(a.LocalPref))
-	} else if a.AsPrepend != nil {
+	}
+	if a.AsPrepend != nil {
 		fmt.Println(ind, "ASPathPrepend: ", prettyString(a.AsPrepend))
-	} else if a.Nexthop != nil {
+	}
+	if a.Nexthop != nil {
 		fmt.Println(ind, "Nexthop: ", prettyString(a.Nexthop))
 	}
 
@@ -681,9 +702,9 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.PrefixSet.Type = api.MatchType_ANY
+			stmt.Conditions.PrefixSet.MatchType = api.MatchType_ANY
 		case "invert":
-			stmt.Conditions.PrefixSet.Type = api.MatchType_INVERT
+			stmt.Conditions.PrefixSet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s prefix <set-name> [{ any | invert }]", usage)
 		}
@@ -698,9 +719,9 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.NeighborSet.Type = api.MatchType_ANY
+			stmt.Conditions.NeighborSet.MatchType = api.MatchType_ANY
 		case "invert":
-			stmt.Conditions.NeighborSet.Type = api.MatchType_INVERT
+			stmt.Conditions.NeighborSet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
 		}
@@ -715,11 +736,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.AsPathSet.Type = api.MatchType_ANY
+			stmt.Conditions.AsPathSet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.AsPathSet.Type = api.MatchType_ALL
+			stmt.Conditions.AsPathSet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.AsPathSet.Type = api.MatchType_INVERT
+			stmt.Conditions.AsPathSet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s as-path <set-name> [{ any | all | invert }]", usage)
 		}
@@ -734,11 +755,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.CommunitySet.Type = api.MatchType_ANY
+			stmt.Conditions.CommunitySet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.CommunitySet.Type = api.MatchType_ALL
+			stmt.Conditions.CommunitySet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.CommunitySet.Type = api.MatchType_INVERT
+			stmt.Conditions.CommunitySet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -753,11 +774,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_ANY
+			stmt.Conditions.ExtCommunitySet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_ALL
+			stmt.Conditions.ExtCommunitySet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchType_INVERT
+			stmt.Conditions.ExtCommunitySet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -772,11 +793,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ANY
+			stmt.Conditions.LargeCommunitySet.MatchType = api.MatchType_ANY
 		case "all":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ALL
+			stmt.Conditions.LargeCommunitySet.MatchType = api.MatchType_ALL
 		case "invert":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_INVERT
+			stmt.Conditions.LargeCommunitySet.MatchType = api.MatchType_INVERT
 		default:
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -792,11 +813,11 @@ func modCondition(name, op string, args []string) error {
 		stmt.Conditions.AsPathLength.Length = uint32(length)
 		switch strings.ToLower(args[1]) {
 		case "eq":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_EQ
+			stmt.Conditions.AsPathLength.LengthType = api.AsPathLengthType_EQ
 		case "ge":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_GE
+			stmt.Conditions.AsPathLength.LengthType = api.AsPathLengthType_GE
 		case "le":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLengthType_LE
+			stmt.Conditions.AsPathLength.LengthType = api.AsPathLengthType_LE
 		default:
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}
@@ -869,6 +890,7 @@ func modAction(name, op string, args []string) error {
 	}
 	typ := args[0]
 	args = args[1:]
+	cmd := "{ add | remove | replace } <value>..."
 	switch typ {
 	case "reject":
 		stmt.Actions.RouteAction = api.RouteAction_REJECT
@@ -877,50 +899,50 @@ func modAction(name, op string, args []string) error {
 	case "community":
 		stmt.Actions.Community = &api.CommunityAction{}
 		if len(args) < 1 {
-			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s community %s", usage, cmd)
 		}
 		stmt.Actions.Community.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_ADD
+			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_REMOVE
+			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.Community.Type = api.CommunityActionType_COMMUNITY_REPLACE
+			stmt.Actions.Community.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
-			return fmt.Errorf("%s community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s community %s", usage, cmd)
 		}
 	case "ext-community":
 		stmt.Actions.ExtCommunity = &api.CommunityAction{}
 		if len(args) < 1 {
-			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s ext-community %s", usage, cmd)
 		}
 		stmt.Actions.ExtCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
+			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
+			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
+			stmt.Actions.ExtCommunity.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
-			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s ext-community %s", usage, cmd)
 		}
 	case "large-community":
 		stmt.Actions.LargeCommunity = &api.CommunityAction{}
 		if len(args) < 1 {
-			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s large-community %s", usage, cmd)
 		}
 		stmt.Actions.LargeCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
+			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_ADD
 		case "remove":
-			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
+			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_REMOVE
 		case "replace":
-			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
+			stmt.Actions.LargeCommunity.ActionType = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
-			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
+			return fmt.Errorf("%s large-community %s", usage, cmd)
 		}
 	case "med":
 		stmt.Actions.Med = &api.MedAction{}
@@ -934,12 +956,12 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Med.Value = int64(med)
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Med.Type = api.MedActionType_MED_MOD
+			stmt.Actions.Med.ActionType = api.MedActionType_MED_MOD
 		case "sub":
-			stmt.Actions.Med.Type = api.MedActionType_MED_MOD
+			stmt.Actions.Med.ActionType = api.MedActionType_MED_MOD
 			stmt.Actions.Med.Value = -1 * stmt.Actions.Med.Value
 		case "set":
-			stmt.Actions.Med.Type = api.MedActionType_MED_REPLACE
+			stmt.Actions.Med.ActionType = api.MedActionType_MED_REPLACE
 		default:
 			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}

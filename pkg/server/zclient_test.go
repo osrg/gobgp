@@ -29,93 +29,139 @@ import (
 func Test_newPathFromIPRouteMessage(t *testing.T) {
 	assert := assert.New(t)
 
-	// IPv4 Route Add
-	m := &zebra.Message{}
-	h := &zebra.Header{
-		Len:     zebra.HeaderSize(2),
-		Marker:  zebra.HEADER_MARKER,
-		Version: 2,
-		Command: zebra.IPV4_ROUTE_ADD,
+	ipv4RouteAddCommand := map[uint8]zebra.API_TYPE{
+		2: zebra.IPV4_ROUTE_ADD,
+		3: zebra.IPV4_ROUTE_ADD,
+		4: zebra.FRR_IPV4_ROUTE_ADD,
+		5: zebra.FRR_ZAPI5_IPV4_ROUTE_ADD,
+		6: zebra.FRR_ZAPI6_ROUTE_ADD,
 	}
-	b := &zebra.IPRouteBody{
-		Type:    zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
-		Flags:   zebra.FLAG(zebra.FLAG_SELECTED),
-		Message: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
-		SAFI:    zebra.SAFI(zebra.SAFI_UNICAST),
-		Prefix: zebra.Prefix{
-			Prefix:    net.ParseIP("192.168.100.0"),
-			PrefixLen: uint8(24),
-		},
-		Nexthops: []zebra.Nexthop{
-			{
-				Gate: net.ParseIP("0.0.0.0"),
-			},
-			{
-				Ifindex: uint32(1),
-			},
-		},
-		Distance: uint8(0),
-		Metric:   uint32(100),
-		Mtu:      uint32(0),
-		Api:      zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
+	ipv4RouteDeleteCommand := map[uint8]zebra.API_TYPE{
+		2: zebra.IPV4_ROUTE_DELETE,
+		3: zebra.IPV4_ROUTE_DELETE,
+		4: zebra.FRR_IPV4_ROUTE_DELETE,
+		5: zebra.FRR_ZAPI5_IPV4_ROUTE_DELETE,
+		6: zebra.FRR_ZAPI6_ROUTE_DELETE,
 	}
-	m.Header = *h
-	m.Body = b
+	ipv6RouteAddCommand := map[uint8]zebra.API_TYPE{
+		2: zebra.IPV6_ROUTE_ADD,
+		3: zebra.IPV6_ROUTE_ADD,
+		4: zebra.FRR_IPV6_ROUTE_ADD,
+		5: zebra.FRR_ZAPI5_IPV6_ROUTE_ADD,
+		6: zebra.FRR_ZAPI6_ROUTE_ADD,
+	}
+	ipv6RouteDeleteCommand := map[uint8]zebra.API_TYPE{
+		2: zebra.IPV6_ROUTE_DELETE,
+		3: zebra.IPV6_ROUTE_DELETE,
+		4: zebra.FRR_IPV6_ROUTE_DELETE,
+		5: zebra.FRR_ZAPI5_IPV6_ROUTE_DELETE,
+		6: zebra.FRR_ZAPI6_ROUTE_DELETE,
+	}
+	message := map[uint8]zebra.MESSAGE_FLAG{
+		2: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
+		3: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
+		4: zebra.FRR_MESSAGE_NEXTHOP | zebra.FRR_MESSAGE_DISTANCE | zebra.FRR_MESSAGE_METRIC | zebra.FRR_MESSAGE_MTU,
+		5: zebra.FRR_ZAPI5_MESSAGE_NEXTHOP | zebra.FRR_ZAPI5_MESSAGE_DISTANCE | zebra.FRR_ZAPI5_MESSAGE_METRIC | zebra.FRR_ZAPI5_MESSAGE_MTU,
+		6: zebra.FRR_ZAPI5_MESSAGE_NEXTHOP | zebra.FRR_ZAPI5_MESSAGE_DISTANCE | zebra.FRR_ZAPI5_MESSAGE_METRIC | zebra.FRR_ZAPI5_MESSAGE_MTU,
+	}
 
-	path := newPathFromIPRouteMessage(m, 2)
-	pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
-	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("0.0.0.0", pp.GetNexthop().String())
-	assert.Equal("192.168.100.0/24", pp.GetNlri().String())
-	assert.True(pp.IsFromExternal())
-	assert.False(pp.IsWithdraw)
+	for v := zebra.MinZapiVer; v <= zebra.MaxZapiVer; v++ {
+		// IPv4 Route Add
+		m := &zebra.Message{}
+		marker := zebra.HEADER_MARKER
+		if v > 3 {
+			marker = zebra.FRR_HEADER_MARKER
+		}
+		flag := zebra.FLAG_SELECTED
+		if v > 5 {
+			flag = zebra.FRR_ZAPI6_FLAG_SELECTED
+		}
+		h := &zebra.Header{
+			Len:     zebra.HeaderSize(v),
+			Marker:  marker,
+			Version: v,
+			Command: ipv4RouteAddCommand[v],
+		}
+		b := &zebra.IPRouteBody{
+			Type:    zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
+			Flags:   flag,
+			Message: message[v],
+			SAFI:    zebra.SAFI(zebra.SAFI_UNICAST), // 1, FRR_ZAPI5_SAFI_UNICAST is same
+			Prefix: zebra.Prefix{
+				Prefix:    net.ParseIP("192.168.100.0"),
+				PrefixLen: uint8(24),
+			},
+			Nexthops: []zebra.Nexthop{
+				{
+					Gate: net.ParseIP("0.0.0.0"),
+				},
+				{
+					Ifindex: uint32(1),
+				},
+			},
+			Distance: uint8(0),
+			Metric:   uint32(100),
+			Mtu:      uint32(0),
+			Api:      zebra.API_TYPE(ipv4RouteAddCommand[v]),
+		}
+		m.Header = *h
+		m.Body = b
 
-	// IPv4 Route Delete
-	h.Command = zebra.IPV4_ROUTE_DELETE
-	b.Api = zebra.IPV4_ROUTE_DELETE
-	m.Header = *h
-	m.Body = b
+		path := newPathFromIPRouteMessage(m, v, "")
+		pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp.SetIsFromExternal(path.IsFromExternal())
+		assert.Equal("0.0.0.0", pp.GetNexthop().String())
+		assert.Equal("192.168.100.0/24", pp.GetNlri().String())
+		assert.True(pp.IsFromExternal())
+		assert.False(pp.IsWithdraw)
 
-	path = newPathFromIPRouteMessage(m, 2)
-	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
-	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("0.0.0.0", pp.GetNexthop().String())
-	assert.Equal("192.168.100.0/24", pp.GetNlri().String())
-	med, _ := pp.GetMed()
-	assert.Equal(uint32(100), med)
-	assert.True(pp.IsFromExternal())
-	assert.True(pp.IsWithdraw)
+		// IPv4 Route Delete
+		h.Command = ipv4RouteDeleteCommand[v]
+		b.Api = ipv4RouteDeleteCommand[v]
+		m.Header = *h
+		m.Body = b
 
-	// IPv6 Route Add
-	h.Command = zebra.IPV6_ROUTE_ADD
-	b.Api = zebra.IPV6_ROUTE_ADD
-	b.Prefix.Prefix = net.ParseIP("2001:db8:0:f101::")
-	b.Prefix.PrefixLen = uint8(64)
-	b.Nexthops = []zebra.Nexthop{{Gate: net.ParseIP("::")}}
-	m.Header = *h
-	m.Body = b
+		path = newPathFromIPRouteMessage(m, v, "")
+		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp.SetIsFromExternal(path.IsFromExternal())
+		assert.Equal("0.0.0.0", pp.GetNexthop().String())
+		assert.Equal("192.168.100.0/24", pp.GetNlri().String())
+		med, _ := pp.GetMed()
+		assert.Equal(uint32(100), med)
+		assert.True(pp.IsFromExternal())
+		assert.True(pp.IsWithdraw)
 
-	path = newPathFromIPRouteMessage(m, 2)
-	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
-	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("::", pp.GetNexthop().String())
-	assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
-	med, _ = pp.GetMed()
-	assert.Equal(uint32(100), med)
-	assert.True(pp.IsFromExternal())
-	assert.False(pp.IsWithdraw)
+		// IPv6 Route Add
+		h.Command = ipv6RouteAddCommand[v]
+		b.Api = ipv6RouteAddCommand[v]
+		b.Prefix.Prefix = net.ParseIP("2001:db8:0:f101::")
+		b.Prefix.PrefixLen = uint8(64)
+		b.Nexthops = []zebra.Nexthop{{Gate: net.ParseIP("::")}}
+		m.Header = *h
+		m.Body = b
 
-	// IPv6 Route Delete
-	h.Command = zebra.IPV6_ROUTE_DELETE
-	b.Api = zebra.IPV6_ROUTE_DELETE
-	m.Header = *h
-	m.Body = b
+		path = newPathFromIPRouteMessage(m, v, "")
+		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp.SetIsFromExternal(path.IsFromExternal())
+		assert.Equal("::", pp.GetNexthop().String())
+		assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
+		med, _ = pp.GetMed()
+		assert.Equal(uint32(100), med)
+		assert.True(pp.IsFromExternal())
+		assert.False(pp.IsWithdraw)
 
-	path = newPathFromIPRouteMessage(m, 2)
-	pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
-	pp.SetIsFromExternal(path.IsFromExternal())
-	assert.Equal("::", pp.GetNexthop().String())
-	assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
-	assert.True(pp.IsFromExternal())
-	assert.True(pp.IsWithdraw)
+		// IPv6 Route Delete
+		h.Command = ipv6RouteDeleteCommand[v]
+		b.Api = ipv6RouteDeleteCommand[v]
+		m.Header = *h
+		m.Body = b
+
+		path = newPathFromIPRouteMessage(m, v, "")
+		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp.SetIsFromExternal(path.IsFromExternal())
+		assert.Equal("::", pp.GetNexthop().String())
+		assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
+		assert.True(pp.IsFromExternal())
+		assert.True(pp.IsWithdraw)
+	}
 }

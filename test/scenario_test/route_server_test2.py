@@ -13,19 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED
+from lib.base import BGP_FSM_ESTABLISHED, local
 from lib.gobgp import GoBGPContainer
 from lib.exabgp import ExaBGPContainer
 
@@ -53,7 +52,7 @@ class GoBGPTestBase(unittest.TestCase):
         initial_wait_time = max(ctn.run() for ctn in ctns)
         time.sleep(initial_wait_time)
 
-        for cli in cls.clients.values():
+        for cli in list(cls.clients.values()):
             # Omit "passwd" to avoid a issue on ExaBGP version 4.0.5:
             # https://github.com/Exa-Networks/exabgp/issues/766
             g1.add_peer(cli, is_rs_client=True, passive=True, prefix_limit=10)
@@ -67,7 +66,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for cli in self.clients.values():
+        for cli in list(self.clients.values()):
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=cli)
 
     def test_02_add_neighbor(self):
@@ -89,16 +88,21 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_withdraw_path(self):
         self.clients['g2'].local('gobgp global rib del 10.0.0.0/24')
         time.sleep(1)
-        s = self.gobgp.get_neighbor(self.clients['g2'])['state']
-        self.assertEqual(s.get('advertised', 0), 1)
-        self.assertEqual(s.get('accepted'), None)  # means info['accepted'] == 0
-        self.assertEqual(s.get('received'), None)  # means info['received'] == 0
+        afisafis = self.gobgp.get_neighbor(self.clients['g2'])['afi_safis']
+        advertised = 0
+        for afisafi in afisafis:
+            s = afisafi.get('state')
+            advertised += s.get('advertised')
+            self.assertEqual(s.get('accepted'), None)  # means info['accepted'] == 0
+            self.assertEqual(s.get('received'), None)  # means info['received'] == 0
+
+        self.assertEqual(advertised, 1)
 
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

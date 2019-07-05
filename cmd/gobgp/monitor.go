@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -79,9 +80,11 @@ func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
 		pathStrs = append(pathStrs, makeMonitorRouteArgs(p, showIdentifier))
 	}
 
-	format := "[%s] %s via %s aspath [%s] attrs %s\n"
-	if showIdentifier != bgp.BGP_ADD_PATH_NONE {
-		format = "[%s] %d:%s via %s aspath [%s] attrs %s\n"
+	format := time.Now().UTC().Format(time.RFC3339)
+	if showIdentifier == bgp.BGP_ADD_PATH_NONE {
+		format += " [%s] %s via %s aspath [%s] attrs %s\n"
+	} else {
+		format += " [%s] %d:%s via %s aspath [%s] attrs %s\n"
 	}
 	for _, pathStr := range pathStrs {
 		fmt.Printf(format, pathStr...)
@@ -119,9 +122,9 @@ func newMonitorCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
-				Type:    api.Resource_GLOBAL,
-				Family:  family,
-				Current: current,
+				TableType: api.TableType_GLOBAL,
+				Family:    family,
+				Current:   current,
 			})
 			if err != nil {
 				exitWithError(err)
@@ -167,7 +170,7 @@ func newMonitorCmd() *cobra.Command {
 					if s.Conf.NeighborInterface != "" {
 						addr = fmt.Sprintf("%s(%s)", addr, s.Conf.NeighborInterface)
 					}
-					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", addr, s.State.SessionState, s.State.AdminState)
+					fmt.Printf("%s [NEIGH] %s fsm: %s admin: %s\n", time.Now().UTC().Format(time.RFC3339), addr, s.State.SessionState, s.State.AdminState)
 				}
 			}
 		},
@@ -189,10 +192,10 @@ func newMonitorCmd() *cobra.Command {
 				exitWithError(err)
 			}
 			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
-				Type:    api.Resource_ADJ_IN,
-				Name:    name,
-				Family:  family,
-				Current: current,
+				TableType: api.TableType_ADJ_IN,
+				Name:      name,
+				Family:    family,
+				Current:   current,
 			})
 			if err != nil {
 				exitWithError(err)

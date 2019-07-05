@@ -16,6 +16,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//lint:file-ignore S1008 generated code.
+
 package config
 
 import (
@@ -259,6 +261,7 @@ const (
 	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC   AfiSafiType = "l3vpn-ipv6-flowspec"
 	AFI_SAFI_TYPE_L2VPN_FLOWSPEC        AfiSafiType = "l2vpn-flowspec"
 	AFI_SAFI_TYPE_OPAQUE                AfiSafiType = "opaque"
+	AFI_SAFI_TYPE_LS                    AfiSafiType = "ls"
 )
 
 var AfiSafiTypeToIntMap = map[AfiSafiType]int{
@@ -283,6 +286,7 @@ var AfiSafiTypeToIntMap = map[AfiSafiType]int{
 	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC:   18,
 	AFI_SAFI_TYPE_L2VPN_FLOWSPEC:        19,
 	AFI_SAFI_TYPE_OPAQUE:                20,
+	AFI_SAFI_TYPE_LS:                    21,
 }
 
 var IntToAfiSafiTypeMap = map[int]AfiSafiType{
@@ -307,6 +311,7 @@ var IntToAfiSafiTypeMap = map[int]AfiSafiType{
 	18: AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC,
 	19: AFI_SAFI_TYPE_L2VPN_FLOWSPEC,
 	20: AFI_SAFI_TYPE_OPAQUE,
+	21: AFI_SAFI_TYPE_LS,
 }
 
 func (v AfiSafiType) Validate() error {
@@ -1116,13 +1121,22 @@ type ZebraState struct {
 	// original -> gobgp:redistribute-route-type
 	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
-	// Configure version of zebra protocol.  Default is 2. Supported up to 3.
+	// Configure version of zebra protocol.  Default is 2.
+	// Supported version are 2 or 3 for Quagga and 4, 5 or 6 for FRRouting.
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 	// original -> gobgp:nexthop-trigger-enable
 	// gobgp:nexthop-trigger-enable's original type is boolean.
 	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
 	// original -> gobgp:nexthop-trigger-delay
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
+	// original -> gobgp:mpls-label-range-size
+	// Configure MPLS label range size which will be requested to
+	// FRR/Zebra.
+	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
+	// original -> gobgp:software-name
+	// Configure zebra software name.
+	// quagga, frr3, frr4, frr5, frr6, frr7 can be used.
+	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -1137,13 +1151,22 @@ type ZebraConfig struct {
 	// original -> gobgp:redistribute-route-type
 	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
-	// Configure version of zebra protocol.  Default is 2. Supported up to 3.
+	// Configure version of zebra protocol.  Default is 2.
+	// Supported version are 2 or 3 for Quagga and 4, 5 or 6 for FRRouting.
 	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 	// original -> gobgp:nexthop-trigger-enable
 	// gobgp:nexthop-trigger-enable's original type is boolean.
 	NexthopTriggerEnable bool `mapstructure:"nexthop-trigger-enable" json:"nexthop-trigger-enable,omitempty"`
 	// original -> gobgp:nexthop-trigger-delay
 	NexthopTriggerDelay uint8 `mapstructure:"nexthop-trigger-delay" json:"nexthop-trigger-delay,omitempty"`
+	// original -> gobgp:mpls-label-range-size
+	// Configure MPLS label range size which will be requested to
+	// FRR/Zebra.
+	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
+	// original -> gobgp:software-name
+	// Configure zebra software name.
+	// quagga, frr3, frr4, frr5, frr6, frr7 can be used.
+	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 
 func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
@@ -1171,6 +1194,12 @@ func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
 		return false
 	}
 	if lhs.NexthopTriggerDelay != rhs.NexthopTriggerDelay {
+		return false
+	}
+	if lhs.MplsLabelRangeSize != rhs.MplsLabelRangeSize {
+		return false
+	}
+	if lhs.SoftwareName != rhs.SoftwareName {
 		return false
 	}
 	return true
@@ -1376,6 +1405,12 @@ type BmpServerState struct {
 	// Enable feature for mirroring of received BGP messages
 	// mainly for debugging purpose.
 	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
+	// original -> gobgp:sys-name
+	// Reference to the SysName of the BMP server.
+	SysName string `mapstructure:"sys-name" json:"sys-name,omitempty"`
+	// original -> gobgp:sys-descr
+	// Reference to the SysDescr of the BMP server.
+	SysDescr string `mapstructure:"sys-descr" json:"sys-descr,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -1399,6 +1434,12 @@ type BmpServerConfig struct {
 	// Enable feature for mirroring of received BGP messages
 	// mainly for debugging purpose.
 	RouteMirroringEnabled bool `mapstructure:"route-mirroring-enabled" json:"route-mirroring-enabled,omitempty"`
+	// original -> gobgp:sys-name
+	// Reference to the SysName of the BMP server.
+	SysName string `mapstructure:"sys-name" json:"sys-name,omitempty"`
+	// original -> gobgp:sys-descr
+	// Reference to the SysDescr of the BMP server.
+	SysDescr string `mapstructure:"sys-descr" json:"sys-descr,omitempty"`
 }
 
 func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
@@ -1418,6 +1459,12 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 		return false
 	}
 	if lhs.RouteMirroringEnabled != rhs.RouteMirroringEnabled {
+		return false
+	}
+	if lhs.SysName != rhs.SysName {
+		return false
+	}
+	if lhs.SysDescr != rhs.SysDescr {
 		return false
 	}
 	return true
@@ -1984,6 +2031,12 @@ type RouteServerState struct {
 	// gobgp:route-server-client's original type is boolean.
 	// Configure the neighbor as a route server client.
 	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
+	// original -> gobgp:secondary-route
+	// gobgp:secondary-route's original type is boolean.
+	// if an export policy rejects a selected route, try the next route in
+	// order until one that is accepted is found or all routes for the peer
+	// are rejected.
+	SecondaryRoute bool `mapstructure:"secondary-route" json:"secondary-route,omitempty"`
 }
 
 // struct for container gobgp:config.
@@ -1994,6 +2047,12 @@ type RouteServerConfig struct {
 	// gobgp:route-server-client's original type is boolean.
 	// Configure the neighbor as a route server client.
 	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
+	// original -> gobgp:secondary-route
+	// gobgp:secondary-route's original type is boolean.
+	// if an export policy rejects a selected route, try the next route in
+	// order until one that is accepted is found or all routes for the peer
+	// are rejected.
+	SecondaryRoute bool `mapstructure:"secondary-route" json:"secondary-route,omitempty"`
 }
 
 func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
@@ -2001,6 +2060,9 @@ func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
 		return false
 	}
 	if lhs.RouteServerClient != rhs.RouteServerClient {
+		return false
+	}
+	if lhs.SecondaryRoute != rhs.SecondaryRoute {
 		return false
 	}
 	return true
@@ -2486,6 +2548,10 @@ type TransportState struct {
 	// Remote port being used by the peer for the TCP session
 	// supporting the BGP session.
 	RemotePort uint16 `mapstructure:"remote-port" json:"remote-port,omitempty"`
+	// original -> bgp:bind-interface
+	// bgp:bind-interface's original type is union.
+	// Interface name for binding.
+	BindInterface string `mapstructure:"bind-interface" json:"bind-interface,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -2518,6 +2584,10 @@ type TransportConfig struct {
 	// original -> gobgp:ttl
 	// TTL value for BGP packets.
 	Ttl uint8 `mapstructure:"ttl" json:"ttl,omitempty"`
+	// original -> bgp:bind-interface
+	// bgp:bind-interface's original type is union.
+	// Interface name for binding.
+	BindInterface string `mapstructure:"bind-interface" json:"bind-interface,omitempty"`
 }
 
 func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
@@ -2540,6 +2610,9 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 		return false
 	}
 	if lhs.Ttl != rhs.Ttl {
+		return false
+	}
+	if lhs.BindInterface != rhs.BindInterface {
 		return false
 	}
 	return true
@@ -2620,7 +2693,7 @@ type TimersState struct {
 	// BGP last transitioned out of the Established state.
 	Downtime int64 `mapstructure:"downtime" json:"downtime,omitempty"`
 	// original -> gobgp:update-recv-time
-	// The number of seconds elasped since January 1, 1970 UTC
+	// The number of seconds elapsed since January 1, 1970 UTC
 	// last time the BGP session received an UPDATE message.
 	UpdateRecvTime int64 `mapstructure:"update-recv-time" json:"update-recv-time,omitempty"`
 }

@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -58,7 +59,6 @@ const (
 	cmdExtcommunity   = "ext-community"
 	cmdImport         = "import"
 	cmdExport         = "export"
-	cmdIn             = "in"
 	cmdMonitor        = "monitor"
 	cmdMRT            = "mrt"
 	cmdInject         = "inject"
@@ -111,7 +111,12 @@ var mrtOpts struct {
 	NextHop     net.IP `long:"nexthop" description:"Rewrite nexthop"`
 }
 
-func formatTimedelta(d int64) string {
+var bmpOpts struct {
+	StatisticsTimeout int `short:"s" long:"statistics-timeout" description:"Interval for Statistics Report"`
+}
+
+func formatTimedelta(t time.Time) string {
+	d := time.Now().Unix() - t.Unix()
 	u := uint64(d)
 	neg := d < 0
 	if neg {
@@ -184,7 +189,7 @@ func extractReserved(args []string, keys map[string]int) (map[string][]string, e
 	return m, nil
 }
 
-func newClient(ctx context.Context) (api.GobgpApiClient, error) {
+func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, error) {
 	grpcOpts := []grpc.DialOption{grpc.WithBlock()}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
@@ -206,12 +211,12 @@ func newClient(ctx context.Context) (api.GobgpApiClient, error) {
 	if target == "" {
 		target = ":50051"
 	}
-
-	conn, err := grpc.DialContext(ctx, target, grpcOpts...)
+	cc, cancel := context.WithTimeout(ctx, time.Second)
+	conn, err := grpc.DialContext(cc, target, grpcOpts...)
 	if err != nil {
-		return nil, err
+		return nil, cancel, err
 	}
-	return api.NewGobgpApiClient(conn), nil
+	return api.NewGobgpApiClient(conn), cancel, nil
 }
 
 func addr2AddressFamily(a net.IP) *api.Family {
@@ -294,6 +299,10 @@ var (
 		Afi:  api.Family_AFI_OPAQUE,
 		Safi: api.Family_SAFI_KEY_VALUE,
 	}
+	ls = &api.Family{
+		Afi:  api.Family_AFI_LS,
+		Safi: api.Family_SAFI_LS,
+	}
 )
 
 func checkAddressFamily(def *api.Family) (*api.Family, error) {
@@ -332,6 +341,8 @@ func checkAddressFamily(def *api.Family) (*api.Family, error) {
 		f = l2VPNflowspec
 	case "opaque":
 		f = opaque
+	case "ls", "linkstate", "bgpls":
+		f = ls
 	case "":
 		f = def
 	default:

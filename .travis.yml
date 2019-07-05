@@ -1,18 +1,13 @@
 language: go
 
-_dep_ensure: &_dep_ensure
-  go: "1.10"
-  before_install: go get -u github.com/golang/dep/cmd/dep
-  install: $GOPATH/bin/dep ensure
-
 _unittest: &_unittest
-  <<: *_dep_ensure
+  go: "1.12"
   script:
-    - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') $(go list ./... | grep -v '/vendor/') -timeout 120s
+    - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') -timeout 240s ./...
     - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
 _build: &_build
-  <<: *_dep_ensure
+  go: "1.12"
   script:
     - go build -o ./cmd/gobgp/gobgp   ./cmd/gobgp/
     - go build -o ./cmd/gobgpd/gobgpd ./cmd/gobgpd/
@@ -23,7 +18,7 @@ _node_js: &_node_js
 
 _python: &_python
   language: python
-  python: "2.7"
+  python: "3.6"
 
 _docker: &_docker
   <<: *_python
@@ -35,15 +30,16 @@ _docker: &_docker
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
   install:
-    - pip install -r test/pip-requires.txt
-    - fab -f test/lib/base.py make_gobgp_ctn:tag=$DOCKER_IMAGE,from_image=$FROM_IMAGE
+    - pip3 install -r test/pip-requires.txt
+    - fab -r test/lib make-gobgp-ctn --tag $DOCKER_IMAGE --from-image $FROM_IMAGE
   script:
-    - PYTHONPATH=test python test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
+    - PYTHONPATH=test python3 test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
   services:
     - docker
 
 env:
   global:
+    - GO111MODULE=on
     - DOCKER_IMAGE=gobgp
     - FROM_IMAGE=osrg/quagga
 
@@ -62,13 +58,13 @@ matrix:
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests"
-      go: 1.11
+      go: "1.12"
     - <<: *_unittest
       env:
         - DESCRIPTION="Tests + goreleaser + cover"
-      go: "1.10"
+      go: "1.12"
       script:
-        - go test $(go list ./... | grep -v '/vendor/') -coverprofile=coverage.txt -covermode=atomic
+        - go test -coverprofile=coverage.txt -covermode=atomic ./...
       after_success:
         - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
         - bash <(curl -s https://codecov.io/bash)
@@ -106,15 +102,15 @@ matrix:
 #
 # Misc
 #
-    - <<: *_dep_ensure
+    - go: "1.12"
       env:
-        - DESCRIPTION="go fmt + vet + megacheck"
-      before_script: go get -u honnef.co/go/tools/cmd/megacheck
+        - DESCRIPTION="go fmt + vet + staticcheck"
+      before_script: go get -u honnef.co/go/tools/cmd/staticcheck
       script:
-        - test -z "$(go fmt $(go list ./... | grep -v '/vendor/'))"
-        - test -z "$(go vet $(go list ./... | grep -v '/vendor/'))"
-        - megacheck $(go list ./... | grep -v '/vendor/')
-    - <<: *_dep_ensure
+        - test -z "$(go fmt ./...)"
+        - go vet ./...
+        - staticcheck ./...
+    - go: "1.12"
       env:
         - DESCRIPTION="build_embeded_go.py"
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
@@ -211,7 +207,7 @@ matrix:
       before_script:
         - npm install -g markdownlint-cli
       script:
-        - markdownlint $(find . -type f -name '*.md' | grep -v '/vendor/')
+        - markdownlint $(find . -type f -name '*.md')
     - <<: *_python
       env:
         - DESCRIPTION="Tools"
@@ -222,8 +218,6 @@ matrix:
 
 cache:
   pip: true
-
-go_import_path: github.com/osrg/gobgp
 
 notifications:
  slack:

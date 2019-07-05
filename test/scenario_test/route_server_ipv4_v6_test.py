@@ -13,19 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED
+from lib.base import BGP_FSM_ESTABLISHED, local
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
 
@@ -77,7 +76,7 @@ class GoBGPIPv6Test(unittest.TestCase):
         cls.ipv6s = {'q3': q3, 'q4': q4}
 
     def check_gobgp_local_rib(self, ctns, rf):
-        for rs_client in ctns.itervalues():
+        for rs_client in ctns.values():
             done = False
             for _ in range(self.retry_limit):
                 if done:
@@ -93,7 +92,7 @@ class GoBGPIPv6Test(unittest.TestCase):
 
                 self.assertEqual(len(local_rib), (len(ctns) - 1))
 
-                for c in ctns.itervalues():
+                for c in ctns.values():
                     if rs_client != c:
                         for r in c.routes:
                             self.assertTrue(r in local_rib)
@@ -105,7 +104,7 @@ class GoBGPIPv6Test(unittest.TestCase):
             raise AssertionError
 
     def check_rs_client_rib(self, ctns, rf):
-        for rs_client in ctns.itervalues():
+        for rs_client in ctns.values():
             done = False
             for _ in range(self.retry_limit):
                 if done:
@@ -118,7 +117,7 @@ class GoBGPIPv6Test(unittest.TestCase):
 
                 self.assertEqual(len(global_rib), len(ctns))
 
-                for c in ctns.itervalues():
+                for c in ctns.values():
                     for r in c.routes:
                         self.assertTrue(r in global_rib)
 
@@ -130,7 +129,7 @@ class GoBGPIPv6Test(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
     def test_02_check_ipv4_peer_rib(self):
@@ -142,7 +141,7 @@ class GoBGPIPv6Test(unittest.TestCase):
         self.check_rs_client_rib(self.ipv6s, 'ipv6')
 
     def test_04_add_in_policy_to_reject_all(self):
-        for q in self.gobgp.peers.itervalues():
+        for q in self.gobgp.peers.values():
             self.gobgp.local('gobgp neighbor {0} policy import set default reject'.format(q['neigh_addr'].split('/')[0]))
 
     def test_05_check_ipv4_peer_rib(self):
@@ -158,11 +157,11 @@ class GoBGPIPv6Test(unittest.TestCase):
         time.sleep(1)
 
     def test_08_check_rib(self):
-        for q in self.ipv4s.itervalues():
+        for q in self.ipv4s.values():
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q)), 0)
             self.assertEqual(len(q.get_global_rib()), len(q.routes))
 
-        for q in self.ipv6s.itervalues():
+        for q in self.ipv6s.values():
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q, rf='ipv6')), 0)
             self.assertEqual(len(q.get_global_rib(rf='ipv6')), len(q.routes))
 
@@ -170,7 +169,7 @@ class GoBGPIPv6Test(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

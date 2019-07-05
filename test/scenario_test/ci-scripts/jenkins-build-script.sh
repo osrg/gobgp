@@ -33,7 +33,7 @@ do
 done
 
 sudo docker rmi $GOBGP_IMAGE
-sudo fab -f $GOBGP/test/lib/base.py make_gobgp_ctn:tag=$GOBGP_IMAGE
+sudo fab2 -r $GOBGP/test/lib make-gobgp-ctn
 [ "$?" != 0 ] && exit "$?"
 
 cd $GOBGP/gobgpd

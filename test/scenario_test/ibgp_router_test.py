@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
+
 
 from itertools import combinations
 import sys
 import time
 import unittest
 
-from fabric.api import local
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
@@ -29,6 +28,7 @@ from lib import base
 from lib.base import (
     BGP_FSM_IDLE,
     BGP_FSM_ESTABLISHED,
+    local,
 )
 from lib.base import wait_for_completion
 from lib.gobgp import GoBGPContainer
@@ -69,13 +69,13 @@ class GoBGPTestBase(unittest.TestCase):
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
     def test_02_check_gobgp_global_rib(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             # paths expected to exist in gobgp's global rib
-            routes = q.routes.keys()
+            routes = list(q.routes.keys())
             timeout = 120
             interval = 1
             count = 0
@@ -98,7 +98,7 @@ class GoBGPTestBase(unittest.TestCase):
                     raise Exception('timeout')
 
     def test_03_check_gobgp_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             paths = self.gobgp.get_adj_rib_out(q)
             # bgp speaker mustn't forward iBGP routes to iBGP peers
             self.assertEqual(len(paths), 0)
@@ -113,7 +113,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(path['aspath']), 0)
 
     def test_05_check_gobgp_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             paths = self.gobgp.get_adj_rib_out(q)
             self.assertEqual(len(paths), len(self.gobgp.routes))
             path = paths[0]
@@ -127,7 +127,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_06_check_quagga_global_rib(self):
         interval = 1
         timeout = int(120 / interval)
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             done = False
             for _ in range(timeout):
                 if done:
@@ -147,7 +147,7 @@ class GoBGPTestBase(unittest.TestCase):
                         if rr['prefix'] == r:
                             self.assertEqual(rr['nexthop'], local_addr)
 
-                for r in q.routes.keys():
+                for r in list(q.routes.keys()):
                     self.assertTrue(r in (p['prefix'] for p in global_rib))
                     for rr in global_rib:
                         if rr['prefix'] == r:
@@ -194,7 +194,7 @@ class GoBGPTestBase(unittest.TestCase):
         peer_info = self.gobgp.peers[q3]
         neigh_addr = peer_info['neigh_addr'].split('/')[0]
 
-        for prefix in q3.routes.iterkeys():
+        for prefix in q3.routes.keys():
             paths = self.gobgp.get_adj_rib_out(q1, prefix)
             self.assertEqual(len(paths), 1)
             path = paths[0]
@@ -212,14 +212,14 @@ class GoBGPTestBase(unittest.TestCase):
         del self.quaggas['q3']
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
-        for route in q3.routes.iterkeys():
+        for route in q3.routes.keys():
             dst = self.gobgp.get_global_rib(route)
             self.assertEqual(len(dst), 0)
 
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             paths = self.gobgp.get_adj_rib_out(q)
             # only gobgp's locally generated routes must exists
-            print paths
+            print(paths)
             self.assertEqual(len(paths), len(self.gobgp.routes))
 
     def test_12_disable_ibgp_peer(self):
@@ -227,7 +227,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.disable_peer(q1)
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q1)
 
-        for route in q1.routes.iterkeys():
+        for route in q1.routes.keys():
             dst = self.gobgp.get_global_rib(route)
             self.assertEqual(len(dst), 0)
 
@@ -237,7 +237,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q1)
 
     def test_14_check_gobgp_adj_rib_out(self):
-        for q in self.quaggas.itervalues():
+        for q in self.quaggas.values():
             paths = self.gobgp.get_adj_rib_out(q)
             # only gobgp's locally generated routes must exists
             self.assertEqual(len(paths), len(self.gobgp.routes))
@@ -293,7 +293,7 @@ class GoBGPTestBase(unittest.TestCase):
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
-        print "docker not found"
+        print("docker not found")
         sys.exit(1)
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()],

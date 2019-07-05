@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
@@ -38,11 +39,10 @@ import (
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
+	"github.com/osrg/gobgp/internal/pkg/version"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/server"
 )
-
-var version = "master"
 
 func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	rtList := make([]*any.Any, 0, len(l))
@@ -54,6 +54,51 @@ func marshalRouteTargets(l []string) ([]*any.Any, error) {
 		rtList = append(rtList, apiutil.MarshalRT(rt))
 	}
 	return rtList, nil
+}
+
+func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig) {
+	toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
+		var def table.RouteType
+		switch r {
+		case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
+			def = table.ROUTE_TYPE_ACCEPT
+		case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
+			def = table.ROUTE_TYPE_REJECT
+		}
+		return def
+	}
+	toPolicies := func(r []string) []*table.Policy {
+		p := make([]*table.Policy, 0, len(r))
+		for _, n := range r {
+			p = append(p, &table.Policy{
+				Name: n,
+			})
+		}
+		return p
+	}
+
+	def := toDefaultTable(a.DefaultImportPolicy)
+	ps := toPolicies(a.ImportPolicyList)
+	bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+			Name:     table.GLOBAL_RIB_NAME,
+			Type:     table.POLICY_DIRECTION_IMPORT,
+			Policies: ps,
+			Default:  def,
+		}),
+	})
+
+	def = toDefaultTable(a.DefaultExportPolicy)
+	ps = toPolicies(a.ExportPolicyList)
+	bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
+			Name:     table.GLOBAL_RIB_NAME,
+			Type:     table.POLICY_DIRECTION_EXPORT,
+			Policies: ps,
+			Default:  def,
+		}),
+	})
+
 }
 
 func main() {
@@ -74,6 +119,7 @@ func main() {
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
 		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
+		UseSdNotify     bool   `long:"sdnotify" description:"use sd_notify protocol"`
 		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
 		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
 		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
@@ -85,7 +131,7 @@ func main() {
 	}
 
 	if opts.Version {
-		fmt.Println("gobgpd version", version)
+		fmt.Println("gobgpd version", version.Version())
 		os.Exit(0)
 	}
 
@@ -146,25 +192,29 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Info("gobgpd started")
-	bgpServer := server.NewBgpServer()
-	go bgpServer.Serve()
-
-	var grpcOpts []grpc.ServerOption
+	maxSize := 256 << 20
+	grpcOpts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxSize), grpc.MaxSendMsgSize(maxSize)}
 	if opts.TLS {
 		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
 			log.Fatalf("Failed to generate credentials: %v", err)
 		}
-		grpcOpts = []grpc.ServerOption{grpc.Creds(creds)}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	// start grpc Server
-	apiServer := server.NewServer(bgpServer, grpc.NewServer(grpcOpts...), opts.GrpcHosts)
-	go func() {
-		if err := apiServer.Serve(); err != nil {
-			log.Fatalf("failed to listen grpc port: %s", err)
+
+	log.Info("gobgpd started")
+	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts))
+	go bgpServer.Serve()
+
+	if opts.UseSdNotify {
+		if status, err := daemon.SdNotify(false, daemon.SdNotifyReady); !status {
+			if err != nil {
+				log.Warnf("Failed to send notification via sd_notify(): %s", err)
+			} else {
+				log.Warnf("The socket sd_notify() isn't available")
+			}
 		}
-	}()
+	}
 
 	if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
@@ -175,7 +225,10 @@ func main() {
 		for {
 			select {
 			case <-sigCh:
-				apiServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+				bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+				if opts.UseSdNotify {
+					daemon.SdNotify(false, daemon.SdNotifyStopping)
+				}
 				return
 			case newConfig := <-configCh:
 				var added, deleted, updated []config.Neighbor
@@ -184,7 +237,7 @@ func main() {
 
 				if c == nil {
 					c = newConfig
-					if _, err := apiServer.StartBgp(context.Background(), &api.StartBgpRequest{
+					if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
 						Global: config.NewGlobalFromConfigStruct(&c.Global),
 					}); err != nil {
 						log.Fatalf("failed to set global config: %s", err)
@@ -196,12 +249,14 @@ func main() {
 						for _, t := range tps {
 							l = append(l, string(t))
 						}
-						if _, err := apiServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
+						if err := bgpServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
 							Url:                  c.Zebra.Config.Url,
 							RouteTypes:           l,
 							Version:              uint32(c.Zebra.Config.Version),
 							NexthopTriggerEnable: c.Zebra.Config.NexthopTriggerEnable,
 							NexthopTriggerDelay:  uint32(c.Zebra.Config.NexthopTriggerDelay),
+							MplsLabelRangeSize:   uint32(c.Zebra.Config.MplsLabelRangeSize),
+							SoftwareName:         c.Zebra.Config.SoftwareName,
 						}); err != nil {
 							log.Fatalf("failed to set zebra config: %s", err)
 						}
@@ -212,7 +267,7 @@ func main() {
 					}
 
 					for _, c := range newConfig.RpkiServers {
-						if _, err := apiServer.AddRpki(context.Background(), &api.AddRpkiRequest{
+						if err := bgpServer.AddRpki(context.Background(), &api.AddRpkiRequest{
 							Address:  c.Config.Address,
 							Port:     c.Config.Port,
 							Lifetime: c.Config.RecordLifetime,
@@ -221,10 +276,13 @@ func main() {
 						}
 					}
 					for _, c := range newConfig.BmpServers {
-						if _, err := apiServer.AddBmp(context.Background(), &api.AddBmpRequest{
-							Address: c.Config.Address,
-							Port:    c.Config.Port,
-							Type:    api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+						if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
+							Address:           c.Config.Address,
+							Port:              c.Config.Port,
+							SysName:           c.Config.SysName,
+							SysDescr:          c.Config.SysDescr,
+							Policy:            api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+							StatisticsTimeout: int32(c.Config.StatisticsTimeout),
 						}); err != nil {
 							log.Fatalf("failed to set bmp config: %s", err)
 						}
@@ -244,7 +302,7 @@ func main() {
 							log.Fatalf("failed to load vrf export rt config: %s", err)
 						}
 
-						if _, err := apiServer.AddVrf(context.Background(), &api.AddVrfRequest{
+						if err := bgpServer.AddVrf(context.Background(), &api.AddVrfRequest{
 							Vrf: &api.Vrf{
 								Name:     vrf.Config.Name,
 								Rd:       apiutil.MarshalRD(rd),
@@ -260,10 +318,11 @@ func main() {
 						if len(c.Config.FileName) == 0 {
 							continue
 						}
-						if _, err := apiServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
-							DumpType: int32(c.Config.DumpType.ToInt()),
-							Filename: c.Config.FileName,
-							Interval: c.Config.DumpInterval,
+						if err := bgpServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
+							DumpType:         int32(c.Config.DumpType.ToInt()),
+							Filename:         c.Config.FileName,
+							DumpInterval:     c.Config.DumpInterval,
+							RotationInterval: c.Config.RotationInterval,
 						}); err != nil {
 							log.Fatalf("failed to set mrt config: %s", err)
 						}
@@ -273,11 +332,13 @@ func main() {
 					if err != nil {
 						log.Warn(err)
 					} else {
-						apiServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+						bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
 							DefinedSets: rp.DefinedSets,
 							Policies:    rp.Policies,
 						})
 					}
+
+					assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
 
 					added = newConfig.Neighbors
 					addedPg = newConfig.PeerGroups
@@ -288,7 +349,6 @@ func main() {
 							}
 						}
 					}
-
 				} else {
 					addedPg, deletedPg, updatedPg = config.UpdatePeerGroupConfig(c, newConfig)
 					added, deleted, updated = config.UpdateNeighborConfig(c, newConfig)
@@ -301,7 +361,7 @@ func main() {
 						if err != nil {
 							log.Warn(err)
 						} else {
-							apiServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+							bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
 								DefinedSets: rp.DefinedSets,
 								Policies:    rp.Policies,
 							})
@@ -309,57 +369,14 @@ func main() {
 					}
 					// global policy update
 					if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
-						a := newConfig.Global.ApplyPolicy.Config
-						toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
-							var def table.RouteType
-							switch r {
-							case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
-								def = table.ROUTE_TYPE_ACCEPT
-							case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
-								def = table.ROUTE_TYPE_REJECT
-							}
-							return def
-						}
-						toPolicies := func(r []string) []*table.Policy {
-							p := make([]*table.Policy, 0, len(r))
-							for _, n := range r {
-								p = append(p, &table.Policy{
-									Name: n,
-								})
-							}
-							return p
-						}
-
-						def := toDefaultTable(a.DefaultImportPolicy)
-						ps := toPolicies(a.ImportPolicyList)
-						apiServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
-							Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
-								Name:     table.GLOBAL_RIB_NAME,
-								Type:     table.POLICY_DIRECTION_IMPORT,
-								Policies: ps,
-								Default:  def,
-							}),
-						})
-
-						def = toDefaultTable(a.DefaultExportPolicy)
-						ps = toPolicies(a.ExportPolicyList)
-						apiServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
-							Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
-								Name:     table.GLOBAL_RIB_NAME,
-								Type:     table.POLICY_DIRECTION_EXPORT,
-								Policies: ps,
-								Default:  def,
-							}),
-						})
-
+						assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
 						updatePolicy = true
-
 					}
 					c = newConfig
 				}
 				for _, pg := range addedPg {
 					log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
-					if _, err := apiServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+					if err := bgpServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
 						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
@@ -367,15 +384,15 @@ func main() {
 				}
 				for _, pg := range deletedPg {
 					log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
-					if _, err := apiServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
+					if err := bgpServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
 						Name: pg.Config.PeerGroupName,
 					}); err != nil {
 						log.Warn(err)
 					}
 				}
 				for _, pg := range updatedPg {
-					log.Infof("PeerGroup %v is updated", pg.State.PeerGroupName)
-					if u, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
+					if u, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
 						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 					}); err != nil {
 						log.Warn(err)
@@ -383,17 +400,9 @@ func main() {
 						updatePolicy = updatePolicy || u.NeedsSoftResetIn
 					}
 				}
-				for _, pg := range updatedPg {
-					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
-					if _, err := apiServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
-					}); err != nil {
-						log.Warn(err)
-					}
-				}
 				for _, dn := range newConfig.DynamicNeighbors {
 					log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
-					if _, err := apiServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+					if err := bgpServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
 						DynamicNeighbor: &api.DynamicNeighbor{
 							Prefix:    dn.Config.Prefix,
 							PeerGroup: dn.Config.PeerGroup,
@@ -404,7 +413,7 @@ func main() {
 				}
 				for _, p := range added {
 					log.Infof("Peer %v is added", p.State.NeighborAddress)
-					if _, err := apiServer.AddPeer(context.Background(), &api.AddPeerRequest{
+					if err := bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{
 						Peer: config.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
@@ -412,7 +421,7 @@ func main() {
 				}
 				for _, p := range deleted {
 					log.Infof("Peer %v is deleted", p.State.NeighborAddress)
-					if _, err := apiServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
+					if err := bgpServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
 						Address: p.State.NeighborAddress,
 					}); err != nil {
 						log.Warn(err)
@@ -420,7 +429,7 @@ func main() {
 				}
 				for _, p := range updated {
 					log.Infof("Peer %v is updated", p.State.NeighborAddress)
-					if u, err := apiServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
+					if u, err := bgpServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
 						Peer: config.NewPeerFromConfigStruct(&p),
 					}); err != nil {
 						log.Warn(err)
@@ -430,7 +439,7 @@ func main() {
 				}
 
 				if updatePolicy {
-					if _, err := apiServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
+					if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
 						Address:   "",
 						Direction: api.ResetPeerRequest_IN,
 						Soft:      true,

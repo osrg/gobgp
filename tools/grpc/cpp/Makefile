@@ -1,38 +1,57 @@
+#
+# Copyright 2015 gRPC authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
 SYSTEM ?= $(HOST_SYSTEM)
 CXX = g++
-CPPFLAGS += -I/usr/local/include -pthread
+CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11
 ifeq ($(SYSTEM),Darwin)
-LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++`            \
-           -lgrpc++_reflection \
-           -lprotobuf -lpthread -ldl
+LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
+           -lgrpc++_reflection\
+           -ldl
 else
-LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++`            \
-           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed \
-           -lprotobuf -lpthread -ldl
+LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
+           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
+           -ldl
 endif
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 
-PROTOS_PATH = .
+PROTOS_PATH = ../../../api
 
 vpath %.proto $(PROTOS_PATH)
 
-all: system-check gobgp_api_client
+#all: system-check greeter_client greeter_server greeter_async_client greeter_async_client2 greeter_async_server
+all: add_path
 
-gobgp_api_client: gobgp_api_client.pb.o gobgp_api_client.grpc.pb.o gobgp_api_client.o
-	$(CXX) $^ $(LDFLAGS) -L. -lgobgp -o $@
+add_path: gobgp.pb.o gobgp.grpc.pb.o attribute.pb.o attribute.grpc.pb.o capability.pb.o capability.grpc.pb.o add_path.o
+	$(CXX) $^ $(LDFLAGS) -o $@
 
+.PRECIOUS: %.grpc.pb.cc
 %.grpc.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
 
+.PRECIOUS: %.pb.cc
 %.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --cpp_out=. $<
 
 clean:
-	rm -f *.o *.pb.cc *.pb.h gobgp_api_client
+	rm -f *.o *.pb.cc *.pb.h greeter_client greeter_server greeter_async_client greeter_async_client2 greeter_async_server
 
 
 # The following is to test your system and ensure a smoother experience.
@@ -62,7 +81,7 @@ ifneq ($(HAS_VALID_PROTOC),true)
 	@echo "Please install Google protocol buffers 3.0.0 and its compiler."
 	@echo "You can find it here:"
 	@echo
-	@echo "   https://github.com/google/protobuf/releases/tag/v3.0.0-alpha-1"
+	@echo "   https://github.com/google/protobuf/releases/tag/v3.0.0"
 	@echo
 	@echo "Here is what I get when trying to evaluate your version of protoc:"
 	@echo

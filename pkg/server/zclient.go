@@ -116,7 +116,20 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 	return filteredPaths
 }
 
-func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool) {
+func addMessageLabelToIPRouteBody(path *table.Path, vrfId uint32, z *zebraClient, msgFlags *zebra.MESSAGE_FLAG, nexthop *zebra.Nexthop) {
+	v := z.client.Version
+	rf := path.GetRouteFamily()
+	if v > 4 && (rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN) {
+		*msgFlags |= zebra.FRR_ZAPI5_MESSAGE_LABEL
+		for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
+			nexthop.LabelNum++
+			nexthop.MplsLabels = append(nexthop.MplsLabels, label)
+		}
+	}
+}
+
+func newIPRouteBody(dst []*table.Path, vrfId uint32, z *zebraClient) (body *zebra.IPRouteBody, isWithdraw bool) {
+	version := z.client.Version
 	paths := filterOutExternalPath(dst)
 	if len(paths) == 0 {
 		return nil, false
@@ -125,45 +138,55 @@ func newIPRouteBody(dst []*table.Path) (body *zebra.IPRouteBody, isWithdraw bool
 
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var prefix net.IP
-	//nexthops := make([]net.IP, 0, len(paths))
 	var nexthop zebra.Nexthop
 	nexthops := make([]zebra.Nexthop, 0, len(paths))
+	msgFlags := zebra.MESSAGE_NEXTHOP
 	switch path.GetRouteFamily() {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
-		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
-			prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
-		} else {
-			prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
-		}
-		for _, p := range paths {
-			nexthop.Gate = p.GetNexthop().To4()
-			nexthops = append(nexthops, nexthop)
-		}
-	case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
-		if path.GetRouteFamily() == bgp.RF_IPv6_UC {
-			prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
-		} else {
-			prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
-		}
-		for _, p := range paths {
-			nexthop.Gate = p.GetNexthop().To16()
-			nexthops = append(nexthops, nexthop)
-		}
+	case bgp.RF_IPv4_UC:
+		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+	case bgp.RF_IPv4_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+	case bgp.RF_IPv6_UC:
+		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+	case bgp.RF_IPv6_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
 	default:
 		return nil, false
 	}
-	msgFlags := zebra.MESSAGE_NEXTHOP
+	nhVrfId := uint32(zebra.VRF_DEFAULT)
+	for vrfPath, pathVrfId := range z.pathVrfMap {
+		if path.Equal(vrfPath) {
+			nhVrfId = pathVrfId
+			break
+		} else {
+			continue
+		}
+	}
+	for _, p := range paths {
+		nexthop.Gate = p.GetNexthop()
+		nexthop.VrfId = nhVrfId
+		if nhVrfId != vrfId {
+			addMessageLabelToIPRouteBody(path, vrfId, z, &msgFlags, &nexthop)
+		}
+		nexthops = append(nexthops, nexthop)
+	}
 	plen, _ := strconv.ParseUint(l[1], 10, 8)
 	med, err := path.GetMed()
 	if err == nil {
-		msgFlags |= zebra.MESSAGE_METRIC
+		if version < 5 {
+			msgFlags |= zebra.MESSAGE_METRIC
+		} else {
+			msgFlags |= zebra.FRR_ZAPI5_MESSAGE_METRIC
+		}
 	}
 	var flags zebra.FLAG
-	info := path.GetSource()
-	if info.AS == info.LocalAS {
-		flags = zebra.FLAG_IBGP | zebra.FLAG_INTERNAL
-	} else if info.MultihopTtl > 0 {
-		flags = zebra.FLAG_INTERNAL
+	if path.IsIBGP() {
+		flags = zebra.FLAG_IBGP | zebra.FLAG_ALLOW_RECURSION // 0x08|0x01
+		if z.client.Version == 6 && z.client.SoftwareName != "frr6" {
+			flags = zebra.FRR_ZAPI6_FLAG_IBGP | zebra.FRR_ZAPI6_FLAG_ALLOW_RECURSION //0x04|0x01
+		}
+	} else if path.GetSource().MultihopTtl > 0 {
+		flags = zebra.FLAG_ALLOW_RECURSION // 0x01, FRR_ZAPI6_FLAG_ALLOW_RECURSION is same.
 	}
 	return &zebra.IPRouteBody{
 		Type:    zebra.ROUTE_BGP,
@@ -228,7 +251,7 @@ func newNexthopUnregisterBody(family uint16, prefix net.IP) *zebra.NexthopRegist
 	}
 }
 
-func newPathFromIPRouteMessage(m *zebra.Message, version uint8) *table.Path {
+func newPathFromIPRouteMessage(m *zebra.Message, version uint8, software string) *table.Path {
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
 	family := body.RouteFamily(version)
@@ -242,7 +265,7 @@ func newPathFromIPRouteMessage(m *zebra.Message, version uint8) *table.Path {
 	log.WithFields(log.Fields{
 		"Topic":        "Zebra",
 		"RouteType":    body.Type.String(),
-		"Flag":         body.Flags.String(),
+		"Flag":         body.Flags.String(version, software),
 		"Message":      body.Message,
 		"Family":       body.Prefix.Family,
 		"Prefix":       body.Prefix.Prefix,
@@ -282,10 +305,18 @@ func newPathFromIPRouteMessage(m *zebra.Message, version uint8) *table.Path {
 	return path
 }
 
+type mplsLabelParameter struct {
+	rangeSize    uint32
+	maps         map[uint64]*table.Bitmap
+	unassinedVrf []*table.Vrf //Vrfs which are not assigned MPLS label
+}
+
 type zebraClient struct {
 	client       *zebra.Client
 	server       *BgpServer
 	nexthopCache nexthopStateCache
+	pathVrfMap   map[*table.Path]uint32 //vpn paths and nexthop vpn id
+	mplsLabel    mplsLabelParameter
 	dead         chan struct{}
 }
 
@@ -331,9 +362,9 @@ func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
 }
 
 func (z *zebraClient) loop() {
-	w := z.server.Watch([]WatchOption{
-		WatchBestPath(true),
-		WatchPostUpdate(true),
+	w := z.server.watch([]watchOption{
+		watchBestPath(true),
+		watchPostUpdate(true),
 	}...)
 	defer w.Stop()
 
@@ -342,9 +373,12 @@ func (z *zebraClient) loop() {
 		case <-z.dead:
 			return
 		case msg := <-z.client.Receive():
+			if msg == nil {
+				break
+			}
 			switch body := msg.Body.(type) {
 			case *zebra.IPRouteBody:
-				if path := newPathFromIPRouteMessage(msg, z.client.Version); path != nil {
+				if path := newPathFromIPRouteMessage(msg, z.client.Version, z.client.SoftwareName); path != nil {
 					if err := z.server.addPathList("", []*table.Path{path}); err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Zebra",
@@ -365,14 +399,21 @@ func (z *zebraClient) loop() {
 					delete(z.nexthopCache, body.Prefix.Prefix.String())
 				}
 				z.updatePathByNexthopCache(paths)
+			case *zebra.GetLabelChunkBody:
+				startEnd := uint64(body.Start)<<32 | uint64(body.End)
+				z.mplsLabel.maps[startEnd] = table.NewBitmap(int(body.End - body.Start + 1))
+				for _, vrf := range z.mplsLabel.unassinedVrf {
+					z.assignAndSendVrfMplsLabel(vrf)
+				}
+				z.mplsLabel.unassinedVrf = nil
 			}
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
-			case *WatchEventBestPath:
+			case *watchEventBestPath:
 				if table.UseMultiplePaths.Enabled {
 					for _, paths := range msg.MultiPathList {
 						z.updatePathByNexthopCache(paths)
-						if body, isWithdraw := newIPRouteBody(paths); body != nil {
+						if body, isWithdraw := newIPRouteBody(paths, 0, z); body != nil {
 							z.client.SendIPRoute(0, body, isWithdraw)
 						}
 						if body := newNexthopRegisterBody(paths, z.nexthopCache); body != nil {
@@ -389,8 +430,15 @@ func (z *zebraClient) loop() {
 							}
 						}
 						for _, i := range vrfs {
-							if body, isWithdraw := newIPRouteBody([]*table.Path{path}); body != nil {
-								z.client.SendIPRoute(i, body, isWithdraw)
+							routeFamily := path.GetRouteFamily()
+							if i == zebra.VRF_DEFAULT && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
+								continue
+							}
+							if body, isWithdraw := newIPRouteBody([]*table.Path{path}, i, z); body != nil {
+								err := z.client.SendIPRoute(i, body, isWithdraw)
+								if err != nil {
+									continue
+								}
 							}
 							if body := newNexthopRegisterBody([]*table.Path{path}, z.nexthopCache); body != nil {
 								z.client.SendNexthopRegister(i, body, false)
@@ -398,7 +446,7 @@ func (z *zebraClient) loop() {
 						}
 					}
 				}
-			case *WatchEventUpdate:
+			case *watchEventUpdate:
 				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
 					vrfID := uint32(0)
 					for _, vrf := range z.server.listVrf() {
@@ -413,33 +461,53 @@ func (z *zebraClient) loop() {
 	}
 }
 
-func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8) (*zebraClient, error) {
+func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8, mplsLabelRangeSize uint32, softwareName string) (*zebraClient, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
 	}
 	var cli *zebra.Client
 	var err error
-	for _, ver := range []uint8{version, 2, 3, 4, 5, 6} {
-		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, ver)
-		if err == nil {
+	var usingVersion uint8
+	var zapivers [zebra.MaxZapiVer - zebra.MinZapiVer + 1]uint8
+	zapivers[0] = version
+	for elem, ver := 1, zebra.MinZapiVer; elem < len(zapivers) && ver <= zebra.MaxZapiVer; elem++ {
+		if version == ver && ver < zebra.MaxZapiVer {
+			ver++
+		}
+		zapivers[elem] = ver
+		ver++
+	}
+	for elem, ver := range zapivers {
+		cli, err = zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, ver, softwareName)
+		if cli != nil && err == nil {
+			usingVersion = ver
 			break
 		}
 		// Retry with another Zebra message version
 		log.WithFields(log.Fields{
 			"Topic": "Zebra",
-		}).Warnf("cannot connect to Zebra with message version %d. going to retry another version...", ver)
+		}).Warnf("cannot connect to Zebra with message version %d.", ver)
+		if elem < len(zapivers)-1 {
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Warnf("going to retry another version %d.", zapivers[elem+1])
+		}
 	}
-	if cli == nil {
+	if cli == nil || err != nil {
 		return nil, err
 	}
+	log.WithFields(log.Fields{
+		"Topic": "Zebra",
+	}).Infof("success to connect to Zebra with message version %d.", usingVersion)
+
 	// Note: HELLO/ROUTER_ID_ADD messages are automatically sent to negotiate
 	// the Zebra message version in zebra.NewClient().
 	// cli.SendHello()
 	// cli.SendRouterIDAdd()
 	cli.SendInterfaceAdd()
 	for _, typ := range protos {
-		t, err := zebra.RouteTypeFromString(typ, version)
+		t, err := zebra.RouteTypeFromString(typ, version, softwareName)
 		if err != nil {
 			return nil, err
 		}
@@ -449,8 +517,64 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		client:       cli,
 		server:       s,
 		nexthopCache: make(nexthopStateCache),
-		dead:         make(chan struct{}),
+		pathVrfMap:   make(map[*table.Path]uint32),
+		mplsLabel: mplsLabelParameter{
+			rangeSize: mplsLabelRangeSize,
+			maps:      make(map[uint64]*table.Bitmap),
+		},
+		dead: make(chan struct{}),
 	}
 	go w.loop()
+	if mplsLabelRangeSize > 0 {
+		if err = cli.SendGetLabelChunk(&zebra.GetLabelChunkBody{ChunkSize: mplsLabelRangeSize}); err != nil {
+			return nil, err
+		}
+	}
 	return w, nil
+}
+
+func (z *zebraClient) assignMplsLabel() (uint32, error) {
+	if z.mplsLabel.maps == nil {
+		return 0, nil
+	}
+	var label uint32
+	for startEnd, bitmap := range z.mplsLabel.maps {
+		start := uint32(startEnd >> 32)
+		end := uint32(startEnd & 0xffffffff)
+		l, err := bitmap.FindandSetZeroBit()
+		if err == nil && start+uint32(l) <= end {
+			label = start + uint32(l)
+			break
+		}
+	}
+	if label == 0 {
+		return 0, fmt.Errorf("failed to assign new MPLS label")
+	}
+	return label, nil
+}
+
+func (z *zebraClient) assignAndSendVrfMplsLabel(vrf *table.Vrf) error {
+	var err error
+	if vrf.MplsLabel, err = z.assignMplsLabel(); vrf.MplsLabel > 0 { // success
+		if err = z.client.SendVrfLabel(vrf.MplsLabel, vrf.Id); err != nil {
+			return err
+		}
+	} else if vrf.MplsLabel == 0 { // GetLabelChunk is not performed
+		z.mplsLabel.unassinedVrf = append(z.mplsLabel.unassinedVrf, vrf)
+	}
+	return err
+}
+
+func (z *zebraClient) releaseMplsLabel(label uint32) {
+	if z.mplsLabel.maps == nil {
+		return
+	}
+	for startEnd, bitmap := range z.mplsLabel.maps {
+		start := uint32(startEnd >> 32)
+		end := uint32(startEnd & 0xffffffff)
+		if start <= label && label <= end {
+			bitmap.Unflag(uint(label - start))
+			return
+		}
+	}
 }

@@ -166,11 +166,12 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 		msgs = append(msgs, t.deletePathsByVrf(vrf)...)
 	}
 	log.WithFields(log.Fields{
-		"Topic":    "Vrf",
-		"Key":      vrf.Name,
-		"Rd":       vrf.Rd,
-		"ImportRt": vrf.ImportRt,
-		"ExportRt": vrf.ExportRt,
+		"Topic":     "Vrf",
+		"Key":       vrf.Name,
+		"Rd":        vrf.Rd,
+		"ImportRt":  vrf.ImportRt,
+		"ExportRt":  vrf.ExportRt,
+		"MplsLabel": vrf.MplsLabel,
 	}).Debugf("delete vrf")
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]

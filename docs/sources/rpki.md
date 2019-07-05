@@ -194,13 +194,3 @@ Target Prefix: 2.1.0.0/16, AS: 65001
 
 From this, we can notice that 2.1.0.0/16 (Origin AS: 65001) is invalid due to its origin AS,
 the origin AS should be 3215.
-
-## Force Re-validation
-
-Validation is executed every time bgp update messages arrive. The
-changes of ROAs doesn't trigger off validation. The following command
-enables you to validate all the routes.
-
-```bash
-$ gobgp rpki validate
-```

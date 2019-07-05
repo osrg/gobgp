@@ -1,8 +1,10 @@
 nose
 toml
 pyyaml
-fabric<2.0.0
+fabric
 netaddr
 nsenter
 docker-py
 ryu
+colored
+invoke

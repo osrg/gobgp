@@ -16,6 +16,7 @@ gobgpd
 grpc
 ibgp
 ipproto
+isis
 keepalive
 keepalives
 llgr
@@ -28,12 +29,15 @@ mututally
 nexthop
 nexthops
 nlri
+ospf
 pmsi
 prepend
 reachability
+reservable
 rpki
 sadb
 safi
+srgb
 subcode
 syscall
 syslog

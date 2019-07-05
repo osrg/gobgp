@@ -13,20 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
 
 import os
 import time
 import itertools
 
-from fabric.api import local, lcd
-from fabric import colors
-from fabric.state import env, output
+from invoke import run
+
+import textwrap
+from colored import fg, attr
+
 try:
     from docker import Client
 except ImportError:
     from docker import APIClient as Client
 import netaddr
+
 
 DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
@@ -82,8 +84,19 @@ FLOWSPEC_NAME_TO_TYPE = {
 TEST_CONTAINER_LABEL = 'gobgp-test'
 TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
 
-env.abort_exception = RuntimeError
-output.stderr = False
+
+def local(s, capture=False):
+    print('[localhost] local:', s)
+    _env = {'NOSE_NOLOGCAPTURE': '1' if capture else '0'}
+    return run(s, hide=True, env=_env).stdout.strip()
+
+
+def yellow(s):
+    return fg('yellow') + str(s) + attr('reset')
+
+
+def indent(s):
+    return textwrap.indent(str(s), ' '*4, lambda line: True)
 
 
 def community_str(i):
@@ -158,28 +171,6 @@ class CmdBuffer(list):
         return self.delim.join(self)
 
 
-def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
-    if local_gobgp_path == '':
-        local_gobgp_path = os.getcwd()
-
-    c = CmdBuffer()
-    c << 'FROM {0}'.format(from_image)
-    c << 'RUN go get -u github.com/golang/dep/cmd/dep'
-    c << 'RUN mkdir -p /go/src/github.com/osrg/'
-    c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
-    c << 'RUN cd /go/src/github.com/osrg/gobgp && dep ensure && go install ./cmd/gobgpd ./cmd/gobgp'
-
-    rindex = local_gobgp_path.rindex('gobgp')
-    if rindex < 0:
-        raise Exception('{0} seems not gobgp dir'.format(local_gobgp_path))
-
-    workdir = local_gobgp_path[:rindex]
-    with lcd(workdir):
-        local('echo \'{0}\' > Dockerfile'.format(str(c)))
-        local('docker build -t {0} .'.format(tag))
-        local('rm Dockerfile')
-
-
 class Bridge(object):
     def __init__(self, name, subnet='', with_ip=True, self_ip=False):
         self.name = name
@@ -223,7 +214,7 @@ class Bridge(object):
                       capture=True)
 
     def next_ip_address(self):
-        return "{0}/{1}".format(self._ip_generator.next(),
+        return "{0}/{1}".format(next(self._ip_generator),
                                 self.subnet.prefixlen)
 
     def addif(self, ctn, ip_addr=''):
@@ -235,7 +226,7 @@ class Bridge(object):
             if self.subnet.version == 6:
                 ip = '--ip6 {0}'.format(ip_addr)
         local("docker network connect {0} {1} {2}".format(ip, self.name, ctn.docker_name()))
-        i = [x for x in Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values() if x['Name'] == ctn.docker_name()][0]
+        i = [x for x in list(Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
         if self.subnet.version == 4:
             eth = 'eth{0}'.format(len(ctn.ip_addrs))
             addr = i['IPv4Address']
@@ -303,7 +294,7 @@ class Container(object):
 
     def pipework(self, bridge, ip_addr, intf_name=""):
         if not self.is_running:
-            print colors.yellow('call run() before pipeworking')
+            print(yellow('call run() before pipeworking'))
             return
         c = CmdBuffer(' ')
         c << "pipework {0}".format(bridge.name)
@@ -461,7 +452,7 @@ class BGPContainer(Container):
 
     def _extract_routes(self, families):
         routes = {}
-        for prefix, paths in self.routes.items():
+        for prefix, paths in list(self.routes.items()):
             if paths and paths[0]['rf'] in families:
                 routes[prefix] = paths
         return routes
@@ -551,7 +542,7 @@ class BGPContainer(Container):
         count = 0
         while True:
             res = self.local(cmd, capture=True)
-            print colors.yellow(res)
+            print(yellow(res))
             if ('1 packets received' in res or '1 received' in res) and '0% packet loss' in res:
                 break
             time.sleep(interval)
@@ -565,10 +556,9 @@ class BGPContainer(Container):
         count = 0
         while True:
             state = self.get_neighbor_state(peer)
-            y = colors.yellow
-            print y("{0}'s peer {1} state: {2}".format(self.router_id,
-                                                       peer.router_id,
-                                                       state))
+            print(yellow("{0}'s peer {1} state: {2}".format(self.router_id,
+                                                            peer.router_id,
+                                                            state)))
             if state == expected_state:
                 return
 

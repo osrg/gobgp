@@ -17,6 +17,7 @@ package zebra
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -30,9 +31,14 @@ import (
 )
 
 const (
-	HEADER_MARKER     = 255
-	FRR_HEADER_MARKER = 254
-	INTERFACE_NAMSIZ  = 20
+	HEADER_MARKER     uint8 = 255
+	FRR_HEADER_MARKER uint8 = 254
+	INTERFACE_NAMSIZ        = 20
+)
+
+const (
+	MinZapiVer uint8 = 2
+	MaxZapiVer uint8 = 6
 )
 
 // Internal Interface Status.
@@ -104,7 +110,7 @@ const (
 
 const VRF_DEFAULT = 0
 const MAXPATH_NUM = 64
-const MPLS_MAX_LABLE = 16
+const MPLS_MAX_LABEL = 16
 
 func HeaderSize(version uint8) uint16 {
 	switch version {
@@ -172,12 +178,29 @@ const (
 //go:generate stringer -type=SAFI
 type SAFI uint8
 
+// SAFI definition in Zebra of FRRouting 4.x, 5.x, 6.x
+const (
+	_ SAFI = iota
+	FRR_ZAPI5_SAFI_UNICAST
+	FRR_ZAPI5_SAFI_MULTICAST
+	FRR_ZAPI5_SAFI_MPLS_VPN
+	FRR_ZAPI5_SAFI_ENCAP
+	FRR_ZAPI5_SAFI_EVPN
+	FRR_ZAPI5_SAFI_LABELED_UNICAST
+	FRR_ZAPI5_SAFI_FLOWSPEC
+	FRR_ZAPI5_SAFI_MAX
+)
+
+// SAFI definition in Zebra of Quagga and FRRouting 3.x
 const (
 	_ SAFI = iota
 	SAFI_UNICAST
 	SAFI_MULTICAST
-	SAFI_RESERVED_3
-	SAFI_MPLS_VPN
+	FRR_SAFI_MPLS_VPN // SAFI_RESERVED_3 in quagga
+	SAFI_MPLS_VPN     // SAFI_RESERVED_4 in FRRouting 3.x
+	FRR_SAFI_ENCAP
+	FRR_SAFI_EVPN
+	SAFI_ENCAP // SAFI_MAX in FRRouting 3.x
 	SAFI_MAX
 )
 
@@ -185,7 +208,7 @@ const (
 //go:generate stringer -type=API_TYPE
 type API_TYPE uint16
 
-// For FRRouting version 6. (ZAPI version 6)
+// For FRRouting version 7. (ZAPI version 6)
 const (
 	FRR_ZAPI6_INTERFACE_ADD API_TYPE = iota
 	FRR_ZAPI6_INTERFACE_DELETE
@@ -215,7 +238,6 @@ const (
 	FRR_ZAPI6_IMPORT_ROUTE_REGISTER
 	FRR_ZAPI6_IMPORT_ROUTE_UNREGISTER
 	FRR_ZAPI6_IMPORT_CHECK_UPDATE
-	FRR_ZAPI6_IPV4_ROUTE_IPV6_NEXTHOP_ADD
 	FRR_ZAPI6_BFD_DEST_REGISTER
 	FRR_ZAPI6_BFD_DEST_DEREGISTER
 	FRR_ZAPI6_BFD_DEST_UPDATE
@@ -237,6 +259,7 @@ const (
 	FRR_ZAPI6_MPLS_LABELS_DELETE
 	FRR_ZAPI6_IPMR_ROUTE_STATS
 	FRR_ZAPI6_LABEL_MANAGER_CONNECT
+	FRR_ZAPI6_LABEL_MANAGER_CONNECT_ASYNC
 	FRR_ZAPI6_GET_LABEL_CHUNK
 	FRR_ZAPI6_RELEASE_LABEL_CHUNK
 	FRR_ZAPI6_FEC_REGISTER
@@ -259,6 +282,7 @@ const (
 	FRR_ZAPI6_IP_PREFIX_ROUTE_DEL
 	FRR_ZAPI6_REMOTE_MACIP_ADD
 	FRR_ZAPI6_REMOTE_MACIP_DEL
+	FRR_ZAPI6_DUPLICATE_ADDR_DETECTION
 	FRR_ZAPI6_PW_ADD
 	FRR_ZAPI6_PW_DELETE
 	FRR_ZAPI6_PW_SET
@@ -279,9 +303,10 @@ const (
 	FRR_ZAPI6_IPTABLE_ADD
 	FRR_ZAPI6_IPTABLE_DELETE
 	FRR_ZAPI6_IPTABLE_NOTIFY_OWNER
+	FRR_ZAPI6_VXLAN_FLOOD_CONTROL
 )
 
-// For FRRouting version 4 and 5. (ZAPI version 5)
+// For FRRouting 5. (ZAPI version 5)
 const (
 	FRR_ZAPI5_INTERFACE_ADD API_TYPE = iota
 	FRR_ZAPI5_INTERFACE_DELETE
@@ -379,7 +404,7 @@ const (
 	FRR_ZAPI5_IPTABLE_NOTIFY_OWNER
 )
 
-// For FRRouting.
+// For FRRouting version 3. (ZAPI version 4)
 const (
 	FRR_INTERFACE_ADD API_TYPE = iota
 	FRR_INTERFACE_DELETE
@@ -482,7 +507,7 @@ const (
 //go:generate stringer -type=ROUTE_TYPE
 type ROUTE_TYPE uint8
 
-// For FRRouting version 6 (ZAPI version 6).
+// For FRRouting version 7 (ZAPI version 6).
 const (
 	FRR_ZAPI6_ROUTE_SYSTEM ROUTE_TYPE = iota
 	FRR_ZAPI6_ROUTE_KERNEL
@@ -510,11 +535,12 @@ const (
 	FRR_ZAPI6_ROUTE_SHARP
 	FRR_ZAPI6_ROUTE_PBR
 	FRR_ZAPI6_ROUTE_BFD
+	FRR_ZAPI6_ROUTE_OPENFABRIC // FRRRouting version 7 adds.
 	FRR_ZAPI6_ROUTE_ALL
 	FRR_ZAPI6_ROUTE_MAX
 )
 
-// For FRRouting version 4 and 5 (ZAPI version 5).
+// For FRRouting version 5 (ZAPI version 5).
 const (
 	FRR_ZAPI5_ROUTE_SYSTEM ROUTE_TYPE = iota
 	FRR_ZAPI5_ROUTE_KERNEL
@@ -540,7 +566,7 @@ const (
 	FRR_ZAPI5_ROUTE_BGP_DIRECT_EXT
 	FRR_ZAPI5_ROUTE_BABEL
 	FRR_ZAPI5_ROUTE_SHARP
-	FRR_ZAPI5_ROUTE_PBR
+	FRR_ZAPI5_ROUTE_PBR // FRRRouting version 5 adds.
 	FRR_ZAPI5_ROUTE_ALL
 	FRR_ZAPI5_ROUTE_MAX
 )
@@ -587,6 +613,7 @@ const (
 	ROUTE_HSLS
 	ROUTE_OLSR
 	ROUTE_BABEL
+	ROUTE_NHRP // quagga 1.2.4
 	ROUTE_MAX
 )
 
@@ -692,9 +719,10 @@ var routeTypeValueMap = map[string]ROUTE_TYPE{
 	"hsls":               ROUTE_HSLS,
 	"olsr":               ROUTE_OLSR,
 	"babel":              ROUTE_BABEL,
+	"nhrp":               ROUTE_NHRP,
 }
 
-func RouteTypeFromString(typ string, version uint8) (ROUTE_TYPE, error) {
+func RouteTypeFromString(typ string, version uint8, softwareName string) (ROUTE_TYPE, error) {
 	delegateRouteTypeValueMap := routeTypeValueMap
 	if version == 4 {
 		delegateRouteTypeValueMap = routeTypeValueMapFrr
@@ -704,13 +732,18 @@ func RouteTypeFromString(typ string, version uint8) (ROUTE_TYPE, error) {
 		delegateRouteTypeValueMap = routeTypeValueMapFrrZapi6
 	}
 	t, ok := delegateRouteTypeValueMap[typ]
+	if (version == 5 && softwareName == "frr4" && t == FRR_ZAPI5_ROUTE_PBR) ||
+		(version == 6 && softwareName == "frr6" && t == FRR_ZAPI6_ROUTE_OPENFABRIC) {
+		ok = false
+	}
 	if ok {
 		return t, nil
 	}
-	return t, fmt.Errorf("unknown route type: %s", typ)
+	return t, fmt.Errorf("unknown route type: %s in version: %d (%s)", typ, version, softwareName)
 }
 
 func addressFamilyFromApi(Api API_TYPE, version uint8) uint8 {
+	//ZEBRA_IPV4_NEXTHOP_LOOKUP_MRIB is not implemented.
 	if version <= 3 {
 		switch Api {
 		case IPV4_ROUTE_ADD, IPV4_ROUTE_DELETE, IPV4_NEXTHOP_LOOKUP, IPV4_IMPORT_LOOKUP:
@@ -727,7 +760,7 @@ func addressFamilyFromApi(Api API_TYPE, version uint8) uint8 {
 		}
 	} else if version == 5 {
 		switch Api {
-		case FRR_ZAPI5_IPV4_ROUTE_ADD, FRR_ZAPI5_IPV4_ROUTE_DELETE, FRR_ZAPI5_IPV4_NEXTHOP_LOOKUP_MRIB:
+		case FRR_ZAPI5_IPV4_ROUTE_ADD, FRR_ZAPI5_IPV4_ROUTE_DELETE:
 			return syscall.AF_INET
 		case FRR_ZAPI5_IPV6_ROUTE_ADD, FRR_ZAPI5_IPV6_ROUTE_DELETE:
 			return syscall.AF_INET6
@@ -825,7 +858,7 @@ func (t MESSAGE_FLAG) String(version uint8) string {
 		ss = append(ss, "SRCPFX")
 	}
 	if version >= 5 && t&FRR_ZAPI5_MESSAGE_LABEL > 0 {
-		ss = append(ss, "LABLE")
+		ss = append(ss, "LABEL")
 	}
 
 	return strings.Join(ss, "|")
@@ -834,25 +867,47 @@ func (t MESSAGE_FLAG) String(version uint8) string {
 // Message Flags
 type FLAG uint64
 
+// For FRRouting version 7 (zebra API version 6)
 const (
-	FLAG_INTERNAL        FLAG = 0x01
+	FRR_ZAPI6_FLAG_ALLOW_RECURSION FLAG = 0x01
+	FRR_ZAPI6_FLAG_SELFROUTE       FLAG = 0x02
+	FRR_ZAPI6_FLAG_IBGP            FLAG = 0x04
+	FRR_ZAPI6_FLAG_SELECTED        FLAG = 0x08
+	FRR_ZAPI6_FLAG_FIB_OVERRIDE    FLAG = 0x10
+	FRR_ZAPI6_FLAG_EVPN_ROUTE      FLAG = 0x20
+	FRR_ZAPI6_FLAG_RR_USE_DISTANCE FLAG = 0x40
+	FRR_ZAPI6_FLAG_ONLINk          FLAG = 0x40
+)
+
+// For Quagga (ZAPI v2, v3), FRR v3 (ZAPI v4), FRR v4, v5 (ZAPI v5), FRR v6 (ZAPI v6)
+const (
+	// Rename ZEBRA_FLAG_INTERNAL -> ZEBRA_FLAG_ALLOW_RECURSION
+	// https://github.com/FRRouting/frr/commit/4e8b02f4df5d6bcfde6390955b8feda2a17dc9bd
+	FLAG_ALLOW_RECURSION FLAG = 0x01
 	FLAG_SELFROUTE       FLAG = 0x02
-	FLAG_BLACKHOLE       FLAG = 0x04
+	FLAG_BLACKHOLE       FLAG = 0x04 // quagga, frr3
 	FLAG_IBGP            FLAG = 0x08
 	FLAG_SELECTED        FLAG = 0x10
 	FLAG_CHANGED         FLAG = 0x20
 	FLAG_STATIC          FLAG = 0x40
-	FLAG_REJECT          FLAG = 0x80
+	FLAG_REJECT          FLAG = 0x80 // quagga, frr3
 	FLAG_SCOPE_LINK      FLAG = 0x100
 	FLAG_FIB_OVERRIDE    FLAG = 0x200
 	FLAG_EVPN_ROUTE      FLAG = 0x400
 	FLAG_RR_USE_DISTANCE FLAG = 0x800
 )
 
-func (t FLAG) String() string {
+func (t FLAG) String(version uint8, softwareName string) string {
+	if version == 6 && softwareName != "frr6" {
+		return t.stringFrrZapi6()
+	}
+	return t.string()
+}
+
+func (t FLAG) string() string {
 	var ss []string
-	if t&FLAG_INTERNAL > 0 {
-		ss = append(ss, "FLAG_INTERNAL")
+	if t&FLAG_ALLOW_RECURSION > 0 {
+		ss = append(ss, "FLAG_ALLOW_RECURSION")
 	}
 	if t&FLAG_SELFROUTE > 0 {
 		ss = append(ss, "FLAG_SELFROUTE")
@@ -888,6 +943,34 @@ func (t FLAG) String() string {
 		ss = append(ss, "FLAG_RR_USE_DISTANCE")
 	}
 
+	return strings.Join(ss, "|")
+}
+func (t FLAG) stringFrrZapi6() string {
+	var ss []string
+	if t&FRR_ZAPI6_FLAG_ALLOW_RECURSION > 0 {
+		ss = append(ss, "FLAG_ALLOW_RECURSION")
+	}
+	if t&FRR_ZAPI6_FLAG_SELFROUTE > 0 {
+		ss = append(ss, "FLAG_SELFROUTE")
+	}
+	if t&FRR_ZAPI6_FLAG_IBGP > 0 {
+		ss = append(ss, "FLAG_IBGP")
+	}
+	if t&FRR_ZAPI6_FLAG_SELECTED > 0 {
+		ss = append(ss, "FLAG_SELECTED")
+	}
+	if t&FRR_ZAPI6_FLAG_FIB_OVERRIDE > 0 {
+		ss = append(ss, "FLAG_FIB_OVERRIDE")
+	}
+	if t&FRR_ZAPI6_FLAG_EVPN_ROUTE > 0 {
+		ss = append(ss, "FLAG_EVPN_ROUTE")
+	}
+	if t&FRR_ZAPI6_FLAG_RR_USE_DISTANCE > 0 {
+		ss = append(ss, "FLAG_RR_USE_DISTANCE")
+	}
+	if t&FRR_ZAPI6_FLAG_ONLINk > 0 {
+		ss = append(ss, "FLAG_ONLINK")
+	}
 	return strings.Join(ss, "|")
 }
 
@@ -961,19 +1044,33 @@ type Client struct {
 	redistDefault ROUTE_TYPE
 	conn          net.Conn
 	Version       uint8
+	SoftwareName  string
 }
 
-func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client, error) {
+func NewClient(network, address string, typ ROUTE_TYPE, version uint8, software string) (*Client, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, err
 	}
 	outgoing := make(chan *Message)
 	incoming := make(chan *Message, 64)
-	if version < 2 {
-		version = 2
-	} else if version > 6 {
-		version = 6
+	if version < MinZapiVer {
+		version = MinZapiVer
+	} else if version > MaxZapiVer {
+		version = MaxZapiVer
+	}
+	isAllowableSoftware := true
+	if ((version == 2 || version == 3) && software != "" && software != "quagga") ||
+		(version == 4 && software != "" && software != "frr3") ||
+		(version == 5 && software != "" && software != "frr4" && software != "frr5") ||
+		(version == 6 && software != "" && software != "frr6" && software != "frr7") {
+		isAllowableSoftware = false
+	}
+	if !isAllowableSoftware {
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Warnf("softwareName %s cannot be used with version %d.", software, version)
+		software = ""
 	}
 
 	c := &Client{
@@ -982,6 +1079,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 		redistDefault: typ,
 		conn:          conn,
 		Version:       version,
+		SoftwareName:  software,
 	}
 
 	go func() {
@@ -1001,7 +1099,8 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 					log.WithFields(log.Fields{
 						"Topic": "Zebra",
 					}).Errorf("failed to write: %s", err)
-					close(outgoing)
+					closeChannel(outgoing)
+					return
 				}
 			} else {
 				log.Debug("finish outgoing loop")
@@ -1013,6 +1112,11 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 	// Send HELLO/ROUTER_ID_ADD messages to negotiate the Zebra message version.
 	c.SendHello()
 	c.SendRouterIDAdd()
+
+	// ZAPIv5 has ZEBRA_LABEL_MANAGER_CONNECT_ASYNC, however frr4 (ZAPIv5) doesn't have it.
+	if version > 4 && software != "frr4" {
+		c.SendLabelManagerConnectAsync()
+	}
 
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
@@ -1026,6 +1130,12 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 
 		hd := &Header{}
 		err = hd.DecodeFromBytes(headerBuf)
+		if c.Version != hd.Version {
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Warnf("ZAPI version mismatch. configured version: %d, version of received message:%d", c.Version, hd.Version)
+			return nil, errors.New("ZAPI version mismatch")
+		}
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Zebra",
@@ -1045,7 +1155,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 			return nil, err
 		}
 
-		m, err := ParseMessage(hd, bodyBuf)
+		m, err := ParseMessage(hd, bodyBuf, software)
 		if err != nil {
 			// Just outputting warnings (not error message) and ignore this
 			// error considering the case that body parser is not implemented
@@ -1077,7 +1187,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client,
 
 	// Start receive loop only when the first message successfully received.
 	go func() {
-		defer close(incoming)
+		defer closeChannel(incoming)
 		for {
 			if m, err := receiveSingleMsg(); err != nil {
 				return
@@ -1117,9 +1227,22 @@ func (c *Client) Send(m *Message) {
 }
 
 func (c *Client) SendCommand(command API_TYPE, vrfId uint32, body Body) error {
-	var marker uint8 = HEADER_MARKER
+	marker := HEADER_MARKER
 	if c.Version >= 4 {
 		marker = FRR_HEADER_MARKER
+	}
+	if c.Version == 6 && c.SoftwareName == "frr6" {
+		if frr6Command, err := frr6Zapi6Command(command, c.SoftwareName, false); err == nil {
+			command = frr6Command
+		} else {
+			return err
+		}
+	} else if c.Version == 5 && c.SoftwareName == "frr4" {
+		if frr4Command, err := frr4Zapi5Command(command, c.SoftwareName, false); err == nil {
+			command = frr4Command
+		} else {
+			return err
+		}
 	}
 	m := &Message{
 		Header: Header{
@@ -1228,6 +1351,10 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 }
 
 func (c *Client) SendIPRoute(vrfId uint32, body *IPRouteBody, isWithdraw bool) error {
+	routeFamily := body.RouteFamily(c.Version)
+	if vrfId == VRF_DEFAULT && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
+		return fmt.Errorf("RF_IPv4_VPN or RF_IPv6_VPN are not suitable for VPN_DEFAULT(default forwarding table)")
+	}
 	command := IPV4_ROUTE_ADD
 	if c.Version <= 3 {
 		if body.Prefix.Prefix.To4() != nil {
@@ -1298,8 +1425,99 @@ func (c *Client) SendNexthopRegister(vrfId uint32, body *NexthopRegisterBody, is
 	return c.SendCommand(command, vrfId, body)
 }
 
+// Reference: zread_label_manager_connect function in zebra/zserv.c of FRR3.x (ZAPI)
+// Reference: zread_label_manager_connect function in zebra/zapi_msg.c of FRR5.x and 6.x (ZAPI5 and 6)
+
+func (c *Client) SendLabelManagerConnect() error {
+	if c.Version < 4 {
+		return fmt.Errorf("LABEL_MANAGER_CONNECT is not supported in zebra API version: %d", c.Version)
+	}
+	command := FRR_LABEL_MANAGER_CONNECT
+	proto := FRR_ROUTE_BGP
+	if c.Version == 5 {
+		command = FRR_ZAPI5_LABEL_MANAGER_CONNECT
+		proto = FRR_ZAPI5_ROUTE_BGP
+	} else if c.Version == 6 {
+		command = FRR_ZAPI6_LABEL_MANAGER_CONNECT
+		proto = FRR_ZAPI6_ROUTE_BGP
+	}
+	return c.SendCommand(
+		command, 0,
+		&LabelManagerConnectBody{
+			RedistDefault: proto,
+			Instance:      0,
+		})
+}
+
+// Reference: zread_label_manager_connect function in zebra/zserv.c of FRR3.x (ZAPI)
+// Reference: zread_label_manager_connect function in zebra/zapi_msg.c of FRR5.x and 6.x (ZAPI5 and 6)
+
+func (c *Client) SendLabelManagerConnectAsync() error {
+	if c.Version < 5 {
+		return fmt.Errorf("LABEL_MANAGER_CONNECT_ASYNC is not supported in zebra API version: %d", c.Version)
+	}
+	// ZAPIv5 has ZEBRA_LABEL_MANAGER_CONNECT_ASYNC, however frr4 (ZAPIv5) doesn't have it.
+	if c.SoftwareName == "frr4" {
+		return fmt.Errorf("LABEL_MANAGER_CONNECT_ASYNC is not supported in software: %s", c.SoftwareName)
+	}
+	command := FRR_ZAPI5_LABEL_MANAGER_CONNECT_ASYNC
+	proto := FRR_ZAPI5_ROUTE_BGP
+	if c.Version == 6 {
+		command = FRR_ZAPI6_LABEL_MANAGER_CONNECT_ASYNC
+		proto = FRR_ZAPI6_ROUTE_BGP
+	}
+	return c.SendCommand(
+		command, 0,
+		&LabelManagerConnectBody{
+			RedistDefault: proto,
+			Instance:      0,
+		})
+}
+
+func (c *Client) SendGetLabelChunk(body *GetLabelChunkBody) error {
+	if c.Version < 4 {
+		return fmt.Errorf("GET_LABEL_CHUNK is not supported in version: %d", c.Version)
+	}
+	command := FRR_GET_LABEL_CHUNK
+	body.Instance = 0
+	if c.Version == 5 {
+		body.Proto = uint8(FRR_ZAPI5_ROUTE_BGP)
+		command = FRR_ZAPI5_GET_LABEL_CHUNK
+	} else if c.Version == 6 {
+		body.Proto = uint8(FRR_ZAPI6_ROUTE_BGP)
+		command = FRR_ZAPI6_GET_LABEL_CHUNK
+	}
+	return c.SendCommand(command, 0, body)
+}
+
+func (c *Client) SendVrfLabel(label uint32, vrfId uint32) error {
+	body := &VrfLabelBody{
+		Label:     label,
+		Afi:       AFI_IP,
+		LabelType: LSP_BGP,
+	}
+	command := FRR_ZAPI5_VRF_LABEL
+	if c.Version == 6 {
+		command = FRR_ZAPI6_VRF_LABEL
+	}
+	return c.SendCommand(command, vrfId, body)
+}
+
+// for avoiding double close
+func closeChannel(ch chan *Message) bool {
+	select {
+	case _, ok := <-ch:
+		if ok {
+			close(ch)
+			return true
+		}
+	default:
+	}
+	return false
+}
+
 func (c *Client) Close() error {
-	close(c.outgoing)
+	closeChannel(c.outgoing)
 	return c.conn.Close()
 }
 
@@ -1326,20 +1544,20 @@ func (h *Header) Serialize() ([]byte, error) {
 		binary.BigEndian.PutUint32(buf[4:8], uint32(h.VrfId))
 		binary.BigEndian.PutUint16(buf[8:10], uint16(h.Command))
 	default:
-		return nil, fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
+		return nil, fmt.Errorf("unsupported ZAPI version: %d", h.Version)
 	}
 	return buf, nil
 }
 
 func (h *Header) DecodeFromBytes(data []byte) error {
 	if uint16(len(data)) < 4 {
-		return fmt.Errorf("Not all ZAPI message header")
+		return fmt.Errorf("not all ZAPI message header")
 	}
 	h.Len = binary.BigEndian.Uint16(data[0:2])
 	h.Marker = data[2]
 	h.Version = data[3]
 	if uint16(len(data)) < HeaderSize(h.Version) {
-		return fmt.Errorf("Not all ZAPI message header")
+		return fmt.Errorf("not all ZAPI message header")
 	}
 	switch h.Version {
 	case 2:
@@ -1351,7 +1569,7 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 		h.VrfId = binary.BigEndian.Uint32(data[4:8])
 		h.Command = API_TYPE(binary.BigEndian.Uint16(data[8:10]))
 	default:
-		return fmt.Errorf("Unsupported ZAPI version: %d", h.Version)
+		return fmt.Errorf("unsupported ZAPI version: %d", h.Version)
 	}
 	return nil
 }
@@ -1359,7 +1577,7 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 type Body interface {
 	DecodeFromBytes([]byte, uint8) error
 	Serialize(uint8) ([]byte, error)
-	String() string
+	String(uint8, string) string
 }
 
 type UnknownBody struct {
@@ -1375,7 +1593,7 @@ func (b *UnknownBody) Serialize(version uint8) ([]byte, error) {
 	return b.Data, nil
 }
 
-func (b *UnknownBody) String() string {
+func (b *UnknownBody) String(version uint8, softwareName string) string {
 	return fmt.Sprintf("data: %v", b.Data)
 }
 
@@ -1421,7 +1639,7 @@ func (b *HelloBody) Serialize(version uint8) ([]byte, error) {
 	}
 }
 
-func (b *HelloBody) String() string {
+func (b *HelloBody) String(version uint8, softwareName string) string {
 	return fmt.Sprintf(
 		"route_type: %s, instance :%d",
 		b.RedistDefault.String(), b.Instance)
@@ -1462,7 +1680,7 @@ func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
 	}
 }
 
-func (b *RedistributeBody) String() string {
+func (b *RedistributeBody) String(version uint8, softwareName string) string {
 	return fmt.Sprintf(
 		"afi: %s, route_type: %s, instance :%d",
 		b.Afi.String(), b.Redist.String(), b.Instance)
@@ -1509,7 +1727,7 @@ type InterfaceUpdateBody struct {
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of FRR5.x (ZAPI5)
 func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
-	if len(data) < INTERFACE_NAMSIZ+29 {
+	if len(data) < INTERFACE_NAMSIZ+33 {
 		return fmt.Errorf("lack of bytes. need %d but %d", INTERFACE_NAMSIZ+29, len(data))
 	}
 
@@ -1544,7 +1762,7 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error 
 		}
 		b.HardwareAddr = data[4 : 4+l]
 	}
-	if version >= 5 {
+	if version >= 3 {
 		LinkParam := data[4+l]
 		if LinkParam > 0 {
 			data = data[5+l:]
@@ -1577,7 +1795,7 @@ func (b *InterfaceUpdateBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (b *InterfaceUpdateBody) String() string {
+func (b *InterfaceUpdateBody) String(version uint8, softwareName string) string {
 	s := fmt.Sprintf(
 		"name: %s, idx: %d, status: %s, flags: %s, ptm_enable: %s, ptm_status: %s, metric: %d, speed: %d, mtu: %d, mtu6: %d, bandwidth: %d, linktype: %s",
 		b.Name, b.Index, b.Status.String(), intfflag2string(b.Flags), b.PTMEnable.String(), b.PTMStatus.String(), b.Metric, b.Speed, b.MTU, b.MTU6, b.Bandwidth, b.Linktype.String())
@@ -1616,7 +1834,7 @@ func (b *InterfaceAddressUpdateBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (b *InterfaceAddressUpdateBody) String() string {
+func (b *InterfaceAddressUpdateBody) String(version uint8, softwareName string) string {
 	return fmt.Sprintf(
 		"idx: %d, flags: %s, addr: %s/%d",
 		b.Index, b.Flags.String(), b.Prefix.String(), b.Length)
@@ -1646,7 +1864,7 @@ func (b *RouterIDUpdateBody) Serialize(version uint8) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (b *RouterIDUpdateBody) String() string {
+func (b *RouterIDUpdateBody) String(version uint8, softwareName string) string {
 	return fmt.Sprintf("id: %s/%d", b.Prefix.String(), b.Length)
 }
 
@@ -1664,10 +1882,14 @@ type Nexthop struct {
 }
 
 func (n *Nexthop) String() string {
-	s := fmt.Sprintf(
-		"type: %s, gate: %s, ifindex: %d",
-		n.Type.String(), n.Gate.String(), n.Ifindex)
-	return s
+	s := make([]string, 0)
+	s = append(s, fmt.Sprintf(
+		"type: %s, gate: %s, ifindex: %d, vrf_id: %d, label_num: %d",
+		n.Type.String(), n.Gate.String(), n.Ifindex, n.VrfId, n.LabelNum))
+	for i := uint8(0); i < n.LabelNum; i++ {
+		s = append(s, fmt.Sprintf("label: %d", n.MplsLabels[i]))
+	}
+	return strings.Join(s, ", ")
 }
 
 type Prefix struct {
@@ -1705,13 +1927,87 @@ func (b *IPRouteBody) RouteFamily(version uint8) bgp.RouteFamily {
 			family = syscall.AF_INET6
 		}
 	}
-	switch family {
-	case syscall.AF_INET:
-		return bgp.RF_IPv4_UC
-	case syscall.AF_INET6:
-		return bgp.RF_IPv6_UC
+	if version < 5 {
+		switch family {
+		case syscall.AF_INET:
+			switch b.SAFI {
+			case SAFI_UNICAST:
+				return bgp.RF_IPv4_UC
+			case SAFI_MULTICAST:
+				return bgp.RF_IPv4_MC
+			case SAFI_MPLS_VPN, FRR_SAFI_MPLS_VPN:
+				return bgp.RF_IPv4_VPN
+			case FRR_SAFI_ENCAP, SAFI_ENCAP:
+				return bgp.RF_IPv4_ENCAP
+			default:
+				return bgp.RF_IPv4_UC
+			}
+		case syscall.AF_INET6:
+			switch b.SAFI {
+			case SAFI_UNICAST:
+				return bgp.RF_IPv6_UC
+			case SAFI_MULTICAST:
+				return bgp.RF_IPv6_MC
+			case SAFI_MPLS_VPN, FRR_SAFI_MPLS_VPN:
+				return bgp.RF_IPv6_VPN
+			case FRR_SAFI_ENCAP, SAFI_ENCAP:
+				return bgp.RF_IPv6_ENCAP
+			default:
+				return bgp.RF_IPv6_UC
+			}
+		default:
+			switch b.SAFI {
+			case FRR_SAFI_EVPN:
+				return bgp.RF_EVPN
+			default:
+				return bgp.RF_OPAQUE
+			}
+		}
+	} else {
+		switch family {
+		case syscall.AF_INET:
+			switch b.SAFI {
+			case FRR_ZAPI5_SAFI_UNICAST:
+				return bgp.RF_IPv4_UC
+			case FRR_ZAPI5_SAFI_MULTICAST:
+				return bgp.RF_IPv4_MC
+			case FRR_ZAPI5_SAFI_MPLS_VPN:
+				return bgp.RF_IPv4_VPN
+			case FRR_ZAPI5_SAFI_ENCAP:
+				return bgp.RF_IPv4_ENCAP
+			case FRR_ZAPI5_SAFI_LABELED_UNICAST:
+				return bgp.RF_IPv4_MPLS
+			case FRR_ZAPI5_SAFI_FLOWSPEC:
+				return bgp.RF_FS_IPv4_UC
+			default:
+				return bgp.RF_IPv4_UC
+			}
+		case syscall.AF_INET6:
+			switch b.SAFI {
+			case FRR_ZAPI5_SAFI_UNICAST:
+				return bgp.RF_IPv6_UC
+			case FRR_ZAPI5_SAFI_MULTICAST:
+				return bgp.RF_IPv6_MC
+			case FRR_ZAPI5_SAFI_MPLS_VPN:
+				return bgp.RF_IPv6_VPN
+			case FRR_ZAPI5_SAFI_ENCAP:
+				return bgp.RF_IPv6_ENCAP
+			case FRR_ZAPI5_SAFI_LABELED_UNICAST:
+				return bgp.RF_IPv6_MPLS
+			case FRR_ZAPI5_SAFI_FLOWSPEC:
+				return bgp.RF_FS_IPv6_UC
+			default:
+				return bgp.RF_IPv6_UC
+			}
+		default:
+			switch b.SAFI {
+			case FRR_ZAPI5_SAFI_EVPN:
+				return bgp.RF_EVPN
+			default:
+				return bgp.RF_OPAQUE
+			}
+		}
 	}
-	return bgp.RF_OPAQUE
 }
 
 func (b *IPRouteBody) IsWithdraw(version uint8) bool {
@@ -1867,9 +2163,15 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 			}
 			if version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_LABEL > 0 {
 				buf = append(buf, nexthop.LabelNum)
-				bbuf := make([]byte, 4)
-				binary.BigEndian.PutUint32(bbuf, nexthop.MplsLabels[0])
-				buf = append(buf, bbuf...)
+				for i := uint8(0); i < nexthop.LabelNum; i++ {
+					bbuf := make([]byte, 4)
+					/* Frr uses stream_put for mpls label array.
+					   stream_put is unaware of byteorder coversion.
+					   Therefore LittleEndian is used instead of BigEndian. */
+					binary.LittleEndian.PutUint32(bbuf, nexthop.MplsLabels[i])
+					buf = append(buf, bbuf...)
+
+				}
 			}
 		}
 		if (version <= 3 && b.Message&MESSAGE_DISTANCE > 0) ||
@@ -1907,7 +2209,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 // Reference: zapi_route_decode function in lib/zclient.c of FRR5.x (ZAPI5)
 func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	if b == nil {
-		return fmt.Errorf("[IPRouteBody DecodeFromBytes] IPRouteBody is nil")
+		return fmt.Errorf("IPRouteBody is nil")
 	}
 	b.Prefix.Family = addressFamilyFromApi(b.Api, version)
 	/* REDSTRIBUTE_IPV4_ADD|DEL and REDSITRBUTE_IPV6_ADD|DEL have merged to
@@ -1946,10 +2248,11 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 
 	b.Prefix.PrefixLen = data[1]
 	if b.Prefix.PrefixLen > addrBitLen {
-		return fmt.Errorf("prefix length is greater than %d", addrByteLen*8)
+		return fmt.Errorf("prefix length %d is greater than %d", b.Prefix.PrefixLen, addrBitLen)
 	}
-	pos := 2
-	rest := len(data[pos:]) + 2
+	data = data[2:]
+	pos := 0
+	rest := len(data)
 
 	buf := make([]byte, addrByteLen)
 	byteLen := int((b.Prefix.PrefixLen + 7) / 8)
@@ -1959,7 +2262,6 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 	copy(buf, data[pos:pos+byteLen])
 	b.Prefix.Prefix = ipFromFamily(b.Prefix.Family, buf)
 	pos += byteLen
-
 	if (version == 4 && b.Message&FRR_MESSAGE_SRCPFX > 0) ||
 		(version >= 5 && b.Message&FRR_ZAPI5_MESSAGE_SRCPFX > 0) {
 		if pos+1 > rest {
@@ -1972,10 +2274,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		pos += 1
 		buf = make([]byte, addrByteLen)
 		byteLen = int((b.SrcPrefix.PrefixLen + 7) / 8)
-		copy(buf, data[pos:pos+byteLen])
 		if pos+byteLen > rest {
 			return fmt.Errorf("MESSAGE_SRCPFX message length invalid pos:%d rest:%d", pos, rest)
 		}
+		copy(buf, data[pos:pos+byteLen])
 		b.SrcPrefix.Prefix = ipFromFamily(b.Prefix.Family, buf)
 		pos += byteLen
 	}
@@ -2136,22 +2438,17 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 		pos += 4
 	}
 	if pos != rest {
-		return fmt.Errorf("message length invalid")
+		return fmt.Errorf("message length invalid pos:%d rest:%d", pos, rest)
 	}
-
 	return nil
 }
 
-func (b *IPRouteBody) String() string {
+func (b *IPRouteBody) String(version uint8, softwareName string) string {
 	s := fmt.Sprintf(
 		"type: %s, instance: %d, flags: %s, message: %d, safi: %s, prefix: %s/%d, src_prefix: %s/%d",
-		b.Type.String(), b.Instance, b.Flags.String(), b.Message, b.SAFI.String(), b.Prefix.Prefix.String(), b.Prefix.PrefixLen, b.SrcPrefix.Prefix.String(), b.SrcPrefix.PrefixLen)
+		b.Type.String(), b.Instance, b.Flags.String(version, softwareName), b.Message, b.SAFI.String(), b.Prefix.Prefix.String(), b.Prefix.PrefixLen, b.SrcPrefix.Prefix.String(), b.SrcPrefix.PrefixLen)
 	for i, nh := range b.Nexthops {
 		s += fmt.Sprintf(", nexthops[%d]: %s", i, nh.String())
-		/*
-			s += fmt.Sprintf(", nexthops[%d]: %s", i, nh.Gate.String())
-			s += fmt.Sprintf(", ifindex[%d]: %d", i, nh.Ifindex)
-		*/
 	}
 	return s + fmt.Sprintf(
 		", distance: %d, metric: %d, mtu: %d, tag: %d",
@@ -2203,15 +2500,20 @@ func decodeNexthopsFromBytes(nexthops *[]Nexthop, data []byte, family uint8, ver
 			offset += 4
 		}
 		if version >= 5 {
-			nexthop.LabelNum = data[offset]
+			nexthop.LabelNum = uint8(data[offset])
 			offset += 1
-			if nexthop.LabelNum > MPLS_MAX_LABLE {
-				nexthop.LabelNum = MPLS_MAX_LABLE
+			if nexthop.LabelNum > MPLS_MAX_LABEL {
+				nexthop.LabelNum = MPLS_MAX_LABEL
 			}
-			var n uint8
-			for ; n < nexthop.LabelNum; n++ {
-				nexthop.MplsLabels[n] = binary.BigEndian.Uint32(data[offset : offset+4])
-				offset += 4
+			if nexthop.LabelNum > 0 {
+				nexthop.MplsLabels = make([]uint32, nexthop.LabelNum)
+				for n := uint8(0); n < nexthop.LabelNum; n++ {
+					/* Frr uses stream_put for mpls label array.
+					   stream_put is unaware of byteorder coversion.
+					   Therefore LittleEndian is used instead of BigEndian. */
+					nexthop.MplsLabels[n] = binary.LittleEndian.Uint32(data[offset : offset+4])
+					offset += 4
+				}
 			}
 		}
 		*nexthops = append(*nexthops, nexthop)
@@ -2277,7 +2579,7 @@ func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *NexthopLookupBody) String() string {
+func (b *NexthopLookupBody) String(version uint8, softwareName string) string {
 	s := fmt.Sprintf(
 		"addr: %s, distance:%d, metric: %d",
 		b.Addr.String(), b.Distance, b.Metric)
@@ -2338,7 +2640,7 @@ func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *ImportLookupBody) String() string {
+func (b *ImportLookupBody) String(version uint8, softwareName string) string {
 	s := fmt.Sprintf(
 		"prefix: %s/%d, addr: %s, metric: %d",
 		b.Prefix.String(), b.PrefixLength, b.Addr.String(), b.Metric)
@@ -2415,7 +2717,7 @@ func (n *RegisteredNexthop) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (n *RegisteredNexthop) String() string {
+func (n *RegisteredNexthop) String(version uint8, softwareName string) string {
 	return fmt.Sprintf(
 		"connected: %d, family: %d, prefix: %s",
 		n.Connected, n.Family, n.Prefix.String())
@@ -2469,10 +2771,10 @@ func (b *NexthopRegisterBody) DecodeFromBytes(data []byte, version uint8) error 
 	return nil
 }
 
-func (b *NexthopRegisterBody) String() string {
+func (b *NexthopRegisterBody) String(version uint8, softwareName string) string {
 	s := make([]string, 0)
 	for _, nh := range b.Nexthops {
-		s = append(s, fmt.Sprintf("nexthop:{%s}", nh.String()))
+		s = append(s, fmt.Sprintf("nexthop:{%s}", nh.String(version, softwareName)))
 	}
 	return strings.Join(s, ", ")
 }
@@ -2572,7 +2874,7 @@ func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *NexthopUpdateBody) String() string {
+func (b *NexthopUpdateBody) String(version uint8, softwareName string) string {
 	s := fmt.Sprintf(
 		"family: %d, prefix: %s, distance: %d, metric: %d",
 		b.Prefix.Family, b.Prefix.Prefix.String(), b.Distance, b.Metric)
@@ -2580,6 +2882,177 @@ func (b *NexthopUpdateBody) String() string {
 		s = s + fmt.Sprintf(", nexthop:{%s}", nh.String())
 	}
 	return s
+}
+
+type LabelManagerConnectBody struct {
+	RedistDefault ROUTE_TYPE
+	Instance      uint16
+	// The followings are used in response from Zebra
+	Result uint8 // 0 means success
+}
+
+// Reference: lm_label_manager_connect in lib/zclient.c of FRR
+func (b *LabelManagerConnectBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 3)
+	buf[0] = uint8(b.RedistDefault)
+	binary.BigEndian.PutUint16(buf[1:3], b.Instance)
+	return buf, nil
+}
+
+func (b *LabelManagerConnectBody) DecodeFromBytes(data []byte, version uint8) error {
+	size := 1
+	// FRR v4 may work incorrectly. It returns result only although it uses ZAPI v5.
+	if version >= 4 {
+		size = 4
+	}
+	if len(data) < size {
+		return fmt.Errorf("invalid message length for LABEL_MANAGER_CONNECT response: %d<%d",
+			len(data), size)
+	}
+	if version > 4 {
+		b.RedistDefault = ROUTE_TYPE(data[0])
+		b.Instance = binary.BigEndian.Uint16(data[1:3])
+		data = data[3:]
+	}
+	b.Result = data[0]
+	return nil
+}
+
+func (b *LabelManagerConnectBody) String(version uint8, softwareName string) string {
+	return fmt.Sprintf(
+		"route_type: %s, instance: %d, result: %d",
+		b.RedistDefault.String(), b.Instance, b.Result)
+}
+
+// Reference: zsend_assign_label_chunk_response in zebra/zserv.c of FRR3.x
+// Reference: zsend_assign_label_chunk_response in zebra/zapi_msg.c of FRR5.x and 6.x
+type GetLabelChunkBody struct {
+	Proto     uint8  // it is appeared in FRR5.x and 6.x
+	Instance  uint16 // it is appeared in FRR5.x and 6.x
+	Keep      uint8
+	ChunkSize uint32
+	// The followings are used in response from Zebra
+	Start uint32
+	End   uint32
+}
+
+// Reference: zread_get_label_chunk in zebra/zserv.c of FRR3.x
+// Reference: zread_get_label_chunk in zebra/zapi_msg.c of FRR5.x and 6.x
+func (b *GetLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 8)
+	pos := 0
+	if version > 4 {
+		buf[pos] = b.Proto
+		binary.BigEndian.PutUint16(buf[pos+1:pos+3], b.Instance)
+		pos += 3
+	}
+	buf[pos] = b.Keep
+	binary.BigEndian.PutUint32(buf[pos+1:pos+5], b.ChunkSize)
+	pos += 5
+	return buf[0:pos], nil
+}
+
+// Reference: zsend_assign_label_chunk_response in zebra/zserv.c of FRR3.x
+// Reference: zsend_assign_label_chunk_response in zebra/zapi_msg.c of FRR5.x and 6.x
+func (b *GetLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+	size := 9
+	if version > 4 {
+		size = 12
+	}
+	if len(data) < size {
+		return fmt.Errorf("invalid message length for GET_LABEL_CHUNK response: %d<%d",
+			len(data), size)
+	}
+	if version > 4 {
+		b.Proto = data[0]
+		b.Instance = binary.BigEndian.Uint16(data[1:3])
+		data = data[3:]
+	}
+	b.Keep = data[0]
+	b.Start = binary.BigEndian.Uint32(data[1:5])
+	b.End = binary.BigEndian.Uint32(data[5:9])
+	return nil
+}
+
+func (b *GetLabelChunkBody) String(version uint8, softwareName string) string {
+	return fmt.Sprintf(
+		"keep: %d, chunk_size: %d, start: %d, end: %d",
+		b.Keep, b.ChunkSize, b.Start, b.End)
+}
+
+type ReleaseLabelChunkBody struct {
+	Proto    uint8  // it is appeared in FRR5.x and 6.x
+	Instance uint16 // it is appeared in FRR5.x and 6.x
+	Start    uint32
+	End      uint32
+}
+
+func (b *ReleaseLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 11)
+	pos := 0
+	if version > 4 {
+		buf[pos] = b.Proto
+		binary.BigEndian.PutUint16(buf[pos+1:pos+3], b.Instance)
+		pos += 3
+	}
+	binary.BigEndian.PutUint32(buf[pos:pos+4], b.Start)
+	binary.BigEndian.PutUint32(buf[pos+4:pos+8], b.End)
+	pos += 8
+	return buf[0:pos], nil
+}
+
+func (b *ReleaseLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+	// No response from Zebra
+	return nil
+}
+
+func (b *ReleaseLabelChunkBody) String(version uint8, softwareName string) string {
+	return fmt.Sprintf(
+		"start: %d, end: %d",
+		b.Start, b.End)
+}
+
+//go:generate stringer -type=LSP_TYPE
+type LSP_TYPE uint8
+
+const (
+	LSP_NONE   LSP_TYPE = iota //defined in FRR3 and over
+	LSP_STATIC                 //defined in FRR3 and over
+	LSP_LDP                    //defined in FRR3 and over
+	LSP_BGP                    //defined in FRR4 and over
+	LSP_SR                     //defined in FRR4 and over
+	LSP_SHARP                  //defined in FRR5 and over
+)
+
+type VrfLabelBody struct {
+	Label     uint32
+	Afi       AFI
+	LabelType LSP_TYPE
+}
+
+// Reference: zclient_send_vrf_label in lib/zclient.c of FRR 5.x and 6.x
+func (b *VrfLabelBody) Serialize(version uint8) ([]byte, error) {
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint32(buf[0:4], b.Label)
+	buf[4] = uint8(b.Afi)
+	buf[5] = uint8(b.LabelType)
+	return buf, nil
+}
+
+func (b *VrfLabelBody) DecodeFromBytes(data []byte, version uint8) error {
+	if len(data) < 6 {
+		return fmt.Errorf("invalid message length for VRF_LABEL message: %d<6", len(data))
+	}
+	b.Label = binary.BigEndian.Uint32(data[0:4])
+	b.Afi = AFI(data[4])
+	b.LabelType = LSP_TYPE(data[5])
+	return nil
+}
+
+func (b *VrfLabelBody) String(version uint8, softwareName string) string {
+	return fmt.Sprintf(
+		"label: %d, AFI: %s LSP_type: %s",
+		b.Label, b.Afi, b.LabelType)
 }
 
 type Message struct {
@@ -2659,14 +3132,31 @@ func (m *Message) parseFrrMessage(data []byte) error {
 	case FRR_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &ReleaseLabelChunkBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}
 	return m.Body.DecodeFromBytes(data, m.Header.Version)
 }
 
-func (m *Message) parseFrrZapi5Message(data []byte) error {
-	switch m.Header.Command {
+func (m *Message) parseFrrZapi5Message(data []byte, software string) error {
+	command := m.Header.Command
+	if software == "frr4" {
+		if c, err := frr4Zapi5Command(command, software, true); err == nil {
+			command = c
+		} else {
+			return err
+		}
+	}
+	switch command {
 	case FRR_ZAPI5_INTERFACE_ADD, FRR_ZAPI5_INTERFACE_DELETE, FRR_ZAPI5_INTERFACE_UP, FRR_ZAPI5_INTERFACE_DOWN:
 		m.Body = &InterfaceUpdateBody{}
 	case FRR_ZAPI5_INTERFACE_ADDRESS_ADD, FRR_ZAPI5_INTERFACE_ADDRESS_DELETE:
@@ -2698,14 +3188,33 @@ func (m *Message) parseFrrZapi5Message(data []byte) error {
 	case FRR_ZAPI5_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_ZAPI5_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_ZAPI5_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_ZAPI5_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &ReleaseLabelChunkBody{}
+	case FRR_ZAPI5_VRF_LABEL:
+		m.Body = &VrfLabelBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}
 	return m.Body.DecodeFromBytes(data, m.Header.Version)
 }
 
-func (m *Message) parseFrrZapi6Message(data []byte) error {
-	switch m.Header.Command {
+func (m *Message) parseFrrZapi6Message(data []byte, software string) error {
+	command := m.Header.Command
+	if software == "frr6" {
+		if c, err := frr6Zapi6Command(command, software, true); err == nil {
+			command = c
+		} else {
+			return err
+		}
+	}
+	switch command {
 	case FRR_ZAPI6_INTERFACE_ADD, FRR_ZAPI6_INTERFACE_DELETE, FRR_ZAPI6_INTERFACE_UP, FRR_ZAPI6_INTERFACE_DOWN:
 		m.Body = &InterfaceUpdateBody{}
 	case FRR_ZAPI6_INTERFACE_ADDRESS_ADD, FRR_ZAPI6_INTERFACE_ADDRESS_DELETE:
@@ -2737,20 +3246,30 @@ func (m *Message) parseFrrZapi6Message(data []byte) error {
 	case FRR_ZAPI6_PW_STATUS_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
+	case FRR_ZAPI6_LABEL_MANAGER_CONNECT:
+		// Note: Synchronous message
+		m.Body = &LabelManagerConnectBody{}
+	case FRR_ZAPI6_GET_LABEL_CHUNK:
+		// Note: Synchronous message
+		m.Body = &GetLabelChunkBody{}
+	case FRR_ZAPI6_RELEASE_LABEL_CHUNK:
+		// Note: Synchronous message
+	case FRR_ZAPI6_VRF_LABEL:
+		m.Body = &VrfLabelBody{}
 	default:
 		m.Body = &UnknownBody{}
 	}
 	return m.Body.DecodeFromBytes(data, m.Header.Version)
 }
 
-func ParseMessage(hdr *Header, data []byte) (m *Message, err error) {
+func ParseMessage(hdr *Header, data []byte, software string) (m *Message, err error) {
 	m = &Message{Header: *hdr}
 	if m.Header.Version == 4 {
 		err = m.parseFrrMessage(data)
 	} else if m.Header.Version == 5 {
-		err = m.parseFrrZapi5Message(data)
+		err = m.parseFrrZapi5Message(data, software)
 	} else if m.Header.Version == 6 {
-		err = m.parseFrrZapi6Message(data)
+		err = m.parseFrrZapi6Message(data, software)
 	} else {
 		err = m.parseMessage(data)
 	}
@@ -2758,4 +3277,63 @@ func ParseMessage(hdr *Header, data []byte) (m *Message, err error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// frr6Zapi6Command adjust command (API_TYPE) between Frr6 Zebra and latest Zapi6
+func frr6Zapi6Command(command API_TYPE, softwareName string, from bool) (API_TYPE, error) {
+	if softwareName != "frr6" {
+		return command, fmt.Errorf("softwareName %s is not supported", softwareName)
+	}
+	// frr6 has ZEBRA_IPV4_ROUTE_IPV6_NEXTHOP_ADD (ID:28), frr7 (zapi6 latest) removes it.
+	// frr7 adds ZEBRA_DUPLICATE_ADDR_DETECTION (ID:72).
+	if from && FRR_ZAPI6_BFD_DEST_REGISTER < command && command < FRR_ZAPI6_PW_ADD {
+		// if true, command will be converted from Frr6 Zebra to latest Zapi6 (for parsing)
+		return command - 1, nil
+	} else if !from && FRR_ZAPI6_IMPORT_CHECK_UPDATE < command && command < FRR_ZAPI6_DUPLICATE_ADDR_DETECTION {
+		// if false, command will be converted from latest Zapi6 to Frr6 Zebra (for send)
+		return command + 1, nil
+	}
+	return command, nil
+}
+
+// frr4Zapi5Command adjust command (API_TYPE) between Frr4 Zebra and latest Zapi5
+func frr4Zapi5Command(command API_TYPE, softwareName string, from bool) (API_TYPE, error) {
+	if softwareName != "frr4" {
+		return command, fmt.Errorf("softwareName %s is not supported", softwareName)
+	}
+	// if from is true, command will be converted from Frr4 Zebra to latest Zapi5 (for parsing)
+	// if from is false, command will be converted from latest Zapi5 to Frr4 Zebra (for send)
+	sign := 1
+	if !from {
+		sign = -1
+	}
+	/*
+	   frr5 adds ZEBRA_CAPABILITIES (ID:22), ZEBRA_VRF_LABEL (ID:42),
+	   ZEBRA_LABEL_MANAGER_CONNECT_ASYNC (ID:53), ZEBRA_ADVERTISE_SUBNET (ID:60),
+	   ZEBRA_IP_PREFIX_ROUTE_ADD (ID:70), ZEBRA_IP_PREFIX_ROUTE_DEL (ID:71) and
+	   from ZEBRA_RULE_ADD (ID:79) and ZEBRA_IPTABLE_NOTIFY_OWNER (ID:93)
+	*/
+	if FRR_ZAPI5_HELLO < command { // ZEBRA_HELLO: ID:21 in frr4, ID:21 in frr5
+		command = API_TYPE(int(command) + sign)
+	}
+	if FRR_ZAPI5_VRF_DELETE < command { // ZEBRA_VRF_DELETE: ID:40 in frr4, ID:41 in frr5
+		command = API_TYPE(int(command) + sign)
+	}
+	// ZEBRA_LABEL_MANAGER_CONNECT : ID:50 in frr4, ID:52 in frr5
+	if FRR_ZAPI5_LABEL_MANAGER_CONNECT < command {
+		command = API_TYPE(int(command) + sign)
+	}
+	// ZEBRA_ADVERTISE_DEFAULT_GW : ID:56 in frr4, ID:59 in frr5
+	if FRR_ZAPI5_ADVERTISE_DEFAULT_GW < command {
+		command = API_TYPE(int(command) + sign)
+	}
+	// ZEBRA_MACIP_DEL : ID:64 in frr4, ID:69 in frr5
+	if FRR_ZAPI5_MACIP_DEL < command {
+		command = API_TYPE(int(command) + (2 * sign))
+	}
+	// ZBRA_PW_SATUS_UPDATE: ID:72 in frr4, ID:78 in frr5
+	if FRR_ZAPI5_PW_STATUS_UPDATE < command {
+		return command, fmt.Errorf("unsupported command")
+	}
+	return command, nil
 }

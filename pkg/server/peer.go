@@ -24,13 +24,11 @@ import (
 	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 
-	"github.com/eapache/channels"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	flopThreshold   = time.Second * 30
-	minConnectRetry = 10
+	flopThreshold = time.Second * 30
 )
 
 type peerGroup struct {
@@ -98,7 +96,6 @@ type peer struct {
 	tableId           string
 	fsm               *fsm
 	adjRibIn          *table.AdjRib
-	outgoing          *channels.InfiniteChannel
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
 	prefixLimitWarned map[bgp.RouteFamily]bool
@@ -107,7 +104,6 @@ type peer struct {
 
 func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *peer {
 	peer := &peer{
-		outgoing:          channels.NewInfiniteChannel(),
 		localRib:          loc,
 		policy:            policy,
 		fsm:               newFSM(g, conf, policy),
@@ -149,6 +145,12 @@ func (peer *peer) isRouteServerClient() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	return peer.fsm.pConf.RouteServer.Config.RouteServerClient
+}
+
+func (peer *peer) isSecondaryRouteEnabled() bool {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	return peer.fsm.pConf.RouteServer.Config.RouteServerClient && peer.fsm.pConf.RouteServer.Config.SecondaryRoute
 }
 
 func (peer *peer) isRouteReflectorClient() bool {
@@ -215,6 +217,7 @@ func (peer *peer) negotiatedRFList() []bgp.RouteFamily {
 }
 
 func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily {
+	id := peer.ID()
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	if peer.fsm.pConf.Config.Vrf != "" {
@@ -225,10 +228,14 @@ func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily
 				fs = append(fs, bgp.RF_IPv4_VPN)
 			case bgp.RF_IPv6_UC:
 				fs = append(fs, bgp.RF_IPv6_VPN)
+			case bgp.RF_FS_IPv4_UC:
+				fs = append(fs, bgp.RF_FS_IPv4_VPN)
+			case bgp.RF_FS_IPv6_UC:
+				fs = append(fs, bgp.RF_FS_IPv6_VPN)
 			default:
 				log.WithFields(log.Fields{
 					"Topic":  "Peer",
-					"Key":    peer.ID(),
+					"Key":    id,
 					"Family": f,
 					"VRF":    peer.fsm.pConf.Config.Vrf,
 				}).Warn("invalid family configured for neighbor with vrf")
@@ -497,8 +504,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			// RFC4456 8. Avoiding Routing Information Loops
 			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
 			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-			peer.fsm.lock.RLock()
 			isIBGPPeer := peer.isIBGPPeer()
+			peer.fsm.lock.RLock()
 			routerId := peer.fsm.gConf.Config.RouterId
 			peer.fsm.lock.RUnlock()
 			if isIBGPPeer {
@@ -528,8 +535,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	return nil, nil, nil
 }
 
-func (peer *peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *fsmMsg) {
-	handler := newFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
+func (peer *peer) startFSMHandler() {
+	handler := newFSMHandler(peer.fsm, peer.fsm.outgoingCh)
 	peer.fsm.lock.Lock()
 	peer.fsm.h = handler
 	peer.fsm.lock.Unlock()
@@ -553,46 +560,4 @@ func (peer *peer) PassConn(conn *net.TCPConn) {
 
 func (peer *peer) DropAll(rfList []bgp.RouteFamily) {
 	peer.adjRibIn.Drop(rfList)
-}
-
-func (peer *peer) stopFSM() error {
-	failed := false
-	peer.fsm.lock.RLock()
-	addr := peer.fsm.pConf.State.NeighborAddress
-	peer.fsm.lock.RUnlock()
-	t1 := time.AfterFunc(time.Minute*5, func() {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-		}).Warnf("Failed to free the fsm.h.t for %s", addr)
-		failed = true
-	})
-
-	peer.fsm.h.t.Kill(nil)
-	peer.fsm.h.t.Wait()
-	t1.Stop()
-	if !failed {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		}).Debug("freed fsm.h.t")
-		cleanInfiniteChannel(peer.outgoing)
-	}
-	failed = false
-	t2 := time.AfterFunc(time.Minute*5, func() {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-		}).Warnf("Failed to free the fsm.t for %s", addr)
-		failed = true
-	})
-	peer.fsm.t.Kill(nil)
-	peer.fsm.t.Wait()
-	t2.Stop()
-	if !failed {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		}).Debug("freed fsm.t")
-		return nil
-	}
-	return fmt.Errorf("Failed to free FSM for %s", addr)
 }

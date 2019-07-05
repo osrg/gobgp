@@ -127,7 +127,8 @@ func modVrf(typ string, args []string) error {
 			"rt": paramList,
 			"id": paramSingle})
 		if err != nil || len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 {
-			return fmt.Errorf("Usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
+			//lint:ignore ST1005 cli example
+			return fmt.Errorf("usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 		}
 		name := a[""][0]
 		var rd bgp.RouteDistinguisherInterface
@@ -156,7 +157,8 @@ func modVrf(typ string, args []string) error {
 				importRt = append(importRt, rt)
 				exportRt = append(exportRt, rt)
 			default:
-				return fmt.Errorf("Usage: gobgp vrf add <vrf name> rd <rd> rt { import | export | both } <rt>...")
+				//lint:ignore ST1005 cli example
+				return fmt.Errorf("usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 			}
 		}
 		var id uint64
@@ -178,7 +180,7 @@ func modVrf(typ string, args []string) error {
 		return err
 	case cmdDel:
 		if len(args) != 1 {
-			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")
+			return fmt.Errorf("usage: gobgp vrf del <vrf name>")
 		}
 		_, err := client.DeleteVrf(ctx, &api.DeleteVrfRequest{
 			Name: args[0],

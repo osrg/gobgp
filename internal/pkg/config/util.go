@@ -22,7 +22,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
@@ -206,12 +209,12 @@ func isAfiSafiChanged(x, y []AfiSafi) bool {
 	if len(x) != len(y) {
 		return true
 	}
-	m := make(map[string]bool)
-	for _, e := range x {
-		m[string(e.Config.AfiSafiName)] = true
+	m := make(map[string]AfiSafi)
+	for i, e := range x {
+		m[string(e.Config.AfiSafiName)] = x[i]
 	}
 	for _, e := range y {
-		if !m[string(e.Config.AfiSafiName)] {
+		if v, ok := m[string(e.Config.AfiSafiName)]; !ok || !v.Config.Equal(&e.Config) || !v.AddPaths.Config.Equal(&e.AddPaths.Config) {
 			return true
 		}
 	}
@@ -408,6 +411,14 @@ func newAfiSafiFromConfigStruct(c *AfiSafi) *api.AfiSafi {
 	}
 }
 
+func ProtoTimestamp(secs int64) *timestamp.Timestamp {
+	if secs == 0 {
+		return nil
+	}
+	t, _ := ptypes.TimestampProto(time.Unix(secs, 0))
+	return t
+}
+
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -441,7 +452,6 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerConf{
 			NeighborAddress:   pconf.Config.NeighborAddress,
-			Id:                s.RemoteRouterId,
 			PeerAs:            pconf.Config.PeerAs,
 			LocalAs:           pconf.Config.LocalAs,
 			PeerType:          uint32(pconf.Config.PeerType.ToInt()),
@@ -449,26 +459,27 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			RouteFlapDamping:  pconf.Config.RouteFlapDamping,
 			Description:       pconf.Config.Description,
 			PeerGroup:         pconf.Config.PeerGroup,
-			RemoteCap:         remoteCap,
-			LocalCap:          localCap,
 			NeighborInterface: pconf.Config.NeighborInterface,
 			Vrf:               pconf.Config.Vrf,
 			AllowOwnAs:        uint32(pconf.AsPathOptions.Config.AllowOwnAs),
 			RemovePrivateAs:   removePrivateAs,
 			ReplacePeerAs:     pconf.AsPathOptions.Config.ReplacePeerAs,
+			AdminDown:         pconf.Config.AdminDown,
 		},
 		State: &api.PeerState{
 			SessionState: api.PeerState_SessionState(api.PeerState_SessionState_value[strings.ToUpper(string(s.SessionState))]),
 			AdminState:   api.PeerState_AdminState(s.AdminState.ToInt()),
 			Messages: &api.Messages{
 				Received: &api.Message{
-					Notification: s.Messages.Received.Notification,
-					Update:       s.Messages.Received.Update,
-					Open:         s.Messages.Received.Open,
-					Keepalive:    s.Messages.Received.Keepalive,
-					Refresh:      s.Messages.Received.Refresh,
-					Discarded:    s.Messages.Received.Discarded,
-					Total:        s.Messages.Received.Total,
+					Notification:   s.Messages.Received.Notification,
+					Update:         s.Messages.Received.Update,
+					Open:           s.Messages.Received.Open,
+					Keepalive:      s.Messages.Received.Keepalive,
+					Refresh:        s.Messages.Received.Refresh,
+					Discarded:      s.Messages.Received.Discarded,
+					Total:          s.Messages.Received.Total,
+					WithdrawUpdate: uint64(s.Messages.Received.WithdrawUpdate),
+					WithdrawPrefix: uint64(s.Messages.Received.WithdrawPrefix),
 				},
 				Sent: &api.Message{
 					Notification: s.Messages.Sent.Notification,
@@ -480,13 +491,13 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 					Total:        s.Messages.Sent.Total,
 				},
 			},
-			Received:        s.AdjTable.Received,
-			Accepted:        s.AdjTable.Accepted,
-			Advertised:      s.AdjTable.Advertised,
 			PeerAs:          s.PeerAs,
 			PeerType:        uint32(s.PeerType.ToInt()),
 			NeighborAddress: pconf.State.NeighborAddress,
 			Queues:          &api.Queues{},
+			RemoteCap:       remoteCap,
+			LocalCap:        localCap,
+			RouterId:        s.RemoteRouterId,
 		},
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
@@ -501,8 +512,8 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			State: &api.TimersState{
 				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
 				NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
-				Uptime:             uint64(timer.State.Uptime),
-				Downtime:           uint64(timer.State.Downtime),
+				Uptime:             ProtoTimestamp(timer.State.Uptime),
+				Downtime:           ProtoTimestamp(timer.State.Downtime),
 			},
 		},
 		RouteReflector: &api.RouteReflector{
@@ -511,6 +522,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+			SecondaryRoute:    pconf.RouteServer.Config.SecondaryRoute,
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:             pconf.GracefulRestart.Config.Enabled,
@@ -522,12 +534,12 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			LocalRestarting:     pconf.GracefulRestart.State.LocalRestarting,
 		},
 		Transport: &api.Transport{
-			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
-			LocalAddress: localAddress,
-			PassiveMode:  pconf.Transport.Config.PassiveMode,
+			RemotePort:    uint32(pconf.Transport.Config.RemotePort),
+			LocalAddress:  localAddress,
+			PassiveMode:   pconf.Transport.Config.PassiveMode,
+			BindInterface: pconf.Transport.Config.BindInterface,
 		},
 		AfiSafis: afiSafis,
-		AddPaths: newAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 
@@ -567,8 +579,8 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			State: &api.TimersState{
 				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
 				NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
-				Uptime:             uint64(timer.State.Uptime),
-				Downtime:           uint64(timer.State.Downtime),
+				Uptime:             ProtoTimestamp(timer.State.Uptime),
+				Downtime:           ProtoTimestamp(timer.State.Downtime),
 			},
 		},
 		RouteReflector: &api.RouteReflector{
@@ -577,6 +589,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+			SecondaryRoute:    pconf.RouteServer.Config.SecondaryRoute,
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:             pconf.GracefulRestart.Config.Enabled,
@@ -593,7 +606,6 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 		},
 		AfiSafis: afiSafis,
-		AddPaths: newAddPathsFromConfigStruct(&pconf.AddPaths),
 	}
 }
 
@@ -668,50 +680,50 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 			prefixes = append(prefixes, ap)
 		}
 		definedSets = append(definedSets, &api.DefinedSet{
-			Type:     api.DefinedType_PREFIX,
-			Name:     ps.PrefixSetName,
-			Prefixes: prefixes,
+			DefinedType: api.DefinedType_PREFIX,
+			Name:        ps.PrefixSetName,
+			Prefixes:    prefixes,
 		})
 	}
 
 	for _, ns := range t.NeighborSets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_NEIGHBOR,
-			Name: ns.NeighborSetName,
-			List: ns.NeighborInfoList,
+			DefinedType: api.DefinedType_NEIGHBOR,
+			Name:        ns.NeighborSetName,
+			List:        ns.NeighborInfoList,
 		})
 	}
 
 	bs := t.BgpDefinedSets
 	for _, cs := range bs.CommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_COMMUNITY,
-			Name: cs.CommunitySetName,
-			List: cs.CommunityList,
+			DefinedType: api.DefinedType_COMMUNITY,
+			Name:        cs.CommunitySetName,
+			List:        cs.CommunityList,
 		})
 	}
 
 	for _, es := range bs.ExtCommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_EXT_COMMUNITY,
-			Name: es.ExtCommunitySetName,
-			List: es.ExtCommunityList,
+			DefinedType: api.DefinedType_EXT_COMMUNITY,
+			Name:        es.ExtCommunitySetName,
+			List:        es.ExtCommunityList,
 		})
 	}
 
 	for _, ls := range bs.LargeCommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_LARGE_COMMUNITY,
-			Name: ls.LargeCommunitySetName,
-			List: ls.LargeCommunityList,
+			DefinedType: api.DefinedType_LARGE_COMMUNITY,
+			Name:        ls.LargeCommunitySetName,
+			List:        ls.LargeCommunityList,
 		})
 	}
 
 	for _, as := range bs.AsPathSets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			Type: api.DefinedType_AS_PATH,
-			Name: as.AsPathSetName,
-			List: as.AsPathList,
+			DefinedType: api.DefinedType_AS_PATH,
+			Name:        as.AsPathSetName,
+			List:        as.AsPathList,
 		})
 	}
 

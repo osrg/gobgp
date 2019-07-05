@@ -19,14 +19,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/osrg/gobgp/internal/pkg/version"
 	"google.golang.org/grpc"
 )
 
-var version = "master"
-
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
-		fmt.Println("gobgp version", version)
+		fmt.Println("gobgp version", version.Version())
 		os.Exit(0)
 	}
 	grpc.EnableTracing = false

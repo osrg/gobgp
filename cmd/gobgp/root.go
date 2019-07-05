@@ -17,10 +17,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	_ "net/http/pprof"
-	"time"
+	"strconv"
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
@@ -50,7 +49,8 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if globalOpts.PprofPort > 0 {
 				go func() {
-					if err := http.ListenAndServe(fmt.Sprintf("localhost:%d", globalOpts.PprofPort), nil); err != nil {
+					address := "localhost:" + strconv.Itoa(globalOpts.PprofPort)
+					if err := http.ListenAndServe(address, nil); err != nil {
 						exitWithError(err)
 					}
 				}()
@@ -58,8 +58,8 @@ func newRootCmd() *cobra.Command {
 
 			if !globalOpts.GenCmpl {
 				var err error
-				ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-				client, err = newClient(ctx)
+				ctx = context.Background()
+				client, cancel, err = newClient(ctx)
 				if err != nil {
 					cancel()
 					exitWithError(err)
@@ -74,7 +74,7 @@ func newRootCmd() *cobra.Command {
 			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			// if children declare thier own, cancel is not called. Doesn't matter because the command will exit soon.
+			// if children declare their own, cancel is not called. Doesn't matter because the command will exit soon.
 			if cancel != nil {
 				cancel()
 			}

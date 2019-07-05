@@ -374,9 +374,9 @@ func TestASPathAs4TransMultipleLargeParams(t *testing.T) {
 func TestAggregator4BytesASes(t *testing.T) {
 	getAggr := func(msg *bgp.BGPUpdate) *bgp.PathAttributeAggregator {
 		for _, attr := range msg.PathAttributes {
-			switch attr.(type) {
+			switch a := attr.(type) {
 			case *bgp.PathAttributeAggregator:
-				return attr.(*bgp.PathAttributeAggregator)
+				return a
 			}
 		}
 		return nil
@@ -384,9 +384,9 @@ func TestAggregator4BytesASes(t *testing.T) {
 
 	getAggr4 := func(msg *bgp.BGPUpdate) *bgp.PathAttributeAs4Aggregator {
 		for _, attr := range msg.PathAttributes {
-			switch attr.(type) {
+			switch a := attr.(type) {
 			case *bgp.PathAttributeAs4Aggregator:
-				return attr.(*bgp.PathAttributeAs4Aggregator)
+				return a
 			}
 		}
 		return nil

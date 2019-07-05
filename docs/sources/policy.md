@@ -24,6 +24,7 @@ Assumed that you finished [Getting Started](getting-started.md).
     - [Attach policy to global rib](#41-attach-policy-to-global-rib)
     - [Attach policy to route-server-client](#42-attach-policy-to-route-server-client)
 - [Policy Configuration Example](#policy-configuration-example)
+- [Policy and Soft Reset](#policy-and-soft-reset)
 
 ## Overview
 
@@ -259,6 +260,7 @@ neighbor-sets has neighbor-set-list, and neighbor-set-list has
 neighbor-set-name and neighbor-info-list as its element. It is necessary to
 specify a neighbor address in neighbor-info-list. neighbor-set-list is used as
 a condition.
+*Attention: an empty neighbor-set will match against ANYTHING and not invert based on the match option*
 
 **neighbor-set-list** has 1 element and list of sub-elements.
 
@@ -944,3 +946,11 @@ $ gobgp neighbor 10.0.255.3 local
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:49:38   [{Origin: 0} {Med: 0}]
 *> 10.33.0.0/16       10.0.255.1      [65001]    00:49:38   [{Origin: 0} {Med: 0}]
 ```
+
+## Policy and Soft Reset
+
+When you change an import policy and reset the inbound routing table (aka soft reset in), a withdraw for a route rejected by the latest import policies will be sent to peers. However, when you change an export policy and reset the outbound routing table (aka soft reset out), even if a route is rejected by the latest export policies, a withdraw for the route will not be sent.
+
+The outbound routing table doesn't exist for saving memory usage, it's impossible to know whether the route was actually sent to peer or the route also was rejected by the previous export policies and not sent. GoBGP doesn't send such withdraw rather than possible unwilling leaking information.
+
+Please report if other implementations such as bird work in a different way.

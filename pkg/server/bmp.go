@@ -16,11 +16,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"time"
 
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
@@ -113,25 +115,25 @@ func (b *bmpClient) loop() {
 		}
 
 		if func() bool {
-			ops := []WatchOption{WatchPeerState(true)}
+			ops := []watchOption{watchPeerState(true)}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				log.WithFields(
 					log.Fields{"Topic": "bmp"},
 				).Warn("both option for route-monitoring-policy is obsoleted")
 			}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, WatchUpdate(true))
+				ops = append(ops, watchUpdate(true))
 			}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, WatchPostUpdate(true))
+				ops = append(ops, watchPostUpdate(true))
 			}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, WatchBestPath(true))
+				ops = append(ops, watchBestPath(true))
 			}
 			if b.c.RouteMirroringEnabled {
-				ops = append(ops, WatchMessage(false))
+				ops = append(ops, watchMessage(false))
 			}
-			w := b.s.Watch(ops...)
+			w := b.s.watch(ops...)
 			defer w.Stop()
 
 			var tickerCh <-chan time.Time
@@ -152,7 +154,12 @@ func (b *bmpClient) loop() {
 				return err
 			}
 
-			if err := write(bmp.NewBMPInitiation([]bmp.BMPInfoTLVInterface{})); err != nil {
+			tlv := []bmp.BMPInfoTLVInterface{
+				bmp.NewBMPInfoTLVString(bmp.BMP_INIT_TLV_TYPE_SYS_NAME, b.c.SysName),
+				bmp.NewBMPInfoTLVString(bmp.BMP_INIT_TLV_TYPE_SYS_DESCR, b.c.SysDescr),
+			}
+
+			if err := write(bmp.NewBMPInitiation(tlv)); err != nil {
 				return false
 			}
 
@@ -160,7 +167,7 @@ func (b *bmpClient) loop() {
 				select {
 				case ev := <-w.Event():
 					switch msg := ev.(type) {
-					case *WatchEventUpdate:
+					case *watchEventUpdate:
 						info := &table.PeerInfo{
 							Address: msg.PeerAddress,
 							AS:      msg.PeerAS,
@@ -180,7 +187,7 @@ func (b *bmpClient) loop() {
 							for _, path := range pathList {
 								for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{path}) {
 									payload, _ := u.Serialize()
-									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, msg.Timestamp.Unix(), payload)); err != nil {
+									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, path.GetTimestamp().Unix(), payload)); err != nil {
 										return false
 									}
 								}
@@ -190,7 +197,7 @@ func (b *bmpClient) loop() {
 								return false
 							}
 						}
-					case *WatchEventBestPath:
+					case *watchEventBestPath:
 						info := &table.PeerInfo{
 							Address: net.ParseIP("0.0.0.0").To4(),
 							AS:      b.s.bgpConfig.Global.Config.As,
@@ -204,7 +211,7 @@ func (b *bmpClient) loop() {
 								return false
 							}
 						}
-					case *WatchEventPeerState:
+					case *watchEventPeerState:
 						if msg.State == bgp.BGP_FSM_ESTABLISHED {
 							if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 								return false
@@ -214,7 +221,7 @@ func (b *bmpClient) loop() {
 								return false
 							}
 						}
-					case *WatchEventMessage:
+					case *watchEventMessage:
 						info := &table.PeerInfo{
 							Address: msg.PeerAddress,
 							AS:      msg.PeerAS,
@@ -225,14 +232,15 @@ func (b *bmpClient) loop() {
 						}
 					}
 				case <-tickerCh:
-					neighborList := b.s.getNeighbor("", true)
-					for _, n := range neighborList {
-						if n.State.SessionState != config.SESSION_STATE_ESTABLISHED {
-							continue
-						}
-						if err := write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, 0, n)); err != nil {
-							return false
-						}
+					var err error
+					b.s.ListPeer(context.Background(), &api.ListPeerRequest{EnableAdvertised: true},
+						func(peer *api.Peer) {
+							if err == nil && peer.State.SessionState == api.PeerState_ESTABLISHED {
+								err = write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, time.Now().Unix(), peer))
+							}
+						})
+					if err != nil {
+						return false
 					}
 				case <-b.dead:
 					term := bmp.NewBMPTermination([]bmp.BMPTermTLVInterface{
@@ -259,7 +267,7 @@ type bmpClient struct {
 	ribout ribout
 }
 
-func bmpPeerUp(ev *WatchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
+func bmpPeerUp(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
 	var flags uint8 = 0
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
@@ -268,13 +276,27 @@ func bmpPeerUp(ev *WatchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BM
 	return bmp.NewBMPPeerUpNotification(*ph, ev.LocalAddress.String(), ev.LocalPort, ev.PeerPort, ev.SentOpen, ev.RecvOpen)
 }
 
-func bmpPeerDown(ev *WatchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
+func bmpPeerDown(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
 	var flags uint8 = 0
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
 	}
 	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress.String(), ev.PeerAS, ev.PeerID.String(), float64(ev.Timestamp.Unix()))
-	return bmp.NewBMPPeerDownNotification(*ph, uint8(ev.StateReason.peerDownReason), ev.StateReason.BGPNotification, ev.StateReason.Data)
+
+	reasonCode := bmp.BMP_peerDownByUnknownReason
+	switch ev.StateReason.Type {
+	case fsmDying, fsmInvalidMsg, fsmNotificationSent, fsmHoldTimerExpired, fsmIdleTimerExpired, fsmRestartTimerExpired:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION
+	case fsmAdminDown:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
+	case fsmNotificationRecv, fsmGracefulRestart, fsmHardReset:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
+	case fsmReadFailed, fsmWriteFailed:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
+	case fsmDeConfigured:
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
+	}
+	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.BGPNotification, ev.StateReason.Data)
 }
 
 func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {
@@ -292,16 +314,22 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *tabl
 	return m
 }
 
-func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, neighConf *config.Neighbor) *bmp.BMPMessage {
+func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, peer *api.Peer) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
-	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, neighConf.State.NeighborAddress, neighConf.State.PeerAs, neighConf.State.RemoteRouterId, float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peer.State.NeighborAddress, peer.State.PeerAs, peer.State.RouterId, float64(timestamp))
+	received := uint64(0)
+	accepted := uint64(0)
+	for _, a := range peer.AfiSafis {
+		received += a.State.Received
+		accepted += a.State.Accepted
+	}
 	return bmp.NewBMPStatisticsReport(
 		*ph,
 		[]bmp.BMPStatsTLVInterface{
-			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_ADJ_RIB_IN, uint64(neighConf.State.AdjTable.Accepted)),
-			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_LOC_RIB, uint64(neighConf.State.AdjTable.Advertised+neighConf.State.AdjTable.Filtered)),
-			bmp.NewBMPStatsTLV32(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, neighConf.State.Messages.Received.WithdrawUpdate),
-			bmp.NewBMPStatsTLV32(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, neighConf.State.Messages.Received.WithdrawPrefix),
+			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_ADJ_RIB_IN, received),
+			bmp.NewBMPStatsTLV64(bmp.BMP_STAT_TYPE_LOC_RIB, accepted),
+			bmp.NewBMPStatsTLV32(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, uint32(peer.State.Messages.Received.WithdrawUpdate)),
+			bmp.NewBMPStatsTLV32(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, uint32(peer.State.Messages.Received.WithdrawPrefix)),
 		},
 	)
 }

@@ -21,8 +21,9 @@
 
 syntax = "proto3";
 
-import "google/protobuf/any.proto";
-import "google/protobuf/empty.proto";
+import "any/any.proto";
+import "empty/empty.proto";
+import "timestamp/timestamp.proto";
 
 package gobgpapi;
 
@@ -200,7 +201,7 @@ message AddDynamicNeighborRequest {
 }
 
 message AddPathRequest {
-  Resource resource = 1;
+  TableType table_type = 1;
   string vrf_id = 2;
   Path path = 3;
 }
@@ -210,7 +211,7 @@ message AddPathResponse {
 }
 
 message DeletePathRequest {
-  Resource resource = 1;
+  TableType table_type = 1;
   string vrf_id = 2;
   Family family = 3;
   Path path = 4;
@@ -218,10 +219,16 @@ message DeletePathRequest {
 }
 
 message ListPathRequest {
-  Resource type = 1;
+  TableType table_type = 1;
   string name = 2;
   Family family = 3;
   repeated TableLookupPrefix prefixes = 4;
+  enum SortType {
+    NONE = 0;
+    PREFIX = 1;
+  }
+  SortType sort_type = 5;
+  bool enable_filtered = 6;
 }
 
 message ListPathResponse {
@@ -229,13 +236,13 @@ message ListPathResponse {
 }
 
 message AddPathStreamRequest {
-  Resource resource = 1;
+  TableType table_type = 1;
   string vrf_id = 2;
   repeated Path paths = 3;
 }
 
 message GetTableRequest {
-  Resource type = 1;
+  TableType table_type = 1;
   Family family = 2;
   string name = 3;
 }
@@ -247,7 +254,7 @@ message GetTableResponse {
 }
 
 message MonitorTableRequest {
-  Resource type = 1;
+  TableType table_type = 1;
   string name = 2;
   Family family = 3;
   bool current = 4;
@@ -313,7 +320,7 @@ message DeleteDefinedSetRequest {
 }
 
 message ListDefinedSetRequest {
-  DefinedType type = 1;
+  DefinedType defined_type = 1;
   string name = 2;
 }
 
@@ -409,12 +416,15 @@ message EnableZebraRequest {
   uint32 version = 3;
   bool nexthop_trigger_enable = 4;
   uint32 nexthop_trigger_delay = 5;
+  uint32 mpls_label_range_size = 6;
+  string software_name = 7;
 }
 
 message EnableMrtRequest {
   int32 dump_type = 1;
   string filename = 2;
-  uint64 interval = 3;
+  uint64 dump_interval = 3;
+  uint64 rotation_interval = 4;
 }
 
 message DisableMrtRequest {
@@ -430,7 +440,10 @@ message AddBmpRequest {
     LOCAL = 3;
     ALL = 4;
   }
-  MonitoringPolicy type = 3;
+  MonitoringPolicy policy = 3;
+  int32 StatisticsTimeout = 4;
+  string SysName = 5;
+  string SysDescr = 6;
 }
 
 message DeleteBmpRequest {
@@ -444,6 +457,7 @@ message Family {
     AFI_IP = 1;
     AFI_IP6 = 2;
     AFI_L2VPN = 25;
+    AFI_LS = 16388;
     AFI_OPAQUE = 16397;
   }
 
@@ -455,6 +469,7 @@ message Family {
     SAFI_ENCAPSULATION = 7;
     SAFI_VPLS = 65;
     SAFI_EVPN = 70;
+    SAFI_LS = 71;
     SAFI_MPLS_VPN = 128;
     SAFI_MPLS_VPN_MULTICAST = 129;
     SAFI_ROUTE_TARGET_CONSTRAINTS = 132;
@@ -467,7 +482,7 @@ message Family {
   Safi safi = 2;
 }
 
-enum Resource {
+enum TableType {
   GLOBAL = 0;
   LOCAL = 1;
   ADJ_IN = 2;
@@ -475,7 +490,7 @@ enum Resource {
   VRF = 4;
 }
 
-message RPKIValidation{
+message Validation {
   enum State {
     STATE_NONE = 0;
     STATE_NOT_FOUND = 1;
@@ -497,12 +512,30 @@ message RPKIValidation{
 }
 
 message Path {
-  bytes nlri = 1;
-  repeated bytes pattrs = 2;
-  int64 age = 3;
+  // One of the following defined in "api/attribute.proto":
+  // - IPAddressPrefix
+  // - LabeledIPAddressPrefix
+  // - EncapsulationNLRI
+  // - EVPNEthernetAutoDiscoveryRoute
+  // - EVPNMACIPAdvertisementRoute
+  // - EVPNInclusiveMulticastEthernetTagRoute
+  // - EVPNEthernetSegmentRoute
+  // - EVPNIPPrefixRoute
+  // - EVPNIPMSIRoute
+  // - LabeledVPNIPAddressPrefix
+  // - RouteTargetMembershipNLRI
+  // - FlowSpecNLRI
+  // - VPNFlowSpecNLRI
+  // - OpaqueNLRI
+  // - LsAddrPrefix
+  google.protobuf.Any nlri = 1;
+  // Each attribute must be one of *Attribute defined in
+  // "api/attribute.proto".
+  repeated google.protobuf.Any pattrs = 2;
+  google.protobuf.Timestamp age = 3;
   bool best = 4;
   bool is_withdraw = 5;
-  RPKIValidation validation_detail = 7;
+  Validation validation = 7;
   bool no_implicit_withdraw = 8;
   Family family = 9;
   uint32 source_asn = 10;
@@ -515,24 +548,8 @@ message Path {
   bool is_nexthop_invalid = 17;
   uint32 identifier = 18;
   uint32 local_identifier = 19;
-  // One of the following defined in "api/attribute.proto":
-  // - IPAddressPrefix
-  // - LabeledIPAddressPrefix
-  // - EncapsulationNLRI
-  // - EVPNEthernetAutoDiscoveryRoute
-  // - EVPNMACIPAdvertisementRoute
-  // - EVPNInclusiveMulticastEthernetTagRoute
-  // - EVPNEthernetSegmentRoute
-  // - EVPNIPPrefixRoute
-  // - LabeledVPNIPAddressPrefix
-  // - RouteTargetMembershipNLRI
-  // - FlowSpecNLRI
-  // - VPNFlowSpecNLRI
-  // - OpaqueNLRI
-  google.protobuf.Any any_nlri = 20;
-  // Each attribute must be one of *Attribute defined in
-  // "api/attribute.proto".
-  repeated google.protobuf.Any any_pattrs = 21;
+  bytes nlri_binary = 20;
+  repeated bytes pattrs_binary = 21;
 }
 
 message Destination {
@@ -564,7 +581,6 @@ message Peer {
   RouteServer route_server = 8;
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
-  AddPaths add_paths = 11;
 }
 
 message PeerGroup {
@@ -578,7 +594,6 @@ message PeerGroup {
   RouteServer route_server = 8;
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
-  AddPaths add_paths = 11;
 }
 
 message DynamicNeighbor {
@@ -614,15 +629,11 @@ message PeerConf {
   RemovePrivateAs remove_private_as = 8;
   bool route_flap_damping = 9;
   uint32 send_community = 10;
-  // Each attribute must be one of *Capability defined in
-  // "api/capability.proto".
-  repeated google.protobuf.Any remote_cap = 11;
-  repeated google.protobuf.Any local_cap = 12;
-  string id = 13;
-  string neighbor_interface = 14;
-  string vrf = 15;
-  uint32 allow_own_as = 16;
-  bool replace_peer_as = 17;
+  string neighbor_interface = 11;
+  string vrf = 12;
+  uint32 allow_own_as = 13;
+  bool replace_peer_as = 14;
+  bool admin_down = 15;
 }
 
 message PeerGroupConf {
@@ -694,18 +705,19 @@ message PeerState {
     ESTABLISHED = 6;
   }
   SessionState session_state = 13;
-  repeated string supported_capabilities = 14;
   enum AdminState {
       UP = 0;
       DOWN = 1;
       PFX_CT = 2; // prefix counter over limit
   }
   AdminState admin_state = 15;
-  uint32 received = 16;
-  uint32 accepted = 17;
-  uint32 advertised = 18;
-  uint32 out_q = 19;
-  uint32 flops = 20;
+  uint32 out_q = 16;
+  uint32 flops = 17;
+  // Each attribute must be one of *Capability defined in
+  // "api/capability.proto".
+  repeated google.protobuf.Any remote_cap = 18;
+  repeated google.protobuf.Any local_cap = 19;
+  string router_id = 20;
 }
 
 message Messages {
@@ -721,6 +733,8 @@ message Message {
   uint64 refresh = 5;
   uint64 discarded = 6;
   uint64 total = 7;
+  uint64 withdraw_update = 8;
+  uint64 withdraw_prefix = 9;
 }
 
 message Queues {
@@ -746,8 +760,8 @@ message TimersState{
   uint64 keepalive_interval = 3;
   uint64 minimum_advertisement_interval = 4;
   uint64 negotiated_hold_time = 5;
-  uint64 uptime = 6;
-  uint64 downtime = 7;
+  google.protobuf.Timestamp uptime = 6;
+  google.protobuf.Timestamp downtime = 7;
 }
 
 message Transport {
@@ -758,10 +772,12 @@ message Transport {
   string remote_address = 5;
   uint32 remote_port = 6;
   uint32 tcp_mss = 7;
+  string bind_interface = 8;
 }
 
 message RouteServer {
   bool route_server_client = 1;
+  bool secondary_route = 2;
 }
 
 message GracefulRestart {
@@ -802,8 +818,9 @@ message AfiSafiConfig {
 message AfiSafiState {
   Family family = 1;
   bool enabled = 2;
-  uint32 total_paths = 3;
-  uint32 total_prefixes = 4;
+  uint64 received = 3;
+  uint64 accepted = 4;
+  uint64 advertised = 5;
 }
 
 message RouteSelectionOptionsConfig {
@@ -908,7 +925,8 @@ message LongLivedGracefulRestart {
 message AfiSafi {
   MpGracefulRestart mp_graceful_restart = 1;
   AfiSafiConfig config = 2;
-  ApplyPolicy apply_policy = 3;
+  AfiSafiState state = 3;
+  ApplyPolicy apply_policy = 4;
   // TODO:
   // Support the following structures:
   // - Ipv4Unicast
@@ -921,12 +939,12 @@ message AfiSafi {
   // - L3vpnIpv6Multicast
   // - L2vpnVpls
   // - L2vpnEvpn
-  RouteSelectionOptions route_selection_options = 4;
-  UseMultiplePaths use_multiple_paths = 5;
-  PrefixLimit prefix_limits = 6;
-  RouteTargetMembership route_target_membership = 7;
-  LongLivedGracefulRestart long_lived_graceful_restart = 8;
-  AddPaths add_paths = 9;
+  RouteSelectionOptions route_selection_options = 5;
+  UseMultiplePaths use_multiple_paths = 6;
+  PrefixLimit prefix_limits = 7;
+  RouteTargetMembership route_target_membership = 8;
+  LongLivedGracefulRestart long_lived_graceful_restart = 9;
+  AddPaths add_paths = 10;
 }
 
 message AddPathsConfig {
@@ -962,7 +980,7 @@ enum DefinedType {
 }
 
 message DefinedSet {
-  DefinedType type = 1;
+  DefinedType defined_type = 1;
   string name = 2;
   repeated string list = 3;
   repeated Prefix prefixes = 4;
@@ -975,7 +993,7 @@ enum MatchType {
 }
 
 message MatchSet {
-  MatchType type = 1;
+  MatchType match_type = 1;
   string name = 2;
 }
 
@@ -986,7 +1004,7 @@ enum AsPathLengthType {
 }
 
 message AsPathLength {
-  AsPathLengthType type = 1;
+  AsPathLengthType length_type = 1;
   uint32 length = 2;
 }
 
@@ -1023,7 +1041,7 @@ enum CommunityActionType {
 }
 
 message CommunityAction {
-  CommunityActionType type = 1;
+  CommunityActionType action_type = 1;
   repeated string communities = 2;
 }
 
@@ -1033,7 +1051,7 @@ enum MedActionType {
 }
 
 message MedAction {
-  MedActionType type = 1;
+  MedActionType action_type = 1;
   int64 value = 2;
 }
 
@@ -1151,8 +1169,8 @@ message RPKIConf {
 }
 
 message RPKIState {
-  int64 uptime = 1;
-  int64 downtime = 2;
+  google.protobuf.Timestamp uptime = 1;
+  google.protobuf.Timestamp downtime = 2;
   bool  up = 3;
   uint32 record_ipv4 = 4;
   uint32 record_ipv6 = 5;
