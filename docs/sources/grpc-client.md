@@ -19,7 +19,8 @@ We assumes that you have the relevant tools installed to generate the server and
 You need to generate the server and client interface from GoBGP proto files at first.
 
 ```bash
-$ python -m grpc_tools.protoc -I./api --python_out=. --grpc_python_out=. api/gobgp.proto api/attribute.proto api/capability.proto
+$ python -m grpc_tools.protoc -I./api -I"$(GO111MODULE=on go list -f '{{ .Dir }}' -m github.com/golang/protobuf)"/ptypes --python_out=. --grpc_python_out=. api/gobgp.proto
+ api/attribute.proto api/capability.proto
 ```
 
 ### Adding Path
