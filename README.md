@@ -1,4 +1,4 @@
-# GoBGP: BGP implementation in Go
+# GoBGP: BGP implementation in Goo
 
 [![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
 [![Slack Status](https://slackin-gobgp.now.sh/badge.svg)](https://slackin-gobgp.now.sh/)
