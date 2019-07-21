@@ -121,9 +121,17 @@ func addMessageLabelToIPRouteBody(path *table.Path, vrfId uint32, z *zebraClient
 	rf := path.GetRouteFamily()
 	if v > 4 && (rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN) {
 		*msgFlags |= zebra.FRR_ZAPI5_MESSAGE_LABEL
-		for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
-			nexthop.LabelNum++
-			nexthop.MplsLabels = append(nexthop.MplsLabels, label)
+		switch rf {
+		case bgp.RF_IPv4_VPN:
+			for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
+				nexthop.LabelNum++
+				nexthop.MplsLabels = append(nexthop.MplsLabels, label)
+			}
+		case bgp.RF_IPv6_VPN:
+			for _, label := range path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Labels.Labels {
+				nexthop.LabelNum++
+				nexthop.MplsLabels = append(nexthop.MplsLabels, label)
+			}
 		}
 	}
 }

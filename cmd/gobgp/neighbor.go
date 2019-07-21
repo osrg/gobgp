@@ -925,7 +925,8 @@ func showNeighborRib(r string, name string, args []string) error {
 			for _, dst := range rib {
 				prefix := dst.Prefix
 				if t == api.TableType_VRF {
-					s := strings.Split(prefix, ":")
+					// extract prefix from original which is RD(AS:VRF):IPv4 or IPv6 address
+					s := strings.SplitN(prefix, ":", 3)
 					prefix = s[len(s)-1]
 				}
 				_, p, _ := net.ParseCIDR(prefix)

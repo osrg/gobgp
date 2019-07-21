@@ -1060,10 +1060,11 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8, software 
 		version = MaxZapiVer
 	}
 	isAllowableSoftware := true
+
 	if ((version == 2 || version == 3) && software != "" && software != "quagga") ||
 		(version == 4 && software != "" && software != "frr3") ||
 		(version == 5 && software != "" && software != "frr4" && software != "frr5") ||
-		(version == 6 && software != "" && software != "frr6" && software != "frr7") {
+		(version == 6 && software != "" && software != "frr6" && software != "frr7" && software != "frr7.1") {
 		isAllowableSoftware = false
 	}
 	if !isAllowableSoftware {
@@ -1086,7 +1087,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8, software 
 		for {
 			m, more := <-outgoing
 			if more {
-				b, err := m.Serialize()
+				b, err := m.Serialize(software)
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Zebra",
@@ -1575,8 +1576,8 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 }
 
 type Body interface {
-	DecodeFromBytes([]byte, uint8) error
-	Serialize(uint8) ([]byte, error)
+	DecodeFromBytes([]byte, uint8, string) error
+	Serialize(uint8, string) ([]byte, error)
 	String(uint8, string) string
 }
 
@@ -1584,12 +1585,12 @@ type UnknownBody struct {
 	Data []byte
 }
 
-func (b *UnknownBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *UnknownBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	b.Data = data
 	return nil
 }
 
-func (b *UnknownBody) Serialize(version uint8) ([]byte, error) {
+func (b *UnknownBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	return b.Data, nil
 }
 
@@ -1606,7 +1607,7 @@ type HelloBody struct {
 // Reference: zread_hello function in zebra/zserv.c of Quagga1.2.x (ZAPI3)
 // Reference: zread_hello function in zebra/zserv.c of FRR3.x (ZAPI4)
 // Reference: zread_hello function in zebra/zapi_msg.c of FRR5.x (ZAPI5)
-func (b *HelloBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *HelloBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	b.RedistDefault = ROUTE_TYPE(data[0])
 	if version >= 4 {
 		b.Instance = binary.BigEndian.Uint16(data[1:3])
@@ -1620,7 +1621,7 @@ func (b *HelloBody) DecodeFromBytes(data []byte, version uint8) error {
 // Reference: zebra_hello_send function in lib/zclient.c of Quagga1.2.x (ZAPI3)
 // Reference: zebra_hello_send function in lib/zclient.c of FRR3.x (ZAPI4)
 // Reference: zebra_hello_send function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *HelloBody) Serialize(version uint8) ([]byte, error) {
+func (b *HelloBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	if version <= 3 {
 		return []byte{uint8(b.RedistDefault)}, nil
 	} else { // version >= 4
@@ -1654,7 +1655,7 @@ type RedistributeBody struct {
 //  Reference: zebra_redistribute_add function in zebra/redistribute.c of Quagga1.2.x (ZAPI3)
 //  Reference: zebra_redistribute_add function in zebra/redistribute.c of FRR3.x (ZAPI4)
 //  Reference: zebra_redistribute_add function in zebra/redistribute.c of FRR5.x (ZAPI5)
-func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	if version <= 3 {
 		b.Redist = ROUTE_TYPE(data[0])
 	} else { // version >= 4
@@ -1668,7 +1669,7 @@ func (b *RedistributeBody) DecodeFromBytes(data []byte, version uint8) error {
 //  Reference: zebra_redistribute_send function in lib/zclient.c of Quagga1.2.x (ZAPI3)
 //  Reference: zebra_redistribute_send function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_redistribute_send function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *RedistributeBody) Serialize(version uint8) ([]byte, error) {
+func (b *RedistributeBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	if version <= 3 {
 		return []byte{uint8(b.Redist)}, nil
 	} else { // version >= 4
@@ -1726,7 +1727,7 @@ type InterfaceUpdateBody struct {
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of Quagga1.2.x (ZAPI4)
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_interface_if_set_value function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	if len(data) < INTERFACE_NAMSIZ+33 {
 		return fmt.Errorf("lack of bytes. need %d but %d", INTERFACE_NAMSIZ+29, len(data))
 	}
@@ -1791,7 +1792,7 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8) error 
 	return nil
 }
 
-func (b *InterfaceUpdateBody) Serialize(version uint8) ([]byte, error) {
+func (b *InterfaceUpdateBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	return []byte{}, nil
 }
 
@@ -1816,7 +1817,7 @@ type InterfaceAddressUpdateBody struct {
 //  Reference: zebra_interface_address_read function in lib/zclient.c of Quagga1.2.x (ZAPI4)
 //  Reference: zebra_interface_address_read function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_interface_address_read function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	b.Index = binary.BigEndian.Uint32(data[:4])
 	b.Flags = INTERFACE_ADDRESS_FLAG(data[4])
 	family := data[5]
@@ -1830,7 +1831,7 @@ func (b *InterfaceAddressUpdateBody) DecodeFromBytes(data []byte, version uint8)
 	return nil
 }
 
-func (b *InterfaceAddressUpdateBody) Serialize(version uint8) ([]byte, error) {
+func (b *InterfaceAddressUpdateBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	return []byte{}, nil
 }
 
@@ -1848,7 +1849,7 @@ type RouterIDUpdateBody struct {
 //  Reference: zebra_router_id_update_read function in lib/zclient.c of Quagga1.2.x (ZAPI4)
 //  Reference: zebra_router_id_update_read function in lib/zclient.c of FRR3.x (ZAPI4)
 //  Reference: zebra_router_id_update_read function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *RouterIDUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *RouterIDUpdateBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	family := data[0]
 
 	addrlen, err := addressByteLength(family)
@@ -1860,7 +1861,7 @@ func (b *RouterIDUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
 	return nil
 }
 
-func (b *RouterIDUpdateBody) Serialize(version uint8) ([]byte, error) {
+func (b *RouterIDUpdateBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	return []byte{}, nil
 }
 
@@ -1879,6 +1880,7 @@ type Nexthop struct {
 	BlackholeType uint8
 	LabelNum      uint8
 	MplsLabels    []uint32
+	Onlink        uint8
 }
 
 func (n *Nexthop) String() string {
@@ -2038,7 +2040,7 @@ func (b *IPRouteBody) IsWithdraw(version uint8) bool {
 // Reference: zapi_ipv4_route function in lib/zclient.c  of Quagga1.2.x (ZAPI3)
 // Reference: zapi_ipv4_route function in lib/zclient.c  of FRR3.x (ZAPI4)
 // Reference: zapi_route_encode function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
+func (b *IPRouteBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	var buf []byte
 	if version <= 3 {
 		buf = make([]byte, 5)
@@ -2137,6 +2139,9 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 
 			buf = append(buf, uint8(nexthop.Type))
 
+			if version == 6 && softwareName == "frr7.1" {
+				buf = append(buf, nexthop.Onlink)
+			}
 			if (version <= 3 && nexthop.Type == NEXTHOP_TYPE_IPV4) ||
 				(version >= 4 && nexthop.Type == FRR_NEXTHOP_TYPE_IPV4) {
 				buf = append(buf, nexthop.Gate.To4()...)
@@ -2207,7 +2212,7 @@ func (b *IPRouteBody) Serialize(version uint8) ([]byte, error) {
 // Reference: zebra_read_ipv4 function in bgpd/bgp_zebra.c of Quagga1.2.x (ZAPI3)
 // Reference: zebra_read_ipv4 function in bgpd/bgp_zebra.c of FRR4.x (ZAPI4)
 // Reference: zapi_route_decode function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	if b == nil {
 		return fmt.Errorf("IPRouteBody is nil")
 	}
@@ -2321,6 +2326,10 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8) error {
 				nexthop.VrfId = binary.BigEndian.Uint32(data[pos : pos+4])
 				nexthop.Type = NEXTHOP_TYPE(data[pos+4])
 				pos += 5
+				if softwareName == "frr7.1" {
+					nexthop.Onlink = uint8(data[pos])
+					pos += 1
+				}
 			}
 
 			if (version <= 3 && nexthop.Type == NEXTHOP_TYPE_IPV4) ||
@@ -2531,7 +2540,7 @@ type NexthopLookupBody struct {
 }
 
 // Quagga only. Reference: zread_ipv[4|6]_nexthop_lookup in zebra/zserv.c of Quagga1.2.x (ZAPI3)
-func (b *NexthopLookupBody) Serialize(version uint8) ([]byte, error) {
+func (b *NexthopLookupBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	family := addressFamilyFromApi(b.Api, version)
 	buf := make([]byte, 0)
 
@@ -2544,7 +2553,7 @@ func (b *NexthopLookupBody) Serialize(version uint8) ([]byte, error) {
 }
 
 // Quagga only. Reference: zsend_ipv[4|6]_nexthop_lookup in zebra/zserv.c of Quagga1.2.x (ZAPI3)
-func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *NexthopLookupBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	family := addressFamilyFromApi(b.Api, version)
 	addrByteLen, err := addressByteLength(family)
 	if err != nil {
@@ -2601,7 +2610,7 @@ type ImportLookupBody struct {
 }
 
 // Quagga only. Reference: zread_ipv4_import_lookup in zebra/zserv.c of Quagga1.2.x (ZAPI3)
-func (b *ImportLookupBody) Serialize(version uint8) ([]byte, error) {
+func (b *ImportLookupBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	buf := make([]byte, 1)
 	buf[0] = b.PrefixLength
 	buf = append(buf, b.Addr.To4()...)
@@ -2609,7 +2618,7 @@ func (b *ImportLookupBody) Serialize(version uint8) ([]byte, error) {
 }
 
 // Quagga only. Reference: zsend_ipv4_import_lookup in zebra/zserv.c of Quagga1.2.x (ZAPI3)
-func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *ImportLookupBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	family := addressFamilyFromApi(b.Api, version)
 	addrByteLen, err := addressByteLength(family)
 	if err != nil {
@@ -2704,7 +2713,7 @@ func (n *RegisteredNexthop) Serialize() ([]byte, error) {
 // Reference: zserv_nexthop_register in zebra/zserv.c of Quagga1.2.x (ZAPI3)
 // Reference: zserv_rnh_register in zebra/zserv.c of FRR3.x (ZAPI4)
 // Reference: zread_rnh_register in zebra/zapi_msg.c of FRR5.x (ZAPI5)
-func (n *RegisteredNexthop) DecodeFromBytes(data []byte) error {
+func (n *RegisteredNexthop) DecodeFromBytes(data []byte, softwareName string) error {
 	// Connected (1 byte)
 	n.Connected = uint8(data[0])
 	// Address Family (2 bytes)
@@ -2731,7 +2740,7 @@ type NexthopRegisterBody struct {
 // Reference: sendmsg_nexthop in bgpd/bgp_nht.c of Quagga1.2.x (ZAPI3)
 // Reference: sendmsg_zebra_rnh in bgpd/bgp_nht.c of FRR3.x (ZAPI4)
 // Reference: zclient_send_rnh function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *NexthopRegisterBody) Serialize(version uint8) ([]byte, error) {
+func (b *NexthopRegisterBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	buf := make([]byte, 0)
 
 	// List of Registered Nexthops
@@ -2749,14 +2758,14 @@ func (b *NexthopRegisterBody) Serialize(version uint8) ([]byte, error) {
 // Reference: zserv_nexthop_register in zebra/zserv.c of Quagga1.2.x (ZAPI3)
 // Reference: zserv_rnh_register in zebra/zserv.c of FRR3.x (ZAPI4)
 // Reference: zread_rnh_register in zebra/zapi_msg.c of FRR5.x (ZAPI5)
-func (b *NexthopRegisterBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *NexthopRegisterBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	offset := 0
 
 	// List of Registered Nexthops
 	b.Nexthops = []*RegisteredNexthop{}
 	for len(data[offset:]) > 0 {
 		nh := new(RegisteredNexthop)
-		err := nh.DecodeFromBytes(data[offset:])
+		err := nh.DecodeFromBytes(data[offset:], softwareName)
 		if err != nil {
 			return err
 		}
@@ -2786,7 +2795,7 @@ type NexthopUpdateBody IPRouteBody
 // Reference: send_client function in zebra/zebra_rnh.c of Quagga1.2.x (ZAPI3)
 // Reference: send_client function in zebra/zebra_rnh.c of FRR3.x (ZAPI4)
 // Reference: send_client function in zebra/zebra_rnh.c of FRR5.x (ZAPI5)
-func (b *NexthopUpdateBody) Serialize(version uint8) ([]byte, error) {
+func (b *NexthopUpdateBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	// Address Family (2 bytes)
 	buf := make([]byte, 3)
 	binary.BigEndian.PutUint16(buf, uint16(b.Prefix.Family))
@@ -2831,7 +2840,7 @@ func (b *NexthopUpdateBody) Serialize(version uint8) ([]byte, error) {
 // Reference: bgp_parse_nexthop_update function in bgpd/bgp_nht.c of Quagga1.2.x (ZAPI3)
 // Reference: bgp_parse_nexthop_update function in bgpd/bgp_nht.c of FRR3.x (ZAPI4)
 // Reference: zapi_nexthop_update_decode function in lib/zclient.c of FRR5.x (ZAPI5)
-func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *NexthopUpdateBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	// Address Family (2 bytes)
 	prefixFamily := binary.BigEndian.Uint16(data[0:2])
 	b.Prefix.Family = uint8(prefixFamily)
@@ -2892,14 +2901,14 @@ type LabelManagerConnectBody struct {
 }
 
 // Reference: lm_label_manager_connect in lib/zclient.c of FRR
-func (b *LabelManagerConnectBody) Serialize(version uint8) ([]byte, error) {
+func (b *LabelManagerConnectBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	buf := make([]byte, 3)
 	buf[0] = uint8(b.RedistDefault)
 	binary.BigEndian.PutUint16(buf[1:3], b.Instance)
 	return buf, nil
 }
 
-func (b *LabelManagerConnectBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *LabelManagerConnectBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	size := 1
 	// FRR v4 may work incorrectly. It returns result only although it uses ZAPI v5.
 	if version >= 4 {
@@ -2938,7 +2947,7 @@ type GetLabelChunkBody struct {
 
 // Reference: zread_get_label_chunk in zebra/zserv.c of FRR3.x
 // Reference: zread_get_label_chunk in zebra/zapi_msg.c of FRR5.x and 6.x
-func (b *GetLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+func (b *GetLabelChunkBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	buf := make([]byte, 8)
 	pos := 0
 	if version > 4 {
@@ -2954,7 +2963,7 @@ func (b *GetLabelChunkBody) Serialize(version uint8) ([]byte, error) {
 
 // Reference: zsend_assign_label_chunk_response in zebra/zserv.c of FRR3.x
 // Reference: zsend_assign_label_chunk_response in zebra/zapi_msg.c of FRR5.x and 6.x
-func (b *GetLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *GetLabelChunkBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	size := 9
 	if version > 4 {
 		size = 12
@@ -2987,7 +2996,7 @@ type ReleaseLabelChunkBody struct {
 	End      uint32
 }
 
-func (b *ReleaseLabelChunkBody) Serialize(version uint8) ([]byte, error) {
+func (b *ReleaseLabelChunkBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	buf := make([]byte, 11)
 	pos := 0
 	if version > 4 {
@@ -3001,7 +3010,7 @@ func (b *ReleaseLabelChunkBody) Serialize(version uint8) ([]byte, error) {
 	return buf[0:pos], nil
 }
 
-func (b *ReleaseLabelChunkBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *ReleaseLabelChunkBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	// No response from Zebra
 	return nil
 }
@@ -3031,7 +3040,7 @@ type VrfLabelBody struct {
 }
 
 // Reference: zclient_send_vrf_label in lib/zclient.c of FRR 5.x and 6.x
-func (b *VrfLabelBody) Serialize(version uint8) ([]byte, error) {
+func (b *VrfLabelBody) Serialize(version uint8, softwareName string) ([]byte, error) {
 	buf := make([]byte, 6)
 	binary.BigEndian.PutUint32(buf[0:4], b.Label)
 	buf[4] = uint8(b.Afi)
@@ -3039,7 +3048,7 @@ func (b *VrfLabelBody) Serialize(version uint8) ([]byte, error) {
 	return buf, nil
 }
 
-func (b *VrfLabelBody) DecodeFromBytes(data []byte, version uint8) error {
+func (b *VrfLabelBody) DecodeFromBytes(data []byte, version uint8, softwareName string) error {
 	if len(data) < 6 {
 		return fmt.Errorf("invalid message length for VRF_LABEL message: %d<6", len(data))
 	}
@@ -3060,11 +3069,11 @@ type Message struct {
 	Body   Body
 }
 
-func (m *Message) Serialize() ([]byte, error) {
+func (m *Message) Serialize(software string) ([]byte, error) {
 	var body []byte
 	if m.Body != nil {
 		var err error
-		body, err = m.Body.Serialize(m.Header.Version)
+		body, err = m.Body.Serialize(m.Header.Version, software)
 		if err != nil {
 			return nil, err
 		}
@@ -3077,7 +3086,7 @@ func (m *Message) Serialize() ([]byte, error) {
 	return append(hdr, body...), nil
 }
 
-func (m *Message) parseMessage(data []byte) error {
+func (m *Message) parseMessage(data []byte, software string) error {
 	switch m.Header.Command {
 	case INTERFACE_ADD, INTERFACE_DELETE, INTERFACE_UP, INTERFACE_DOWN:
 		m.Body = &InterfaceUpdateBody{}
@@ -3096,10 +3105,10 @@ func (m *Message) parseMessage(data []byte) error {
 	default:
 		m.Body = &UnknownBody{}
 	}
-	return m.Body.DecodeFromBytes(data, m.Header.Version)
+	return m.Body.DecodeFromBytes(data, m.Header.Version, software)
 }
 
-func (m *Message) parseFrrMessage(data []byte) error {
+func (m *Message) parseFrrMessage(data []byte, software string) error {
 	switch m.Header.Command {
 	case FRR_INTERFACE_ADD, FRR_INTERFACE_DELETE, FRR_INTERFACE_UP, FRR_INTERFACE_DOWN:
 		m.Body = &InterfaceUpdateBody{}
@@ -3144,7 +3153,7 @@ func (m *Message) parseFrrMessage(data []byte) error {
 	default:
 		m.Body = &UnknownBody{}
 	}
-	return m.Body.DecodeFromBytes(data, m.Header.Version)
+	return m.Body.DecodeFromBytes(data, m.Header.Version, software)
 }
 
 func (m *Message) parseFrrZapi5Message(data []byte, software string) error {
@@ -3202,7 +3211,7 @@ func (m *Message) parseFrrZapi5Message(data []byte, software string) error {
 	default:
 		m.Body = &UnknownBody{}
 	}
-	return m.Body.DecodeFromBytes(data, m.Header.Version)
+	return m.Body.DecodeFromBytes(data, m.Header.Version, software)
 }
 
 func (m *Message) parseFrrZapi6Message(data []byte, software string) error {
@@ -3259,19 +3268,19 @@ func (m *Message) parseFrrZapi6Message(data []byte, software string) error {
 	default:
 		m.Body = &UnknownBody{}
 	}
-	return m.Body.DecodeFromBytes(data, m.Header.Version)
+	return m.Body.DecodeFromBytes(data, m.Header.Version, software)
 }
 
 func ParseMessage(hdr *Header, data []byte, software string) (m *Message, err error) {
 	m = &Message{Header: *hdr}
 	if m.Header.Version == 4 {
-		err = m.parseFrrMessage(data)
+		err = m.parseFrrMessage(data, software)
 	} else if m.Header.Version == 5 {
 		err = m.parseFrrZapi5Message(data, software)
 	} else if m.Header.Version == 6 {
 		err = m.parseFrrZapi6Message(data, software)
 	} else {
-		err = m.parseMessage(data)
+		err = m.parseMessage(data, software)
 	}
 	if err != nil {
 		return nil, err
