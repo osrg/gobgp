@@ -123,9 +123,16 @@ func main() {
 	}
 
 	if opts.Dry {
-		configCh := make(chan *internal_cfg.BgpConfigSet)
-		go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
-		c := <-configCh
+		c, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+				"Error": err,
+			}).Fatalf("Can't read config file %s", opts.ConfigFile)
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Config",
+		}).Info("Finished reading the config file")
 		if opts.LogLevel == "debug" {
 			pretty.Println(c)
 		}
