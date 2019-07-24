@@ -161,9 +161,8 @@ func main() {
 	}
 
 	loop := func() {
-		var c *internal_cfg.BgpConfigSet
 		initialConfig := <-configCh
-		c = config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
+		c := config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
 		for {
 			select {
 			case <-sigCh:
