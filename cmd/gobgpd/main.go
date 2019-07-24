@@ -236,7 +236,6 @@ func main() {
 				var updatePolicy bool
 
 				if c == nil {
-					c = newConfig
 					if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
 						Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
 					}); err != nil {
@@ -372,7 +371,6 @@ func main() {
 						assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
 						updatePolicy = true
 					}
-					c = newConfig
 				}
 				for _, pg := range addedPg {
 					log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
@@ -447,6 +445,7 @@ func main() {
 						log.Warn(err)
 					}
 				}
+				c = newConfig
 			}
 		}
 	}
