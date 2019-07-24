@@ -317,10 +317,6 @@ func main() {
 				}
 				return
 			case newConfig := <-configCh:
-				var added, deleted, updated []config.Neighbor
-				var addedPg, deletedPg, updatedPg []config.PeerGroup
-				var updatePolicy bool
-
 				if c == nil {
 					if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
 						Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
@@ -425,8 +421,8 @@ func main() {
 
 					assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
 
-					added = newConfig.Neighbors
-					addedPg = newConfig.PeerGroups
+					added := newConfig.Neighbors
+					addedPg := newConfig.PeerGroups
 					if opts.GracefulRestart {
 						for i, n := range added {
 							if n.GracefulRestart.Config.Enabled {
@@ -434,10 +430,14 @@ func main() {
 							}
 						}
 					}
+
+					addPeerGroups(bgpServer, addedPg)
+					addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
+					addNeighbors(bgpServer, added)
 				} else {
-					addedPg, deletedPg, updatedPg = config.UpdatePeerGroupConfig(c, newConfig)
-					added, deleted, updated = config.UpdateNeighborConfig(c, newConfig)
-					updatePolicy = config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
+					addedPg, deletedPg, updatedPg := config.UpdatePeerGroupConfig(c, newConfig)
+					added, deleted, updated := config.UpdateNeighborConfig(c, newConfig)
+					updatePolicy := config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
 
 					if updatePolicy {
 						log.Info("Policy config is updated")
@@ -457,24 +457,25 @@ func main() {
 						assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
 						updatePolicy = true
 					}
-				}
-				addPeerGroups(bgpServer, addedPg)
-				deletePeerGroups(bgpServer, deletedPg)
-				needsSoftResetIn := updatePeerGroups(bgpServer, updatedPg)
-				updatePolicy = updatePolicy || needsSoftResetIn
-				addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
-				addNeighbors(bgpServer, added)
-				deleteNeighbors(bgpServer, deleted)
-				needsSoftResetIn = updateNeighbors(bgpServer, updated)
-				updatePolicy = updatePolicy || needsSoftResetIn
 
-				if updatePolicy {
-					if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
-						Address:   "",
-						Direction: api.ResetPeerRequest_IN,
-						Soft:      true,
-					}); err != nil {
-						log.Warn(err)
+					addPeerGroups(bgpServer, addedPg)
+					deletePeerGroups(bgpServer, deletedPg)
+					needsSoftResetIn := updatePeerGroups(bgpServer, updatedPg)
+					updatePolicy = updatePolicy || needsSoftResetIn
+					addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
+					addNeighbors(bgpServer, added)
+					deleteNeighbors(bgpServer, deleted)
+					needsSoftResetIn = updateNeighbors(bgpServer, updated)
+					updatePolicy = updatePolicy || needsSoftResetIn
+
+					if updatePolicy {
+						if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
+							Address:   "",
+							Direction: api.ResetPeerRequest_IN,
+							Soft:      true,
+						}); err != nil {
+							log.Warn(err)
+						}
 					}
 				}
 				c = newConfig
