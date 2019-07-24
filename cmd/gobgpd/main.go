@@ -35,7 +35,6 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	api "github.com/osrg/gobgp/api"
-	internal_cfg "github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/version"
 	"github.com/osrg/gobgp/pkg/config"
 	"github.com/osrg/gobgp/pkg/server"
@@ -169,8 +168,8 @@ func main() {
 		return
 	}
 
-	configCh := make(chan *internal_cfg.BgpConfigSet)
-	go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+	configCh := config.ReadConfigFileOnSighup(opts.ConfigFile, opts.ConfigType)
+
 	loop := func() {
 		initialConfig := <-configCh
 		c := config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)

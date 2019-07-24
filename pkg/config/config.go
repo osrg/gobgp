@@ -17,6 +17,12 @@ func ReadConfigFile(configFile, configType string) (*config.BgpConfigSet, error)
 	return config.ReadConfigfile(configFile, configType)
 }
 
+func ReadConfigFileOnSighup(configFile, configType string) chan *config.BgpConfigSet {
+	ch := make(chan *config.BgpConfigSet)
+	go config.ReadConfigfileServe(configFile, configType, ch)
+	return ch
+}
+
 func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	rtList := make([]*any.Any, 0, len(l))
 	for _, rtString := range l {
