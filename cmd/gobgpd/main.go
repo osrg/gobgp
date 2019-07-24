@@ -35,9 +35,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/internal/pkg/config"
+	internal_cfg "github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/internal/pkg/version"
-	config_api "github.com/osrg/gobgp/pkg/config"
+	"github.com/osrg/gobgp/pkg/config"
 	"github.com/osrg/gobgp/pkg/server"
 )
 
@@ -122,9 +122,9 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	configCh := make(chan *config.BgpConfigSet)
+	configCh := make(chan *internal_cfg.BgpConfigSet)
 	if opts.Dry {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+		go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 		c := <-configCh
 		if opts.LogLevel == "debug" {
 			pretty.Println(c)
@@ -157,20 +157,20 @@ func main() {
 	}
 
 	if opts.ConfigFile != "" {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+		go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
 	loop := func() {
-		var c *config.BgpConfigSet
+		var c *internal_cfg.BgpConfigSet
 		initialConfig := <-configCh
-		c = config_api.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
+		c = config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
 		for {
 			select {
 			case <-sigCh:
 				stopServer(bgpServer, opts.UseSdNotify)
 				return
 			case newConfig := <-configCh:
-				c = config_api.UpdateConfig(bgpServer, c, newConfig)
+				c = config.UpdateConfig(bgpServer, c, newConfig)
 			}
 		}
 	}
