@@ -24,27 +24,35 @@ type BgpConfigSet struct {
 	DynamicNeighbors  []DynamicNeighbor  `mapstructure:"dynamic-neighbors"`
 }
 
+func ReadConfigfile(path, format string) (*BgpConfigSet, error) {
+	// Update config file type, if detectable
+	format = detectConfigFileType(path, format)
+
+	config := &BgpConfigSet{}
+	v := viper.New()
+	v.SetConfigFile(path)
+	v.SetConfigType(format)
+	var err error
+	if err = v.ReadInConfig(); err != nil {
+		return nil, err
+	}
+	if err = v.UnmarshalExact(config); err != nil {
+		return nil, err
+	}
+	if err = setDefaultConfigValuesWithViper(v, config); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP)
 
-	// Update config file type, if detectable
-	format = detectConfigFileType(path, format)
-
 	cnt := 0
 	for {
-		c := &BgpConfigSet{}
-		v := viper.New()
-		v.SetConfigFile(path)
-		v.SetConfigType(format)
-		var err error
-		if err = v.ReadInConfig(); err != nil {
-			goto ERROR
-		}
-		if err = v.UnmarshalExact(c); err != nil {
-			goto ERROR
-		}
-		if err = setDefaultConfigValuesWithViper(v, c); err != nil {
+		c, err := ReadConfigfile(path, format)
+		if err != nil {
 			goto ERROR
 		}
 		if cnt == 0 {
