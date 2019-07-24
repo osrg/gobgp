@@ -167,10 +167,7 @@ func main() {
 		for {
 			select {
 			case <-sigCh:
-				bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
-				if opts.UseSdNotify {
-					daemon.SdNotify(false, daemon.SdNotifyStopping)
-				}
+				stopServer(bgpServer, opts.UseSdNotify)
 				return
 			case newConfig := <-configCh:
 				c = config_api.UpdateConfig(bgpServer, c, newConfig)
@@ -179,4 +176,11 @@ func main() {
 	}
 
 	loop()
+}
+
+func stopServer(bgpServer *server.BgpServer, useSdNotify bool) {
+	bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+	if useSdNotify {
+		daemon.SdNotify(false, daemon.SdNotifyStopping)
+	}
 }
