@@ -122,8 +122,8 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	configCh := make(chan *internal_cfg.BgpConfigSet)
 	if opts.Dry {
+		configCh := make(chan *internal_cfg.BgpConfigSet)
 		go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 		c := <-configCh
 		if opts.LogLevel == "debug" {
@@ -156,10 +156,14 @@ func main() {
 		}
 	}
 
-	if opts.ConfigFile != "" {
-		go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+	if opts.ConfigFile == "" {
+		<-sigCh
+		stopServer(bgpServer, opts.UseSdNotify)
+		return
 	}
 
+	configCh := make(chan *internal_cfg.BgpConfigSet)
+	go internal_cfg.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	loop := func() {
 		initialConfig := <-configCh
 		c := config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
