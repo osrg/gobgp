@@ -101,6 +101,92 @@ func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig
 
 }
 
+func addPeerGroups(bgpServer *server.BgpServer, addedPg []config.PeerGroup) {
+	for _, pg := range addedPg {
+		log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
+		if err := bgpServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+			PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
+		}); err != nil {
+			log.Warn(err)
+		}
+	}
+}
+
+func deletePeerGroups(bgpServer *server.BgpServer, deletedPg []config.PeerGroup) {
+	for _, pg := range deletedPg {
+		log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
+		if err := bgpServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
+			Name: pg.Config.PeerGroupName,
+		}); err != nil {
+			log.Warn(err)
+		}
+	}
+}
+
+func updatePeerGroups(bgpServer *server.BgpServer, updatedPg []config.PeerGroup) bool {
+	for _, pg := range updatedPg {
+		log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
+		if u, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+			PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
+		}); err != nil {
+			log.Warn(err)
+		} else {
+			return u.NeedsSoftResetIn
+		}
+	}
+	return false
+}
+
+func addDynamicNeighbors(bgpServer *server.BgpServer, dynamicNeighbors []config.DynamicNeighbor) {
+	for _, dn := range dynamicNeighbors {
+		log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
+		if err := bgpServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+			DynamicNeighbor: &api.DynamicNeighbor{
+				Prefix:    dn.Config.Prefix,
+				PeerGroup: dn.Config.PeerGroup,
+			},
+		}); err != nil {
+			log.Warn(err)
+		}
+	}
+}
+
+func addNeighbors(bgpServer *server.BgpServer, added []config.Neighbor) {
+	for _, p := range added {
+		log.Infof("Peer %v is added", p.State.NeighborAddress)
+		if err := bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{
+			Peer: config.NewPeerFromConfigStruct(&p),
+		}); err != nil {
+			log.Warn(err)
+		}
+	}
+}
+
+func deleteNeighbors(bgpServer *server.BgpServer, deleted []config.Neighbor) {
+	for _, p := range deleted {
+		log.Infof("Peer %v is deleted", p.State.NeighborAddress)
+		if err := bgpServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
+			Address: p.State.NeighborAddress,
+		}); err != nil {
+			log.Warn(err)
+		}
+	}
+}
+
+func updateNeighbors(bgpServer *server.BgpServer, updated []config.Neighbor) bool {
+	for _, p := range updated {
+		log.Infof("Peer %v is updated", p.State.NeighborAddress)
+		if u, err := bgpServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
+			Peer: config.NewPeerFromConfigStruct(&p),
+		}); err != nil {
+			log.Warn(err)
+		} else {
+			return u.NeedsSoftResetIn
+		}
+	}
+	return false
+}
+
 func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM)
@@ -372,69 +458,15 @@ func main() {
 						updatePolicy = true
 					}
 				}
-				for _, pg := range addedPg {
-					log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
-					if err := bgpServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
-						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
-					}); err != nil {
-						log.Warn(err)
-					}
-				}
-				for _, pg := range deletedPg {
-					log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
-					if err := bgpServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
-						Name: pg.Config.PeerGroupName,
-					}); err != nil {
-						log.Warn(err)
-					}
-				}
-				for _, pg := range updatedPg {
-					log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
-					if u, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
-						PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
-					}); err != nil {
-						log.Warn(err)
-					} else {
-						updatePolicy = updatePolicy || u.NeedsSoftResetIn
-					}
-				}
-				for _, dn := range newConfig.DynamicNeighbors {
-					log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
-					if err := bgpServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
-						DynamicNeighbor: &api.DynamicNeighbor{
-							Prefix:    dn.Config.Prefix,
-							PeerGroup: dn.Config.PeerGroup,
-						},
-					}); err != nil {
-						log.Warn(err)
-					}
-				}
-				for _, p := range added {
-					log.Infof("Peer %v is added", p.State.NeighborAddress)
-					if err := bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{
-						Peer: config.NewPeerFromConfigStruct(&p),
-					}); err != nil {
-						log.Warn(err)
-					}
-				}
-				for _, p := range deleted {
-					log.Infof("Peer %v is deleted", p.State.NeighborAddress)
-					if err := bgpServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
-						Address: p.State.NeighborAddress,
-					}); err != nil {
-						log.Warn(err)
-					}
-				}
-				for _, p := range updated {
-					log.Infof("Peer %v is updated", p.State.NeighborAddress)
-					if u, err := bgpServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
-						Peer: config.NewPeerFromConfigStruct(&p),
-					}); err != nil {
-						log.Warn(err)
-					} else {
-						updatePolicy = updatePolicy || u.NeedsSoftResetIn
-					}
-				}
+				addPeerGroups(bgpServer, addedPg)
+				deletePeerGroups(bgpServer, deletedPg)
+				needsSoftResetIn := updatePeerGroups(bgpServer, updatedPg)
+				updatePolicy = updatePolicy || needsSoftResetIn
+				addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
+				addNeighbors(bgpServer, added)
+				deleteNeighbors(bgpServer, deleted)
+				needsSoftResetIn = updateNeighbors(bgpServer, updated)
+				updatePolicy = updatePolicy || needsSoftResetIn
 
 				if updatePolicy {
 					if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
