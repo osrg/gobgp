@@ -474,6 +474,8 @@ func main() {
 
 	loop := func() {
 		var c *config.BgpConfigSet
+		initialConfig := <-configCh
+		c = applyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
 		for {
 			select {
 			case <-sigCh:
@@ -483,11 +485,7 @@ func main() {
 				}
 				return
 			case newConfig := <-configCh:
-				if c == nil {
-					c = applyInitialConfig(bgpServer, newConfig, opts.GracefulRestart)
-				} else {
-					c = updateConfig(bgpServer, c, newConfig)
-				}
+				c = updateConfig(bgpServer, c, newConfig)
 			}
 		}
 	}
