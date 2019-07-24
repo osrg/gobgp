@@ -187,6 +187,172 @@ func updateNeighbors(bgpServer *server.BgpServer, updated []config.Neighbor) boo
 	return false
 }
 
+func applyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfigSet, isGracefulRestart bool) *config.BgpConfigSet {
+	if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
+	}); err != nil {
+		log.Fatalf("failed to set global config: %s", err)
+	}
+
+	if newConfig.Zebra.Config.Enabled {
+		tps := newConfig.Zebra.Config.RedistributeRouteTypeList
+		l := make([]string, 0, len(tps))
+		for _, t := range tps {
+			l = append(l, string(t))
+		}
+		if err := bgpServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
+			Url:                  newConfig.Zebra.Config.Url,
+			RouteTypes:           l,
+			Version:              uint32(newConfig.Zebra.Config.Version),
+			NexthopTriggerEnable: newConfig.Zebra.Config.NexthopTriggerEnable,
+			NexthopTriggerDelay:  uint32(newConfig.Zebra.Config.NexthopTriggerDelay),
+			MplsLabelRangeSize:   uint32(newConfig.Zebra.Config.MplsLabelRangeSize),
+			SoftwareName:         newConfig.Zebra.Config.SoftwareName,
+		}); err != nil {
+			log.Fatalf("failed to set zebra config: %s", err)
+		}
+	}
+
+	if len(newConfig.Collector.Config.Url) > 0 {
+		log.Fatal("collector feature is not supported")
+	}
+
+	for _, c := range newConfig.RpkiServers {
+		if err := bgpServer.AddRpki(context.Background(), &api.AddRpkiRequest{
+			Address:  c.Config.Address,
+			Port:     c.Config.Port,
+			Lifetime: c.Config.RecordLifetime,
+		}); err != nil {
+			log.Fatalf("failed to set rpki config: %s", err)
+		}
+	}
+	for _, c := range newConfig.BmpServers {
+		if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
+			Address:           c.Config.Address,
+			Port:              c.Config.Port,
+			SysName:           c.Config.SysName,
+			SysDescr:          c.Config.SysDescr,
+			Policy:            api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+			StatisticsTimeout: int32(c.Config.StatisticsTimeout),
+		}); err != nil {
+			log.Fatalf("failed to set bmp config: %s", err)
+		}
+	}
+	for _, vrf := range newConfig.Vrfs {
+		rd, err := bgp.ParseRouteDistinguisher(vrf.Config.Rd)
+		if err != nil {
+			log.Fatalf("failed to load vrf rd config: %s", err)
+		}
+
+		importRtList, err := marshalRouteTargets(vrf.Config.ImportRtList)
+		if err != nil {
+			log.Fatalf("failed to load vrf import rt config: %s", err)
+		}
+		exportRtList, err := marshalRouteTargets(vrf.Config.ExportRtList)
+		if err != nil {
+			log.Fatalf("failed to load vrf export rt config: %s", err)
+		}
+
+		if err := bgpServer.AddVrf(context.Background(), &api.AddVrfRequest{
+			Vrf: &api.Vrf{
+				Name:     vrf.Config.Name,
+				Rd:       apiutil.MarshalRD(rd),
+				Id:       uint32(vrf.Config.Id),
+				ImportRt: importRtList,
+				ExportRt: exportRtList,
+			},
+		}); err != nil {
+			log.Fatalf("failed to set vrf config: %s", err)
+		}
+	}
+	for _, c := range newConfig.MrtDump {
+		if len(c.Config.FileName) == 0 {
+			continue
+		}
+		if err := bgpServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
+			DumpType:         int32(c.Config.DumpType.ToInt()),
+			Filename:         c.Config.FileName,
+			DumpInterval:     c.Config.DumpInterval,
+			RotationInterval: c.Config.RotationInterval,
+		}); err != nil {
+			log.Fatalf("failed to set mrt config: %s", err)
+		}
+	}
+	p := config.ConfigSetToRoutingPolicy(newConfig)
+	rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
+	if err != nil {
+		log.Warn(err)
+	} else {
+		bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+			DefinedSets: rp.DefinedSets,
+			Policies:    rp.Policies,
+		})
+	}
+
+	assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
+
+	added := newConfig.Neighbors
+	addedPg := newConfig.PeerGroups
+	if isGracefulRestart {
+		for i, n := range added {
+			if n.GracefulRestart.Config.Enabled {
+				added[i].GracefulRestart.State.LocalRestarting = true
+			}
+		}
+	}
+
+	addPeerGroups(bgpServer, addedPg)
+	addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
+	addNeighbors(bgpServer, added)
+	return newConfig
+}
+
+func updateConfig(bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet) *config.BgpConfigSet {
+	addedPg, deletedPg, updatedPg := config.UpdatePeerGroupConfig(c, newConfig)
+	added, deleted, updated := config.UpdateNeighborConfig(c, newConfig)
+	updatePolicy := config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
+
+	if updatePolicy {
+		log.Info("Policy config is updated")
+		p := config.ConfigSetToRoutingPolicy(newConfig)
+		rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
+		if err != nil {
+			log.Warn(err)
+		} else {
+			bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+				DefinedSets: rp.DefinedSets,
+				Policies:    rp.Policies,
+			})
+		}
+	}
+	// global policy update
+	if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
+		assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
+		updatePolicy = true
+	}
+
+	addPeerGroups(bgpServer, addedPg)
+	deletePeerGroups(bgpServer, deletedPg)
+	needsSoftResetIn := updatePeerGroups(bgpServer, updatedPg)
+	updatePolicy = updatePolicy || needsSoftResetIn
+	addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
+	addNeighbors(bgpServer, added)
+	deleteNeighbors(bgpServer, deleted)
+	needsSoftResetIn = updateNeighbors(bgpServer, updated)
+	updatePolicy = updatePolicy || needsSoftResetIn
+
+	if updatePolicy {
+		if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
+			Address:   "",
+			Direction: api.ResetPeerRequest_IN,
+			Soft:      true,
+		}); err != nil {
+			log.Warn(err)
+		}
+	}
+	return newConfig
+}
+
 func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM)
@@ -318,167 +484,10 @@ func main() {
 				return
 			case newConfig := <-configCh:
 				if c == nil {
-					if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
-						Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
-					}); err != nil {
-						log.Fatalf("failed to set global config: %s", err)
-					}
-
-					if newConfig.Zebra.Config.Enabled {
-						tps := newConfig.Zebra.Config.RedistributeRouteTypeList
-						l := make([]string, 0, len(tps))
-						for _, t := range tps {
-							l = append(l, string(t))
-						}
-						if err := bgpServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
-							Url:                  newConfig.Zebra.Config.Url,
-							RouteTypes:           l,
-							Version:              uint32(newConfig.Zebra.Config.Version),
-							NexthopTriggerEnable: newConfig.Zebra.Config.NexthopTriggerEnable,
-							NexthopTriggerDelay:  uint32(newConfig.Zebra.Config.NexthopTriggerDelay),
-							MplsLabelRangeSize:   uint32(newConfig.Zebra.Config.MplsLabelRangeSize),
-							SoftwareName:         newConfig.Zebra.Config.SoftwareName,
-						}); err != nil {
-							log.Fatalf("failed to set zebra config: %s", err)
-						}
-					}
-
-					if len(newConfig.Collector.Config.Url) > 0 {
-						log.Fatal("collector feature is not supported")
-					}
-
-					for _, c := range newConfig.RpkiServers {
-						if err := bgpServer.AddRpki(context.Background(), &api.AddRpkiRequest{
-							Address:  c.Config.Address,
-							Port:     c.Config.Port,
-							Lifetime: c.Config.RecordLifetime,
-						}); err != nil {
-							log.Fatalf("failed to set rpki config: %s", err)
-						}
-					}
-					for _, c := range newConfig.BmpServers {
-						if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
-							Address:           c.Config.Address,
-							Port:              c.Config.Port,
-							SysName:           c.Config.SysName,
-							SysDescr:          c.Config.SysDescr,
-							Policy:            api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
-							StatisticsTimeout: int32(c.Config.StatisticsTimeout),
-						}); err != nil {
-							log.Fatalf("failed to set bmp config: %s", err)
-						}
-					}
-					for _, vrf := range newConfig.Vrfs {
-						rd, err := bgp.ParseRouteDistinguisher(vrf.Config.Rd)
-						if err != nil {
-							log.Fatalf("failed to load vrf rd config: %s", err)
-						}
-
-						importRtList, err := marshalRouteTargets(vrf.Config.ImportRtList)
-						if err != nil {
-							log.Fatalf("failed to load vrf import rt config: %s", err)
-						}
-						exportRtList, err := marshalRouteTargets(vrf.Config.ExportRtList)
-						if err != nil {
-							log.Fatalf("failed to load vrf export rt config: %s", err)
-						}
-
-						if err := bgpServer.AddVrf(context.Background(), &api.AddVrfRequest{
-							Vrf: &api.Vrf{
-								Name:     vrf.Config.Name,
-								Rd:       apiutil.MarshalRD(rd),
-								Id:       uint32(vrf.Config.Id),
-								ImportRt: importRtList,
-								ExportRt: exportRtList,
-							},
-						}); err != nil {
-							log.Fatalf("failed to set vrf config: %s", err)
-						}
-					}
-					for _, c := range newConfig.MrtDump {
-						if len(c.Config.FileName) == 0 {
-							continue
-						}
-						if err := bgpServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
-							DumpType:         int32(c.Config.DumpType.ToInt()),
-							Filename:         c.Config.FileName,
-							DumpInterval:     c.Config.DumpInterval,
-							RotationInterval: c.Config.RotationInterval,
-						}); err != nil {
-							log.Fatalf("failed to set mrt config: %s", err)
-						}
-					}
-					p := config.ConfigSetToRoutingPolicy(newConfig)
-					rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
-					if err != nil {
-						log.Warn(err)
-					} else {
-						bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
-							DefinedSets: rp.DefinedSets,
-							Policies:    rp.Policies,
-						})
-					}
-
-					assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
-
-					added := newConfig.Neighbors
-					addedPg := newConfig.PeerGroups
-					if opts.GracefulRestart {
-						for i, n := range added {
-							if n.GracefulRestart.Config.Enabled {
-								added[i].GracefulRestart.State.LocalRestarting = true
-							}
-						}
-					}
-
-					addPeerGroups(bgpServer, addedPg)
-					addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
-					addNeighbors(bgpServer, added)
+					c = applyInitialConfig(bgpServer, newConfig, opts.GracefulRestart)
 				} else {
-					addedPg, deletedPg, updatedPg := config.UpdatePeerGroupConfig(c, newConfig)
-					added, deleted, updated := config.UpdateNeighborConfig(c, newConfig)
-					updatePolicy := config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
-
-					if updatePolicy {
-						log.Info("Policy config is updated")
-						p := config.ConfigSetToRoutingPolicy(newConfig)
-						rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
-						if err != nil {
-							log.Warn(err)
-						} else {
-							bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
-								DefinedSets: rp.DefinedSets,
-								Policies:    rp.Policies,
-							})
-						}
-					}
-					// global policy update
-					if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
-						assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
-						updatePolicy = true
-					}
-
-					addPeerGroups(bgpServer, addedPg)
-					deletePeerGroups(bgpServer, deletedPg)
-					needsSoftResetIn := updatePeerGroups(bgpServer, updatedPg)
-					updatePolicy = updatePolicy || needsSoftResetIn
-					addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
-					addNeighbors(bgpServer, added)
-					deleteNeighbors(bgpServer, deleted)
-					needsSoftResetIn = updateNeighbors(bgpServer, updated)
-					updatePolicy = updatePolicy || needsSoftResetIn
-
-					if updatePolicy {
-						if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
-							Address:   "",
-							Direction: api.ResetPeerRequest_IN,
-							Soft:      true,
-						}); err != nil {
-							log.Warn(err)
-						}
-					}
+					c = updateConfig(bgpServer, c, newConfig)
 				}
-				c = newConfig
 			}
 		}
 	}
