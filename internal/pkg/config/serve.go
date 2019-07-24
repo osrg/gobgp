@@ -1,10 +1,6 @@
 package config
 
 import (
-	"os"
-	"os/signal"
-	"syscall"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -43,44 +39,6 @@ func ReadConfigfile(path, format string) (*BgpConfigSet, error) {
 		return nil, err
 	}
 	return config, nil
-}
-
-func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP)
-
-	cnt := 0
-	for {
-		c, err := ReadConfigfile(path, format)
-		if err != nil {
-			goto ERROR
-		}
-		if cnt == 0 {
-			log.WithFields(log.Fields{
-				"Topic": "Config",
-			}).Info("Finished reading the config file")
-		}
-		cnt++
-		configCh <- c
-		goto NEXT
-	ERROR:
-		if cnt == 0 {
-			log.WithFields(log.Fields{
-				"Topic": "Config",
-				"Error": err,
-			}).Fatalf("Can't read config file %s", path)
-		} else {
-			log.WithFields(log.Fields{
-				"Topic": "Config",
-				"Error": err,
-			}).Warningf("Can't read config file %s", path)
-		}
-	NEXT:
-		<-sigCh
-		log.WithFields(log.Fields{
-			"Topic": "Config",
-		}).Info("Reload the config file")
-	}
 }
 
 func ConfigSetToRoutingPolicy(c *BgpConfigSet) *RoutingPolicy {
