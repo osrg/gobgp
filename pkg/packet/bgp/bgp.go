@@ -11089,6 +11089,10 @@ func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte, options ...*Marshall
 	if err != nil {
 		return err
 	}
+	if p.Length == 0 {
+		// ibgp or something
+		return nil
+	}
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	isAs4, err := validateAsPathValueBytes(value)
