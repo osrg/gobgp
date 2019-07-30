@@ -182,28 +182,25 @@ func main() {
 	}).Info("Finished reading the config file")
 
 	c := config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
-	for {
-		select {
-		case sig := <-sigCh:
-			if sig != syscall.SIGHUP {
-				stopServer(bgpServer, opts.UseSdNotify)
-				return
-			}
+	for sig := range sigCh {
+		if sig != syscall.SIGHUP {
+			stopServer(bgpServer, opts.UseSdNotify)
+			return
+		}
 
+		log.WithFields(log.Fields{
+			"Topic": "Config",
+		}).Info("Reload the config file")
+		newConfig, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
+		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Config",
-			}).Info("Reload the config file")
-			newConfig, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Config",
-					"Error": err,
-				}).Warningf("Can't read config file %s", opts.ConfigFile)
-				continue
-			}
-
-			c = config.UpdateConfig(bgpServer, c, newConfig)
+				"Error": err,
+			}).Warningf("Can't read config file %s", opts.ConfigFile)
+			continue
 		}
+
+		c = config.UpdateConfig(bgpServer, c, newConfig)
 	}
 }
 
