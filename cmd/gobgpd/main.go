@@ -181,7 +181,7 @@ func main() {
 		"Topic": "Config",
 	}).Info("Finished reading the config file")
 
-	c := config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
+	currentConfig := config.ApplyInitialConfig(bgpServer, initialConfig, opts.GracefulRestart)
 	for sig := range sigCh {
 		if sig != syscall.SIGHUP {
 			stopServer(bgpServer, opts.UseSdNotify)
@@ -200,7 +200,7 @@ func main() {
 			continue
 		}
 
-		c = config.UpdateConfig(bgpServer, c, newConfig)
+		currentConfig = config.UpdateConfig(bgpServer, currentConfig, newConfig)
 	}
 }
 
