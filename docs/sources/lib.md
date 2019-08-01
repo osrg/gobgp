@@ -69,7 +69,15 @@ func main() {
 	a2, _ := ptypes.MarshalAny(&api.NextHopAttribute{
 		NextHop: "10.0.0.1",
 	})
-	attrs := []*any.Any{a1, a2}
+	a3, _ := ptypes.MarshalAny(&api.AsPathAttribute{
+		Segments: []*api.AsSegment{
+			{
+				Type:    2,
+				Numbers: []uint32{6762, 39919, 65000, 35753, 65000},
+			},
+		},
+	})
+	attrs := []*any.Any{a1, a2, a3}
 
 	_, err := s.AddPath(context.Background(), &api.AddPathRequest{
 		Path: &api.Path{
