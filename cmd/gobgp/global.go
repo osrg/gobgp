@@ -202,6 +202,8 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 		typ = bgp.TUNNEL_TYPE_MPLS
 	case "mpls-in-gre":
 		typ = bgp.TUNNEL_TYPE_MPLS_IN_GRE
+	case "mpls-in-udp":
+		typ = bgp.TUNNEL_TYPE_MPLS_IN_UDP
 	case "vxlan-gre":
 		typ = bgp.TUNNEL_TYPE_VXLAN_GRE
 	default:
