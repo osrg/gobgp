@@ -1396,4 +1396,19 @@ func TestAddDeletePath(t *testing.T) {
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 1)
+
+	// DeletePath(AddPath()) with uuid
+	r, err := s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_GLOBAL,
+		Uuid:      r.Uuid,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 0)
+	assert.Equal(t, len(s.uuidMap), 0)
 }

@@ -134,7 +134,7 @@ type BgpServer struct {
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
 	mrtManager   *mrtManager
-	uuidMap      map[uuid.UUID]string
+	uuidMap      map[string]uuid.UUID
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -151,7 +151,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		roaManager:   roaManager,
 		mgmtCh:       make(chan *mgmtOp, 1),
 		watcherMap:   make(map[watchEventType][]*watcher),
-		uuidMap:      make(map[uuid.UUID]string),
+		uuidMap:      make(map[string]uuid.UUID),
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -2003,7 +2003,7 @@ func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.Ad
 			return err
 		}
 		if id, err := uuid.NewRandom(); err == nil {
-			s.uuidMap[id] = pathTokey(path)
+			s.uuidMap[pathTokey(path)] = id
 			uuidBytes, _ = id.MarshalBinary()
 		}
 		return nil
@@ -2030,13 +2030,13 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 			// Delete locally generated path which has the given UUID
 			path := func() *table.Path {
 				id, _ := uuid.FromBytes(r.Uuid)
-				if key, ok := s.uuidMap[id]; !ok {
-					return nil
-				} else {
-					for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
-						if path.IsLocal() && key == pathTokey(path) {
-							delete(s.uuidMap, id)
-							return path
+				for k, v := range s.uuidMap {
+					if v == id {
+						for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
+							if path.IsLocal() && k == pathTokey(path) {
+								delete(s.uuidMap, k)
+								return path
+							}
 						}
 					}
 				}
@@ -2058,12 +2058,15 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 					deletePathList = append(deletePathList, path.Clone(true))
 				}
 			}
-			s.uuidMap = make(map[uuid.UUID]string)
+			s.uuidMap = make(map[string]uuid.UUID)
 		} else {
 			if err := s.fixupApiPath(r.VrfId, pathList); err != nil {
 				return err
 			}
 			deletePathList = pathList
+			for _, p := range deletePathList {
+				delete(s.uuidMap, pathTokey(p))
+			}
 		}
 		s.propagateUpdate(nil, deletePathList)
 		return nil
