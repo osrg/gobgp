@@ -1411,4 +1411,32 @@ func TestAddDeletePath(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib()), 0)
 	assert.Equal(t, len(s.uuidMap), 0)
+
+	r, err = s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(s.uuidMap), 1)
+	u := r.Uuid
+
+	asPath, _ := ptypes.MarshalAny(&api.AsPathAttribute{
+		Segments: []*api.AsSegment{
+			{
+				Type:    1, // SET
+				Numbers: []uint32{100, 200, 300},
+			},
+		},
+	})
+
+	p2.Pattrs = append(p2.Pattrs, asPath)
+	r, err = s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      p2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(s.uuidMap), 1)
+	assert.NotEqual(t, u, r.Uuid)
 }
