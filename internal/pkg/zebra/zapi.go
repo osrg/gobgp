@@ -1063,7 +1063,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8, software 
 
 	if ((version == 2 || version == 3) && software != "" && software != "quagga") ||
 		(version == 4 && software != "" && software != "frr3") ||
-		(version == 5 && software != "" && software != "frr4" && software != "frr5") ||
+		(version == 5 && software != "" && software != "frr4" && software != "frr5" && software != "cumulus") ||
 		(version == 6 && software != "" && software != "frr6" && software != "frr7" && software != "frr7.1") {
 		isAllowableSoftware = false
 	}
@@ -1241,6 +1241,12 @@ func (c *Client) SendCommand(command API_TYPE, vrfId uint32, body Body) error {
 	} else if c.Version == 5 && c.SoftwareName == "frr4" {
 		if frr4Command, err := frr4Zapi5Command(command, c.SoftwareName, false); err == nil {
 			command = frr4Command
+		} else {
+			return err
+		}
+	} else if c.Version == 5 && c.SoftwareName == "cumulus" {
+		if cumulusCommand, err := cumulusZapi5Command(command, c.SoftwareName, false); err == nil {
+			command = cumulusCommand
 		} else {
 			return err
 		}
@@ -3160,6 +3166,12 @@ func (m *Message) parseFrrZapi5Message(data []byte, software string) error {
 	command := m.Header.Command
 	if software == "frr4" {
 		if c, err := frr4Zapi5Command(command, software, true); err == nil {
+			command = c
+		} else {
+			return err
+		}
+	} else if software == "cumulus" {
+		if c, err := cumulusZapi5Command(command, software, true); err == nil {
 			command = c
 		} else {
 			return err
