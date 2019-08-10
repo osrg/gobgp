@@ -196,5 +196,5 @@ func cumulusZapi5Command(command API_TYPE, softwareName string, from bool) (API_
 			}
 		}
 	}
-	return command, fmt.Errorf("unspported command")
+	return command, fmt.Errorf("unsupported command")
 }
