@@ -69,7 +69,10 @@ You need to enable the zebra feature in the Global configuration as follows.
   `software-name`. For connecting to FRRouting 6.0.x, please specify
   `6` as `version` and `frr6` as `software-name`.  For connecting to
   FRRouting 4.0.x, please specify `5` as `version` and `frr4` as
-  `software-name`.
+  `software-name`. For connecting to Cumulus Linux please specify `5`
+  as `version` and `cumulus` as `software-name`. GoBGP is tested with
+  Cumulus Linux VX 3.7.7 whose zebra version is 4.0+cl3u13 and its
+  Zebra API version is 5.
 
 ## Check Routes from zebra
 
