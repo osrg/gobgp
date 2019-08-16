@@ -29,7 +29,7 @@ func marshalRouteTargets(l []string) ([]*any.Any, error) {
 	return rtList, nil
 }
 
-func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig) {
+func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *config.ApplyPolicyConfig) {
 	toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
 		var def table.RouteType
 		switch r {
@@ -52,7 +52,7 @@ func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig
 
 	def := toDefaultTable(a.DefaultImportPolicy)
 	ps := toPolicies(a.ImportPolicyList)
-	bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+	bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 			Name:     table.GLOBAL_RIB_NAME,
 			Type:     table.POLICY_DIRECTION_IMPORT,
@@ -63,7 +63,7 @@ func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig
 
 	def = toDefaultTable(a.DefaultExportPolicy)
 	ps = toPolicies(a.ExportPolicyList)
-	bgpServer.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+	bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 			Name:     table.GLOBAL_RIB_NAME,
 			Type:     table.POLICY_DIRECTION_EXPORT,
@@ -74,10 +74,10 @@ func assignGlobalpolicy(bgpServer *server.BgpServer, a *config.ApplyPolicyConfig
 
 }
 
-func addPeerGroups(bgpServer *server.BgpServer, addedPg []config.PeerGroup) {
+func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []config.PeerGroup) {
 	for _, pg := range addedPg {
 		log.Infof("PeerGroup %s is added", pg.Config.PeerGroupName)
-		if err := bgpServer.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+		if err := bgpServer.AddPeerGroup(ctx, &api.AddPeerGroupRequest{
 			PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
 			log.Warn(err)
@@ -85,10 +85,10 @@ func addPeerGroups(bgpServer *server.BgpServer, addedPg []config.PeerGroup) {
 	}
 }
 
-func deletePeerGroups(bgpServer *server.BgpServer, deletedPg []config.PeerGroup) {
+func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedPg []config.PeerGroup) {
 	for _, pg := range deletedPg {
 		log.Infof("PeerGroup %s is deleted", pg.Config.PeerGroupName)
-		if err := bgpServer.DeletePeerGroup(context.Background(), &api.DeletePeerGroupRequest{
+		if err := bgpServer.DeletePeerGroup(ctx, &api.DeletePeerGroupRequest{
 			Name: pg.Config.PeerGroupName,
 		}); err != nil {
 			log.Warn(err)
@@ -96,10 +96,10 @@ func deletePeerGroups(bgpServer *server.BgpServer, deletedPg []config.PeerGroup)
 	}
 }
 
-func updatePeerGroups(bgpServer *server.BgpServer, updatedPg []config.PeerGroup) bool {
+func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedPg []config.PeerGroup) bool {
 	for _, pg := range updatedPg {
 		log.Infof("PeerGroup %s is updated", pg.Config.PeerGroupName)
-		if u, err := bgpServer.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+		if u, err := bgpServer.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{
 			PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
 			log.Warn(err)
@@ -110,10 +110,10 @@ func updatePeerGroups(bgpServer *server.BgpServer, updatedPg []config.PeerGroup)
 	return false
 }
 
-func addDynamicNeighbors(bgpServer *server.BgpServer, dynamicNeighbors []config.DynamicNeighbor) {
+func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynamicNeighbors []config.DynamicNeighbor) {
 	for _, dn := range dynamicNeighbors {
 		log.Infof("Dynamic Neighbor %s is added to PeerGroup %s", dn.Config.Prefix, dn.Config.PeerGroup)
-		if err := bgpServer.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+		if err := bgpServer.AddDynamicNeighbor(ctx, &api.AddDynamicNeighborRequest{
 			DynamicNeighbor: &api.DynamicNeighbor{
 				Prefix:    dn.Config.Prefix,
 				PeerGroup: dn.Config.PeerGroup,
@@ -124,10 +124,10 @@ func addDynamicNeighbors(bgpServer *server.BgpServer, dynamicNeighbors []config.
 	}
 }
 
-func addNeighbors(bgpServer *server.BgpServer, added []config.Neighbor) {
+func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []config.Neighbor) {
 	for _, p := range added {
 		log.Infof("Peer %v is added", p.State.NeighborAddress)
-		if err := bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{
+		if err := bgpServer.AddPeer(ctx, &api.AddPeerRequest{
 			Peer: config.NewPeerFromConfigStruct(&p),
 		}); err != nil {
 			log.Warn(err)
@@ -135,10 +135,10 @@ func addNeighbors(bgpServer *server.BgpServer, added []config.Neighbor) {
 	}
 }
 
-func deleteNeighbors(bgpServer *server.BgpServer, deleted []config.Neighbor) {
+func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted []config.Neighbor) {
 	for _, p := range deleted {
 		log.Infof("Peer %v is deleted", p.State.NeighborAddress)
-		if err := bgpServer.DeletePeer(context.Background(), &api.DeletePeerRequest{
+		if err := bgpServer.DeletePeer(ctx, &api.DeletePeerRequest{
 			Address: p.State.NeighborAddress,
 		}); err != nil {
 			log.Warn(err)
@@ -146,10 +146,10 @@ func deleteNeighbors(bgpServer *server.BgpServer, deleted []config.Neighbor) {
 	}
 }
 
-func updateNeighbors(bgpServer *server.BgpServer, updated []config.Neighbor) bool {
+func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated []config.Neighbor) bool {
 	for _, p := range updated {
 		log.Infof("Peer %v is updated", p.State.NeighborAddress)
-		if u, err := bgpServer.UpdatePeer(context.Background(), &api.UpdatePeerRequest{
+		if u, err := bgpServer.UpdatePeer(ctx, &api.UpdatePeerRequest{
 			Peer: config.NewPeerFromConfigStruct(&p),
 		}); err != nil {
 			log.Warn(err)
@@ -160,8 +160,8 @@ func updateNeighbors(bgpServer *server.BgpServer, updated []config.Neighbor) boo
 	return false
 }
 
-func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfigSet, isGracefulRestart bool) *config.BgpConfigSet {
-	if err := bgpServer.StartBgp(context.Background(), &api.StartBgpRequest{
+func ApplyInitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *config.BgpConfigSet, isGracefulRestart bool) *config.BgpConfigSet {
+	if err := bgpServer.StartBgp(ctx, &api.StartBgpRequest{
 		Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
 	}); err != nil {
 		log.Fatalf("failed to set global config: %s", err)
@@ -173,7 +173,7 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 		for _, t := range tps {
 			l = append(l, string(t))
 		}
-		if err := bgpServer.EnableZebra(context.Background(), &api.EnableZebraRequest{
+		if err := bgpServer.EnableZebra(ctx, &api.EnableZebraRequest{
 			Url:                  newConfig.Zebra.Config.Url,
 			RouteTypes:           l,
 			Version:              uint32(newConfig.Zebra.Config.Version),
@@ -191,7 +191,7 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 	}
 
 	for _, c := range newConfig.RpkiServers {
-		if err := bgpServer.AddRpki(context.Background(), &api.AddRpkiRequest{
+		if err := bgpServer.AddRpki(ctx, &api.AddRpkiRequest{
 			Address:  c.Config.Address,
 			Port:     c.Config.Port,
 			Lifetime: c.Config.RecordLifetime,
@@ -200,7 +200,7 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 		}
 	}
 	for _, c := range newConfig.BmpServers {
-		if err := bgpServer.AddBmp(context.Background(), &api.AddBmpRequest{
+		if err := bgpServer.AddBmp(ctx, &api.AddBmpRequest{
 			Address:           c.Config.Address,
 			Port:              c.Config.Port,
 			SysName:           c.Config.SysName,
@@ -226,7 +226,7 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 			log.Fatalf("failed to load vrf export rt config: %s", err)
 		}
 
-		if err := bgpServer.AddVrf(context.Background(), &api.AddVrfRequest{
+		if err := bgpServer.AddVrf(ctx, &api.AddVrfRequest{
 			Vrf: &api.Vrf{
 				Name:     vrf.Config.Name,
 				Rd:       apiutil.MarshalRD(rd),
@@ -242,7 +242,7 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 		if len(c.Config.FileName) == 0 {
 			continue
 		}
-		if err := bgpServer.EnableMrt(context.Background(), &api.EnableMrtRequest{
+		if err := bgpServer.EnableMrt(ctx, &api.EnableMrtRequest{
 			DumpType:         int32(c.Config.DumpType.ToInt()),
 			Filename:         c.Config.FileName,
 			DumpInterval:     c.Config.DumpInterval,
@@ -256,13 +256,13 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 	if err != nil {
 		log.Warn(err)
 	} else {
-		bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+		bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
 			DefinedSets: rp.DefinedSets,
 			Policies:    rp.Policies,
 		})
 	}
 
-	assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
+	assignGlobalpolicy(ctx, bgpServer, &newConfig.Global.ApplyPolicy.Config)
 
 	added := newConfig.Neighbors
 	addedPg := newConfig.PeerGroups
@@ -274,13 +274,13 @@ func ApplyInitialConfig(bgpServer *server.BgpServer, newConfig *config.BgpConfig
 		}
 	}
 
-	addPeerGroups(bgpServer, addedPg)
-	addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
-	addNeighbors(bgpServer, added)
+	addPeerGroups(ctx, bgpServer, addedPg)
+	addDynamicNeighbors(ctx, bgpServer, newConfig.DynamicNeighbors)
+	addNeighbors(ctx, bgpServer, added)
 	return newConfig
 }
 
-func UpdateConfig(bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet) *config.BgpConfigSet {
+func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet) *config.BgpConfigSet {
 	addedPg, deletedPg, updatedPg := config.UpdatePeerGroupConfig(c, newConfig)
 	added, deleted, updated := config.UpdateNeighborConfig(c, newConfig)
 	updatePolicy := config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
@@ -292,7 +292,7 @@ func UpdateConfig(bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet
 		if err != nil {
 			log.Warn(err)
 		} else {
-			bgpServer.SetPolicies(context.Background(), &api.SetPoliciesRequest{
+			bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
 				DefinedSets: rp.DefinedSets,
 				Policies:    rp.Policies,
 			})
@@ -300,22 +300,22 @@ func UpdateConfig(bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet
 	}
 	// global policy update
 	if !newConfig.Global.ApplyPolicy.Config.Equal(&c.Global.ApplyPolicy.Config) {
-		assignGlobalpolicy(bgpServer, &newConfig.Global.ApplyPolicy.Config)
+		assignGlobalpolicy(ctx, bgpServer, &newConfig.Global.ApplyPolicy.Config)
 		updatePolicy = true
 	}
 
-	addPeerGroups(bgpServer, addedPg)
-	deletePeerGroups(bgpServer, deletedPg)
-	needsSoftResetIn := updatePeerGroups(bgpServer, updatedPg)
+	addPeerGroups(ctx, bgpServer, addedPg)
+	deletePeerGroups(ctx, bgpServer, deletedPg)
+	needsSoftResetIn := updatePeerGroups(ctx, bgpServer, updatedPg)
 	updatePolicy = updatePolicy || needsSoftResetIn
-	addDynamicNeighbors(bgpServer, newConfig.DynamicNeighbors)
-	addNeighbors(bgpServer, added)
-	deleteNeighbors(bgpServer, deleted)
-	needsSoftResetIn = updateNeighbors(bgpServer, updated)
+	addDynamicNeighbors(ctx, bgpServer, newConfig.DynamicNeighbors)
+	addNeighbors(ctx, bgpServer, added)
+	deleteNeighbors(ctx, bgpServer, deleted)
+	needsSoftResetIn = updateNeighbors(ctx, bgpServer, updated)
 	updatePolicy = updatePolicy || needsSoftResetIn
 
 	if updatePolicy {
-		if err := bgpServer.ResetPeer(context.Background(), &api.ResetPeerRequest{
+		if err := bgpServer.ResetPeer(ctx, &api.ResetPeerRequest{
 			Address:   "",
 			Direction: api.ResetPeerRequest_IN,
 			Soft:      true,
