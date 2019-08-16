@@ -181,7 +181,14 @@ func main() {
 		"Topic": "Config",
 	}).Info("Finished reading the config file")
 
-	currentConfig := config.ApplyInitialConfig(context.Background(), bgpServer, initialConfig, opts.GracefulRestart)
+	currentConfig, err := config.InitialConfig(context.Background(), bgpServer, initialConfig, opts.GracefulRestart)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Config",
+			"Error": err,
+		}).Fatalf("Failed to apply initial configuration %s", opts.ConfigFile)
+	}
+
 	for sig := range sigCh {
 		if sig != syscall.SIGHUP {
 			stopServer(bgpServer, opts.UseSdNotify)
@@ -200,7 +207,14 @@ func main() {
 			continue
 		}
 
-		currentConfig = config.UpdateConfig(context.Background(), bgpServer, currentConfig, newConfig)
+		currentConfig, err = config.UpdateConfig(context.Background(), bgpServer, currentConfig, newConfig)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+				"Error": err,
+			}).Warningf("Failed to update config %s", opts.ConfigFile)
+			continue
+		}
 	}
 }
 

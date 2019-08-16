@@ -13,6 +13,8 @@ import (
 	"github.com/osrg/gobgp/pkg/server"
 )
 
+// ReadConfigFile parses a config file into a BgpConfigSet which can be applied
+// using InitialConfig and UpdateConfig.
 func ReadConfigFile(configFile, configType string) (*config.BgpConfigSet, error) {
 	return config.ReadConfigfile(configFile, configType)
 }
@@ -160,7 +162,12 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 	return false
 }
 
-func ApplyInitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *config.BgpConfigSet, isGracefulRestart bool) *config.BgpConfigSet {
+// InitialConfig applies initial configuration to a pristine gobgp instance. It
+// can only be called once for an instance. Subsequent changes to the
+// configuration can be applied using UpdateConfig. The BgpConfigSet can be
+// obtained by calling ReadConfigFile. If graceful restart behavior is desired,
+// pass true for isGracefulRestart. Otherwise, pass false.
+func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *config.BgpConfigSet, isGracefulRestart bool) (*config.BgpConfigSet, error) {
 	if err := bgpServer.StartBgp(ctx, &api.StartBgpRequest{
 		Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
 	}); err != nil {
@@ -277,10 +284,16 @@ func ApplyInitialConfig(ctx context.Context, bgpServer *server.BgpServer, newCon
 	addPeerGroups(ctx, bgpServer, addedPg)
 	addDynamicNeighbors(ctx, bgpServer, newConfig.DynamicNeighbors)
 	addNeighbors(ctx, bgpServer, added)
-	return newConfig
+	return newConfig, nil
 }
 
-func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet) *config.BgpConfigSet {
+// UpdateConfig updates the configuration of a running gobgp instance.
+// InitialConfig must have been called once before this can be called for
+// subsequent changes to config. The differences are that this call 1) does not
+// hangle graceful restart and 2) requires a BgpConfigSet for the previous
+// configuration so that it can compute the delta between it and the new
+// config. The new BgpConfigSet can be obtained using ReadConfigFile.
+func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet) (*config.BgpConfigSet, error) {
 	addedPg, deletedPg, updatedPg := config.UpdatePeerGroupConfig(c, newConfig)
 	added, deleted, updated := config.UpdateNeighborConfig(c, newConfig)
 	updatePolicy := config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
@@ -323,5 +336,5 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 			log.Warn(err)
 		}
 	}
-	return newConfig
+	return newConfig, nil
 }
