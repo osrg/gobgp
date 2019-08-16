@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	DEFAULT_HOLDTIME                  = 90
+	DEFAULT_HOLDTIME                  = 180
 	DEFAULT_IDLE_HOLDTIME_AFTER_RESET = 30
-	DEFAULT_CONNECT_RETRY             = 120
+	DEFAULT_CONNECT_RETRY             = 30
 )
 
 var forcedOverwrittenConfig = []string{
