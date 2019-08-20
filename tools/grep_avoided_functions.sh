@@ -9,14 +9,17 @@ FUNCS=(
 )
 
 SCRIPT_DIR=`dirname $0`
+cd "${SCRIPT_DIR}/.."
 
 RESULT=0
 
+PKG_BASE=github.com/osrg/gobgp
+
 for FUNC in ${FUNCS[@]}
 do
-    for GO_PKG in $(go list github.com/osrg/gobgp/... | grep -v '/vendor/')
+    for GO_PKG in $(go list $PKG_BASE/... | grep -v '/vendor/')
     do
-        grep ${FUNC} -r ${GOPATH}/src/${GO_PKG}
+        grep ${FUNC} -r ${GO_PKG#$PKG_BASE/}
         if [ $? -ne 1 ]
         then
             RESULT=1
