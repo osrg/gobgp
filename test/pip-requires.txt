@@ -1,10 +1,10 @@
 nose
 toml
 pyyaml
-fabric
+fabric == 2.4.0
 netaddr
 nsenter
 docker-py
 ryu
 colored
-invoke
+invoke == 1.2.0
