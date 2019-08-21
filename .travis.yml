@@ -61,12 +61,11 @@ matrix:
       go: "1.12"
     - <<: *_unittest
       env:
-        - DESCRIPTION="Tests + goreleaser + cover"
+        - DESCRIPTION="Tests + cover"
       go: "1.12"
       script:
         - go test -coverprofile=coverage.txt -covermode=atomic ./...
       after_success:
-        - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
         - bash <(curl -s https://codecov.io/bash)
     - <<: *_unittest
       env:
