@@ -1,0 +1,482 @@
+name: ci
+
+on: [pull_request]
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-16.04
+
+    steps:
+      - uses: actions/checkout@master
+      - run: |
+          go test -race -timeout 240s ./...
+          if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
+
+  unit386:
+    name: unit386
+    runs-on: ubuntu-16.04
+    env:
+      GOARCH: 386
+    steps:
+      - uses: actions/checkout@master
+      - run: |
+          go env GOARCH
+          go test -timeout 240s ./...
+
+  staticcheck:
+    name: staticcheck
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@master
+      - run: |
+          test -z "$(go fmt ./...)"
+          go vet ./...
+          export PATH=${PATH}:`go env GOPATH`/bin
+          go get -u honnef.co/go/tools/cmd/staticcheck
+          staticcheck ./...
+
+  embeded:
+    name: embeded
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@master
+      - run: |
+          python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
+
+  lintdoc:
+    name: lintdoc
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@master
+      - run: |
+          npm install markdownlint-cli
+          ./node_modules/.bin/markdownlint $(find . -type d -name 'node_modules' -prune -o -type f -name '*.md' -print)
+          sudo apt-get install python3-setuptools
+          sudo pip3 install scspell3k
+          tools/spell-check/scspell.sh
+          tools/grep_avoided_functions.sh
+
+  build:
+    name: build container image
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@master
+      - name: container image
+        run: |
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          fab -r test/lib make-gobgp-ctn --tag gobgp --from-image osrg/quagga
+          docker save gobgp > gobgp.tar
+          fab -r test/lib make-gobgp-ctn --tag gobgp-oq --from-image osrg/quagga:v1.0
+          docker save gobgp-oq > gobgp-oq.tar
+
+      - name: upload image file
+        uses: actions/upload-artifact@v2
+        with:
+          name: artifact
+          path: |
+            gobgp.tar
+            gobgp-oq.tar
+
+  router:
+    name: router
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/bgp_router_test.py --gobgp-image gobgp -x -s
+
+  evpn:
+    name: evpn
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/evpn_test.py --gobgp-image gobgp -x -s
+
+  flowspec:
+    name: flowspec
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/flow_spec_test.py --gobgp-image gobgp -x -s
+
+  global-policy:
+    name: global-policy
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/global_policy_test.py --gobgp-image gobgp -x -s
+
+  graceful-restart:
+    name: graceful-restart
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/graceful_restart_test.py --gobgp-image gobgp -x -s
+
+  ibgp:
+    name: ibgp
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/ibgp_router_test.py --gobgp-image gobgp -x -s
+
+  rr:
+    name: route-refector
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_reflector_test.py --gobgp-image gobgp -x -s
+
+  as2:
+    name: as2
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_as2_test.py --gobgp-image gobgp -x -s
+
+  ipv4-v6:
+    name: ipv4-v6
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
+          sudo cp daemon.json /etc/docker
+          sudo systemctl restart docker
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_ipv4_v6_test.py --gobgp-image gobgp -x -s
+
+  malformed:
+    name: malformed
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_malformed_test.py --gobgp-image gobgp -x -s
+
+  rs-policy-grpc:
+    name: rs-policy-grpc
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_policy_grpc_test.py --gobgp-image gobgp -x -s
+
+  rs-policy:
+    name: rs-policy
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_policy_test.py --gobgp-image gobgp -x -s
+
+  softreset:
+    name: softreset
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_softreset_test.py --gobgp-image gobgp -x -s
+
+  rs1:
+    name: routeserver1
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_test.py --gobgp-image gobgp -x -s
+
+  rs2:
+    name: routeserver2
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/route_server_test2.py --gobgp-image gobgp -x -s
+
+  llgr:
+    name: llgr
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/long_lived_graceful_restart_test.py --gobgp-image gobgp -x -s
+
+  vrf-neighbor1:
+    name: vrf-neighbor1
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/vrf_neighbor_test.py --gobgp-image gobgp -x -s
+
+  vrf-neighbor2:
+    name: vrf-neighbor2
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/vrf_neighbor_test2.py --gobgp-image gobgp -x -s
+
+  rtc:
+    name: rtc
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/rtc_test.py --gobgp-image gobgp -x -s
+
+  unnumbered:
+    name: unnumbered
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
+          sudo cp daemon.json /etc/docker
+          sudo systemctl restart docker
+          # don't assign ipv6 addresss to docker0 bridge so two containers have p2p link.
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
+          sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/bgp_unnumbered_test.py --gobgp-image gobgp -x -s
+
+  aspath:
+    name: aspath
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/aspath_test.py --gobgp-image gobgp -x -s
+
+  addpath:
+    name: addpath
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/addpath_test.py --gobgp-image gobgp -x -s
+
+  malformed-handling:
+    name: malformed-handling
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/bgp_malformed_msg_handling_test.py --gobgp-image gobgp -x -s
+
+  confederation:
+    name: confederation
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/bgp_confederation_test.py --gobgp-image gobgp -x -s
+
+  zebra:
+    name: zebra
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/bgp_zebra_test.py --gobgp-image gobgp -x -s
+
+  zebra-nht:
+    name: zebra-nht
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp-oq.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/bgp_zebra_nht_test.py --gobgp-image gobgp-oq -x -s
+
+  zapi-v3:
+    name: zapi-v3
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp-oq.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/zapi_v3_test.py --gobgp-image gobgp-oq -x -s
+
+  zapi-v3-multipath:
+    name: zapi-v3-multipath
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp-oq.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/zapi_v3_multipath_test.py --gobgp-image gobgp-oq -x -s
