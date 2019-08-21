@@ -1,0 +1,23 @@
+name: release
+
+on:
+  create:
+    tags:
+      - v*.*.*
+
+jobs:
+  build:
+    runs-on: ubuntu-16.04
+    
+    steps:
+    - name: checking out
+      uses: actions/checkout@master
+
+    - name: releasing
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        wget https://github.com/goreleaser/goreleaser/releases/download/v0.108.0/goreleaser_amd64.deb
+        sudo dpkg -i goreleaser_amd64.deb
+        rm goreleaser_amd64.deb
+        cd /home/runner/work/gobgp/gobgp && goreleaser release
