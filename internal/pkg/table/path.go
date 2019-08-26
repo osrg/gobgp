@@ -89,7 +89,6 @@ type originInfo struct {
 	nlri               bgp.AddrPrefixInterface
 	source             *PeerInfo
 	timestamp          int64
-	validation         *Validation
 	noImplicitWithdraw bool
 	isFromExternal     bool
 	eor                bool
@@ -355,22 +354,6 @@ func (path *Path) OriginInfo() *originInfo {
 
 func (path *Path) NoImplicitWithdraw() bool {
 	return path.OriginInfo().noImplicitWithdraw
-}
-
-func (path *Path) Validation() *Validation {
-	return path.OriginInfo().validation
-}
-
-func (path *Path) ValidationStatus() config.RpkiValidationResultType {
-	if v := path.OriginInfo().validation; v != nil {
-		return v.Status
-	} else {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NONE
-	}
-}
-
-func (path *Path) SetValidation(v *Validation) {
-	path.OriginInfo().validation = v
 }
 
 func (path *Path) IsFromExternal() bool {
@@ -1024,7 +1007,6 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		PathAttrs:  path.GetPathAttrs(),
 		Age:        path.GetTimestamp().Unix(),
 		Withdrawal: path.IsWithdraw,
-		Validation: string(path.ValidationStatus()),
 		SourceID:   path.GetSource().ID,
 		NeighborIP: path.GetSource().Address,
 		Stale:      path.IsStale(),
@@ -1152,7 +1134,6 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
-	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path
 }
 
