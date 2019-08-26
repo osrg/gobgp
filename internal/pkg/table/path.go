@@ -139,6 +139,8 @@ type Path struct {
 	dels      []bgp.BGPAttrType
 	attrsHash uint32
 	aslooped  bool
+	// doesn't exist in the adj
+	dropped bool
 
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
@@ -403,6 +405,14 @@ func (path *Path) IsAsLooped() bool {
 
 func (path *Path) SetAsLooped(y bool) {
 	path.aslooped = y
+}
+
+func (path *Path) IsDropped() bool {
+	return path.dropped
+}
+
+func (path *Path) SetDropped(y bool) {
+	path.dropped = y
 }
 
 func (path *Path) IsLLGRStale() bool {
