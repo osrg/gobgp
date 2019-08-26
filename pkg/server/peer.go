@@ -558,6 +558,6 @@ func (peer *peer) PassConn(conn *net.TCPConn) {
 	}
 }
 
-func (peer *peer) DropAll(rfList []bgp.RouteFamily) {
-	peer.adjRibIn.Drop(rfList)
+func (peer *peer) DropAll(rfList []bgp.RouteFamily) []*table.Path {
+	return peer.adjRibIn.Drop(rfList)
 }

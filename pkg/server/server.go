@@ -1184,25 +1184,6 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 	}
 }
 
-func (s *BgpServer) dropPeerAllRoutes(peer *peer, families []bgp.RouteFamily) {
-	peer.fsm.lock.RLock()
-	peerInfo := peer.fsm.peerInfo
-	peer.fsm.lock.RUnlock()
-
-	rib := s.globalRib
-	if peer.isRouteServerClient() {
-		rib = s.rsRib
-	}
-	for _, family := range peer.toGlobalFamilies(families) {
-		for _, path := range rib.GetPathListByPeer(peerInfo, family) {
-			p := path.Clone(true)
-			if dsts := rib.Update(p); len(dsts) > 0 {
-				s.propagateUpdateToNeighbors(peer, p, dsts, false)
-			}
-		}
-	}
-}
-
 func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path) {
 	bestList := make([]*table.Path, 0, len(dsts))
 	oldList := make([]*table.Path, 0, len(dsts))
@@ -1345,8 +1326,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				drop = peer.configuredRFlist()
 			}
 			peer.prefixLimitWarned = make(map[bgp.RouteFamily]bool)
-			peer.DropAll(drop)
-			s.dropPeerAllRoutes(peer, drop)
+			s.propagateUpdate(peer, peer.DropAll(drop))
 
 			peer.fsm.lock.Lock()
 			if peer.fsm.pConf.Config.PeerAs == 0 {
@@ -1367,8 +1347,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if longLivedEnabled {
 				llgr, no_llgr := peer.llgrFamilies()
 
-				peer.DropAll(no_llgr)
-				s.dropPeerAllRoutes(peer, no_llgr)
+				s.propagateUpdate(peer, peer.DropAll(no_llgr))
 
 				// attach LLGR_STALE community to paths in peer's adj-rib-in
 				// paths with NO_LLGR are deleted
@@ -1401,8 +1380,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 									"Key":    peer.ID(),
 									"Family": family,
 								}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
-								peer.DropAll([]bgp.RouteFamily{family})
-								s.dropPeerAllRoutes(peer, []bgp.RouteFamily{family})
+								s.propagateUpdate(peer, peer.DropAll([]bgp.RouteFamily{family}))
 
 								// when all llgr restart timer expired, stop PeerRestarting
 								if peer.llgrRestartTimerExpired(family) {
@@ -1427,8 +1405,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
 				peer.fsm.lock.Unlock()
-				peer.DropAll(peer.configuredRFlist())
-				s.dropPeerAllRoutes(peer, peer.configuredRFlist())
+
+				s.propagateUpdate(peer, peer.DropAll(peer.configuredRFlist()))
 
 				if peer.isDynamicNeighbor() {
 					s.deleteDynamicNeighbor(peer, oldState, e)
@@ -2908,7 +2886,7 @@ func (s *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) erro
 	n.fsm.h.ctxCancel()
 
 	delete(s.neighborMap, addr)
-	s.dropPeerAllRoutes(n, n.configuredRFlist())
+	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
 	return nil
 }
 

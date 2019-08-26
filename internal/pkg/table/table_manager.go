@@ -190,21 +190,6 @@ func (tm *TableManager) update(newPath *Path) *Update {
 	return u
 }
 
-func (manager *TableManager) GetPathListByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Path {
-	if t, ok := manager.Tables[rf]; ok {
-		pathList := make([]*Path, 0, len(t.destinations))
-		for _, dst := range t.destinations {
-			for _, p := range dst.knownPathList {
-				if p.GetSource().Equal(info) {
-					pathList = append(pathList, p)
-				}
-			}
-		}
-		return pathList
-	}
-	return nil
-}
-
 func (manager *TableManager) Update(newPath *Path) []*Update {
 	if newPath == nil || newPath.IsEOR() {
 		return nil
