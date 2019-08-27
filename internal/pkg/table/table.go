@@ -117,14 +117,6 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 	return pathList
 }
 
-func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
-	if dst := t.GetDestination(nlri); dst != nil {
-		t.deleteDest(dst)
-		return dst
-	}
-	return nil
-}
-
 func (t *Table) deleteDest(dest *Destination) {
 	destinations := t.GetDestinations()
 	delete(destinations, t.tableKey(dest.GetNlri()))

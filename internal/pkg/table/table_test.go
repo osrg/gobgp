@@ -24,19 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTableDeleteDestByNlri(t *testing.T) {
-	peerT := TableCreatePeer()
-	pathT := TableCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
-	for _, path := range pathT {
-		dest := NewDestination(path.GetNlri(), 0)
-		ipv4t.setDestination(dest)
-	}
-	gdest := ipv4t.GetDestination(pathT[0].GetNlri())
-	rdest := ipv4t.deleteDestByNlri(pathT[0].GetNlri())
-	assert.Equal(t, rdest, gdest)
-}
-
 func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
