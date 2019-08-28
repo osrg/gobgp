@@ -22,13 +22,14 @@ must also configure `member-as-list` with a list of other ASNs which compose the
 example, AS65001 would configure this attribute as `member-as-list = [ 65002 ]`.
 
 ```toml
-[global.config]
-as = 65001
-router-id = "10.0.0.1"
-  [confederation.config]
-  enabled = true
-  identifier = 30
-  member-as-list = [ 65002 ]
+[global]
+  [global.config]
+    as = 65001
+    router-id = "10.0.0.1"
+  [global.confederation.config]
+    enabled = true
+    identifier = 30
+    member-as-list = [ 65002 ]
 
 [[neighbors]]
   [neighbors.config]
