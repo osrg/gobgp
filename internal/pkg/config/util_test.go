@@ -56,3 +56,27 @@ func TestIsAfiSafiChanged(t *testing.T) {
 	new = []AfiSafi{v4ap}
 	assert.True(t, isAfiSafiChanged(old, new))
 }
+
+func TestIsAfiSafiGracefulRestartEnabled(t *testing.T) {
+	disabled := []AfiSafi{
+		AfiSafi{
+			MpGracefulRestart: MpGracefulRestart{
+				Config: MpGracefulRestartConfig{
+					Enabled: false,
+				},
+			},
+		},
+	}
+	enabled := []AfiSafi{
+		AfiSafi{
+			MpGracefulRestart: MpGracefulRestart{
+				Config: MpGracefulRestartConfig{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	assert.False(t, isAfiSafiGracefulRestartEnabled(disabled))
+	assert.True(t, isAfiSafiGracefulRestartEnabled(enabled))
+}

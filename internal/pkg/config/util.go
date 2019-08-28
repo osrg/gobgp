@@ -221,11 +221,22 @@ func isAfiSafiChanged(x, y []AfiSafi) bool {
 	return false
 }
 
+func isAfiSafiGracefulRestartEnabled(a []AfiSafi) bool {
+	for _, e := range a {
+		if e.MpGracefulRestart.Config.Enabled {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (n *Neighbor) NeedsResendOpenMessage(new *Neighbor) bool {
 	return !n.Config.Equal(&new.Config) ||
 		!n.Transport.Config.Equal(&new.Transport.Config) ||
 		!n.AddPaths.Config.Equal(&new.AddPaths.Config) ||
 		!n.GracefulRestart.Config.Equal(&new.GracefulRestart.Config) ||
+		!isAfiSafiGracefulRestartEnabled(n.AfiSafis) ||
 		isAfiSafiChanged(n.AfiSafis, new.AfiSafis)
 }
 
