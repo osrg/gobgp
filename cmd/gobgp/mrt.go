@@ -121,7 +121,7 @@ func injectMrt() error {
 					case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH:
 						if mrtOpts.NextHop != nil {
 							for i, attr := range e.PathAttributes {
-								if attr.GetType() != bgp.BGP_ATTR_TYPE_NEXT_HOP {
+								if attr.GetType() == bgp.BGP_ATTR_TYPE_NEXT_HOP {
 									e.PathAttributes[i] = bgp.NewPathAttributeNextHop(mrtOpts.NextHop.String())
 									break
 								}
