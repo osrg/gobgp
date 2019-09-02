@@ -360,7 +360,7 @@ func (s *server) AddPathStream(stream api.GobgpApi_AddPathStreamServer) error {
 				pathList = append(pathList, path)
 			}
 		}
-		err = s.bgpServer.addPathList(arg.VrfId, pathList)
+		err = s.bgpServer.addPathStream(arg.VrfId, pathList)
 		if err != nil {
 			return err
 		}

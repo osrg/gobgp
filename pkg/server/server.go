@@ -1969,6 +1969,13 @@ func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	return err
 }
 
+func (s *BgpServer) addPathStream(vrfId string, pathList []*table.Path) error {
+	err := s.mgmtOperation(func() error {
+		return s.addPathList(vrfId, pathList)
+	}, true)
+	return err
+}
+
 func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
 	var uuidBytes []byte
 	err := s.mgmtOperation(func() error {
