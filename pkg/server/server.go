@@ -134,6 +134,7 @@ type BgpServer struct {
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
 	mrtManager   *mrtManager
+	roaTable     *table.ROATable
 	uuidMap      map[string]uuid.UUID
 }
 
@@ -142,16 +143,16 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	for _, o := range opt {
 		o(&opts)
 	}
-
-	roaManager, _ := newROAManager(0)
+	roaTable := table.NewROATable()
 	s := &BgpServer{
 		neighborMap:  make(map[string]*peer),
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(),
-		roaManager:   roaManager,
 		mgmtCh:       make(chan *mgmtOp, 1),
 		watcherMap:   make(map[watchEventType][]*watcher),
 		uuidMap:      make(map[string]uuid.UUID),
+		roaManager:   newROAManager(roaTable),
+		roaTable:     roaTable,
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -674,7 +675,7 @@ func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 	if stop {
 		return path
 	}
-	options.Validate = s.roaManager.validate
+	options.Validate = s.roaTable.Validate
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
@@ -994,7 +995,7 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []
 		if stop {
 			return nil
 		}
-		options.Validate = s.roaManager.validate
+		options.Validate = s.roaTable.Validate
 		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 		if path != nil {
 			return s.postFilterpath(peer, path)
@@ -1109,7 +1110,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		}
 
 		policyOptions := &table.PolicyOptions{
-			Validate: s.roaManager.validate,
+			Validate: s.roaTable.Validate,
 		}
 
 		if !rs && peer != nil {
@@ -2117,8 +2118,6 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
-
-		s.roaManager.SetAS(s.bgpConfig.Global.Config.As)
 		return nil
 	}, false)
 }
@@ -2383,7 +2382,7 @@ func (s *BgpServer) validateTable(r *table.Table) (v []*table.Validation) {
 		v = make([]*table.Validation, 0, len(r.GetDestinations()))
 		for _, d := range r.GetDestinations() {
 			for _, p := range d.GetAllKnownPathList() {
-				v = append(v, s.roaManager.validate(p))
+				v = append(v, s.roaTable.Validate(p))
 			}
 		}
 	}
@@ -2465,7 +2464,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 			if enableFiltered {
 				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{family}, true) {
 					options := &table.PolicyOptions{
-						Validate: s.roaManager.validate,
+						Validate: s.roaTable.Validate,
 					}
 					if s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options) == nil {
 						filtered[path.GetNlri().String()] = path
@@ -2480,7 +2479,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 					if stop {
 						continue
 					}
-					options.Validate = s.roaManager.validate
+					options.Validate = s.roaTable.Validate
 					p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 					if p == nil {
 						filtered[path.GetNlri().String()] = path
@@ -3615,7 +3614,7 @@ func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableReque
 		if r.Family != nil {
 			family = bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 		}
-		roas, err := s.roaManager.GetRoa(family)
+		roas, err := s.roaTable.List(family)
 		if err == nil {
 			l = append(l, newRoaListFromTableStructList(roas)...)
 		}

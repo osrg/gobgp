@@ -1,19 +1,4 @@
-// Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-// implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package server
+package table
 
 import (
 	"net"
@@ -21,11 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/osrg/gobgp/internal/pkg/config"
-	"github.com/osrg/gobgp/internal/pkg/table"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
-
 	radix "github.com/armon/go-radix"
+	"github.com/osrg/gobgp/internal/pkg/config"
+	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,13 +46,13 @@ func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidation
 func TestValidate0(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 32, 100, ""))
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 32, 100, ""))
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
 
 	var r config.RpkiValidationResultType
 
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "192.168.0.0/24", "100")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
@@ -92,12 +75,12 @@ func TestValidate0(t *testing.T) {
 func TestValidate1(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	var r config.RpkiValidationResultType
 
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/16", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
@@ -108,11 +91,11 @@ func TestValidate1(t *testing.T) {
 func TestValidate2(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
+	table := NewROATable()
 
 	var r config.RpkiValidationResultType
 
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/16", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
@@ -123,22 +106,22 @@ func TestValidate2(t *testing.T) {
 func TestValidate3(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	var r config.RpkiValidationResultType
 
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/8", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
 	r = validateOne(tree, "10.0.0.0/17", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
-	manager, _ = newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+	table = NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
-	tree = manager.Roas[bgp.RF_IPv4_UC]
+	tree = table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/17", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 }
@@ -146,12 +129,12 @@ func TestValidate3(t *testing.T) {
 func TestValidate4(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/16", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
@@ -162,12 +145,12 @@ func TestValidate4(t *testing.T) {
 func TestValidate5(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 17, 17, 65000, ""))
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 17, 17, 65000, ""))
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/16", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 }
@@ -175,11 +158,11 @@ func TestValidate5(t *testing.T) {
 func TestValidate6(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/7", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
@@ -193,11 +176,11 @@ func TestValidate6(t *testing.T) {
 func TestValidate7(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/24", "{65000}")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
@@ -211,12 +194,12 @@ func TestValidate7(t *testing.T) {
 func TestValidate8(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 0, ""))
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 0, ""))
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/24", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
@@ -227,12 +210,12 @@ func TestValidate8(t *testing.T) {
 func TestValidate9(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, ""))
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, ""))
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/24", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
@@ -243,12 +226,12 @@ func TestValidate9(t *testing.T) {
 func TestValidate10(t *testing.T) {
 	assert := assert.New(t)
 
-	manager, _ := newROAManager(0)
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 0, ""))
-	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
+	table := NewROATable()
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 0, ""))
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 
 	var r config.RpkiValidationResultType
-	tree := manager.Roas[bgp.RF_IPv4_UC]
+	tree := table.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/24", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
