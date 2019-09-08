@@ -35,9 +35,9 @@ import (
 )
 
 type PolicyOptions struct {
-	Info             *PeerInfo
-	ValidationResult *Validation
-	OldNextHop       net.IP
+	Info       *PeerInfo
+	OldNextHop net.IP
+	Validate   func(*Path) *Validation
 }
 
 type DefinedType int
@@ -1905,8 +1905,8 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 }
 
 func (c *RpkiValidationCondition) Evaluate(path *Path, options *PolicyOptions) bool {
-	if options != nil && options.ValidationResult != nil {
-		return c.result == options.ValidationResult.Status
+	if options != nil && options.Validate != nil {
+		return c.result == options.Validate(path).Status
 	}
 	return false
 }

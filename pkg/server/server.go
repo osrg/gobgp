@@ -640,10 +640,6 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		OldNextHop: path.GetNexthop(),
 	}
 	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
-
-	if v := s.roaManager.validate(path); v != nil {
-		options.ValidationResult = v
-	}
 	peer.fsm.lock.RUnlock()
 
 	return path, options, false
@@ -678,6 +674,7 @@ func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 	if stop {
 		return path
 	}
+	options.Validate = s.roaManager.validate
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
@@ -984,6 +981,7 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []
 		if stop {
 			return nil
 		}
+		options.Validate = s.roaManager.validate
 		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 		if path != nil {
 			return s.postFilterpath(peer, path)
@@ -1097,15 +1095,14 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 		}
 
-		policyOptions := &table.PolicyOptions{}
+		policyOptions := &table.PolicyOptions{
+			Validate: s.roaManager.validate,
+		}
 
 		if !rs && peer != nil {
 			peer.fsm.lock.RLock()
 			policyOptions.Info = peer.fsm.peerInfo
 			peer.fsm.lock.RUnlock()
-		}
-		if v := s.roaManager.validate(path); v != nil {
-			policyOptions.ValidationResult = v
 		}
 
 		if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
@@ -2452,7 +2449,10 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 			adjRib = peer.adjRibIn
 			if enableFiltered {
 				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{family}, true) {
-					if s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, &table.PolicyOptions{}) == nil {
+					options := &table.PolicyOptions{
+						Validate: s.roaManager.validate,
+					}
+					if s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options) == nil {
 						filtered[path.GetNlri().String()] = path
 					}
 				}
@@ -2465,6 +2465,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 					if stop {
 						continue
 					}
+					options.Validate = s.roaManager.validate
 					p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 					if p == nil {
 						filtered[path.GetNlri().String()] = path
