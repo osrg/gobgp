@@ -151,8 +151,8 @@ router-id = "10.0.255.254"
     name = "statement1"
     [policy-definitions.statements.conditions.bgp-conditions]
       rpki-validation-result = "invalid"
-    [policy-definitions.statements.conditions.actions.route-disposition]
-      reject-route = true
+    [policy-definitions.statements.actions]
+      route-disposition = "reject-route"
 ```
 
 The value for **RpkiValidationResult** are defined as below.
