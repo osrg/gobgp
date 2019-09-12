@@ -438,10 +438,15 @@ type TableInfo struct {
 func (t *Table) Info(id string, as uint32) *TableInfo {
 	var numD, numP int
 	for _, d := range t.destinations {
-		ps := d.GetKnownPathList(id, as)
-		if len(ps) > 0 {
-			numD += 1
-			numP += len(ps)
+		n := 0
+		if id == GLOBAL_RIB_NAME {
+			n = len(d.knownPathList)
+		} else {
+			n = len(d.GetKnownPathList(id, as))
+		}
+		if n != 0 {
+			numD++
+			numP += n
 		}
 	}
 	return &TableInfo{
