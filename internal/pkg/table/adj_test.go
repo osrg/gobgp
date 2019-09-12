@@ -39,14 +39,14 @@ func TestStaleAll(t *testing.T) {
 
 	adj := NewAdjRib(families)
 	adj.Update([]*Path{p1, p2})
-	assert.Equal(t, len(adj.table[family]), 2)
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
 
 	adj.StaleAll(families)
 
-	for _, p := range adj.table[family] {
+	for _, p := range adj.PathList([]bgp.RouteFamily{family}, false) {
 		assert.True(t, p.IsStale())
 	}
 
 	adj.DropStale(families)
-	assert.Equal(t, len(adj.table[family]), 0)
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 0)
 }

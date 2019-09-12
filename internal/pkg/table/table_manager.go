@@ -182,7 +182,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 func (tm *TableManager) update(newPath *Path) *Update {
 	t := tm.Tables[newPath.GetRouteFamily()]
 	t.validatePath(newPath)
-	dst := t.getOrCreateDest(newPath.GetNlri())
+	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
 	u := dst.Calculate(newPath)
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)

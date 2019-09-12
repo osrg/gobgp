@@ -175,7 +175,7 @@ func (t *Table) validatePath(path *Path) {
 	}
 }
 
-func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
+func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface, size int) *Destination {
 	dest := t.GetDestination(nlri)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
@@ -183,7 +183,7 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 			"Topic": "Table",
 			"Nlri":  nlri,
 		}).Debugf("create Destination")
-		dest = NewDestination(nlri, 64)
+		dest = NewDestination(nlri, size)
 		t.setDestination(dest)
 	}
 	return dest
