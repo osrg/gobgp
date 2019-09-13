@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStaleAll(t *testing.T) {
+func TestAddPath(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
@@ -39,6 +39,41 @@ func TestStaleAll(t *testing.T) {
 
 	adj := NewAdjRib(families)
 	adj.Update([]*Path{p1, p2})
+	assert.Equal(t, len(adj.table[family].destinations), 1)
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
+
+	p3 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	adj.Update([]*Path{p3})
+
+	var found *Path
+	for _, d := range adj.table[family].destinations {
+		for _, p := range d.knownPathList {
+			if p.GetNlri().PathIdentifier() == nlri2.PathIdentifier() {
+				found = p
+				break
+			}
+		}
+	}
+	assert.Equal(t, found, p3)
+	adj.Update([]*Path{p3.Clone(true)})
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 1)
+	adj.Update([]*Path{p1.Clone(true)})
+	assert.Equal(t, 0, len(adj.table[family].destinations))
+}
+
+func TestStale(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	nlri1 := bgp.NewIPAddrPrefix(24, "20.20.10.0")
+	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
+	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
+	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	family := p1.GetRouteFamily()
+	families := []bgp.RouteFamily{family}
+
+	adj := NewAdjRib(families)
+	adj.Update([]*Path{p1, p2})
 	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
 
 	adj.StaleAll(families)
@@ -47,6 +82,11 @@ func TestStaleAll(t *testing.T) {
 		assert.True(t, p.IsStale())
 	}
 
+	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.30.0")
+	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
+	adj.Update([]*Path{p1, p3})
+
 	adj.DropStale(families)
-	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 0)
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 1)
+	assert.Equal(t, 1, len(adj.table[family].destinations))
 }
