@@ -171,12 +171,19 @@ func getValidation(v []*table.Validation, i int) *table.Validation {
 func (s *server) ListPath(r *api.ListPathRequest, stream api.GobgpApi_ListPathServer) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	fn := func(d *api.Destination) {
+	l := make([]*api.Destination, 0)
+	err := s.bgpServer.ListPath(ctx, r, func(d *api.Destination) {
+		l = append(l, d)
+	})
+	if err != nil {
+		return err
+	}
+	for _, d := range l {
 		if err := stream.Send(&api.ListPathResponse{Destination: d}); err != nil {
-			cancel()
+			break
 		}
 	}
-	return s.bgpServer.ListPath(ctx, r, fn)
+	return err
 }
 
 func (s *server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_MonitorTableServer) error {
