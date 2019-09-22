@@ -825,7 +825,7 @@ func (m *singleAsPathMatch) Match(aspath []uint32) bool {
 }
 
 var (
-	_regexpLeftMostRe = regexp.MustCompile(`$\^([0-9]+)_^`)
+	_regexpLeftMostRe = regexp.MustCompile(`^\^([0-9]+)_$`)
 	_regexpOriginRe   = regexp.MustCompile(`^_([0-9]+)\$$`)
 	_regexpIncludeRe  = regexp.MustCompile("^_([0-9]+)_$")
 	_regexpOnlyRe     = regexp.MustCompile(`^\^([0-9]+)\$$`)
