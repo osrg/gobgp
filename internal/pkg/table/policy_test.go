@@ -3179,3 +3179,14 @@ func TestMultipleStatementPolicy(t *testing.T) {
 	localPref, _ := newPath.GetLocalPref()
 	assert.Equal(t, localPref, uint32(100))
 }
+
+func TestNewSingleAsPathMatch(t *testing.T) {
+	r := NewSingleAsPathMatch("^65100_")
+	assert.Equal(t, r.mode, LEFT_MOST)
+	r = NewSingleAsPathMatch("_65100$")
+	assert.Equal(t, r.mode, ORIGIN)
+	r = NewSingleAsPathMatch("_65100_")
+	assert.Equal(t, r.mode, INCLUDE)
+	r = NewSingleAsPathMatch("^65100$")
+	assert.Equal(t, r.mode, ONLY)
+}
