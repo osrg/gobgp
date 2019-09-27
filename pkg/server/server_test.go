@@ -1439,4 +1439,29 @@ func TestAddDeletePath(t *testing.T) {
 	assert.Equal(t, len(listRib()), 1)
 	assert.Equal(t, len(s.uuidMap), 1)
 	assert.NotEqual(t, u, r.Uuid)
+	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+}
+
+func TestDeleteNonExistingVrf(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+
+	s := runNewServer(1, "1.1.1.1", 10179)
+	addVrf(t, s, "vrf1", "111:111", 1)
+	req := &api.DeleteVrfRequest{Name: "Invalidvrf"}
+	if err := s.DeleteVrf(context.Background(), req); err == nil {
+		t.Fatal("Did not raise error for invalid vrf deletion.", err)
+	}
+	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+}
+
+func TestDeleteVrf(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+
+	s := runNewServer(1, "1.1.1.1", 10179)
+	addVrf(t, s, "vrf1", "111:111", 1)
+	req := &api.DeleteVrfRequest{Name: "vrf1"}
+	if err := s.DeleteVrf(context.Background(), req); err != nil {
+		t.Fatal("Vrf delete failed", err)
+	}
+	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }

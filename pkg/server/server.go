@@ -2206,9 +2206,11 @@ func (s *BgpServer) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) erro
 				return fmt.Errorf("failed to delete VRF %s: neighbor %s is in use", name, n.ID())
 			}
 		}
-		vrfMplsLabel := s.globalRib.Vrfs[name].MplsLabel
-		if vrfMplsLabel > 0 {
-			s.zclient.releaseMplsLabel(vrfMplsLabel)
+
+		if vrf, ok := s.globalRib.Vrfs[name]; ok {
+			if vrf.MplsLabel > 0 {
+				s.zclient.releaseMplsLabel(vrf.MplsLabel)
+			}
 		}
 		pathList, err := s.globalRib.DeleteVrf(name)
 		if err != nil {
