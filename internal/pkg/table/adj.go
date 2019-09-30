@@ -173,11 +173,39 @@ func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) []*Path {
 		for i, p := range d.knownPathList {
 			n := p.Clone(false)
 			n.MarkStale(true)
+			n.SetAsLooped(p.IsAsLooped())
 			d.knownPathList[i] = n
-			pathList = append(pathList, n)
+			if !n.IsAsLooped() {
+				pathList = append(pathList, n)
+			}
 		}
 		return false
 	})
+	return pathList
+}
+
+func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.RouteFamily) []*Path {
+	pathList := make([]*Path, 0, adj.Count(rfList))
+	adj.walk(rfList, func(d *Destination) bool {
+		for i, p := range d.knownPathList {
+			if p.HasNoLLGR() {
+				n := p.Clone(true)
+				n.SetDropped(true)
+				pathList = append(pathList, n)
+			} else {
+				n := p.Clone(false)
+				n.SetAsLooped(p.IsAsLooped())
+				n.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE)}, false)
+				if p.IsAsLooped() {
+					d.knownPathList[i] = n
+				} else {
+					pathList = append(pathList, n)
+				}
+			}
+		}
+		return false
+	})
+	adj.Update(pathList)
 	return pathList
 }
 

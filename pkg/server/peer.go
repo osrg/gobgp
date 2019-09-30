@@ -333,23 +333,7 @@ func (peer *peer) llgrRestartTimerExpired(family bgp.RouteFamily) bool {
 }
 
 func (peer *peer) markLLGRStale(fs []bgp.RouteFamily) []*table.Path {
-	paths := peer.adjRibIn.PathList(fs, true)
-	for i, p := range paths {
-		doStale := true
-		for _, c := range p.GetCommunities() {
-			if c == uint32(bgp.COMMUNITY_NO_LLGR) {
-				doStale = false
-				p = p.Clone(true)
-				break
-			}
-		}
-		if doStale {
-			p = p.Clone(false)
-			p.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE)}, false)
-		}
-		paths[i] = p
-	}
-	return paths
+	return peer.adjRibIn.MarkLLGRStaleOrDrop(fs)
 }
 
 func (peer *peer) stopPeerRestarting() {

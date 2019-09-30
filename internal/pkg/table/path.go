@@ -398,6 +398,15 @@ func (path *Path) SetDropped(y bool) {
 	path.dropped = y
 }
 
+func (path *Path) HasNoLLGR() bool {
+	for _, c := range path.GetCommunities() {
+		if c == uint32(bgp.COMMUNITY_NO_LLGR) {
+			return true
+		}
+	}
+	return false
+}
+
 func (path *Path) IsLLGRStale() bool {
 	for _, c := range path.GetCommunities() {
 		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
