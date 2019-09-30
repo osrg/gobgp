@@ -95,6 +95,11 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
 
         self.assertEqual(len(g1.get_global_rib('10.0.0.0/24')), 1)
+        # check llgr-stale community is added to 10.0.0.0/24
+        r = g1.get_global_rib('10.0.0.0/24')[0]['paths'][0]
+        comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
+        self.assertTrue(0xffff0006 in comms)
+
         # 10.10.0.0/24 is announced with no-llgr community
         # must not exist in the rib
         self.assertEqual(len(g1.get_global_rib('10.10.0.0/24')), 0)
@@ -102,24 +107,56 @@ class GoBGPTestBase(unittest.TestCase):
             for p in d['paths']:
                 self.assertTrue(p['stale'])
 
+        # check llgr-stale community is present in received route 10.0.0.0/24
         self.assertEqual(len(g3.get_global_rib('10.0.0.0/24')), 1)
-        # check llgr-stale community is added to 10.0.0.0/24
         r = g3.get_global_rib('10.0.0.0/24')[0]['paths'][0]
         comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
         self.assertTrue(0xffff0006 in comms)
+
         # g4 is not llgr capable, llgr-stale route must be
         # withdrawn
         self.assertEqual(len(g4.get_global_rib('10.0.0.0/24')), 0)
+
+    def test_03_softreset_preserves_llgr_community(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+        g4 = self.bgpds['g4']
+
+        g1.softreset(g2)
+        time.sleep(1)
+
+        # 10.10.0.0/24 received with no-llgr community is not reinstalled to rib
+        self.assertEqual(len(g1.get_global_rib('10.10.0.0/24')), 0)
+        # Stale flags are not cleared
+        for d in g1.get_global_rib():
+            for p in d['paths']:
+                self.assertTrue(p['stale'])
+
+        # check llgr-stale community is not cleared from 10.0.0.0/24
+        r = g1.get_global_rib('10.0.0.0/24')[0]['paths'][0]
+        comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
+        self.assertTrue(0xffff0006 in comms)
+
+        # check llgr-stale community is not cleared in route 10.0.0.0/24 on g3
+        self.assertEqual(len(g3.get_global_rib('10.0.0.0/24')), 1)
+        r = g3.get_global_rib('10.0.0.0/24')[0]['paths'][0]
+        comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
+        self.assertTrue(0xffff0006 in comms)
+
+        # g4 is not llgr capable, llgr-stale route must not be advertized on softreset g1
+        self.assertEqual(len(g4.get_global_rib('10.0.0.0/24')), 0)
+
+    def test_04_neighbor_established(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        # g3 = self.bgpds['g3']
+        # g4 = self.bgpds['g4']
 
         g2.start_gobgp(graceful_restart=True)
         g2.local('gobgp global rib add 10.0.0.0/24')
         g2.local('gobgp global rib add 10.10.0.0/24')
 
-    def test_03_neighbor_established(self):
-        g1 = self.bgpds['g1']
-        g2 = self.bgpds['g2']
-        # g3 = self.bgpds['g3']
-        # g4 = self.bgpds['g4']
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
         time.sleep(1)
         self.assertEqual(len(g1.get_global_rib('10.0.0.0/24')), 1)
@@ -128,7 +165,7 @@ class GoBGPTestBase(unittest.TestCase):
             for p in d['paths']:
                 self.assertFalse(p.get('stale', False))
 
-    def test_04_llgr_stale_route_depreferenced(self):
+    def test_05_llgr_stale_route_depreferenced(self):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
@@ -156,7 +193,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(rib), 1)
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
-    def test_05_llgr_restart_timer_expire(self):
+    def test_06_llgr_restart_timer_expire(self):
         time.sleep(LONG_LIVED_GRACEFUL_RESTART_TIME + 5)
         g3 = self.bgpds['g3']
         rib = g3.get_global_rib('10.10.0.0/24')
