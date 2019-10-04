@@ -433,8 +433,8 @@ func (z *zebraClient) loop() {
 					for _, path := range msg.PathList {
 						vrfs := []uint32{0}
 						if msg.Vrf != nil {
-							if v, ok := msg.Vrf[path.GetNlri().String()]; ok {
-								vrfs = append(vrfs, v)
+							for vrfId := range msg.Vrf {
+								vrfs = append(vrfs, vrfId)
 							}
 						}
 						for _, i := range vrfs {

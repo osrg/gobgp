@@ -468,6 +468,10 @@ func TestMonitor(test *testing.T) {
 	assert.Nil(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
+	// Vrf1 111:111 and vrf2 import 111:111 and 222:222
+	addVrf(test, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
+	addVrf(test, s, "vrf2", "222:222", []string{"111:111", "222:222"}, []string{"222:222"}, 2)
+
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
@@ -529,9 +533,10 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(1, len(b.PathList))
 	assert.Equal("10.0.0.0/24", b.PathList[0].GetNlri().String())
 	assert.False(b.PathList[0].IsWithdraw)
+	assert.Equal(0, len(b.Vrf))
 
 	// Withdraws the previous route.
-	// NOTE: Withdow should not require any path attribute.
+	// NOTE: Withdraw should not require any path attribute.
 	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, nil, time.Now(), false)}); err != nil {
 		log.Fatal(err)
 	}
@@ -540,6 +545,7 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(1, len(b.PathList))
 	assert.Equal("10.0.0.0/24", b.PathList[0].GetNlri().String())
 	assert.True(b.PathList[0].IsWithdraw)
+	assert.Equal(0, len(b.Vrf))
 
 	// Stops the watcher still having an item.
 	w.Stop()
@@ -593,6 +599,26 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(1, len(u.PathList))
 	assert.Equal("10.2.0.0/24", u.PathList[0].GetNlri().String())
 	assert.True(u.PathList[0].IsWithdraw)
+
+	// Test bestpath events with vrf and rt import
+	w.Stop()
+	w = s.watch(watchBestPath(false))
+	attrs = []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("10.0.0.1"),
+	}
+
+	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), false, attrs, time.Now(), false)}); err != nil {
+		log.Fatal(err)
+	}
+	ev = <-w.Event()
+	b = ev.(*watchEventBestPath)
+	assert.Equal(1, len(b.PathList))
+	assert.Equal("111:111:10.0.0.0/24", b.PathList[0].GetNlri().String())
+	assert.False(b.PathList[0].IsWithdraw)
+	assert.Equal(2, len(b.Vrf))
+	assert.True(b.Vrf[1])
+	assert.True(b.Vrf[2])
 
 	// Stops the watcher still having an item.
 	w.Stop()
@@ -1161,17 +1187,34 @@ func parseRDRT(rdStr string) (bgp.RouteDistinguisherInterface, bgp.ExtendedCommu
 	return rd, rt, nil
 }
 
-func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, id uint32) {
-	rd, rt, err := parseRDRT(rdStr)
+func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, importRtsStr []string, exportRtsStr []string, id uint32) {
+	rd, _, err := parseRDRT(rdStr)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	importRts := make([]bgp.ExtendedCommunityInterface, 0, len(importRtsStr))
+	for _, importRtStr := range importRtsStr {
+		_, rt, err := parseRDRT(importRtStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		importRts = append(importRts, rt)
+	}
+
+	exportRts := make([]bgp.ExtendedCommunityInterface, 0, len(exportRtsStr))
+	for _, exportRtStr := range exportRtsStr {
+		_, rt, err := parseRDRT(exportRtStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exportRts = append(exportRts, rt)
+	}
 	req := &api.AddVrfRequest{
 		Vrf: &api.Vrf{
 			Name:     vrfName,
-			ImportRt: apiutil.MarshalRTs([]bgp.ExtendedCommunityInterface{rt}),
-			ExportRt: apiutil.MarshalRTs([]bgp.ExtendedCommunityInterface{rt}),
+			ImportRt: apiutil.MarshalRTs(importRts),
+			ExportRt: apiutil.MarshalRTs(exportRts),
 			Rd:       apiutil.MarshalRD(rd),
 			Id:       id,
 		},
@@ -1188,8 +1231,8 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	s1 := runNewServer(1, "1.1.1.1", 10179)
 	s2 := runNewServer(1, "2.2.2.2", 20179)
 
-	addVrf(t, s1, "vrf1", "111:111", 1)
-	addVrf(t, s2, "vrf1", "111:111", 1)
+	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
+	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
@@ -1446,7 +1489,7 @@ func TestDeleteNonExistingVrf(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
 	s := runNewServer(1, "1.1.1.1", 10179)
-	addVrf(t, s, "vrf1", "111:111", 1)
+	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	req := &api.DeleteVrfRequest{Name: "Invalidvrf"}
 	if err := s.DeleteVrf(context.Background(), req); err == nil {
 		t.Fatal("Did not raise error for invalid vrf deletion.", err)
@@ -1458,7 +1501,7 @@ func TestDeleteVrf(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
 	s := runNewServer(1, "1.1.1.1", 10179)
-	addVrf(t, s, "vrf1", "111:111", 1)
+	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	req := &api.DeleteVrfRequest{Name: "vrf1"}
 	if err := s.DeleteVrf(context.Background(), req); err != nil {
 		t.Fatal("Vrf delete failed", err)

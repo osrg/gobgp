@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-
 import sys
 import time
 import unittest
@@ -58,7 +56,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_01_neighbor_established(self):
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
 
-    def test_02_create_vrf(self):
+    def test_02_vrf_routes_add(self):
         self.g1.local('ip netns add ns01')
         self.g1.local('ip netns add ns02')
         self.g2.local('ip netns add ns01')
@@ -91,6 +89,60 @@ class GoBGPTestBase(unittest.TestCase):
         lines = self.g2.local("ip netns exec ns02 ip r", capture=True).split('\n')
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0].split(' ')[0], '20.0.0.0/24')
+
+    def test_03_vrf_routes_del(self):
+        self.g1.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.1")
+
+        time.sleep(2)
+        lines = self.g2.local("ip netns exec ns01 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0], "")
+
+        lines = self.g2.local("ip netns exec ns02 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0], "")
+
+    def test_04_vrf_import_routes(self):
+        self.g1.local("gobgp vrf del vrf01")
+        # Import vrf2 routes into vrf1
+        self.g1.local("gobgp vrf add vrf01 id 1 rd 1:1 rt import 1:1 2:2 export 1:1")
+
+        self.g1.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.1")
+
+        time.sleep(2)
+
+        # g1 has the vrf2 route imported to vrf1 and updated on zebra
+        lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 2)
+        route_destinations = set()
+        route_destinations.add(lines[0].split(' ')[0])
+        route_destinations.add(lines[1].split(' ')[0])
+        self.assertEqual(len(route_destinations.intersection(set(["10.0.0.0/24", "20.0.0.0/24"]))), 2)
+
+        # Ensure other vrf and other neighbors are not impacted
+        lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '20.0.0.0/24')
+
+        lines = self.g2.local("ip netns exec ns01 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '10.0.0.0/24')
+
+        lines = self.g2.local("ip netns exec ns02 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '20.0.0.0/24')
+
+        # Routes imported from another vrf are cleaned up properly
+        self.g1.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.1")
+        lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '10.0.0.0/24')
+
+        lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].split(' ')[0], '')
 
 
 if __name__ == '__main__':
