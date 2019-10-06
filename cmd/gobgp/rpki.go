@@ -118,7 +118,15 @@ func showRPKITable(args []string) error {
 		if len(args) > 0 && args[0] != r.Conf.Address {
 			continue
 		}
-		fmt.Printf(format, r.Prefix, fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))))
+		bits := net.IPv4len * 8
+		if family.Afi == api.Family_AFI_IP6 {
+			bits = net.IPv6len * 8
+		}
+		n := net.IPNet{
+			IP:   net.ParseIP(r.GetPrefix()),
+			Mask: net.CIDRMask(int(r.GetPrefixlen()), bits),
+		}
+		fmt.Printf(format, n.String(), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))))
 	}
 	return nil
 }
