@@ -1584,11 +1584,12 @@ func newRoaListFromTableStructList(origin []*table.ROA) []*api.Roa {
 	for _, r := range origin {
 		host, portStr, _ := net.SplitHostPort(r.Src)
 		port, _ := strconv.ParseUint(portStr, 10, 32)
+		ones, _ := r.Network.Mask.Size()
 		l = append(l, &api.Roa{
 			As:        r.AS,
 			Maxlen:    uint32(r.MaxLen),
-			Prefixlen: uint32(r.Prefix.Length),
-			Prefix:    r.Prefix.Prefix.String(),
+			Prefixlen: uint32(ones),
+			Prefix:    r.Network.IP.String(),
 			Conf: &api.RPKIConf{
 				Address:    host,
 				RemotePort: uint32(port),

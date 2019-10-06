@@ -16,7 +16,6 @@
 package table
 
 import (
-	"fmt"
 	"net"
 	"sort"
 
@@ -26,31 +25,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type IPPrefix struct {
-	Prefix net.IP
-	Length uint8
-}
-
-func (p *IPPrefix) String() string {
-	return fmt.Sprintf("%s/%d", p.Prefix, p.Length)
-}
-
 type ROA struct {
-	Family int
-	Prefix *IPPrefix
-	MaxLen uint8
-	AS     uint32
-	Src    string
+	Family  int
+	Network *net.IPNet
+	MaxLen  uint8
+	AS      uint32
+	Src     string
 }
 
 func NewROA(family int, prefixByte []byte, prefixLen uint8, maxLen uint8, as uint32, src string) *ROA {
 	p := make([]byte, len(prefixByte))
+	bits := net.IPv4len * 8
+	if family == bgp.AFI_IP6 {
+		bits = net.IPv6len * 8
+	}
 	copy(p, prefixByte)
 	return &ROA{
 		Family: family,
-		Prefix: &IPPrefix{
-			Prefix: p,
-			Length: prefixLen,
+		Network: &net.IPNet{
+			IP:   p,
+			Mask: net.CIDRMask(int(prefixLen), bits),
 		},
 		MaxLen: maxLen,
 		AS:     as,
@@ -66,7 +60,7 @@ func (r *ROA) Equal(roa *ROA) bool {
 }
 
 type roaBucket struct {
-	Prefix  *IPPrefix
+	network *net.IPNet
 	entries []*ROA
 }
 
@@ -92,7 +86,8 @@ func (rt *ROATable) roa2tree(roa *ROA) (*radix.Tree, string) {
 	if roa.Family == bgp.AFI_IP6 {
 		tree = rt.Roas[bgp.RF_IPv6_UC]
 	}
-	return tree, IpToRadixkey(roa.Prefix.Prefix, roa.Prefix.Length)
+	ones, _ := roa.Network.Mask.Size()
+	return tree, IpToRadixkey(roa.Network.IP, uint8(ones))
 }
 
 func (rt *ROATable) Add(roa *ROA) {
@@ -101,7 +96,7 @@ func (rt *ROATable) Add(roa *ROA) {
 	var bucket *roaBucket
 	if b == nil {
 		bucket = &roaBucket{
-			Prefix:  roa.Prefix,
+			network: roa.Network,
 			entries: make([]*ROA, 0),
 		}
 		tree.Insert(key, bucket)
@@ -137,11 +132,10 @@ func (rt *ROATable) Delete(roa *ROA) {
 		}
 	}
 	log.WithFields(log.Fields{
-		"Topic":         "rpki",
-		"Prefix":        roa.Prefix.Prefix.String(),
-		"Prefix Length": roa.Prefix.Length,
-		"AS":            roa.AS,
-		"Max Length":    roa.MaxLen,
+		"Topic":      "rpki",
+		"Network":    roa.Network.String(),
+		"AS":         roa.AS,
+		"Max Length": roa.MaxLen,
 	}).Info("Can't withdraw a ROA")
 }
 
