@@ -172,6 +172,9 @@ matrix:
         - TEST=zapi_v3_test.py FROM_IMAGE=osrg/quagga:v1.0
     - <<: *_docker
       env:
+        - TEST=zapi_v3_multipath_test.py FROM_IMAGE=osrg/quagga:v1.0
+    - <<: *_docker
+      env:
         - TEST=long_lived_graceful_restart_test.py
     - <<: *_docker
       env:

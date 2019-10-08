@@ -62,7 +62,8 @@ class GoBGPContainer(BGPContainer):
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='toml',
-                 zapi_version=2, bgp_config=None, ospfd_config=None):
+                 zapi_version=2, bgp_config=None, ospfd_config=None,
+                 zebra_multipath_enabled=False):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -77,6 +78,7 @@ class GoBGPContainer(BGPContainer):
         self.default_policy = None
         self.zebra = zebra
         self.zapi_version = zapi_version
+        self.zebra_multipath_enabled = zebra_multipath_enabled
         self.config_format = config_format
 
         # bgp_config is equivalent to config.BgpConfigSet structure
@@ -378,6 +380,8 @@ class GoBGPContainer(BGPContainer):
 
         if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
+        else:
+            config['global']['use-multiple-paths'] = {'config': {'enabled': self.zebra_multipath_enabled}}
 
         for peer, info in self.peers.items():
             afi_safi_list = []

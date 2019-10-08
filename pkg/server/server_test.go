@@ -533,7 +533,8 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(1, len(b.PathList))
 	assert.Equal("10.0.0.0/24", b.PathList[0].GetNlri().String())
 	assert.False(b.PathList[0].IsWithdraw)
-	assert.Equal(0, len(b.Vrf))
+	assert.Equal(1, len(b.Vrf))
+	assert.True(b.Vrf[0])
 
 	// Withdraws the previous route.
 	// NOTE: Withdraw should not require any path attribute.
@@ -545,7 +546,8 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(1, len(b.PathList))
 	assert.Equal("10.0.0.0/24", b.PathList[0].GetNlri().String())
 	assert.True(b.PathList[0].IsWithdraw)
-	assert.Equal(0, len(b.Vrf))
+	assert.Equal(1, len(b.Vrf))
+	assert.True(b.Vrf[0])
 
 	// Stops the watcher still having an item.
 	w.Stop()
@@ -590,7 +592,7 @@ func TestMonitor(test *testing.T) {
 	assert.False(u.PathList[0].IsWithdraw)
 
 	// Withdraws the previous route.
-	// NOTE: Withdow should not require any path attribute.
+	// NOTE: Withdraw should not require any path attribute.
 	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), true, nil, time.Now(), false)}); err != nil {
 		log.Fatal(err)
 	}
@@ -620,7 +622,19 @@ func TestMonitor(test *testing.T) {
 	assert.True(b.Vrf[1])
 	assert.True(b.Vrf[2])
 
-	// Stops the watcher still having an item.
+	// Withdraw the route
+	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, attrs, time.Now(), false)}); err != nil {
+		log.Fatal(err)
+	}
+	ev = <-w.Event()
+	b = ev.(*watchEventBestPath)
+	assert.Equal(1, len(b.PathList))
+	assert.Equal("111:111:10.0.0.0/24", b.PathList[0].GetNlri().String())
+	assert.True(b.PathList[0].IsWithdraw)
+	assert.Equal(2, len(b.Vrf))
+	assert.True(b.Vrf[1])
+	assert.True(b.Vrf[2])
+
 	w.Stop()
 }
 
