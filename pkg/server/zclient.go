@@ -421,27 +421,19 @@ func (z *zebraClient) loop() {
 				if table.UseMultiplePaths.Enabled {
 					for _, paths := range msg.MultiPathList {
 						z.updatePathByNexthopCache(paths)
-						if body, isWithdraw := newIPRouteBody(paths, 0, z); body != nil {
-							z.client.SendIPRoute(0, body, isWithdraw)
-						}
-						if body := newNexthopRegisterBody(paths, z.nexthopCache); body != nil {
-							z.client.SendNexthopRegister(0, body, false)
+						for i := range msg.Vrf {
+							if body, isWithdraw := newIPRouteBody(paths, i, z); body != nil {
+								z.client.SendIPRoute(i, body, isWithdraw)
+							}
+							if body := newNexthopRegisterBody(paths, z.nexthopCache); body != nil {
+								z.client.SendNexthopRegister(i, body, false)
+							}
 						}
 					}
 				} else {
 					z.updatePathByNexthopCache(msg.PathList)
 					for _, path := range msg.PathList {
-						vrfs := []uint32{0}
-						if msg.Vrf != nil {
-							for vrfId := range msg.Vrf {
-								vrfs = append(vrfs, vrfId)
-							}
-						}
-						for _, i := range vrfs {
-							routeFamily := path.GetRouteFamily()
-							if i == zebra.VRF_DEFAULT && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
-								continue
-							}
+						for i := range msg.Vrf {
 							if body, isWithdraw := newIPRouteBody([]*table.Path{path}, i, z); body != nil {
 								err := z.client.SendIPRoute(i, body, isWithdraw)
 								if err != nil {
