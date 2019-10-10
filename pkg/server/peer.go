@@ -460,7 +460,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	if len(e.PathList) > 0 {
 		paths := make([]*table.Path, 0, len(e.PathList))
 		eor := []bgp.RouteFamily{}
-		for _, path := range e.PathList {
+		for i, path := range e.PathList {
 			if path.IsEOR() {
 				family := path.GetRouteFamily()
 				log.WithFields(log.Fields{
@@ -500,6 +500,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 						"OriginatorID": id,
 						"Data":         path,
 					}).Debug("Originator ID is mine, ignore")
+					e.PathList = append(e.PathList[:i], e.PathList[i+1:]...)
 					continue
 				}
 			}
