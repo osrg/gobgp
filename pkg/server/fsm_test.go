@@ -26,7 +26,6 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/internal/pkg/config"
-	"github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 
 	log "github.com/sirupsen/logrus"
@@ -311,7 +310,7 @@ func TestCheckOwnASLoop(t *testing.T) {
 
 func makePeerAndHandler() (*peer, *fsmHandler) {
 	p := &peer{
-		fsm: newFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
+		fsm: newFSM(&config.Global{}, &config.Neighbor{}),
 	}
 
 	h := &fsmHandler{

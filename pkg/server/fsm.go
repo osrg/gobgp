@@ -189,7 +189,6 @@ type fsm struct {
 	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen             *bgp.BGPMessage
 	peerInfo             *table.PeerInfo
-	policy               *table.RoutingPolicy
 	gracefulRestartTimer *time.Timer
 	twoByteAsTrans       bool
 	marshallingOptions   *bgp.MarshallingOption
@@ -261,7 +260,7 @@ func (fsm *fsm) bmpStatsUpdate(statType uint16, increment int) {
 	}
 }
 
-func newFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingPolicy) *fsm {
+func newFSM(gConf *config.Global, pConf *config.Neighbor) *fsm {
 	adminState := adminStateUp
 	if pConf.Config.AdminDown {
 		adminState = adminStateDown
@@ -281,7 +280,6 @@ func newFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		rfMap:                make(map[bgp.RouteFamily]bgp.BGPAddPathMode),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
-		policy:               policy,
 		gracefulRestartTimer: time.NewTimer(time.Hour),
 		notification:         make(chan *bgp.BGPMessage, 1),
 	}
