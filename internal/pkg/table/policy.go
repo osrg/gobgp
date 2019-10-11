@@ -3109,9 +3109,6 @@ type RoutingPolicy struct {
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	if before == nil {
 		return nil
 	}
@@ -3121,6 +3118,10 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	}
 	result := ROUTE_TYPE_NONE
 	after := before
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	for _, p := range r.getPolicy(id, dir) {
 		result, after = p.Apply(after, options)
 		if result != ROUTE_TYPE_NONE {
