@@ -306,7 +306,7 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 		peer.fsm.lock.RLock()
 		policy := peer.fsm.pConf.ApplyPolicy
 		peer.fsm.lock.RUnlock()
-		s.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): policy})
+		s.policy.SetPeerPolicy(peer.ID(), policy)
 		s.neighborMap[remoteAddr] = peer
 		peer.startFSMHandler()
 		s.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
@@ -2097,7 +2097,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		s.globalRib = table.NewTableManager(rfs)
 		s.rsRib = table.NewTableManager(rfs)
 
-		if err := s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
+		if err := s.policy.Initialize(); err != nil {
 			return err
 		}
 		s.bgpConfig.Global = *c
@@ -2800,7 +2800,7 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}
 	peer := newPeer(&s.bgpConfig.Global, c, rib, s.policy)
 	s.addIncoming(peer.fsm.incomingCh)
-	s.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
+	s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
 	s.neighborMap[addr] = peer
 	if name := c.Config.PeerGroup; name != "" {
 		s.peerGroupMap[name].AddMember(*c)
@@ -2984,7 +2984,7 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Info("Update ApplyPolicy")
-		s.policy.Reset(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
+		s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
 		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
 		needsSoftResetIn = true
 	}

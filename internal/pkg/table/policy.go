@@ -3822,32 +3822,59 @@ func (r *RoutingPolicy) SetPolicyAssignment(id string, dir PolicyDirection, poli
 	return err
 }
 
-func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.ApplyPolicy) error {
+func (r *RoutingPolicy) Initialize() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if rp != nil {
-		if err := r.reload(*rp); err != nil {
+	if err := r.reload(config.RoutingPolicy{}); err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+		}).Errorf("failed to create routing policy: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (r *RoutingPolicy) setPeerPolicy(id string, c config.ApplyPolicy) {
+	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+		ps, def, err := r.getAssignmentFromConfig(dir, c)
+		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
-			}).Errorf("failed to create routing policy: %s", err)
-			return err
+				"Dir":   dir,
+			}).Errorf("failed to get policy info: %s", err)
+			continue
 		}
+		r.setDefaultPolicy(id, dir, def)
+		r.setPolicy(id, dir, ps)
+	}
+}
+
+func (r *RoutingPolicy) SetPeerPolicy(peerId string, c config.ApplyPolicy) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.setPeerPolicy(peerId, c)
+	return nil
+}
+
+func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.ApplyPolicy) error {
+	if rp == nil {
+		return fmt.Errorf("Routing Policy is nil in call to Reset")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if err := r.reload(*rp); err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+		}).Errorf("failed to create routing policy: %s", err)
+		return err
 	}
 
 	for id, c := range ap {
-		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
-			ps, def, err := r.getAssignmentFromConfig(dir, c)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Policy",
-					"Dir":   dir,
-				}).Errorf("failed to get policy info: %s", err)
-				continue
-			}
-			r.setDefaultPolicy(id, dir, def)
-			r.setPolicy(id, dir, ps)
-		}
+		r.setPeerPolicy(id, c)
 	}
 	return nil
 }
