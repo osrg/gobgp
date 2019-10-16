@@ -78,18 +78,12 @@ class GoBGPTestBase(unittest.TestCase):
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g3)
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
 
-    def test_02_graceful_restart(self):
+    def _test_graceful_restart(self):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
         g4 = self.bgpds['g4']
 
-        g2.local('gobgp global rib add 10.0.0.0/24')
-        g2.local('gobgp global rib add 10.10.0.0/24 community no-llgr')
-
-        time.sleep(1)
-
-        g2.stop_gobgp()
         g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g2)
 
         time.sleep(1)
@@ -117,7 +111,62 @@ class GoBGPTestBase(unittest.TestCase):
         # withdrawn
         self.assertEqual(len(g4.get_global_rib('10.0.0.0/24')), 0)
 
-    def test_03_softreset_preserves_llgr_community(self):
+    def test_02_hold_timer_expiry_graceful_restart(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+        g4 = self.bgpds['g4']
+
+        g2.local('gobgp global rib add 10.0.0.0/24')
+        g2.local('gobgp global rib add 10.10.0.0/24 community no-llgr')
+
+        time.sleep(1)
+
+        g2.local("ip route add blackhole {}/32".format(g1.ip_addrs[0][1].split("/")[0]))
+        g2.local("ip route add blackhole {}/32".format(g3.ip_addrs[0][1].split("/")[0]))
+        g2.local("ip route add blackhole {}/32".format(g4.ip_addrs[0][1].split("/")[0]))
+
+        self._test_graceful_restart()
+
+    def test_03_neighbor_established_after_hold_time_expiry(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+        g4 = self.bgpds['g4']
+        g2.local("ip route del blackhole {}/32".format(g1.ip_addrs[0][1].split("/")[0]))
+        g2.local("ip route del blackhole {}/32".format(g3.ip_addrs[0][1].split("/")[0]))
+        g2.local("ip route del blackhole {}/32".format(g4.ip_addrs[0][1].split("/")[0]))
+
+        g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
+        time.sleep(1)
+        self.assertEqual(len(g1.get_global_rib('10.0.0.0/24')), 1)
+        self.assertEqual(len(g1.get_global_rib('10.10.0.0/24')), 1)
+        # check llgr-stale community is not present in 10.0.0.0/24
+        r = g1.get_global_rib('10.0.0.0/24')[0]['paths'][0]
+        comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
+        self.assertFalse(0xffff0006 in comms)
+
+        # check llgr-stale community is not present in 10.0.0.0/24
+        self.assertEqual(len(g3.get_global_rib('10.0.0.0/24')), 1)
+        r = g3.get_global_rib('10.0.0.0/24')[0]['paths'][0]
+        comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
+        self.assertFalse(0xffff0006 in comms)
+
+    def test_04_graceful_restart(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+        g4 = self.bgpds['g4']
+
+        g2.local('gobgp global rib add 10.0.0.0/24')
+        g2.local('gobgp global rib add 10.10.0.0/24 community no-llgr')
+
+        time.sleep(1)
+
+        g2.stop_gobgp()
+        self._test_graceful_restart()
+
+    def test_05_softreset_preserves_llgr_community(self):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
@@ -147,7 +196,7 @@ class GoBGPTestBase(unittest.TestCase):
         # g4 is not llgr capable, llgr-stale route must not be advertized on softreset g1
         self.assertEqual(len(g4.get_global_rib('10.0.0.0/24')), 0)
 
-    def test_04_neighbor_established(self):
+    def test_06_neighbor_established(self):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         # g3 = self.bgpds['g3']
@@ -165,7 +214,7 @@ class GoBGPTestBase(unittest.TestCase):
             for p in d['paths']:
                 self.assertFalse(p.get('stale', False))
 
-    def test_05_llgr_stale_route_depreferenced(self):
+    def test_07_llgr_stale_route_depreferenced(self):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
@@ -193,7 +242,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(rib), 1)
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
-    def test_06_llgr_restart_timer_expire(self):
+    def test_08_llgr_restart_timer_expire(self):
         time.sleep(LONG_LIVED_GRACEFUL_RESTART_TIME + 5)
         g3 = self.bgpds['g3']
         rib = g3.get_global_rib('10.10.0.0/24')

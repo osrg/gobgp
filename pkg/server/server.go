@@ -1380,7 +1380,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							"Topic":  "Peer",
 							"Key":    peer.ID(),
 							"Family": family,
-						}).Debugf("start LLGR restart timer (%d sec) for %s", t, family)
+						}).Infof("start LLGR restart timer (%d sec) for %s", t, family)
 
 						select {
 						case <-timer.C:
@@ -1389,7 +1389,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 									"Topic":  "Peer",
 									"Key":    peer.ID(),
 									"Family": family,
-								}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
+								}).Infof("LLGR restart timer (%d sec) for %s expired", t, family)
 								s.propagateUpdate(peer, peer.DropAll([]bgp.RouteFamily{family}))
 
 								// when all llgr restart timer expired, stop PeerRestarting
@@ -1403,7 +1403,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 								"Topic":  "Peer",
 								"Key":    peer.ID(),
 								"Family": family,
-							}).Debugf("stop LLGR restart timer (%d sec) for %s", t, family)
+							}).Infof("stop LLGR restart timer (%d sec) for %s", t, family)
 						}
 					}(f, endCh)
 				}

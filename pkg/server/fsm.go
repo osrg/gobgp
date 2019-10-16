@@ -1788,17 +1788,20 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// it now.
 			h.outgoing.In() <- err
 			fsm.lock.RLock()
-			if s := fsm.pConf.GracefulRestart.State; s.Enabled &&
-				(s.NotificationEnabled && err.Type == fsmNotificationRecv ||
+			if s := fsm.pConf.GracefulRestart.State; s.Enabled {
+				if (s.NotificationEnabled && err.Type == fsmNotificationRecv) ||
+					(err.Type == fsmNotificationSent &&
+						err.BGPNotification.Body.(*bgp.BGPNotification).ErrorCode == bgp.BGP_ERROR_HOLD_TIMER_EXPIRED) ||
 					err.Type == fsmReadFailed ||
-					err.Type == fsmWriteFailed) {
-				err = *newfsmStateReason(fsmGracefulRestart, nil, nil)
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.pConf.State.NeighborAddress,
-					"State": fsm.state.String(),
-				}).Info("peer graceful restart")
-				fsm.gracefulRestartTimer.Reset(time.Duration(fsm.pConf.GracefulRestart.State.PeerRestartTime) * time.Second)
+					err.Type == fsmWriteFailed {
+					err = *newfsmStateReason(fsmGracefulRestart, nil, nil)
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.State.NeighborAddress,
+						"State": fsm.state.String(),
+					}).Info("peer graceful restart")
+					fsm.gracefulRestartTimer.Reset(time.Duration(fsm.pConf.GracefulRestart.State.PeerRestartTime) * time.Second)
+				}
 			}
 			fsm.lock.RUnlock()
 			return bgp.BGP_FSM_IDLE, &err
@@ -1812,7 +1815,15 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			fsm.lock.RUnlock()
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
 			h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
-			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, m, nil)
+			fsm.lock.RLock()
+			s := fsm.pConf.GracefulRestart.State
+			fsm.lock.RUnlock()
+			// Do not return hold timer expired to server if graceful restart is enabled
+			// Let it fallback to read/write error or fsmNotificationSent handled above
+			// Reference: https://github.com/osrg/gobgp/issues/2174
+			if !s.Enabled {
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, m, nil)
+			}
 		case <-h.holdTimerResetCh:
 			fsm.lock.RLock()
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
