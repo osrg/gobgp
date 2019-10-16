@@ -277,12 +277,15 @@ class GoBGPContainer(BGPContainer):
         t.daemon = True
         t.start()
 
-    def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
+    def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4', add_path_enabled=False):
         peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} adj-{1} {2} -a {3} -j'.format(peer_addr,
                                                                 adj_type,
                                                                 prefix, rf)
         output = self.local(cmd, capture=True)
+        if add_path_enabled:
+            return self._get_rib(json.loads(output))
+
         ret = [p[0] for p in json.loads(output).values()]
         for p in ret:
             p["nexthop"] = self._get_nexthop(p)
@@ -292,11 +295,11 @@ class GoBGPContainer(BGPContainer):
             p["med"] = self._get_med(p)
         return ret
 
-    def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
-        return self._get_adj_rib('in', peer, prefix, rf)
+    def get_adj_rib_in(self, peer, prefix='', rf='ipv4', add_path_enabled=False):
+        return self._get_adj_rib('in', peer, prefix, rf, add_path_enabled)
 
-    def get_adj_rib_out(self, peer, prefix='', rf='ipv4'):
-        return self._get_adj_rib('out', peer, prefix, rf)
+    def get_adj_rib_out(self, peer, prefix='', rf='ipv4', add_path_enabled=False):
+        return self._get_adj_rib('out', peer, prefix, rf, add_path_enabled)
 
     def get_neighbor(self, peer):
         cmd = 'gobgp -j neighbor {0}'.format(self.peer_name(peer))

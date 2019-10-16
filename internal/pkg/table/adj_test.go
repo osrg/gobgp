@@ -61,6 +61,35 @@ func TestAddPath(t *testing.T) {
 	assert.Equal(t, 0, len(adj.table[family].destinations))
 }
 
+func TestAddPathAdjOut(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	nlri1 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
+	nlri1.SetPathIdentifier(1)
+	nlri1.SetPathLocalIdentifier(1)
+	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
+	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
+	nlri2.SetPathIdentifier(1)
+	nlri2.SetPathLocalIdentifier(2)
+	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
+	nlri3.SetPathIdentifier(2)
+	nlri3.SetPathLocalIdentifier(2)
+	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
+	nlri4 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
+	nlri4.SetPathIdentifier(3)
+	nlri4.SetPathLocalIdentifier(2)
+	p4 := NewPath(pi, nlri4, false, attrs, time.Now(), false)
+	family := p1.GetRouteFamily()
+	families := []bgp.RouteFamily{family}
+
+	adj := NewAdjRib(families)
+	adj.UpdateAdjRibOut([]*Path{p1, p2, p3, p4})
+	assert.Equal(t, len(adj.table[family].destinations), 1)
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
+}
+
 func TestStale(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
