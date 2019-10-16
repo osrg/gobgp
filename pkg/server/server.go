@@ -2472,11 +2472,11 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 					if p == nil {
 						filtered[path.GetNlri().String()] = path
 					}
-					adjRib.Update([]*table.Path{path})
+					adjRib.UpdateAdjRibOut([]*table.Path{path})
 				}
 			} else {
 				accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
-				adjRib.Update(accepted)
+				adjRib.UpdateAdjRibOut(accepted)
 			}
 		}
 		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, AS: as, LookupPrefixes: prefixes})
@@ -2603,7 +2603,7 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 		} else {
 			adjRib = table.NewAdjRib(peer.configuredRFlist())
 			accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
-			adjRib.Update(accepted)
+			adjRib.UpdateAdjRibOut(accepted)
 		}
 		info, err = adjRib.TableInfo(family)
 		return err

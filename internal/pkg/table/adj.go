@@ -89,6 +89,43 @@ func (adj *AdjRib) Update(pathList []*Path) {
 	}
 }
 
+/* The provided pathList is expected to be the real candidate routes after policy evaluation.
+   For routes that are filtered by policy, there could be a mismatch between display
+   and actual rib sent to the peer (if softreset out was not run).
+   Only used to display adj-out because we do not maintain a separate adj-out table
+*/
+func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
+	for _, path := range pathList {
+		if path == nil || path.IsEOR() {
+			continue
+		}
+		t := adj.table[path.GetRouteFamily()]
+		d := t.getOrCreateDest(path.GetNlri(), 0)
+
+		var old *Path
+		idx := -1
+		for i, p := range d.knownPathList {
+			if p.GetNlri().PathLocalIdentifier() == path.GetNlri().PathLocalIdentifier() {
+				idx = i
+				break
+			}
+		}
+		if idx != -1 {
+			old = d.knownPathList[idx]
+		}
+
+		// No withdraw use case for adj-out
+		if idx != -1 {
+			if old.Equal(path) {
+				path.setTimestamp(old.GetTimestamp())
+			}
+			d.knownPathList[idx] = path
+		} else {
+			d.knownPathList = append(d.knownPathList, path)
+		}
+	}
+}
+
 func (adj *AdjRib) walk(families []bgp.RouteFamily, fn func(*Destination) bool) {
 	for _, f := range families {
 		if t, ok := adj.table[f]; ok {

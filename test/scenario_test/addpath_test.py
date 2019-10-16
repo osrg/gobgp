@@ -164,8 +164,17 @@ class GoBGPTestBase(unittest.TestCase):
 
         assert_several_times(f)
 
+    def test_11_check_g1_adj_out(self):
+        adj_out = self.g1.get_adj_rib_out(self.g2, add_path_enabled=True)
+        self.assertEqual(len(adj_out), 1)
+        self.assertEqual(len(adj_out[0]['paths']), 1)
+
+        adj_out = self.g1.get_adj_rib_out(self.g3, add_path_enabled=True)
+        self.assertEqual(len(adj_out), 1)
+        self.assertEqual(len(adj_out[0]['paths']), 3)
+
     # test the best path is replaced due to the CLI route from g1 rib
-    def test_11_check_g2_global_rib(self):
+    def test_12_check_g2_global_rib(self):
         def f():
             rib = self.g2.get_global_rib()
             self.assertEqual(len(rib), 1)
@@ -175,7 +184,7 @@ class GoBGPTestBase(unittest.TestCase):
         assert_several_times(f)
 
     # test the route from CLI is advertised from g1
-    def test_12_check_g3_global_rib(self):
+    def test_13_check_g3_global_rib(self):
         def f():
             rib = self.g3.get_global_rib()
             self.assertEqual(len(rib), 1)
@@ -190,13 +199,13 @@ class GoBGPTestBase(unittest.TestCase):
         assert_several_times(f)
 
     # remove non-existing route with path_id via GoBGP CLI (no error check)
-    def test_13_remove_non_existing_add_paths_route_via_cli(self):
+    def test_14_remove_non_existing_add_paths_route_via_cli(self):
         # specify locally non-existing identifier which has the same value
         # with the identifier of the route from e1
         self.g1.del_route(route='192.168.100.0/24', identifier=20)
 
     # test none of route is removed by non-existing path_id via CLI
-    def test_14_check_g1_global_rib(self):
+    def test_15_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
@@ -211,11 +220,20 @@ class GoBGPTestBase(unittest.TestCase):
         assert_several_times(f)
 
     # remove route with path_id via GoBGP CLI (no error check)
-    def test_15_remove_add_paths_route_via_cli(self):
+    def test_16_remove_add_paths_route_via_cli(self):
         self.g1.del_route(route='192.168.100.0/24', identifier=10)
 
+    def test_17_check_g1_adj_out(self):
+        adj_out = self.g1.get_adj_rib_out(self.g2, add_path_enabled=True)
+        self.assertEqual(len(adj_out), 1)
+        self.assertEqual(len(adj_out[0]['paths']), 1)
+
+        adj_out = self.g1.get_adj_rib_out(self.g3, add_path_enabled=True)
+        self.assertEqual(len(adj_out), 1)
+        self.assertEqual(len(adj_out[0]['paths']), 2)
+
     # test the route is removed from the rib via CLI
-    def test_16_check_g1_global_rib(self):
+    def test_18_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
@@ -227,7 +245,7 @@ class GoBGPTestBase(unittest.TestCase):
         assert_several_times(f)
 
     # test the best path is replaced the removal from g1 rib
-    def test_17_check_g2_global_rib(self):
+    def test_19_check_g2_global_rib(self):
         def f():
             rib = self.g2.get_global_rib()
             self.assertEqual(len(rib), 1)
@@ -237,7 +255,7 @@ class GoBGPTestBase(unittest.TestCase):
         assert_several_times(f)
 
     # test the removed route from CLI is withdrawn by g1
-    def test_18_check_g3_global_rib(self):
+    def test_20_check_g3_global_rib(self):
         def f():
             rib = self.g3.get_global_rib()
             self.assertEqual(len(rib), 1)
