@@ -245,9 +245,53 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
 
 	go pushPackets()
-	state, _ := h.established(context.Background())
+	state, fsmStateReason := h.established(context.Background())
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
+	assert.Equal(fsmHoldTimerExpired, fsmStateReason.Type)
+	m.mtx.Lock()
+	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	m.mtx.Unlock()
+	sent, _ := bgp.ParseBGPMessage(lastMsg)
+	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
+}
+
+func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
+	assert := assert.New(t)
+	m := NewMockConnection(t)
+
+	p, h := makePeerAndHandler()
+
+	// push mock connection
+	p.fsm.conn = m
+	p.fsm.h = h
+
+	// set keepalive ticker
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+
+	msg := keepalive()
+	header, _ := msg.Header.Serialize()
+	body, _ := msg.Body.Serialize()
+
+	pushPackets := func() {
+		// first keepalive from peer
+		m.setData(header)
+		m.setData(body)
+	}
+
+	// set holdtime
+	p.fsm.pConf.Timers.Config.HoldTime = 2
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
+
+	// Enable graceful restart
+	p.fsm.pConf.GracefulRestart.State.Enabled = true
+
+	go pushPackets()
+	state, fsmStateReason := h.established(context.Background())
+	time.Sleep(time.Second * 1)
+	assert.Equal(bgp.BGP_FSM_IDLE, state)
+	assert.Equal(fsmGracefulRestart, fsmStateReason.Type)
 	m.mtx.Lock()
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	m.mtx.Unlock()
