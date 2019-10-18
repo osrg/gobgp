@@ -214,7 +214,7 @@ func isAfiSafiChanged(x, y []AfiSafi) bool {
 		m[string(e.Config.AfiSafiName)] = x[i]
 	}
 	for _, e := range y {
-		if v, ok := m[string(e.Config.AfiSafiName)]; !ok || !v.Config.Equal(&e.Config) || !v.AddPaths.Config.Equal(&e.AddPaths.Config) {
+		if v, ok := m[string(e.Config.AfiSafiName)]; !ok || !v.Config.Equal(&e.Config) || !v.AddPaths.Config.Equal(&e.AddPaths.Config) || !v.MpGracefulRestart.Config.Equal(&e.MpGracefulRestart.Config) {
 			return true
 		}
 	}
