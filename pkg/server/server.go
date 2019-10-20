@@ -2256,34 +2256,7 @@ func (s *BgpServer) softResetIn(addr string, family bgp.RouteFamily) error {
 		return err
 	}
 	for _, peer := range peers {
-		families := familiesForSoftreset(peer, family)
-
-		pathList := make([]*table.Path, 0, peer.adjRibIn.Count(families))
-		for _, path := range peer.adjRibIn.PathList(families, false) {
-			// RFC4271 9.1.2 Phase 2: Route Selection
-			//
-			// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
-			// route should be excluded from the Phase 2 decision function.
-			isLooped := false
-			if aspath := path.GetAsPath(); aspath != nil {
-				peer.fsm.lock.RLock()
-				localAS := peer.fsm.peerInfo.LocalAS
-				allowOwnAS := int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs)
-				peer.fsm.lock.RUnlock()
-				isLooped = hasOwnASLoop(localAS, allowOwnAS, aspath)
-			}
-			if path.IsAsLooped() != isLooped {
-				// can't modify the existing one. needs to create one
-				path = path.Clone(false)
-				path.SetAsLooped(isLooped)
-				// update accepted counter
-				peer.adjRibIn.Update([]*table.Path{path})
-			}
-			if !path.IsAsLooped() {
-				pathList = append(pathList, path)
-			}
-		}
-		s.propagateUpdate(peer, pathList)
+		s.propagateUpdate(peer, peer.adjRibIn.PathList(familiesForSoftreset(peer, family), true))
 	}
 	return err
 }
@@ -3008,7 +2981,6 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 			"Topic": "Peer",
 			"Key":   peer.ID(),
 		}).Info("Update aspath options")
-		peer.fsm.pConf.AsPathOptions = c.AsPathOptions
 		needsSoftResetIn = true
 	}
 

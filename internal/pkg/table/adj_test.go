@@ -98,7 +98,7 @@ func TestStale(t *testing.T) {
 	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
 	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
-	p2.SetAsLooped(true)
+	p2.SetRejected(true)
 
 	family := p1.GetRouteFamily()
 	families := []bgp.RouteFamily{family}
@@ -135,11 +135,11 @@ func TestLLGRStale(t *testing.T) {
 
 	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
-	p2.SetAsLooped(true) // Not accepted
+	p2.SetRejected(true) // Not accepted
 
 	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.30.0")
 	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
-	p3.SetAsLooped(true)
+	p3.SetRejected(true)
 	// Not accepted and then dropped on MarkLLGRStaleOrDrop
 	p3.SetCommunities([]uint32{uint32(bgp.COMMUNITY_NO_LLGR)}, false)
 

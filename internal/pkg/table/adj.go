@@ -63,16 +63,16 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				if len(d.knownPathList) == 0 {
 					t.deleteDest(d)
 				}
-				if !old.IsAsLooped() {
+				if !old.IsRejected() {
 					adj.accepted[rf]--
 				}
 			}
 			path.SetDropped(true)
 		} else {
 			if idx != -1 {
-				if old.IsAsLooped() && !path.IsAsLooped() {
+				if old.IsRejected() && !path.IsRejected() {
 					adj.accepted[rf]++
-				} else if !old.IsAsLooped() && path.IsAsLooped() {
+				} else if !old.IsRejected() && path.IsRejected() {
 					adj.accepted[rf]--
 				}
 				if old.Equal(path) {
@@ -81,7 +81,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				d.knownPathList[idx] = path
 			} else {
 				d.knownPathList = append(d.knownPathList, path)
-				if !path.IsAsLooped() {
+				if !path.IsRejected() {
 					adj.accepted[rf]++
 				}
 			}
@@ -142,7 +142,7 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	adj.walk(rfList, func(d *Destination) bool {
 		for _, p := range d.knownPathList {
-			if accepted && p.IsAsLooped() {
+			if accepted && p.IsRejected() {
 				continue
 			}
 			pathList = append(pathList, p)
@@ -210,9 +210,9 @@ func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) []*Path {
 		for i, p := range d.knownPathList {
 			n := p.Clone(false)
 			n.MarkStale(true)
-			n.SetAsLooped(p.IsAsLooped())
+			n.SetRejected(p.IsRejected())
 			d.knownPathList[i] = n
-			if !n.IsAsLooped() {
+			if !n.IsRejected() {
 				pathList = append(pathList, n)
 			}
 		}
@@ -231,9 +231,9 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.RouteFamily) []*Path {
 				pathList = append(pathList, n)
 			} else {
 				n := p.Clone(false)
-				n.SetAsLooped(p.IsAsLooped())
+				n.SetRejected(p.IsRejected())
 				n.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE)}, false)
-				if p.IsAsLooped() {
+				if p.IsRejected() {
 					d.knownPathList[i] = n
 				} else {
 					pathList = append(pathList, n)

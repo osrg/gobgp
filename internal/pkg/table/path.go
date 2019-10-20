@@ -137,7 +137,7 @@ type Path struct {
 	pathAttrs []bgp.PathAttributeInterface
 	dels      []bgp.BGPAttrType
 	attrsHash uint32
-	aslooped  bool
+	rejected  bool
 	// doesn't exist in the adj
 	dropped bool
 
@@ -382,12 +382,12 @@ func (path *Path) IsStale() bool {
 	return path.OriginInfo().stale
 }
 
-func (path *Path) IsAsLooped() bool {
-	return path.aslooped
+func (path *Path) IsRejected() bool {
+	return path.rejected
 }
 
-func (path *Path) SetAsLooped(y bool) {
-	path.aslooped = y
+func (path *Path) SetRejected(y bool) {
+	path.rejected = y
 }
 
 func (path *Path) IsDropped() bool {
