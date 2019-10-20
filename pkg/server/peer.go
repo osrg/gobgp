@@ -481,7 +481,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 				allowOwnAS := int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs)
 				peer.fsm.lock.RUnlock()
 				if hasOwnASLoop(localAS, allowOwnAS, aspath) {
-					path.SetAsLooped(true)
+					path.SetRejected(true)
 					continue
 				}
 			}
@@ -500,6 +500,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 						"OriginatorID": id,
 						"Data":         path,
 					}).Debug("Originator ID is mine, ignore")
+					path.SetRejected(true)
 					continue
 				}
 			}

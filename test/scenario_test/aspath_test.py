@@ -91,7 +91,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_03_update_peer(self):
         self.g2.update_peer(self.q1, allow_as_in=10)
 
-        self.q1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
+        self.g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.q1)
 
     def test_04_check_accept_as_loop(self):
         def f():
@@ -102,6 +102,7 @@ class GoBGPTestBase(unittest.TestCase):
             for afisafi in r['afi_safis']:
                 self.assertTrue('state' in afisafi)
                 s = afisafi.get('state')
+                self.assertTrue('received' in s)
                 received += s.get('received')
                 accepted += s.get('accepted')
             self.assertEqual(received, 1)
