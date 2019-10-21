@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	minConnectRetryInterval = 10
+	minConnectRetryInterval = 5
 )
 
 type fsmStateReasonType uint8

@@ -335,6 +335,12 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Transport: &api.Transport{
 			RemotePort: 10179,
 		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
 	}
 	ch := make(chan struct{})
 	go s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
@@ -503,6 +509,12 @@ func TestMonitor(test *testing.T) {
 		},
 		Transport: &api.Transport{
 			RemotePort: 10179,
+		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
 		},
 	}
 	ch := make(chan struct{})
@@ -916,6 +928,12 @@ func TestPeerGroup(test *testing.T) {
 				RemotePort: 10179,
 			},
 		},
+		Timers: config.Timers{
+			Config: config.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
 	}
 	ch := make(chan struct{})
 	go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
@@ -983,6 +1001,12 @@ func TestDynamicNeighbor(t *testing.T) {
 				RemotePort: 10179,
 			},
 		},
+		Timers: config.Timers{
+			Config: config.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
 	}
 	ch := make(chan struct{})
 	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
@@ -1048,6 +1072,12 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:     true,
 			RestartTime: 1,
+		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
 		},
 	}
 
@@ -1161,6 +1191,12 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 				Transport: config.Transport{
 					Config: config.TransportConfig{
 						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+					},
+				},
+				Timers: config.Timers{
+					Config: config.TimersConfig{
+						ConnectRetry:           1,
+						IdleHoldTimeAfterReset: 1,
 					},
 				},
 			}

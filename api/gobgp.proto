@@ -751,6 +751,7 @@ message TimersConfig{
   uint64 hold_time = 2;
   uint64 keepalive_interval = 3;
   uint64 minimum_advertisement_interval = 4;
+  uint64 idle_hold_time_after_reset = 5;
 }
 
 message TimersState{
