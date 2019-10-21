@@ -432,7 +432,8 @@ class GoBGPContainer(BGPContainer):
                 'afi-safis': afi_safi_list,
                 'timers': {
                     'config': {
-                        'connect-retry': 10,
+                        'connect-retry': 1,
+                        'idle-hold-time-after-reset':1,
                     },
                 },
                 'transport': {
