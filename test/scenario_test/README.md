@@ -14,7 +14,7 @@ This page explains how to set up a scenario test environment and run the test.
 ## Prerequisites
 
 Assume you finished setting up [Golang](https://golang.org/doc/install) and
-[Docker](https://docs.docker.com/installation/ubuntulinux/) on Ubuntu 14.04
+[Docker](https://docs.docker.com/installation/ubuntulinux/) on Ubuntu 18.04
 Server VM.
 We recommend allocating memory more than 8GB to the VM.
 Because this scenario test runs a lot of test cases concurrently.
@@ -25,55 +25,53 @@ Please check if Golang and Docker is installed correctly and
 make sure the $GOPATH is defined.
 
 ```shell
-$ go version
-go version go1.5.1 linux/amd64
+$ python --version
+Python 3.6.8
 
 $ echo $GOPATH
 /home/yokoi-h/work
 
 $ sudo docker version
-Client:
- Version:      1.9.0
- API version:  1.21
- Go version:   go1.4.2
- Git commit:   76d6bc9
- Built:        Tue Nov  3 17:43:42 UTC 2015
- OS/Arch:      linux/amd64
+Client: Docker Engine - Community
+ Version:           19.03.4
+ API version:       1.40
+ Go version:        go1.12.10
+ Git commit:        9013bf583a
+ Built:             Fri Oct 18 15:54:09 2019
+ OS/Arch:           linux/amd64
+ Experimental:      false
 
-Server:
- Version:      1.9.0
- API version:  1.21
- Go version:   go1.4.2
- Git commit:   76d6bc9
- Built:        Tue Nov  3 17:43:42 UTC 2015
- OS/Arch:      linux/amd64
+Server: Docker Engine - Community
+ Engine:
+  Version:          19.03.4
+  API version:      1.40 (minimum version 1.12)
+  Go version:       go1.12.10
+  Git commit:       9013bf583a
+  Built:            Fri Oct 18 15:52:40 2019
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.2.10
+  GitCommit:        b34a5c8af56e510852c35414db4c1f4fa6172339
+ runc:
+  Version:          1.0.0-rc8+dev
+  GitCommit:        3e425f80a8c931f88e6d94a8c831b9d5aa481657
+ docker-init:
+  Version:          0.18.0
+  GitCommit:        fec3683
 ```
 
 ## Set up dependencies
 
 Execute the following commands inside the VM to install the dependencies:
 
-1. Get docker images.
-
-    Download docker images pertaining to GoBGP testing.
-
-    ```shell
-    $ sudo docker pull golang:1.7
-    $ sudo docker pull osrg/gobgp
-    $ sudo docker pull osrg/quagga
-    $ sudo docker pull osrg/quagga:v1.0
-    $ sudo docker pull osrg/exabgp
-    ```
-
-1. Clone GoBGP and install python libraries.
-
-    ```shell
-    $ mkdir -p $GOPATH/src/github.com/osrg
-    $ cd $GOPATH/src/github.com/osrg
-    $ git clone https://github.com/osrg/gobgp.git
-    $ cd ./gobgp/test
-    $ sudo pip install -r pip-requires.txt
-    ```
+```shell
+$ mkdir -p $GOPATH/src/github.com/osrg
+$ cd $GOPATH/src/github.com/osrg
+$ git clone https://github.com/osrg/gobgp.git
+$ cd ./gobgp/test
+$ sudo pip install -r pip-requires.txt
+```
 
 ## Install local source code
 
