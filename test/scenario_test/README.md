@@ -107,7 +107,7 @@ $ sudo fab2 -r ./test/lib make-gobgp-ctn
 
     ```shell
     $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
-    $ sudo -E PYTHONPATH=$GOBGP/test python3 <scenario test name>.py
+    $ sudo -E PYTHONPATH=$GOBGP/test python3 <scenario test name>.py --gobgp-image=gobgp
     ...
     OK
     ```
