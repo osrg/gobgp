@@ -53,15 +53,6 @@ Server:
 
 Execute the following commands inside the VM to install the dependencies:
 
-1. Install pip and [pipework](https://github.com/jpetazzo/pipework).
-
-    ```shell
-    $ sudo apt-get update
-    $ sudo apt-get install git python3-pip python3-dev iputils-arping bridge-utils lv
-    $ sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
-    $ sudo chmod 755 /usr/local/bin/pipework
-    ```
-
 1. Get docker images.
 
     Download docker images pertaining to GoBGP testing.

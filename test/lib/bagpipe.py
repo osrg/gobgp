@@ -71,9 +71,3 @@ class BagpipeContainer(BGPContainer):
         local(str(cmd), capture=True)
         cmd = 'docker exec {0} service bagpipe-bgp restart'.format(self.name)
         local(cmd, capture=True)
-
-    def pipework(self, bridge, ip_addr, intf_name=""):
-        super(BagpipeContainer, self).pipework(bridge, ip_addr, intf_name)
-        self.create_config()
-        if self.is_running:
-            self.reload_config()

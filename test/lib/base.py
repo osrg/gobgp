@@ -292,21 +292,6 @@ class Container(object):
         self.is_running = False
         return ret
 
-    def pipework(self, bridge, ip_addr, intf_name=""):
-        if not self.is_running:
-            print(yellow('call run() before pipeworking'))
-            return
-        c = CmdBuffer(' ')
-        c << "pipework {0}".format(bridge.name)
-
-        if intf_name != "":
-            c << "-i {0}".format(intf_name)
-        else:
-            intf_name = "eth1"
-        c << "{0} {1}".format(self.docker_name(), ip_addr)
-        self.ip_addrs.append((intf_name, ip_addr, bridge.name))
-        try_several_times(lambda: local(str(c)))
-
     def local(self, cmd, capture=False, stream=False, detach=False, tty=True):
         if stream:
             dckr = Client(timeout=120, version='auto')
