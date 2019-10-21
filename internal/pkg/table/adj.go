@@ -101,28 +101,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 		}
 		t := adj.table[path.GetRouteFamily()]
 		d := t.getOrCreateDest(path.GetNlri(), 0)
-
-		var old *Path
-		idx := -1
-		for i, p := range d.knownPathList {
-			if p.GetNlri().PathLocalIdentifier() == path.GetNlri().PathLocalIdentifier() {
-				idx = i
-				break
-			}
-		}
-		if idx != -1 {
-			old = d.knownPathList[idx]
-		}
-
-		// No withdraw use case for adj-out
-		if idx != -1 {
-			if old.Equal(path) {
-				path.setTimestamp(old.GetTimestamp())
-			}
-			d.knownPathList[idx] = path
-		} else {
-			d.knownPathList = append(d.knownPathList, path)
-		}
+		d.knownPathList = append(d.knownPathList, path)
 	}
 }
 

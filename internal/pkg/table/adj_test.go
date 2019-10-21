@@ -75,11 +75,11 @@ func TestAddPathAdjOut(t *testing.T) {
 	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
 	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri3.SetPathIdentifier(2)
-	nlri3.SetPathLocalIdentifier(2)
+	nlri3.SetPathLocalIdentifier(3)
 	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
 	nlri4 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri4.SetPathIdentifier(3)
-	nlri4.SetPathLocalIdentifier(2)
+	nlri4.SetPathLocalIdentifier(4)
 	p4 := NewPath(pi, nlri4, false, attrs, time.Now(), false)
 	family := p1.GetRouteFamily()
 	families := []bgp.RouteFamily{family}
@@ -87,7 +87,7 @@ func TestAddPathAdjOut(t *testing.T) {
 	adj := NewAdjRib(families)
 	adj.UpdateAdjRibOut([]*Path{p1, p2, p3, p4})
 	assert.Equal(t, len(adj.table[family].destinations), 1)
-	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
+	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 4)
 }
 
 func TestStale(t *testing.T) {
