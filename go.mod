@@ -14,6 +14,7 @@ require (
 	github.com/hashicorp/hcl v0.0.0-20170509225359-392dba7d905e // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jessevdk/go-flags v1.3.0
+	github.com/k-sone/critbitgo v1.3.1-0.20191024122315-48c9e1530131
 	github.com/kr/pretty v0.0.0-20160823170715-cfb55aafdaf3
 	github.com/kr/text v0.0.0-20160504234017-7cafcd837844 // indirect
 	github.com/magiconair/properties v1.7.3 // indirect

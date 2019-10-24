@@ -1,4 +1,4 @@
-// Copyright (C) 2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2016-2019 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import (
 	"net"
 	"sort"
 
-	radix "github.com/armon/go-radix"
+	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	log "github.com/sirupsen/logrus"
@@ -69,66 +69,75 @@ func (r *roaBucket) GetEntries() []*ROA {
 }
 
 type ROATable struct {
-	Roas map[bgp.RouteFamily]*radix.Tree
+	trees map[bgp.RouteFamily]*critbitgo.Net
 }
 
 func NewROATable() *ROATable {
-	m := make(map[bgp.RouteFamily]*radix.Tree)
-	m[bgp.RF_IPv4_UC] = radix.New()
-	m[bgp.RF_IPv6_UC] = radix.New()
+	m := make(map[bgp.RouteFamily]*critbitgo.Net)
+	m[bgp.RF_IPv4_UC] = critbitgo.NewNet()
+	m[bgp.RF_IPv6_UC] = critbitgo.NewNet()
 	return &ROATable{
-		Roas: m,
+		trees: m,
 	}
 }
 
-func (rt *ROATable) roa2tree(roa *ROA) (*radix.Tree, string) {
-	tree := rt.Roas[bgp.RF_IPv4_UC]
+func (rt *ROATable) roa2tree(roa *ROA) *critbitgo.Net {
+	tree := rt.trees[bgp.RF_IPv4_UC]
 	if roa.Family == bgp.AFI_IP6 {
-		tree = rt.Roas[bgp.RF_IPv6_UC]
+		tree = rt.trees[bgp.RF_IPv6_UC]
 	}
-	ones, _ := roa.Network.Mask.Size()
-	return tree, IpToRadixkey(roa.Network.IP, uint8(ones))
+	return tree
 }
 
-func (rt *ROATable) Add(roa *ROA) {
-	tree, key := rt.roa2tree(roa)
-	b, _ := tree.Get(key)
-	var bucket *roaBucket
-	if b == nil {
-		bucket = &roaBucket{
+func (rt *ROATable) getBucket(roa *ROA) *roaBucket {
+	tree := rt.roa2tree(roa)
+	b, ok, _ := tree.Get(roa.Network)
+	if !ok {
+		b := &roaBucket{
 			network: roa.Network,
 			entries: make([]*ROA, 0),
 		}
-		tree.Insert(key, bucket)
-	} else {
-		bucket = b.(*roaBucket)
-		for _, r := range bucket.entries {
-			if r.Equal(roa) {
-				// we already have the same one
-				return
-			}
+		tree.Add(roa.Network, b)
+		return b
+	}
+	return b.(*roaBucket)
+}
+
+func (rt *ROATable) Add(roa *ROA) {
+	b := rt.getBucket(roa)
+	for _, r := range b.entries {
+		if r.Equal(roa) {
+			// we already have the same one
+			return
 		}
 	}
-	bucket.entries = append(bucket.entries, roa)
+	b.entries = append(b.entries, roa)
+	sort.Slice(b.entries, func(i, j int) bool {
+		r1 := b.entries[i]
+		r2 := b.entries[j]
+
+		if r1.MaxLen < r2.MaxLen {
+			return true
+		} else if r1.MaxLen > r2.MaxLen {
+			return false
+		}
+
+		if r1.AS < r2.AS {
+			return true
+		}
+		return false
+	})
 }
 
 func (rt *ROATable) Delete(roa *ROA) {
-	tree, key := rt.roa2tree(roa)
-	b, _ := tree.Get(key)
-	if b != nil {
+	tree := rt.roa2tree(roa)
+	if b, ok, _ := tree.Get(roa.Network); ok {
 		bucket := b.(*roaBucket)
-		newEntries := make([]*ROA, 0, len(bucket.entries))
-		for _, r := range bucket.entries {
-			if !r.Equal(roa) {
-				newEntries = append(newEntries, r)
+		for i, r := range bucket.entries {
+			if r.Equal(roa) {
+				bucket.entries = append(bucket.entries[:i], bucket.entries[i+1:]...)
+				return
 			}
-		}
-		if len(newEntries) != len(bucket.entries) {
-			bucket.entries = newEntries
-			if len(newEntries) == 0 {
-				tree.Delete(key)
-			}
-			return
 		}
 	}
 	log.WithFields(log.Fields{
@@ -140,9 +149,9 @@ func (rt *ROATable) Delete(roa *ROA) {
 }
 
 func (rt *ROATable) DeleteAll(network string) {
-	for _, tree := range rt.Roas {
-		deleteKeys := make([]string, 0, tree.Len())
-		tree.Walk(func(s string, v interface{}) bool {
+	for _, tree := range rt.trees {
+		deleteNetworks := make([]*net.IPNet, 0, tree.Size())
+		tree.Walk(nil, func(n *net.IPNet, v interface{}) bool {
 			b, _ := v.(*roaBucket)
 			newEntries := make([]*ROA, 0, len(b.entries))
 			for _, r := range b.entries {
@@ -153,17 +162,44 @@ func (rt *ROATable) DeleteAll(network string) {
 			if len(newEntries) > 0 {
 				b.entries = newEntries
 			} else {
-				deleteKeys = append(deleteKeys, s)
+				deleteNetworks = append(deleteNetworks, n)
 			}
-			return false
+			return true
 		})
-		for _, key := range deleteKeys {
+		for _, key := range deleteNetworks {
 			tree.Delete(key)
 		}
 	}
 }
 
-func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) *Validation {
+func pathToIPNet(path *Path) *net.IPNet {
+	switch T := path.GetNlri().(type) {
+	case *bgp.IPAddrPrefix:
+		return &net.IPNet{
+			IP:   net.IP(T.Prefix.To4()),
+			Mask: net.CIDRMask(int(T.Length), 32),
+		}
+	case *bgp.IPv6AddrPrefix:
+		return &net.IPNet{
+			IP:   net.IP(T.Prefix.To16()),
+			Mask: net.CIDRMask(int(T.Length), 128),
+		}
+	}
+	return nil
+}
+
+func (rt *ROATable) Validate(path *Path) *Validation {
+	if path.IsWithdraw || path.IsEOR() {
+		// RPKI isn't enabled or invalid path
+		return nil
+	}
+	tree, ok := rt.trees[path.GetRouteFamily()]
+	if !ok {
+		return nil
+	}
+
+	ownAs := path.OriginInfo().source.LocalAS
+	asPath := path.GetAsPath()
 	var as uint32
 
 	validation := &Validation{
@@ -192,20 +228,14 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 			return validation
 		}
 	}
-	_, n, _ := net.ParseCIDR(cidr)
-	ones, _ := n.Mask.Size()
-	prefixLen := uint8(ones)
-	key := IpToRadixkey(n.IP, prefixLen)
-	_, b, _ := tree.LongestPrefix(key)
-	if b == nil {
-		return validation
-	}
 
+	r := pathToIPNet(path)
+	prefixLen, _ := r.Mask.Size()
 	var bucket *roaBucket
-	fn := radix.WalkFn(func(k string, v interface{}) bool {
+	tree.WalkMatch(r, func(r *net.IPNet, v interface{}) bool {
 		bucket, _ = v.(*roaBucket)
 		for _, r := range bucket.entries {
-			if prefixLen <= r.MaxLen {
+			if prefixLen <= int(r.MaxLen) {
 				if r.AS != 0 && r.AS == as {
 					validation.Matched = append(validation.Matched, r)
 				} else {
@@ -215,9 +245,8 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 				validation.UnmatchedLength = append(validation.UnmatchedLength, r)
 			}
 		}
-		return false
+		return true
 	})
-	tree.WalkPath(key, fn)
 
 	if len(validation.Matched) != 0 {
 		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_VALID
@@ -236,37 +265,27 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	return validation
 }
 
-func (rt *ROATable) Validate(path *Path) *Validation {
-	if path.IsWithdraw || path.IsEOR() {
-		// RPKI isn't enabled or invalid path
-		return nil
-	}
-	if tree, ok := rt.Roas[path.GetRouteFamily()]; ok {
-		return validatePath(path.OriginInfo().source.LocalAS, tree, path.GetNlri().String(), path.GetAsPath())
-	}
-	return nil
-}
-
 func (rt *ROATable) Info(family bgp.RouteFamily) (map[string]uint32, map[string]uint32) {
 	records := make(map[string]uint32)
 	prefixes := make(map[string]uint32)
 
-	tree := rt.Roas[family]
-	tree.Walk(func(s string, v interface{}) bool {
-		b, _ := v.(*roaBucket)
-		tmpRecords := make(map[string]uint32)
-		for _, roa := range b.entries {
-			tmpRecords[roa.Src]++
-		}
-
-		for src, r := range tmpRecords {
-			if r > 0 {
-				records[src] += r
-				prefixes[src]++
+	if tree, ok := rt.trees[family]; ok {
+		tree.Walk(nil, func(_ *net.IPNet, v interface{}) bool {
+			b, _ := v.(*roaBucket)
+			tmpRecords := make(map[string]uint32)
+			for _, roa := range b.entries {
+				tmpRecords[roa.Src]++
 			}
-		}
-		return false
-	})
+
+			for src, r := range tmpRecords {
+				if r > 0 {
+					records[src] += r
+					prefixes[src]++
+				}
+			}
+			return true
+		})
+	}
 	return records, prefixes
 }
 
@@ -282,46 +301,13 @@ func (rt *ROATable) List(family bgp.RouteFamily) ([]*ROA, error) {
 	}
 	l := make([]*ROA, 0)
 	for _, rf := range rfList {
-		if tree, ok := rt.Roas[rf]; ok {
-			tree.Walk(func(s string, v interface{}) bool {
+		if tree, ok := rt.trees[rf]; ok {
+			tree.Walk(nil, func(_ *net.IPNet, v interface{}) bool {
 				b, _ := v.(*roaBucket)
-				var roaList roas
-				for _, r := range b.entries {
-					roaList = append(roaList, r)
-				}
-				sort.Sort(roaList)
-				for _, roa := range roaList {
-					l = append(l, roa)
-				}
-				return false
+				l = append(l, b.entries...)
+				return true
 			})
 		}
 	}
 	return l, nil
-}
-
-type roas []*ROA
-
-func (r roas) Len() int {
-	return len(r)
-}
-
-func (r roas) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-}
-
-func (r roas) Less(i, j int) bool {
-	r1 := r[i]
-	r2 := r[j]
-
-	if r1.MaxLen < r2.MaxLen {
-		return true
-	} else if r1.MaxLen > r2.MaxLen {
-		return false
-	}
-
-	if r1.AS < r2.AS {
-		return true
-	}
-	return false
 }
