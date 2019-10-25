@@ -74,38 +74,6 @@ func (r *BestPathReason) String() string {
 	return BestPathReasonStringMap[*r]
 }
 
-func IpToRadixkey(b []byte, max uint8) string {
-	var buffer bytes.Buffer
-	for i := 0; i < len(b) && i < int(max); i++ {
-		fmt.Fprintf(&buffer, "%08b", b[i])
-	}
-	return buffer.String()[:max]
-}
-
-func CidrToRadixkey(cidr string) string {
-	_, n, _ := net.ParseCIDR(cidr)
-	ones, _ := n.Mask.Size()
-	return IpToRadixkey(n.IP, uint8(ones))
-}
-
-func AddrToRadixkey(addr bgp.AddrPrefixInterface) string {
-	var (
-		ip   net.IP
-		size uint8
-	)
-	switch T := addr.(type) {
-	case *bgp.IPAddrPrefix:
-		mask := net.CIDRMask(int(T.Length), net.IPv4len*8)
-		ip, size = T.Prefix.Mask(mask).To4(), uint8(T.Length)
-	case *bgp.IPv6AddrPrefix:
-		mask := net.CIDRMask(int(T.Length), net.IPv6len*8)
-		ip, size = T.Prefix.Mask(mask).To16(), uint8(T.Length)
-	default:
-		return CidrToRadixkey(addr.String())
-	}
-	return IpToRadixkey(ip, size)
-}
-
 type PeerInfo struct {
 	AS                      uint32
 	ID                      net.IP

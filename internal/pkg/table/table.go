@@ -22,7 +22,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/armon/go-radix"
+	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	log "github.com/sirupsen/logrus"
 )
@@ -212,14 +212,13 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		if err != nil {
 			return nil, err
 		}
-		k := CidrToRadixkey(prefix.String())
-		r := radix.New()
+		r := critbitgo.NewNet()
 		for _, dst := range t.GetDestinations() {
-			r.Insert(AddrToRadixkey(dst.nlri), dst)
+			r.Add(nlriToIPNet(dst.nlri), dst)
 		}
-		r.WalkPrefix(k, func(s string, v interface{}) bool {
+		r.WalkPrefix(prefix, func(_ *net.IPNet, v interface{}) bool {
 			results = append(results, v.(*Destination))
-			return false
+			return true
 		})
 	default:
 		for _, dst := range t.GetDestinations() {

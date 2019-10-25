@@ -172,22 +172,6 @@ func (rt *ROATable) DeleteAll(network string) {
 	}
 }
 
-func pathToIPNet(path *Path) *net.IPNet {
-	switch T := path.GetNlri().(type) {
-	case *bgp.IPAddrPrefix:
-		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To4()),
-			Mask: net.CIDRMask(int(T.Length), 32),
-		}
-	case *bgp.IPv6AddrPrefix:
-		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To16()),
-			Mask: net.CIDRMask(int(T.Length), 128),
-		}
-	}
-	return nil
-}
-
 func (rt *ROATable) Validate(path *Path) *Validation {
 	if path.IsWithdraw || path.IsEOR() {
 		// RPKI isn't enabled or invalid path
@@ -229,7 +213,7 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 		}
 	}
 
-	r := pathToIPNet(path)
+	r := nlriToIPNet(path.GetNlri())
 	prefixLen, _ := r.Mask.Size()
 	var bucket *roaBucket
 	tree.WalkMatch(r, func(r *net.IPNet, v interface{}) bool {
