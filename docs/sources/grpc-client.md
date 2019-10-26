@@ -14,12 +14,57 @@ We assumes that you have the relevant tools installed to generate the server and
 
 ## Python
 
+### Fix paths
+
+Python uses different module paths, we should apply this patch first:
+
+```
+index 4cf844f..7bf9452 100644
+--- a/api/attribute.proto
++++ b/api/attribute.proto
+@@ -21,7 +21,7 @@
+
+ syntax = "proto3";
+
+-import "any/any.proto";
++import "google/protobuf/any.proto";
+ import "gobgp.proto";
+
+ package gobgpapi;
+diff --git a/api/gobgp.proto b/api/gobgp.proto
+index b61b475..52dd9da 100644
+--- a/api/gobgp.proto
++++ b/api/gobgp.proto
+@@ -21,9 +21,9 @@
+
+ syntax = "proto3";
+
+-import "any/any.proto";
+-import "empty/empty.proto";
+-import "timestamp/timestamp.proto";
++import "google/protobuf/any.proto";
++import "google/protobuf/empty.proto";
++import "google/protobuf/timestamp.proto";
+
+ package gobgpapi;
+
+```
+
+You can apply it this way:
+
+```
+git apply python.patch
+```
+
 ### Generating Interface
 
-You need to generate the server and client interface from GoBGP proto files at first.
+Next you need to generate the server and client interface from GoBGP proto files, create folder and generate them:
 
 ```bash
-$ python -m grpc_tools.protoc -I./api --python_out=. --grpc_python_out=. api/gobgp.proto api/attribute.proto api/capability.proto
+$ mkdir ./python_interfaces
+$ python -m grpc_tools.protoc -I./api --python_out=./python_interfaces/ \
+--grpc_python_out=./python_interfaces/ \
+api/gobgp.proto api/attribute.proto api/capability.proto
 ```
 
 ### Adding Path
