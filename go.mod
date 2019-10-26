@@ -31,12 +31,11 @@ require (
 	github.com/vishvananda/netlink v0.0.0-20170802012344-a95659537721
 	github.com/vishvananda/netns v0.0.0-20170707011535-86bef332bfc3 // indirect
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
-	golang.org/x/sys v0.0.0-20190412213103-97732733099d // indirect
+	golang.org/x/tools v0.0.0-20191026034945-b2104f82a97d // indirect
 	google.golang.org/genproto v0.0.0-20170731182057-09f6ed296fc6 // indirect
 	google.golang.org/grpc v1.5.1
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v2 v2.0.0-20170721122051-25c4ec802a7d // indirect
+	honnef.co/go/tools v0.0.0-20191022112108-ee025456fe28 // indirect
 )
 
 go 1.13

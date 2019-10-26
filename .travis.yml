@@ -1,13 +1,13 @@
 language: go
 
 _unittest: &_unittest
-  go: "1.12"
+  go: "1.13"
   script:
     - go test $([ $(go env GOARCH) == 'amd64' ] && echo '-race') -timeout 240s ./...
     - if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
 _build: &_build
-  go: "1.12"
+  go: "1.13"
   script:
     - go build -o ./cmd/gobgp/gobgp   ./cmd/gobgp/
     - go build -o ./cmd/gobgpd/gobgpd ./cmd/gobgpd/
@@ -58,11 +58,11 @@ matrix:
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests"
-      go: "1.12"
+      go: "1.13"
     - <<: *_unittest
       env:
         - DESCRIPTION="Tests + cover"
-      go: "1.12"
+      go: "1.13"
       script:
         - go test -coverprofile=coverage.txt -covermode=atomic ./...
       after_success:
@@ -101,7 +101,7 @@ matrix:
 #
 # Misc
 #
-    - go: "1.12"
+    - go: "1.13"
       env:
         - DESCRIPTION="go fmt + vet + staticcheck"
       before_script: go get -u honnef.co/go/tools/cmd/staticcheck
@@ -109,7 +109,7 @@ matrix:
         - test -z "$(go fmt ./...)"
         - go vet ./...
         - staticcheck ./...
-    - go: "1.12"
+    - go: "1.13"
       env:
         - DESCRIPTION="build_embeded_go.py"
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
