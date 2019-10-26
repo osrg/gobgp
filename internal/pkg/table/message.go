@@ -130,8 +130,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	as4Len := 0
-	as4Params := make([]bgp.AsPathParamInterface, 0, len(as4Attr.Value))
+	var as4Params []bgp.AsPathParamInterface
 	if as4Attr != nil {
+		as4Params = make([]bgp.AsPathParamInterface, 0, len(as4Attr.Value))
 		for _, p := range as4Attr.Value {
 			// RFC 6793 6. Error Handling
 			//
