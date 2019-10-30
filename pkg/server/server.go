@@ -423,7 +423,8 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 		for _, d := range pg.dynamicNeighbors {
 			_, netAddr, _ := net.ParseCIDR(d.Config.Prefix)
 			if netAddr.Contains(ipAddr) {
-				if netAddr.Mask.String() > longestMask {
+				if netAddr.Mask.String() > longestMask ||
+					(netAddr.Mask.String() == longestMask && longestMask == net.CIDRMask(0, 32).String()) {
 					longestMask = netAddr.Mask.String()
 					longestPG = pg
 				}
