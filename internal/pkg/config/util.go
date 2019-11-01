@@ -572,6 +572,10 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			TotalPaths:    s.TotalPaths,
 			TotalPrefixes: s.TotalPrefixes,
 		},
+		EbgpMultihop: &api.EbgpMultihop{
+			Enabled:     pconf.EbgpMultihop.Config.Enabled,
+			MultihopTtl: uint32(pconf.EbgpMultihop.Config.MultihopTtl),
+		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
 				ConnectRetry:           uint64(timer.Config.ConnectRetry),
