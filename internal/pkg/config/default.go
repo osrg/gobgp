@@ -520,7 +520,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.RouteServer.Config, &pg.RouteServer.Config, "neighbor.route-server.config", v)
 	overwriteConfig(&c.TtlSecurity.Config, &pg.TtlSecurity.Config, "neighbor.ttl-security.config", v)
 
-	if !v.IsSet("neighbor.afi-safis") {
+	if !v.IsSet("neighbor.afi-safis") && len(c.AfiSafis) == 0 {
 		c.AfiSafis = append([]AfiSafi{}, pg.AfiSafis...)
 	}
 
