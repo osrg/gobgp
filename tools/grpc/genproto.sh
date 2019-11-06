@@ -1,9 +1,10 @@
-#!/usr/bin/env bash -x
+#!/usr/bin/env bash
 # stolen from prometheus
 #
 # Generate all protobuf bindings.
 # Run from repository root.
 
+set -x
 set -e
 set -u
 
@@ -26,9 +27,7 @@ for pkg in ${INSTALL_PKGS}; do
 done
 
 GOBGP="${PWD}"
-GOPROTO="$(GO111MODULE=on go list -f '{{ .Dir }}' -m github.com/golang/protobuf)"
 
 echo "generating code"
-protoc -I "${GOPROTO}"/ptypes \
-       -I "${GOBGP}"/api \
+protoc -I "${GOBGP}"/api \
        --go_out=plugins=grpc:${GOBGP}/api "${GOBGP}"/api/*.proto
