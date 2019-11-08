@@ -1135,6 +1135,11 @@ func toStatementApi(s *config.Statement) *api.Statement {
 					Self: true,
 				}
 			}
+			if string(s.Actions.BgpActions.SetNextHop) == "unchanged" {
+				return &api.NexthopAction{
+					Unchanged: true,
+				}
+			}
 			return &api.NexthopAction{
 				Address: string(s.Actions.BgpActions.SetNextHop),
 			}
@@ -1409,6 +1414,9 @@ func newNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, 
 		func() string {
 			if a.Self {
 				return "self"
+			}
+			if a.Unchanged {
+				return "unchanged"
 			}
 			return a.Address
 		}(),
