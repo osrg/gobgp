@@ -921,6 +921,7 @@ message AsPrependAction {
 message NexthopAction {
   string address = 1;
   bool self = 2;
+  bool unchanged = 3;
 }
 
 message LocalPrefAction { uint32 value = 1; }

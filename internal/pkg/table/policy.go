@@ -2566,8 +2566,9 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 }
 
 type NexthopAction struct {
-	value net.IP
-	self  bool
+	value     net.IP
+	self      bool
+	unchanged bool
 }
 
 func (a *NexthopAction) Type() ActionType {
@@ -2581,6 +2582,12 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) *Path {
 		}
 		return path
 	}
+	if a.unchanged {
+		if options != nil && options.OldNextHop != nil {
+			path.SetNexthop(options.OldNextHop)
+		}
+		return path
+	}
 	path.SetNexthop(a.value)
 	return path
 }
@@ -2588,6 +2595,9 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) *Path {
 func (a *NexthopAction) ToConfig() config.BgpNextHopType {
 	if a.self {
 		return config.BgpNextHopType("self")
+	}
+	if a.unchanged {
+		return config.BgpNextHopType("unchanged")
 	}
 	return config.BgpNextHopType(a.value.String())
 }
@@ -2607,6 +2617,10 @@ func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
 	case "self":
 		return &NexthopAction{
 			self: true,
+		}, nil
+	case "unchanged":
+		return &NexthopAction{
+			unchanged: true,
 		}, nil
 	}
 	addr := net.ParseIP(string(c))
@@ -4047,6 +4061,11 @@ func toStatementApi(s *config.Statement) *api.Statement {
 			if string(s.Actions.BgpActions.SetNextHop) == "self" {
 				return &api.NexthopAction{
 					Self: true,
+				}
+			}
+			if string(s.Actions.BgpActions.SetNextHop) == "unchanged" {
+				return &api.NexthopAction{
+					Unchanged: true,
 				}
 			}
 			return &api.NexthopAction{
