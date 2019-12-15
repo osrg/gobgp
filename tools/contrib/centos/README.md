@@ -1,4 +1,4 @@
-# GoBGP systemd Integration for CentOS
+# GoBGP systemd integration
 
 The following document describes how to manage `gobgp` with `systemd`.
 
@@ -10,25 +10,6 @@ cd /tmp/gobgp && curl -s -L -O https://github.com/osrg/gobgp/releases/download/v
 tar xvzf gobgp_1.31_linux_amd64.tar.gz
 mv gobgp /usr/bin/
 mv gobgpd /usr/bin/
-```
-
-Grant the capability to bind to system or well-known ports, i.e. ports with
-numbers `0–1023`, to `gobgpd` binary:
-
-```bash
-/sbin/setcap cap_net_bind_service=+ep /usr/bin/gobgpd
-/sbin/getcap /usr/bin/gobgpd
-```
-
-First, create a system account for `gobgp` service:
-
-```bash
-groupadd --system gobgpd
-useradd --system -d /var/lib/gobgpd -s /bin/bash -g gobgpd gobgpd
-mkdir -p /var/{lib,run,log}/gobgpd
-chown -R gobgpd:gobgpd /var/{lib,run,log}/gobgpd
-mkdir -p /etc/gobgpd
-chown -R gobgpd:gobgpd /etc/gobgpd
 ```
 
 Paste the below to create `gobgpd` configuration file. The `router-id` in this
@@ -50,7 +31,6 @@ cat << EOF > /etc/gobgpd/gobgpd.conf
     neighbor-address = "$BGP_PEER"
     peer-as = $BGP_AS
 EOF
-chown -R gobgpd:gobgpd /etc/gobgpd/gobgpd.conf
 ```
 
 Next, copy the `systemd` unit file, i.e. `gobgpd.service`, in this directory
