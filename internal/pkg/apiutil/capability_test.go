@@ -18,6 +18,7 @@ package apiutil
 import (
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
@@ -42,7 +43,7 @@ func Test_MultiProtocolCapability(t *testing.T) {
 	assert.Equal(bgp.RF_IPv4_UC, c.CapValue)
 
 	output := NewMultiProtocolCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_RouteRefreshCapability(t *testing.T) {
@@ -56,7 +57,7 @@ func Test_RouteRefreshCapability(t *testing.T) {
 	assert.Nil(err)
 
 	output := NewRouteRefreshCapability(n.(*bgp.CapRouteRefresh))
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_CarryingLabelInfoCapability(t *testing.T) {
@@ -70,7 +71,7 @@ func Test_CarryingLabelInfoCapability(t *testing.T) {
 	assert.Nil(err)
 
 	output := NewCarryingLabelInfoCapability(n.(*bgp.CapCarryingLabelInfo))
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_ExtendedNexthopCapability(t *testing.T) {
@@ -102,7 +103,7 @@ func Test_ExtendedNexthopCapability(t *testing.T) {
 	assert.Equal(uint16(bgp.AFI_IP6), c.Tuples[0].NexthopAFI)
 
 	output := NewExtendedNexthopCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_GracefulRestartCapability(t *testing.T) {
@@ -136,7 +137,7 @@ func Test_GracefulRestartCapability(t *testing.T) {
 	assert.Equal(uint8(0x80), c.Tuples[0].Flags)
 
 	output := NewGracefulRestartCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_FourOctetASNumberCapability(t *testing.T) {
@@ -155,7 +156,7 @@ func Test_FourOctetASNumberCapability(t *testing.T) {
 	assert.Equal(uint32(100), c.CapValue)
 
 	output := NewFourOctetASNumberCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_AddPathCapability(t *testing.T) {
@@ -184,7 +185,7 @@ func Test_AddPathCapability(t *testing.T) {
 	assert.Equal(bgp.BGP_ADD_PATH_BOTH, c.Tuples[0].Mode)
 
 	output := NewAddPathCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_EnhancedRouteRefreshCapability(t *testing.T) {
@@ -198,7 +199,7 @@ func Test_EnhancedRouteRefreshCapability(t *testing.T) {
 	assert.Nil(err)
 
 	output := NewEnhancedRouteRefreshCapability(n.(*bgp.CapEnhancedRouteRefresh))
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_LongLivedGracefulRestartCapability(t *testing.T) {
@@ -230,7 +231,7 @@ func Test_LongLivedGracefulRestartCapability(t *testing.T) {
 	assert.Equal(uint32(90), c.Tuples[0].RestartTime)
 
 	output := NewLongLivedGracefulRestartCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_RouteRefreshCiscoCapability(t *testing.T) {
@@ -244,7 +245,7 @@ func Test_RouteRefreshCiscoCapability(t *testing.T) {
 	assert.Nil(err)
 
 	output := NewRouteRefreshCiscoCapability(n.(*bgp.CapRouteRefreshCisco))
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
 
 func Test_UnknownCapability(t *testing.T) {
@@ -265,5 +266,5 @@ func Test_UnknownCapability(t *testing.T) {
 	assert.Equal([]byte{0x11, 0x22, 0x33, 0x44}, c.CapValue)
 
 	output := NewUnknownCapability(c)
-	assert.Equal(input, output)
+	assert.True(proto.Equal(input, output))
 }
