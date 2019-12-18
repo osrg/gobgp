@@ -12,7 +12,7 @@ StandardOutput=journal
 StandardError=journal
 User=gobgpd
 Group=gobgpd
-AmbientCapabilities = CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target

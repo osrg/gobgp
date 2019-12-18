@@ -12,14 +12,6 @@ mv gobgp /usr/bin/
 mv gobgpd /usr/bin/
 ```
 
-Grant the capability to bind to system or well-known ports, i.e. ports with
-numbers `0–1023`, to `gobgpd` binary:
-
-```bash
-/sbin/setcap cap_net_bind_service=+ep /usr/bin/gobgpd
-/sbin/getcap /usr/bin/gobgpd
-```
-
 First, create a system account for `gobgp` service:
 
 ```bash
@@ -50,7 +42,6 @@ cat << EOF > /etc/gobgpd/gobgpd.conf
     neighbor-address = "$BGP_PEER"
     peer-as = $BGP_AS
 EOF
-chown -R gobgpd:gobgpd /etc/gobgpd/gobgpd.conf
 ```
 
 Next, copy the `systemd` unit file, i.e. `gobgpd.service`, in this directory
