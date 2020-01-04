@@ -2351,19 +2351,19 @@ func (s *BgpServer) sReset(addr string, family bgp.RouteFamily) error {
 	return s.softResetOut(addr, family, false)
 }
 
-func (s *BgpServer) validateTable(r *table.Table) (v []*table.Validation) {
+func (s *BgpServer) validateTable(r *table.Table) (v map[*table.Path]*table.Validation) {
 	if s.roaManager.enabled() {
-		v = make([]*table.Validation, 0, len(r.GetDestinations()))
+		v = make(map[*table.Path]*table.Validation, len(r.GetDestinations()))
 		for _, d := range r.GetDestinations() {
 			for _, p := range d.GetAllKnownPathList() {
-				v = append(v, s.roaTable.Validate(p))
+				v[p] = s.roaTable.Validate(p)
 			}
 		}
 	}
 	return
 }
 
-func (s *BgpServer) getRib(addr string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, v []*table.Validation, err error) {
+func (s *BgpServer) getRib(addr string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		m := s.globalRib
 		id := table.GLOBAL_RIB_NAME
@@ -2422,7 +2422,7 @@ func (s *BgpServer) getVrfRib(name string, family bgp.RouteFamily, prefixes []*t
 	return
 }
 
-func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[string]*table.Path, v []*table.Validation, err error) {
+func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[string]*table.Path, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		peer, ok := s.neighborMap[addr]
 		if !ok {
@@ -2474,7 +2474,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 
 func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
 	var tbl *table.Table
-	var v []*table.Validation
+	var v map[*table.Path]*table.Validation
 	var filtered map[string]*table.Path
 
 	f := func() []*table.LookupPrefix {
@@ -2512,7 +2512,6 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 		return err
 	}
 
-	idx := 0
 	err = func() error {
 		for _, dst := range tbl.GetDestinations() {
 			d := api.Destination{
@@ -2521,8 +2520,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 			}
 			knownPathList := dst.GetAllKnownPathList()
 			for i, path := range knownPathList {
-				p := toPathApi(path, getValidation(v, idx))
-				idx++
+				p := toPathApi(path, getValidation(v, path))
 				if !table.SelectionOptions.DisableBestPathSelection {
 					if i == 0 {
 						switch r.TableType {
