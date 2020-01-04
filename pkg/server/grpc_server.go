@@ -160,11 +160,11 @@ func toPathApi(path *table.Path, v *table.Validation) *api.Path {
 	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
 }
 
-func getValidation(v []*table.Validation, i int) *table.Validation {
+func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Validation {
 	if v == nil {
 		return nil
 	} else {
-		return v[i]
+		return v[p]
 	}
 }
 
