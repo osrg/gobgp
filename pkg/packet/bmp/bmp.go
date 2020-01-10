@@ -344,8 +344,21 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
 			s = &BMPStatsTLV64{BMPStatsTLV: tl}
 		case BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN, BMP_STAT_TYPE_PER_AFI_SAFI_LOC_RIB:
 			s = &BMPStatsTLVPerAfiSafi64{BMPStatsTLV: tl}
-		default:
+		case BMP_STAT_TYPE_REJECTED, BMP_STAT_TYPE_DUPLICATE_PREFIX,
+			BMP_STAT_TYPE_DUPLICATE_WITHDRAW, BMP_STAT_TYPE_INV_UPDATE_DUE_TO_CLUSTER_LIST_LOOP,
+			BMP_STAT_TYPE_INV_UPDATE_DUE_TO_AS_PATH_LOOP, BMP_STAT_TYPE_INV_UPDATE_DUE_TO_ORIGINATOR_ID,
+			BMP_STAT_TYPE_INV_UPDATE_DUE_TO_AS_CONFED_LOOP, BMP_STAT_TYPE_WITHDRAW_UPDATE,
+			BMP_STAT_TYPE_WITHDRAW_PREFIX, BMP_STAT_TYPE_DUPLICATE_UPDATE:
 			s = &BMPStatsTLV32{BMPStatsTLV: tl}
+		default:
+			switch tl.Length {
+			case 4:
+				s = &BMPStatsTLV32{BMPStatsTLV: tl}
+			case 8:
+				s = &BMPStatsTLV64{BMPStatsTLV: tl}
+			default:
+				return fmt.Errorf("value length %d is not known for unknown stat type %d", tl.Length, tl.Type)
+			}
 		}
 		if err := s.ParseValue(data); err != nil {
 			return err
