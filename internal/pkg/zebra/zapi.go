@@ -217,6 +217,7 @@ const (
 	FRR_ZAPI6_INTERFACE_UP
 	FRR_ZAPI6_INTERFACE_DOWN
 	FRR_ZAPI6_INTERFACE_SET_MASTER
+	//FRR_ZAPI6_INTERFACE_SET_PROTODOWN // Add Frr 7.2
 	FRR_ZAPI6_ROUTE_ADD
 	FRR_ZAPI6_ROUTE_DELETE
 	FRR_ZAPI6_ROUTE_NOTIFY_OWNER
@@ -536,6 +537,7 @@ const (
 	FRR_ZAPI6_ROUTE_PBR
 	FRR_ZAPI6_ROUTE_BFD
 	FRR_ZAPI6_ROUTE_OPENFABRIC // FRRRouting version 7 adds.
+	FRR_ZAPI6_ROUTE_VRRP       // FRRRouting version 7.2 adds.
 	FRR_ZAPI6_ROUTE_ALL
 	FRR_ZAPI6_ROUTE_MAX
 )
@@ -645,6 +647,8 @@ var routeTypeValueMapFrrZapi6 = map[string]ROUTE_TYPE{
 	"sharp":              FRR_ZAPI6_ROUTE_SHARP,
 	"pbr":                FRR_ZAPI6_ROUTE_PBR,
 	"bfd":                FRR_ZAPI6_ROUTE_BFD,
+	"openfabric":         FRR_ZAPI6_ROUTE_OPENFABRIC,
+	"vrrp":               FRR_ZAPI6_ROUTE_VRRP,
 	"all":                FRR_ZAPI6_ROUTE_ALL,
 }
 
@@ -733,7 +737,8 @@ func RouteTypeFromString(typ string, version uint8, softwareName string) (ROUTE_
 	}
 	t, ok := delegateRouteTypeValueMap[typ]
 	if (version == 5 && softwareName == "frr4" && t == FRR_ZAPI5_ROUTE_PBR) ||
-		(version == 6 && softwareName == "frr6" && t == FRR_ZAPI6_ROUTE_OPENFABRIC) {
+		(version == 6 && softwareName == "frr6" && t == FRR_ZAPI6_ROUTE_OPENFABRIC) ||
+		(version == 6 && softwareName != "frr7.2" && t == FRR_ZAPI6_ROUTE_VRRP) {
 		ok = false
 	}
 	if ok {
@@ -1064,7 +1069,7 @@ func NewClient(network, address string, typ ROUTE_TYPE, version uint8, software 
 	if ((version == 2 || version == 3) && software != "" && software != "quagga") ||
 		(version == 4 && software != "" && software != "frr3") ||
 		(version == 5 && software != "" && software != "frr4" && software != "frr5" && software != "cumulus") ||
-		(version == 6 && software != "" && software != "frr6" && software != "frr7" && software != "frr7.1") {
+		(version == 6 && software != "" && software != "frr6" && software != "frr7" && software != "frr7.1" && software != "frr7.2") {
 		isAllowableSoftware = false
 	}
 	if !isAllowableSoftware {
@@ -1237,6 +1242,11 @@ func (c *Client) SendCommand(command API_TYPE, vrfId uint32, body Body) error {
 			command = frr6Command
 		} else {
 			return err
+		}
+	} else if c.Version == 6 && c.SoftwareName == "frr7.2" {
+		// frr7.2 adds INTERFACE_SET_PROTODOWN between INTERFACE_SET_MASTER(6) and ROUTE_ADD
+		if command >= FRR_ZAPI6_ROUTE_ADD {
+			command++
 		}
 	} else if c.Version == 5 && c.SoftwareName == "frr4" {
 		if frr4Command, err := frr4Zapi5Command(command, c.SoftwareName, false); err == nil {
@@ -1725,6 +1735,7 @@ type InterfaceUpdateBody struct {
 	MTU          uint32
 	MTU6         uint32
 	Bandwidth    uint32
+	LinkIfindex  uint32
 	Linktype     LINK_TYPE
 	HardwareAddr net.HardwareAddr
 	LinkParam    LinkParam
@@ -1756,16 +1767,19 @@ func (b *InterfaceUpdateBody) DecodeFromBytes(data []byte, version uint8, softwa
 	b.MTU = binary.BigEndian.Uint32(data[0:4])
 	b.MTU6 = binary.BigEndian.Uint32(data[4:8])
 	b.Bandwidth = binary.BigEndian.Uint32(data[8:12])
+	data = data[12:]
+	if version == 6 && softwareName == "frr7.2" {
+		b.LinkIfindex = binary.BigEndian.Uint32(data[:4])
+		data = data[4:]
+	}
 	if version >= 3 {
-		b.Linktype = LINK_TYPE(binary.BigEndian.Uint32(data[12:16]))
-		data = data[16:]
-	} else {
-		data = data[12:]
+		b.Linktype = LINK_TYPE(binary.BigEndian.Uint32(data[:4]))
+		data = data[4:]
 	}
 	l := binary.BigEndian.Uint32(data[:4])
 	if l > 0 {
 		if len(data) < 4+int(l) {
-			return fmt.Errorf("lack of bytes. need %d but %d", 4+l, len(data))
+			return fmt.Errorf("lack of bytes in remain data. need %d but %d", 4+l, len(data))
 		}
 		b.HardwareAddr = data[4 : 4+l]
 	}
@@ -2145,7 +2159,7 @@ func (b *IPRouteBody) Serialize(version uint8, softwareName string) ([]byte, err
 
 			buf = append(buf, uint8(nexthop.Type))
 
-			if version == 6 && softwareName == "frr7.1" {
+			if version == 6 && (softwareName == "frr7.1" || softwareName == "frr7.2") {
 				buf = append(buf, nexthop.Onlink)
 			}
 			if (version <= 3 && nexthop.Type == NEXTHOP_TYPE_IPV4) ||
@@ -2332,7 +2346,7 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte, version uint8, softwareName s
 				nexthop.VrfId = binary.BigEndian.Uint32(data[pos : pos+4])
 				nexthop.Type = NEXTHOP_TYPE(data[pos+4])
 				pos += 5
-				if softwareName == "frr7.1" {
+				if softwareName == "frr7.1" || softwareName == "frr7.2" {
 					nexthop.Onlink = uint8(data[pos])
 					pos += 1
 				}
@@ -3234,6 +3248,11 @@ func (m *Message) parseFrrZapi6Message(data []byte, software string) error {
 		} else {
 			return err
 		}
+	} else if software == "frr7.2" {
+		// frr7.2 adds INTERFACE_SET_PROTODOWN between INTERFACE_SET_MASTER(6) and ROUTE_ADD
+		if command >= FRR_ZAPI6_ROUTE_ADD {
+			command--
+		}
 	}
 	switch command {
 	case FRR_ZAPI6_INTERFACE_ADD, FRR_ZAPI6_INTERFACE_DELETE, FRR_ZAPI6_INTERFACE_UP, FRR_ZAPI6_INTERFACE_DOWN:
@@ -3300,18 +3319,18 @@ func ParseMessage(hdr *Header, data []byte, software string) (m *Message, err er
 	return m, nil
 }
 
-// frr6Zapi6Command adjust command (API_TYPE) between Frr6 Zebra and latest Zapi6
+// frr6Zapi6Command adjust command (API_TYPE) between Frr6 Zebra and frr7 Zapi6
 func frr6Zapi6Command(command API_TYPE, softwareName string, from bool) (API_TYPE, error) {
 	if softwareName != "frr6" {
 		return command, fmt.Errorf("softwareName %s is not supported", softwareName)
 	}
-	// frr6 has ZEBRA_IPV4_ROUTE_IPV6_NEXTHOP_ADD (ID:28), frr7 (zapi6 latest) removes it.
+	// frr6 has ZEBRA_IPV4_ROUTE_IPV6_NEXTHOP_ADD (ID:28), frr7 removes it.
 	// frr7 adds ZEBRA_DUPLICATE_ADDR_DETECTION (ID:72).
 	if from && FRR_ZAPI6_BFD_DEST_REGISTER < command && command < FRR_ZAPI6_PW_ADD {
-		// if true, command will be converted from Frr6 Zebra to latest Zapi6 (for parsing)
+		// if true, command will be converted from Frr6 Zebra to Frr7 Zapi6 (for parsing)
 		return command - 1, nil
 	} else if !from && FRR_ZAPI6_IMPORT_CHECK_UPDATE < command && command < FRR_ZAPI6_DUPLICATE_ADDR_DETECTION {
-		// if false, command will be converted from latest Zapi6 to Frr6 Zebra (for send)
+		// if false, command will be converted from Frr7 Zapi6 to Frr6 Zebra (for send)
 		return command + 1, nil
 	}
 	return command, nil
