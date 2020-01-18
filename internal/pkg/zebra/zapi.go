@@ -3276,7 +3276,7 @@ func (m *Message) parseFrrZapi6Message(data []byte, software string) error {
 		// TODO
 		m.Body = &UnknownBody{}
 	case FRR_ZAPI6_REDISTRIBUTE_ROUTE_ADD, FRR_ZAPI6_REDISTRIBUTE_ROUTE_DEL:
-		m.Body = &IPRouteBody{Api: m.Header.Command}
+		m.Body = &IPRouteBody{Api: command}
 	case FRR_ZAPI6_INTERFACE_VRF_UPDATE:
 		// TODO
 		m.Body = &UnknownBody{}
