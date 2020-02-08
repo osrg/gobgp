@@ -17,6 +17,7 @@ package apiutil
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"time"
 
@@ -90,6 +91,9 @@ func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error
 }
 
 func GetNativeNlri(p *api.Path) (bgp.AddrPrefixInterface, error) {
+	if p.Family == nil {
+		return nil, fmt.Errorf("family cannot be nil")
+	}
 	if len(p.NlriBinary) > 0 {
 		return getNLRI(ToRouteFamily(p.Family), p.NlriBinary)
 	}
