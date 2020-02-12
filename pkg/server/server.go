@@ -505,6 +505,9 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 			if info.RouteReflectorClient {
 				ignore = false
 			}
+			if peer.isRouteReflectorClient() {
+				ignore = false
+			}
 			// RFC4456 8. Avoiding Routing Information Loops
 			// If the local CLUSTER_ID is found in the CLUSTER_LIST,
 			// the advertisement received SHOULD be ignored.
@@ -522,7 +525,6 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					return nil
 				}
 			}
-			ignore = false
 		}
 
 		if ignore {
