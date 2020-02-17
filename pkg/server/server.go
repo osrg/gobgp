@@ -2568,7 +2568,15 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.RouteFamily) (info *table
 			as = peer.AS()
 			m = s.rsRib
 		}
-		info, err = m.TableInfo(id, as, family)
+
+		af := bgp.RouteFamily(family)
+		tbl, ok := m.Tables[af]
+		if !ok {
+			return fmt.Errorf("address family: %s not supported", af)
+		}
+
+		info = tbl.Info(table.TableInfoOptions{ID: id, AS: as})
+
 		return err
 	}, true)
 	return
@@ -2595,6 +2603,40 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 	return
 }
 
+func (s *BgpServer) getVrfRibInfo(name string, family bgp.RouteFamily) (info *table.TableInfo, err error) {
+	err = s.mgmtOperation(func() error {
+		m := s.globalRib
+		vrfs := m.Vrfs
+		if _, ok := vrfs[name]; !ok {
+			return fmt.Errorf("vrf %s not found", name)
+		}
+
+		var af bgp.RouteFamily
+		switch family {
+		case bgp.RF_IPv4_UC:
+			af = bgp.RF_IPv4_VPN
+		case bgp.RF_IPv6_UC:
+			af = bgp.RF_IPv6_VPN
+		case bgp.RF_FS_IPv4_UC:
+			af = bgp.RF_FS_IPv4_VPN
+		case bgp.RF_FS_IPv6_UC:
+			af = bgp.RF_FS_IPv6_VPN
+		case bgp.RF_EVPN:
+			af = bgp.RF_EVPN
+		}
+
+		tbl, ok := m.Tables[af]
+		if !ok {
+			return fmt.Errorf("address family: %s not supported", af)
+		}
+
+		info = tbl.Info(table.TableInfoOptions{VRF: vrfs[name]})
+
+		return err
+	}, true)
+	return
+}
+
 func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.GetTableResponse, error) {
 	if r == nil {
 		return nil, fmt.Errorf("invalid request")
@@ -2614,6 +2656,8 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 		fallthrough
 	case api.TableType_ADJ_OUT:
 		info, err = s.getAdjRibInfo(r.Name, family, in)
+	case api.TableType_VRF:
+		info, err = s.getVrfRibInfo(r.Name, family)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", r.TableType)
 	}

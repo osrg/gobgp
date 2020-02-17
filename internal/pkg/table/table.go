@@ -434,14 +434,41 @@ type TableInfo struct {
 	NumAccepted    int
 }
 
-func (t *Table) Info(id string, as uint32) *TableInfo {
+type TableInfoOptions struct {
+	ID  string
+	AS  uint32
+	VRF *Vrf
+}
+
+func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 	var numD, numP int
+
+	id := GLOBAL_RIB_NAME
+	var vrf *Vrf
+	as := uint32(0)
+
+	for _, o := range option {
+		if o.ID != "" {
+			id = o.ID
+		}
+		if o.VRF != nil {
+			vrf = o.VRF
+		}
+		as = o.AS
+	}
+
 	for _, d := range t.destinations {
-		n := 0
-		if id == GLOBAL_RIB_NAME {
-			n = len(d.knownPathList)
-		} else {
-			n = len(d.GetKnownPathList(id, as))
+		paths := d.GetKnownPathList(id, as)
+		n := len(paths)
+
+		if vrf != nil {
+			ps := make([]*Path, 0, len(paths))
+			for _, p := range paths {
+				if CanImportToVrf(vrf, p) {
+					ps = append(ps, p.ToLocal())
+				}
+			}
+			n = len(ps)
 		}
 		if n != 0 {
 			numD++
