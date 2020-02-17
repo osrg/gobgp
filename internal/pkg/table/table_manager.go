@@ -354,11 +354,3 @@ func (manager *TableManager) GetDestination(path *Path) *Destination {
 	}
 	return t.GetDestination(path.GetNlri())
 }
-
-func (manager *TableManager) TableInfo(id string, as uint32, family bgp.RouteFamily) (*TableInfo, error) {
-	t, ok := manager.Tables[family]
-	if !ok {
-		return nil, fmt.Errorf("address family %s is not configured", family)
-	}
-	return t.Info(id, as), nil
-}
