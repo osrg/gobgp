@@ -713,7 +713,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 
 func showRibInfo(r, name string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
-	if r == cmdGlobal {
+	if r == cmdGlobal || r == cmdVRF {
 		def = ipv4UC
 	}
 	family, err := checkAddressFamily(def)
@@ -731,6 +731,8 @@ func showRibInfo(r, name string) error {
 		t = api.TableType_ADJ_IN
 	case cmdAdjOut:
 		t = api.TableType_ADJ_OUT
+	case cmdVRF:
+		t = api.TableType_VRF
 	default:
 		return fmt.Errorf("invalid resource to show RIB info: %s", r)
 	}
