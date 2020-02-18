@@ -115,7 +115,7 @@ func showVrfs() error {
 	return nil
 }
 
-func showVrf(name string) error {
+func showVrfRib(name string) error {
 	return showNeighborRib(cmdVRF, name, nil)
 }
 
@@ -196,7 +196,7 @@ func newVrfCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 1 {
-				err = showVrf(args[0])
+				err = showVrfRib(args[0])
 			} else {
 				err = fmt.Errorf("usage: gobgp vrf <vrf-name> rib")
 			}
@@ -284,6 +284,16 @@ func newVrfCmd() *cobra.Command {
 		vrfCmd.AddCommand(cmd)
 	}
 	vrfCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+
+	summaryCmd := &cobra.Command{
+		Use: cmdSummary,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showRibInfo(cmdVRF, args[0]); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+	ribCmd.AddCommand(summaryCmd)
 
 	return vrfCmd
 }
