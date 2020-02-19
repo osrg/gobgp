@@ -29,13 +29,15 @@ _docker: &_docker
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
+    - curl -fsSL https://apt.dockerproject.org/gpg | sudo apt-key add -
+    - sudo add-apt-repository "deb https://apt.dockerproject.org/repo ubuntu-trusty main"
+    - sudo apt-get update
+    - sudo apt-get -y install docker-engine=17.03.1~ce-0~ubuntu-trusty
   install:
     - pip3 install -r test/pip-requires.txt
     - fab -r test/lib make-gobgp-ctn --tag $DOCKER_IMAGE --from-image $FROM_IMAGE
   script:
     - PYTHONPATH=test python3 test/scenario_test/$TEST --gobgp-image $DOCKER_IMAGE -x -s
-  services:
-    - docker
 
 env:
   global:
@@ -48,9 +50,9 @@ matrix:
     - go: tip
 
   include:
-#
-# Unit Tests
-#
+    #
+    # Unit Tests
+    #
     - <<: *_unittest
       env:
         - DESCRIPTION="Unit Tests Tip"
@@ -74,12 +76,12 @@ matrix:
         - export GOARCH="386"
         - go env
 
-#
-# Cross-compile
-#
-# Note: We use "before_script" to enable "go env" settings. The following keeps
-# "env" sections as just markers of Travis-CI Web UI.
-# See https://github.com/travis-ci/travis-ci/issues/6126
+    #
+    # Cross-compile
+    #
+    # Note: We use "before_script" to enable "go env" settings. The following keeps
+    # "env" sections as just markers of Travis-CI Web UI.
+    # See https://github.com/travis-ci/travis-ci/issues/6126
     - <<: *_build
       env:
         - GOOS="openbsd"
@@ -98,9 +100,9 @@ matrix:
       before_script:
         - export GOOS="darwin"
         - go env
-#
-# Misc
-#
+    #
+    # Misc
+    #
     - go: "1.13"
       env:
         - DESCRIPTION="go fmt + vet + staticcheck"
@@ -113,9 +115,9 @@ matrix:
       env:
         - DESCRIPTION="build_embeded_go.py"
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
-#
-# Docker
-#
+    #
+    # Docker
+    #
     - <<: *_docker
       env:
         - TEST=bgp_router_test.py
@@ -200,9 +202,9 @@ matrix:
     - <<: *_docker
       env:
         - TEST=bgp_confederation_test.py
-#
-# Tools
-#
+    #
+    # Tools
+    #
     - <<: *_node_js
       env:
         - DESCRIPTION="markdownlint"
@@ -222,5 +224,5 @@ cache:
   pip: true
 
 notifications:
- slack:
-  secure: KzuC9kytzS7wTlfj4MqSg8EpqXfJRMbo59dAVTA3w587achnVCS3vhUenWuhMCiWk7+6DVWwNpwzn2+A0S6RwMFMpKAU6Ij6K9sxEOgqBGuMN8w1//w+uJTryzsnebEIhInGt2kKfqz4Wx3QQqW5gVhI+8s+c5M0iXxFtN4soVk=
+  slack:
+    secure: KzuC9kytzS7wTlfj4MqSg8EpqXfJRMbo59dAVTA3w587achnVCS3vhUenWuhMCiWk7+6DVWwNpwzn2+A0S6RwMFMpKAU6Ij6K9sxEOgqBGuMN8w1//w+uJTryzsnebEIhInGt2kKfqz4Wx3QQqW5gVhI+8s+c5M0iXxFtN4soVk=
