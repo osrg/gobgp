@@ -2839,7 +2839,7 @@ func (er *EVPNIPPrefixRoute) Serialize() ([]byte, error) {
 	buf[22] = er.IPPrefixLength
 
 	if er.IPPrefix == nil {
-		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("IP Prefix is nil"))
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "IP Prefix is nil")
 	} else if er.IPPrefix.To4() != nil {
 		buf = append(buf, er.IPPrefix.To4()...)
 		if er.GWIPAddress == nil {
@@ -2935,7 +2935,7 @@ func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
 	data = data[4:]
 	ec, err := ParseExtended(data[0:8])
 	if err != nil {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Parse extended community interface failed"))
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Parse extended community interface failed")
 	}
 	er.EC = ec
 	return nil
@@ -7713,7 +7713,7 @@ func (l *LsAddrPrefix) MarshalJSON() ([]byte, error) {
 
 func (l *LsAddrPrefix) String() string {
 	if l.NLRI == nil {
-		return fmt.Sprintf("NLRI: (nil)")
+		return "NLRI: (nil)"
 	}
 
 	return fmt.Sprintf("NLRI { %v }", l.NLRI.String())
@@ -11474,7 +11474,7 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 	t.Length = binary.BigEndian.Uint16(data[2:4])
 	data = data[4:]
 	if len(data) < int(t.Length) {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Not all TunnelEncapTLV bytes available"))
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapTLV bytes available")
 	}
 	value := data[:t.Length]
 	for len(value) > 2 {
