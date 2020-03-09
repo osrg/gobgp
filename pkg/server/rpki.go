@@ -64,10 +64,10 @@ type roaManager struct {
 
 func newROAManager(table *table.ROATable) *roaManager {
 	m := &roaManager{
-		table: table,
+		eventCh:   make(chan *roaEvent),
+		clientMap: make(map[string]*roaClient),
+		table:     table,
 	}
-	m.eventCh = make(chan *roaEvent)
-	m.clientMap = make(map[string]*roaClient)
 	return m
 }
 

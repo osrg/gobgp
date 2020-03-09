@@ -228,7 +228,7 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.RouteFamily) []*Path {
 func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
 	t, ok := adj.table[family]
 	if !ok {
-		t = NewTable((family))
+		t = NewTable(family)
 	}
 	option = append(option, TableSelectOption{adj: true})
 	return t.Select(option...)
