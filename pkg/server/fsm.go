@@ -1254,9 +1254,8 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				continue
 			}
 			e := i.(*fsmMsg)
-			switch e.MsgData.(type) {
+			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
-				m := e.MsgData.(*bgp.BGPMessage)
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
 					fsm.lock.Lock()
 					fsm.recvOpen = m
@@ -1408,8 +1407,8 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil)
 				}
 			case *bgp.MessageError:
-				m, _ := fsm.sendNotificationFromErrorMsg(e.MsgData.(*bgp.MessageError))
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
+				msg, _ := fsm.sendNotificationFromErrorMsg(m)
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, msg, nil)
 			default:
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
@@ -1524,9 +1523,8 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				continue
 			}
 			e := i.(*fsmMsg)
-			switch e.MsgData.(type) {
+			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
-				m := e.MsgData.(*bgp.BGPMessage)
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 					return bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil)
 				}
@@ -1534,8 +1532,8 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil)
 			case *bgp.MessageError:
-				m, _ := fsm.sendNotificationFromErrorMsg(e.MsgData.(*bgp.MessageError))
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
+				msg, _ := fsm.sendNotificationFromErrorMsg(m)
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, msg, nil)
 			default:
 				log.WithFields(log.Fields{
 					"Topic": "Peer",

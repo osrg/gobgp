@@ -192,10 +192,8 @@ func (b *bmpClient) loop() {
 									}
 								}
 							}
-						} else {
-							if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, msg.FourBytesAs, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
-								return false
-							}
+						} else if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, msg.FourBytesAs, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
+							return false
 						}
 					case *watchEventBestPath:
 						info := &table.PeerInfo{
