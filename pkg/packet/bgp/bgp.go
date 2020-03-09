@@ -2475,19 +2475,18 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 		buf = make([]byte, 8)
 	}
 
-	tbuf, err := er.ESI.Serialize()
+	esi, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
 	}
 
-	buf = append(buf, tbuf...)
-	tbuf = make([]byte, 4)
-	binary.BigEndian.PutUint32(tbuf, er.ETag)
-	buf = append(buf, tbuf...)
-	tbuf = make([]byte, 7)
+	buf = append(buf, esi...)
+	var tbuf [7]byte
+	binary.BigEndian.PutUint32(tbuf[:4], er.ETag)
+	buf = append(buf, tbuf[:4]...)
 	tbuf[0] = er.MacAddressLength
 	copy(tbuf[1:], er.MacAddress)
-	buf = append(buf, tbuf...)
+	buf = append(buf, tbuf[:7]...)
 
 	buf = append(buf, er.IPAddressLength)
 	switch er.IPAddressLength {
@@ -2502,11 +2501,11 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	}
 
 	for _, l := range er.Labels {
-		tbuf, err = labelSerialize(l)
+		label, err := labelSerialize(l)
 		if err != nil {
 			return nil, err
 		}
-		buf = append(buf, tbuf...)
+		buf = append(buf, label...)
 	}
 	return buf, nil
 }
@@ -2617,9 +2616,6 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 		buf = append(buf, []byte(er.IPAddress.To16())...)
 	default:
 		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
-	}
-	if err != nil {
-		return nil, err
 	}
 	return buf, nil
 }
@@ -10037,14 +10033,13 @@ func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
 }
 
 func SerializeExtendedCommunities(comms []ExtendedCommunityInterface) ([][]byte, error) {
-	var bufs [][]byte
+	bufs := make([][]byte, len(comms))
 	var err error
-	for _, c := range comms {
-		buf, err := c.Serialize()
+	for i, c := range comms {
+		bufs[i], err = c.Serialize()
 		if err != nil {
 			return nil, err
 		}
-		bufs = append(bufs, buf)
 	}
 	return bufs, err
 }
@@ -11880,9 +11875,9 @@ func (p *PathAttributeIP6ExtendedCommunities) Serialize(options ...*MarshallingO
 }
 
 func (p *PathAttributeIP6ExtendedCommunities) String() string {
-	var buf []string
-	for _, v := range p.Value {
-		buf = append(buf, fmt.Sprintf("[%s]", v.String()))
+	buf := make([]string, len(p.Value))
+	for i, v := range p.Value {
+		buf[i] = fmt.Sprintf("[%s]", v.String())
 	}
 	return fmt.Sprintf("{Extcomms: %s}", strings.Join(buf, ","))
 }
