@@ -35,7 +35,7 @@ func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 		return err
 	}
 	// always enable and assumes that the configuration is done by setkey()
-	return setsockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
+	return setsockOptInt_win(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
 }
 
 func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
@@ -68,7 +68,7 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 		level = syscall.IPPROTO_IPV6
 		name = ipv6MinHopCount
 	}
-	return setsockOptInt(sc, level, name, ttl)
+	return setsockOptInt_win(sc, level, name, ttl)
 }
 
 func dialerControl(network, address string, c syscall.RawConn, ttl, ttlMin uint8, password string, bindInterface string) error {
@@ -91,4 +91,16 @@ func dialerControl(network, address string, c syscall.RawConn, ttl, ttlMin uint8
 		}).Warn("setting min ttl for active connection is not supported")
 	}
 	return nil
+}
+
+func setsockOptInt_win(sc syscall.RawConn, level, name, value int) error {
+	var opterr error
+	fn := func(s uintptr) {
+		opterr = syscall.SetsockoptInt(syscall.Handle(s), level, name, value)
+	}
+	err := sc.Control(fn)
+	if opterr == nil {
+		return err
+	}
+	return opterr
 }
