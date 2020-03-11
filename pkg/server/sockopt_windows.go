@@ -12,7 +12,7 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// +build !linux,!openbsd,!windows
+// +build windows
 
 package server
 
@@ -23,20 +23,52 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	tcpMD5SIG       = 14   // TCP MD5 Signature (RFC2385)
+	ipv6MinHopCount = 73   // Generalized TTL Security Mechanism (RFC5082)
+	IP_MINTTL       = 0x15 // pulled from https://golang.org/pkg/syscall/?GOOS=linux#IP_MINTTL
+)
+
 func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	return setTcpMD5SigSockopt(l, address, key)
+	sc, err := l.SyscallConn()
+	if err != nil {
+		return err
+	}
+	// always enable and assumes that the configuration is done by setkey()
+	return setsockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
 }
 
 func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
-	return setListenTcpTTLSockopt(l, ttl)
+	family := extractFamilyFromTCPListener(l)
+	sc, err := l.SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(sc, family, ttl)
 }
 
 func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
-	return setTcpTTLSockopt(conn, ttl)
+	family := extractFamilyFromTCPConn(conn)
+	sc, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(sc, family, ttl)
 }
 
 func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	return setTcpMinTTLSockopt(conn, ttl)
+	family := extractFamilyFromTCPConn(conn)
+	sc, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	level := syscall.IPPROTO_IP
+	name := IP_MINTTL
+	if family == syscall.AF_INET6 {
+		level = syscall.IPPROTO_IPV6
+		name = ipv6MinHopCount
+	}
+	return setsockOptInt(sc, level, name, ttl)
 }
 
 func dialerControl(network, address string, c syscall.RawConn, ttl, ttlMin uint8, password string, bindInterface string) error {

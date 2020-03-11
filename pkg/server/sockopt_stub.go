@@ -12,7 +12,7 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd,!darwin
+// +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd,!darwin,!windows
 
 package server
 
