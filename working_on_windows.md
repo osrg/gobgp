@@ -18,4 +18,11 @@
 - Each supported platform has its own sockopt_<platform>.go file that is selected to be used when compiling
  - I'm going to make one for Windows and have it be used when compiling for Windows, and "fix" functions to use primitives that are in Windows
  - I noticed BSD seems to have a similar problem as Windows, so I'm going to start by copying that and renaming it to sockopt_windows.go
- 
+
+
+
+ I suspect the issue is that Windows sockets don't suppor the md5 hash option
+ "warning","msg":"failed to set md5: An invalid argument was supplied."
+- IPPROTO_TCP here: https://docs.microsoft.com/en-us/windows/win32/winsock/ipproto-tcp-socket-options
+- This post indicates someone else trying to run on Windows https://github.com/osrg/gobgp/issues/1978
+- 
