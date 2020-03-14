@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -365,10 +366,10 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 
 func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
 	c.CapLen = uint8(len(c.CapValue))
-	buf := make([]byte, 2)
+	buf := make([]byte, 2+len(c.CapValue))
 	buf[0] = uint8(c.CapCode)
 	buf[1] = c.CapLen
-	buf = append(buf, c.CapValue...)
+	copy(buf[2:], c.CapValue)
 	return buf, nil
 }
 
@@ -585,14 +586,14 @@ func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 }
 
 func (c *CapGracefulRestart) Serialize() ([]byte, error) {
-	buf := make([]byte, 2)
+	buf := make([]byte, 2, 2+4*len(c.Tuples))
 	binary.BigEndian.PutUint16(buf[0:], uint16(c.Flags)<<12|c.Time)
+	var tbuf [4]byte
 	for _, t := range c.Tuples {
-		tbuf := make([]byte, 4)
 		binary.BigEndian.PutUint16(tbuf[0:2], t.AFI)
 		tbuf[2] = t.SAFI
 		tbuf[3] = t.Flags
-		buf = append(buf, tbuf...)
+		buf = append(buf, tbuf[:]...)
 	}
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
@@ -987,13 +988,14 @@ type OptionParameterUnknown struct {
 }
 
 func (o *OptionParameterUnknown) Serialize() ([]byte, error) {
-	buf := make([]byte, 2)
+	buf := make([]byte, 2+len(o.Value))
 	buf[0] = o.ParamType
 	if o.ParamLen == 0 {
 		o.ParamLen = uint8(len(o.Value))
 	}
 	buf[1] = o.ParamLen
-	return append(buf, o.Value...), nil
+	copy(buf[2:], o.Value)
+	return buf, nil
 }
 
 type BGPOpen struct {
@@ -1108,11 +1110,11 @@ func LabelString(nlri AddrPrefixInterface) string {
 		case *EVPNEthernetAutoDiscoveryRoute:
 			label = fmt.Sprintf("[%d]", route.Label)
 		case *EVPNMacIPAdvertisementRoute:
-			var l []string
-			for _, i := range route.Labels {
-				l = append(l, strconv.Itoa(int(i)))
+			ls := make([]string, len(route.Labels))
+			for i, l := range route.Labels {
+				ls[i] = strconv.Itoa(int(l))
 			}
-			label = fmt.Sprintf("[%s]", strings.Join(l, ","))
+			label = fmt.Sprintf("[%s]", strings.Join(ls, ","))
 		case *EVPNIPPrefixRoute:
 			label = fmt.Sprintf("[%d]", route.Label)
 		}
@@ -1524,7 +1526,7 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 func parseRdAndRt(input string) ([]string, error) {
 	elems := _regexpRouteDistinguisher.FindStringSubmatch(input)
 	if len(elems) != 11 {
-		return nil, fmt.Errorf("failed to parse")
+		return nil, errors.New("failed to parse")
 	}
 	return elems, nil
 }
@@ -2361,9 +2363,9 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, tbuf...)
 
-	tbuf = make([]byte, 4)
-	binary.BigEndian.PutUint32(tbuf, er.ETag)
-	buf = append(buf, tbuf...)
+	var tagBuf [4]byte
+	binary.BigEndian.PutUint32(tagBuf[:4], er.ETag)
+	buf = append(buf, tagBuf[:4]...)
 
 	tbuf, err = labelSerialize(er.Label)
 	if err != nil {
@@ -2605,9 +2607,9 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	} else {
 		buf = make([]byte, 8)
 	}
-	tbuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(tbuf, er.ETag)
-	buf = append(buf, tbuf...)
+	var tbuf [4]byte
+	binary.BigEndian.PutUint32(tbuf[:4], er.ETag)
+	buf = append(buf, tbuf[:4]...)
 	buf = append(buf, er.IPAddressLength)
 	switch er.IPAddressLength {
 	case 32:
@@ -3451,7 +3453,7 @@ func flowSpecPrefixParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (F
 	switch afi {
 	case AFI_IP:
 		if len(args) > 1 {
-			return nil, fmt.Errorf("cannot specify offset for ipv4 prefix")
+			return nil, errors.New("cannot specify offset for ipv4 prefix")
 		}
 		invalidIPv4PrefixError := fmt.Errorf("invalid ipv4 prefix: %s", args[0])
 		m := _regexpFindIPv4Prefix.FindStringSubmatch(args[0])
@@ -3656,7 +3658,7 @@ func flowSpecLabelParser(rf RouteFamily, typ BGPFlowSpecType, args []string) (Fl
 		if i <= 0xfffff { // 20 bits
 			return nil
 		}
-		return fmt.Errorf("flow label range exceeded")
+		return errors.New("flow label range exceeded")
 	}
 
 	return parseFlowSpecNumericOpValues(typ, args, f)
@@ -3876,12 +3878,14 @@ func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOpt
 }
 
 func (p *flowSpecPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := []byte{byte(p.Type())}
 	bbuf, err := p.Prefix.Serialize(options...)
 	if err != nil {
 		return nil, err
 	}
-	return append(buf, bbuf...), nil
+	buf := make([]byte, 1+len(bbuf))
+	buf[0] = byte(p.Type())
+	copy(buf[1:], bbuf)
+	return buf, nil
 }
 
 func (p *flowSpecPrefix) Len(options ...*MarshallingOption) int {
@@ -4006,10 +4010,13 @@ func (p *flowSpecMac) DecodeFromBytes(data []byte, options ...*MarshallingOption
 
 func (p *flowSpecMac) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	if len(p.Mac) == 0 {
-		return nil, fmt.Errorf("mac unset")
+		return nil, errors.New("mac unset")
 	}
-	buf := []byte{byte(p.Type()), byte(len(p.Mac))}
-	return append(buf, []byte(p.Mac)...), nil
+	buf := make([]byte, 2+len(p.Mac))
+	buf[0] = byte(p.Type())
+	buf[1] = byte(len(p.Mac))
+	copy(buf[2:], p.Mac)
+	return buf, nil
 }
 
 func (p *flowSpecMac) Len(options ...*MarshallingOption) int {
@@ -4164,7 +4171,7 @@ func formatNumeric(op uint8, value uint64) string {
 		// Omit value field
 		return DECNumOp(op).String()
 	}
-	return fmt.Sprint(DECNumOp(op).String(), value)
+	return DECNumOp(op).String() + strconv.FormatUint(value, 10)
 }
 
 func formatProto(op uint8, value uint64) string {
@@ -4173,15 +4180,15 @@ func formatProto(op uint8, value uint64) string {
 		// Omit value field
 		return DECNumOp(op).String()
 	}
-	return fmt.Sprint(DECNumOp(op).String(), Protocol(value).String())
+	return DECNumOp(op).String() + Protocol(value).String()
 }
 
 func formatTCPFlag(op uint8, value uint64) string {
-	return fmt.Sprint(BitmaskFlagOp(op).String(), TCPFlag(value).String())
+	return BitmaskFlagOp(op).String() + TCPFlag(value).String()
 }
 
 func formatFragment(op uint8, value uint64) string {
-	return fmt.Sprint(BitmaskFlagOp(op).String(), FragmentFlag(value).String())
+	return BitmaskFlagOp(op).String() + FragmentFlag(value).String()
 }
 
 func formatEtherType(op uint8, value uint64) string {
@@ -4190,7 +4197,7 @@ func formatEtherType(op uint8, value uint64) string {
 		// Omit value field
 		return DECNumOp(op).String()
 	}
-	return fmt.Sprint(DECNumOp(op).String(), EthernetType(value).String())
+	return DECNumOp(op).String() + EthernetType(value).String()
 }
 
 var flowSpecFormatMap = map[BGPFlowSpecType]func(op uint8, value uint64) string{
@@ -4417,7 +4424,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	buf := make([]byte, 0, 32)
 	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
 		if n.rd == nil {
-			return nil, fmt.Errorf("RD is nil")
+			return nil, errors.New("RD is nil")
 		}
 		b, err := n.rd.Serialize()
 		if err != nil {
@@ -4508,7 +4515,7 @@ func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
 func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 	family := AfiSafiToRouteFamily(n.AFI(), n.SAFI())
 	if family != AfiSafiToRouteFamily(m.AFI(), m.SAFI()) {
-		return 0, fmt.Errorf("address family mismatch")
+		return 0, errors.New("address family mismatch")
 	}
 	longer := n.Value
 	shorter := m.Value
@@ -4741,11 +4748,12 @@ func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption)
 }
 
 func (n *OpaqueNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	if len(n.Key) > math.MaxUint16 {
-		return nil, fmt.Errorf("key length too big")
+	keyLen := len(n.Key)
+	if keyLen > math.MaxUint16 {
+		return nil, errors.New("key length too big")
 	}
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(len(n.Key)))
+	buf := make([]byte, 2, 2+keyLen+len(n.Value))
+	binary.BigEndian.PutUint16(buf[:2], uint16(keyLen))
 	buf = append(buf, n.Key...)
 	buf = append(buf, n.Value...)
 	if IsAddPathEnabled(false, RF_OPAQUE, options) {
@@ -4916,7 +4924,7 @@ func (l *LsNodeNLRI) String() string {
 
 func (l *LsNodeNLRI) Serialize() ([]byte, error) {
 	if l.LocalNodeDesc == nil {
-		return nil, fmt.Errorf("local node descriptor missing")
+		return nil, errors.New("local node descriptor missing")
 	}
 	ser, err := l.LocalNodeDesc.Serialize()
 	if err != nil {
@@ -5067,7 +5075,7 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 
 func (l *LsLinkNLRI) Serialize() ([]byte, error) {
 	if l.LocalNodeDesc == nil || l.RemoteNodeDesc == nil {
-		return nil, fmt.Errorf("required TLV missing")
+		return nil, errors.New("required TLV missing")
 	}
 
 	buf := make([]byte, 0)
@@ -5142,9 +5150,9 @@ func (l *LsPrefixV4NLRI) String() string {
 	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
 	prefix := &LsPrefixDescriptor{}
 	prefix.ParseTLVs(l.PrefixDesc, false)
-	ips := []string{}
-	for _, ip := range prefix.IPReachability {
-		ips = append(ips, ip.String())
+	ips := make([]string, len(prefix.IPReachability))
+	for i, ip := range prefix.IPReachability {
+		ips[i] = ip.String()
 	}
 
 	ospf := ""
@@ -5152,7 +5160,7 @@ func (l *LsPrefixV4NLRI) String() string {
 		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
 	}
 
-	return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %v PREFIX: %v %v}", local.IGPRouterID, ips, ospf)
+	return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %s PREFIX: %v %s}", local.IGPRouterID, ips, ospf)
 }
 
 func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
@@ -5220,7 +5228,7 @@ func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
 
 func (l *LsPrefixV4NLRI) Serialize() ([]byte, error) {
 	if l.LocalNodeDesc == nil {
-		return nil, fmt.Errorf("required TLV missing")
+		return nil, errors.New("required TLV missing")
 	}
 
 	buf := make([]byte, 0)
@@ -5339,7 +5347,7 @@ func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
 
 func (l *LsPrefixV6NLRI) Serialize() ([]byte, error) {
 	if l.LocalNodeDesc == nil {
-		return nil, fmt.Errorf("required TLV missing")
+		return nil, errors.New("required TLV missing")
 	}
 
 	buf := make([]byte, 0)
@@ -5474,10 +5482,10 @@ func (l *LsTLV) Serialize(value []byte) ([]byte, error) {
 		return nil, malformedAttrListErr("serialization failed: LS TLV malformed")
 	}
 
-	buf := make([]byte, tlvHdrLen)
+	buf := make([]byte, tlvHdrLen+len(value))
 	binary.BigEndian.PutUint16(buf[:2], uint16(l.Type))
 	binary.BigEndian.PutUint16(buf[2:4], uint16(l.Length))
-	buf = append(buf, value...)
+	copy(buf[4:], value)
 
 	return buf, nil
 }
@@ -6123,10 +6131,10 @@ func (l *LsTLVAutonomousSystem) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVAutonomousSystem) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, l.ASN)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.ASN)
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVAutonomousSystem) String() string {
@@ -6169,10 +6177,10 @@ func (l *LsTLVBgpLsID) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVBgpLsID) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, l.BGPLsID)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.BGPLsID)
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:4])
 }
 
 func (l *LsTLVBgpLsID) String() string {
@@ -6259,10 +6267,10 @@ func (l *LsTLVOspfAreaID) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVOspfAreaID) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, l.AreaID)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.AreaID)
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:4])
 }
 
 func (l *LsTLVOspfAreaID) String() string {
@@ -6340,10 +6348,10 @@ func (l *LsTLVOspfRouteType) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVOspfRouteType) Serialize() ([]byte, error) {
-	buf := make([]byte, 1)
+	var buf [1]byte
 	buf[0] = byte(l.RouteType)
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVOspfRouteType) String() string {
@@ -6463,10 +6471,10 @@ func (l *LsTLVAdminGroup) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVAdminGroup) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, l.AdminGroup)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.AdminGroup)
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVAdminGroup) String() string {
@@ -6513,10 +6521,10 @@ func (l *LsTLVMaxLinkBw) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVMaxLinkBw) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, math.Float32bits(l.Bandwidth))
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], math.Float32bits(l.Bandwidth))
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVMaxLinkBw) String() string {
@@ -6563,10 +6571,10 @@ func (l *LsTLVMaxReservableLinkBw) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVMaxReservableLinkBw) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, math.Float32bits(l.Bandwidth))
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], math.Float32bits(l.Bandwidth))
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVMaxReservableLinkBw) String() string {
@@ -6616,12 +6624,12 @@ func (l *LsTLVUnreservedBw) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVUnreservedBw) Serialize() ([]byte, error) {
-	buf := make([]byte, 0)
+	buf := make([]byte, 0, 4*len(l.Bandwidth))
 
+	var b [4]byte
 	for i := 0; i < len(l.Bandwidth); i++ {
-		b := make([]byte, 4)
-		binary.BigEndian.PutUint32(b, math.Float32bits(l.Bandwidth[i]))
-		buf = append(buf, b...)
+		binary.BigEndian.PutUint32(b[:4], math.Float32bits(l.Bandwidth[i]))
+		buf = append(buf, b[:]...)
 	}
 
 	return l.LsTLV.Serialize(buf)
@@ -6667,10 +6675,10 @@ func (l *LsTLVTEDefaultMetric) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVTEDefaultMetric) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, l.Metric)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.Metric)
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVTEDefaultMetric) String() string {
@@ -6726,13 +6734,13 @@ func (l *LsTLVIGPMetric) Serialize() ([]byte, error) {
 		return l.LsTLV.Serialize([]byte{uint8(l.Metric) & 0x3F})
 
 	case 2:
-		buf := make([]byte, 2)
-		binary.BigEndian.PutUint16(buf, uint16(l.Metric))
-		return l.LsTLV.Serialize(buf)
+		var buf [2]byte
+		binary.BigEndian.PutUint16(buf[:2], uint16(l.Metric))
+		return l.LsTLV.Serialize(buf[:])
 
 	case 3:
-		buf := make([]byte, 4)
-		binary.BigEndian.PutUint32(buf, l.Metric)
+		var buf [4]byte
+		binary.BigEndian.PutUint32(buf[:4], l.Metric)
 		return l.LsTLV.Serialize(buf[1:])
 
 	default:
@@ -6931,10 +6939,10 @@ func (l *LsTLVSrCapabilities) Serialize() ([]byte, error) {
 	buf := make([]byte, 0)
 	buf = append(buf, l.Flags)
 	buf = append(buf, 0)
+	var b [4]byte
 
 	for _, r := range l.Ranges {
-		b := make([]byte, 4)
-		binary.BigEndian.PutUint32(b, r.Range)
+		binary.BigEndian.PutUint32(b[:4], r.Range)
 		buf = append(buf, b[1:]...)
 		ser, err := r.FirstLabel.Serialize()
 		if err != nil {
@@ -7045,10 +7053,10 @@ func (l *LsTLVSrLocalBlock) Serialize() ([]byte, error) {
 	buf := make([]byte, 0)
 	buf = append(buf, l.Flags)
 	buf = append(buf, 0)
+	var b [4]byte
 
 	for _, r := range l.Ranges {
-		b := make([]byte, 4)
-		binary.BigEndian.PutUint32(b, r.Range)
+		binary.BigEndian.PutUint32(b[:4], r.Range)
 		buf = append(buf, b[1:]...)
 		ser, err := r.FirstLabel.Serialize()
 		if err != nil {
@@ -7129,14 +7137,14 @@ func (l *LsTLVAdjacencySID) Serialize() ([]byte, error) {
 	// Reserved
 	buf = append(buf, []byte{0, 0}...)
 
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, l.SID)
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:4], l.SID)
 
 	if l.Length == 7 {
 		return l.LsTLV.Serialize(append(buf, b[1:]...))
 	}
 
-	return l.LsTLV.Serialize(append(buf, b...))
+	return l.LsTLV.Serialize(append(buf, b[:]...))
 }
 
 func (l *LsTLVAdjacencySID) String() string {
@@ -7188,14 +7196,14 @@ func (l *LsTLVSIDLabel) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVSIDLabel) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, l.SID)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.SID)
 
 	if l.Length == 3 {
 		return l.LsTLV.Serialize(buf[1:])
 	}
 
-	return l.LsTLV.Serialize(buf)
+	return l.LsTLV.Serialize(buf[:])
 }
 
 func (l *LsTLVSIDLabel) String() string {
@@ -7260,14 +7268,14 @@ func (l *LsTLVPrefixSID) Serialize() ([]byte, error) {
 	// Reserved
 	buf = append(buf, []byte{0, 0}...)
 
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, l.SID)
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:4], l.SID)
 
 	if l.Length == 7 {
 		return l.LsTLV.Serialize(append(buf, b[1:]...))
 	}
 
-	return l.LsTLV.Serialize(append(buf, b...))
+	return l.LsTLV.Serialize(append(buf, b[:]...))
 }
 
 func (l *LsTLVPrefixSID) String() string {
@@ -7688,19 +7696,20 @@ func (l *LsAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 
 func (l *LsAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	if l.NLRI == nil {
-		return nil, fmt.Errorf("empty NLRI")
+		return nil, errors.New("empty NLRI")
 	}
-
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf, uint16(l.Type))
-	binary.BigEndian.PutUint16(buf[2:], l.Length)
 
 	ser, err := l.NLRI.Serialize()
 	if err != nil {
 		return nil, err
 	}
 
-	return append(buf, ser...), nil
+	buf := make([]byte, 4+len(ser))
+	binary.BigEndian.PutUint16(buf[:2], uint16(l.Type))
+	binary.BigEndian.PutUint16(buf[2:], l.Length)
+	copy(buf[4:], ser)
+
+	return buf, nil
 }
 
 func (l *LsAddrPrefix) MarshalJSON() ([]byte, error) {
@@ -7712,7 +7721,7 @@ func (l *LsAddrPrefix) String() string {
 		return "NLRI: (nil)"
 	}
 
-	return fmt.Sprintf("NLRI { %v }", l.NLRI.String())
+	return fmt.Sprintf("NLRI { %s }", l.NLRI.String())
 }
 
 func (l *LsAddrPrefix) Flat() map[string]string {
@@ -8696,7 +8705,7 @@ func (a *AsPathParam) String() string {
 	}
 	aspath := make([]string, 0, len(a.AS))
 	for _, asn := range a.AS {
-		aspath = append(aspath, fmt.Sprintf("%d", asn))
+		aspath = append(aspath, strconv.FormatUint(uint64(asn), 10))
 	}
 	s := bytes.NewBuffer(make([]byte, 0, 32))
 	s.WriteString(format.start)
@@ -8791,7 +8800,7 @@ func (a *As4PathParam) String() string {
 	}
 	aspath := make([]string, 0, len(a.AS))
 	for _, asn := range a.AS {
-		aspath = append(aspath, fmt.Sprintf("%d", asn))
+		aspath = append(aspath, strconv.FormatUint(uint64(asn), 10))
 	}
 	s := bytes.NewBuffer(make([]byte, 0, 32))
 	s.WriteString(format.start)
@@ -8982,9 +8991,9 @@ func (p *PathAttributeMultiExitDisc) DecodeFromBytes(data []byte, options ...*Ma
 }
 
 func (p *PathAttributeMultiExitDisc) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, p.Value)
-	return p.PathAttribute.Serialize(buf, options...)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:], p.Value)
+	return p.PathAttribute.Serialize(buf[:], options...)
 }
 
 func (p *PathAttributeMultiExitDisc) String() string {
@@ -9033,9 +9042,9 @@ func (p *PathAttributeLocalPref) DecodeFromBytes(data []byte, options ...*Marsha
 }
 
 func (p *PathAttributeLocalPref) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, p.Value)
-	return p.PathAttribute.Serialize(buf, options...)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:], p.Value)
+	return p.PathAttribute.Serialize(buf[:], options...)
 }
 
 func (p *PathAttributeLocalPref) String() string {
@@ -9284,7 +9293,7 @@ var WellKnownCommunityValueMap = map[string]WellKnownCommunity{
 }
 
 func (p *PathAttributeCommunities) String() string {
-	l := []string{}
+	l := make([]string, 0, len(p.Value))
 	for _, v := range p.Value {
 		n, ok := WellKnownCommunityNameMap[WellKnownCommunity(v)]
 		if ok {
@@ -9353,9 +9362,9 @@ func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
 }
 
 func (p *PathAttributeOriginatorId) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 4)
-	copy(buf, p.Value)
-	return p.PathAttribute.Serialize(buf, options...)
+	var buf [4]byte
+	copy(buf[:], p.Value)
+	return p.PathAttribute.Serialize(buf[:], options...)
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
@@ -9547,7 +9556,7 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 			copy(buf[4+offset:], p.Nexthop)
 		}
 	}
-	buf = append(buf, make([]byte, 1)...)
+	buf = append(buf, 0)
 	for _, prefix := range p.Value {
 		pbuf, err := prefix.Serialize(options...)
 		if err != nil {
@@ -9948,10 +9957,10 @@ func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *FourOctetAsSpecificExtended) String() string {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, e.AS)
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], e.AS)
 	asUpper := binary.BigEndian.Uint16(buf[0:2])
-	asLower := binary.BigEndian.Uint16(buf[2:])
+	asLower := binary.BigEndian.Uint16(buf[2:4])
 	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
 }
 
@@ -9996,7 +10005,7 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 		case VALIDATION_STATE_INVALID.String():
 			state = VALIDATION_STATE_INVALID
 		default:
-			return nil, fmt.Errorf("invalid validation state")
+			return nil, errors.New("invalid validation state")
 		}
 		return &ValidationExtended{
 			State: state,
@@ -10259,9 +10268,9 @@ func (e *OpaqueExtended) Serialize() ([]byte, error) {
 }
 
 func (e *OpaqueExtended) String() string {
-	buf := make([]byte, 8)
+	var buf [8]byte
 	copy(buf[1:], e.Value)
-	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf))
+	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf[:]))
 }
 
 func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
@@ -10918,9 +10927,9 @@ func (e *UnknownExtended) Serialize() ([]byte, error) {
 }
 
 func (e *UnknownExtended) String() string {
-	buf := make([]byte, 8)
+	var buf [8]byte
 	copy(buf[1:], e.Value)
-	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf))
+	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf[:]))
 }
 
 func (e *UnknownExtended) MarshalJSON() ([]byte, error) {
@@ -11324,7 +11333,7 @@ func (t *TunnelEncapSubTLVEncapsulation) DecodeFromBytes(data []byte) error {
 }
 
 func (t *TunnelEncapSubTLVEncapsulation) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
+	buf := make([]byte, 4, 4+len(t.Cookie))
 	binary.BigEndian.PutUint32(buf, t.Key)
 	buf = append(buf, t.Cookie...)
 	return t.TunnelEncapSubTLV.Serialize(buf)
@@ -11374,9 +11383,9 @@ func (t *TunnelEncapSubTLVProtocol) DecodeFromBytes(data []byte) error {
 }
 
 func (t *TunnelEncapSubTLVProtocol) Serialize() ([]byte, error) {
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, t.Protocol)
-	return t.TunnelEncapSubTLV.Serialize(buf)
+	var buf [2]byte
+	binary.BigEndian.PutUint16(buf[:2], t.Protocol)
+	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }
 
 func (t *TunnelEncapSubTLVProtocol) String() string {
@@ -11420,11 +11429,11 @@ func (t *TunnelEncapSubTLVColor) DecodeFromBytes(data []byte) error {
 }
 
 func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	var buf [8]byte
 	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
 	buf[1] = byte(EC_SUBTYPE_COLOR)
 	binary.BigEndian.PutUint32(buf[4:8], t.Color)
-	return t.TunnelEncapSubTLV.Serialize(buf)
+	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }
 
 func (t *TunnelEncapSubTLVColor) String() string {
@@ -12116,13 +12125,13 @@ func NewLargeCommunity(asn, data1, data2 uint32) *LargeCommunity {
 func ParseLargeCommunity(value string) (*LargeCommunity, error) {
 	elems := strings.Split(value, ":")
 	if len(elems) != 3 {
-		return nil, fmt.Errorf("invalid large community format")
+		return nil, errors.New("invalid large community format")
 	}
 	v := make([]uint32, 0, 3)
 	for _, elem := range elems {
 		e, err := strconv.ParseUint(elem, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("invalid large community format")
+			return nil, errors.New("invalid large community format")
 		}
 		v = append(v, uint32(e))
 	}
@@ -12548,7 +12557,7 @@ func (msg *BGPNotification) DecodeFromBytes(data []byte, options ...*Marshalling
 }
 
 func (msg *BGPNotification) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 2)
+	buf := make([]byte, 2, 2+len(msg.Data))
 	buf[0] = msg.ErrorCode
 	buf[1] = msg.ErrorSubcode
 	buf = append(buf, msg.Data...)
@@ -12975,7 +12984,7 @@ func FlatUpdate(f1, f2 map[string]string) error {
 		}
 	}
 	if conflict {
-		return fmt.Errorf("keys conflict")
+		return errors.New("keys conflict")
 	} else {
 		return nil
 	}
