@@ -18,6 +18,7 @@ package mrt
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -291,22 +292,23 @@ type PeerIndexTable struct {
 	Peers          []*Peer
 }
 
+var notAllPeerIndexBytesAvailableErr = errors.New("not all PeerIndexTable bytes are available")
+
 func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
-	notAllBytesAvail := fmt.Errorf("not all PeerIndexTable bytes are available")
 	if len(data) < 6 {
-		return notAllBytesAvail
+		return notAllPeerIndexBytesAvailableErr
 	}
 	t.CollectorBgpId = net.IP(data[:4])
 	viewLen := binary.BigEndian.Uint16(data[4:6])
 	if len(data) < 6+int(viewLen) {
-		return notAllBytesAvail
+		return notAllPeerIndexBytesAvailableErr
 	}
 	t.ViewName = string(data[6 : 6+viewLen])
 
 	data = data[6+viewLen:]
 
 	if len(data) < 2 {
-		return notAllBytesAvail
+		return notAllPeerIndexBytesAvailableErr
 	}
 	peerNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
@@ -360,10 +362,11 @@ type RibEntry struct {
 	isAddPath      bool
 }
 
+var notAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
+
 func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
-	notAllBytesAvail := fmt.Errorf("not all RibEntry bytes are available")
 	if len(data) < 8 {
-		return nil, notAllBytesAvail
+		return nil, notAllRibEntryBytesAvailable
 	}
 	e.PeerIndex = binary.BigEndian.Uint16(data[:2])
 	e.OriginatedTime = binary.BigEndian.Uint32(data[2:6])
@@ -386,7 +389,7 @@ func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 		}
 		attrLen -= uint16(p.Len())
 		if len(data) < p.Len() {
-			return nil, notAllBytesAvail
+			return nil, notAllRibEntryBytesAvailable
 		}
 		data = data[p.Len():]
 		e.PathAttributes = append(e.PathAttributes, p)
@@ -417,13 +420,13 @@ func (e *RibEntry) Serialize() ([]byte, error) {
 	}
 	var buf []byte
 	if e.isAddPath {
-		buf = make([]byte, 12)
+		buf = make([]byte, 12, 12+len(pbuf))
 		binary.BigEndian.PutUint16(buf, e.PeerIndex)
 		binary.BigEndian.PutUint32(buf[2:], e.OriginatedTime)
 		binary.BigEndian.PutUint32(buf[6:], e.PathIdentifier)
 		binary.BigEndian.PutUint16(buf[10:], uint16(totalLen))
 	} else {
-		buf = make([]byte, 8)
+		buf = make([]byte, 8, 8+len(pbuf))
 		binary.BigEndian.PutUint16(buf, e.PeerIndex)
 		binary.BigEndian.PutUint32(buf[2:], e.OriginatedTime)
 		binary.BigEndian.PutUint16(buf[6:], uint16(totalLen))
@@ -504,9 +507,9 @@ func (u *Rib) Serialize() ([]byte, error) {
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 	default:
-		bbuf := make([]byte, 2)
-		binary.BigEndian.PutUint16(bbuf, u.Prefix.AFI())
-		buf = append(buf, bbuf...)
+		var bbuf [2]byte
+		binary.BigEndian.PutUint16(bbuf[:], u.Prefix.AFI())
+		buf = append(buf, bbuf[:]...)
 		buf = append(buf, u.Prefix.SAFI())
 	}
 	bbuf, err := u.Prefix.Serialize()
@@ -665,9 +668,9 @@ type BGP4MPHeader struct {
 
 func (m *BGP4MPHeader) decodeFromBytes(data []byte) ([]byte, error) {
 	if m.isAS4 && len(data) < 8 {
-		return nil, fmt.Errorf("not all BGP4MPMessageAS4 bytes available")
+		return nil, errors.New("not all BGP4MPMessageAS4 bytes available")
 	} else if !m.isAS4 && len(data) < 4 {
-		return nil, fmt.Errorf("not all BGP4MPMessageAS bytes available")
+		return nil, errors.New("not all BGP4MPMessageAS bytes available")
 	}
 
 	if m.isAS4 {
