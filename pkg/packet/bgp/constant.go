@@ -16,7 +16,6 @@
 package bgp
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -74,7 +73,7 @@ var ProtocolNameMap = map[Protocol]string{
 func (p Protocol) String() string {
 	name, ok := ProtocolNameMap[p]
 	if !ok {
-		return fmt.Sprintf("%d", p)
+		return strconv.Itoa(int(p))
 	}
 	return name
 }
