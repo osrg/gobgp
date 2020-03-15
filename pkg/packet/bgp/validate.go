@@ -33,17 +33,18 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP 
 			//check specific path attribute
 			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed)
 			if !ok {
-				if err.(*MessageError).ErrorHandling == ERROR_HANDLING_SESSION_RESET {
+				msgErr := err.(*MessageError)
+				if msgErr.ErrorHandling == ERROR_HANDLING_SESSION_RESET {
 					return false, err
-				} else if err.(*MessageError).Stronger(strongestError) {
+				} else if msgErr.Stronger(strongestError) {
 					strongestError = err
 				}
 			}
 		} else if a.GetType() == BGP_ATTR_TYPE_MP_REACH_NLRI || a.GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
-			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
+			eMsg := "the path attribute appears twice. Type : " + strconv.Itoa(int(a.GetType()))
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
 		} else {
-			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
+			eMsg := "the path attribute appears twice. Type : " + strconv.Itoa(int(a.GetType()))
 			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, eMsg)
 			if e.(*MessageError).Stronger(strongestError) {
 				strongestError = e
@@ -201,7 +202,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 		for _, x := range p.Values {
 			found := false
 			for _, y := range uniq {
-				if x.String() == y.String() {
+				if x.Eq(y) {
 					found = true
 					break
 				}

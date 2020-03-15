@@ -17,6 +17,7 @@ package bgp
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -161,7 +162,7 @@ var BitmaskFlagOpValueMap = map[string]BitmaskFlagOp{
 }
 
 func (f BitmaskFlagOp) String() string {
-	ops := make([]string, 0)
+	ops := make([]string, 0, 3)
 	if f&BITMASK_FLAG_OP_AND > 0 {
 		ops = append(ops, BitmaskFlagOpNameMap[BITMASK_FLAG_OP_AND])
 	} else {
@@ -323,5 +324,5 @@ func (t EthernetType) String() string {
 	if name, ok := EthernetTypeNameMap[t]; ok {
 		return name
 	}
-	return fmt.Sprintf("%d", t)
+	return strconv.Itoa(int(t))
 }

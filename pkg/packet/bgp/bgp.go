@@ -12114,6 +12114,10 @@ func (c *LargeCommunity) String() string {
 	return fmt.Sprintf("%d:%d:%d", c.ASN, c.LocalData1, c.LocalData2)
 }
 
+func (c *LargeCommunity) Eq(rhs *LargeCommunity) bool {
+	return c.ASN == rhs.ASN && c.LocalData1 == rhs.LocalData1 && c.LocalData2 == rhs.LocalData2
+}
+
 func NewLargeCommunity(asn, data1, data2 uint32) *LargeCommunity {
 	return &LargeCommunity{
 		ASN:        asn,
