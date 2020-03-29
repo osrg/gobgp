@@ -363,11 +363,11 @@ type RibEntry struct {
 	isAddPath      bool
 }
 
-var notAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
+var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
 func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < 8 {
-		return nil, notAllRibEntryBytesAvailable
+		return nil, errNotAllRibEntryBytesAvailable
 	}
 	e.PeerIndex = binary.BigEndian.Uint16(data[:2])
 	e.OriginatedTime = binary.BigEndian.Uint32(data[2:6])
@@ -390,7 +390,7 @@ func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 		}
 		attrLen -= uint16(p.Len())
 		if len(data) < p.Len() {
-			return nil, notAllRibEntryBytesAvailable
+			return nil, errNotAllRibEntryBytesAvailable
 		}
 		data = data[p.Len():]
 		e.PathAttributes = append(e.PathAttributes, p)
