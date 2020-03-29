@@ -199,10 +199,11 @@ type Peer struct {
 	AS        uint32
 }
 
+var errNotAllPeerBytesAbailable = errors.New("not all Peer bytes are available")
+
 func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
-	notAllBytesAvail := fmt.Errorf("not all Peer bytes are available")
 	if len(data) < 5 {
-		return nil, notAllBytesAvail
+		return nil, errNotAllPeerBytesAbailable
 	}
 	p.Type = uint8(data[0])
 	p.BgpId = net.IP(data[1:5])
@@ -210,13 +211,13 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 
 	if p.Type&1 > 0 {
 		if len(data) < 16 {
-			return nil, notAllBytesAvail
+			return nil, errNotAllPeerBytesAbailable
 		}
 		p.IpAddress = net.IP(data[:16])
 		data = data[16:]
 	} else {
 		if len(data) < 4 {
-			return nil, notAllBytesAvail
+			return nil, errNotAllPeerBytesAbailable
 		}
 		p.IpAddress = net.IP(data[:4])
 		data = data[4:]
@@ -224,13 +225,13 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 
 	if p.Type&(1<<1) > 0 {
 		if len(data) < 4 {
-			return nil, notAllBytesAvail
+			return nil, errNotAllPeerBytesAbailable
 		}
 		p.AS = binary.BigEndian.Uint32(data[:4])
 		data = data[4:]
 	} else {
 		if len(data) < 2 {
-			return nil, notAllBytesAvail
+			return nil, errNotAllPeerBytesAbailable
 		}
 		p.AS = uint32(binary.BigEndian.Uint16(data[:2]))
 		data = data[2:]
@@ -292,23 +293,23 @@ type PeerIndexTable struct {
 	Peers          []*Peer
 }
 
-var notAllPeerIndexBytesAvailableErr = errors.New("not all PeerIndexTable bytes are available")
+var errNnotAllPeerIndexBytesAvailable = errors.New("not all PeerIndexTable bytes are available")
 
 func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 	if len(data) < 6 {
-		return notAllPeerIndexBytesAvailableErr
+		return errNnotAllPeerIndexBytesAvailable
 	}
 	t.CollectorBgpId = net.IP(data[:4])
 	viewLen := binary.BigEndian.Uint16(data[4:6])
 	if len(data) < 6+int(viewLen) {
-		return notAllPeerIndexBytesAvailableErr
+		return errNnotAllPeerIndexBytesAvailable
 	}
 	t.ViewName = string(data[6 : 6+viewLen])
 
 	data = data[6+viewLen:]
 
 	if len(data) < 2 {
-		return notAllPeerIndexBytesAvailableErr
+		return errNnotAllPeerIndexBytesAvailable
 	}
 	peerNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
