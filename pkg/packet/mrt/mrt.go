@@ -199,11 +199,11 @@ type Peer struct {
 	AS        uint32
 }
 
-var errNotAllPeerBytesAbailable = errors.New("not all Peer bytes are available")
+var errNotAllPeerBytesAvailable = errors.New("not all Peer bytes are available")
 
 func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < 5 {
-		return nil, errNotAllPeerBytesAbailable
+		return nil, errNotAllPeerBytesAvailable
 	}
 	p.Type = uint8(data[0])
 	p.BgpId = net.IP(data[1:5])
@@ -211,13 +211,13 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 
 	if p.Type&1 > 0 {
 		if len(data) < 16 {
-			return nil, errNotAllPeerBytesAbailable
+			return nil, errNotAllPeerBytesAvailable
 		}
 		p.IpAddress = net.IP(data[:16])
 		data = data[16:]
 	} else {
 		if len(data) < 4 {
-			return nil, errNotAllPeerBytesAbailable
+			return nil, errNotAllPeerBytesAvailable
 		}
 		p.IpAddress = net.IP(data[:4])
 		data = data[4:]
@@ -225,13 +225,13 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 
 	if p.Type&(1<<1) > 0 {
 		if len(data) < 4 {
-			return nil, errNotAllPeerBytesAbailable
+			return nil, errNotAllPeerBytesAvailable
 		}
 		p.AS = binary.BigEndian.Uint32(data[:4])
 		data = data[4:]
 	} else {
 		if len(data) < 2 {
-			return nil, errNotAllPeerBytesAbailable
+			return nil, errNotAllPeerBytesAvailable
 		}
 		p.AS = uint32(binary.BigEndian.Uint16(data[:2]))
 		data = data[2:]
