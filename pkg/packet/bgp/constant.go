@@ -24,6 +24,7 @@ const AS_TRANS = 23456
 
 const BGP_PORT = 179
 
+//go:generate stringer -type=FSMState
 type FSMState int
 
 const (

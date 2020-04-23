@@ -2102,6 +2102,7 @@ func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) 
 	}
 }
 
+//go:generate stringer -type=ESIType
 type ESIType uint8
 
 const (
@@ -8284,6 +8285,7 @@ func (f BGPAttrFlag) String() string {
 	return strings.Join(strs, "|")
 }
 
+//go:generate stringer -type=BGPAttrType
 type BGPAttrType uint8
 
 const (
