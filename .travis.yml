@@ -29,10 +29,10 @@ _docker: &_docker
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
     - test $TRAVIS_OS_NAME == "linux" && sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
-    - curl -fsSL https://apt.dockerproject.org/gpg | sudo apt-key add -
-    - sudo add-apt-repository "deb https://apt.dockerproject.org/repo ubuntu-trusty main"
+    - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    - sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu trusty main"
     - sudo apt-get update
-    - sudo apt-get -y install docker-engine=17.03.1~ce-0~ubuntu-trusty
+    - sudo apt-get -y --allow-downgrades install docker-ce=17.03.0~ce-0~ubuntu-trusty
   install:
     - pip3 install -r test/pip-requires.txt
     - fab -r test/lib make-gobgp-ctn --tag $DOCKER_IMAGE --from-image $FROM_IMAGE
