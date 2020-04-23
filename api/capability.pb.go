@@ -229,10 +229,12 @@ func (m *AddPathCapability) GetTuples() []*AddPathCapabilityTuple {
 type EnhancedRouteRefreshCapability struct {
 }
 
-func (m *EnhancedRouteRefreshCapability) Reset()                    { *m = EnhancedRouteRefreshCapability{} }
-func (m *EnhancedRouteRefreshCapability) String() string            { return proto.CompactTextString(m) }
-func (*EnhancedRouteRefreshCapability) ProtoMessage()               {}
-func (*EnhancedRouteRefreshCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{10} }
+func (m *EnhancedRouteRefreshCapability) Reset()         { *m = EnhancedRouteRefreshCapability{} }
+func (m *EnhancedRouteRefreshCapability) String() string { return proto.CompactTextString(m) }
+func (*EnhancedRouteRefreshCapability) ProtoMessage()    {}
+func (*EnhancedRouteRefreshCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor1, []int{10}
+}
 
 type LongLivedGracefulRestartCapabilityTuple struct {
 	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`

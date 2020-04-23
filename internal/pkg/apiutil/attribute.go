@@ -1230,6 +1230,10 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) *api.LsAttribute {
 		}
 	}
 
+	if attr.Link.Srlgs != nil {
+		apiAttr.Link.Srlgs = append(apiAttr.Link.Srlgs, *attr.Link.Srlgs...)
+	}
+
 	if attr.Prefix.IGPFlags != nil {
 		apiAttr.Prefix.IgpFlags = &api.LsIGPFlags{
 			Down:          attr.Prefix.IGPFlags.Down,

@@ -635,6 +635,7 @@ message LsAttributeLink {
     repeated float unreserved_bandwidth = 12;
 
     uint32 sr_adjacency_sid = 13;
+    repeated uint32 srlgs = 14;
 }
 
 message LsAttributePrefix {

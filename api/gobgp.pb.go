@@ -300,7 +300,9 @@ var ListPathRequest_SortType_value = map[string]int32{
 func (x ListPathRequest_SortType) String() string {
 	return proto.EnumName(ListPathRequest_SortType_name, int32(x))
 }
-func (ListPathRequest_SortType) EnumDescriptor() ([]byte, []int) { return fileDescriptor2, []int{24, 0} }
+func (ListPathRequest_SortType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor2, []int{24, 0}
+}
 
 type AddBmpRequest_MonitoringPolicy int32
 
@@ -497,7 +499,9 @@ var PeerConf_RemovePrivateAs_value = map[string]int32{
 func (x PeerConf_RemovePrivateAs) String() string {
 	return proto.EnumName(PeerConf_RemovePrivateAs_name, int32(x))
 }
-func (PeerConf_RemovePrivateAs) EnumDescriptor() ([]byte, []int) { return fileDescriptor2, []int{77, 0} }
+func (PeerConf_RemovePrivateAs) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor2, []int{77, 0}
+}
 
 type PeerGroupConf_RemovePrivateAs int32
 
@@ -4342,10 +4346,12 @@ type LongLivedGracefulRestartState struct {
 	PeerRestartTimerExpired bool   `protobuf:"varint,5,opt,name=peer_restart_timer_expired,json=peerRestartTimerExpired" json:"peer_restart_timer_expired,omitempty"`
 }
 
-func (m *LongLivedGracefulRestartState) Reset()                    { *m = LongLivedGracefulRestartState{} }
-func (m *LongLivedGracefulRestartState) String() string            { return proto.CompactTextString(m) }
-func (*LongLivedGracefulRestartState) ProtoMessage()               {}
-func (*LongLivedGracefulRestartState) Descriptor() ([]byte, []int) { return fileDescriptor2, []int{113} }
+func (m *LongLivedGracefulRestartState) Reset()         { *m = LongLivedGracefulRestartState{} }
+func (m *LongLivedGracefulRestartState) String() string { return proto.CompactTextString(m) }
+func (*LongLivedGracefulRestartState) ProtoMessage()    {}
+func (*LongLivedGracefulRestartState) Descriptor() ([]byte, []int) {
+	return fileDescriptor2, []int{113}
+}
 
 func (m *LongLivedGracefulRestartState) GetEnabled() bool {
 	if m != nil {

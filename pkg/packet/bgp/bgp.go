@@ -5429,7 +5429,7 @@ const (
 	LS_TLV_LINK_PROTECTION_TYPE     = 1093 // TODO
 	LS_TLV_MPLS_PROTOCOL_MASK       = 1094 // TODO
 	LS_TLV_IGP_METRIC               = 1095
-	LS_TLV_SRLG                     = 1096 // TODO
+	LS_TLV_SRLG                     = 1096
 	LS_TLV_OPAQUE_LINK_ATTR         = 1097
 	LS_TLV_LINK_NAME                = 1098
 	LS_TLV_ADJACENCY_SID            = 1099 // draft-ietf-idr-bgp-ls-segment-routing-ext
@@ -7373,6 +7373,59 @@ func (l *LsTLVOpaqueLinkAttr) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type LsTLVSrlg struct {
+	LsTLV
+	Srlgs []uint32
+}
+
+func (l *LsTLVSrlg) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRLG {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value)%4 != 0 {
+		return malformedAttrListErr("Incorrect SRLG length")
+	}
+
+	for len(value) > 0 {
+		l.Srlgs = append(l.Srlgs, binary.BigEndian.Uint32(value[:4]))
+		value = value[4:]
+	}
+
+	return nil
+}
+
+func (l *LsTLVSrlg) Serialize() ([]byte, error) {
+	buf := make([]byte, 0, 4*len(l.Srlgs))
+
+	var b [4]byte
+	for i := 0; i < len(l.Srlgs); i++ {
+		binary.BigEndian.PutUint32(b[:4], l.Srlgs[i])
+		buf = append(buf, b[:]...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrlg) String() string {
+	return fmt.Sprintf("{SRLG link attribute: %d}", l.Srlgs)
+}
+
+func (l *LsTLVSrlg) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value []uint32  `json:"link_srlg_attribute"`
+	}{
+		Type:  l.Type,
+		Value: l.Srlgs,
+	})
+}
+
 type LsTLVIGPFlags struct {
 	LsTLV
 	Flags uint8
@@ -7757,6 +7810,7 @@ type LsAttributeLink struct {
 	Bandwidth           *float32    `json:"bandwidth,omitempty"`
 	ReservableBandwidth *float32    `json:"reservable_bandwidth,omitempty"`
 	UnreservedBandwidth *[8]float32 `json:"unreserved_bandwidth,omitempty"`
+	Srlgs               *[]uint32   `json:"srlgs,omitempty"`
 
 	SrAdjacencySID *uint32 `json:"adjacency_sid,omitempty"`
 }
@@ -7830,6 +7884,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVUnreservedBw:
 			l.Link.UnreservedBandwidth = &v.Bandwidth
+
+		case *LsTLVSrlg:
+			l.Link.Srlgs = &v.Srlgs
 
 		case *LsTLVTEDefaultMetric:
 			l.Link.DefaultTEMetric = &v.Metric
@@ -7924,6 +7981,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_UNRESERVED_BANDWIDTH:
 			tlv = &LsTLVUnreservedBw{}
+
+		case LS_TLV_SRLG:
+			tlv = &LsTLVSrlg{}
 
 		case LS_TLV_TE_DEFAULT_METRIC:
 			tlv = &LsTLVTEDefaultMetric{}

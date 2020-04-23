@@ -38,6 +38,7 @@ rpki
 sadb
 safi
 srgb
+srlg
 subcode
 syscall
 syslog
