@@ -710,7 +710,7 @@ func (s *BgpServer) setPathVrfIdMap(paths []*table.Path, m map[uint32]bool) {
 				}
 			}
 		default:
-			m[zebra.VRF_DEFAULT] = true
+			m[zebra.DefaultVrf] = true
 		}
 	}
 }

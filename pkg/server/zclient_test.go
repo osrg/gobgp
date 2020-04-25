@@ -28,65 +28,22 @@ import (
 
 func Test_newPathFromIPRouteMessage(t *testing.T) {
 	assert := assert.New(t)
-
-	ipv4RouteAddCommand := map[uint8]zebra.API_TYPE{
-		2: zebra.IPV4_ROUTE_ADD,
-		3: zebra.IPV4_ROUTE_ADD,
-		4: zebra.FRR_IPV4_ROUTE_ADD,
-		5: zebra.FRR_ZAPI5_IPV4_ROUTE_ADD,
-		6: zebra.FRR_ZAPI6_ROUTE_ADD,
-	}
-	ipv4RouteDeleteCommand := map[uint8]zebra.API_TYPE{
-		2: zebra.IPV4_ROUTE_DELETE,
-		3: zebra.IPV4_ROUTE_DELETE,
-		4: zebra.FRR_IPV4_ROUTE_DELETE,
-		5: zebra.FRR_ZAPI5_IPV4_ROUTE_DELETE,
-		6: zebra.FRR_ZAPI6_ROUTE_DELETE,
-	}
-	ipv6RouteAddCommand := map[uint8]zebra.API_TYPE{
-		2: zebra.IPV6_ROUTE_ADD,
-		3: zebra.IPV6_ROUTE_ADD,
-		4: zebra.FRR_IPV6_ROUTE_ADD,
-		5: zebra.FRR_ZAPI5_IPV6_ROUTE_ADD,
-		6: zebra.FRR_ZAPI6_ROUTE_ADD,
-	}
-	ipv6RouteDeleteCommand := map[uint8]zebra.API_TYPE{
-		2: zebra.IPV6_ROUTE_DELETE,
-		3: zebra.IPV6_ROUTE_DELETE,
-		4: zebra.FRR_IPV6_ROUTE_DELETE,
-		5: zebra.FRR_ZAPI5_IPV6_ROUTE_DELETE,
-		6: zebra.FRR_ZAPI6_ROUTE_DELETE,
-	}
-	message := map[uint8]zebra.MESSAGE_FLAG{
-		2: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
-		3: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC | zebra.MESSAGE_MTU,
-		4: zebra.FRR_MESSAGE_NEXTHOP | zebra.FRR_MESSAGE_DISTANCE | zebra.FRR_MESSAGE_METRIC | zebra.FRR_MESSAGE_MTU,
-		5: zebra.FRR_ZAPI5_MESSAGE_NEXTHOP | zebra.FRR_ZAPI5_MESSAGE_DISTANCE | zebra.FRR_ZAPI5_MESSAGE_METRIC | zebra.FRR_ZAPI5_MESSAGE_MTU,
-		6: zebra.FRR_ZAPI5_MESSAGE_NEXTHOP | zebra.FRR_ZAPI5_MESSAGE_DISTANCE | zebra.FRR_ZAPI5_MESSAGE_METRIC | zebra.FRR_ZAPI5_MESSAGE_MTU,
-	}
-
 	for v := zebra.MinZapiVer; v <= zebra.MaxZapiVer; v++ {
 		// IPv4 Route Add
 		m := &zebra.Message{}
-		marker := zebra.HEADER_MARKER
-		if v > 3 {
-			marker = zebra.FRR_HEADER_MARKER
-		}
-		flag := zebra.FLAG_SELECTED
-		if v > 5 {
-			flag = zebra.FRR_ZAPI6_FLAG_SELECTED
-		}
+		flag := zebra.FlagSelected.ToEach(v, "")
+		message := zebra.MessageNexthop | zebra.MessageDistance.ToEach(v) | zebra.MessageMetric.ToEach(v) | zebra.MessageMTU.ToEach(v)
 		h := &zebra.Header{
 			Len:     zebra.HeaderSize(v),
-			Marker:  marker,
+			Marker:  zebra.HeaderMarker(v),
 			Version: v,
-			Command: ipv4RouteAddCommand[v],
+			Command: zebra.RouteAdd.ToEach(v, ""),
 		}
 		b := &zebra.IPRouteBody{
-			Type:    zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
+			Type:    zebra.RouteType(zebra.RouteStatic),
 			Flags:   flag,
-			Message: message[v],
-			SAFI:    zebra.SAFI(zebra.SAFI_UNICAST), // 1, FRR_ZAPI5_SAFI_UNICAST is same
+			Message: message,
+			Safi:    zebra.Safi(zebra.SafiUnicast), // 1, FRR_ZAPI5_SAFI_UNICAST is same
 			Prefix: zebra.Prefix{
 				Prefix:    net.ParseIP("192.168.100.0"),
 				PrefixLen: uint8(24),
@@ -102,11 +59,11 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 			Distance: uint8(0),
 			Metric:   uint32(100),
 			Mtu:      uint32(0),
-			Api:      zebra.API_TYPE(ipv4RouteAddCommand[v]),
+			API:      zebra.APIType(zebra.RouteAdd.ToEach(v, "")),
 		}
 		m.Header = *h
 		m.Body = b
-
+		zebra.BackwardIPv6RouteDelete.ToEach(v, "")
 		path := newPathFromIPRouteMessage(m, v, "")
 		pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
@@ -116,8 +73,8 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.False(pp.IsWithdraw)
 
 		// IPv4 Route Delete
-		h.Command = ipv4RouteDeleteCommand[v]
-		b.Api = ipv4RouteDeleteCommand[v]
+		h.Command = zebra.RouteDelete.ToEach(v, "")
+		b.API = zebra.RouteDelete.ToEach(v, "")
 		m.Header = *h
 		m.Body = b
 
@@ -132,8 +89,14 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.True(pp.IsWithdraw)
 
 		// IPv6 Route Add
-		h.Command = ipv6RouteAddCommand[v]
-		b.Api = ipv6RouteAddCommand[v]
+		h.Command = zebra.RouteAdd.ToEach(v, "")
+		if v < 5 {
+			h.Command = zebra.BackwardIPv6RouteAdd.ToEach(v, "")
+		}
+		b.API = zebra.RouteAdd.ToEach(v, "")
+		if v < 5 {
+			b.API = zebra.BackwardIPv6RouteAdd.ToEach(v, "")
+		}
 		b.Prefix.Prefix = net.ParseIP("2001:db8:0:f101::")
 		b.Prefix.PrefixLen = uint8(64)
 		b.Nexthops = []zebra.Nexthop{{Gate: net.ParseIP("::")}}
@@ -151,8 +114,14 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.False(pp.IsWithdraw)
 
 		// IPv6 Route Delete
-		h.Command = ipv6RouteDeleteCommand[v]
-		b.Api = ipv6RouteDeleteCommand[v]
+		h.Command = zebra.RouteDelete.ToEach(v, "")
+		if v < 5 {
+			h.Command = zebra.BackwardIPv6RouteDelete.ToEach(v, "")
+		}
+		b.API = zebra.RouteDelete.ToEach(v, "")
+		if v < 5 {
+			b.API = zebra.BackwardIPv6RouteDelete.ToEach(v, "")
+		}
 		m.Header = *h
 		m.Body = b
 
