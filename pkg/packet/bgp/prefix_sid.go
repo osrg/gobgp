@@ -5,14 +5,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+
+	"github.com/golang/glog"
 )
-
-type PrefixSIDTLVType uint16
-
-type PrefixSIDTLV struct {
-	Type   PrefixSIDTLVType
-	Length uint16
-}
 
 type PrefixSIDTLVInterface interface {
 	Len() int
@@ -25,6 +20,13 @@ type PrefixSIDTLVInterface interface {
 type PathAttributePrefixSID struct {
 	PathAttribute
 	TLVs []PrefixSIDTLVInterface
+}
+
+type PrefixSIDTLVType uint16
+
+type PrefixSIDTLV struct {
+	Type   PrefixSIDTLVType
+	Length uint16
 }
 
 func (s *PrefixSIDTLV) Len() int {
@@ -48,27 +50,18 @@ func (s *PrefixSIDTLV) DecodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < tlvHdrLen {
 		return nil, malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
 	}
-	//	l.Type = PrefixSIDTLVType(binary.BigEndian.Uint16(data[:2]))
-	//	l.Length = binary.BigEndian.Uint16(data[2:4])
+	s.Type = PrefixSIDTLVType(binary.BigEndian.Uint16(data[:2]))
+	s.Length = binary.BigEndian.Uint16(data[2:4])
 
-	//	if len(data) < l.Len() {
-	//		return nil, malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
-	//	}
+	if len(data) < s.Len() {
+		return nil, malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
+	}
 
 	return data[tlvHdrLen:s.Len()], nil
 }
 
-//type LsAttributePrefix struct {
-//	IGPFlags *LsIGPFlags `json:"igp_flags,omitempty"`
-//	Opaque   *[]byte     `json:"opaque,omitempty"`
-//
-//	SrPrefixSID *uint32 `json:"sr_prefix_sid,omitempty"`
-//}
-
 type PrefixSIDAttribute struct {
-	//	Node   LsAttributeNode   `json:"node"`
-	//	Link   LsAttributeLink   `json:"link"`
-	//	Prefix LsAttributePrefix `json:"prefix"`
+	TLVs map[PrefixSIDTLVType]PrefixSIDTLVInterface
 }
 
 func (p *PathAttributePrefixSID) Extract() *PrefixSIDAttribute {
@@ -161,6 +154,7 @@ func (p *PathAttributePrefixSID) DecodeFromBytes(data []byte, options ...*Marsha
 		return err
 	}
 
+	glog.Infof("><SB> tlvs: %+v", tlvs)
 	for len(tlvs) >= tlvHdrLen {
 		t := &PrefixSIDTLV{}
 		_, err := t.DecodeFromBytes(tlvs)
@@ -169,7 +163,9 @@ func (p *PathAttributePrefixSID) DecodeFromBytes(data []byte, options ...*Marsha
 		}
 
 		var tlv PrefixSIDTLVInterface
-		// switch t.Type {
+		switch t.Type {
+		case 5:
+			tlv = &PrefixSIDType5{}
 		// // Node NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.1)
 		// case LS_TLV_NODE_FLAG_BITS:
 		// 	tlv = &LsTLVNodeFlagBits{}
@@ -250,16 +246,15 @@ func (p *PathAttributePrefixSID) DecodeFromBytes(data []byte, options ...*Marsha
 		// case LS_TLV_PREFIX_SID:
 		// 	tlv = &LsTLVPrefixSID{}
 
-		// default:
-		// 	tlvs = tlvs[t.Len():]
-		// 	continue
-		// }
+		default:
+			tlvs = tlvs[t.Len():]
+			continue
+		}
 
 		if err := tlv.DecodeFromBytes(tlvs); err != nil {
 			return err
 		}
 		tlvs = tlvs[t.Len():]
-
 		p.TLVs = append(p.TLVs, tlv)
 	}
 
@@ -277,7 +272,7 @@ func (p *PathAttributePrefixSID) Serialize(options ...*MarshallingOption) ([]byt
 		buf = append(buf, s...)
 	}
 
-	return p.PathAttribute.Serialize(buf, options...)
+	return p.PathAttribute.Serialize(buf)
 }
 
 func (p *PathAttributePrefixSID) String() string {
@@ -300,4 +295,49 @@ func (p *PathAttributePrefixSID) MarshalJSON() ([]byte, error) {
 		p.GetFlags(),
 		*p.Extract(),
 	})
+}
+
+type PrefixSIDType5 struct {
+	Type   PrefixSIDTLVType
+	Length uint16
+}
+
+func (s *PrefixSIDType5) Len() int {
+	return int(s.Length) + tlvHdrLen
+}
+
+func (s *PrefixSIDType5) Serialize() ([]byte, error) {
+	//	if len(value) != int(s.Length) {
+	//		return nil, malformedAttrListErr("serialization failed: Prefix SID TLV malformed")
+	//	}
+
+	//	buf := make([]byte, tlvHdrLen+len(value))
+	//	binary.BigEndian.PutUint16(buf[:2], uint16(s.Type))
+	//	binary.BigEndian.PutUint16(buf[2:4], uint16(s.Length))
+	//	copy(buf[4:], value)
+
+	//	return buf, nil
+	return nil, nil
+}
+
+func (s *PrefixSIDType5) DecodeFromBytes(data []byte) error {
+	if len(data) < tlvHdrLen {
+		return malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
+	}
+	s.Type = PrefixSIDTLVType(binary.BigEndian.Uint16(data[:2]))
+	s.Length = binary.BigEndian.Uint16(data[2:4])
+
+	if len(data) < s.Len() {
+		return malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
+	}
+
+	return nil
+}
+
+func (s *PrefixSIDType5) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}
+
+func (s *PrefixSIDType5) String() string {
+	return ""
 }
