@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 )
 
+// PrefixSIDTLVInterface defines standard set of methods to handle Prefix SID attribute's TLVs
 type PrefixSIDTLVInterface interface {
 	Len() int
 	DecodeFromBytes([]byte) error
@@ -22,7 +23,7 @@ type PathAttributePrefixSID struct {
 	TLVs []PrefixSIDTLVInterface
 }
 
-type PrefixSIDTLVType uint16
+type PrefixSIDTLVType uint8
 
 type PrefixSIDTLV struct {
 	Type   PrefixSIDTLVType
@@ -61,89 +62,94 @@ func (s *PrefixSIDTLV) DecodeFromBytes(data []byte) ([]byte, error) {
 }
 
 type PrefixSIDAttribute struct {
-	TLVs map[PrefixSIDTLVType]PrefixSIDTLVInterface
+	TLVs []PrefixSIDTLVInterface
 }
 
 func (p *PathAttributePrefixSID) Extract() *PrefixSIDAttribute {
-	s := &PrefixSIDAttribute{}
+	s := &PrefixSIDAttribute{
+		TLVs: make([]PrefixSIDTLVInterface, 0),
+	}
 
-	// for _, tlv := range p.TLVs {
-	// 	switch v := tlv.(type) {
-	// 	case *LsTLVNodeFlagBits:
-	// 		l.Node.Flags = v.Extract()
+	for _, tlv := range p.TLVs {
+		switch v := tlv.(type) {
+		case *PrefixSIDType5:
+			glog.Infof("><SB> v: %+v", v)
+			o := &PrefixSIDType5{}
+			s.TLVs = append(s.TLVs, o)
+			// 		l.Node.Flags = v.Extract()
 
-	// 	case *LsTLVOpaqueNodeAttr:
-	// 		l.Node.Opaque = &v.Attr
+			// 	case *LsTLVOpaqueNodeAttr:
+			// 		l.Node.Opaque = &v.Attr
 
-	// 	case *LsTLVNodeName:
-	// 		l.Node.Name = &v.Name
+			// 	case *LsTLVNodeName:
+			// 		l.Node.Name = &v.Name
 
-	// 	case *LsTLVIsisArea:
-	// 		l.Node.IsisArea = &v.Area
+			// 	case *LsTLVIsisArea:
+			// 		l.Node.IsisArea = &v.Area
 
-	// 	case *LsTLVLocalIPv4RouterID:
-	// 		l.Node.LocalRouterID = &v.IP
-	// 		l.Link.LocalRouterID = &v.IP
+			// 	case *LsTLVLocalIPv4RouterID:
+			// 		l.Node.LocalRouterID = &v.IP
+			// 		l.Link.LocalRouterID = &v.IP
 
-	// 	case *LsTLVLocalIPv6RouterID:
-	// 		l.Node.LocalRouterIDv6 = &v.IP
-	// 		l.Link.LocalRouterIDv6 = &v.IP
+			// 	case *LsTLVLocalIPv6RouterID:
+			// 		l.Node.LocalRouterIDv6 = &v.IP
+			// 		l.Link.LocalRouterIDv6 = &v.IP
 
-	// 	case *LsTLVSrCapabilities:
-	// 		l.Node.SrCapabilties = v.Extract()
+			// 	case *LsTLVSrCapabilities:
+			// 		l.Node.SrCapabilties = v.Extract()
 
-	// 	case *LsTLVSrAlgorithm:
-	// 		l.Node.SrAlgorithms = &v.Algorithm
+			// 	case *LsTLVSrAlgorithm:
+			// 		l.Node.SrAlgorithms = &v.Algorithm
 
-	// 	case *LsTLVSrLocalBlock:
-	// 		l.Node.SrLocalBlock = v.Extract()
+			// 	case *LsTLVSrLocalBlock:
+			// 		l.Node.SrLocalBlock = v.Extract()
 
-	// 	case *LsTLVRemoteIPv4RouterID:
-	// 		l.Link.RemoteRouterID = &v.IP
+			// 	case *LsTLVRemoteIPv4RouterID:
+			// 		l.Link.RemoteRouterID = &v.IP
 
-	// 	case *LsTLVRemoteIPv6RouterID:
-	// 		l.Link.RemoteRouterIDv6 = &v.IP
+			// 	case *LsTLVRemoteIPv6RouterID:
+			// 		l.Link.RemoteRouterIDv6 = &v.IP
 
-	// 	case *LsTLVAdminGroup:
-	// 		l.Link.AdminGroup = &v.AdminGroup
+			// 	case *LsTLVAdminGroup:
+			// 		l.Link.AdminGroup = &v.AdminGroup
 
-	// 	case *LsTLVMaxLinkBw:
-	// 		l.Link.Bandwidth = &v.Bandwidth
+			// 	case *LsTLVMaxLinkBw:
+			// 		l.Link.Bandwidth = &v.Bandwidth
 
-	// 	case *LsTLVMaxReservableLinkBw:
-	// 		l.Link.ReservableBandwidth = &v.Bandwidth
+			// 	case *LsTLVMaxReservableLinkBw:
+			// 		l.Link.ReservableBandwidth = &v.Bandwidth
 
-	// 	case *LsTLVUnreservedBw:
-	// 		l.Link.UnreservedBandwidth = &v.Bandwidth
+			// 	case *LsTLVUnreservedBw:
+			// 		l.Link.UnreservedBandwidth = &v.Bandwidth
 
-	// 	case *LsTLVSrlg:
-	// 		l.Link.Srlgs = &v.Srlgs
+			// 	case *LsTLVSrlg:
+			// 		l.Link.Srlgs = &v.Srlgs
 
-	// 	case *LsTLVTEDefaultMetric:
-	// 		l.Link.DefaultTEMetric = &v.Metric
+			// 	case *LsTLVTEDefaultMetric:
+			// 		l.Link.DefaultTEMetric = &v.Metric
 
-	// 	case *LsTLVIGPMetric:
-	// 		l.Link.IGPMetric = &v.Metric
+			// 	case *LsTLVIGPMetric:
+			// 		l.Link.IGPMetric = &v.Metric
 
-	// 	case *LsTLVOpaqueLinkAttr:
-	// 		l.Link.Opaque = &v.Attr
+			// 	case *LsTLVOpaqueLinkAttr:
+			// 		l.Link.Opaque = &v.Attr
 
-	// 	case *LsTLVLinkName:
-	// 		l.Link.Name = &v.Name
+			// 	case *LsTLVLinkName:
+			// 		l.Link.Name = &v.Name
 
-	// 	case *LsTLVAdjacencySID:
-	// 		l.Link.SrAdjacencySID = &v.SID
+			// 	case *LsTLVAdjacencySID:
+			// 		l.Link.SrAdjacencySID = &v.SID
 
-	// 	case *LsTLVIGPFlags:
-	// 		l.Prefix.IGPFlags = v.Extract()
+			// 	case *LsTLVIGPFlags:
+			// 		l.Prefix.IGPFlags = v.Extract()
 
-	// 	case *LsTLVOpaquePrefixAttr:
-	// 		l.Prefix.Opaque = &v.Attr
+			// 	case *LsTLVOpaquePrefixAttr:
+			// 		l.Prefix.Opaque = &v.Attr
 
-	// 	case *LsTLVPrefixSID:
-	// 		l.Prefix.SrPrefixSID = &v.SID
-	// 	}
-	// }
+			// 	case *LsTLVPrefixSID:
+			// 		l.Prefix.SrPrefixSID = &v.SID
+		}
+	}
 
 	return s
 }
@@ -166,86 +172,6 @@ func (p *PathAttributePrefixSID) DecodeFromBytes(data []byte, options ...*Marsha
 		switch t.Type {
 		case 5:
 			tlv = &PrefixSIDType5{}
-		// // Node NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.1)
-		// case LS_TLV_NODE_FLAG_BITS:
-		// 	tlv = &LsTLVNodeFlagBits{}
-
-		// case LS_TLV_OPAQUE_NODE_ATTR:
-		// 	tlv = &LsTLVOpaqueNodeAttr{}
-
-		// case LS_TLV_NODE_NAME:
-		// 	tlv = &LsTLVNodeName{}
-
-		// case LS_TLV_ISIS_AREA:
-		// 	tlv = &LsTLVIsisArea{}
-
-		// // Used by Link NLRI as well.
-		// case LS_TLV_IPV4_LOCAL_ROUTER_ID:
-		// 	tlv = &LsTLVLocalIPv4RouterID{}
-
-		// // Used by Link NLRI as well.
-		// case LS_TLV_IPV6_LOCAL_ROUTER_ID:
-		// 	tlv = &LsTLVLocalIPv6RouterID{}
-
-		// // SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Node NLRI
-		// case LS_TLV_SR_CAPABILITIES:
-		// 	tlv = &LsTLVSrCapabilities{}
-
-		// case LS_TLV_SR_ALGORITHM:
-		// 	tlv = &LsTLVSrAlgorithm{}
-
-		// case LS_TLV_SR_LOCAL_BLOCK:
-		// 	tlv = &LsTLVSrLocalBlock{}
-
-		// // Link NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.2)
-		// case LS_TLV_IPV4_REMOTE_ROUTER_ID:
-		// 	tlv = &LsTLVRemoteIPv4RouterID{}
-
-		// case LS_TLV_IPV6_REMOTE_ROUTER_ID:
-		// 	tlv = &LsTLVRemoteIPv6RouterID{}
-
-		// case LS_TLV_ADMIN_GROUP:
-		// 	tlv = &LsTLVAdminGroup{}
-
-		// case LS_TLV_MAX_LINK_BANDWIDTH:
-		// 	tlv = &LsTLVMaxLinkBw{}
-
-		// case LS_TLV_MAX_RESERVABLE_BANDWIDTH:
-		// 	tlv = &LsTLVMaxReservableLinkBw{}
-
-		// case LS_TLV_UNRESERVED_BANDWIDTH:
-		// 	tlv = &LsTLVUnreservedBw{}
-
-		// case LS_TLV_SRLG:
-		// 	tlv = &LsTLVSrlg{}
-
-		// case LS_TLV_TE_DEFAULT_METRIC:
-		// 	tlv = &LsTLVTEDefaultMetric{}
-
-		// case LS_TLV_IGP_METRIC:
-		// 	tlv = &LsTLVIGPMetric{}
-
-		// case LS_TLV_OPAQUE_LINK_ATTR:
-		// 	tlv = &LsTLVOpaqueLinkAttr{}
-
-		// case LS_TLV_LINK_NAME:
-		// 	tlv = &LsTLVLinkName{}
-
-		// // SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Link NLRI
-		// case LS_TLV_ADJACENCY_SID:
-		// 	tlv = &LsTLVAdjacencySID{}
-
-		// // Prefix NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.3)
-		// case LS_TLV_IGP_FLAGS:
-		// 	tlv = &LsTLVIGPFlags{}
-
-		// case LS_TLV_OPAQUE_PREFIX_ATTR:
-		// 	tlv = &LsTLVOpaquePrefixAttr{}
-
-		// // SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Prefix NLRI
-		// case LS_TLV_PREFIX_SID:
-		// 	tlv = &LsTLVPrefixSID{}
-
 		default:
 			tlvs = tlvs[t.Len():]
 			continue
@@ -297,9 +223,10 @@ func (p *PathAttributePrefixSID) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// PrefixSIDType5 defines the structure of
 type PrefixSIDType5 struct {
-	Type   PrefixSIDTLVType
-	Length uint16
+	PrefixSIDTLV
+	ServiceTLVs []PrefixSIDTLVInterface
 }
 
 func (s *PrefixSIDType5) Len() int {
@@ -340,4 +267,75 @@ func (s *PrefixSIDType5) MarshalJSON() ([]byte, error) {
 
 func (s *PrefixSIDType5) String() string {
 	return ""
+}
+
+func (s *PrefixSIDType5) Extract() string {
+	return ""
+}
+
+type SRv6ServiceSubTLV struct {
+	PrefixSIDTLV
+	TLV []PrefixSIDTLVInterface
+}
+
+func (s *SRv6ServiceSubTLV) Len() int {
+	return int(s.Length) + tlvHdrLen
+}
+
+func (s *SRv6ServiceSubTLV) Serialize() ([]byte, error) {
+	//	if len(value) != int(s.Length) {
+	//		return nil, malformedAttrListErr("serialization failed: Prefix SID TLV malformed")
+	//	}
+
+	//	buf := make([]byte, tlvHdrLen+len(value))
+	//	binary.BigEndian.PutUint16(buf[:2], uint16(s.Type))
+	//	binary.BigEndian.PutUint16(buf[2:4], uint16(s.Length))
+	//	copy(buf[4:], value)
+
+	//	return buf, nil
+	return nil, nil
+}
+
+func (s *SRv6ServiceSubTLV) DecodeFromBytes(data []byte) error {
+	if len(data) < tlvHdrLen {
+		return malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
+	}
+	s.Type = PrefixSIDTLVType(binary.BigEndian.Uint16(data[:2]))
+	s.Length = binary.BigEndian.Uint16(data[2:4])
+
+	if len(data) < s.Len() {
+		return malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
+	}
+
+	return nil
+}
+
+func (s *SRv6ServiceSubTLV) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}
+
+func (s *SRv6ServiceSubTLV) String() string {
+	return ""
+}
+
+// SRv6InformationSubTLV defines a structure of SRv6 Information Sub TLV (type 1) object
+// https://tools.ietf.org/html/draft-dawra-bess-srv6-services-02#section-2.1.1
+type SRv6InformationSubTLV struct {
+	PrefixSIDTLV
+	SID              []byte
+	Flags            uint8
+	EndpointBehavior uint16
+	SubSubTLV        []PrefixSIDTLVInterface
+}
+
+// SRv6SIDStructureSubSubTLV defines a structure of SRv6 SID Structure Sub Sub TLV (type 1) object
+// https://tools.ietf.org/html/draft-dawra-bess-srv6-services-02#section-2.1.2.1
+type SRv6SIDStructureSubSubTLV struct {
+	PrefixSIDTLV
+	LocalBlockLength    uint8 `json:"local_block_length,omitempty"`
+	LocatorNodeLength   uint8 `json:"locator_node_length,omitempty"`
+	FunctionLength      uint8 `json:"function_length,omitempty"`
+	ArgumentLength      uint8 `json:"argument_length,omitempty"`
+	TranspositionLength uint8 `json:"transposition_length,omitempty"`
+	TranspositionOffset uint8 `json:"transposition_offset,omitempty"`
 }
