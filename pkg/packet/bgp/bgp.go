@@ -28,6 +28,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/golang/glog"
+	"github.com/sbezverk/gobmp/pkg/tools"
 )
 
 type MarshallingOption struct {
@@ -8285,7 +8288,7 @@ const (
 	_
 	BGP_ATTR_TYPE_LS                          // = 29
 	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 32
-	BGP_ATTR_TYPE_PREFIX_SID                  = 40
+	BGP_ATTR_TYPE_PREFIX_SID      BGPAttrType = 40
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -12375,6 +12378,7 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 	case BGP_ATTR_TYPE_LS:
 		return &PathAttributeLs{}, nil
 	case BGP_ATTR_TYPE_PREFIX_SID:
+		glog.Infof("Prefix SID RAW: %s", tools.MessageHex(data))
 		return &PathAttributePrefixSID{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
