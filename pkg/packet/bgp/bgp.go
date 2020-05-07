@@ -28,9 +28,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/golang/glog"
-	"github.com/sbezverk/gobmp/pkg/tools"
 )
 
 type MarshallingOption struct {
@@ -12378,7 +12375,6 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 	case BGP_ATTR_TYPE_LS:
 		return &PathAttributeLs{}, nil
 	case BGP_ATTR_TYPE_PREFIX_SID:
-		glog.Infof("Prefix SID RAW: %s", tools.MessageHex(data))
 		return &PathAttributePrefixSID{}, nil
 	}
 	return &PathAttributeUnknown{}, nil

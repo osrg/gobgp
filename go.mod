@@ -21,7 +21,6 @@ require (
 	github.com/pelletier/go-buffruneio v0.2.0 // indirect
 	github.com/pelletier/go-toml v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/sbezverk/gobmp/pkg/tools v0.0.0-20200506032342-04944823ac3f
 	github.com/sirupsen/logrus v0.0.0-20170713114250-a3f95b5c4235
 	github.com/spf13/afero v0.0.0-20170217164146-9be650865eab // indirect
 	github.com/spf13/cast v1.1.0 // indirect
