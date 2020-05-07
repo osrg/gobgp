@@ -147,10 +147,7 @@ func (p *PathAttributePrefixSID) Extract() *PrefixSIDAttribute {
 	psid := &PrefixSIDAttribute{
 		TLVs: make([]PrefixSIDTLVInterface, 0),
 	}
-
-	for _, tlv := range p.TLVs {
-		psid.TLVs = append(psid.TLVs, tlv)
-	}
+	psid.TLVs = append(psid.TLVs, p.TLVs...)
 
 	return psid
 }
@@ -241,9 +238,7 @@ func (s *SRv6L3ServiceAttribute) Extract() *SRv6L3Service {
 		SubTLVs: make([]PrefixSIDTLVInterface, 0),
 	}
 
-	for _, tlv := range s.SubTLVs {
-		l3.SubTLVs = append(l3.SubTLVs, tlv)
-	}
+	l3.SubTLVs = append(l3.SubTLVs, s.SubTLVs...)
 
 	return l3
 }
@@ -292,10 +287,10 @@ func (s *SubTLV) DecodeFromBytes(data []byte) ([]byte, error) {
 }
 
 type SRv6InformationSTLV struct {
-	SID              []byte
-	Flags            uint8
-	EndpointBehavior uint16
-	SubSubTLVs       []PrefixSIDTLVInterface
+	SID              []byte                  `json:"sid"`
+	Flags            uint8                   `json:"flags"`
+	EndpointBehavior uint16                  `json:"endpoint_behavior"`
+	SubSubTLVs       []PrefixSIDTLVInterface `json:"sub_sub_tlvs,omitempty"`
 }
 
 // SRv6InformationSubTLV defines a structure of SRv6 Information Sub TLV (type 1) object
@@ -414,9 +409,7 @@ func (s *SRv6InformationSubTLV) Extract() *SRv6InformationSTLV {
 		SubSubTLVs:       make([]PrefixSIDTLVInterface, 0),
 	}
 
-	for _, tlv := range s.SubSubTLVs {
-		info.SubSubTLVs = append(info.SubSubTLVs, tlv)
-	}
+	info.SubSubTLVs = append(info.SubSubTLVs, s.SubSubTLVs...)
 
 	return info
 }
