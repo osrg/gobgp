@@ -25,7 +25,7 @@ func TestRoundTripSubSubTLV(t *testing.T) {
 			if err != nil {
 				t.Fatalf("test failed with error: %+v", err)
 			}
-			if bytes.Compare(tt.input, recovered) != 0 {
+			if !bytes.Equal(tt.input, recovered) {
 				t.Fatalf("round trip conversion test failed as expected prefix sid attribute %+v does not match actual: %+v", tt.input, recovered)
 			}
 		})
@@ -52,7 +52,7 @@ func TestRoundTripSubTLV(t *testing.T) {
 			if err != nil {
 				t.Fatalf("test failed with error: %+v", err)
 			}
-			if bytes.Compare(tt.input, recovered) != 0 {
+			if !bytes.Equal(tt.input, recovered) {
 				t.Fatalf("round trip conversion test failed as expected prefix sid attribute %+v does not match actual: %+v", tt.input, recovered)
 			}
 		})
@@ -82,7 +82,7 @@ func TestRoundTripPrefixSID(t *testing.T) {
 			if err != nil {
 				t.Fatalf("test failed with error: %+v", err)
 			}
-			if bytes.Compare(tt.input, recovered) != 0 {
+			if !bytes.Equal(tt.input, recovered) {
 				t.Fatalf("round trip conversion test failed as expected prefix sid attribute %+v does not match actual: %+v", tt.input, recovered)
 			}
 		})
