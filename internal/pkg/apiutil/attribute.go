@@ -45,7 +45,9 @@ func UnmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 	case *api.NextHopAttribute:
 		nexthop := net.ParseIP(a.NextHop).To4()
 		if nexthop == nil {
-			return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
+			if nexthop = net.ParseIP(a.NextHop).To16(); nexthop == nil {
+				return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
+			}
 		}
 		return bgp.NewPathAttributeNextHop(a.NextHop), nil
 	case *api.MultiExitDiscAttribute:
@@ -1363,7 +1365,9 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 	case *api.NextHopAttribute:
 		nexthop := net.ParseIP(a.NextHop).To4()
 		if nexthop == nil {
-			return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
+			if nexthop = net.ParseIP(a.NextHop).To16(); nexthop == nil {
+				return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
+			}
 		}
 		return bgp.NewPathAttributeNextHop(a.NextHop), nil
 	case *api.MultiExitDiscAttribute:
