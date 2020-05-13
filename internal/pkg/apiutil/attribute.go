@@ -75,6 +75,8 @@ func UnmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 			}
 		}
 		return bgp.NewPathAttributeClusterList(a.Ids), nil
+	case *api.PrefixSID:
+		return bgp.NewPathAttributePrefixSID(a)
 	}
 	return nil, errors.New("unexpected object")
 }
@@ -147,6 +149,114 @@ func NewClusterListAttributeFromNative(a *bgp.PathAttributeClusterList) *api.Clu
 	return &api.ClusterListAttribute{
 		Ids: ids,
 	}
+}
+
+func NewPrefixSIDAttributeFromNative(a *bgp.PathAttributePrefixSID) *api.PrefixSID {
+	psid := &api.PrefixSID{}
+	psid.Tlvs = MarshalSRv6TLVs(a.TLVs)
+
+	return psid
+}
+
+func MarshalSRv6TLVs(tlvs []bgp.PrefixSIDTLVInterface) []*any.Any {
+	mtlvs := make([]*any.Any, len(tlvs))
+	for i, tlv := range tlvs {
+		var r proto.Message
+		switch t := tlv.(type) {
+		case *bgp.SRv6L3ServiceAttribute:
+			o := &api.SRv6L3ServiceTLV{}
+			o.SubTlvs = MarshalSRv6SubTLVs(t.SubTLVs)
+			r = o
+		default:
+			log.WithFields(log.Fields{
+				"Topic": "protobuf",
+				"SRv6":  t,
+			}).Warn("invalid prefix sid tlv type to marshal")
+			return nil
+		}
+		a, _ := ptypes.MarshalAny(r)
+		mtlvs[i] = a
+	}
+
+	return mtlvs
+}
+
+func MarshalSRv6SubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv6TLV {
+	mtlvs := make(map[uint32]*api.SRv6TLV)
+	var key uint32
+	for _, tlv := range tlvs {
+		var r proto.Message
+		switch t := tlv.(type) {
+		case *bgp.SRv6InformationSubTLV:
+			o := &api.SRv6InformationSubTLV{
+				EndpointBehavior: uint32(t.EndpointBehavior),
+				// TODO Once flags are used in RFC, add processing.
+				Flags: &api.SRv6SIDFlags{},
+			}
+			o.Sid = make([]byte, len(t.SID))
+			copy(o.Sid, t.SID)
+			o.SubSubTlvs = MarshalSRv6SubSubTLVs(t.SubSubTLVs)
+			// SRv6 Information Sub TLV is type 1 Sub TLV
+			key = 1
+			r = o
+		default:
+			log.WithFields(log.Fields{
+				"Topic": "protobuf",
+				"SRv6":  t,
+			}).Warn("invalid prefix sid sub tlv type to marshal")
+			return nil
+		}
+		a, _ := ptypes.MarshalAny(r)
+		tlvs, ok := mtlvs[key]
+		if !ok {
+			tlvs = &api.SRv6TLV{
+				Tlv: make([]*any.Any, 0),
+			}
+			mtlvs[key] = tlvs
+		}
+		tlvs.Tlv = append(tlvs.Tlv, a)
+	}
+
+	return mtlvs
+}
+
+func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv6TLV {
+	mtlvs := make(map[uint32]*api.SRv6TLV)
+	var key uint32
+	for _, tlv := range tlvs {
+		var r proto.Message
+		switch t := tlv.(type) {
+		case *bgp.SRv6SIDStructureSubSubTLV:
+			o := &api.SRv6StructureSubSubTLV{
+				LocalBlockLength:    uint32(t.LocalBlockLength),
+				LocalNodeLength:     uint32(t.LocatorNodeLength),
+				FunctionLength:      uint32(t.FunctionLength),
+				ArgumentLength:      uint32(t.ArgumentLength),
+				TranspositionLength: uint32(t.TranspositionLength),
+				TranspositionOffset: uint32(t.TranspositionOffset),
+			}
+			// SRv6 SID Structure Sub Sub TLV is type 1 Sub Sub TLV
+			key = 1
+			r = o
+		default:
+			log.WithFields(log.Fields{
+				"Topic": "protobuf",
+				"SRv6":  t,
+			}).Warn("invalid prefix sid sub sub tlv type to marshal")
+			return nil
+		}
+		a, _ := ptypes.MarshalAny(r)
+		tlvs, ok := mtlvs[key]
+		if !ok {
+			tlvs = &api.SRv6TLV{
+				Tlv: make([]*any.Any, 0),
+			}
+			mtlvs[key] = tlvs
+		}
+		tlvs.Tlv = append(tlvs.Tlv, a)
+	}
+
+	return mtlvs
 }
 
 func MarshalRD(rd bgp.RouteDistinguisherInterface) *any.Any {
@@ -1537,7 +1647,8 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 			communities = append(communities, bgp.NewLargeCommunity(c.GlobalAdmin, c.LocalData1, c.LocalData2))
 		}
 		return bgp.NewPathAttributeLargeCommunities(communities), nil
-
+	case *api.PrefixSID:
+		return bgp.NewPathAttributePrefixSID(a)
 	case *api.UnknownAttribute:
 		return bgp.NewPathAttributeUnknown(bgp.BGPAttrFlag(a.Flags), bgp.BGPAttrType(a.Type), a.Value), nil
 	}
