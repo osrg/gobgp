@@ -106,11 +106,11 @@ matrix:
     - go: "1.13"
       env:
         - DESCRIPTION="go fmt + vet + staticcheck"
-      before_script: go get -u honnef.co/go/tools/cmd/staticcheck
+      before_script: go get -u honnef.co/go/tools/cmd/staticcheck@7e758a3887f9
       script:
         - test -z "$(go fmt ./...)"
         - go vet ./...
-        - staticcheck ./...
+        - staticcheck --checks="inherit,-SA1019" ./...
     - go: "1.13"
       env:
         - DESCRIPTION="build_embeded_go.py"

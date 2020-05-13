@@ -8,7 +8,7 @@ require (
 	github.com/eapache/channels v1.1.0
 	github.com/eapache/queue v1.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.4.2 // indirect
-	github.com/golang/protobuf v1.0.0
+	github.com/golang/protobuf v1.4.1
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/hcl v0.0.0-20170509225359-392dba7d905e // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -30,12 +30,15 @@ require (
 	github.com/stretchr/testify v1.1.4
 	github.com/vishvananda/netlink v0.0.0-20170802012344-a95659537721
 	github.com/vishvananda/netns v0.0.0-20170707011535-86bef332bfc3 // indirect
-	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
-	golang.org/x/tools v0.0.0-20191026034945-b2104f82a97d // indirect
-	google.golang.org/genproto v0.0.0-20170731182057-09f6ed296fc6 // indirect
-	google.golang.org/grpc v1.5.1
+	golang.org/x/net v0.0.0-20200506145744-7e3656a0809f
+	golang.org/x/sys v0.0.0-20200501145240-bc7a7d42d5c3 // indirect
+	golang.org/x/text v0.3.2 // indirect
+	golang.org/x/tools v0.0.0-20200509030707-2212a7e161a5 // indirect
+	google.golang.org/genproto v0.0.0-20200507105951-43844f6eee31 // indirect
+	google.golang.org/grpc v1.29.1
+	google.golang.org/protobuf v1.22.0 // indirect
 	gopkg.in/yaml.v2 v2.0.0-20170721122051-25c4ec802a7d // indirect
-	honnef.co/go/tools v0.0.0-20191022112108-ee025456fe28 // indirect
+	honnef.co/go/tools v0.0.1-2020.1.0.20200422141144-7e758a3887f9 // indirect
 )
 
 go 1.13
