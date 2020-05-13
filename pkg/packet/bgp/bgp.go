@@ -31,7 +31,8 @@ import (
 )
 
 type MarshallingOption struct {
-	AddPath map[RouteFamily]BGPAddPathMode
+	AddPath    map[RouteFamily]BGPAddPathMode
+	Attributes map[BGPAttrType]bool
 }
 
 func IsAddPathEnabled(decode bool, f RouteFamily, options []*MarshallingOption) bool {
@@ -45,6 +46,18 @@ func IsAddPathEnabled(decode bool, f RouteFamily, options []*MarshallingOption) 
 			} else if !decode && o[f]&BGP_ADD_PATH_SEND > 0 {
 				return true
 			}
+		}
+	}
+	return false
+}
+func IsAttributePresent(attr BGPAttrType, options []*MarshallingOption) bool {
+	for _, opt := range options {
+		if opt == nil {
+			continue
+		}
+		if o := opt.Attributes; o != nil {
+			_, ok := o[attr]
+			return ok
 		}
 	}
 	return false
@@ -1588,9 +1601,17 @@ type MPLSLabelStack struct {
 	Labels []uint32
 }
 
-func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
+func (l *MPLSLabelStack) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	labels := []uint32{}
 	foundBottom := false
+	bottomExpected := true
+	if IsAttributePresent(BGP_ATTR_TYPE_PREFIX_SID, options) {
+		// If Update carries Prefix SID attribute then there is no a label stack,
+		// but just 3 bytes which are used to carry the lower portion of Prefix SID.
+		// There is no bottom stack indication in this case. Once 3 bytes are stored
+		// breaking out of the loop.
+		bottomExpected = false
+	}
 	for len(data) >= 3 {
 		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
 		if label == WITHDRAW_LABEL || label == ZERO_LABEL {
@@ -1599,6 +1620,11 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 		}
 		data = data[3:]
 		labels = append(labels, label>>4)
+		if !bottomExpected {
+			// Faking found bottom.
+			foundBottom = true
+			break
+		}
 		if label&1 == 1 {
 			foundBottom = true
 			break
@@ -1613,7 +1639,7 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (l *MPLSLabelStack) Serialize() ([]byte, error) {
+func (l *MPLSLabelStack) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := make([]byte, len(l.Labels)*3)
 	for i, label := range l.Labels {
 		if label == WITHDRAW_LABEL {
@@ -1624,6 +1650,13 @@ func (l *MPLSLabelStack) Serialize() ([]byte, error) {
 		buf[i*3+1] = byte((label >> 8) & 0xff)
 		buf[i*3+2] = byte(label & 0xff)
 	}
+	if IsAttributePresent(BGP_ATTR_TYPE_PREFIX_SID, options) {
+		// If Update carries Prefix SID attribute then there is no a label stack,
+		// but just 3 bytes which are used to carry the lower portion of Prefix SID.
+		// No need BoS bit set
+		return buf, nil
+	}
+
 	buf[len(buf)-1] |= 1
 	return buf, nil
 }
@@ -1721,7 +1754,7 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	}
 	l.Length = uint8(data[0])
 	data = data[1:]
-	l.Labels.DecodeFromBytes(data)
+	l.Labels.DecodeFromBytes(data, options...)
 	if int(l.Length)-8*(l.Labels.Len()) < 0 {
 		l.Labels.Labels = []uint32{}
 	}
@@ -1746,7 +1779,7 @@ func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byt
 		}
 	}
 	buf = append(buf, l.Length)
-	lbuf, err := l.Labels.Serialize()
+	lbuf, err := l.Labels.Serialize(options...)
 	if err != nil {
 		return nil, err
 	}
@@ -8480,6 +8513,7 @@ var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_AIGP:                     BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_LARGE_COMMUNITY:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_LS:                       BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_PREFIX_SID:               BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 }
 
 // getPathAttrFlags returns BGP Path Attribute flags value from its type and
@@ -9515,6 +9549,7 @@ type PathAttributeMpReachNLRI struct {
 }
 
 func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+
 	value, err := p.PathAttribute.DecodeFromBytes(data, options...)
 	if err != nil {
 		return err
@@ -12325,6 +12360,56 @@ func NewPathAttributeUnknown(flags BGPAttrFlag, typ BGPAttrType, value []byte) *
 	}
 }
 
+// BGPUpdateAttributes defines a map with a key as bgp attribute type
+// and value as bool. Value set to true indicates that the attribute specified by the key
+// exists in the bgp update.
+type BGPUpdateAttributes struct {
+	Attribute map[BGPAttrType]bool
+}
+
+func GetBGPUpdateAttributes(data []byte) map[BGPAttrType]bool {
+	m := make(map[BGPAttrType]bool)
+	for p := 0; p < len(data); {
+		flag := data[p]
+		p++
+		if p < len(data) {
+			t := data[p]
+			m[BGPAttrType(t)] = true
+		} else {
+			break
+		}
+		p++
+		var l uint16
+		// Checking for Extened
+		if flag&0x10 == 0x10 {
+			if p+2 <= len(data) {
+				l = binary.BigEndian.Uint16(data[p : p+2])
+			} else {
+				break
+			}
+			p += 2
+		} else {
+			if p < len(data) {
+				l = uint16(data[p])
+				p++
+			} else {
+				break
+			}
+		}
+		p += int(l)
+	}
+	return m
+}
+
+func GetBGPUpdateAttributesFromMsg(msg *BGPUpdate) map[BGPAttrType]bool {
+	m := make(map[BGPAttrType]bool)
+	for _, p := range msg.PathAttributes {
+		m[p.GetType()] = true
+	}
+
+	return m
+}
+
 func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 	if len(data) < 2 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -12440,6 +12525,11 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	if len(data) < int(msg.TotalPathAttributeLen) {
 		return NewMessageError(eCode, eSubCode, nil, "path total attribute length exceeds message length")
 	}
+	attributes := GetBGPUpdateAttributes(data)
+	o := MarshallingOption{
+		Attributes: attributes,
+	}
+	options = append(options, &o)
 
 	msg.PathAttributes = []PathAttributeInterface{}
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
@@ -12457,7 +12547,6 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		if err != nil {
 			return err
 		}
-
 		err = p.DecodeFromBytes(data, options...)
 		if err != nil {
 			e = err.(*MessageError)
@@ -12519,6 +12608,11 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	msg.WithdrawnRoutesLen = uint16(len(wbuf) - 2)
 	binary.BigEndian.PutUint16(wbuf, msg.WithdrawnRoutesLen)
 
+	attributes := GetBGPUpdateAttributesFromMsg(msg)
+	o := MarshallingOption{
+		Attributes: attributes,
+	}
+	options = append(options, &o)
 	pbuf := make([]byte, 2)
 	for _, p := range msg.PathAttributes {
 		onepbuf, err := p.Serialize(options...)
@@ -12538,6 +12632,7 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		}
 		buf = append(buf, nbuf...)
 	}
+
 	return buf, nil
 }
 

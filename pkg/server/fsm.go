@@ -757,19 +757,17 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 		}
 	}
 
-	// unnumbered BGP
-	if pConf.Config.NeighborInterface != "" {
-		tuples := []*bgp.CapExtendedNexthopTuple{}
-		families, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
-		for _, family := range families {
-			if family == bgp.RF_IPv6_UC {
-				continue
-			}
-			tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
-			tuples = append(tuples, tuple)
+	// Extended Nexthop Capability (Code 5)
+	tuples := []*bgp.CapExtendedNexthopTuple{}
+	families, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
+	for _, family := range families {
+		if family == bgp.RF_IPv6_UC {
+			continue
 		}
-		caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
+		tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
+		tuples = append(tuples, tuple)
 	}
+	caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
 
 	// ADD-PATH Capability
 	if c := capAddPathFromConfig(pConf); c != nil {
