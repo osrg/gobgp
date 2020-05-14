@@ -1815,7 +1815,7 @@ func (l *LabeledVPNIPAddrPrefix) Len(options ...*MarshallingOption) int {
 }
 
 func (l *LabeledVPNIPAddrPrefix) String() string {
-	return fmt.Sprintf("%s:%s", l.RD, l.IPPrefix())
+	return fmt.Sprintf("%s:%s Label Stack: %s", l.RD, l.IPPrefix(), l.Labels.String())
 }
 
 func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
