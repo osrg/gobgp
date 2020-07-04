@@ -767,7 +767,9 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 		tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
 		tuples = append(tuples, tuple)
 	}
-	caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
+	if len(tuples) != 0 {
+		caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
+	}
 
 	// ADD-PATH Capability
 	if c := capAddPathFromConfig(pConf); c != nil {
