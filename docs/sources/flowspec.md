@@ -370,7 +370,7 @@ $ gobgp global rib -a ipv4-flowspec
 
 | Key      | Operand                                                    | Value                                                  |
 | -------- | ---------------------------------------------------------- | ------------------------------------------------------ |
-| fragment | \[&] \[== &#124; > &#124; >= &#124; < &#124; <= &#124; !=] | Ethernet type name, decimal number, `true` or `false`. |
+| ether-type | \[&] \[== &#124; > &#124; >= &#124; < &#124; <= &#124; !=] | Ethernet type name, decimal number, `true` or `false`. |
 
 Supported Ethernet Type Names: `ipv4`, `arp`, `rarp`, `vmtp`, `apple-talk`,
 `aarp`, `ipx`, `snmp`, `net-bios`, `xtp`, `ipv6`, `pppoe-discovery`,
