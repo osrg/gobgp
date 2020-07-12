@@ -7800,7 +7800,15 @@ func (l *LsAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) 
 }
 
 func (l *LsAddrPrefix) MarshalJSON() ([]byte, error) {
-	return nil, nil
+	return json.Marshal(struct {
+		Type   LsNLRIType `json:"type"`
+		Length uint16     `json:"length"`
+		NLRI   string     `json:"nlri"`
+	}{
+		l.Type,
+		l.Length,
+		l.String(),
+	})
 }
 
 func (l *LsAddrPrefix) String() string {
