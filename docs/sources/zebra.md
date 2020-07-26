@@ -71,6 +71,7 @@ You need to enable the zebra feature in the Global configuration as follows.
   5.
 
 ### Summary of combination of version and software-name configrations
+
 |version|software-name|software                 |remarks              |
 |-------|-------------|-------------------------|---------------------|
 |2      |             |quagga                   |Ubuntu 16.04, CentOS7|
