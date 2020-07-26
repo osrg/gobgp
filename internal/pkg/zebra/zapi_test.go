@@ -111,7 +111,7 @@ func Test_interfaceUpdateBody(t *testing.T) {
 		pos += 4 // MTU6
 		binary.BigEndian.PutUint32(buf[pos:], 200)
 		pos += 4    // bandwidth
-		if v == 6 { // "frr7.2", "frr7.3", ""
+		if v == 6 { // "frr7.2", ""
 			binary.BigEndian.PutUint32(buf[pos:], 1)
 			pos += 4 // link Ifindex
 		}
@@ -275,7 +275,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			buf[pos] = byte(nexthopTypeIPv4IFIndex)
 			pos++
 		}
-		if v == 6 { //onlink (frr7,1, 7.2, 7.3)
+		if v == 6 { //onlink (frr7,1, 7.2, 7.3, 7.4)
 			buf[pos] = 1
 			pos++
 		}
@@ -362,7 +362,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			assert.Equal(byte(nexthopTypeIPv4IFIndex), buf[pos])
 			pos += 9
 		}
-		if v == 6 { //onlink (frr7,1, 7.2, 7.3)
+		if v == 6 { //onlink (frr7,1, 7.2, 7.3, 7.4)
 			assert.Equal(byte(0x1), buf[pos])
 			pos++
 		}
@@ -412,7 +412,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			buf[pos] = byte(nexthopTypeIPv4IFIndex)
 			pos++
 		}
-		if v == 6 { //onlink (frr7,1, 7.2, 7.3)
+		if v == 6 { //onlink (frr7,1, 7.2, 7.3, 7.4)
 			buf[pos] = 1
 			pos++
 		}
@@ -553,7 +553,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 			buf[pos] = byte(nexthopTypeIPv6IFIndex)
 			pos++
 		}
-		if v == 6 { //onlink (frr7,1, 7.2, 7.3)
+		if v == 6 { //onlink (frr7,1, 7.2, 7.3, 7.4)
 			buf[pos] = 1
 			pos++
 		}
@@ -628,7 +628,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		}
 		assert.Equal(byte(nexthopType[v]), buf[pos])
 		pos++
-		if v == 6 { //onlink (frr7,1, 7.2, 7.3)
+		if v == 6 { //onlink (frr7,1, 7.2, 7.3, 7.4)
 			assert.Equal(byte(0x1), buf[pos])
 			pos++
 		}
@@ -690,7 +690,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 			buf[pos] = byte(nexthopTypeIPv6IFIndex)
 			pos++
 		}
-		if v == 6 { //onlink (frr7,1, 7.2, 7.3)
+		if v == 6 { //onlink (frr7,1, 7.2, 7.3, 7.4)
 			buf[pos] = 1
 			pos++
 		}
@@ -974,14 +974,14 @@ func Test_NexthopUpdateBody(t *testing.T) {
 		}
 		bufIn[pos] = byte(nexthopType[v])
 		pos++
-		if v == 6 { // frr7.3 and after
+		if v == 6 { // frr7.3 and later
 			bufIn[pos] = byte(0) // nexthop flag
 			pos++
 		}
 		// nexthop_ip(4 bytes)="192.168.0.1", nexthop_Ifindex(4 byte)=2
 		copy(bufIn[pos:pos+8], []byte{0xc0, 0xa8, 0x01, 0x01, 0x00, 0x00, 0x00, 0x02})
 		pos += 8
-		if v == 5 { // frr7.3(latest software of zapi v6) depends on nexthop flag
+		if v == 5 { // frr7.3&7.4 (latest software of zapi v6) depends on nexthop flag
 			bufIn[pos] = byte(0) // label num
 			pos++
 		}

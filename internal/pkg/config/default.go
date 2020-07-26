@@ -421,16 +421,7 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		b.Zebra.Config.NexthopTriggerDelay = 5
 	}
 
-	//SoftwareName for Zebra
-	allowableZebraSoftwareName := []string{"", "quagga", "frr3", "frr4", "frr5", "frr6", "frr7", "frr7.1", "frr7.2", "frr7.3", "cumulus"}
-	isAllowable := false
-	for _, allowable := range allowableZebraSoftwareName {
-		if b.Zebra.Config.SoftwareName == allowable {
-			isAllowable = true
-			break
-		}
-	}
-	if !isAllowable {
+	if !zebra.IsAllowableSoftwareName(b.Zebra.Config.Version, b.Zebra.Config.SoftwareName) {
 		b.Zebra.Config.SoftwareName = ""
 	}
 

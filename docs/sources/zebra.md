@@ -11,15 +11,9 @@ Assume you finished [Getting Started](getting-started.md)
 and installing Quagga or FRRouting on the same host with GoBGP.
 
 **Note:** For the integration with FRRouting, version 3.0.x (Zebra API
-version 4), 5.0.x (Zebra API version 5), and 7.0.x (Zebra API version
-6) are supported as default. FRRouting version 5.0.x changes zebra
-message and it doesn't keep backward compatibility for FRRouting
-version 4.0.x although FRRouting version 4.0.x and 5.0.x use Zebra API
-version 5. Also, FRRouting version 7.0.x and 7.1.x changes zebra
-message and it doesn't keep backward compatibility for FRRouting
-version 6.0.x although FRRouting version 6.0.x, 7.0.x, 7.1.x and 7.2.x
-use Zebra API version 6. If you need to integrate with FRRouting
-version 4.0.x or 6.0x, please use `software-name` configuration.
+version 4), 5.0.x (Zebra API version 5), and 7.3.x (Zebra API version
+6) are supported as default. If you need to integrate with other
+version of FRRouting, please use `software-name` configuration.
 
 ## Contents
 
@@ -56,7 +50,7 @@ You need to enable the zebra feature in the Global configuration as follows.
   To enable the Next-Hop Tracking features, please specify `3` or later.
   For connecting to FRRouting 3.0.x, please specify `4`.
   For connecting to FRRouting 5.0.x, please specify `5`.
-  For connecting to FRRouting 7.0.x, please specify `6`.
+  For connecting to FRRouting 7.3.x, please specify `6`.
 
 - `mpls-label-range-size` specifies mpls label range size for
   requesting to Zebra. It works with FRRouting 5.0.x, FRRouting 6.0.x,
@@ -66,14 +60,29 @@ You need to enable the zebra feature in the Global configuration as follows.
   configuration cannot specify software uniquely. This configuration
   is used with 'version' configuration. For connecting to FRRouting
   7.2.x, please specify `6` as `version` and `frr7.2` as
-  `software-name`. For connecting to FRRouting 7.1.x, please specify
-  `6` as `version` and `frr7.1` as `software-name`. For connecting to
-  FRRouting 6.0.x, please specify `6` as `version` and `frr6` as
-  `software-name`.  For connecting to FRRouting 4.0.x, please specify
-  `5` as `version` and `frr4` as `software-name`. For connecting to
-  Cumulus Linux please specify `5` as `version` and `cumulus` as
-  `software-name`. GoBGP is tested with Cumulus Linux VX 3.7.7 whose
-  zebra version is 4.0+cl3u13 and its Zebra API version is 5.
+  `software-name`. For connecting to FRRouting 7.1.x and 7.0.x, please
+  specify `6` as `version` and `frr7` as `software-name`. For
+  connecting to FRRouting 6.0.x, please specify `6` as `version` and
+  `frr6` as `software-name`.  For connecting to FRRouting 4.0.x,
+  please specify `5` as `version` and `frr4` as `software-name`. For
+  connecting to Cumulus Linux please specify `5` as `version` and
+  `cumulus` as `software-name`. GoBGP is tested with Cumulus Linux VX
+  3.7.7 whose zebra version is 4.0+cl3u13 and its Zebra API version is
+  5.
+
+### Summary of combination of version and software-name configrations
+|version|software-name|software                 |remarks              |
+|-------|-------------|-------------------------|---------------------|
+|2      |             |quagga                   |Ubuntu 16.04, CentOS7|
+|3      |             |quagga                   |Ubuntu 18.04         |
+|4      |             |FRRouting 3.0.x          |                     |
+|5      |             |FRRouting 5.0.x          |                     |
+|5      |cumulus      |Cumulus Linux VX 3.7.7   |                     |
+|5      |frr4         |FRRouting 4.0.x          |                     |
+|6      |             |FRRouting 7.3.x and 7.4.x|stable version of frr|
+|6      |frr7.2       |FRRouting 7.2.x          |Ubuntu 20.04         |
+|6      |frr7         |FRRouting 7.0.x and 7.1.x|CentOS8              |
+|6      |frr6         |FRRouting 6.0.x          |                     |
 
 ## Check Routes from zebra
 
