@@ -634,26 +634,38 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *any.Any {
 		switch n := v.NLRI.(type) {
 		case *bgp.LsNodeNLRI:
 			nlri = &api.LsAddrPrefix{
-				Type: api.LsNLRIType_LS_NLRI_NODE,
-				Nlri: MarshalLsNodeNLRI(n),
+				Type:       api.LsNLRIType_LS_NLRI_NODE,
+				Length:     uint32(n.Length),
+				ProtocolId: api.LsProtocolID(n.ProtocolID),
+				Identifier: n.Identifier,
+				Nlri:       MarshalLsNodeNLRI(n),
 			}
 
 		case *bgp.LsLinkNLRI:
 			nlri = &api.LsAddrPrefix{
-				Type: api.LsNLRIType_LS_NLRI_LINK,
-				Nlri: MarshalLsLinkNLRI(n),
+				Type:       api.LsNLRIType_LS_NLRI_LINK,
+				Length:     uint32(n.Length),
+				ProtocolId: api.LsProtocolID(n.ProtocolID),
+				Identifier: n.Identifier,
+				Nlri:       MarshalLsLinkNLRI(n),
 			}
 
 		case *bgp.LsPrefixV4NLRI:
 			nlri = &api.LsAddrPrefix{
-				Type: api.LsNLRIType_LS_NLRI_PREFIX_V4,
-				Nlri: MarshalLsPrefixV4NLRI(n),
+				Type:       api.LsNLRIType_LS_NLRI_PREFIX_V4,
+				Length:     uint32(n.Length),
+				ProtocolId: api.LsProtocolID(n.ProtocolID),
+				Identifier: n.Identifier,
+				Nlri:       MarshalLsPrefixV4NLRI(n),
 			}
 
 		case *bgp.LsPrefixV6NLRI:
 			nlri = &api.LsAddrPrefix{
-				Type: api.LsNLRIType_LS_NLRI_PREFIX_V6,
-				Nlri: MarshalLsPrefixV6NLRI(n),
+				Type:       api.LsNLRIType_LS_NLRI_PREFIX_V6,
+				Length:     uint32(n.Length),
+				ProtocolId: api.LsProtocolID(n.ProtocolID),
+				Identifier: n.Identifier,
+				Nlri:       MarshalLsPrefixV6NLRI(n),
 			}
 		}
 	}
