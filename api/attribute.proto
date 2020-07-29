@@ -309,16 +309,29 @@ enum LsNLRIType {
   LS_NLRI_PREFIX_V6 = 4;
 }
 
+enum LsProtocolID {
+  LS_PROTOCOL_UNKNOWN = 0;
+  LS_PROTOCOL_ISIS_L1 = 1;
+  LS_PROTOCOL_ISIS_L2 = 2;
+  LS_PROTOCOL_OSPF_V2 = 3;
+  LS_PROTOCOL_DIRECT = 4;
+  LS_PROTOCOL_STATIC = 5;
+  LS_PROTOCOL_OSPF_V3 = 6;
+}
+
 // LsAddrPrefix represents the NLRI for:
 // - AFI=16388, SAFI=71
 message LsAddrPrefix {
   LsNLRIType type = 1;
+  uint32 length = 2;
+  LsProtocolID protocol_id = 3;
+  uint64 identifier = 4;
   // One of:
   // - LsNodeNLRI
   // - LsLinkNLRI
   // - LsPrefixV4NLRI
   // - LsPrefixV6NLRI
-  google.protobuf.Any nlri = 2;
+  google.protobuf.Any nlri = 5;
 }
 
 message MpReachNLRIAttribute {
