@@ -323,15 +323,15 @@ enum LsProtocolID {
 // - AFI=16388, SAFI=71
 message LsAddrPrefix {
   LsNLRIType type = 1;
-  uint32 length = 2;
-  LsProtocolID protocol_id = 3;
-  uint64 identifier = 4;
   // One of:
   // - LsNodeNLRI
   // - LsLinkNLRI
   // - LsPrefixV4NLRI
   // - LsPrefixV6NLRI
-  google.protobuf.Any nlri = 5;
+  google.protobuf.Any nlri = 2;
+  uint32 length = 3;
+  LsProtocolID protocol_id = 4;
+  uint64 identifier = 5;
 }
 
 message MpReachNLRIAttribute {
