@@ -118,6 +118,28 @@ func TestCalculate2(t *testing.T) {
 	assert.Equal(t, len(d.knownPathList), 3)
 }
 
+func TestNeighAddrTieBreak(t *testing.T) {
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	peer0 := &PeerInfo{AS: 65001, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}}
+
+	p0 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(peer0, nlri, false, attrs, time.Now(), false)
+	}()
+
+	peer1 := &PeerInfo{AS: 65001, LocalAS: 1, Address: net.IP{3, 3, 3, 3}, ID: net.IP{2, 2, 2, 2}} // same ID as peer0, separate eBGP session
+
+	p1 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(peer1, nlri, false, attrs, time.Now(), false)
+	}()
+
+	assert.Equal(t, compareByNeighborAddress(p0, p1), p0)
+}
+
 func TestMedTieBreaker(t *testing.T) {
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
 

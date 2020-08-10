@@ -50,6 +50,7 @@ const (
 	BPR_ROUTER_ID
 	BPR_OLDER
 	BPR_NON_LLGR_STALE
+	BPR_NEIGH_ADDR
 )
 
 var BestPathReasonStringMap = map[BestPathReason]string{
@@ -68,6 +69,7 @@ var BestPathReasonStringMap = map[BestPathReason]string{
 	BPR_ROUTER_ID:          "Router ID",
 	BPR_OLDER:              "Older",
 	BPR_NON_LLGR_STALE:     "no LLGR Stale",
+	BPR_NEIGH_ADDR:         "Neighbor Address",
 }
 
 func (r *BestPathReason) String() string {
@@ -479,6 +481,10 @@ func (dst *Destination) sort() BestPathReason {
 				}).Error("Could not get best path by comparing router ID")
 			}
 			reason = BPR_ROUTER_ID
+		}
+		if better == nil {
+			better = compareByNeighborAddress(path1, path2)
+			reason = BPR_NEIGH_ADDR
 		}
 		if better == nil {
 			reason = BPR_UNKNOWN
@@ -916,6 +922,31 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	} else {
 		return path2, nil
 	}
+}
+
+func compareByNeighborAddress(path1, path2 *Path) *Path {
+	// Select the route received from the peer with the lowest peer address as
+	// per RFC 4271 9.1.2.2. g
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByNeighborAddress")
+
+	p1 := path1.GetSource().Address
+	if p1 == nil {
+		return path1
+	}
+	p2 := path2.GetSource().Address
+	if p2 == nil {
+		return path2
+	}
+
+	cmp := bytes.Compare(p1, p2)
+	if cmp < 0 {
+		return path1
+	} else if cmp > 0 {
+		return path2
+	}
+	return nil
 }
 
 func compareByAge(path1, path2 *Path) *Path {
