@@ -69,6 +69,7 @@ class GoBGPTestBase(unittest.TestCase):
     # Single nexthop route
     10.0.0.0/24 via 127.0.0.2 dev lo proto zebra metric 20
     """
+
     def parse_ip_route(self, ip_route_output):
         routes = {}
         current_mpath_dest = ""
@@ -254,7 +255,7 @@ class GoBGPTestBase(unittest.TestCase):
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) is not 0:
+    if int(output) != 0:
         print("docker not found")
         sys.exit(1)
 

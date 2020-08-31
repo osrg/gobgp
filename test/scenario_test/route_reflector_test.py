@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 import sys
 import time
 import unittest
@@ -139,7 +138,6 @@ class GoBGPTestBase(unittest.TestCase):
         # | (RR Client) |  | (RR Client) |  | (RR Client) |  | (RR Client) |
         # +-------------+  +-------------+  +-------------+  +-------------+
 
-
         gobgp_ctn_image_name = parser_option.gobgp_image
         rr = GoBGPContainer(name='rr', asn=65000, router_id='192.168.1.1',
                             ctn_image_name=gobgp_ctn_image_name,
@@ -260,7 +258,7 @@ class GoBGPTestBase(unittest.TestCase):
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) is not 0:
+    if int(output) != 0:
         print("docker not found")
         sys.exit(1)
 

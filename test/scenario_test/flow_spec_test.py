@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 import sys
 import time
 import unittest
@@ -409,7 +408,7 @@ class FlowSpecTest(unittest.TestCase):
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) is not 0:
+    if int(output) != 0:
         print("docker not found")
         sys.exit(1)
 

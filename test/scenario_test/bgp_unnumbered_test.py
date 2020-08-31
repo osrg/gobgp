@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 import unittest
 from lib import base
 from lib.base import BGP_FSM_ESTABLISHED, local
@@ -47,6 +46,7 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time + 2)
 
         done = False
+
         def f(ifname, ctn):
             out = ctn.local('ip -6 n', capture=True)
             l = [line for line in out.split('\n') if ifname in line]
@@ -90,7 +90,7 @@ class GoBGPTestBase(unittest.TestCase):
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) is not 0:
+    if int(output) != 0:
         print("docker not found")
         sys.exit(1)
 
