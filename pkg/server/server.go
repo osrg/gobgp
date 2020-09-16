@@ -1296,6 +1296,7 @@ func (s *BgpServer) deleteDynamicNeighbor(peer *peer, oldState bgp.FSMState, e *
 	peer.fsm.lock.RUnlock()
 	cleanInfiniteChannel(peer.fsm.outgoingCh)
 	cleanInfiniteChannel(peer.fsm.incomingCh)
+	s.delIncoming(peer.fsm.incomingCh)
 	s.broadcastPeerState(peer, oldState, e)
 }
 
