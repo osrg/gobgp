@@ -323,7 +323,7 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 	}
 	name := args[0]
 	args = args[1:]
-	list := make([]string, 0, len(args[1:]))
+	list := make([]string, 0, len(args))
 	for _, arg := range args {
 		address := net.ParseIP(arg)
 		if address.To4() != nil {
