@@ -32,63 +32,13 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
+	table "github.com/osrg/gobgp/internal/pkg/table"
 )
 
 var (
 	_regexpCommunity      = regexp.MustCompile(`\^\^(\S+)\$\$`)
-	repexpCommunity       = regexp.MustCompile(`(\d+.)*\d+:\d+`)
-	regexpLargeCommunity  = regexp.MustCompile(`\d+:\d+:\d+`)
 	regexpCommunityString = regexp.MustCompile(`[\^\$]`)
 )
-
-func parseCommunityRegexp(arg string) (*regexp.Regexp, error) {
-	i, err := strconv.ParseUint(arg, 10, 32)
-	if err == nil {
-		return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
-	}
-	if repexpCommunity.MatchString(arg) {
-		return regexp.Compile(fmt.Sprintf("^%s$", arg))
-	}
-	for i, v := range bgp.WellKnownCommunityNameMap {
-		if strings.Replace(strings.ToLower(arg), "_", "-", -1) == v {
-			return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
-		}
-	}
-	exp, err := regexp.Compile(arg)
-	if err != nil {
-		return nil, fmt.Errorf("invalid community format: %s", arg)
-	}
-	return exp, nil
-}
-
-func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *regexp.Regexp, error) {
-	var subtype bgp.ExtendedCommunityAttrSubType
-	elems := strings.SplitN(arg, ":", 2)
-	if len(elems) < 2 {
-		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo]:<value>)")
-	}
-	switch strings.ToLower(elems[0]) {
-	case "rt":
-		subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
-	case "soo":
-		subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
-	default:
-		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
-	}
-	exp, err := parseCommunityRegexp(elems[1])
-	return subtype, exp, err
-}
-
-func parseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
-	if regexpLargeCommunity.MatchString(arg) {
-		return regexp.Compile(fmt.Sprintf("^%s$", arg))
-	}
-	exp, err := regexp.Compile(arg)
-	if err != nil {
-		return nil, fmt.Errorf("invalid large-community format: %s", arg)
-	}
-	return exp, nil
-}
 
 func routeTypePrettyString(s api.Conditions_RouteType) string {
 	switch s {
@@ -370,7 +320,7 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := parseCommunityRegexp(arg); err != nil {
+		if _, err := table.ParseCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -388,7 +338,7 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, _, err := parseExtCommunityRegexp(arg); err != nil {
+		if _, _, err := table.ParseExtCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -406,7 +356,7 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := parseLargeCommunityRegexp(arg); err != nil {
+		if _, err := table.ParseLargeCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
