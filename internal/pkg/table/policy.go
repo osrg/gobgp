@@ -1135,7 +1135,7 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 	return bgp.ParseExtendedCommunity(subtype, value)
 }
 
-var _regexpCommunity2 = regexp.MustCompile(`(\d+.)*\d+:\d+`)
+var _regexpCommunity2 = regexp.MustCompile(`^(\d+.)*\d+:\d+$`)
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	i, err := strconv.ParseUint(arg, 10, 32)
