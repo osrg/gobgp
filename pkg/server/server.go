@@ -3492,9 +3492,6 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 				if err != nil {
 					return err
 				}
-				if len(policies) == 0 {
-					continue
-				}
 				t := &table.PolicyAssignment{
 					Name:     name,
 					Type:     dir,

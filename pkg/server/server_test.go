@@ -194,19 +194,19 @@ func TestListPolicyAssignment(t *testing.T) {
 		Name: table.GLOBAL_RIB_NAME,
 	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
-	assert.Equal(len(ps), 0)
+	assert.Equal(2, len(ps))
 
 	ps = []*api.PolicyAssignment{}
 	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
-	assert.Equal(len(ps), 3)
+	assert.Equal(8, len(ps))
 
 	ps = []*api.PolicyAssignment{}
 	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Direction: api.PolicyDirection_EXPORT,
 	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
-	assert.Equal(len(ps), 0)
+	assert.Equal(4, len(ps))
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
