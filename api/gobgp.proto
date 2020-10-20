@@ -228,6 +228,8 @@ message ListPathRequest {
   }
   SortType sort_type = 5;
   bool enable_filtered = 6;
+  bool enable_nlri_binary = 7;
+  bool enable_attribute_binary = 8;
 }
 
 message ListPathResponse {

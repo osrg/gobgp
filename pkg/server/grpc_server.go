@@ -153,11 +153,26 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 	return p
 }
 
-func toPathApi(path *table.Path, v *table.Validation) *api.Path {
+func toPathApi(path *table.Path, v *table.Validation, nlri_binary, attribute_binary bool) *api.Path {
 	nlri := path.GetNlri()
 	anyNlri := apiutil.MarshalNLRI(nlri)
 	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
-	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
+	var binNlri []byte
+	if nlri_binary {
+		binNlri, _ = nlri.Serialize()
+	}
+	var binPattrs [][]byte
+	if attribute_binary {
+		pa := path.GetPathAttrs()
+		binPattrs = make([][]byte, 0, len(pa))
+		for _, a := range pa {
+			b, e := a.Serialize()
+			if e == nil {
+				binPattrs = append(binPattrs, b)
+			}
+		}
+	}
+	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path, v)
 }
 
 func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Validation {
