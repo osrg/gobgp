@@ -504,20 +504,29 @@ func readApplyPolicyFromAPIStruct(c *config.ApplyPolicy, a *api.ApplyPolicy) {
 	if c == nil || a == nil {
 		return
 	}
+	f := func(a api.RouteAction) config.DefaultPolicyType {
+		if a == api.RouteAction_ACCEPT {
+			return config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+		} else if a == api.RouteAction_REJECT {
+			return config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+		}
+		return ""
+	}
+
 	if a.ImportPolicy != nil {
-		c.Config.DefaultImportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ImportPolicy.DefaultAction)]
+		c.Config.DefaultImportPolicy = f(a.ImportPolicy.DefaultAction)
 		for _, p := range a.ImportPolicy.Policies {
 			c.Config.ImportPolicyList = append(c.Config.ImportPolicyList, p.Name)
 		}
 	}
 	if a.ExportPolicy != nil {
-		c.Config.DefaultExportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ExportPolicy.DefaultAction)]
+		c.Config.DefaultExportPolicy = f(a.ExportPolicy.DefaultAction)
 		for _, p := range a.ExportPolicy.Policies {
 			c.Config.ExportPolicyList = append(c.Config.ExportPolicyList, p.Name)
 		}
 	}
 	if a.InPolicy != nil {
-		c.Config.DefaultInPolicy = config.IntToDefaultPolicyTypeMap[int(a.InPolicy.DefaultAction)]
+		c.Config.DefaultInPolicy = f(a.InPolicy.DefaultAction)
 		for _, p := range a.InPolicy.Policies {
 			c.Config.InPolicyList = append(c.Config.InPolicyList, p.Name)
 		}
