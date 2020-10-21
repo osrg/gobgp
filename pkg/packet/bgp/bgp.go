@@ -1185,6 +1185,11 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen ui
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 		return NewMessageError(eCode, eSubCode, nil, "network bytes is short")
 	}
+	if bitlen > addrlen*8 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "network bit length is too long")
+	}
 	b := make([]byte, addrlen)
 	copy(b, data[:bytelen])
 	// clear trailing bits in the last byte. rfc doesn't require

@@ -84,6 +84,12 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	assert.Equal(t, "3343:faba:3903:128::/63", ipv6.String())
 }
 
+func Test_IPAddrDecode(t *testing.T) {
+	r := IPAddrPrefixDefault{}
+	b := make([]byte, 16)
+	r.decodePrefix(b, 33, 4)
+}
+
 func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert := assert.New(t)
 
@@ -667,7 +673,7 @@ func Test_AddPath(t *testing.T) {
 		n1.SetPathLocalIdentifier(20)
 		bits, err := n1.Serialize(opt)
 		assert.Nil(err)
-		n2 := NewLabeledVPNIPAddrPrefix(0, "", MPLSLabelStack{}, nil)
+		n2 := NewLabeledVPNIPv6AddrPrefix(0, "", MPLSLabelStack{}, nil)
 		err = n2.DecodeFromBytes(bits, opt)
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
@@ -690,7 +696,7 @@ func Test_AddPath(t *testing.T) {
 		n1.SetPathLocalIdentifier(20)
 		bits, err := n1.Serialize(opt)
 		assert.Nil(err)
-		n2 := NewLabeledIPAddrPrefix(0, "", MPLSLabelStack{})
+		n2 := NewLabeledIPv6AddrPrefix(0, "", MPLSLabelStack{})
 		err = n2.DecodeFromBytes(bits, opt)
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
