@@ -3793,6 +3793,22 @@ func (s *BgpServer) MonitorPeer(ctx context.Context, r *api.MonitorPeerRequest, 
 	return nil
 }
 
+func (s *BgpServer) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) error {
+	prevLevel := log.GetLevel()
+	newLevel := log.Level(r.Level)
+	if prevLevel == newLevel {
+		log.WithFields(log.Fields{
+			"Topic": "Config",
+		}).Infof("Logging level unchanged -- level already set to %v", newLevel)
+	} else {
+		log.SetLevel(newLevel)
+		log.WithFields(log.Fields{
+			"Topic": "Config",
+		}).Infof("Logging level changed -- prev: %v, new: %v", prevLevel, newLevel)
+	}
+	return nil
+}
+
 type watchEventType string
 
 const (

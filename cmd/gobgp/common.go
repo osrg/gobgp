@@ -75,6 +75,14 @@ const (
 	cmdBMP            = "bmp"
 	cmdLargecommunity = "large-community"
 	cmdSummary        = "summary"
+	cmdLogLevel       = "log-level"
+	cmdPanic          = "panic"
+	cmdFatal          = "fatal"
+	cmdError          = "error"
+	cmdWarn           = "warn"
+	cmdInfo           = "info"
+	cmdDebug          = "debug"
+	cmdTrace          = "trace"
 )
 
 const (

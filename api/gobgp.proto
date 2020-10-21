@@ -95,6 +95,8 @@ service GobgpApi {
 
   rpc AddBmp(AddBmpRequest) returns (google.protobuf.Empty);
   rpc DeleteBmp(DeleteBmpRequest) returns (google.protobuf.Empty);
+
+  rpc SetLogLevel(SetLogLevelRequest) returns (google.protobuf.Empty);
 }
 
 message StartBgpRequest {
@@ -1193,4 +1195,17 @@ message RPKIState {
 message Rpki {
   RPKIConf conf = 1;
   RPKIState state = 2;
+}
+
+message SetLogLevelRequest {
+  enum Level {
+    PANIC = 0;
+    FATAL = 1;
+    ERROR = 2;
+    WARN  = 3;
+    INFO  = 4;
+    DEBUG = 5;
+    TRACE = 6;
+  }
+  Level level = 1;
 }

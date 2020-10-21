@@ -263,6 +263,7 @@ It has these top-level messages:
 	RPKIConf
 	RPKIState
 	Rpki
+	SetLogLevelRequest
 */
 package gobgpapi
 
