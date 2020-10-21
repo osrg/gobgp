@@ -1772,3 +1772,7 @@ func (s *server) StopBgp(ctx context.Context, r *api.StopBgpRequest) (*empty.Emp
 func (s *server) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.GetTableResponse, error) {
 	return s.bgpServer.GetTable(ctx, r)
 }
+
+func (s *server) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.bgpServer.SetLogLevel(ctx, r)
+}
