@@ -310,6 +310,9 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		case *bgp.PathAttributeNextHop:
 			nexthop = a.Value.String()
 		case *bgp.PathAttributeMpReachNLRI:
+			if len(a.Value) == 0 {
+				return nil, fmt.Errorf("invalid mp reach attribute")
+			}
 			nlri = a.Value[0]
 			nexthop = a.Nexthop.String()
 		default:

@@ -1506,6 +1506,9 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 		}
 		return bgp.NewPathAttributeClusterList(a.Ids), nil
 	case *api.MpReachNLRIAttribute:
+		if a.Family == nil {
+			return nil, fmt.Errorf("empty family")
+		}
 		rf := ToRouteFamily(a.Family)
 		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
 		if err != nil {

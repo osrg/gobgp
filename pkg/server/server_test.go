@@ -1559,3 +1559,36 @@ func TestDeleteVrf(t *testing.T) {
 	}
 	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }
+
+func TestAddBogusPath(t *testing.T) {
+	ctx := context.Background()
+	s := runNewServer(1, "1.1.1.1", 10179)
+
+	nlri, _ := ptypes.MarshalAny(&api.IPAddressPrefix{})
+
+	a, _ := ptypes.MarshalAny(&api.MpReachNLRIAttribute{})
+
+	_, err := s.AddPath(ctx, &api.AddPathRequest{
+		Path: &api.Path{
+			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+			Nlri:   nlri,
+			Pattrs: []*any.Any{a},
+		},
+	})
+	assert.NotNil(t, err)
+
+	nlri, _ = ptypes.MarshalAny(&api.IPAddressPrefix{})
+
+	a, _ = ptypes.MarshalAny(&api.MpReachNLRIAttribute{
+		Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_FLOW_SPEC_UNICAST},
+	})
+
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		Path: &api.Path{
+			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+			Nlri:   nlri,
+			Pattrs: []*any.Any{a},
+		},
+	})
+	assert.NotNil(t, err)
+}
