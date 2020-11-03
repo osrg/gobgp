@@ -3692,9 +3692,9 @@ func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest
 			return s.watch(watchBestPath(r.Current)), nil
 		case api.TableType_ADJ_IN:
 			if r.PostPolicy {
-				return s.watch(watchPostUpdate(r.Current)), nil
+				return s.watch(watchPostUpdate(r.Current, r.Name)), nil
 			}
-			return s.watch(watchUpdate(r.Current)), nil
+			return s.watch(watchUpdate(r.Current, r.Name)), nil
 		default:
 			return nil, fmt.Errorf("unsupported resource type: %v", r.TableType)
 		}
@@ -3732,6 +3732,9 @@ func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest
 				}
 				for _, path := range pl {
 					if path == nil || (r.Family != nil && family != path.GetRouteFamily()) {
+						continue
+					}
+					if len(r.Name) > 0 && r.Name != path.GetSource().Address.String() {
 						continue
 					}
 					select {
@@ -3882,6 +3885,7 @@ type watchOptions struct {
 	initPeerState  bool
 	tableName      string
 	recvMessage    bool
+	peerAddress    string
 }
 
 type watchOption func(*watchOptions)
@@ -3895,21 +3899,23 @@ func watchBestPath(current bool) watchOption {
 	}
 }
 
-func watchUpdate(current bool) watchOption {
+func watchUpdate(current bool, peerAddress string) watchOption {
 	return func(o *watchOptions) {
 		o.preUpdate = true
 		if current {
 			o.initUpdate = true
 		}
+		o.peerAddress = peerAddress
 	}
 }
 
-func watchPostUpdate(current bool) watchOption {
+func watchPostUpdate(current bool, peerAddress string) watchOption {
 	return func(o *watchOptions) {
 		o.postUpdate = true
 		if current {
 			o.initPostUpdate = true
 		}
+		o.peerAddress = peerAddress
 	}
 }
 
@@ -4091,8 +4097,12 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			for _, peer := range s.neighborMap {
 				peer.fsm.lock.RLock()
 				notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
+				peerAddress := peer.fsm.peerInfo.Address.String()
 				peer.fsm.lock.RUnlock()
 				if notEstablished {
+					continue
+				}
+				if len(w.opts.peerAddress) > 0 && w.opts.peerAddress != peerAddress {
 					continue
 				}
 				configNeighbor := w.s.toConfig(peer, false)
@@ -4149,8 +4159,12 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 				for peerInfo, paths := range pathsByPeer {
 					// create copy which can be access to without mutex
 					var configNeighbor *config.Neighbor
-					if peer, ok := s.neighborMap[peerInfo.Address.String()]; ok {
+					peerAddress := peerInfo.Address.String()
+					if peer, ok := s.neighborMap[peerAddress]; ok {
 						configNeighbor = w.s.toConfig(peer, false)
+					}
+					if w.opts.peerAddress != "" && w.opts.peerAddress != peerAddress {
+						continue
 					}
 
 					w.notify(&watchEventUpdate{
