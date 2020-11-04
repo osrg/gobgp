@@ -581,7 +581,7 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchUpdate with "current" flag.
-	w = s.watch(watchUpdate(true))
+	w = s.watch(watchUpdate(true, ""))
 
 	// Test the initial route.
 	ev = <-w.Event()
@@ -1288,7 +1288,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher := s1.watch(watchUpdate(true))
+	watcher := s1.watch(watchUpdate(true, ""))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
