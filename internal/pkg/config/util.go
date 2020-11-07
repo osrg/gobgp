@@ -549,6 +549,8 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
 		if afiSafi := newAfiSafiFromConfigStruct(&f); afiSafi != nil {
+			afiSafi.AddPaths.Config.Receive = pconf.AddPaths.Config.Receive
+			afiSafi.AddPaths.Config.SendMax = uint32(pconf.AddPaths.Config.SendMax)
 			afiSafis = append(afiSafis, afiSafi)
 		}
 	}
