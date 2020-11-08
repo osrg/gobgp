@@ -11,11 +11,13 @@ def make_gobgp_ctn(ctx, tag='gobgp',
     if local_gobgp_path == '':
         local_gobgp_path = os.getcwd()
 
+    local('GO111MODULE=on CGO_ENABLED=0 go build "-ldflags=-s -w -buildid=" ./cmd/gobgp')
+    local('GO111MODULE=on CGO_ENABLED=0 go build "-ldflags=-s -w -buildid=" ./cmd/gobgpd')
+
     c = CmdBuffer()
     c << 'FROM {0}'.format(from_image)
-    c << 'ENV GO111MODULE on'
-    c << 'ADD gobgp /tmp/gobgp'
-    c << 'RUN cd /tmp/gobgp && go install ./cmd/gobgpd ./cmd/gobgp'
+    c << 'COPY gobgp/gobgpd /go/bin/gobgpd'
+    c << 'COPY gobgp/gobgp /go/bin/gobgp'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
