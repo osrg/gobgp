@@ -5,7 +5,7 @@ on: [pull_request]
 jobs:
   unit:
     name: unit
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-18.04
 
     steps:
       - uses: actions/checkout@master
@@ -15,7 +15,7 @@ jobs:
 
   unit386:
     name: unit386
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-18.04
     env:
       GOARCH: 386
     steps:
@@ -26,7 +26,7 @@ jobs:
 
   staticcheck:
     name: staticcheck
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
       - run: |
@@ -38,7 +38,7 @@ jobs:
 
   embeded:
     name: embeded
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
       - run: |
@@ -46,7 +46,7 @@ jobs:
 
   lintdoc:
     name: lintdoc
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
       - run: |
