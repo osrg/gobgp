@@ -113,10 +113,21 @@ func counter(p *api.Peer) (uint64, uint64, uint64, error) {
 }
 
 func showNeighbors(vrf string) error {
-	m, err := getNeighbors("", false)
+	l, err := getNeighbors("", false)
 	if err != nil {
 		return err
 	}
+	m := make([]*api.Peer, 0)
+	if vrf == "" {
+		m = l
+	} else {
+		for _, n := range l {
+			if n.Conf.Vrf == vrf {
+				m = append(m, n)
+			}
+		}
+	}
+
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
 		fmt.Println(string(j))
