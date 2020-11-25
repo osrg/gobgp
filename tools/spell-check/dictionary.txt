@@ -4,10 +4,12 @@ aggregator
 aigp
 aspath
 bgpd
+bsid
 cidr
 distinguisher
 dscp
 ebgp
+enlp
 ethernet
 evpn
 flowspec
