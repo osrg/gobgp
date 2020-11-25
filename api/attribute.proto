@@ -176,6 +176,26 @@ message EVPNIPMSIRoute {
   google.protobuf.Any rt = 3;
 }
 
+// SRPolicyNLRI represents the NLRI for:
+// - AFI=1, SAFI=73
+// - AFI=2, SAFI=73
+message SRPolicyNLRI {
+  // length field carries the length of NLRI portion expressed in bits
+  uint32 length = 1;
+  // distinguisher field carries 4-octet value uniquely identifying the policy
+  // in the context of <color, endpoint> tuple.
+  uint32 distinguisher = 2;
+  // color field carries 4-octet value identifying (with the endpoint) the
+  // policy.  The color is used to match the color of the destination
+  // prefixes to steer traffic into the SR Policy
+  uint32 color = 3;
+  // endpoint field identifies the endpoint of a policy.  The Endpoint may
+  // represent a single node or a set of nodes (e.g., an anycast
+  // address).  The Endpoint is an IPv4 (4-octet) address or an IPv6
+  // (16-octet) address according to the AFI of the NLRI.
+  bytes endpoint = 4;
+}
+
 // LabeledVPNIPAddressPrefix represents the NLRI for:
 // - AFI=1, SAFI=128
 // - AFI=2, SAFI=128
@@ -353,6 +373,7 @@ message MpReachNLRIAttribute {
   // - VPNFlowSpecNLRI
   // - OpaqueNLRI
   // - LsAddrPrefix
+  // - SR Policy NLRI
   repeated google.protobuf.Any nlris = 3;
 }
 
@@ -484,6 +505,114 @@ message TunnelEncapSubTLVProtocol { uint32 protocol = 1; }
 
 message TunnelEncapSubTLVColor { uint32 color = 1; }
 
+message TunnelEncapSubTLVSRPreference {
+  uint32 flags = 1;
+  uint32 preference = 2;
+}
+
+message SRBindingSID {
+  uint32 flags = 1;
+  bytes sid = 2;
+}
+
+enum SRv6Behavior {
+  RESERVED = 0;
+  END = 1;
+  END_WITH_PSP = 2;
+  END_WITH_USP = 3;
+  END_WITH_PSP_USP = 4;
+  ENDX = 5;
+  ENDX_WITH_PSP = 6;
+  ENDX_WITH_USP = 7;
+  ENDX_WITH_PSP_USP = 8;
+  ENDT = 9;
+  ENDT_WITH_PSP = 10;
+  ENDT_WITH_USP = 11;
+  ENDT_WITH_PSP_USP = 12;
+  END_B6_ENCAPS = 14;
+  END_BM = 15;
+  END_DX6 = 16;
+  END_DX4 = 17;
+  END_DT6 = 18;
+  END_DT4 = 19;
+  END_DT46 = 20;
+  END_DX2 = 21;
+  END_DX2V = 22;
+  END_DT2U = 23;
+  END_DT2M = 24;
+  END_B6_ENCAPS_Red = 27;
+  END_WITH_USD = 28;
+  END_WITH_PSP_USD = 29;
+  END_WITH_USP_USD = 30;
+  END_WITH_PSP_USP_USD = 31;
+  ENDX_WITH_USD = 32;
+  ENDX_WITH_PSP_USD = 33;
+  ENDX_WITH_USP_USD = 34;
+  ENDX_WITH_PSP_USP_USD = 35;
+  ENDT_WITH_USD = 36;
+  ENDT_WITH_PSP_USD = 37;
+  ENDT_WITH_USP_USD = 38;
+  ENDT_WITH_PSP_USP_USD = 39;
+}
+
+message SRv6EndPpointBehavior {
+  SRv6Behavior behavior = 1;
+  uint32 block_len = 2;
+  uint32 node_len = 3;
+  uint32 func_len = 4;
+  uint32 arg_len = 5;
+}
+
+message SRv6BindingSID {
+  bool s_flag = 1;
+  bool i_flag = 2;
+  bool b_flag = 3;
+  bytes sid = 4;
+  SRv6EndPpointBehavior endpoint_behavior_structure = 5;
+}
+
+message TunnelEncapSubTLVSRENLP {
+  uint32 flags = 1;
+  uint32 enlp = 2;
+}
+
+message SRWeight {
+  uint32 flags = 1;
+  uint32 weigth = 2;
+}
+
+message SegmentFlags {
+  bool v_flag = 1;
+  bool a_flag = 2;
+  bool s_flag = 3;
+  bool b_flag = 4;
+}
+
+message SegmentTypeA {
+  SegmentFlags flags = 1;
+  uint32 label = 2;
+}
+
+message SegmentList {
+  SRWeight weight = 1;
+  // segments must be one of:
+  // - SegmentTypeA
+  repeated google.protobuf.Any segments = 2;
+}
+
+message TunnelEncapSubTLVSRPolicy {
+  TunnelEncapSubTLVSRPreference preference = 1;
+  // bsid must be one of:
+  // - SRBindingSID
+  // - SRv6BindingSID
+  google.protobuf.Any bsid = 2;
+  string name = 3;
+  string candidate_path_name = 4;
+  uint32 priority = 5;
+  TunnelEncapSubTLVSRENLP enlp = 6;
+  repeated SegmentList segment_list = 7;
+}
+
 message TunnelEncapSubTLVUnknown {
   uint32 type = 1;
   bytes value = 2;
@@ -495,6 +624,7 @@ message TunnelEncapTLV {
   // - TunnelEncapSubTLVEncapsulation
   // - TunnelEncapSubTLVProtocol
   // - TunnelEncapSubTLVColor
+  // - TunnelEncapSubTLVSRPolicy
   // - TunnelEncapSubTLVUnknown
   repeated google.protobuf.Any tlvs = 2;
 }
