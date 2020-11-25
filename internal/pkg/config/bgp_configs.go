@@ -260,6 +260,8 @@ const (
 	AFI_SAFI_TYPE_IPV6_FLOWSPEC         AfiSafiType = "ipv6-flowspec"
 	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC   AfiSafiType = "l3vpn-ipv6-flowspec"
 	AFI_SAFI_TYPE_L2VPN_FLOWSPEC        AfiSafiType = "l2vpn-flowspec"
+	AFI_SAFI_TYPE_IPV4_SRPOLICY         AfiSafiType = "ipv4-srpolicy"
+	AFI_SAFI_TYPE_IPV6_SRPOLICY         AfiSafiType = "ipv6-srpolicy"
 	AFI_SAFI_TYPE_OPAQUE                AfiSafiType = "opaque"
 	AFI_SAFI_TYPE_LS                    AfiSafiType = "ls"
 )
@@ -285,8 +287,10 @@ var AfiSafiTypeToIntMap = map[AfiSafiType]int{
 	AFI_SAFI_TYPE_IPV6_FLOWSPEC:         17,
 	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC:   18,
 	AFI_SAFI_TYPE_L2VPN_FLOWSPEC:        19,
-	AFI_SAFI_TYPE_OPAQUE:                20,
-	AFI_SAFI_TYPE_LS:                    21,
+	AFI_SAFI_TYPE_IPV4_SRPOLICY:         20,
+	AFI_SAFI_TYPE_IPV6_SRPOLICY:         21,
+	AFI_SAFI_TYPE_OPAQUE:                22,
+	AFI_SAFI_TYPE_LS:                    23,
 }
 
 var IntToAfiSafiTypeMap = map[int]AfiSafiType{
@@ -310,8 +314,10 @@ var IntToAfiSafiTypeMap = map[int]AfiSafiType{
 	17: AFI_SAFI_TYPE_IPV6_FLOWSPEC,
 	18: AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC,
 	19: AFI_SAFI_TYPE_L2VPN_FLOWSPEC,
-	20: AFI_SAFI_TYPE_OPAQUE,
-	21: AFI_SAFI_TYPE_LS,
+	20: AFI_SAFI_TYPE_IPV4_SRPOLICY,
+	21: AFI_SAFI_TYPE_IPV6_SRPOLICY,
+	22: AFI_SAFI_TYPE_OPAQUE,
+	23: AFI_SAFI_TYPE_LS,
 }
 
 func (v AfiSafiType) Validate() error {
@@ -1135,7 +1141,7 @@ type ZebraState struct {
 	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
 	// original -> gobgp:software-name
 	// Configure zebra software name.
-	// quagga, frr3, frr4, frr5, frr6, frr7 can be used.
+	// frr4, cumulus, frr6, frr7, and frr7.2 can be used.
 	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 
@@ -1165,7 +1171,7 @@ type ZebraConfig struct {
 	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
 	// original -> gobgp:software-name
 	// Configure zebra software name.
-	// quagga, frr3, frr4, frr5, frr6, frr7 can be used.
+	// frr4, cumulus, frr6, frr7, and frr7.2 can be used.
 	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 

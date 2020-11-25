@@ -768,6 +768,13 @@ func UnmarshalNLRI(rf bgp.RouteFamily, an *any.Any) (bgp.AddrPrefixInterface, er
 			}
 			nlri = bgp.NewEVPNIPPrefixRoute(rd, *esi, v.EthernetTag, uint8(v.IpPrefixLen), v.IpPrefix, v.GwAddress, v.Label)
 		}
+	case *api.SRPolicyNLRI:
+		switch rf {
+		case bgp.RF_SR_POLICY_IPv4:
+			nlri = bgp.NewSRPolicyIPv4(v.Length, v.Distinguisher, v.Color, v.Endpoint)
+		case bgp.RF_SR_POLICY_IPv6:
+			nlri = bgp.NewSRPolicyIPv6(v.Length, v.Distinguisher, v.Color, v.Endpoint)
+		}
 	case *api.LabeledVPNIPAddressPrefix:
 		rd, err := UnmarshalRD(v.Rd)
 		if err != nil {
@@ -1604,6 +1611,11 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 					subTlv = bgp.NewTunnelEncapSubTLVProtocol(uint16(sv.Protocol))
 				case *api.TunnelEncapSubTLVColor:
 					subTlv = bgp.NewTunnelEncapSubTLVColor(sv.Color)
+
+				// TODO (sbezverk) Add processing SR Policy Tunnel sub tlv
+				case *api.TunnelEncapSubTLVSRPreference:
+					subTlv = bgp.NewTunnelEncapSubTLVSRPreference(sv.Flags, sv.Preference)
+
 				case *api.TunnelEncapSubTLVUnknown:
 					subTlv = bgp.NewTunnelEncapSubTLVUnknown(bgp.EncapSubTLVType(sv.Type), sv.Value)
 				default:

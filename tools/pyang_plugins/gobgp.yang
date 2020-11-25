@@ -141,6 +141,20 @@ module gobgp {
     reference "draft-ietf-idr-flowspec-l2vpn-03";
   }
 
+  identity IPV4-SRPOLICY {
+    base bgp-types:afi-safi-type;
+    description
+      "SR Policy IPv4 (AFI,SAFI = 1,73)";
+    reference "https://tools.ietf.org/html/draft-ietf-idr-segment-routing-te-policy-11";
+  }
+
+  identity IPV6-SRPOLICY {
+    base bgp-types:afi-safi-type;
+    description
+      "SR Policy IPv6 (AFI,SAFI = 2,73)";
+    reference "https://tools.ietf.org/html/draft-ietf-idr-segment-routing-te-policy-11";
+  }
+
   identity OPAQUE {
     base bgp-types:afi-safi-type;
     description

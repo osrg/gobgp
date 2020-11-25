@@ -79,6 +79,7 @@ const (
 	SAFI_VPLS                     = 65
 	SAFI_EVPN                     = 70
 	SAFI_LS                       = 71
+	SAFI_SRPOLICY                 = 73
 	SAFI_MPLS_VPN                 = 128
 	SAFI_MPLS_VPN_MULTICAST       = 129
 	SAFI_ROUTE_TARGET_CONSTRAINTS = 132
@@ -184,6 +185,7 @@ const (
 	TUNNEL_TYPE_MPLS_IN_GRE TunnelType = 11
 	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
 	TUNNEL_TYPE_MPLS_IN_UDP TunnelType = 13
+	TUNNEL_TYPE_SR_POLICY   TunnelType = 15
 )
 
 func (p TunnelType) String() string {
@@ -206,6 +208,8 @@ func (p TunnelType) String() string {
 		return "vxlan-gre"
 	case TUNNEL_TYPE_MPLS_IN_UDP:
 		return "mpls-in-udp"
+	case TUNNEL_TYPE_SR_POLICY:
+		return "sr-policy"
 	default:
 		return fmt.Sprintf("TunnelType(%d)", uint8(p))
 	}
@@ -250,9 +254,16 @@ func (p PmsiTunnelType) String() string {
 type EncapSubTLVType uint8
 
 const (
-	ENCAP_SUBTLV_TYPE_ENCAPSULATION EncapSubTLVType = 1
-	ENCAP_SUBTLV_TYPE_PROTOCOL      EncapSubTLVType = 2
-	ENCAP_SUBTLV_TYPE_COLOR         EncapSubTLVType = 4
+	ENCAP_SUBTLV_TYPE_ENCAPSULATION  EncapSubTLVType = 1
+	ENCAP_SUBTLV_TYPE_PROTOCOL       EncapSubTLVType = 2
+	ENCAP_SUBTLV_TYPE_COLOR          EncapSubTLVType = 4
+	ENCAP_SUBTLV_TYPE_SRPREFIX_SID   EncapSubTLVType = 11
+	ENCAP_SUBTLV_TYPE_SRPREFERENCE   EncapSubTLVType = 12
+	ENCAP_SUBTLV_TYPE_SRBINDING_SID  EncapSubTLVType = 13
+	ENCAP_SUBTLV_TYPE_SRENLP         EncapSubTLVType = 14
+	ENCAP_SUBTLV_TYPE_SRPRIORITY     EncapSubTLVType = 15
+	ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST EncapSubTLVType = 128
+	ENCAP_SUBTLV_TYPE_SRPOLICY_NAME  EncapSubTLVType = 129
 )
 
 const (
@@ -8129,78 +8140,84 @@ func (f RouteFamily) String() string {
 }
 
 const (
-	RF_IPv4_UC     RouteFamily = AFI_IP<<16 | SAFI_UNICAST
-	RF_IPv6_UC     RouteFamily = AFI_IP6<<16 | SAFI_UNICAST
-	RF_IPv4_MC     RouteFamily = AFI_IP<<16 | SAFI_MULTICAST
-	RF_IPv6_MC     RouteFamily = AFI_IP6<<16 | SAFI_MULTICAST
-	RF_IPv4_VPN    RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN
-	RF_IPv6_VPN    RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN
-	RF_IPv4_VPN_MC RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN_MULTICAST
-	RF_IPv6_VPN_MC RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN_MULTICAST
-	RF_IPv4_MPLS   RouteFamily = AFI_IP<<16 | SAFI_MPLS_LABEL
-	RF_IPv6_MPLS   RouteFamily = AFI_IP6<<16 | SAFI_MPLS_LABEL
-	RF_VPLS        RouteFamily = AFI_L2VPN<<16 | SAFI_VPLS
-	RF_EVPN        RouteFamily = AFI_L2VPN<<16 | SAFI_EVPN
-	RF_RTC_UC      RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRAINTS
-	RF_IPv4_ENCAP  RouteFamily = AFI_IP<<16 | SAFI_ENCAPSULATION
-	RF_IPv6_ENCAP  RouteFamily = AFI_IP6<<16 | SAFI_ENCAPSULATION
-	RF_FS_IPv4_UC  RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST
-	RF_FS_IPv4_VPN RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_VPN
-	RF_FS_IPv6_UC  RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_UNICAST
-	RF_FS_IPv6_VPN RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
-	RF_FS_L2_VPN   RouteFamily = AFI_L2VPN<<16 | SAFI_FLOW_SPEC_VPN
-	RF_OPAQUE      RouteFamily = AFI_OPAQUE<<16 | SAFI_KEY_VALUE
-	RF_LS          RouteFamily = AFI_LS<<16 | SAFI_LS
+	RF_IPv4_UC        RouteFamily = AFI_IP<<16 | SAFI_UNICAST
+	RF_IPv6_UC        RouteFamily = AFI_IP6<<16 | SAFI_UNICAST
+	RF_IPv4_MC        RouteFamily = AFI_IP<<16 | SAFI_MULTICAST
+	RF_IPv6_MC        RouteFamily = AFI_IP6<<16 | SAFI_MULTICAST
+	RF_IPv4_VPN       RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN
+	RF_IPv6_VPN       RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN
+	RF_IPv4_VPN_MC    RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN_MULTICAST
+	RF_IPv6_VPN_MC    RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN_MULTICAST
+	RF_IPv4_MPLS      RouteFamily = AFI_IP<<16 | SAFI_MPLS_LABEL
+	RF_IPv6_MPLS      RouteFamily = AFI_IP6<<16 | SAFI_MPLS_LABEL
+	RF_VPLS           RouteFamily = AFI_L2VPN<<16 | SAFI_VPLS
+	RF_EVPN           RouteFamily = AFI_L2VPN<<16 | SAFI_EVPN
+	RF_RTC_UC         RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRAINTS
+	RF_IPv4_ENCAP     RouteFamily = AFI_IP<<16 | SAFI_ENCAPSULATION
+	RF_IPv6_ENCAP     RouteFamily = AFI_IP6<<16 | SAFI_ENCAPSULATION
+	RF_FS_IPv4_UC     RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST
+	RF_FS_IPv4_VPN    RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_VPN
+	RF_FS_IPv6_UC     RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_UNICAST
+	RF_FS_IPv6_VPN    RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
+	RF_FS_L2_VPN      RouteFamily = AFI_L2VPN<<16 | SAFI_FLOW_SPEC_VPN
+	RF_OPAQUE         RouteFamily = AFI_OPAQUE<<16 | SAFI_KEY_VALUE
+	RF_LS             RouteFamily = AFI_LS<<16 | SAFI_LS
+	RF_SR_POLICY_IPv4 RouteFamily = AFI_IP<<16 | SAFI_SRPOLICY
+	RF_SR_POLICY_IPv6 RouteFamily = AFI_IP6<<16 | SAFI_SRPOLICY
 )
 
 var AddressFamilyNameMap = map[RouteFamily]string{
-	RF_IPv4_UC:     "ipv4-unicast",
-	RF_IPv6_UC:     "ipv6-unicast",
-	RF_IPv4_MC:     "ipv4-multicast",
-	RF_IPv6_MC:     "ipv6-multicast",
-	RF_IPv4_MPLS:   "ipv4-labelled-unicast",
-	RF_IPv6_MPLS:   "ipv6-labelled-unicast",
-	RF_IPv4_VPN:    "l3vpn-ipv4-unicast",
-	RF_IPv6_VPN:    "l3vpn-ipv6-unicast",
-	RF_IPv4_VPN_MC: "l3vpn-ipv4-multicast",
-	RF_IPv6_VPN_MC: "l3vpn-ipv6-multicast",
-	RF_VPLS:        "l2vpn-vpls",
-	RF_EVPN:        "l2vpn-evpn",
-	RF_RTC_UC:      "rtc",
-	RF_IPv4_ENCAP:  "ipv4-encap",
-	RF_IPv6_ENCAP:  "ipv6-encap",
-	RF_FS_IPv4_UC:  "ipv4-flowspec",
-	RF_FS_IPv4_VPN: "l3vpn-ipv4-flowspec",
-	RF_FS_IPv6_UC:  "ipv6-flowspec",
-	RF_FS_IPv6_VPN: "l3vpn-ipv6-flowspec",
-	RF_FS_L2_VPN:   "l2vpn-flowspec",
-	RF_OPAQUE:      "opaque",
-	RF_LS:          "ls",
+	RF_IPv4_UC:        "ipv4-unicast",
+	RF_IPv6_UC:        "ipv6-unicast",
+	RF_IPv4_MC:        "ipv4-multicast",
+	RF_IPv6_MC:        "ipv6-multicast",
+	RF_IPv4_MPLS:      "ipv4-labelled-unicast",
+	RF_IPv6_MPLS:      "ipv6-labelled-unicast",
+	RF_IPv4_VPN:       "l3vpn-ipv4-unicast",
+	RF_IPv6_VPN:       "l3vpn-ipv6-unicast",
+	RF_IPv4_VPN_MC:    "l3vpn-ipv4-multicast",
+	RF_IPv6_VPN_MC:    "l3vpn-ipv6-multicast",
+	RF_VPLS:           "l2vpn-vpls",
+	RF_EVPN:           "l2vpn-evpn",
+	RF_RTC_UC:         "rtc",
+	RF_IPv4_ENCAP:     "ipv4-encap",
+	RF_IPv6_ENCAP:     "ipv6-encap",
+	RF_FS_IPv4_UC:     "ipv4-flowspec",
+	RF_FS_IPv4_VPN:    "l3vpn-ipv4-flowspec",
+	RF_FS_IPv6_UC:     "ipv6-flowspec",
+	RF_FS_IPv6_VPN:    "l3vpn-ipv6-flowspec",
+	RF_FS_L2_VPN:      "l2vpn-flowspec",
+	RF_OPAQUE:         "opaque",
+	RF_LS:             "ls",
+	RF_SR_POLICY_IPv4: "ipv4-srpolicy",
+	RF_SR_POLICY_IPv6: "ipv6-srpolicy",
 }
 
 var AddressFamilyValueMap = map[string]RouteFamily{
-	AddressFamilyNameMap[RF_IPv4_UC]:     RF_IPv4_UC,
-	AddressFamilyNameMap[RF_IPv6_UC]:     RF_IPv6_UC,
-	AddressFamilyNameMap[RF_IPv4_MC]:     RF_IPv4_MC,
-	AddressFamilyNameMap[RF_IPv6_MC]:     RF_IPv6_MC,
-	AddressFamilyNameMap[RF_IPv4_MPLS]:   RF_IPv4_MPLS,
-	AddressFamilyNameMap[RF_IPv6_MPLS]:   RF_IPv6_MPLS,
-	AddressFamilyNameMap[RF_IPv4_VPN]:    RF_IPv4_VPN,
-	AddressFamilyNameMap[RF_IPv6_VPN]:    RF_IPv6_VPN,
-	AddressFamilyNameMap[RF_IPv4_VPN_MC]: RF_IPv4_VPN_MC,
-	AddressFamilyNameMap[RF_IPv6_VPN_MC]: RF_IPv6_VPN_MC,
-	AddressFamilyNameMap[RF_VPLS]:        RF_VPLS,
-	AddressFamilyNameMap[RF_EVPN]:        RF_EVPN,
-	AddressFamilyNameMap[RF_RTC_UC]:      RF_RTC_UC,
-	AddressFamilyNameMap[RF_IPv4_ENCAP]:  RF_IPv4_ENCAP,
-	AddressFamilyNameMap[RF_IPv6_ENCAP]:  RF_IPv6_ENCAP,
-	AddressFamilyNameMap[RF_FS_IPv4_UC]:  RF_FS_IPv4_UC,
-	AddressFamilyNameMap[RF_FS_IPv4_VPN]: RF_FS_IPv4_VPN,
-	AddressFamilyNameMap[RF_FS_IPv6_UC]:  RF_FS_IPv6_UC,
-	AddressFamilyNameMap[RF_FS_IPv6_VPN]: RF_FS_IPv6_VPN,
-	AddressFamilyNameMap[RF_FS_L2_VPN]:   RF_FS_L2_VPN,
-	AddressFamilyNameMap[RF_OPAQUE]:      RF_OPAQUE,
-	AddressFamilyNameMap[RF_LS]:          RF_LS,
+	AddressFamilyNameMap[RF_IPv4_UC]:        RF_IPv4_UC,
+	AddressFamilyNameMap[RF_IPv6_UC]:        RF_IPv6_UC,
+	AddressFamilyNameMap[RF_IPv4_MC]:        RF_IPv4_MC,
+	AddressFamilyNameMap[RF_IPv6_MC]:        RF_IPv6_MC,
+	AddressFamilyNameMap[RF_IPv4_MPLS]:      RF_IPv4_MPLS,
+	AddressFamilyNameMap[RF_IPv6_MPLS]:      RF_IPv6_MPLS,
+	AddressFamilyNameMap[RF_IPv4_VPN]:       RF_IPv4_VPN,
+	AddressFamilyNameMap[RF_IPv6_VPN]:       RF_IPv6_VPN,
+	AddressFamilyNameMap[RF_IPv4_VPN_MC]:    RF_IPv4_VPN_MC,
+	AddressFamilyNameMap[RF_IPv6_VPN_MC]:    RF_IPv6_VPN_MC,
+	AddressFamilyNameMap[RF_VPLS]:           RF_VPLS,
+	AddressFamilyNameMap[RF_EVPN]:           RF_EVPN,
+	AddressFamilyNameMap[RF_RTC_UC]:         RF_RTC_UC,
+	AddressFamilyNameMap[RF_IPv4_ENCAP]:     RF_IPv4_ENCAP,
+	AddressFamilyNameMap[RF_IPv6_ENCAP]:     RF_IPv6_ENCAP,
+	AddressFamilyNameMap[RF_FS_IPv4_UC]:     RF_FS_IPv4_UC,
+	AddressFamilyNameMap[RF_FS_IPv4_VPN]:    RF_FS_IPv4_VPN,
+	AddressFamilyNameMap[RF_FS_IPv6_UC]:     RF_FS_IPv6_UC,
+	AddressFamilyNameMap[RF_FS_IPv6_VPN]:    RF_FS_IPv6_VPN,
+	AddressFamilyNameMap[RF_FS_L2_VPN]:      RF_FS_L2_VPN,
+	AddressFamilyNameMap[RF_OPAQUE]:         RF_OPAQUE,
+	AddressFamilyNameMap[RF_LS]:             RF_LS,
+	AddressFamilyNameMap[RF_SR_POLICY_IPv4]: RF_SR_POLICY_IPv4,
+	AddressFamilyNameMap[RF_SR_POLICY_IPv6]: RF_SR_POLICY_IPv6,
 }
 
 func GetRouteFamily(name string) (RouteFamily, error) {
@@ -8246,6 +8263,20 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (pref
 		prefix = NewLabeledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_EVPN:
 		prefix = NewEVPNNLRI(0, nil)
+
+	// TODO (sbezverk) Add processing SR Policy NLRI
+	case RF_SR_POLICY_IPv4:
+		prefix = &SRPolicyIPv4{
+			SRPolicyNLRI: SRPolicyNLRI{
+				rf: RF_SR_POLICY_IPv4,
+			},
+		}
+	case RF_SR_POLICY_IPv6:
+		prefix = &SRPolicyIPv6{
+			SRPolicyNLRI: SRPolicyNLRI{
+				rf: RF_SR_POLICY_IPv6,
+			},
+		}
 	case RF_RTC_UC:
 		prefix = &RouteTargetMembershipNLRI{}
 	case RF_IPv4_ENCAP:
@@ -10297,6 +10328,8 @@ func (e *EncapExtended) String() string {
 		return "VXLAN GRE"
 	case TUNNEL_TYPE_MPLS_IN_UDP:
 		return "MPLS in UDP"
+	case TUNNEL_TYPE_SR_POLICY:
+		return "SR Policy"
 	default:
 		return fmt.Sprintf("tunnel: %d", e.TunnelType)
 	}
@@ -11602,6 +11635,18 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 			subTlv = &TunnelEncapSubTLVProtocol{}
 		case ENCAP_SUBTLV_TYPE_COLOR:
 			subTlv = &TunnelEncapSubTLVColor{}
+		case ENCAP_SUBTLV_TYPE_SRPREFERENCE:
+			subTlv = &TunnelEncapSubTLVSRPreference{}
+		case ENCAP_SUBTLV_TYPE_SRBINDING_SID:
+			subTlv = &TunnelEncapSubTLVSRBSID{}
+		case ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST:
+			subTlv = &TunnelEncapSubTLVSRSegmentList{}
+		case ENCAP_SUBTLV_TYPE_SRENLP:
+			subTlv = &TunnelEncapSubTLVSRENLP{}
+		case ENCAP_SUBTLV_TYPE_SRPRIORITY:
+			subTlv = &TunnelEncapSubTLVSRPriority{}
+		case ENCAP_SUBTLV_TYPE_SRPOLICY_NAME:
+			subTlv = &TunnelEncapSubTLVSRPolicyName{}
 		default:
 			subTlv = &TunnelEncapSubTLVUnknown{
 				TunnelEncapSubTLV: TunnelEncapSubTLV{
