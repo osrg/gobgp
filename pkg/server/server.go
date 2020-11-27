@@ -1770,6 +1770,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 
 	if s.shutdownWG != nil {
 		s.shutdownWG.Wait()
+		s.shutdownWG = nil
 	}
 	return nil
 }
