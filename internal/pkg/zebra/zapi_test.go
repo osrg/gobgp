@@ -211,13 +211,13 @@ func Test_routerIDUpdateBody(t *testing.T) {
 func Test_IPRouteBody_IPv4(t *testing.T) {
 	assert := assert.New(t)
 
-	size := map[uint8]uint8{2: 26, 3: 26, 4: 31, 5: 38, 6: 39}
+	size := map[uint8]uint8{2: 26, 3: 26, 4: 31, 5: 38, 6: 42}
 	command := map[uint8]APIType{
 		2: zapi3IPv4RouteAdd,
 		3: zapi3IPv4RouteAdd,
 		4: zapi4IPv4RouteAdd,
 		5: zapi6Frr7RouteAdd,
-		6: zapi6Frr7RouteAdd,
+		6: RouteAdd,
 	}
 	routeType := routeConnect
 	message := map[uint8]MessageFlag{
@@ -237,7 +237,6 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 	for v := MinZapiVer; v <= MaxZapiVer; v++ {
 		//decodeFromBytes IPV4_ROUTE
 		buf := make([]byte, size[v])
-		//buf[0] = byte(routeType[v])
 		buf[0] = byte(routeType)
 		pos := 1
 		switch v {
@@ -250,8 +249,13 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
 			pos += 4
 		}
-		buf[pos] = byte(message[v])
-		pos++
+		if v == 6 {
+			binary.BigEndian.PutUint32(buf[pos:], uint32(message[v])) // frr7.5: 32bit
+			pos += 4
+		} else {
+			buf[pos] = uint8(message[v]) // before frr7.4: 8bit
+			pos++
+		}
 		if v > 4 {
 			buf[pos] = byte(SafiUnicast) //SAFI
 			pos++
@@ -318,10 +322,14 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		case 2, 3:
 			assert.Equal([]byte{0x2, 0x10, byte(message[v])}, buf[0:3])
 			pos = 3
-		case 4, 5, 6:
+		case 4, 5:
 			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
 			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, byte(message[v])}, buf[0:8])
 			pos = 8
+		case 6: // frr 7.5: MessageFlag: 32bit
+			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
+			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, 0x00, 0x00, 0x00, byte(message[v])}, buf[0:11])
+			pos = 11
 		}
 		switch v {
 		case 2, 3, 4:
@@ -334,6 +342,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			pos++
 
 		}
+
 		assert.Equal(byte(24), buf[pos])
 		pos++
 		ip = net.ParseIP("192.168.100.0").To4()
@@ -374,7 +383,6 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 
 		// length invalid
 		buf = make([]byte, size[v]-8)
-		//buf[0] = byte(routeType[v])
 		buf[0] = byte(routeConnect)
 		pos = 1
 		switch v {
@@ -387,8 +395,14 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
 			pos += 4
 		}
-		buf[pos] = byte(message[v])
-		pos++
+		if v == 6 {
+			binary.BigEndian.PutUint32(buf[pos:], uint32(message[v])) // frr7.5: 32bit
+			pos += 4
+		} else {
+			buf[pos] = uint8(message[v]) // before frr7.4: 8bit
+			pos++
+		}
+
 		if v > 4 {
 			buf[pos] = byte(SafiUnicast) //SAFI
 			pos++
@@ -458,8 +472,15 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
 			pos += 4
 		}
-		buf[pos] = byte(messageWithoutNexthop[v])
-		pos++
+
+		if v == 6 {
+			binary.BigEndian.PutUint32(buf[pos:], uint32(messageWithoutNexthop[v])) // frr7.5: 32bit
+			pos += 4
+		} else {
+			buf[pos] = byte(messageWithoutNexthop[v]) // before frr7.4: 8bit
+			pos++
+		}
+
 		if v > 4 {
 			buf[pos] = byte(SafiUnicast) //SAFI
 			pos++
@@ -483,7 +504,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 
 func Test_IPRouteBody_IPv6(t *testing.T) {
 	assert := assert.New(t)
-	size := map[uint8]uint8{2: 43, 3: 43, 4: 48, 5: 55, 6: 56}
+	size := map[uint8]uint8{2: 43, 3: 43, 4: 48, 5: 55, 6: 59}
 	command := map[uint8]APIType{
 		2: zapi3IPv6RouteAdd,
 		3: zapi3IPv6RouteAdd,
@@ -528,8 +549,15 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
 			pos += 4
 		}
-		buf[pos] = byte(message[v])
-		pos++
+
+		if v == 6 {
+			binary.BigEndian.PutUint32(buf[pos:], uint32(message[v])) // frr7.5: 32bit
+			pos += 4
+		} else {
+			buf[pos] = uint8(message[v]) // before frr7.4: 8bit
+			pos++
+		}
+
 		if v > 4 {
 			buf[pos] = byte(SafiUnicast) //SAFI
 			pos++
@@ -596,10 +624,14 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		case 2, 3:
 			assert.Equal([]byte{0x2, 0x10, byte(message[v])}, buf[0:3])
 			pos = 3
-		case 4, 5, 6:
+		case 4, 5:
 			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
 			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, byte(message[v])}, buf[0:8])
 			pos = 8
+		case 6: // frr 7.5: MessageFlag: 32bit
+			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
+			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, 0x00, 0x00, 0x00, byte(message[v])}, buf[0:11])
+			pos = 11
 		}
 		switch v {
 		case 2, 3, 4:
@@ -665,8 +697,15 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
 			pos += 4
 		}
-		buf[pos] = byte(message[v])
-		pos++
+
+		if v == 6 {
+			binary.BigEndian.PutUint32(buf[pos:], uint32(message[v])) // frr7.5: 32bit
+			pos += 4
+		} else {
+			buf[pos] = uint8(message[v]) // before frr7.4: 8bit
+			pos++
+		}
+
 		if v > 4 {
 			buf[pos] = byte(SafiUnicast) //SAFI
 			pos++
@@ -738,8 +777,15 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
 			pos += 4
 		}
-		buf[pos] = byte(messageWithoutNexthop[v])
-		pos++
+
+		if v == 6 {
+			binary.BigEndian.PutUint32(buf[pos:], uint32(messageWithoutNexthop[v])) // frr7.5: 32bit
+			pos += 4
+		} else {
+			buf[pos] = byte(messageWithoutNexthop[v]) // before frr7.4: 8bit
+			pos++
+		}
+
 		if v > 4 {
 			buf[pos] = byte(SafiUnicast) //SAFI
 			pos++
@@ -935,7 +981,7 @@ func Test_NexthopRegisterBody(t *testing.T) {
 func Test_NexthopUpdateBody(t *testing.T) {
 	assert := assert.New(t)
 
-	size := map[uint8]uint8{2: 21, 3: 21, 4: 22, 5: 26, 6: 30}
+	size := map[uint8]uint8{2: 21, 3: 21, 4: 22, 5: 26, 6: 34}
 	command := map[uint8]APIType{
 		2: zapi3NexthopUpdate,
 		3: zapi3NexthopUpdate,
@@ -954,9 +1000,16 @@ func Test_NexthopUpdateBody(t *testing.T) {
 	for v := MinZapiVer; v <= MaxZapiVer; v++ {
 		// Input binary
 		bufIn := make([]byte, size[v])
+		pos := 0
+		if v == 6 { // frr7.5
+			// message flag
+			copy(bufIn[pos:pos+4], []byte{0x00, 0x00, 0x00, 0x00})
+			pos += 4
+		}
 		// afi(2 bytes)=AF_INET, prefix_len(1 byte)=32, prefix(4 bytes)="192.168.1.1"
-		copy(bufIn[0:7], []byte{0x00, 0x02, 0x20, 0xc0, 0xa8, 0x01, 0x01})
-		pos := 7
+		copy(bufIn[pos:pos+7], []byte{0x00, 0x02, 0x20, 0xc0, 0xa8, 0x01, 0x01})
+		pos += 7
+
 		if v > 4 { // Type(1byte), Instance(2byte)
 			copy(bufIn[pos:pos+3], []byte{byte(routeConnect), 0x00, 0x00})
 			pos += 3

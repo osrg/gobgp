@@ -37,13 +37,15 @@ func _() {
 	_ = x[routeOpenfabric-26]
 	_ = x[routeVRRP-27]
 	_ = x[routeNHG-28]
-	_ = x[routeAll-29]
-	_ = x[routeMax-30]
+	_ = x[routeSRTE-29]
+	_ = x[routeAll-30]
+	_ = x[routeMax-31]
 	_ = x[zapi5Frr4RouteAll-24]
 	_ = x[zapi5Frr5RouteAll-25]
 	_ = x[zapi6Frr6RouteAll-26]
 	_ = x[zapi6Frr7RouteAll-27]
 	_ = x[zapi6Frr7dot2RouteAll-28]
+	_ = x[zapi6Frr7dot3RouteAll-29]
 	_ = x[zapi4RouteNHRP-11]
 	_ = x[zapi4RouteHSLS-12]
 	_ = x[zapi4RouteOLSR-13]
@@ -61,9 +63,9 @@ func _() {
 	_ = x[zapi3RouteNHRP-14]
 }
 
-const _RouteType_name = "routeSystemrouteKernelrouteConnectRouteStaticrouteRIProuteRIPNGrouteOSPFrouteOSPF6routeISISRouteBGProutePIMrouteEIGRProuteNHRProuteHSLSrouteOLSRrouteTABLErouteLDProuteVNCrouteVNCDirectrouteVNCDirectRHrouteBGPDirectrouteBGPDirectEXTrouteBABELrouteSHARProutePBRrouteBFDrouteOpenfabricrouteVRRProuteNHGrouteAllrouteMax"
+const _RouteType_name = "routeSystemrouteKernelrouteConnectRouteStaticrouteRIProuteRIPNGrouteOSPFrouteOSPF6routeISISRouteBGProutePIMrouteEIGRProuteNHRProuteHSLSrouteOLSRrouteTABLErouteLDProuteVNCrouteVNCDirectrouteVNCDirectRHrouteBGPDirectrouteBGPDirectEXTrouteBABELrouteSHARProutePBRrouteBFDrouteOpenfabricrouteVRRProuteNHGrouteSRTErouteAllrouteMax"
 
-var _RouteType_index = [...]uint16{0, 11, 22, 34, 45, 53, 63, 72, 82, 91, 99, 107, 117, 126, 135, 144, 154, 162, 170, 184, 200, 214, 231, 241, 251, 259, 267, 282, 291, 299, 307, 315}
+var _RouteType_index = [...]uint16{0, 11, 22, 34, 45, 53, 63, 72, 82, 91, 99, 107, 117, 126, 135, 144, 154, 162, 170, 184, 200, 214, 231, 241, 251, 259, 267, 282, 291, 299, 308, 316, 324}
 
 func (i RouteType) String() string {
 	if i >= RouteType(len(_RouteType_index)-1) {
