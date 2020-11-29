@@ -296,6 +296,11 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		return nil, err
 	}
 
+	// TODO (sbezverk) At this poinnt nlri and path attributes are converted to native mode
+	// need to check if update with SR Policy nlri comes with mandatory route distinguisher
+	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
+	// and tunnel type 15. If it is not the case ignore update and log an error.
+
 	pattrs := make([]bgp.PathAttributeInterface, 0)
 	seen := make(map[bgp.BGPAttrType]struct{})
 	for _, attr := range attrList {

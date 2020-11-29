@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+
+	api "github.com/osrg/gobgp/api"
 )
 
 type SRPolicyNLRI struct {
@@ -60,11 +62,11 @@ func (s *SRPolicyNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*
 func (s *SRPolicyNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := make([]byte, 1+s.Length)
 	p := 0
-	buf[0] = s.Length
+	buf[0] = s.Length * 8
 	p++
-	binary.BigEndian.PutUint32(buf[:4], s.Distinguisher)
+	binary.BigEndian.PutUint32(buf[p:p+4], s.Distinguisher)
 	p += 4
-	binary.BigEndian.PutUint32(buf[:4], s.Color)
+	binary.BigEndian.PutUint32(buf[p:p+4], s.Color)
 	p += 4
 	copy(buf[p:], s.Endpoint)
 	if IsAddPathEnabled(false, s.rf, options) {
@@ -129,11 +131,10 @@ func (s *SRPolicyIPv4) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 }
 
 func NewSRPolicyIPv4(l uint32, d uint32, c uint32, ep []byte) *SRPolicyIPv4 {
-	fmt.Printf("><SB> NewSRPolicyIPv4: length: %d distinguisher: %d color: %d endpoint: %+v\n", l, d, c, ep)
 	return &SRPolicyIPv4{
 		SRPolicyNLRI: SRPolicyNLRI{
 			rf:            RF_SR_POLICY_IPv4,
-			Length:        uint8(l),
+			Length:        uint8(l / 8),
 			Distinguisher: d,
 			Color:         c,
 			Endpoint:      ep,
@@ -150,11 +151,10 @@ func (s *SRPolicyIPv6) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 }
 
 func NewSRPolicyIPv6(l uint32, d uint32, c uint32, ep []byte) *SRPolicyIPv6 {
-	fmt.Printf("><SB> NewSRPolicyIPv6: length: %d distinguisher: %d color: %d endpoint: %+v\n", l, d, c, ep)
 	return &SRPolicyIPv6{
 		SRPolicyNLRI: SRPolicyNLRI{
 			rf:            RF_SR_POLICY_IPv6,
-			Length:        uint8(l),
+			Length:        uint8(l / 8),
 			Distinguisher: d,
 			Color:         c,
 			Endpoint:      ep,
@@ -184,7 +184,7 @@ func (t *TunnelEncapSubTLVSRPreference) DecodeFromBytes(data []byte) error {
 }
 
 func (t *TunnelEncapSubTLVSRPreference) Serialize() ([]byte, error) {
-	buf := make([]byte, t.Length)
+	buf := make([]byte, 6)
 	buf[0] = t.Flags
 	binary.BigEndian.PutUint32(buf[2:6], t.Preference)
 	return t.TunnelEncapSubTLV.Serialize(buf[:])
@@ -209,7 +209,8 @@ func (t *TunnelEncapSubTLVSRPreference) MarshalJSON() ([]byte, error) {
 func NewTunnelEncapSubTLVSRPreference(flags uint32, preference uint32) *TunnelEncapSubTLVSRPreference {
 	return &TunnelEncapSubTLVSRPreference{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
-			Type: ENCAP_SUBTLV_TYPE_SRPREFERENCE,
+			Type:   ENCAP_SUBTLV_TYPE_SRPREFERENCE,
+			Length: 6,
 		},
 		Flags:      uint8(flags),
 		Preference: preference,
@@ -236,7 +237,7 @@ func (t *TunnelEncapSubTLVSRPriority) DecodeFromBytes(data []byte) error {
 }
 
 func (t *TunnelEncapSubTLVSRPriority) Serialize() ([]byte, error) {
-	buf := make([]byte, t.Length)
+	buf := make([]byte, 1+1)
 	buf[0] = t.Priority
 	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }
@@ -258,53 +259,55 @@ func (t *TunnelEncapSubTLVSRPriority) MarshalJSON() ([]byte, error) {
 func NewTunnelEncapSubTLVSRPriority(priority uint8) *TunnelEncapSubTLVSRPriority {
 	return &TunnelEncapSubTLVSRPriority{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
-			Type: ENCAP_SUBTLV_TYPE_SRPRIORITY,
+			Type:   ENCAP_SUBTLV_TYPE_SRPRIORITY,
+			Length: 2,
 		},
 		Priority: priority,
 	}
 }
 
-type TunnelEncapSubTLVSRPolicyName struct {
+type TunnelEncapSubTLVSRCandidatePathName struct {
 	TunnelEncapSubTLV
-	PolicyName string
+	CandidatePathName string
 }
 
-func (t *TunnelEncapSubTLVSRPolicyName) DecodeFromBytes(data []byte) error {
+func (t *TunnelEncapSubTLVSRCandidatePathName) DecodeFromBytes(data []byte) error {
 	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
 	if err != nil {
 		return err
 	}
 	// Skip Reserved byte
-	t.PolicyName = string(value[1:t.TunnelEncapSubTLV.Len()])
+	t.CandidatePathName = string(value[1:t.TunnelEncapSubTLV.Len()])
 	return nil
 }
 
-func (t *TunnelEncapSubTLVSRPolicyName) Serialize() ([]byte, error) {
-	buf := make([]byte, t.Length)
-	copy(buf[1:], t.PolicyName)
+func (t *TunnelEncapSubTLVSRCandidatePathName) Serialize() ([]byte, error) {
+	buf := make([]byte, 1+len(t.CandidatePathName))
+	copy(buf[1:], t.CandidatePathName)
 	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }
 
-func (t *TunnelEncapSubTLVSRPolicyName) String() string {
-	return fmt.Sprintf("{Policy Name: %s}", t.PolicyName)
+func (t *TunnelEncapSubTLVSRCandidatePathName) String() string {
+	return fmt.Sprintf("{Candidate Path Name: %s}", t.CandidatePathName)
 }
 
-func (t *TunnelEncapSubTLVSRPolicyName) MarshalJSON() ([]byte, error) {
+func (t *TunnelEncapSubTLVSRCandidatePathName) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type       EncapSubTLVType `json:"type"`
-		PolicyName string          `json:"policy_name"`
+		Type              EncapSubTLVType `json:"type"`
+		CandidatePathName string          `json:"candidate_path_name"`
 	}{
-		Type:       t.Type,
-		PolicyName: t.PolicyName,
+		Type:              t.Type,
+		CandidatePathName: t.CandidatePathName,
 	})
 }
 
-func NewTunnelEncapSubTLVSRPolicyName(pn string) *TunnelEncapSubTLVSRPolicyName {
-	return &TunnelEncapSubTLVSRPolicyName{
+func NewTunnelEncapSubTLVSRCandidatePathName(cpn string) *TunnelEncapSubTLVSRCandidatePathName {
+	return &TunnelEncapSubTLVSRCandidatePathName{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
-			Type: ENCAP_SUBTLV_TYPE_SRPOLICY_NAME,
+			Type:   ENCAP_SUBTLV_TYPE_SRCANDIDATE_PATH_NAME,
+			Length: uint16(len(cpn) + 1), // length of Candidate Path name string + 1 Reserved byte
 		},
-		PolicyName: pn,
+		CandidatePathName: cpn,
 	}
 }
 
@@ -380,10 +383,11 @@ func (t *TunnelEncapSubTLVSRENLP) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewTTunnelEncapSubTLVSRENLP(flags uint32, enlp SRENLPValue) *TunnelEncapSubTLVSRENLP {
+func NewTunnelEncapSubTLVSRENLP(flags uint32, enlp SRENLPValue) *TunnelEncapSubTLVSRENLP {
 	return &TunnelEncapSubTLVSRENLP{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
-			Type: ENCAP_SUBTLV_TYPE_SRENLP,
+			Type:   ENCAP_SUBTLV_TYPE_SRENLP,
+			Length: 3,
 		},
 		Flags: uint8(flags),
 		ENLP:  enlp,
@@ -391,12 +395,11 @@ func NewTTunnelEncapSubTLVSRENLP(flags uint32, enlp SRENLPValue) *TunnelEncapSub
 }
 
 type BSID struct {
-	Length int
-	Value  []byte
+	Value []byte
 }
 
 func (b *BSID) String() string {
-	switch b.Length {
+	switch len(b.Value) {
 	case 0:
 		return "n/a"
 	case 4:
@@ -411,24 +414,31 @@ func (b *BSID) String() string {
 }
 
 func (b *BSID) Serialize() []byte {
-	return []byte{}
+	return b.Value
 }
-func NewBSID(v []byte, l int) (*BSID, error) {
-	switch l {
+func (b *BSID) Len() int {
+	return len(b.Value)
+}
+
+func NewBSID(v []byte) (*BSID, error) {
+	var bsid *BSID
+	switch len(v) {
 	case 0:
 	case 4:
+		t := binary.BigEndian.Uint32(v)
+		t <<= 12
+		bsid = &BSID{
+			Value: make([]byte, len(v)),
+		}
+		binary.BigEndian.PutUint32(bsid.Value, t)
 	case 16:
+		bsid = &BSID{
+			Value: make([]byte, len(v)),
+		}
+		copy(bsid.Value, v)
 	default:
-		return nil, fmt.Errorf("invalid length %d", l)
+		return nil, fmt.Errorf("invalid length %d", len(v))
 	}
-	if l < len(v) {
-		return nil, fmt.Errorf("parameter length does not match the length of data bytes")
-	}
-	bsid := &BSID{
-		Length: l,
-		Value:  make([]byte, l),
-	}
-	copy(bsid.Value, v)
 
 	return bsid, nil
 }
@@ -446,25 +456,33 @@ func (t *TunnelEncapSubTLVSRBSID) DecodeFromBytes(data []byte) error {
 	}
 	// Check Sub TLV length, only 3 possible length are allowed
 	switch t.Length {
-	case 2:
+	case 2: // No BSID, do not initializing BSID struct
 	case 6:
+		fallthrough
 	case 18:
+		t.BSID = &BSID{
+			Value: make([]byte, t.Length-2),
+		}
+		copy(t.BSID.Value, value[2:t.Length])
 	default:
 		msg := fmt.Sprintf("Invalid TunnelEncapSubTLVSRBSID length: %d", t.Length)
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, msg)
 	}
 	t.Flags = value[0]
-	t.BSID, err = NewBSID(value[2:t.Length], int(t.Length-2))
-	if err != nil {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
-	}
 	return nil
 }
 
 func (t *TunnelEncapSubTLVSRBSID) Serialize() ([]byte, error) {
-	buf := make([]byte, t.Length)
+	l := 2
+	if t.BSID != nil {
+		l += t.BSID.Len()
+	}
+	buf := make([]byte, l) // 1st byte Flags, 2nd byte Reserved, 3rd+ BSID
 	buf[0] = t.Flags
-	copy(buf[2:t.BSID.Length], t.BSID.Serialize())
+	if t.BSID != nil {
+		bsid := t.BSID.Serialize()
+		copy(buf[2:], bsid)
+	}
 	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }
 
@@ -484,14 +502,47 @@ func (t *TunnelEncapSubTLVSRBSID) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// TODO sbezverk Figure out parameters to pass to NewTunnelEncapSubTLVSRBSID
-func NewTunnelEncapSubTLVSRBSID(flags uint32) *TunnelEncapSubTLVSRBSID {
-	return &TunnelEncapSubTLVSRBSID{
-		TunnelEncapSubTLV: TunnelEncapSubTLV{
-			Type: ENCAP_SUBTLV_TYPE_SRBINDING_SID,
-		},
-		Flags: uint8(flags),
+type TunnelEncapSubTLVSRv6BSID struct {
+	TunnelEncapSubTLV
+	Flags uint8
+	BSID  *BSID
+	EPBAS *SRv6EndpointBehaviorStructure
+}
+
+func (t *TunnelEncapSubTLVSRv6BSID) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 	}
+	t.Flags = value[0]
+	t.BSID, err = NewBSID(value[2:t.Length])
+	if err != nil {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
+	}
+	return nil
+}
+
+func (t *TunnelEncapSubTLVSRv6BSID) Serialize() ([]byte, error) {
+	buf := make([]byte, t.Length)
+	buf[0] = t.Flags
+	copy(buf[2:t.BSID.Len()], t.BSID.Serialize())
+	return t.TunnelEncapSubTLV.Serialize(buf[:])
+}
+
+func (t *TunnelEncapSubTLVSRv6BSID) String() string {
+	return fmt.Sprintf("{S-Flag: %t, I-Flag: %t, B-Flag: %t, BSID: %s}", t.Flags&0x80 == 0x80, t.Flags&0x40 == 0x40, t.Flags&0x20 == 0x20, t.BSID.String())
+}
+
+func (t *TunnelEncapSubTLVSRv6BSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  EncapSubTLVType `json:"type"`
+		Flags uint8           `json:"flags"`
+		BSID  string          `json:"binding_sid,omitempty"`
+	}{
+		Type:  t.Type,
+		Flags: t.Flags,
+		BSID:  t.BSID.String(),
+	})
 }
 
 // SegmentType defines a type of Segment in Segment List
@@ -500,6 +551,8 @@ type SegmentType int
 const (
 	// TypeA Segment Sub-TLV encodes a single SR-MPLS SID
 	TypeA SegmentType = 1
+	// TypeB Segment Sub-TLV encodes a single SRv6 SID.
+	TypeB SegmentType = 13
 	// TypeC Segment Sub-TLV encodes an IPv4 node address, SR Algorithm
 	// and an optional SR-MPLS SID
 	TypeC SegmentType = 3
@@ -521,9 +574,18 @@ const (
 	// TypeH Segment Sub-TLV encodes an adjacency local address, an
 	// adjacency remote address and an optional SR-MPLS SID.
 	TypeH SegmentType = 8
+	// TypeI Segment Sub-TLV encodes an IPv6 node address, SR Algorithm
+	// and an optional SRv6 SID.
+	TypeI SegmentType = 14
+	// TypeJ Segment Sub-TLV encodes an IPv6 Link Local adjacency with
+	// local node address, a local interface identifier (Local Interface
+	// ID), remote IPv6 node address, a remote interface identifier (Remote
+	// Interface ID) and an optional SRv6 SID.
+	TypeJ SegmentType = 15
+	// TypeK Segment Sub-TLV encodes an adjacency local address, an
+	// adjacency remote address and an optional SRv6 SID.
+	TypeK SegmentType = 16
 )
-
-const SegmentListWeightType = 9
 
 // Weight sub-TLV specifies the weight associated to a given segment list.
 type SegmentListWeight struct {
@@ -585,7 +647,6 @@ func (s *SegmentTypeA) Serialize() ([]byte, error) {
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
 func (s *SegmentTypeA) String() string {
-
 	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Label: %d TC: %d S: %t TTL: %d}",
 		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10,
 		s.Label>>12, s.Label&0x00000e00>>9, s.Label&0x00000100 == 0x00000100, s.Label&0x000000ff)
@@ -615,6 +676,61 @@ func (s *SegmentTypeA) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type SRv6EndpointBehaviorStructure struct {
+	Behavior api.SRv6Behavior
+	BlockLen uint8
+	NodeLen  uint8
+	FuncLen  uint8
+	ArgLen   uint8
+}
+
+type SegmentTypeB struct {
+	TunnelEncapSubTLV
+	Flags uint8
+	SID   []byte
+	EP    *SRv6EndpointBehaviorStructure
+}
+
+func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
+	value, err := s.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
+	}
+	s.Flags = value[0]
+	return nil
+}
+func (s *SegmentTypeB) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	buf[0] = s.Flags
+	return s.TunnelEncapSubTLV.Serialize(buf)
+}
+func (s *SegmentTypeB) String() string {
+
+	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t}",
+		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10)
+}
+
+func (s *SegmentTypeB) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  EncapSubTLVType `json:"type"`
+		VFlag bool            `json:"v_flag"`
+		AFlag bool            `json:"a_flag"`
+		SFlag bool            `json:"s_flag"`
+		BFlag bool            `json:"b_flag"`
+	}{
+		Type:  s.Type,
+		VFlag: s.Flags&0x80 == 0x80,
+		AFlag: s.Flags&0x40 == 0x40,
+		SFlag: s.Flags&0x20 == 0x20,
+		BFlag: s.Flags&0x10 == 0x10,
+	})
+}
+
+const (
+	// SegmentListSubTLVWeight defines code for Segment List's Weight sub-TLV
+	SegmentListSubTLVWeight = 9
+)
+
 type TunnelEncapSubTLVSRSegmentList struct {
 	TunnelEncapSubTLV
 	Weight   *SegmentListWeight
@@ -628,12 +744,12 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 	}
 	// Skip reserved byte to access inner SubTLV type
 	value = value[1:]
-	t.Segments = make([]TunnelEncapSubTLVInterface, 0)
+	segments := make([]TunnelEncapSubTLVInterface, 0)
 	p := 0
 	for p < t.TunnelEncapSubTLV.Len()-4 {
 		var segment TunnelEncapSubTLVInterface
 		switch SegmentType(value[0]) {
-		case SegmentListWeightType:
+		case SegmentListSubTLVWeight:
 			t.Weight = &SegmentListWeight{}
 			if err := t.Weight.DecodeFromBytes(value); err != nil {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
@@ -646,6 +762,8 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 			if err := segment.DecodeFromBytes(value); err != nil {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 			}
+		case TypeB:
+			fallthrough
 		case TypeC:
 			fallthrough
 		case TypeD:
@@ -657,47 +775,62 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 		case TypeG:
 			fallthrough
 		case TypeH:
+			fallthrough
+		case TypeI:
+			fallthrough
+		case TypeJ:
+			fallthrough
+		case TypeK:
 			msg := fmt.Sprintf("Invalid SR Policy Segment SubTLV %d is not yet supported", value[0])
 			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, msg)
 		default:
 			msg := fmt.Sprintf("Invalid SR Policy Segment List SubTLV %d", value[0])
 			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, msg)
 		}
-		t.Segments = append(t.Segments, segment)
+		segments = append(segments, segment)
 		p += segment.Len()
 		value = value[segment.Len():]
+	}
+	if len(segments) == 0 {
+		t.Segments = nil
+	} else {
+		t.Segments = segments
 	}
 	return nil
 }
 
 func (t *TunnelEncapSubTLVSRSegmentList) Serialize() ([]byte, error) {
-	buf := make([]byte, t.Length)
-	wbuf, err := t.Weight.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	p := 0
+	buf := make([]byte, 0)
 	// Add reserved byte
-	p++
-	copy(buf[p:], wbuf)
-	p += len(wbuf)
+	buf = append(buf, 0x0)
+	if t.Weight != nil {
+		wbuf, err := t.Weight.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, wbuf...)
+	}
 	for _, s := range t.Segments {
 		sbuf, err := s.Serialize()
 		if err != nil {
 			return nil, err
 		}
-		copy(buf[p:], sbuf)
-		p += len(sbuf)
+		buf = append(buf, sbuf...)
 	}
 	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }
 
 func (t *TunnelEncapSubTLVSRSegmentList) String() string {
-	var segments string
-	for _, s := range t.Segments {
-		segments += s.String()
+	msg := "{"
+	if t.Weight != nil {
+		msg += "Weight: " + t.Weight.String() + ","
 	}
-	return fmt.Sprintf("{Weight: %s Segment List: %s}", t.Weight.String(), segments)
+	msg += "Segment List: [ "
+	for _, s := range t.Segments {
+		msg += s.String() + ","
+	}
+	msg += " ] }"
+	return msg
 }
 
 func (t *TunnelEncapSubTLVSRSegmentList) MarshalJSON() ([]byte, error) {
@@ -710,12 +843,4 @@ func (t *TunnelEncapSubTLVSRSegmentList) MarshalJSON() ([]byte, error) {
 		Weight:   t.Weight,
 		Segments: t.Segments,
 	})
-}
-
-func NewTunnelEncapSubTLVSRSegmentList() *TunnelEncapSubTLVSRSegmentList {
-	return &TunnelEncapSubTLVSRSegmentList{
-		TunnelEncapSubTLV: TunnelEncapSubTLV{
-			Type: ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST,
-		},
-	}
 }
