@@ -254,16 +254,15 @@ func (p PmsiTunnelType) String() string {
 type EncapSubTLVType uint8
 
 const (
-	ENCAP_SUBTLV_TYPE_ENCAPSULATION  EncapSubTLVType = 1
-	ENCAP_SUBTLV_TYPE_PROTOCOL       EncapSubTLVType = 2
-	ENCAP_SUBTLV_TYPE_COLOR          EncapSubTLVType = 4
-	ENCAP_SUBTLV_TYPE_SRPREFIX_SID   EncapSubTLVType = 11
-	ENCAP_SUBTLV_TYPE_SRPREFERENCE   EncapSubTLVType = 12
-	ENCAP_SUBTLV_TYPE_SRBINDING_SID  EncapSubTLVType = 13
-	ENCAP_SUBTLV_TYPE_SRENLP         EncapSubTLVType = 14
-	ENCAP_SUBTLV_TYPE_SRPRIORITY     EncapSubTLVType = 15
-	ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST EncapSubTLVType = 128
-	ENCAP_SUBTLV_TYPE_SRPOLICY_NAME  EncapSubTLVType = 129
+	ENCAP_SUBTLV_TYPE_ENCAPSULATION         EncapSubTLVType = 1
+	ENCAP_SUBTLV_TYPE_PROTOCOL              EncapSubTLVType = 2
+	ENCAP_SUBTLV_TYPE_COLOR                 EncapSubTLVType = 4
+	ENCAP_SUBTLV_TYPE_SRPREFERENCE          EncapSubTLVType = 12
+	ENCAP_SUBTLV_TYPE_SRBINDING_SID         EncapSubTLVType = 13
+	ENCAP_SUBTLV_TYPE_SRENLP                EncapSubTLVType = 14
+	ENCAP_SUBTLV_TYPE_SRPRIORITY            EncapSubTLVType = 15
+	ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST        EncapSubTLVType = 128
+	ENCAP_SUBTLV_TYPE_SRCANDIDATE_PATH_NAME EncapSubTLVType = 129
 )
 
 const (
@@ -11645,8 +11644,8 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 			subTlv = &TunnelEncapSubTLVSRENLP{}
 		case ENCAP_SUBTLV_TYPE_SRPRIORITY:
 			subTlv = &TunnelEncapSubTLVSRPriority{}
-		case ENCAP_SUBTLV_TYPE_SRPOLICY_NAME:
-			subTlv = &TunnelEncapSubTLVSRPolicyName{}
+		case ENCAP_SUBTLV_TYPE_SRCANDIDATE_PATH_NAME:
+			subTlv = &TunnelEncapSubTLVSRCandidatePathName{}
 		default:
 			subTlv = &TunnelEncapSubTLVUnknown{
 				TunnelEncapSubTLV: TunnelEncapSubTLV{
