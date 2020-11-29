@@ -322,17 +322,13 @@ message LsPrefixV6NLRI {
 
 // Based om RFC 7752, Table 1.
 enum LsNLRIType {
-  LS_NLRI_UNKNOWN = 0;
-  LS_NLRI_NODE = 1;
-  LS_NLRI_LINK = 2;
+  LS_NLRI_UNKNOWN = 0; LS_NLRI_NODE = 1; LS_NLRI_LINK = 2;
   LS_NLRI_PREFIX_V4 = 3;
   LS_NLRI_PREFIX_V6 = 4;
 }
 
 enum LsProtocolID {
-  LS_PROTOCOL_UNKNOWN = 0;
-  LS_PROTOCOL_ISIS_L1 = 1;
-  LS_PROTOCOL_ISIS_L2 = 2;
+  LS_PROTOCOL_UNKNOWN = 0; LS_PROTOCOL_ISIS_L1 = 1; LS_PROTOCOL_ISIS_L2 = 2;
   LS_PROTOCOL_OSPF_V2 = 3;
   LS_PROTOCOL_DIRECT = 4;
   LS_PROTOCOL_STATIC = 5;
@@ -510,16 +506,25 @@ message TunnelEncapSubTLVSRPreference {
   uint32 preference = 2;
 }
 
+message TunnelEncapSubTLVSRCandidatePathName { string candidate_path_name = 1; }
+
+message TunnelEncapSubTLVSRPriority { uint32 priority = 1; }
+
+message TunnelEncapSubTLVSRBindingSID {
+  // bsid must be one of:
+  // - SRBindingSI
+  // - SRv6BindingSID
+  google.protobuf.Any bsid = 1;
+}
+
 message SRBindingSID {
-  uint32 flags = 1;
-  bytes sid = 2;
+  bool s_flag = 1;
+  bool i_flag = 2;
+  bytes sid = 3;
 }
 
 enum SRv6Behavior {
-  RESERVED = 0;
-  END = 1;
-  END_WITH_PSP = 2;
-  END_WITH_USP = 3;
+  RESERVED = 0; END = 1; END_WITH_PSP = 2; END_WITH_USP = 3;
   END_WITH_PSP_USP = 4;
   ENDX = 5;
   ENDX_WITH_PSP = 6;
@@ -571,14 +576,16 @@ message SRv6BindingSID {
   SRv6EndPpointBehavior endpoint_behavior_structure = 5;
 }
 
+enum ENLPType { Reserved = 0; Type1 = 1; Type2 = 2; Type3 = 3; Type4 = 4; }
+
 message TunnelEncapSubTLVSRENLP {
   uint32 flags = 1;
-  uint32 enlp = 2;
+  ENLPType enlp = 2;
 }
 
 message SRWeight {
   uint32 flags = 1;
-  uint32 weigth = 2;
+  uint32 weight = 2;
 }
 
 message SegmentFlags {
@@ -593,24 +600,17 @@ message SegmentTypeA {
   uint32 label = 2;
 }
 
-message SegmentList {
+message SegmentTypeB {
+  SegmentFlags flags = 1;
+  uint32 label = 2;
+}
+
+message TunnelEncapSubTLVSRSegmentList {
   SRWeight weight = 1;
   // segments must be one of:
   // - SegmentTypeA
+  // - SegmentTypeB
   repeated google.protobuf.Any segments = 2;
-}
-
-message TunnelEncapSubTLVSRPolicy {
-  TunnelEncapSubTLVSRPreference preference = 1;
-  // bsid must be one of:
-  // - SRBindingSID
-  // - SRv6BindingSID
-  google.protobuf.Any bsid = 2;
-  string name = 3;
-  string candidate_path_name = 4;
-  uint32 priority = 5;
-  TunnelEncapSubTLVSRENLP enlp = 6;
-  repeated SegmentList segment_list = 7;
 }
 
 message TunnelEncapSubTLVUnknown {
