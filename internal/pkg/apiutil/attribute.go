@@ -1455,6 +1455,9 @@ func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*any.Any {
 		case *bgp.PathAttributeLs:
 			n, _ := ptypes.MarshalAny(NewLsAttributeFromNative(a))
 			anyList = append(anyList, n)
+		case *bgp.PathAttributePrefixSID:
+			n, _ := ptypes.MarshalAny(NewPrefixSIDAttributeFromNative(a))
+			anyList = append(anyList, n)
 		case *bgp.PathAttributeUnknown:
 			n, _ := ptypes.MarshalAny(NewUnknownAttributeFromNative(a))
 			anyList = append(anyList, n)
