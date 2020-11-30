@@ -35,6 +35,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 - Go Native BGP Library
   - [Basics](docs/sources/lib.md)
   - [BGP-LS](docs/sources/lib-ls.md)
+  - [SR Policy](docs/sources/lib-srpolicy.md)
 - [Graceful Restart](docs/sources/graceful-restart.md)
 - [Additional Paths](docs/sources/add-paths.md)
 - [Peer Group](docs/sources/peer-group.md)
