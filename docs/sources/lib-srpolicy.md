@@ -163,7 +163,7 @@ func main() {
 
 Once the sr policy is injected, gobgp will advertise it to the peers with SR Policy enabled address family. Below is the output collected from Cisco's XRV9K router with enabled SR policy address family. Please note since the information used such as: bsid, endpoint adress etc is not realistic, the router does not install the sr policy, but still, it correctly displays what was programmed.
 
-```
+```log
 RP/0/RP0/CPU0:xrv9k-r1#sh bgp ipv4 sr-policy [2][99][10.0.0.15]/96
 Sun Nov 29 13:05:05.293 EST
 BGP routing table entry for [2][99][10.0.0.15]/96
@@ -179,7 +179,7 @@ Paths: (1 available, best #1)
     192.168.20.1 from 192.168.20.201 (192.168.20.201)
       Origin IGP, localpref 100, valid, internal, best, group-best
       Received Path ID 0, Local Path ID 1, version 37
-      Extended community: RT:10.0.0.8:0 
+      Extended community: RT:10.0.0.8:0
       Tunnel encap attribute type: 15 (SR policy)
        bsid 24321, preference 11, num of segment-lists 1
        segment-list 1, weight 12
