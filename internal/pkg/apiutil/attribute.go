@@ -668,6 +668,20 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *any.Any {
 				Identifier: n.Identifier,
 			}
 		}
+	case *bgp.SRPolicyIPv4:
+		nlri = &api.SRPolicyNLRI{
+			Length:        uint32(v.Length),
+			Distinguisher: v.Distinguisher,
+			Color:         v.Color,
+			Endpoint:      v.Endpoint,
+		}
+	case *bgp.SRPolicyIPv6:
+		nlri = &api.SRPolicyNLRI{
+			Length:        uint32(v.Length),
+			Distinguisher: v.Distinguisher,
+			Color:         v.Color,
+			Endpoint:      v.Endpoint,
+		}
 	}
 
 	an, _ := ptypes.MarshalAny(nlri)
@@ -1167,9 +1181,36 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *api.Tun
 					Type:  uint32(sv.Type),
 					Value: sv.Value,
 				}
-
-				// TODO (sbezverk) Add processing new tunneling sub tlvs
-
+			case *bgp.TunnelEncapSubTLVSRBSID:
+				subTlv = MarshalSRBSID(sv)
+				// TODO (sbezverk) Add processing of SRv6 Binding SID when it gets assigned ID
+			case *bgp.TunnelEncapSubTLVSRCandidatePathName:
+				subTlv = &api.TunnelEncapSubTLVSRCandidatePathName{
+					CandidatePathName: sv.CandidatePathName,
+				}
+				// TODO (sbezverk) Add processing of SR Policy name when it gets assigned ID
+			case *bgp.TunnelEncapSubTLVSRENLP:
+				subTlv = &api.TunnelEncapSubTLVSRENLP{
+					Flags: uint32(sv.Flags),
+					Enlp:  api.ENLPType(sv.ENLP),
+				}
+			case *bgp.TunnelEncapSubTLVSRPreference:
+				subTlv = &api.TunnelEncapSubTLVSRPreference{
+					Flags:      uint32(sv.Flags),
+					Preference: sv.Preference,
+				}
+			case *bgp.TunnelEncapSubTLVSRPriority:
+				subTlv = &api.TunnelEncapSubTLVSRPriority{
+					Priority: uint32(sv.Priority),
+				}
+			case *bgp.TunnelEncapSubTLVSRSegmentList:
+				subTlv = &api.TunnelEncapSubTLVSRSegmentList{
+					Weight: &api.SRWeight{
+						Flags:  uint32(sv.Weight.Flags),
+						Weight: uint32(sv.Weight.Weight),
+					},
+					Segments: MarshalSRSegments(sv.Segments),
+				}
 			}
 			an, _ := ptypes.MarshalAny(subTlv)
 			subTlvs = append(subTlvs, an)
@@ -1731,6 +1772,20 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 	return nil, errors.New("unknown path attribute")
 }
 
+// MarshalSRBSID marshals SR Policy Binding SID Sub TLV structure
+func MarshalSRBSID(bsid *bgp.TunnelEncapSubTLVSRBSID) *any.Any {
+	var r proto.Message
+	s := &api.SRBindingSID{
+		Sid: make([]byte, len(bsid.BSID.Value)),
+	}
+	copy(s.Sid, bsid.BSID.Value)
+	s.SFlag = bsid.Flags&0x80 == 0x80
+	s.IFlag = bsid.Flags&0x40 == 0x40
+	r = s
+	a, _ := ptypes.MarshalAny(r)
+	return a
+}
+
 // UnmarshalSRBSID unmarshals SR Policy Binding SID Sub TLV and returns native TunnelEncapSubTLVInterface interface
 func UnmarshalSRBSID(bsid *any.Any) (bgp.TunnelEncapSubTLVInterface, error) {
 	var value ptypes.DynamicAny
@@ -1763,6 +1818,33 @@ func UnmarshalSRBSID(bsid *any.Any) (bgp.TunnelEncapSubTLVInterface, error) {
 	default:
 		return nil, fmt.Errorf("unknown binding sid type %+v", v)
 	}
+}
+
+// MarshalSRSegments marshals a slice of SR Policy Segment List
+func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*any.Any {
+	anyList := make([]*any.Any, 0, len(segs))
+	for _, seg := range segs {
+		var r proto.Message
+		switch s := seg.(type) {
+		case *bgp.SegmentTypeA:
+			r = &api.SegmentTypeA{
+				Label: s.Label,
+				Flags: &api.SegmentFlags{
+					VFlag: s.Flags&0x80 == 0x80,
+					AFlag: s.Flags&0x40 == 0x40,
+					SFlag: s.Flags&0x20 == 0x20,
+					BFlag: s.Flags&0x10 == 0x10,
+				},
+			}
+			// TODO (sbezverk) Add Type B Segment when SRv6 Binding SID gets finalized.
+		default:
+			// Unrecognize Segment type, skip it
+			continue
+		}
+		a, _ := ptypes.MarshalAny(r)
+		anyList = append(anyList, a)
+	}
+	return anyList
 }
 
 // UnmarshalSRSegments unmarshals SR Policy Segments slice of structs
