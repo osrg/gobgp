@@ -512,7 +512,7 @@ message TunnelEncapSubTLVSRPriority { uint32 priority = 1; }
 
 message TunnelEncapSubTLVSRBindingSID {
   // bsid must be one of:
-  // - SRBindingSI
+  // - SRBindingSID
   // - SRv6BindingSID
   google.protobuf.Any bsid = 1;
 }

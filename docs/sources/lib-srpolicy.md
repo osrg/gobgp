@@ -2,6 +2,9 @@
 
 This page explains how to use GoBGP for Injecting SR Policy. This example shows how to build new SR Policy NLRI and associated with NLRI attributes. This attributes are sent as Tunnel Encapsulation of type 15 (SR Policy) SUB TLV's.
 
+**Note:**
+Revision **11** of the draft is currently implemented in gobgp. Once draft becomes RFC, the implementation will be updated to reflect RFC changes. Here is the link to the draft [Advertising Segment Routing Policies in BGP](https://tools.ietf.org/html/draft-ietf-idr-segment-routing-te-policy-11)
+
 ## Contents
 
 - [Basic SR Policy Example](#basic-srpolicy-example)

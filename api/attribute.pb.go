@@ -2536,7 +2536,7 @@ func (m *TunnelEncapSubTLVSRPriority) GetPriority() uint32 {
 
 type TunnelEncapSubTLVSRBindingSID struct {
 	// bsid must be one of:
-	// - SRBindingSI
+	// - SRBindingSID
 	// - SRv6BindingSID
 	Bsid *google_protobuf.Any `protobuf:"bytes,1,opt,name=bsid" json:"bsid,omitempty"`
 }
