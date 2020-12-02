@@ -2,6 +2,7 @@
 package table
 
 import (
+	"net"
 	"testing"
 	"time"
 
@@ -362,4 +363,23 @@ func TestReplaceAS(t *testing.T) {
 	assert.Equal(t, list[1], uint32(64513))
 	assert.Equal(t, list[2], uint32(10))
 	assert.Equal(t, list[3], uint32(2))
+}
+
+func TestNLRIToIPNet(t *testing.T) {
+	_, n1, _ := net.ParseCIDR("30.30.30.0/24")
+	ipNet := nlriToIPNet(bgp.NewIPAddrPrefix(24, "30.30.30.0"))
+	assert.Equal(t, n1, ipNet)
+
+	_, n2, _ := net.ParseCIDR("2806:106e:19::/48")
+	ipNet = nlriToIPNet(bgp.NewIPv6AddrPrefix(48, "2806:106e:19::"))
+	assert.Equal(t, n2, ipNet)
+
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	_, n3, _ := net.ParseCIDR("30.30.30.0/24")
+	ipNet = nlriToIPNet(bgp.NewLabeledIPAddrPrefix(24, "30.30.30.0", *labels))
+	assert.Equal(t, n3, ipNet)
+
+	_, n4, _ := net.ParseCIDR("2806:106e:19::/48")
+	ipNet = nlriToIPNet(bgp.NewLabeledIPv6AddrPrefix(48, "2806:106e:19::", *labels))
+	assert.Equal(t, n4, ipNet)
 }

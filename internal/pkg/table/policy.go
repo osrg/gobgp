@@ -1439,7 +1439,10 @@ func (c *PrefixCondition) Option() MatchOption {
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
 func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	if path.GetRouteFamily() != c.set.family {
+	pathAfi, _ := bgp.RouteFamilyToAfiSafi(path.GetRouteFamily())
+	cAfi, _ := bgp.RouteFamilyToAfiSafi(c.set.family)
+
+	if cAfi != pathAfi {
 		return false
 	}
 

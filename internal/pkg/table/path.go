@@ -1233,12 +1233,12 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 	case *bgp.LabeledIPAddrPrefix:
 		return &net.IPNet{
 			IP:   net.IP(T.Prefix.To4()),
-			Mask: net.CIDRMask(int(T.Length), 32),
+			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 32),
 		}
 	case *bgp.LabeledIPv6AddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To4()),
-			Mask: net.CIDRMask(int(T.Length), 128),
+			IP:   net.IP(T.Prefix.To16()),
+			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 128),
 		}
 	}
 	return nil

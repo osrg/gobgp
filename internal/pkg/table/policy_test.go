@@ -3024,6 +3024,31 @@ func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
 	assert.False(t, m.Evaluate(path, nil))
 }
 
+func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
+	p1 := config.Prefix{
+		IpPrefix:        "2806:106e:19::/48",
+		MasklengthRange: "48..48",
+	}
+	ps, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	assert.Nil(t, err)
+	m := &PrefixCondition{
+		set: ps,
+	}
+
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	n1 := bgp.NewLabeledIPv6AddrPrefix(48, "2806:106e:19::", *labels)
+	path := NewPath(nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	labels = bgp.NewMPLSLabelStack(100, 200)
+	n2 := bgp.NewLabeledIPv6AddrPrefix(48, "1806:106e:19::", *labels)
+	path = NewPath(nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+}
+
 func TestLargeCommunityMatchAction(t *testing.T) {
 	coms := []*bgp.LargeCommunity{
 		&bgp.LargeCommunity{ASN: 100, LocalData1: 100, LocalData2: 100},
