@@ -1621,8 +1621,8 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte, options ...*MarshallingOpt
 	foundBottom := false
 	bottomExpected := true
 	if IsAttributePresent(BGP_ATTR_TYPE_PREFIX_SID, options) {
-		// If Update carries Prefix SID attribute then one should not rely on BoS for label stack processing,
-		// the first label carries transposed variable part of the SRv6 SID.
+		// If Update carries Prefix SID attribute then one should not rely on BoS for the label stack processing,
+		// the first and only label carries transposed variable part of the SRv6 SID.
 		bottomExpected = false
 	}
 	for len(data) >= 3 {
