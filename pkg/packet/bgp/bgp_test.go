@@ -1254,7 +1254,7 @@ func TestParseMessageWithBadLength(t *testing.T) {
 					}
 				}
 			default:
-				t.Fatalf("got unwxpected error type %T: %v", err, err)
+				t.Fatalf("got unexpected error type %T: %v", err, err)
 			}
 
 		})
