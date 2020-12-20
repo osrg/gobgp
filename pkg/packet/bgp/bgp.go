@@ -977,6 +977,9 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 			return err
 		}
 		o.Capability = append(o.Capability, c)
+		if c.Len() == 0 || len(data) < c.Len() {
+			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Bad capability length")
+		}
 		data = data[c.Len():]
 	}
 	return nil
@@ -1051,7 +1054,7 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 		}
 		paramtype := data[0]
 		paramlen := data[1]
-		if rest < paramlen+2 {
+		if paramlen >= 254 || rest < paramlen+2 {
 			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP Open message")
 		}
 		rest -= paramlen + 2
@@ -12170,6 +12173,9 @@ func (p *PathAttributeAigp) DecodeFromBytes(data []byte, options ...*Marshalling
 	for len(value) > 3 {
 		typ := value[0]
 		length := binary.BigEndian.Uint16(value[1:3])
+		if length <= 3 {
+			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP message")
+		}
 		if len(value) < int(length) {
 			break
 		}

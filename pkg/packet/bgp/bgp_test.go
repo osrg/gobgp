@@ -18,9 +18,13 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1191,6 +1195,69 @@ func TestFuzzCrashers(t *testing.T) {
 
 	for _, f := range crashers {
 		ParseBGPMessage([]byte(f))
+	}
+}
+
+func TestParseMessageWithBadLength(t *testing.T) {
+	type testCase struct {
+		fname string
+		data  []byte
+	}
+
+	var cases []testCase
+	root := filepath.Join("testdata", "bad-len")
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if path == root {
+				return nil
+			}
+			return filepath.SkipDir
+		}
+		fname := filepath.Base(path)
+		if strings.ContainsRune(fname, '.') {
+			return nil
+		}
+		data, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		cases = append(cases, testCase{
+			fname: fname,
+			data:  data,
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.fname, func(t *testing.T) {
+			msg, err := ParseBGPMessage(tt.data)
+			if err == nil {
+				_, err = msg.Serialize()
+				if err != nil {
+					t.Fatal("failed to serialize:", err)
+				}
+				return
+			}
+
+			switch e := err.(type) {
+			case *MessageError:
+				switch e.TypeCode {
+				case BGP_ERROR_MESSAGE_HEADER_ERROR:
+					if e.SubTypeCode != BGP_ERROR_SUB_BAD_MESSAGE_LENGTH {
+						t.Fatalf("got unexpected message type and data: %v", e)
+					}
+				}
+			default:
+				t.Fatalf("got unwxpected error type %T: %v", err, err)
+			}
+
+		})
 	}
 }
 

@@ -52,7 +52,7 @@ func (s *TLV) DecodeFromBytes(data []byte) ([]byte, error) {
 	p++
 	s.Length = binary.BigEndian.Uint16(data[p : p+2])
 
-	if len(data) < s.Len() {
+	if s.Len() < prefixSIDtlvHdrLen || len(data) < s.Len() {
 		return nil, malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
 	}
 

@@ -742,9 +742,12 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 	}
+	if len(value) < 1 {
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP message")
+	}
 	// Skip reserved byte to access inner SubTLV type
 	value = value[1:]
-	segments := make([]TunnelEncapSubTLVInterface, 0)
+	var segments []TunnelEncapSubTLVInterface
 	p := 0
 	for p < t.TunnelEncapSubTLV.Len()-4 {
 		var segment TunnelEncapSubTLVInterface
