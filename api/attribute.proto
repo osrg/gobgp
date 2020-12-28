@@ -299,9 +299,19 @@ message LsLinkDescriptor {
   string neighbor_addr_ipv6 = 6;
 }
 
+enum LsOspfRouteType {
+   LS_OSPF_ROUTE_TYPE_UNKNOWN = 0;
+   LS_OSPF_ROUTE_TYPE_INTRA_AREA = 1;
+   LS_OSPF_ROUTE_TYPE_INTER_AREA = 2;
+   LS_OSPF_ROUTE_TYPE_EXTERNAL1 = 3;
+   LS_OSPF_ROUTE_TYPE_EXTERNAL2 = 4;
+   LS_OSPF_ROUTE_TYPE_NSSA1 = 5;
+   LS_OSPF_ROUTE_TYPE_NSSA2 = 6;
+}
+
 message LsPrefixDescriptor {
   repeated string ip_reachability = 1;
-  string ospf_route_type = 2;
+  LsOspfRouteType ospf_route_type = 2;
 }
 
 message LsNodeNLRI { LsNodeDescriptor local_node = 1; }

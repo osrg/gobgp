@@ -454,7 +454,7 @@ func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) *api.LsLinkDescriptor {
 
 func MarshalLsPrefixDescriptor(d *bgp.LsPrefixDescriptor) *api.LsPrefixDescriptor {
 	p := &api.LsPrefixDescriptor{
-		OspfRouteType: d.OSPFRouteType.String(),
+		OspfRouteType: api.LsOspfRouteType(d.OSPFRouteType),
 	}
 
 	for _, ip := range d.IPReachability {
