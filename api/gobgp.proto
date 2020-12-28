@@ -432,7 +432,7 @@ message Validation {
     STATE_NONE = 0; STATE_NOT_FOUND = 1; STATE_VALID = 2; STATE_INVALID = 3;
   }
 
-  enum Reason { REASOT_NONE = 0; REASON_AS = 1; REASON_LENGTH = 2; }
+  enum Reason { REASON_NONE = 0; REASON_AS = 1; REASON_LENGTH = 2; }
 
   State state = 1;
   Reason reason = 2;
