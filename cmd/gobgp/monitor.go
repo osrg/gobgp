@@ -22,6 +22,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/spf13/cobra"
 
 	api "github.com/osrg/gobgp/api"
@@ -134,10 +135,39 @@ func newMonitorCmd() *cobra.Command {
 	}
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
+	lsCmd := &cobra.Command{
+		Use: "ls",
+		Run: func(cmd *cobra.Command, args []string) {
+			recvr, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
+				TableType: api.TableType_GLOBAL,
+				Family:    ls,
+				Current:   current,
+			})
+			if err != nil {
+				exitWithError(err)
+			}
+			for {
+				r, err := recvr.Recv()
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					exitWithError(err)
+				}
+				marshaller := jsonpb.Marshaler{}
+				out, err := marshaller.MarshalToString(r.Path)
+				if err != nil {
+					exitWithError(err)
+				}
+				fmt.Println(out)
+			}
+		},
+	}
+
 	globalCmd := &cobra.Command{
 		Use: cmdGlobal,
 	}
 	globalCmd.AddCommand(ribCmd)
+	globalCmd.AddCommand(lsCmd)
 
 	neighborCmd := &cobra.Command{
 		Use:  fmt.Sprintf("%s [<neighbor address>]", cmdNeighbor),
