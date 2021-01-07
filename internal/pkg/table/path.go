@@ -494,12 +494,16 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 			// in order, that is, other bgp speakers send
 			// attributes in order.
 			for _, a := range p.pathAttrs {
-				typ := uint(a.GetType())
-				if m, ok := modified[typ]; ok {
-					list = append(list, m)
-					delete(modified, typ)
-				} else if !deleted.GetFlag(typ) {
-					list = append(list, a)
+				if p.info != nil && 
+				   (a.GetType() != bgp.BGP_ATTR_TYPE_NEXT_HOP || 
+				    p.info.nlri.AFI() != bgp.AFI_IP6) {
+					typ := uint(a.GetType())
+					if m, ok := modified[typ]; ok {
+						list = append(list, m)
+						delete(modified, typ)
+					} else if !deleted.GetFlag(typ) {
+						list = append(list, a)
+					}
 				}
 			}
 			if len(modified) > 0 {
