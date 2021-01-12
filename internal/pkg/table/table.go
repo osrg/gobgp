@@ -209,6 +209,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 	switch t.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 		_, prefix, err := net.ParseCIDR(key)
+		ones, bits := prefix.Mask.Size()
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +217,25 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		for _, dst := range t.GetDestinations() {
 			r.Add(nlriToIPNet(dst.nlri), dst)
 		}
-		r.WalkPrefix(prefix, func(_ *net.IPNet, v interface{}) bool {
+		p := &net.IPNet{
+			IP:   prefix.IP,
+			Mask: net.CIDRMask((ones>>3)<<3, bits),
+		}
+		mask := 0
+		div := 0
+		if ones%8 != 0 {
+			mask = 8 - ones&0x7
+			div = ones >> 3
+		}
+		r.WalkPrefix(p, func(n *net.IPNet, v interface{}) bool {
+			if mask != 0 && n.IP[div]>>mask != p.IP[div]>>mask {
+				return true
+			}
+			l, _ := n.Mask.Size()
+
+			if ones > l {
+				return true
+			}
 			results = append(results, v.(*Destination))
 			return true
 		})

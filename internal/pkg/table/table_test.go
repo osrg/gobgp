@@ -24,6 +24,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestLookupLonger(t *testing.T) {
+	tbl := NewTable(bgp.RF_IPv4_UC)
+
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(23, "11.0.0.0"), 0))
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(24, "11.0.0.0"), 0))
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(32, "11.0.0.4"), 0))
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(32, "11.0.0.129"), 0))
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(28, "11.0.0.144"), 0))
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(29, "11.0.0.144"), 0))
+	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(32, "11.0.0.145"), 0))
+
+	r, _ := tbl.GetLongerPrefixDestinations("11.0.0.128/25")
+	assert.Equal(t, len(r), 4)
+	r, _ = tbl.GetLongerPrefixDestinations("11.0.0.0/24")
+	assert.Equal(t, len(r), 6)
+}
+
 func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
@@ -146,6 +163,7 @@ func updateMsgT2() *bgp.BGPMessage {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
 	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
+
 func updateMsgT3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
