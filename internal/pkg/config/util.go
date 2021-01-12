@@ -130,7 +130,7 @@ func (n *Neighbor) IsConfederation(g *Global) bool {
 }
 
 func (n *Neighbor) IsEBGPPeer(g *Global) bool {
-	return n.Config.PeerAs != g.Config.As
+	return n.Config.PeerAs != n.Config.LocalAs
 }
 
 func (n *Neighbor) CreateRfMap() map[bgp.RouteFamily]bgp.BGPAddPathMode {
