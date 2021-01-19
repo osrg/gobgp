@@ -11393,7 +11393,7 @@ func (t *TunnelEncapSubTLV) DecodeFromBytes(data []byte) (value []byte, err erro
 	if len(data) < int(t.Length) {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
 	}
-	return data, nil
+	return data[:t.Length], nil
 }
 
 func (t *TunnelEncapSubTLV) Serialize(value []byte) (buf []byte, err error) {
