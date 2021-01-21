@@ -70,13 +70,8 @@ func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return setsockOptString(sc, syscall.IPPROTO_TCP, tcpMD5SIG, string(b[:]))
 }
 
-func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
-	family := extractFamilyFromTCPListener(l)
-	sc, err := l.SyscallConn()
-	if err != nil {
-		return err
-	}
-	return setsockoptIpTtl(sc, family, ttl)
+func setBindToDevSockopt(sc syscall.RawConn, device string) error {
+	return setsockOptString(sc, syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, device)
 }
 
 func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
@@ -162,13 +157,8 @@ func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8
 		}
 	}
 	if bindInterface != "" {
-		if err := c.Control(func(fd uintptr) {
-			sockerr = os.NewSyscallError("setsockopt", syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, bindInterface))
-		}); err != nil {
+		if err := setBindToDevSockopt(c, bindInterface); err != nil {
 			return err
-		}
-		if sockerr != nil {
-			return sockerr
 		}
 	}
 	return nil

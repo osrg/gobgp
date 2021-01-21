@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/eapache/channels"
@@ -52,35 +53,56 @@ func (l *tcpListener) Close() error {
 }
 
 // avoid mapped IPv6 address
-func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpListener, error) {
+func newTCPListener(address string, port uint32, bindToDev string, ch chan *net.TCPConn) (*tcpListener, error) {
 	proto := "tcp4"
+	family := syscall.AF_INET
 	if ip := net.ParseIP(address); ip == nil {
 		return nil, fmt.Errorf("can't listen on %s", address)
 	} else if ip.To4() == nil {
 		proto = "tcp6"
+		family = syscall.AF_INET6
 	}
-	addr, err := net.ResolveTCPAddr(proto, net.JoinHostPort(address, strconv.Itoa(int(port))))
-	if err != nil {
-		return nil, err
+	addr := net.JoinHostPort(address, strconv.Itoa(int(port)))
+
+	var lc net.ListenConfig
+	lc.Control = func(network, address string, c syscall.RawConn) error {
+		if bindToDev != "" {
+			err := setBindToDevSockopt(c, bindToDev)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic":     "Peer",
+					"Key":       addr,
+					"BindToDev": bindToDev,
+				}).Warnf("failed to bind Listener to device (%s): %s", bindToDev, err)
+				return err
+			}
+		}
+		// Note: Set TTL=255 for incoming connection listener in order to accept
+		// connection in case for the neighbor has TTL Security settings.
+		err := setsockoptIpTtl(c, family, 255)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Warnf("cannot set TTL(=%d) for TCPListener: %s", 255, err)
+		}
+		return nil
 	}
 
-	l, err := net.ListenTCP(proto, addr)
+	l, err := lc.Listen(context.Background(), proto, addr)
 	if err != nil {
 		return nil, err
 	}
-	// Note: Set TTL=255 for incoming connection listener in order to accept
-	// connection in case for the neighbor has TTL Security settings.
-	if err := setListenTCPTTLSockopt(l, 255); err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		}).Warnf("cannot set TTL(=%d) for TCPListener: %s", 255, err)
+	listener, ok := l.(*net.TCPListener)
+	if !ok {
+		err = fmt.Errorf("unexpected connection listener (not for TCP)")
+		return nil, err
 	}
 
 	closeCh := make(chan struct{})
 	go func() error {
 		for {
-			conn, err := l.AcceptTCP()
+			conn, err := listener.AcceptTCP()
 			if err != nil {
 				close(closeCh)
 				log.WithFields(log.Fields{
@@ -93,7 +115,7 @@ func newTCPListener(address string, port uint32, ch chan *net.TCPConn) (*tcpList
 		}
 	}()
 	return &tcpListener{
-		l:  l,
+		l:  listener,
 		ch: closeCh,
 	}, nil
 }
@@ -2101,7 +2123,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		if c.Config.Port > 0 {
 			acceptCh := make(chan *net.TCPConn, 4096)
 			for _, addr := range c.Config.LocalAddressList {
-				l, err := newTCPListener(addr, uint32(c.Config.Port), acceptCh)
+				l, err := newTCPListener(addr, uint32(c.Config.Port), g.BindToDevice, acceptCh)
 				if err != nil {
 					return err
 				}

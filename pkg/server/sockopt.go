@@ -17,6 +17,7 @@
 package server
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 
@@ -27,16 +28,16 @@ func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return setTcpMD5SigSockopt(l, address, key)
 }
 
-func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
-	return setListenTcpTTLSockopt(l, ttl)
-}
-
 func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setTcpTTLSockopt(conn, ttl)
 }
 
 func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setTcpMinTTLSockopt(conn, ttl)
+}
+
+func setBindToDevSockopt(sc syscall.RawConn, device string) error {
+	return fmt.Errorf("binding connection to a device is not supported")
 }
 
 func dialerControl(network, address string, c syscall.RawConn, ttl, ttlMin uint8, password string, bindInterface string) error {
