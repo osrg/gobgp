@@ -65,14 +65,6 @@ func decodeAdministrativeCommunication(data []byte) (string, []byte) {
 	return string(data[1 : communicationLen+1]), data[communicationLen+1:]
 }
 
-func extractFamilyFromTCPListener(l *net.TCPListener) int {
-	family := syscall.AF_INET
-	if strings.Contains(l.Addr().String(), "[") {
-		family = syscall.AF_INET6
-	}
-	return family
-}
-
 func extractFamilyFromTCPConn(conn *net.TCPConn) int {
 	family := syscall.AF_INET
 	if strings.Contains(conn.RemoteAddr().String(), "[") {

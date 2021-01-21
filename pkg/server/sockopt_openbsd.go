@@ -370,15 +370,6 @@ func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return setsockoptTcpMD5Sig(sc, address, key)
 }
 
-func setListenTCPTTLSockopt(l *net.TCPListener, ttl int) error {
-	family := extractFamilyFromTCPListener(l)
-	sc, err := l.SyscallConn()
-	if err != nil {
-		return err
-	}
-	return setsockoptIpTtl(sc, family, ttl)
-}
-
 func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
 	family := extractFamilyFromTCPConn(conn)
 	sc, err := conn.SyscallConn()
@@ -401,6 +392,10 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 		name = ipv6MinHopCount
 	}
 	return setsockOptInt(sc, level, name, ttl)
+}
+
+func setBindToDevSockopt(sc syscall.RawConn, device string) error {
+	return fmt.Errorf("binding connection to a device is not supported")
 }
 
 func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {

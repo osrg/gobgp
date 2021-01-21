@@ -27,15 +27,6 @@ func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return fmt.Errorf("setting md5 is not supported")
 }
 
-func setListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
-	family := extractFamilyFromTCPListener(l)
-	sc, err := l.SyscallConn()
-	if err != nil {
-		return err
-	}
-	return setsockoptIpTtl(sc, family, ttl)
-}
-
 func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
 	family := syscall.AF_INET
 	if strings.Contains(conn.RemoteAddr().String(), "[") {

@@ -35,15 +35,6 @@ func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return setsockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
 }
 
-func setListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
-	family := extractFamilyFromTCPListener(l)
-	sc, err := l.SyscallConn()
-	if err != nil {
-		return err
-	}
-	return setsockoptIpTtl(sc, family, ttl)
-}
-
 func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
 	family := extractFamilyFromTCPConn(conn)
 	sc, err := conn.SyscallConn()
