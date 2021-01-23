@@ -1770,6 +1770,10 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	}
 	data = data[l.Labels.Len():]
 	l.RD = GetRouteDistinguisher(data)
+	rdLen := l.RD.Len()
+	if len(data) < rdLen {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad labeled VPN-IPv4 NLRI length")
+	}
 	data = data[l.RD.Len():]
 	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
 	return l.decodePrefix(data, uint8(restbits), l.addrlen)
@@ -2130,6 +2134,9 @@ type EthernetSegmentIdentifier struct {
 }
 
 func (esi *EthernetSegmentIdentifier) DecodeFromBytes(data []byte) error {
+	if len(data) < 10 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("invalid %s length", esi.Type.String()))
+	}
 	esi.Type = ESIType(data[0])
 	esi.Value = data[1:10]
 	switch esi.Type {
@@ -2376,6 +2383,10 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Len() int {
 
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
+	rdLen := er.RD.Len()
+	if len(data) < rdLen + 14 { // 14 is 10 for
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad Ethernet Auto-discovery Route length")
+	}
 	data = data[er.RD.Len():]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
@@ -2476,6 +2487,10 @@ func (er *EVPNMacIPAdvertisementRoute) Len() int {
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
+	rdLen := er.RD.Len()
+	if len(data) < rdLen {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad length of MAC/IP Advertisement Route")
+	}
 	data = data[er.RD.Len():]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
@@ -2628,6 +2643,10 @@ func (er *EVPNMulticastEthernetTagRoute) Len() int {
 
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
+	rdLen := er.RD.Len()
+	if len(data) < rdLen + 4 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid length of multicast ethernet tag route")
+	}
 	data = data[er.RD.Len():]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	er.IPAddressLength = data[4]
@@ -2722,6 +2741,10 @@ func (er *EVPNEthernetSegmentRoute) Len() int {
 
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
+	rdLen := er.RD.Len()
+	if len(data) < rdLen {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid Ethernet Segment Route length")
+	}
 	data = data[er.RD.Len():]
 	er.ESI.DecodeFromBytes(data)
 	data = data[10:]
@@ -4385,6 +4408,9 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*
 		length = int(data[0])
 		data = data[1:]
 	} else {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+	}
+	if len(data) < length {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
 	}
 
