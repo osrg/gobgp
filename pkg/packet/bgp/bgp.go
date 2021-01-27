@@ -2384,7 +2384,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Len() int {
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
 	rdLen := er.RD.Len()
-	if len(data) < rdLen + 14 { // 14 is 10 for
+	if len(data) < rdLen+14 { // 14 is 10 for
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad Ethernet Auto-discovery Route length")
 	}
 	data = data[er.RD.Len():]
@@ -2644,7 +2644,7 @@ func (er *EVPNMulticastEthernetTagRoute) Len() int {
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	er.RD = GetRouteDistinguisher(data)
 	rdLen := er.RD.Len()
-	if len(data) < rdLen + 4 {
+	if len(data) < rdLen+4 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid length of multicast ethernet tag route")
 	}
 	data = data[er.RD.Len():]

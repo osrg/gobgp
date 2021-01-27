@@ -74,10 +74,10 @@ func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []inte
 }
 
 func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
-	var pathStrs [][]interface{}
+	pathStrs := make([][]interface{}, len(pathList))
 
-	for _, p := range pathList {
-		pathStrs = append(pathStrs, makeMonitorRouteArgs(p, showIdentifier))
+	for i, p := range pathList {
+		pathStrs[i] = makeMonitorRouteArgs(p, showIdentifier)
 	}
 
 	format := time.Now().UTC().Format(time.RFC3339)
