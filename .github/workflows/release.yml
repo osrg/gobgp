@@ -1,12 +1,9 @@
 name: release
 
 on:
-  create:
-    branches:
-      - refs/tags/*
-#  create:
-#    tags:
-#      - v*.*.*
+  push:
+    tags:
+      - v[0-9]+.*
 
 jobs:
   build:
