@@ -2715,6 +2715,31 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetB
 	return rsp, nil
 }
 
+func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupRequest, fn func(*api.PeerGroup)) error {
+	var l []*api.PeerGroup
+	s.mgmtOperation(func() error {
+		peerGroupName := r.PeerGroupName
+		l = make([]*api.PeerGroup, 0, len(s.peerGroupMap))
+		for k, group := range s.peerGroupMap {
+			if peerGroupName != "" && peerGroupName != k {
+				continue
+			}
+			pg := config.NewPeerGroupFromConfigStruct(group.Conf)
+			l = append(l, pg)
+		}
+		return nil
+	}, false)
+	for _, pg := range l {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			fn(pg)
+		}
+	}
+	return nil
+}
+
 func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn func(*api.Peer)) error {
 	var l []*api.Peer
 	s.mgmtOperation(func() error {

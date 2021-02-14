@@ -102,6 +102,18 @@ func (s *server) serve() error {
 	return nil
 }
 
+func (s *server) ListPeerGroup(r *api.ListPeerGroupRequest, stream api.GobgpApi_ListPeerGroupServer) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fn := func(pg *api.PeerGroup) {
+		if err := stream.Send(&api.ListPeerGroupResponse{PeerGroup: pg}); err != nil {
+			cancel()
+			return
+		}
+	}
+	return s.bgpServer.ListPeerGroup(ctx, r, fn)
+}
+
 func parseHost(host string) (string, string) {
 	const unixScheme = "unix://"
 	if strings.HasPrefix(host, unixScheme) {

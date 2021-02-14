@@ -157,6 +157,8 @@ It has these top-level messages:
 	DeletePeerGroupRequest
 	UpdatePeerGroupRequest
 	UpdatePeerGroupResponse
+	ListPeerGroupRequest
+	ListPeerGroupResponse
 	AddDynamicNeighborRequest
 	AddPathRequest
 	AddPathResponse
