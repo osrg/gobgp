@@ -57,6 +57,10 @@ func (pg *peerGroup) AddDynamicNeighbor(c *config.DynamicNeighbor) {
 	pg.dynamicNeighbors[c.Config.Prefix] = c
 }
 
+func (pg *peerGroup) DeleteDynamicNeighbor(prefix string) {
+	delete(pg.dynamicNeighbors, prefix)
+}
+
 func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy) *peer {
 	conf := config.Neighbor{
 		Config: config.NeighborConfig{

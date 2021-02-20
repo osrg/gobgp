@@ -3002,6 +3002,13 @@ func (s *BgpServer) DeletePeer(ctx context.Context, r *api.DeletePeerRequest) er
 	}, true)
 }
 
+func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDynamicNeighborRequest) error {
+	return s.mgmtOperation(func() error {
+		s.peerGroupMap[r.PeerGroup].DeleteDynamicNeighbor(r.Prefix)
+		return nil
+	}, true)
+}
+
 func (s *BgpServer) updatePeerGroup(pg *config.PeerGroup) (needsSoftResetIn bool, err error) {
 	name := pg.Config.PeerGroupName
 

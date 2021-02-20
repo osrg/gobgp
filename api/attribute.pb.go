@@ -160,6 +160,7 @@ It has these top-level messages:
 	ListPeerGroupRequest
 	ListPeerGroupResponse
 	AddDynamicNeighborRequest
+	DeleteDynamicNeighborRequest
 	AddPathRequest
 	AddPathResponse
 	DeletePathRequest
