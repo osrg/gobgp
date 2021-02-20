@@ -2715,6 +2715,37 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetB
 	return rsp, nil
 }
 
+func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicNeighborRequest, fn func(neighbor *api.DynamicNeighbor)) error {
+	toApi := func(dn *config.DynamicNeighbor) *api.DynamicNeighbor {
+		return &api.DynamicNeighbor{
+			Prefix:    dn.Config.Prefix,
+			PeerGroup: dn.Config.PeerGroup,
+		}
+	}
+	var l []*api.DynamicNeighbor
+	s.mgmtOperation(func() error {
+		peerGroupName := r.PeerGroup
+		for k, group := range s.peerGroupMap {
+			if peerGroupName != "" && peerGroupName != k {
+				continue
+			}
+			for _, dn := range group.dynamicNeighbors {
+				l = append(l, toApi(dn))
+			}
+		}
+		return nil
+	}, false)
+	for _, dn := range l {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			fn(dn)
+		}
+	}
+	return nil
+}
+
 func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupRequest, fn func(*api.PeerGroup)) error {
 	var l []*api.PeerGroup
 	s.mgmtOperation(func() error {

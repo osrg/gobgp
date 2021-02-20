@@ -50,6 +50,7 @@ service GobgpApi {
   rpc UpdatePeerGroup(UpdatePeerGroupRequest) returns(UpdatePeerGroupResponse);
 
   rpc AddDynamicNeighbor(AddDynamicNeighborRequest) returns(google.protobuf.Empty);
+  rpc ListDynamicNeighbor(ListDynamicNeighborRequest) returns(stream ListDynamicNeighborResponse);
   rpc DeleteDynamicNeighbor(DeleteDynamicNeighborRequest) returns(google.protobuf.Empty);
 
   rpc AddPath(AddPathRequest) returns(AddPathResponse);
@@ -190,6 +191,10 @@ message DeleteDynamicNeighborRequest {
   string prefix = 1;
   string peer_group = 2;
 }
+
+message ListDynamicNeighborRequest { string peer_group = 1; }
+
+message ListDynamicNeighborResponse { DynamicNeighbor dynamic_neighbor = 1; }
 
 message AddPathRequest {
   TableType table_type = 1;

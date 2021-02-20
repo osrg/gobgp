@@ -161,6 +161,8 @@ It has these top-level messages:
 	ListPeerGroupResponse
 	AddDynamicNeighborRequest
 	DeleteDynamicNeighborRequest
+	ListDynamicNeighborRequest
+	ListDynamicNeighborResponse
 	AddPathRequest
 	AddPathResponse
 	DeletePathRequest

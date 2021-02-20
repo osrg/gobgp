@@ -102,6 +102,18 @@ func (s *server) serve() error {
 	return nil
 }
 
+func (s *server) ListDynamicNeighbor(r *api.ListDynamicNeighborRequest, stream api.GobgpApi_ListDynamicNeighborServer) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fn := func(dn *api.DynamicNeighbor) {
+		if err := stream.Send(&api.ListDynamicNeighborResponse{DynamicNeighbor: dn}); err != nil {
+			cancel()
+			return
+		}
+	}
+	return s.bgpServer.ListDynamicNeighbor(ctx, r, fn)
+}
+
 func (s *server) ListPeerGroup(r *api.ListPeerGroupRequest, stream api.GobgpApi_ListPeerGroupServer) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -859,6 +871,10 @@ func (s *server) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupRequ
 
 func (s *server) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNeighborRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, s.bgpServer.AddDynamicNeighbor(ctx, r)
+}
+
+func (s *server) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDynamicNeighborRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.bgpServer.DeleteDynamicNeighbor(ctx, r)
 }
 
 func newPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
