@@ -257,6 +257,7 @@ const (
 	ENCAP_SUBTLV_TYPE_ENCAPSULATION         EncapSubTLVType = 1
 	ENCAP_SUBTLV_TYPE_PROTOCOL              EncapSubTLVType = 2
 	ENCAP_SUBTLV_TYPE_COLOR                 EncapSubTLVType = 4
+	ENCAP_SUBTLV_TYPE_EGRESS_ENDPOINT       EncapSubTLVType = 6
 	ENCAP_SUBTLV_TYPE_UDP_DEST_PORT         EncapSubTLVType = 8
 	ENCAP_SUBTLV_TYPE_SRPREFERENCE          EncapSubTLVType = 12
 	ENCAP_SUBTLV_TYPE_SRBINDING_SID         EncapSubTLVType = 13
@@ -11623,6 +11624,110 @@ func NewTunnelEncapSubTLVColor(color uint32) *TunnelEncapSubTLVColor {
 	}
 }
 
+type TunnelEncapSubTLVEgressEndpoint struct {
+	TunnelEncapSubTLV
+	Address net.IP
+}
+
+// Tunnel Egress Endpoint Sub-TLV subfield positions
+const (
+	EGRESS_ENDPOINT_RESERVED_POS = 0
+	EGRESS_ENDPOINT_FAMILY_POS   = 4
+	EGRESS_ENDPOINT_ADDRESS_POS  = 6
+)
+
+func (t *TunnelEncapSubTLVEgressEndpoint) DecodeFromBytes(data []byte) error {
+	value, err := t.TunnelEncapSubTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if t.Length < EGRESS_ENDPOINT_ADDRESS_POS {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLVEgressEndpoint bytes available")
+	}
+	addressFamily := binary.BigEndian.Uint16(value[EGRESS_ENDPOINT_FAMILY_POS : EGRESS_ENDPOINT_FAMILY_POS+2])
+
+	var addressLen uint16
+	switch addressFamily {
+	case 0:
+		addressLen = 0
+	case AFI_IP:
+		addressLen = net.IPv4len
+	case AFI_IP6:
+		addressLen = net.IPv6len
+	default:
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Unsupported address family in TunnelEncapSubTLVEgressEndpoint")
+	}
+	if t.Length != EGRESS_ENDPOINT_ADDRESS_POS+addressLen {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLVEgressEndpoint address bytes available")
+	}
+	t.Address = nil
+	if addressFamily != 0 {
+		t.Address = net.IP(value[EGRESS_ENDPOINT_ADDRESS_POS : EGRESS_ENDPOINT_ADDRESS_POS+addressLen])
+	}
+
+	return nil
+}
+
+func (t *TunnelEncapSubTLVEgressEndpoint) Serialize() ([]byte, error) {
+	var length uint32 = EGRESS_ENDPOINT_ADDRESS_POS
+	var family uint16
+	var ip net.IP
+	if t.Address == nil {
+		family = 0
+	} else if t.Address.To4() != nil {
+		length += net.IPv4len
+		family = AFI_IP
+		ip = t.Address.To4()
+	} else {
+		length += net.IPv6len
+		family = AFI_IP6
+		ip = t.Address.To16()
+	}
+	buf := make([]byte, length)
+	binary.BigEndian.PutUint32(buf, 0)
+	binary.BigEndian.PutUint16(buf[EGRESS_ENDPOINT_FAMILY_POS:], family)
+	if family != 0 {
+		copy(buf[EGRESS_ENDPOINT_ADDRESS_POS:], ip)
+	}
+	return t.TunnelEncapSubTLV.Serialize(buf)
+}
+
+func (t *TunnelEncapSubTLVEgressEndpoint) String() string {
+	address := ""
+	if t.Address != nil {
+		address = t.Address.String()
+	}
+	return fmt.Sprintf("{EgressEndpoint: %s}", address)
+}
+
+func (t *TunnelEncapSubTLVEgressEndpoint) MarshalJSON() ([]byte, error) {
+	address := ""
+	if t.Address != nil {
+		address = t.Address.String()
+	}
+
+	return json.Marshal(struct {
+		Type    EncapSubTLVType `json:"type"`
+		Address string          `json:"address"`
+	}{
+		Type:    t.Type,
+		Address: address,
+	})
+}
+
+func NewTunnelEncapSubTLVEgressEndpoint(address string) *TunnelEncapSubTLVEgressEndpoint {
+	var ip net.IP = nil
+	if address != "" {
+		ip = net.ParseIP(address)
+	}
+	return &TunnelEncapSubTLVEgressEndpoint{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type: ENCAP_SUBTLV_TYPE_EGRESS_ENDPOINT,
+		},
+		Address: ip,
+	}
+}
+
 type TunnelEncapSubTLVUDPDestPort struct {
 	TunnelEncapSubTLV
 	UDPDestPort uint16
@@ -11703,6 +11808,8 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 			subTlv = &TunnelEncapSubTLVColor{}
 		case ENCAP_SUBTLV_TYPE_UDP_DEST_PORT:
 			subTlv = &TunnelEncapSubTLVUDPDestPort{}
+		case ENCAP_SUBTLV_TYPE_EGRESS_ENDPOINT:
+			subTlv = &TunnelEncapSubTLVEgressEndpoint{}
 		case ENCAP_SUBTLV_TYPE_SRPREFERENCE:
 			subTlv = &TunnelEncapSubTLVSRPreference{}
 		case ENCAP_SUBTLV_TYPE_SRBINDING_SID:
