@@ -1176,6 +1176,10 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *api.Tun
 				subTlv = &api.TunnelEncapSubTLVColor{
 					Color: sv.Color,
 				}
+			case *bgp.TunnelEncapSubTLVEgressEndpoint:
+				subTlv = &api.TunnelEncapSubTLVEgressEndpoint{
+					Address: sv.Address.String(),
+				}
 			case *bgp.TunnelEncapSubTLVUDPDestPort:
 				subTlv = &api.TunnelEncapSubTLVUDPDestPort{
 					Port: uint32(sv.UDPDestPort),
@@ -1662,6 +1666,8 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 					subTlv = bgp.NewTunnelEncapSubTLVProtocol(uint16(sv.Protocol))
 				case *api.TunnelEncapSubTLVColor:
 					subTlv = bgp.NewTunnelEncapSubTLVColor(sv.Color)
+				case *api.TunnelEncapSubTLVEgressEndpoint:
+					subTlv = bgp.NewTunnelEncapSubTLVEgressEndpoint(sv.Address)
 				case *api.TunnelEncapSubTLVUDPDestPort:
 					subTlv = bgp.NewTunnelEncapSubTLVUDPDestPort(uint16(sv.Port))
 				case *api.TunnelEncapSubTLVSRPreference:

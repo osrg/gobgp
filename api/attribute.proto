@@ -613,6 +613,10 @@ message TunnelEncapSubTLVSRSegmentList {
   repeated google.protobuf.Any segments = 2;
 }
 
+message TunnelEncapSubTLVEgressEndpoint {
+    string address = 1;
+}
+
 message TunnelEncapSubTLVUDPDestPort {
     uint32 port = 1;
 }
