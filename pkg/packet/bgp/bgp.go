@@ -5046,19 +5046,34 @@ func (l *LsLinkDescriptor) ParseTLVs(tlvs []LsTLVInterface) {
 }
 
 func (l *LsLinkDescriptor) String() string {
-	if l.InterfaceAddrIPv4 != nil && l.NeighborAddrIPv4 != nil {
+	switch {
+	case l.InterfaceAddrIPv4 != nil && l.NeighborAddrIPv4 != nil:
 		return fmt.Sprintf("%v->%v", l.InterfaceAddrIPv4, l.NeighborAddrIPv4)
-	}
 
-	if l.InterfaceAddrIPv6 != nil && l.NeighborAddrIPv6 != nil {
+	case l.InterfaceAddrIPv6 != nil && l.NeighborAddrIPv6 != nil:
 		return fmt.Sprintf("%v->%v", l.InterfaceAddrIPv6, l.NeighborAddrIPv6)
-	}
 
-	if l.LinkLocalID != nil && l.LinkRemoteID != nil {
+	case l.LinkLocalID != nil && l.LinkRemoteID != nil:
 		return fmt.Sprintf("%v->%v", *l.LinkLocalID, *l.LinkRemoteID)
-	}
 
-	return "UNKNOWN"
+	case l.InterfaceAddrIPv4 != nil:
+		return fmt.Sprintf("%v->UNKNOWN", l.InterfaceAddrIPv4)
+	case l.NeighborAddrIPv4 != nil:
+		return fmt.Sprintf("UNKNOWN->%v", l.NeighborAddrIPv4)
+
+	case l.InterfaceAddrIPv6 != nil:
+		return fmt.Sprintf("%v->UNKNOWN", l.InterfaceAddrIPv6)
+	case l.NeighborAddrIPv6 != nil:
+		return fmt.Sprintf("UNKNOWN->%v", l.NeighborAddrIPv6)
+
+	case l.LinkLocalID != nil:
+		return fmt.Sprintf("%v->UNKNOWN", *l.LinkLocalID)
+	case l.LinkRemoteID != nil:
+		return fmt.Sprintf("UNKNOWN->%v", *l.LinkRemoteID)
+
+	default:
+		return "UNKNOWN"
+	}
 }
 
 type LsLinkNLRI struct {
