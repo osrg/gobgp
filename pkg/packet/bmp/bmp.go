@@ -225,7 +225,7 @@ func (s *BMPStatsTLV32) ParseValue(data []byte) error {
 	if s.Length != 4 {
 		return fmt.Errorf("invalid length: %d bytes (%d bytes expected)", s.Length, 4)
 	}
-	s.Value = binary.BigEndian.Uint32(data[:8])
+	s.Value = binary.BigEndian.Uint32(data[:4])
 	return nil
 }
 
