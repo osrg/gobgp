@@ -6298,9 +6298,12 @@ func (l *LsTLVIgpRouterID) DecodeFromBytes(data []byte) error {
 	}
 
 	// https://tools.ietf.org/html/rfc7752#section-3.2.1.4
-	// 6, 7, and 8 are the only valid values.
-	if len(value) < 6 || len(value) > 8 {
-		return malformedAttrListErr("Incorrect IGP Router ID length")
+	// 4, 6, 7, and 8 are the only valid values.
+	switch len(value) {
+	case 4, 6, 7, 8:
+		break
+	default:
+		return malformedAttrListErr(fmt.Sprintf("Incorrect IGP Router ID length: %d", len(value)))
 	}
 
 	l.RouterID = value
