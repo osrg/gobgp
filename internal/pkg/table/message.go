@@ -447,7 +447,9 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			// we should make sure that we next-hop exists in pathattrs
 			// while we build the update message
 			// we do not want to modify the `path` though
-			attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
+			if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
+				attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
+			}
 			attrsLen := 0
 			for _, a := range attrs {
 				attrsLen += a.Len()
