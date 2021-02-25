@@ -60,6 +60,8 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 			l = append(l, a.Value...)
 			dels = append(dels, l...)
 		default:
+			// update msg may not contain next_hop (type:3) in attr
+			// due to it uses MpReachNLRI and it also has empty update.NLRI
 			attrs = append(attrs, attr)
 		}
 	}
@@ -92,6 +94,11 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 		reachAttrs[len(reachAttrs)-1] = reach
 
 		for _, nlri := range reach.Value {
+			// when build path from reach
+			// reachAttrs might not contain next_hop if `attrs` does not have one
+			// this happens when a MP peer send update to gobgp
+			// However nlri is always populated because how we build the path
+			// path.info{nlri: nlri}
 			p := NewPath(peerInfo, nlri, false, reachAttrs, timestamp, false)
 			p.SetHash(hash)
 			pathList = append(pathList, p)

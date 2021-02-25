@@ -442,6 +442,12 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			paths := c.paths
 
 			attrs := paths[0].GetPathAttrs()
+			// we can apply a fix here when gobgp receives from MP peer
+			// and propagtes to non-MP peer
+			// we should make sure that we next-hop exists in pathattrs
+			// while we build the update message
+			// we do not want to modify the `path` though
+			attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
 			attrsLen := 0
 			for _, a := range attrs {
 				attrsLen += a.Len()
