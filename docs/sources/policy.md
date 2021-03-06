@@ -766,7 +766,7 @@ evaluate routes from neighbors, if matched, action will be applied.
     # statement without route-disposition continues to the next statement
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "+100"
-        set-next-hop = "keep"
+        set-next-hop = "self"
     [[policy-definitions.statements]]
     # if matched with "ps1", reject the route and stop evaluating
     # following statements
