@@ -103,7 +103,7 @@ Actions are categorized into attributes below:
 - accept or reject
 - add/replace/remove community or remove all communities
 - add/subtract or replace MED value
-- set next-hop
+- set next-hop (specific address/own local address/don't modify)
 - set local-pref
 - prepend AS number in the AS_PATH attribute
 
@@ -766,6 +766,7 @@ evaluate routes from neighbors, if matched, action will be applied.
     # statement without route-disposition continues to the next statement
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "+100"
+        set-next-hop = "keep"
     [[policy-definitions.statements]]
     # if matched with "ps1", reject the route and stop evaluating
     # following statements
@@ -788,6 +789,7 @@ evaluate routes from neighbors, if matched, action will be applied.
         prefix-set = "ps3"
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "+10"
+        set-next-hop = "unchanged"
   ```
 
 ### 4. Attaching policy
