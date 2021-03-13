@@ -1,4 +1,4 @@
-#!/bin/bash
+# bash completion for gobgp                                -*- shell-script -*-
 
 _gobgp_global_rib_add()
 {

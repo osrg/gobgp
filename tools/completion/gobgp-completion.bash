@@ -1,4 +1,4 @@
-#!/bin/bash
+# bash completion for gobgp                                -*- shell-script -*-
 
 . `dirname $BASH_SOURCE`/gobgp-static-completion.bash
 . `dirname $BASH_SOURCE`/gobgp-dynamic-completion.bash

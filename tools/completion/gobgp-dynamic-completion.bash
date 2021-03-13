@@ -1,4 +1,4 @@
-#!/bin/bash
+# bash completion for gobgp                                -*- shell-script -*-
 
 __gobgp_q()
 {
