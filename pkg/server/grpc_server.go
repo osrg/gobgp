@@ -64,8 +64,9 @@ func (s *server) serve() error {
 	l := []net.Listener{}
 	var err error
 	for _, host := range strings.Split(s.hosts, ",") {
+		network, address := parseHost(host)
 		var lis net.Listener
-		lis, err = net.Listen("tcp", host)
+		lis, err = net.Listen(network, address)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "grpc",
@@ -99,6 +100,14 @@ func (s *server) serve() error {
 	}
 	wg.Wait()
 	return nil
+}
+
+func parseHost(host string) (string, string) {
+	const unixScheme = "unix://"
+	if strings.HasPrefix(host, unixScheme) {
+		return "unix", host[len(unixScheme):]
+	}
+	return "tcp", host
 }
 
 func (s *server) ListPeer(r *api.ListPeerRequest, stream api.GobgpApi_ListPeerServer) error {
