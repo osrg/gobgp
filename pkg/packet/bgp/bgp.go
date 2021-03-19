@@ -186,6 +186,7 @@ const (
 	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
 	TUNNEL_TYPE_MPLS_IN_UDP TunnelType = 13
 	TUNNEL_TYPE_SR_POLICY   TunnelType = 15
+	TUNNEL_TYPE_GENEVE      TunnelType = 19
 )
 
 func (p TunnelType) String() string {
@@ -210,6 +211,8 @@ func (p TunnelType) String() string {
 		return "mpls-in-udp"
 	case TUNNEL_TYPE_SR_POLICY:
 		return "sr-policy"
+	case TUNNEL_TYPE_GENEVE:
+		return "geneve"
 	default:
 		return fmt.Sprintf("TunnelType(%d)", uint8(p))
 	}
@@ -10369,6 +10372,8 @@ func (e *EncapExtended) String() string {
 		return "MPLS in UDP"
 	case TUNNEL_TYPE_SR_POLICY:
 		return "SR Policy"
+	case TUNNEL_TYPE_GENEVE:
+		return "GENEVE"
 	default:
 		return fmt.Sprintf("tunnel: %d", e.TunnelType)
 	}
