@@ -115,7 +115,7 @@ func (b *bmpClient) loop() {
 		}
 
 		if func() bool {
-			ops := []watchOption{watchPeerState(true)}
+			ops := []watchOption{watchPeerState(true, false)}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				log.WithFields(
 					log.Fields{"Topic": "bmp"},

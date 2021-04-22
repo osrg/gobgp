@@ -165,7 +165,8 @@ message DisablePeerRequest {
 
 message MonitorPeerRequest {
   string address = 1;
-  bool current = 2;
+  bool current = 2; // Prefer initial_state.
+  bool initial_state = 3;
 }
 
 message MonitorPeerResponse { Peer peer = 1; }
