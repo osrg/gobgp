@@ -171,6 +171,11 @@ func newRPKICmd() *cobra.Command {
 				_, err = client.DisableRpki(ctx, &api.DisableRpkiRequest{
 					Address: addr.String(),
 				})
+			case "delete":
+				_, err = client.DeleteRpki(ctx, &api.DeleteRpkiRequest{
+					Address: addr.String(),
+					Port:    323,
+				})
 			default:
 				exitWithError(fmt.Errorf("unknown operation: %s", args[1]))
 			}
