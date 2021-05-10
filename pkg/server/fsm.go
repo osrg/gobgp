@@ -1569,6 +1569,14 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 }
 
 func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
+		// probably doesn't happen but be cautious
+		select {
+		case h.stateReasonCh <- *newfsmStateReason(typ, notif, nil):
+		default:
+		}
+	}
+
 	defer wg.Done()
 	conn := h.conn
 	fsm := h.fsm
@@ -1603,7 +1611,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 		err = conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime)))
 		fsm.lock.RUnlock()
 		if err != nil {
-			h.stateReasonCh <- *newfsmStateReason(fsmWriteFailed, nil, nil)
+			sendToStateReasonCh(fsmWriteFailed, nil)
 			conn.Close()
 			return fmt.Errorf("failed to set write deadline")
 		}
@@ -1617,7 +1625,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 				"Data":  err,
 			}).Warn("failed to send")
 			fsm.lock.RUnlock()
-			h.stateReasonCh <- *newfsmStateReason(fsmWriteFailed, nil, nil)
+			sendToStateReasonCh(fsmWriteFailed, nil)
 			conn.Close()
 			return fmt.Errorf("closed")
 		}
@@ -1651,7 +1659,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 				}).Warn("sent notification")
 				fsm.lock.RUnlock()
 			}
-			h.stateReasonCh <- *newfsmStateReason(fsmNotificationSent, m, nil)
+			sendToStateReasonCh(fsmNotificationSent, m)
 			conn.Close()
 			return fmt.Errorf("closed")
 		case bgp.BGP_MSG_UPDATE:
