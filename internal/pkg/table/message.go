@@ -444,19 +444,47 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			attrs := paths[0].GetPathAttrs()
 			// we can apply a fix here when gobgp receives from MP peer
 			// and propagtes to non-MP peer
-			// we should make sure that we next-hop exists in pathattrs
+			// we should make sure that next-hop exists in pathattrs
 			// while we build the update message
 			// we do not want to modify the `path` though
 			if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
 				attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
 			}
+
 			attrsLen := 0
 			for _, a := range attrs {
 				attrsLen += a.Len()
 			}
 
 			loop(attrsLen, paths, func(nlris []*bgp.IPAddrPrefix) {
-				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs, nlris))
+				// till the cb is called
+				// we know for sure what NLRIs we have in this message
+				// so we rectify the path attribute here
+				rectified_attrs := make([]bgp.PathAttributeInterface, len(attrs))
+				for i, a := range attrs {
+					if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+						// MP_REACH attr will affect us on modification policies
+						// this is because the policy can be on per prefix basis
+						// thus if MP_REACH has more than one prefix
+						// there will be unexpected overriding
+						// Say an origin send MP contains two prefixes A & B
+						// and then we apply a policy to let prefix A have community A',
+						// where prefix B have community B'
+						// but still each of the route, with MP_REACH, will contain both A & B
+						// here comes the overriding
+						// So we need align the MP_REACH to the actual NLRI we want to advertise
+						// Since this is merge situation, we need to use all the nlris
+						mp_nlris := make([]bgp.AddrPrefixInterface, len(nlris))
+						for _, n := range nlris {
+							mp_nlris = append(mp_nlris, n)
+						}
+						mp_attr := bgp.NewPathAttributeMpReachNLRI(paths[0].GetNexthop().String(), mp_nlris)
+						rectified_attrs[i] = mp_attr
+						continue
+					}
+					rectified_attrs[i] = a
+				}
+				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, rectified_attrs, nlris))
 			})
 		}
 	}
