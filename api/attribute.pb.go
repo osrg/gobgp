@@ -136,6 +136,7 @@ It has these top-level messages:
 	LongLivedGracefulRestartCapabilityTuple
 	LongLivedGracefulRestartCapability
 	RouteRefreshCiscoCapability
+	FQDNCapability
 	UnknownCapability
 	StartBgpRequest
 	StopBgpRequest

@@ -110,6 +110,15 @@ func NewRouteRefreshCiscoCapability(a *bgp.CapRouteRefreshCisco) *api.RouteRefre
 	return &api.RouteRefreshCiscoCapability{}
 }
 
+func NewFQDNCapability(a *bgp.CapFQDN) *api.FQDNCapability {
+	return &api.FQDNCapability{
+		HostNameLen:   uint32(a.HostNameLen),
+		HostName:      a.HostName,
+		DomainNameLen: uint32(a.DomainNameLen),
+		DomainName:    a.DomainName,
+	}
+}
+
 func NewUnknownCapability(a *bgp.CapUnknown) *api.UnknownCapability {
 	return &api.UnknownCapability{
 		Code:  uint32(a.CapCode),
@@ -140,6 +149,8 @@ func MarshalCapability(value bgp.ParameterCapabilityInterface) (*any.Any, error)
 		m = NewLongLivedGracefulRestartCapability(n)
 	case *bgp.CapRouteRefreshCisco:
 		m = NewRouteRefreshCiscoCapability(n)
+	case *bgp.CapFQDN:
+		m = NewFQDNCapability(n)
 	case *bgp.CapUnknown:
 		m = NewUnknownCapability(n)
 	default:
@@ -227,6 +238,8 @@ func unmarshalCapability(a *any.Any) (bgp.ParameterCapabilityInterface, error) {
 		return bgp.NewCapLongLivedGracefulRestart(tuples), nil
 	case *api.RouteRefreshCiscoCapability:
 		return bgp.NewCapRouteRefreshCisco(), nil
+	case *api.FQDNCapability:
+		return bgp.NewCapFQDN(a.HostName, a.DomainName), nil
 	case *api.UnknownCapability:
 		return bgp.NewCapUnknown(bgp.BGPCapabilityCode(a.Code), a.Value), nil
 	}
