@@ -474,7 +474,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 						// here comes the overriding
 						// So we need align the MP_REACH to the actual NLRI we want to advertise
 						// Since this is merge situation, we need to use all the nlris
-						mp_nlris := make([]bgp.AddrPrefixInterface, len(nlris))
+						mp_nlris := make([]bgp.AddrPrefixInterface, 0, len(nlris))
 						for _, n := range nlris {
 							mp_nlris = append(mp_nlris, n)
 						}
