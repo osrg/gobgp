@@ -4922,7 +4922,7 @@ func (n *OpaqueNLRI) Len(options ...*MarshallingOption) int {
 }
 
 func (n *OpaqueNLRI) String() string {
-	return fmt.Sprintf("%s", n.Key)
+	return string(n.Key)
 }
 
 func (n *OpaqueNLRI) MarshalJSON() ([]byte, error) {
