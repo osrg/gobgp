@@ -444,19 +444,27 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			attrs := paths[0].GetPathAttrs()
 			// we can apply a fix here when gobgp receives from MP peer
 			// and propagtes to non-MP peer
-			// we should make sure that we next-hop exists in pathattrs
+			// we should make sure that next-hop exists in pathattrs
 			// while we build the update message
 			// we do not want to modify the `path` though
 			if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
 				attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
 			}
+			// if we have ever reach here
+			// there is no point keeping MP_REACH_NLRI in the announcement
+			attrs_without_mp := make([]bgp.PathAttributeInterface, 0, len(attrs))
+			for _, attr := range attrs {
+				if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+					attrs_without_mp = append(attrs_without_mp, attr)
+				}
+			}
 			attrsLen := 0
-			for _, a := range attrs {
+			for _, a := range attrs_without_mp {
 				attrsLen += a.Len()
 			}
 
 			loop(attrsLen, paths, func(nlris []*bgp.IPAddrPrefix) {
-				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs, nlris))
+				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs_without_mp, nlris))
 			})
 		}
 	}
