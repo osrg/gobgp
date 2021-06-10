@@ -560,7 +560,7 @@ enum SRv6Behavior {
   ENDT_WITH_PSP_USP_USD = 39;
 }
 
-message SRv6EndPpointBehavior {
+message SRv6EndPointBehavior {
   SRv6Behavior behavior = 1;
   uint32 block_len = 2;
   uint32 node_len = 3;
@@ -573,7 +573,7 @@ message SRv6BindingSID {
   bool i_flag = 2;
   bool b_flag = 3;
   bytes sid = 4;
-  SRv6EndPpointBehavior endpoint_behavior_structure = 5;
+  SRv6EndPointBehavior endpoint_behavior_structure = 5;
 }
 
 enum ENLPType { Reserved = 0; Type1 = 1; Type2 = 2; Type3 = 3; Type4 = 4; }
@@ -602,7 +602,8 @@ message SegmentTypeA {
 
 message SegmentTypeB {
   SegmentFlags flags = 1;
-  uint32 label = 2;
+  bytes sid = 2;
+  SRv6EndPointBehavior endpoint_behavior_structure = 3;
 }
 
 message TunnelEncapSubTLVSRSegmentList {
