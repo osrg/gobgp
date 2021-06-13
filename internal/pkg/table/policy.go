@@ -1116,7 +1116,7 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 		return r || s == bgp.VALIDATION_STATE_INVALID.String()
 	}
 	if len(elems) < 2 && (len(elems) < 1 && !isValidationState(elems[0])) {
-		return nil, fmt.Errorf("invalid ext-community (rt|soo):<value> | valid | not-found | invalid")
+		return nil, fmt.Errorf("invalid ext-community (rt|soo|encap):<value> | valid | not-found | invalid")
 	}
 	if isValidationState(elems[0]) {
 		subtype = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
@@ -1127,8 +1127,10 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 			subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
 		case "soo":
 			subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+		case "encap":
+			subtype = bgp.EC_SUBTYPE_ENCAPSULATION
 		default:
-			return nil, fmt.Errorf("invalid ext-community (rt|soo):<value> | valid | not-found | invalid")
+			return nil, fmt.Errorf("invalid ext-community (rt|soo|encap):<value> | valid | not-found | invalid")
 		}
 		value = elems[1]
 	}
@@ -1160,15 +1162,17 @@ func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 	var subtype bgp.ExtendedCommunityAttrSubType
 	elems := strings.SplitN(arg, ":", 2)
 	if len(elems) < 2 {
-		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo]:<value>)")
+		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo|encap]:<value>)")
 	}
 	switch strings.ToLower(elems[0]) {
 	case "rt":
 		subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
 	case "soo":
 		subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+	case "encap":
+		subtype = bgp.EC_SUBTYPE_ENCAPSULATION
 	default:
-		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
+		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo, encap is supported")
 	}
 	exp, err := ParseCommunityRegexp(elems[1])
 	return subtype, exp, err
@@ -1212,6 +1216,8 @@ func (s *ExtCommunitySet) List() []string {
 			return fmt.Sprintf("rt:%s", arg)
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
+		case bgp.EC_SUBTYPE_ENCAPSULATION:
+			return fmt.Sprintf("encap:%s", arg)
 		case bgp.EC_SUBTYPE_ORIGIN_VALIDATION:
 			return arg
 		default:
@@ -2221,6 +2227,8 @@ func (a *ExtCommunityAction) ToConfig() *config.SetExtCommunity {
 			return fmt.Sprintf("rt:%s", arg)
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
+		case bgp.EC_SUBTYPE_ENCAPSULATION:
+			return fmt.Sprintf("encap:%s", arg)
 		case bgp.EC_SUBTYPE_ORIGIN_VALIDATION:
 			return arg
 		default:

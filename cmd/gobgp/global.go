@@ -206,6 +206,8 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 		typ = bgp.TUNNEL_TYPE_MPLS_IN_UDP
 	case "vxlan-gre":
 		typ = bgp.TUNNEL_TYPE_VXLAN_GRE
+	case "geneve":
+		typ = bgp.TUNNEL_TYPE_GENEVE
 	default:
 		return nil, fmt.Errorf("invalid encap type")
 	}
