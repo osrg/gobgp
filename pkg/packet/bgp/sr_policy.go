@@ -707,32 +707,31 @@ func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
 	return nil
 }
 func (s *SegmentTypeB) Serialize() ([]byte, error) {
-	fmt.Printf("TypeB - SERIALIZE\n")
 	buf := make([]byte, 18)
 	buf[0] = s.Flags
 	copy(buf[2:], s.SID)
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
 func (s *SegmentTypeB) String() string {
-	fmt.Printf("%v\n", s.SID)
 	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Sid: %s}",
 		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10, net.IP(s.SID).To16().String())
 }
 
 func (s *SegmentTypeB) MarshalJSON() ([]byte, error) {
-	fmt.Printf("TypeB - MarshalJSON\n")
 	return json.Marshal(struct {
 		Type  EncapSubTLVType `json:"type"`
 		VFlag bool            `json:"v_flag"`
 		AFlag bool            `json:"a_flag"`
 		SFlag bool            `json:"s_flag"`
 		BFlag bool            `json:"b_flag"`
+		Sid   string          `json:"sid"`
 	}{
 		Type:  s.Type,
 		VFlag: s.Flags&0x80 == 0x80,
 		AFlag: s.Flags&0x40 == 0x40,
 		SFlag: s.Flags&0x20 == 0x20,
 		BFlag: s.Flags&0x10 == 0x10,
+		Sid:   net.IP(s.SID).To16().String(),
 	})
 }
 
