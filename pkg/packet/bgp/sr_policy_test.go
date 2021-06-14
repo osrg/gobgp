@@ -186,6 +186,36 @@ func TestSegmentListRoundTrip(t *testing.T) {
 			},
 			fail: false,
 		},
+		{
+			name: "weight and 2 type B segment without SRv6 Endpoint Behavior and Structure",
+			input: &TunnelEncapSubTLVSRSegmentList{
+				TunnelEncapSubTLV: TunnelEncapSubTLV{
+					Type:   ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST,
+					Length: 6, // Weight (6 bytes) + Length of each segment + 2
+				},
+				Weight: &SegmentListWeight{
+					TunnelEncapSubTLV: TunnelEncapSubTLV{
+						Type:   SegmentListSubTLVWeight,
+						Length: 6,
+					},
+					Flags:  0,
+					Weight: 100,
+				},
+				Segments: []TunnelEncapSubTLVInterface{
+					&SegmentTypeB{
+						TunnelEncapSubTLV: TunnelEncapSubTLV{Type: EncapSubTLVType(TypeB), Length: 6},
+						Flags:             0,
+						SID:               net.ParseIP("2001:1::1").To16(), //[]byte{},
+					},
+					&SegmentTypeB{
+						TunnelEncapSubTLV: TunnelEncapSubTLV{Type: EncapSubTLVType(TypeB), Length: 6},
+						Flags:             0,
+						SID:               net.ParseIP("2001:1::2").To16(), //[]byte{}
+					},
+				},
+			},
+			fail: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -684,11 +684,17 @@ type SRv6EndpointBehaviorStructure struct {
 	ArgLen   uint8
 }
 
+func (s *SRv6EndpointBehaviorStructure) String() string {
+
+	return fmt.Sprintf("{Behavior: %s, BlockLen: %d, NodeLen: %d, FuncLen: %d, ArgLen: %d}",
+		s.Behavior.String(), s.BlockLen, s.NodeLen, s.FuncLen, s.ArgLen)
+}
+
 type SegmentTypeB struct {
 	TunnelEncapSubTLV
 	Flags uint8
 	SID   []byte
-	EP    *SRv6EndpointBehaviorStructure
+	//SRv6EBS SRv6EndpointBehaviorStructure
 }
 
 func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
@@ -697,20 +703,24 @@ func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 	}
 	s.Flags = value[0]
+	s.SID = value[2:18]
 	return nil
 }
 func (s *SegmentTypeB) Serialize() ([]byte, error) {
-	buf := make([]byte, 6)
+	fmt.Printf("TypeB - SERIALIZE\n")
+	buf := make([]byte, 18)
 	buf[0] = s.Flags
+	copy(buf[2:], s.SID)
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
 func (s *SegmentTypeB) String() string {
-
-	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t}",
-		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10)
+	fmt.Printf("%v\n", s.SID)
+	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Sid: %s}",
+		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10, net.IP(s.SID).To16().String())
 }
 
 func (s *SegmentTypeB) MarshalJSON() ([]byte, error) {
+	fmt.Printf("TypeB - MarshalJSON\n")
 	return json.Marshal(struct {
 		Type  EncapSubTLVType `json:"type"`
 		VFlag bool            `json:"v_flag"`
@@ -766,7 +776,12 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 			}
 		case TypeB:
-			fallthrough
+			//fmt.Printf("TypeB\n")
+			segment = &SegmentTypeB{}
+			if err := segment.DecodeFromBytes(value); err != nil {
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
+			}
+			//fmt.Printf(segment.String())
 		case TypeC:
 			fallthrough
 		case TypeD:
