@@ -1830,15 +1830,26 @@ func UnmarshalSRBSID(bsid *any.Any) (bgp.TunnelEncapSubTLVInterface, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &bgp.TunnelEncapSubTLVSRv6BSID{
+		result := &bgp.TunnelEncapSubTLVSRv6BSID{
 			TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
 				Type:   bgp.ENCAP_SUBTLV_TYPE_SRBINDING_SID,
 				Length: uint16(2 + b.Len()),
 			},
 			Flags: 0,
 			BSID:  b,
-			EPBAS: &bgp.SRv6EndpointBehaviorStructure{},
-		}, nil
+		}
+
+		if v.EndpointBehaviorStructure != nil {
+			result.EPBAS = &bgp.SRv6EndpointBehaviorStructure{
+				Behavior: bgp.SRBehavior(v.EndpointBehaviorStructure.Behavior),
+				BlockLen: uint8(v.EndpointBehaviorStructure.BlockLen),
+				NodeLen:  uint8(v.EndpointBehaviorStructure.NodeLen),
+				FuncLen:  uint8(v.EndpointBehaviorStructure.FuncLen),
+				ArgLen:   uint8(v.EndpointBehaviorStructure.ArgLen),
+			}
+		}
+
+		return result, nil
 	default:
 		return nil, fmt.Errorf("unknown binding sid type %+v", v)
 	}
@@ -1862,15 +1873,29 @@ func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*any.Any {
 			}
 			// TODO (sbezverk) Add Type B Segment when SRv6 Binding SID gets finalized.
 		case *bgp.SegmentTypeB:
-			r = &api.SegmentTypeB{
-				Flags: &api.SegmentFlags{
-					VFlag: s.Flags&0x80 == 0x80,
-					AFlag: s.Flags&0x40 == 0x40,
-					SFlag: s.Flags&0x20 == 0x20,
-					BFlag: s.Flags&0x10 == 0x10,
-				},
-				Sid: s.SID,
-				//EndpointBehaviorStructure: &api.SRv6EndPointBehavior{},
+			flags := &api.SegmentFlags{
+				VFlag: s.Flags&0x80 == 0x80,
+				AFlag: s.Flags&0x40 == 0x40,
+				SFlag: s.Flags&0x20 == 0x20,
+				BFlag: s.Flags&0x10 == 0x10,
+			}
+			if s.SRv6EBS != nil {
+				r = &api.SegmentTypeB{
+					Flags: flags,
+					Sid:   s.SID,
+					EndpointBehaviorStructure: &api.SRv6EndPointBehavior{
+						Behavior: api.SRv6Behavior(s.SRv6EBS.Behavior),
+						BlockLen: uint32(s.SRv6EBS.BlockLen),
+						NodeLen:  uint32(s.SRv6EBS.NodeLen),
+						FuncLen:  uint32(s.SRv6EBS.FuncLen),
+						ArgLen:   uint32(s.SRv6EBS.ArgLen),
+					},
+				}
+			} else {
+				r = &api.SegmentTypeB{
+					Flags: flags,
+					Sid:   s.SID,
+				}
 			}
 		default:
 			// Unrecognize Segment type, skip it
