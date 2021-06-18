@@ -205,12 +205,49 @@ func TestSegmentListRoundTrip(t *testing.T) {
 					&SegmentTypeB{
 						TunnelEncapSubTLV: TunnelEncapSubTLV{Type: EncapSubTLVType(TypeB), Length: 6},
 						Flags:             0,
-						SID:               net.ParseIP("2001:1::1").To16(), //[]byte{},
+						SID:               net.ParseIP("2001:1::1").To16(),
 					},
 					&SegmentTypeB{
 						TunnelEncapSubTLV: TunnelEncapSubTLV{Type: EncapSubTLVType(TypeB), Length: 6},
 						Flags:             0,
-						SID:               net.ParseIP("2001:1::2").To16(), //[]byte{}
+						SID:               net.ParseIP("2001:1::2").To16(),
+					},
+				},
+			},
+			fail: false,
+		},
+		{
+			name: "weight and 2 type B segment with SR Endpoint Behavior and Structure",
+			input: &TunnelEncapSubTLVSRSegmentList{
+				TunnelEncapSubTLV: TunnelEncapSubTLV{
+					Type:   ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST,
+					Length: 6, // Weight (6 bytes) + Length of each segment + 2
+				},
+				Weight: &SegmentListWeight{
+					TunnelEncapSubTLV: TunnelEncapSubTLV{
+						Type:   SegmentListSubTLVWeight,
+						Length: 6,
+					},
+					Flags:  0,
+					Weight: 100,
+				},
+				Segments: []TunnelEncapSubTLVInterface{
+					&SegmentTypeB{
+						TunnelEncapSubTLV: TunnelEncapSubTLV{Type: EncapSubTLVType(TypeB), Length: 6},
+						Flags:             0,
+						SID:               net.ParseIP("2001:1::1").To16(),
+						SRv6EBS: &SRv6EndpointBehaviorStructure{
+							Behavior: 39,
+							BlockLen: 5,
+							NodeLen:  6,
+							FuncLen:  7,
+							ArgLen:   8,
+						},
+					},
+					&SegmentTypeB{
+						TunnelEncapSubTLV: TunnelEncapSubTLV{Type: EncapSubTLVType(TypeB), Length: 6},
+						Flags:             0,
+						SID:               net.ParseIP("2001:1::2").To16(),
 					},
 				},
 			},

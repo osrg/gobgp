@@ -676,25 +676,86 @@ func (s *SegmentTypeA) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type SRBehavior int32
+
+const (
+	RESERVED              SRBehavior = SRBehavior(api.SRv6Behavior_RESERVED)
+	END                   SRBehavior = SRBehavior(api.SRv6Behavior_END)
+	END_WITH_PSP          SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP)
+	END_WITH_USP          SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_USP)
+	END_WITH_PSP_USP      SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP_USP)
+	ENDX                  SRBehavior = SRBehavior(api.SRv6Behavior_ENDX)
+	ENDX_WITH_PSP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP)
+	ENDX_WITH_USP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_USP)
+	ENDX_WITH_PSP_USP     SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP_USP)
+	ENDT                  SRBehavior = SRBehavior(api.SRv6Behavior_ENDT)
+	ENDT_WITH_PSP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP)
+	ENDT_WITH_USP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_USP)
+	ENDT_WITH_PSP_USP     SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP_USP)
+	END_B6_ENCAPS         SRBehavior = SRBehavior(api.SRv6Behavior_END_B6_ENCAPS)
+	END_BM                SRBehavior = SRBehavior(api.SRv6Behavior_END_BM)
+	END_DX6               SRBehavior = SRBehavior(api.SRv6Behavior_END_DX6)
+	END_DX4               SRBehavior = SRBehavior(api.SRv6Behavior_END_DX4)
+	END_DT6               SRBehavior = SRBehavior(api.SRv6Behavior_END_DT6)
+	END_DT4               SRBehavior = SRBehavior(api.SRv6Behavior_END_DT4)
+	END_DT46              SRBehavior = SRBehavior(api.SRv6Behavior_END_DT46)
+	END_DX2               SRBehavior = SRBehavior(api.SRv6Behavior_END_DX2)
+	END_DX2V              SRBehavior = SRBehavior(api.SRv6Behavior_END_DX2V)
+	END_DT2U              SRBehavior = SRBehavior(api.SRv6Behavior_RESERVED)
+	END_DT2M              SRBehavior = SRBehavior(api.SRv6Behavior_END_DT2M)
+	END_B6_ENCAPS_Red     SRBehavior = SRBehavior(api.SRv6Behavior_END_B6_ENCAPS_Red)
+	END_WITH_USD          SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_USD)
+	END_WITH_PSP_USD      SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP_USD)
+	END_WITH_USP_USD      SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_USP_USD)
+	END_WITH_PSP_USP_USD  SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP_USP_USD)
+	ENDX_WITH_USD         SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_USD)
+	ENDX_WITH_PSP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP_USD)
+	ENDX_WITH_USP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_USP_USD)
+	ENDX_WITH_PSP_USP_USD SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP_USP_USD)
+	ENDT_WITH_USD         SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_USD)
+	ENDT_WITH_PSP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP_USD)
+	ENDT_WITH_USP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_USP_USD)
+	ENDT_WITH_PSP_USP_USD SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP_USP_USD)
+)
+
 type SRv6EndpointBehaviorStructure struct {
-	Behavior api.SRv6Behavior
+	Behavior SRBehavior
 	BlockLen uint8
 	NodeLen  uint8
 	FuncLen  uint8
 	ArgLen   uint8
 }
 
-func (s *SRv6EndpointBehaviorStructure) String() string {
+func (s *SRv6EndpointBehaviorStructure) DecodeFromBytes(data []byte) error {
+	behavior := binary.BigEndian.Uint16(data[0:2])
+	s.Behavior = SRBehavior(behavior)
+	s.BlockLen = data[4]
+	s.NodeLen = data[5]
+	s.FuncLen = data[6]
+	s.ArgLen = data[7]
+	return nil
+}
 
+func (s *SRv6EndpointBehaviorStructure) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint16(buf[0:2], uint16(s.Behavior))
+	buf[4] = s.BlockLen
+	buf[5] = s.NodeLen
+	buf[6] = s.FuncLen
+	buf[7] = s.ArgLen
+	return buf, nil
+}
+
+func (s *SRv6EndpointBehaviorStructure) String() string {
 	return fmt.Sprintf("{Behavior: %s, BlockLen: %d, NodeLen: %d, FuncLen: %d, ArgLen: %d}",
-		s.Behavior.String(), s.BlockLen, s.NodeLen, s.FuncLen, s.ArgLen)
+		api.SRv6Behavior(s.Behavior).String(), s.BlockLen, s.NodeLen, s.FuncLen, s.ArgLen)
 }
 
 type SegmentTypeB struct {
 	TunnelEncapSubTLV
-	Flags uint8
-	SID   []byte
-	//SRv6EBS SRv6EndpointBehaviorStructure
+	Flags   uint8
+	SID     []byte
+	SRv6EBS *SRv6EndpointBehaviorStructure
 }
 
 func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
@@ -704,17 +765,39 @@ func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
 	}
 	s.Flags = value[0]
 	s.SID = value[2:18]
+
+	if len(data) == 48 {
+		s.SRv6EBS = &SRv6EndpointBehaviorStructure{}
+		err = s.SRv6EBS.DecodeFromBytes(value[18:])
+		if err != nil {
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
+		}
+	}
 	return nil
 }
 func (s *SegmentTypeB) Serialize() ([]byte, error) {
 	buf := make([]byte, 18)
 	buf[0] = s.Flags
 	copy(buf[2:], s.SID)
+	if s.SRv6EBS != nil {
+		if ebs, _ := s.SRv6EBS.Serialize(); ebs != nil {
+			buf = append(buf, ebs...)
+			return s.TunnelEncapSubTLV.Serialize(buf)
+		}
+	}
+
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
 func (s *SegmentTypeB) String() string {
-	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Sid: %s}",
-		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10, net.IP(s.SID).To16().String())
+	if s.SRv6EBS == nil {
+		return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Sid: %s}",
+			s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10, net.IP(s.SID).To16().String())
+	} else {
+		return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Sid: %s, Ebs: %s}",
+			s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10, net.IP(s.SID).To16().String(),
+			s.SRv6EBS.String())
+	}
+
 }
 
 func (s *SegmentTypeB) MarshalJSON() ([]byte, error) {
@@ -775,12 +858,10 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 			}
 		case TypeB:
-			//fmt.Printf("TypeB\n")
 			segment = &SegmentTypeB{}
 			if err := segment.DecodeFromBytes(value); err != nil {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 			}
-			//fmt.Printf(segment.String())
 		case TypeC:
 			fallthrough
 		case TypeD:
