@@ -410,6 +410,19 @@ subtype of extended community and subtypes that can be used are as follows:
 
 - RT: mean the route target.
 - SoO: mean the site of origin(route origin).
+- encap: mean the encapsulation tunnel type, currently gobgp supports the following encap tunnels:
+    l2tp3
+    gre
+    ip-in-ip
+    vxlan
+    nvgre
+    mpls
+    mpls-in-gre
+    vxlan-gre
+    mpls-in-udp
+    sr-policy
+    geneve
+
 
 ##### Examples
 
