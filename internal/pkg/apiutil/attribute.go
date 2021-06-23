@@ -1871,7 +1871,6 @@ func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*any.Any {
 					BFlag: s.Flags&0x10 == 0x10,
 				},
 			}
-			// TODO (sbezverk) Add Type B Segment when SRv6 Binding SID gets finalized.
 		case *bgp.SegmentTypeB:
 			flags := &api.SegmentFlags{
 				VFlag: s.Flags&0x80 == 0x80,
@@ -1959,6 +1958,16 @@ func UnmarshalSRSegments(s []*any.Any) ([]bgp.TunnelEncapSubTLVInterface, error)
 			}
 			if v.Flags.BFlag {
 				seg.Flags += 0x10
+			}
+			if v.EndpointBehaviorStructure != nil {
+				ebs := v.GetEndpointBehaviorStructure()
+				seg.SRv6EBS = &bgp.SRv6EndpointBehaviorStructure{
+					Behavior: bgp.SRBehavior(ebs.Behavior),
+					BlockLen: uint8(ebs.BlockLen),
+					NodeLen:  uint8(ebs.NodeLen),
+					FuncLen:  uint8(ebs.FuncLen),
+					ArgLen:   uint8(ebs.ArgLen),
+				}
 			}
 			segments[i] = seg
 		}
