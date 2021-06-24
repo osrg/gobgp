@@ -727,6 +727,9 @@ type SRv6EndpointBehaviorStructure struct {
 }
 
 func (s *SRv6EndpointBehaviorStructure) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Malformed BGP message")
+	}
 	behavior := binary.BigEndian.Uint16(data[0:2])
 	s.Behavior = SRBehavior(behavior)
 	s.BlockLen = data[4]
@@ -751,6 +754,22 @@ func (s *SRv6EndpointBehaviorStructure) String() string {
 		api.SRv6Behavior(s.Behavior).String(), s.BlockLen, s.NodeLen, s.FuncLen, s.ArgLen)
 }
 
+func (s *SRv6EndpointBehaviorStructure) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Behavior SRBehavior `json:"behavior"`
+		BlockLen uint8      `json:"block_Len"`
+		NodeLen  uint8      `json:"node_len"`
+		FuncLen  uint8      `json:"func_len"`
+		ArgLen   uint8      `json:"arg_len"`
+	}{
+		Behavior: s.Behavior,
+		BlockLen: s.BlockLen,
+		NodeLen:  s.NodeLen,
+		FuncLen:  s.FuncLen,
+		ArgLen:   s.ArgLen,
+	})
+}
+
 type SegmentTypeB struct {
 	TunnelEncapSubTLV
 	Flags   uint8
@@ -763,10 +782,13 @@ func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 	}
+	if len(value) < 18 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Malformed BGP message")
+	}
 	s.Flags = value[0]
 	s.SID = value[2:18]
 
-	if len(data) == 48 {
+	if len(value) == 26 {
 		s.SRv6EBS = &SRv6EndpointBehaviorStructure{}
 		err = s.SRv6EBS.DecodeFromBytes(value[18:])
 		if err != nil {
@@ -782,7 +804,6 @@ func (s *SegmentTypeB) Serialize() ([]byte, error) {
 	if s.SRv6EBS != nil {
 		if ebs, _ := s.SRv6EBS.Serialize(); ebs != nil {
 			buf = append(buf, ebs...)
-			return s.TunnelEncapSubTLV.Serialize(buf)
 		}
 	}
 
@@ -802,19 +823,21 @@ func (s *SegmentTypeB) String() string {
 
 func (s *SegmentTypeB) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type  EncapSubTLVType `json:"type"`
-		VFlag bool            `json:"v_flag"`
-		AFlag bool            `json:"a_flag"`
-		SFlag bool            `json:"s_flag"`
-		BFlag bool            `json:"b_flag"`
-		Sid   string          `json:"sid"`
+		Type    EncapSubTLVType                `json:"type"`
+		VFlag   bool                           `json:"v_flag"`
+		AFlag   bool                           `json:"a_flag"`
+		SFlag   bool                           `json:"s_flag"`
+		BFlag   bool                           `json:"b_flag"`
+		Sid     string                         `json:"sid"`
+		SRv6EBS *SRv6EndpointBehaviorStructure `json:"endpointBehaviorStructure"`
 	}{
-		Type:  s.Type,
-		VFlag: s.Flags&0x80 == 0x80,
-		AFlag: s.Flags&0x40 == 0x40,
-		SFlag: s.Flags&0x20 == 0x20,
-		BFlag: s.Flags&0x10 == 0x10,
-		Sid:   net.IP(s.SID).To16().String(),
+		Type:    s.Type,
+		VFlag:   s.Flags&0x80 == 0x80,
+		AFlag:   s.Flags&0x40 == 0x40,
+		SFlag:   s.Flags&0x20 == 0x20,
+		BFlag:   s.Flags&0x10 == 0x10,
+		Sid:     net.IP(s.SID).To16().String(),
+		SRv6EBS: s.SRv6EBS,
 	})
 }
 
