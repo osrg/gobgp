@@ -1878,24 +1878,20 @@ func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*any.Any {
 				SFlag: s.Flags&0x20 == 0x20,
 				BFlag: s.Flags&0x10 == 0x10,
 			}
+			segment := &api.SegmentTypeB{
+				Flags: flags,
+				Sid:   s.SID,
+			}
 			if s.SRv6EBS != nil {
-				r = &api.SegmentTypeB{
-					Flags: flags,
-					Sid:   s.SID,
-					EndpointBehaviorStructure: &api.SRv6EndPointBehavior{
-						Behavior: api.SRv6Behavior(s.SRv6EBS.Behavior),
-						BlockLen: uint32(s.SRv6EBS.BlockLen),
-						NodeLen:  uint32(s.SRv6EBS.NodeLen),
-						FuncLen:  uint32(s.SRv6EBS.FuncLen),
-						ArgLen:   uint32(s.SRv6EBS.ArgLen),
-					},
-				}
-			} else {
-				r = &api.SegmentTypeB{
-					Flags: flags,
-					Sid:   s.SID,
+				segment.EndpointBehaviorStructure = &api.SRv6EndPointBehavior{
+					Behavior: api.SRv6Behavior(s.SRv6EBS.Behavior),
+					BlockLen: uint32(s.SRv6EBS.BlockLen),
+					NodeLen:  uint32(s.SRv6EBS.NodeLen),
+					FuncLen:  uint32(s.SRv6EBS.FuncLen),
+					ArgLen:   uint32(s.SRv6EBS.ArgLen),
 				}
 			}
+			r = segment
 		default:
 			// Unrecognize Segment type, skip it
 			continue
