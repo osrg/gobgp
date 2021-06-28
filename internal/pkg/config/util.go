@@ -512,6 +512,10 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
 			MultihopTtl: uint32(pconf.EbgpMultihop.Config.MultihopTtl),
 		},
+		TtlSecurity: &api.TtlSecurity{
+			Enabled: pconf.TtlSecurity.Config.Enabled,
+			TtlMin:  uint32(pconf.TtlSecurity.Config.TtlMin),
+		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
 				ConnectRetry:           uint64(timer.Config.ConnectRetry),
@@ -585,6 +589,10 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
 			MultihopTtl: uint32(pconf.EbgpMultihop.Config.MultihopTtl),
+		},
+		TtlSecurity: &api.TtlSecurity{
+			Enabled: pconf.TtlSecurity.Config.Enabled,
+			TtlMin:  uint32(pconf.TtlSecurity.Config.TtlMin),
 		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
