@@ -733,6 +733,10 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
 		pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
 	}
+	if a.TtlSecurity != nil {
+		pconf.TtlSecurity.Config.Enabled = a.TtlSecurity.Enabled
+		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
+	}
 	if a.State != nil {
 		pconf.State.SessionState = config.SessionState(strings.ToUpper(string(a.State.SessionState)))
 		pconf.State.AdminState = config.IntToAdminStateMap[int(a.State.AdminState)]
@@ -835,6 +839,10 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 	if a.EbgpMultihop != nil {
 		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
 		pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
+	}
+	if a.TtlSecurity != nil {
+		pconf.TtlSecurity.Config.Enabled = a.TtlSecurity.Enabled
+		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
 	}
 	if a.Info != nil {
 		pconf.State.TotalPaths = a.Info.TotalPaths

@@ -508,6 +508,7 @@ message Peer {
   RouteServer route_server = 8;
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
+  TtlSecurity ttl_security = 11;
 }
 
 message PeerGroup {
@@ -521,6 +522,7 @@ message PeerGroup {
   RouteServer route_server = 8;
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
+  TtlSecurity ttl_security = 11;
 }
 
 message DynamicNeighbor {
@@ -585,6 +587,11 @@ message PeerGroupState {
   uint32 send_community = 9;
   uint32 total_paths = 10;
   uint32 total_prefixes = 11;
+}
+
+message TtlSecurity {
+  bool enabled = 1;
+  uint32 ttl_min = 2;
 }
 
 message EbgpMultihop {

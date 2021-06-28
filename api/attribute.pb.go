@@ -223,6 +223,7 @@ It has these top-level messages:
 	PeerConf
 	PeerGroupConf
 	PeerGroupState
+	TtlSecurity
 	EbgpMultihop
 	RouteReflector
 	PeerState
