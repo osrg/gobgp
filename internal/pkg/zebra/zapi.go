@@ -1377,7 +1377,7 @@ func NewClient(network, address string, typ RouteType, version uint8, software s
 
 	// Start receive loop only when the first message successfully received.
 	go func() {
-		defer closeChannel(incoming)
+		defer close(incoming)
 		for {
 			if m, err := receiveSingleMsg(); err != nil {
 				return

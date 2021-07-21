@@ -1826,7 +1826,30 @@ func UnmarshalSRBSID(bsid *any.Any) (bgp.TunnelEncapSubTLVInterface, error) {
 			Flags: flags,
 		}, nil
 	case *api.SRv6BindingSID:
-		return nil, fmt.Errorf("srv6 binding sid is not yet supported")
+		b, err := bgp.NewBSID(v.Sid)
+		if err != nil {
+			return nil, err
+		}
+		result := &bgp.TunnelEncapSubTLVSRv6BSID{
+			TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
+				Type:   bgp.ENCAP_SUBTLV_TYPE_SRBINDING_SID,
+				Length: uint16(2 + b.Len()),
+			},
+			Flags: 0,
+			BSID:  b,
+		}
+
+		if v.EndpointBehaviorStructure != nil {
+			result.EPBAS = &bgp.SRv6EndpointBehaviorStructure{
+				Behavior: bgp.SRBehavior(v.EndpointBehaviorStructure.Behavior),
+				BlockLen: uint8(v.EndpointBehaviorStructure.BlockLen),
+				NodeLen:  uint8(v.EndpointBehaviorStructure.NodeLen),
+				FuncLen:  uint8(v.EndpointBehaviorStructure.FuncLen),
+				ArgLen:   uint8(v.EndpointBehaviorStructure.ArgLen),
+			}
+		}
+
+		return result, nil
 	default:
 		return nil, fmt.Errorf("unknown binding sid type %+v", v)
 	}
@@ -1848,7 +1871,27 @@ func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*any.Any {
 					BFlag: s.Flags&0x10 == 0x10,
 				},
 			}
-			// TODO (sbezverk) Add Type B Segment when SRv6 Binding SID gets finalized.
+		case *bgp.SegmentTypeB:
+			flags := &api.SegmentFlags{
+				VFlag: s.Flags&0x80 == 0x80,
+				AFlag: s.Flags&0x40 == 0x40,
+				SFlag: s.Flags&0x20 == 0x20,
+				BFlag: s.Flags&0x10 == 0x10,
+			}
+			segment := &api.SegmentTypeB{
+				Flags: flags,
+				Sid:   s.SID,
+			}
+			if s.SRv6EBS != nil {
+				segment.EndpointBehaviorStructure = &api.SRv6EndPointBehavior{
+					Behavior: api.SRv6Behavior(s.SRv6EBS.Behavior),
+					BlockLen: uint32(s.SRv6EBS.BlockLen),
+					NodeLen:  uint32(s.SRv6EBS.NodeLen),
+					FuncLen:  uint32(s.SRv6EBS.FuncLen),
+					ArgLen:   uint32(s.SRv6EBS.ArgLen),
+				}
+			}
+			r = segment
 		default:
 			// Unrecognize Segment type, skip it
 			continue
@@ -1893,7 +1936,36 @@ func UnmarshalSRSegments(s []*any.Any) ([]bgp.TunnelEncapSubTLVInterface, error)
 			}
 			segments[i] = seg
 		case *api.SegmentTypeB:
-			return nil, fmt.Errorf("segment of type B is not yet supported")
+			seg := &bgp.SegmentTypeB{
+				TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
+					Type:   bgp.EncapSubTLVType(bgp.TypeB),
+					Length: 18,
+				},
+				SID: v.GetSid(),
+			}
+			if v.Flags.VFlag {
+				seg.Flags += 0x80
+			}
+			if v.Flags.AFlag {
+				seg.Flags += 0x40
+			}
+			if v.Flags.SFlag {
+				seg.Flags += 0x20
+			}
+			if v.Flags.BFlag {
+				seg.Flags += 0x10
+			}
+			if v.EndpointBehaviorStructure != nil {
+				ebs := v.GetEndpointBehaviorStructure()
+				seg.SRv6EBS = &bgp.SRv6EndpointBehaviorStructure{
+					Behavior: bgp.SRBehavior(ebs.Behavior),
+					BlockLen: uint8(ebs.BlockLen),
+					NodeLen:  uint8(ebs.NodeLen),
+					FuncLen:  uint8(ebs.FuncLen),
+					ArgLen:   uint8(ebs.ArgLen),
+				}
+			}
+			segments[i] = seg
 		}
 	}
 	return segments, nil

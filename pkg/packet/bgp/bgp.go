@@ -10248,6 +10248,55 @@ func NewFourOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uin
 }
 
 func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (ExtendedCommunityInterface, error) {
+	if subtype == EC_SUBTYPE_ENCAPSULATION {
+		var t TunnelType
+		switch com {
+		case TUNNEL_TYPE_L2TP3.String():
+			t = TUNNEL_TYPE_L2TP3
+		case TUNNEL_TYPE_GRE.String():
+			t = TUNNEL_TYPE_GRE
+		case TUNNEL_TYPE_IP_IN_IP.String():
+			t = TUNNEL_TYPE_IP_IN_IP
+		case TUNNEL_TYPE_VXLAN.String():
+			t = TUNNEL_TYPE_VXLAN
+		case TUNNEL_TYPE_NVGRE.String():
+			t = TUNNEL_TYPE_NVGRE
+		case TUNNEL_TYPE_MPLS.String():
+			t = TUNNEL_TYPE_MPLS
+		case TUNNEL_TYPE_MPLS_IN_GRE.String():
+			t = TUNNEL_TYPE_MPLS_IN_GRE
+		case TUNNEL_TYPE_VXLAN_GRE.String():
+			t = TUNNEL_TYPE_VXLAN_GRE
+		case TUNNEL_TYPE_MPLS_IN_UDP.String():
+			t = TUNNEL_TYPE_MPLS_IN_UDP
+		case TUNNEL_TYPE_GENEVE.String():
+			t = TUNNEL_TYPE_GENEVE
+		case "L2TPv3 over IP":
+			t = TUNNEL_TYPE_L2TP3
+		case "GRE":
+			t = TUNNEL_TYPE_GRE
+		case "IP in IP":
+			t = TUNNEL_TYPE_IP_IN_IP
+		case "VXLAN":
+			t = TUNNEL_TYPE_VXLAN
+		case "NVGRE":
+			t = TUNNEL_TYPE_NVGRE
+		case "MPLS":
+			t = TUNNEL_TYPE_MPLS
+		case "MPLS in GRE":
+			t = TUNNEL_TYPE_MPLS_IN_GRE
+		case "VXLAN GRE":
+			t = TUNNEL_TYPE_VXLAN_GRE
+		case "MPLS in UDP":
+			t = TUNNEL_TYPE_MPLS_IN_UDP
+		case "GENEVE":
+			t = TUNNEL_TYPE_GENEVE
+		default:
+			return nil, fmt.Errorf("invalid encap type %s", com)
+		}
+		return NewEncapExtended(t), nil
+	}
+
 	if subtype == EC_SUBTYPE_ORIGIN_VALIDATION {
 		var state ValidationState
 		switch com {
