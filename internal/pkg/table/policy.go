@@ -1447,6 +1447,9 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	}
 
 	r := nlriToIPNet(path.GetNlri())
+	if r == nil {
+		return false
+	}
 	ones, _ := r.Mask.Size()
 	masklen := uint8(ones)
 	result := false
