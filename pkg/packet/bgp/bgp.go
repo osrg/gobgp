@@ -13125,7 +13125,7 @@ func (msg *BGPKeepAlive) Serialize(options ...*MarshallingOption) ([]byte, error
 
 func NewBGPKeepAliveMessage() *BGPMessage {
 	return &BGPMessage{
-		Header: BGPHeader{Len: 19, Type: BGP_MSG_KEEPALIVE},
+		Header: BGPHeader{Len: BGP_HEADER_LENGTH, Type: BGP_MSG_KEEPALIVE},
 		Body:   &BGPKeepAlive{},
 	}
 }
@@ -13193,7 +13193,7 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 }
 
 func (msg *BGPHeader) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 19)
+	buf := make([]byte, BGP_HEADER_LENGTH)
 	for i := range buf[:16] {
 		buf[i] = 0xff
 	}
@@ -13242,7 +13242,7 @@ func ParseBGPMessage(data []byte, options ...*MarshallingOption) (*BGPMessage, e
 		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
 	}
 
-	return parseBody(h, data[19:h.Len], options...)
+	return parseBody(h, data[BGP_HEADER_LENGTH:h.Len], options...)
 }
 
 func ParseBGPBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMessage, error) {
@@ -13255,10 +13255,10 @@ func (msg *BGPMessage) Serialize(options ...*MarshallingOption) ([]byte, error) 
 		return nil, err
 	}
 	if msg.Header.Len == 0 {
-		if 19+len(b) > BGP_MAX_MESSAGE_LENGTH {
-			return nil, NewMessageError(0, 0, nil, fmt.Sprintf("too long message length %d", 19+len(b)))
+		if BGP_HEADER_LENGTH+len(b) > BGP_MAX_MESSAGE_LENGTH {
+			return nil, NewMessageError(0, 0, nil, fmt.Sprintf("too long message length %d", BGP_HEADER_LENGTH+len(b)))
 		}
-		msg.Header.Len = 19 + uint16(len(b))
+		msg.Header.Len = BGP_HEADER_LENGTH + uint16(len(b))
 	}
 	h, err := msg.Header.Serialize(options...)
 	if err != nil {
