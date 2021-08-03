@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -207,11 +208,18 @@ func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, err
 		grpcOpts = append(grpcOpts, grpc.WithInsecure())
 	}
 
-	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
+	target := globalOpts.Target
 	if target == "" {
-		target = ":50051"
+		target = net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
+	} else if strings.HasPrefix(target, "unix://") {
+		target = target[len("unix://"):]
+		dialer := func(addr string, t time.Duration) (net.Conn, error) {
+			return net.Dial("unix", addr)
+		}
+		grpcOpts = append(grpcOpts, grpc.WithDialer(dialer))
 	}
 	cc, cancel := context.WithTimeout(ctx, time.Second)
+
 	conn, err := grpc.DialContext(cc, target, grpcOpts...)
 	if err != nil {
 		return nil, cancel, err
