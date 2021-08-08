@@ -2163,7 +2163,7 @@ func (s *BgpServer) listVrf() (l []*table.Vrf) {
 	return l
 }
 
-func (s *BgpServer) ListVrf(ctx context.Context, _ *api.ListVrfRequest, fn func(*api.Vrf)) error {
+func (s *BgpServer) ListVrf(ctx context.Context, rq *api.ListVrfRequest, fn func(*api.Vrf)) error {
 	toApi := func(v *table.Vrf) *api.Vrf {
 		return &api.Vrf{
 			Name:     v.Name,
@@ -2176,7 +2176,10 @@ func (s *BgpServer) ListVrf(ctx context.Context, _ *api.ListVrfRequest, fn func(
 	var l []*api.Vrf
 	s.mgmtOperation(func() error {
 		l = make([]*api.Vrf, 0, len(s.globalRib.Vrfs))
-		for _, vrf := range s.globalRib.Vrfs {
+		for name, vrf := range s.globalRib.Vrfs {
+			if rq.Name != "" && rq.Name != name {
+				continue
+			}
 			l = append(l, toApi(vrf.Clone()))
 		}
 		return nil
