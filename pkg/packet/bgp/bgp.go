@@ -507,11 +507,13 @@ type CapExtendedNexthop struct {
 func (c *CapExtendedNexthop) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
-	if len(data) < 6 {
+	capLen := int(c.CapLen)
+	if capLen%6 != 0 || capLen < 6 || len(data) < capLen {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityExtendedNexthop bytes available")
 	}
+
 	c.Tuples = []*CapExtendedNexthopTuple{}
-	for len(data) >= 6 {
+	for capLen >= 6 {
 		t := &CapExtendedNexthopTuple{
 			binary.BigEndian.Uint16(data[0:2]),
 			binary.BigEndian.Uint16(data[2:4]),
@@ -519,6 +521,7 @@ func (c *CapExtendedNexthop) DecodeFromBytes(data []byte) error {
 		}
 		c.Tuples = append(c.Tuples, t)
 		data = data[6:]
+		capLen -= 6
 	}
 	return nil
 }
@@ -756,17 +759,20 @@ type CapAddPath struct {
 func (c *CapAddPath) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
-	if len(data) < 4 {
+	capLen := int(c.CapLen)
+	if capLen%4 != 0 || capLen < 4 || len(data) < capLen {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityAddPath bytes available")
 	}
+
 	c.Tuples = []*CapAddPathTuple{}
-	for len(data) >= 4 {
+	for capLen >= 4 {
 		t := &CapAddPathTuple{
 			RouteFamily: AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[:2]), data[2]),
 			Mode:        BGPAddPathMode(data[3]),
 		}
 		c.Tuples = append(c.Tuples, t)
 		data = data[4:]
+		capLen -= 4
 	}
 	return nil
 }

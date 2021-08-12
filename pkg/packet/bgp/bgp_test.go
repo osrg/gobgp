@@ -3230,3 +3230,64 @@ func Test_PathAttributeLs(t *testing.T) {
 		}
 	}
 }
+
+func Test_BGPOpenDecodeCapabilities(t *testing.T) {
+	// BGP OPEN message with add-path and long-lived-graceful-restart capabilities,
+	// in that order.
+	openBytes := []byte{
+		0x04,       // version: 4
+		0xfa, 0x7b, // my as: 64123
+		0x00, 0xf0, // hold time: 240 seconds
+		0x7f, 0x00, 0x00, 0x02, // BGP identifier: 127.0.0.2
+		0x19, // optional parameters length: 25
+		0x02, // parameter type: capability
+		0x17, // parameter length: 23
+
+		0x05,       // capability type: extended next hop
+		0x06,       // caability length: 6
+		0x00, 0x01, // AFI: IPv4
+		0x00, 0x01, // SAFI: unicast
+		0x00, 0x02, // next hop AFI: IPv6
+
+		0x45,       // capability type: ADD-PATH
+		0x04,       // capability length: 4
+		0x00, 0x01, // AFI: IPv4
+		0x01, // SAFI: unicast
+		0x02, // Send/Receive: Send
+
+		0x47, // capability type: Long-lived-graceful-restart
+		0x07, // capability length: 7
+		0x00, 0x01, 0x01, 0x00, 0x00, 0x0e, 0x10,
+	}
+
+	open := &BGPOpen{}
+	err := open.DecodeFromBytes(openBytes)
+	assert.NoError(t, err)
+
+	capMap := make(map[BGPCapabilityCode][]ParameterCapabilityInterface)
+	for _, p := range open.OptParams {
+		if paramCap, y := p.(*OptionParameterCapability); y {
+			t.Logf("parameter capability: %+v", paramCap)
+			for _, c := range paramCap.Capability {
+				m, ok := capMap[c.Code()]
+				if !ok {
+					m = make([]ParameterCapabilityInterface, 0, 1)
+				}
+				capMap[c.Code()] = append(m, c)
+			}
+		}
+	}
+
+	assert.Len(t, capMap[BGP_CAP_EXTENDED_NEXTHOP], 1)
+	nexthopTuples := capMap[BGP_CAP_EXTENDED_NEXTHOP][0].(*CapExtendedNexthop).Tuples
+	assert.Len(t, nexthopTuples, 1)
+	assert.Equal(t, nexthopTuples[0].NLRIAFI, uint16(AFI_IP))
+	assert.Equal(t, nexthopTuples[0].NLRISAFI, uint16(SAFI_UNICAST))
+	assert.Equal(t, nexthopTuples[0].NexthopAFI, uint16(AFI_IP6))
+
+	assert.Len(t, capMap[BGP_CAP_ADD_PATH], 1)
+	tuples := capMap[BGP_CAP_ADD_PATH][0].(*CapAddPath).Tuples
+	assert.Len(t, tuples, 1)
+	assert.Equal(t, tuples[0].RouteFamily, RF_IPv4_UC)
+	assert.Equal(t, tuples[0].Mode, BGP_ADD_PATH_SEND)
+}
