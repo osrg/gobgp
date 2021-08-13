@@ -83,7 +83,7 @@ You need to enable the zebra feature in the Global configuration as follows.
 |5      |cumulus      |Cumulus Linux VX 3.7.7   |                     |
 |5      |frr4         |FRRouting 4.0.x          |                     |
 |6      |             |FRRouting 7.5.x          |                     |
-|6      |frr7.3       |FRRouting 7.3.x          |                     |
+|6      |frr7.3       |FRRouting 7.3.x and 7.4.x|                     |
 |6      |frr7.2       |FRRouting 7.2.x          |Ubuntu 20.04         |
 |6      |frr7         |FRRouting 7.0.x and 7.1.x|CentOS8              |
 |6      |frr6         |FRRouting 6.0.x          |                     |
