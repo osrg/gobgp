@@ -2270,6 +2270,19 @@ type Prefix struct {
 	Prefix    net.IP
 }
 
+// NetworkBytes: net.IP is represented by a 16-byte slice, for example 10.10.10.0 is:
+// net.IP{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xff, 0xff, 0xa, 0xa, 0xa, 0x0}.
+// In order to obtain the network part of Prefix.Prefix based on the PrefixLen for IPv4,
+// we need to start from offset=12.
+func (p *Prefix) NetworkBytes() []byte {
+	byteLen := (int(p.PrefixLen) + 7) / 8
+	offset := 0
+	if p.Family == syscall.AF_INET {
+		offset = 12
+	}
+	return p.Prefix[offset : offset+byteLen]
+}
+
 func familyFromPrefix(prefix net.IP) uint8 {
 	if prefix.To4() != nil {
 		return syscall.AF_INET
@@ -2427,17 +2440,15 @@ func (b *IPRouteBody) serialize(version uint8, softwareName string) ([]byte, err
 		//frr: stream_putc(s, api->prefix.family);
 		buf = append(buf, b.Prefix.Family)
 	}
-	byteLen := (int(b.Prefix.PrefixLen) + 7) / 8
 	buf = append(buf, b.Prefix.PrefixLen) //frr: stream_putc(s, api->prefix.prefixlen);
 	//frr: stream_write(s, (uint8_t *)&api->prefix.u.prefix, psize);
-	buf = append(buf, b.Prefix.Prefix[:byteLen]...)
+	buf = append(buf, b.Prefix.NetworkBytes()...)
 
 	if version > 3 && b.Message&messageSRCPFX.ToEach(version) > 0 {
-		byteLen = (int(b.srcPrefix.PrefixLen) + 7) / 8
 		//frr: stream_putc(s, api->src_prefix.prefixlen);
 		buf = append(buf, b.srcPrefix.PrefixLen)
 		//frr: stream_write(s, (uint8_t *)&api->prefix.u.prefix, psize);
-		buf = append(buf, b.srcPrefix.Prefix[:byteLen]...)
+		buf = append(buf, b.Prefix.NetworkBytes()...)
 	}
 
 	processFlag := nexthopProcessFlagForIPRouteBody(version, softwareName, false)
