@@ -948,7 +948,7 @@ func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) 
 			break
 		}
 	}
-	return args, bgp.NewPathAttributeOrigin(uint8(typ)), nil
+	return args, bgp.NewPathAttributeOrigin(typ), nil
 }
 
 func toAs4Value(s string) (uint32, error) {
@@ -994,7 +994,7 @@ func newAsPath(aspath string) (bgp.PathAttributeInterface, error) {
 			if asn, err := toAs4Value(n); err != nil {
 				return nil, err
 			} else {
-				asNums = append(asNums, uint32(asn))
+				asNums = append(asNums, asn)
 			}
 		}
 		// Assumes "idx" is even, the given "segment" is of type AS_SEQUENCE,
@@ -1137,7 +1137,7 @@ func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				aigp := bgp.NewPathAttributeAigp([]bgp.AigpTLVInterface{bgp.NewAigpTLVIgpMetric(uint64(metric))})
+				aigp := bgp.NewPathAttributeAigp([]bgp.AigpTLVInterface{bgp.NewAigpTLVIgpMetric(metric)})
 				return append(args[:idx], args[idx+3:]...), aigp, nil
 			default:
 				return nil, nil, fmt.Errorf("unknown aigp type: %s", typ)

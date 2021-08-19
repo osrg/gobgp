@@ -2895,7 +2895,7 @@ func createPrefixSet(name string, prefix string, maskLength string) config.Prefi
 	ps := config.PrefixSet{
 		PrefixSetName: name,
 		PrefixList: []config.Prefix{
-			config.Prefix{
+			{
 				IpPrefix:        prefix,
 				MasklengthRange: maskLength,
 			}},
@@ -3052,8 +3052,8 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 
 func TestLargeCommunityMatchAction(t *testing.T) {
 	coms := []*bgp.LargeCommunity{
-		&bgp.LargeCommunity{ASN: 100, LocalData1: 100, LocalData2: 100},
-		&bgp.LargeCommunity{ASN: 100, LocalData1: 200, LocalData2: 200},
+		{ASN: 100, LocalData1: 100, LocalData2: 100},
+		{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
 	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
@@ -3133,8 +3133,8 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 
 func TestLargeCommunitiesMatchClearAction(t *testing.T) {
 	coms := []*bgp.LargeCommunity{
-		&bgp.LargeCommunity{ASN: 100, LocalData1: 100, LocalData2: 100},
-		&bgp.LargeCommunity{ASN: 100, LocalData1: 200, LocalData2: 200},
+		{ASN: 100, LocalData1: 100, LocalData2: 100},
+		{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
 	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
@@ -3193,17 +3193,17 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 func TestMultipleStatementPolicy(t *testing.T) {
 	r := NewRoutingPolicy(logger)
 	rp := config.RoutingPolicy{
-		PolicyDefinitions: []config.PolicyDefinition{config.PolicyDefinition{
+		PolicyDefinitions: []config.PolicyDefinition{{
 			Name: "p1",
 			Statements: []config.Statement{
-				config.Statement{
+				{
 					Actions: config.Actions{
 						BgpActions: config.BgpActions{
 							SetMed: "+100",
 						},
 					},
 				},
-				config.Statement{
+				{
 					Actions: config.Actions{
 						BgpActions: config.BgpActions{
 							SetLocalPref: 100,

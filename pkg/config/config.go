@@ -235,9 +235,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 	if newConfig.Zebra.Config.Enabled {
 		tps := newConfig.Zebra.Config.RedistributeRouteTypeList
 		l := make([]string, 0, len(tps))
-		for _, t := range tps {
-			l = append(l, string(t))
-		}
+		l = append(l, tps...)
 		if err := bgpServer.EnableZebra(ctx, &api.EnableZebraRequest{
 			Url:                  newConfig.Zebra.Config.Url,
 			RouteTypes:           l,

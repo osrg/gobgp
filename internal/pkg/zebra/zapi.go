@@ -1524,7 +1524,7 @@ func (c *Client) SupportMpls() bool {
 	// Note: frr3&4 have LABEL_MANAGER_CONNECT& GET_LABEL_CHUNK. However
 	// Routes will not be installed via zebra of frr3&4 after call these APIs.
 	if c.Version < 5 || c.SoftwareName == "frr4" {
-		return false // if frr4 or ealier are used
+		return false // if frr4 or earlier are used
 	}
 	return true // if frr5 or later are used
 }
@@ -2329,7 +2329,7 @@ func (b *IPRouteBody) RouteFamily(logger log.Logger, version uint8, softwareName
 	}
 	safi := b.safi(logger, version, softwareName)
 	if safi == safiEvpn {
-		return bgp.RF_EVPN // sucess
+		return bgp.RF_EVPN // success
 	}
 	family := b.Prefix.Family
 	if family == syscall.AF_UNSPEC {
@@ -2353,7 +2353,7 @@ func (b *IPRouteBody) RouteFamily(logger log.Logger, version uint8, softwareName
 			"Safi":  safi.String(),
 			"Rf":    rf.String()})
 
-	return rf // sucess
+	return rf // success
 }
 
 // IsWithdraw is referred in zclient

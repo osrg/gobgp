@@ -29,7 +29,7 @@ func ExampleInitialConfig() {
 	}
 }
 
-// ExampleUpdateConfig shows how UpdateConfig is used in conjuction with
+// ExampleUpdateConfig shows how UpdateConfig is used in conjunction with
 // InitialConfig.
 func ExampleUpdateConfig() {
 	bgpServer := server.NewBgpServer()
