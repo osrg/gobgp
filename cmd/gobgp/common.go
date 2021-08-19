@@ -213,10 +213,10 @@ func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, err
 		target = net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
 	} else if strings.HasPrefix(target, "unix://") {
 		target = target[len("unix://"):]
-		dialer := func(addr string, t time.Duration) (net.Conn, error) {
+		dialer := func(ctx context.Context, addr string) (net.Conn, error) {
 			return net.Dial("unix", addr)
 		}
-		grpcOpts = append(grpcOpts, grpc.WithDialer(dialer))
+		grpcOpts = append(grpcOpts, grpc.WithContextDialer(dialer))
 	}
 	cc, cancel := context.WithTimeout(ctx, time.Second)
 
