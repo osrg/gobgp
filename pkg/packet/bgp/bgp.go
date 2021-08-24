@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type MarshallingOption struct {
@@ -1229,23 +1230,36 @@ func LabelString(nlri AddrPrefixInterface) string {
 }
 
 type PrefixDefault struct {
+	mu      sync.Mutex
 	id      uint32
 	localId uint32
 }
 
 func (p *PrefixDefault) PathIdentifier() uint32 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	return p.id
 }
 
 func (p *PrefixDefault) SetPathIdentifier(id uint32) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.id = id
 }
 
 func (p *PrefixDefault) PathLocalIdentifier() uint32 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	return p.localId
 }
 
 func (p *PrefixDefault) SetPathLocalIdentifier(id uint32) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.localId = id
 }
 
