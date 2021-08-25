@@ -771,20 +771,20 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	cmp, err := ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 10.0.0.2/32 source 10.0.0.1/32 destination-port ==3128 protocol tcp")
 	assert.Nil(err)
 	// Note: Use NewFlowSpecIPv4Unicast() for the consistent ordered rules.
-	n1 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n1 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.0/24 destination-port ==3128 protocol tcp")
 	assert.Nil(err)
-	n2 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
-	r, err := CompareFlowSpecNLRI(&n1, &n2)
+	n2 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	r, err := CompareFlowSpecNLRI(n1, n2)
 	assert.Nil(err)
 	assert.True(r > 0)
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.9/32 port ==80 ==8080 destination-port >8080&<8080 ==3128 source-port >1024 protocol ==udp ==tcp")
-	n3 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n3 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
 	assert.Nil(err)
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 192.168.0.2/32")
-	n4 := NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n4 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
 	assert.Nil(err)
-	r, err = CompareFlowSpecNLRI(&n3, &n4)
+	r, err = CompareFlowSpecNLRI(n3, n4)
 	assert.Nil(err)
 	assert.True(r < 0)
 }
