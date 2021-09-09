@@ -164,12 +164,11 @@ func NewBMPRouteMonitoring(p BMPPeerHeader, update *bgp.BGPMessage) *BMPMessage 
 }
 
 func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
-	update, err := bgp.ParseBGPMessage(data)
-	if err != nil {
-		return err
-	}
-	body.BGPUpdate = update
-	return nil
+	var err error
+
+	body.BGPUpdate, err = bgp.ParseBGPMessage(data)
+
+	return err
 }
 
 func (body *BMPRouteMonitoring) Serialize() ([]byte, error) {
@@ -1065,8 +1064,13 @@ func ParseBMPMessage(data []byte) (msg *BMPMessage, err error) {
 
 	err = msg.Body.ParseBody(msg, data)
 	if err != nil {
+		if msg.Header.Type == BMP_MSG_ROUTE_MONITORING {
+			return msg, err
+		}
+
 		return nil, err
 	}
+
 	return msg, nil
 }
 
