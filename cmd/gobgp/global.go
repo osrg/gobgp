@@ -52,6 +52,7 @@ const (
 	ctNotFound
 	ctInvalid
 	ctColor
+	ctLb
 )
 
 var extCommNameMap = map[extCommType]string{
@@ -70,6 +71,7 @@ var extCommNameMap = map[extCommType]string{
 	ctNotFound:       "not-found",
 	ctInvalid:        "invalid",
 	ctColor:          "color",
+	ctLb:             "lb",
 }
 
 var extCommValueMap = map[string]extCommType{
@@ -88,6 +90,7 @@ var extCommValueMap = map[string]extCommType{
 	extCommNameMap[ctNotFound]:       ctNotFound,
 	extCommNameMap[ctInvalid]:        ctInvalid,
 	extCommNameMap[ctColor]:          ctColor,
+	extCommNameMap[ctLb]:             ctLb,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -288,6 +291,23 @@ func colorParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{bgp.NewColorExtended(uint32(color))}, nil
 }
 
+func lbParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) != 2 || args[0] != extCommNameMap[ctLb] {
+		return nil, fmt.Errorf("invalid link-bandwidth")
+	}
+
+	as, err := strconv.ParseUint(args[1], 10, 16)
+	if err != nil {
+		return nil, fmt.Errorf("invalid lb ASN")
+	}
+
+	bw, err := strconv.ParseFloat(args[2], 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid lb bandwidth")
+	}
+	return []bgp.ExtendedCommunityInterface{bgp.NewLinkBandwidthExtended(uint16(as), float32(bw))}, nil
+}
+
 var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
 	ctAccept:         nil,
 	ctDiscard:        rateLimitParser,
@@ -304,6 +324,7 @@ var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	ctNotFound:       validationParser,
 	ctInvalid:        validationParser,
 	ctColor:          colorParser,
+	ctLb:             lbParser,
 }
 
 func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, error) {
