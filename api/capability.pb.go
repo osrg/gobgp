@@ -3,14 +3,22 @@
 
 package gobgpapi
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type AddPathMode int32
 
@@ -27,6 +35,7 @@ var AddPathMode_name = map[int32]string{
 	2: "MODE_SEND",
 	3: "MODE_BOTH",
 }
+
 var AddPathMode_value = map[string]int32{
 	"MODE_NONE":    0,
 	"MODE_RECEIVE": 1,
@@ -37,16 +46,42 @@ var AddPathMode_value = map[string]int32{
 func (x AddPathMode) String() string {
 	return proto.EnumName(AddPathMode_name, int32(x))
 }
-func (AddPathMode) EnumDescriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
-type MultiProtocolCapability struct {
-	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
+func (AddPathMode) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{0}
 }
 
-func (m *MultiProtocolCapability) Reset()                    { *m = MultiProtocolCapability{} }
-func (m *MultiProtocolCapability) String() string            { return proto.CompactTextString(m) }
-func (*MultiProtocolCapability) ProtoMessage()               {}
-func (*MultiProtocolCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
+type MultiProtocolCapability struct {
+	Family               *Family  `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MultiProtocolCapability) Reset()         { *m = MultiProtocolCapability{} }
+func (m *MultiProtocolCapability) String() string { return proto.CompactTextString(m) }
+func (*MultiProtocolCapability) ProtoMessage()    {}
+func (*MultiProtocolCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{0}
+}
+
+func (m *MultiProtocolCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MultiProtocolCapability.Unmarshal(m, b)
+}
+func (m *MultiProtocolCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MultiProtocolCapability.Marshal(b, m, deterministic)
+}
+func (m *MultiProtocolCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MultiProtocolCapability.Merge(m, src)
+}
+func (m *MultiProtocolCapability) XXX_Size() int {
+	return xxx_messageInfo_MultiProtocolCapability.Size(m)
+}
+func (m *MultiProtocolCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_MultiProtocolCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MultiProtocolCapability proto.InternalMessageInfo
 
 func (m *MultiProtocolCapability) GetFamily() *Family {
 	if m != nil {
@@ -56,33 +91,102 @@ func (m *MultiProtocolCapability) GetFamily() *Family {
 }
 
 type RouteRefreshCapability struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouteRefreshCapability) Reset()                    { *m = RouteRefreshCapability{} }
-func (m *RouteRefreshCapability) String() string            { return proto.CompactTextString(m) }
-func (*RouteRefreshCapability) ProtoMessage()               {}
-func (*RouteRefreshCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{1} }
+func (m *RouteRefreshCapability) Reset()         { *m = RouteRefreshCapability{} }
+func (m *RouteRefreshCapability) String() string { return proto.CompactTextString(m) }
+func (*RouteRefreshCapability) ProtoMessage()    {}
+func (*RouteRefreshCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{1}
+}
+
+func (m *RouteRefreshCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouteRefreshCapability.Unmarshal(m, b)
+}
+func (m *RouteRefreshCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouteRefreshCapability.Marshal(b, m, deterministic)
+}
+func (m *RouteRefreshCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteRefreshCapability.Merge(m, src)
+}
+func (m *RouteRefreshCapability) XXX_Size() int {
+	return xxx_messageInfo_RouteRefreshCapability.Size(m)
+}
+func (m *RouteRefreshCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteRefreshCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteRefreshCapability proto.InternalMessageInfo
 
 type CarryingLabelInfoCapability struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *CarryingLabelInfoCapability) Reset()                    { *m = CarryingLabelInfoCapability{} }
-func (m *CarryingLabelInfoCapability) String() string            { return proto.CompactTextString(m) }
-func (*CarryingLabelInfoCapability) ProtoMessage()               {}
-func (*CarryingLabelInfoCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{2} }
+func (m *CarryingLabelInfoCapability) Reset()         { *m = CarryingLabelInfoCapability{} }
+func (m *CarryingLabelInfoCapability) String() string { return proto.CompactTextString(m) }
+func (*CarryingLabelInfoCapability) ProtoMessage()    {}
+func (*CarryingLabelInfoCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{2}
+}
+
+func (m *CarryingLabelInfoCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CarryingLabelInfoCapability.Unmarshal(m, b)
+}
+func (m *CarryingLabelInfoCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CarryingLabelInfoCapability.Marshal(b, m, deterministic)
+}
+func (m *CarryingLabelInfoCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CarryingLabelInfoCapability.Merge(m, src)
+}
+func (m *CarryingLabelInfoCapability) XXX_Size() int {
+	return xxx_messageInfo_CarryingLabelInfoCapability.Size(m)
+}
+func (m *CarryingLabelInfoCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_CarryingLabelInfoCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CarryingLabelInfoCapability proto.InternalMessageInfo
 
 type ExtendedNexthopCapabilityTuple struct {
-	NlriFamily *Family `protobuf:"bytes,1,opt,name=nlri_family,json=nlriFamily" json:"nlri_family,omitempty"`
+	NlriFamily *Family `protobuf:"bytes,1,opt,name=nlri_family,json=nlriFamily,proto3" json:"nlri_family,omitempty"`
 	// Nexthop AFI must be either
 	// gobgp.IPv4 or
 	// gobgp.IPv6.
-	NexthopFamily *Family `protobuf:"bytes,2,opt,name=nexthop_family,json=nexthopFamily" json:"nexthop_family,omitempty"`
+	NexthopFamily        *Family  `protobuf:"bytes,2,opt,name=nexthop_family,json=nexthopFamily,proto3" json:"nexthop_family,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ExtendedNexthopCapabilityTuple) Reset()                    { *m = ExtendedNexthopCapabilityTuple{} }
-func (m *ExtendedNexthopCapabilityTuple) String() string            { return proto.CompactTextString(m) }
-func (*ExtendedNexthopCapabilityTuple) ProtoMessage()               {}
-func (*ExtendedNexthopCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{3} }
+func (m *ExtendedNexthopCapabilityTuple) Reset()         { *m = ExtendedNexthopCapabilityTuple{} }
+func (m *ExtendedNexthopCapabilityTuple) String() string { return proto.CompactTextString(m) }
+func (*ExtendedNexthopCapabilityTuple) ProtoMessage()    {}
+func (*ExtendedNexthopCapabilityTuple) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{3}
+}
+
+func (m *ExtendedNexthopCapabilityTuple) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ExtendedNexthopCapabilityTuple.Unmarshal(m, b)
+}
+func (m *ExtendedNexthopCapabilityTuple) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ExtendedNexthopCapabilityTuple.Marshal(b, m, deterministic)
+}
+func (m *ExtendedNexthopCapabilityTuple) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ExtendedNexthopCapabilityTuple.Merge(m, src)
+}
+func (m *ExtendedNexthopCapabilityTuple) XXX_Size() int {
+	return xxx_messageInfo_ExtendedNexthopCapabilityTuple.Size(m)
+}
+func (m *ExtendedNexthopCapabilityTuple) XXX_DiscardUnknown() {
+	xxx_messageInfo_ExtendedNexthopCapabilityTuple.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ExtendedNexthopCapabilityTuple proto.InternalMessageInfo
 
 func (m *ExtendedNexthopCapabilityTuple) GetNlriFamily() *Family {
 	if m != nil {
@@ -99,13 +203,36 @@ func (m *ExtendedNexthopCapabilityTuple) GetNexthopFamily() *Family {
 }
 
 type ExtendedNexthopCapability struct {
-	Tuples []*ExtendedNexthopCapabilityTuple `protobuf:"bytes,1,rep,name=tuples" json:"tuples,omitempty"`
+	Tuples               []*ExtendedNexthopCapabilityTuple `protobuf:"bytes,1,rep,name=tuples,proto3" json:"tuples,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                          `json:"-"`
+	XXX_unrecognized     []byte                            `json:"-"`
+	XXX_sizecache        int32                             `json:"-"`
 }
 
-func (m *ExtendedNexthopCapability) Reset()                    { *m = ExtendedNexthopCapability{} }
-func (m *ExtendedNexthopCapability) String() string            { return proto.CompactTextString(m) }
-func (*ExtendedNexthopCapability) ProtoMessage()               {}
-func (*ExtendedNexthopCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{4} }
+func (m *ExtendedNexthopCapability) Reset()         { *m = ExtendedNexthopCapability{} }
+func (m *ExtendedNexthopCapability) String() string { return proto.CompactTextString(m) }
+func (*ExtendedNexthopCapability) ProtoMessage()    {}
+func (*ExtendedNexthopCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{4}
+}
+
+func (m *ExtendedNexthopCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ExtendedNexthopCapability.Unmarshal(m, b)
+}
+func (m *ExtendedNexthopCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ExtendedNexthopCapability.Marshal(b, m, deterministic)
+}
+func (m *ExtendedNexthopCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ExtendedNexthopCapability.Merge(m, src)
+}
+func (m *ExtendedNexthopCapability) XXX_Size() int {
+	return xxx_messageInfo_ExtendedNexthopCapability.Size(m)
+}
+func (m *ExtendedNexthopCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_ExtendedNexthopCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ExtendedNexthopCapability proto.InternalMessageInfo
 
 func (m *ExtendedNexthopCapability) GetTuples() []*ExtendedNexthopCapabilityTuple {
 	if m != nil {
@@ -115,14 +242,37 @@ func (m *ExtendedNexthopCapability) GetTuples() []*ExtendedNexthopCapabilityTupl
 }
 
 type GracefulRestartCapabilityTuple struct {
-	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
-	Flags  uint32  `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
+	Family               *Family  `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	Flags                uint32   `protobuf:"varint,2,opt,name=flags,proto3" json:"flags,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *GracefulRestartCapabilityTuple) Reset()                    { *m = GracefulRestartCapabilityTuple{} }
-func (m *GracefulRestartCapabilityTuple) String() string            { return proto.CompactTextString(m) }
-func (*GracefulRestartCapabilityTuple) ProtoMessage()               {}
-func (*GracefulRestartCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{5} }
+func (m *GracefulRestartCapabilityTuple) Reset()         { *m = GracefulRestartCapabilityTuple{} }
+func (m *GracefulRestartCapabilityTuple) String() string { return proto.CompactTextString(m) }
+func (*GracefulRestartCapabilityTuple) ProtoMessage()    {}
+func (*GracefulRestartCapabilityTuple) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{5}
+}
+
+func (m *GracefulRestartCapabilityTuple) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GracefulRestartCapabilityTuple.Unmarshal(m, b)
+}
+func (m *GracefulRestartCapabilityTuple) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GracefulRestartCapabilityTuple.Marshal(b, m, deterministic)
+}
+func (m *GracefulRestartCapabilityTuple) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GracefulRestartCapabilityTuple.Merge(m, src)
+}
+func (m *GracefulRestartCapabilityTuple) XXX_Size() int {
+	return xxx_messageInfo_GracefulRestartCapabilityTuple.Size(m)
+}
+func (m *GracefulRestartCapabilityTuple) XXX_DiscardUnknown() {
+	xxx_messageInfo_GracefulRestartCapabilityTuple.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GracefulRestartCapabilityTuple proto.InternalMessageInfo
 
 func (m *GracefulRestartCapabilityTuple) GetFamily() *Family {
 	if m != nil {
@@ -139,15 +289,38 @@ func (m *GracefulRestartCapabilityTuple) GetFlags() uint32 {
 }
 
 type GracefulRestartCapability struct {
-	Flags  uint32                            `protobuf:"varint,1,opt,name=flags" json:"flags,omitempty"`
-	Time   uint32                            `protobuf:"varint,2,opt,name=time" json:"time,omitempty"`
-	Tuples []*GracefulRestartCapabilityTuple `protobuf:"bytes,3,rep,name=tuples" json:"tuples,omitempty"`
+	Flags                uint32                            `protobuf:"varint,1,opt,name=flags,proto3" json:"flags,omitempty"`
+	Time                 uint32                            `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
+	Tuples               []*GracefulRestartCapabilityTuple `protobuf:"bytes,3,rep,name=tuples,proto3" json:"tuples,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                          `json:"-"`
+	XXX_unrecognized     []byte                            `json:"-"`
+	XXX_sizecache        int32                             `json:"-"`
 }
 
-func (m *GracefulRestartCapability) Reset()                    { *m = GracefulRestartCapability{} }
-func (m *GracefulRestartCapability) String() string            { return proto.CompactTextString(m) }
-func (*GracefulRestartCapability) ProtoMessage()               {}
-func (*GracefulRestartCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{6} }
+func (m *GracefulRestartCapability) Reset()         { *m = GracefulRestartCapability{} }
+func (m *GracefulRestartCapability) String() string { return proto.CompactTextString(m) }
+func (*GracefulRestartCapability) ProtoMessage()    {}
+func (*GracefulRestartCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{6}
+}
+
+func (m *GracefulRestartCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GracefulRestartCapability.Unmarshal(m, b)
+}
+func (m *GracefulRestartCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GracefulRestartCapability.Marshal(b, m, deterministic)
+}
+func (m *GracefulRestartCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GracefulRestartCapability.Merge(m, src)
+}
+func (m *GracefulRestartCapability) XXX_Size() int {
+	return xxx_messageInfo_GracefulRestartCapability.Size(m)
+}
+func (m *GracefulRestartCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_GracefulRestartCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GracefulRestartCapability proto.InternalMessageInfo
 
 func (m *GracefulRestartCapability) GetFlags() uint32 {
 	if m != nil {
@@ -171,13 +344,36 @@ func (m *GracefulRestartCapability) GetTuples() []*GracefulRestartCapabilityTupl
 }
 
 type FourOctetASNumberCapability struct {
-	As uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	As                   uint32   `protobuf:"varint,1,opt,name=as,proto3" json:"as,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FourOctetASNumberCapability) Reset()                    { *m = FourOctetASNumberCapability{} }
-func (m *FourOctetASNumberCapability) String() string            { return proto.CompactTextString(m) }
-func (*FourOctetASNumberCapability) ProtoMessage()               {}
-func (*FourOctetASNumberCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{7} }
+func (m *FourOctetASNumberCapability) Reset()         { *m = FourOctetASNumberCapability{} }
+func (m *FourOctetASNumberCapability) String() string { return proto.CompactTextString(m) }
+func (*FourOctetASNumberCapability) ProtoMessage()    {}
+func (*FourOctetASNumberCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{7}
+}
+
+func (m *FourOctetASNumberCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FourOctetASNumberCapability.Unmarshal(m, b)
+}
+func (m *FourOctetASNumberCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FourOctetASNumberCapability.Marshal(b, m, deterministic)
+}
+func (m *FourOctetASNumberCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FourOctetASNumberCapability.Merge(m, src)
+}
+func (m *FourOctetASNumberCapability) XXX_Size() int {
+	return xxx_messageInfo_FourOctetASNumberCapability.Size(m)
+}
+func (m *FourOctetASNumberCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_FourOctetASNumberCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FourOctetASNumberCapability proto.InternalMessageInfo
 
 func (m *FourOctetASNumberCapability) GetAs() uint32 {
 	if m != nil {
@@ -187,14 +383,37 @@ func (m *FourOctetASNumberCapability) GetAs() uint32 {
 }
 
 type AddPathCapabilityTuple struct {
-	Family *Family     `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
-	Mode   AddPathMode `protobuf:"varint,2,opt,name=mode,enum=gobgpapi.AddPathMode" json:"mode,omitempty"`
+	Family               *Family     `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	Mode                 AddPathMode `protobuf:"varint,2,opt,name=mode,proto3,enum=gobgpapi.AddPathMode" json:"mode,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
 }
 
-func (m *AddPathCapabilityTuple) Reset()                    { *m = AddPathCapabilityTuple{} }
-func (m *AddPathCapabilityTuple) String() string            { return proto.CompactTextString(m) }
-func (*AddPathCapabilityTuple) ProtoMessage()               {}
-func (*AddPathCapabilityTuple) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{8} }
+func (m *AddPathCapabilityTuple) Reset()         { *m = AddPathCapabilityTuple{} }
+func (m *AddPathCapabilityTuple) String() string { return proto.CompactTextString(m) }
+func (*AddPathCapabilityTuple) ProtoMessage()    {}
+func (*AddPathCapabilityTuple) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{8}
+}
+
+func (m *AddPathCapabilityTuple) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AddPathCapabilityTuple.Unmarshal(m, b)
+}
+func (m *AddPathCapabilityTuple) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AddPathCapabilityTuple.Marshal(b, m, deterministic)
+}
+func (m *AddPathCapabilityTuple) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddPathCapabilityTuple.Merge(m, src)
+}
+func (m *AddPathCapabilityTuple) XXX_Size() int {
+	return xxx_messageInfo_AddPathCapabilityTuple.Size(m)
+}
+func (m *AddPathCapabilityTuple) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddPathCapabilityTuple.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddPathCapabilityTuple proto.InternalMessageInfo
 
 func (m *AddPathCapabilityTuple) GetFamily() *Family {
 	if m != nil {
@@ -211,13 +430,36 @@ func (m *AddPathCapabilityTuple) GetMode() AddPathMode {
 }
 
 type AddPathCapability struct {
-	Tuples []*AddPathCapabilityTuple `protobuf:"bytes,1,rep,name=tuples" json:"tuples,omitempty"`
+	Tuples               []*AddPathCapabilityTuple `protobuf:"bytes,1,rep,name=tuples,proto3" json:"tuples,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
 }
 
-func (m *AddPathCapability) Reset()                    { *m = AddPathCapability{} }
-func (m *AddPathCapability) String() string            { return proto.CompactTextString(m) }
-func (*AddPathCapability) ProtoMessage()               {}
-func (*AddPathCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{9} }
+func (m *AddPathCapability) Reset()         { *m = AddPathCapability{} }
+func (m *AddPathCapability) String() string { return proto.CompactTextString(m) }
+func (*AddPathCapability) ProtoMessage()    {}
+func (*AddPathCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{9}
+}
+
+func (m *AddPathCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AddPathCapability.Unmarshal(m, b)
+}
+func (m *AddPathCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AddPathCapability.Marshal(b, m, deterministic)
+}
+func (m *AddPathCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddPathCapability.Merge(m, src)
+}
+func (m *AddPathCapability) XXX_Size() int {
+	return xxx_messageInfo_AddPathCapability.Size(m)
+}
+func (m *AddPathCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddPathCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddPathCapability proto.InternalMessageInfo
 
 func (m *AddPathCapability) GetTuples() []*AddPathCapabilityTuple {
 	if m != nil {
@@ -227,19 +469,43 @@ func (m *AddPathCapability) GetTuples() []*AddPathCapabilityTuple {
 }
 
 type EnhancedRouteRefreshCapability struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *EnhancedRouteRefreshCapability) Reset()         { *m = EnhancedRouteRefreshCapability{} }
 func (m *EnhancedRouteRefreshCapability) String() string { return proto.CompactTextString(m) }
 func (*EnhancedRouteRefreshCapability) ProtoMessage()    {}
 func (*EnhancedRouteRefreshCapability) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{10}
+	return fileDescriptor_f2310f95efbbe3ac, []int{10}
 }
 
+func (m *EnhancedRouteRefreshCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EnhancedRouteRefreshCapability.Unmarshal(m, b)
+}
+func (m *EnhancedRouteRefreshCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EnhancedRouteRefreshCapability.Marshal(b, m, deterministic)
+}
+func (m *EnhancedRouteRefreshCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EnhancedRouteRefreshCapability.Merge(m, src)
+}
+func (m *EnhancedRouteRefreshCapability) XXX_Size() int {
+	return xxx_messageInfo_EnhancedRouteRefreshCapability.Size(m)
+}
+func (m *EnhancedRouteRefreshCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_EnhancedRouteRefreshCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EnhancedRouteRefreshCapability proto.InternalMessageInfo
+
 type LongLivedGracefulRestartCapabilityTuple struct {
-	Family *Family `protobuf:"bytes,1,opt,name=family" json:"family,omitempty"`
-	Flags  uint32  `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
-	Time   uint32  `protobuf:"varint,3,opt,name=time" json:"time,omitempty"`
+	Family               *Family  `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	Flags                uint32   `protobuf:"varint,2,opt,name=flags,proto3" json:"flags,omitempty"`
+	Time                 uint32   `protobuf:"varint,3,opt,name=time,proto3" json:"time,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *LongLivedGracefulRestartCapabilityTuple) Reset() {
@@ -248,8 +514,26 @@ func (m *LongLivedGracefulRestartCapabilityTuple) Reset() {
 func (m *LongLivedGracefulRestartCapabilityTuple) String() string { return proto.CompactTextString(m) }
 func (*LongLivedGracefulRestartCapabilityTuple) ProtoMessage()    {}
 func (*LongLivedGracefulRestartCapabilityTuple) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{11}
+	return fileDescriptor_f2310f95efbbe3ac, []int{11}
 }
+
+func (m *LongLivedGracefulRestartCapabilityTuple) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LongLivedGracefulRestartCapabilityTuple.Unmarshal(m, b)
+}
+func (m *LongLivedGracefulRestartCapabilityTuple) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LongLivedGracefulRestartCapabilityTuple.Marshal(b, m, deterministic)
+}
+func (m *LongLivedGracefulRestartCapabilityTuple) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LongLivedGracefulRestartCapabilityTuple.Merge(m, src)
+}
+func (m *LongLivedGracefulRestartCapabilityTuple) XXX_Size() int {
+	return xxx_messageInfo_LongLivedGracefulRestartCapabilityTuple.Size(m)
+}
+func (m *LongLivedGracefulRestartCapabilityTuple) XXX_DiscardUnknown() {
+	xxx_messageInfo_LongLivedGracefulRestartCapabilityTuple.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LongLivedGracefulRestartCapabilityTuple proto.InternalMessageInfo
 
 func (m *LongLivedGracefulRestartCapabilityTuple) GetFamily() *Family {
 	if m != nil {
@@ -273,15 +557,36 @@ func (m *LongLivedGracefulRestartCapabilityTuple) GetTime() uint32 {
 }
 
 type LongLivedGracefulRestartCapability struct {
-	Tuples []*LongLivedGracefulRestartCapabilityTuple `protobuf:"bytes,1,rep,name=tuples" json:"tuples,omitempty"`
+	Tuples               []*LongLivedGracefulRestartCapabilityTuple `protobuf:"bytes,1,rep,name=tuples,proto3" json:"tuples,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                   `json:"-"`
+	XXX_unrecognized     []byte                                     `json:"-"`
+	XXX_sizecache        int32                                      `json:"-"`
 }
 
 func (m *LongLivedGracefulRestartCapability) Reset()         { *m = LongLivedGracefulRestartCapability{} }
 func (m *LongLivedGracefulRestartCapability) String() string { return proto.CompactTextString(m) }
 func (*LongLivedGracefulRestartCapability) ProtoMessage()    {}
 func (*LongLivedGracefulRestartCapability) Descriptor() ([]byte, []int) {
-	return fileDescriptor1, []int{12}
+	return fileDescriptor_f2310f95efbbe3ac, []int{12}
 }
+
+func (m *LongLivedGracefulRestartCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LongLivedGracefulRestartCapability.Unmarshal(m, b)
+}
+func (m *LongLivedGracefulRestartCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LongLivedGracefulRestartCapability.Marshal(b, m, deterministic)
+}
+func (m *LongLivedGracefulRestartCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LongLivedGracefulRestartCapability.Merge(m, src)
+}
+func (m *LongLivedGracefulRestartCapability) XXX_Size() int {
+	return xxx_messageInfo_LongLivedGracefulRestartCapability.Size(m)
+}
+func (m *LongLivedGracefulRestartCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_LongLivedGracefulRestartCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LongLivedGracefulRestartCapability proto.InternalMessageInfo
 
 func (m *LongLivedGracefulRestartCapability) GetTuples() []*LongLivedGracefulRestartCapabilityTuple {
 	if m != nil {
@@ -291,24 +596,70 @@ func (m *LongLivedGracefulRestartCapability) GetTuples() []*LongLivedGracefulRes
 }
 
 type RouteRefreshCiscoCapability struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RouteRefreshCiscoCapability) Reset()                    { *m = RouteRefreshCiscoCapability{} }
-func (m *RouteRefreshCiscoCapability) String() string            { return proto.CompactTextString(m) }
-func (*RouteRefreshCiscoCapability) ProtoMessage()               {}
-func (*RouteRefreshCiscoCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{13} }
+func (m *RouteRefreshCiscoCapability) Reset()         { *m = RouteRefreshCiscoCapability{} }
+func (m *RouteRefreshCiscoCapability) String() string { return proto.CompactTextString(m) }
+func (*RouteRefreshCiscoCapability) ProtoMessage()    {}
+func (*RouteRefreshCiscoCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{13}
+}
+
+func (m *RouteRefreshCiscoCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_RouteRefreshCiscoCapability.Unmarshal(m, b)
+}
+func (m *RouteRefreshCiscoCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_RouteRefreshCiscoCapability.Marshal(b, m, deterministic)
+}
+func (m *RouteRefreshCiscoCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteRefreshCiscoCapability.Merge(m, src)
+}
+func (m *RouteRefreshCiscoCapability) XXX_Size() int {
+	return xxx_messageInfo_RouteRefreshCiscoCapability.Size(m)
+}
+func (m *RouteRefreshCiscoCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteRefreshCiscoCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteRefreshCiscoCapability proto.InternalMessageInfo
 
 type FQDNCapability struct {
-	HostNameLen   uint32 `protobuf:"varint,1,opt,name=host_name_len,json=hostNameLen" json:"host_name_len,omitempty"`
-	HostName      string `protobuf:"bytes,2,opt,name=host_name,json=hostName" json:"host_name,omitempty"`
-	DomainNameLen uint32 `protobuf:"varint,3,opt,name=domain_name_len,json=domainNameLen" json:"domain_name_len,omitempty"`
-	DomainName    string `protobuf:"bytes,4,opt,name=domain_name,json=domainName" json:"domain_name,omitempty"`
+	HostNameLen          uint32   `protobuf:"varint,1,opt,name=host_name_len,json=hostNameLen,proto3" json:"host_name_len,omitempty"`
+	HostName             string   `protobuf:"bytes,2,opt,name=host_name,json=hostName,proto3" json:"host_name,omitempty"`
+	DomainNameLen        uint32   `protobuf:"varint,3,opt,name=domain_name_len,json=domainNameLen,proto3" json:"domain_name_len,omitempty"`
+	DomainName           string   `protobuf:"bytes,4,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FQDNCapability) Reset()                    { *m = FQDNCapability{} }
-func (m *FQDNCapability) String() string            { return proto.CompactTextString(m) }
-func (*FQDNCapability) ProtoMessage()               {}
-func (*FQDNCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{14} }
+func (m *FQDNCapability) Reset()         { *m = FQDNCapability{} }
+func (m *FQDNCapability) String() string { return proto.CompactTextString(m) }
+func (*FQDNCapability) ProtoMessage()    {}
+func (*FQDNCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{14}
+}
+
+func (m *FQDNCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FQDNCapability.Unmarshal(m, b)
+}
+func (m *FQDNCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FQDNCapability.Marshal(b, m, deterministic)
+}
+func (m *FQDNCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FQDNCapability.Merge(m, src)
+}
+func (m *FQDNCapability) XXX_Size() int {
+	return xxx_messageInfo_FQDNCapability.Size(m)
+}
+func (m *FQDNCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_FQDNCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FQDNCapability proto.InternalMessageInfo
 
 func (m *FQDNCapability) GetHostNameLen() uint32 {
 	if m != nil {
@@ -339,14 +690,37 @@ func (m *FQDNCapability) GetDomainName() string {
 }
 
 type UnknownCapability struct {
-	Code  uint32 `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Code                 uint32   `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Value                []byte   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *UnknownCapability) Reset()                    { *m = UnknownCapability{} }
-func (m *UnknownCapability) String() string            { return proto.CompactTextString(m) }
-func (*UnknownCapability) ProtoMessage()               {}
-func (*UnknownCapability) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{15} }
+func (m *UnknownCapability) Reset()         { *m = UnknownCapability{} }
+func (m *UnknownCapability) String() string { return proto.CompactTextString(m) }
+func (*UnknownCapability) ProtoMessage()    {}
+func (*UnknownCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f2310f95efbbe3ac, []int{15}
+}
+
+func (m *UnknownCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UnknownCapability.Unmarshal(m, b)
+}
+func (m *UnknownCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UnknownCapability.Marshal(b, m, deterministic)
+}
+func (m *UnknownCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UnknownCapability.Merge(m, src)
+}
+func (m *UnknownCapability) XXX_Size() int {
+	return xxx_messageInfo_UnknownCapability.Size(m)
+}
+func (m *UnknownCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_UnknownCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UnknownCapability proto.InternalMessageInfo
 
 func (m *UnknownCapability) GetCode() uint32 {
 	if m != nil {
@@ -363,6 +737,7 @@ func (m *UnknownCapability) GetValue() []byte {
 }
 
 func init() {
+	proto.RegisterEnum("gobgpapi.AddPathMode", AddPathMode_name, AddPathMode_value)
 	proto.RegisterType((*MultiProtocolCapability)(nil), "gobgpapi.MultiProtocolCapability")
 	proto.RegisterType((*RouteRefreshCapability)(nil), "gobgpapi.RouteRefreshCapability")
 	proto.RegisterType((*CarryingLabelInfoCapability)(nil), "gobgpapi.CarryingLabelInfoCapability")
@@ -379,12 +754,11 @@ func init() {
 	proto.RegisterType((*RouteRefreshCiscoCapability)(nil), "gobgpapi.RouteRefreshCiscoCapability")
 	proto.RegisterType((*FQDNCapability)(nil), "gobgpapi.FQDNCapability")
 	proto.RegisterType((*UnknownCapability)(nil), "gobgpapi.UnknownCapability")
-	proto.RegisterEnum("gobgpapi.AddPathMode", AddPathMode_name, AddPathMode_value)
 }
 
-func init() { proto.RegisterFile("capability.proto", fileDescriptor1) }
+func init() { proto.RegisterFile("capability.proto", fileDescriptor_f2310f95efbbe3ac) }
 
-var fileDescriptor1 = []byte{
+var fileDescriptor_f2310f95efbbe3ac = []byte{
 	// 590 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x54, 0xc1, 0x6e, 0xd3, 0x40,
 	0x10, 0xc5, 0x49, 0xa8, 0xda, 0x71, 0x13, 0xdc, 0x15, 0x94, 0x94, 0xa8, 0x25, 0xda, 0x03, 0x04,

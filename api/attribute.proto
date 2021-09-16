@@ -400,6 +400,11 @@ message FourOctetAsSpecificExtended {
   uint32 local_admin = 4;
 }
 
+message LinkBandiwdthExtended {
+  uint32 as = 1;
+  float bandwidth = 2;
+}
+
 message ValidationExtended { uint32 state = 1; }
 
 message ColorExtended { uint32 color = 1; }
