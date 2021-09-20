@@ -12,19 +12,34 @@ Assumed that you finished [Getting Started](getting-started.md).
 
 ## Contents
 
-- [Overview](#overview)
-- [Policy Model](#policy-model)
-- [Route Server Policy Model](#route-server-policy-model)
-- [Policy Structure](#policy-structure)
-- [Configure Policies](#configure-policies)
-  - [Defining defined-sets](#1-defining-defined-sets)
-  - [Defining bgp-defined-sets](#2-defining-bgp-defined-sets)
-  - [Defining policy-definitions](#3-Defining-policy-definitions)
-  - [Attaching policy](#4-attaching-policy)
-    - [Attach policy to global rib](#41-attach-policy-to-global-rib)
-    - [Attach policy to route-server-client](#42-attach-policy-to-route-server-client)
-- [Policy Configuration Example](#policy-configuration-example)
-- [Policy and Soft Reset](#policy-and-soft-reset)
+- [Policy Configuration](#policy-configuration)
+  - [Prerequisites](#prerequisites)
+  - [Contents](#contents)
+  - [Overview](#overview)
+  - [Policy Model](#policy-model)
+  - [Route Server Policy Model](#route-server-policy-model)
+  - [Policy Structure](#policy-structure)
+  - [Configure Policies](#configure-policies)
+    - [1. Defining defined-sets](#1-defining-defined-sets)
+      - [prefix-sets](#prefix-sets)
+        - [Examples](#examples)
+      - [neighbor-sets](#neighbor-sets)
+        - [Examples](#examples-1)
+    - [2. Defining bgp-defined-sets](#2-defining-bgp-defined-sets)
+      - [community-sets](#community-sets)
+        - [Examples](#examples-2)
+      - [ext-community-sets](#ext-community-sets)
+        - [Examples](#examples-3)
+      - [as-path-sets](#as-path-sets)
+        - [Examples](#examples-4)
+    - [3. Defining policy-definitions](#3-defining-policy-definitions)
+      - [Execution condition of Action](#execution-condition-of-action)
+        - [Examples](#examples-5)
+    - [4. Attaching policy](#4-attaching-policy)
+      - [4.1 Attach policy to global rib](#41-attach-policy-to-global-rib)
+      - [4.2. Attach policy to route-server-client](#42-attach-policy-to-route-server-client)
+  - [Policy Configuration Example](#policy-configuration-example)
+  - [Policy and Soft Reset](#policy-and-soft-reset)
 
 ## Overview
 
@@ -422,6 +437,7 @@ subtype of extended community and subtypes that can be used are as follows:
     mpls-in-udp
     sr-policy
     geneve
+- LB: mean the link-bandwidth (in bytes).
 
 ##### Examples
 
@@ -444,6 +460,15 @@ subtype of extended community and subtypes that can be used are as follows:
   [[defined-sets.bgp-defined-sets.ext-community-sets]]
     ext-community-set-name = "ecommunity2"
     ext-community-list = ["RT:6[0-9]+:[0-9]+"]
+  ```
+
+- example 3
+  - Specify link-bandwidth extended community.
+
+  ```toml
+  # example 3
+  [policy-definitions.statements.actions.bgp-actions.set-ext-community.set-ext-community-method]
+    communities-list = ["LB:65001:125000"]
   ```
 
 #### as-path-sets
