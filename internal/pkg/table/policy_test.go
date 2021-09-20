@@ -2112,15 +2112,18 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 		ExtCommunitySetName: "ecomSet10",
 		ExtCommunityList:    []string{"RT:.+:\\d00", "SoO:.+:\\d00"},
 	}
-
 	ecomSet11 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet11",
 		ExtCommunityList:    []string{"RT:65001:2", "SoO:11.0.10.10:[0-9]+"},
 	}
+	ecomSet12 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet12",
+		ExtCommunityList:    []string{"LB:65001:125000"},
+	}
 
 	m := make(map[string]DefinedSet)
 	for _, c := range []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
-		ecomSet8, ecomSet9, ecomSet10, ecomSet11} {
+		ecomSet8, ecomSet9, ecomSet10, ecomSet11, ecomSet12} {
 		s, _ := NewExtCommunitySet(c)
 		m[s.Name()] = s
 	}

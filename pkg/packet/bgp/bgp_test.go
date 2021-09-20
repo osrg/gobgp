@@ -444,6 +444,24 @@ func Test_FlowSpecNlri(t *testing.T) {
 	assert.Equal(n1, n2)
 }
 
+func Test_LinkBandwidthExtended(t *testing.T) {
+	assert := assert.New(t)
+	exts := make([]ExtendedCommunityInterface, 0)
+	exts = append(exts, NewLinkBandwidthExtended(65001, 125000.0))
+	m1 := NewPathAttributeExtendedCommunities(exts)
+	buf1, err := m1.Serialize()
+	require.NoError(t, err)
+
+	m2 := NewPathAttributeExtendedCommunities(nil)
+	err = m2.DecodeFromBytes(buf1)
+	require.NoError(t, err)
+
+	_, err = m2.Serialize()
+	require.NoError(t, err)
+
+	assert.Equal(m1, m2)
+}
+
 func Test_FlowSpecExtended(t *testing.T) {
 	assert := assert.New(t)
 	exts := make([]ExtendedCommunityInterface, 0)
