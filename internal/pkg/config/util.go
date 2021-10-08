@@ -384,6 +384,13 @@ func newMpGracefulRestartFromConfigStruct(c *MpGracefulRestart) *api.MpGracefulR
 		Config: &api.MpGracefulRestartConfig{
 			Enabled: c.Config.Enabled,
 		},
+		State: &api.MpGracefulRestartState{
+			Enabled:          c.State.Enabled,
+			Received:         c.State.Received,
+			Advertised:       c.State.Advertised,
+			EndOfRibReceived: c.State.EndOfRibReceived,
+			EndOfRibSent:     c.State.EndOfRibSent,
+		},
 	}
 }
 
