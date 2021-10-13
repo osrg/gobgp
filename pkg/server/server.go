@@ -1723,6 +1723,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 }
 
 func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		if s.zclient != nil {
 			return fmt.Errorf("already connected to Zebra")
@@ -1745,6 +1748,9 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 }
 
 func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		_, ok := api.AddBmpRequest_MonitoringPolicy_name[int32(r.Policy)]
 		if !ok {
@@ -1762,6 +1768,9 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 }
 
 func (s *BgpServer) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.bmpManager.deleteServer(&config.BmpServerConfig{
 			Address: r.Address,
@@ -1771,6 +1780,9 @@ func (s *BgpServer) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) erro
 }
 
 func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	s.mgmtOperation(func() error {
 		names := make([]string, 0, len(s.neighborMap))
 		for k := range s.neighborMap {
@@ -1802,6 +1814,9 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 }
 
 func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	rp, err := newRoutingPolicyFromApiStruct(r)
 	if err != nil {
 		return err
@@ -2017,6 +2032,9 @@ func (s *BgpServer) addPathStream(vrfId string, pathList []*table.Path) error {
 }
 
 func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
+	if r == nil || r.Path == nil {
+		return nil, fmt.Errorf("nil request")
+	}
 	var uuidBytes []byte
 	err := s.mgmtOperation(func() error {
 		path, err := api2Path(r.TableType, r.Path, false)
@@ -2037,6 +2055,9 @@ func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.Ad
 }
 
 func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		deletePathList := make([]*table.Path, 0)
 
@@ -2110,10 +2131,10 @@ func (s *BgpServer) updatePath(vrfId string, pathList []*table.Path) error {
 }
 
 func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error {
+	if r == nil || r.Global == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Global == nil {
-			return fmt.Errorf("invalid request")
-		}
 		g := r.Global
 		if net.ParseIP(g.RouterId) == nil {
 			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
@@ -2163,7 +2184,10 @@ func (s *BgpServer) listVrf() (l []*table.Vrf) {
 	return l
 }
 
-func (s *BgpServer) ListVrf(ctx context.Context, rq *api.ListVrfRequest, fn func(*api.Vrf)) error {
+func (s *BgpServer) ListVrf(ctx context.Context, r *api.ListVrfRequest, fn func(*api.Vrf)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	toApi := func(v *table.Vrf) *api.Vrf {
 		return &api.Vrf{
 			Name:     v.Name,
@@ -2177,7 +2201,7 @@ func (s *BgpServer) ListVrf(ctx context.Context, rq *api.ListVrfRequest, fn func
 	s.mgmtOperation(func() error {
 		l = make([]*api.Vrf, 0, len(s.globalRib.Vrfs))
 		for name, vrf := range s.globalRib.Vrfs {
-			if rq.Name != "" && rq.Name != name {
+			if r.Name != "" && r.Name != name {
 				continue
 			}
 			l = append(l, toApi(vrf.Clone()))
@@ -2196,11 +2220,10 @@ func (s *BgpServer) ListVrf(ctx context.Context, rq *api.ListVrfRequest, fn func
 }
 
 func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
+	if r == nil || r.Vrf == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Vrf == nil {
-			return fmt.Errorf("invalid request")
-		}
-
 		name := r.Vrf.Name
 		id := r.Vrf.Id
 
@@ -2237,10 +2260,10 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 }
 
 func (s *BgpServer) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) error {
+	if r == nil || r.Name == "" {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Name == "" {
-			return fmt.Errorf("invalid request")
-		}
 		name := r.Name
 		for _, n := range s.neighborMap {
 			n.fsm.lock.RLock()
@@ -2504,6 +2527,9 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 }
 
 func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var tbl *table.Table
 	var v map[*table.Path]*table.Validation
 	var filtered map[string]*table.Path
@@ -2669,8 +2695,8 @@ func (s *BgpServer) getVrfRibInfo(name string, family bgp.RouteFamily) (info *ta
 }
 
 func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.GetTableResponse, error) {
-	if r == nil {
-		return nil, fmt.Errorf("invalid request")
+	if r == nil || r.Family == nil {
+		return nil, fmt.Errorf("nil request")
 	}
 	family := bgp.RouteFamily(0)
 	if r.Family != nil {
@@ -2705,6 +2731,9 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 }
 
 func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetBgpResponse, error) {
+	if r == nil {
+		return nil, fmt.Errorf("nil request")
+	}
 	var rsp *api.GetBgpResponse
 	s.mgmtOperation(func() error {
 		g := s.bgpConfig.Global
@@ -2723,6 +2752,9 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetB
 }
 
 func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicNeighborRequest, fn func(neighbor *api.DynamicNeighbor)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	toApi := func(dn *config.DynamicNeighbor) *api.DynamicNeighbor {
 		return &api.DynamicNeighbor{
 			Prefix:    dn.Config.Prefix,
@@ -2754,6 +2786,9 @@ func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicN
 }
 
 func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupRequest, fn func(*api.PeerGroup)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var l []*api.PeerGroup
 	s.mgmtOperation(func() error {
 		peerGroupName := r.PeerGroupName
@@ -2779,6 +2814,9 @@ func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupReque
 }
 
 func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn func(*api.Peer)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var l []*api.Peer
 	s.mgmtOperation(func() error {
 		address := r.Address
@@ -2926,6 +2964,9 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 }
 
 func (s *BgpServer) AddPeerGroup(ctx context.Context, r *api.AddPeerGroupRequest) error {
+	if r == nil || r.PeerGroup == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		c, err := newPeerGroupFromAPIStruct(r.PeerGroup)
 		if err != nil {
@@ -2936,6 +2977,9 @@ func (s *BgpServer) AddPeerGroup(ctx context.Context, r *api.AddPeerGroupRequest
 }
 
 func (s *BgpServer) AddPeer(ctx context.Context, r *api.AddPeerRequest) error {
+	if r == nil || r.Peer == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		c, err := newNeighborFromAPIStruct(r.Peer)
 		if err != nil {
@@ -2946,6 +2990,9 @@ func (s *BgpServer) AddPeer(ctx context.Context, r *api.AddPeerRequest) error {
 }
 
 func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNeighborRequest) error {
+	if r == nil || r.DynamicNeighbor == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		c := &config.DynamicNeighbor{Config: config.DynamicNeighborConfig{
 			Prefix:    r.DynamicNeighbor.Prefix,
@@ -3016,6 +3063,9 @@ func (s *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) erro
 }
 
 func (s *BgpServer) DeletePeerGroup(ctx context.Context, r *api.DeletePeerGroupRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		name := r.Name
 		for _, n := range s.neighborMap {
@@ -3031,6 +3081,9 @@ func (s *BgpServer) DeletePeerGroup(ctx context.Context, r *api.DeletePeerGroupR
 }
 
 func (s *BgpServer) DeletePeer(ctx context.Context, r *api.DeletePeerRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		c := &config.Neighbor{Config: config.NeighborConfig{
 			NeighborAddress:   r.Address,
@@ -3041,6 +3094,9 @@ func (s *BgpServer) DeletePeer(ctx context.Context, r *api.DeletePeerRequest) er
 }
 
 func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDynamicNeighborRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		s.peerGroupMap[r.PeerGroup].DeleteDynamicNeighbor(r.Prefix)
 		return nil
@@ -3068,6 +3124,9 @@ func (s *BgpServer) updatePeerGroup(pg *config.PeerGroup) (needsSoftResetIn bool
 }
 
 func (s *BgpServer) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupRequest) (rsp *api.UpdatePeerGroupResponse, err error) {
+	if r == nil || r.PeerGroup == nil {
+		return nil, fmt.Errorf("nil request")
+	}
 	doSoftreset := false
 	err = s.mgmtOperation(func() error {
 		pg, err := newPeerGroupFromAPIStruct(r.PeerGroup)
@@ -3175,6 +3234,9 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 }
 
 func (s *BgpServer) UpdatePeer(ctx context.Context, r *api.UpdatePeerRequest) (rsp *api.UpdatePeerResponse, err error) {
+	if r == nil || r.Peer == nil {
+		return nil, fmt.Errorf("nil request")
+	}
 	doSoftReset := false
 	err = s.mgmtOperation(func() error {
 		c, err := newNeighborFromAPIStruct(r.Peer)
@@ -3218,12 +3280,18 @@ func (s *BgpServer) sendNotification(op, addr string, subcode uint8, data []byte
 }
 
 func (s *BgpServer) ShutdownPeer(ctx context.Context, r *api.ShutdownPeerRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.sendNotification("Neighbor shutdown", r.Address, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, newAdministrativeCommunication(r.Communication))
 	}, true)
 }
 
 func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		addr := r.Address
 		comm := r.Communication
@@ -3291,18 +3359,27 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 }
 
 func (s *BgpServer) EnablePeer(ctx context.Context, r *api.EnablePeerRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.setAdminState(r.Address, "", true)
 	}, true)
 }
 
 func (s *BgpServer) DisablePeer(ctx context.Context, r *api.DisablePeerRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.setAdminState(r.Address, r.Communication, false)
 	}, true)
 }
 
 func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetRequest, fn func(*api.DefinedSet)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var cd *config.DefinedSets
 	var err error
 	err = s.mgmtOperation(func() error {
@@ -3397,10 +3474,10 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 }
 
 func (s *BgpServer) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetRequest) error {
+	if r == nil || r.DefinedSet == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.DefinedSet == nil {
-			return fmt.Errorf("invalid request")
-		}
 		set, err := newDefinedSetFromApiStruct(r.DefinedSet)
 		if err != nil {
 			return err
@@ -3410,10 +3487,10 @@ func (s *BgpServer) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetReque
 }
 
 func (s *BgpServer) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSetRequest) error {
+	if r == nil || r.DefinedSet == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.DefinedSet == nil {
-			return fmt.Errorf("invalid request")
-		}
 		set, err := newDefinedSetFromApiStruct(r.DefinedSet)
 		if err != nil {
 			return err
@@ -3423,6 +3500,9 @@ func (s *BgpServer) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSe
 }
 
 func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementRequest, fn func(*api.Statement)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var l []*api.Statement
 	s.mgmtOperation(func() error {
 		s := s.policy.GetStatement(r.Name)
@@ -3444,10 +3524,10 @@ func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementReque
 }
 
 func (s *BgpServer) AddStatement(ctx context.Context, r *api.AddStatementRequest) error {
+	if r == nil || r.Statement == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Statement == nil {
-			return fmt.Errorf("invalid request")
-		}
 		st, err := newStatementFromApiStruct(r.Statement)
 		if err != nil {
 			return err
@@ -3457,10 +3537,10 @@ func (s *BgpServer) AddStatement(ctx context.Context, r *api.AddStatementRequest
 }
 
 func (s *BgpServer) DeleteStatement(ctx context.Context, r *api.DeleteStatementRequest) error {
+	if r == nil || r.Statement == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Statement == nil {
-			return fmt.Errorf("invalid request")
-		}
 		st, err := newStatementFromApiStruct(r.Statement)
 		if err == nil {
 			err = s.policy.DeleteStatement(st, r.All)
@@ -3470,6 +3550,9 @@ func (s *BgpServer) DeleteStatement(ctx context.Context, r *api.DeleteStatementR
 }
 
 func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest, fn func(*api.Policy)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var l []*api.Policy
 	s.mgmtOperation(func() error {
 		pl := s.policy.GetPolicy(r.Name)
@@ -3491,10 +3574,10 @@ func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest, fn
 }
 
 func (s *BgpServer) AddPolicy(ctx context.Context, r *api.AddPolicyRequest) error {
+	if r == nil || r.Policy == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Policy == nil {
-			return fmt.Errorf("invalid request")
-		}
 		p, err := newPolicyFromApiStruct(r.Policy)
 		if err == nil {
 			err = s.policy.AddPolicy(p, r.ReferExistingStatements)
@@ -3504,10 +3587,10 @@ func (s *BgpServer) AddPolicy(ctx context.Context, r *api.AddPolicyRequest) erro
 }
 
 func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest) error {
+	if r == nil || r.Policy == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Policy == nil {
-			return fmt.Errorf("invalid request")
-		}
 		p, err := newPolicyFromApiStruct(r.Policy)
 		if err != nil {
 			return err
@@ -3550,12 +3633,11 @@ func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, 
 }
 
 func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyAssignmentRequest, fn func(*api.PolicyAssignment)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var a []*api.PolicyAssignment
 	err := s.mgmtOperation(func() error {
-		if r == nil {
-			return fmt.Errorf("invalid request")
-		}
-
 		names := make([]string, 0, len(s.neighborMap)+1)
 		if r.Name == "" {
 			names = append(names, table.GLOBAL_RIB_NAME)
@@ -3610,10 +3692,10 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 }
 
 func (s *BgpServer) AddPolicyAssignment(ctx context.Context, r *api.AddPolicyAssignmentRequest) error {
+	if r == nil || r.Assignment == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Assignment == nil {
-			return fmt.Errorf("invalid request")
-		}
 		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
@@ -3623,10 +3705,10 @@ func (s *BgpServer) AddPolicyAssignment(ctx context.Context, r *api.AddPolicyAss
 }
 
 func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePolicyAssignmentRequest) error {
+	if r == nil || r.Assignment == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Assignment == nil {
-			return fmt.Errorf("invalid request")
-		}
 		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
@@ -3636,10 +3718,10 @@ func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePol
 }
 
 func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAssignmentRequest) error {
+	if r == nil || r.Assignment == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
-		if r == nil || r.Assignment == nil {
-			return fmt.Errorf("invalid request")
-		}
 		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
@@ -3649,6 +3731,9 @@ func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAss
 }
 
 func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.mrtManager.enable(&config.MrtConfig{
 			DumpInterval:     r.DumpInterval,
@@ -3660,12 +3745,18 @@ func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) erro
 }
 
 func (s *BgpServer) DisableMrt(ctx context.Context, r *api.DisableMrtRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.mrtManager.disable(&config.MrtConfig{})
 	}, false)
 }
 
 func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn func(*api.Rpki)) error {
+	if r == nil || r.Family == nil {
+		return fmt.Errorf("nil request")
+	}
 	var l []*api.Rpki
 	err := s.mgmtOperation(func() error {
 		for _, r := range s.roaManager.GetServers() {
@@ -3714,6 +3805,9 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn fun
 }
 
 func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableRequest, fn func(*api.Roa)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	var l []*api.Roa
 	err := s.mgmtOperation(func() error {
 		family := bgp.RouteFamily(0)
@@ -3740,30 +3834,45 @@ func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableReque
 }
 
 func (s *BgpServer) AddRpki(ctx context.Context, r *api.AddRpkiRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.roaManager.AddServer(net.JoinHostPort(r.Address, strconv.Itoa(int(r.Port))), r.Lifetime)
 	}, false)
 }
 
 func (s *BgpServer) DeleteRpki(ctx context.Context, r *api.DeleteRpkiRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.roaManager.DeleteServer(r.Address)
 	}, false)
 }
 
 func (s *BgpServer) EnableRpki(ctx context.Context, r *api.EnableRpkiRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.roaManager.Enable(r.Address)
 	}, false)
 }
 
 func (s *BgpServer) DisableRpki(ctx context.Context, r *api.DisableRpkiRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		return s.roaManager.Disable(r.Address)
 	}, false)
 }
 
 func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
 	return s.mgmtOperation(func() error {
 		if r.Soft {
 			return s.roaManager.SoftReset(r.Address)

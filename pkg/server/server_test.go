@@ -71,6 +71,7 @@ func TestStop(t *testing.T) {
 		},
 	}
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p})
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{})
 	assert.Nil(err)
 	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }
