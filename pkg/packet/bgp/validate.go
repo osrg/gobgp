@@ -313,7 +313,7 @@ func ValidateBGPMessage(m *BGPMessage) error {
 	return nil
 }
 
-func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) (uint32, error) {
+func ValidateOpenMsg(m *BGPOpen, expectedAS uint32, myAS uint32, myId net.IP) (uint32, error) {
 	if m.Version != 4 {
 		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("unsupported version %d", m.Version))
 	}
@@ -331,6 +331,20 @@ func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) (uint32, error) {
 			}
 		}
 	}
+
+	// rfc6286 (Autonomous-System-Wide Unique BGP Identifier for BGP-4)
+	// If the BGP Identifier field of the OPEN message is zero, or if it
+	// is the same as the BGP Identifier of the local BGP speaker and the
+	// message is from an internal peer, then the Error Subcode is set to
+	// "Bad BGP Identifier".
+	routerId := m.ID
+	if routerId.IsUnspecified() {
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_BGP_IDENTIFIER, nil, fmt.Sprintf("bad BGP identifier %s (0.0.0.0)", routerId.String()))
+	}
+	if as == myAS && routerId.Equal(myId) {
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_BGP_IDENTIFIER, nil, fmt.Sprintf("bad BGP identifier %s", routerId.String()))
+	}
+
 	if expectedAS != 0 && as != expectedAS {
 		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_PEER_AS, nil, fmt.Sprintf("as number mismatch expected %d, received %d", expectedAS, as))
 	}
