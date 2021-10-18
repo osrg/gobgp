@@ -873,7 +873,8 @@ func (h *fsmHandler) afiSafiDisable(rf bgp.RouteFamily) string {
 }
 
 func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError bool) bgp.ErrorHandling {
-	handling := bgp.ERROR_HANDLING_NONE
+	// ineffectual assignment to handling (ineffassign)
+	var handling bgp.ErrorHandling
 	if m.Header.Type == bgp.BGP_MSG_UPDATE && useRevisedError {
 		factor := e.(*bgp.MessageError)
 		handling = factor.ErrorHandling
