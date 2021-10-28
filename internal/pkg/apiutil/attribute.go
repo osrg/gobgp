@@ -1927,7 +1927,7 @@ func UnmarshalSRSegments(s []*any.Any) ([]bgp.TunnelEncapSubTLVInterface, error)
 					Type:   bgp.EncapSubTLVType(bgp.TypeA),
 					Length: 6,
 				},
-				Label: v.Label << 12,
+				Label: v.Label,
 			}
 			if v.Flags.VFlag {
 				seg.Flags += 0x80
