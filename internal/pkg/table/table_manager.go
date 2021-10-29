@@ -186,8 +186,8 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (tm *TableManager) update(newPath *Path) *Update {
-	t := tm.Tables[newPath.GetRouteFamily()]
+func (manager *TableManager) update(newPath *Path) *Update {
+	t := manager.Tables[newPath.GetRouteFamily()]
 	t.validatePath(newPath)
 	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
 	u := dst.Calculate(newPath)
