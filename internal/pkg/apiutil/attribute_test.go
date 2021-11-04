@@ -265,7 +265,7 @@ func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 			Afi:  api.Family_AFI_IP6,
 			Safi: api.Family_SAFI_UNICAST,
 		},
-		NextHops: []string{"2001:db8::1", "2001:db8::2"},
+		NextHops: []string{"2001:db8::1", "fe80::1"},
 		Nlris:    nlris,
 	}
 
