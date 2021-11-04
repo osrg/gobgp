@@ -1223,8 +1223,10 @@ func modNeighbor(cmdType string, args []string) error {
 		switch cmdType {
 		case cmdAdd, cmdDel:
 			peer = &api.Peer{
-				Conf:  &api.PeerConf{},
-				State: &api.PeerState{},
+				Conf:           &api.PeerConf{},
+				State:          &api.PeerState{},
+				RouteServer:    &api.RouteServer{},
+				RouteReflector: &api.RouteReflector{},
 			}
 			if unnumbered {
 				peer.Conf.NeighborInterface = m["interface"][0]
