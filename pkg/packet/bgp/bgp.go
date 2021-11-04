@@ -102,6 +102,11 @@ const (
 	BGP_ASPATH_ATTR_TYPE_CONFED_SET = 4
 )
 
+const (
+	BGP_ATTR_NHLEN_IPV6_GLOBAL        = 16
+	BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL = 32
+)
+
 // RFC7153 5.1. Registries for the "Type" Field
 // RANGE	REGISTRATION PROCEDURES
 // 0x00-0x3F	Transitive First Come First Served
@@ -9803,7 +9808,7 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 	safi := p.SAFI
 	nexthoplen := 4
 	if afi == AFI_IP6 || p.Nexthop.To4() == nil {
-		nexthoplen = 16
+		nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL
 	}
 	offset := 0
 	switch safi {
@@ -9813,8 +9818,8 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 	case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
 		nexthoplen = 0
 	}
-	if p.LinkLocalNexthop != nil {
-		nexthoplen *= 2
+	if p.LinkLocalNexthop != nil && p.LinkLocalNexthop.IsLinkLocalUnicast() {
+		nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL
 	}
 	buf := make([]byte, 4+nexthoplen)
 	binary.BigEndian.PutUint16(buf[0:], afi)
@@ -9823,7 +9828,7 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 	if nexthoplen != 0 {
 		if p.Nexthop.To4() == nil {
 			copy(buf[4+offset:], p.Nexthop.To16())
-			if p.LinkLocalNexthop != nil {
+			if nexthoplen == BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL {
 				copy(buf[4+offset+16:], p.LinkLocalNexthop.To16())
 			}
 		} else {

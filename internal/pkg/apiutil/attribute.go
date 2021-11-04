@@ -861,7 +861,7 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) *api.MpR
 		nexthops = nil
 	} else {
 		nexthops = []string{a.Nexthop.String()}
-		if a.LinkLocalNexthop != nil {
+		if a.LinkLocalNexthop != nil && a.LinkLocalNexthop.IsLinkLocalUnicast() {
 			nexthops = append(nexthops, a.LinkLocalNexthop.String())
 		}
 	}
