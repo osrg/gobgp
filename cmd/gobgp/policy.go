@@ -31,14 +31,64 @@ import (
 
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/internal/pkg/config"
-	table "github.com/osrg/gobgp/internal/pkg/table"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
 var (
 	_regexpCommunity      = regexp.MustCompile(`\^\^(\S+)\$\$`)
+	repexpCommunity       = regexp.MustCompile(`(\d+.)*\d+:\d+`)
+	regexpLargeCommunity  = regexp.MustCompile(`\d+:\d+:\d+`)
 	regexpCommunityString = regexp.MustCompile(`[\^\$]`)
 )
+
+func parseCommunityRegexp(arg string) (*regexp.Regexp, error) {
+	i, err := strconv.ParseUint(arg, 10, 32)
+	if err == nil {
+		return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
+	}
+	if repexpCommunity.MatchString(arg) {
+		return regexp.Compile(fmt.Sprintf("^%s$", arg))
+	}
+	for i, v := range bgp.WellKnownCommunityNameMap {
+		if strings.Replace(strings.ToLower(arg), "_", "-", -1) == v {
+			return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
+		}
+	}
+	exp, err := regexp.Compile(arg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid community format: %s", arg)
+	}
+	return exp, nil
+}
+
+func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *regexp.Regexp, error) {
+	var subtype bgp.ExtendedCommunityAttrSubType
+	elems := strings.SplitN(arg, ":", 2)
+	if len(elems) < 2 {
+		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo]:<value>)")
+	}
+	switch strings.ToLower(elems[0]) {
+	case "rt":
+		subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
+	case "soo":
+		subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+	default:
+		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
+	}
+	exp, err := parseCommunityRegexp(elems[1])
+	return subtype, exp, err
+}
+
+func parseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
+	if regexpLargeCommunity.MatchString(arg) {
+		return regexp.Compile(fmt.Sprintf("^%s$", arg))
+	}
+	exp, err := regexp.Compile(arg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid large-community format: %s", arg)
+	}
+	return exp, nil
+}
 
 func routeTypePrettyString(s api.Conditions_RouteType) string {
 	switch s {
@@ -98,9 +148,6 @@ func prettyString(v interface{}) string {
 	case *api.NexthopAction:
 		if a.Self {
 			return "self"
-		}
-		if a.Unchanged {
-			return "unchanged"
 		}
 		return a.Address
 	case *api.AsPrependAction:
@@ -276,7 +323,7 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 	}
 	name := args[0]
 	args = args[1:]
-	list := make([]string, 0, len(args))
+	list := make([]string, 0, len(args[1:]))
 	for _, arg := range args {
 		address := net.ParseIP(arg)
 		if address.To4() != nil {
@@ -323,7 +370,7 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := table.ParseCommunityRegexp(arg); err != nil {
+		if _, err := parseCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -341,7 +388,7 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, _, err := table.ParseExtCommunityRegexp(arg); err != nil {
+		if _, _, err := parseExtCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -359,7 +406,7 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 	name := args[0]
 	args = args[1:]
 	for _, arg := range args {
-		if _, err := table.ParseLargeCommunityRegexp(arg); err != nil {
+		if _, err := parseLargeCommunityRegexp(arg); err != nil {
 			return nil, err
 		}
 	}
@@ -839,7 +886,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | large-community | med | local-pref | as-prepend | next-hop }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | large-community | med | local-pref | as-prepend | as-prepend2 | next-hop }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -940,10 +987,30 @@ func modAction(name, op string, args []string) error {
 			return err
 		}
 		stmt.Actions.AsPrepend.Repeat = uint32(repeat)
+	case "as-prepend2":
+		stmt.Actions.AsPrepend = &api.AsPrependAction{}
+		if len(args) < 2 {
+			return fmt.Errorf("%s as-prepend2 <asn1-asn2-asn3...> <op_action>", usage)
+		}
+		asns := strings.Split(args[0], "-")
+		for i := 0; i < len(asns); i++ {
+			asn, err := strconv.ParseUint(asns[i], 10, 32)
+			if err != nil {
+				return err
+			}
+
+			stmt.Actions.AsPrepend.Asns = append(stmt.Actions.AsPrepend.Asns, uint32(asn))
+		}
+
+		op_action, err := strconv.ParseUint(args[1], 10, 8)
+		if err != nil {
+			return err
+		}
+		stmt.Actions.AsPrepend.OpAction = uint32(op_action)
 	case "next-hop":
 		stmt.Actions.Nexthop = &api.NexthopAction{}
 		if len(args) != 1 {
-			return fmt.Errorf("%s next-hop { <value> | self | unchanged }", usage)
+			return fmt.Errorf("%s next-hop { <value> | self }", usage)
 		}
 		stmt.Actions.Nexthop.Address = args[0]
 	}
