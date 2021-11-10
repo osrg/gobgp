@@ -64,8 +64,9 @@ func (s *server) serve() error {
 	l := []net.Listener{}
 	var err error
 	for _, host := range strings.Split(s.hosts, ",") {
+		network, address := parseHost(host)
 		var lis net.Listener
-		lis, err = net.Listen("tcp", host)
+		lis, err = net.Listen(network, address)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "grpc",
@@ -99,6 +100,38 @@ func (s *server) serve() error {
 	}
 	wg.Wait()
 	return nil
+}
+
+func (s *server) ListDynamicNeighbor(r *api.ListDynamicNeighborRequest, stream api.GobgpApi_ListDynamicNeighborServer) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fn := func(dn *api.DynamicNeighbor) {
+		if err := stream.Send(&api.ListDynamicNeighborResponse{DynamicNeighbor: dn}); err != nil {
+			cancel()
+			return
+		}
+	}
+	return s.bgpServer.ListDynamicNeighbor(ctx, r, fn)
+}
+
+func (s *server) ListPeerGroup(r *api.ListPeerGroupRequest, stream api.GobgpApi_ListPeerGroupServer) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fn := func(pg *api.PeerGroup) {
+		if err := stream.Send(&api.ListPeerGroupResponse{PeerGroup: pg}); err != nil {
+			cancel()
+			return
+		}
+	}
+	return s.bgpServer.ListPeerGroup(ctx, r, fn)
+}
+
+func parseHost(host string) (string, string) {
+	const unixScheme = "unix://"
+	if strings.HasPrefix(host, unixScheme) {
+		return "unix", host[len(unixScheme):]
+	}
+	return "tcp", host
 }
 
 func (s *server) ListPeer(r *api.ListPeerRequest, stream api.GobgpApi_ListPeerServer) error {
@@ -153,11 +186,26 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 	return p
 }
 
-func toPathApi(path *table.Path, v *table.Validation) *api.Path {
+func toPathApi(path *table.Path, v *table.Validation, nlri_binary, attribute_binary bool) *api.Path {
 	nlri := path.GetNlri()
 	anyNlri := apiutil.MarshalNLRI(nlri)
 	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
-	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
+	var binNlri []byte
+	if nlri_binary {
+		binNlri, _ = nlri.Serialize()
+	}
+	var binPattrs [][]byte
+	if attribute_binary {
+		pa := path.GetPathAttrs()
+		binPattrs = make([][]byte, 0, len(pa))
+		for _, a := range pa {
+			b, e := a.Serialize()
+			if e == nil {
+				binPattrs = append(binPattrs, b)
+			}
+		}
+	}
+	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path, v)
 }
 
 func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Validation {
@@ -281,6 +329,11 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		return nil, err
 	}
 
+	// TODO (sbezverk) At this poinnt nlri and path attributes are converted to native mode
+	// need to check if update with SR Policy nlri comes with mandatory route distinguisher
+	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
+	// and tunnel type 15. If it is not the case ignore update and log an error.
+
 	pattrs := make([]bgp.PathAttributeInterface, 0)
 	seen := make(map[bgp.BGPAttrType]struct{})
 	for _, attr := range attrList {
@@ -295,6 +348,9 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		case *bgp.PathAttributeNextHop:
 			nexthop = a.Value.String()
 		case *bgp.PathAttributeMpReachNLRI:
+			if len(a.Value) == 0 {
+				return nil, fmt.Errorf("invalid mp reach attribute")
+			}
 			nlri = a.Value[0]
 			nexthop = a.Nexthop.String()
 		default:
@@ -486,20 +542,29 @@ func readApplyPolicyFromAPIStruct(c *config.ApplyPolicy, a *api.ApplyPolicy) {
 	if c == nil || a == nil {
 		return
 	}
+	f := func(a api.RouteAction) config.DefaultPolicyType {
+		if a == api.RouteAction_ACCEPT {
+			return config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+		} else if a == api.RouteAction_REJECT {
+			return config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+		}
+		return ""
+	}
+
 	if a.ImportPolicy != nil {
-		c.Config.DefaultImportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ImportPolicy.DefaultAction)]
+		c.Config.DefaultImportPolicy = f(a.ImportPolicy.DefaultAction)
 		for _, p := range a.ImportPolicy.Policies {
 			c.Config.ImportPolicyList = append(c.Config.ImportPolicyList, p.Name)
 		}
 	}
 	if a.ExportPolicy != nil {
-		c.Config.DefaultExportPolicy = config.IntToDefaultPolicyTypeMap[int(a.ExportPolicy.DefaultAction)]
+		c.Config.DefaultExportPolicy = f(a.ExportPolicy.DefaultAction)
 		for _, p := range a.ExportPolicy.Policies {
 			c.Config.ExportPolicyList = append(c.Config.ExportPolicyList, p.Name)
 		}
 	}
 	if a.InPolicy != nil {
-		c.Config.DefaultInPolicy = config.IntToDefaultPolicyTypeMap[int(a.InPolicy.DefaultAction)]
+		c.Config.DefaultInPolicy = f(a.InPolicy.DefaultAction)
 		for _, p := range a.InPolicy.Policies {
 			c.Config.InPolicyList = append(c.Config.InPolicyList, p.Name)
 		}
@@ -668,6 +733,10 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
 		pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
 	}
+	if a.TtlSecurity != nil {
+		pconf.TtlSecurity.Config.Enabled = a.TtlSecurity.Enabled
+		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
+	}
 	if a.State != nil {
 		pconf.State.SessionState = config.SessionState(strings.ToUpper(string(a.State.SessionState)))
 		pconf.State.AdminState = config.IntToAdminStateMap[int(a.State.AdminState)]
@@ -771,6 +840,10 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
 		pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
 	}
+	if a.TtlSecurity != nil {
+		pconf.TtlSecurity.Config.Enabled = a.TtlSecurity.Enabled
+		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
+	}
 	if a.Info != nil {
 		pconf.State.TotalPaths = a.Info.TotalPaths
 		pconf.State.TotalPrefixes = a.Info.TotalPrefixes
@@ -806,6 +879,10 @@ func (s *server) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupRequ
 
 func (s *server) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNeighborRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, s.bgpServer.AddDynamicNeighbor(ctx, r)
+}
+
+func (s *server) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDynamicNeighborRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.bgpServer.DeleteDynamicNeighbor(ctx, r)
 }
 
 func newPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
@@ -1105,8 +1182,6 @@ func toStatementApi(s *config.Statement) *api.Statement {
 				Asn:         uint32(asn),
 				Repeat:      uint32(s.Actions.BgpActions.SetAsPathPrepend.RepeatN),
 				UseLeftMost: useleft,
-				Asns:        s.Actions.BgpActions.SetAsPathPrepend.Asns,
-				OpAction:    s.Actions.BgpActions.SetAsPathPrepend.OpAction,
 			}
 		}(),
 		ExtCommunity: func() *api.CommunityAction {
@@ -1135,6 +1210,11 @@ func toStatementApi(s *config.Statement) *api.Statement {
 			if string(s.Actions.BgpActions.SetNextHop) == "self" {
 				return &api.NexthopAction{
 					Self: true,
+				}
+			}
+			if string(s.Actions.BgpActions.SetNextHop) == "unchanged" {
+				return &api.NexthopAction{
+					Unchanged: true,
 				}
 			}
 			return &api.NexthopAction{
@@ -1400,8 +1480,6 @@ func newAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*table.AsPathP
 			}
 			return fmt.Sprintf("%d", a.Asn)
 		}(),
-		Asns:     a.Asns,
-		OpAction: a.OpAction,
 	})
 }
 
@@ -1413,6 +1491,9 @@ func newNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, 
 		func() string {
 			if a.Self {
 				return "self"
+			}
+			if a.Unchanged {
+				return "unchanged"
 			}
 			return a.Address
 		}(),
@@ -1760,4 +1841,8 @@ func (s *server) StopBgp(ctx context.Context, r *api.StopBgpRequest) (*empty.Emp
 
 func (s *server) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.GetTableResponse, error) {
 	return s.bgpServer.GetTable(ctx, r)
+}
+
+func (s *server) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.bgpServer.SetLogLevel(ctx, r)
 }

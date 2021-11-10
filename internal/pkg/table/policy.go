@@ -1116,7 +1116,7 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 		return r || s == bgp.VALIDATION_STATE_INVALID.String()
 	}
 	if len(elems) < 2 && (len(elems) < 1 && !isValidationState(elems[0])) {
-		return nil, fmt.Errorf("invalid ext-community (rt|soo):<value> | valid | not-found | invalid")
+		return nil, fmt.Errorf("invalid ext-community (rt|soo|encap|lb):<value> | valid | not-found | invalid")
 	}
 	if isValidationState(elems[0]) {
 		subtype = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
@@ -1127,15 +1127,19 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 			subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
 		case "soo":
 			subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+		case "encap":
+			subtype = bgp.EC_SUBTYPE_ENCAPSULATION
+		case "lb":
+			subtype = bgp.EC_SUBTYPE_LINK_BANDWIDTH
 		default:
-			return nil, fmt.Errorf("invalid ext-community (rt|soo):<value> | valid | not-found | invalid")
+			return nil, fmt.Errorf("invalid ext-community (rt|soo|encap|lb):<value> | valid | not-found | invalid")
 		}
 		value = elems[1]
 	}
 	return bgp.ParseExtendedCommunity(subtype, value)
 }
 
-var _regexpCommunity2 = regexp.MustCompile(`(\d+.)*\d+:\d+`)
+var _regexpCommunity2 = regexp.MustCompile(`^(\d+.)*\d+:\d+$`)
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	i, err := strconv.ParseUint(arg, 10, 32)
@@ -1160,15 +1164,19 @@ func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 	var subtype bgp.ExtendedCommunityAttrSubType
 	elems := strings.SplitN(arg, ":", 2)
 	if len(elems) < 2 {
-		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo]:<value>)")
+		return subtype, nil, fmt.Errorf("invalid ext-community format([rt|soo|encap|lb]:<value>)")
 	}
 	switch strings.ToLower(elems[0]) {
 	case "rt":
 		subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
 	case "soo":
 		subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+	case "encap":
+		subtype = bgp.EC_SUBTYPE_ENCAPSULATION
+	case "lb":
+		subtype = bgp.EC_SUBTYPE_LINK_BANDWIDTH
 	default:
-		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
+		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo, encap, lb is supported")
 	}
 	exp, err := ParseCommunityRegexp(elems[1])
 	return subtype, exp, err
@@ -1212,8 +1220,12 @@ func (s *ExtCommunitySet) List() []string {
 			return fmt.Sprintf("rt:%s", arg)
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
+		case bgp.EC_SUBTYPE_ENCAPSULATION:
+			return fmt.Sprintf("encap:%s", arg)
 		case bgp.EC_SUBTYPE_ORIGIN_VALIDATION:
 			return arg
+		case bgp.EC_SUBTYPE_LINK_BANDWIDTH:
+			return fmt.Sprintf("lb:%s", arg)
 		default:
 			return fmt.Sprintf("%d:%s", s.subtypeList[idx], arg)
 		}
@@ -1439,11 +1451,17 @@ func (c *PrefixCondition) Option() MatchOption {
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
 func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	if path.GetRouteFamily() != c.set.family {
+	pathAfi, _ := bgp.RouteFamilyToAfiSafi(path.GetRouteFamily())
+	cAfi, _ := bgp.RouteFamilyToAfiSafi(c.set.family)
+
+	if cAfi != pathAfi {
 		return false
 	}
 
 	r := nlriToIPNet(path.GetNlri())
+	if r == nil {
+		return false
+	}
 	ones, _ := r.Mask.Size()
 	masklen := uint8(ones)
 	result := false
@@ -2218,6 +2236,10 @@ func (a *ExtCommunityAction) ToConfig() *config.SetExtCommunity {
 			return fmt.Sprintf("rt:%s", arg)
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
+		case bgp.EC_SUBTYPE_ENCAPSULATION:
+			return fmt.Sprintf("encap:%s", arg)
+		case bgp.EC_SUBTYPE_LINK_BANDWIDTH:
+			return fmt.Sprintf("lb:%s", arg)
 		case bgp.EC_SUBTYPE_ORIGIN_VALIDATION:
 			return arg
 		default:
@@ -2482,8 +2504,6 @@ type AsPathPrependAction struct {
 	asn         uint32
 	useLeftMost bool
 	repeat      uint8
-	asns        []uint32
-	opAction    uint8
 }
 
 func (a *AsPathPrependAction) Type() ActionType {
@@ -2491,16 +2511,6 @@ func (a *AsPathPrependAction) Type() ActionType {
 }
 
 func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
-	if a.opAction != 0 {
-		l := len(a.asns)
-		var asns = make([]uint32, l)
-		copy(asns, a.asns)
-
-		confed := option != nil && option.Info != nil && option.Info.Confederation
-		path.OpAction(asns, a.opAction, confed)
-		return path
-	}
-
 	var asn uint32
 	if a.useLeftMost {
 		aspath := path.GetAsSeqList()
@@ -2538,25 +2548,11 @@ func (a *AsPathPrependAction) ToConfig() *config.SetAsPathPrepend {
 			}
 			return fmt.Sprintf("%d", a.asn)
 		}(),
-		Asns:     a.asns,
-		OpAction: uint32(a.opAction),
 	}
 }
 
 func (a *AsPathPrependAction) String() string {
 	c := a.ToConfig()
-	if a.opAction != 0 {
-		switch a.opAction {
-		case 1:
-			return fmt.Sprintf("add %+v", a.asns)
-		case 2:
-			return fmt.Sprintf("del %+v", a.asns)
-		case 3:
-			return fmt.Sprintf("replace %+v", a.asns)
-		default:
-			return "unknown op_action"
-		}
-	}
 	return fmt.Sprintf("prepend %s %d times", c.As, c.RepeatN)
 }
 
@@ -2568,9 +2564,7 @@ func (a *AsPathPrependAction) MarshalJSON() ([]byte, error) {
 // If ASN cannot be parsed, nil will be returned.
 func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependAction, error) {
 	a := &AsPathPrependAction{
-		repeat:   action.RepeatN,
-		asns:     action.Asns,
-		opAction: uint8(action.OpAction),
+		repeat: action.RepeatN,
 	}
 	switch action.As {
 	case "":
@@ -2591,8 +2585,9 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 }
 
 type NexthopAction struct {
-	value net.IP
-	self  bool
+	value     net.IP
+	self      bool
+	unchanged bool
 }
 
 func (a *NexthopAction) Type() ActionType {
@@ -2606,6 +2601,12 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) *Path {
 		}
 		return path
 	}
+	if a.unchanged {
+		if options != nil && options.OldNextHop != nil {
+			path.SetNexthop(options.OldNextHop)
+		}
+		return path
+	}
 	path.SetNexthop(a.value)
 	return path
 }
@@ -2613,6 +2614,9 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) *Path {
 func (a *NexthopAction) ToConfig() config.BgpNextHopType {
 	if a.self {
 		return config.BgpNextHopType("self")
+	}
+	if a.unchanged {
+		return config.BgpNextHopType("unchanged")
 	}
 	return config.BgpNextHopType(a.value.String())
 }
@@ -2632,6 +2636,10 @@ func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
 	case "self":
 		return &NexthopAction{
 			self: true,
+		}, nil
+	case "unchanged":
+		return &NexthopAction{
+			unchanged: true,
 		}, nil
 	}
 	addr := net.ParseIP(string(c))
@@ -4044,8 +4052,6 @@ func toStatementApi(s *config.Statement) *api.Statement {
 				Asn:         uint32(asn),
 				Repeat:      uint32(s.Actions.BgpActions.SetAsPathPrepend.RepeatN),
 				UseLeftMost: useleft,
-				Asns:        s.Actions.BgpActions.SetAsPathPrepend.Asns,
-				OpAction:    s.Actions.BgpActions.SetAsPathPrepend.OpAction,
 			}
 		}(),
 		ExtCommunity: func() *api.CommunityAction {
@@ -4074,6 +4080,11 @@ func toStatementApi(s *config.Statement) *api.Statement {
 			if string(s.Actions.BgpActions.SetNextHop) == "self" {
 				return &api.NexthopAction{
 					Self: true,
+				}
+			}
+			if string(s.Actions.BgpActions.SetNextHop) == "unchanged" {
+				return &api.NexthopAction{
+					Unchanged: true,
 				}
 			}
 			return &api.NexthopAction{
