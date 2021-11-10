@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/fatih/set"
 	"github.com/osrg/gobgp/internal/pkg/config"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 
@@ -701,9 +702,9 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 			if int(repeat)+len(asList) > 255 {
 				repeat = uint8(255 - len(asList))
 			}
-			newAsList := append(asns[:int(repeat)], asList...)
+			newAsList := append(asns[int(repeat):], asList...)
 			asPath.Value[0] = bgp.NewAs4PathParam(segType, newAsList)
-			asns = asns[int(repeat):]
+			asns = asns[:int(repeat)]
 		}
 	}
 
@@ -712,6 +713,98 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 		asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
 	}
 	path.setPathAttr(asPath)
+}
+
+func (path *Path) OpAction(asns []uint32, action uint8, confed bool) {
+	var segType uint8
+	if confed {
+		segType = bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ
+	} else {
+		segType = bgp.BGP_ASPATH_ATTR_TYPE_SEQ
+	}
+
+	var asPath *bgp.PathAttributeAsPath
+	original := path.GetAsPath()
+
+	if original == nil {
+		asPath = bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{})
+	} else {
+		asPath = cloneAsPath(original)
+	}
+
+	switch action {
+	// add process
+	case 1:
+		if len(asPath.Value) > 0 {
+			param := asPath.Value[0]
+			asList := param.GetAS()
+
+			if param.GetType() == segType {
+				var number int
+				if len(asns)+len(asList) > 255 {
+					number = 255 - len(asList)
+				}
+
+				newAsList := append(asns[number:], asList...)
+				asPath.Value[0] = bgp.NewAs4PathParam(segType, newAsList)
+				asns = asns[:number]
+			}
+		}
+
+		if len(asns) > 0 {
+			p := bgp.NewAs4PathParam(segType, asns)
+			asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
+		}
+
+		path.setPathAttr(asPath)
+		// replace process
+	case 2:
+		asPath.Value = nil
+	again:
+		l := len(asns)
+		if l > 255 {
+			idx := l - 255
+			asPath.Value = append([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(segType, asns[idx:])}, asPath.Value...)
+			asns = asns[:idx]
+
+			goto again
+		}
+
+		asPath.Value = append([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(segType, asns)}, asPath.Value...)
+
+		path.setPathAttr(asPath)
+		// del process
+	case 3:
+		if len(asPath.Value) > 0 {
+			param := asPath.Value[0]
+			if param.GetType() == segType {
+				asnSet := set.New(set.NonThreadSafe)
+				for i := 0; i < len(asns); i++ {
+					asnSet.Add(asns[i])
+				}
+			}
+		}
+
+		asnSet := set.New(set.NonThreadSafe)
+		for i := 0; i < len(asns); i++ {
+			asnSet.Add(asns[i])
+		}
+
+		for i := 0; i < len(asPath.Value); i++ {
+			param := asPath.Value[i]
+			if param.GetType() == segType {
+				asList := param.GetAS()
+				for j := len(asList) - 1; j >= 0; j-- {
+					if asnSet.Has(asList[j]) {
+						asList = append(asList[:j], asList[j+1:]...)
+					}
+				}
+				asPath.Value[i] = bgp.NewAs4PathParam(segType, asList)
+			}
+		}
+
+		path.setPathAttr(asPath)
+	}
 }
 
 func isPrivateAS(as uint32) bool {
@@ -1233,12 +1326,12 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 	case *bgp.LabeledIPAddrPrefix:
 		return &net.IPNet{
 			IP:   net.IP(T.Prefix.To4()),
-			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 32),
+			Mask: net.CIDRMask(int(T.Length), 32),
 		}
 	case *bgp.LabeledIPv6AddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To16()),
-			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 128),
+			IP:   net.IP(T.Prefix.To4()),
+			Mask: net.CIDRMask(int(T.Length), 128),
 		}
 	}
 	return nil
