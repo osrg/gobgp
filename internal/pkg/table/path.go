@@ -701,9 +701,9 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 			if int(repeat)+len(asList) > 255 {
 				repeat = uint8(255 - len(asList))
 			}
-			newAsList := append(asns[:int(repeat)], asList...)
+			newAsList := append(asns[int(repeat):], asList...)
 			asPath.Value[0] = bgp.NewAs4PathParam(segType, newAsList)
-			asns = asns[int(repeat):]
+			asns = asns[:int(repeat)]
 		}
 	}
 
