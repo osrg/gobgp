@@ -126,7 +126,7 @@ class GoBGPContainer(BGPContainer):
         self._wait_for_boot()
 
     def stop_gobgp(self):
-        self.local("pkill -INT gobgpd")
+        self.local("pkill -KILL gobgpd")
 
     def _start_zebra(self):
         if self.zapi_version == 2:
