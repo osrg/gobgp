@@ -140,6 +140,7 @@ func GrpcOption(opt []grpc.ServerOption) ServerOption {
 }
 
 type BgpServer struct {
+	apiServer    *server
 	bgpConfig    config.Bgp
 	acceptCh     chan *net.TCPConn
 	incomings    []*channels.InfiniteChannel
@@ -180,15 +181,23 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	s.mrtManager = newMrtManager(s)
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
-		api := newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
+		s.apiServer = newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
 		go func() {
-			if err := api.serve(); err != nil {
+			if err := s.apiServer.serve(); err != nil {
 				log.Fatalf("failed to listen grpc port: %s", err)
 			}
 		}()
 
 	}
 	return s
+}
+
+func (s *BgpServer) Stop() {
+	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	if s.apiServer != nil {
+		s.apiServer.grpcServer.Stop()
+	}
 }
 
 func (s *BgpServer) addIncoming(ch *channels.InfiniteChannel) {
