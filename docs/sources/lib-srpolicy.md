@@ -21,28 +21,27 @@ import (
 	"net"
 	"os"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	api "github.com/osrg/gobgp/api"
 	toolbox "github.com/sbezverk/gobgptoolbox"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
+	apb "google.golang.org/protobuf/types/known/anypb"
+
+	api "github.com/osrg/gobgp/v3/api"
 )
 
 func AddSRPolicy(client api.GobgpApiClient) error {
 
-	nlrisr, _ := ptypes.MarshalAny(&api.SRPolicyNLRI{
+	nlrisr, _ := apb.New(&api.SRPolicyNLRI{
 		Length:        96,
 		Distinguisher: 2,
 		Color:         99,
 		Endpoint:      net.ParseIP("10.0.0.15").To4(),
 	})
 	// Origin attribute
-	origin, _ := ptypes.MarshalAny(&api.OriginAttribute{
+	origin, _ := apb.New(&api.OriginAttribute{
 		Origin: 0,
 	})
 	// Next hop attribute
-	nh, _ := ptypes.MarshalAny(&api.NextHopAttribute{
+	nh, _ := apb.New(&api.NextHopAttribute{
 		NextHop: net.ParseIP("192.168.20.1").To4().String(),
 	})
 	// Extended communities attribute
@@ -51,13 +50,13 @@ func AddSRPolicy(client api.GobgpApiClient) error {
 	if err != nil {
 		return err
 	}
-	rt, _ := ptypes.MarshalAny(&api.ExtendedCommunitiesAttribute{
+	rt, _ := apb.New(&api.ExtendedCommunitiesAttribute{
 		Communities: []*any.Any{rtm},
 	})
 	// Tunnel Encapsulation Type 15 (SR Policy) sub tlvs
 	s := make([]byte, 4)
 	binary.BigEndian.PutUint32(s, 24321)
-	sid, err := ptypes.MarshalAny(&api.SRBindingSID{
+	sid, err := apb.New(&api.SRBindingSID{
 		SFlag: true,
 		IFlag: false,
 		Sid:   s,
@@ -65,13 +64,13 @@ func AddSRPolicy(client api.GobgpApiClient) error {
 	if err != nil {
 		return err
 	}
-	bsid, err := ptypes.MarshalAny(&api.TunnelEncapSubTLVSRBindingSID{
+	bsid, err := apb.New(&api.TunnelEncapSubTLVSRBindingSID{
 		Bsid: sid,
 	})
 	if err != nil {
 		return err
 	}
-	segment, err := ptypes.MarshalAny(&api.SegmentTypeA{
+	segment, err := apb.New(&api.SegmentTypeA{
 		Flags: &api.SegmentFlags{
 			SFlag: true,
 		},
@@ -80,7 +79,7 @@ func AddSRPolicy(client api.GobgpApiClient) error {
 	if err != nil {
 		return err
 	}
-	seglist, err := ptypes.MarshalAny(&api.TunnelEncapSubTLVSRSegmentList{
+	seglist, err := apb.New(&api.TunnelEncapSubTLVSRSegmentList{
 		Weight: &api.SRWeight{
 			Flags:  0,
 			Weight: 12,
@@ -90,27 +89,27 @@ func AddSRPolicy(client api.GobgpApiClient) error {
 	if err != nil {
 		return err
 	}
-	pref, err := ptypes.MarshalAny(&api.TunnelEncapSubTLVSRPreference{
+	pref, err := apb.New(&api.TunnelEncapSubTLVSRPreference{
 		Flags:      0,
 		Preference: 11,
 	})
 	if err != nil {
 		return err
 	}
-	cpn, err := ptypes.MarshalAny(&api.TunnelEncapSubTLVSRCandidatePathName{
+	cpn, err := apb.New(&api.TunnelEncapSubTLVSRCandidatePathName{
 		CandidatePathName: "CandidatePathName",
 	})
 	if err != nil {
 		return err
 	}
-	pri, err := ptypes.MarshalAny(&api.TunnelEncapSubTLVSRPriority{
+	pri, err := apb.New(&api.TunnelEncapSubTLVSRPriority{
 		Priority: 10,
 	})
 	if err != nil {
 		return err
 	}
 	// Tunnel Encapsulation attribute for SR Policy
-	tun, err := ptypes.MarshalAny(&api.TunnelEncapAttribute{
+	tun, err := apb.New(&api.TunnelEncapAttribute{
 		Tlvs: []*api.TunnelEncapTLV{
 			{
 				Type: 15,

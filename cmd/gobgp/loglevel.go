@@ -18,7 +18,7 @@ package main
 import (
 	"fmt"
 
-	api "github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/v3/api"
 	"github.com/spf13/cobra"
 )
 

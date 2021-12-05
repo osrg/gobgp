@@ -15,10 +15,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	api "github.com/osrg/gobgp/api"
-	gobgp "github.com/osrg/gobgp/pkg/server"
+	apb "google.golang.org/protobuf/types/known/anypb"
+
+	api "github.com/osrg/gobgp/v3/api"
+	gobgp "github.com/osrg/gobgp/v3/pkg/server"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -58,18 +58,18 @@ func main() {
 	}
 
 	// add routes
-	nlri, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri, _ := apb.New(&api.IPAddressPrefix{
 		Prefix:    "10.0.0.0",
 		PrefixLen: 24,
 	})
 
-	a1, _ := ptypes.MarshalAny(&api.OriginAttribute{
+	a1, _ := apb.New(&api.OriginAttribute{
 		Origin: 0,
 	})
-	a2, _ := ptypes.MarshalAny(&api.NextHopAttribute{
+	a2, _ := apb.New(&api.NextHopAttribute{
 		NextHop: "10.0.0.1",
 	})
-	a3, _ := ptypes.MarshalAny(&api.AsPathAttribute{
+	a3, _ := apb.New(&api.AsPathAttribute{
 		Segments: []*api.AsSegment{
 			{
 				Type:    2,
@@ -77,7 +77,7 @@ func main() {
 			},
 		},
 	})
-	attrs := []*any.Any{a1, a2, a3}
+	attrs := []*apb.Any{a1, a2, a3}
 
 	_, err := s.AddPath(context.Background(), &api.AddPathRequest{
 		Path: &api.Path{
@@ -96,17 +96,17 @@ func main() {
 	}
 
 	// add v6 route
-	nlri, _ = ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri, _ = apb.New(&api.IPAddressPrefix{
 		PrefixLen: 64,
 		Prefix:    "2001:db8:1::",
 	})
-	v6Attrs, _ := ptypes.MarshalAny(&api.MpReachNLRIAttribute{
+	v6Attrs, _ := apb.New(&api.MpReachNLRIAttribute{
 		Family:   v6Family,
 		NextHops: []string{"2001:db8::1"},
-		Nlris:    []*any.Any{nlri},
+		Nlris:    []*apb.Any{nlri},
 	})
 
-	c, _ := ptypes.MarshalAny(&api.CommunitiesAttribute{
+	c, _ := apb.New(&api.CommunitiesAttribute{
 		Communities: []uint32{100, 200},
 	})
 
@@ -114,7 +114,7 @@ func main() {
 		Path: &api.Path{
 			Family: v6Family,
 			Nlri:   nlri,
-			Pattrs: []*any.Any{a1, v6Attrs, c},
+			Pattrs: []*apb.Any{a1, v6Attrs, c},
 		},
 	})
 	if err != nil {

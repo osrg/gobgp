@@ -34,9 +34,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/osrg/gobgp/internal/pkg/version"
-	"github.com/osrg/gobgp/pkg/config"
-	"github.com/osrg/gobgp/pkg/server"
+	"github.com/osrg/gobgp/v3/internal/pkg/version"
+	"github.com/osrg/gobgp/v3/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/server"
 )
 
 func main() {

@@ -21,10 +21,12 @@
 
 syntax = "proto3";
 
+package apipb;
+option go_package = "github.com/osrg/gobgp/v3/api;apipb";
+
 import "google/protobuf/any.proto";
 import "gobgp.proto";
 
-package gobgpapi;
 
 message OriginAttribute { uint32 origin = 1; }
 
@@ -351,7 +353,7 @@ message LsAddrPrefix {
 }
 
 message MpReachNLRIAttribute {
-  gobgpapi.Family family = 1;
+  apipb.Family family = 1;
   repeated string next_hops = 2;
   // Each NLRI must be one of:
   // - IPAddressPrefix
@@ -374,7 +376,7 @@ message MpReachNLRIAttribute {
 }
 
 message MpUnreachNLRIAttribute {
-  gobgpapi.Family family = 1;
+  apipb.Family family = 1;
   // The same as NLRI field of MpReachNLRIAttribute
   repeated google.protobuf.Any nlris = 3;
 }

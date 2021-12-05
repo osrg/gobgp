@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/internal/pkg/apiutil"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
+	tspb "google.golang.org/protobuf/types/known/timestamppb"
+
+	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/internal/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 // Returns config file type by retrieving extension from the given path.
@@ -427,12 +427,11 @@ func newAfiSafiFromConfigStruct(c *AfiSafi) *api.AfiSafi {
 	}
 }
 
-func ProtoTimestamp(secs int64) *timestamp.Timestamp {
+func ProtoTimestamp(secs int64) *tspb.Timestamp {
 	if secs == 0 {
 		return nil
 	}
-	t, _ := ptypes.TimestampProto(time.Unix(secs, 0))
-	return t
+	return tspb.New(time.Unix(secs, 0))
 }
 
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {

@@ -26,13 +26,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/spf13/cobra"
 
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/internal/pkg/apiutil"
-	"github.com/osrg/gobgp/internal/pkg/config"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
+	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/internal/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 // used in showRoute() to determine the width of each column
@@ -173,9 +172,9 @@ func showNeighbors(vrf string) error {
 		}
 		timeStr := "never"
 		if n.Timers.State.Uptime != nil {
-			t, _ := ptypes.Timestamp(n.Timers.State.Downtime)
+			t := n.Timers.State.Downtime.AsTime()
 			if n.State.SessionState == api.PeerState_ESTABLISHED {
-				t, _ = ptypes.Timestamp(n.Timers.State.Uptime)
+				t = n.Timers.State.Uptime.AsTime()
 			}
 			timeStr = formatTimedelta(t)
 		}
@@ -259,8 +258,7 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  BGP version 4, remote router ID %s\n", id)
 	fmt.Printf("  BGP state = %s", p.State.SessionState)
 	if p.Timers.State.Uptime != nil {
-		t, _ := ptypes.Timestamp(p.Timers.State.Uptime)
-		fmt.Printf(", up for %s\n", formatTimedelta(t))
+		fmt.Printf(", up for %s\n", formatTimedelta(p.Timers.State.Uptime.AsTime()))
 	} else {
 		fmt.Print("\n")
 	}
@@ -601,8 +599,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 
 	// Age
 	if showAge {
-		t, _ := ptypes.Timestamp(p.Age)
-		args = append(args, formatTimedelta(t))
+		args = append(args, formatTimedelta(p.Age.AsTime()))
 	}
 
 	// Path Attributes

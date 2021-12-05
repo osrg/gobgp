@@ -1,16 +1,16 @@
 package config
 
 import (
-	"github.com/golang/protobuf/ptypes/any"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
+	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/internal/pkg/apiutil"
-	"github.com/osrg/gobgp/internal/pkg/config"
-	"github.com/osrg/gobgp/internal/pkg/table"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
-	"github.com/osrg/gobgp/pkg/server"
+	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/internal/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v3/pkg/server"
 )
 
 // ReadConfigFile parses a config file into a BgpConfigSet which can be applied
@@ -19,8 +19,8 @@ func ReadConfigFile(configFile, configType string) (*config.BgpConfigSet, error)
 	return config.ReadConfigfile(configFile, configType)
 }
 
-func marshalRouteTargets(l []string) ([]*any.Any, error) {
-	rtList := make([]*any.Any, 0, len(l))
+func marshalRouteTargets(l []string) ([]*apb.Any, error) {
+	rtList := make([]*apb.Any, 0, len(l))
 	for _, rtString := range l {
 		rt, err := bgp.ParseRouteTarget(rtString)
 		if err != nil {

@@ -24,17 +24,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/internal/pkg/apiutil"
-	"github.com/osrg/gobgp/internal/pkg/config"
-	"github.com/osrg/gobgp/internal/pkg/table"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
+	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/internal/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 func TestStop(t *testing.T) {
@@ -296,18 +295,18 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Safi: api.Family_SAFI_UNICAST,
 	}
 
-	nlri1, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri1, _ := apb.New(&api.IPAddressPrefix{
 		Prefix:    "10.1.0.0",
 		PrefixLen: 24,
 	})
 
-	a1, _ := ptypes.MarshalAny(&api.OriginAttribute{
+	a1, _ := apb.New(&api.OriginAttribute{
 		Origin: 0,
 	})
-	a2, _ := ptypes.MarshalAny(&api.NextHopAttribute{
+	a2, _ := apb.New(&api.NextHopAttribute{
 		NextHop: "10.0.0.1",
 	})
-	attrs := []*any.Any{a1, a2}
+	attrs := []*apb.Any{a1, a2}
 
 	t.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
@@ -318,7 +317,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	})
 
-	nlri2, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri2, _ := apb.New(&api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	})
@@ -420,7 +419,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	})
 	assert.Nil(err)
 
-	nlri3, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri3, _ := apb.New(&api.IPAddressPrefix{
 		Prefix:    "10.3.0.0",
 		PrefixLen: 24,
 	})
@@ -433,7 +432,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	})
 
-	nlri4, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri4, _ := apb.New(&api.IPAddressPrefix{
 		Prefix:    "10.4.0.0",
 		PrefixLen: 24,
 	})
@@ -1382,18 +1381,18 @@ func TestAddDeletePath(t *testing.T) {
 	ctx := context.Background()
 	s := runNewServer(1, "1.1.1.1", 10179)
 
-	nlri, _ := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlri, _ := apb.New(&api.IPAddressPrefix{
 		Prefix:    "10.0.0.0",
 		PrefixLen: 24,
 	})
 
-	a1, _ := ptypes.MarshalAny(&api.OriginAttribute{
+	a1, _ := apb.New(&api.OriginAttribute{
 		Origin: 0,
 	})
-	a2, _ := ptypes.MarshalAny(&api.NextHopAttribute{
+	a2, _ := apb.New(&api.NextHopAttribute{
 		NextHop: "10.0.0.1",
 	})
-	attrs := []*any.Any{a1, a2}
+	attrs := []*apb.Any{a1, a2}
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,
@@ -1519,7 +1518,7 @@ func TestAddDeletePath(t *testing.T) {
 	assert.Equal(t, len(s.uuidMap), 1)
 	u := r.Uuid
 
-	asPath, _ := ptypes.MarshalAny(&api.AsPathAttribute{
+	asPath, _ := apb.New(&api.AsPathAttribute{
 		Segments: []*api.AsSegment{
 			{
 				Type:    1, // SET
@@ -1568,22 +1567,22 @@ func TestAddBogusPath(t *testing.T) {
 	ctx := context.Background()
 	s := runNewServer(1, "1.1.1.1", 10179)
 
-	nlri, _ := ptypes.MarshalAny(&api.IPAddressPrefix{})
+	nlri, _ := apb.New(&api.IPAddressPrefix{})
 
-	a, _ := ptypes.MarshalAny(&api.MpReachNLRIAttribute{})
+	a, _ := apb.New(&api.MpReachNLRIAttribute{})
 
 	_, err := s.AddPath(ctx, &api.AddPathRequest{
 		Path: &api.Path{
 			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
 			Nlri:   nlri,
-			Pattrs: []*any.Any{a},
+			Pattrs: []*apb.Any{a},
 		},
 	})
 	assert.NotNil(t, err)
 
-	nlri, _ = ptypes.MarshalAny(&api.IPAddressPrefix{})
+	nlri, _ = apb.New(&api.IPAddressPrefix{})
 
-	a, _ = ptypes.MarshalAny(&api.MpReachNLRIAttribute{
+	a, _ = apb.New(&api.MpReachNLRIAttribute{
 		Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_FLOW_SPEC_UNICAST},
 	})
 
@@ -1591,7 +1590,7 @@ func TestAddBogusPath(t *testing.T) {
 		Path: &api.Path{
 			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
 			Nlri:   nlri,
-			Pattrs: []*any.Any{a},
+			Pattrs: []*apb.Any{a},
 		},
 	})
 	assert.NotNil(t, err)

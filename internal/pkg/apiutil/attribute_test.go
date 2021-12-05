@@ -20,11 +20,11 @@ import (
 	"net"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
+	"google.golang.org/protobuf/proto"
+	apb "google.golang.org/protobuf/types/known/anypb"
+
+	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +34,7 @@ func Test_OriginAttribute(t *testing.T) {
 	input := &api.OriginAttribute{
 		Origin: 0, // IGP
 	}
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -59,7 +59,7 @@ func Test_AsPathAttribute(t *testing.T) {
 		},
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -78,7 +78,7 @@ func Test_NextHopAttribute(t *testing.T) {
 		NextHop: "192.168.0.1",
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -94,7 +94,7 @@ func Test_MultiExitDiscAttribute(t *testing.T) {
 		Med: 100,
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -110,7 +110,7 @@ func Test_LocalPrefAttribute(t *testing.T) {
 		LocalPref: 100,
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -124,7 +124,7 @@ func Test_AtomicAggregateAttribute(t *testing.T) {
 
 	input := &api.AtomicAggregateAttribute{}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -142,7 +142,7 @@ func Test_AggregatorAttribute(t *testing.T) {
 		Address: "1.1.1.1",
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -159,7 +159,7 @@ func Test_CommunitiesAttribute(t *testing.T) {
 		Communities: []uint32{100, 200},
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -175,7 +175,7 @@ func Test_OriginatorIdAttribute(t *testing.T) {
 		Id: "1.1.1.1",
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -191,7 +191,7 @@ func Test_ClusterListAttribute(t *testing.T) {
 		Ids: []string{"1.1.1.1", "2.2.2.2"},
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -203,14 +203,14 @@ func Test_ClusterListAttribute(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv4_UC(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.IPAddressPrefix{
 		PrefixLen: 24,
 		Prefix:    "192.168.101.0",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.IPAddressPrefix{
+	a, err = apb.New(&api.IPAddressPrefix{
 		PrefixLen: 24,
 		Prefix:    "192.168.201.0",
 	})
@@ -226,7 +226,7 @@ func Test_MpReachNLRIAttribute_IPv4_UC(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -246,14 +246,14 @@ func Test_MpReachNLRIAttribute_IPv4_UC(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.IPAddressPrefix{
 		PrefixLen: 64,
 		Prefix:    "2001:db8:1::",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.IPAddressPrefix{
+	a, err = apb.New(&api.IPAddressPrefix{
 		PrefixLen: 64,
 		Prefix:    "2001:db8:2::",
 	})
@@ -269,7 +269,7 @@ func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -289,15 +289,15 @@ func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv4_MPLS(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.LabeledIPAddressPrefix{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.LabeledIPAddressPrefix{
 		Labels:    []uint32{100},
 		PrefixLen: 24,
 		Prefix:    "192.168.101.0",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.LabeledIPAddressPrefix{
+	a, err = apb.New(&api.LabeledIPAddressPrefix{
 		Labels:    []uint32{200},
 		PrefixLen: 24,
 		Prefix:    "192.168.201.0",
@@ -314,7 +314,7 @@ func Test_MpReachNLRIAttribute_IPv4_MPLS(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -334,15 +334,15 @@ func Test_MpReachNLRIAttribute_IPv4_MPLS(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv6_MPLS(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.LabeledIPAddressPrefix{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.LabeledIPAddressPrefix{
 		Labels:    []uint32{100},
 		PrefixLen: 64,
 		Prefix:    "2001:db8:1::",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.LabeledIPAddressPrefix{
+	a, err = apb.New(&api.LabeledIPAddressPrefix{
 		Labels:    []uint32{200},
 		PrefixLen: 64,
 		Prefix:    "2001:db8:2::",
@@ -359,7 +359,7 @@ func Test_MpReachNLRIAttribute_IPv6_MPLS(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -379,13 +379,13 @@ func Test_MpReachNLRIAttribute_IPv6_MPLS(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv4_ENCAP(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.EncapsulationNLRI{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.EncapsulationNLRI{
 		Address: "192.168.101.1",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.EncapsulationNLRI{
+	a, err = apb.New(&api.EncapsulationNLRI{
 		Address: "192.168.201.1",
 	})
 	assert.Nil(err)
@@ -400,7 +400,7 @@ func Test_MpReachNLRIAttribute_IPv4_ENCAP(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -420,13 +420,13 @@ func Test_MpReachNLRIAttribute_IPv4_ENCAP(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.EncapsulationNLRI{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.EncapsulationNLRI{
 		Address: "2001:db8:1::1",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.EncapsulationNLRI{
+	a, err = apb.New(&api.EncapsulationNLRI{
 		Address: "2001:db8:2::1",
 	})
 	assert.Nil(err)
@@ -441,7 +441,7 @@ func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -461,8 +461,8 @@ func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherTwoOctetAS{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherTwoOctetAS{
 		Admin:    65000,
 		Assigned: 100,
 	})
@@ -471,7 +471,7 @@ func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 		Type:  0,
 		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 	}
-	a, err := ptypes.MarshalAny(&api.EVPNEthernetAutoDiscoveryRoute{
+	a, err := apb.New(&api.EVPNEthernetAutoDiscoveryRoute{
 		Rd:          rd,
 		Esi:         esi,
 		EthernetTag: 100,
@@ -489,7 +489,7 @@ func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -509,8 +509,8 @@ func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
@@ -519,7 +519,7 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 		Type:  0,
 		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 	}
-	a, err := ptypes.MarshalAny(&api.EVPNMACIPAdvertisementRoute{
+	a, err := apb.New(&api.EVPNMACIPAdvertisementRoute{
 		Rd:          rd,
 		Esi:         esi,
 		EthernetTag: 100,
@@ -539,7 +539,7 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -559,13 +559,13 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherFourOctetAS{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherFourOctetAS{
 		Admin:    65000,
 		Assigned: 100,
 	})
 	assert.Nil(err)
-	a, err := ptypes.MarshalAny(&api.EVPNInclusiveMulticastEthernetTagRoute{
+	a, err := apb.New(&api.EVPNInclusiveMulticastEthernetTagRoute{
 		Rd:          rd,
 		EthernetTag: 100,
 		IpAddress:   "192.168.101.1",
@@ -582,7 +582,7 @@ func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -602,8 +602,8 @@ func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
@@ -612,7 +612,7 @@ func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 		Type:  0,
 		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 	}
-	a, err := ptypes.MarshalAny(&api.EVPNEthernetSegmentRoute{
+	a, err := apb.New(&api.EVPNEthernetSegmentRoute{
 		Rd:        rd,
 		Esi:       esi,
 		IpAddress: "192.168.101.1",
@@ -629,7 +629,7 @@ func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -649,8 +649,8 @@ func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
@@ -659,7 +659,7 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 		Type:  0,
 		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 	}
-	a, err := ptypes.MarshalAny(&api.EVPNIPPrefixRoute{
+	a, err := apb.New(&api.EVPNIPPrefixRoute{
 		Rd:          rd,
 		Esi:         esi,
 		EthernetTag: 100,
@@ -680,7 +680,7 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -700,13 +700,13 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv4_VPN(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
 	assert.Nil(err)
-	a, err := ptypes.MarshalAny(&api.LabeledVPNIPAddressPrefix{
+	a, err := apb.New(&api.LabeledVPNIPAddressPrefix{
 		Labels:    []uint32{100, 200},
 		Rd:        rd,
 		PrefixLen: 24,
@@ -724,7 +724,7 @@ func Test_MpReachNLRIAttribute_IPv4_VPN(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -744,13 +744,13 @@ func Test_MpReachNLRIAttribute_IPv4_VPN(t *testing.T) {
 func Test_MpReachNLRIAttribute_IPv6_VPN(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
 	assert.Nil(err)
-	a, err := ptypes.MarshalAny(&api.LabeledVPNIPAddressPrefix{
+	a, err := apb.New(&api.LabeledVPNIPAddressPrefix{
 		Labels:    []uint32{100, 200},
 		Rd:        rd,
 		PrefixLen: 64,
@@ -768,7 +768,7 @@ func Test_MpReachNLRIAttribute_IPv6_VPN(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -788,15 +788,15 @@ func Test_MpReachNLRIAttribute_IPv6_VPN(t *testing.T) {
 func Test_MpReachNLRIAttribute_RTC_UC(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 1)
-	rt, err := ptypes.MarshalAny(&api.IPv4AddressSpecificExtended{
+	nlris := make([]*apb.Any, 0, 1)
+	rt, err := apb.New(&api.IPv4AddressSpecificExtended{
 		IsTransitive: true,
 		SubType:      0x02, // Route Target
 		Address:      "1.1.1.1",
 		LocalAdmin:   100,
 	})
 	assert.Nil(err)
-	a, err := ptypes.MarshalAny(&api.RouteTargetMembershipNLRI{
+	a, err := apb.New(&api.RouteTargetMembershipNLRI{
 		As: 65000,
 		Rt: rt,
 	})
@@ -812,7 +812,7 @@ func Test_MpReachNLRIAttribute_RTC_UC(t *testing.T) {
 		Nlris:    nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -832,22 +832,22 @@ func Test_MpReachNLRIAttribute_RTC_UC(t *testing.T) {
 func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 	assert := assert.New(t)
 
-	rules := make([]*any.Any, 0, 3)
-	rule, err := ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rules := make([]*apb.Any, 0, 3)
+	rule, err := apb.New(&api.FlowSpecIPPrefix{
 		Type:      1, // Destination Prefix
 		PrefixLen: 24,
 		Prefix:    "192.168.101.0",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rule, err = apb.New(&api.FlowSpecIPPrefix{
 		Type:      2, // Source Prefix
 		PrefixLen: 24,
 		Prefix:    "192.168.201.0",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecComponent{
+	rule, err = apb.New(&api.FlowSpecComponent{
 		Type: 3, // IP Protocol
 		Items: []*api.FlowSpecComponentItem{
 			{
@@ -859,8 +859,8 @@ func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 	assert.Nil(err)
 	rules = append(rules, rule)
 
-	nlris := make([]*any.Any, 0, 1)
-	a, err := ptypes.MarshalAny(&api.FlowSpecNLRI{
+	nlris := make([]*apb.Any, 0, 1)
+	a, err := apb.New(&api.FlowSpecNLRI{
 		Rules: rules,
 	})
 	assert.Nil(err)
@@ -875,7 +875,7 @@ func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 		Nlris: nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -895,28 +895,28 @@ func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 	assert := assert.New(t)
 
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
 	assert.Nil(err)
 
-	rules := make([]*any.Any, 0, 3)
-	rule, err := ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rules := make([]*apb.Any, 0, 3)
+	rule, err := apb.New(&api.FlowSpecIPPrefix{
 		Type:      1, // Destination Prefix
 		PrefixLen: 24,
 		Prefix:    "192.168.101.0",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rule, err = apb.New(&api.FlowSpecIPPrefix{
 		Type:      2, // Source Prefix
 		PrefixLen: 24,
 		Prefix:    "192.168.201.0",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecComponent{
+	rule, err = apb.New(&api.FlowSpecComponent{
 		Type: 3, // IP Protocol
 		Items: []*api.FlowSpecComponentItem{
 			{
@@ -928,8 +928,8 @@ func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 	assert.Nil(err)
 	rules = append(rules, rule)
 
-	nlris := make([]*any.Any, 0, 1)
-	a, err := ptypes.MarshalAny(&api.VPNFlowSpecNLRI{
+	nlris := make([]*apb.Any, 0, 1)
+	a, err := apb.New(&api.VPNFlowSpecNLRI{
 		Rd:    rd,
 		Rules: rules,
 	})
@@ -945,7 +945,7 @@ func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 		Nlris: nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -965,22 +965,22 @@ func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 	assert := assert.New(t)
 
-	rules := make([]*any.Any, 0, 3)
-	rule, err := ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rules := make([]*apb.Any, 0, 3)
+	rule, err := apb.New(&api.FlowSpecIPPrefix{
 		Type:      1, // Destination Prefix
 		PrefixLen: 64,
 		Prefix:    "2001:db8:1::",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rule, err = apb.New(&api.FlowSpecIPPrefix{
 		Type:      2, // Source Prefix
 		PrefixLen: 64,
 		Prefix:    "2001:db8:2::",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecComponent{
+	rule, err = apb.New(&api.FlowSpecComponent{
 		Type: 3, // Next Header
 		Items: []*api.FlowSpecComponentItem{
 			{
@@ -992,8 +992,8 @@ func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 	assert.Nil(err)
 	rules = append(rules, rule)
 
-	nlris := make([]*any.Any, 0, 1)
-	a, err := ptypes.MarshalAny(&api.FlowSpecNLRI{
+	nlris := make([]*apb.Any, 0, 1)
+	a, err := apb.New(&api.FlowSpecNLRI{
 		Rules: rules,
 	})
 	assert.Nil(err)
@@ -1008,7 +1008,7 @@ func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 		Nlris: nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1028,28 +1028,28 @@ func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 	assert := assert.New(t)
 
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
 	assert.Nil(err)
 
-	rules := make([]*any.Any, 0, 3)
-	rule, err := ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rules := make([]*apb.Any, 0, 3)
+	rule, err := apb.New(&api.FlowSpecIPPrefix{
 		Type:      1, // Destination Prefix
 		PrefixLen: 64,
 		Prefix:    "2001:db8:1::",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecIPPrefix{
+	rule, err = apb.New(&api.FlowSpecIPPrefix{
 		Type:      2, // Source Prefix
 		PrefixLen: 64,
 		Prefix:    "2001:db8:2::",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecComponent{
+	rule, err = apb.New(&api.FlowSpecComponent{
 		Type: 3, // Next Header
 		Items: []*api.FlowSpecComponentItem{
 			{
@@ -1061,8 +1061,8 @@ func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 	assert.Nil(err)
 	rules = append(rules, rule)
 
-	nlris := make([]*any.Any, 0, 1)
-	a, err := ptypes.MarshalAny(&api.VPNFlowSpecNLRI{
+	nlris := make([]*apb.Any, 0, 1)
+	a, err := apb.New(&api.VPNFlowSpecNLRI{
 		Rd:    rd,
 		Rules: rules,
 	})
@@ -1078,7 +1078,7 @@ func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 		Nlris: nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1098,26 +1098,26 @@ func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 	assert := assert.New(t)
 
-	rd, err := ptypes.MarshalAny(&api.RouteDistinguisherIPAddress{
+	rd, err := apb.New(&api.RouteDistinguisherIPAddress{
 		Admin:    "1.1.1.1",
 		Assigned: 100,
 	})
 	assert.Nil(err)
 
-	rules := make([]*any.Any, 0, 3)
-	rule, err := ptypes.MarshalAny(&api.FlowSpecMAC{
+	rules := make([]*apb.Any, 0, 3)
+	rule, err := apb.New(&api.FlowSpecMAC{
 		Type:    15, // Source MAC
 		Address: "aa:bb:cc:11:22:33",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecMAC{
+	rule, err = apb.New(&api.FlowSpecMAC{
 		Type:    16, // Destination MAC
 		Address: "dd:ee:ff:11:22:33",
 	})
 	assert.Nil(err)
 	rules = append(rules, rule)
-	rule, err = ptypes.MarshalAny(&api.FlowSpecComponent{
+	rule, err = apb.New(&api.FlowSpecComponent{
 		Type: 21, // VLAN ID
 		Items: []*api.FlowSpecComponentItem{
 			{
@@ -1129,8 +1129,8 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 	assert.Nil(err)
 	rules = append(rules, rule)
 
-	nlris := make([]*any.Any, 0, 1)
-	a, err := ptypes.MarshalAny(&api.VPNFlowSpecNLRI{
+	nlris := make([]*apb.Any, 0, 1)
+	a, err := apb.New(&api.VPNFlowSpecNLRI{
 		Rd:    rd,
 		Rules: rules,
 	})
@@ -1146,7 +1146,7 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 		Nlris: nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1166,14 +1166,14 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 	assert := assert.New(t)
 
-	nlris := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.IPAddressPrefix{
+	nlris := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.IPAddressPrefix{
 		PrefixLen: 24,
 		Prefix:    "192.168.101.0",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)
-	a, err = ptypes.MarshalAny(&api.IPAddressPrefix{
+	a, err = apb.New(&api.IPAddressPrefix{
 		PrefixLen: 24,
 		Prefix:    "192.168.201.0",
 	})
@@ -1188,7 +1188,7 @@ func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 		Nlris: nlris,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1207,8 +1207,8 @@ func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	assert := assert.New(t)
 
-	communities := make([]*any.Any, 0, 19)
-	a, err := ptypes.MarshalAny(&api.TwoOctetAsSpecificExtended{
+	communities := make([]*apb.Any, 0, 19)
+	a, err := apb.New(&api.TwoOctetAsSpecificExtended{
 		IsTransitive: true,
 		SubType:      0x02, // ROUTE_TARGET
 		As:           65001,
@@ -1216,7 +1216,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.IPv4AddressSpecificExtended{
+	a, err = apb.New(&api.IPv4AddressSpecificExtended{
 		IsTransitive: true,
 		SubType:      0x02, // ROUTE_TARGET
 		Address:      "2.2.2.2",
@@ -1224,7 +1224,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.FourOctetAsSpecificExtended{
+	a, err = apb.New(&api.FourOctetAsSpecificExtended{
 		IsTransitive: true,
 		SubType:      0x02, // ROUTE_TARGET
 		As:           65003,
@@ -1232,96 +1232,96 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.ValidationExtended{
+	a, err = apb.New(&api.ValidationExtended{
 		State: 0, // VALID
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.ColorExtended{
+	a, err = apb.New(&api.ColorExtended{
 		Color: 400,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.EncapExtended{
+	a, err = apb.New(&api.EncapExtended{
 		TunnelType: 8, // VXLAN
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.DefaultGatewayExtended{
+	a, err = apb.New(&api.DefaultGatewayExtended{
 		// No value
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.OpaqueExtended{
+	a, err = apb.New(&api.OpaqueExtended{
 		IsTransitive: true,
 		Value:        []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77},
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.ESILabelExtended{
+	a, err = apb.New(&api.ESILabelExtended{
 		IsSingleActive: true,
 		Label:          500,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.ESImportRouteTarget{
+	a, err = apb.New(&api.ESImportRouteTarget{
 		EsImport: "aa:bb:cc:dd:ee:ff",
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.MacMobilityExtended{
+	a, err = apb.New(&api.MacMobilityExtended{
 		IsSticky:    true,
 		SequenceNum: 1,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.RouterMacExtended{
+	a, err = apb.New(&api.RouterMacExtended{
 		Mac: "ff:ee:dd:cc:bb:aa",
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.TrafficRateExtended{
+	a, err = apb.New(&api.TrafficRateExtended{
 		As:   65004,
 		Rate: 100.0,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.TrafficActionExtended{
+	a, err = apb.New(&api.TrafficActionExtended{
 		Terminal: true,
 		Sample:   false,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.RedirectTwoOctetAsSpecificExtended{
+	a, err = apb.New(&api.RedirectTwoOctetAsSpecificExtended{
 		As:         65005,
 		LocalAdmin: 500,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.RedirectIPv4AddressSpecificExtended{
+	a, err = apb.New(&api.RedirectIPv4AddressSpecificExtended{
 		Address:    "6.6.6.6",
 		LocalAdmin: 600,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.RedirectFourOctetAsSpecificExtended{
+	a, err = apb.New(&api.RedirectFourOctetAsSpecificExtended{
 		As:         65007,
 		LocalAdmin: 700,
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.TrafficRemarkExtended{
+	a, err = apb.New(&api.TrafficRemarkExtended{
 		Dscp: 0x0a, // AF11
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.UnknownExtended{
+	a, err = apb.New(&api.UnknownExtended{
 		Type:  0xff, // Max of uint8
 		Value: []byte{1, 2, 3, 4, 5, 6, 7},
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.LinkBandiwdthExtended{
+	a, err = apb.New(&api.LinkBandiwdthExtended{
 		As:        65004,
 		Bandwidth: 125000.0,
 	})
@@ -1332,7 +1332,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 		Communities: communities,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1362,7 +1362,7 @@ func Test_As4PathAttribute(t *testing.T) {
 		},
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1382,7 +1382,7 @@ func Test_As4AggregatorAttribute(t *testing.T) {
 		Address: "1.1.1.1",
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1402,7 +1402,7 @@ func Test_PmsiTunnelAttribute(t *testing.T) {
 		Id:    net.ParseIP("1.1.1.1").To4(), // IngressReplTunnelID with IPv4
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1417,29 +1417,29 @@ func Test_PmsiTunnelAttribute(t *testing.T) {
 func Test_TunnelEncapAttribute(t *testing.T) {
 	assert := assert.New(t)
 
-	subTlvs := make([]*any.Any, 0, 4)
-	a, err := ptypes.MarshalAny(&api.TunnelEncapSubTLVEncapsulation{
+	subTlvs := make([]*apb.Any, 0, 4)
+	a, err := apb.New(&api.TunnelEncapSubTLVEncapsulation{
 		Key:    100,
 		Cookie: []byte{0x11, 0x22, 0x33, 0x44},
 	})
 	assert.Nil(err)
 	subTlvs = append(subTlvs, a)
-	a, err = ptypes.MarshalAny(&api.TunnelEncapSubTLVProtocol{
+	a, err = apb.New(&api.TunnelEncapSubTLVProtocol{
 		Protocol: 200,
 	})
 	assert.Nil(err)
 	subTlvs = append(subTlvs, a)
-	a, err = ptypes.MarshalAny(&api.TunnelEncapSubTLVColor{
+	a, err = apb.New(&api.TunnelEncapSubTLVColor{
 		Color: 300,
 	})
 	assert.Nil(err)
 	subTlvs = append(subTlvs, a)
-	a, err = ptypes.MarshalAny(&api.TunnelEncapSubTLVUDPDestPort{
+	a, err = apb.New(&api.TunnelEncapSubTLVUDPDestPort{
 		Port: 400,
 	})
 	assert.Nil(err)
 	subTlvs = append(subTlvs, a)
-	a, err = ptypes.MarshalAny(&api.TunnelEncapSubTLVUnknown{
+	a, err = apb.New(&api.TunnelEncapSubTLVUnknown{
 		Type:  0xff, // Max of uint8
 		Value: []byte{0x55, 0x66, 0x77, 0x88},
 	})
@@ -1455,7 +1455,7 @@ func Test_TunnelEncapAttribute(t *testing.T) {
 		},
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1474,8 +1474,8 @@ func Test_TunnelEncapAttribute(t *testing.T) {
 func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	assert := assert.New(t)
 
-	communities := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.IPv6AddressSpecificExtended{
+	communities := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.IPv6AddressSpecificExtended{
 		IsTransitive: true,
 		SubType:      0xff, // Max of uint8
 		Address:      "2001:db8:1::1",
@@ -1483,7 +1483,7 @@ func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = ptypes.MarshalAny(&api.RedirectIPv6AddressSpecificExtended{
+	a, err = apb.New(&api.RedirectIPv6AddressSpecificExtended{
 		Address:    "2001:db8:2::1",
 		LocalAdmin: 200,
 	})
@@ -1494,7 +1494,7 @@ func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 		Communities: communities,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1511,13 +1511,13 @@ func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 func Test_AigpAttribute(t *testing.T) {
 	assert := assert.New(t)
 
-	tlvs := make([]*any.Any, 0, 2)
-	a, err := ptypes.MarshalAny(&api.AigpTLVIGPMetric{
+	tlvs := make([]*apb.Any, 0, 2)
+	a, err := apb.New(&api.AigpTLVIGPMetric{
 		Metric: 50,
 	})
 	assert.Nil(err)
 	tlvs = append(tlvs, a)
-	a, err = ptypes.MarshalAny(&api.AigpTLVUnknown{
+	a, err = apb.New(&api.AigpTLVUnknown{
 		Type:  0xff, // Max of uint8
 		Value: []byte{0x11, 0x22, 0x33, 0x44},
 	})
@@ -1528,7 +1528,7 @@ func Test_AigpAttribute(t *testing.T) {
 		Tlvs: tlvs,
 	}
 
-	a, err = ptypes.MarshalAny(input)
+	a, err = apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1560,7 +1560,7 @@ func Test_LargeCommunitiesAttribute(t *testing.T) {
 		},
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
@@ -1581,7 +1581,7 @@ func Test_UnknownAttribute(t *testing.T) {
 		Value: []byte{0x11, 0x22, 0x33, 0x44},
 	}
 
-	a, err := ptypes.MarshalAny(input)
+	a, err := apb.New(input)
 	assert.Nil(err)
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)

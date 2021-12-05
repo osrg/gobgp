@@ -17,12 +17,12 @@ package version
 
 import "fmt"
 
-const MAJOR uint = 2
-const MINOR uint = 34
+const MAJOR uint = 3
+const MINOR uint = 0
 const PATCH uint = 0
 
 var COMMIT string = ""
-var IDENTIFIER string = ""
+var IDENTIFIER string = "rc0"
 var METADATA string = ""
 
 func Version() string {

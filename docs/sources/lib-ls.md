@@ -13,11 +13,10 @@ package main
 
 import (
 	"context"
-	"os"
 
-	"github.com/golang/protobuf/jsonpb"
-	api "github.com/osrg/gobgp/api"
-	gobgp "github.com/osrg/gobgp/pkg/server"
+	"google.golang.org/protobuf/encoding/protojson"
+	api "github.com/osrg/gobgp/v3/api"
+	gobgp "github.com/osrg/gobgp/v3/pkg/server"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -73,9 +72,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	marshaller := jsonpb.Marshaler{
+	marshaller := protojson.MarshalOptions{
 		Indent:   "  ",
-		OrigName: true,
+		UseProtoNames: true,
 	}
 
 	// Display incoming Prefixes in JSON format.
@@ -87,7 +86,7 @@ func main() {
 		},
 	}, func(p *api.Path) {
 		// Your application should do something useful with the BGP-LS path here.
-		marshaller.Marshal(os.Stdout, p)
+		marshaller.Marshal(p)
 	}); err != nil {
 		log.Fatal(err)
 	}

@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/golang/protobuf/ptypes"
-	api "github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/v3/api"
 )
 
 const (
@@ -554,11 +553,11 @@ func NewPathAttributePrefixSID(psid *api.PrefixSID) (*PathAttributePrefixSID, er
 		TLVs: make([]PrefixSIDTLVInterface, 0),
 	}
 	for _, raw := range psid.Tlvs {
-		var tlv ptypes.DynamicAny
-		if err := ptypes.UnmarshalAny(raw, &tlv); err != nil {
+		tlv, err := raw.UnmarshalNew()
+		if err != nil {
 			return nil, err
 		}
-		switch v := tlv.Message.(type) {
+		switch v := tlv.(type) {
 		case *api.SRv6L3ServiceTLV:
 			tlvLength, tlvs, err := UnmarshalSubTLVs(v.SubTlvs)
 			if err != nil {
@@ -600,11 +599,11 @@ func UnmarshalSubTLVs(stlvs map[uint32]*api.SRv6TLV) (uint16, []PrefixSIDTLVInte
 					},
 					SubSubTLVs: make([]PrefixSIDTLVInterface, 0),
 				}
-				var raw ptypes.DynamicAny
-				if err := ptypes.UnmarshalAny(stlvRaw, &raw); err != nil {
+				raw, err := stlvRaw.UnmarshalNew()
+				if err != nil {
 					return 0, nil, err
 				}
-				infoProto := raw.Message.(*api.SRv6InformationSubTLV)
+				infoProto := raw.(*api.SRv6InformationSubTLV)
 				info.SID = make([]byte, len(infoProto.Sid))
 				copy(info.SID, infoProto.Sid)
 				// TODO Once RFC is published add processing of flags
@@ -652,11 +651,11 @@ func UnmarshalSubSubTLVs(stlvs map[uint32]*api.SRv6TLV) (uint16, []PrefixSIDTLVI
 						Length: 6,
 					},
 				}
-				var raw ptypes.DynamicAny
-				if err := ptypes.UnmarshalAny(stlvRaw, &raw); err != nil {
+				raw, err := stlvRaw.UnmarshalNew()
+				if err != nil {
 					return 0, nil, err
 				}
-				structureProto := raw.Message.(*api.SRv6StructureSubSubTLV)
+				structureProto := raw.(*api.SRv6StructureSubSubTLV)
 				structure.LocalBlockLength = uint8(structureProto.LocalBlockLength)
 				structure.LocatorNodeLength = uint8(structureProto.LocalNodeLength)
 				structure.FunctionLength = uint8(structureProto.FunctionLength)

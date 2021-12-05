@@ -13,21 +13,15 @@ if ! [[ "$0" =~ "tools/grpc/genproto.sh" ]]; then
 	exit 255
 fi
 
-if ! [[ $(protoc --version) =~ "3.7.1" ]]; then
-	echo "could not find protoc 3.7.1, is it installed + in PATH?"
+if ! [[ $(protoc --version) =~ "3.19.1" ]]; then
+	echo "could not find protoc 3.19.1, is it installed + in PATH?"
 	exit 255
 fi
 
 echo "installing plugins"
-GO111MODULE=on go mod download
-
-INSTALL_PKGS="github.com/golang/protobuf/protoc-gen-go"
-for pkg in ${INSTALL_PKGS}; do
-    GO111MODULE=on go install "$pkg"
-done
-
-GOBGP="${PWD}"
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1.0
 
 echo "generating code"
-protoc -I "${GOBGP}"/api \
-       --go_out=plugins=grpc:${GOBGP}/api "${GOBGP}"/api/*.proto
+protoc -I api -I /usr/local/include \
+       --go_out=api --go_opt=paths=source_relative --go-grpc_out=api --go-grpc_opt=paths=source_relative api/*.proto

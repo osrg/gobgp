@@ -21,9 +21,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/golang/protobuf/ptypes"
-	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
+
+	api "github.com/osrg/gobgp/v3/api"
 )
 
 func showRPKIServer(args []string) error {
@@ -50,8 +50,7 @@ func showRPKIServer(args []string) error {
 			uptime := "never"
 			if r.State.Up {
 				s = "Up"
-				t, _ := ptypes.Timestamp(r.State.Uptime)
-				uptime = fmt.Sprint(formatTimedelta(t))
+				uptime = fmt.Sprint(formatTimedelta(r.State.Uptime.AsTime()))
 			}
 
 			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, fmt.Sprintf("%d", r.Conf.RemotePort)), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
