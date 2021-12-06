@@ -56,7 +56,7 @@ func validateOne(rt *ROATable, cidr, aspathStr string) config.RpkiValidationResu
 func TestValidate0(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 32, 100, ""))
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
 
@@ -82,7 +82,7 @@ func TestValidate0(t *testing.T) {
 func TestValidate1(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/16", "65000")
@@ -95,7 +95,7 @@ func TestValidate1(t *testing.T) {
 func TestValidate2(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 
 	var r config.RpkiValidationResultType
 
@@ -109,7 +109,7 @@ func TestValidate2(t *testing.T) {
 func TestValidate3(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/8", "65000")
@@ -118,7 +118,7 @@ func TestValidate3(t *testing.T) {
 	r = validateOne(table, "10.0.0.0/17", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
-	table = NewROATable()
+	table = NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	r = validateOne(table, "10.0.0.0/17", "65000")
@@ -128,7 +128,7 @@ func TestValidate3(t *testing.T) {
 func TestValidate4(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
 
@@ -142,7 +142,7 @@ func TestValidate4(t *testing.T) {
 func TestValidate5(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 17, 17, 65000, ""))
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
 
@@ -153,7 +153,7 @@ func TestValidate5(t *testing.T) {
 func TestValidate6(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
 
 	r := validateOne(table, "10.0.0.0/7", "65000")
@@ -169,7 +169,7 @@ func TestValidate6(t *testing.T) {
 func TestValidate7(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/24", "{65000}")
@@ -185,7 +185,7 @@ func TestValidate7(t *testing.T) {
 func TestValidate8(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 0, ""))
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
@@ -199,7 +199,7 @@ func TestValidate8(t *testing.T) {
 func TestValidate9(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, ""))
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 
@@ -213,7 +213,7 @@ func TestValidate9(t *testing.T) {
 func TestValidate10(t *testing.T) {
 	assert := assert.New(t)
 
-	table := NewROATable()
+	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 0, ""))
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 

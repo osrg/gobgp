@@ -22,8 +22,8 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
@@ -115,16 +115,18 @@ type TableManager struct {
 	Tables map[bgp.RouteFamily]*Table
 	Vrfs   map[string]*Vrf
 	rfList []bgp.RouteFamily
+	logger log.Logger
 }
 
-func NewTableManager(rfList []bgp.RouteFamily) *TableManager {
+func NewTableManager(logger log.Logger, rfList []bgp.RouteFamily) *TableManager {
 	t := &TableManager{
 		Tables: make(map[bgp.RouteFamily]*Table),
 		Vrfs:   make(map[string]*Vrf),
 		rfList: rfList,
+		logger: logger,
 	}
 	for _, rf := range rfList {
-		t.Tables[rf] = NewTable(rf)
+		t.Tables[rf] = NewTable(logger, rf)
 	}
 	return t
 }
@@ -137,13 +139,13 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 	if _, ok := manager.Vrfs[name]; ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
-	log.WithFields(log.Fields{
-		"Topic":    "Vrf",
-		"Key":      name,
-		"Rd":       rd,
-		"ImportRt": importRt,
-		"ExportRt": exportRt,
-	}).Debugf("add vrf")
+	manager.logger.Debug("add vrf",
+		log.Fields{
+			"Topic":    "Vrf",
+			"Key":      name,
+			"Rd":       rd,
+			"ImportRt": importRt,
+			"ExportRt": exportRt})
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
 		Id:       id,
@@ -172,14 +174,14 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	for _, t := range manager.Tables {
 		msgs = append(msgs, t.deletePathsByVrf(vrf)...)
 	}
-	log.WithFields(log.Fields{
-		"Topic":     "Vrf",
-		"Key":       vrf.Name,
-		"Rd":        vrf.Rd,
-		"ImportRt":  vrf.ImportRt,
-		"ExportRt":  vrf.ExportRt,
-		"MplsLabel": vrf.MplsLabel,
-	}).Debugf("delete vrf")
+	manager.logger.Debug("delete vrf",
+		log.Fields{
+			"Topic":     "Vrf",
+			"Key":       vrf.Name,
+			"Rd":        vrf.Rd,
+			"ImportRt":  vrf.ImportRt,
+			"ExportRt":  vrf.ExportRt,
+			"MplsLabel": vrf.MplsLabel})
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]
 	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)
@@ -190,7 +192,7 @@ func (manager *TableManager) update(newPath *Path) *Update {
 	t := manager.Tables[newPath.GetRouteFamily()]
 	t.validatePath(newPath)
 	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
-	u := dst.Calculate(newPath)
+	u := dst.Calculate(manager.logger, newPath)
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)
 	}

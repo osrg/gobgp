@@ -1,4 +1,4 @@
-// Copyright (C) 2015,2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2015-2021 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/packet/rtr"
 )
@@ -60,13 +60,15 @@ type roaManager struct {
 	eventCh   chan *roaEvent
 	clientMap map[string]*roaClient
 	table     *table.ROATable
+	logger    log.Logger
 }
 
-func newROAManager(table *table.ROATable) *roaManager {
+func newROAManager(table *table.ROATable, logger log.Logger) *roaManager {
 	m := &roaManager{
 		eventCh:   make(chan *roaEvent),
 		clientMap: make(map[string]*roaClient),
 		table:     table,
+		logger:    logger,
 	}
 	return m
 }
@@ -157,12 +159,18 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		if ev.EventType == roaConnected {
 			ev.conn.Close()
 		}
-		log.WithFields(log.Fields{"Topic": "rpki"}).Errorf("Can't find %s ROA server configuration", ev.Src)
+		m.logger.Error("Can't find ROA server configuration",
+			log.Fields{
+				"Topic": "rpki",
+				"Key":   ev.Src})
 		return
 	}
 	switch ev.EventType {
 	case roaDisconnected:
-		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is disconnected", ev.Src)
+		m.logger.Info("ROA server is disconnected",
+			log.Fields{
+				"Topic": "rpki",
+				"Key":   ev.Src})
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.endOfData = false
@@ -173,7 +181,10 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 		client.oldSessionID = client.sessionID
 	case roaConnected:
-		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is connected", ev.Src)
+		m.logger.Info("ROA server is connected",
+			log.Fields{
+				"Topic": "rpki",
+				"Key":   ev.Src})
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		go client.established()
@@ -188,9 +199,15 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		// all stale ROAs were deleted -> timer was cancelled
 		// so should not be here.
 		if client.oldSessionID != client.sessionID {
-			log.WithFields(log.Fields{"Topic": "rpki"}).Infof("Reconnected to %s. Ignore timeout", client.host)
+			m.logger.Info("Reconnected, ignore timeout",
+				log.Fields{
+					"Topic": "rpki",
+					"Key":   client.host})
 		} else {
-			log.WithFields(log.Fields{"Topic": "rpki"}).Infof("Deleting all ROAs due to timeout with:%s", client.host)
+			m.logger.Info("Deleting all ROAs due to timeout",
+				log.Fields{
+					"Topic": "rpki",
+					"Key":   client.host})
 			m.table.DeleteAll(client.host)
 		}
 	}
@@ -260,11 +277,11 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			received.Error++
 		}
 	} else {
-		log.WithFields(log.Fields{
-			"Topic": "rpki",
-			"Host":  client.host,
-			"Error": err,
-		}).Info("Failed to parse an RTR message")
+		m.logger.Info("Failed to parse an RTR message",
+			log.Fields{
+				"Topic": "rpki",
+				"Host":  client.host,
+				"Error": err})
 	}
 }
 

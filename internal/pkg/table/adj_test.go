@@ -37,7 +37,7 @@ func TestAddPath(t *testing.T) {
 	family := p1.GetRouteFamily()
 	families := []bgp.RouteFamily{family}
 
-	adj := NewAdjRib(families)
+	adj := NewAdjRib(logger, families)
 	adj.Update([]*Path{p1, p2})
 	assert.Equal(t, len(adj.table[family].destinations), 1)
 	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
@@ -84,7 +84,7 @@ func TestAddPathAdjOut(t *testing.T) {
 	family := p1.GetRouteFamily()
 	families := []bgp.RouteFamily{family}
 
-	adj := NewAdjRib(families)
+	adj := NewAdjRib(logger, families)
 	adj.UpdateAdjRibOut([]*Path{p1, p2, p3, p4})
 	assert.Equal(t, len(adj.table[family].destinations), 1)
 	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 4)
@@ -103,7 +103,7 @@ func TestStale(t *testing.T) {
 	family := p1.GetRouteFamily()
 	families := []bgp.RouteFamily{family}
 
-	adj := NewAdjRib(families)
+	adj := NewAdjRib(logger, families)
 	adj.Update([]*Path{p1, p2})
 	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.RouteFamily{family}), 1)
@@ -151,7 +151,7 @@ func TestLLGRStale(t *testing.T) {
 	family := p1.GetRouteFamily()
 	families := []bgp.RouteFamily{family}
 
-	adj := NewAdjRib(families)
+	adj := NewAdjRib(logger, families)
 	adj.Update([]*Path{p1, p2, p3, p4})
 	assert.Equal(t, adj.Count([]bgp.RouteFamily{family}), 4)
 	assert.Equal(t, adj.Accepted([]bgp.RouteFamily{family}), 2)

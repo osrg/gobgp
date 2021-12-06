@@ -39,7 +39,7 @@ func Test_OriginAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewOriginAttributeFromNative(n.(*bgp.PathAttributeOrigin))
+	output, _ := NewOriginAttributeFromNative(n.(*bgp.PathAttributeOrigin))
 	assert.Equal(input.Origin, output.Origin)
 }
 
@@ -64,7 +64,7 @@ func Test_AsPathAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewAsPathAttributeFromNative(n.(*bgp.PathAttributeAsPath))
+	output, _ := NewAsPathAttributeFromNative(n.(*bgp.PathAttributeAsPath))
 	assert.Equal(2, len(output.Segments))
 	for i := 0; i < 2; i++ {
 		assert.True(proto.Equal(input.Segments[i], output.Segments[i]))
@@ -83,7 +83,7 @@ func Test_NextHopAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewNextHopAttributeFromNative(n.(*bgp.PathAttributeNextHop))
+	output, _ := NewNextHopAttributeFromNative(n.(*bgp.PathAttributeNextHop))
 	assert.Equal(input.NextHop, output.NextHop)
 }
 
@@ -99,7 +99,7 @@ func Test_MultiExitDiscAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMultiExitDiscAttributeFromNative(n.(*bgp.PathAttributeMultiExitDisc))
+	output, _ := NewMultiExitDiscAttributeFromNative(n.(*bgp.PathAttributeMultiExitDisc))
 	assert.Equal(input.Med, output.Med)
 }
 
@@ -115,7 +115,7 @@ func Test_LocalPrefAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewLocalPrefAttributeFromNative(n.(*bgp.PathAttributeLocalPref))
+	output, _ := NewLocalPrefAttributeFromNative(n.(*bgp.PathAttributeLocalPref))
 	assert.Equal(input.LocalPref, output.LocalPref)
 }
 
@@ -129,7 +129,7 @@ func Test_AtomicAggregateAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewAtomicAggregateAttributeFromNative(n.(*bgp.PathAttributeAtomicAggregate))
+	output, _ := NewAtomicAggregateAttributeFromNative(n.(*bgp.PathAttributeAtomicAggregate))
 	// AtomicAggregateAttribute has no value
 	assert.NotNil(output)
 }
@@ -147,7 +147,7 @@ func Test_AggregatorAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewAggregatorAttributeFromNative(n.(*bgp.PathAttributeAggregator))
+	output, _ := NewAggregatorAttributeFromNative(n.(*bgp.PathAttributeAggregator))
 	assert.Equal(input.As, output.As)
 	assert.Equal(input.Address, output.Address)
 }
@@ -164,7 +164,7 @@ func Test_CommunitiesAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewCommunitiesAttributeFromNative(n.(*bgp.PathAttributeCommunities))
+	output, _ := NewCommunitiesAttributeFromNative(n.(*bgp.PathAttributeCommunities))
 	assert.Equal(input.Communities, output.Communities)
 }
 
@@ -180,7 +180,7 @@ func Test_OriginatorIdAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewOriginatorIdAttributeFromNative(n.(*bgp.PathAttributeOriginatorId))
+	output, _ := NewOriginatorIdAttributeFromNative(n.(*bgp.PathAttributeOriginatorId))
 	assert.Equal(input.Id, output.Id)
 }
 
@@ -196,7 +196,7 @@ func Test_ClusterListAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewClusterListAttributeFromNative(n.(*bgp.PathAttributeClusterList))
+	output, _ := NewClusterListAttributeFromNative(n.(*bgp.PathAttributeClusterList))
 	assert.Equal(input.Ids, output.Ids)
 }
 
@@ -231,7 +231,7 @@ func Test_MpReachNLRIAttribute_IPv4_UC(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -274,7 +274,7 @@ func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -319,7 +319,7 @@ func Test_MpReachNLRIAttribute_IPv4_MPLS(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -364,7 +364,7 @@ func Test_MpReachNLRIAttribute_IPv6_MPLS(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -405,7 +405,7 @@ func Test_MpReachNLRIAttribute_IPv4_ENCAP(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -446,7 +446,7 @@ func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -494,7 +494,7 @@ func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -544,7 +544,7 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -587,7 +587,7 @@ func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -634,7 +634,7 @@ func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -685,7 +685,7 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -729,7 +729,7 @@ func Test_MpReachNLRIAttribute_IPv4_VPN(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -773,7 +773,7 @@ func Test_MpReachNLRIAttribute_IPv6_VPN(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -817,7 +817,7 @@ func Test_MpReachNLRIAttribute_RTC_UC(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -880,7 +880,7 @@ func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -950,7 +950,7 @@ func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -1013,7 +1013,7 @@ func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -1083,7 +1083,7 @@ func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -1151,7 +1151,7 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(input.NextHops, output.NextHops)
@@ -1193,7 +1193,7 @@ func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewMpUnreachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpUnreachNLRI))
+	output, _ := NewMpUnreachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpUnreachNLRI))
 	assert.Equal(input.Family.Afi, output.Family.Afi)
 	assert.Equal(input.Family.Safi, output.Family.Safi)
 	assert.Equal(2, len(output.Nlris))
@@ -1337,7 +1337,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeExtendedCommunities))
+	output, _ := NewExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeExtendedCommunities))
 	assert.Equal(20, len(output.Communities))
 	for idx, inputCommunity := range input.Communities {
 		outputCommunity := output.Communities[idx]
@@ -1367,7 +1367,7 @@ func Test_As4PathAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewAs4PathAttributeFromNative(n.(*bgp.PathAttributeAs4Path))
+	output, _ := NewAs4PathAttributeFromNative(n.(*bgp.PathAttributeAs4Path))
 	assert.Equal(2, len(output.Segments))
 	for i := 0; i < 2; i++ {
 		assert.True(proto.Equal(input.Segments[i], output.Segments[i]))
@@ -1387,7 +1387,7 @@ func Test_As4AggregatorAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewAs4AggregatorAttributeFromNative(n.(*bgp.PathAttributeAs4Aggregator))
+	output, _ := NewAs4AggregatorAttributeFromNative(n.(*bgp.PathAttributeAs4Aggregator))
 	assert.Equal(input.As, output.As)
 	assert.Equal(input.Address, output.Address)
 }
@@ -1407,7 +1407,7 @@ func Test_PmsiTunnelAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewPmsiTunnelAttributeFromNative(n.(*bgp.PathAttributePmsiTunnel))
+	output, _ := NewPmsiTunnelAttributeFromNative(n.(*bgp.PathAttributePmsiTunnel))
 	assert.Equal(input.Flags, output.Flags)
 	assert.Equal(input.Type, output.Type)
 	assert.Equal(input.Label, output.Label)
@@ -1460,7 +1460,7 @@ func Test_TunnelEncapAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewTunnelEncapAttributeFromNative(n.(*bgp.PathAttributeTunnelEncap))
+	output, _ := NewTunnelEncapAttributeFromNative(n.(*bgp.PathAttributeTunnelEncap))
 	assert.Equal(1, len(output.Tlvs))
 	assert.Equal(input.Tlvs[0].Type, output.Tlvs[0].Type)
 	assert.Equal(len(output.Tlvs[0].Tlvs), len(output.Tlvs[0].Tlvs))
@@ -1499,7 +1499,7 @@ func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewIP6ExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeIP6ExtendedCommunities))
+	output, _ := NewIP6ExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeIP6ExtendedCommunities))
 	assert.Equal(2, len(output.Communities))
 	for idx, inputCommunity := range input.Communities {
 		outputCommunity := output.Communities[idx]
@@ -1533,7 +1533,7 @@ func Test_AigpAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewAigpAttributeFromNative(n.(*bgp.PathAttributeAigp))
+	output, _ := NewAigpAttributeFromNative(n.(*bgp.PathAttributeAigp))
 	assert.Equal(2, len(output.Tlvs))
 	for idx, inputTlv := range input.Tlvs {
 		outputTlv := output.Tlvs[idx]
@@ -1565,7 +1565,7 @@ func Test_LargeCommunitiesAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewLargeCommunitiesAttributeFromNative(n.(*bgp.PathAttributeLargeCommunities))
+	output, _ := NewLargeCommunitiesAttributeFromNative(n.(*bgp.PathAttributeLargeCommunities))
 	assert.Equal(2, len(output.Communities))
 	for i := 0; i < 2; i++ {
 		assert.True(proto.Equal(input.Communities[i], output.Communities[i]))
@@ -1586,7 +1586,7 @@ func Test_UnknownAttribute(t *testing.T) {
 	n, err := unmarshalAttribute(a)
 	assert.Nil(err)
 
-	output := NewUnknownAttributeFromNative(n.(*bgp.PathAttributeUnknown))
+	output, _ := NewUnknownAttributeFromNative(n.(*bgp.PathAttributeUnknown))
 	assert.Equal(input.Flags, output.Flags)
 	assert.Equal(input.Type, output.Type)
 	assert.Equal(input.Value, output.Value)
@@ -1609,7 +1609,7 @@ func TestFullCyclePrefixSID(t *testing.T) {
 				t.Fatalf("test failed with error: %+v", err)
 			}
 			// Converting from Native to API
-			apiPrefixSID := NewPrefixSIDAttributeFromNative(&attribute)
+			apiPrefixSID, _ := NewPrefixSIDAttributeFromNative(&attribute)
 			// Converting back from API to Native
 			recoveredPrefixSID, err := bgp.NewPathAttributePrefixSID(apiPrefixSID)
 			if err != nil {
@@ -1643,7 +1643,7 @@ func TestFullCycleSRv6SIDStructureSubSubTLV(t *testing.T) {
 				t.Fatalf("test failed with error: %+v", err)
 			}
 			// Converting from Native to API
-			apiPrefixSID := MarshalSRv6SubSubTLVs([]bgp.PrefixSIDTLVInterface{&sstlv})
+			apiPrefixSID, _ := MarshalSRv6SubSubTLVs([]bgp.PrefixSIDTLVInterface{&sstlv})
 			// Converting back from API to Native
 			_, recoveredPrefixSID, err := bgp.UnmarshalSubSubTLVs(apiPrefixSID)
 			if err != nil {
@@ -1677,7 +1677,7 @@ func TestFullCycleSRv6InformationSubTLV(t *testing.T) {
 				t.Fatalf("test failed with error: %+v", err)
 			}
 			// Converting from Native to API
-			apiPrefixSID := MarshalSRv6SubTLVs([]bgp.PrefixSIDTLVInterface{&stlv})
+			apiPrefixSID, _ := MarshalSRv6SubTLVs([]bgp.PrefixSIDTLVInterface{&stlv})
 			// Converting back from API to Native
 			_, recoveredPrefixSID, err := bgp.UnmarshalSubTLVs(apiPrefixSID)
 			if err != nil {

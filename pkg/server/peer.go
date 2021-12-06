@@ -1,4 +1,4 @@
-// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2021 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,8 @@ import (
 
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -61,7 +60,7 @@ func (pg *peerGroup) DeleteDynamicNeighbor(prefix string) {
 	delete(pg.dynamicNeighbors, prefix)
 }
 
-func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy) *peer {
+func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
 	conf := config.Neighbor{
 		Config: config.NeighborConfig{
 			PeerGroup: pg.Config.PeerGroupName,
@@ -76,20 +75,22 @@ func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGro
 		},
 	}
 	if err := config.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   neighborAddress,
-		}).Debugf("Can't overwrite neighbor config: %s", err)
+		logger.Debug("Can't overwrite neighbor config",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   neighborAddress,
+				"Error": err})
 		return nil
 	}
 	if err := config.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   neighborAddress,
-		}).Debugf("Can't set default config: %s", err)
+		logger.Debug("Can't set default config",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   neighborAddress,
+				"Error": err})
 		return nil
 	}
-	peer := newPeer(g, &conf, loc, policy)
+	peer := newPeer(g, &conf, loc, policy, logger)
 	peer.fsm.lock.Lock()
 	peer.fsm.state = bgp.BGP_FSM_ACTIVE
 	peer.fsm.lock.Unlock()
@@ -106,11 +107,11 @@ type peer struct {
 	llgrEndChs        []chan struct{}
 }
 
-func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *peer {
+func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
 	peer := &peer{
 		localRib:          loc,
 		policy:            policy,
-		fsm:               newFSM(g, conf),
+		fsm:               newFSM(g, conf, logger),
 		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
 	if peer.isRouteServerClient() {
@@ -119,7 +120,7 @@ func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(rfs)
+	peer.adjRibIn = table.NewAdjRib(peer.fsm.logger, rfs)
 	return peer
 }
 
@@ -246,12 +247,12 @@ func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily
 			case bgp.RF_FS_IPv6_UC:
 				fs = append(fs, bgp.RF_FS_IPv6_VPN)
 			default:
-				log.WithFields(log.Fields{
-					"Topic":  "Peer",
-					"Key":    id,
-					"Family": f,
-					"VRF":    peer.fsm.pConf.Config.Vrf,
-				}).Warn("invalid family configured for neighbor with vrf")
+				peer.fsm.logger.Warn("invalid family configured for neighbor with vrf",
+					log.Fields{
+						"Topic":  "Peer",
+						"Key":    id,
+						"Family": f,
+						"VRF":    peer.fsm.pConf.Config.Vrf})
 			}
 		}
 		families = fs
@@ -402,11 +403,11 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 			return old.Clone(true)
 		}
 	}
-	log.WithFields(log.Fields{
-		"Topic": "Peer",
-		"Key":   peer.ID(),
-		"Data":  path,
-	}).Debug("From me, ignore.")
+	peer.fsm.logger.Debug("From me, ignore",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.ID(),
+			"Data":  path})
 	return nil
 }
 
@@ -416,18 +417,19 @@ func (peer *peer) doPrefixLimit(k bgp.RouteFamily, c *config.PrefixLimitConfig) 
 		pct := int(c.ShutdownThresholdPct)
 		if pct > 0 && !peer.prefixLimitWarned[k] && count > (maxPrefixes*pct/100) {
 			peer.prefixLimitWarned[k] = true
-			log.WithFields(log.Fields{
-				"Topic":         "Peer",
-				"Key":           peer.ID(),
-				"AddressFamily": k.String(),
-			}).Warnf("prefix limit %d%% reached", pct)
+			peer.fsm.logger.Warn("prefix limit reached",
+				log.Fields{
+					"Topic":  "Peer",
+					"Key":    peer.ID(),
+					"Family": k.String(),
+					"Pct":    pct})
 		}
 		if count > maxPrefixes {
-			log.WithFields(log.Fields{
-				"Topic":         "Peer",
-				"Key":           peer.ID(),
-				"AddressFamily": k.String(),
-			}).Warnf("prefix limit reached")
+			peer.fsm.logger.Warn("prefix limit reached",
+				log.Fields{
+					"Topic":  "Peer",
+					"Key":    peer.ID(),
+					"Family": k.String()})
 			return bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
 		}
 	}
@@ -451,15 +453,15 @@ func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 		if p, ok := m[e.State.Family]; !ok {
 			return fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
-			log.WithFields(log.Fields{
-				"Topic":                   "Peer",
-				"Key":                     peer.ID(),
-				"AddressFamily":           e.Config.AfiSafiName,
-				"OldMaxPrefixes":          p.MaxPrefixes,
-				"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
-				"OldShutdownThresholdPct": p.ShutdownThresholdPct,
-				"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct,
-			}).Warnf("update prefix limit configuration")
+			peer.fsm.logger.Warn("update prefix limit configuration",
+				log.Fields{
+					"Topic":                   "Peer",
+					"Key":                     peer.ID(),
+					"AddressFamily":           e.Config.AfiSafiName,
+					"OldMaxPrefixes":          p.MaxPrefixes,
+					"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
+					"OldShutdownThresholdPct": p.ShutdownThresholdPct,
+					"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct})
 			peer.prefixLimitWarned[e.State.Family] = false
 			if msg := peer.doPrefixLimit(e.State.Family, &e.PrefixLimit.Config); msg != nil {
 				sendfsmOutgoingMsg(peer, nil, msg, true)
@@ -475,13 +477,13 @@ func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
-	log.WithFields(log.Fields{
-		"Topic":       "Peer",
-		"Key":         peer.fsm.pConf.State.NeighborAddress,
-		"nlri":        update.NLRI,
-		"withdrawals": update.WithdrawnRoutes,
-		"attributes":  update.PathAttributes,
-	}).Debug("received update")
+	peer.fsm.logger.Debug("received update",
+		log.Fields{
+			"Topic":       "Peer",
+			"Key":         peer.fsm.pConf.State.NeighborAddress,
+			"nlri":        update.NLRI,
+			"withdrawals": update.WithdrawnRoutes,
+			"attributes":  update.PathAttributes})
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	peer.fsm.lock.Unlock()
@@ -491,11 +493,11 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 		for _, path := range e.PathList {
 			if path.IsEOR() {
 				family := path.GetRouteFamily()
-				log.WithFields(log.Fields{
-					"Topic":         "Peer",
-					"Key":           peer.ID(),
-					"AddressFamily": family,
-				}).Debug("EOR received")
+				peer.fsm.logger.Debug("EOR received",
+					log.Fields{
+						"Topic":         "Peer",
+						"Key":           peer.ID(),
+						"AddressFamily": family})
 				eor = append(eor, family)
 				continue
 			}
@@ -522,12 +524,12 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			peer.fsm.lock.RUnlock()
 			if isIBGPPeer {
 				if id := path.GetOriginatorID(); routerId == id.String() {
-					log.WithFields(log.Fields{
-						"Topic":        "Peer",
-						"Key":          peer.ID(),
-						"OriginatorID": id,
-						"Data":         path,
-					}).Debug("Originator ID is mine, ignore")
+					peer.fsm.logger.Debug("Originator ID is mine, ignore",
+						log.Fields{
+							"Topic":        "Peer",
+							"Key":          peer.ID(),
+							"OriginatorID": id,
+							"Data":         path})
 					path.SetRejected(true)
 					continue
 				}
@@ -564,10 +566,10 @@ func (peer *peer) PassConn(conn *net.TCPConn) {
 	case peer.fsm.connCh <- conn:
 	default:
 		conn.Close()
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.ID(),
-		}).Warn("accepted conn is closed to avoid be blocked")
+		peer.fsm.logger.Warn("accepted conn is closed to avoid be blocked",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID()})
 	}
 }
 

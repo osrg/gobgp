@@ -18,22 +18,25 @@ package table
 import (
 	"fmt"
 
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 type AdjRib struct {
 	accepted map[bgp.RouteFamily]int
 	table    map[bgp.RouteFamily]*Table
+	logger   log.Logger
 }
 
-func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
+func NewAdjRib(logger log.Logger, rfList []bgp.RouteFamily) *AdjRib {
 	m := make(map[bgp.RouteFamily]*Table)
 	for _, f := range rfList {
-		m[f] = NewTable(f)
+		m[f] = NewTable(logger, f)
 	}
 	return &AdjRib{
 		table:    m,
 		accepted: make(map[bgp.RouteFamily]int),
+		logger:   logger,
 	}
 }
 
@@ -161,7 +164,7 @@ func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) []*Path {
 		return false
 	})
 	for _, rf := range rfList {
-		adj.table[rf] = NewTable(rf)
+		adj.table[rf] = NewTable(adj.logger, rf)
 		adj.accepted[rf] = 0
 	}
 	return l
@@ -228,7 +231,7 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.RouteFamily) []*Path {
 func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
 	t, ok := adj.table[family]
 	if !ok {
-		t = NewTable(family)
+		t = NewTable(adj.logger, family)
 	}
 	option = append(option, TableSelectOption{adj: true})
 	return t.Select(option...)

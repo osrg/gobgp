@@ -29,8 +29,8 @@ import (
 	"github.com/k-sone/critbitgo"
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 type PolicyOptions struct {
@@ -334,11 +334,6 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 
 	elems := _regexpPrefixRange.FindStringSubmatch(maskRange)
 	if len(elems) != 3 {
-		log.WithFields(log.Fields{
-			"Topic":           "Policy",
-			"Type":            "Prefix",
-			"MaskRangeFormat": maskRange,
-		}).Warn("mask length range format is invalid.")
 		return nil, fmt.Errorf("mask length range format is invalid")
 	}
 
@@ -1385,9 +1380,6 @@ func (c *NextHopCondition) String() string {
 // If NextHopSet's length is zero, return true.
 func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	if len(c.set.list) == 0 {
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-		}).Debug("NextHop doesn't have elements")
 		return true
 	}
 
@@ -1521,9 +1513,6 @@ func (c *NeighborCondition) Option() MatchOption {
 // If NeighborList's length is zero, return true.
 func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	if len(c.set.list) == 0 {
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-		}).Debug("NeighborList doesn't have elements")
 		return true
 	}
 
@@ -2013,7 +2002,7 @@ func NewAfiSafiInCondition(afiSafInConfig []config.AfiSafiType) (*AfiSafiInCondi
 
 type Action interface {
 	Type() ActionType
-	Apply(*Path, *PolicyOptions) *Path
+	Apply(*Path, *PolicyOptions) (*Path, error)
 	String() string
 }
 
@@ -2025,11 +2014,11 @@ func (a *RoutingAction) Type() ActionType {
 	return ACTION_ROUTING
 }
 
-func (a *RoutingAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *RoutingAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	if a.AcceptRoute {
-		return path
+		return path, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func (a *RoutingAction) String() string {
@@ -2128,7 +2117,7 @@ func (a *CommunityAction) Type() ActionType {
 	return ACTION_COMMUNITY
 }
 
-func (a *CommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *CommunityAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	switch a.action {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
 		path.SetCommunities(a.list, false)
@@ -2137,7 +2126,7 @@ func (a *CommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
 		path.SetCommunities(a.list, true)
 	}
-	return path
+	return path, nil
 }
 
 func (a *CommunityAction) ToConfig() *config.SetCommunity {
@@ -2216,7 +2205,7 @@ func (a *ExtCommunityAction) Type() ActionType {
 	return ACTION_EXT_COMMUNITY
 }
 
-func (a *ExtCommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *ExtCommunityAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	switch a.action {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
 		path.SetExtCommunities(a.list, false)
@@ -2225,7 +2214,7 @@ func (a *ExtCommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
 		path.SetExtCommunities(a.list, true)
 	}
-	return path
+	return path, nil
 }
 
 func (a *ExtCommunityAction) ToConfig() *config.SetExtCommunity {
@@ -2322,7 +2311,7 @@ func (a *LargeCommunityAction) Type() ActionType {
 	return ACTION_LARGE_COMMUNITY
 }
 
-func (a *LargeCommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *LargeCommunityAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	switch a.action {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
 		path.SetLargeCommunities(a.list, false)
@@ -2331,7 +2320,7 @@ func (a *LargeCommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
 		path.SetLargeCommunities(a.list, true)
 	}
-	return path
+	return path, nil
 }
 
 func (a *LargeCommunityAction) ToConfig() *config.SetLargeCommunity {
@@ -2405,7 +2394,7 @@ func (a *MedAction) Type() ActionType {
 	return ACTION_MED
 }
 
-func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *MedAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	var err error
 	switch a.action {
 	case MED_ACTION_MOD:
@@ -2413,15 +2402,10 @@ func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	case MED_ACTION_REPLACE:
 		err = path.SetMed(a.value, true)
 	}
-
 	if err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-			"Type":  "Med Action",
-			"Error": err,
-		}).Warn("Could not set Med on path")
+		return path, err
 	}
-	return path
+	return path, nil
 }
 
 func (a *MedAction) ToConfig() config.BgpSetMedType {
@@ -2474,9 +2458,9 @@ func (a *LocalPrefAction) Type() ActionType {
 	return ACTION_LOCAL_PREF
 }
 
-func (a *LocalPrefAction) Apply(path *Path, _ *PolicyOptions) *Path {
+func (a *LocalPrefAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	path.setPathAttr(bgp.NewPathAttributeLocalPref(a.value))
-	return path
+	return path, nil
 }
 
 func (a *LocalPrefAction) ToConfig() uint32 {
@@ -2510,24 +2494,16 @@ func (a *AsPathPrependAction) Type() ActionType {
 	return ACTION_AS_PATH_PREPEND
 }
 
-func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
+func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) (*Path, error) {
 	var asn uint32
 	if a.useLeftMost {
 		aspath := path.GetAsSeqList()
 		if len(aspath) == 0 {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Type":  "AsPathPrepend Action",
-			}).Warn("aspath length is zero.")
-			return path
+			return path, nil
 		}
 		asn = aspath[0]
 		if asn == 0 {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Type":  "AsPathPrepend Action",
-			}).Warn("left-most ASN is not seq")
-			return path
+			return path, nil
 		}
 	} else {
 		asn = a.asn
@@ -2536,7 +2512,7 @@ func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) *Path {
 	confed := option != nil && option.Info != nil && option.Info.Confederation
 	path.PrependAsn(asn, a.repeat, confed)
 
-	return path
+	return path, nil
 }
 
 func (a *AsPathPrependAction) ToConfig() *config.SetAsPathPrepend {
@@ -2594,21 +2570,21 @@ func (a *NexthopAction) Type() ActionType {
 	return ACTION_NEXTHOP
 }
 
-func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) *Path {
+func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error) {
 	if a.self {
 		if options != nil && options.Info != nil && options.Info.LocalAddress != nil {
 			path.SetNexthop(options.Info.LocalAddress)
 		}
-		return path
+		return path, nil
 	}
 	if a.unchanged {
 		if options != nil && options.OldNextHop != nil {
 			path.SetNexthop(options.OldNextHop)
 		}
-		return path
+		return path, nil
 	}
 	path.SetNexthop(a.value)
-	return path
+	return path, nil
 }
 
 func (a *NexthopAction) ToConfig() config.BgpNextHopType {
@@ -2668,21 +2644,28 @@ func (s *Statement) Evaluate(p *Path, options *PolicyOptions) bool {
 	return true
 }
 
-func (s *Statement) Apply(path *Path, options *PolicyOptions) (RouteType, *Path) {
+func (s *Statement) Apply(logger log.Logger, path *Path, options *PolicyOptions) (RouteType, *Path) {
 	result := s.Evaluate(path, options)
 	if result {
 		if len(s.ModActions) != 0 {
 			// apply all modification actions
 			path = path.Clone(path.IsWithdraw)
 			for _, action := range s.ModActions {
-				path = action.Apply(path, options)
+				var err error
+				path, err = action.Apply(path, options)
+				if err != nil {
+					logger.Warn("action failed",
+						log.Fields{
+							"Topic": "policy",
+							"Error": err})
+				}
 			}
 		}
 		//Routing action
 		if s.RouteAction == nil || reflect.ValueOf(s.RouteAction).IsNil() {
 			return ROUTE_TYPE_NONE, path
 		}
-		p := s.RouteAction.Apply(path, options)
+		p, _ := s.RouteAction.Apply(path, options)
 		if p == nil {
 			return ROUTE_TYPE_REJECT, path
 		}
@@ -2992,10 +2975,10 @@ type Policy struct {
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
-func (p *Policy) Apply(path *Path, options *PolicyOptions) (RouteType, *Path) {
+func (p *Policy) Apply(logger log.Logger, path *Path, options *PolicyOptions) (RouteType, *Path) {
 	for _, stmt := range p.Statements {
 		var result RouteType
-		result, path = stmt.Apply(path, options)
+		result, path = stmt.Apply(logger, path, options)
 		if result != ROUTE_TYPE_NONE {
 			return result, path
 		}
@@ -3111,6 +3094,7 @@ type RoutingPolicy struct {
 	statementMap  map[string]*Statement
 	assignmentMap map[string]*Assignment
 	mu            sync.RWMutex
+	logger        log.Logger
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
@@ -3128,7 +3112,7 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	defer r.mu.RUnlock()
 
 	for _, p := range r.getPolicy(id, dir) {
-		result, after = p.Apply(after, options)
+		result, after = p.Apply(r.logger, after, options)
 		if result != ROUTE_TYPE_NONE {
 			break
 		}
@@ -3687,10 +3671,10 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 			err = fmt.Errorf("can't delete. policy %s is in use", name)
 			return
 		}
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-			"Key":   name,
-		}).Debug("delete policy")
+		r.logger.Debug("delete policy",
+			log.Fields{
+				"Topic": "Policy",
+				"Key":   name})
 		delete(pMap, name)
 	} else {
 		err = y.Remove(x)
@@ -3698,10 +3682,10 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	if err == nil && !preserve {
 		for _, st := range y.Statements {
 			if !r.statementInUse(st) {
-				log.WithFields(log.Fields{
-					"Topic": "Policy",
-					"Key":   st.Name,
-				}).Debug("delete unused statement")
+				r.logger.Debug("delete unused statement",
+					log.Fields{
+						"Topic": "Policy",
+						"Key":   st.Name})
 				delete(sMap, st.Name)
 			}
 		}
@@ -3842,9 +3826,10 @@ func (r *RoutingPolicy) Initialize() error {
 	defer r.mu.Unlock()
 
 	if err := r.reload(config.RoutingPolicy{}); err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-		}).Errorf("failed to create routing policy: %s", err)
+		r.logger.Error("failed to create routing policy",
+			log.Fields{
+				"Topic": "Policy",
+				"Error": err})
 		return err
 	}
 	return nil
@@ -3854,10 +3839,11 @@ func (r *RoutingPolicy) setPeerPolicy(id string, c config.ApplyPolicy) {
 	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 		ps, def, err := r.getAssignmentFromConfig(dir, c)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Dir":   dir,
-			}).Errorf("failed to get policy info: %s", err)
+			r.logger.Error("failed to get policy info",
+				log.Fields{
+					"Topic": "Policy",
+					"Dir":   dir,
+					"Error": err})
 			continue
 		}
 		r.setDefaultPolicy(id, dir, def)
@@ -3882,9 +3868,10 @@ func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.App
 	defer r.mu.Unlock()
 
 	if err := r.reload(*rp); err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-		}).Errorf("failed to create routing policy: %s", err)
+		r.logger.Error("failed to create routing policy",
+			log.Fields{
+				"Topic": "Policy",
+				"Error": err})
 		return err
 	}
 
@@ -3894,12 +3881,13 @@ func (r *RoutingPolicy) Reset(rp *config.RoutingPolicy, ap map[string]config.App
 	return nil
 }
 
-func NewRoutingPolicy() *RoutingPolicy {
+func NewRoutingPolicy(logger log.Logger) *RoutingPolicy {
 	return &RoutingPolicy{
 		definedSetMap: make(map[DefinedType]map[string]DefinedSet),
 		policyMap:     make(map[string]*Policy),
 		statementMap:  make(map[string]*Statement),
 		assignmentMap: make(map[string]*Assignment),
+		logger:        logger,
 	}
 }
 
@@ -4131,7 +4119,6 @@ func NewAPIPolicyAssignmentFromTableStruct(t *PolicyAssignment) *api.PolicyAssig
 			case POLICY_DIRECTION_EXPORT:
 				return api.PolicyDirection_EXPORT
 			}
-			log.Errorf("invalid policy-type: %s", t.Type)
 			return api.PolicyDirection_UNKNOWN
 		}(),
 		DefaultAction: func() api.RouteAction {

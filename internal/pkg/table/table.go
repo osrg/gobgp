@@ -23,8 +23,9 @@ import (
 	"unsafe"
 
 	"github.com/k-sone/critbitgo"
+
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 type LookupOption uint8
@@ -53,12 +54,14 @@ type TableSelectOption struct {
 type Table struct {
 	routeFamily  bgp.RouteFamily
 	destinations map[string]*Destination
+	logger       log.Logger
 }
 
-func NewTable(rf bgp.RouteFamily, dsts ...*Destination) *Table {
+func NewTable(logger log.Logger, rf bgp.RouteFamily, dsts ...*Destination) *Table {
 	t := &Table{
 		routeFamily:  rf,
 		destinations: make(map[string]*Destination),
+		logger:       logger,
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)
@@ -135,43 +138,43 @@ func (t *Table) deleteDest(dest *Destination) {
 
 func (t *Table) validatePath(path *Path) {
 	if path == nil {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   t.routeFamily,
-		}).Error("path is nil")
+		t.logger.Error("path is nil",
+			log.Fields{
+				"Topic": "Table",
+				"Key":   t.routeFamily})
 	}
 	if path.GetRouteFamily() != t.routeFamily {
-		log.WithFields(log.Fields{
-			"Topic":      "Table",
-			"Key":        t.routeFamily,
-			"Prefix":     path.GetNlri().String(),
-			"ReceivedRf": path.GetRouteFamily().String(),
-		}).Error("Invalid path. RouteFamily mismatch")
+		t.logger.Error("Invalid path. RouteFamily mismatch",
+			log.Fields{
+				"Topic":      "Table",
+				"Key":        t.routeFamily,
+				"Prefix":     path.GetNlri().String(),
+				"ReceivedRf": path.GetRouteFamily().String()})
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
 			if !y {
-				log.WithFields(log.Fields{
-					"Topic": "Table",
-					"Key":   t.routeFamily,
-					"As":    as,
-				}).Fatal("AsPathParam must be converted to As4PathParam")
+				t.logger.Fatal("AsPathParam must be converted to As4PathParam",
+					log.Fields{
+						"Topic": "Table",
+						"Key":   t.routeFamily,
+						"As":    as})
 			}
 		}
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   t.routeFamily,
-		}).Fatal("AS4_PATH must be converted to AS_PATH")
+		t.logger.Fatal("AS4_PATH must be converted to AS_PATH",
+			log.Fields{
+				"Topic": "Table",
+				"Key":   t.routeFamily})
 	}
 	if path.GetNlri() == nil {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   t.routeFamily,
-		}).Fatal("path's nlri is nil")
+		t.logger.Fatal("path's nlri is nil",
+			log.Fields{
+				"Topic": "Table",
+				"Key":   t.routeFamily})
 	}
 }
 
@@ -179,10 +182,10 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface, size int) *Destina
 	dest := t.GetDestination(nlri)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Nlri":  nlri,
-		}).Debugf("create Destination")
+		t.logger.Debug("create Destination",
+			log.Fields{
+				"Topic": "Table",
+				"Nlri":  nlri})
 		dest = NewDestination(nlri, size)
 		t.setDestination(dest)
 	}

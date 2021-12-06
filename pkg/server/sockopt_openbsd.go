@@ -24,8 +24,6 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -321,29 +319,18 @@ func saAdd(address, key string) error {
 func saDelete(address string) error {
 	if spi, y := spiInMap[address]; y {
 		if err := rfkeyRequest(SADB_DELETE, address, "", spi, ""); err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			}).Info("failed to delete md5 for incoming")
-		} else {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			}).Info("can't find spi for md5 for incoming")
+			return fmt.Errorf("failed to delete md5 for incoming: %s", err)
 		}
+	} else {
+		return fmt.Errorf("can't find spi for md5 for incoming: %s", err)
 	}
+
 	if spi, y := spiOutMap[address]; y {
 		if err := rfkeyRequest(SADB_DELETE, "", address, spi, ""); err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			}).Info("failed to delete md5 for outgoing")
-		} else {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			}).Info("can't find spi for md5 for outgoing")
+			return fmt.Errorf("failed to delete md5 for outgoing: %s", err)
 		}
+	} else {
+		return fmt.Errorf("can't find spi for md5 for outgoing: %s", err)
 	}
 	return nil
 }
@@ -399,24 +386,21 @@ func setBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return fmt.Errorf("binding connection to a device is not supported")
 }
 
-func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
+func dialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
 	if password != "" {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   address,
-		}).Warn("setting md5 for active connection is not supported")
+		logger.Warn("setting md5 for active connection is not supported",
+			"Topic", "Peer",
+			"Key", address)
 	}
 	if ttl != 0 {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   address,
-		}).Warn("setting ttl for active connection is not supported")
+		logger.Warn("setting ttl for active connection is not supported",
+			"Topic", "Peer",
+			"Key", address)
 	}
 	if minTtl != 0 {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   address,
-		}).Warn("setting min ttl for active connection is not supported")
+		logger.Warn("setting min ttl for active connection is not supported",
+			"Topic", "Peer",
+			"Key", address)
 	}
 	return nil
 }

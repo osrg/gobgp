@@ -19,13 +19,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"math"
 	"net"
 	"strings"
 	"syscall"
+
+	"github.com/osrg/gobgp/v3/pkg/log"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 const (
@@ -715,10 +716,6 @@ func (t APIType) ToEach(version uint8, softwareName string) APIType {
 	if !ok {
 		backward = zebraError // fail to convert and error value
 	}
-	log.WithFields(log.Fields{
-		"Topic": "Zebra",
-	}).Debugf("zebra ToEach converts APIType: %d(%s) -> %d (version: %d, software: %s)",
-		t, t.String(), backward, version, softwareName)
 	return backward // success to convert
 }
 func (t APIType) toCommon(version uint8, softwareName string) APIType {
@@ -728,10 +725,6 @@ func (t APIType) toCommon(version uint8, softwareName string) APIType {
 	apiMap := apiTypeMap(version, softwareName)
 	for common, backward := range apiMap {
 		if backward == t {
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Debugf("zebra toCommon converts APIType: %d -> %d(%s) (version: %d, software: %s)",
-				t, common, common.String(), version, softwareName)
 			return common // success to convert
 		}
 	}
@@ -1243,10 +1236,11 @@ type Client struct {
 	conn          net.Conn
 	Version       uint8
 	SoftwareName  string
+	logger        log.Logger
 }
 
 // NewClient returns a Client instance (Client constructor)
-func NewClient(network, address string, typ RouteType, version uint8, software string, mplsLabelRangeSize uint32) (*Client, error) {
+func NewClient(logger log.Logger, network, address string, typ RouteType, version uint8, software string, mplsLabelRangeSize uint32) (*Client, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, err
@@ -1259,9 +1253,9 @@ func NewClient(network, address string, typ RouteType, version uint8, software s
 		version = MaxZapiVer
 	}
 	if !IsAllowableSoftwareName(version, software) {
-		log.WithFields(log.Fields{
-			"Topic": "Zebra",
-		}).Warnf("softwareName %s cannot be used with version %d.", software, version)
+		logger.Warn(fmt.Sprintf("softwareName %s cannot be used with version %d.", software, version),
+			log.Fields{
+				"Topic": "Zebra"})
 		software = ""
 	}
 
@@ -1272,6 +1266,7 @@ func NewClient(network, address string, typ RouteType, version uint8, software s
 		conn:          conn,
 		Version:       version,
 		SoftwareName:  software,
+		logger:        logger,
 	}
 
 	go func() {
@@ -1280,22 +1275,24 @@ func NewClient(network, address string, typ RouteType, version uint8, software s
 			if more {
 				b, err := m.serialize(software)
 				if err != nil {
-					log.WithFields(log.Fields{
-						"Topic": "Zebra",
-					}).Warnf("failed to serialize: %v", m)
+					logger.Warn(fmt.Sprintf("failed to serialize: %v", m),
+						log.Fields{
+							"Topic": "Zebra"})
 					continue
 				}
 
 				_, err = conn.Write(b)
 				if err != nil {
-					log.WithFields(log.Fields{
-						"Topic": "Zebra",
-					}).Errorf("failed to write: %s", err)
+					logger.Error("failed to write",
+						log.Fields{
+							"Topic": "Zebra",
+							"Error": err})
 					closeChannel(outgoing)
 					return
 				}
 			} else {
-				log.Debug("finish outgoing loop")
+				logger.Debug("finish outgoing loop",
+					log.Fields{"Topic": "Zebra"})
 				return
 			}
 		}
@@ -1312,37 +1309,37 @@ func NewClient(network, address string, typ RouteType, version uint8, software s
 	receiveSingleMsg := func() (*Message, error) {
 		headerBuf, err := readAll(conn, int(HeaderSize(version)))
 		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-				"Error": err,
-			}).Error("failed to read header")
+			logger.Error("failed to read header",
+				log.Fields{
+					"Topic": "Zebra",
+					"Error": err})
 			return nil, err
 		}
 
 		hd := &Header{}
 		err = hd.decodeFromBytes(headerBuf)
 		if c.Version != hd.Version {
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Warnf("ZAPI version mismatch. configured version: %d, version of received message:%d", c.Version, hd.Version)
+			logger.Warn(fmt.Sprintf("ZAPI version mismatch. configured version: %d, version of received message:%d", c.Version, hd.Version),
+				log.Fields{
+					"Topic": "Zebra"})
 			return nil, errors.New("ZAPI version mismatch")
 		}
 		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-				"Data":  headerBuf,
-				"Error": err,
-			}).Error("failed to decode header")
+			logger.Error("failed to decode header",
+				log.Fields{
+					"Topic": "Zebra",
+					"Data":  headerBuf,
+					"Error": err})
 			return nil, err
 		}
 
 		bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
 		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic":  "Zebra",
-				"Header": hd,
-				"Error":  err,
-			}).Error("failed to read body")
+			logger.Error("failed to read body",
+				log.Fields{
+					"Topic":  "Zebra",
+					"Header": hd,
+					"Error":  err})
 			return nil, err
 		}
 
@@ -1350,18 +1347,18 @@ func NewClient(network, address string, typ RouteType, version uint8, software s
 		if err != nil {
 			// Just outputting warnings (not error message) and ignore this
 			// error considering the case that body parser is not implemented yet.
-			log.WithFields(log.Fields{
-				"Topic":  "Zebra",
-				"Header": hd,
-				"Data":   bodyBuf,
-				"Error":  err,
-			}).Warn("failed to decode body")
+			logger.Warn("failed to decode body",
+				log.Fields{
+					"Topic":  "Zebra",
+					"Header": hd,
+					"Data":   bodyBuf,
+					"Error":  err})
 			return nil, nil
 		}
-		log.WithFields(log.Fields{
-			"Topic":   "Zebra",
-			"Message": m,
-		}).Debug("read message from zebra")
+		logger.Debug("read message from zebra",
+			log.Fields{
+				"Topic":   "Zebra",
+				"Message": m})
 
 		return m, nil
 	}
@@ -1404,16 +1401,17 @@ func (c *Client) Receive() chan *Message {
 func (c *Client) send(m *Message) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Zebra",
-			}).Debugf("recovered: %s", err)
+			c.logger.Debug("recovered",
+				log.Fields{
+					"Topic": "Zebra",
+					"Error": err})
 		}
 	}()
-	log.WithFields(log.Fields{
-		"Topic":  "Zebra",
-		"Header": m.Header,
-		"Body":   m.Body,
-	}).Debug("send command to zebra")
+	c.logger.Debug("send command to zebra",
+		log.Fields{
+			"Topic":  "Zebra",
+			"Header": m.Header,
+			"Body":   m.Body})
 	c.outgoing <- m
 }
 
@@ -1490,7 +1488,7 @@ func (c *Client) SendRedistribute(t RouteType, vrfID uint32) error {
 
 // SendIPRoute sends ROUTE message to zebra daemon.
 func (c *Client) SendIPRoute(vrfID uint32, body *IPRouteBody, isWithdraw bool) error {
-	routeFamily := body.RouteFamily(c.Version, c.SoftwareName)
+	routeFamily := body.RouteFamily(c.logger, c.Version, c.SoftwareName)
 	if vrfID == DefaultVrf && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
 		return fmt.Errorf("RF_IPv4_VPN or RF_IPv6_VPN are not suitable for Default VRF (default forwarding table)")
 	}
@@ -2299,7 +2297,7 @@ type IPRouteBody struct {
 	API            APIType // API is referred in zclient_test
 }
 
-func (b *IPRouteBody) safi(version uint8, software string) Safi {
+func (b *IPRouteBody) safi(logger log.Logger, version uint8, software string) Safi {
 	// frr 7.2 and later versions have safiUnspec, older versions don't have safiUnspec
 	if b.Safi == safiUnspec && (version < 6 || software == "frr6" || software == "frr7") {
 		return SafiUnicast //safiUnspec is regarded as safiUnicast in older versions
@@ -2315,19 +2313,21 @@ func (b *IPRouteBody) safi(version uint8, software string) Safi {
 	if !ok {
 		safi = safiUnspec // failed to convert
 	}
-	log.WithFields(log.Fields{
-		"Topic": "Zebra",
-		"Body":  b,
-	}).Debugf("zebra converts safi: %s -> %s", b.Safi.String(), safi.String())
+	logger.Debug("zebra converts safi",
+		log.Fields{
+			"Topic": "Zebra",
+			"Body":  b,
+			"Old":   b.Safi.String(),
+			"New":   safi.String()})
 	return safi // success to convert
 }
 
 // RouteFamily is referred in zclient
-func (b *IPRouteBody) RouteFamily(version uint8, softwareName string) bgp.RouteFamily {
+func (b *IPRouteBody) RouteFamily(logger log.Logger, version uint8, softwareName string) bgp.RouteFamily {
 	if b == nil {
 		return bgp.RF_OPAQUE // fail
 	}
-	safi := b.safi(version, softwareName)
+	safi := b.safi(logger, version, softwareName)
 	if safi == safiEvpn {
 		return bgp.RF_EVPN // sucess
 	}
@@ -2346,10 +2346,13 @@ func (b *IPRouteBody) RouteFamily(version uint8, softwareName string) bgp.RouteF
 	if !ok {
 		return bgp.RF_OPAQUE // fail
 	}
-	log.WithFields(log.Fields{
-		"Topic": "Zebra",
-		"Body":  b,
-	}).Debugf("zebra converts safi:%s -> rf: %s", safi.String(), rf.String())
+	logger.Debug("zebra converts safi",
+		log.Fields{
+			"Topic": "Zebra",
+			"Body":  b,
+			"Safi":  safi.String(),
+			"Rf":    rf.String()})
+
 	return rf // sucess
 }
 

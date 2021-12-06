@@ -1,4 +1,4 @@
-// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2021 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import (
 	"time"
 
 	farm "github.com/dgryski/go-farm"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	apb "google.golang.org/protobuf/types/known/anypb"
@@ -39,6 +38,7 @@ import (
 	"github.com/osrg/gobgp/v3/internal/pkg/apiutil"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
@@ -69,11 +69,11 @@ func (s *server) serve() error {
 		var lis net.Listener
 		lis, err = net.Listen(network, address)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "grpc",
-				"Key":   host,
-				"Error": err,
-			}).Warn("listen failed")
+			s.bgpServer.logger.Warn("listen failed",
+				log.Fields{
+					"Topic": "grpc",
+					"Key":   host,
+					"Error": err})
 			break
 		}
 		l = append(l, lis)
@@ -89,11 +89,11 @@ func (s *server) serve() error {
 	serve := func(lis net.Listener) {
 		defer wg.Done()
 		err := s.grpcServer.Serve(lis)
-		log.WithFields(log.Fields{
-			"Topic": "grpc",
-			"Key":   lis,
-			"Error": err,
-		}).Warn("accept failed")
+		s.bgpServer.logger.Warn("accept failed",
+			log.Fields{
+				"Topic": "grpc",
+				"Key":   lis,
+				"Error": err})
 	}
 
 	for _, lis := range l {
@@ -188,8 +188,8 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *apb.Any, anyPattrs [
 
 func toPathApi(path *table.Path, v *table.Validation, nlri_binary, attribute_binary bool) *api.Path {
 	nlri := path.GetNlri()
-	anyNlri := apiutil.MarshalNLRI(nlri)
-	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
+	anyNlri, _ := apiutil.MarshalNLRI(nlri)
+	anyPattrs, _ := apiutil.MarshalPathAttributes(path.GetPathAttrs())
 	var binNlri []byte
 	if nlri_binary {
 		binNlri, _ = nlri.Serialize()

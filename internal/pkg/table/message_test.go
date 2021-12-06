@@ -87,7 +87,7 @@ func TestAsPathAs4Trans1(t *testing.T) {
 	param4s := []*bgp.As4PathParam{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, as4)}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 5)
@@ -117,7 +117,7 @@ func TestAsPathAs4Trans2(t *testing.T) {
 	param4s := []*bgp.As4PathParam{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, as4)}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 3)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 2)
@@ -152,7 +152,7 @@ func TestAsPathAs4Trans3(t *testing.T) {
 	param4s := []*bgp.As4PathParam{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, as4)}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 6)
@@ -181,7 +181,7 @@ func TestAsPathAs4Trans4(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param1, as4param2}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 2)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 4)
@@ -212,7 +212,7 @@ func TestAsPathAs4Trans5(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param2, as4param1}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 3)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 1)
@@ -242,7 +242,7 @@ func TestAsPathAs4TransInvalid1(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param1}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 5)
@@ -268,7 +268,7 @@ func TestAsPathAs4TransInvalid2(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param1}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 5)
@@ -290,7 +290,7 @@ func TestAsPathAs4TransInvalid3(t *testing.T) {
 	aspath := bgp.NewPathAttributeAsPath(params)
 
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 5)
@@ -316,7 +316,7 @@ func TestAsPathAs4TransInvalid4(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param1}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	assert.Equal(t, len(msg.PathAttributes), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
 	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 5)
@@ -340,7 +340,7 @@ func TestASPathAs4TransMultipleParams(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param1, as4param2}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	for _, param := range msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value {
 		p := param.(*bgp.As4PathParam)
 		assert.Equal(t, p.Num, uint8(len(p.AS)))
@@ -364,7 +364,7 @@ func TestASPathAs4TransMultipleLargeParams(t *testing.T) {
 	param4s := []*bgp.As4PathParam{as4param1, as4param2}
 	as4path := bgp.NewPathAttributeAs4Path(param4s)
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{aspath, as4path}, nil).Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(msg)
+	UpdatePathAttrs4ByteAs(logger, msg)
 	for _, param := range msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value {
 		p := param.(*bgp.As4PathParam)
 		assert.Equal(t, p.Num, uint8(len(p.AS)))

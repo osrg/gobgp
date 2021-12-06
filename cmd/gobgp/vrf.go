@@ -168,12 +168,16 @@ func modVrf(typ string, args []string) error {
 				return err
 			}
 		}
+		v, _ := apiutil.MarshalRD(rd)
+		irt, _ := apiutil.MarshalRTs(importRt)
+		ert, _ := apiutil.MarshalRTs(exportRt)
+
 		_, err = client.AddVrf(ctx, &api.AddVrfRequest{
 			Vrf: &api.Vrf{
 				Name:     name,
-				Rd:       apiutil.MarshalRD(rd),
-				ImportRt: apiutil.MarshalRTs(importRt),
-				ExportRt: apiutil.MarshalRTs(exportRt),
+				Rd:       v,
+				ImportRt: irt,
+				ExportRt: ert,
 				Id:       uint32(id),
 			},
 		})

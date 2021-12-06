@@ -1357,7 +1357,7 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	}
 	sort.Slice(attrs, func(i, j int) bool { return attrs[i].GetType() < attrs[j].GetType() })
 
-	return apiutil.NewPath(nlri, false, attrs, time.Now()), nil
+	return apiutil.NewPath(nlri, false, attrs, time.Now())
 }
 
 func showGlobalRib(args []string) error {

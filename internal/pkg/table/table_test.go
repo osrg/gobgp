@@ -25,7 +25,7 @@ import (
 )
 
 func TestLookupLonger(t *testing.T) {
-	tbl := NewTable(bgp.RF_IPv4_UC)
+	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 
 	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(23, "11.0.0.0"), 0))
 	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(24, "11.0.0.0"), 0))
@@ -44,7 +44,7 @@ func TestLookupLonger(t *testing.T) {
 func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	for _, path := range pathT {
 		dest := NewDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(dest)
@@ -57,7 +57,7 @@ func TestTableDeleteDest(t *testing.T) {
 }
 
 func TestTableGetRouteFamily(t *testing.T) {
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	rf := ipv4t.GetRoutefamily()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
@@ -65,7 +65,7 @@ func TestTableGetRouteFamily(t *testing.T) {
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
@@ -79,7 +79,7 @@ func TestTableSetDestinations(t *testing.T) {
 func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
@@ -92,7 +92,7 @@ func TestTableGetDestinations(t *testing.T) {
 }
 
 func TestTableKey(t *testing.T) {
-	tb := NewTable(bgp.RF_IPv4_UC)
+	tb := NewTable(logger, bgp.RF_IPv4_UC)
 	n1, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/0")
 	d1 := NewDestination(n1, 0)
 	n2, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")

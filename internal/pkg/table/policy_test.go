@@ -27,13 +27,12 @@ import (
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetStatement(t *testing.T) {
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.statementMap["statement1"] = &Statement{Name: "statement1"}
 	r.statementMap["statement2"] = &Statement{Name: "statement2"}
 	assert.Equal(t, len(r.GetStatement("")), 2)
@@ -42,7 +41,7 @@ func TestGetStatement(t *testing.T) {
 }
 
 func TestGetPolicy(t *testing.T) {
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.policyMap["p1"] = &Policy{Name: "p1"}
 	r.policyMap["p2"] = &Policy{Name: "p2"}
 	assert.Equal(t, len(r.GetPolicy("")), 2)
@@ -252,10 +251,10 @@ func TestPolicyNotMatch(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
-	pType, newPath := r.policyMap["pd1"].Apply(path, nil)
+	pType, newPath := r.policyMap["pd1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
 }
@@ -283,10 +282,10 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
-	pType, newPath := r.policyMap["pd1"].Apply(path, nil)
+	pType, newPath := r.policyMap["pd1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 }
@@ -315,10 +314,10 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
-	pType, newPath := r.policyMap["pd1"].Apply(path, nil)
+	pType, newPath := r.policyMap["pd1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.Equal(t, path, newPath)
 }
@@ -357,15 +356,15 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path1, nil)
+	pType, newPath := p.Apply(logger, path1, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path1)
 
-	pType2, newPath2 := p.Apply(path2, nil)
+	pType2, newPath2 := p.Apply(logger, path2, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
 	assert.Equal(t, newPath2, path2)
 }
@@ -404,14 +403,14 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
-	pType, newPath := r.policyMap["pd1"].Apply(path1, nil)
+	pType, newPath := r.policyMap["pd1"].Apply(logger, path1, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path1)
 
-	pType2, newPath2 := r.policyMap["pd1"].Apply(path2, nil)
+	pType2, newPath2 := r.policyMap["pd1"].Apply(logger, path2, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
 	assert.Equal(t, newPath2, path2)
 }
@@ -457,15 +456,15 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType1, newPath1 := p.Apply(pathIPv4, nil)
+	pType1, newPath1 := p.Apply(logger, pathIPv4, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType1)
 	assert.Equal(t, newPath1, pathIPv4)
 
-	pType2, newPath2 := p.Apply(pathIPv6, nil)
+	pType2, newPath2 := p.Apply(logger, pathIPv6, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType2)
 	assert.Equal(t, newPath2, pathIPv6)
 }
@@ -485,7 +484,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create match condition
@@ -543,10 +542,10 @@ func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
-	pType, newPath := r.policyMap["pd1"].Apply(path, nil)
+	pType, newPath := r.policyMap["pd1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.Equal(t, newPath, path)
 }
@@ -575,10 +574,10 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
-	pType, newPath := r.policyMap["pd1"].Apply(path, nil)
+	pType, newPath := r.policyMap["pd1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
 }
@@ -598,7 +597,7 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -621,11 +620,11 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
@@ -656,7 +655,7 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create match condition
@@ -724,7 +723,7 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -747,11 +746,11 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions[0])
 	addPolicy(r, p)
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
@@ -772,7 +771,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	aspathParam2 := []bgp.AsPathParamInterface{
@@ -781,7 +780,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
 	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg2.Body.(*bgp.BGPUpdate))
 	path2 := ProcessMessage(updateMsg2, peer, time.Now())[0]
 
 	// create match condition
@@ -869,7 +868,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	// create match condition
@@ -1029,12 +1028,11 @@ func TestAsPathCondition(t *testing.T) {
 		for _, a := range v {
 			result := c.Evaluate(a.path, nil)
 			if a.result != result {
-				log.WithFields(log.Fields{
-					"EXP":      k,
-					"ASSTR":    a.path.GetAsString(),
-					"Expected": a.result,
-					"Result":   result,
-				}).Fatal("failed")
+				t.Logf("failed: EXP: %v, ASSTR: %v, Expected: %v, Result: %v",
+					k,
+					a.path.GetAsString(),
+					a.result,
+					result)
 			}
 		}
 	}
@@ -1056,7 +1054,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -1080,11 +1078,11 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
@@ -1111,7 +1109,7 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	aspathParam2 := []bgp.AsPathParamInterface{
@@ -1122,7 +1120,7 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
 	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg2.Body.(*bgp.BGPUpdate))
 	path2 := ProcessMessage(updateMsg2, peer, time.Now())[0]
 
 	// create match condition
@@ -1228,7 +1226,7 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	// create match condition
@@ -1356,7 +1354,7 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -1380,11 +1378,11 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions[0])
 	addPolicy(r, p)
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
@@ -1415,7 +1413,7 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	// create match condition
@@ -1517,7 +1515,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	communities2 := bgp.NewPathAttributeCommunities([]uint32{
@@ -1528,7 +1526,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 
 	pathAttributes2 := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities2}
 	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg2.Body.(*bgp.BGPUpdate))
 	path2 := ProcessMessage(updateMsg2, peer, time.Now())[0]
 
 	// create match condition
@@ -1663,7 +1661,7 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -1704,16 +1702,16 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd1, pd2)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
 	p = r.policyMap["pd2"]
-	pType, newPath = p.Apply(path, nil)
+	pType, newPath = p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
 
@@ -1749,12 +1747,12 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
@@ -1793,12 +1791,12 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
@@ -1838,11 +1836,11 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
@@ -1884,11 +1882,11 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
@@ -1930,11 +1928,11 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
@@ -1976,12 +1974,12 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	//assert.Equal(t, []uint32{}, newPath.GetCommunities())
@@ -2061,7 +2059,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	convUintStr := func(as uint32) string {
@@ -2245,7 +2243,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -2284,16 +2282,16 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pd2 := createPolicyDefinition("pd2", s2)
 	pl := createRoutingPolicy(ds, pd1, pd2)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
 
 	p = r.policyMap["pd2"]
-	pType, newPath = p.Apply(path, nil)
+	pType, newPath = p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
@@ -2329,12 +2327,12 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	v, err := newPath.GetMed()
@@ -2373,11 +2371,11 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -2418,12 +2416,12 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -2464,12 +2462,12 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -2510,12 +2508,12 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -2553,12 +2551,12 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	err := r.reload(pl)
 	assert.Nil(t, err)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -2583,7 +2581,7 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(body)
+	UpdatePathAttrs4ByteAs(logger, body)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -2601,11 +2599,11 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.reload(pl)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(nil, newPath)
 	assert.Equal([]uint32{65002, 65002, 65002, 65002, 65002, 65002, 65002, 65002, 65002, 65002, 65001, 65000}, newPath.GetAsSeqList())
@@ -2627,7 +2625,7 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(body)
+	UpdatePathAttrs4ByteAs(logger, body)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -2645,11 +2643,11 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.reload(pl)
 	p := r.policyMap["pd1"]
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(nil, newPath)
 	assert.Equal([]uint32{65002, 65002, 65002, 65002, 65002, 65002, 65001, 65000}, newPath.GetAsSeqList())
@@ -2677,7 +2675,7 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(body)
+	UpdatePathAttrs4ByteAs(logger, body)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -2695,13 +2693,13 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.reload(pl)
 	p, err := NewPolicy(pl.PolicyDefinitions[0])
 	assert.Nil(err)
 	addPolicy(r, p)
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(nil, newPath)
 	asn := createAs4Value("65002.1")
@@ -2734,7 +2732,7 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(body)
+	UpdatePathAttrs4ByteAs(logger, body)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
@@ -2752,12 +2750,12 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	r.reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions[0])
 	addPolicy(r, p)
 
-	pType, newPath := p.Apply(path, nil)
+	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(nil, newPath)
 	asn := createAs4Value("65002.1")
@@ -2826,7 +2824,7 @@ func TestLocalPrefAction(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 
 	path := NewPath(nil, nlri, false, attrs, time.Now(), false)
-	p := action.Apply(path, nil)
+	p, _ := action.Apply(path, nil)
 	assert.NotNil(t, p)
 
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
@@ -3085,7 +3083,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 	assert.Equal(t, err, nil)
-	p = a.Apply(p, nil)
+	p, _ = a.Apply(p, nil)
 
 	assert.Equal(t, m.Evaluate(p, nil), false)
 
@@ -3099,7 +3097,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
 	})
 	assert.Equal(t, err, nil)
-	p = a.Apply(p, nil)
+	p, _ = a.Apply(p, nil)
 
 	assert.Equal(t, m.Evaluate(p, nil), true)
 
@@ -3110,7 +3108,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 	assert.Equal(t, err, nil)
-	p = a.Apply(p, nil)
+	p, _ = a.Apply(p, nil)
 
 	assert.Equal(t, m.Evaluate(p, nil), false)
 
@@ -3151,7 +3149,7 @@ func TestLargeCommunitiesMatchClearAction(t *testing.T) {
 	})
 
 	assert.Equal(t, err, nil)
-	p = a.Apply(p, nil)
+	p, _ = a.Apply(p, nil)
 
 	var lc []*bgp.LargeCommunity
 	assert.Equal(t, lc, p.GetLargeCommunities())
@@ -3193,7 +3191,7 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 }
 
 func TestMultipleStatementPolicy(t *testing.T) {
-	r := NewRoutingPolicy()
+	r := NewRoutingPolicy(logger)
 	rp := config.RoutingPolicy{
 		PolicyDefinitions: []config.PolicyDefinition{config.PolicyDefinition{
 			Name: "p1",
@@ -3229,7 +3227,7 @@ func TestMultipleStatementPolicy(t *testing.T) {
 
 	path := NewPath(nil, nlri, false, pattrs, time.Now(), false)
 
-	pType, newPath := r.policyMap["p1"].Apply(path, nil)
+	pType, newPath := r.policyMap["p1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	med, _ := newPath.GetMed()
 	assert.Equal(t, med, uint32(100))

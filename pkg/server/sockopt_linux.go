@@ -22,6 +22,8 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/osrg/gobgp/v3/pkg/log"
 )
 
 const (
@@ -99,7 +101,7 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 	return setsockOptInt(sc, level, name, ttl)
 }
 
-func dialerControl(network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
+func dialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
 	family := syscall.AF_INET
 	raddr, _ := net.ResolveTCPAddr("tcp", address)
 	if raddr.IP.To4() == nil {

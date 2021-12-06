@@ -21,8 +21,8 @@ import (
 
 	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 type ROA struct {
@@ -69,15 +69,17 @@ func (r *roaBucket) GetEntries() []*ROA {
 }
 
 type ROATable struct {
-	trees map[bgp.RouteFamily]*critbitgo.Net
+	trees  map[bgp.RouteFamily]*critbitgo.Net
+	logger log.Logger
 }
 
-func NewROATable() *ROATable {
+func NewROATable(logger log.Logger) *ROATable {
 	m := make(map[bgp.RouteFamily]*critbitgo.Net)
 	m[bgp.RF_IPv4_UC] = critbitgo.NewNet()
 	m[bgp.RF_IPv6_UC] = critbitgo.NewNet()
 	return &ROATable{
-		trees: m,
+		trees:  m,
+		logger: logger,
 	}
 }
 
@@ -140,12 +142,12 @@ func (rt *ROATable) Delete(roa *ROA) {
 			}
 		}
 	}
-	log.WithFields(log.Fields{
-		"Topic":      "rpki",
-		"Network":    roa.Network.String(),
-		"AS":         roa.AS,
-		"Max Length": roa.MaxLen,
-	}).Info("Can't withdraw a ROA")
+	rt.logger.Info("Can't withdraw a ROA",
+		log.Fields{
+			"Topic":      "rpki",
+			"Network":    roa.Network.String(),
+			"AS":         roa.AS,
+			"Max Length": roa.MaxLen})
 }
 
 func (rt *ROATable) DeleteAll(network string) {

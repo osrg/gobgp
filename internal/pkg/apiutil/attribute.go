@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	apb "google.golang.org/protobuf/types/known/anypb"
 
@@ -81,13 +80,13 @@ func UnmarshalAttribute(an *apb.Any) (bgp.PathAttributeInterface, error) {
 	return nil, errors.New("unexpected object")
 }
 
-func NewOriginAttributeFromNative(a *bgp.PathAttributeOrigin) *api.OriginAttribute {
+func NewOriginAttributeFromNative(a *bgp.PathAttributeOrigin) (*api.OriginAttribute, error) {
 	return &api.OriginAttribute{
 		Origin: uint32(a.Value),
-	}
+	}, nil
 }
 
-func NewAsPathAttributeFromNative(a *bgp.PathAttributeAsPath) *api.AsPathAttribute {
+func NewAsPathAttributeFromNative(a *bgp.PathAttributeAsPath) (*api.AsPathAttribute, error) {
 	segments := make([]*api.AsSegment, 0, len(a.Value))
 	for _, param := range a.Value {
 		segments = append(segments, &api.AsSegment{
@@ -97,91 +96,94 @@ func NewAsPathAttributeFromNative(a *bgp.PathAttributeAsPath) *api.AsPathAttribu
 	}
 	return &api.AsPathAttribute{
 		Segments: segments,
-	}
+	}, nil
 }
 
-func NewNextHopAttributeFromNative(a *bgp.PathAttributeNextHop) *api.NextHopAttribute {
+func NewNextHopAttributeFromNative(a *bgp.PathAttributeNextHop) (*api.NextHopAttribute, error) {
 	return &api.NextHopAttribute{
 		NextHop: a.Value.String(),
-	}
+	}, nil
 }
 
-func NewMultiExitDiscAttributeFromNative(a *bgp.PathAttributeMultiExitDisc) *api.MultiExitDiscAttribute {
+func NewMultiExitDiscAttributeFromNative(a *bgp.PathAttributeMultiExitDisc) (*api.MultiExitDiscAttribute, error) {
 	return &api.MultiExitDiscAttribute{
 		Med: a.Value,
-	}
+	}, nil
 }
 
-func NewLocalPrefAttributeFromNative(a *bgp.PathAttributeLocalPref) *api.LocalPrefAttribute {
+func NewLocalPrefAttributeFromNative(a *bgp.PathAttributeLocalPref) (*api.LocalPrefAttribute, error) {
 	return &api.LocalPrefAttribute{
 		LocalPref: a.Value,
-	}
+	}, nil
 }
 
-func NewAtomicAggregateAttributeFromNative(a *bgp.PathAttributeAtomicAggregate) *api.AtomicAggregateAttribute {
-	return &api.AtomicAggregateAttribute{}
+func NewAtomicAggregateAttributeFromNative(a *bgp.PathAttributeAtomicAggregate) (*api.AtomicAggregateAttribute, error) {
+	return &api.AtomicAggregateAttribute{}, nil
 }
 
-func NewAggregatorAttributeFromNative(a *bgp.PathAttributeAggregator) *api.AggregatorAttribute {
+func NewAggregatorAttributeFromNative(a *bgp.PathAttributeAggregator) (*api.AggregatorAttribute, error) {
 	return &api.AggregatorAttribute{
 		As:      a.Value.AS,
 		Address: a.Value.Address.String(),
-	}
+	}, nil
 }
 
-func NewCommunitiesAttributeFromNative(a *bgp.PathAttributeCommunities) *api.CommunitiesAttribute {
+func NewCommunitiesAttributeFromNative(a *bgp.PathAttributeCommunities) (*api.CommunitiesAttribute, error) {
 	return &api.CommunitiesAttribute{
 		Communities: a.Value,
-	}
+	}, nil
 }
 
-func NewOriginatorIdAttributeFromNative(a *bgp.PathAttributeOriginatorId) *api.OriginatorIdAttribute {
+func NewOriginatorIdAttributeFromNative(a *bgp.PathAttributeOriginatorId) (*api.OriginatorIdAttribute, error) {
 	return &api.OriginatorIdAttribute{
 		Id: a.Value.String(),
-	}
+	}, nil
 }
 
-func NewClusterListAttributeFromNative(a *bgp.PathAttributeClusterList) *api.ClusterListAttribute {
+func NewClusterListAttributeFromNative(a *bgp.PathAttributeClusterList) (*api.ClusterListAttribute, error) {
 	ids := make([]string, 0, len(a.Value))
 	for _, id := range a.Value {
 		ids = append(ids, id.String())
 	}
 	return &api.ClusterListAttribute{
 		Ids: ids,
-	}
+	}, nil
 }
 
-func NewPrefixSIDAttributeFromNative(a *bgp.PathAttributePrefixSID) *api.PrefixSID {
+func NewPrefixSIDAttributeFromNative(a *bgp.PathAttributePrefixSID) (*api.PrefixSID, error) {
+	var err error
 	psid := &api.PrefixSID{}
-	psid.Tlvs = MarshalSRv6TLVs(a.TLVs)
-
-	return psid
+	psid.Tlvs, err = MarshalSRv6TLVs(a.TLVs)
+	if err != nil {
+		return nil, err
+	}
+	return psid, nil
 }
 
-func MarshalSRv6TLVs(tlvs []bgp.PrefixSIDTLVInterface) []*apb.Any {
+func MarshalSRv6TLVs(tlvs []bgp.PrefixSIDTLVInterface) ([]*apb.Any, error) {
+	var err error
 	mtlvs := make([]*apb.Any, len(tlvs))
 	for i, tlv := range tlvs {
 		var r proto.Message
 		switch t := tlv.(type) {
 		case *bgp.SRv6L3ServiceAttribute:
 			o := &api.SRv6L3ServiceTLV{}
-			o.SubTlvs = MarshalSRv6SubTLVs(t.SubTLVs)
+			o.SubTlvs, err = MarshalSRv6SubTLVs(t.SubTLVs)
+			if err != nil {
+				return nil, err
+			}
 			r = o
 		default:
-			log.WithFields(log.Fields{
-				"Topic": "protobuf",
-				"SRv6":  t,
-			}).Warn("invalid prefix sid tlv type to marshal")
-			return nil
+			return nil, fmt.Errorf("invalid prefix sid tlv type to marshal %v", t)
 		}
 		a, _ := apb.New(r)
 		mtlvs[i] = a
 	}
 
-	return mtlvs
+	return mtlvs, nil
 }
 
-func MarshalSRv6SubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv6TLV {
+func MarshalSRv6SubTLVs(tlvs []bgp.PrefixSIDTLVInterface) (map[uint32]*api.SRv6TLV, error) {
 	mtlvs := make(map[uint32]*api.SRv6TLV)
 	var key uint32
 	for _, tlv := range tlvs {
@@ -195,16 +197,16 @@ func MarshalSRv6SubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv6TL
 			}
 			o.Sid = make([]byte, len(t.SID))
 			copy(o.Sid, t.SID)
-			o.SubSubTlvs = MarshalSRv6SubSubTLVs(t.SubSubTLVs)
+			var err error
+			o.SubSubTlvs, err = MarshalSRv6SubSubTLVs(t.SubSubTLVs)
+			if err != nil {
+				return nil, err
+			}
 			// SRv6 Information Sub TLV is type 1 Sub TLV
 			key = 1
 			r = o
 		default:
-			log.WithFields(log.Fields{
-				"Topic": "protobuf",
-				"SRv6":  t,
-			}).Warn("invalid prefix sid sub tlv type to marshal")
-			return nil
+			return nil, fmt.Errorf("invalid prefix sid sub tlv type to marshal: %v", t)
 		}
 		a, _ := apb.New(r)
 		tlvs, ok := mtlvs[key]
@@ -217,10 +219,10 @@ func MarshalSRv6SubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv6TL
 		tlvs.Tlv = append(tlvs.Tlv, a)
 	}
 
-	return mtlvs
+	return mtlvs, nil
 }
 
-func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv6TLV {
+func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) (map[uint32]*api.SRv6TLV, error) {
 	mtlvs := make(map[uint32]*api.SRv6TLV)
 	var key uint32
 	for _, tlv := range tlvs {
@@ -239,11 +241,7 @@ func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv
 			key = 1
 			r = o
 		default:
-			log.WithFields(log.Fields{
-				"Topic": "protobuf",
-				"SRv6":  t,
-			}).Warn("invalid prefix sid sub sub tlv type to marshal")
-			return nil
+			return nil, fmt.Errorf("invalid prefix sid sub sub tlv type to marshal: %v", t)
 		}
 		a, _ := apb.New(r)
 		tlvs, ok := mtlvs[key]
@@ -255,11 +253,10 @@ func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) map[uint32]*api.SRv
 		}
 		tlvs.Tlv = append(tlvs.Tlv, a)
 	}
-
-	return mtlvs
+	return mtlvs, nil
 }
 
-func MarshalRD(rd bgp.RouteDistinguisherInterface) *apb.Any {
+func MarshalRD(rd bgp.RouteDistinguisherInterface) (*apb.Any, error) {
 	var r proto.Message
 	switch v := rd.(type) {
 	case *bgp.RouteDistinguisherTwoOctetAS:
@@ -278,14 +275,10 @@ func MarshalRD(rd bgp.RouteDistinguisherInterface) *apb.Any {
 			Assigned: uint32(v.Assigned),
 		}
 	default:
-		log.WithFields(log.Fields{
-			"Topic": "protobuf",
-			"RD":    rd,
-		}).Warn("invalid rd type to marshal")
-		return nil
+		return nil, fmt.Errorf("invalid rd type to marshal: %v", rd)
 	}
 	a, _ := apb.New(r)
-	return a
+	return a, nil
 }
 
 func UnmarshalRD(a *apb.Any) (bgp.RouteDistinguisherInterface, error) {
@@ -308,11 +301,11 @@ func UnmarshalRD(a *apb.Any) (bgp.RouteDistinguisherInterface, error) {
 	return nil, fmt.Errorf("invalid route distinguisher type: %s", a.TypeUrl)
 }
 
-func NewEthernetSegmentIdentifierFromNative(a *bgp.EthernetSegmentIdentifier) *api.EthernetSegmentIdentifier {
+func NewEthernetSegmentIdentifierFromNative(a *bgp.EthernetSegmentIdentifier) (*api.EthernetSegmentIdentifier, error) {
 	return &api.EthernetSegmentIdentifier{
 		Type:  uint32(a.Type),
 		Value: a.Value,
-	}
+	}, nil
 }
 
 func unmarshalESI(a *api.EthernetSegmentIdentifier) (*bgp.EthernetSegmentIdentifier, error) {
@@ -322,7 +315,7 @@ func unmarshalESI(a *api.EthernetSegmentIdentifier) (*bgp.EthernetSegmentIdentif
 	}, nil
 }
 
-func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) []*apb.Any {
+func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) ([]*apb.Any, error) {
 	rules := make([]*apb.Any, 0, len(values))
 	for _, value := range values {
 		var rule proto.Message
@@ -379,7 +372,7 @@ func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) []*apb.Any {
 		a, _ := apb.New(rule)
 		rules = append(rules, a)
 	}
-	return rules
+	return rules, nil
 }
 
 func UnmarshalFlowSpecRules(values []*apb.Any) ([]bgp.FlowSpecComponentInterface, error) {
@@ -431,17 +424,17 @@ func UnmarshalFlowSpecRules(values []*apb.Any) ([]bgp.FlowSpecComponentInterface
 	return rules, nil
 }
 
-func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) *api.LsNodeDescriptor {
+func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, error) {
 	return &api.LsNodeDescriptor{
 		Asn:         d.Asn,
 		BgpLsId:     d.BGPLsID,
 		OspfAreaId:  d.OspfAreaID,
 		Pseudonode:  d.PseudoNode,
 		IgpRouterId: d.IGPRouterID,
-	}
+	}, nil
 }
 
-func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) *api.LsLinkDescriptor {
+func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) (*api.LsLinkDescriptor, error) {
 	return &api.LsLinkDescriptor{
 		LinkLocalId:       uint32OrDefault(n.LinkLocalID),
 		LinkRemoteId:      uint32OrDefault(n.LinkRemoteID),
@@ -449,10 +442,10 @@ func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) *api.LsLinkDescriptor {
 		NeighborAddrIpv4:  ipOrDefault(n.NeighborAddrIPv4),
 		InterfaceAddrIpv6: ipOrDefault(n.InterfaceAddrIPv6),
 		NeighborAddrIpv6:  ipOrDefault(n.NeighborAddrIPv6),
-	}
+	}, nil
 }
 
-func MarshalLsPrefixDescriptor(d *bgp.LsPrefixDescriptor) *api.LsPrefixDescriptor {
+func MarshalLsPrefixDescriptor(d *bgp.LsPrefixDescriptor) (*api.LsPrefixDescriptor, error) {
 	p := &api.LsPrefixDescriptor{
 		OspfRouteType: api.LsOspfRouteType(d.OSPFRouteType),
 	}
@@ -460,60 +453,98 @@ func MarshalLsPrefixDescriptor(d *bgp.LsPrefixDescriptor) *api.LsPrefixDescripto
 	for _, ip := range d.IPReachability {
 		p.IpReachability = append(p.IpReachability, ip.String())
 	}
-
-	return p
+	return p, nil
 }
 
-func MarshalLsNodeNLRI(n *bgp.LsNodeNLRI) *apb.Any {
+func MarshalLsNodeNLRI(n *bgp.LsNodeNLRI) (*apb.Any, error) {
+	ln, err := MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract())
+	if err != nil {
+		return nil, err
+	}
 	node := &api.LsNodeNLRI{
-		LocalNode: MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
+		LocalNode: ln,
 	}
 	a, _ := apb.New(node)
 
-	return a
+	return a, nil
 }
 
-func MarshalLsLinkNLRI(n *bgp.LsLinkNLRI) *apb.Any {
+func MarshalLsLinkNLRI(n *bgp.LsLinkNLRI) (*apb.Any, error) {
 	desc := &bgp.LsLinkDescriptor{}
 	desc.ParseTLVs(n.LinkDesc)
 
+	var err error
+	ln, err := MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract())
+	if err != nil {
+		return nil, err
+	}
+	rn, err := MarshalLsNodeDescriptor(n.RemoteNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract())
+	if err != nil {
+		return nil, err
+	}
+
+	ld, err := MarshalLsLinkDescriptor(desc)
+	if err != nil {
+		return nil, err
+	}
+
 	link := &api.LsLinkNLRI{
-		LocalNode:      MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
-		RemoteNode:     MarshalLsNodeDescriptor(n.RemoteNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
-		LinkDescriptor: MarshalLsLinkDescriptor(desc),
+		LocalNode:      ln,
+		RemoteNode:     rn,
+		LinkDescriptor: ld,
 	}
 	a, _ := apb.New(link)
 
-	return a
+	return a, nil
 }
 
-func MarshalLsPrefixV4NLRI(n *bgp.LsPrefixV4NLRI) *apb.Any {
+func MarshalLsPrefixV4NLRI(n *bgp.LsPrefixV4NLRI) (*apb.Any, error) {
 	desc := &bgp.LsPrefixDescriptor{}
 	desc.ParseTLVs(n.PrefixDesc, false)
 
+	ln, err := MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract())
+	if err != nil {
+		return nil, err
+	}
+
+	pd, err := MarshalLsPrefixDescriptor(desc)
+	if err != nil {
+		return nil, err
+	}
+
 	prefix := &api.LsPrefixV4NLRI{
-		LocalNode:        MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
-		PrefixDescriptor: MarshalLsPrefixDescriptor(desc),
+		LocalNode:        ln,
+		PrefixDescriptor: pd,
 	}
 	a, _ := apb.New(prefix)
 
-	return a
+	return a, nil
 }
 
-func MarshalLsPrefixV6NLRI(n *bgp.LsPrefixV6NLRI) *apb.Any {
+func MarshalLsPrefixV6NLRI(n *bgp.LsPrefixV6NLRI) (*apb.Any, error) {
 	desc := &bgp.LsPrefixDescriptor{}
 	desc.ParseTLVs(n.PrefixDesc, true)
 
+	ln, err := MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract())
+	if err != nil {
+		return nil, err
+	}
+
+	pd, err := MarshalLsPrefixDescriptor(desc)
+	if err != nil {
+		return nil, err
+	}
+
 	prefix := &api.LsPrefixV6NLRI{
-		LocalNode:        MarshalLsNodeDescriptor(n.LocalNodeDesc.(*bgp.LsTLVNodeDescriptor).Extract()),
-		PrefixDescriptor: MarshalLsPrefixDescriptor(desc),
+		LocalNode:        ln,
+		PrefixDescriptor: pd,
 	}
 	a, _ := apb.New(prefix)
 
-	return a
+	return a, nil
 }
 
-func MarshalNLRI(value bgp.AddrPrefixInterface) *apb.Any {
+func MarshalNLRI(value bgp.AddrPrefixInterface) (*apb.Any, error) {
 	var nlri proto.Message
 
 	switch v := value.(type) {
@@ -550,37 +581,75 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *apb.Any {
 	case *bgp.EVPNNLRI:
 		switch r := v.RouteTypeData.(type) {
 		case *bgp.EVPNEthernetAutoDiscoveryRoute:
+			rd, err := MarshalRD(r.RD)
+			if err != nil {
+				return nil, err
+			}
+			esi, err := NewEthernetSegmentIdentifierFromNative(&r.ESI)
+			if err != nil {
+				return nil, err
+			}
+
 			nlri = &api.EVPNEthernetAutoDiscoveryRoute{
-				Rd:          MarshalRD(r.RD),
-				Esi:         NewEthernetSegmentIdentifierFromNative(&r.ESI),
+				Rd:          rd,
+				Esi:         esi,
 				EthernetTag: r.ETag,
 				Label:       r.Label,
 			}
 		case *bgp.EVPNMacIPAdvertisementRoute:
+			rd, err := MarshalRD(r.RD)
+			if err != nil {
+				return nil, err
+			}
+			esi, err := NewEthernetSegmentIdentifierFromNative(&r.ESI)
+			if err != nil {
+				return nil, err
+			}
+
 			nlri = &api.EVPNMACIPAdvertisementRoute{
-				Rd:          MarshalRD(r.RD),
-				Esi:         NewEthernetSegmentIdentifierFromNative(&r.ESI),
+				Rd:          rd,
+				Esi:         esi,
 				EthernetTag: r.ETag,
 				MacAddress:  r.MacAddress.String(),
 				IpAddress:   r.IPAddress.String(),
 				Labels:      r.Labels,
 			}
 		case *bgp.EVPNMulticastEthernetTagRoute:
+			rd, err := MarshalRD(r.RD)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.EVPNInclusiveMulticastEthernetTagRoute{
-				Rd:          MarshalRD(r.RD),
+				Rd:          rd,
 				EthernetTag: r.ETag,
 				IpAddress:   r.IPAddress.String(),
 			}
 		case *bgp.EVPNEthernetSegmentRoute:
+			rd, err := MarshalRD(r.RD)
+			if err != nil {
+				return nil, err
+			}
+			esi, err := NewEthernetSegmentIdentifierFromNative(&r.ESI)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.EVPNEthernetSegmentRoute{
-				Rd:        MarshalRD(r.RD),
-				Esi:       NewEthernetSegmentIdentifierFromNative(&r.ESI),
+				Rd:        rd,
+				Esi:       esi,
 				IpAddress: r.IPAddress.String(),
 			}
 		case *bgp.EVPNIPPrefixRoute:
+			rd, err := MarshalRD(r.RD)
+			if err != nil {
+				return nil, err
+			}
+			esi, err := NewEthernetSegmentIdentifierFromNative(&r.ESI)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.EVPNIPPrefixRoute{
-				Rd:          MarshalRD(r.RD),
-				Esi:         NewEthernetSegmentIdentifierFromNative(&r.ESI),
+				Rd:          rd,
+				Esi:         esi,
 				EthernetTag: r.ETag,
 				IpPrefix:    r.IPPrefix.String(),
 				IpPrefixLen: uint32(r.IPPrefixLength),
@@ -589,80 +658,140 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *apb.Any {
 			}
 		}
 	case *bgp.LabeledVPNIPAddrPrefix:
+		rd, err := MarshalRD(v.RD)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.LabeledVPNIPAddressPrefix{
 			Labels:    v.Labels.Labels,
-			Rd:        MarshalRD(v.RD),
+			Rd:        rd,
 			PrefixLen: uint32(v.IPPrefixLen()),
 			Prefix:    v.Prefix.String(),
 		}
 	case *bgp.LabeledVPNIPv6AddrPrefix:
+		rd, err := MarshalRD(v.RD)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.LabeledVPNIPAddressPrefix{
 			Labels:    v.Labels.Labels,
-			Rd:        MarshalRD(v.RD),
+			Rd:        rd,
 			PrefixLen: uint32(v.IPPrefixLen()),
 			Prefix:    v.Prefix.String(),
 		}
 	case *bgp.RouteTargetMembershipNLRI:
+		rt, err := MarshalRT(v.RouteTarget)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.RouteTargetMembershipNLRI{
 			As: v.AS,
-			Rt: MarshalRT(v.RouteTarget),
+			Rt: rt,
 		}
 	case *bgp.FlowSpecIPv4Unicast:
+		rules, err := MarshalFlowSpecRules(v.Value)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.FlowSpecNLRI{
-			Rules: MarshalFlowSpecRules(v.Value),
+			Rules: rules,
 		}
 	case *bgp.FlowSpecIPv6Unicast:
+		rules, err := MarshalFlowSpecRules(v.Value)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.FlowSpecNLRI{
-			Rules: MarshalFlowSpecRules(v.Value),
+			Rules: rules,
 		}
 	case *bgp.FlowSpecIPv4VPN:
+		rd, err := MarshalRD(v.RD())
+		if err != nil {
+			return nil, err
+		}
+		rules, err := MarshalFlowSpecRules(v.Value)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.VPNFlowSpecNLRI{
-			Rd:    MarshalRD(v.RD()),
-			Rules: MarshalFlowSpecRules(v.Value),
+			Rd:    rd,
+			Rules: rules,
 		}
 	case *bgp.FlowSpecIPv6VPN:
+		rd, err := MarshalRD(v.RD())
+		if err != nil {
+			return nil, err
+		}
+		rules, err := MarshalFlowSpecRules(v.Value)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.VPNFlowSpecNLRI{
-			Rd:    MarshalRD(v.RD()),
-			Rules: MarshalFlowSpecRules(v.Value),
+			Rd:    rd,
+			Rules: rules,
 		}
 	case *bgp.FlowSpecL2VPN:
+		rd, err := MarshalRD(v.RD())
+		if err != nil {
+			return nil, err
+		}
+		rules, err := MarshalFlowSpecRules(v.Value)
+		if err != nil {
+			return nil, err
+		}
 		nlri = &api.VPNFlowSpecNLRI{
-			Rd:    MarshalRD(v.RD()),
-			Rules: MarshalFlowSpecRules(v.Value),
+			Rd:    rd,
+			Rules: rules,
 		}
 	case *bgp.LsAddrPrefix:
 		switch n := v.NLRI.(type) {
 		case *bgp.LsNodeNLRI:
+			node, err := MarshalLsNodeNLRI(n)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.LsAddrPrefix{
 				Type:       api.LsNLRIType_LS_NLRI_NODE,
-				Nlri:       MarshalLsNodeNLRI(n),
+				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
 				Identifier: n.Identifier,
 			}
 
 		case *bgp.LsLinkNLRI:
+			node, err := MarshalLsLinkNLRI(n)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.LsAddrPrefix{
 				Type:       api.LsNLRIType_LS_NLRI_LINK,
-				Nlri:       MarshalLsLinkNLRI(n),
+				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
 				Identifier: n.Identifier,
 			}
 
 		case *bgp.LsPrefixV4NLRI:
+			node, err := MarshalLsPrefixV4NLRI(n)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.LsAddrPrefix{
 				Type:       api.LsNLRIType_LS_NLRI_PREFIX_V4,
-				Nlri:       MarshalLsPrefixV4NLRI(n),
+				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
 				Identifier: n.Identifier,
 			}
 
 		case *bgp.LsPrefixV6NLRI:
+			node, err := MarshalLsPrefixV6NLRI(n)
+			if err != nil {
+				return nil, err
+			}
 			nlri = &api.LsAddrPrefix{
 				Type:       api.LsNLRIType_LS_NLRI_PREFIX_V6,
-				Nlri:       MarshalLsPrefixV6NLRI(n),
+				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
 				Identifier: n.Identifier,
@@ -685,15 +814,19 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) *apb.Any {
 	}
 
 	an, _ := apb.New(nlri)
-	return an
+	return an, nil
 }
 
-func MarshalNLRIs(values []bgp.AddrPrefixInterface) []*apb.Any {
+func MarshalNLRIs(values []bgp.AddrPrefixInterface) ([]*apb.Any, error) {
 	nlris := make([]*apb.Any, 0, len(values))
 	for _, value := range values {
-		nlris = append(nlris, MarshalNLRI(value))
+		nlri, err := MarshalNLRI(value)
+		if err != nil {
+			return nil, err
+		}
+		nlris = append(nlris, nlri)
 	}
-	return nlris
+	return nlris, nil
 }
 
 func UnmarshalNLRI(rf bgp.RouteFamily, an *apb.Any) (bgp.AddrPrefixInterface, error) {
@@ -855,7 +988,7 @@ func UnmarshalNLRIs(rf bgp.RouteFamily, values []*apb.Any) ([]bgp.AddrPrefixInte
 	return nlris, nil
 }
 
-func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) *api.MpReachNLRIAttribute {
+func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) (*api.MpReachNLRIAttribute, error) {
 	var nexthops []string
 	if a.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || a.SAFI == bgp.SAFI_FLOW_SPEC_VPN {
 		nexthops = nil
@@ -865,21 +998,29 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) *api.MpR
 			nexthops = append(nexthops, a.LinkLocalNexthop.String())
 		}
 	}
+	n, err := MarshalNLRIs(a.Value)
+	if err != nil {
+		return nil, err
+	}
 	return &api.MpReachNLRIAttribute{
 		Family:   ToApiFamily(a.AFI, a.SAFI),
 		NextHops: nexthops,
-		Nlris:    MarshalNLRIs(a.Value),
-	}
+		Nlris:    n,
+	}, nil
 }
 
-func NewMpUnreachNLRIAttributeFromNative(a *bgp.PathAttributeMpUnreachNLRI) *api.MpUnreachNLRIAttribute {
+func NewMpUnreachNLRIAttributeFromNative(a *bgp.PathAttributeMpUnreachNLRI) (*api.MpUnreachNLRIAttribute, error) {
+	n, err := MarshalNLRIs(a.Value)
+	if err != nil {
+		return nil, err
+	}
 	return &api.MpUnreachNLRIAttribute{
 		Family: ToApiFamily(a.AFI, a.SAFI),
-		Nlris:  MarshalNLRIs(a.Value),
-	}
+		Nlris:  n,
+	}, nil
 }
 
-func MarshalRT(rt bgp.ExtendedCommunityInterface) *apb.Any {
+func MarshalRT(rt bgp.ExtendedCommunityInterface) (*apb.Any, error) {
 	var r proto.Message
 	switch v := rt.(type) {
 	case *bgp.TwoOctetAsSpecificExtended:
@@ -904,22 +1045,22 @@ func MarshalRT(rt bgp.ExtendedCommunityInterface) *apb.Any {
 			LocalAdmin:   uint32(v.LocalAdmin),
 		}
 	default:
-		log.WithFields(log.Fields{
-			"Topic": "protobuf",
-			"RT":    rt,
-		}).Warn("invalid rt type to marshal")
-		return nil
+		return nil, fmt.Errorf("invalid rt type to marshal: %v", rt)
 	}
 	a, _ := apb.New(r)
-	return a
+	return a, nil
 }
 
-func MarshalRTs(values []bgp.ExtendedCommunityInterface) []*apb.Any {
+func MarshalRTs(values []bgp.ExtendedCommunityInterface) ([]*apb.Any, error) {
 	rts := make([]*apb.Any, 0, len(values))
 	for _, rt := range values {
-		rts = append(rts, MarshalRT(rt))
+		r, err := MarshalRT(rt)
+		if err != nil {
+			return nil, err
+		}
+		rts = append(rts, r)
 	}
-	return rts
+	return rts, nil
 }
 
 func UnmarshalRT(a *apb.Any) (bgp.ExtendedCommunityInterface, error) {
@@ -954,7 +1095,7 @@ func UnmarshalRTs(values []*apb.Any) ([]bgp.ExtendedCommunityInterface, error) {
 	return rts, nil
 }
 
-func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommunities) *api.ExtendedCommunitiesAttribute {
+func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommunities) (*api.ExtendedCommunitiesAttribute, error) {
 	communities := make([]*apb.Any, 0, len(a.Value))
 	for _, value := range a.Value {
 		var community proto.Message
@@ -1057,18 +1198,14 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 				Value: v.Value,
 			}
 		default:
-			log.WithFields(log.Fields{
-				"Topic":     "protobuf",
-				"Community": value,
-			}).Warn("unsupported extended community")
-			return nil
+			return nil, fmt.Errorf("unsupported extended community: %v", value)
 		}
 		an, _ := apb.New(community)
 		communities = append(communities, an)
 	}
 	return &api.ExtendedCommunitiesAttribute{
 		Communities: communities,
-	}
+	}, nil
 }
 
 func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExtendedCommunities, error) {
@@ -1129,7 +1266,7 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 	return bgp.NewPathAttributeExtendedCommunities(communities), nil
 }
 
-func NewAs4PathAttributeFromNative(a *bgp.PathAttributeAs4Path) *api.As4PathAttribute {
+func NewAs4PathAttributeFromNative(a *bgp.PathAttributeAs4Path) (*api.As4PathAttribute, error) {
 	segments := make([]*api.AsSegment, 0, len(a.Value))
 	for _, param := range a.Value {
 		segments = append(segments, &api.AsSegment{
@@ -1139,17 +1276,17 @@ func NewAs4PathAttributeFromNative(a *bgp.PathAttributeAs4Path) *api.As4PathAttr
 	}
 	return &api.As4PathAttribute{
 		Segments: segments,
-	}
+	}, nil
 }
 
-func NewAs4AggregatorAttributeFromNative(a *bgp.PathAttributeAs4Aggregator) *api.As4AggregatorAttribute {
+func NewAs4AggregatorAttributeFromNative(a *bgp.PathAttributeAs4Aggregator) (*api.As4AggregatorAttribute, error) {
 	return &api.As4AggregatorAttribute{
 		As:      a.Value.AS,
 		Address: a.Value.Address.String(),
-	}
+	}, nil
 }
 
-func NewPmsiTunnelAttributeFromNative(a *bgp.PathAttributePmsiTunnel) *api.PmsiTunnelAttribute {
+func NewPmsiTunnelAttributeFromNative(a *bgp.PathAttributePmsiTunnel) (*api.PmsiTunnelAttribute, error) {
 	var flags uint32
 	if a.IsLeafInfoRequired {
 		flags |= 0x01
@@ -1160,10 +1297,10 @@ func NewPmsiTunnelAttributeFromNative(a *bgp.PathAttributePmsiTunnel) *api.PmsiT
 		Type:  uint32(a.TunnelType),
 		Label: a.Label,
 		Id:    id,
-	}
+	}, nil
 }
 
-func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *api.TunnelEncapAttribute {
+func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) (*api.TunnelEncapAttribute, error) {
 	tlvs := make([]*api.TunnelEncapTLV, 0, len(a.Value))
 	for _, v := range a.Value {
 		subTlvs := make([]*apb.Any, 0, len(v.Value))
@@ -1197,7 +1334,11 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *api.Tun
 					Value: sv.Value,
 				}
 			case *bgp.TunnelEncapSubTLVSRBSID:
-				subTlv = MarshalSRBSID(sv)
+				t, err := MarshalSRBSID(sv)
+				if err != nil {
+					return nil, err
+				}
+				subTlv = t
 				// TODO (sbezverk) Add processing of SRv6 Binding SID when it gets assigned ID
 			case *bgp.TunnelEncapSubTLVSRCandidatePathName:
 				subTlv = &api.TunnelEncapSubTLVSRCandidatePathName{
@@ -1219,12 +1360,16 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *api.Tun
 					Priority: uint32(sv.Priority),
 				}
 			case *bgp.TunnelEncapSubTLVSRSegmentList:
+				s, err := MarshalSRSegments(sv.Segments)
+				if err != nil {
+					return nil, err
+				}
 				subTlv = &api.TunnelEncapSubTLVSRSegmentList{
 					Weight: &api.SRWeight{
 						Flags:  uint32(sv.Weight.Flags),
 						Weight: uint32(sv.Weight.Weight),
 					},
-					Segments: MarshalSRSegments(sv.Segments),
+					Segments: s,
 				}
 			}
 			an, _ := apb.New(subTlv)
@@ -1237,10 +1382,10 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) *api.Tun
 	}
 	return &api.TunnelEncapAttribute{
 		Tlvs: tlvs,
-	}
+	}, nil
 }
 
-func NewIP6ExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeIP6ExtendedCommunities) *api.IP6ExtendedCommunitiesAttribute {
+func NewIP6ExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeIP6ExtendedCommunities) (*api.IP6ExtendedCommunitiesAttribute, error) {
 	communities := make([]*apb.Any, 0, len(a.Value))
 	for _, value := range a.Value {
 		var community proto.Message
@@ -1258,21 +1403,17 @@ func NewIP6ExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeIP6Extende
 				LocalAdmin: uint32(v.LocalAdmin),
 			}
 		default:
-			log.WithFields(log.Fields{
-				"Topic":     "protobuf",
-				"Attribute": value,
-			}).Warn("invalid ipv6 extended community")
-			return nil
+			return nil, fmt.Errorf("invalid ipv6 extended community: %v", value)
 		}
 		an, _ := apb.New(community)
 		communities = append(communities, an)
 	}
 	return &api.IP6ExtendedCommunitiesAttribute{
 		Communities: communities,
-	}
+	}, nil
 }
 
-func NewAigpAttributeFromNative(a *bgp.PathAttributeAigp) *api.AigpAttribute {
+func NewAigpAttributeFromNative(a *bgp.PathAttributeAigp) (*api.AigpAttribute, error) {
 	tlvs := make([]*apb.Any, 0, len(a.Values))
 	for _, value := range a.Values {
 		var tlv proto.Message
@@ -1292,10 +1433,10 @@ func NewAigpAttributeFromNative(a *bgp.PathAttributeAigp) *api.AigpAttribute {
 	}
 	return &api.AigpAttribute{
 		Tlvs: tlvs,
-	}
+	}, nil
 }
 
-func NewLargeCommunitiesAttributeFromNative(a *bgp.PathAttributeLargeCommunities) *api.LargeCommunitiesAttribute {
+func NewLargeCommunitiesAttributeFromNative(a *bgp.PathAttributeLargeCommunities) (*api.LargeCommunitiesAttribute, error) {
 	communities := make([]*api.LargeCommunity, 0, len(a.Values))
 	for _, v := range a.Values {
 		communities = append(communities, &api.LargeCommunity{
@@ -1306,7 +1447,7 @@ func NewLargeCommunitiesAttributeFromNative(a *bgp.PathAttributeLargeCommunities
 	}
 	return &api.LargeCommunitiesAttribute{
 		Communities: communities,
-	}
+	}, nil
 }
 
 func stringOrDefault(s *string) string {
@@ -1344,7 +1485,7 @@ func float32OrDefault(f *float32) float32 {
 	return *f
 }
 
-func NewLsAttributeFromNative(a *bgp.PathAttributeLs) *api.LsAttribute {
+func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) {
 	attr := a.Extract()
 
 	apiAttr := &api.LsAttribute{
@@ -1433,93 +1574,185 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) *api.LsAttribute {
 		}
 	}
 
-	return apiAttr
+	return apiAttr, nil
 }
 
-func NewUnknownAttributeFromNative(a *bgp.PathAttributeUnknown) *api.UnknownAttribute {
+func NewUnknownAttributeFromNative(a *bgp.PathAttributeUnknown) (*api.UnknownAttribute, error) {
 	return &api.UnknownAttribute{
 		Flags: uint32(a.Flags),
 		Type:  uint32(a.Type),
 		Value: a.Value,
-	}
+	}, nil
 }
 
-func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*apb.Any {
+func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) ([]*apb.Any, error) {
 	anyList := make([]*apb.Any, 0, len(attrList))
 	for _, attr := range attrList {
 		switch a := attr.(type) {
 		case *bgp.PathAttributeOrigin:
-			n, _ := apb.New(NewOriginAttributeFromNative(a))
+			v, err := NewOriginAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeAsPath:
-			n, _ := apb.New(NewAsPathAttributeFromNative(a))
+			v, err := NewAsPathAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeNextHop:
-			n, _ := apb.New(NewNextHopAttributeFromNative(a))
+			v, err := NewNextHopAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeMultiExitDisc:
-			n, _ := apb.New(NewMultiExitDiscAttributeFromNative(a))
+			v, err := NewMultiExitDiscAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeLocalPref:
-			n, _ := apb.New(NewLocalPrefAttributeFromNative(a))
+			v, err := NewLocalPrefAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeAtomicAggregate:
-			n, _ := apb.New(NewAtomicAggregateAttributeFromNative(a))
+			v, err := NewAtomicAggregateAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeAggregator:
-			n, _ := apb.New(NewAggregatorAttributeFromNative(a))
+			v, err := NewAggregatorAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeCommunities:
-			n, _ := apb.New(NewCommunitiesAttributeFromNative(a))
+			v, err := NewCommunitiesAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeOriginatorId:
-			n, _ := apb.New(NewOriginatorIdAttributeFromNative(a))
+			v, err := NewOriginatorIdAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeClusterList:
-			n, _ := apb.New(NewClusterListAttributeFromNative(a))
+			v, err := NewClusterListAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeMpReachNLRI:
-			n, _ := apb.New(NewMpReachNLRIAttributeFromNative(a))
+			v, err := NewMpReachNLRIAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeMpUnreachNLRI:
-			n, _ := apb.New(NewMpUnreachNLRIAttributeFromNative(a))
+			v, err := NewMpUnreachNLRIAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeExtendedCommunities:
-			n, _ := apb.New(NewExtendedCommunitiesAttributeFromNative(a))
+			v, err := NewExtendedCommunitiesAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeAs4Path:
-			n, _ := apb.New(NewAs4PathAttributeFromNative(a))
+			v, err := NewAs4PathAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeAs4Aggregator:
-			n, _ := apb.New(NewAs4AggregatorAttributeFromNative(a))
+			v, err := NewAs4AggregatorAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributePmsiTunnel:
-			n, _ := apb.New(NewPmsiTunnelAttributeFromNative(a))
+			v, err := NewPmsiTunnelAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeTunnelEncap:
-			n, _ := apb.New(NewTunnelEncapAttributeFromNative(a))
+			v, err := NewTunnelEncapAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeIP6ExtendedCommunities:
-			n, _ := apb.New(NewIP6ExtendedCommunitiesAttributeFromNative(a))
+			v, err := NewIP6ExtendedCommunitiesAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeAigp:
-			n, _ := apb.New(NewAigpAttributeFromNative(a))
+			v, err := NewAigpAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeLargeCommunities:
-			n, _ := apb.New(NewLargeCommunitiesAttributeFromNative(a))
+			v, err := NewLargeCommunitiesAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeLs:
-			n, _ := apb.New(NewLsAttributeFromNative(a))
+			v, err := NewLsAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributePrefixSID:
-			n, _ := apb.New(NewPrefixSIDAttributeFromNative(a))
+			v, err := NewPrefixSIDAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeUnknown:
-			n, _ := apb.New(NewUnknownAttributeFromNative(a))
+			v, err := NewUnknownAttributeFromNative(a)
+			if err != nil {
+				return nil, err
+			}
+			n, _ := apb.New(v)
 			anyList = append(anyList, n)
 		}
 	}
-	return anyList
+	return anyList, nil
 }
 
 func UnmarshalPathAttributes(values []*apb.Any) ([]bgp.PathAttributeInterface, error) {
@@ -1792,7 +2025,7 @@ func unmarshalAttribute(an *apb.Any) (bgp.PathAttributeInterface, error) {
 }
 
 // MarshalSRBSID marshals SR Policy Binding SID Sub TLV structure
-func MarshalSRBSID(bsid *bgp.TunnelEncapSubTLVSRBSID) *apb.Any {
+func MarshalSRBSID(bsid *bgp.TunnelEncapSubTLVSRBSID) (*apb.Any, error) {
 	var r proto.Message
 	s := &api.SRBindingSID{
 		Sid: make([]byte, len(bsid.BSID.Value)),
@@ -1802,7 +2035,7 @@ func MarshalSRBSID(bsid *bgp.TunnelEncapSubTLVSRBSID) *apb.Any {
 	s.IFlag = bsid.Flags&0x40 == 0x40
 	r = s
 	a, _ := apb.New(r)
-	return a
+	return a, nil
 }
 
 // UnmarshalSRBSID unmarshals SR Policy Binding SID Sub TLV and returns native TunnelEncapSubTLVInterface interface
@@ -1863,7 +2096,7 @@ func UnmarshalSRBSID(bsid *apb.Any) (bgp.TunnelEncapSubTLVInterface, error) {
 }
 
 // MarshalSRSegments marshals a slice of SR Policy Segment List
-func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*apb.Any {
+func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) ([]*apb.Any, error) {
 	anyList := make([]*apb.Any, 0, len(segs))
 	for _, seg := range segs {
 		var r proto.Message
@@ -1906,7 +2139,7 @@ func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) []*apb.Any {
 		a, _ := apb.New(r)
 		anyList = append(anyList, a)
 	}
-	return anyList
+	return anyList, nil
 }
 
 // UnmarshalSRSegments unmarshals SR Policy Segments slice of structs

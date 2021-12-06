@@ -25,9 +25,8 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -153,10 +152,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		source = localSource
 	}
 	if !isWithdraw && pattrs == nil {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   nlri.String(),
-		}).Error("Need to provide path attributes for non-withdrawn path.")
 		return nil
 	}
 
@@ -201,7 +196,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInfo, original *Path) *Path {
+func UpdatePathAttrs(logger log.Logger, global *config.Global, peer *config.Neighbor, info *PeerInfo, original *Path) *Path {
 	if peer.RouteServer.Config.RouteServerClient {
 		return original
 	}
@@ -307,10 +302,11 @@ func UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInf
 		}
 
 	} else {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.State.NeighborAddress,
-		}).Warnf("invalid peer type: %v", peer.State.PeerType)
+		logger.Warn("invalid peer type",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.State.NeighborAddress,
+				"Type":  peer.State.PeerType})
 	}
 	return path
 }

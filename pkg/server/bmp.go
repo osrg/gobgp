@@ -1,4 +1,4 @@
-// Copyright (C) 2015-2016 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2015-2021 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,11 +22,10 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/packet/bmp"
 )
@@ -85,7 +84,10 @@ func (r ribout) update(p *table.Path) bool {
 func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
-		log.WithFields(log.Fields{"Topic": "bmp"}).Debugf("Connecting BMP server:%s", b.host)
+		b.s.logger.Debug("Connecting to BMP server",
+			log.Fields{
+				"Topic": "bmp",
+				"Key":   b.host})
 		conn, err := net.Dial("tcp", b.host)
 		if err != nil {
 			select {
@@ -98,7 +100,10 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 				interval *= 2
 			}
 		} else {
-			log.WithFields(log.Fields{"Topic": "bmp"}).Infof("BMP server is connected:%s", b.host)
+			b.s.logger.Debug("Connected to BMP server",
+				log.Fields{
+					"Topic": "bmp",
+					"Key":   b.host})
 			return conn.(*net.TCPConn)
 		}
 	}
@@ -118,9 +123,7 @@ func (b *bmpClient) loop() {
 		if func() bool {
 			ops := []watchOption{watchPeerState(true, false)}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
-				log.WithFields(
-					log.Fields{"Topic": "bmp"},
-				).Warn("both option for route-monitoring-policy is obsoleted")
+				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", log.Fields{"Topic": "bmp"})
 			}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, watchUpdate(true, ""))
@@ -139,7 +142,7 @@ func (b *bmpClient) loop() {
 
 			var tickerCh <-chan time.Time
 			if b.c.StatisticsTimeout == 0 {
-				log.WithFields(log.Fields{"Topic": "bmp"}).Debug("statistics reports disabled")
+				b.s.logger.Debug("statistics reports disabled", log.Fields{"Topic": "bmp"})
 			} else {
 				t := time.NewTicker(time.Duration(b.c.StatisticsTimeout) * time.Second)
 				defer t.Stop()
@@ -150,7 +153,10 @@ func (b *bmpClient) loop() {
 				buf, _ := msg.Serialize()
 				_, err := conn.Write(buf)
 				if err != nil {
-					log.Warnf("failed to write to bmp server %s", b.host)
+					b.s.logger.Warn("failed to write to bmp server",
+						log.Fields{
+							"Topic": "bmp",
+							"Key":   b.host})
 				}
 				return err
 			}

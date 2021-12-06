@@ -27,7 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/osrg/gobgp/v3/pkg/log"
+	"github.com/sirupsen/logrus"
 	lSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )
 
@@ -99,6 +100,42 @@ func addSyslogHook(host, facility string) error {
 	if err != nil {
 		return err
 	}
-	log.AddHook(hook)
+	logger.AddHook(hook)
 	return nil
+}
+
+type builtinLogger struct {
+	logger *logrus.Logger
+}
+
+func (l *builtinLogger) Panic(msg string, fields log.Fields) {
+	l.logger.WithFields(logrus.Fields(fields)).Panic(msg)
+}
+
+func (l *builtinLogger) Fatal(msg string, fields log.Fields) {
+	l.logger.WithFields(logrus.Fields(fields)).Fatal(msg)
+}
+
+func (l *builtinLogger) Error(msg string, fields log.Fields) {
+	l.logger.WithFields(logrus.Fields(fields)).Error(msg)
+}
+
+func (l *builtinLogger) Warn(msg string, fields log.Fields) {
+	l.logger.WithFields(logrus.Fields(fields)).Warn(msg)
+}
+
+func (l *builtinLogger) Info(msg string, fields log.Fields) {
+	l.logger.WithFields(logrus.Fields(fields)).Info(msg)
+}
+
+func (l *builtinLogger) Debug(msg string, fields log.Fields) {
+	l.logger.WithFields(logrus.Fields(fields)).Debug(msg)
+}
+
+func (l *builtinLogger) SetLevel(level log.LogLevel) {
+	l.logger.SetLevel(logrus.Level(level))
+}
+
+func (l *builtinLogger) GetLevel() log.LogLevel {
+	return log.LogLevel(l.logger.GetLevel())
 }

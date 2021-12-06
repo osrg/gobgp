@@ -17,10 +17,11 @@ package table
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	log "github.com/sirupsen/logrus"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
@@ -79,7 +80,7 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 	return nil
 }
 
-func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
+func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
 	var asAttr *bgp.PathAttributeAsPath
 	var as4Attr *bgp.PathAttributeAs4Path
 	asAttrPos := 0
@@ -149,9 +150,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 				if p.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET {
 					typ = "CONFED_SET"
 				}
-				log.WithFields(log.Fields{
-					"Topic": "Table",
-				}).Warnf("AS4_PATH contains %s segment %s. ignore", typ, p.String())
+				logger.Warn(fmt.Sprintf("AS4_PATH contains %s segment %s. ignore", typ, p.String()),
+					log.Fields{
+						"Topic": "Table"})
 				continue
 			}
 			as4Len += p.ASLen()
@@ -160,9 +161,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	if asLen+asConfedLen < as4Len {
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-		}).Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH")
+		logger.Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH",
+			log.Fields{
+				"Topic": "Table"})
 		return nil
 	}
 

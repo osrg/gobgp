@@ -88,7 +88,7 @@ func TestASPathLen(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(update)
+	UpdatePathAttrs4ByteAs(logger, update)
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 	assert.Equal(10, p.GetAsPathLen())
@@ -114,7 +114,7 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(update)
+	UpdatePathAttrs4ByteAs(logger, update)
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
@@ -135,7 +135,7 @@ func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(update)
+	UpdatePathAttrs4ByteAs(logger, update)
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
@@ -163,7 +163,7 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(update)
+	UpdatePathAttrs4ByteAs(logger, update)
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
@@ -192,7 +192,7 @@ func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(update)
+	UpdatePathAttrs4ByteAs(logger, update)
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
@@ -227,7 +227,7 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
-	UpdatePathAttrs4ByteAs(update)
+	UpdatePathAttrs4ByteAs(logger, update)
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 

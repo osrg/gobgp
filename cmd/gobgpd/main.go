@@ -29,7 +29,7 @@ import (
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -38,6 +38,8 @@ import (
 	"github.com/osrg/gobgp/v3/pkg/config"
 	"github.com/osrg/gobgp/v3/pkg/server"
 )
+
+var logger = logrus.New()
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
@@ -77,7 +79,7 @@ func main() {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	} else {
 		if runtime.NumCPU() < opts.CPUs {
-			log.Errorf("Only %d CPUs are available but %d is specified", runtime.NumCPU(), opts.CPUs)
+			logger.Errorf("Only %d CPUs are available but %d is specified", runtime.NumCPU(), opts.CPUs)
 			os.Exit(1)
 		}
 		runtime.GOMAXPROCS(opts.CPUs)
@@ -85,50 +87,50 @@ func main() {
 
 	if !opts.PProfDisable {
 		go func() {
-			log.Println(http.ListenAndServe(opts.PProfHost, nil))
+			logger.Println(http.ListenAndServe(opts.PProfHost, nil))
 		}()
 	}
 
 	switch opts.LogLevel {
 	case "debug":
-		log.SetLevel(log.DebugLevel)
+		logger.SetLevel(logrus.DebugLevel)
 	case "info":
-		log.SetLevel(log.InfoLevel)
+		logger.SetLevel(logrus.InfoLevel)
 	default:
-		log.SetLevel(log.InfoLevel)
+		logger.SetLevel(logrus.InfoLevel)
 	}
 
 	if opts.DisableStdlog {
-		log.SetOutput(ioutil.Discard)
+		logger.SetOutput(ioutil.Discard)
 	} else {
-		log.SetOutput(os.Stdout)
+		logger.SetOutput(os.Stdout)
 	}
 
 	if opts.UseSyslog != "" {
 		if err := addSyslogHook(opts.UseSyslog, opts.Facility); err != nil {
-			log.Error("Unable to connect to syslog daemon, ", opts.UseSyslog)
+			logger.Error("Unable to connect to syslog daemon, ", opts.UseSyslog)
 		}
 	}
 
 	if opts.LogPlain {
 		if opts.DisableStdlog {
-			log.SetFormatter(&log.TextFormatter{
+			logger.SetFormatter(&logrus.TextFormatter{
 				DisableColors: true,
 			})
 		}
 	} else {
-		log.SetFormatter(&log.JSONFormatter{})
+		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
 
 	if opts.Dry {
 		c, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
 		if err != nil {
-			log.WithFields(log.Fields{
+			logger.WithFields(logrus.Fields{
 				"Topic": "Config",
 				"Error": err,
 			}).Fatalf("Can't read config file %s", opts.ConfigFile)
 		}
-		log.WithFields(log.Fields{
+		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
 		}).Info("Finished reading the config file")
 		if opts.LogLevel == "debug" {
@@ -142,21 +144,21 @@ func main() {
 	if opts.TLS {
 		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
-			log.Fatalf("Failed to generate credentials: %v", err)
+			logger.Fatalf("Failed to generate credentials: %v", err)
 		}
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
-	log.Info("gobgpd started")
-	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts))
+	logger.Info("gobgpd started")
+	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts), server.LoggerOption(&builtinLogger{logger: logger}))
 	go bgpServer.Serve()
 
 	if opts.UseSdNotify {
 		if status, err := daemon.SdNotify(false, daemon.SdNotifyReady); !status {
 			if err != nil {
-				log.Warnf("Failed to send notification via sd_notify(): %s", err)
+				logger.Warnf("Failed to send notification via sd_notify(): %s", err)
 			} else {
-				log.Warnf("The socket sd_notify() isn't available")
+				logger.Warnf("The socket sd_notify() isn't available")
 			}
 		}
 	}
@@ -171,18 +173,18 @@ func main() {
 
 	initialConfig, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
 	if err != nil {
-		log.WithFields(log.Fields{
+		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
 			"Error": err,
 		}).Fatalf("Can't read config file %s", opts.ConfigFile)
 	}
-	log.WithFields(log.Fields{
+	logger.WithFields(logrus.Fields{
 		"Topic": "Config",
 	}).Info("Finished reading the config file")
 
 	currentConfig, err := config.InitialConfig(context.Background(), bgpServer, initialConfig, opts.GracefulRestart)
 	if err != nil {
-		log.WithFields(log.Fields{
+		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
 			"Error": err,
 		}).Fatalf("Failed to apply initial configuration %s", opts.ConfigFile)
@@ -194,12 +196,12 @@ func main() {
 			return
 		}
 
-		log.WithFields(log.Fields{
+		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
 		}).Info("Reload the config file")
 		newConfig, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
 		if err != nil {
-			log.WithFields(log.Fields{
+			logger.WithFields(logrus.Fields{
 				"Topic": "Config",
 				"Error": err,
 			}).Warningf("Can't read config file %s", opts.ConfigFile)
@@ -208,7 +210,7 @@ func main() {
 
 		currentConfig, err = config.UpdateConfig(context.Background(), bgpServer, currentConfig, newConfig)
 		if err != nil {
-			log.WithFields(log.Fields{
+			logrus.WithFields(logrus.Fields{
 				"Topic": "Config",
 				"Error": err,
 			}).Warningf("Failed to update config %s", opts.ConfigFile)
@@ -218,7 +220,7 @@ func main() {
 }
 
 func stopServer(bgpServer *server.BgpServer, useSdNotify bool) {
-	log.Info("stopping gobgpd server")
+	logger.Info("stopping gobgpd server")
 
 	bgpServer.Stop()
 	if useSdNotify {

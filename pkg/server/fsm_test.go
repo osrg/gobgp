@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2021 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -300,7 +300,6 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 }
 
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
@@ -323,7 +322,6 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 }
 
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
@@ -372,7 +370,7 @@ func TestBadBGPIdentifier(t *testing.T) {
 
 func makePeerAndHandler() (*peer, *fsmHandler) {
 	p := &peer{
-		fsm: newFSM(&config.Global{}, &config.Neighbor{}),
+		fsm: newFSM(&config.Global{}, &config.Neighbor{}, log.NewDefaultLogger()),
 	}
 
 	h := &fsmHandler{
