@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-
-	api "github.com/osrg/gobgp/v3/api"
 )
 
 type SRPolicyNLRI struct {
@@ -676,47 +674,9 @@ func (s *SegmentTypeA) MarshalJSON() ([]byte, error) {
 	})
 }
 
+//go:generate go run internal/generate.go SRBehavior
+//go:generate stringer -type=SRBehavior
 type SRBehavior int32
-
-const (
-	RESERVED              SRBehavior = SRBehavior(api.SRv6Behavior_RESERVED)
-	END                   SRBehavior = SRBehavior(api.SRv6Behavior_END)
-	END_WITH_PSP          SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP)
-	END_WITH_USP          SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_USP)
-	END_WITH_PSP_USP      SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP_USP)
-	ENDX                  SRBehavior = SRBehavior(api.SRv6Behavior_ENDX)
-	ENDX_WITH_PSP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP)
-	ENDX_WITH_USP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_USP)
-	ENDX_WITH_PSP_USP     SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP_USP)
-	ENDT                  SRBehavior = SRBehavior(api.SRv6Behavior_ENDT)
-	ENDT_WITH_PSP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP)
-	ENDT_WITH_USP         SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_USP)
-	ENDT_WITH_PSP_USP     SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP_USP)
-	END_B6_ENCAPS         SRBehavior = SRBehavior(api.SRv6Behavior_END_B6_ENCAPS)
-	END_BM                SRBehavior = SRBehavior(api.SRv6Behavior_END_BM)
-	END_DX6               SRBehavior = SRBehavior(api.SRv6Behavior_END_DX6)
-	END_DX4               SRBehavior = SRBehavior(api.SRv6Behavior_END_DX4)
-	END_DT6               SRBehavior = SRBehavior(api.SRv6Behavior_END_DT6)
-	END_DT4               SRBehavior = SRBehavior(api.SRv6Behavior_END_DT4)
-	END_DT46              SRBehavior = SRBehavior(api.SRv6Behavior_END_DT46)
-	END_DX2               SRBehavior = SRBehavior(api.SRv6Behavior_END_DX2)
-	END_DX2V              SRBehavior = SRBehavior(api.SRv6Behavior_END_DX2V)
-	END_DT2U              SRBehavior = SRBehavior(api.SRv6Behavior_RESERVED)
-	END_DT2M              SRBehavior = SRBehavior(api.SRv6Behavior_END_DT2M)
-	END_B6_ENCAPS_Red     SRBehavior = SRBehavior(api.SRv6Behavior_END_B6_ENCAPS_Red)
-	END_WITH_USD          SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_USD)
-	END_WITH_PSP_USD      SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP_USD)
-	END_WITH_USP_USD      SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_USP_USD)
-	END_WITH_PSP_USP_USD  SRBehavior = SRBehavior(api.SRv6Behavior_END_WITH_PSP_USP_USD)
-	ENDX_WITH_USD         SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_USD)
-	ENDX_WITH_PSP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP_USD)
-	ENDX_WITH_USP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_USP_USD)
-	ENDX_WITH_PSP_USP_USD SRBehavior = SRBehavior(api.SRv6Behavior_ENDX_WITH_PSP_USP_USD)
-	ENDT_WITH_USD         SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_USD)
-	ENDT_WITH_PSP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP_USD)
-	ENDT_WITH_USP_USD     SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_USP_USD)
-	ENDT_WITH_PSP_USP_USD SRBehavior = SRBehavior(api.SRv6Behavior_ENDT_WITH_PSP_USP_USD)
-)
 
 type SRv6EndpointBehaviorStructure struct {
 	Behavior SRBehavior
@@ -751,7 +711,7 @@ func (s *SRv6EndpointBehaviorStructure) Serialize() ([]byte, error) {
 
 func (s *SRv6EndpointBehaviorStructure) String() string {
 	return fmt.Sprintf("{Behavior: %s, BlockLen: %d, NodeLen: %d, FuncLen: %d, ArgLen: %d}",
-		api.SRv6Behavior(s.Behavior).String(), s.BlockLen, s.NodeLen, s.FuncLen, s.ArgLen)
+		s.Behavior.String(), s.BlockLen, s.NodeLen, s.FuncLen, s.ArgLen)
 }
 
 func (s *SRv6EndpointBehaviorStructure) MarshalJSON() ([]byte, error) {

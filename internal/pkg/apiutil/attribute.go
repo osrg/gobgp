@@ -74,10 +74,209 @@ func UnmarshalAttribute(an *apb.Any) (bgp.PathAttributeInterface, error) {
 			}
 		}
 		return bgp.NewPathAttributeClusterList(a.Ids), nil
+	case *api.MpReachNLRIAttribute:
+		if a.Family == nil {
+			return nil, fmt.Errorf("empty family")
+		}
+		rf := ToRouteFamily(a.Family)
+		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
+		if err != nil {
+			return nil, err
+		}
+		afi, safi := bgp.RouteFamilyToAfiSafi(rf)
+		nexthop := "0.0.0.0"
+		var linkLocalNexthop net.IP
+		if afi == bgp.AFI_IP6 {
+			nexthop = "::"
+			if len(a.NextHops) > 1 {
+				linkLocalNexthop = net.ParseIP(a.NextHops[1]).To16()
+				if linkLocalNexthop == nil {
+					return nil, fmt.Errorf("invalid nexthop: %s", a.NextHops[1])
+				}
+			}
+		}
+		if safi == bgp.SAFI_FLOW_SPEC_UNICAST || safi == bgp.SAFI_FLOW_SPEC_VPN {
+			nexthop = ""
+		} else if len(a.NextHops) > 0 {
+			nexthop = a.NextHops[0]
+			if net.ParseIP(nexthop) == nil {
+				return nil, fmt.Errorf("invalid nexthop: %s", nexthop)
+			}
+		}
+		attr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlris)
+		attr.LinkLocalNexthop = linkLocalNexthop
+		return attr, nil
+	case *api.MpUnreachNLRIAttribute:
+		rf := ToRouteFamily(a.Family)
+		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
+		if err != nil {
+			return nil, err
+		}
+		return bgp.NewPathAttributeMpUnreachNLRI(nlris), nil
+	case *api.ExtendedCommunitiesAttribute:
+		return unmarshalExComm(a)
+	case *api.As4PathAttribute:
+		params := make([]*bgp.As4PathParam, 0, len(a.Segments))
+		for _, segment := range a.Segments {
+			params = append(params, bgp.NewAs4PathParam(uint8(segment.Type), segment.Numbers))
+		}
+		return bgp.NewPathAttributeAs4Path(params), nil
+	case *api.As4AggregatorAttribute:
+		if net.ParseIP(a.Address).To4() == nil {
+			return nil, fmt.Errorf("invalid as4 aggregator address: %s", a.Address)
+		}
+		return bgp.NewPathAttributeAs4Aggregator(a.As, a.Address), nil
+	case *api.PmsiTunnelAttribute:
+		typ := bgp.PmsiTunnelType(a.Type)
+		var isLeafInfoRequired bool
+		if a.Flags&0x01 > 0 {
+			isLeafInfoRequired = true
+		}
+		var id bgp.PmsiTunnelIDInterface
+		switch typ {
+		case bgp.PMSI_TUNNEL_TYPE_INGRESS_REPL:
+			ip := net.IP(a.Id)
+			if ip.To4() == nil && ip.To16() == nil {
+				return nil, fmt.Errorf("invalid pmsi tunnel identifier: %s", a.Id)
+			}
+			id = bgp.NewIngressReplTunnelID(ip.String())
+		default:
+			id = bgp.NewDefaultPmsiTunnelID(a.Id)
+		}
+		return bgp.NewPathAttributePmsiTunnel(typ, isLeafInfoRequired, a.Label, id), nil
+	case *api.TunnelEncapAttribute:
+		tlvs := make([]*bgp.TunnelEncapTLV, 0, len(a.Tlvs))
+		for _, tlv := range a.Tlvs {
+			subTlvs := make([]bgp.TunnelEncapSubTLVInterface, 0, len(tlv.Tlvs))
+			for _, an := range tlv.Tlvs {
+				var subTlv bgp.TunnelEncapSubTLVInterface
+				subValue, err := an.UnmarshalNew()
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal tunnel encapsulation attribute sub tlv: %s", err)
+				}
+				switch sv := subValue.(type) {
+				case *api.TunnelEncapSubTLVEncapsulation:
+					subTlv = bgp.NewTunnelEncapSubTLVEncapsulation(sv.Key, sv.Cookie)
+				case *api.TunnelEncapSubTLVProtocol:
+					subTlv = bgp.NewTunnelEncapSubTLVProtocol(uint16(sv.Protocol))
+				case *api.TunnelEncapSubTLVColor:
+					subTlv = bgp.NewTunnelEncapSubTLVColor(sv.Color)
+				case *api.TunnelEncapSubTLVEgressEndpoint:
+					subTlv = bgp.NewTunnelEncapSubTLVEgressEndpoint(sv.Address)
+				case *api.TunnelEncapSubTLVUDPDestPort:
+					subTlv = bgp.NewTunnelEncapSubTLVUDPDestPort(uint16(sv.Port))
+				case *api.TunnelEncapSubTLVSRPreference:
+					subTlv = bgp.NewTunnelEncapSubTLVSRPreference(sv.Flags, sv.Preference)
+				case *api.TunnelEncapSubTLVSRPriority:
+					subTlv = bgp.NewTunnelEncapSubTLVSRPriority(uint8(sv.Priority))
+				case *api.TunnelEncapSubTLVSRCandidatePathName:
+					subTlv = bgp.NewTunnelEncapSubTLVSRCandidatePathName(sv.CandidatePathName)
+				case *api.TunnelEncapSubTLVSRENLP:
+					subTlv = bgp.NewTunnelEncapSubTLVSRENLP(sv.Flags, bgp.SRENLPValue(sv.Enlp))
+				case *api.TunnelEncapSubTLVSRBindingSID:
+					var err error
+					subTlv, err = UnmarshalSRBSID(sv.Bsid)
+					if err != nil {
+						return nil, fmt.Errorf("failed to unmarshal tunnel encapsulation attribute sub tlv: %s", err)
+					}
+				case *api.TunnelEncapSubTLVSRSegmentList:
+					var err error
+					weight := uint32(0)
+					flags := uint8(0)
+					if sv.Weight != nil {
+						weight = sv.Weight.Weight
+						flags = uint8(sv.Weight.Flags)
+					}
+					s := &bgp.TunnelEncapSubTLVSRSegmentList{
+						TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
+							Type:   bgp.ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST,
+							Length: uint16(6), // Weight (6 bytes) + length of segment (added later, after all segments are discovered)
+						},
+						Weight: &bgp.SegmentListWeight{
+							TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
+								Type:   bgp.SegmentListSubTLVWeight,
+								Length: uint16(6),
+							},
+							Flags:  flags,
+							Weight: weight,
+						},
+						Segments: make([]bgp.TunnelEncapSubTLVInterface, 0),
+					}
+					if len(sv.Segments) != 0 {
+						s.Segments, err = UnmarshalSRSegments(sv.Segments)
+						if err != nil {
+							return nil, fmt.Errorf("failed to unmarshal tunnel encapsulation attribute sub tlv: %s", err)
+						}
+					}
+					// Get total length of Segment List Sub TLV
+					for _, seg := range s.Segments {
+						s.TunnelEncapSubTLV.Length += uint16(seg.Len() + 2) // Adding 1 byte of type and 1 byte of length for each Segment object
+					}
+					subTlv = s
+				case *api.TunnelEncapSubTLVUnknown:
+					subTlv = bgp.NewTunnelEncapSubTLVUnknown(bgp.EncapSubTLVType(sv.Type), sv.Value)
+				default:
+					return nil, fmt.Errorf("invalid tunnel encapsulation attribute sub tlv: %v type: %T", subValue, sv)
+				}
+				subTlvs = append(subTlvs, subTlv)
+			}
+			tlvs = append(tlvs, bgp.NewTunnelEncapTLV(bgp.TunnelType(tlv.Type), subTlvs))
+		}
+		return bgp.NewPathAttributeTunnelEncap(tlvs), nil
+	case *api.IP6ExtendedCommunitiesAttribute:
+		communities := make([]bgp.ExtendedCommunityInterface, 0, len(a.Communities))
+		for _, an := range a.Communities {
+			var community bgp.ExtendedCommunityInterface
+			value, err := an.UnmarshalNew()
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal ipv6 extended community: %s", err)
+			}
+			switch v := value.(type) {
+			case *api.IPv6AddressSpecificExtended:
+				community = bgp.NewIPv6AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Address, uint16(v.LocalAdmin), v.IsTransitive)
+			case *api.RedirectIPv6AddressSpecificExtended:
+				community = bgp.NewRedirectIPv6AddressSpecificExtended(v.Address, uint16(v.LocalAdmin))
+			}
+			if community == nil {
+				return nil, fmt.Errorf("invalid ipv6 extended community: %v", value)
+			}
+			communities = append(communities, community)
+		}
+		return bgp.NewPathAttributeIP6ExtendedCommunities(communities), nil
+
+	case *api.AigpAttribute:
+		tlvs := make([]bgp.AigpTLVInterface, 0, len(a.Tlvs))
+		for _, an := range a.Tlvs {
+			var tlv bgp.AigpTLVInterface
+			value, err := an.UnmarshalNew()
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal aigp attribute tlv: %s", err)
+			}
+			switch v := value.(type) {
+			case *api.AigpTLVIGPMetric:
+				tlv = bgp.NewAigpTLVIgpMetric(v.Metric)
+			case *api.AigpTLVUnknown:
+				tlv = bgp.NewAigpTLVDefault(bgp.AigpTLVType(v.Type), v.Value)
+			}
+			if tlv == nil {
+				return nil, fmt.Errorf("invalid aigp attribute tlv: %v", value)
+			}
+			tlvs = append(tlvs, tlv)
+		}
+		return bgp.NewPathAttributeAigp(tlvs), nil
+
+	case *api.LargeCommunitiesAttribute:
+		communities := make([]*bgp.LargeCommunity, 0, len(a.Communities))
+		for _, c := range a.Communities {
+			communities = append(communities, bgp.NewLargeCommunity(c.GlobalAdmin, c.LocalData1, c.LocalData2))
+		}
+		return bgp.NewPathAttributeLargeCommunities(communities), nil
 	case *api.PrefixSID:
-		return bgp.NewPathAttributePrefixSID(a)
+		return UnmarshalPrefixSID(a)
+	case *api.UnknownAttribute:
+		return bgp.NewPathAttributeUnknown(bgp.BGPAttrFlag(a.Flags), bgp.BGPAttrType(a.Type), a.Value), nil
 	}
-	return nil, errors.New("unexpected object")
+	return nil, errors.New("unknown path attribute")
 }
 
 func NewOriginAttributeFromNative(a *bgp.PathAttributeOrigin) (*api.OriginAttribute, error) {
@@ -1759,7 +1958,7 @@ func UnmarshalPathAttributes(values []*apb.Any) ([]bgp.PathAttributeInterface, e
 	attrList := make([]bgp.PathAttributeInterface, 0, len(values))
 	typeMap := make(map[bgp.BGPAttrType]struct{})
 	for _, an := range values {
-		attr, err := unmarshalAttribute(an)
+		attr, err := UnmarshalAttribute(an)
 		if err != nil {
 			return nil, err
 		}
@@ -1770,258 +1969,6 @@ func UnmarshalPathAttributes(values []*apb.Any) ([]bgp.PathAttributeInterface, e
 		attrList = append(attrList, attr)
 	}
 	return attrList, nil
-}
-
-func unmarshalAttribute(an *apb.Any) (bgp.PathAttributeInterface, error) {
-	value, err := an.UnmarshalNew()
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal route distinguisher: %s", err)
-	}
-	switch a := value.(type) {
-	case *api.OriginAttribute:
-		return bgp.NewPathAttributeOrigin(uint8(a.Origin)), nil
-	case *api.AsPathAttribute:
-		params := make([]bgp.AsPathParamInterface, 0, len(a.Segments))
-		for _, segment := range a.Segments {
-			params = append(params, bgp.NewAs4PathParam(uint8(segment.Type), segment.Numbers))
-		}
-		return bgp.NewPathAttributeAsPath(params), nil
-	case *api.NextHopAttribute:
-		nexthop := net.ParseIP(a.NextHop).To4()
-		if nexthop == nil {
-			if nexthop = net.ParseIP(a.NextHop).To16(); nexthop == nil {
-				return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
-			}
-		}
-		return bgp.NewPathAttributeNextHop(a.NextHop), nil
-	case *api.MultiExitDiscAttribute:
-		return bgp.NewPathAttributeMultiExitDisc(a.Med), nil
-	case *api.LocalPrefAttribute:
-		return bgp.NewPathAttributeLocalPref(a.LocalPref), nil
-	case *api.AtomicAggregateAttribute:
-		return bgp.NewPathAttributeAtomicAggregate(), nil
-	case *api.AggregatorAttribute:
-		if net.ParseIP(a.Address).To4() == nil {
-			return nil, fmt.Errorf("invalid aggregator address: %s", a.Address)
-		}
-		return bgp.NewPathAttributeAggregator(a.As, a.Address), nil
-	case *api.CommunitiesAttribute:
-		return bgp.NewPathAttributeCommunities(a.Communities), nil
-	case *api.OriginatorIdAttribute:
-		if net.ParseIP(a.Id).To4() == nil {
-			return nil, fmt.Errorf("invalid originator id: %s", a.Id)
-		}
-		return bgp.NewPathAttributeOriginatorId(a.Id), nil
-	case *api.ClusterListAttribute:
-		for _, id := range a.Ids {
-			if net.ParseIP(id).To4() == nil {
-				return nil, fmt.Errorf("invalid cluster list: %s", a.Ids)
-			}
-		}
-		return bgp.NewPathAttributeClusterList(a.Ids), nil
-	case *api.MpReachNLRIAttribute:
-		if a.Family == nil {
-			return nil, fmt.Errorf("empty family")
-		}
-		rf := ToRouteFamily(a.Family)
-		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
-		if err != nil {
-			return nil, err
-		}
-		afi, safi := bgp.RouteFamilyToAfiSafi(rf)
-		nexthop := "0.0.0.0"
-		var linkLocalNexthop net.IP
-		if afi == bgp.AFI_IP6 {
-			nexthop = "::"
-			if len(a.NextHops) > 1 {
-				linkLocalNexthop = net.ParseIP(a.NextHops[1]).To16()
-				if linkLocalNexthop == nil {
-					return nil, fmt.Errorf("invalid nexthop: %s", a.NextHops[1])
-				}
-			}
-		}
-		if safi == bgp.SAFI_FLOW_SPEC_UNICAST || safi == bgp.SAFI_FLOW_SPEC_VPN {
-			nexthop = ""
-		} else if len(a.NextHops) > 0 {
-			nexthop = a.NextHops[0]
-			if net.ParseIP(nexthop) == nil {
-				return nil, fmt.Errorf("invalid nexthop: %s", nexthop)
-			}
-		}
-		attr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlris)
-		attr.LinkLocalNexthop = linkLocalNexthop
-		return attr, nil
-	case *api.MpUnreachNLRIAttribute:
-		rf := ToRouteFamily(a.Family)
-		nlris, err := UnmarshalNLRIs(rf, a.Nlris)
-		if err != nil {
-			return nil, err
-		}
-		return bgp.NewPathAttributeMpUnreachNLRI(nlris), nil
-	case *api.ExtendedCommunitiesAttribute:
-		return unmarshalExComm(a)
-	case *api.As4PathAttribute:
-		params := make([]*bgp.As4PathParam, 0, len(a.Segments))
-		for _, segment := range a.Segments {
-			params = append(params, bgp.NewAs4PathParam(uint8(segment.Type), segment.Numbers))
-		}
-		return bgp.NewPathAttributeAs4Path(params), nil
-	case *api.As4AggregatorAttribute:
-		if net.ParseIP(a.Address).To4() == nil {
-			return nil, fmt.Errorf("invalid as4 aggregator address: %s", a.Address)
-		}
-		return bgp.NewPathAttributeAs4Aggregator(a.As, a.Address), nil
-	case *api.PmsiTunnelAttribute:
-		typ := bgp.PmsiTunnelType(a.Type)
-		var isLeafInfoRequired bool
-		if a.Flags&0x01 > 0 {
-			isLeafInfoRequired = true
-		}
-		var id bgp.PmsiTunnelIDInterface
-		switch typ {
-		case bgp.PMSI_TUNNEL_TYPE_INGRESS_REPL:
-			ip := net.IP(a.Id)
-			if ip.To4() == nil && ip.To16() == nil {
-				return nil, fmt.Errorf("invalid pmsi tunnel identifier: %s", a.Id)
-			}
-			id = bgp.NewIngressReplTunnelID(ip.String())
-		default:
-			id = bgp.NewDefaultPmsiTunnelID(a.Id)
-		}
-		return bgp.NewPathAttributePmsiTunnel(typ, isLeafInfoRequired, a.Label, id), nil
-	case *api.TunnelEncapAttribute:
-		tlvs := make([]*bgp.TunnelEncapTLV, 0, len(a.Tlvs))
-		for _, tlv := range a.Tlvs {
-			subTlvs := make([]bgp.TunnelEncapSubTLVInterface, 0, len(tlv.Tlvs))
-			for _, an := range tlv.Tlvs {
-				var subTlv bgp.TunnelEncapSubTLVInterface
-				subValue, err := an.UnmarshalNew()
-				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal tunnel encapsulation attribute sub tlv: %s", err)
-				}
-				switch sv := subValue.(type) {
-				case *api.TunnelEncapSubTLVEncapsulation:
-					subTlv = bgp.NewTunnelEncapSubTLVEncapsulation(sv.Key, sv.Cookie)
-				case *api.TunnelEncapSubTLVProtocol:
-					subTlv = bgp.NewTunnelEncapSubTLVProtocol(uint16(sv.Protocol))
-				case *api.TunnelEncapSubTLVColor:
-					subTlv = bgp.NewTunnelEncapSubTLVColor(sv.Color)
-				case *api.TunnelEncapSubTLVEgressEndpoint:
-					subTlv = bgp.NewTunnelEncapSubTLVEgressEndpoint(sv.Address)
-				case *api.TunnelEncapSubTLVUDPDestPort:
-					subTlv = bgp.NewTunnelEncapSubTLVUDPDestPort(uint16(sv.Port))
-				case *api.TunnelEncapSubTLVSRPreference:
-					subTlv = bgp.NewTunnelEncapSubTLVSRPreference(sv.Flags, sv.Preference)
-				case *api.TunnelEncapSubTLVSRPriority:
-					subTlv = bgp.NewTunnelEncapSubTLVSRPriority(uint8(sv.Priority))
-				case *api.TunnelEncapSubTLVSRCandidatePathName:
-					subTlv = bgp.NewTunnelEncapSubTLVSRCandidatePathName(sv.CandidatePathName)
-				case *api.TunnelEncapSubTLVSRENLP:
-					subTlv = bgp.NewTunnelEncapSubTLVSRENLP(sv.Flags, bgp.SRENLPValue(sv.Enlp))
-				case *api.TunnelEncapSubTLVSRBindingSID:
-					var err error
-					subTlv, err = UnmarshalSRBSID(sv.Bsid)
-					if err != nil {
-						return nil, fmt.Errorf("failed to unmarshal tunnel encapsulation attribute sub tlv: %s", err)
-					}
-				case *api.TunnelEncapSubTLVSRSegmentList:
-					var err error
-					weight := uint32(0)
-					flags := uint8(0)
-					if sv.Weight != nil {
-						weight = sv.Weight.Weight
-						flags = uint8(sv.Weight.Flags)
-					}
-					s := &bgp.TunnelEncapSubTLVSRSegmentList{
-						TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
-							Type:   bgp.ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST,
-							Length: uint16(6), // Weight (6 bytes) + length of segment (added later, after all segments are discovered)
-						},
-						Weight: &bgp.SegmentListWeight{
-							TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
-								Type:   bgp.SegmentListSubTLVWeight,
-								Length: uint16(6),
-							},
-							Flags:  flags,
-							Weight: weight,
-						},
-						Segments: make([]bgp.TunnelEncapSubTLVInterface, 0),
-					}
-					if len(sv.Segments) != 0 {
-						s.Segments, err = UnmarshalSRSegments(sv.Segments)
-						if err != nil {
-							return nil, fmt.Errorf("failed to unmarshal tunnel encapsulation attribute sub tlv: %s", err)
-						}
-					}
-					// Get total length of Segment List Sub TLV
-					for _, seg := range s.Segments {
-						s.TunnelEncapSubTLV.Length += uint16(seg.Len() + 2) // Adding 1 byte of type and 1 byte of length for each Segment object
-					}
-					subTlv = s
-				case *api.TunnelEncapSubTLVUnknown:
-					subTlv = bgp.NewTunnelEncapSubTLVUnknown(bgp.EncapSubTLVType(sv.Type), sv.Value)
-				default:
-					return nil, fmt.Errorf("invalid tunnel encapsulation attribute sub tlv: %v type: %T", subValue, sv)
-				}
-				subTlvs = append(subTlvs, subTlv)
-			}
-			tlvs = append(tlvs, bgp.NewTunnelEncapTLV(bgp.TunnelType(tlv.Type), subTlvs))
-		}
-		return bgp.NewPathAttributeTunnelEncap(tlvs), nil
-	case *api.IP6ExtendedCommunitiesAttribute:
-		communities := make([]bgp.ExtendedCommunityInterface, 0, len(a.Communities))
-		for _, an := range a.Communities {
-			var community bgp.ExtendedCommunityInterface
-			value, err := an.UnmarshalNew()
-			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal ipv6 extended community: %s", err)
-			}
-			switch v := value.(type) {
-			case *api.IPv6AddressSpecificExtended:
-				community = bgp.NewIPv6AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Address, uint16(v.LocalAdmin), v.IsTransitive)
-			case *api.RedirectIPv6AddressSpecificExtended:
-				community = bgp.NewRedirectIPv6AddressSpecificExtended(v.Address, uint16(v.LocalAdmin))
-			}
-			if community == nil {
-				return nil, fmt.Errorf("invalid ipv6 extended community: %v", value)
-			}
-			communities = append(communities, community)
-		}
-		return bgp.NewPathAttributeIP6ExtendedCommunities(communities), nil
-
-	case *api.AigpAttribute:
-		tlvs := make([]bgp.AigpTLVInterface, 0, len(a.Tlvs))
-		for _, an := range a.Tlvs {
-			var tlv bgp.AigpTLVInterface
-			value, err := an.UnmarshalNew()
-			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal aigp attribute tlv: %s", err)
-			}
-			switch v := value.(type) {
-			case *api.AigpTLVIGPMetric:
-				tlv = bgp.NewAigpTLVIgpMetric(v.Metric)
-			case *api.AigpTLVUnknown:
-				tlv = bgp.NewAigpTLVDefault(bgp.AigpTLVType(v.Type), v.Value)
-			}
-			if tlv == nil {
-				return nil, fmt.Errorf("invalid aigp attribute tlv: %v", value)
-			}
-			tlvs = append(tlvs, tlv)
-		}
-		return bgp.NewPathAttributeAigp(tlvs), nil
-
-	case *api.LargeCommunitiesAttribute:
-		communities := make([]*bgp.LargeCommunity, 0, len(a.Communities))
-		for _, c := range a.Communities {
-			communities = append(communities, bgp.NewLargeCommunity(c.GlobalAdmin, c.LocalData1, c.LocalData2))
-		}
-		return bgp.NewPathAttributeLargeCommunities(communities), nil
-	case *api.PrefixSID:
-		return bgp.NewPathAttributePrefixSID(a)
-	case *api.UnknownAttribute:
-		return bgp.NewPathAttributeUnknown(bgp.BGPAttrFlag(a.Flags), bgp.BGPAttrType(a.Type), a.Value), nil
-	}
-	return nil, errors.New("unknown path attribute")
 }
 
 // MarshalSRBSID marshals SR Policy Binding SID Sub TLV structure
@@ -2209,4 +2156,136 @@ func UnmarshalSRSegments(s []*apb.Any) ([]bgp.TunnelEncapSubTLVInterface, error)
 		}
 	}
 	return segments, nil
+}
+
+func UnmarshalPrefixSID(psid *api.PrefixSID) (*bgp.PathAttributePrefixSID, error) {
+	t := bgp.BGP_ATTR_TYPE_PREFIX_SID
+	s := &bgp.PathAttributePrefixSID{
+		PathAttribute: bgp.PathAttribute{
+			Flags: bgp.PathAttrFlags[t],
+			Type:  t,
+		},
+		TLVs: make([]bgp.PrefixSIDTLVInterface, 0),
+	}
+	for _, raw := range psid.Tlvs {
+		tlv, err := raw.UnmarshalNew()
+		if err != nil {
+			return nil, err
+		}
+		switch v := tlv.(type) {
+		case *api.SRv6L3ServiceTLV:
+			tlvLength, tlvs, err := UnmarshalSubTLVs(v.SubTlvs)
+			if err != nil {
+				return nil, err
+			}
+			o := &bgp.SRv6L3ServiceAttribute{
+				TLV: bgp.TLV{
+					Type:   bgp.TLVType(5),
+					Length: tlvLength,
+				},
+			}
+			s.PathAttribute.Length += tlvLength
+			// Storing Sub TLVs in a Service TLV
+			o.SubTLVs = append(o.SubTLVs, tlvs...)
+			// Adding Service TLV to Path Attribute TLV slice.
+			s.TLVs = append(s.TLVs, o)
+		default:
+			return nil, fmt.Errorf("unknown or not implemented Prefix SID type: %+v", v)
+		}
+	}
+	// Final Path Attribute Length is 3 bytes of the header and 1 byte Reserved1
+	s.PathAttribute.Length += (3 + 1)
+	return s, nil
+}
+
+func UnmarshalSubTLVs(stlvs map[uint32]*api.SRv6TLV) (uint16, []bgp.PrefixSIDTLVInterface, error) {
+	p := make([]bgp.PrefixSIDTLVInterface, 0, len(stlvs))
+	l := uint16(0)
+	// v.SubTlvs is a map by sub tlv type and the value is a slice of sub tlvs of the specific type
+	for t, tlv := range stlvs {
+		switch t {
+		case 1:
+			// Sub TLV Type 1 is SRv6 Informational Sub TLV
+			for _, stlvRaw := range tlv.Tlv {
+				// Instantiating Information Sub TLV
+				info := &bgp.SRv6InformationSubTLV{
+					SubTLV: bgp.SubTLV{
+						Type: bgp.SubTLVType(1),
+					},
+					SubSubTLVs: make([]bgp.PrefixSIDTLVInterface, 0),
+				}
+				raw, err := stlvRaw.UnmarshalNew()
+				if err != nil {
+					return 0, nil, err
+				}
+				infoProto := raw.(*api.SRv6InformationSubTLV)
+				info.SID = make([]byte, len(infoProto.Sid))
+				copy(info.SID, infoProto.Sid)
+				// TODO Once RFC is published add processing of flags
+				info.Flags = 0
+				info.EndpointBehavior = uint16(infoProto.EndpointBehavior)
+				var sstlvslength uint16
+				var sstlvs []bgp.PrefixSIDTLVInterface
+				if len(infoProto.SubSubTlvs) != 0 {
+					// Processing Sub Sub TLVs
+					var err error
+					sstlvslength, sstlvs, err = UnmarshalSubSubTLVs(infoProto.SubSubTlvs)
+					if err != nil {
+						return 0, nil, err
+					}
+					info.SubSubTLVs = append(info.SubSubTLVs, sstlvs...)
+				}
+				// SRv6 Information Sub TLV length consists 1 byte Resrved2, 16 bytes SID, 1 byte flags, 2 bytes Endpoint Behavior
+				// 1 byte Reserved3 and length of Sub Sub TLVs
+				info.SubTLV.Length = 1 + 16 + 1 + 2 + 1 + sstlvslength
+				// For total Srv6 Information Sub TLV length, adding 3 bytes of the Sub TLV header
+				l += info.SubTLV.Length + 4
+				p = append(p, info)
+			}
+		default:
+			return 0, nil, fmt.Errorf("unknown or not implemented Prefix SID Sub TLV type: %d", t)
+		}
+	}
+
+	return l, p, nil
+}
+
+func UnmarshalSubSubTLVs(stlvs map[uint32]*api.SRv6TLV) (uint16, []bgp.PrefixSIDTLVInterface, error) {
+	p := make([]bgp.PrefixSIDTLVInterface, 0)
+	l := uint16(0)
+	// v.SubTlvs is a map by sub tlv type and the value is a slice of sub tlvs of the specific type
+	for t, tlv := range stlvs {
+		switch t {
+		case 1:
+			// Sub Sub TLV Type 1 is SRv6 Structure Sub Sub TLV
+			for _, stlvRaw := range tlv.Tlv {
+				// Instantiating Information Sub TLV
+				structure := &bgp.SRv6SIDStructureSubSubTLV{
+					SubSubTLV: bgp.SubSubTLV{
+						Type:   bgp.SubSubTLVType(1),
+						Length: 6,
+					},
+				}
+				raw, err := stlvRaw.UnmarshalNew()
+				if err != nil {
+					return 0, nil, err
+				}
+				structureProto := raw.(*api.SRv6StructureSubSubTLV)
+				structure.LocalBlockLength = uint8(structureProto.LocalBlockLength)
+				structure.LocatorNodeLength = uint8(structureProto.LocalNodeLength)
+				structure.FunctionLength = uint8(structureProto.FunctionLength)
+				structure.ArgumentLength = uint8(structureProto.ArgumentLength)
+				structure.TranspositionLength = uint8(structureProto.TranspositionLength)
+				structure.TranspositionOffset = uint8(structureProto.TranspositionOffset)
+
+				// SRv6 Structure Sub Sub TLV length consists of header 3 bytes, 6 bytes of value
+				l += 3 + 6
+				p = append(p, structure)
+			}
+		default:
+			return 0, nil, fmt.Errorf("unknown or not implemented Prefix SID Sub TLV type: %d", t)
+		}
+	}
+
+	return l, p, nil
 }
