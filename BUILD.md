@@ -2,7 +2,7 @@
 
 ## Building the development environment
 
-You need a working [Go environment](https://golang.org/doc/install) (1.11 or newer) with the module support enabled.
+You need a working [Go environment](https://golang.org/doc/install) (1.16 or newer).
 
 ```bash
 $ git clone git://github.com/osrg/gobgp
@@ -43,14 +43,14 @@ If you have a non-standard release and want to have more build information there
 
 ```bash
 go build -ldflags \
-	"-X github.com/osrg/gobgp/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
-	 -X github.com/osrg/gobgp/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
-	 -X github.com/osrg/gobgp/internal/pkg/version.IDENTIFIER=alpha"
+	"-X github.com/osrg/gobgp/v3/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
+	 -X github.com/osrg/gobgp/v3/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
+	 -X github.com/osrg/gobgp/v3/internal/pkg/version.IDENTIFIER=alpha"
 ```
 
 This will produce a version number of
 
-```2.5.0-alpaha+commit.XXXYYYZZ.date.20190526```
+```3.0.0-alpaha+commit.XXXYYYZZ.date.20211209```
 
 ## Layout
 
@@ -58,10 +58,10 @@ The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-
 
 ## Changing the gRPC API
 
-If you change the gRPC API, generate `api/gobgp.pb.go` in the following way:
+If you change the gRPC API, generate `api/*.pb.go` in the following way:
 
 ```bash
 $ ./tools/grpc/genproto.sh
 ```
 
-In order for the script to run, you'll need protoc (version 3.7.1) in your PATH.
+In order for the script to run, you'll need protoc (version 3.19.1) in your PATH.

@@ -16,7 +16,7 @@ The described how to use and how to customize of bash completion.
 
 1. add gobgp's path to PATH environment variable
 
-    If you run 'go get github.com/osrg/gobgp/gobgp', gobgp command is installed
+    If you run 'go get github.com/osrg/gobgp/gobgp/v3', gobgp command is installed
     in $GOPATH/bin.
 
     ```bash
