@@ -5,7 +5,6 @@ This page explains how to set up a scenario test environment and run the test.
 ## Contents
 
 - [Prerequisites](#prerequisites)
-- [Check](#check)
 - [Set up dependencies](#set-up-dependencies)
 - [Install local source code](#install-local-source-code)
 - [Run test](#run-test)
@@ -13,99 +12,89 @@ This page explains how to set up a scenario test environment and run the test.
 
 ## Prerequisites
 
-Assume you finished setting up [Golang](https://golang.org/doc/install) and
-[Docker](https://docs.docker.com/installation/ubuntulinux/) on Ubuntu 18.04
-Server VM.
-We recommend allocating memory more than 8GB to the VM.
-Because this scenario test runs a lot of test cases concurrently.
-
-## Check
-
-Please check if Golang and Docker is installed correctly and
-make sure the $GOPATH is defined.
+Go, Docker, and Python3 need to be set up.
 
 ```shell
 $ python --version
-Python 3.6.8
+Python 3.9.7
 
-$ echo $GOPATH
-/home/yokoi-h/work
+$ go version
+go version go1.17 linux/arm64
 
-$ sudo docker version
-Client: Docker Engine - Community
- Version:           19.03.4
- API version:       1.40
- Go version:        go1.12.10
- Git commit:        9013bf583a
- Built:             Fri Oct 18 15:54:09 2019
- OS/Arch:           linux/amd64
- Experimental:      false
+$ docker version
+Client:
+ Version:           20.10.7
+ API version:       1.41
+ Go version:        go1.13.8
+ Git commit:        20.10.7-0ubuntu5.1
+ Built:             Mon Nov  1 00:34:28 2021
+ OS/Arch:           linux/arm64
+ Context:           default
+ Experimental:      true
 
-Server: Docker Engine - Community
+Server:
  Engine:
-  Version:          19.03.4
-  API version:      1.40 (minimum version 1.12)
-  Go version:       go1.12.10
-  Git commit:       9013bf583a
-  Built:            Fri Oct 18 15:52:40 2019
-  OS/Arch:          linux/amd64
+  Version:          20.10.7
+  API version:      1.41 (minimum version 1.12)
+  Go version:       go1.13.8
+  Git commit:       20.10.7-0ubuntu5.1
+  Built:            Thu Oct 21 23:58:58 2021
+  OS/Arch:          linux/arm64
   Experimental:     false
  containerd:
-  Version:          1.2.10
-  GitCommit:        b34a5c8af56e510852c35414db4c1f4fa6172339
+  Version:          1.5.5-0ubuntu3
+  GitCommit:
  runc:
-  Version:          1.0.0-rc8+dev
-  GitCommit:        3e425f80a8c931f88e6d94a8c831b9d5aa481657
+  Version:          1.0.1-0ubuntu2
+  GitCommit:
  docker-init:
-  Version:          0.18.0
-  GitCommit:        fec3683
+  Version:          0.19.0
+  GitCommit:
 ```
 
 ## Set up dependencies
 
-Execute the following commands inside the VM to install the dependencies:
+Execute the following commands to install the dependencies:
 
 ```shell
-$ mkdir -p $GOPATH/src/github.com/osrg
-$ cd $GOPATH/src/github.com/osrg
-$ git clone https://github.com/osrg/gobgp.git
-$ cd ./gobgp/test
-$ sudo pip install -r pip-requires.txt
+$ git clone https://github.com/osrg/gobgp
+$ cd ./gobgp
+$ python3 -m venv .test
+$ source .test/bin/activate
+$ pip install -r test/pip-requires.txt
 ```
 
-## Install local source code
+## Build GoBGP docker image form your source code
 
-You need to install local source code into GoBGP docker container.
-You also need this operation at every modification to the source code.
+You need to build GoBGP docker image to test from the source code that you modified. You need run the following command every time you modify the source code.
 
 ```shell
-$ cd $GOPATH/src/github.com/osrg/gobgp
-$ sudo fab2 -r ./test/lib make-gobgp-ctn
+$ fab -r ./test/lib make-gobgp-ctn
 ```
 
-## Run test
+## Run tests
 
-1. Run all test.
+There are two ways to run tests
+
+1. Run all tests
 
     You can run all scenario tests with run_all_tests.sh.
     If all tests passed, you can see "all tests passed successfully" at the end of the test.
 
     ```shell
-    $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
-    $ ./run_all_tests.sh
+    $ ./test/scenario_test/run_all_tests.sh
     ...
     OK
     all tests passed successfully
     ```
 
-1. Run each test.
+1. Run each test
 
     You can run scenario tests individually with each test file.
     See `test/scenario_test/*.py`, for the individual test files.
 
     ```shell
-    $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
-    $ sudo -E PYTHONPATH=$GOBGP/test python3 <scenario test name>.py --gobgp-image=gobgp
+    $ PYTHONPATH=./test python3 test/scenario_test/<scenario test name>.py --gobgp-image=gobgp
     ...
     OK
     ```
@@ -116,7 +105,7 @@ A lot of containers, networks temporary files are created during the test.
 Let's clean up.
 
 ```shell
-$ sudo docker rm -f $(sudo docker ps -a -q -f "label=gobgp-test")
-$ sudo docker network prune -f --filter "label=gobgp-test"
-$ sudo rm -rf /tmp/gobgp
+$ docker rm -f $(sudo docker ps -a -q -f "label=gobgp-test")
+$ docker network prune -f --filter "label=gobgp-test"
+$ rm -rf /tmp/gobgp
 ```
