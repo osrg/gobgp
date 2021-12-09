@@ -3,6 +3,23 @@ name: ci
 on: [pull_request]
 
 jobs:
+  crossbuild:
+    name: crossbuild
+    strategy:
+      matrix:
+        GOOS: ['freebsd', 'openbsd', 'darwin']
+        GOARCH: ['amd64']
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@master
+      - run: |
+          go env
+          go build ./cmd/gobgp
+          go build ./cmd/gobgpd
+        env:
+          GOOS: ${{ matrix.GOOS }}
+          GOARCH: ${{ matrix.GOARCH }}
+
   unit:
     name: unit
     runs-on: ubuntu-18.04
