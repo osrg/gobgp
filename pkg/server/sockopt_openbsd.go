@@ -24,6 +24,8 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/osrg/gobgp/v3/pkg/log"
 )
 
 const (
@@ -322,7 +324,7 @@ func saDelete(address string) error {
 			return fmt.Errorf("failed to delete md5 for incoming: %s", err)
 		}
 	} else {
-		return fmt.Errorf("can't find spi for md5 for incoming: %s", err)
+		return fmt.Errorf("can't find spi for md5 for incoming")
 	}
 
 	if spi, y := spiOutMap[address]; y {
@@ -330,7 +332,7 @@ func saDelete(address string) error {
 			return fmt.Errorf("failed to delete md5 for outgoing: %s", err)
 		}
 	} else {
-		return fmt.Errorf("can't find spi for md5 for outgoing: %s", err)
+		return fmt.Errorf("can't find spi for md5 for outgoing")
 	}
 	return nil
 }
@@ -389,18 +391,21 @@ func setBindToDevSockopt(sc syscall.RawConn, device string) error {
 func dialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, password string, bindInterface string) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
-			"Topic", "Peer",
-			"Key", address)
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   address})
 	}
 	if ttl != 0 {
 		logger.Warn("setting ttl for active connection is not supported",
-			"Topic", "Peer",
-			"Key", address)
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   address})
 	}
 	if minTtl != 0 {
 		logger.Warn("setting min ttl for active connection is not supported",
-			"Topic", "Peer",
-			"Key", address)
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   address})
 	}
 	return nil
 }
