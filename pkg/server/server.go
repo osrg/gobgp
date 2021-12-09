@@ -18,6 +18,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -107,11 +108,13 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 			conn, err := listener.AcceptTCP()
 			if err != nil {
 				close(closeCh)
-				logger.Warn("Failed to AcceptTCP",
-					log.Fields{
-						"Topic": "Peer",
-						"Error": err,
-					})
+				if !errors.Is(err, net.ErrClosed) {
+					logger.Warn("Failed to AcceptTCP",
+						log.Fields{
+							"Topic": "Peer",
+							"Error": err,
+						})
+				}
 				return err
 			}
 			ch <- conn
@@ -3086,12 +3089,14 @@ func (s *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) erro
 		return fmt.Errorf("can't delete a peer configuration for %s", addr)
 	}
 	for _, l := range s.listListeners(addr) {
-		if err := setTCPMD5SigSockopt(l, addr, ""); err != nil {
-			s.logger.Warn("failed to unset md5",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"Err":   err})
+		if c.Config.AuthPassword != "" {
+			if err := setTCPMD5SigSockopt(l, addr, ""); err != nil {
+				s.logger.Warn("failed to unset md5",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+						"Err":   err})
+			}
 		}
 	}
 	s.logger.Info("Delete a peer configuration",
