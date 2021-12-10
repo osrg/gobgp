@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17.0'
       - run: |
           go env
           go build ./cmd/gobgp
@@ -23,9 +26,11 @@ jobs:
   unit:
     name: unit
     runs-on: ubuntu-18.04
-
     steps:
       - uses: actions/checkout@master
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17.0'
       - run: |
           go test -race -timeout 240s ./...
           if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/v3/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
@@ -37,6 +42,9 @@ jobs:
       GOARCH: 386
     steps:
       - uses: actions/checkout@master
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17.0'
       - run: |
           go env GOARCH
           go test -timeout 240s ./...
@@ -47,6 +55,8 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17.0'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
 
@@ -55,6 +65,9 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17.0'
       - run: |
           python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
 
@@ -76,6 +89,9 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17.0'
       - name: container image
         run: |
           sudo apt-get install python3-setuptools
