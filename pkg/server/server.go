@@ -3815,7 +3815,7 @@ func (s *BgpServer) DisableMrt(ctx context.Context, r *api.DisableMrtRequest) er
 }
 
 func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn func(*api.Rpki)) error {
-	if r == nil || r.Family == nil {
+	if r == nil {
 		return fmt.Errorf("nil request")
 	}
 	var l []*api.Rpki
