@@ -545,6 +545,10 @@ message PrefixLimit {
   uint32 shutdown_threshold_pct = 3;
 }
 
+enum PeerType { INTERNAL = 0; EXTERNAL = 1; }
+
+enum RemovePrivateAs { REMOVE_NONE = 0; REMOVE_ALL = 1; REPLACE = 2; }
+
 message PeerConf {
   string auth_password = 1;
   string description = 2;
@@ -552,8 +556,7 @@ message PeerConf {
   string neighbor_address = 4;
   uint32 peer_as = 5;
   string peer_group = 6;
-  uint32 peer_type = 7;
-  enum RemovePrivateAs { NONE = 0; ALL = 1; REPLACE = 2; }
+  PeerType type = 7;
   RemovePrivateAs remove_private_as = 8;
   bool route_flap_damping = 9;
   uint32 send_community = 10;
@@ -570,8 +573,7 @@ message PeerGroupConf {
   uint32 local_as = 3;
   uint32 peer_as = 4;
   string peer_group_name = 5;
-  uint32 peer_type = 6;
-  enum RemovePrivateAs { NONE = 0; ALL = 1; REPLACE = 2; }
+  PeerType type = 6;
   RemovePrivateAs remove_private_as = 7;
   bool route_flap_damping = 8;
   uint32 send_community = 9;
@@ -583,8 +585,7 @@ message PeerGroupState {
   uint32 local_as = 3;
   uint32 peer_as = 4;
   string peer_group_name = 5;
-  uint32 peer_type = 6;
-  enum RemovePrivateAs { NONE = 0; ALL = 1; REPLACE = 2; }
+  PeerType type = 6;
   RemovePrivateAs remove_private_as = 7;
   bool route_flap_damping = 8;
   uint32 send_community = 9;
@@ -615,9 +616,9 @@ message PeerState {
   string neighbor_address = 5;
   uint32 peer_as = 6;
   string peer_group = 7;
-  uint32 peer_type = 8;
+  PeerType type = 8;
   Queues queues = 9;
-  uint32 remove_private_as = 10;
+  RemovePrivateAs remove_private_as = 10;
   bool route_flap_damping = 11;
   uint32 send_community = 12;
   enum SessionState {

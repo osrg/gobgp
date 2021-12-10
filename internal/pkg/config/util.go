@@ -456,12 +456,12 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	if err != nil {
 		return nil
 	}
-	var removePrivateAs api.PeerConf_RemovePrivateAs
+	var removePrivateAs api.RemovePrivateAs
 	switch pconf.Config.RemovePrivateAs {
 	case REMOVE_PRIVATE_AS_OPTION_ALL:
-		removePrivateAs = api.PeerConf_ALL
+		removePrivateAs = api.RemovePrivateAs_REMOVE_ALL
 	case REMOVE_PRIVATE_AS_OPTION_REPLACE:
-		removePrivateAs = api.PeerConf_REPLACE
+		removePrivateAs = api.RemovePrivateAs_REPLACE
 	}
 	return &api.Peer{
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
@@ -469,7 +469,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			NeighborAddress:   pconf.Config.NeighborAddress,
 			PeerAs:            pconf.Config.PeerAs,
 			LocalAs:           pconf.Config.LocalAs,
-			PeerType:          uint32(pconf.Config.PeerType.ToInt()),
+			Type:              api.PeerType(pconf.Config.PeerType.ToInt()),
 			AuthPassword:      pconf.Config.AuthPassword,
 			RouteFlapDamping:  pconf.Config.RouteFlapDamping,
 			Description:       pconf.Config.Description,
@@ -507,7 +507,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 				},
 			},
 			PeerAs:          s.PeerAs,
-			PeerType:        uint32(s.PeerType.ToInt()),
+			Type:            api.PeerType(s.PeerType.ToInt()),
 			NeighborAddress: pconf.State.NeighborAddress,
 			Queues:          &api.Queues{},
 			RemoteCap:       remoteCap,
@@ -580,7 +580,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		Conf: &api.PeerGroupConf{
 			PeerAs:           pconf.Config.PeerAs,
 			LocalAs:          pconf.Config.LocalAs,
-			PeerType:         uint32(pconf.Config.PeerType.ToInt()),
+			Type:             api.PeerType(pconf.Config.PeerType.ToInt()),
 			AuthPassword:     pconf.Config.AuthPassword,
 			RouteFlapDamping: pconf.Config.RouteFlapDamping,
 			Description:      pconf.Config.Description,
@@ -588,7 +588,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		},
 		Info: &api.PeerGroupState{
 			PeerAs:        s.PeerAs,
-			PeerType:      uint32(s.PeerType.ToInt()),
+			Type:          api.PeerType(s.PeerType.ToInt()),
 			TotalPaths:    s.TotalPaths,
 			TotalPrefixes: s.TotalPrefixes,
 		},

@@ -649,7 +649,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
-		pconf.Config.PeerType = config.IntToPeerTypeMap[int(a.Conf.PeerType)]
+		pconf.Config.PeerType = config.IntToPeerTypeMap[int(a.Conf.Type)]
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.AdminDown = a.Conf.AdminDown
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
@@ -658,9 +658,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAs
 
 		switch a.Conf.RemovePrivateAs {
-		case api.PeerConf_ALL:
+		case api.RemovePrivateAs_REMOVE_ALL:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.PeerConf_REPLACE:
+		case api.RemovePrivateAs_REPLACE:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -744,7 +744,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.State.AdminState = config.IntToAdminStateMap[int(a.State.AdminState)]
 
 		pconf.State.PeerAs = a.State.PeerAs
-		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.State.PeerType)]
+		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.State.Type)]
 		pconf.State.NeighborAddress = a.State.NeighborAddress
 
 		if a.State.Messages != nil {
@@ -781,9 +781,9 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		pconf.Config.PeerGroupName = a.Conf.PeerGroupName
 
 		switch a.Conf.RemovePrivateAs {
-		case api.PeerGroupConf_ALL:
+		case api.RemovePrivateAs_REMOVE_ALL:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.PeerGroupConf_REPLACE:
+		case api.RemovePrivateAs_REPLACE:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -850,7 +850,7 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 		pconf.State.TotalPaths = a.Info.TotalPaths
 		pconf.State.TotalPrefixes = a.Info.TotalPrefixes
 		pconf.State.PeerAs = a.Info.PeerAs
-		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
+		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.Type)]
 	}
 	return pconf, nil
 }
