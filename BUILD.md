@@ -11,6 +11,20 @@ $ cd gobgp && go mod download
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
 
+## Testing
+
+Before sending pull request, please make sure that your changes have passed both unit and integration tests. Check out [the tests](https://github.com/osrg/gobgp/blob/master/.github/workflows/ci.yml) triggered by a pull request. If you need to debug the integration tests, it's a good idea to run them [locally](https://github.com/osrg/gobgp/blob/master/test/scenario_test/README.md).
+
+## Changing the gRPC API
+
+If you change the gRPC API, generate `api/*.pb.go` in the following way:
+
+```bash
+$ ./tools/grpc/genproto.sh
+```
+
+In order for the script to run, you'll need protoc (version 3.19.1) in your PATH.
+
 ## Releases
 
 GoBGP releases are time-based. Minor releases will occur every month ([Semantic Versioning](https://semver.org/)). Major releases occur only when absolutely necessary.
@@ -55,13 +69,3 @@ This will produce a version number of
 ## Layout
 
 The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-standards/project-layout).
-
-## Changing the gRPC API
-
-If you change the gRPC API, generate `api/*.pb.go` in the following way:
-
-```bash
-$ ./tools/grpc/genproto.sh
-```
-
-In order for the script to run, you'll need protoc (version 3.19.1) in your PATH.
