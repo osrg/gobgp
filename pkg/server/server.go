@@ -3799,7 +3799,7 @@ func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) erro
 		return s.mrtManager.enable(&config.MrtConfig{
 			DumpInterval:     r.DumpInterval,
 			RotationInterval: r.RotationInterval,
-			DumpType:         config.IntToMrtTypeMap[int(r.DumpType)],
+			DumpType:         config.IntToMrtTypeMap[int(r.Type)],
 			FileName:         r.Filename,
 		})
 	}, false)

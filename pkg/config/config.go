@@ -319,7 +319,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			continue
 		}
 		if err := bgpServer.EnableMrt(ctx, &api.EnableMrtRequest{
-			DumpType:         int32(c.Config.DumpType.ToInt()),
+			Type:             api.EnableMrtRequest_DumpType(c.Config.DumpType.ToInt()),
 			Filename:         c.Config.FileName,
 			DumpInterval:     c.Config.DumpInterval,
 			RotationInterval: c.Config.RotationInterval,

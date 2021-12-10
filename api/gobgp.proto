@@ -377,7 +377,8 @@ message EnableZebraRequest {
 }
 
 message EnableMrtRequest {
-  int32 dump_type = 1;
+  enum DumpType { TALBE = 0; UPDATE = 1; }
+  DumpType type = 1;
   string filename = 2;
   uint64 dump_interval = 3;
   uint64 rotation_interval = 4;
