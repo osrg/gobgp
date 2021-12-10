@@ -289,7 +289,7 @@ func NewAsPathAttributeFromNative(a *bgp.PathAttributeAsPath) (*api.AsPathAttrib
 	segments := make([]*api.AsSegment, 0, len(a.Value))
 	for _, param := range a.Value {
 		segments = append(segments, &api.AsSegment{
-			Type:    uint32(param.GetType()),
+			Type:    api.AsSegment_Type(param.GetType()),
 			Numbers: param.GetAS(),
 		})
 	}
@@ -1469,7 +1469,7 @@ func NewAs4PathAttributeFromNative(a *bgp.PathAttributeAs4Path) (*api.As4PathAtt
 	segments := make([]*api.AsSegment, 0, len(a.Value))
 	for _, param := range a.Value {
 		segments = append(segments, &api.AsSegment{
-			Type:    uint32(param.Type),
+			Type:    api.AsSegment_Type(param.Type),
 			Numbers: param.AS,
 		})
 	}

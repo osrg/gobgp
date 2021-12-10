@@ -31,7 +31,11 @@ import "gobgp.proto";
 message OriginAttribute { uint32 origin = 1; }
 
 message AsSegment {
-  uint32 type = 1;
+  enum Type {
+    UNKNOWN = 0; AS_SET = 1; AS_SEQUENCE = 2;
+    AS_CONFED_SEQUENCE = 3; AS_CONFED_SET = 4;
+  }
+  Type type = 1;
   repeated uint32 numbers = 2;
 }
 
