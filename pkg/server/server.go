@@ -397,7 +397,7 @@ func (s *BgpServer) Serve() {
 					"State": state})
 
 			if fsm.state == bgp.BGP_FSM_ESTABLISHED {
-				s.notifyWatcher(watchEventTypePeerState, &watchEventPeerState{
+				s.notifyWatcher(watchEventTypePeerState, &watchEventPeer{
 					PeerAS:      fsm.peerInfo.AS,
 					PeerAddress: fsm.peerInfo.Address,
 					PeerID:      fsm.peerInfo.ID,
@@ -909,7 +909,7 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 	s.notifyWatcher(watchEventTypePostUpdate, ev)
 }
 
-func newWatchEventPeerState(peer *peer, m *fsmMsg) *watchEventPeerState {
+func newWatchEventPeer(peer *peer, m *fsmMsg, t PeerEventType) *watchEventPeer {
 	var laddr string
 	var rport, lport uint16
 	if peer.fsm.conn != nil {
@@ -919,7 +919,8 @@ func newWatchEventPeerState(peer *peer, m *fsmMsg) *watchEventPeerState {
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	peer.fsm.lock.RLock()
 	recvOpen := peer.fsm.recvOpen
-	e := &watchEventPeerState{
+	e := &watchEventPeer{
+		Type:          t,
 		PeerAS:        peer.fsm.peerInfo.AS,
 		LocalAS:       peer.fsm.peerInfo.LocalAS,
 		PeerAddress:   peer.fsm.peerInfo.Address,
@@ -943,12 +944,7 @@ func newWatchEventPeerState(peer *peer, m *fsmMsg) *watchEventPeerState {
 }
 
 func (s *BgpServer) broadcastPeerState(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
-	peer.fsm.lock.RLock()
-	newState := peer.fsm.state
-	peer.fsm.lock.RUnlock()
-	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
-		s.notifyWatcher(watchEventTypePeerState, newWatchEventPeerState(peer, e))
-	}
+	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, PEER_EVENT_STATE))
 }
 
 func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, isSent bool) {
@@ -3942,128 +3938,106 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
-func (s *BgpServer) MonitorTable(ctx context.Context, r *api.MonitorTableRequest, fn func([]*api.Path)) error {
+func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse)) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
-	w, err := func() (*watcher, error) {
-		switch r.TableType {
-		case api.TableType_GLOBAL:
-			return s.watch(watchBestPath(r.Current)), nil
-		case api.TableType_ADJ_IN:
-			if r.PostPolicy {
-				return s.watch(watchPostUpdate(r.Current, r.Name)), nil
+
+	opts := make([]watchOption, 0)
+	if r.GetPeer() != nil {
+		opts = append(opts, watchPeer())
+	}
+	if t := r.GetTable(); t != nil {
+		for _, filter := range t.Filters {
+			switch filter.Type {
+			case api.WatchEventRequest_Table_Filter_BEST:
+				opts = append(opts, watchBestPath(filter.Init))
+			case api.WatchEventRequest_Table_Filter_ADJIN:
+				opts = append(opts, watchUpdate(filter.Init, ""))
+			case api.WatchEventRequest_Table_Filter_POST_POLICY:
+				opts = append(opts, watchPostUpdate(filter.Init, ""))
 			}
-			return s.watch(watchUpdate(r.Current, r.Name)), nil
-		default:
-			return nil, fmt.Errorf("unsupported resource type: %v", r.TableType)
 		}
-	}()
-	if err != nil {
-		return err
+	}
+	if len(opts) == 0 {
+		return fmt.Errorf("no events to watch")
 	}
 
 	go func() {
+		w := s.watch(opts...)
 		defer func() {
 			w.Stop()
 		}()
-		family := bgp.RouteFamily(0)
-		if r.Family != nil {
-			family = bgp.AfiSafiToRouteFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
-		}
 
 		for {
 			select {
 			case ev := <-w.Event():
-				var pl []*table.Path
 				switch msg := ev.(type) {
+				case *watchEventUpdate:
+					paths := make([]*api.Path, 0)
+					for _, path := range msg.PathList {
+						paths = append(paths, toPathApi(path, nil, false, false))
+					}
+
+					fn(&api.WatchEventResponse{
+						Event: &api.WatchEventResponse_Table{
+							Table: &api.WatchEventResponse_TableEvent{
+								Paths: paths,
+							},
+						},
+					})
 				case *watchEventBestPath:
+					var pl []*api.Path
 					if len(msg.MultiPathList) > 0 {
 						l := make([]*table.Path, 0)
 						for _, p := range msg.MultiPathList {
 							l = append(l, p...)
 						}
-						pl = l
+						for _, p := range l {
+							pl = append(pl, toPathApi(p, nil, false, false))
+						}
 					} else {
-						pl = msg.PathList
+						for _, p := range msg.PathList {
+							pl = append(pl, toPathApi(p, nil, false, false))
+						}
 					}
-				case *watchEventUpdate:
-					pl = msg.PathList
+					fn(&api.WatchEventResponse{
+						Event: &api.WatchEventResponse_Table{
+							Table: &api.WatchEventResponse_TableEvent{
+								Paths: pl,
+							},
+						},
+					})
+				case *watchEventPeer:
+					fn(&api.WatchEventResponse{
+						Event: &api.WatchEventResponse_Peer{
+							Peer: &api.WatchEventResponse_PeerEvent{
+								Type: api.WatchEventResponse_PeerEvent_Type(msg.Type),
+								Peer: &api.Peer{
+									Conf: &api.PeerConf{
+										PeerAsn:           msg.PeerAS,
+										LocalAsn:          msg.LocalAS,
+										NeighborAddress:   msg.PeerAddress.String(),
+										NeighborInterface: msg.PeerInterface,
+									},
+									State: &api.PeerState{
+										PeerAsn:         msg.PeerAS,
+										LocalAsn:        msg.LocalAS,
+										NeighborAddress: msg.PeerAddress.String(),
+										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
+										AdminState:      api.PeerState_AdminState(msg.AdminState),
+										RouterId:        msg.PeerID.String(),
+									},
+									Transport: &api.Transport{
+										LocalAddress: msg.LocalAddress.String(),
+										LocalPort:    uint32(msg.LocalPort),
+										RemotePort:   uint32(msg.PeerPort),
+									},
+								},
+							},
+						},
+					})
 				}
-				// Filter path list
-				var finalPl []*api.Path = make([]*api.Path, 0)
-
-				for _, path := range pl {
-					if path == nil || (r.Family != nil && family != path.GetRouteFamily()) {
-						continue
-					}
-
-					if len(r.Name) > 0 && r.Name != path.GetSource().Address.String() {
-						continue
-					}
-
-					finalPl = append(finalPl, toPathApi(path, nil, false, false))
-				}
-
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					fn(finalPl)
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return nil
-}
-
-func (s *BgpServer) MonitorPeer(ctx context.Context, r *api.MonitorPeerRequest, fn func(*api.Peer)) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
-	}
-
-	go func() {
-		// So that both flags are not required, assume that if the
-		// initial_state flag is true, then the caller desires that the initial
-		// state be returned whether or not it is established and regardless of
-		// the value of `current`.
-		current := r.Current || r.InitialState
-		nonEstablished := r.InitialState
-		w := s.watch(watchPeerState(current, nonEstablished))
-		defer func() {
-			w.Stop()
-		}()
-		for {
-			select {
-			case m := <-w.Event():
-				msg := m.(*watchEventPeerState)
-				if len(r.Address) > 0 && r.Address != msg.PeerAddress.String() && r.Address != msg.PeerInterface {
-					break
-				}
-				p := &api.Peer{
-					Conf: &api.PeerConf{
-						PeerAsn:           msg.PeerAS,
-						LocalAsn:          msg.LocalAS,
-						NeighborAddress:   msg.PeerAddress.String(),
-						NeighborInterface: msg.PeerInterface,
-					},
-					State: &api.PeerState{
-						PeerAsn:         msg.PeerAS,
-						LocalAsn:        msg.LocalAS,
-						NeighborAddress: msg.PeerAddress.String(),
-						SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
-						AdminState:      api.PeerState_AdminState(msg.AdminState),
-						RouterId:        msg.PeerID.String(),
-					},
-					Transport: &api.Transport{
-						LocalAddress: msg.LocalAddress.String(),
-						LocalPort:    uint32(msg.LocalPort),
-						RemotePort:   uint32(msg.PeerPort),
-					},
-				}
-				fn(p)
 			case <-ctx.Done():
 				return
 			}
@@ -4125,7 +4099,17 @@ type watchEventUpdate struct {
 	Neighbor     *config.Neighbor
 }
 
-type watchEventPeerState struct {
+type PeerEventType uint32
+
+const (
+	PEER_EVENT_UNKNOWN     PeerEventType = 0
+	PEER_EVENT_INIT        PeerEventType = 1
+	PEER_EVENT_END_OF_INIT PeerEventType = 2
+	PEER_EVENT_STATE       PeerEventType = 3
+)
+
+type watchEventPeer struct {
+	Type          PeerEventType
 	PeerAS        uint32
 	LocalAS       uint32
 	PeerAddress   net.IP
@@ -4178,8 +4162,6 @@ type watchOptions struct {
 	initBest       bool
 	initUpdate     bool
 	initPostUpdate bool
-	initPeerState  bool
-	nonEstablished bool
 	tableName      string
 	recvMessage    bool
 	peerAddress    string
@@ -4216,15 +4198,9 @@ func watchPostUpdate(current bool, peerAddress string) watchOption {
 	}
 }
 
-func watchPeerState(current, includeNonEstablished bool) watchOption {
+func watchPeer() watchOption {
 	return func(o *watchOptions) {
 		o.peerState = true
-		if current {
-			o.initPeerState = true
-			if includeNonEstablished {
-				o.nonEstablished = true
-			}
-		}
 	}
 }
 
@@ -4374,21 +4350,14 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			register(watchEventTypePostUpdate, w)
 		}
 		if w.opts.peerState {
+			for _, p := range s.neighborMap {
+				w.notify(newWatchEventPeer(p, nil, PEER_EVENT_INIT))
+			}
+			w.notify(&watchEventPeer{Type: PEER_EVENT_END_OF_INIT})
+
 			register(watchEventTypePeerState, w)
 		}
-		if w.opts.initPeerState {
-			for _, peer := range s.neighborMap {
-				if !w.opts.nonEstablished {
-					peer.fsm.lock.RLock()
-					notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
-					peer.fsm.lock.RUnlock()
-					if notEstablished {
-						continue
-					}
-				}
-				w.notify(newWatchEventPeerState(peer, nil))
-			}
-		}
+
 		if w.opts.initBest && s.active() == nil {
 			w.notify(&watchEventBestPath{
 				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil),

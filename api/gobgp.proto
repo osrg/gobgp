@@ -36,6 +36,8 @@ service GobgpApi {
   rpc StopBgp(StopBgpRequest) returns(google.protobuf.Empty);
   rpc GetBgp(GetBgpRequest) returns(GetBgpResponse);
 
+  rpc WatchEvent(WatchEventRequest) returns(stream WatchEventResponse);
+
   rpc AddPeer(AddPeerRequest) returns(google.protobuf.Empty);
   rpc DeletePeer(DeletePeerRequest) returns(google.protobuf.Empty);
   rpc ListPeer(ListPeerRequest) returns(stream ListPeerResponse);
@@ -44,7 +46,6 @@ service GobgpApi {
   rpc ShutdownPeer(ShutdownPeerRequest) returns(google.protobuf.Empty);
   rpc EnablePeer(EnablePeerRequest) returns(google.protobuf.Empty);
   rpc DisablePeer(DisablePeerRequest) returns(google.protobuf.Empty);
-  rpc MonitorPeer(MonitorPeerRequest) returns(stream MonitorPeerResponse);
 
   rpc AddPeerGroup(AddPeerGroupRequest) returns(google.protobuf.Empty);
   rpc DeletePeerGroup(DeletePeerGroupRequest) returns(google.protobuf.Empty);
@@ -61,7 +62,6 @@ service GobgpApi {
   rpc AddPathStream(stream AddPathStreamRequest) returns(google.protobuf.Empty);
 
   rpc GetTable(GetTableRequest) returns(GetTableResponse);
-  rpc MonitorTable(MonitorTableRequest) returns(stream MonitorTableResponse);
 
   rpc AddVrf(AddVrfRequest) returns(google.protobuf.Empty);
   rpc DeleteVrf(DeleteVrfRequest) returns(google.protobuf.Empty);
@@ -117,6 +117,39 @@ message GetBgpRequest {}
 
 message GetBgpResponse { Global global = 1; }
 
+message WatchEventRequest {
+  message Peer {
+  }
+  Peer peer = 1;
+
+  message Table {
+    message Filter {
+      enum Type { BEST = 0; ADJIN = 1; POST_POLICY = 2; }
+      Type type = 1;
+      bool init = 2;
+    }
+    repeated Filter filters = 1;
+  }
+  Table table = 2;
+}
+
+message WatchEventResponse {
+  message PeerEvent {
+    enum Type { UNKNOWN = 0; INIT = 1; END_OF_INIT = 2; STATE = 3; }
+    Type type = 1;
+    Peer peer = 2;
+  }
+
+  message TableEvent {
+    repeated Path paths = 2;
+  }
+
+  oneof event {
+    PeerEvent peer = 2;
+    TableEvent table = 3;
+  }
+}
+
 message AddPeerRequest { Peer peer = 1; }
 
 message DeletePeerRequest {
@@ -164,14 +197,6 @@ message DisablePeerRequest {
   string address = 1;
   string communication = 2;
 }
-
-message MonitorPeerRequest {
-  string address = 1;
-  bool current = 2; // Prefer initial_state.
-  bool initial_state = 3;
-}
-
-message MonitorPeerResponse { Peer peer = 1; }
 
 message AddPeerGroupRequest { PeerGroup peer_group = 1; }
 
@@ -254,16 +279,6 @@ message GetTableResponse {
   uint64 num_path = 2;
   uint64 num_accepted = 3; // only meaningful when type == ADJ_IN
 }
-
-message MonitorTableRequest {
-  TableType table_type = 1;
-  string name = 2;
-  Family family = 3;
-  bool current = 4;
-  bool post_policy = 5;
-}
-
-message MonitorTableResponse { Path path = 1; }
 
 message AddVrfRequest { Vrf vrf = 1; }
 

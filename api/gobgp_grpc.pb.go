@@ -22,6 +22,7 @@ type GobgpApiClient interface {
 	StartBgp(ctx context.Context, in *StartBgpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	StopBgp(ctx context.Context, in *StopBgpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetBgp(ctx context.Context, in *GetBgpRequest, opts ...grpc.CallOption) (*GetBgpResponse, error)
+	WatchEvent(ctx context.Context, in *WatchEventRequest, opts ...grpc.CallOption) (GobgpApi_WatchEventClient, error)
 	AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeletePeer(ctx context.Context, in *DeletePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListPeer(ctx context.Context, in *ListPeerRequest, opts ...grpc.CallOption) (GobgpApi_ListPeerClient, error)
@@ -30,7 +31,6 @@ type GobgpApiClient interface {
 	ShutdownPeer(ctx context.Context, in *ShutdownPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	EnablePeer(ctx context.Context, in *EnablePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DisablePeer(ctx context.Context, in *DisablePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	MonitorPeer(ctx context.Context, in *MonitorPeerRequest, opts ...grpc.CallOption) (GobgpApi_MonitorPeerClient, error)
 	AddPeerGroup(ctx context.Context, in *AddPeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeletePeerGroup(ctx context.Context, in *DeletePeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListPeerGroup(ctx context.Context, in *ListPeerGroupRequest, opts ...grpc.CallOption) (GobgpApi_ListPeerGroupClient, error)
@@ -43,7 +43,6 @@ type GobgpApiClient interface {
 	ListPath(ctx context.Context, in *ListPathRequest, opts ...grpc.CallOption) (GobgpApi_ListPathClient, error)
 	AddPathStream(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_AddPathStreamClient, error)
 	GetTable(ctx context.Context, in *GetTableRequest, opts ...grpc.CallOption) (*GetTableResponse, error)
-	MonitorTable(ctx context.Context, in *MonitorTableRequest, opts ...grpc.CallOption) (GobgpApi_MonitorTableClient, error)
 	AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteVrf(ctx context.Context, in *DeleteVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (GobgpApi_ListVrfClient, error)
@@ -111,6 +110,38 @@ func (c *gobgpApiClient) GetBgp(ctx context.Context, in *GetBgpRequest, opts ...
 	return out, nil
 }
 
+func (c *gobgpApiClient) WatchEvent(ctx context.Context, in *WatchEventRequest, opts ...grpc.CallOption) (GobgpApi_WatchEventClient, error) {
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[0], "/apipb.GobgpApi/WatchEvent", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiWatchEventClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_WatchEventClient interface {
+	Recv() (*WatchEventResponse, error)
+	grpc.ClientStream
+}
+
+type gobgpApiWatchEventClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiWatchEventClient) Recv() (*WatchEventResponse, error) {
+	m := new(WatchEventResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *gobgpApiClient) AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/apipb.GobgpApi/AddPeer", in, out, opts...)
@@ -130,7 +161,7 @@ func (c *gobgpApiClient) DeletePeer(ctx context.Context, in *DeletePeerRequest, 
 }
 
 func (c *gobgpApiClient) ListPeer(ctx context.Context, in *ListPeerRequest, opts ...grpc.CallOption) (GobgpApi_ListPeerClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[0], "/apipb.GobgpApi/ListPeer", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[1], "/apipb.GobgpApi/ListPeer", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -204,38 +235,6 @@ func (c *gobgpApiClient) DisablePeer(ctx context.Context, in *DisablePeerRequest
 		return nil, err
 	}
 	return out, nil
-}
-
-func (c *gobgpApiClient) MonitorPeer(ctx context.Context, in *MonitorPeerRequest, opts ...grpc.CallOption) (GobgpApi_MonitorPeerClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[1], "/apipb.GobgpApi/MonitorPeer", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &gobgpApiMonitorPeerClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type GobgpApi_MonitorPeerClient interface {
-	Recv() (*MonitorPeerResponse, error)
-	grpc.ClientStream
-}
-
-type gobgpApiMonitorPeerClient struct {
-	grpc.ClientStream
-}
-
-func (x *gobgpApiMonitorPeerClient) Recv() (*MonitorPeerResponse, error) {
-	m := new(MonitorPeerResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func (c *gobgpApiClient) AddPeerGroup(ctx context.Context, in *AddPeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -440,38 +439,6 @@ func (c *gobgpApiClient) GetTable(ctx context.Context, in *GetTableRequest, opts
 	return out, nil
 }
 
-func (c *gobgpApiClient) MonitorTable(ctx context.Context, in *MonitorTableRequest, opts ...grpc.CallOption) (GobgpApi_MonitorTableClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[6], "/apipb.GobgpApi/MonitorTable", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &gobgpApiMonitorTableClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type GobgpApi_MonitorTableClient interface {
-	Recv() (*MonitorTableResponse, error)
-	grpc.ClientStream
-}
-
-type gobgpApiMonitorTableClient struct {
-	grpc.ClientStream
-}
-
-func (x *gobgpApiMonitorTableClient) Recv() (*MonitorTableResponse, error) {
-	m := new(MonitorTableResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *gobgpApiClient) AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/apipb.GobgpApi/AddVrf", in, out, opts...)
@@ -491,7 +458,7 @@ func (c *gobgpApiClient) DeleteVrf(ctx context.Context, in *DeleteVrfRequest, op
 }
 
 func (c *gobgpApiClient) ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (GobgpApi_ListVrfClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[7], "/apipb.GobgpApi/ListVrf", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[6], "/apipb.GobgpApi/ListVrf", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +508,7 @@ func (c *gobgpApiClient) DeletePolicy(ctx context.Context, in *DeletePolicyReque
 }
 
 func (c *gobgpApiClient) ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (GobgpApi_ListPolicyClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[8], "/apipb.GobgpApi/ListPolicy", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[7], "/apipb.GobgpApi/ListPolicy", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -600,7 +567,7 @@ func (c *gobgpApiClient) DeleteDefinedSet(ctx context.Context, in *DeleteDefined
 }
 
 func (c *gobgpApiClient) ListDefinedSet(ctx context.Context, in *ListDefinedSetRequest, opts ...grpc.CallOption) (GobgpApi_ListDefinedSetClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[9], "/apipb.GobgpApi/ListDefinedSet", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[8], "/apipb.GobgpApi/ListDefinedSet", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +617,7 @@ func (c *gobgpApiClient) DeleteStatement(ctx context.Context, in *DeleteStatemen
 }
 
 func (c *gobgpApiClient) ListStatement(ctx context.Context, in *ListStatementRequest, opts ...grpc.CallOption) (GobgpApi_ListStatementClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[10], "/apipb.GobgpApi/ListStatement", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[9], "/apipb.GobgpApi/ListStatement", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -700,7 +667,7 @@ func (c *gobgpApiClient) DeletePolicyAssignment(ctx context.Context, in *DeleteP
 }
 
 func (c *gobgpApiClient) ListPolicyAssignment(ctx context.Context, in *ListPolicyAssignmentRequest, opts ...grpc.CallOption) (GobgpApi_ListPolicyAssignmentClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[11], "/apipb.GobgpApi/ListPolicyAssignment", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[10], "/apipb.GobgpApi/ListPolicyAssignment", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -759,7 +726,7 @@ func (c *gobgpApiClient) DeleteRpki(ctx context.Context, in *DeleteRpkiRequest, 
 }
 
 func (c *gobgpApiClient) ListRpki(ctx context.Context, in *ListRpkiRequest, opts ...grpc.CallOption) (GobgpApi_ListRpkiClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[12], "/apipb.GobgpApi/ListRpki", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[11], "/apipb.GobgpApi/ListRpki", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -818,7 +785,7 @@ func (c *gobgpApiClient) ResetRpki(ctx context.Context, in *ResetRpkiRequest, op
 }
 
 func (c *gobgpApiClient) ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (GobgpApi_ListRpkiTableClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[13], "/apipb.GobgpApi/ListRpkiTable", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[12], "/apipb.GobgpApi/ListRpkiTable", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -910,6 +877,7 @@ type GobgpApiServer interface {
 	StartBgp(context.Context, *StartBgpRequest) (*emptypb.Empty, error)
 	StopBgp(context.Context, *StopBgpRequest) (*emptypb.Empty, error)
 	GetBgp(context.Context, *GetBgpRequest) (*GetBgpResponse, error)
+	WatchEvent(*WatchEventRequest, GobgpApi_WatchEventServer) error
 	AddPeer(context.Context, *AddPeerRequest) (*emptypb.Empty, error)
 	DeletePeer(context.Context, *DeletePeerRequest) (*emptypb.Empty, error)
 	ListPeer(*ListPeerRequest, GobgpApi_ListPeerServer) error
@@ -918,7 +886,6 @@ type GobgpApiServer interface {
 	ShutdownPeer(context.Context, *ShutdownPeerRequest) (*emptypb.Empty, error)
 	EnablePeer(context.Context, *EnablePeerRequest) (*emptypb.Empty, error)
 	DisablePeer(context.Context, *DisablePeerRequest) (*emptypb.Empty, error)
-	MonitorPeer(*MonitorPeerRequest, GobgpApi_MonitorPeerServer) error
 	AddPeerGroup(context.Context, *AddPeerGroupRequest) (*emptypb.Empty, error)
 	DeletePeerGroup(context.Context, *DeletePeerGroupRequest) (*emptypb.Empty, error)
 	ListPeerGroup(*ListPeerGroupRequest, GobgpApi_ListPeerGroupServer) error
@@ -931,7 +898,6 @@ type GobgpApiServer interface {
 	ListPath(*ListPathRequest, GobgpApi_ListPathServer) error
 	AddPathStream(GobgpApi_AddPathStreamServer) error
 	GetTable(context.Context, *GetTableRequest) (*GetTableResponse, error)
-	MonitorTable(*MonitorTableRequest, GobgpApi_MonitorTableServer) error
 	AddVrf(context.Context, *AddVrfRequest) (*emptypb.Empty, error)
 	DeleteVrf(context.Context, *DeleteVrfRequest) (*emptypb.Empty, error)
 	ListVrf(*ListVrfRequest, GobgpApi_ListVrfServer) error
@@ -978,6 +944,9 @@ func (UnimplementedGobgpApiServer) StopBgp(context.Context, *StopBgpRequest) (*e
 func (UnimplementedGobgpApiServer) GetBgp(context.Context, *GetBgpRequest) (*GetBgpResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBgp not implemented")
 }
+func (UnimplementedGobgpApiServer) WatchEvent(*WatchEventRequest, GobgpApi_WatchEventServer) error {
+	return status.Errorf(codes.Unimplemented, "method WatchEvent not implemented")
+}
 func (UnimplementedGobgpApiServer) AddPeer(context.Context, *AddPeerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPeer not implemented")
 }
@@ -1001,9 +970,6 @@ func (UnimplementedGobgpApiServer) EnablePeer(context.Context, *EnablePeerReques
 }
 func (UnimplementedGobgpApiServer) DisablePeer(context.Context, *DisablePeerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisablePeer not implemented")
-}
-func (UnimplementedGobgpApiServer) MonitorPeer(*MonitorPeerRequest, GobgpApi_MonitorPeerServer) error {
-	return status.Errorf(codes.Unimplemented, "method MonitorPeer not implemented")
 }
 func (UnimplementedGobgpApiServer) AddPeerGroup(context.Context, *AddPeerGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPeerGroup not implemented")
@@ -1040,9 +1006,6 @@ func (UnimplementedGobgpApiServer) AddPathStream(GobgpApi_AddPathStreamServer) e
 }
 func (UnimplementedGobgpApiServer) GetTable(context.Context, *GetTableRequest) (*GetTableResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTable not implemented")
-}
-func (UnimplementedGobgpApiServer) MonitorTable(*MonitorTableRequest, GobgpApi_MonitorTableServer) error {
-	return status.Errorf(codes.Unimplemented, "method MonitorTable not implemented")
 }
 func (UnimplementedGobgpApiServer) AddVrf(context.Context, *AddVrfRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddVrf not implemented")
@@ -1201,6 +1164,27 @@ func _GobgpApi_GetBgp_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GobgpApi_WatchEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchEventRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).WatchEvent(m, &gobgpApiWatchEventServer{stream})
+}
+
+type GobgpApi_WatchEventServer interface {
+	Send(*WatchEventResponse) error
+	grpc.ServerStream
+}
+
+type gobgpApiWatchEventServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiWatchEventServer) Send(m *WatchEventResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 func _GobgpApi_AddPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPeerRequest)
 	if err := dec(in); err != nil {
@@ -1346,27 +1330,6 @@ func _GobgpApi_DisablePeer_Handler(srv interface{}, ctx context.Context, dec fun
 		return srv.(GobgpApiServer).DisablePeer(ctx, req.(*DisablePeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
-}
-
-func _GobgpApi_MonitorPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(MonitorPeerRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GobgpApiServer).MonitorPeer(m, &gobgpApiMonitorPeerServer{stream})
-}
-
-type GobgpApi_MonitorPeerServer interface {
-	Send(*MonitorPeerResponse) error
-	grpc.ServerStream
-}
-
-type gobgpApiMonitorPeerServer struct {
-	grpc.ServerStream
-}
-
-func (x *gobgpApiMonitorPeerServer) Send(m *MonitorPeerResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _GobgpApi_AddPeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1600,27 +1563,6 @@ func _GobgpApi_GetTable_Handler(srv interface{}, ctx context.Context, dec func(i
 		return srv.(GobgpApiServer).GetTable(ctx, req.(*GetTableRequest))
 	}
 	return interceptor(ctx, in, info, handler)
-}
-
-func _GobgpApi_MonitorTable_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(MonitorTableRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GobgpApiServer).MonitorTable(m, &gobgpApiMonitorTableServer{stream})
-}
-
-type GobgpApi_MonitorTableServer interface {
-	Send(*MonitorTableResponse) error
-	grpc.ServerStream
-}
-
-type gobgpApiMonitorTableServer struct {
-	grpc.ServerStream
-}
-
-func (x *gobgpApiMonitorTableServer) Send(m *MonitorTableResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _GobgpApi_AddVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -2358,13 +2300,13 @@ var GobgpApi_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "ListPeer",
-			Handler:       _GobgpApi_ListPeer_Handler,
+			StreamName:    "WatchEvent",
+			Handler:       _GobgpApi_WatchEvent_Handler,
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "MonitorPeer",
-			Handler:       _GobgpApi_MonitorPeer_Handler,
+			StreamName:    "ListPeer",
+			Handler:       _GobgpApi_ListPeer_Handler,
 			ServerStreams: true,
 		},
 		{
@@ -2386,11 +2328,6 @@ var GobgpApi_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "AddPathStream",
 			Handler:       _GobgpApi_AddPathStream_Handler,
 			ClientStreams: true,
-		},
-		{
-			StreamName:    "MonitorTable",
-			Handler:       _GobgpApi_MonitorTable_Handler,
-			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListVrf",

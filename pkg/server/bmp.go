@@ -121,7 +121,7 @@ func (b *bmpClient) loop() {
 		}
 
 		if func() bool {
-			ops := []watchOption{watchPeerState(true, false)}
+			ops := []watchOption{watchPeer()}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", log.Fields{"Topic": "bmp"})
 			}
@@ -216,14 +216,16 @@ func (b *bmpClient) loop() {
 								return false
 							}
 						}
-					case *watchEventPeerState:
-						if msg.State == bgp.BGP_FSM_ESTABLISHED {
-							if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
-								return false
-							}
-						} else {
-							if err := write(bmpPeerDown(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
-								return false
+					case *watchEventPeer:
+						if msg.Type != PEER_EVENT_END_OF_INIT {
+							if msg.State == bgp.BGP_FSM_ESTABLISHED {
+								if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
+									return false
+								}
+							} else {
+								if err := write(bmpPeerDown(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
+									return false
+								}
 							}
 						}
 					case *watchEventMessage:
@@ -272,7 +274,7 @@ type bmpClient struct {
 	ribout ribout
 }
 
-func bmpPeerUp(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
+func bmpPeerUp(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
 	var flags uint8 = 0
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
@@ -281,7 +283,7 @@ func bmpPeerUp(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BM
 	return bmp.NewBMPPeerUpNotification(*ph, ev.LocalAddress.String(), ev.LocalPort, ev.PeerPort, ev.SentOpen, ev.RecvOpen)
 }
 
-func bmpPeerDown(ev *watchEventPeerState, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
+func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
 	var flags uint8 = 0
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY

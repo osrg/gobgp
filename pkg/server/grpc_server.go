@@ -234,37 +234,16 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GobgpApi_ListPathSe
 	return err
 }
 
-func (s *server) MonitorTable(arg *api.MonitorTableRequest, stream api.GobgpApi_MonitorTableServer) error {
+func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GobgpApi_WatchEventServer) error {
 	ctx, cancel := context.WithCancel(context.Background())
-	var err error
-	s.bgpServer.MonitorTable(ctx, arg, func(pl []*api.Path) {
-		for _, p := range pl {
-			if err = stream.Send(&api.MonitorTableResponse{
-				Path: p,
-			}); err != nil {
-				cancel()
-				return
-			}
-		}
-	})
-	<-ctx.Done()
-	return err
-}
-
-func (s *server) MonitorPeer(arg *api.MonitorPeerRequest, stream api.GobgpApi_MonitorPeerServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	var err error
-	err = s.bgpServer.MonitorPeer(ctx, arg, func(p *api.Peer) {
-		if err = stream.Send(&api.MonitorPeerResponse{
-			Peer: p,
-		}); err != nil {
-			fmt.Println("try to cancel")
+	s.bgpServer.WatchEvent(ctx, r, func(rsp *api.WatchEventResponse) {
+		if err := stream.Send(rsp); err != nil {
 			cancel()
 			return
 		}
 	})
 	<-ctx.Done()
-	return err
+	return nil
 }
 
 func (s *server) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) (*emptypb.Empty, error) {

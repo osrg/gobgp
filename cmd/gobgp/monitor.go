@@ -96,7 +96,7 @@ func newMonitorCmd() *cobra.Command {
 	var current bool
 
 	monitor := func(recver interface {
-		Recv() (*api.MonitorTableResponse, error)
+		Recv() (*api.WatchEventResponse, error)
 	}, showIdentifier bgp.BGPAddPathMode) {
 		for {
 			r, err := recver.Recv()
@@ -105,11 +105,13 @@ func newMonitorCmd() *cobra.Command {
 			} else if err != nil {
 				exitWithError(err)
 			}
-			if globalOpts.Json {
-				j, _ := json.Marshal(apiutil.NewDestination(&api.Destination{Paths: []*api.Path{r.Path}}))
-				fmt.Println(string(j))
-			} else {
-				monitorRoute([]*api.Path{r.Path}, bgp.BGP_ADD_PATH_NONE)
+			if t := r.GetTable(); t != nil {
+				if globalOpts.Json {
+					j, _ := json.Marshal(apiutil.NewDestination(&api.Destination{Paths: t.Paths}))
+					fmt.Println(string(j))
+				} else {
+					monitorRoute(t.Paths, bgp.BGP_ADD_PATH_NONE)
+				}
 			}
 		}
 	}
@@ -117,14 +119,19 @@ func newMonitorCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: cmdRib,
 		Run: func(cmd *cobra.Command, args []string) {
-			family, err := checkAddressFamily(ipv4UC)
+			_, err := checkAddressFamily(ipv4UC)
 			if err != nil {
 				exitWithError(err)
 			}
-			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
-				TableType: api.TableType_GLOBAL,
-				Family:    family,
-				Current:   current,
+			recver, err := client.WatchEvent(ctx, &api.WatchEventRequest{
+				Table: &api.WatchEventRequest_Table{
+					Filters: []*api.WatchEventRequest_Table_Filter{
+						{
+							Type: api.WatchEventRequest_Table_Filter_BEST,
+							Init: current,
+						},
+					},
+				},
 			})
 			if err != nil {
 				exitWithError(err)
@@ -147,9 +154,8 @@ func newMonitorCmd() *cobra.Command {
 			if len(args) > 0 {
 				name = args[0]
 			}
-			stream, err := client.MonitorPeer(ctx, &api.MonitorPeerRequest{
-				Address: name,
-				Current: current,
+			stream, err := client.WatchEvent(ctx, &api.WatchEventRequest{
+				Peer: &api.WatchEventRequest_Peer{},
 			})
 			if err != nil {
 				exitWithError(err)
@@ -161,16 +167,20 @@ func newMonitorCmd() *cobra.Command {
 				} else if err != nil {
 					exitWithError(err)
 				}
-				s := r.Peer
-				if globalOpts.Json {
-					j, _ := json.Marshal(s)
-					fmt.Println(string(j))
-				} else {
-					addr := s.Conf.NeighborAddress
-					if s.Conf.NeighborInterface != "" {
-						addr = fmt.Sprintf("%s(%s)", addr, s.Conf.NeighborInterface)
+				if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+					s := p.Peer
+					if s.Conf.NeighborAddress == name {
+						if globalOpts.Json {
+							j, _ := json.Marshal(s)
+							fmt.Println(string(j))
+						} else {
+							addr := s.Conf.NeighborAddress
+							if s.Conf.NeighborInterface != "" {
+								addr = fmt.Sprintf("%s(%s)", addr, s.Conf.NeighborInterface)
+							}
+							fmt.Printf("%s [NEIGH] %s fsm: %s admin: %s\n", time.Now().UTC().Format(time.RFC3339), addr, s.State.SessionState, s.State.AdminState)
+						}
 					}
-					fmt.Printf("%s [NEIGH] %s fsm: %s admin: %s\n", time.Now().UTC().Format(time.RFC3339), addr, s.State.SessionState, s.State.AdminState)
 				}
 			}
 		},
@@ -179,23 +189,25 @@ func newMonitorCmd() *cobra.Command {
 	adjInCmd := &cobra.Command{
 		Use: cmdAdjIn,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := ""
 			if len(args) > 0 {
 				remoteIP := net.ParseIP(args[0])
 				if remoteIP == nil {
 					exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 				}
-				name = args[0]
 			}
-			family, err := checkAddressFamily(ipv4UC)
+			_, err := checkAddressFamily(ipv4UC)
 			if err != nil {
 				exitWithError(err)
 			}
-			recver, err := client.MonitorTable(ctx, &api.MonitorTableRequest{
-				TableType: api.TableType_ADJ_IN,
-				Name:      name,
-				Family:    family,
-				Current:   current,
+			recver, err := client.WatchEvent(ctx, &api.WatchEventRequest{
+				Table: &api.WatchEventRequest_Table{
+					Filters: []*api.WatchEventRequest_Table_Filter{
+						{
+							Type: api.WatchEventRequest_Table_Filter_ADJIN,
+							Init: current,
+						},
+					},
+				},
 			})
 			if err != nil {
 				exitWithError(err)

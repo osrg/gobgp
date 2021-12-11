@@ -214,6 +214,16 @@ func TestListPolicyAssignment(t *testing.T) {
 	assert.Equal(4, len(ps))
 }
 
+func waitEstablished(s *BgpServer, ch chan struct{}) {
+	s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
+		if peer := r.GetPeer(); peer != nil {
+			if peer.Type == api.WatchEventResponse_PeerEvent_STATE && peer.Peer.State.SessionState == api.PeerState_ESTABLISHED {
+				close(ch)
+			}
+		}
+	})
+}
+
 func TestListPathEnableFiltered(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()
@@ -348,11 +358,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
-		if peer.State.SessionState == api.PeerState_ESTABLISHED {
-			close(ch)
-		}
-	})
+	go waitEstablished(s, ch)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.Nil(err)
@@ -523,11 +529,12 @@ func TestMonitor(test *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
-		if peer.State.SessionState == api.PeerState_ESTABLISHED {
-			close(ch)
-		}
-	})
+	go waitEstablished(s, ch)
+	// go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
+	// 	if peer.State.SessionState == api.PeerState_ESTABLISHED {
+	// 		close(ch)
+	// 	}
+	// })
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.Nil(err)
@@ -542,9 +549,15 @@ func TestMonitor(test *testing.T) {
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("10.0.0.1"),
 	}
-	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), false, attrs, time.Now(), false)}); err != nil {
-		test.Error(err)
+	prefix := bgp.NewIPAddrPrefix(24, "10.0.0.0")
+	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
+	if _, err := t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path,
+	}); err != nil {
+		test.Fatal(err)
 	}
+
 	ev := <-w.Event()
 	b := ev.(*watchEventBestPath)
 	assert.Equal(1, len(b.PathList))
@@ -943,11 +956,7 @@ func TestPeerGroup(test *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
-		if peer.State.SessionState == api.PeerState_ESTABLISHED {
-			close(ch)
-		}
-	})
+	go waitEstablished(s, ch)
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 	<-ch
@@ -1016,11 +1025,7 @@ func TestDynamicNeighbor(t *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
-		if peer.State.SessionState == api.PeerState_ESTABLISHED {
-			close(ch)
-		}
-	})
+	go waitEstablished(s2, ch)
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 	<-ch
@@ -1089,11 +1094,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	}
 
 	ch := make(chan struct{})
-	go s2.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
-		if peer.State.SessionState == api.PeerState_ESTABLISHED {
-			close(ch)
-		}
-	})
+	go waitEstablished(s2, ch)
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.Nil(err)
 	<-ch
