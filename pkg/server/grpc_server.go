@@ -1056,59 +1056,59 @@ func (s *server) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSetRe
 
 var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
 
-func matchSetOptionsRestrictedTypeToAPI(t config.MatchSetOptionsRestrictedType) api.MatchType {
+func matchSetOptionsRestrictedTypeToAPI(t config.MatchSetOptionsRestrictedType) api.MatchSet_Type {
 	t = t.DefaultAsNeeded()
 	switch t {
 	case config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:
-		return api.MatchType_ANY
+		return api.MatchSet_ANY
 	case config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT:
-		return api.MatchType_INVERT
+		return api.MatchSet_INVERT
 	}
-	return api.MatchType_ANY
+	return api.MatchSet_ANY
 }
 
 func toStatementApi(s *config.Statement) *api.Statement {
 	cs := &api.Conditions{}
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
 		cs.PrefixSet = &api.MatchSet{
-			MatchType: matchSetOptionsRestrictedTypeToAPI(s.Conditions.MatchPrefixSet.MatchSetOptions),
-			Name:      s.Conditions.MatchPrefixSet.PrefixSet,
+			Type: matchSetOptionsRestrictedTypeToAPI(s.Conditions.MatchPrefixSet.MatchSetOptions),
+			Name: s.Conditions.MatchPrefixSet.PrefixSet,
 		}
 	}
 	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
 		cs.NeighborSet = &api.MatchSet{
-			MatchType: matchSetOptionsRestrictedTypeToAPI(s.Conditions.MatchNeighborSet.MatchSetOptions),
-			Name:      s.Conditions.MatchNeighborSet.NeighborSet,
+			Type: matchSetOptionsRestrictedTypeToAPI(s.Conditions.MatchNeighborSet.MatchSetOptions),
+			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
-			Length:     s.Conditions.BgpConditions.AsPathLength.Value,
-			LengthType: api.AsPathLengthType(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+			Length: s.Conditions.BgpConditions.AsPathLength.Value,
+			Type:   api.AsPathLength_Type(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
 		cs.AsPathSet = &api.MatchSet{
-			MatchType: api.MatchType(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions.ToInt()),
-			Name:      s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet,
+			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet != "" {
 		cs.CommunitySet = &api.MatchSet{
-			MatchType: api.MatchType(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions.ToInt()),
-			Name:      s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet,
+			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
 		cs.ExtCommunitySet = &api.MatchSet{
-			MatchType: api.MatchType(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
-			Name:      s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
+			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet != "" {
 		cs.LargeCommunitySet = &api.MatchSet{
-			MatchType: api.MatchType(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
-			Name:      s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
+			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.RouteType != "" {
@@ -1143,7 +1143,7 @@ func toStatementApi(s *config.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				ActionType:  api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
+				Type:        api.CommunityAction_Type(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
 		}(),
 		Med: func() *api.MedAction {
@@ -1155,18 +1155,18 @@ func toStatementApi(s *config.Statement) *api.Statement {
 			if len(matches) == 0 {
 				return nil
 			}
-			action := api.MedActionType_MED_REPLACE
+			action := api.MedAction_REPLACE
 			switch matches[1] {
 			case "+", "-":
-				action = api.MedActionType_MED_MOD
+				action = api.MedAction_MOD
 			}
 			value, err := strconv.ParseInt(matches[1]+matches[2], 10, 64)
 			if err != nil {
 				return nil
 			}
 			return &api.MedAction{
-				Value:      value,
-				ActionType: action,
+				Value: value,
+				Type:  action,
 			}
 		}(),
 		AsPrepend: func() *api.AsPrependAction {
@@ -1191,7 +1191,7 @@ func toStatementApi(s *config.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				ActionType:  api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
+				Type:        api.CommunityAction_Type(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
 				Communities: s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -1200,7 +1200,7 @@ func toStatementApi(s *config.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				ActionType:  api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetLargeCommunity.Options)]),
+				Type:        api.CommunityAction_Type(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetLargeCommunity.Options)]),
 				Communities: s.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -1237,14 +1237,14 @@ func toStatementApi(s *config.Statement) *api.Statement {
 	}
 }
 
-func toConfigMatchSetOption(a api.MatchType) (config.MatchSetOptionsType, error) {
+func toConfigMatchSetOption(a api.MatchSet_Type) (config.MatchSetOptionsType, error) {
 	var typ config.MatchSetOptionsType
 	switch a {
-	case api.MatchType_ANY:
+	case api.MatchSet_ANY:
 		typ = config.MATCH_SET_OPTIONS_TYPE_ANY
-	case api.MatchType_ALL:
+	case api.MatchSet_ALL:
 		typ = config.MATCH_SET_OPTIONS_TYPE_ALL
-	case api.MatchType_INVERT:
+	case api.MatchSet_INVERT:
 		typ = config.MATCH_SET_OPTIONS_TYPE_INVERT
 	default:
 		return typ, fmt.Errorf("invalid match type")
@@ -1252,12 +1252,12 @@ func toConfigMatchSetOption(a api.MatchType) (config.MatchSetOptionsType, error)
 	return typ, nil
 }
 
-func toConfigMatchSetOptionRestricted(a api.MatchType) (config.MatchSetOptionsRestrictedType, error) {
+func toConfigMatchSetOptionRestricted(a api.MatchSet_Type) (config.MatchSetOptionsRestrictedType, error) {
 	var typ config.MatchSetOptionsRestrictedType
 	switch a {
-	case api.MatchType_ANY:
+	case api.MatchSet_ANY:
 		typ = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
-	case api.MatchType_INVERT:
+	case api.MatchSet_INVERT:
 		typ = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
 	default:
 		return typ, fmt.Errorf("invalid match type")
@@ -1269,7 +1269,7 @@ func newPrefixConditionFromApiStruct(a *api.MatchSet) (*table.PrefixCondition, e
 	if a == nil {
 		return nil, nil
 	}
-	typ, err := toConfigMatchSetOptionRestricted(a.MatchType)
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -1284,7 +1284,7 @@ func newNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborConditio
 	if a == nil {
 		return nil, nil
 	}
-	typ, err := toConfigMatchSetOptionRestricted(a.MatchType)
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -1300,7 +1300,7 @@ func newAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLe
 		return nil, nil
 	}
 	return table.NewAsPathLengthCondition(config.AsPathLength{
-		Operator: config.IntToAttributeComparisonMap[int(a.LengthType)],
+		Operator: config.IntToAttributeComparisonMap[int(a.Type)],
 		Value:    a.Length,
 	})
 }
@@ -1309,7 +1309,7 @@ func newAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, e
 	if a == nil {
 		return nil, nil
 	}
-	typ, err := toConfigMatchSetOption(a.MatchType)
+	typ, err := toConfigMatchSetOption(a.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -1342,7 +1342,7 @@ func newCommunityConditionFromApiStruct(a *api.MatchSet) (*table.CommunityCondit
 	if a == nil {
 		return nil, nil
 	}
-	typ, err := toConfigMatchSetOption(a.MatchType)
+	typ, err := toConfigMatchSetOption(a.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -1357,7 +1357,7 @@ func newExtCommunityConditionFromApiStruct(a *api.MatchSet) (*table.ExtCommunity
 	if a == nil {
 		return nil, nil
 	}
-	typ, err := toConfigMatchSetOption(a.MatchType)
+	typ, err := toConfigMatchSetOption(a.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -1372,7 +1372,7 @@ func newLargeCommunityConditionFromApiStruct(a *api.MatchSet) (*table.LargeCommu
 	if a == nil {
 		return nil, nil
 	}
-	typ, err := toConfigMatchSetOption(a.MatchType)
+	typ, err := toConfigMatchSetOption(a.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -1425,7 +1425,7 @@ func newCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAc
 		return nil, nil
 	}
 	return table.NewCommunityAction(config.SetCommunity{
-		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.ActionType)]),
+		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
 		SetCommunityMethod: config.SetCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1437,7 +1437,7 @@ func newExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommu
 		return nil, nil
 	}
 	return table.NewExtCommunityAction(config.SetExtCommunity{
-		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.ActionType)]),
+		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
 		SetExtCommunityMethod: config.SetExtCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1449,7 +1449,7 @@ func newLargeCommunityActionFromApiStruct(a *api.CommunityAction) (*table.LargeC
 		return nil, nil
 	}
 	return table.NewLargeCommunityAction(config.SetLargeCommunity{
-		Options: config.IntToBgpSetCommunityOptionTypeMap[int(a.ActionType)],
+		Options: config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)],
 		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1460,7 +1460,7 @@ func newMedActionFromApiStruct(a *api.MedAction) (*table.MedAction, error) {
 	if a == nil {
 		return nil, nil
 	}
-	return table.NewMedActionFromApiStruct(table.MedActionType(a.ActionType), a.Value), nil
+	return table.NewMedActionFromApiStruct(table.MedActionType(a.Type), a.Value), nil
 }
 
 func newLocalPrefActionFromApiStruct(a *api.LocalPrefAction) (*table.LocalPrefAction, error) {

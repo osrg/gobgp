@@ -79,7 +79,7 @@ func NewAddPathCapability(a *bgp.CapAddPath) *api.AddPathCapability {
 		afi, safi := bgp.RouteFamilyToAfiSafi(t.RouteFamily)
 		tuples = append(tuples, &api.AddPathCapabilityTuple{
 			Family: ToApiFamily(afi, safi),
-			Mode:   api.AddPathMode(t.Mode),
+			Mode:   api.AddPathCapabilityTuple_Mode(t.Mode),
 		})
 	}
 	return &api.AddPathCapability{

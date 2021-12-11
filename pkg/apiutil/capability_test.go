@@ -170,7 +170,7 @@ func Test_AddPathCapability(t *testing.T) {
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_UNICAST,
 				},
-				Mode: api.AddPathMode_MODE_BOTH,
+				Mode: api.AddPathCapabilityTuple_BOTH,
 			},
 		},
 	}

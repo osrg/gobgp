@@ -827,13 +827,13 @@ func showNeighborRib(r string, name string, args []string) error {
 				return err
 			}
 		}
-		var option api.TableLookupOption
+		var option api.TableLookupPrefix_Type
 		args = args[1:]
 		for len(args) != 0 {
 			if args[0] == "longer-prefixes" {
-				option = api.TableLookupOption_LOOKUP_LONGER
+				option = api.TableLookupPrefix_LONGER
 			} else if args[0] == "shorter-prefixes" {
-				option = api.TableLookupOption_LOOKUP_SHORTER
+				option = api.TableLookupPrefix_SHORTER
 			} else if args[0] == "validation" {
 				if r != cmdAdjIn {
 					return fmt.Errorf("RPKI information is supported for only adj-in")
@@ -845,8 +845,8 @@ func showNeighborRib(r string, name string, args []string) error {
 			args = args[1:]
 		}
 		filter = []*api.TableLookupPrefix{{
-			Prefix:       target,
-			LookupOption: option,
+			Prefix: target,
+			Type:   option,
 		},
 		}
 	}

@@ -215,6 +215,14 @@ message DeletePathRequest {
   bytes uuid = 5;
 }
 
+// API representation of table.LookupPrefix
+message TableLookupPrefix {
+  // API representation of table.LookupOption
+  enum Type { EXACT = 0; LONGER = 1; SHORTER = 2; }
+  string prefix = 1;
+  Type type = 2;
+}
+
 message ListPathRequest {
   TableType table_type = 1;
   string name = 2;
@@ -487,17 +495,6 @@ message Path {
 message Destination {
   string prefix = 1;
   repeated Path paths = 2;
-}
-
-// API representation of table.LookupOption
-enum TableLookupOption {
-  LOOKUP_EXACT = 0; LOOKUP_LONGER = 1; LOOKUP_SHORTER = 2;
-}
-
-// API representation of table.LookupPrefix
-message TableLookupPrefix {
-  string prefix = 1;
-  TableLookupOption lookup_option = 2;
 }
 
 message Peer {
@@ -889,17 +886,15 @@ message DefinedSet {
   repeated Prefix prefixes = 4;
 }
 
-enum MatchType { ANY = 0; ALL = 1; INVERT = 2; }
-
 message MatchSet {
-  MatchType match_type = 1;
+  enum Type { ANY = 0; ALL = 1; INVERT = 2; }
+  Type type = 1;
   string name = 2;
 }
 
-enum AsPathLengthType { EQ = 0; GE = 1; LE = 2; }
-
 message AsPathLength {
-  AsPathLengthType length_type = 1;
+  enum Type { EQ = 0; GE = 1; LE = 2; }
+  Type type = 1;
   uint32 length = 2;
 }
 
@@ -912,8 +907,7 @@ message Conditions {
   MatchSet ext_community_set = 6;
   int32 rpki_result = 7;
   enum RouteType {
-    ROUTE_TYPE_NONE = 0; ROUTE_TYPE_INTERNAL = 1; ROUTE_TYPE_EXTERNAL = 2;
-    ROUTE_TYPE_LOCAL = 3;
+    ROUTE_TYPE_NONE = 0; ROUTE_TYPE_INTERNAL = 1; ROUTE_TYPE_EXTERNAL = 2; ROUTE_TYPE_LOCAL = 3;
   }
   RouteType route_type = 8;
   MatchSet large_community_set = 9;
@@ -923,19 +917,17 @@ message Conditions {
 
 enum RouteAction { NONE = 0; ACCEPT = 1; REJECT = 2; }
 
-enum CommunityActionType {
-  COMMUNITY_ADD = 0; COMMUNITY_REMOVE = 1; COMMUNITY_REPLACE = 2;
-}
-
 message CommunityAction {
-  CommunityActionType action_type = 1;
+  enum Type {
+    ADD = 0; REMOVE = 1; REPLACE = 2;
+  }
+  Type type = 1;
   repeated string communities = 2;
 }
 
-enum MedActionType { MED_MOD = 0; MED_REPLACE = 1; }
-
 message MedAction {
-  MedActionType action_type = 1;
+  enum Type { MOD = 0; REPLACE = 1; }
+  Type type = 1;
   int64 value = 2;
 }
 

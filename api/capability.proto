@@ -26,13 +26,6 @@ option go_package = "github.com/osrg/gobgp/v3/api;apipb";
 
 import "gobgp.proto";
 
-enum AddPathMode {
-    MODE_NONE = 0;
-    MODE_RECEIVE = 1;
-    MODE_SEND = 2;
-    MODE_BOTH = 3;
-}
-
 message MultiProtocolCapability {
     apipb.Family family = 1;
 }
@@ -72,7 +65,13 @@ message FourOctetASNCapability {
 
 message AddPathCapabilityTuple {
     apipb.Family family = 1;
-    AddPathMode mode = 2;
+    enum Mode {
+        NONE = 0;
+        RECEIVE = 1;
+        SEND = 2;
+        BOTH = 3;
+    }
+    Mode mode = 2;
 }
 
 message AddPathCapability {
