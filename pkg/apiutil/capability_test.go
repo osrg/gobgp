@@ -144,8 +144,8 @@ func Test_GracefulRestartCapability(t *testing.T) {
 func Test_FourOctetASNumberCapability(t *testing.T) {
 	assert := assert.New(t)
 
-	input := &api.FourOctetASNumberCapability{
-		As: 100,
+	input := &api.FourOctetASNCapability{
+		Asn: 100,
 	}
 
 	a, err := apb.New(input)

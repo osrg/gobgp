@@ -155,7 +155,7 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 		State:           api.Validation_State(v.Status.ToInt()),
 		Reason:          api.Validation_Reason(v.Reason.ToInt()),
 		Matched:         newRoaListFromTableStructList(v.Matched),
-		UnmatchedAs:     newRoaListFromTableStructList(v.UnmatchedAs),
+		UnmatchedAsn:    newRoaListFromTableStructList(v.UnmatchedAs),
 		UnmatchedLength: newRoaListFromTableStructList(v.UnmatchedLength),
 	}
 }
@@ -597,7 +597,7 @@ func readUseMultiplePathsFromAPIStruct(c *config.UseMultiplePaths, a *api.UseMul
 	if a.Ebgp != nil && a.Ebgp.Config != nil {
 		c.Ebgp = config.Ebgp{
 			Config: config.EbgpConfig{
-				AllowMultipleAs: a.Ebgp.Config.AllowMultipleAs,
+				AllowMultipleAs: a.Ebgp.Config.AllowMultipleAsn,
 				MaximumPaths:    a.Ebgp.Config.MaximumPaths,
 			},
 		}
@@ -643,8 +643,8 @@ func readAddPathsFromAPIStruct(c *config.AddPaths, a *api.AddPaths) {
 func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 	pconf := &config.Neighbor{}
 	if a.Conf != nil {
-		pconf.Config.PeerAs = a.Conf.PeerAs
-		pconf.Config.LocalAs = a.Conf.LocalAs
+		pconf.Config.PeerAs = a.Conf.PeerAsn
+		pconf.Config.LocalAs = a.Conf.LocalAsn
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
@@ -654,13 +654,13 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.Config.AdminDown = a.Conf.AdminDown
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
-		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAs)
-		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAs
+		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAsn)
+		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAsn
 
-		switch a.Conf.RemovePrivateAs {
-		case api.RemovePrivateAs_REMOVE_ALL:
+		switch a.Conf.RemovePrivate {
+		case api.RemovePrivate_REMOVE_ALL:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.RemovePrivateAs_REPLACE:
+		case api.RemovePrivate_REPLACE:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -743,7 +743,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.State.SessionState = config.SessionState(strings.ToUpper(string(a.State.SessionState)))
 		pconf.State.AdminState = config.IntToAdminStateMap[int(a.State.AdminState)]
 
-		pconf.State.PeerAs = a.State.PeerAs
+		pconf.State.PeerAs = a.State.PeerAsn
 		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.State.Type)]
 		pconf.State.NeighborAddress = a.State.NeighborAddress
 
@@ -773,17 +773,17 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 	pconf := &config.PeerGroup{}
 	if a.Conf != nil {
-		pconf.Config.PeerAs = a.Conf.PeerAs
-		pconf.Config.LocalAs = a.Conf.LocalAs
+		pconf.Config.PeerAs = a.Conf.PeerAsn
+		pconf.Config.LocalAs = a.Conf.LocalAsn
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroupName = a.Conf.PeerGroupName
 
-		switch a.Conf.RemovePrivateAs {
-		case api.RemovePrivateAs_REMOVE_ALL:
+		switch a.Conf.RemovePrivate {
+		case api.RemovePrivate_REMOVE_ALL:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.RemovePrivateAs_REPLACE:
+		case api.RemovePrivate_REPLACE:
 			pconf.Config.RemovePrivateAs = config.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -849,7 +849,7 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*config.PeerGroup, error) {
 	if a.Info != nil {
 		pconf.State.TotalPaths = a.Info.TotalPaths
 		pconf.State.TotalPrefixes = a.Info.TotalPrefixes
-		pconf.State.PeerAs = a.Info.PeerAs
+		pconf.State.PeerAs = a.Info.PeerAsn
 		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.Type)]
 	}
 	return pconf, nil
@@ -1673,7 +1673,7 @@ func newRoaListFromTableStructList(origin []*table.ROA) []*api.Roa {
 		port, _ := strconv.ParseUint(portStr, 10, 32)
 		ones, _ := r.Network.Mask.Size()
 		l = append(l, &api.Roa{
-			As:        r.AS,
+			Asn:       r.AS,
 			Maxlen:    uint32(r.MaxLen),
 			Prefixlen: uint32(ones),
 			Prefix:    r.Network.IP.String(),
@@ -1774,7 +1774,7 @@ func newGlobalFromAPIStruct(a *api.Global) *config.Global {
 
 	global := &config.Global{
 		Config: config.GlobalConfig{
-			As:               a.As,
+			As:               a.Asn,
 			RouterId:         a.RouterId,
 			Port:             a.ListenPort,
 			LocalAddressList: a.ListenAddresses,

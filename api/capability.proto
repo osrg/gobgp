@@ -66,8 +66,8 @@ message GracefulRestartCapability {
     repeated GracefulRestartCapabilityTuple tuples = 3;
 }
 
-message FourOctetASNumberCapability {
-    uint32 as = 1;
+message FourOctetASNCapability {
+    uint32 asn = 1;
 }
 
 message AddPathCapabilityTuple {

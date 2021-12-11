@@ -125,7 +125,7 @@ func showRPKITable(args []string) error {
 			IP:   net.ParseIP(r.GetPrefix()),
 			Mask: net.CIDRMask(int(r.GetPrefixlen()), bits),
 		}
-		fmt.Printf(format, n.String(), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))))
+		fmt.Printf(format, n.String(), fmt.Sprint(r.Maxlen), fmt.Sprint(r.Asn), net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))))
 	}
 	return nil
 }

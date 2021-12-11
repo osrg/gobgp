@@ -321,7 +321,7 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *tabl
 
 func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, peer *api.Peer) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
-	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peer.State.NeighborAddress, peer.State.PeerAs, peer.State.RouterId, float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peer.State.NeighborAddress, peer.State.PeerAsn, peer.State.RouterId, float64(timestamp))
 	received := uint64(0)
 	accepted := uint64(0)
 	for _, a := range peer.AfiSafis {

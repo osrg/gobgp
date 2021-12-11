@@ -50,8 +50,8 @@ message LocalPrefAttribute { uint32 local_pref = 1; }
 message AtomicAggregateAttribute {}
 
 message AggregatorAttribute {
-  uint32 as = 2;
-  string address = 3;
+  uint32 asn = 1;
+  string address = 2;
 }
 
 message CommunitiesAttribute { repeated uint32 communities = 1; }
@@ -82,7 +82,7 @@ message LabeledIPAddressPrefix {
 // - AFI=2, SAFI=7
 message EncapsulationNLRI { string address = 1; }
 
-message RouteDistinguisherTwoOctetAS {
+message RouteDistinguisherTwoOctetASN {
   uint32 admin = 1;
   uint32 assigned = 2;
 }
@@ -92,7 +92,7 @@ message RouteDistinguisherIPAddress {
   uint32 assigned = 2;
 }
 
-message RouteDistinguisherFourOctetAS {
+message RouteDistinguisherFourOctetASN {
   uint32 admin = 1;
   uint32 assigned = 2;
 }
@@ -106,9 +106,9 @@ message EthernetSegmentIdentifier {
 // - AFI=25, SAFI=70, RouteType=1
 message EVPNEthernetAutoDiscoveryRoute {
   // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
+  // - RouteDistinguisherTwoOctetASN
+  // - RouteDistinguisherIPAddress
+  // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
   EthernetSegmentIdentifier esi = 2;
   uint32 ethernet_tag = 3;
@@ -119,9 +119,9 @@ message EVPNEthernetAutoDiscoveryRoute {
 // - AFI=25, SAFI=70, RouteType=2
 message EVPNMACIPAdvertisementRoute {
   // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
+  // - RouteDistinguisherTwoOctetASN
+  // - RouteDistinguisherIPAddress
+  // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
   EthernetSegmentIdentifier esi = 2;
   uint32 ethernet_tag = 3;
@@ -134,9 +134,9 @@ message EVPNMACIPAdvertisementRoute {
 // - AFI=25, SAFI=70, RouteType=3
 message EVPNInclusiveMulticastEthernetTagRoute {
   // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
+  // - RouteDistinguisherTwoOctetASN
+  // - RouteDistinguisherIPAddress
+  // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
   uint32 ethernet_tag = 2;
   string ip_address = 3;
@@ -146,9 +146,9 @@ message EVPNInclusiveMulticastEthernetTagRoute {
 // - AFI=25, SAFI=70, RouteType=4
 message EVPNEthernetSegmentRoute {
   // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
+  // - RouteDistinguisherTwoOctetASN
+  // - RouteDistinguisherIPAddress
+  // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
   EthernetSegmentIdentifier esi = 2;
   string ip_address = 3;
@@ -158,9 +158,9 @@ message EVPNEthernetSegmentRoute {
 // - AFI=25, SAFI=70, RouteType=5
 message EVPNIPPrefixRoute {
   // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
+  // - RouteDistinguisherTwoOctetASN
+  // - RouteDistinguisherIPAddress
+  // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
   EthernetSegmentIdentifier esi = 2;
   uint32 ethernet_tag = 3;
@@ -174,9 +174,9 @@ message EVPNIPPrefixRoute {
 // - AFI=25, SAFI=70, RouteType=9
 message EVPNIPMSIRoute {
   // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
+  // - RouteDistinguisherTwoOctetASN
+  // - RouteDistinguisherIPAddress
+  // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
   uint32 ethernet_tag = 2;
   google.protobuf.Any rt = 3;
@@ -219,7 +219,7 @@ message LabeledVPNIPAddressPrefix {
 // RouteTargetMembershipNLRI represents the NLRI for:
 // - AFI=1, SAFI=132
 message RouteTargetMembershipNLRI {
-  uint32 as = 1;
+  uint32 asn = 1;
   // One of:
   // - TwoOctetAsSpecificExtended
   // - IPv4AddressSpecificExtended
@@ -398,7 +398,7 @@ message MpUnreachNLRIAttribute {
 message TwoOctetAsSpecificExtended {
   bool is_transitive = 1;
   uint32 sub_type = 2;
-  uint32 as = 3;
+  uint32 asn = 3;
   uint32 local_admin = 4;
 }
 
@@ -412,12 +412,12 @@ message IPv4AddressSpecificExtended {
 message FourOctetAsSpecificExtended {
   bool is_transitive = 1;
   uint32 sub_type = 2;
-  uint32 as = 3;
+  uint32 asn = 3;
   uint32 local_admin = 4;
 }
 
 message LinkBandiwdthExtended {
-  uint32 as = 1;
+  uint32 asn = 1;
   float bandwidth = 2;
 }
 
@@ -449,7 +449,7 @@ message MacMobilityExtended {
 message RouterMacExtended { string mac = 1; }
 
 message TrafficRateExtended {
-  uint32 as = 1;
+  uint32 asn = 1;
   float rate = 2;
 }
 
@@ -459,7 +459,7 @@ message TrafficActionExtended {
 }
 
 message RedirectTwoOctetAsSpecificExtended {
-  uint32 as = 1;
+  uint32 asn = 1;
   uint32 local_admin = 2;
 }
 
@@ -469,7 +469,7 @@ message RedirectIPv4AddressSpecificExtended {
 }
 
 message RedirectFourOctetAsSpecificExtended {
-  uint32 as = 1;
+  uint32 asn = 1;
   uint32 local_admin = 2;
 }
 
@@ -502,7 +502,7 @@ message ExtendedCommunitiesAttribute {
 message As4PathAttribute { repeated AsSegment segments = 1; }
 
 message As4AggregatorAttribute {
-  uint32 as = 2;
+  uint32 asn = 2;
   string address = 3;
 }
 

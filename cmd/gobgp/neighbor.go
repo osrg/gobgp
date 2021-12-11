@@ -84,8 +84,8 @@ func getNeighbors(address string, enableAdv bool) ([]*api.Peer, error) {
 
 func getASN(p *api.Peer) string {
 	asn := "*"
-	if p.State.PeerAs > 0 {
-		asn = fmt.Sprint(p.State.PeerAs)
+	if p.State.PeerAsn > 0 {
+		asn = fmt.Sprint(p.State.PeerAsn)
 	}
 	return asn
 }
@@ -267,16 +267,16 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
 
 	elems := make([]string, 0, 3)
-	if as := p.Conf.AllowOwnAs; as > 0 {
+	if as := p.Conf.AllowOwnAsn; as > 0 {
 		elems = append(elems, fmt.Sprintf("Allow Own AS: %d", as))
 	}
-	switch p.Conf.RemovePrivateAs {
-	case api.RemovePrivateAs_REMOVE_ALL:
+	switch p.Conf.RemovePrivate {
+	case api.RemovePrivate_REMOVE_ALL:
 		elems = append(elems, "Remove private AS: all")
-	case api.RemovePrivateAs_REPLACE:
+	case api.RemovePrivate_REPLACE:
 		elems = append(elems, "Remove private AS: replace")
 	}
-	if p.Conf.ReplacePeerAs {
+	if p.Conf.ReplacePeerAsn {
 		elems = append(elems, "Replace peer AS: enabled")
 	}
 
@@ -691,7 +691,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 	case api.Validation_STATE_INVALID:
 		fmt.Printf("  reason: %s\n", reason)
 		switch reason {
-		case api.Validation_REASON_AS:
+		case api.Validation_REASON_ASN:
 			fmt.Println("  No VRP ASN matches the route origin ASN.")
 		case api.Validation_REASON_LENGTH:
 			fmt.Println("  Route Prefix length is greater than the maximum length allowed by VRP(s) matching this route origin ASN.")
@@ -714,7 +714,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 			}
 			fmt.Printf(format, "Network", "AS", "MaxLen")
 			for _, m := range l {
-				fmt.Printf(format, m.Prefix, fmt.Sprint(m.As), fmt.Sprint(m.Maxlen))
+				fmt.Printf(format, m.Prefix, fmt.Sprint(m.Asn), fmt.Sprint(m.Maxlen))
 			}
 		}
 	}
@@ -722,7 +722,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 	fmt.Println("  Matched VRPs: ")
 	printVRPs(p.GetValidation().Matched)
 	fmt.Println("  Unmatched AS VRPs: ")
-	printVRPs(p.GetValidation().UnmatchedAs)
+	printVRPs(p.GetValidation().UnmatchedAsn)
 	fmt.Println("  Unmatched Length VRPs: ")
 	printVRPs(p.GetValidation().UnmatchedLength)
 
@@ -1249,7 +1249,7 @@ func modNeighbor(cmdType string, args []string) error {
 			if err != nil {
 				return err
 			}
-			peer.Conf.PeerAs = uint32(as)
+			peer.Conf.PeerAsn = uint32(as)
 		}
 		if len(m["family"]) == 1 {
 			peer.AfiSafis = make([]*api.AfiSafi, 0) // for the case of cmdUpdate
@@ -1279,20 +1279,20 @@ func modNeighbor(cmdType string, args []string) error {
 			if err != nil {
 				return err
 			}
-			peer.Conf.AllowOwnAs = uint32(as)
+			peer.Conf.AllowOwnAsn = uint32(as)
 		}
 		if option, ok := m["remove-private-as"]; ok {
 			switch option[0] {
 			case "all":
-				peer.Conf.RemovePrivateAs = api.RemovePrivateAs_REMOVE_ALL
+				peer.Conf.RemovePrivate = api.RemovePrivate_REMOVE_ALL
 			case "replace":
-				peer.Conf.RemovePrivateAs = api.RemovePrivateAs_REPLACE
+				peer.Conf.RemovePrivate = api.RemovePrivate_REPLACE
 			default:
 				return fmt.Errorf("invalid remove-private-as value: all or replace")
 			}
 		}
 		if _, ok := m["replace-peer-as"]; ok {
-			peer.Conf.ReplacePeerAs = true
+			peer.Conf.ReplacePeerAsn = true
 		}
 		if len(m["ebgp-multihop-ttl"]) == 1 {
 			ttl, err := strconv.ParseUint(m["ebgp-multihop-ttl"][0], 10, 32)

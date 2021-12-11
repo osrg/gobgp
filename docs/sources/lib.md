@@ -32,7 +32,7 @@ func main() {
 	// global configuration
 	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         65003,
+			Asn:         65003,
 			RouterId:   "10.0.255.254",
 			ListenPort: -1, // gobgp won't listen on tcp:179
 		},
@@ -49,7 +49,7 @@ func main() {
 	n := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "172.17.0.2",
-			PeerAs:          65002,
+			PeerAsn:          65002,
 		},
 	}
 

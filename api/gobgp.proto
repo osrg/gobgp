@@ -433,12 +433,12 @@ message Validation {
     STATE_NONE = 0; STATE_NOT_FOUND = 1; STATE_VALID = 2; STATE_INVALID = 3;
   }
 
-  enum Reason { REASON_NONE = 0; REASON_AS = 1; REASON_LENGTH = 2; }
+  enum Reason { REASON_NONE = 0; REASON_ASN = 1; REASON_LENGTH = 2; }
 
   State state = 1;
   Reason reason = 2;
   repeated Roa matched = 3;
-  repeated Roa unmatched_as = 4;
+  repeated Roa unmatched_asn = 4;
   repeated Roa unmatched_length = 5;
 }
 
@@ -547,34 +547,34 @@ message PrefixLimit {
 
 enum PeerType { INTERNAL = 0; EXTERNAL = 1; }
 
-enum RemovePrivateAs { REMOVE_NONE = 0; REMOVE_ALL = 1; REPLACE = 2; }
+enum RemovePrivate { REMOVE_NONE = 0; REMOVE_ALL = 1; REPLACE = 2; }
 
 message PeerConf {
   string auth_password = 1;
   string description = 2;
-  uint32 local_as = 3;
+  uint32 local_asn = 3;
   string neighbor_address = 4;
-  uint32 peer_as = 5;
+  uint32 peer_asn = 5;
   string peer_group = 6;
   PeerType type = 7;
-  RemovePrivateAs remove_private_as = 8;
+  RemovePrivate remove_private = 8;
   bool route_flap_damping = 9;
   uint32 send_community = 10;
   string neighbor_interface = 11;
   string vrf = 12;
-  uint32 allow_own_as = 13;
-  bool replace_peer_as = 14;
+  uint32 allow_own_asn = 13;
+  bool replace_peer_asn = 14;
   bool admin_down = 15;
 }
 
 message PeerGroupConf {
   string auth_password = 1;
   string description = 2;
-  uint32 local_as = 3;
-  uint32 peer_as = 4;
+  uint32 local_asn = 3;
+  uint32 peer_asn = 4;
   string peer_group_name = 5;
   PeerType type = 6;
-  RemovePrivateAs remove_private_as = 7;
+  RemovePrivate remove_private = 7;
   bool route_flap_damping = 8;
   uint32 send_community = 9;
 }
@@ -582,11 +582,11 @@ message PeerGroupConf {
 message PeerGroupState {
   string auth_password = 1;
   string description = 2;
-  uint32 local_as = 3;
-  uint32 peer_as = 4;
+  uint32 local_asn = 3;
+  uint32 peer_asn = 4;
   string peer_group_name = 5;
   PeerType type = 6;
-  RemovePrivateAs remove_private_as = 7;
+  RemovePrivate remove_private = 7;
   bool route_flap_damping = 8;
   uint32 send_community = 9;
   uint32 total_paths = 10;
@@ -611,14 +611,14 @@ message RouteReflector {
 message PeerState {
   string auth_password = 1;
   string description = 2;
-  uint32 local_as = 3;
+  uint32 local_asn = 3;
   Messages messages = 4;
   string neighbor_address = 5;
-  uint32 peer_as = 6;
+  uint32 peer_asn = 6;
   string peer_group = 7;
   PeerType type = 8;
   Queues queues = 9;
-  RemovePrivateAs remove_private_as = 10;
+  RemovePrivate remove_private = 10;
   bool route_flap_damping = 11;
   uint32 send_community = 12;
   enum SessionState {
@@ -772,12 +772,12 @@ message UseMultiplePathsConfig { bool enabled = 1; }
 message UseMultiplePathsState { bool enabled = 1; }
 
 message EbgpConfig {
-  bool allow_multiple_as = 1;
+  bool allow_multiple_asn = 1;
   uint32 maximum_paths = 2;
 }
 
 message EbgpState {
-  bool allow_multiple_as = 1;
+  bool allow_multiple_asn = 1;
   uint32 maximum_paths = 2;
 }
 
@@ -990,7 +990,7 @@ message RoutingPolicy {
 }
 
 message Roa {
-  uint32 as = 1;
+  uint32 asn = 1;
   uint32 prefixlen = 2;
   uint32 maxlen = 3;
   string prefix = 4;
@@ -1023,7 +1023,7 @@ message DefaultRouteDistance {
 }
 
 message Global {
-  uint32 as = 1;
+  uint32 asn = 1;
   string router_id = 2;
   int32 listen_port = 3;
   repeated string listen_addresses = 4;

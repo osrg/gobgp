@@ -1570,7 +1570,7 @@ func showGlobalConfig() error {
 		return nil
 	}
 	g := r.Global
-	fmt.Println("AS:       ", g.As)
+	fmt.Println("AS:       ", g.Asn)
 	fmt.Println("Router-ID:", g.RouterId)
 	if len(g.ListenAddresses) > 0 {
 		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
@@ -1614,7 +1614,7 @@ func modGlobalConfig(args []string) error {
 	}
 	_, err = client.StartBgp(ctx, &api.StartBgpRequest{
 		Global: &api.Global{
-			As:               uint32(asn),
+			Asn:              uint32(asn),
 			RouterId:         id.String(),
 			ListenPort:       int32(port),
 			ListenAddresses:  m["listen-addresses"],

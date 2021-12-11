@@ -44,7 +44,7 @@ func TestStop(t *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: -1,
 		},
@@ -56,7 +56,7 @@ func TestStop(t *testing.T) {
 	go s.Serve()
 	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: -1,
 		},
@@ -65,7 +65,7 @@ func TestStop(t *testing.T) {
 	p := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "2.2.2.2",
-			PeerAs:          1,
+			PeerAsn:         1,
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: true,
@@ -86,7 +86,7 @@ func TestModPolicyAssign(t *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: -1,
 		},
@@ -158,7 +158,7 @@ func TestListPolicyAssignment(t *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: -1,
 		},
@@ -171,7 +171,7 @@ func TestListPolicyAssignment(t *testing.T) {
 		p := &api.Peer{
 			Conf: &api.PeerConf{
 				NeighborAddress: addr,
-				PeerAs:          uint32(i + 1),
+				PeerAsn:         uint32(i + 1),
 			},
 			RouteServer: &api.RouteServer{
 				RouteServerClient: true,
@@ -220,7 +220,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: 10179,
 		},
@@ -231,7 +231,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	peer1 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          2,
+			PeerAsn:         2,
 		},
 		Transport: &api.Transport{
 			PassiveMode: true,
@@ -284,7 +284,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	go t.Serve()
 	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         2,
+			Asn:        2,
 			RouterId:   "2.2.2.2",
 			ListenPort: -1,
 		},
@@ -335,7 +335,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	peer2 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          1,
+			PeerAsn:         1,
 		},
 		Transport: &api.Transport{
 			RemotePort: 10179,
@@ -471,7 +471,7 @@ func TestMonitor(test *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: 10179,
 		},
@@ -486,7 +486,7 @@ func TestMonitor(test *testing.T) {
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          2,
+			PeerAsn:         2,
 		},
 		Transport: &api.Transport{
 			PassiveMode: true,
@@ -499,7 +499,7 @@ func TestMonitor(test *testing.T) {
 	go t.Serve()
 	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         2,
+			Asn:        2,
 			RouterId:   "2.2.2.2",
 			ListenPort: -1,
 		},
@@ -510,7 +510,7 @@ func TestMonitor(test *testing.T) {
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          1,
+			PeerAsn:         1,
 		},
 		Transport: &api.Transport{
 			RemotePort: 10179,
@@ -661,7 +661,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: -1,
 		},
@@ -677,7 +677,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	p := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          2,
+			PeerAsn:         2,
 		},
 		Transport: &api.Transport{
 			PassiveMode: true,
@@ -870,7 +870,7 @@ func TestPeerGroup(test *testing.T) {
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: 10179,
 		},
@@ -917,7 +917,7 @@ func TestPeerGroup(test *testing.T) {
 	go t.Serve()
 	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         2,
+			Asn:        2,
 			RouterId:   "2.2.2.2",
 			ListenPort: -1,
 		},
@@ -960,7 +960,7 @@ func TestDynamicNeighbor(t *testing.T) {
 	go s1.Serve()
 	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: 10179,
 		},
@@ -990,7 +990,7 @@ func TestDynamicNeighbor(t *testing.T) {
 	go s2.Serve()
 	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         2,
+			Asn:        2,
 			RouterId:   "2.2.2.2",
 			ListenPort: -1,
 		},
@@ -1032,7 +1032,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	go s1.Serve()
 	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         1,
+			Asn:        1,
 			RouterId:   "1.1.1.1",
 			ListenPort: 10179,
 		},
@@ -1043,7 +1043,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          2,
+			PeerAsn:         2,
 		},
 		Transport: &api.Transport{
 			PassiveMode: true,
@@ -1060,7 +1060,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	go s2.Serve()
 	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         2,
+			Asn:        2,
 			RouterId:   "2.2.2.2",
 			ListenPort: -1,
 		},
@@ -1071,7 +1071,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "127.0.0.1",
-			PeerAs:          1,
+			PeerAsn:         1,
 		},
 		Transport: &api.Transport{
 			RemotePort: 10179,
@@ -1172,7 +1172,7 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 	go s.Serve()
 	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         as,
+			Asn:        as,
 			RouterId:   routerID,
 			ListenPort: listenPort,
 		},
