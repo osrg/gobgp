@@ -3392,7 +3392,7 @@ func (x *FourOctetAsSpecificExtended) GetLocalAdmin() uint32 {
 	return 0
 }
 
-type LinkBandiwdthExtended struct {
+type LinkBandwidthExtended struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -3401,8 +3401,8 @@ type LinkBandiwdthExtended struct {
 	Bandwidth float32 `protobuf:"fixed32,2,opt,name=bandwidth,proto3" json:"bandwidth,omitempty"`
 }
 
-func (x *LinkBandiwdthExtended) Reset() {
-	*x = LinkBandiwdthExtended{}
+func (x *LinkBandwidthExtended) Reset() {
+	*x = LinkBandwidthExtended{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_attribute_proto_msgTypes[47]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3410,13 +3410,13 @@ func (x *LinkBandiwdthExtended) Reset() {
 	}
 }
 
-func (x *LinkBandiwdthExtended) String() string {
+func (x *LinkBandwidthExtended) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*LinkBandiwdthExtended) ProtoMessage() {}
+func (*LinkBandwidthExtended) ProtoMessage() {}
 
-func (x *LinkBandiwdthExtended) ProtoReflect() protoreflect.Message {
+func (x *LinkBandwidthExtended) ProtoReflect() protoreflect.Message {
 	mi := &file_attribute_proto_msgTypes[47]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3428,19 +3428,19 @@ func (x *LinkBandiwdthExtended) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LinkBandiwdthExtended.ProtoReflect.Descriptor instead.
-func (*LinkBandiwdthExtended) Descriptor() ([]byte, []int) {
+// Deprecated: Use LinkBandwidthExtended.ProtoReflect.Descriptor instead.
+func (*LinkBandwidthExtended) Descriptor() ([]byte, []int) {
 	return file_attribute_proto_rawDescGZIP(), []int{47}
 }
 
-func (x *LinkBandiwdthExtended) GetAsn() uint32 {
+func (x *LinkBandwidthExtended) GetAsn() uint32 {
 	if x != nil {
 		return x.Asn
 	}
 	return 0
 }
 
-func (x *LinkBandiwdthExtended) GetBandwidth() float32 {
+func (x *LinkBandwidthExtended) GetBandwidth() float32 {
 	if x != nil {
 		return x.Bandwidth
 	}
@@ -8169,7 +8169,7 @@ var file_attribute_proto_goTypes = []interface{}{
 	(*TwoOctetAsSpecificExtended)(nil),             // 50: apipb.TwoOctetAsSpecificExtended
 	(*IPv4AddressSpecificExtended)(nil),            // 51: apipb.IPv4AddressSpecificExtended
 	(*FourOctetAsSpecificExtended)(nil),            // 52: apipb.FourOctetAsSpecificExtended
-	(*LinkBandiwdthExtended)(nil),                  // 53: apipb.LinkBandiwdthExtended
+	(*LinkBandwidthExtended)(nil),                  // 53: apipb.LinkBandwidthExtended
 	(*ValidationExtended)(nil),                     // 54: apipb.ValidationExtended
 	(*ColorExtended)(nil),                          // 55: apipb.ColorExtended
 	(*EncapExtended)(nil),                          // 56: apipb.EncapExtended
@@ -8887,7 +8887,7 @@ func file_attribute_proto_init() {
 			}
 		}
 		file_attribute_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LinkBandiwdthExtended); i {
+			switch v := v.(*LinkBandwidthExtended); i {
 			case 0:
 				return &v.state
 			case 1:
