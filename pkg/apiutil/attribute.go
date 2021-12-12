@@ -1325,7 +1325,7 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 				State: uint32(v.State),
 			}
 		case *bgp.LinkBandwidthExtended:
-			community = &api.LinkBandiwdthExtended{
+			community = &api.LinkBandwidthExtended{
 				Asn:       uint32(v.AS),
 				Bandwidth: v.Bandwidth,
 			}
@@ -1424,7 +1424,7 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 			community = bgp.NewFourOctetAsSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Asn, uint16(v.LocalAdmin), v.IsTransitive)
 		case *api.ValidationExtended:
 			community = bgp.NewValidationExtended(bgp.ValidationState(v.State))
-		case *api.LinkBandiwdthExtended:
+		case *api.LinkBandwidthExtended:
 			community = bgp.NewLinkBandwidthExtended(uint16(v.Asn), v.Bandwidth)
 		case *api.ColorExtended:
 			community = bgp.NewColorExtended(v.Color)

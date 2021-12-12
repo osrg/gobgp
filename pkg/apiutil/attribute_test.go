@@ -1321,7 +1321,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
-	a, err = apb.New(&api.LinkBandiwdthExtended{
+	a, err = apb.New(&api.LinkBandwidthExtended{
 		Asn:       65004,
 		Bandwidth: 125000.0,
 	})
