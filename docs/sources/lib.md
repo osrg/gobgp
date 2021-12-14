@@ -41,7 +41,11 @@ func main() {
 	}
 
 	// monitor the change of the peer state
-	if err := s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { log.Info(p) }); err != nil {
+	if err := s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{},}, func(r *api.WatchEventResponse) {
+			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+				log.Info(p)
+			}
+		}); err != nil {
 		log.Fatal(err)
 	}
 
