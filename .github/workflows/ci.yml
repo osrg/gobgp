@@ -70,6 +70,7 @@ jobs:
           go-version: '~1.17.0'
       - run: |
           python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
+          python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib-ls.md
 
   lintdoc:
     name: lintdoc

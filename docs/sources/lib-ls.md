@@ -31,7 +31,7 @@ func main() {
 
 	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         64512,
+			Asn:         64512,
 			RouterId:   "10.0.255.254",
 			ListenPort: -1, // gobgp won't listen on tcp:179
 		},
@@ -39,7 +39,30 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { log.Info(p) }); err != nil {
+	marshaller := protojson.MarshalOptions{
+		Indent:   "  ",
+		UseProtoNames: true,
+	}
+
+	// the change of the peer state and path
+	if err := s.WatchEvent(context.Background(), &api.WatchEventRequest{
+		Peer: &api.WatchEventRequest_Peer{},
+		Table: &api.WatchEventRequest_Table{
+			Filters: []*api.WatchEventRequest_Table_Filter{
+				{
+					Type: api.WatchEventRequest_Table_Filter_BEST,
+				},
+			},
+		},}, func(r *api.WatchEventResponse) {
+			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+				log.Info(p)
+			} else if t := r.GetTable(); t != nil {
+				// Your application should do something useful with the BGP-LS path here.
+				for _, p := range t.Paths {
+					marshaller.Marshal(p)
+				}
+			}
+		}); err != nil {
 		log.Fatal(err)
 	}
 
@@ -47,7 +70,7 @@ func main() {
 	n := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "172.17.0.2",
-			PeerAs:          65002,
+			PeerAsn:          65002,
 		},
 		ApplyPolicy: &api.ApplyPolicy{
 			ImportPolicy: &api.PolicyAssignment{
@@ -72,25 +95,6 @@ func main() {
 
 	if err := s.AddPeer(context.Background(), &api.AddPeerRequest{
 		Peer: n,
-	}); err != nil {
-		log.Fatal(err)
-	}
-
-	marshaller := protojson.MarshalOptions{
-		Indent:   "  ",
-		UseProtoNames: true,
-	}
-
-	// Display incoming Prefixes in JSON format.
-	if err := s.MonitorTable(context.Background(), &api.MonitorTableRequest{
-		TableType: api.TableType_GLOBAL,
-		Family: &api.Family{
-			Afi:  api.Family_AFI_LS,
-			Safi: api.Family_SAFI_LS,
-		},
-	}, func(p *api.Path) {
-		// Your application should do something useful with the BGP-LS path here.
-		marshaller.Marshal(p)
 	}); err != nil {
 		log.Fatal(err)
 	}
