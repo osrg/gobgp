@@ -34,10 +34,12 @@ import (
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/internal/pkg/version"
 	"github.com/osrg/gobgp/v3/internal/pkg/zebra"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v3/pkg/packet/bmp"
 )
 
 type tcpListener struct {
@@ -1794,11 +1796,24 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 		if !ok {
 			return fmt.Errorf("invalid bmp route monitoring policy: %v", r.Policy)
 		}
+		port := r.Port
+		if port == 0 {
+			port = bmp.BMP_DEFAULT_PORT
+		}
+		sysname := r.SysName
+		if sysname == "" {
+			sysname = "GoBGP"
+		}
+		sysDescr := r.SysDescr
+		if sysDescr == "" {
+			sysDescr = version.Version()
+		}
+		s.logger.Debug("add bmp server", log.Fields{"address": r.Address, "port": r.Port, "policy": r.Policy})
 		return s.bmpManager.addServer(&config.BmpServerConfig{
 			Address:               r.Address,
-			Port:                  r.Port,
-			SysName:               r.SysName,
-			SysDescr:              r.SysDescr,
+			Port:                  port,
+			SysName:               sysname,
+			SysDescr:              sysDescr,
 			RouteMonitoringPolicy: config.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Policy)],
 			StatisticsTimeout:     uint16(r.StatisticsTimeout),
 		})

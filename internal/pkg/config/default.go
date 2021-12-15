@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/osrg/gobgp/v3/internal/pkg/version"
 	"github.com/osrg/gobgp/v3/internal/pkg/zebra"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/packet/bmp"
@@ -349,13 +350,12 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		return err
 	}
 
-	bmpSysPrefix := "Gobgp-R"
 	for idx, server := range b.BmpServers {
 		if server.Config.SysName == "" {
-			server.Config.SysName = bmpSysPrefix + strconv.Itoa(idx)
+			server.Config.SysName = "GoBGP"
 		}
 		if server.Config.SysDescr == "" {
-			server.Config.SysDescr = "Gobgp Version: master"
+			server.Config.SysDescr = version.Version()
 		}
 		if server.Config.Port == 0 {
 			server.Config.Port = bmp.BMP_DEFAULT_PORT
