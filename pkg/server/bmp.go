@@ -222,7 +222,7 @@ func (b *bmpClient) loop() {
 								if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 									return false
 								}
-							} else if msg.Type != PEER_EVENT_INIT {
+							} else if msg.Type != PEER_EVENT_INIT && msg.OldState == bgp.BGP_FSM_ESTABLISHED {
 								if err := write(bmpPeerDown(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 									return false
 								}
