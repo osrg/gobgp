@@ -3978,9 +3978,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 	if len(opts) == 0 {
 		return fmt.Errorf("no events to watch")
 	}
+	w := s.watch(opts...)
 
 	go func() {
-		w := s.watch(opts...)
 		defer func() {
 			w.Stop()
 		}()
