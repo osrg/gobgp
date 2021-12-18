@@ -20,10 +20,12 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apb "google.golang.org/protobuf/types/known/anypb"
@@ -1603,4 +1605,106 @@ func TestAddBogusPath(t *testing.T) {
 		},
 	})
 	assert.NotNil(t, err)
+}
+
+// TestListPathWithIdentifiers confirms whether ListPath properly returns the
+// identifier information for paths for the Global RIB and for VRF RIBs.
+func TestListPathWithIdentifiers(t *testing.T) {
+	ctx := context.Background()
+
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.Nil(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	family := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	nlri1, _ := apb.New(&api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	})
+
+	a1, _ := apb.New(&api.OriginAttribute{
+		Origin: 0,
+	})
+	a2, _ := apb.New(&api.NextHopAttribute{
+		NextHop: "10.0.0.1",
+	})
+	attrs := []*apb.Any{a1, a2}
+	paths := []*api.Path{
+		{
+			Family:     family,
+			Nlri:       nlri1,
+			Pattrs:     attrs,
+			Identifier: 1,
+		},
+		{
+			Family:     family,
+			Nlri:       nlri1,
+			Pattrs:     attrs,
+			Identifier: 2,
+		},
+	}
+	wantIDs := []uint32{1, 2}
+	applyPathsTo := func(vrf string) {
+		for _, path := range paths {
+			_, err = s.AddPath(context.Background(), &api.AddPathRequest{
+				TableType: api.TableType_GLOBAL,
+				Path:      path,
+				VrfId:     vrf,
+			})
+			assert.Nil(err)
+		}
+	}
+	destinationsFrom := func(name string, tableType api.TableType) []*api.Destination {
+		var destinations []*api.Destination
+		err = s.ListPath(ctx, &api.ListPathRequest{
+			Name:      name,
+			TableType: tableType,
+			Family:    family,
+		}, func(d *api.Destination) {
+			destinations = append(destinations, d)
+		})
+		assert.Nil(err)
+		return destinations
+	}
+	identifiersFrom := func(destinations []*api.Destination) []uint32 {
+		var ids []uint32
+		for _, d := range destinations {
+			for _, p := range d.Paths {
+				ids = append(ids, p.Identifier)
+			}
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		return ids
+	}
+
+	t.Logf("For Global RIB")
+	applyPathsTo("")
+	gotDestinations := destinationsFrom("", api.TableType_GLOBAL)
+	gotIDs := identifiersFrom(gotDestinations)
+	if diff := cmp.Diff(gotIDs, wantIDs); diff != "" {
+		t.Errorf("IDs differed for global RIB (-got, +want):\n%s", diff)
+	}
+
+	t.Logf("For VRF RIB")
+	vrfName := "vrf"
+	addVrf(t, s, vrfName, "0:0", []string{"0:0"}, []string{"0:0"}, 0)
+	applyPathsTo(vrfName)
+	gotDestinations = destinationsFrom(vrfName, api.TableType_VRF)
+	gotIDs = identifiersFrom(gotDestinations)
+	if diff := cmp.Diff(gotIDs, wantIDs); diff != "" {
+		t.Errorf("IDs differed for VRF RIB (-got, +want):\n%s", diff)
+	}
 }

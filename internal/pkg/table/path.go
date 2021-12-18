@@ -1155,28 +1155,33 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 func (p *Path) ToLocal() *Path {
 	nlri := p.GetNlri()
 	f := p.GetRouteFamily()
-	pathId := nlri.PathLocalIdentifier()
+	localPathId := nlri.PathLocalIdentifier()
+	pathId := nlri.PathIdentifier()
 	switch f {
 	case bgp.RF_IPv4_VPN:
 		n := nlri.(*bgp.LabeledVPNIPAddrPrefix)
 		_, c, _ := net.ParseCIDR(n.IPPrefix())
 		ones, _ := c.Mask.Size()
 		nlri = bgp.NewIPAddrPrefix(uint8(ones), c.IP.String())
-		nlri.SetPathLocalIdentifier(pathId)
+		nlri.SetPathLocalIdentifier(localPathId)
+		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_FS_IPv4_VPN:
 		n := nlri.(*bgp.FlowSpecIPv4VPN)
 		nlri = bgp.NewFlowSpecIPv4Unicast(n.FlowSpecNLRI.Value)
-		nlri.SetPathLocalIdentifier(pathId)
+		nlri.SetPathLocalIdentifier(localPathId)
+		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_IPv6_VPN:
 		n := nlri.(*bgp.LabeledVPNIPv6AddrPrefix)
 		_, c, _ := net.ParseCIDR(n.IPPrefix())
 		ones, _ := c.Mask.Size()
 		nlri = bgp.NewIPv6AddrPrefix(uint8(ones), c.IP.String())
-		nlri.SetPathLocalIdentifier(pathId)
+		nlri.SetPathLocalIdentifier(localPathId)
+		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_FS_IPv6_VPN:
 		n := nlri.(*bgp.FlowSpecIPv6VPN)
 		nlri = bgp.NewFlowSpecIPv6Unicast(n.FlowSpecNLRI.Value)
-		nlri.SetPathLocalIdentifier(pathId)
+		nlri.SetPathLocalIdentifier(localPathId)
+		nlri.SetPathIdentifier(pathId)
 	default:
 		return p
 	}
