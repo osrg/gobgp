@@ -1388,9 +1388,6 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if graceful {
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
-				for i := range peer.fsm.pConf.AfiSafis {
-					peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
-				}
 				peer.fsm.lock.Unlock()
 				var p []bgp.RouteFamily
 				p, drop = peer.forwardingPreservedFamilies()
@@ -1398,6 +1395,14 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			} else {
 				drop = peer.configuredRFlist()
 			}
+
+			// Always clear EndOfRibReceived state on PeerDown
+			peer.fsm.lock.Lock()
+			for i := range peer.fsm.pConf.AfiSafis {
+				peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
+			}
+			peer.fsm.lock.Unlock()
+
 			peer.prefixLimitWarned = make(map[bgp.RouteFamily]bool)
 			s.propagateUpdate(peer, peer.DropAll(drop))
 
