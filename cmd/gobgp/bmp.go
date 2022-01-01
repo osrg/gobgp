@@ -59,6 +59,8 @@ func modBmpServer(cmdType string, args []string) error {
 		policyType := api.AddBmpRequest_PRE
 		if len(args) > 1 {
 			switch args[1] {
+			case "pre":
+				policyType = api.AddBmpRequest_PRE
 			case "post":
 				policyType = api.AddBmpRequest_POST
 			case "both":
