@@ -400,7 +400,7 @@ message EnableZebraRequest {
 }
 
 message EnableMrtRequest {
-  enum DumpType { TALBE = 0; UPDATE = 1; }
+  enum DumpType { UPDATES = 0; TABLE = 1; }
   DumpType type = 1;
   string filename = 2;
   uint64 dump_interval = 3;
