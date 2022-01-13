@@ -408,7 +408,9 @@ message EnableMrtRequest {
   uint64 rotation_interval = 4;
 }
 
-message DisableMrtRequest {}
+message DisableMrtRequest {
+  string filename = 1;
+}
 
 message AddBmpRequest {
   string address = 1;
