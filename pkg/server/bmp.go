@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	api "github.com/osrg/gobgp/v3/api"
@@ -119,8 +120,12 @@ func (b *bmpClient) loop() {
 		if conn == nil {
 			break
 		}
+		atomic.StoreInt64(&b.uptime, time.Now().Unix())
 
 		if func() bool {
+			defer func() {
+				atomic.StoreInt64(&b.downtime, time.Now().Unix())
+			}()
 			ops := []watchOption{watchPeer()}
 			if b.c.RouteMonitoringPolicy == config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", log.Fields{"Topic": "bmp"})
@@ -267,11 +272,13 @@ func (b *bmpClient) loop() {
 }
 
 type bmpClient struct {
-	s      *BgpServer
-	dead   chan struct{}
-	host   string
-	c      *config.BmpServerConfig
-	ribout ribout
+	s        *BgpServer
+	dead     chan struct{}
+	host     string
+	c        *config.BmpServerConfig
+	ribout   ribout
+	uptime   int64
+	downtime int64
 }
 
 func bmpPeerUp(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMessage {

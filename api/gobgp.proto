@@ -105,6 +105,7 @@ service GobgpApi {
 
   rpc AddBmp(AddBmpRequest) returns(google.protobuf.Empty);
   rpc DeleteBmp(DeleteBmpRequest) returns(google.protobuf.Empty);
+  rpc ListBmp(ListBmpRequest) returns(stream ListBmpResponse);
 
   rpc SetLogLevel(SetLogLevelRequest) returns(google.protobuf.Empty);
 }
@@ -422,6 +423,25 @@ message AddBmpRequest {
 message DeleteBmpRequest {
   string address = 1;
   uint32 port = 2;
+}
+
+message ListBmpRequest {}
+
+message ListBmpResponse {
+  message BmpStation {
+    message Conf {
+      string address = 1;
+      uint32 port = 2;
+    }
+    Conf conf = 1;
+    message State {
+      google.protobuf.Timestamp uptime = 1;
+      google.protobuf.Timestamp downtime = 2;
+    }
+    State state = 2;
+  }
+
+  BmpStation station = 1;
 }
 
 message Family {

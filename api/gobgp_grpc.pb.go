@@ -72,6 +72,7 @@ type GobgpApiClient interface {
 	DisableMrt(ctx context.Context, in *DisableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	AddBmp(ctx context.Context, in *AddBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteBmp(ctx context.Context, in *DeleteBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (GobgpApi_ListBmpClient, error)
 	SetLogLevel(ctx context.Context, in *SetLogLevelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -861,6 +862,38 @@ func (c *gobgpApiClient) DeleteBmp(ctx context.Context, in *DeleteBmpRequest, op
 	return out, nil
 }
 
+func (c *gobgpApiClient) ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (GobgpApi_ListBmpClient, error) {
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[13], "/apipb.GobgpApi/ListBmp", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiListBmpClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_ListBmpClient interface {
+	Recv() (*ListBmpResponse, error)
+	grpc.ClientStream
+}
+
+type gobgpApiListBmpClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiListBmpClient) Recv() (*ListBmpResponse, error) {
+	m := new(ListBmpResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *gobgpApiClient) SetLogLevel(ctx context.Context, in *SetLogLevelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/apipb.GobgpApi/SetLogLevel", in, out, opts...)
@@ -927,6 +960,7 @@ type GobgpApiServer interface {
 	DisableMrt(context.Context, *DisableMrtRequest) (*emptypb.Empty, error)
 	AddBmp(context.Context, *AddBmpRequest) (*emptypb.Empty, error)
 	DeleteBmp(context.Context, *DeleteBmpRequest) (*emptypb.Empty, error)
+	ListBmp(*ListBmpRequest, GobgpApi_ListBmpServer) error
 	SetLogLevel(context.Context, *SetLogLevelRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedGobgpApiServer()
 }
@@ -1093,6 +1127,9 @@ func (UnimplementedGobgpApiServer) AddBmp(context.Context, *AddBmpRequest) (*emp
 }
 func (UnimplementedGobgpApiServer) DeleteBmp(context.Context, *DeleteBmpRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteBmp not implemented")
+}
+func (UnimplementedGobgpApiServer) ListBmp(*ListBmpRequest, GobgpApi_ListBmpServer) error {
+	return status.Errorf(codes.Unimplemented, "method ListBmp not implemented")
 }
 func (UnimplementedGobgpApiServer) SetLogLevel(context.Context, *SetLogLevelRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetLogLevel not implemented")
@@ -2108,6 +2145,27 @@ func _GobgpApi_DeleteBmp_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GobgpApi_ListBmp_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListBmpRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).ListBmp(m, &gobgpApiListBmpServer{stream})
+}
+
+type GobgpApi_ListBmpServer interface {
+	Send(*ListBmpResponse) error
+	grpc.ServerStream
+}
+
+type gobgpApiListBmpServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiListBmpServer) Send(m *ListBmpResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 func _GobgpApi_SetLogLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetLogLevelRequest)
 	if err := dec(in); err != nil {
@@ -2362,6 +2420,11 @@ var GobgpApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ListRpkiTable",
 			Handler:       _GobgpApi_ListRpkiTable_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListBmp",
+			Handler:       _GobgpApi_ListBmp_Handler,
 			ServerStreams: true,
 		},
 	},

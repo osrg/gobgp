@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -1836,6 +1837,39 @@ func (s *BgpServer) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) erro
 			Port:    r.Port,
 		})
 	}, true)
+}
+
+func (s *BgpServer) ListBmp(ctx context.Context, req *api.ListBmpRequest, fn func(*api.ListBmpResponse_BmpStation)) error {
+	if req == nil {
+		return fmt.Errorf("null request")
+	}
+	var stations []*api.ListBmpResponse_BmpStation
+	err := s.mgmtOperation(func() error {
+		for _, s := range s.bmpManager.clientMap {
+			stations = append(stations, &api.ListBmpResponse_BmpStation{
+				Conf: &api.ListBmpResponse_BmpStation_Conf{
+					Address: s.c.Address,
+					Port:    s.c.Port,
+				},
+				State: &api.ListBmpResponse_BmpStation_State{
+					Uptime:   config.ProtoTimestamp(atomic.LoadInt64(&s.uptime)),
+					Downtime: config.ProtoTimestamp(atomic.LoadInt64(&s.downtime)),
+				},
+			})
+		}
+		return nil
+	}, false)
+	if err == nil {
+		for _, rsp := range stations {
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				fn(rsp)
+			}
+		}
+	}
+	return err
 }
 
 func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {

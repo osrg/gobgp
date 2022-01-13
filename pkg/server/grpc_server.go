@@ -420,6 +420,17 @@ func (s *server) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) (*empty
 	return &emptypb.Empty{}, s.bgpServer.DeleteBmp(ctx, r)
 }
 
+func (s *server) ListBmp(r *api.ListBmpRequest, stream api.GobgpApi_ListBmpServer) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fn := func(rsp *api.ListBmpResponse_BmpStation) {
+		if err := stream.Send(&api.ListBmpResponse{Station: rsp}); err != nil {
+			cancel()
+		}
+	}
+	return s.bgpServer.ListBmp(ctx, r, fn)
+}
+
 func (s *server) AddRpki(ctx context.Context, r *api.AddRpkiRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, s.bgpServer.AddRpki(ctx, r)
 }
