@@ -43,6 +43,7 @@ func showStations() error {
 		stations = append(stations, rsp.Station)
 	}
 	format := "%-23s %-6s %-10s\n"
+	fmt.Printf(format, "Session", "State", "Uptime")
 	for _, r := range stations {
 		s := "Down"
 		uptime := "Never"
