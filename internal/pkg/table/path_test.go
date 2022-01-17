@@ -382,4 +382,13 @@ func TestNLRIToIPNet(t *testing.T) {
 	_, n4, _ := net.ParseCIDR("2806:106e:19::/48")
 	ipNet = nlriToIPNet(bgp.NewLabeledIPv6AddrPrefix(48, "2806:106e:19::", *labels))
 	assert.Equal(t, n4, ipNet)
+
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	_, n5, _ := net.ParseCIDR("40.40.40.0/24")
+	ipNet = nlriToIPNet(bgp.NewLabeledVPNIPAddrPrefix(24, "40.40.40.0", *labels, rd))
+	assert.Equal(t, n5, ipNet)
+
+	_, n6, _ := net.ParseCIDR("2001:db8:53::/64")
+	ipNet = nlriToIPNet(bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8:53::", *labels, rd))
+	assert.Equal(t, n6, ipNet)
 }

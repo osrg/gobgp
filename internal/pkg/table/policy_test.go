@@ -3050,6 +3050,66 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 	assert.False(t, m.Evaluate(path, nil))
 }
 
+func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
+	p1 := config.Prefix{
+		IpPrefix:        "10.10.10.0/24",
+		MasklengthRange: "24..32",
+	}
+	ps, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	assert.Nil(t, err)
+	m := &PrefixCondition{
+		set: ps,
+	}
+
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+
+	n1 := bgp.NewLabeledVPNIPAddrPrefix(32, "10.10.10.10", *labels, rd)
+	path := NewPath(nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	n2 := bgp.NewLabeledVPNIPAddrPrefix(32, "10.20.20.20", *labels, rd)
+	path = NewPath(nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+
+	n3 := bgp.NewLabeledVPNIPAddrPrefix(16, "10.10.0.0", *labels, rd)
+	path = NewPath(nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+}
+
+func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
+	p1 := config.Prefix{
+		IpPrefix:        "2001:123:123:1::/64",
+		MasklengthRange: "64..128",
+	}
+	ps, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	assert.Nil(t, err)
+	m := &PrefixCondition{
+		set: ps,
+	}
+
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+
+	n1 := bgp.NewLabeledVPNIPv6AddrPrefix(128, "2001:123:123:1::", *labels, rd)
+	path := NewPath(nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	n2 := bgp.NewLabeledVPNIPv6AddrPrefix(128, "2001:124:123:1::", *labels, rd)
+	path = NewPath(nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+
+	n3 := bgp.NewLabeledVPNIPv6AddrPrefix(48, "2001:124:123::", *labels, rd)
+	path = NewPath(nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+}
+
 func TestLargeCommunityMatchAction(t *testing.T) {
 	coms := []*bgp.LargeCommunity{
 		{ASN: 100, LocalData1: 100, LocalData2: 100},

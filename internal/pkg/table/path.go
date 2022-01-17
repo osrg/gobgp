@@ -1241,6 +1241,16 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 			IP:   net.IP(T.Prefix.To16()),
 			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 128),
 		}
+	case *bgp.LabeledVPNIPAddrPrefix:
+		return &net.IPNet{
+			IP:   net.IP(T.Prefix.To4()),
+			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8-T.RD.Len()*8, 32),
+		}
+	case *bgp.LabeledVPNIPv6AddrPrefix:
+		return &net.IPNet{
+			IP:   net.IP(T.Prefix.To16()),
+			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8-T.RD.Len()*8, 128),
+		}
 	}
 	return nil
 }
