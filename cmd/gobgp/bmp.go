@@ -52,6 +52,7 @@ func showStations() error {
 			if r.State.Uptime.AsTime().After(r.State.Downtime.AsTime()) {
 				s = "Up"
 			} else {
+				uptime = fmt.Sprint(formatTimedelta(r.State.Downtime.AsTime()))
 				s = "Down"
 			}
 		}
