@@ -22,7 +22,7 @@ const MINOR uint = 0
 const PATCH uint = 0
 
 var COMMIT string = ""
-var IDENTIFIER string = "rc4"
+var IDENTIFIER string = ""
 var METADATA string = ""
 
 func Version() string {
