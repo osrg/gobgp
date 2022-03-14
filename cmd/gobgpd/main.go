@@ -26,7 +26,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/coreos/go-systemd/daemon"
+	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
 	"github.com/sirupsen/logrus"
