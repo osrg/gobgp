@@ -28,6 +28,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
@@ -205,7 +206,7 @@ func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, err
 		}
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(creds))
 	} else {
-		grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	target := globalOpts.Target
