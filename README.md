@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
 
-GoBGP is an open source BGP implementation designed from scratch for
+GoBGP is an open source Border Gateway Protocol (BGP) implementation designed from scratch for
 modern environment and implemented in a modern programming language,
 [the Go Programming Language](http://golang.org/).
 
