@@ -12788,7 +12788,7 @@ func (p *PathAttributeUnknown) Serialize(options ...*MarshallingOption) ([]byte,
 }
 
 func (p *PathAttributeUnknown) String() string {
-	return fmt.Sprintf("{Flags: %s, Type: %s, Value: %s}", p.Flags, p.Type, p.Value)
+	return fmt.Sprintf("{Flags: %s, Type: %s, Value: %v}", p.Flags, p.Type, p.Value)
 }
 
 func (p *PathAttributeUnknown) MarshalJSON() ([]byte, error) {
