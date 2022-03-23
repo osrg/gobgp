@@ -1717,10 +1717,18 @@ func (c *ExtCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		if typ >= 0x3f {
 			continue
 		}
+		var xStr string
 		for idx, y := range c.set.list {
-			if subtype == c.set.subtypeList[idx] && y.MatchString(x.String()) {
-				result = true
-				break
+			if subtype == c.set.subtypeList[idx] {
+				if len(xStr) == 0 {
+					// caching x.String() saves a lot of resources when matching against
+					// a lot of conditions, link hundreds of RTs.
+					xStr = x.String()
+				}
+				if y.MatchString(xStr) {
+					result = true
+					break
+				}
 			}
 		}
 		if c.option == MATCH_OPTION_ALL && !result {
