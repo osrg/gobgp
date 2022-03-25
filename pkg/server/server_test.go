@@ -1397,23 +1397,55 @@ func TestAddDeletePath(t *testing.T) {
 		PrefixLen: 24,
 	})
 
+	nlri6, _ := apb.New(&api.IPAddressPrefix{
+		Prefix:    "2001:DB8::",
+		PrefixLen: 32,
+	})
+
+	nh1, _ := apb.New(&api.NextHopAttribute{
+		NextHop: "fd00::1",
+	})
+
+	nh2, _ := apb.New(&api.NextHopAttribute{
+		NextHop: "fd00::2",
+	})
+
+	nh3, _ := apb.New(&api.NextHopAttribute{
+		NextHop: "10.0.0.1",
+	})
+
+	nh4, _ := apb.New(&api.NextHopAttribute{
+		NextHop: "10.0.0.2",
+	})
+
 	a1, _ := apb.New(&api.OriginAttribute{
 		Origin: 0,
 	})
-	a2, _ := apb.New(&api.NextHopAttribute{
-		NextHop: "10.0.0.1",
-	})
-	attrs := []*apb.Any{a1, a2}
+
+	attrs := []*apb.Any{a1, nh3}
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_UNICAST,
 	}
 
-	listRib := func() []*api.Destination {
+	family6 := &api.Family{
+		Afi:  api.Family_AFI_IP6,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	listRib := func(f *api.Family) []*api.Destination {
 		l := make([]*api.Destination, 0)
-		s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: family}, func(d *api.Destination) { l = append(l, d) })
+		s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: f}, func(d *api.Destination) { l = append(l, d) })
 		return l
+	}
+
+	numPaths := func(f *api.Family) int {
+		c := 0
+		for _, d := range listRib(f) {
+			c += len(d.Paths)
+		}
+		return c
 	}
 
 	var err error
@@ -1432,13 +1464,13 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p1,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path:      p1,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 0)
+	assert.Equal(t, len(listRib(family)), 0)
 
 	// DeletePath(ListPath()) without PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
@@ -1446,14 +1478,14 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p1,
 	})
 	assert.Nil(t, err)
-	l := listRib()
+	l := listRib(family)
 	assert.Equal(t, len(l), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path:      l[0].Paths[0],
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 0)
+	assert.Equal(t, len(listRib(family)), 0)
 
 	p2 := getPath()
 	p2.SourceAsn = 1
@@ -1465,13 +1497,13 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 0)
+	assert.Equal(t, len(listRib(family)), 0)
 
 	// DeletePath(ListPath()) with PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
@@ -1479,14 +1511,112 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	l = listRib()
+	l = listRib(family)
 	assert.Equal(t, len(l), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path:      l[0].Paths[0],
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 0)
+	assert.Equal(t, len(listRib(family)), 0)
+
+	// DeletePath(AddPath()) with different identifiers (ipv6)
+	path1 := &api.Path{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_UNICAST,
+		},
+		Nlri:       nlri6,
+		Pattrs:     []*apb.Any{a1, nh1},
+		Identifier: 1,
+	}
+
+	path2 := &api.Path{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP6,
+			Safi: api.Family_SAFI_UNICAST,
+		},
+		Nlri:       nlri6,
+		Pattrs:     []*apb.Any{a1, nh2},
+		Identifier: 2,
+	}
+
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path1,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family6), 1)
+
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family6), 2)
+
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path1,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family6), 1)
+
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family6), 0)
+
+	// DeletePath(AddPath()) with different identifiers (ipv4)
+	path1 = &api.Path{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		},
+		Nlri:       nlri,
+		Pattrs:     []*apb.Any{a1, nh3},
+		Identifier: 1,
+	}
+
+	path2 = &api.Path{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		},
+		Nlri:       nlri,
+		Pattrs:     []*apb.Any{a1, nh4},
+		Identifier: 2,
+	}
+
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path1,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family), 1)
+
+	_, err = s.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family), 2)
+
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path1,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family), 1)
+
+	err = s.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path:      path2,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, numPaths(family), 0)
 
 	// DeletePath(AddPath()) with different PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
@@ -1494,7 +1624,7 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 	p3 := getPath()
 	p3.SourceAsn = 2
 	p3.SourceId = "1.1.1.2"
@@ -1503,7 +1633,7 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p3,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 
 	// DeletePath(AddPath()) with uuid
 	r, err := s.AddPath(ctx, &api.AddPathRequest{
@@ -1511,13 +1641,13 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
 		TableType: api.TableType_GLOBAL,
 		Uuid:      r.Uuid,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 0)
+	assert.Equal(t, len(listRib(family)), 0)
 	assert.Equal(t, len(s.uuidMap), 0)
 
 	r, err = s.AddPath(ctx, &api.AddPathRequest{
@@ -1525,7 +1655,7 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 	assert.Equal(t, len(s.uuidMap), 1)
 	u := r.Uuid
 
@@ -1544,7 +1674,7 @@ func TestAddDeletePath(t *testing.T) {
 		Path:      p2,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, len(listRib()), 1)
+	assert.Equal(t, len(listRib(family)), 1)
 	assert.Equal(t, len(s.uuidMap), 1)
 	assert.NotEqual(t, u, r.Uuid)
 	s.StopBgp(context.Background(), &api.StopBgpRequest{})
