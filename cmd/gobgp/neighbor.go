@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/config"
@@ -1078,7 +1080,7 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 		return nil
 	}
 
-	fmt.Printf("%s policy:\n", strings.Title(policyType))
+	fmt.Printf("%s policy:\n", cases.Title(language.English).String(policyType))
 	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), assignment.DefaultAction.String())
 	for _, p := range assignment.Policies {
 		fmt.Printf("%sName %s:\n", strings.Repeat(" ", indent), p.Name)
