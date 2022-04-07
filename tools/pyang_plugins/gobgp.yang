@@ -926,6 +926,11 @@ module gobgp {
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+    leaf local-port {
+      description "Set the local port (if available) to use for the session.";
+      type inet:port-number;
+    }
+
     leaf remote-port {
       type inet:port-number;
     }
