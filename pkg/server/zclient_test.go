@@ -32,13 +32,14 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 	for v := zebra.MinZapiVer; v <= zebra.MaxZapiVer; v++ {
 		// IPv4 Route Add
 		m := &zebra.Message{}
-		flag := zebra.FlagSelected.ToEach(v, "")
-		message := zebra.MessageNexthop | zebra.MessageDistance.ToEach(v) | zebra.MessageMetric.ToEach(v) | zebra.MessageMTU.ToEach(v)
+		software := zebra.NewSoftware(v, "")
+		flag := zebra.FlagSelected.ToEach(v, software)
+		message := zebra.MessageNexthop | zebra.MessageDistance.ToEach(v, software) | zebra.MessageMetric.ToEach(v, software) | zebra.MessageMTU.ToEach(v, software)
 		h := &zebra.Header{
 			Len:     zebra.HeaderSize(v),
 			Marker:  zebra.HeaderMarker(v),
 			Version: v,
-			Command: zebra.RouteAdd.ToEach(v, ""),
+			Command: zebra.RouteAdd.ToEach(v, software),
 		}
 		b := &zebra.IPRouteBody{
 			Type:    zebra.RouteType(zebra.RouteStatic),
@@ -60,13 +61,13 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 			Distance: uint8(0),
 			Metric:   uint32(100),
 			Mtu:      uint32(0),
-			API:      zebra.APIType(zebra.RouteAdd.ToEach(v, "")),
+			API:      zebra.APIType(zebra.RouteAdd.ToEach(v, software)),
 		}
 		m.Header = *h
 		m.Body = b
 		logger := log.NewDefaultLogger()
-		zebra.BackwardIPv6RouteDelete.ToEach(v, "")
-		path := newPathFromIPRouteMessage(logger, m, v, "")
+		zebra.BackwardIPv6RouteDelete.ToEach(v, software)
+		path := newPathFromIPRouteMessage(logger, m, v, software)
 		pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("0.0.0.0", pp.GetNexthop().String())
@@ -75,12 +76,12 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.False(pp.IsWithdraw)
 
 		// IPv4 Route Delete
-		h.Command = zebra.RouteDelete.ToEach(v, "")
-		b.API = zebra.RouteDelete.ToEach(v, "")
+		h.Command = zebra.RouteDelete.ToEach(v, software)
+		b.API = zebra.RouteDelete.ToEach(v, software)
 		m.Header = *h
 		m.Body = b
 
-		path = newPathFromIPRouteMessage(logger, m, v, "")
+		path = newPathFromIPRouteMessage(logger, m, v, software)
 		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("0.0.0.0", pp.GetNexthop().String())
@@ -91,13 +92,13 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.True(pp.IsWithdraw)
 
 		// IPv6 Route Add
-		h.Command = zebra.RouteAdd.ToEach(v, "")
+		h.Command = zebra.RouteAdd.ToEach(v, software)
 		if v < 5 {
-			h.Command = zebra.BackwardIPv6RouteAdd.ToEach(v, "")
+			h.Command = zebra.BackwardIPv6RouteAdd.ToEach(v, software)
 		}
-		b.API = zebra.RouteAdd.ToEach(v, "")
+		b.API = zebra.RouteAdd.ToEach(v, software)
 		if v < 5 {
-			b.API = zebra.BackwardIPv6RouteAdd.ToEach(v, "")
+			b.API = zebra.BackwardIPv6RouteAdd.ToEach(v, software)
 		}
 		b.Prefix.Prefix = net.ParseIP("2001:db8:0:f101::")
 		b.Prefix.PrefixLen = uint8(64)
@@ -105,7 +106,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Header = *h
 		m.Body = b
 
-		path = newPathFromIPRouteMessage(logger, m, v, "")
+		path = newPathFromIPRouteMessage(logger, m, v, software)
 		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("::", pp.GetNexthop().String())
@@ -116,18 +117,18 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.False(pp.IsWithdraw)
 
 		// IPv6 Route Delete
-		h.Command = zebra.RouteDelete.ToEach(v, "")
+		h.Command = zebra.RouteDelete.ToEach(v, software)
 		if v < 5 {
-			h.Command = zebra.BackwardIPv6RouteDelete.ToEach(v, "")
+			h.Command = zebra.BackwardIPv6RouteDelete.ToEach(v, software)
 		}
-		b.API = zebra.RouteDelete.ToEach(v, "")
+		b.API = zebra.RouteDelete.ToEach(v, software)
 		if v < 5 {
-			b.API = zebra.BackwardIPv6RouteDelete.ToEach(v, "")
+			b.API = zebra.BackwardIPv6RouteDelete.ToEach(v, software)
 		}
 		m.Header = *h
 		m.Body = b
 
-		path = newPathFromIPRouteMessage(logger, m, v, "")
+		path = newPathFromIPRouteMessage(logger, m, v, software)
 		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("::", pp.GetNexthop().String())

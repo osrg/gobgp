@@ -130,12 +130,13 @@ func Test_interfaceUpdateBody(t *testing.T) {
 			pos++
 		}
 		b := &interfaceUpdateBody{}
-		err := b.decodeFromBytes(buf, v, "")
+		software := NewSoftware(v, "")
+		err := b.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 		assert.Equal("01:23:45:67:89:ab", b.hardwareAddr.String())
 		buf = make([]byte, interfaceNameSize+32) //size mismatch
 		b = &interfaceUpdateBody{}
-		err = b.decodeFromBytes(buf, v, "")
+		err = b.decodeFromBytes(buf, v, software)
 		assert.NotEqual(nil, err)
 	}
 }
@@ -162,7 +163,8 @@ func Test_interfaceAddressUpdateBody(t *testing.T) {
 		copy(buf[pos:pos+4], []byte(dst))
 
 		b := &interfaceAddressUpdateBody{}
-		err := b.decodeFromBytes(buf, v, "")
+		software := NewSoftware(v, "")
+		err := b.decodeFromBytes(buf, v, software)
 		require.NoError(t, err)
 
 		assert.Equal(uint32(0), b.index)
@@ -175,7 +177,7 @@ func Test_interfaceAddressUpdateBody(t *testing.T) {
 		buf[5] = 0x4
 		pos++
 		b = &interfaceAddressUpdateBody{}
-		err = b.decodeFromBytes(buf, v, "")
+		err = b.decodeFromBytes(buf, v, software)
 		assert.NotEqual(nil, err)
 	}
 }
@@ -195,7 +197,8 @@ func Test_routerIDUpdateBody(t *testing.T) {
 		buf[pos] = byte(32)
 
 		b := &routerIDUpdateBody{}
-		err := b.decodeFromBytes(buf, v, "")
+		software := NewSoftware(v, "")
+		err := b.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 		assert.Equal("192.168.100.1", b.prefix.String())
 		assert.Equal(uint8(32), b.length)
@@ -204,7 +207,7 @@ func Test_routerIDUpdateBody(t *testing.T) {
 		buf[0] = 0x4
 		pos++
 		b = &routerIDUpdateBody{}
-		err = b.decodeFromBytes(buf, v, "")
+		err = b.decodeFromBytes(buf, v, software)
 		assert.NotEqual(nil, err)
 	}
 }
@@ -240,14 +243,15 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		buf := make([]byte, size[v])
 		buf[0] = byte(routeType)
 		pos := 1
+		software := NewSoftware(v, "")
 		switch v {
 		case 2, 3:
-			buf[pos] = byte(FlagSelected.ToEach(v, ""))
+			buf[pos] = byte(FlagSelected.ToEach(v, software))
 			pos++
 		case 4, 5, 6:
 			binary.BigEndian.PutUint16(buf[pos:], 0) //Instance
 			pos += 2
-			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
+			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, software)))
 			pos += 4
 		}
 		if v == 6 {
@@ -300,7 +304,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		binary.BigEndian.PutUint32(buf[pos:], 1) // mtu
 		pos += 4
 		r := &IPRouteBody{API: command[v]}
-		err := r.decodeFromBytes(buf, v, "")
+		err := r.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 		assert.Equal("192.168.100.0", r.Prefix.Prefix.String())
 		assert.Equal(uint8(0x18), r.Prefix.PrefixLen)
@@ -317,18 +321,18 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		assert.Equal(uint32(1), r.Mtu)
 
 		//serialize
-		buf, err = r.serialize(v, "")
+		buf, err = r.serialize(v, software)
 		assert.Equal(nil, err)
 		switch v {
 		case 2, 3:
 			assert.Equal([]byte{0x2, 0x10, byte(message[v])}, buf[0:3])
 			pos = 3
 		case 4, 5:
-			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
+			tmpFlag := byte(0xff & FlagSelected.ToEach(v, software))
 			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, byte(message[v])}, buf[0:8])
 			pos = 8
 		case 6: // frr 7.5: MessageFlag: 32bit
-			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
+			tmpFlag := byte(0xff & FlagSelected.ToEach(v, software))
 			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, 0x00, 0x00, 0x00, byte(message[v])}, buf[0:11])
 			pos = 11
 		}
@@ -388,12 +392,12 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		pos = 1
 		switch v {
 		case 2, 3:
-			buf[pos] = byte(FlagSelected.ToEach(v, ""))
+			buf[pos] = byte(FlagSelected.ToEach(v, software))
 			pos++
 		case 4, 5, 6:
 			binary.BigEndian.PutUint16(buf[pos:], 0) //Instance
 			pos += 2
-			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
+			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, software)))
 			pos += 4
 		}
 		if v == 6 {
@@ -442,7 +446,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		pos += 4
 
 		r = &IPRouteBody{API: command[v]}
-		err = r.decodeFromBytes(buf, v, "")
+		err = r.decodeFromBytes(buf, v, software)
 		switch v {
 		case 2, 3, 4:
 			assert.Equal("MessageMetric message length invalid pos:14 rest:14", err.Error())
@@ -465,12 +469,12 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		pos = 1
 		switch v {
 		case 2, 3:
-			buf[pos] = byte(FlagSelected.ToEach(v, ""))
+			buf[pos] = byte(FlagSelected.ToEach(v, software))
 			pos++
 		case 4, 5, 6:
 			binary.BigEndian.PutUint16(buf[pos:], 0) //Instance
 			pos += 2
-			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
+			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, software)))
 			pos += 4
 		}
 
@@ -498,7 +502,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		binary.BigEndian.PutUint32(buf[pos:], 0) //metric
 		pos += 4
 		r = &IPRouteBody{API: command[v]}
-		err = r.decodeFromBytes(buf, v, "")
+		err = r.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 	}
 }
@@ -540,14 +544,15 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		buf := make([]byte, size[v])
 		buf[0] = byte(routeType)
 		pos := 1
+		software := NewSoftware(v, "")
 		switch v {
 		case 2, 3:
-			buf[pos] = byte(FlagSelected.ToEach(v, ""))
+			buf[pos] = byte(FlagSelected.ToEach(v, software))
 			pos++
 		case 4, 5, 6:
 			binary.BigEndian.PutUint16(buf[pos:], 0) //Instance
 			pos += 2
-			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
+			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, software)))
 			pos += 4
 		}
 
@@ -602,7 +607,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		binary.BigEndian.PutUint32(buf[pos:], 1) // mtu
 		pos += 4
 		r := &IPRouteBody{API: command[v]}
-		err := r.decodeFromBytes(buf, v, "")
+		err := r.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 		assert.Equal("2001:db8:0:f101::", r.Prefix.Prefix.String())
 		assert.Equal(uint8(64), r.Prefix.PrefixLen)
@@ -619,18 +624,18 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		assert.Equal(uint32(1), r.Mtu)
 
 		//serialize
-		buf, err = r.serialize(v, "")
+		buf, err = r.serialize(v, software)
 		assert.Equal(nil, err)
 		switch v {
 		case 2, 3:
 			assert.Equal([]byte{0x2, 0x10, byte(message[v])}, buf[0:3])
 			pos = 3
 		case 4, 5:
-			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
+			tmpFlag := byte(0xff & FlagSelected.ToEach(v, software))
 			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, byte(message[v])}, buf[0:8])
 			pos = 8
 		case 6: // frr 7.5: MessageFlag: 32bit
-			tmpFlag := byte(0xff & FlagSelected.ToEach(v, ""))
+			tmpFlag := byte(0xff & FlagSelected.ToEach(v, software))
 			assert.Equal([]byte{0x2, 0x00, 0x00, 0x00, 0x00, 0x00, tmpFlag, 0x00, 0x00, 0x00, byte(message[v])}, buf[0:11])
 			pos = 11
 		}
@@ -690,12 +695,12 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		pos = 1
 		switch v {
 		case 2, 3:
-			buf[pos] = byte(FlagSelected.ToEach(v, ""))
+			buf[pos] = byte(FlagSelected.ToEach(v, software))
 			pos++
 		case 4, 5, 6:
 			binary.BigEndian.PutUint16(buf[pos:], 0) //Instance
 			pos += 2
-			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
+			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, software)))
 			pos += 4
 		}
 
@@ -745,7 +750,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		pos += 4
 
 		r = &IPRouteBody{API: command[v]}
-		err = r.decodeFromBytes(buf, v, "")
+		err = r.decodeFromBytes(buf, v, software)
 		switch v {
 		case 2, 3:
 			assert.Equal("message length invalid (last) pos:39 rest:46, message:0x1f", err.Error())
@@ -770,12 +775,12 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		pos = 1
 		switch v {
 		case 2, 3:
-			buf[pos] = byte(FlagSelected.ToEach(v, ""))
+			buf[pos] = byte(FlagSelected.ToEach(v, software))
 			pos++
 		case 4, 5, 6:
 			binary.BigEndian.PutUint16(buf[pos:], 0) //Instance
 			pos += 2
-			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, "")))
+			binary.BigEndian.PutUint32(buf[pos:], uint32(FlagSelected.ToEach(v, software)))
 			pos += 4
 		}
 
@@ -801,7 +806,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 		buf[pos] = 1                             //distance
 		binary.BigEndian.PutUint32(buf[pos:], 0) //metic
 		r = &IPRouteBody{API: command[v]}
-		err = r.decodeFromBytes(buf, v, "")
+		err = r.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 	}
 }
@@ -830,7 +835,9 @@ func Test_nexthopLookupBody(t *testing.T) {
 
 	//b := &nexthopLookupBody{api: zapi3IPv4NexthopLookup}
 	b := &lookupBody{api: zapi3IPv4NexthopLookup}
-	err := b.decodeFromBytes(buf, 2, "")
+	v := uint8(2)
+	software := NewSoftware(v, "")
+	err := b.decodeFromBytes(buf, v, software)
 	assert.Equal(nil, err)
 	assert.Equal("192.168.50.0", b.addr.String())
 	assert.Equal(uint32(10), b.metric)
@@ -839,7 +846,7 @@ func Test_nexthopLookupBody(t *testing.T) {
 	assert.Equal("172.16.1.101", b.nexthops[0].Gate.String())
 
 	//serialize
-	buf, err = b.serialize(2, "")
+	buf, err = b.serialize(v, software)
 	ip = net.ParseIP("192.168.50.0").To4()
 	assert.Equal(nil, err)
 	assert.Equal([]byte(ip)[0:4], buf[0:4])
@@ -848,7 +855,7 @@ func Test_nexthopLookupBody(t *testing.T) {
 	buf = make([]byte, 3)
 	//b = &nexthopLookupBody{api: zapi3IPv4NexthopLookup}
 	b = &lookupBody{api: zapi3IPv4NexthopLookup}
-	err = b.decodeFromBytes(buf, 2, "")
+	err = b.decodeFromBytes(buf, v, software)
 	assert.NotEqual(nil, err)
 
 	//ipv6
@@ -870,7 +877,7 @@ func Test_nexthopLookupBody(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[pos:], 3)
 
 	b = &lookupBody{api: zapi3IPv6NexthopLookup}
-	err = b.decodeFromBytes(buf, 2, "")
+	err = b.decodeFromBytes(buf, v, software)
 	assert.Equal(nil, err)
 	assert.Equal("2001:db8:0:f101::", b.addr.String())
 	assert.Equal(uint32(10), b.metric)
@@ -879,7 +886,7 @@ func Test_nexthopLookupBody(t *testing.T) {
 	assert.Equal("2001:db8:0:1111::1", b.nexthops[0].Gate.String())
 
 	//serialize
-	buf, err = b.serialize(2, "")
+	buf, err = b.serialize(v, software)
 	ip = net.ParseIP("2001:db8:0:f101::").To16()
 	assert.Equal(nil, err)
 	assert.Equal([]byte(ip)[0:16], buf[0:16])
@@ -887,7 +894,7 @@ func Test_nexthopLookupBody(t *testing.T) {
 	// length invalid
 	buf = make([]byte, 15)
 	b = &lookupBody{api: zapi3IPv6NexthopLookup}
-	err = b.decodeFromBytes(buf, 2, "")
+	err = b.decodeFromBytes(buf, v, software)
 	assert.NotEqual(nil, err)
 }
 
@@ -913,7 +920,9 @@ func Test_importLookupBody(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[pos:], 3)
 
 	b := &lookupBody{api: zapi3IPv4ImportLookup}
-	err := b.decodeFromBytes(buf, 2, "")
+	v := uint8(2)
+	software := NewSoftware(v, "")
+	err := b.decodeFromBytes(buf, v, software)
 	assert.Equal(nil, err)
 	assert.Equal("192.168.50.0", b.addr.String())
 	assert.Equal(uint32(10), b.metric)
@@ -923,7 +932,7 @@ func Test_importLookupBody(t *testing.T) {
 
 	//serialize
 	b.prefixLength = uint8(24)
-	buf, err = b.serialize(2, "")
+	buf, err = b.serialize(v, software)
 	ip = net.ParseIP("192.168.50.0").To4()
 	assert.Equal(nil, err)
 	assert.Equal(uint8(24), buf[0])
@@ -932,7 +941,7 @@ func Test_importLookupBody(t *testing.T) {
 	// length invalid
 	buf = make([]byte, 3)
 	b = &lookupBody{api: zapi3IPv4ImportLookup}
-	err = b.decodeFromBytes(buf, 2, "")
+	err = b.decodeFromBytes(buf, v, software)
 	assert.NotEqual(nil, err)
 }
 
@@ -958,8 +967,9 @@ func Test_NexthopRegisterBody(t *testing.T) {
 	}
 	for v := MinZapiVer; v <= MaxZapiVer; v++ {
 		// Test decodeFromBytes()
-		b := &NexthopRegisterBody{api: command[v].toCommon(v, "")}
-		err := b.decodeFromBytes(bufIn, v, "")
+		software := NewSoftware(v, "")
+		b := &NexthopRegisterBody{api: command[v].toCommon(v, software)}
+		err := b.decodeFromBytes(bufIn, v, software)
 		assert.Nil(err)
 
 		// Test decoded values
@@ -971,7 +981,7 @@ func Test_NexthopRegisterBody(t *testing.T) {
 		assert.Equal(net.ParseIP("2001:db8:1:1::1").To16(), b.Nexthops[1].Prefix)
 
 		// Test serialize()
-		bufOut, err := b.serialize(v, "")
+		bufOut, err := b.serialize(v, software)
 		assert.Nil(err)
 
 		// Test serialised value
@@ -1041,8 +1051,9 @@ func Test_NexthopUpdateBody(t *testing.T) {
 		}
 
 		// Test decodeFromBytes()
-		b := &NexthopUpdateBody{API: command[v].toCommon(v, "")}
-		err := b.decodeFromBytes(bufIn, v, "")
+		software := NewSoftware(v, "")
+		b := &NexthopUpdateBody{API: command[v].toCommon(v, software)}
+		err := b.decodeFromBytes(bufIn, v, software)
 		assert.Nil(err)
 
 		// Test decoded values
@@ -1074,12 +1085,13 @@ func Test_GetLabelChunkBody(t *testing.T) {
 		binary.BigEndian.PutUint32(buf[8:], 89) //End
 
 		b := &GetLabelChunkBody{}
-		err := b.decodeFromBytes(buf, v, "")
+		software := NewSoftware(v, "")
+		err := b.decodeFromBytes(buf, v, software)
 		assert.Equal(nil, err)
 
 		//serialize
 		b.ChunkSize = 10
-		buf, err = b.serialize(v, "")
+		buf, err = b.serialize(v, software)
 		assert.Equal(nil, err)
 		assert.Equal(byte(routeType), buf[0])
 		bi := make([]byte, 4)
@@ -1098,11 +1110,12 @@ func Test_vrfLabelBody(t *testing.T) {
 		bufIn[4] = byte(afiIP)
 		bufIn[5] = byte(lspBGP)
 		b := &vrfLabelBody{}
-		err := b.decodeFromBytes(bufIn, v, "")
+		software := NewSoftware(v, "")
+		err := b.decodeFromBytes(bufIn, v, software)
 		assert.Equal(nil, err)
 		//serialize
 		var bufOut []byte
-		bufOut, err = b.serialize(v, "")
+		bufOut, err = b.serialize(v, software)
 		assert.Equal(nil, err)
 		assert.Equal(bufIn, bufOut)
 	}

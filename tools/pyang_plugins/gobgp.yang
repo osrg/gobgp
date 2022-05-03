@@ -1267,7 +1267,7 @@ module gobgp {
       type string;
       description
         "Configure zebra software name.
-        frr4, cumulus, frr6, frr7, frr7.2 and frr7.3 can be used.";
+        frr4, cumulus, frr6, frr7, frr7.2, frr7.3, frr7.4, frr7.5, frr8, frr8.1 can be used.";
     }
   }
 
