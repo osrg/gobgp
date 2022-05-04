@@ -19,6 +19,7 @@ Unmarshal
 unmarshal
 
 # Implementation specific
+blackhole
 dumpv2
 elems
 etag
@@ -28,11 +29,14 @@ ifindex
 ifname
 linktype
 macadv
+nhgid
 Rcvd
 Receivedv4
 Receivedv6
 softreset
+srte
 stmt
 SRCPFX
 IFINDEX
 BLACKHOLE
+
