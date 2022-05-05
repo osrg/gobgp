@@ -840,6 +840,10 @@ module gobgp {
       type uint8;
   }
 
+  typedef route-family {
+      type uint32;
+  }
+
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     leaf-list remote-capability {
       type bgp-capability;
@@ -1266,8 +1270,11 @@ module gobgp {
     leaf software-name {
       type string;
       description
-        "Configure zebra software name.
-        frr4, cumulus, frr6, frr7, frr7.2, frr7.3, frr7.4, frr7.5, frr8, frr8.1 can be used.";
+        "Configure zebra software name to identify software.
+        It can be specified with only software name (e.g., frr) or
+        combined string with software name and version (e.g., frr8.1).
+        If configured string contains only software name (e.g., frr),
+        default software version is used.";
     }
   }
 
