@@ -1599,11 +1599,11 @@ func modGlobalConfig(args []string) error {
 	if id.To4() == nil {
 		return fmt.Errorf("invalid router-id format")
 	}
-	var port int64
+	var port uint64
 	if len(m["listen-port"]) > 0 {
 		// Note: GlobalConfig.Port is uint32 type, but the TCP/UDP port is
 		// 16-bit length.
-		port, err = strconv.ParseInt(m["listen-port"][0], 10, 16)
+		port, err = strconv.ParseUint(m["listen-port"][0], 10, 16)
 		if err != nil {
 			return err
 		}
