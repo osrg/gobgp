@@ -2310,10 +2310,13 @@ func (esi *EthernetSegmentIdentifier) String() string {
 // the special keyword for all zeroed ESI.
 // For the "ARBITRARY" Value field (Type 0), it should be the colon separated
 // hex values and the number of elements should be 9 at most.
-//   e.g.) args := []string{"ARBITRARY", "11:22:33:44:55:66:77:88:99"}
+//
+//	e.g.) args := []string{"ARBITRARY", "11:22:33:44:55:66:77:88:99"}
+//
 // For the other types, the Value field format is the similar to the string
 // format of ESI.
-//   e.g.) args := []string{"lacp", "aa:bb:cc:dd:ee:ff", "100"}
+//
+//	e.g.) args := []string{"lacp", "aa:bb:cc:dd:ee:ff", "100"}
 func ParseEthernetSegmentIdentifier(args []string) (EthernetSegmentIdentifier, error) {
 	esi := EthernetSegmentIdentifier{}
 	argLen := len(args)
@@ -4675,12 +4678,11 @@ func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
 
 }
 
-//
 // CompareFlowSpecNLRI(n, m) returns
 // -1 when m has precedence
-//  0 when n and m have same precedence
-//  1 when n has precedence
 //
+//	0 when n and m have same precedence
+//	1 when n has precedence
 func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 	family := AfiSafiToRouteFamily(n.AFI(), n.SAFI())
 	if family != AfiSafiToRouteFamily(m.AFI(), m.SAFI()) {

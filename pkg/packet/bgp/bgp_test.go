@@ -18,7 +18,6 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -1238,7 +1237,7 @@ func TestParseMessageWithBadLength(t *testing.T) {
 		if strings.ContainsRune(fname, '.') {
 			return nil
 		}
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}

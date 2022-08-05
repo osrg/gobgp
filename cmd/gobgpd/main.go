@@ -18,7 +18,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -101,7 +101,7 @@ func main() {
 	}
 
 	if opts.DisableStdlog {
-		logger.SetOutput(ioutil.Discard)
+		logger.SetOutput(io.Discard)
 	} else {
 		logger.SetOutput(os.Stdout)
 	}

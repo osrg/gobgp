@@ -647,25 +647,26 @@ func (path *Path) GetLabelString() string {
 // PrependAsn prepends AS number.
 // This function updates the AS_PATH attribute as follows.
 // (If the peer is in the confederation member AS,
-//  replace AS_SEQUENCE in the following sentence with AS_CONFED_SEQUENCE.)
-//  1) if the first path segment of the AS_PATH is of type
-//     AS_SEQUENCE, the local system prepends the specified AS num as
-//     the last element of the sequence (put it in the left-most
-//     position with respect to the position of  octets in the
-//     protocol message) the specified number of times.
-//     If the act of prepending will cause an overflow in the AS_PATH
-//     segment (i.e.,  more than 255 ASes),
-//     it SHOULD prepend a new segment of type AS_SEQUENCE
-//     and prepend its own AS number to this new segment.
 //
-//  2) if the first path segment of the AS_PATH is of other than type
-//     AS_SEQUENCE, the local system prepends a new path segment of type
-//     AS_SEQUENCE to the AS_PATH, including the specified AS number in
-//     that segment.
+//	replace AS_SEQUENCE in the following sentence with AS_CONFED_SEQUENCE.)
+//	1) if the first path segment of the AS_PATH is of type
+//	   AS_SEQUENCE, the local system prepends the specified AS num as
+//	   the last element of the sequence (put it in the left-most
+//	   position with respect to the position of  octets in the
+//	   protocol message) the specified number of times.
+//	   If the act of prepending will cause an overflow in the AS_PATH
+//	   segment (i.e.,  more than 255 ASes),
+//	   it SHOULD prepend a new segment of type AS_SEQUENCE
+//	   and prepend its own AS number to this new segment.
 //
-//  3) if the AS_PATH is empty, the local system creates a path
-//     segment of type AS_SEQUENCE, places the specified AS number
-//     into that segment, and places that segment into the AS_PATH.
+//	2) if the first path segment of the AS_PATH is of other than type
+//	   AS_SEQUENCE, the local system prepends a new path segment of type
+//	   AS_SEQUENCE to the AS_PATH, including the specified AS number in
+//	   that segment.
+//
+//	3) if the AS_PATH is empty, the local system creates a path
+//	   segment of type AS_SEQUENCE, places the specified AS number
+//	   into that segment, and places that segment into the AS_PATH.
 func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 	var segType uint8
 	if confed {
