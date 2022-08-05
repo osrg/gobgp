@@ -4,11 +4,13 @@ This page explains how to set up a scenario test environment and run the test.
 
 ## Contents
 
-- [Prerequisites](#prerequisites)
-- [Set up dependencies](#set-up-dependencies)
-- [Install local source code](#install-local-source-code)
-- [Run test](#run-test)
-- [Clean up](#clean-up)
+- [Scenario Test](#scenario-test)
+  - [Contents](#contents)
+  - [Prerequisites](#prerequisites)
+  - [Set up dependencies](#set-up-dependencies)
+  - [Build GoBGP docker image form your source code](#build-gobgp-docker-image-form-your-source-code)
+  - [Run tests](#run-tests)
+  - [Clean up](#clean-up)
 
 ## Prerequisites
 

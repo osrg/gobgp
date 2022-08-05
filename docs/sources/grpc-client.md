@@ -6,7 +6,7 @@ This page explains how to managing GoBGP with your favorite Language. You can us
 
 - [Prerequisite](#prerequisite)
 - [Python](#python)
-- [C++](#cpp)
+- [C++](#c)
 
 ## Prerequisite
 

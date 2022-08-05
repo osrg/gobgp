@@ -7,7 +7,7 @@ Revision **11** of the draft is currently implemented in gobgp. Once draft becom
 
 ## Contents
 
-- [Basic SR Policy Example](#basic-srpolicy-example)
+- [Basic SR Policy Example](#basic-sr-policy-example)
 
 ## Basic SR Policy Example
 

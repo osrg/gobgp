@@ -140,9 +140,8 @@ $ gobgp policy large-community
 
 ## Configure Policies
 
-Policy Configuration comes from two parts, [definition](#defined-sets) and
-[attachment](#attachment). For definition, we have
-[defined-sets](#defined-sets) and [policy-definition](#policy-definition).
+Policy Configuration comes from two parts, definition and attachment. For definition, we have
+[defined-sets](#1-defining-defined-sets) and [policy-definition](#3-defining-policy-definitions).
 **defined-sets** defines condition item for some of the condition type.
 **policy-definitions** defines policies based on actions and conditions.
 
@@ -203,17 +202,17 @@ prefix-sets has either v4 or v6 addresses.
 
 **prefix-set-list** has 1 element and list of sub-elements.
 
-| Element          | Description                        | Example       | Optional   |
-|------------------|------------------------------------|---------------|------------|
-| prefix-set-name  | name of prefix-set                 | "ps1"         |            |
-| prefix-list      | list of prefix and range of length |               |            |
+| Element         | Description                        | Example | Optional |
+| --------------- | ---------------------------------- | ------- | -------- |
+| prefix-set-name | name of prefix-set                 | "ps1"   |          |
+| prefix-list     | list of prefix and range of length |         |          |
 
 **PrefixList** has 2 elements.
 
-| Element          | Description       | Example        | Optional   |
-|------------------|-------------------|----------------|------------|
-| ip-prefix        | prefix value      | "10.33.0.0/16" |            |
-| masklength-range | range of length   | "21..24"       | Yes        |
+| Element          | Description     | Example        | Optional |
+| ---------------- | --------------- | -------------- | -------- |
+| ip-prefix        | prefix value    | "10.33.0.0/16" |          |
+| masklength-range | range of length | "21..24"       | Yes      |
 
 ##### Examples
 
@@ -279,16 +278,16 @@ a condition.
 
 **neighbor-set-list** has 1 element and list of sub-elements.
 
-| Element            |Description                | Example      | Optional   |
-|--------------------|---------------------------|--------------|------------|
-| neighbor-set-name  | name of neighbor-set      | "ns1"        |            |
-| neighbor-info-list | list of neighbor address  |              |            |
+| Element            | Description              | Example | Optional |
+| ------------------ | ------------------------ | ------- | -------- |
+| neighbor-set-name  | name of neighbor-set     | "ns1"   |          |
+| neighbor-info-list | list of neighbor address |         |          |
 
 **neighbor-info-list** has 1 element.
 
-| Element         |Description          | Example      | Optional   |
-|-----------------|---------------------|--------------|------------|
-| address         | neighbor address    | "10.0.255.1" |            |
+| Element | Description      | Example      | Optional |
+| ------- | ---------------- | ------------ | -------- |
+| address | neighbor address | "10.0.255.1" |          |
 
 ##### Examples
 
@@ -366,15 +365,15 @@ community-sets has community-set-name and community-list as its element. The
 Community value are used to evaluate communities held by the destination.
 
 | Element            | Description             | Example      | Optional |
-|--------------------|-------------------------|--------------|----------|
+| ------------------ | ----------------------- | ------------ | -------- |
 | community-set-name | name of CommunitySet    | "community1" |          |
 | community-list     | list of community value |              |          |
 
 **community-list** has 1 element.
 
-| Element    | Description             | Example      | Optional |
-|------------|-------------------------|--------------|----------|
-| community  | community value         | "65100:10"   |          |
+| Element   | Description     | Example    | Optional |
+| --------- | --------------- | ---------- | -------- |
+| community | community value | "65100:10" |          |
 
 You can use regular expressions to specify community in community-list.
 
@@ -407,16 +406,16 @@ ext-community-sets has ext-community-set-name and ext-community-list as its
 element. The values are used to evaluate extended communities held by the
 destination.
 
-| Element                | Description                        | Example          | Optional |
-|------------------------|------------------------------------|------------------|----------|
-| ext-community-set-name | name of ExtCommunitySet            | "ecommunity1"    |          |
-| ext-community-list     | list of extended community value   |　　　            |          |
+| Element                | Description                      | Example       | Optional |
+| ---------------------- | -------------------------------- | ------------- | -------- |
+| ext-community-set-name | name of ExtCommunitySet          | "ecommunity1" |          |
+| ext-community-list     | list of extended community value |               |          |
 
 **ext-community-list** has 1 element.
 
-| Element        | Description                | Example          | Optional |
-|----------------|----------------------------|------------------|----------|
-| ext-community  | extended community value   | "RT:65001:200"   |          |
+| Element       | Description              | Example        | Optional |
+| ------------- | ------------------------ | -------------- | -------- |
+| ext-community | extended community value | "RT:65001:200" |          |
 
 You can use regular expressions to specify extended community in
 ext-community-list. However, the first one element separated by (part of "RT")
@@ -476,16 +475,16 @@ subtype of extended community and subtypes that can be used are as follows:
 as-path-sets has as-path-set-name and as-path-list as its element. The numbers
 are used to evaluate AS numbers in the destination's AS_PATH attribute.
 
-| Element          | Description               | Example    | Optional |
-|------------------|---------------------------|------------|----------|
-| as-path-set-name | name of as-path-set       | "aspath1"  |          |
-| as-path-list     | list of as path value     |            |          |
+| Element          | Description           | Example   | Optional |
+| ---------------- | --------------------- | --------- | -------- |
+| as-path-set-name | name of as-path-set   | "aspath1" |          |
+| as-path-list     | list of as path value |           |          |
 
 **as-path-list** has 1 elements.
 
-| Element          | Description       | Example    | Optional |
-|------------------|-------------------|------------|----------|
-| as-path-set        | as path value     | "^65100"   |          |
+| Element     | Description   | Example  | Optional |
+| ----------- | ------------- | -------- | -------- |
+| as-path-set | as path value | "^65100" |          |
 
 The AS path regular expression is compatible with
 [Quagga](http://www.nongnu.org/quagga/docs/docs-multi/AS-Path-Regular-Expression.html)
@@ -576,82 +575,82 @@ evaluate routes from neighbors, if matched, action will be applied.
 - policy-definitions
 
   | Element | Description   | Example          |
-  |---------|---------------|------------------|
+  | ------- | ------------- | ---------------- |
   | name    | policy's name | "example-policy" |
 
 - policy-definitions.statements
 
-  | Element | Description       | Example        |
-  |---------|-------------------|----------------|
-  | name    | statements's name | "statement1"   |
+  | Element | Description       | Example      |
+  | ------- | ----------------- | ------------ |
+  | name    | statements's name | "statement1" |
 
 - policy-definitions.statements.conditions.match-prefix-set
 
-  | Element            | Description                                                                   | Example |
-  |--------------------|-------------------------------------------------------------------------------|---------|
-  | prefix-set         | name for defined-sets.prefix-sets.prefix-set-list that is used in this policy | "ps1"   |
-  | match-set-options  | option for the check:<br> "any" or "invert". default is "any"                 | "any"   |
+  | Element           | Description                                                                   | Example |
+  | ----------------- | ----------------------------------------------------------------------------- | ------- |
+  | prefix-set        | name for defined-sets.prefix-sets.prefix-set-list that is used in this policy | "ps1"   |
+  | match-set-options | option for the check:<br> "any" or "invert". default is "any"                 | "any"   |
 
 - policy-definitions.statements.conditions.match-neighbor-set
 
-  | Element           | Description                                                                   | Example |
-  |-------------------|-------------------------------------------------------------------------------|---------|
+  | Element           | Description                                                                       | Example |
+  | ----------------- | --------------------------------------------------------------------------------- | ------- |
   | neighbor-set      | name for defined-sets.neighbor-sets.neighbor-set-list that is used in this policy | "ns1"   |
-  | match-set-options | option for the check:<br> "any" or "invert". default is "any"                 | "any"   |
+  | match-set-options | option for the check:<br> "any" or "invert". default is "any"                     | "any"   |
 
 - policy-definitions.statements.conditions.bgp-conditions.match-community-set
 
-  | Element           | Description                                                                                        | Example        |
-  |-------------------|----------------------------------------------------------------------------------------------------|----------------|
-  | community-set     | name for defined-sets.bgp-defined-sets.community-sets.CommunitySetList that is used in this policy | "community1"   |
-  | match-set-options | option for the check:<br> "any" or "all" or "invert". default is "any"                             | "invert"       |
+  | Element           | Description                                                                                        | Example      |
+  | ----------------- | -------------------------------------------------------------------------------------------------- | ------------ |
+  | community-set     | name for defined-sets.bgp-defined-sets.community-sets.CommunitySetList that is used in this policy | "community1" |
+  | match-set-options | option for the check:<br> "any" or "all" or "invert". default is "any"                             | "invert"     |
 
 - policy-definitions.statements.conditions.bgp-conditions.match-ext-community-set
 
   | Element           | Description                                                                           | Example       |
-  |-------------------|---------------------------------------------------------------------------------------|---------------|
+  | ----------------- | ------------------------------------------------------------------------------------- | ------------- |
   | ext-community-set | name for defined-sets.bgp-defined-sets.ext-community-sets that is used in this policy | "ecommunity1" |
   | match-set-options | option for the check:<br> "any" or "all" or "invert". default is "any"                | "invert"      |
 
 - policy-definitions.statements.conditions.bgp-conditions.match-as-path-set
 
-  | Element            | Description                                                                     | Example   |
-  |--------------------|---------------------------------------------------------------------------------|-----------|
-  | as-path-set        | name for defined-sets.bgp-defined-sets.as-path-sets that is used in this policy | "aspath1" |
-  | match-set-options  | option for the check:<br> "any" or "all" or "invert". default is "any"          | "invert"  |
+  | Element           | Description                                                                     | Example   |
+  | ----------------- | ------------------------------------------------------------------------------- | --------- |
+  | as-path-set       | name for defined-sets.bgp-defined-sets.as-path-sets that is used in this policy | "aspath1" |
+  | match-set-options | option for the check:<br> "any" or "all" or "invert". default is "any"          | "invert"  |
 
 - policy-definitions.statements.conditions.bgp-conditions.match-as-path-length
 
-  | Element  | Description                                                                                        | Example |
-  |----------|----------------------------------------------------------------------------------------------------|---------|
-  | operator | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used. <br> "eq" means that length of AS number is equal to Value element <br> "ge" means that length of AS number is equal or greater than the Value element <br> "le" means that length of AS number is equal or smaller than the Value element| "eq"    |
-  | value    | value used to compare with the length of AS number in AS_PATH attribute                            | 2       |
+  | Element  | Description                                                                                                                                                                                                                                                                                                                                   | Example |
+  | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+  | operator | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used. <br> "eq" means that length of AS number is equal to Value element <br> "ge" means that length of AS number is equal or greater than the Value element <br> "le" means that length of AS number is equal or smaller than the Value element | "eq"    |
+  | value    | value used to compare with the length of AS number in AS_PATH attribute                                                                                                                                                                                                                                                                       | 2       |
 
 - policy-definitions.statements.actions
 
-  | Element           | Description                                                                                                   | Example        |
-  |-------------------|---------------------------------------------------------------------------------------------------------------|----------------|
-  | route-disposition | stop following policy/statement evaluation and accept/reject the route:<br> "accept-route" or "reject-route"  | "accept-route" |
+  | Element           | Description                                                                                                  | Example        |
+  | ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------- |
+  | route-disposition | stop following policy/statement evaluation and accept/reject the route:<br> "accept-route" or "reject-route" | "accept-route" |
 
 - policy-definitions.statements.actions.bgp-actions
 
-  | Element  | Description                                                                           | Example |
-  |----------|---------------------------------------------------------------------------------------|---------|
-  | set-med  | set-med used to change the med value of the route. <br> If only numbers have been specified, replace the med value of route.<br> if number and operater(+ or -) have been specified, adding or subtracting the med value of route. | "-200"    |
+  | Element | Description                                                                                                                                                                                                                        | Example |
+  | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+  | set-med | set-med used to change the med value of the route. <br> If only numbers have been specified, replace the med value of route.<br> if number and operater(+ or -) have been specified, adding or subtracting the med value of route. | "-200"  |
 
 - policy-definitions.statements.actions.bgp-actions.set-community
 
-  | Element     | Description                                                                      | Example    |
-  |-------------|----------------------------------------------------------------------------------|------------|
-  | options     | operator to manipulate Community attribute in the route                          | "ADD"      |
+  | Element     | Description                                                                     | Example    |
+  | ----------- | ------------------------------------------------------------------------------- | ---------- |
+  | options     | operator to manipulate Community attribute in the route                         | "ADD"      |
   | communities | communities used to manipulate the route's community according to options below | "65100:20" |
 
 - policy-definitions.statements.actions.bgp-actions.set-as-path-prepend
 
-  | Element  | Description                                                                                           | Example |
-  |----------|-------------------------------------------------------------------------------------------------------|---------|
-  | as       | AS number to prepend. You can use "last-as" to prepend the leftmost AS number in the aspath attribute.| "65100" |
-  | repeat-n | repeat count to prepend AS                                                                            |    5    |
+  | Element  | Description                                                                                            | Example |
+  | -------- | ------------------------------------------------------------------------------------------------------ | ------- |
+  | as       | AS number to prepend. You can use "last-as" to prepend the leftmost AS number in the aspath attribute. | "65100" |
+  | repeat-n | repeat count to prepend AS                                                                             | 5       |
 
 #### Execution condition of Action
 
@@ -661,7 +660,7 @@ evaluate routes from neighbors, if matched, action will be applied.
  condition with multiple evaluation set as follows:
 
  | Value  | Description                                                               |
- |--------|---------------------------------------------------------------------------|
+ | ------ | ------------------------------------------------------------------------- |
  | any    | match is true if given value matches any member of the defined set        |
  | all    | match is true if given value matches all members of the defined set       |
  | invert | match is true if given value does not match any member of the defined set |
@@ -832,7 +831,7 @@ evaluate routes from neighbors, if matched, action will be applied.
 ### 4. Attaching policy
 
 Here we explain how to attach defined policies to
-[global rib](#global-attachment) and  [neighbor local rib](#rs-attachment).
+[global rib](#41-attach-policy-to-global-rib) and [neighbor local rib](#42-attach-policy-to-route-server-client).
 
 #### 4.1 Attach policy to global rib
 
@@ -847,12 +846,12 @@ default-import-policy = "accept-route"
 default-export-policy = "accept-route"
 ```
 
-| Element                 | Description                                                                                 | Example        |
-|-------------------------|---------------------------------------------------------------------------------------------|----------------|
-| import-policy           | policy-definitions.name for Import policy                                                   | "policy1"      |
-| export-policy           | policy-definitions.name for Export policy                                                   | "policy2"      |
-| default-import-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
-| default-export-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| Element               | Description                                                                                                                                                                 | Example        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| import-policy         | policy-definitions.name for Import policy                                                                                                                                   | "policy1"      |
+| export-policy         | policy-definitions.name for Export policy                                                                                                                                   | "policy2"      |
+| default-import-policy | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| default-export-policy | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 
 #### 4.2. Attach policy to route-server-client
 
@@ -881,12 +880,12 @@ and *policy3* is used as the In policy.
 neighbors has a section to specify policies and the section's name is
 apply-policy. The apply-policy has 6 elements.
 
-| Element                 | Description                                                                                 | Example        |
-|-------------------------|---------------------------------------------------------------------------------------------|----------------|
-| import-policy           | policy-definitions.name for Import policy                                                   | "policy1"      |
-| export-policy           | policy-definitions.name for Export policy                                                   | "policy2"      |
-| default-import-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
-| default-export-policy   | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| Element               | Description                                                                                                                                                                 | Example        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| import-policy         | policy-definitions.name for Import policy                                                                                                                                   | "policy1"      |
+| export-policy         | policy-definitions.name for Export policy                                                                                                                                   | "policy2"      |
+| default-import-policy | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+| default-export-policy | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 
 ## Policy Configuration Example
 

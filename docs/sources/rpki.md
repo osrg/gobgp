@@ -9,10 +9,13 @@ Assume you finished [Getting Started](getting-started.md).
 
 ## Contents
 
-- [Configuration](#configuration)
-- [Validation](#validation)
-- [Policy with validation results](#policy-with-validation-results)
-- [Force Re-validation](#force-re-validation)
+- [RPKI](#rpki)
+  - [Prerequisites](#prerequisites)
+  - [Contents](#contents)
+  - [Configuration](#configuration)
+  - [Validation](#validation)
+  - [Policy with validation results](#policy-with-validation-results)
+    - [Detailed Information about validation](#detailed-information-about-validation)
 
 ## Configuration
 
@@ -157,11 +160,11 @@ router-id = "10.0.255.254"
 
 The value for **RpkiValidationResult** are defined as below.
 
-| Validation Result | Value           |
-|-------------------|-----------------|
-| Not Found         |   "not-found"   |
-| Valid             |   "valid"       |
-| Invalid           |   "invalid"     |
+| Validation Result | Value       |
+| ----------------- | ----------- |
+| Not Found         | "not-found" |
+| Valid             | "valid"     |
+| Invalid           | "invalid"   |
 
 With the new configuration, the IMPORT policy rejects the invalid 2.1.0.0/16.
 
