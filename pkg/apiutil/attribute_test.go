@@ -1163,6 +1163,182 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 	}
 }
 
+func Test_MpReachNLRIAttribute_MUPInterworkSegmentDiscoveryRoute(t *testing.T) {
+	assert := assert.New(t)
+
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherTwoOctetASN{
+		Admin:    65000,
+		Assigned: 100,
+	})
+	assert.Nil(err)
+	a, err := apb.New(&api.MUPInterworkSegmentDiscoveryRoute{
+		Rd:           rd,
+		PrefixLength: 24,
+		Prefix:       "10.0.0.0/24",
+	})
+	assert.Nil(err)
+	nlris = append(nlris, a)
+
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_MUP,
+		},
+		NextHops: []string{"0.0.0.0"},
+		Nlris:    nlris,
+	}
+
+	a, err = apb.New(input)
+	assert.Nil(err)
+	n, err := UnmarshalAttribute(a)
+	assert.Nil(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.Equal(input.Family.Afi, output.Family.Afi)
+	assert.Equal(input.Family.Safi, output.Family.Safi)
+	assert.Equal(input.NextHops, output.NextHops)
+	assert.Equal(1, len(output.Nlris))
+	for idx, inputNLRI := range input.Nlris {
+		outputNLRI := output.Nlris[idx]
+		assert.Equal(inputNLRI.TypeUrl, outputNLRI.TypeUrl)
+		assert.Equal(inputNLRI.Value, outputNLRI.Value)
+	}
+}
+
+func Test_MpReachNLRIAttribute_MUPDirectSegmentDiscoveryRoute(t *testing.T) {
+	assert := assert.New(t)
+
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherTwoOctetASN{
+		Admin:    65000,
+		Assigned: 100,
+	})
+	assert.Nil(err)
+	a, err := apb.New(&api.MUPDirectSegmentDiscoveryRoute{
+		Rd:      rd,
+		Address: "10.0.0.1",
+	})
+	assert.Nil(err)
+	nlris = append(nlris, a)
+
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_MUP,
+		},
+		NextHops: []string{"0.0.0.0"},
+		Nlris:    nlris,
+	}
+
+	a, err = apb.New(input)
+	assert.Nil(err)
+	n, err := UnmarshalAttribute(a)
+	assert.Nil(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.Equal(input.Family.Afi, output.Family.Afi)
+	assert.Equal(input.Family.Safi, output.Family.Safi)
+	assert.Equal(input.NextHops, output.NextHops)
+	assert.Equal(1, len(output.Nlris))
+	for idx, inputNLRI := range input.Nlris {
+		outputNLRI := output.Nlris[idx]
+		assert.Equal(inputNLRI.TypeUrl, outputNLRI.TypeUrl)
+		assert.Equal(inputNLRI.Value, outputNLRI.Value)
+	}
+}
+
+func Test_MpReachNLRIAttribute_MUPType1SessionTransformedRoute(t *testing.T) {
+	assert := assert.New(t)
+
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherTwoOctetASN{
+		Admin:    65000,
+		Assigned: 100,
+	})
+	assert.Nil(err)
+	a, err := apb.New(&api.MUPType1SessionTransformedRoute{
+		Rd:                    rd,
+		PrefixLength:          32,
+		Prefix:                "192.168.100.1",
+		Teid:                  12345,
+		Qfi:                   9,
+		EndpointAddressLength: 32,
+		EndpointAddress:       "10.0.0.1",
+	})
+	assert.Nil(err)
+	nlris = append(nlris, a)
+
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_MUP,
+		},
+		NextHops: []string{"0.0.0.0"},
+		Nlris:    nlris,
+	}
+
+	a, err = apb.New(input)
+	assert.Nil(err)
+	n, err := UnmarshalAttribute(a)
+	assert.Nil(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.Equal(input.Family.Afi, output.Family.Afi)
+	assert.Equal(input.Family.Safi, output.Family.Safi)
+	assert.Equal(input.NextHops, output.NextHops)
+	assert.Equal(1, len(output.Nlris))
+	for idx, inputNLRI := range input.Nlris {
+		outputNLRI := output.Nlris[idx]
+		assert.Equal(inputNLRI.TypeUrl, outputNLRI.TypeUrl)
+		assert.Equal(inputNLRI.Value, outputNLRI.Value)
+	}
+}
+
+func Test_MpReachNLRIAttribute_MUPType2SessionTransformedRoute(t *testing.T) {
+	assert := assert.New(t)
+
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherTwoOctetASN{
+		Admin:    65000,
+		Assigned: 100,
+	})
+	assert.Nil(err)
+	a, err := apb.New(&api.MUPType2SessionTransformedRoute{
+		Rd:                    rd,
+		Teid:                  12345,
+		EndpointAddressLength: 64,
+		EndpointAddress:       "10.0.0.1",
+	})
+	assert.Nil(err)
+	nlris = append(nlris, a)
+
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_MUP,
+		},
+		NextHops: []string{"0.0.0.0"},
+		Nlris:    nlris,
+	}
+
+	a, err = apb.New(input)
+	assert.Nil(err)
+	n, err := UnmarshalAttribute(a)
+	assert.Nil(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.Equal(input.Family.Afi, output.Family.Afi)
+	assert.Equal(input.Family.Safi, output.Family.Safi)
+	assert.Equal(input.NextHops, output.NextHops)
+	assert.Equal(1, len(output.Nlris))
+	for idx, inputNLRI := range input.Nlris {
+		outputNLRI := output.Nlris[idx]
+		assert.Equal(inputNLRI.TypeUrl, outputNLRI.TypeUrl)
+		assert.Equal(inputNLRI.Value, outputNLRI.Value)
+	}
+}
+
 func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 	assert := assert.New(t)
 
@@ -1315,6 +1491,12 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
+	a, err = apb.New(&api.MUPExtended{
+		SegmentId2: 10,
+		SegmentId4: 100,
+	})
+	assert.Nil(err)
+	communities = append(communities, a)
 	a, err = apb.New(&api.UnknownExtended{
 		Type:  0xff, // Max of uint8
 		Value: []byte{1, 2, 3, 4, 5, 6, 7},
@@ -1338,7 +1520,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	assert.Nil(err)
 
 	output, _ := NewExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeExtendedCommunities))
-	assert.Equal(20, len(output.Communities))
+	assert.Equal(21, len(output.Communities))
 	for idx, inputCommunity := range input.Communities {
 		outputCommunity := output.Communities[idx]
 		assert.Equal(inputCommunity.TypeUrl, outputCommunity.TypeUrl)

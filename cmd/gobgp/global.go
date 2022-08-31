@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"regexp"
 	"sort"
 	"strconv"
@@ -53,6 +54,7 @@ const (
 	ctInvalid
 	ctColor
 	ctLb
+	ctMup
 )
 
 var extCommNameMap = map[extCommType]string{
@@ -72,6 +74,7 @@ var extCommNameMap = map[extCommType]string{
 	ctInvalid:        "invalid",
 	ctColor:          "color",
 	ctLb:             "lb",
+	ctMup:            "mup",
 }
 
 var extCommValueMap = map[string]extCommType{
@@ -91,6 +94,7 @@ var extCommValueMap = map[string]extCommType{
 	extCommNameMap[ctInvalid]:        ctInvalid,
 	extCommNameMap[ctColor]:          ctColor,
 	extCommNameMap[ctLb]:             ctLb,
+	extCommNameMap[ctMup]:            ctMup,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -308,6 +312,22 @@ func lbParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{bgp.NewLinkBandwidthExtended(uint16(as), float32(bw))}, nil
 }
 
+func mupParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) != 2 || args[0] != extCommNameMap[ctMup] {
+		return nil, fmt.Errorf("invalid mup")
+	}
+	a := strings.Split(args[1], ":")
+	sid2, err := strconv.ParseUint(a[0], 10, 16)
+	if err != nil {
+		return nil, fmt.Errorf("invalid mup segment ID")
+	}
+	sid4, err := strconv.ParseUint(a[1], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid mup segment ID")
+	}
+	return []bgp.ExtendedCommunityInterface{bgp.NewMUPExtended(uint16(sid2), uint32(sid4))}, nil
+}
+
 var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
 	ctAccept:         nil,
 	ctDiscard:        rateLimitParser,
@@ -325,6 +345,7 @@ var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	ctInvalid:        validationParser,
 	ctColor:          colorParser,
 	ctLb:             lbParser,
+	ctMup:            mupParser,
 }
 
 func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -931,6 +952,229 @@ func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }
 
+func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	// Format:
+	// <ip prefix> rd <rd> [mup <segment identifier>]
+	req := 5
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m, err := extractReserved(args, map[string]int{
+		"rd":  paramSingle,
+		"mup": paramSingle,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(m[""]) < 1 {
+		return nil, nil, fmt.Errorf("specify prefix")
+	}
+	for _, f := range []string{"rd"} {
+		for len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	prefix, err := netip.ParsePrefix(m[""][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	extcomms := make([]string, 0)
+	if len(m["mup"]) > 0 {
+		extcomms = append(extcomms, "mup", m["mup"][0])
+	} else {
+		extcomms = append(extcomms, "mup", "0:0")
+	}
+
+	r := &bgp.MUPInterworkSegmentDiscoveryRoute{
+		RD:           rd,
+		PrefixLength: uint8(prefix.Bits()),
+		Prefix:       prefix,
+	}
+	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r), extcomms, nil
+}
+
+func parseMUPDirectSegmentDiscoveryRouteArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	// Format:
+	// <ip address> rd <rd> [mup <segment identifier>]
+	req := 5
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m, err := extractReserved(args, map[string]int{
+		"rd":  paramSingle,
+		"mup": paramSingle,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(m[""]) < 1 {
+		return nil, nil, fmt.Errorf("specify address")
+	}
+	for _, f := range []string{"rd"} {
+		for len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	addr, err := netip.ParseAddr(m[""][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	extcomms := make([]string, 0)
+	if len(m["mup"]) > 0 {
+		extcomms = append(extcomms, "mup", m["mup"][0])
+	} else {
+		extcomms = append(extcomms, "mup", "0:0")
+	}
+
+	r := &bgp.MUPDirectSegmentDiscoveryRoute{
+		RD:      rd,
+		Address: addr,
+	}
+	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r), extcomms, nil
+}
+
+func parseMUPType1SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	// Format:
+	// <ip prefix> rd <rd> teid <teid> qfi <qfi> endpoint <endpoint> [mup <segment identifier>]
+	req := 5
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m, err := extractReserved(args, map[string]int{
+		"rd":       paramSingle,
+		"teid":     paramSingle,
+		"qfi":      paramSingle,
+		"endpoint": paramSingle,
+		"mup":      paramSingle,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(m[""]) < 1 {
+		return nil, nil, fmt.Errorf("specify prefix")
+	}
+	for _, f := range []string{"rd", "teid", "qfi", "endpoint"} {
+		for len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	prefix, err := netip.ParseAddr(m[""][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	teid, err := strconv.ParseUint(m["teid"][0], 10, 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	qfi, err := strconv.ParseUint(m["qfi"][0], 10, 8)
+	if err != nil {
+		return nil, nil, err
+	}
+	ea, err := netip.ParseAddr(m["endpoint"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	extcomms := make([]string, 0)
+	if len(m["mup"]) > 0 {
+		extcomms = append(extcomms, "mup", m["mup"][0])
+	} else {
+		extcomms = append(extcomms, "mup", "0:0")
+	}
+
+	r := &bgp.MUPType1SessionTransformedRoute{
+		RD:                    rd,
+		PrefixLength:          uint8(prefix.BitLen()),
+		Prefix:                prefix,
+		TEID:                  uint32(teid),
+		QFI:                   uint8(qfi),
+		EndpointAddressLength: uint8(ea.BitLen()),
+		EndpointAddress:       ea,
+	}
+	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r), extcomms, nil
+}
+
+func parseMUPType2SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	// Format:
+	// <endpoint address> rd <rd> teid <teid> [mup <segment identifier>]
+	req := 5
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+	m, err := extractReserved(args, map[string]int{
+		"rd":   paramSingle,
+		"teid": paramSingle,
+		"mup":  paramSingle,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(m[""]) < 1 {
+		return nil, nil, fmt.Errorf("specify endpoint")
+	}
+	for _, f := range []string{"rd", "teid"} {
+		for len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	ea, err := netip.ParseAddr(m[""][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	teid, err := strconv.ParseUint(m["teid"][0], 10, 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	extcomms := make([]string, 0)
+	if len(m["mup"]) > 0 {
+		extcomms = append(extcomms, "mup", m["mup"][0])
+	} else {
+		extcomms = append(extcomms, "mup", "0:0")
+	}
+
+	r := &bgp.MUPType2SessionTransformedRoute{
+		RD:                    rd,
+		EndpointAddressLength: uint8(ea.BitLen()),
+		EndpointAddress:       ea,
+		TEID:                  uint32(teid),
+	}
+	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r), extcomms, nil
+}
+
+func parseMUPArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	if len(args) < 1 {
+		return nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
+	}
+	subtype := args[0]
+	args = args[1:]
+	switch subtype {
+	case "isd":
+		return parseMUPInterworkSegmentDiscoveryRouteArgs(args)
+	case "dsd":
+		return parseMUPDirectSegmentDiscoveryRouteArgs(args)
+	case "t1st":
+		return parseMUPType1SessionTransformedRouteArgs(args)
+	case "t2st":
+		return parseMUPType2SessionTransformedRouteArgs(args)
+	}
+	return nil, nil, fmt.Errorf("invalid subtype. expect [isd|dsd|t1st|t2st] but %s", subtype)
+}
+
 func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	typ := bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	for idx, arg := range args {
@@ -1317,6 +1561,8 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		} else {
 			nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]), nil)
 		}
+	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
+		nlri, extcomms, err = parseMUPArgs(args)
 	default:
 		return nil, fmt.Errorf("unsupported route family: %s", rf)
 	}
@@ -1522,6 +1768,16 @@ usage: %s rib %s { a-d <A-D> | macadv <MACADV> | multicast <MULTICAST> | esi <ES
     <MULTICAST> : <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>] [pmsi <type> [leaf-info-required] <label> <tunnel-id>]
     <ESI>       : <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
     <PREFIX>    : <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>]`,
+			err,
+			cmdstr,
+			modtype,
+		)
+		helpErrMap[bgp.RF_MUP_IPv4] = fmt.Errorf(`error: %s
+usage: %s rib %s { isd <ISD> | dsd <DSD> | t1st <T1ST> | t2st <T2ST> } -a mup-ipv4
+    <ISD>  : <ip prefix> rd <rd> [mup <segment identifier>]
+    <DSD>  : <ip address> rd <rd> [mup <segment identifier>]
+    <T1ST> : <ip prefix> rd <rd> teid <teid> qfi <qfi> endpoint <endpoint> [mup <segment identifier>]
+    <T2ST> : <endpoint address> rd <rd> teid <teid> [mup <segment identifier>]`,
 			err,
 			cmdstr,
 			modtype,

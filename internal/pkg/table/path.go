@@ -1095,6 +1095,18 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 		case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
 			n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = v.Rd
 		}
+	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
+		n := nlri.(*bgp.MUPNLRI)
+		switch n.RouteType {
+		case bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY:
+			n.RouteTypeData.(*bgp.MUPInterworkSegmentDiscoveryRoute).RD = v.Rd
+		case bgp.MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY:
+			n.RouteTypeData.(*bgp.MUPDirectSegmentDiscoveryRoute).RD = v.Rd
+		case bgp.MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED:
+			n.RouteTypeData.(*bgp.MUPType1SessionTransformedRoute).RD = v.Rd
+		case bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED:
+			n.RouteTypeData.(*bgp.MUPType2SessionTransformedRoute).RD = v.Rd
+		}
 	default:
 		return fmt.Errorf("unsupported route family for vrf: %s", rf)
 	}
@@ -1140,6 +1152,22 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 				IPAddress:       old.IPAddress,
 			}
 			nlri = bgp.NewEVPNNLRI(n.RouteType, new)
+		}
+	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
+		n := nlri.(*bgp.MUPNLRI)
+		switch n.RouteType {
+		case bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY:
+			old := n.RouteTypeData.(*bgp.MUPInterworkSegmentDiscoveryRoute)
+			nlri = bgp.NewMUPInterworkSegmentDiscoveryRoute(vrf.Rd, old.Prefix)
+		case bgp.MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY:
+			old := n.RouteTypeData.(*bgp.MUPDirectSegmentDiscoveryRoute)
+			nlri = bgp.NewMUPDirectSegmentDiscoveryRoute(vrf.Rd, old.Address)
+		case bgp.MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED:
+			old := n.RouteTypeData.(*bgp.MUPType1SessionTransformedRoute)
+			nlri = bgp.NewMUPType1SessionTransformedRoute(vrf.Rd, old.Prefix, old.TEID, old.QFI, old.EndpointAddress)
+		case bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED:
+			old := n.RouteTypeData.(*bgp.MUPType2SessionTransformedRoute)
+			nlri = bgp.NewMUPType2SessionTransformedRoute(vrf.Rd, old.EndpointAddress, old.TEID)
 		}
 	default:
 		return p

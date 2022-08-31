@@ -824,6 +824,8 @@ func showNeighborRib(r string, name string, args []string) error {
 		switch rf {
 		case bgp.RF_EVPN:
 			// Uses target as EVPN Route Type string
+		case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
+			// Uses target as MUP Route Type string
 		default:
 			if _, _, err = parseCIDRorIP(target); err != nil {
 				return err

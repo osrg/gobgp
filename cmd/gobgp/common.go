@@ -312,6 +312,14 @@ var (
 		Afi:  api.Family_AFI_LS,
 		Safi: api.Family_SAFI_LS,
 	}
+	ipv4MUP = &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_MUP,
+	}
+	ipv6MUP = &api.Family{
+		Afi:  api.Family_AFI_IP6,
+		Safi: api.Family_SAFI_MUP,
+	}
 )
 
 func checkAddressFamily(def *api.Family) (*api.Family, error) {
@@ -352,6 +360,10 @@ func checkAddressFamily(def *api.Family) (*api.Family, error) {
 		f = opaque
 	case "ls", "linkstate", "bgpls":
 		f = ls
+	case "ipv4-mup", "mup-ipv4", "mup4":
+		f = ipv4MUP
+	case "ipv6-mup", "mup-ipv6", "mup6":
+		f = ipv6MUP
 	case "":
 		f = def
 	default:
