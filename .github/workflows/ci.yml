@@ -511,3 +511,18 @@ jobs:
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 test/scenario_test/zapi_v3_multipath_test.py --gobgp-image gobgp-oq -x -s
+
+  mup:
+    name: mup
+    runs-on: ubuntu-20.04
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/download-artifact@v2
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/mup_test.py --gobgp-image gobgp -x -s
+

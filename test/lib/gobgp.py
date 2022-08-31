@@ -412,6 +412,10 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-flowspec'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-flowspec'}})
 
+            if info['mup']:
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-mup'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-mup'}})
+
             neigh_addr = None
             interface = None
             peer_as = None

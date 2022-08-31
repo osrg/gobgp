@@ -368,7 +368,7 @@ class BGPContainer(Container):
                  graceful_restart=None, local_as=None, prefix_limit=None,
                  v6=False, llgr=None, vrf='', interface='', allow_as_in=0,
                  remove_private_as=None, replace_peer_as=False, addpath=False,
-                 treat_as_withdraw=False, remote_as=None):
+                 treat_as_withdraw=False, remote_as=None, mup=False):
         neigh_addr = ''
         local_addr = ''
         it = itertools.product(self.ip_addrs, peer.ip_addrs)
@@ -415,7 +415,8 @@ class BGPContainer(Container):
                             'replace_peer_as': replace_peer_as,
                             'addpath': addpath,
                             'treat_as_withdraw': treat_as_withdraw,
-                            'remote_as': remote_as or peer.asn}
+                            'remote_as': remote_as or peer.asn,
+                            'mup': mup}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
