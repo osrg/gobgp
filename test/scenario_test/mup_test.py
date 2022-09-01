@@ -18,6 +18,8 @@ from itertools import combinations
 import sys
 import time
 import unittest
+import logging
+log = logging.getLogger(__name__)
 
 import nose
 
@@ -66,20 +68,21 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_add_del_mup_route(self):
         tests = [
-                    ('mup_isd_route_ipv4', 'ipv4-mup', 'isd 10.0.0.0/24 rd 100:100 mup 10:10', '0.0.0.0'),
-                    ('mup_dsd_route_ipv4', 'ipv4-mup', 'dsd 10.0.0.1 rd 100:100 mup 10:10', '0.0.0.0'),
-                    ('mup_t1st_route_ipv4', 'ipv4-mup', 't1st 192.168.0.1 rd 100:100 teid 12345 qfi 9 endpoint 10.0.0.1 mup 10:10', '0.0.0.0'),
-                    ('mup_t2st_route_ipv4', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 teid 12345 mup 10:10', '0.0.0.0'),
-                    ('mup_isd_route_ipv6', 'ipv6-mup', 'isd 2001::/64 rd 100:100 mup 10:10', '::'),
-                    ('mup_dsd_route_ipv6', 'ipv6-mup', 'dsd 2001::1 rd 100:100 mup 10:10', '::'),
-                    ('mup_t1st_route_ipv6', 'ipv6-mup', 't1st 2001:db8:1:1::1 rd 100:100 teid 12345 qfi 9 endpoint 2001::1 mup 10:10', '::'),
-                    ('mup_t2st_route_ipv6', 'ipv6-mup', 't2st 2001::1 rd 100:100 teid 12345 mup 10:10', '::'),
+                ('mup_isd_route_ipv4', 'ipv4-mup', 'isd 10.0.0.0/24 rd 100:100 rt 10:10 nexthop 2001::2', '2001::2'),
+                ('mup_dsd_route_ipv4', 'ipv4-mup', 'dsd 10.0.0.1 rd 100:100 rt 10:10 mup 10:10 nexthop 2001::2', '2001::2'),
+                ('mup_t1st_route_ipv4', 'ipv4-mup', 't1st 192.168.0.1 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 10.0.0.1 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t2st_route_ipv4', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 teid 12345 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_isd_route_ipv6', 'ipv6-mup', 'isd 2001::/64 rd 100:100 rt 10:10 nexthop 2001::2', '2001::2'),
+                ('mup_dsd_route_ipv6', 'ipv6-mup', 'dsd 2001::1 rd 100:100 rt 10:10 mup 10:10 nexthop 2001::2', '2001::2'),
+                ('mup_t1st_route_ipv6', 'ipv6-mup', 't1st 2001:db8:1:1::1 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 2001::1 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t2st_route_ipv6', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 teid 12345 nexthop 10.0.0.2', '10.0.0.2'),
                 ]
         for msg, rf, route, nh in tests:
             with self.subTest(msg):
                 self.g1.local('gobgp global rib add '
                               '-a {} {}'.format(rf, route))
                 grib = self.g1.get_global_rib(rf=rf)
+                log.debug('grib: {}'.format(grib))
                 self.assertEqual(len(grib), 1)
                 dst = grib[0]
                 self.assertEqual(len(dst['paths']), 1)
@@ -103,7 +106,7 @@ class GoBGPTestBase(unittest.TestCase):
                     self.assertEqual(len(dst['paths']), 1)
                     path = dst['paths'][0]
                     n_addrs = [i[1].split('/')[0] for i in self.g1.ip_addrs]
-                    self.assertTrue(path['nexthop'] in n_addrs)
+                    self.assertEqual(path['nexthop'], nh)
                     done = True
 
                 self.g1.local('gobgp global rib del '

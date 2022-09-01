@@ -416,6 +416,9 @@ func (r *MUPType1SessionTransformedRoute) DecodeFromBytes(data []byte) error {
 	}
 	p += int(r.PrefixLength / 8)
 	r.TEID = binary.BigEndian.Uint32(data[p : p+4])
+	if r.TEID == 0 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid TEID: %d", r.TEID))
+	}
 	p += 4
 	r.QFI = data[p]
 	p += 1
@@ -539,7 +542,13 @@ func (r *MUPType2SessionTransformedRoute) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid Endpoint Address length: %d", r.EndpointAddressLength))
 	}
 	r.EndpointAddress = ea
-	r.TEID = binary.BigEndian.Uint32(data[p : p+teidLen])
+	if teidLen > 0 {
+		teidData := append(make([]byte, 4-teidLen), data[p:p+teidLen]...)
+		r.TEID = binary.BigEndian.Uint32(teidData)
+		if r.TEID == 0 {
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid TEID: %d", r.TEID))
+		}
+	}
 	return nil
 }
 
