@@ -634,6 +634,10 @@ enum SRv6Behavior {
   ENDT_WITH_PSP_USD = 37;
   ENDT_WITH_USP_USD = 38;
   ENDT_WITH_PSP_USP_USD = 39;
+  ENDM_GTP6D = 45;
+  ENDM_GTP6DI = 46;
+  ENDM_GTP6E = 47;
+  ENDM_GTP4E = 48;
 }
 
 message SRv6EndPointBehavior {
