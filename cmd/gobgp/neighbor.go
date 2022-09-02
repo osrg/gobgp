@@ -1185,6 +1185,7 @@ func modNeighbor(cmdType string, args []string) error {
 	}
 	if cmdType == cmdAdd || cmdType == cmdUpdate {
 		params["as"] = paramSingle
+		params["local-as"] = paramSingle
 		params["family"] = paramSingle
 		params["vrf"] = paramSingle
 		params["route-reflector-client"] = paramSingle
@@ -1193,7 +1194,7 @@ func modNeighbor(cmdType string, args []string) error {
 		params["remove-private-as"] = paramSingle
 		params["replace-peer-as"] = paramFlag
 		params["ebgp-multihop-ttl"] = paramSingle
-		usage += " [ family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]"
+		usage += " [ local-as <VALUE> | family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]"
 	}
 
 	m, err := extractReserved(args, params)
@@ -1254,6 +1255,13 @@ func modNeighbor(cmdType string, args []string) error {
 				return err
 			}
 			peer.Conf.PeerAsn = uint32(as)
+		}
+		if len(m["local-as"]) > 0 {
+			as, err := strconv.ParseUint(m["local-as"][0], 10, 32)
+			if err != nil {
+				return err
+			}
+			peer.Conf.LocalAsn = uint32(as)
 		}
 		if len(m["family"]) == 1 {
 			peer.AfiSafis = make([]*api.AfiSafi, 0) // for the case of cmdUpdate
