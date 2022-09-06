@@ -866,18 +866,19 @@ func (s *BgpServer) notifyPrePolicyUpdateWatcher(peer *peer, pathList []*table.P
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
 	ev := &watchEventUpdate{
-		Message:      msg,
-		PeerAS:       peer.fsm.peerInfo.AS,
-		LocalAS:      peer.fsm.peerInfo.LocalAS,
-		PeerAddress:  peer.fsm.peerInfo.Address,
-		LocalAddress: net.ParseIP(l),
-		PeerID:       peer.fsm.peerInfo.ID,
-		FourBytesAs:  y,
-		Timestamp:    timestamp,
-		Payload:      payload,
-		PostPolicy:   false,
-		PathList:     cloned,
-		Neighbor:     n,
+		Message:            msg,
+		PeerAS:             peer.fsm.peerInfo.AS,
+		LocalAS:            peer.fsm.peerInfo.LocalAS,
+		PeerAddress:        peer.fsm.peerInfo.Address,
+		LocalAddress:       net.ParseIP(l),
+		PeerID:             peer.fsm.peerInfo.ID,
+		FourBytesAs:        y,
+		Timestamp:          timestamp,
+		Payload:            payload,
+		PostPolicy:         false,
+		PathList:           cloned,
+		Neighbor:           n,
+		MarshallingOptions: peer.fsm.marshallingOptions,
 	}
 	peer.fsm.lock.RUnlock()
 	s.notifyWatcher(watchEventTypePreUpdate, ev)
@@ -897,16 +898,17 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	l, _ := peer.fsm.LocalHostPort()
 	ev := &watchEventUpdate{
-		PeerAS:       peer.fsm.peerInfo.AS,
-		LocalAS:      peer.fsm.peerInfo.LocalAS,
-		PeerAddress:  peer.fsm.peerInfo.Address,
-		LocalAddress: net.ParseIP(l),
-		PeerID:       peer.fsm.peerInfo.ID,
-		FourBytesAs:  y,
-		Timestamp:    cloned[0].GetTimestamp(),
-		PostPolicy:   true,
-		PathList:     cloned,
-		Neighbor:     n,
+		PeerAS:             peer.fsm.peerInfo.AS,
+		LocalAS:            peer.fsm.peerInfo.LocalAS,
+		PeerAddress:        peer.fsm.peerInfo.Address,
+		LocalAddress:       net.ParseIP(l),
+		PeerID:             peer.fsm.peerInfo.ID,
+		FourBytesAs:        y,
+		Timestamp:          cloned[0].GetTimestamp(),
+		PostPolicy:         true,
+		PathList:           cloned,
+		Neighbor:           n,
+		MarshallingOptions: peer.fsm.marshallingOptions,
 	}
 	peer.fsm.lock.RUnlock()
 	s.notifyWatcher(watchEventTypePostUpdate, ev)
@@ -4143,19 +4145,20 @@ type watchEvent interface {
 }
 
 type watchEventUpdate struct {
-	Message      *bgp.BGPMessage
-	PeerAS       uint32
-	LocalAS      uint32
-	PeerAddress  net.IP
-	LocalAddress net.IP
-	PeerID       net.IP
-	FourBytesAs  bool
-	Timestamp    time.Time
-	Payload      []byte
-	PostPolicy   bool
-	Init         bool
-	PathList     []*table.Path
-	Neighbor     *config.Neighbor
+	Message            *bgp.BGPMessage
+	PeerAS             uint32
+	LocalAS            uint32
+	PeerAddress        net.IP
+	LocalAddress       net.IP
+	PeerID             net.IP
+	FourBytesAs        bool
+	Timestamp          time.Time
+	Payload            []byte
+	PostPolicy         bool
+	Init               bool
+	PathList           []*table.Path
+	Neighbor           *config.Neighbor
+	MarshallingOptions []*bgp.MarshallingOption
 }
 
 type PeerEventType uint32
@@ -4442,16 +4445,17 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
 					update := &watchEventUpdate{
-						PeerAS:       peer.fsm.peerInfo.AS,
-						LocalAS:      peer.fsm.peerInfo.LocalAS,
-						PeerAddress:  peer.fsm.peerInfo.Address,
-						LocalAddress: net.ParseIP(l),
-						PeerID:       peer.fsm.peerInfo.ID,
-						FourBytesAs:  y,
-						Init:         true,
-						PostPolicy:   false,
-						Neighbor:     configNeighbor,
-						PathList:     peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false),
+						PeerAS:             peer.fsm.peerInfo.AS,
+						LocalAS:            peer.fsm.peerInfo.LocalAS,
+						PeerAddress:        peer.fsm.peerInfo.Address,
+						LocalAddress:       net.ParseIP(l),
+						PeerID:             peer.fsm.peerInfo.ID,
+						FourBytesAs:        y,
+						Init:               true,
+						PostPolicy:         false,
+						Neighbor:           configNeighbor,
+						PathList:           peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false),
+						MarshallingOptions: peer.fsm.marshallingOptions,
 					}
 					peer.fsm.lock.RUnlock()
 					w.notify(update)
@@ -4460,18 +4464,19 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 					eorBuf, _ := eor.Serialize()
 					peer.fsm.lock.RLock()
 					update = &watchEventUpdate{
-						Message:      eor,
-						PeerAS:       peer.fsm.peerInfo.AS,
-						LocalAS:      peer.fsm.peerInfo.LocalAS,
-						PeerAddress:  peer.fsm.peerInfo.Address,
-						LocalAddress: net.ParseIP(l),
-						PeerID:       peer.fsm.peerInfo.ID,
-						FourBytesAs:  y,
-						Timestamp:    time.Now(),
-						Init:         true,
-						Payload:      eorBuf,
-						PostPolicy:   false,
-						Neighbor:     configNeighbor,
+						Message:            eor,
+						PeerAS:             peer.fsm.peerInfo.AS,
+						LocalAS:            peer.fsm.peerInfo.LocalAS,
+						PeerAddress:        peer.fsm.peerInfo.Address,
+						LocalAddress:       net.ParseIP(l),
+						PeerID:             peer.fsm.peerInfo.ID,
+						FourBytesAs:        y,
+						Timestamp:          time.Now(),
+						Init:               true,
+						Payload:            eorBuf,
+						PostPolicy:         false,
+						Neighbor:           configNeighbor,
+						MarshallingOptions: peer.fsm.marshallingOptions,
 					}
 					peer.fsm.lock.RUnlock()
 					w.notify(update)
@@ -4506,6 +4511,7 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 						Neighbor:    configNeighbor,
 						PathList:    paths,
 						Init:        true,
+						// TODO: MarshallingOptions: peer.fsm.marshallingOptions,
 					})
 
 					eor := bgp.NewEndOfRib(rf)
