@@ -1359,9 +1359,6 @@ func NewClient(logger log.Logger, network, address string, typ RouteType, versio
 	if err != nil {
 		return nil, err
 	}
-	if err != nil {
-		return nil, err
-	}
 	outgoing := make(chan *Message)
 	incoming := make(chan *Message, 64)
 	if version < MinZapiVer {
