@@ -952,7 +952,7 @@ func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }
 
-func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, nexthop string) (bgp.AddrPrefixInterface, []string, error) {
+func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <ip prefix> rd <rd> [rt <rt>...]
 	req := 5
@@ -1001,10 +1001,10 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, nexthop string) (
 		PrefixLength: uint8(prefix.Bits()),
 		Prefix:       prefix,
 	}
-	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r), extcomms, nil
+	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r), extcomms, nil
 }
 
-func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, nexthop string) (bgp.AddrPrefixInterface, []string, error) {
+func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <ip address> rd <rd> [rt <rt>...] [mup <segment identifier>]
 	req := 5
@@ -1056,10 +1056,10 @@ func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, nexthop string) (bgp
 		RD:      rd,
 		Address: addr,
 	}
-	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r), extcomms, nil
+	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r), extcomms, nil
 }
 
-func parseMUPType1SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
 	req := 5
@@ -1088,7 +1088,7 @@ func parseMUPType1SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInte
 	if err != nil {
 		return nil, nil, err
 	}
-	prefix, err := netip.ParseAddr(m[""][0])
+	prefix, err := netip.ParsePrefix(m[""][0])
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1115,17 +1115,16 @@ func parseMUPType1SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInte
 
 	r := &bgp.MUPType1SessionTransformedRoute{
 		RD:                    rd,
-		PrefixLength:          uint8(prefix.BitLen()),
 		Prefix:                prefix,
 		TEID:                  uint32(teid),
 		QFI:                   uint8(qfi),
 		EndpointAddressLength: uint8(ea.BitLen()),
 		EndpointAddress:       ea,
 	}
-	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r), extcomms, nil
+	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r), extcomms, nil
 }
 
-func parseMUPType2SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
 	// <endpoint address> rd <rd> [rt <rt>...] teid <teid>
 	req := 5
@@ -1175,10 +1174,10 @@ func parseMUPType2SessionTransformedRouteArgs(args []string) (bgp.AddrPrefixInte
 		EndpointAddress:       ea,
 		TEID:                  uint32(teid),
 	}
-	return bgp.NewMUPNLRI(bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r), extcomms, nil
+	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r), extcomms, nil
 }
 
-func parseMUPArgs(args []string, nexthop string) (bgp.AddrPrefixInterface, []string, error) {
+func parseMUPArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInterface, []string, error) {
 	if len(args) < 1 {
 		return nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
 	}
@@ -1186,13 +1185,13 @@ func parseMUPArgs(args []string, nexthop string) (bgp.AddrPrefixInterface, []str
 	args = args[1:]
 	switch subtype {
 	case "isd":
-		return parseMUPInterworkSegmentDiscoveryRouteArgs(args, nexthop)
+		return parseMUPInterworkSegmentDiscoveryRouteArgs(args, afi, nexthop)
 	case "dsd":
-		return parseMUPDirectSegmentDiscoveryRouteArgs(args, nexthop)
+		return parseMUPDirectSegmentDiscoveryRouteArgs(args, afi, nexthop)
 	case "t1st":
-		return parseMUPType1SessionTransformedRouteArgs(args)
+		return parseMUPType1SessionTransformedRouteArgs(args, afi)
 	case "t2st":
-		return parseMUPType2SessionTransformedRouteArgs(args)
+		return parseMUPType2SessionTransformedRouteArgs(args, afi)
 	}
 	return nil, nil, fmt.Errorf("invalid subtype. expect [isd|dsd|t1st|t2st] but %s", subtype)
 }
@@ -1583,8 +1582,10 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		} else {
 			nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]), nil)
 		}
-	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
-		nlri, extcomms, err = parseMUPArgs(args, nexthop)
+	case bgp.RF_MUP_IPv4:
+		nlri, extcomms, err = parseMUPArgs(args, bgp.AFI_IP, nexthop)
+	case bgp.RF_MUP_IPv6:
+		nlri, extcomms, err = parseMUPArgs(args, bgp.AFI_IP6, nexthop)
 	default:
 		return nil, fmt.Errorf("unsupported route family: %s", rf)
 	}

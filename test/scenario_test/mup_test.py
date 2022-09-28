@@ -70,11 +70,11 @@ class GoBGPTestBase(unittest.TestCase):
         tests = [
                 ('mup_isd_route_ipv4', 'ipv4-mup', 'isd 10.0.0.0/24 rd 100:100 rt 10:10 nexthop 2001::2', '2001::2'),
                 ('mup_dsd_route_ipv4', 'ipv4-mup', 'dsd 10.0.0.1 rd 100:100 rt 10:10 mup 10:10 nexthop 2001::2', '2001::2'),
-                ('mup_t1st_route_ipv4', 'ipv4-mup', 't1st 192.168.0.1 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 10.0.0.1 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t1st_route_ipv4', 'ipv4-mup', 't1st 192.168.0.1/32 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 10.0.0.1 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_t2st_route_ipv4', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 teid 12345 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_isd_route_ipv6', 'ipv6-mup', 'isd 2001::/64 rd 100:100 rt 10:10 nexthop 2001::2', '2001::2'),
                 ('mup_dsd_route_ipv6', 'ipv6-mup', 'dsd 2001::1 rd 100:100 rt 10:10 mup 10:10 nexthop 2001::2', '2001::2'),
-                ('mup_t1st_route_ipv6', 'ipv6-mup', 't1st 2001:db8:1:1::1 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 2001::1 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t1st_route_ipv6', 'ipv6-mup', 't1st 2001:db8:1:1::1/128 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 2001::1 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_t2st_route_ipv6', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 teid 12345 nexthop 10.0.0.2', '10.0.0.2'),
                 ]
         for msg, rf, route, nh in tests:

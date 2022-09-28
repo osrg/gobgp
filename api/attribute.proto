@@ -391,7 +391,7 @@ message MUPType1SessionTransformedRoute {
   // - RouteDistinguisherIPAddress
   // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
-  uint32 prefix_length = 2;
+  uint32 prefix_length = 2 [deprecated = true];
   string prefix = 3;
   uint32 teid = 4;
   uint32 qfi = 5;

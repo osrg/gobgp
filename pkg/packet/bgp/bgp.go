@@ -8447,9 +8447,9 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (pref
 	case RF_LS:
 		prefix = &LsAddrPrefix{}
 	case RF_MUP_IPv4:
-		prefix = NewMUPNLRI(0, 0, nil)
+		prefix = NewMUPNLRI(AFI_IP, 0, 0, nil)
 	case RF_MUP_IPv6:
-		prefix = NewMUPNLRI(0, 0, nil)
+		prefix = NewMUPNLRI(AFI_IP6, 0, 0, nil)
 	default:
 		err = fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}

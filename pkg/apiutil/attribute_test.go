@@ -1259,8 +1259,7 @@ func Test_MpReachNLRIAttribute_MUPType1SessionTransformedRoute(t *testing.T) {
 	assert.Nil(err)
 	a, err := apb.New(&api.MUPType1SessionTransformedRoute{
 		Rd:                    rd,
-		PrefixLength:          32,
-		Prefix:                "192.168.100.1",
+		Prefix:                "192.168.100.1/32",
 		Teid:                  12345,
 		Qfi:                   9,
 		EndpointAddressLength: 32,

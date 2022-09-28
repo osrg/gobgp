@@ -34,7 +34,7 @@ func Test_MUPInterworkSegmentDiscoveryRouteIPv4(t *testing.T) {
 		PrefixLength: 24,
 		Prefix:       netip.MustParsePrefix("10.10.10.0/24"),
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r)
+	n1 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv4))
@@ -56,7 +56,7 @@ func Test_MUPInterworkSegmentDiscoveryRouteIPv6(t *testing.T) {
 		PrefixLength: 64,
 		Prefix:       netip.MustParsePrefix("2001::/64"),
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r)
+	n1 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv6))
@@ -77,7 +77,7 @@ func Test_MUPDirectSegmentDiscoveryRouteIPv4(t *testing.T) {
 		RD:      rd,
 		Address: netip.MustParseAddr("10.10.10.1"),
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r)
+	n1 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv4))
@@ -98,7 +98,7 @@ func Test_MUPDirectSegmentDiscoveryRouteIPv6(t *testing.T) {
 		RD:      rd,
 		Address: netip.MustParseAddr("2001::1"),
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r)
+	n1 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv6))
@@ -117,14 +117,13 @@ func Test_MUPType1SessionTransformedRouteIPv4(t *testing.T) {
 	rd, _ := ParseRouteDistinguisher("100:100")
 	r := &MUPType1SessionTransformedRoute{
 		RD:                    rd,
-		PrefixLength:          32,
-		Prefix:                netip.MustParseAddr("192.100.0.1"),
+		Prefix:                netip.MustParsePrefix("192.100.0.1/32"),
 		TEID:                  100,
 		QFI:                   9,
 		EndpointAddressLength: 32,
 		EndpointAddress:       netip.MustParseAddr("10.10.10.1"),
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r)
+	n1 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv4))
@@ -143,14 +142,13 @@ func Test_MUPType1SessionTransformedRouteIPv6(t *testing.T) {
 	rd, _ := ParseRouteDistinguisher("100:100")
 	r := &MUPType1SessionTransformedRoute{
 		RD:                    rd,
-		PrefixLength:          128,
-		Prefix:                netip.MustParseAddr("2001:db8:1:1::1"),
+		Prefix:                netip.MustParsePrefix("2001:db8:1:1::1/128"),
 		TEID:                  100,
 		QFI:                   9,
 		EndpointAddressLength: 128,
 		EndpointAddress:       netip.MustParseAddr("2001::1"),
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r)
+	n1 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv6))
@@ -173,7 +171,7 @@ func Test_MUPType2SessionTransformedRouteIPv4(t *testing.T) {
 		EndpointAddress:       netip.MustParseAddr("10.10.10.1"),
 		TEID:                  100,
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r)
+	n1 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv4))
@@ -196,7 +194,7 @@ func Test_MUPType2SessionTransformedRouteIPv6(t *testing.T) {
 		EndpointAddress:       netip.MustParseAddr("2001::1"),
 		TEID:                  100,
 	}
-	n1 := NewMUPNLRI(MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r)
+	n1 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv6))

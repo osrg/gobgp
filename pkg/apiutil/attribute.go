@@ -1039,7 +1039,6 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*apb.Any, error) {
 			}
 			nlri = &api.MUPType1SessionTransformedRoute{
 				Rd:                    rd,
-				PrefixLength:          uint32(r.PrefixLength),
 				Prefix:                r.Prefix.String(),
 				Teid:                  r.TEID,
 				Qfi:                   uint32(r.QFI),
@@ -1239,7 +1238,7 @@ func UnmarshalNLRI(rf bgp.RouteFamily, an *apb.Any) (bgp.AddrPrefixInterface, er
 		if err != nil {
 			return nil, err
 		}
-		prefix, err := netip.ParseAddr(v.Prefix)
+		prefix, err := netip.ParsePrefix(v.Prefix)
 		if err != nil {
 			return nil, err
 		}
