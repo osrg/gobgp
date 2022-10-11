@@ -1,4 +1,4 @@
-package config
+package bgpconfig
 
 import (
 	"encoding/binary"

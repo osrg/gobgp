@@ -5,47 +5,47 @@ import (
 	"fmt"
 
 	"github.com/BurntSushi/toml"
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
 )
 
 func main() {
-	b := config.Bgp{
-		Global: config.Global{
-			Config: config.GlobalConfig{
+	b := bgpconfig.Bgp{
+		Global: bgpconfig.Global{
+			Config: bgpconfig.GlobalConfig{
 				As:       12332,
 				RouterId: "10.0.0.1",
 			},
 		},
-		Neighbors: []config.Neighbor{
+		Neighbors: []bgpconfig.Neighbor{
 			{
-				Config: config.NeighborConfig{
+				Config: bgpconfig.NeighborConfig{
 					PeerAs:          12333,
 					AuthPassword:    "apple",
 					NeighborAddress: "192.168.177.33",
 				},
-				AfiSafis: []config.AfiSafi{
+				AfiSafis: []bgpconfig.AfiSafi{
 					{
-						Config: config.AfiSafiConfig{
+						Config: bgpconfig.AfiSafiConfig{
 							AfiSafiName: "ipv4-unicast",
 						},
 					},
 					{
-						Config: config.AfiSafiConfig{
+						Config: bgpconfig.AfiSafiConfig{
 							AfiSafiName: "ipv6-unicast",
 						},
 					},
 				},
-				ApplyPolicy: config.ApplyPolicy{
+				ApplyPolicy: bgpconfig.ApplyPolicy{
 
-					Config: config.ApplyPolicyConfig{
+					Config: bgpconfig.ApplyPolicyConfig{
 						ImportPolicyList:    []string{"pd1"},
-						DefaultImportPolicy: config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
+						DefaultImportPolicy: bgpconfig.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
 					},
 				},
 			},
 
 			{
-				Config: config.NeighborConfig{
+				Config: bgpconfig.NeighborConfig{
 					PeerAs:          12334,
 					AuthPassword:    "orange",
 					NeighborAddress: "192.168.177.32",
@@ -53,7 +53,7 @@ func main() {
 			},
 
 			{
-				Config: config.NeighborConfig{
+				Config: bgpconfig.NeighborConfig{
 					PeerAs:          12335,
 					AuthPassword:    "grape",
 					NeighborAddress: "192.168.177.34",
@@ -76,91 +76,91 @@ func main() {
 	fmt.Printf("%v\n", buffer.String())
 }
 
-func policy() config.RoutingPolicy {
+func policy() bgpconfig.RoutingPolicy {
 
-	ps := config.PrefixSet{
+	ps := bgpconfig.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList: []config.Prefix{
+		PrefixList: []bgpconfig.Prefix{
 			{
 				IpPrefix:        "10.3.192.0/21",
 				MasklengthRange: "21..24",
 			}},
 	}
 
-	ns := config.NeighborSet{
+	ns := bgpconfig.NeighborSet{
 		NeighborSetName:  "ns1",
 		NeighborInfoList: []string{"10.0.0.2"},
 	}
 
-	cs := config.CommunitySet{
+	cs := bgpconfig.CommunitySet{
 		CommunitySetName: "community1",
 		CommunityList:    []string{"65100:10"},
 	}
 
-	ecs := config.ExtCommunitySet{
+	ecs := bgpconfig.ExtCommunitySet{
 		ExtCommunitySetName: "ecommunity1",
 		ExtCommunityList:    []string{"RT:65001:200"},
 	}
 
-	as := config.AsPathSet{
+	as := bgpconfig.AsPathSet{
 		AsPathSetName: "aspath1",
 		AsPathList:    []string{"^65100"},
 	}
 
-	bds := config.BgpDefinedSets{
-		CommunitySets:    []config.CommunitySet{cs},
-		ExtCommunitySets: []config.ExtCommunitySet{ecs},
-		AsPathSets:       []config.AsPathSet{as},
+	bds := bgpconfig.BgpDefinedSets{
+		CommunitySets:    []bgpconfig.CommunitySet{cs},
+		ExtCommunitySets: []bgpconfig.ExtCommunitySet{ecs},
+		AsPathSets:       []bgpconfig.AsPathSet{as},
 	}
 
-	ds := config.DefinedSets{
-		PrefixSets:     []config.PrefixSet{ps},
-		NeighborSets:   []config.NeighborSet{ns},
+	ds := bgpconfig.DefinedSets{
+		PrefixSets:     []bgpconfig.PrefixSet{ps},
+		NeighborSets:   []bgpconfig.NeighborSet{ns},
 		BgpDefinedSets: bds,
 	}
 
-	al := config.AsPathLength{
+	al := bgpconfig.AsPathLength{
 		Operator: "eq",
 		Value:    2,
 	}
 
-	s := config.Statement{
+	s := bgpconfig.Statement{
 		Name: "statement1",
-		Conditions: config.Conditions{
+		Conditions: bgpconfig.Conditions{
 
-			MatchPrefixSet: config.MatchPrefixSet{
+			MatchPrefixSet: bgpconfig.MatchPrefixSet{
 				PrefixSet:       "ps1",
-				MatchSetOptions: config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+				MatchSetOptions: bgpconfig.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
 			},
 
-			MatchNeighborSet: config.MatchNeighborSet{
+			MatchNeighborSet: bgpconfig.MatchNeighborSet{
 				NeighborSet:     "ns1",
-				MatchSetOptions: config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+				MatchSetOptions: bgpconfig.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
 			},
 
-			BgpConditions: config.BgpConditions{
-				MatchCommunitySet: config.MatchCommunitySet{
+			BgpConditions: bgpconfig.BgpConditions{
+				MatchCommunitySet: bgpconfig.MatchCommunitySet{
 					CommunitySet:    "community1",
-					MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+					MatchSetOptions: bgpconfig.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 
-				MatchExtCommunitySet: config.MatchExtCommunitySet{
+				MatchExtCommunitySet: bgpconfig.MatchExtCommunitySet{
 					ExtCommunitySet: "ecommunity1",
-					MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+					MatchSetOptions: bgpconfig.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 
-				MatchAsPathSet: config.MatchAsPathSet{
+				MatchAsPathSet: bgpconfig.MatchAsPathSet{
 					AsPathSet:       "aspath1",
-					MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+					MatchSetOptions: bgpconfig.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 				AsPathLength: al,
 			},
 		},
-		Actions: config.Actions{
+		Actions: bgpconfig.Actions{
 			RouteDisposition: "reject-route",
-			BgpActions: config.BgpActions{
-				SetCommunity: config.SetCommunity{
-					SetCommunityMethod: config.SetCommunityMethod{
+			BgpActions: bgpconfig.BgpActions{
+				SetCommunity: bgpconfig.SetCommunity{
+					SetCommunityMethod: bgpconfig.SetCommunityMethod{
 						CommunitiesList: []string{"65100:20"},
 					},
 					Options: "ADD",
@@ -170,14 +170,14 @@ func policy() config.RoutingPolicy {
 		},
 	}
 
-	pd := config.PolicyDefinition{
+	pd := bgpconfig.PolicyDefinition{
 		Name:       "pd1",
-		Statements: []config.Statement{s},
+		Statements: []bgpconfig.Statement{s},
 	}
 
-	p := config.RoutingPolicy{
+	p := bgpconfig.RoutingPolicy{
 		DefinedSets:       ds,
-		PolicyDefinitions: []config.PolicyDefinition{pd},
+		PolicyDefinitions: []bgpconfig.PolicyDefinition{pd},
 	}
 
 	return p

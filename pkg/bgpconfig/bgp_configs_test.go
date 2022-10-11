@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package bgpconfig
 
 import (
 	"bufio"
@@ -97,7 +97,7 @@ func TestConfigExample(t *testing.T) {
 	assert := assert.New(t)
 
 	_, f, _, _ := runtime.Caller(0)
-	fileMd := path.Join(path.Dir(f), "../../../docs/sources/configuration.md")
+	fileMd := path.Join(path.Dir(f), "../../docs/sources/configuration.md")
 	fileToml := "/tmp/gobgpd.example.toml"
 	assert.NoError(extractTomlFromMarkdown(fileMd, fileToml))
 	defer os.Remove(fileToml)

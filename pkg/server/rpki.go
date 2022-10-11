@@ -25,7 +25,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
@@ -175,7 +175,7 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		// clear state
 		client.endOfData = false
 		client.pendingROAs = make([]*table.ROA, 0)
-		client.state.RpkiMessages = config.RpkiMessages{}
+		client.state.RpkiMessages = bgpconfig.RpkiMessages{}
 		client.conn = nil
 		go client.tryConnect()
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
@@ -213,7 +213,7 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 	}
 }
 
-func (m *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
+func (m *roaManager) handleRTRMsg(client *roaClient, state *bgpconfig.RpkiServerState, buf []byte) {
 	received := &state.RpkiMessages.RpkiReceived
 
 	m1, err := rtr.ParseRTR(buf)
@@ -285,11 +285,11 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	}
 }
 
-func (m *roaManager) GetServers() []*config.RpkiServer {
+func (m *roaManager) GetServers() []*bgpconfig.RpkiServer {
 	recordsV4, prefixesV4 := m.table.Info(bgp.RF_IPv4_UC)
 	recordsV6, prefixesV6 := m.table.Info(bgp.RF_IPv6_UC)
 
-	l := make([]*config.RpkiServer, 0, len(m.clientMap))
+	l := make([]*bgpconfig.RpkiServer, 0, len(m.clientMap))
 	for _, client := range m.clientMap {
 		state := &client.state
 
@@ -311,8 +311,8 @@ func (m *roaManager) GetServers() []*config.RpkiServer {
 		state.SerialNumber = client.serialNumber
 
 		addr, port, _ := net.SplitHostPort(client.host)
-		l = append(l, &config.RpkiServer{
-			Config: config.RpkiServerConfig{
+		l = append(l, &bgpconfig.RpkiServer{
+			Config: bgpconfig.RpkiServerConfig{
 				Address: addr,
 				// Note: RpkiServerConfig.Port is uint32 type, but the TCP/UDP
 				// port is 16-bit length.
@@ -327,7 +327,7 @@ func (m *roaManager) GetServers() []*config.RpkiServer {
 type roaClient struct {
 	host         string
 	conn         *net.TCPConn
-	state        config.RpkiServerState
+	state        bgpconfig.RpkiServerState
 	eventCh      chan *roaEvent
 	sessionID    uint16
 	oldSessionID uint16
