@@ -460,10 +460,10 @@ func (s *SubSubTLV) DecodeFromBytes(data []byte) ([]byte, error) {
 }
 
 // SRv6SIDStructureSubSubTLV defines a structure of SRv6 SID Structure Sub Sub TLV (type 1) object
-// https://tools.ietf.org/html/draft-dawra-bess-srv6-services-02#section-2.1.2.1
+// https://www.rfc-editor.org/rfc/rfc9252.html#section-3.2.1
 type SRv6SIDStructureSubSubTLV struct {
 	SubSubTLV
-	LocalBlockLength    uint8
+	LocatorBlockLength  uint8
 	LocatorNodeLength   uint8
 	FunctionLength      uint8
 	ArgumentLength      uint8
@@ -478,7 +478,7 @@ func (s *SRv6SIDStructureSubSubTLV) Len() int {
 func (s *SRv6SIDStructureSubSubTLV) Serialize() ([]byte, error) {
 	buf := make([]byte, s.Length)
 	p := 0
-	buf[p] = s.LocalBlockLength
+	buf[p] = s.LocatorBlockLength
 	p++
 	buf[p] = s.LocatorNodeLength
 	p++
@@ -500,7 +500,7 @@ func (s *SRv6SIDStructureSubSubTLV) DecodeFromBytes(data []byte) error {
 	s.Type = SubSubTLVType(data[0])
 	s.Length = binary.BigEndian.Uint16(data[1:3])
 
-	s.LocalBlockLength = data[3]
+	s.LocatorBlockLength = data[3]
 	s.LocatorNodeLength = data[4]
 	s.FunctionLength = data[5]
 	s.ArgumentLength = data[6]
@@ -513,7 +513,7 @@ func (s *SRv6SIDStructureSubSubTLV) DecodeFromBytes(data []byte) error {
 func (s *SRv6SIDStructureSubSubTLV) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type                SubSubTLVType `json:"type"`
-		LocalBlockLength    uint8         `json:"local_block_length"`
+		LocatorBlockLength  uint8         `json:"locator_block_length"`
 		LocatorNodeLength   uint8         `json:"locator_node_length"`
 		FunctionLength      uint8         `json:"function_length"`
 		ArgumentLength      uint8         `json:"argument_length"`
@@ -521,7 +521,7 @@ func (s *SRv6SIDStructureSubSubTLV) MarshalJSON() ([]byte, error) {
 		TranspositionOffset uint8         `json:"transposition_offset"`
 	}{
 		Type:                s.Type,
-		LocalBlockLength:    s.LocalBlockLength,
+		LocatorBlockLength:  s.LocatorBlockLength,
 		LocatorNodeLength:   s.LocatorNodeLength,
 		FunctionLength:      s.FunctionLength,
 		ArgumentLength:      s.ArgumentLength,
@@ -531,8 +531,8 @@ func (s *SRv6SIDStructureSubSubTLV) MarshalJSON() ([]byte, error) {
 }
 
 func (s *SRv6SIDStructureSubSubTLV) String() string {
-	return fmt.Sprintf("{SRv6 Structure Sub Sub TLV: [ Local Block Length: %d, Locator Node Length: %d, Function Length: %d, Argument Length: %d, Transposition Length: %d, Transposition Offset: %d] }",
-		s.LocalBlockLength,
+	return fmt.Sprintf("{SRv6 Structure Sub Sub TLV: [ Locator Block Length: %d, Locator Node Length: %d, Function Length: %d, Argument Length: %d, Transposition Length: %d, Transposition Offset: %d] }",
+		s.LocatorBlockLength,
 		s.LocatorNodeLength,
 		s.FunctionLength,
 		s.ArgumentLength,
