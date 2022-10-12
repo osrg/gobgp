@@ -430,8 +430,8 @@ func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) (map[uint32]*api.SR
 		switch t := tlv.(type) {
 		case *bgp.SRv6SIDStructureSubSubTLV:
 			o := &api.SRv6StructureSubSubTLV{
-				LocalBlockLength:    uint32(t.LocalBlockLength),
-				LocalNodeLength:     uint32(t.LocatorNodeLength),
+				LocatorBlockLength:  uint32(t.LocatorBlockLength),
+				LocatorNodeLength:   uint32(t.LocatorNodeLength),
 				FunctionLength:      uint32(t.FunctionLength),
 				ArgumentLength:      uint32(t.ArgumentLength),
 				TranspositionLength: uint32(t.TranspositionLength),
@@ -2370,8 +2370,8 @@ func UnmarshalSubSubTLVs(stlvs map[uint32]*api.SRv6TLV) (uint16, []bgp.PrefixSID
 					return 0, nil, err
 				}
 				structureProto := raw.(*api.SRv6StructureSubSubTLV)
-				structure.LocalBlockLength = uint8(structureProto.LocalBlockLength)
-				structure.LocatorNodeLength = uint8(structureProto.LocalNodeLength)
+				structure.LocatorBlockLength = uint8(structureProto.LocatorBlockLength)
+				structure.LocatorNodeLength = uint8(structureProto.LocatorNodeLength)
 				structure.FunctionLength = uint8(structureProto.FunctionLength)
 				structure.ArgumentLength = uint8(structureProto.ArgumentLength)
 				structure.TranspositionLength = uint8(structureProto.TranspositionLength)
