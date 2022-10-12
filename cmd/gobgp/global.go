@@ -1126,7 +1126,7 @@ func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 
 func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, []string, error) {
 	// Format:
-	// <endpoint address> rd <rd> [rt <rt>...] teid <teid>
+	// <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]
 	req := 5
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
@@ -1135,6 +1135,7 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 		"rd":   paramSingle,
 		"rt":   paramSingle,
 		"teid": paramSingle,
+		"mup":  paramSingle,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -1142,7 +1143,7 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	if len(m[""]) < 1 {
 		return nil, nil, fmt.Errorf("specify endpoint")
 	}
-	for _, f := range []string{"rd", "rt", "teid"} {
+	for _, f := range []string{"rd", "rt", "teid", "mup"} {
 		for len(m[f]) == 0 {
 			return nil, nil, fmt.Errorf("specify %s", f)
 		}
@@ -1166,6 +1167,9 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	if len(m["rt"]) > 0 {
 		extcomms = append(extcomms, "rt")
 		extcomms = append(extcomms, m["rt"]...)
+	}
+	if len(m["mup"]) > 0 {
+		extcomms = append(extcomms, "mup", m["mup"][0])
 	}
 
 	r := &bgp.MUPType2SessionTransformedRoute{
@@ -1800,7 +1804,7 @@ usage: %s rib %s { isd <ISD> | dsd <DSD> | t1st <T1ST> | t2st <T2ST> } -a mup-ip
     <ISD>  : <ip prefix> rd <rd> [rt <rt>...]
     <DSD>  : <ip address> rd <rd> [rt <rt>...] [mup <segment identifier>]
     <T1ST> : <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
-    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] teid <teid>`,
+    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]`,
 			err,
 			cmdstr,
 			modtype,
@@ -1810,7 +1814,7 @@ usage: %s rib %s { isd <ISD> | dsd <DSD> | t1st <T1ST> | t2st <T2ST> } -a mup-ip
     <ISD>  : <ip prefix> rd <rd> [rt <rt>...]
     <DSD>  : <ip address> rd <rd> [rt <rt>...] [mup <segment identifier>]
     <T1ST> : <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
-    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] teid <teid>`,
+    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]`,
 			err,
 			cmdstr,
 			modtype,
