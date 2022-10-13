@@ -11,10 +11,10 @@ jobs:
         GOARCH: ['amd64']
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18.0'
+          go-version-file: 'go.mod'
       - run: |
           go env
           go build ./cmd/gobgp
@@ -27,10 +27,10 @@ jobs:
     name: unit
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18.0'
+          go-version-file: 'go.mod'
       - run: |
           go test -race -timeout 240s ./...
           if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/v3/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
@@ -41,10 +41,10 @@ jobs:
     env:
       GOARCH: 386
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18.0'
+          go-version-file: 'go.mod'
       - run: |
           go env GOARCH
           go test -timeout 240s ./...
@@ -53,21 +53,21 @@ jobs:
     name: lint
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18.0'
+          go-version-file: 'go.mod'
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v3
 
   embeded:
     name: embeded
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18.0'
+          go-version-file: 'go.mod'
       - run: |
           python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
           python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib-ls.md
@@ -76,7 +76,7 @@ jobs:
     name: lintdoc
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v3
       - run: |
           npm install markdownlint-cli
           ./node_modules/.bin/markdownlint $(find . -type d -name 'node_modules' -prune -o -type f -name '*.md' -print)
@@ -89,10 +89,10 @@ jobs:
     name: build container image
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18.0'
+          go-version-file: 'go.mod'
       - name: container image
         run: |
           sudo apt-get install python3-setuptools
@@ -103,7 +103,7 @@ jobs:
           docker save gobgp-oq > gobgp-oq.tar
 
       - name: upload image file
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: artifact
           path: |
@@ -115,8 +115,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -129,8 +129,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -143,8 +143,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -157,8 +157,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -171,8 +171,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -185,8 +185,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -199,8 +199,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -213,8 +213,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -227,8 +227,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -244,8 +244,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -258,8 +258,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -272,8 +272,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -286,8 +286,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -300,8 +300,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -314,8 +314,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -328,8 +328,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -342,8 +342,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -356,8 +356,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -370,8 +370,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -384,8 +384,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -405,8 +405,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -419,8 +419,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -433,8 +433,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -447,8 +447,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -461,8 +461,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -475,8 +475,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -489,8 +489,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -503,8 +503,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -517,8 +517,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
       - name: test
         run: |
           docker load < artifact/gobgp.tar
