@@ -373,6 +373,23 @@ func MarshalSRv6TLVs(tlvs []bgp.PrefixSIDTLVInterface) ([]*apb.Any, error) {
 				return nil, err
 			}
 			r = o
+		case *bgp.SRv6ServiceTLV:
+			switch t.TLV.Type {
+			case bgp.TLVTypeSRv6L3Service:
+				o := &api.SRv6L3ServiceTLV{}
+				o.SubTlvs, err = MarshalSRv6SubTLVs(t.SubTLVs)
+				if err != nil {
+					return nil, err
+				}
+				r = o
+			case bgp.TLVTypeSRv6L2Service:
+				o := &api.SRv6L2ServiceTLV{}
+				o.SubTlvs, err = MarshalSRv6SubTLVs(t.SubTLVs)
+				if err != nil {
+					return nil, err
+				}
+				r = o
+			}
 		default:
 			return nil, fmt.Errorf("invalid prefix sid tlv type to marshal %v", t)
 		}

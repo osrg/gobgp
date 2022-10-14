@@ -1790,7 +1790,10 @@ func TestFullCyclePrefixSID(t *testing.T) {
 				t.Fatalf("test failed with error: %+v", err)
 			}
 			// Converting from Native to API
-			apiPrefixSID, _ := NewPrefixSIDAttributeFromNative(&attribute)
+			apiPrefixSID, err := NewPrefixSIDAttributeFromNative(&attribute)
+			if err != nil {
+				t.Fatalf("test failed with error: %+v", err)
+			}
 			// Converting back from API to Native
 			recoveredPrefixSID, err := UnmarshalPrefixSID(apiPrefixSID)
 			if err != nil {
