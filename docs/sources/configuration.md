@@ -143,6 +143,12 @@
         afi-safi-name = "ipv6-flowspec"
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
+        afi-safi-name = "ipv4-mup"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv6-mup"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "opaque"
     [neighbors.apply-policy.config]
         import-policy-list = ["policy1"]
