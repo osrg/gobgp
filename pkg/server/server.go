@@ -4349,6 +4349,9 @@ func (w *watcher) notify(v watchEvent) {
 
 func (w *watcher) loop() {
 	for ev := range w.ch.Out() {
+		if ev == nil {
+			break
+		}
 		w.realCh <- ev.(watchEvent)
 	}
 	close(w.realCh)
