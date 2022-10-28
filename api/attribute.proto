@@ -372,8 +372,7 @@ message MUPInterworkSegmentDiscoveryRoute {
   // - RouteDistinguisherIPAddress
   // - RouteDistinguisherFourOctetASN
   google.protobuf.Any rd = 1;
-  uint32 prefix_length = 2;
-  string prefix = 3;
+  string prefix = 2;
 }
 
 message MUPDirectSegmentDiscoveryRoute {
