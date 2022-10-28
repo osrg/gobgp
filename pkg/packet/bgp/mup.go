@@ -216,9 +216,8 @@ func NewMUPNLRI(afi uint16, at uint8, rt uint16, data MUPRouteTypeInterface) *MU
 // MUPInterworkSegmentDiscoveryRoute represents BGP Interwork Segment Discovery route as described in
 // https://datatracker.ietf.org/doc/html/draft-mpmz-bess-mup-safi-00#section-3.1.1
 type MUPInterworkSegmentDiscoveryRoute struct {
-	RD           RouteDistinguisherInterface
-	PrefixLength uint8
-	Prefix       netip.Prefix
+	RD     RouteDistinguisherInterface
+	Prefix netip.Prefix
 }
 
 func NewMUPInterworkSegmentDiscoveryRoute(rd RouteDistinguisherInterface, prefix netip.Prefix) *MUPNLRI {
@@ -227,9 +226,8 @@ func NewMUPInterworkSegmentDiscoveryRoute(rd RouteDistinguisherInterface, prefix
 		afi = AFI_IP6
 	}
 	return NewMUPNLRI(afi, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, &MUPInterworkSegmentDiscoveryRoute{
-		RD:           rd,
-		PrefixLength: uint8(prefix.Bits()),
-		Prefix:       prefix,
+		RD:     rd,
+		Prefix: prefix,
 	})
 }
 
@@ -239,13 +237,28 @@ func (r *MUPInterworkSegmentDiscoveryRoute) DecodeFromBytes(data []byte, afi uin
 	if len(data) < p {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid Interwork Segment Discovery Route length")
 	}
-	r.PrefixLength = data[p]
+	bits := int(data[p])
 	p += 1
-	addr, ok := netip.AddrFromSlice(data[p:])
+	byteLen := (bits + 7) / 8
+	if len(data[p:]) < byteLen {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "prefix bytes is short")
+	}
+	addrLen := 4
+	if afi == AFI_IP6 {
+		addrLen = 16
+	}
+	if bits > addrLen*8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "prefix length is too long")
+	}
+	b := data[p:]
+	if addrLen > len(data[p:]) {
+		b = append(b, make([]byte, addrLen-len(data[p:]))...)
+	}
+	addr, ok := netip.AddrFromSlice(b)
 	if !ok {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid Prefix: %x", data[p:]))
 	}
-	r.Prefix = netip.PrefixFrom(addr, int(r.PrefixLength))
+	r.Prefix = netip.PrefixFrom(addr, bits)
 	if r.Prefix.Bits() == -1 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid Prefix: %s", r.Prefix))
 	}
@@ -263,8 +276,9 @@ func (r *MUPInterworkSegmentDiscoveryRoute) Serialize() ([]byte, error) {
 	} else {
 		buf = make([]byte, 8)
 	}
-	buf = append(buf, r.PrefixLength)
-	buf = append(buf, r.Prefix.Addr().AsSlice()...)
+	buf = append(buf, uint8(r.Prefix.Bits()))
+	byteLen := (r.Prefix.Bits() + 7) / 8
+	buf = append(buf, r.Prefix.Addr().AsSlice()[:byteLen]...)
 	return buf, nil
 }
 
@@ -276,8 +290,8 @@ func (r *MUPInterworkSegmentDiscoveryRoute) AFI() uint16 {
 }
 
 func (r *MUPInterworkSegmentDiscoveryRoute) Len() int {
-	// RD(8) + PrefixLength(1) + Prefix(4 or 16)
-	return 9 + int(r.Prefix.Addr().BitLen()/8)
+	// RD(8) + PrefixLength(1) + Prefix(variable)
+	return 9 + (r.Prefix.Bits()+7)/8
 }
 
 func (r *MUPInterworkSegmentDiscoveryRoute) String() string {

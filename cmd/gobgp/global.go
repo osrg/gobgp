@@ -1030,9 +1030,8 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexth
 	}
 
 	r := &bgp.MUPInterworkSegmentDiscoveryRoute{
-		RD:           rd,
-		PrefixLength: uint8(prefix.Bits()),
-		Prefix:       prefix,
+		RD:     rd,
+		Prefix: prefix,
 	}
 	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r), psid, extcomms, nil
 }

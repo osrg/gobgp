@@ -1173,9 +1173,8 @@ func Test_MpReachNLRIAttribute_MUPInterworkSegmentDiscoveryRoute(t *testing.T) {
 	})
 	assert.Nil(err)
 	a, err := apb.New(&api.MUPInterworkSegmentDiscoveryRoute{
-		Rd:           rd,
-		PrefixLength: 24,
-		Prefix:       "10.0.0.0/24",
+		Rd:     rd,
+		Prefix: "10.0.0.0/24",
 	})
 	assert.Nil(err)
 	nlris = append(nlris, a)

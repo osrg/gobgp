@@ -30,9 +30,8 @@ func Test_MUPInterworkSegmentDiscoveryRouteIPv4(t *testing.T) {
 	assert := assert.New(t)
 	rd, _ := ParseRouteDistinguisher("100:100")
 	r := &MUPInterworkSegmentDiscoveryRoute{
-		RD:           rd,
-		PrefixLength: 24,
-		Prefix:       netip.MustParsePrefix("10.10.10.0/24"),
+		RD:     rd,
+		Prefix: netip.MustParsePrefix("10.10.10.0/24"),
 	}
 	n1 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r)
 	buf1, err := n1.Serialize()
@@ -52,9 +51,8 @@ func Test_MUPInterworkSegmentDiscoveryRouteIPv6(t *testing.T) {
 	assert := assert.New(t)
 	rd, _ := ParseRouteDistinguisher("100:100")
 	r := &MUPInterworkSegmentDiscoveryRoute{
-		RD:           rd,
-		PrefixLength: 64,
-		Prefix:       netip.MustParsePrefix("2001::/64"),
+		RD:     rd,
+		Prefix: netip.MustParsePrefix("2001::/64"),
 	}
 	n1 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r)
 	buf1, err := n1.Serialize()

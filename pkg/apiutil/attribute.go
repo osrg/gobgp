@@ -1036,9 +1036,8 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*apb.Any, error) {
 				return nil, err
 			}
 			nlri = &api.MUPInterworkSegmentDiscoveryRoute{
-				Rd:           rd,
-				PrefixLength: uint32(r.PrefixLength),
-				Prefix:       r.Prefix.String(),
+				Rd:     rd,
+				Prefix: r.Prefix.String(),
 			}
 		case *bgp.MUPDirectSegmentDiscoveryRoute:
 			rd, err := MarshalRD(r.RD)
