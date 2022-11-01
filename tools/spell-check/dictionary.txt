@@ -47,4 +47,5 @@ syslog
 teid
 unicast
 uptime
+vpls
 zapi
