@@ -184,6 +184,55 @@ const (
 	EC_SUBTYPE_UUID_BASED_RT ExtendedCommunityAttrSubType = 0x11
 )
 
+// RFC6624
+type Layer2EncapsulationType uint8
+
+const (
+	LAYER2ENCAPSULATION_TYPE_FRAMERELAY      Layer2EncapsulationType = 1
+	LAYER2ENCAPSULATION_TYPE_ATM_AAL5        Layer2EncapsulationType = 2
+	LAYER2ENCAPSULATION_TYPE_ATM_TRANSPARENT Layer2EncapsulationType = 3
+	LAYER2ENCAPSULATION_TYPE_ETHERNET_VLAN   Layer2EncapsulationType = 4
+	LAYER2ENCAPSULATION_TYPE_ETHERNET_RAW    Layer2EncapsulationType = 5
+	LAYER2ENCAPSULATION_TYPE_CISCO_HDLC      Layer2EncapsulationType = 6
+	LAYER2ENCAPSULATION_TYPE_PPP             Layer2EncapsulationType = 7
+	LAYER2ENCAPSULATION_TYPE_SONET           Layer2EncapsulationType = 8
+	LAYER2ENCAPSULATION_TYPE_ATM_VCC         Layer2EncapsulationType = 9
+	LAYER2ENCAPSULATION_TYPE_ATM_VPC         Layer2EncapsulationType = 10
+	LAYER2ENCAPSULATION_TYPE_IP_LAYER2       Layer2EncapsulationType = 11
+	LAYER2ENCAPSULATION_TYPE_VPLS            Layer2EncapsulationType = 19
+)
+
+func (l Layer2EncapsulationType) String() string {
+	switch l {
+	case LAYER2ENCAPSULATION_TYPE_FRAMERELAY:
+		return "framerelay"
+	case LAYER2ENCAPSULATION_TYPE_ATM_AAL5:
+		return "atm-aal5"
+	case LAYER2ENCAPSULATION_TYPE_ATM_TRANSPARENT:
+		return "atm-transparent"
+	case LAYER2ENCAPSULATION_TYPE_ETHERNET_VLAN:
+		return "ethernet-vlan"
+	case LAYER2ENCAPSULATION_TYPE_ETHERNET_RAW:
+		return "ethernet-raw"
+	case LAYER2ENCAPSULATION_TYPE_CISCO_HDLC:
+		return "cisco-hdlc"
+	case LAYER2ENCAPSULATION_TYPE_PPP:
+		return "ppp"
+	case LAYER2ENCAPSULATION_TYPE_SONET:
+		return "sonet"
+	case LAYER2ENCAPSULATION_TYPE_ATM_VCC:
+		return "atm-vcc"
+	case LAYER2ENCAPSULATION_TYPE_ATM_VPC:
+		return "atm-vpc"
+	case LAYER2ENCAPSULATION_TYPE_IP_LAYER2:
+		return "ip-layer2"
+	case LAYER2ENCAPSULATION_TYPE_VPLS:
+		return "vpls"
+	default:
+		return fmt.Sprintf("Layer2EncapsulationType(%d)", uint8(l))
+	}
+}
+
 type TunnelType uint16
 
 const (
@@ -8412,6 +8461,8 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (pref
 		prefix = NewLabeledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_EVPN:
 		prefix = NewEVPNNLRI(0, nil)
+	case RF_VPLS:
+		prefix = &VPLSNLRI{}
 
 	// TODO (sbezverk) Add processing SR Policy NLRI
 	case RF_SR_POLICY_IPv4:
@@ -11239,10 +11290,10 @@ func NewTrafficRemarkExtended(dscp uint8) *TrafficRemarkExtended {
 	}
 }
 
-func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
+func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityInterface, error) {
 	typ := ExtendedCommunityAttrType(data[0])
 	if typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 {
-		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_FLOWSPEC: %d", data[0]))
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL: %d", data[0]))
 	}
 	subType := ExtendedCommunityAttrSubType(data[1])
 	switch subType {
@@ -11278,6 +11329,13 @@ func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 		ipv6 := net.IP(data[2:18]).String()
 		localAdmin := binary.BigEndian.Uint16(data[18:20])
 		return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin), nil
+	case EC_SUBTYPE_L2_INFO:
+		switch data[2] {
+		case byte(LAYER2ENCAPSULATION_TYPE_VPLS):
+			controlFlags := uint8(data[3])
+			mtu := binary.BigEndian.Uint16(data[4:6])
+			return NewVPLSExtended(controlFlags, mtu), nil
+		}
 	}
 	return &UnknownExtended{
 		Type:  ExtendedCommunityAttrType(data[0]),
@@ -11406,7 +11464,7 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	case EC_TYPE_EVPN:
 		return parseEvpnExtended(data)
 	case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
-		return parseFlowSpecExtended(data)
+		return parseGenericTransitiveExperimentalExtended(data)
 	case EC_TYPE_MUP:
 		return parseMUPExtended(data)
 	default:
