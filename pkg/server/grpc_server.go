@@ -186,16 +186,22 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *apb.Any, anyPattrs [
 	return p
 }
 
-func toPathApi(path *table.Path, v *table.Validation, nlri_binary, attribute_binary bool) *api.Path {
+func toPathApi(path *table.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
+	var (
+		anyNlri   *apb.Any
+		anyPattrs []*apb.Any
+	)
 	nlri := path.GetNlri()
-	anyNlri, _ := apiutil.MarshalNLRI(nlri)
-	anyPattrs, _ := apiutil.MarshalPathAttributes(path.GetPathAttrs())
+	if !onlyBinary {
+		anyNlri, _ = apiutil.MarshalNLRI(nlri)
+		anyPattrs, _ = apiutil.MarshalPathAttributes(path.GetPathAttrs())
+	}
 	var binNlri []byte
-	if nlri_binary {
+	if onlyBinary || nlriBinary {
 		binNlri, _ = nlri.Serialize()
 	}
 	var binPattrs [][]byte
-	if attribute_binary {
+	if onlyBinary || attributeBinary {
 		pa := path.GetPathAttrs()
 		binPattrs = make([][]byte, 0, len(pa))
 		for _, a := range pa {

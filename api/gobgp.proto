@@ -259,6 +259,9 @@ message ListPathRequest {
   bool enable_filtered = 6;
   bool enable_nlri_binary = 7;
   bool enable_attribute_binary = 8;
+  // enable_only_binary == true means that only nlri_binary and pattrs_binary
+  // will be used instead of nlri and pattrs for each Path in ListPathResponse.
+  bool enable_only_binary = 9;
 }
 
 message ListPathResponse { Destination destination = 1; }
