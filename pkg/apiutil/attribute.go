@@ -1652,7 +1652,8 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) (*api.Tu
 				if err != nil {
 					return nil, err
 				}
-				subTlv = t
+				subTlv = &api.TunnelEncapSubTLVSRBindingSID{
+                                        Bsid:t}
 				// TODO (sbezverk) Add processing of SRv6 Binding SID when it gets assigned ID
 			case *bgp.TunnelEncapSubTLVSRCandidatePathName:
 				subTlv = &api.TunnelEncapSubTLVSRCandidatePathName{
