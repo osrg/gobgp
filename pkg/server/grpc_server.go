@@ -225,19 +225,48 @@ func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Va
 func (s *server) ListPath(r *api.ListPathRequest, stream api.GobgpApi_ListPathServer) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	l := make([]*api.Destination, 0)
+
+	var sendErr error // contains the error from the send function
+	send := func(dsts []*api.Destination) {
+		for _, d := range dsts {
+			if err := stream.Send(&api.ListPathResponse{Destination: d}); err != nil {
+				sendErr = err
+				cancel()
+				return
+			}
+		}
+	}
+	dsts, capacity := listPathSlice(r.MaxBatchSize)
 	err := s.bgpServer.ListPath(ctx, r, func(d *api.Destination) {
-		l = append(l, d)
+		if d == nil {
+			return
+		}
+		dsts = append(dsts, d)
+		if capacity < 1 || len(dsts) < capacity {
+			// Collecting destinations is in progress.
+			return
+		}
+		send(dsts)
+		dsts = dsts[:0]
 	})
 	if err != nil {
 		return err
 	}
-	for _, d := range l {
-		if err := stream.Send(&api.ListPathResponse{Destination: d}); err != nil {
-			break
-		}
+	if sendErr != nil {
+		return sendErr
 	}
-	return err
+	send(dsts) // send all remaining destinations
+	return sendErr
+}
+
+func listPathSlice(batchSize int32) (dsts []*api.Destination, capacity int) {
+	if batchSize < 1 {
+		// There is no limit to storing in memory,
+		// 'dsts' slice will be filled with all destinations.
+		return make([]*api.Destination, 0), -1
+	}
+	// Predefined capacity reduces reallocation, out slice should be reused.
+	return make([]*api.Destination, 0, batchSize), int(batchSize)
 }
 
 func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GobgpApi_WatchEventServer) error {
