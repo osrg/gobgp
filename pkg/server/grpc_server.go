@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"reflect"
 	"regexp"
@@ -225,19 +226,44 @@ func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Va
 func (s *server) ListPath(r *api.ListPathRequest, stream api.GobgpApi_ListPathServer) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	l := make([]*api.Destination, 0)
+
+	batchSize := r.MaxBatchSize
+	if batchSize < 1 {
+		// There is no limit to storing in memory.
+		batchSize = math.MaxInt32
+	}
+	var sendErr error // contains the error from the send function
+	send := func(dsts []*api.Destination) {
+		for _, d := range dsts {
+			if err := stream.Send(&api.ListPathResponse{Destination: d}); err != nil {
+				sendErr = err
+				cancel()
+				return
+			}
+		}
+	}
+
+	dsts := make([]*api.Destination, 0, batchSize)
 	err := s.bgpServer.ListPath(ctx, r, func(d *api.Destination) {
-		l = append(l, d)
+		if d == nil {
+			return
+		}
+		dsts = append(dsts, d)
+		if len(dsts) < int(batchSize) {
+			// Collecting destinations is in progress.
+			return
+		}
+		send(dsts)
+		dsts = dsts[:0]
 	})
 	if err != nil {
 		return err
 	}
-	for _, d := range l {
-		if err := stream.Send(&api.ListPathResponse{Destination: d}); err != nil {
-			break
-		}
+	if sendErr != nil {
+		return sendErr
 	}
-	return err
+	send(dsts) // send all remaining destinations
+	return sendErr
 }
 
 func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GobgpApi_WatchEventServer) error {

@@ -262,6 +262,10 @@ message ListPathRequest {
   // enable_only_binary == true means that only nlri_binary and pattrs_binary
   // will be used instead of nlri and pattrs for each Path in ListPathResponse.
   bool enable_only_binary = 9;
+  // max_batch_size sets limit of destinations that will be stored before sending to the stream.
+  // max_batch_size <= 0 means there is no limit and destinations will be collected in memory
+  // and only after that they will be sent to the stream.
+  int32 max_batch_size = 10;
 }
 
 message ListPathResponse { Destination destination = 1; }
