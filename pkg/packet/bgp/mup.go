@@ -213,6 +213,48 @@ func NewMUPNLRI(afi uint16, at uint8, rt uint16, data MUPRouteTypeInterface) *MU
 	}
 }
 
+func TEIDString(nlri AddrPrefixInterface) string {
+	s := ""
+	switch n := nlri.(type) {
+	case *MUPNLRI:
+		switch route := n.RouteTypeData.(type) {
+		case *MUPType1SessionTransformedRoute:
+			s = fmt.Sprintf("%d", route.TEID)
+		default:
+			s = ""
+		}
+	}
+	return s
+}
+
+func QFIString(nlri AddrPrefixInterface) string {
+	s := ""
+	switch n := nlri.(type) {
+	case *MUPNLRI:
+		switch route := n.RouteTypeData.(type) {
+		case *MUPType1SessionTransformedRoute:
+			s = fmt.Sprintf("%d", route.QFI)
+		default:
+			s = ""
+		}
+	}
+	return s
+}
+
+func EndpointString(nlri AddrPrefixInterface) string {
+	s := ""
+	switch n := nlri.(type) {
+	case *MUPNLRI:
+		switch route := n.RouteTypeData.(type) {
+		case *MUPType1SessionTransformedRoute:
+			s = route.EndpointAddress.String()
+		default:
+			s = ""
+		}
+	}
+	return s
+}
+
 // MUPInterworkSegmentDiscoveryRoute represents BGP Interwork Segment Discovery route as described in
 // https://datatracker.ietf.org/doc/html/draft-mpmz-bess-mup-safi-00#section-3.1.1
 type MUPInterworkSegmentDiscoveryRoute struct {

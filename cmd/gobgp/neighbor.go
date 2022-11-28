@@ -38,13 +38,16 @@ import (
 
 // used in showRoute() to determine the width of each column
 var (
-	columnWidthPrefix  = 20
-	columnWidthNextHop = 20
-	columnWidthAsPath  = 20
-	columnWidthLabel   = 10
+	columnWidthPrefix   = 20
+	columnWidthNextHop  = 20
+	columnWidthAsPath   = 20
+	columnWidthLabel    = 10
+	columnWidthTEID     = 10
+	columnWidthQFI      = 10
+	columnWidthEndpoint = 20
 )
 
-func updateColumnWidth(nlri, nexthop, aspath, label string) {
+func updateColumnWidth(nlri, nexthop, aspath, label, teid, qfi, endpoint string) {
 	if prefixLen := len(nlri); columnWidthPrefix < prefixLen {
 		columnWidthPrefix = prefixLen
 	}
@@ -56,6 +59,15 @@ func updateColumnWidth(nlri, nexthop, aspath, label string) {
 	}
 	if columnWidthLabel < len(label) {
 		columnWidthLabel = len(label)
+	}
+	if columnWidthTEID < len(teid) {
+		columnWidthTEID = len(teid)
+	}
+	if columnWidthQFI < len(qfi) {
+		columnWidthQFI = len(qfi)
+	}
+	if columnWidthEndpoint < len(endpoint) {
+		columnWidthEndpoint = len(endpoint)
 	}
 }
 
@@ -555,7 +567,7 @@ func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttrib
 	return fmt.Sprint(s)
 }
 
-func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
+func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
 	nlri, _ := apiutil.GetNativeNlri(p)
 
 	// Path Symbols (e.g. "*>")
@@ -577,6 +589,17 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	if showLabel {
 		label = bgp.LabelString(nlri)
 		args = append(args, label)
+	}
+
+	// MUP
+	teid := ""
+	qfi := ""
+	endpoint := ""
+	if showMUP {
+		teid = bgp.TEIDString(nlri)
+		qfi = bgp.QFIString(nlri)
+		endpoint = bgp.EndpointString(nlri)
+		args = append(args, teid, qfi, endpoint)
 	}
 
 	attrs, _ := apiutil.GetNativePathAttributes(p)
@@ -608,17 +631,17 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	pattrstr := getPathAttributeString(nlri, attrs)
 	args = append(args, pattrstr)
 
-	updateColumnWidth(nlri.String(), nexthop, aspathstr, label)
+	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, teid, qfi, endpoint)
 
 	return args
 }
 
-func showRoute(dsts []*api.Destination, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) {
+func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP bool, showIdentifier bgp.BGPAddPathMode) {
 	pathStrs := make([][]interface{}, 0, len(dsts))
 	now := time.Now()
 	for _, dst := range dsts {
 		for idx, p := range dst.Paths {
-			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showIdentifier))
+			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showMUP, showIdentifier))
 		}
 	}
 
@@ -635,6 +658,10 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel bool, showI
 	if showLabel {
 		headers = append(headers, "Labels")
 		format += fmt.Sprintf("%%-%ds ", columnWidthLabel)
+	}
+	if showMUP {
+		headers = append(headers, "TEID", "QFI", "Endpoint")
+		format += fmt.Sprintf("%%-%ds %%-%ds %%-%ds ", columnWidthTEID, columnWidthQFI, columnWidthEndpoint)
 	}
 	headers = append(headers, "Next Hop", "AS_PATH")
 	format += fmt.Sprintf("%%-%ds %%-%ds ", columnWidthNextHop, columnWidthAsPath)
@@ -792,6 +819,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showBest := false
 	showAge := true
 	showLabel := false
+	showMUP := false
 	showIdentifier := bgp.BGP_ADD_PATH_NONE
 	validationTarget := ""
 
@@ -816,6 +844,8 @@ func showNeighborRib(r string, name string, args []string) error {
 	switch rf {
 	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_EVPN:
 		showLabel = true
+	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
+		showMUP = true
 	}
 
 	var filter []*api.TableLookupPrefix
@@ -986,7 +1016,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 		}
 		if len(dsts) > 0 {
-			showRoute(dsts, showAge, showBest, showLabel, showIdentifier)
+			showRoute(dsts, showAge, showBest, showLabel, showMUP, showIdentifier)
 		} else {
 			fmt.Println("Network not in table")
 		}
