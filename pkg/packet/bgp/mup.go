@@ -295,6 +295,9 @@ func (r *MUPInterworkSegmentDiscoveryRoute) Len() int {
 }
 
 func (r *MUPInterworkSegmentDiscoveryRoute) String() string {
+	// I-D.draft-mpmz-bess-mup-safi-01
+	// 3.1.1.  BGP Interwork Segment Discovery route
+	// For the purpose of BGP route key processing, only the RD, Prefix Length and Prefix are considered to be part of the prefix in the NLRI.
 	return fmt.Sprintf("[type:isd][rd:%s][prefix:%s]", r.RD, r.Prefix)
 }
 
@@ -380,6 +383,9 @@ func (r *MUPDirectSegmentDiscoveryRoute) Len() int {
 }
 
 func (r *MUPDirectSegmentDiscoveryRoute) String() string {
+	// I-D.draft-mpmz-bess-mup-safi-01
+	// 3.1.2.  BGP Direct Segment Discovery route
+	// For the purpose of BGP route key processing, only the RD and Address are considered to be part of the prefix in the NLRI.
 	return fmt.Sprintf("[type:dsd][rd:%s][prefix:%s]", r.RD, r.Address)
 }
 
@@ -512,7 +518,10 @@ func (r *MUPType1SessionTransformedRoute) Len() int {
 }
 
 func (r *MUPType1SessionTransformedRoute) String() string {
-	return fmt.Sprintf("[type:t1st][rd:%s][prefix:%s][teid:%d][qfi:%d][endpoint:%s]", r.RD, r.Prefix, r.TEID, r.QFI, r.EndpointAddress)
+	// I-D.draft-mpmz-bess-mup-safi-01
+	// 3.1.3.  BGP Type 1 Session Transformed (ST) Route
+	// For the purpose of BGP route key processing, only the RD, Prefix Length and Prefix are considered to be part of the prefix in the NLRI.
+	return fmt.Sprintf("[type:t1st][rd:%s][prefix:%s]", r.RD, r.Prefix)
 }
 
 func (r *MUPType1SessionTransformedRoute) MarshalJSON() ([]byte, error) {
@@ -631,6 +640,9 @@ func (r *MUPType2SessionTransformedRoute) Len() int {
 }
 
 func (r *MUPType2SessionTransformedRoute) String() string {
+	// I-D.draft-mpmz-bess-mup-safi-01
+	// 3.1.4.  BGP Type 2 Session Transformed (ST) Route
+	// For the purpose of BGP route key processing, only the RD, Endpoint Address and Architecture specific Endpoint Identifier are considered to be part of the prefix in the NLRI.
 	return fmt.Sprintf("[type:t2st][rd:%s][endpoint:%s][teid:%d]", r.RD, r.EndpointAddress, r.TEID)
 }
 
