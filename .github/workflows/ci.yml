@@ -7,7 +7,7 @@ jobs:
     name: crossbuild
     strategy:
       matrix:
-        GOOS: ['freebsd', 'openbsd', 'darwin']
+        GOOS: ['freebsd', 'openbsd', 'darwin', 'windows']
         GOARCH: ['amd64']
     runs-on: ubuntu-20.04
     steps:
