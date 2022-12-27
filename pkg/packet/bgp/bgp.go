@@ -5051,6 +5051,7 @@ const (
 	LS_PROTOCOL_DIRECT
 	LS_PROTOCOL_STATIC
 	LS_PROTOCOL_OSPF_V3
+	LS_PROTOCOL_BGP
 )
 
 func (l LsProtocolID) String() string {
@@ -5067,6 +5068,8 @@ func (l LsProtocolID) String() string {
 		return "STATIC"
 	case LS_PROTOCOL_OSPF_V3:
 		return "OSPFv3"
+	case LS_PROTOCOL_BGP:
+		return "BGP"
 	default:
 		return fmt.Sprintf("LsProtocolID(%d)", uint8(l))
 	}
@@ -5643,8 +5646,8 @@ const (
 	LS_TLV_BGP_LS_ID                = 513
 	LS_TLV_OSPF_AREA                = 514
 	LS_TLV_IGP_ROUTER_ID            = 515
-	LS_TLV_BGP_ROUTER_ID            = 516 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
-	LS_TLV_BGP_CONFEDERATION_MEMBER = 517 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+	LS_TLV_BGP_ROUTER_ID            = 516 // RFC9086
+	LS_TLV_BGP_CONFEDERATION_MEMBER = 517 // RFC9086, TODO
 
 	LS_TLV_NODE_FLAG_BITS        = 1024
 	LS_TLV_OPAQUE_NODE_ATTR      = 1025
@@ -5673,9 +5676,9 @@ const (
 	LS_TLV_LINK_NAME                = 1098
 	LS_TLV_ADJACENCY_SID            = 1099 // draft-ietf-idr-bgp-ls-segment-routing-ext
 	LS_TLV_LAN_ADJACENCY_SID        = 1100 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
-	LS_TLV_PEER_NODE_SID            = 1101 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
-	LS_TLV_PEER_ADJACENCY_SID       = 1102 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
-	LS_TLV_PEER_SET_SID             = 1103 // draft-ietf-idr-bgpls-segment-routing-epe, TODO
+	LS_TLV_PEER_NODE_SID            = 1101 // RFC9086
+	LS_TLV_PEER_ADJACENCY_SID       = 1102 // RFC9086
+	LS_TLV_PEER_SET_SID             = 1103 // RFC9086
 
 	LS_TLV_RTM_CAPABILITY = 1105 // RFC8169, TODO
 
@@ -6526,6 +6529,52 @@ func (l *LsTLVOspfAreaID) MarshalJSON() ([]byte, error) {
 	}{
 		Type:   l.Type,
 		AreaID: l.AreaID,
+	})
+}
+
+type LsTLVBgpRouterID struct {
+	LsTLV
+	RouterID net.IP
+}
+
+func (l *LsTLVBgpRouterID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_BGP_ROUTER_ID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-4.1
+	// 4 is the only valid value.
+	if len(value) != 4 {
+		return malformedAttrListErr(fmt.Sprintf("Incorrect BGP Router ID length: %d", len(value)))
+	}
+
+	l.RouterID = net.IP(value)
+
+	return nil
+}
+
+func (l *LsTLVBgpRouterID) Serialize() ([]byte, error) {
+	var buf [4]byte
+	copy(buf[:], l.RouterID)
+	return l.LsTLV.Serialize(buf[:])
+}
+
+func (l *LsTLVBgpRouterID) String() string {
+	return fmt.Sprintf("{BGP Router ID: %v}", l.RouterID)
+}
+
+func (l *LsTLVBgpRouterID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     LsTLVType `json:"type"`
+		RouterID string    `json:"bgp_router_id"`
+	}{
+		Type:     l.Type,
+		RouterID: fmt.Sprintf("%v", l.RouterID),
 	})
 }
 
@@ -7403,6 +7452,219 @@ func (l *LsTLVAdjacencySID) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type LsTLVPeerNodeSID struct {
+	LsTLV
+	Flags  uint8
+	Weight uint8
+	SID    uint32
+}
+
+func (l *LsTLVPeerNodeSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_PEER_NODE_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-5
+	if len(value) != 7 && len(value) != 8 {
+		return malformedAttrListErr("Incorrect Peer Node SID length")
+	}
+
+	l.Flags = value[0]
+	l.Weight = value[1]
+
+	v := value[4:]
+	if len(v) == 4 {
+		l.SID = binary.BigEndian.Uint32(v)
+	} else {
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = v[i-1]
+		}
+		// Label is represented by 20 rightmost bits.
+		l.SID = binary.BigEndian.Uint32(buf) & 0xfffff
+	}
+
+	return nil
+}
+
+func (l *LsTLVPeerNodeSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Weight)
+	// Reserved
+	buf = append(buf, []byte{0, 0}...)
+
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:4], l.SID)
+
+	if l.Length == 7 {
+		return l.LsTLV.Serialize(append(buf, b[1:]...))
+	}
+
+	return l.LsTLV.Serialize(append(buf, b[:]...))
+}
+
+func (l *LsTLVPeerNodeSID) String() string {
+	return fmt.Sprintf("{Peer Node SID: %v}", l.SID)
+}
+
+func (l *LsTLVPeerNodeSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		SID  uint32    `json:"peer_node_sid"`
+	}{
+		Type: l.Type,
+		SID:  l.SID,
+	})
+}
+
+type LsTLVPeerAdjacencySID struct {
+	LsTLV
+	Flags  uint8
+	Weight uint8
+	SID    uint32
+}
+
+func (l *LsTLVPeerAdjacencySID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_PEER_ADJACENCY_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-5
+	if len(value) != 7 && len(value) != 8 {
+		return malformedAttrListErr("Incorrect Peer Adjacency SID length")
+	}
+
+	l.Flags = value[0]
+	l.Weight = value[1]
+
+	v := value[4:]
+	if len(v) == 4 {
+		l.SID = binary.BigEndian.Uint32(v)
+	} else {
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = v[i-1]
+		}
+		// Label is represented by 20 rightmost bits.
+		l.SID = binary.BigEndian.Uint32(buf) & 0xfffff
+	}
+
+	return nil
+}
+
+func (l *LsTLVPeerAdjacencySID) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Weight)
+	// Reserved
+	buf = append(buf, []byte{0, 0}...)
+
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:4], l.SID)
+
+	if l.Length == 7 {
+		return l.LsTLV.Serialize(append(buf, b[1:]...))
+	}
+
+	return l.LsTLV.Serialize(append(buf, b[:]...))
+}
+
+func (l *LsTLVPeerAdjacencySID) String() string {
+	return fmt.Sprintf("{Peer Adjacency SID: %v}", l.SID)
+}
+
+func (l *LsTLVPeerAdjacencySID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		SID  uint32    `json:"peer_adjacency_sid"`
+	}{
+		Type: l.Type,
+		SID:  l.SID,
+	})
+}
+
+type LsTLVPeerSetSID struct {
+	LsTLV
+	Flags  uint8
+	Weight uint8
+	SID    uint32
+}
+
+func (l *LsTLVPeerSetSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_PEER_SET_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-5
+	if len(value) != 7 && len(value) != 8 {
+		return malformedAttrListErr("Incorrect Peer Set SID length")
+	}
+
+	l.Flags = value[0]
+	l.Weight = value[1]
+
+	v := value[4:]
+	if len(v) == 4 {
+		l.SID = binary.BigEndian.Uint32(v)
+	} else {
+		buf := []byte{0, 0, 0, 0}
+		for i := 1; i < len(buf); i++ {
+			buf[i] = v[i-1]
+		}
+		// Label is represented by 20 rightmost bits.
+		l.SID = binary.BigEndian.Uint32(buf) & 0xfffff
+	}
+
+	return nil
+}
+
+func (l *LsTLVPeerSetSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Weight)
+	// Reserved
+	buf = append(buf, []byte{0, 0}...)
+
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:4], l.SID)
+
+	if l.Length == 7 {
+		return l.LsTLV.Serialize(append(buf, b[1:]...))
+	}
+
+	return l.LsTLV.Serialize(append(buf, b[:]...))
+}
+
+func (l *LsTLVPeerSetSID) String() string {
+	return fmt.Sprintf("{Peer Set SID: %v}", l.SID)
+}
+
+func (l *LsTLVPeerSetSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		SID  uint32    `json:"peer_set_sid"`
+	}{
+		Type: l.Type,
+		SID:  l.SID,
+	})
+}
+
 type LsTLVSIDLabel struct {
 	LsTLV
 	SID uint32
@@ -7825,6 +8087,8 @@ func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVOspfAreaID{}
 		case LS_TLV_IGP_ROUTER_ID:
 			subTLV = &LsTLVIgpRouterID{}
+		case LS_TLV_BGP_ROUTER_ID:
+			subTLV = &LsTLVBgpRouterID{}
 
 		default:
 			tlv = tlv[sub.Len():]
@@ -7839,7 +8103,11 @@ func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
 		tlv = tlv[subTLV.Len():]
 	}
 
-	if _, ok := m[LS_TLV_IGP_ROUTER_ID]; !ok {
+	_, lsTLVIgpRouterIDExists := m[LS_TLV_IGP_ROUTER_ID]
+	_, lsTLVBgpRouterIDExists := m[LS_TLV_BGP_ROUTER_ID]
+	_, lsTLVAutonomousSystemExists := m[LS_TLV_AS]
+
+	if !(lsTLVIgpRouterIDExists || (lsTLVBgpRouterIDExists && lsTLVAutonomousSystemExists)) {
 		return malformedAttrListErr("Required TLV missing")
 	}
 
@@ -7863,7 +8131,11 @@ func (l *LsTLVNodeDescriptor) Serialize() ([]byte, error) {
 func (l *LsTLVNodeDescriptor) String() string {
 	nd := l.Extract()
 
-	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID)
+	if nd.BGPRouterID == nil {
+		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID)
+	}
+
+	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v, BGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID, nd.BGPRouterID)
 }
 
 func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
@@ -7882,6 +8154,7 @@ type LsNodeDescriptor struct {
 	OspfAreaID  uint32 `json:"ospf_area_id"`
 	PseudoNode  bool   `json:"pseudo_node"`
 	IGPRouterID string `json:"igp_router_id"`
+	BGPRouterID net.IP `json:"bgp_router_id"`
 }
 
 func parseIGPRouterID(id []byte) (string, bool) {
@@ -7920,6 +8193,8 @@ func (l *LsTLVNodeDescriptor) Extract() *LsNodeDescriptor {
 			nd.OspfAreaID = v.AreaID
 		case *LsTLVIgpRouterID:
 			nd.IGPRouterID, nd.PseudoNode = parseIGPRouterID(v.RouterID)
+		case *LsTLVBgpRouterID:
+			nd.BGPRouterID = v.RouterID
 		}
 	}
 
@@ -8072,10 +8347,17 @@ type LsAttributePrefix struct {
 	SrPrefixSID *uint32 `json:"sr_prefix_sid,omitempty"`
 }
 
+type LsAttributeBgpPeerSegment struct {
+	BgpPeerNodeSid      *uint32 `json:"bgp_peer_node_sid,omitempty"`
+	BgpPeerAdjacencySid *uint32 `json:"bgp_peer_adjacency_sid,omitempty"`
+	BgpPeerSetSid       *uint32 `json:"bgp_peer_set_sid,omitempty"`
+}
+
 type LsAttribute struct {
-	Node   LsAttributeNode   `json:"node"`
-	Link   LsAttributeLink   `json:"link"`
-	Prefix LsAttributePrefix `json:"prefix"`
+	Node           LsAttributeNode           `json:"node"`
+	Link           LsAttributeLink           `json:"link"`
+	Prefix         LsAttributePrefix         `json:"prefix"`
+	BgpPeerSegment LsAttributeBgpPeerSegment `json:"bgp_peer_segment"`
 }
 
 type PathAttributeLs struct {
@@ -8161,6 +8443,15 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVPrefixSID:
 			l.Prefix.SrPrefixSID = &v.SID
+
+		case *LsTLVPeerNodeSID:
+			l.BgpPeerSegment.BgpPeerNodeSid = &v.SID
+
+		case *LsTLVPeerAdjacencySID:
+			l.BgpPeerSegment.BgpPeerAdjacencySid = &v.SID
+
+		case *LsTLVPeerSetSID:
+			l.BgpPeerSegment.BgpPeerSetSid = &v.SID
 		}
 	}
 
@@ -8261,6 +8552,16 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 		// SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Prefix NLRI
 		case LS_TLV_PREFIX_SID:
 			tlv = &LsTLVPrefixSID{}
+
+		// BGP-EPE related TLVs (https://tools.ietf.org/html/rfc9086)
+		case LS_TLV_PEER_NODE_SID:
+			tlv = &LsTLVPeerNodeSID{}
+
+		case LS_TLV_PEER_ADJACENCY_SID:
+			tlv = &LsTLVPeerAdjacencySID{}
+
+		case LS_TLV_PEER_SET_SID:
+			tlv = &LsTLVPeerSetSID{}
 
 		default:
 			tlvs = tlvs[t.Len():]

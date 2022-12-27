@@ -648,6 +648,7 @@ func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, er
 		OspfAreaId:  d.OspfAreaID,
 		Pseudonode:  d.PseudoNode,
 		IgpRouterId: d.IGPRouterID,
+		BgpRouterId: d.BGPRouterID.String(),
 	}, nil
 }
 
@@ -1832,6 +1833,11 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			Opaque: bytesOrDefault(attr.Prefix.Opaque),
 
 			SrPrefixSid: uint32OrDefault(attr.Prefix.SrPrefixSID),
+		},
+		BgpPeerSegment: &api.LsAttributeBgpPeerSegment{
+			BgpPeerNodeSid:      uint32OrDefault(attr.BgpPeerSegment.BgpPeerNodeSid),
+			BgpPeerAdjacencySid: uint32OrDefault(attr.BgpPeerSegment.BgpPeerAdjacencySid),
+			BgpPeerSetSid:       uint32OrDefault(attr.BgpPeerSegment.BgpPeerSetSid),
 		},
 	}
 
