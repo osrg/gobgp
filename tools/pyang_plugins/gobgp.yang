@@ -1286,6 +1286,38 @@ module gobgp {
     uses zebra-set;
   }
 
+  // see /docs/sources/modify-host-fib.md 
+  grouping modify-host-fib-config {
+    leaf enabled {
+      type boolean;
+      description
+        "If true, and the OS is supported, learned routes will be injected into the
+        host's (running GoBGP) routing table.";
+    }
+  }
+
+  grouping modify-host-fib-set {
+    container modify-host-fib {
+      container config {
+        uses modify-host-fib-config;
+      }
+      container state {
+        uses modify-host-fib-config;
+      }
+    }
+  }
+
+  // add future experimental options groups here
+  grouping experimental {
+    container experimental {
+      uses modify-host-fib-set;
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses experimental;
+  }
+
   grouping collector-config {
     leaf url {
       type string;

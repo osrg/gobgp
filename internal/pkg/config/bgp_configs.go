@@ -1122,6 +1122,68 @@ func (lhs *Collector) Equal(rhs *Collector) bool {
 }
 
 // struct for container gobgp:state.
+type ModifyHostFibState struct {
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	// If true, and the OS is supported, learned routes will be injected into the
+	// host's (running GoBGP) routing table.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+}
+
+// struct for container gobgp:config.
+type ModifyHostFibConfig struct {
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	// If true, and the OS is supported, learned routes will be injected into the
+	// host's (running GoBGP) routing table.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+}
+
+func (lhs *ModifyHostFibConfig) Equal(rhs *ModifyHostFibConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:modify-host-fib.
+type ModifyHostFib struct {
+	// original -> gobgp:modify-host-fib-config
+	Config ModifyHostFibConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:modify-host-fib-state
+	State ModifyHostFibState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *ModifyHostFib) Equal(rhs *ModifyHostFib) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:experimental.
+type Experimental struct {
+	// original -> gobgp:modify-host-fib
+	ModifyHostFib ModifyHostFib `mapstructure:"modify-host-fib" json:"modify-host-fib,omitempty"`
+}
+
+func (lhs *Experimental) Equal(rhs *Experimental) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.ModifyHostFib.Equal(&(rhs.ModifyHostFib)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:state.
 type ZebraState struct {
 	// original -> gobgp:enabled
 	// gobgp:enabled's original type is boolean.
@@ -1177,7 +1239,7 @@ type ZebraConfig struct {
 	MplsLabelRangeSize uint32 `mapstructure:"mpls-label-range-size" json:"mpls-label-range-size,omitempty"`
 	// original -> gobgp:software-name
 	// Configure zebra software name.
-	// frr4, cumulus, frr6, frr7, frr7.2 and frr7.3 can be used.
+	// frr4, cumulus, frr6, frr7, frr7.2, frr7.3, frr7.4, frr7.5, frr8, frr8.1 can be used.
 	SoftwareName string `mapstructure:"software-name" json:"software-name,omitempty"`
 }
 
@@ -4985,6 +5047,8 @@ type Bgp struct {
 	MrtDump []Mrt `mapstructure:"mrt-dump" json:"mrt-dump,omitempty"`
 	// original -> gobgp:zebra
 	Zebra Zebra `mapstructure:"zebra" json:"zebra,omitempty"`
+	// original -> gobgp:experimental
+	Experimental Experimental `mapstructure:"experimental" json:"experimental,omitempty"`
 	// original -> gobgp:collector
 	Collector Collector `mapstructure:"collector" json:"collector,omitempty"`
 	// original -> gobgp:dynamic-neighbors
@@ -5095,6 +5159,9 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 		}
 	}
 	if !lhs.Zebra.Equal(&(rhs.Zebra)) {
+		return false
+	}
+	if !lhs.Experimental.Equal(&(rhs.Experimental)) {
 		return false
 	}
 	if !lhs.Collector.Equal(&(rhs.Collector)) {
