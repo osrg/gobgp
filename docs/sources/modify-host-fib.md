@@ -15,7 +15,20 @@ here for Windows Server support you should probably use that).
 
 **This is not supported by the core GoBGP team at all. Use at your own risk.**
 
-## Dev
+## Users
+
+Add this to your config:
+
+```toml
+[experimental]
+    [experimental.modify-host-fib]
+        [experimental.modify-host-fib.config]
+            enabled = true
+```
+
+## Developers
+
+### Code flow
 
 The implementation and flow mirrors the Zebra integration. The Zebra integration:
 
@@ -23,12 +36,16 @@ The implementation and flow mirrors the Zebra integration. The Zebra integration
   Zebra in YANG format
 - pyyang converts this into Go structures in `internal/config/bgp_configs.go`
 - If Zebra is enabled, `InitialConfig()` in `pkg/config/config.go` calls `EnableZebra()`
-- `EnableZebra()` in `pkg/server/zclient.go` calls `NewZebraClient()` to create a new
+- `EnableZebra()` in `pkg/server/server.go` calls `NewZebraClient()` to create a new
   Zebra client and add it to the `BgpServer` singleton
 - `NewZebraClient()` in `pkg/server/zclient.go` sets up the connection to Zebra and
   kicks off `loop()` as a goroutine
 - `loop()` in `pkg/server/zclient.go` watches for events from `BgpServer` and the Zebra
   daemon and triggers a matching effect on the opposite side
+
+Additionally a gprc request defined in `api/gobgp.proto` - rendered into `gobgp.pb.go`
+and `gobgp_grpc.pb.go` by `tools/grpc/genproto.sh` - can be used to call
+`EnableZebra()`.
 
 This implementation:
 
@@ -37,11 +54,56 @@ This implementation:
 - pyyang converts this into Go structures in `internal/config/bgp_configs.go`
 - If this feature is enabled, `InitialConfig()` in `pkg/config/config.go` calls
   `EnableModifyHostFIB()`
-- `EnableModifyHostFIB()` in `pkg/server/modify_host_fib.go` calls
+- `EnableModifyHostFIB()` in `pkg/server/server.go` calls
   `NewModifyHostFIBClient()` to create a new client and add it to the `BgpServer`
   singleton
-- `NewModifyHostFIBClient()` in `pkg/server/modify_host_fib.go` kicks off `loop()` as a
-  goroutine
-- `loop()` in `pkg/server/modify_host_fib.go` watches for events from `BgpServer` and
-  updates the host's routing table to match
+- `NewModifyHostFIBClient()` in `pkg/server/modify_host_fib.go` kicks off
+  `loop()` as a goroutine
+- `loop()` in `pkg/server/modify_host_fib.go` watches for events from
+  `BgpServer` and updates the host's routing table to match
 
+Additionally a gprc request defined in `api/gobgp.proto` - rendered into `gobgp.pb.go`
+and `gobgp_grpc.pb.go` by `tools/grpc/genproto.sh` - can be used to call
+`EnableModifyHostFIB()`.
+
+### Adding a new platform
+
+TODO: flesh out
+
+To support multiple platforms this uses the `<filename>_<platform>.go` pattern used
+elsewhere: each platform's specific implementation is in a separate file and Go `build:
+` parameters are used to only include the correct files for each platform.
+
+1. Add a new `pkg/server/modify_host_fib_<platform>.go` file, e.g.
+   `pkg/server/modify_host_fib_linux.go`
+2. Set it to only build for that platform:
+
+```go
+//go:build <platform>
+// +build <platform>
+```
+
+e.g.
+
+```go
+//go:build linux
+// +build linux
+```
+
+3. Exclude the default stub file `pkg/server/modify_host_fib.go` from your platform
+
+```go
+//go:build <existing> && !<platform>
+// +build <existing> && !<platform>
+```
+
+e.g.
+
+```go
+//go:build !windows && !linux
+// +build !windows && !linux
+```
+
+4. Copy the contents of (TODO: stub file, or Windows?) and implement the functions for
+   your platform
+5. Add tests in TODO:
