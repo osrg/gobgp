@@ -1800,7 +1800,7 @@ func (s *BgpServer) EnableModifyHostFIB(ctx context.Context, r *api.EnableModify
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		if *s.modifyHostFIBClient != nil {
+		if s.modifyHostFIBClient != nil {
 			return fmt.Errorf("modifyHostFIBClient already created")
 		}
 
