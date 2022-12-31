@@ -90,7 +90,7 @@ e.g.
 // +build linux
 ```
 
-3. Exclude the default stub file `pkg/server/modify_host_fib.go` from your platform
+3. Exclude the default stub file `pkg/server/modify_host_fib_stub.go` from your platform
 
 ```go
 //go:build <existing> && !<platform>
