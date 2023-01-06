@@ -54,21 +54,23 @@ This implementation:
 - pyyang converts this into Go structures in `internal/config/bgp_configs.go`
 - If this feature is enabled, `InitialConfig()` in `pkg/config/config.go` calls
   `EnableModifyHostFIB()`
-- `EnableModifyHostFIB()` in `pkg/server/server.go` calls
-  `NewModifyHostFIBClient()` to create a new client and add it to the `BgpServer`
-  singleton
-- `NewModifyHostFIBClient()` in `pkg/server/modify_host_fib.go` kicks off
-  `loop()` as a goroutine
-- `loop()` in `pkg/server/modify_host_fib.go` watches for events from
-  `BgpServer` and updates the host's routing table to match
+- `EnableModifyHostFIB()` in `pkg/server/server.go` calls `NewModifyHostFIBClient()` to
+  create a new client and add it to the `BgpServer` singleton
+- `NewModifyHostFIBClient()` in `pkg/server/modify_host_fib.go` kicks off `loop()` as a
+  goroutine
+- `loop()` in `pkg/server/modify_host_fib.go` watches for events from `BgpServer` and
+  updates the host's routing table to match
+- Some external activity (e.g. CTRL+C) triggers `stopServer()` in `main.go`
+- `stopServer()` calls `Stop()` on `bgpServer` in `server.go`
+- `Stop()` calls `stop()` in `modify_host_fib.go`
+- `stop()` stops `loop()`, waits for it to finish, then removes all BGP routes from the
+  host's routing table to clean up
 
 Additionally a gprc request defined in `api/gobgp.proto` - rendered into `gobgp.pb.go`
 and `gobgp_grpc.pb.go` by `tools/grpc/genproto.sh` - can be used to call
 `EnableModifyHostFIB()`.
 
 ### Adding a new platform
-
-TODO: flesh out
 
 To support multiple platforms this uses the `<filename>_<platform>.go` pattern used
 elsewhere: each platform's specific implementation is in a separate file and Go `build:
@@ -104,6 +106,7 @@ e.g.
 // +build !windows && !linux
 ```
 
-4. Copy the contents of (TODO: stub file, or Windows?) and implement the functions for
-   your platform
-5. Add tests in TODO:
+4. Copy the contents of `pkg/server/modify_host_fib_windows.go` and implement the
+   functions for your platform. The only required functions are
+   `newModifyHostFIBClient()` and `stop()` as these are called by other code in the
+   `server` package. The rest are implementation details.
