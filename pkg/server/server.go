@@ -223,6 +223,10 @@ func (s *BgpServer) Stop() {
 	if s.apiServer != nil {
 		s.apiServer.grpcServer.Stop()
 	}
+
+	if s.modifyHostFIBClient != nil {
+		s.modifyHostFIBClient.stop()
+	}
 }
 
 func (s *BgpServer) addIncoming(ch *channels.InfiniteChannel) {

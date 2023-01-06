@@ -15,10 +15,18 @@
 //go:build !windows
 // +build !windows
 
+// bits of modify-host-fib functionality that should be included in a non-supported
+// platform. Any function that is called by code in the server package but not in the
+// modify_host_fib files should have a stub version here, so it compiles on all platforms.
+
 package server
 
 import "fmt"
 
 func newModifyHostFIBClient(s *BgpServer) (*modifyHostFIBClient, error) {
 	return nil, fmt.Errorf("natively modifying the host FIB isn't supported on your platform.")
+}
+
+func (client *modifyHostFIBClient) stop() error {
+	return fmt.Errorf("natively modifying the host FIB isn't supported on your platform.")
 }

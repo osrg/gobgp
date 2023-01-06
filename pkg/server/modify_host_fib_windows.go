@@ -18,10 +18,12 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
@@ -30,15 +32,27 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
+// newModifyHostFIBClient creates a new modifyHostFIBClient, attaches is to the global
+// BgpServer struct and kicks off its main goroutine loop.
 func newModifyHostFIBClient(s *BgpServer) (*modifyHostFIBClient, error) {
+	// set up a context to be able to stop the loop() goroutine before we clean up the
+	// server while stopping, to avoid race conditions
+	ctx, cancel := context.WithCancel(context.Background())
 	client := &modifyHostFIBClient{
-		server: s,
+		server:       s,
+		stopLoop:     cancel,
+		loopFinished: new(sync.WaitGroup),
 	}
-	go client.loop()
+	// set up a waitgroup so we clean up only after it's fully finished
+	client.loopFinished.Add(1)
+	go client.loop(ctx, client.loopFinished)
 	return client, nil
 }
 
-func (client *modifyHostFIBClient) loop() {
+// loop contains the central coordination for modify-host-fib functionality. It watches
+// for route changes and calls the appropriate functionality to interact with the host's
+// route table.
+func (client *modifyHostFIBClient) loop(ctx context.Context, wg *sync.WaitGroup) {
 	w := client.server.watch([]watchOption{
 		watchBestPath(true),
 		watchPostUpdate(true, ""),
@@ -47,6 +61,9 @@ func (client *modifyHostFIBClient) loop() {
 
 	for {
 		select {
+		case <-ctx.Done():
+			wg.Done()
+			return
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
 			case *watchEventBestPath:
@@ -68,7 +85,7 @@ func (client *modifyHostFIBClient) loop() {
 					client.server.logger.Info("watchEventBestPath event",
 						log.Fields{
 							"Topic":   "ModifyHostFIB",
-							"Prefix":  prefix,
+							"Prefix":  fmt.Sprintf("%v/%v", prefix, prefixLen),
 							"NextHop": nextHop,
 						},
 					)
@@ -100,6 +117,33 @@ func (client *modifyHostFIBClient) loop() {
 			}
 		}
 	}
+}
+
+// stop should be called to clean up. It removes all BGP routes from the host's routing
+// table. These will most likely be from us but could be from another process (e.g.
+// native Windows BGP on Windows Server).
+func (client *modifyHostFIBClient) stop() error {
+	// avoid race conditions with loop recreating routes.
+	client.stopLoop()
+	client.loopFinished.Wait()
+
+	routingTable, err := winipcfg.GetIPForwardTable2(windows.AF_INET)
+	if err != nil {
+		return err
+	}
+
+	for _, route := range routingTable {
+		if route.Protocol == winipcfg.RouteProtocolBgp {
+			route.Delete()
+			client.server.logger.Info(
+				fmt.Sprintf("Stopping: deleting route %v", route.DestinationPrefix.Prefix()),
+				log.Fields{
+					"Topic": "ModifyHostFIB",
+				},
+			)
+		}
+	}
+	return nil
 }
 
 // updateIPv4HostFIBRoute creates a new or updates an existing route for

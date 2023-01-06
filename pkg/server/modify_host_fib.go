@@ -13,8 +13,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// bits of modify-host-fib functionality that should be included for all platforms.
+
 package server
 
+import (
+	"context"
+	"sync"
+)
+
 type modifyHostFIBClient struct {
+	// global parent struct
 	server *BgpServer
+	// called to stop the loop() goroutine when we shut down
+	stopLoop context.CancelFunc
+	// blocks until loop() is fully shut down after calling stopLoop
+	loopFinished *sync.WaitGroup
 }
