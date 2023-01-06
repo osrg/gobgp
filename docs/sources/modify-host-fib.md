@@ -73,12 +73,12 @@ and `gobgp_grpc.pb.go` by `tools/grpc/genproto.sh` - can be used to call
 ### Adding a new platform
 
 To support multiple platforms this uses the `<filename>_<platform>.go` pattern used
-elsewhere: each platform's specific implementation is in a separate file and Go `build:
-` parameters are used to only include the correct files for each platform.
+elsewhere: each platform's specific implementation is in a separate file and Go `build:`
+ parameters are used to only include the correct files for each platform.
 
-1. Add a new `pkg/server/modify_host_fib_<platform>.go` file, e.g.
+- Add a new `pkg/server/modify_host_fib_<platform>.go` file, e.g.
    `pkg/server/modify_host_fib_linux.go`
-2. Set it to only build for that platform:
+- Set it to only build for that platform:
 
 ```go
 //go:build <platform>
@@ -92,7 +92,7 @@ e.g.
 // +build linux
 ```
 
-3. Exclude the default stub file `pkg/server/modify_host_fib_stub.go` from your platform
+- Exclude the default stub file `pkg/server/modify_host_fib_stub.go` from your platform
 
 ```go
 //go:build <existing> && !<platform>
@@ -106,7 +106,7 @@ e.g.
 // +build !windows && !linux
 ```
 
-4. Copy the contents of `pkg/server/modify_host_fib_windows.go` and implement the
+- Copy the contents of `pkg/server/modify_host_fib_windows.go` and implement the
    functions for your platform. The only required functions are
    `newModifyHostFIBClient()` and `stop()` as these are called by other code in the
    `server` package. The rest are implementation details.
