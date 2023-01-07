@@ -9,9 +9,9 @@ Zebra's functionality without requiring the external dependency of Zebra.
 This could be extended in the future to support bidirectional functionality but
 currently only learning routes is supported.
 
-This currently only works on Windows. The initial implementation goal was only to get
-BGP working on Windows desktop OSs (Windows Server has native BGP support - if you're
-here for Windows Server support you should probably use that).
+This currently only works on Windows, with IPv4. The initial implementation goal was
+only to get BGP working on Windows desktop OSs (Windows Server has native BGP support -
+if you're here for Windows Server support you should probably use that).
 
 **This is not supported by the core GoBGP team at all. Use at your own risk.**
 
