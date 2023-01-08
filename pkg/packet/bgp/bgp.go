@@ -5647,7 +5647,7 @@ const (
 	LS_TLV_OSPF_AREA                = 514
 	LS_TLV_IGP_ROUTER_ID            = 515
 	LS_TLV_BGP_ROUTER_ID            = 516 // RFC9086
-	LS_TLV_BGP_CONFEDERATION_MEMBER = 517 // RFC9086, TODO
+	LS_TLV_BGP_CONFEDERATION_MEMBER = 517 // RFC9086
 
 	LS_TLV_NODE_FLAG_BITS        = 1024
 	LS_TLV_OPAQUE_NODE_ATTR      = 1025
@@ -6575,6 +6575,53 @@ func (l *LsTLVBgpRouterID) MarshalJSON() ([]byte, error) {
 	}{
 		Type:     l.Type,
 		RouterID: fmt.Sprintf("%v", l.RouterID),
+	})
+}
+
+type LsTLVBgpConfederationMember struct {
+	LsTLV
+	BgpConfederationMember uint32
+}
+
+func (l *LsTLVBgpConfederationMember) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_BGP_CONFEDERATION_MEMBER {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-4.3
+	// 4 is the only valid value.
+	if len(value) != 4 {
+		return malformedAttrListErr(fmt.Sprintf("Incorrect BGP Confederation Member length: %d", len(value)))
+	}
+
+	l.BgpConfederationMember = binary.BigEndian.Uint32(value)
+
+	return nil
+}
+
+func (l *LsTLVBgpConfederationMember) Serialize() ([]byte, error) {
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.BgpConfederationMember)
+
+	return l.LsTLV.Serialize(buf[:4])
+}
+
+func (l *LsTLVBgpConfederationMember) String() string {
+	return fmt.Sprintf("{BGP Confederation Member: %d}", l.BgpConfederationMember)
+}
+
+func (l *LsTLVBgpConfederationMember) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type                   LsTLVType `json:"type"`
+		BgpConfederationMember uint32    `json:"bgp_confederation_member"`
+	}{
+		Type:                   l.Type,
+		BgpConfederationMember: l.BgpConfederationMember,
 	})
 }
 
@@ -8089,6 +8136,8 @@ func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVIgpRouterID{}
 		case LS_TLV_BGP_ROUTER_ID:
 			subTLV = &LsTLVBgpRouterID{}
+		case LS_TLV_BGP_CONFEDERATION_MEMBER:
+			subTLV = &LsTLVBgpConfederationMember{}
 
 		default:
 			tlv = tlv[sub.Len():]
@@ -8135,7 +8184,7 @@ func (l *LsTLVNodeDescriptor) String() string {
 		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID)
 	}
 
-	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v, BGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID, nd.BGPRouterID)
+	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v, BGP ROUTER ID: %v, BGP CONFEDERATION MEMBER: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID, nd.BGPRouterID, nd.BGPConfederationMember)
 }
 
 func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
@@ -8149,12 +8198,13 @@ func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
 }
 
 type LsNodeDescriptor struct {
-	Asn         uint32 `json:"asn"`
-	BGPLsID     uint32 `json:"bgp_ls_id"`
-	OspfAreaID  uint32 `json:"ospf_area_id"`
-	PseudoNode  bool   `json:"pseudo_node"`
-	IGPRouterID string `json:"igp_router_id"`
-	BGPRouterID net.IP `json:"bgp_router_id"`
+	Asn                    uint32 `json:"asn"`
+	BGPLsID                uint32 `json:"bgp_ls_id"`
+	OspfAreaID             uint32 `json:"ospf_area_id"`
+	PseudoNode             bool   `json:"pseudo_node"`
+	IGPRouterID            string `json:"igp_router_id"`
+	BGPRouterID            net.IP `json:"bgp_router_id"`
+	BGPConfederationMember uint32 `json:"bgp_confederation_member"`
 }
 
 func parseIGPRouterID(id []byte) (string, bool) {
@@ -8195,6 +8245,8 @@ func (l *LsTLVNodeDescriptor) Extract() *LsNodeDescriptor {
 			nd.IGPRouterID, nd.PseudoNode = parseIGPRouterID(v.RouterID)
 		case *LsTLVBgpRouterID:
 			nd.BGPRouterID = v.RouterID
+		case *LsTLVBgpConfederationMember:
+			nd.BGPConfederationMember = v.BgpConfederationMember
 		}
 	}
 

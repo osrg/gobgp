@@ -643,12 +643,13 @@ func UnmarshalFlowSpecRules(values []*apb.Any) ([]bgp.FlowSpecComponentInterface
 
 func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, error) {
 	return &api.LsNodeDescriptor{
-		Asn:         d.Asn,
-		BgpLsId:     d.BGPLsID,
-		OspfAreaId:  d.OspfAreaID,
-		Pseudonode:  d.PseudoNode,
-		IgpRouterId: d.IGPRouterID,
-		BgpRouterId: d.BGPRouterID.String(),
+		Asn:                    d.Asn,
+		BgpLsId:                d.BGPLsID,
+		OspfAreaId:             d.OspfAreaID,
+		Pseudonode:             d.PseudoNode,
+		IgpRouterId:            d.IGPRouterID,
+		BgpRouterId:            d.BGPRouterID.String(),
+		BgpConfederationMember: d.BGPConfederationMember,
 	}, nil
 }
 

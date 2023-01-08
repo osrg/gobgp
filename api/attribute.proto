@@ -293,6 +293,7 @@ message LsNodeDescriptor {
   bool pseudonode = 4;
   string igp_router_id = 5;
   string bgp_router_id = 6;
+  uint32 bgp_confederation_member = 7;
 }
 
 message LsLinkDescriptor {
