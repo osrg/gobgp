@@ -1904,6 +1904,35 @@ func Test_LsTLVBgpRouterID(t *testing.T) {
 	}
 }
 
+func Test_LsTLVBgpConfederationMember(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in   []byte
+		want string
+		err  bool
+	}{
+		{[]byte{0x02, 0x05, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07}, `{"type":517,"bgp_confederation_member":117901063}`, false},
+		{[]byte{0x02, 0x05, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, 0xFF}, `{"type":517,"bgp_confederation_member":117901063}`, false},
+		{[]byte{0x02, 0x05, 0x00, 0x03, 0x07, 0x07, 0x07}, "", true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVBgpConfederationMember{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+	}
+}
+
 func Test_LsTLVOspfAreaID(t *testing.T) {
 	assert := assert.New(t)
 
@@ -3014,6 +3043,21 @@ func Test_LsNodeDescriptor(t *testing.T) {
 			0x01, 0x00, 0x00, 0x0a, // Missing optional TLVs
 			0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 		}, "{ASN: 0, BGP LS ID: 0, OSPF AREA: 0, IGP ROUTER ID: 0102.0304.0506}", false, true},
+		{[]byte{
+			0x01, 0x01, 0x00, 0x20, // Remote Node Desc
+			0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+			0x02, 0x01, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV BGP LS ID: 117901063
+			0x02, 0x04, 0x00, 0x04, 0x0a, 0xff, 0x00, 0x01, // TLV BGP ROUTER ID: "10.255.0.1"
+			0x02, 0x05, 0x00, 0x04, 0x07, 0x07, 0x07, 0x08, // TLV BGP CONFEDERATION MEMBER: 117901064
+		}, "{ASN: 117901063, BGP LS ID: 117901063, BGP ROUTER ID: 10.255.0.1, BGP CONFEDERATION MEMBER: 117901064}",
+			false, true},
+		{[]byte{
+			0x01, 0x01, 0x00, 0x18, // Remote Node Desc
+			0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+			0x02, 0x01, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV BGP LS ID: 117901063
+			0x02, 0x04, 0x00, 0x04, 0x0a, 0xff, 0x00, 0x01, // TLV BGP ROUTER ID: "10.255.0.1"
+		}, "{ASN: 117901063, BGP LS ID: 117901063, BGP ROUTER ID: 10.255.0.1, BGP CONFEDERATION MEMBER: 0}",
+			false, true},
 	}
 
 	for _, test := range tests {

@@ -8184,7 +8184,11 @@ func (l *LsTLVNodeDescriptor) String() string {
 		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID)
 	}
 
-	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v, BGP ROUTER ID: %v, BGP CONFEDERATION MEMBER: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID, nd.BGPRouterID, nd.BGPConfederationMember)
+	if l.LsTLV.Type == LS_TLV_REMOTE_NODE_DESC {
+		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, BGP ROUTER ID: %v, BGP CONFEDERATION MEMBER: %v}", nd.Asn, nd.BGPLsID, nd.BGPRouterID, nd.BGPConfederationMember)
+	}
+
+	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, BGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.BGPRouterID)
 }
 
 func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
