@@ -9299,8 +9299,10 @@ func (p *PathAttributeLs) String() string {
 	for _, tlv := range p.TLVs {
 		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
 	}
-
-	return fmt.Sprintf("{LsAttributes: %s}", buf.String())
+	if buf.String() != "" {
+		return fmt.Sprintf("{LsAttributes: %s}", buf.String())
+	}
+	return ""
 }
 
 func (p *PathAttributeLs) MarshalJSON() ([]byte, error) {
