@@ -5233,6 +5233,61 @@ func (l *LsLinkDescriptor) String() string {
 	}
 }
 
+func NewLsLinkTLVs(ld *LsLinkDescriptor) []LsTLVInterface {
+	tlvs := []LsTLVInterface{}
+
+	if ld.LinkLocalID != nil && ld.LinkRemoteID != nil {
+		tlvs = append(tlvs, &LsTLVLinkID{
+			// https://tools.ietf.org/html/rfc5307#section-1.1
+			LsTLV: LsTLV{
+				Type:   LS_TLV_LINK_ID,
+				Length: 8,
+			},
+			Local:  *ld.LinkLocalID,
+			Remote: *ld.LinkRemoteID,
+		})
+	}
+
+	if ld.InterfaceAddrIPv4 != nil {
+		tlvs = append(tlvs, &LsTLVIPv4InterfaceAddr{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_IPV4_INTERFACE_ADDR,
+				Length: net.IPv4len,
+			},
+			IP: *ld.InterfaceAddrIPv4,
+		})
+	}
+	if ld.NeighborAddrIPv4 != nil {
+		tlvs = append(tlvs, &LsTLVIPv4NeighborAddr{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_IPV4_NEIGHBOR_ADDR,
+				Length: net.IPv4len,
+			},
+			IP: *ld.NeighborAddrIPv4,
+		})
+	}
+	if ld.InterfaceAddrIPv6 != nil {
+		tlvs = append(tlvs, &LsTLVIPv6InterfaceAddr{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_IPV6_INTERFACE_ADDR,
+				Length: net.IPv6len,
+			},
+			IP: *ld.InterfaceAddrIPv6,
+		})
+	}
+	if ld.NeighborAddrIPv6 != nil {
+		tlvs = append(tlvs, &LsTLVIPv6NeighborAddr{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_IPV6_NEIGHBOR_ADDR,
+				Length: net.IPv6len,
+			},
+			IP: *ld.NeighborAddrIPv6,
+		})
+	}
+
+	return tlvs
+}
+
 type LsLinkNLRI struct {
 	LsNLRI
 	LocalNodeDesc  LsTLVInterface
@@ -5504,6 +5559,49 @@ func (l *LsPrefixV4NLRI) MarshalJSON() ([]byte, error) {
 		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
 		PrefixDesc: *prefixDesc,
 	})
+}
+
+func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
+	lsTLVs := []LsTLVInterface{}
+	for _, ipReach := range pd.IPReachability {
+		prefixSize, _ := ipReach.Mask.Size()
+		lenIpPrefix := (prefixSize-1)/8 + 1
+		lenIpReach := uint16(lenIpPrefix + 1)
+		var tlv *LsTLVIPReachability
+
+		if ipReach.IP.To4() != nil {
+			ip := ipReach.IP.To4()
+			tlv = &LsTLVIPReachability{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_IP_REACH_INFO,
+					Length: lenIpReach,
+				},
+				PrefixLength: uint8(prefixSize),
+				Prefix:       []byte(ip)[:((lenIpPrefix-1)/8 + 1)],
+			}
+		} else if ipReach.IP.To16() != nil {
+			ip := ipReach.IP.To16()
+			tlv = &LsTLVIPReachability{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_IP_REACH_INFO,
+					Length: lenIpReach,
+				},
+				PrefixLength: uint8(prefixSize),
+				Prefix:       []byte(ip)[:((lenIpPrefix-1)/8 + 1)],
+			}
+		}
+		lsTLVs = append(lsTLVs, tlv)
+	}
+
+	lsTLVs = append(lsTLVs,
+		&LsTLVOspfRouteType{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_OSPF_ROUTE_TYPE,
+				Length: 1,
+			},
+			RouteType: pd.OSPFRouteType,
+		})
+	return lsTLVs
 }
 
 type LsPrefixV6NLRI struct {
@@ -8255,6 +8353,96 @@ func (l *LsTLVNodeDescriptor) Extract() *LsNodeDescriptor {
 	}
 
 	return nd
+}
+
+// Generate LsTLVNodeDescriptor from LsNodeDescriptor
+func NewLsTLVNodeDescriptor(nd *LsNodeDescriptor, tlvType LsTLVType) LsTLVNodeDescriptor {
+	subTLVs := []LsTLVInterface{}
+	// ASN 0 is invalid.
+	if nd.Asn != 0 {
+		subTLVs = append(subTLVs,
+			&LsTLVAutonomousSystem{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_AS,
+					Length: 4, // 4 is the only valid value.
+				},
+				ASN: nd.Asn,
+			})
+	}
+
+	// For BGP
+	if nd.BGPRouterID != nil {
+		subTLVs = append(subTLVs,
+			&LsTLVBgpRouterID{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_BGP_ROUTER_ID,
+					Length: 4, // 4 is the only valid value.
+				},
+				RouterID: nd.BGPRouterID,
+			})
+		if nd.BGPConfederationMember != 0 {
+			subTLVs = append(subTLVs,
+				&LsTLVBgpConfederationMember{
+					LsTLV: LsTLV{
+						Type:   LS_TLV_BGP_CONFEDERATION_MEMBER,
+						Length: 4, // 4 is the only valid value.
+					},
+					BgpConfederationMember: nd.BGPConfederationMember,
+				})
+		}
+	}
+	// For IGP
+	if nd.IGPRouterID != "" {
+		routerIdBytes := []byte(nd.IGPRouterID)
+		routerIdLength := len([]byte(nd.IGPRouterID))
+		subTLVs = append(subTLVs,
+			&LsTLVIgpRouterID{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_IGP_ROUTER_ID,
+					Length: uint16(routerIdLength),
+				},
+				RouterID: routerIdBytes,
+			})
+		isOspf := false
+		// OSPF/OSPFv3 non-pseudonode or pseudonode
+		if routerIdLength == 4 || routerIdLength == 8 {
+			isOspf = true
+		}
+		if isOspf {
+			subTLVs = append(subTLVs,
+				&LsTLVOspfAreaID{
+					LsTLV: LsTLV{
+						Type:   LS_TLV_OSPF_AREA,
+						Length: 4, // 4 is the only valid value.
+					},
+					AreaID: nd.OspfAreaID,
+				})
+		}
+
+	}
+
+	subTLVs = append(subTLVs,
+		&LsTLVBgpLsID{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_BGP_LS_ID,
+				Length: 4, // 4 is the only valid value.
+			},
+			BGPLsID: nd.BGPLsID,
+		})
+
+	ndLength := 0
+	for _, val := range subTLVs {
+		ndLength += val.Len()
+	}
+
+	return LsTLVNodeDescriptor{
+		LsTLV: LsTLV{
+			Type:   tlvType, // LocalNodeDesc
+			Length: uint16(ndLength),
+		},
+		SubTLVs: subTLVs,
+	}
+
 }
 
 type LsAddrPrefix struct {
