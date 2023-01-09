@@ -276,17 +276,22 @@ func UnmarshalAttribute(an *apb.Any) (bgp.PathAttributeInterface, error) {
 		return UnmarshalPrefixSID(a)
 	case *api.LsAttribute:
 		lsAttr, err := UnmarshalLsAttribute(a)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal BGP-LS Attribute: %s", err)
+		}
+		tlvs := bgp.NewLsAttributeTLVs(lsAttr)
+		var length uint16
+		for _, tlv := range tlvs {
+			length += uint16(tlv.Len())
+		}
 		t := bgp.BGP_ATTR_TYPE_LS
 		pathAttributeLs := &bgp.PathAttributeLs{
 			PathAttribute: bgp.PathAttribute{
 				Flags:  bgp.PathAttrFlags[t],
 				Type:   t,
-				Length: 4,
+				Length: length,
 			},
-			TLVs: make([]bgp.LsTLVInterface, 0),
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal BGP-LS Attribute: %s", err)
+			TLVs: tlvs,
 		}
 
 		return pathAttributeLs, nil
@@ -898,27 +903,81 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 
 	// For AttributeLink
 	if a.Link != nil {
-		linkLocalRouterID := net.ParseIP(a.Link.LocalRouterId)
-		linkLocalRouterIDv6 := net.ParseIP(a.Link.LocalRouterIdV6)
-		linkRemoteRouterID := net.ParseIP(a.Link.RemoteRouterId)
-		linkRemoteRouterIDv6 := net.ParseIP(a.Link.RemoteRouterIdV6)
+		var linkName *string
+		if a.Link.Name != "" {
+			linkName = &a.Link.Name
+		}
+		linkLocalRouterID := (*net.IP)(nil)
+		if a.Link.LocalRouterId != "" {
+			localRouterID := net.ParseIP(a.Link.LocalRouterId)
+			linkLocalRouterID = &localRouterID
+		}
+		linkLocalRouterIDv6 := (*net.IP)(nil)
+		if a.Link.LocalRouterIdV6 != "" {
+			localRouterIDv6 := net.ParseIP(a.Link.LocalRouterIdV6)
+			linkLocalRouterIDv6 = &localRouterIDv6
+		}
+		linkRemoteRouterID := (*net.IP)(nil)
+		if a.Link.RemoteRouterId != "" {
+			remoteRouterID := net.ParseIP(a.Link.RemoteRouterId)
+			linkRemoteRouterID = &remoteRouterID
+		}
+		linkRemoteRouterIDv6 := (*net.IP)(nil)
+		if a.Link.RemoteRouterIdV6 != "" {
+			remoteRouterIDv6 := net.ParseIP(a.Link.RemoteRouterIdV6)
+			linkRemoteRouterIDv6 = &remoteRouterIDv6
+		}
+		var linkAdminGroup *uint32
+		if a.Link.AdminGroup != 0 {
+			linkAdminGroup = &a.Link.AdminGroup
+		}
+		var linkDefaultTeMetric *uint32
+		if a.Link.DefaultTeMetric != 0 {
+			linkDefaultTeMetric = &a.Link.DefaultTeMetric
+		}
+		var linkIgpMetric *uint32
+		if a.Link.IgpMetric != 0 {
+			linkIgpMetric = &a.Link.IgpMetric
+		}
+		var linkOpaque *[]byte
+		if len(a.Link.Opaque) != 0 {
+			linkOpaque = &a.Link.Opaque
+		}
+		var linkBandwidth *float32
+		if a.Link.Bandwidth != 0 {
+			linkBandwidth = &a.Link.Bandwidth
+		}
+		var linkReservableBandwidth *float32
+		if a.Link.ReservableBandwidth != 0 {
+			linkBandwidth = &a.Link.ReservableBandwidth
+		}
 		unreservedBandwidth := [8]float32{}
-		copy(unreservedBandwidth[:], a.Link.UnreservedBandwidth)
+		if a.Link.UnreservedBandwidth != nil {
+			copy(unreservedBandwidth[:], a.Link.UnreservedBandwidth)
+		}
+		var linkSrlgs *[]uint32
+		if a.Link.Srlgs != nil {
+			linkSrlgs = &a.Link.Srlgs
+		}
+		var linkSrAdjacencySid *uint32
+		if a.Link.SrAdjacencySid != 0 {
+			linkSrAdjacencySid = &a.Link.SrAdjacencySid
+		}
 		lsAttr.Link = bgp.LsAttributeLink{
-			Name:                &a.Link.Name,
-			LocalRouterID:       &linkLocalRouterID,
-			LocalRouterIDv6:     &linkLocalRouterIDv6,
-			RemoteRouterID:      &linkRemoteRouterID,
-			RemoteRouterIDv6:    &linkRemoteRouterIDv6,
-			AdminGroup:          &a.Link.AdminGroup,
-			DefaultTEMetric:     &a.Link.DefaultTeMetric,
-			IGPMetric:           &a.Link.IgpMetric,
-			Opaque:              &a.Link.Opaque,
-			Bandwidth:           &a.Link.Bandwidth,
-			ReservableBandwidth: &a.Link.ReservableBandwidth,
+			Name:                linkName,
+			LocalRouterID:       linkLocalRouterID,
+			LocalRouterIDv6:     linkLocalRouterIDv6,
+			RemoteRouterID:      linkRemoteRouterID,
+			RemoteRouterIDv6:    linkRemoteRouterIDv6,
+			AdminGroup:          linkAdminGroup,
+			DefaultTEMetric:     linkDefaultTeMetric,
+			IGPMetric:           linkIgpMetric,
+			Opaque:              linkOpaque,
+			Bandwidth:           linkBandwidth,
+			ReservableBandwidth: linkReservableBandwidth,
 			UnreservedBandwidth: &unreservedBandwidth,
-			Srlgs:               &a.Link.Srlgs,
-			SrAdjacencySID:      &a.Link.SrAdjacencySid,
+			Srlgs:               linkSrlgs,
+			SrAdjacencySID:      linkSrAdjacencySid,
 		}
 	}
 

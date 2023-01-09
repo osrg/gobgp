@@ -5802,6 +5802,103 @@ type LsTLVInterface interface {
 	MarshalJSON() ([]byte, error)
 }
 
+func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
+	tlvs := []LsTLVInterface{}
+
+	if lsAttr.Node.Flags != nil {
+		tlvs = append(tlvs, NewLsTLVNodeFlagbits(lsAttr.Node.Flags))
+	}
+	if lsAttr.Node.Opaque != nil {
+		tlvs = append(tlvs, NewLsTLVOpaqueNodeAttr(lsAttr.Node.Opaque))
+	}
+	if lsAttr.Node.Name != nil {
+		tlvs = append(tlvs, NewLsTLVNodeName(lsAttr.Node.Name))
+	}
+	if lsAttr.Node.IsisArea != nil {
+		tlvs = append(tlvs, NewLsTLVIsisArea(lsAttr.Node.IsisArea))
+	}
+	if lsAttr.Node.LocalRouterID != (*net.IP)(nil) {
+		tlvs = append(tlvs, NewLsTLVLocalIPv4RouterID(lsAttr.Node.LocalRouterID))
+	}
+	if lsAttr.Node.LocalRouterIDv6 != (*net.IP)(nil) {
+		tlvs = append(tlvs, NewLsTLVLocalIPv6RouterID(lsAttr.Node.LocalRouterIDv6))
+	}
+	if lsAttr.Node.SrCapabilties != nil {
+		tlvs = append(tlvs, NewLsTLVSrCapabilities(lsAttr.Node.SrCapabilties))
+	}
+	if lsAttr.Node.SrAlgorithms != nil {
+		tlvs = append(tlvs, NewLsTLVSrAlgorithm(lsAttr.Node.SrAlgorithms))
+	}
+	if lsAttr.Node.SrLocalBlock != nil {
+		tlvs = append(tlvs, NewLsTLVSrLocalBlock(lsAttr.Node.SrLocalBlock))
+	}
+
+	if lsAttr.Link.Name != nil {
+		tlvs = append(tlvs, NewLsTLVLinkName(lsAttr.Link.Name))
+	}
+	if lsAttr.Link.LocalRouterID != (*net.IP)(nil) {
+		tlvs = append(tlvs, NewLsTLVLocalIPv4RouterID(lsAttr.Link.LocalRouterID))
+	}
+	if lsAttr.Link.LocalRouterIDv6 != (*net.IP)(nil) {
+		tlvs = append(tlvs, NewLsTLVLocalIPv6RouterID(lsAttr.Link.LocalRouterIDv6))
+	}
+	if lsAttr.Link.RemoteRouterID != (*net.IP)(nil) {
+		tlvs = append(tlvs, NewLsTLVRemoteIPv4RouterID(lsAttr.Link.RemoteRouterID))
+	}
+	if lsAttr.Link.RemoteRouterIDv6 != (*net.IP)(nil) {
+		tlvs = append(tlvs, NewLsTLVRemoteIPv6RouterID(lsAttr.Link.RemoteRouterIDv6))
+	}
+	if lsAttr.Link.AdminGroup != nil {
+		tlvs = append(tlvs, NewLsTLVAdminGroup(lsAttr.Link.AdminGroup))
+	}
+	if lsAttr.Link.DefaultTEMetric != nil {
+		tlvs = append(tlvs, NewLsTLVTEDefaultMetric(lsAttr.Link.DefaultTEMetric))
+	}
+	if lsAttr.Link.IGPMetric != nil {
+		tlvs = append(tlvs, NewLsTLVIGPMetric(lsAttr.Link.IGPMetric))
+	}
+	if lsAttr.Link.Opaque != nil {
+		tlvs = append(tlvs, NewLsTLVOpaqueLinkAttr(lsAttr.Link.Opaque))
+	}
+	if lsAttr.Link.Bandwidth != nil {
+		tlvs = append(tlvs, NewLsTLVMaxLinkBw(lsAttr.Link.Bandwidth))
+	}
+	if lsAttr.Link.ReservableBandwidth != nil {
+		tlvs = append(tlvs, NewLsTLVMaxReservableLinkBw(lsAttr.Link.ReservableBandwidth))
+	}
+	if lsAttr.Link.UnreservedBandwidth != nil && *lsAttr.Link.UnreservedBandwidth != [8]float32{0, 0, 0, 0, 0, 0, 0, 0} {
+		tlvs = append(tlvs, NewLsTLVUnreservedBw(lsAttr.Link.UnreservedBandwidth))
+	}
+	if lsAttr.Link.Srlgs != nil {
+		tlvs = append(tlvs, NewLsTLVSrlg(lsAttr.Link.Srlgs))
+	}
+	if lsAttr.Link.SrAdjacencySID != nil {
+		tlvs = append(tlvs, NewLsTLVAdjacencySID(lsAttr.Link.SrAdjacencySID))
+	}
+
+	if lsAttr.Prefix.IGPFlags != nil {
+		tlvs = append(tlvs, NewLsTLVIGPFlags(lsAttr.Prefix.IGPFlags))
+	}
+	if lsAttr.Prefix.Opaque != nil {
+		tlvs = append(tlvs, NewLsTLVOpaquePrefixAttr(lsAttr.Prefix.Opaque))
+	}
+	if lsAttr.Prefix.SrPrefixSID != nil {
+		tlvs = append(tlvs, NewLsTLVPrefixSID(lsAttr.Prefix.SrPrefixSID))
+	}
+
+	if lsAttr.BgpPeerSegment.BgpPeerNodeSid != nil {
+		tlvs = append(tlvs, NewLsTLVPeerNodeSID(lsAttr.BgpPeerSegment.BgpPeerNodeSid))
+	}
+	if lsAttr.BgpPeerSegment.BgpPeerAdjacencySid != nil {
+		tlvs = append(tlvs, NewLsTLVPeerAdjacencySID(lsAttr.BgpPeerSegment.BgpPeerAdjacencySid))
+	}
+	if lsAttr.BgpPeerSegment.BgpPeerSetSid != nil {
+		tlvs = append(tlvs, NewLsTLVPeerSetSID(lsAttr.BgpPeerSegment.BgpPeerSetSid))
+	}
+
+	return tlvs
+}
+
 type LsTLV struct {
 	Type   LsTLVType
 	Length uint16
@@ -6090,6 +6187,35 @@ type LsTLVNodeFlagBits struct {
 	Flags uint8
 }
 
+func NewLsTLVNodeFlagbits(l *LsNodeFlags) *LsTLVNodeFlagBits {
+	var flags uint8
+	if l.Overload {
+		flags = flags & (1 >> 7)
+	}
+	if l.Attached {
+		flags = flags & (1 >> 6)
+	}
+	if l.External {
+		flags = flags & (1 >> 5)
+	}
+	if l.ABR {
+		flags = flags & (1 >> 4)
+	}
+	if l.Router {
+		flags = flags & (1 >> 3)
+	}
+	if l.V6 {
+		flags = flags & (1 >> 2)
+	}
+	return &LsTLVNodeFlagBits{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 2,
+		},
+		Flags: flags,
+	}
+}
+
 func (l *LsTLVNodeFlagBits) Extract() *LsNodeFlags {
 	return &LsNodeFlags{
 		Overload: (l.Flags & (1 << 7)) > 0,
@@ -6155,6 +6281,16 @@ type LsTLVNodeName struct {
 	Name string
 }
 
+func NewLsTLVNodeName(l *string) *LsTLVNodeName {
+	return &LsTLVNodeName{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(len(*l)),
+		},
+		Name: *l,
+	}
+}
+
 func (l *LsTLVNodeName) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -6198,6 +6334,16 @@ type LsTLVIsisArea struct {
 	Area []byte
 }
 
+func NewLsTLVIsisArea(l *[]byte) *LsTLVIsisArea {
+	return &LsTLVIsisArea{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(len(*l)),
+		},
+		Area: *l,
+	}
+}
+
 func (l *LsTLVIsisArea) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -6238,6 +6384,16 @@ func (l *LsTLVIsisArea) MarshalJSON() ([]byte, error) {
 type LsTLVLocalIPv4RouterID struct {
 	LsTLV
 	IP net.IP
+}
+
+func NewLsTLVLocalIPv4RouterID(l *net.IP) *LsTLVLocalIPv4RouterID {
+	return &LsTLVLocalIPv4RouterID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		IP: *l,
+	}
 }
 
 func (l *LsTLVLocalIPv4RouterID) DecodeFromBytes(data []byte) error {
@@ -6283,6 +6439,16 @@ type LsTLVRemoteIPv4RouterID struct {
 	IP net.IP
 }
 
+func NewLsTLVRemoteIPv4RouterID(l *net.IP) *LsTLVRemoteIPv4RouterID {
+	return &LsTLVRemoteIPv4RouterID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		IP: *l,
+	}
+}
+
 func (l *LsTLVRemoteIPv4RouterID) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -6324,6 +6490,16 @@ func (l *LsTLVRemoteIPv4RouterID) MarshalJSON() ([]byte, error) {
 type LsTLVLocalIPv6RouterID struct {
 	LsTLV
 	IP net.IP
+}
+
+func NewLsTLVLocalIPv6RouterID(l *net.IP) *LsTLVLocalIPv6RouterID {
+	return &LsTLVLocalIPv6RouterID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 0,
+		},
+		IP: *l,
+	}
 }
 
 func (l *LsTLVLocalIPv6RouterID) DecodeFromBytes(data []byte) error {
@@ -6369,6 +6545,16 @@ type LsTLVRemoteIPv6RouterID struct {
 	IP net.IP
 }
 
+func NewLsTLVRemoteIPv6RouterID(l *net.IP) *LsTLVRemoteIPv6RouterID {
+	return &LsTLVRemoteIPv6RouterID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		IP: *l,
+	}
+}
+
 func (l *LsTLVRemoteIPv6RouterID) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -6410,6 +6596,16 @@ func (l *LsTLVRemoteIPv6RouterID) MarshalJSON() ([]byte, error) {
 type LsTLVOpaqueNodeAttr struct {
 	LsTLV
 	Attr []byte
+}
+
+func NewLsTLVOpaqueNodeAttr(l *[]byte) *LsTLVOpaqueNodeAttr {
+	return &LsTLVOpaqueNodeAttr{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(len(*l)),
+		},
+		Attr: *l,
+	}
 }
 
 func (l *LsTLVOpaqueNodeAttr) DecodeFromBytes(data []byte) error {
@@ -6886,6 +7082,16 @@ type LsTLVAdminGroup struct {
 	AdminGroup uint32
 }
 
+func NewLsTLVAdminGroup(l *uint32) *LsTLVAdminGroup {
+	return &LsTLVAdminGroup{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		AdminGroup: *l,
+	}
+}
+
 func (l *LsTLVAdminGroup) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -6930,6 +7136,16 @@ func (l *LsTLVAdminGroup) MarshalJSON() ([]byte, error) {
 type LsTLVMaxLinkBw struct {
 	LsTLV
 	Bandwidth float32
+}
+
+func NewLsTLVMaxLinkBw(l *float32) *LsTLVMaxLinkBw {
+	return &LsTLVMaxLinkBw{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		Bandwidth: *l,
+	}
 }
 
 func (l *LsTLVMaxLinkBw) DecodeFromBytes(data []byte) error {
@@ -6982,6 +7198,16 @@ type LsTLVMaxReservableLinkBw struct {
 	Bandwidth float32
 }
 
+func NewLsTLVMaxReservableLinkBw(l *float32) *LsTLVMaxReservableLinkBw {
+	return &LsTLVMaxReservableLinkBw{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		Bandwidth: *l,
+	}
+}
+
 func (l *LsTLVMaxReservableLinkBw) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -7030,6 +7256,16 @@ func (l *LsTLVMaxReservableLinkBw) MarshalJSON() ([]byte, error) {
 type LsTLVUnreservedBw struct {
 	LsTLV
 	Bandwidth [8]float32
+}
+
+func NewLsTLVUnreservedBw(l *[8]float32) *LsTLVUnreservedBw {
+	return &LsTLVUnreservedBw{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 32,
+		},
+		Bandwidth: *l,
+	}
 }
 
 func (l *LsTLVUnreservedBw) DecodeFromBytes(data []byte) error {
@@ -7090,6 +7326,16 @@ type LsTLVTEDefaultMetric struct {
 	Metric uint32
 }
 
+func NewLsTLVTEDefaultMetric(l *uint32) *LsTLVTEDefaultMetric {
+	return &LsTLVTEDefaultMetric{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 4,
+		},
+		Metric: *l,
+	}
+}
+
 func (l *LsTLVTEDefaultMetric) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -7134,6 +7380,16 @@ func (l *LsTLVTEDefaultMetric) MarshalJSON() ([]byte, error) {
 type LsTLVIGPMetric struct {
 	LsTLV
 	Metric uint32
+}
+
+func NewLsTLVIGPMetric(l *uint32) *LsTLVIGPMetric {
+	return &LsTLVIGPMetric{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 3, // TODO: implementation for IS-IS small metrics and OSPF link metrics.
+		},
+		Metric: *l,
+	}
 }
 
 func (l *LsTLVIGPMetric) DecodeFromBytes(data []byte) error {
@@ -7203,6 +7459,16 @@ type LsTLVLinkName struct {
 	Name string
 }
 
+func NewLsTLVLinkName(l *string) *LsTLVLinkName {
+	return &LsTLVLinkName{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(len(*l)),
+		},
+		Name: *l,
+	}
+}
+
 func (l *LsTLVLinkName) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -7244,6 +7510,16 @@ func (l *LsTLVLinkName) MarshalJSON() ([]byte, error) {
 type LsTLVSrAlgorithm struct {
 	LsTLV
 	Algorithm []byte
+}
+
+func NewLsTLVSrAlgorithm(l *[]byte) *LsTLVSrAlgorithm {
+	return &LsTLVSrAlgorithm{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(len(*l)),
+		},
+		Algorithm: *l,
+	}
 }
 
 func (l *LsTLVSrAlgorithm) DecodeFromBytes(data []byte) error {
@@ -7292,6 +7568,39 @@ type LsTLVSrCapabilities struct {
 	LsTLV
 	Flags  uint8
 	Ranges []LsSrLabelRange
+}
+
+func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
+	var flags uint8
+	if l.IPv4Supported {
+		flags = flags & (1 >> 0)
+	}
+	if l.IPv6Supported {
+		flags = flags & (1 >> 1)
+	}
+	ranges := []LsSrLabelRange{}
+	var length uint16
+	for _, r := range l.Ranges {
+		ranges = append(ranges, LsSrLabelRange{
+			Range: uint32(r.End - r.Begin),
+			FirstLabel: LsTLVSIDLabel{
+				LsTLV: LsTLV{
+					Type:   BGP_ASPATH_ATTR_TYPE_SET,
+					Length: 4,
+				},
+				SID: r.Begin,
+			},
+		})
+		length += 4
+	}
+	return &LsTLVSrCapabilities{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: length,
+		},
+		Flags:  flags,
+		Ranges: ranges,
+	}
 }
 
 type LsSrRange struct {
@@ -7422,6 +7731,33 @@ type LsSrLocalBlock struct {
 	Ranges []LsSrRange `json:"ranges"`
 }
 
+func NewLsTLVSrLocalBlock(l *LsSrLocalBlock) *LsTLVSrLocalBlock {
+	var flags uint8 //
+	ranges := []LsSrLabelRange{}
+	var length uint16
+	for _, r := range l.Ranges {
+		ranges = append(ranges, LsSrLabelRange{
+			Range: uint32(r.End - r.Begin),
+			FirstLabel: LsTLVSIDLabel{
+				LsTLV: LsTLV{
+					Type:   BGP_ASPATH_ATTR_TYPE_SET,
+					Length: 4,
+				},
+				SID: r.Begin,
+			},
+		})
+		length += 4
+	}
+	return &LsTLVSrLocalBlock{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: length,
+		},
+		Flags:  flags, // MUST be set 0. (RFC9085 2.1.4)
+		Ranges: ranges,
+	}
+}
+
 func (l *LsTLVSrLocalBlock) Extract() *LsSrLocalBlock {
 	lb := &LsSrLocalBlock{}
 
@@ -7533,6 +7869,19 @@ type LsTLVAdjacencySID struct {
 	SID    uint32
 }
 
+func NewLsTLVAdjacencySID(l *uint32) *LsTLVAdjacencySID {
+	var flags uint8
+	return &LsTLVAdjacencySID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 7, // TODO: Implementation to judge 7 octets or 8 octets
+		},
+		Flags:  flags,
+		Weight: 0,  // TODO: Implementation for IGP
+		SID:    *l, // TODO: Implementation for IGP
+	}
+}
+
 func (l *LsTLVAdjacencySID) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -7602,6 +7951,19 @@ type LsTLVPeerNodeSID struct {
 	Flags  uint8
 	Weight uint8
 	SID    uint32
+}
+
+func NewLsTLVPeerNodeSID(l *uint32) *LsTLVPeerNodeSID {
+	var flags uint8
+	return &LsTLVPeerNodeSID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 7, // TODO
+		},
+		Flags:  flags, // TODO
+		Weight: 0,     // TODO
+		SID:    *l,
+	}
 }
 
 func (l *LsTLVPeerNodeSID) DecodeFromBytes(data []byte) error {
@@ -7675,6 +8037,19 @@ type LsTLVPeerAdjacencySID struct {
 	SID    uint32
 }
 
+func NewLsTLVPeerAdjacencySID(l *uint32) *LsTLVPeerAdjacencySID {
+	var flags uint8
+	return &LsTLVPeerAdjacencySID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 7, // TODO
+		},
+		Flags:  flags, // TODO
+		Weight: 0,     // TODO
+		SID:    *l,
+	}
+}
+
 func (l *LsTLVPeerAdjacencySID) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -7744,6 +8119,19 @@ type LsTLVPeerSetSID struct {
 	Flags  uint8
 	Weight uint8
 	SID    uint32
+}
+
+func NewLsTLVPeerSetSID(l *uint32) *LsTLVPeerSetSID {
+	var flags uint8
+	return &LsTLVPeerSetSID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 7, // TODO
+		},
+		Flags:  flags, // TODO
+		Weight: 0,     // TODO
+		SID:    *l,
+	}
 }
 
 func (l *LsTLVPeerSetSID) DecodeFromBytes(data []byte) error {
@@ -7876,6 +8264,19 @@ type LsTLVPrefixSID struct {
 	SID       uint32
 }
 
+func NewLsTLVPrefixSID(l *uint32) *LsTLVPrefixSID {
+	var flags uint8
+	return &LsTLVPrefixSID{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 0,
+		},
+		Flags:     flags, // TODO: Implementation for IGP
+		Algorithm: 0,     // TODO: Implementation for IGP
+		SID:       *l,
+	}
+}
+
 func (l *LsTLVPrefixSID) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -7989,6 +8390,16 @@ type LsTLVOpaqueLinkAttr struct {
 	Attr []byte
 }
 
+func NewLsTLVOpaqueLinkAttr(l *[]byte) *LsTLVOpaqueLinkAttr {
+	return &LsTLVOpaqueLinkAttr{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(len(*l)),
+		},
+		Attr: *l,
+	}
+}
+
 func (l *LsTLVOpaqueLinkAttr) DecodeFromBytes(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -8025,6 +8436,16 @@ func (l *LsTLVOpaqueLinkAttr) MarshalJSON() ([]byte, error) {
 type LsTLVSrlg struct {
 	LsTLV
 	Srlgs []uint32
+}
+
+func NewLsTLVSrlg(l *[]uint32) *LsTLVSrlg {
+	return &LsTLVSrlg{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: uint16(4 * len(*l)),
+		},
+		Srlgs: *l,
+	}
 }
 
 func (l *LsTLVSrlg) DecodeFromBytes(data []byte) error {
@@ -8078,6 +8499,29 @@ func (l *LsTLVSrlg) MarshalJSON() ([]byte, error) {
 type LsTLVIGPFlags struct {
 	LsTLV
 	Flags uint8
+}
+
+func NewLsTLVIGPFlags(l *LsIGPFlags) *LsTLVIGPFlags {
+	var flags uint8
+	if l.Down {
+		flags = flags & (1 >> 0)
+	}
+	if l.NoUnicast {
+		flags = flags & (1 >> 1)
+	}
+	if l.LocalAddress {
+		flags = flags & (1 >> 2)
+	}
+	if l.PropagateNSSA {
+		flags = flags & (1 >> 3)
+	}
+	return &LsTLVIGPFlags{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 1,
+		},
+		Flags: flags,
+	}
 }
 
 // https://tools.ietf.org/html/rfc7752#section-3.3.3.1
@@ -8149,6 +8593,16 @@ func (l *LsTLVIGPFlags) MarshalJSON() ([]byte, error) {
 type LsTLVOpaquePrefixAttr struct {
 	LsTLV
 	Attr []byte
+}
+
+func NewLsTLVOpaquePrefixAttr(l *[]byte) *LsTLVOpaquePrefixAttr {
+	return &LsTLVOpaquePrefixAttr{
+		LsTLV: LsTLV{
+			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Length: 0,
+		},
+		Attr: *l,
+	}
 }
 
 func (l *LsTLVOpaquePrefixAttr) DecodeFromBytes(data []byte) error {
@@ -8581,6 +9035,7 @@ type LsAttributeLink struct {
 	UnreservedBandwidth *[8]float32 `json:"unreserved_bandwidth,omitempty"`
 	Srlgs               *[]uint32   `json:"srlgs,omitempty"`
 
+	// TODO flag
 	SrAdjacencySID *uint32 `json:"adjacency_sid,omitempty"`
 }
 
@@ -8592,6 +9047,7 @@ type LsAttributePrefix struct {
 }
 
 type LsAttributeBgpPeerSegment struct {
+	// TODO flag
 	BgpPeerNodeSid      *uint32 `json:"bgp_peer_node_sid,omitempty"`
 	BgpPeerAdjacencySid *uint32 `json:"bgp_peer_adjacency_sid,omitempty"`
 	BgpPeerSetSid       *uint32 `json:"bgp_peer_set_sid,omitempty"`
