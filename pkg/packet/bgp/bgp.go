@@ -5299,13 +5299,20 @@ func (l *LsLinkNLRI) String() string {
 	if l.LocalNodeDesc == nil || l.RemoteNodeDesc == nil {
 		return "LINK { EMPTY }"
 	}
+	var local string
+	var remote string
+	if l.LsNLRI.ProtocolID == LS_PROTOCOL_BGP {
+		local = l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract().BGPRouterID.String()
+		remote = l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract().BGPRouterID.String()
+	} else {
+		local = l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract().IGPRouterID
+		remote = l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract().IGPRouterID
+	}
 
-	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
-	remote := l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract()
 	link := &LsLinkDescriptor{}
 	link.ParseTLVs(l.LinkDesc)
 
-	return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v}", local.IGPRouterID, remote.IGPRouterID, link)
+	return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v}", local, remote, link)
 }
 
 func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
@@ -5887,6 +5894,7 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 
 	if lsAttr.BgpPeerSegment.BgpPeerNodeSid != nil {
+		// TODO
 		tlvs = append(tlvs, NewLsTLVPeerNodeSID(lsAttr.BgpPeerSegment.BgpPeerNodeSid))
 	}
 	if lsAttr.BgpPeerSegment.BgpPeerAdjacencySid != nil {
@@ -8715,6 +8723,29 @@ func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (l *LsTLVNodeDescriptor) Extract() *LsNodeDescriptor {
+	nd := &LsNodeDescriptor{}
+
+	for _, tlv := range l.SubTLVs {
+		switch v := tlv.(type) {
+		case *LsTLVAutonomousSystem:
+			nd.Asn = v.ASN
+		case *LsTLVBgpLsID:
+			nd.BGPLsID = v.BGPLsID
+		case *LsTLVOspfAreaID:
+			nd.OspfAreaID = v.AreaID
+		case *LsTLVIgpRouterID:
+			nd.IGPRouterID, nd.PseudoNode = parseIGPRouterID(v.RouterID)
+		case *LsTLVBgpRouterID:
+			nd.BGPRouterID = v.RouterID
+		case *LsTLVBgpConfederationMember:
+			nd.BGPConfederationMember = v.BgpConfederationMember
+		}
+	}
+
+	return nd
+}
+
 func (l *LsTLVNodeDescriptor) Serialize() ([]byte, error) {
 	buf := []byte{}
 	for _, tlv := range l.SubTLVs {
@@ -8729,20 +8760,6 @@ func (l *LsTLVNodeDescriptor) Serialize() ([]byte, error) {
 	return l.LsTLV.Serialize(buf)
 }
 
-func (l *LsTLVNodeDescriptor) String() string {
-	nd := l.Extract()
-
-	if nd.BGPRouterID == nil {
-		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.OspfAreaID, nd.IGPRouterID)
-	}
-
-	if l.LsTLV.Type == LS_TLV_REMOTE_NODE_DESC {
-		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, BGP ROUTER ID: %v, BGP CONFEDERATION MEMBER: %v}", nd.Asn, nd.BGPLsID, nd.BGPRouterID, nd.BGPConfederationMember)
-	}
-
-	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, BGP ROUTER ID: %v}", nd.Asn, nd.BGPLsID, nd.BGPRouterID)
-}
-
 func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type LsTLVType `json:"type"`
@@ -8753,6 +8770,12 @@ func (l *LsTLVNodeDescriptor) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (l *LsTLVNodeDescriptor) String() string {
+	nd := l.Extract()
+
+	return nd.String()
+}
+
 type LsNodeDescriptor struct {
 	Asn                    uint32 `json:"asn"`
 	BGPLsID                uint32 `json:"bgp_ls_id"`
@@ -8761,6 +8784,15 @@ type LsNodeDescriptor struct {
 	IGPRouterID            string `json:"igp_router_id"`
 	BGPRouterID            net.IP `json:"bgp_router_id"`
 	BGPConfederationMember uint32 `json:"bgp_confederation_member"`
+}
+
+func (l *LsNodeDescriptor) String() string {
+
+	if l.BGPRouterID == nil {
+		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", l.Asn, l.BGPLsID, l.OspfAreaID, l.IGPRouterID)
+	}
+
+	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, BGP ROUTER ID: %v}", l.Asn, l.BGPLsID, l.BGPRouterID)
 }
 
 func parseIGPRouterID(id []byte) (string, bool) {
@@ -8784,29 +8816,6 @@ func parseIGPRouterID(id []byte) (string, bool) {
 	default:
 		return fmt.Sprintf("%v", id), false
 	}
-}
-
-func (l *LsTLVNodeDescriptor) Extract() *LsNodeDescriptor {
-	nd := &LsNodeDescriptor{}
-
-	for _, tlv := range l.SubTLVs {
-		switch v := tlv.(type) {
-		case *LsTLVAutonomousSystem:
-			nd.Asn = v.ASN
-		case *LsTLVBgpLsID:
-			nd.BGPLsID = v.BGPLsID
-		case *LsTLVOspfAreaID:
-			nd.OspfAreaID = v.AreaID
-		case *LsTLVIgpRouterID:
-			nd.IGPRouterID, nd.PseudoNode = parseIGPRouterID(v.RouterID)
-		case *LsTLVBgpRouterID:
-			nd.BGPRouterID = v.RouterID
-		case *LsTLVBgpConfederationMember:
-			nd.BGPConfederationMember = v.BgpConfederationMember
-		}
-	}
-
-	return nd
 }
 
 // Generate LsTLVNodeDescriptor from LsNodeDescriptor
