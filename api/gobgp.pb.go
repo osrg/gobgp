@@ -1597,6 +1597,7 @@ type WatchEventResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Event:
+	//
 	//	*WatchEventResponse_Peer
 	//	*WatchEventResponse_Table
 	Event isWatchEventResponse_Event `protobuf_oneof:"event"`
