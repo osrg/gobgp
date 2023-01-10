@@ -785,6 +785,38 @@ func MarshalLsPrefixV6NLRI(n *bgp.LsPrefixV6NLRI) (*apb.Any, error) {
 	return a, nil
 }
 
+func MarshalLsBgpPeerSegmentSid(n *bgp.LsBgpPeerSegmentSID) (*api.LsBgpPeerSegmentSID, error) {
+	flags := &api.LsBgpPeerSegmentSIDFlags{
+		Value:      n.Flags.Value,
+		Local:      n.Flags.Local,
+		Backup:     n.Flags.Backup,
+		Persistent: n.Flags.Persistent,
+	}
+	sid := &api.LsBgpPeerSegmentSID{
+		Flags:  flags,
+		Weight: uint32(n.Weight),
+		Sid:    n.SID,
+	}
+
+	return sid, nil
+}
+func UnmarshalLsBgpPeerSegmentSid(a *api.LsBgpPeerSegmentSID) (*bgp.LsBgpPeerSegmentSID, error) {
+	flags := &bgp.LsAttributeBgpPeerSegmentSIDFlags{
+		Value:      a.Flags.Value,
+		Local:      a.Flags.Local,
+		Backup:     a.Flags.Backup,
+		Persistent: a.Flags.Persistent,
+	}
+
+	sid := &bgp.LsBgpPeerSegmentSID{
+		Flags:  *flags,
+		Weight: uint8(a.Weight),
+		SID:    a.Sid,
+	}
+
+	return sid, nil
+}
+
 func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor, error) {
 	return &bgp.LsNodeDescriptor{
 		Asn:                    nd.Asn,
