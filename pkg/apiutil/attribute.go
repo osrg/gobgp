@@ -1030,26 +1030,18 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 	}
 
 	// For AttributeBgpPeerSegment
-
 	if a.BgpPeerSegment != nil {
-		var bgpPeerNodeSid *uint32
-		var bgpPeerAdjacencySid *uint32
-		var bgpPeerSetSid *uint32
-		if a.BgpPeerSegment.BgpPeerNodeSid != 0 {
-			bgpPeerNodeSid = &a.BgpPeerSegment.BgpPeerNodeSid
+		lsAttributeBgpPeerSegment := bgp.LsAttributeBgpPeerSegment{}
+		if a.BgpPeerSegment.BgpPeerNodeSid != nil {
+			lsAttributeBgpPeerSegment.BgpPeerNodeSid, _ = UnmarshalLsBgpPeerSegmentSid(a.BgpPeerSegment.BgpPeerNodeSid)
 		}
-		if a.BgpPeerSegment.BgpPeerAdjacencySid != 0 {
-			bgpPeerNodeSid = &a.BgpPeerSegment.BgpPeerAdjacencySid
+		if a.BgpPeerSegment.BgpPeerAdjacencySid != nil {
+			lsAttributeBgpPeerSegment.BgpPeerAdjacencySid, _ = UnmarshalLsBgpPeerSegmentSid(a.BgpPeerSegment.BgpPeerAdjacencySid)
 		}
-		if a.BgpPeerSegment.BgpPeerSetSid != 0 {
-			bgpPeerSetSid = &a.BgpPeerSegment.BgpPeerSetSid
+		if a.BgpPeerSegment.BgpPeerSetSid != nil {
+			lsAttributeBgpPeerSegment.BgpPeerSetSid, _ = UnmarshalLsBgpPeerSegmentSid(a.BgpPeerSegment.BgpPeerSetSid)
 		}
-
-		lsAttr.BgpPeerSegment = bgp.LsAttributeBgpPeerSegment{
-			BgpPeerNodeSid:      bgpPeerNodeSid,
-			BgpPeerAdjacencySid: bgpPeerAdjacencySid,
-			BgpPeerSetSid:       bgpPeerSetSid,
-		}
+		lsAttr.BgpPeerSegment = lsAttributeBgpPeerSegment
 	}
 
 	return lsAttr, nil
@@ -2212,6 +2204,17 @@ func float32OrDefault(f *float32) float32 {
 func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) {
 	attr := a.Extract()
 
+	bgpPeerSegment := &api.LsAttributeBgpPeerSegment{}
+	if attr.BgpPeerSegment.BgpPeerNodeSid != nil {
+		bgpPeerSegment.BgpPeerNodeSid, _ = MarshalLsBgpPeerSegmentSid(attr.BgpPeerSegment.BgpPeerNodeSid)
+	}
+	if attr.BgpPeerSegment.BgpPeerAdjacencySid != nil {
+		bgpPeerSegment.BgpPeerAdjacencySid, _ = MarshalLsBgpPeerSegmentSid(attr.BgpPeerSegment.BgpPeerAdjacencySid)
+	}
+	if attr.BgpPeerSegment.BgpPeerSetSid != nil {
+		bgpPeerSegment.BgpPeerSetSid, _ = MarshalLsBgpPeerSegmentSid(attr.BgpPeerSegment.BgpPeerSetSid)
+	}
+
 	apiAttr := &api.LsAttribute{
 		Node: &api.LsAttributeNode{
 			Name:            stringOrDefault(attr.Node.Name),
@@ -2242,11 +2245,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 
 			SrPrefixSid: uint32OrDefault(attr.Prefix.SrPrefixSID),
 		},
-		BgpPeerSegment: &api.LsAttributeBgpPeerSegment{
-			BgpPeerNodeSid:      uint32OrDefault(attr.BgpPeerSegment.BgpPeerNodeSid),
-			BgpPeerAdjacencySid: uint32OrDefault(attr.BgpPeerSegment.BgpPeerAdjacencySid),
-			BgpPeerSetSid:       uint32OrDefault(attr.BgpPeerSegment.BgpPeerSetSid),
-		},
+		BgpPeerSegment: bgpPeerSegment,
 	}
 
 	if attr.Node.Flags != nil {
