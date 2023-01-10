@@ -5894,7 +5894,6 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 
 	if lsAttr.BgpPeerSegment.BgpPeerNodeSid != nil {
-		// TODO
 		tlvs = append(tlvs, NewLsTLVPeerNodeSID(lsAttr.BgpPeerSegment.BgpPeerNodeSid))
 	}
 	if lsAttr.BgpPeerSegment.BgpPeerAdjacencySid != nil {
@@ -7954,6 +7953,37 @@ func (l *LsTLVAdjacencySID) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// https://tools.ietf.org/html/rfc9086#section-5
+type LsAttributeBgpPeerSegmentSIDFlags struct {
+	Value      bool `json:"value"`
+	Local      bool `json:"local"`
+	Backup     bool `json:"backup"`
+	Persistent bool `json:"persistent"`
+}
+
+func NewBgpPeerSegmentSIDFlag(v uint8) LsAttributeBgpPeerSegmentSIDFlags {
+	var flags LsAttributeBgpPeerSegmentSIDFlags
+	if (v & (1 >> 7)) == 1 {
+		flags.Value = true
+	}
+	if (v & (1 >> 6)) == 1 {
+		flags.Local = true
+	}
+	if (v & (1 >> 5)) == 1 {
+		flags.Backup = true
+	}
+	if (v & (1 >> 4)) == 1 {
+		flags.Persistent = true
+	}
+	return flags
+}
+
+type LsBgpPeerSegmentSID struct {
+	Flags  LsAttributeBgpPeerSegmentSIDFlags `json:"flags"`
+	Weight uint8                             `json:"weight"`
+	SID    uint32                            `json:"sid"`
+}
+
 type LsTLVPeerNodeSID struct {
 	LsTLV
 	Flags  uint8
@@ -7961,16 +7991,37 @@ type LsTLVPeerNodeSID struct {
 	SID    uint32
 }
 
-func NewLsTLVPeerNodeSID(l *uint32) *LsTLVPeerNodeSID {
+func NewLsTLVPeerNodeSID(l *LsBgpPeerSegmentSID) *LsTLVPeerNodeSID {
 	var flags uint8
+	if l.Flags.Value {
+		flags = flags & (1 >> 7)
+	}
+	if l.Flags.Local {
+		flags = flags & (1 >> 6)
+	}
+	if l.Flags.Backup {
+		flags = flags & (1 >> 5)
+	}
+	if l.Flags.Persistent {
+		flags = flags & (1 >> 4)
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-5
+	var sidlen uint16
+	if l.Flags.Value {
+		sidlen = 7
+	} else {
+		sidlen = 8
+	}
+
 	return &LsTLVPeerNodeSID{
 		LsTLV: LsTLV{
 			Type:   BGP_ASPATH_ATTR_TYPE_SET,
-			Length: 7, // TODO
+			Length: sidlen,
 		},
-		Flags:  flags, // TODO
-		Weight: 0,     // TODO
-		SID:    *l,
+		Flags:  flags,
+		Weight: l.Weight,
+		SID:    l.SID,
 	}
 }
 
@@ -8045,16 +8096,37 @@ type LsTLVPeerAdjacencySID struct {
 	SID    uint32
 }
 
-func NewLsTLVPeerAdjacencySID(l *uint32) *LsTLVPeerAdjacencySID {
+func NewLsTLVPeerAdjacencySID(l *LsBgpPeerSegmentSID) *LsTLVPeerNodeSID {
 	var flags uint8
-	return &LsTLVPeerAdjacencySID{
+	if l.Flags.Value {
+		flags = flags & (1 >> 7)
+	}
+	if l.Flags.Local {
+		flags = flags & (1 >> 6)
+	}
+	if l.Flags.Backup {
+		flags = flags & (1 >> 5)
+	}
+	if l.Flags.Persistent {
+		flags = flags & (1 >> 4)
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-5
+	var sidlen uint16
+	if l.Flags.Value {
+		sidlen = 7
+	} else {
+		sidlen = 8
+	}
+
+	return &LsTLVPeerNodeSID{
 		LsTLV: LsTLV{
 			Type:   BGP_ASPATH_ATTR_TYPE_SET,
-			Length: 7, // TODO
+			Length: sidlen,
 		},
-		Flags:  flags, // TODO
-		Weight: 0,     // TODO
-		SID:    *l,
+		Flags:  flags,
+		Weight: l.Weight,
+		SID:    l.SID,
 	}
 }
 
@@ -8129,16 +8201,37 @@ type LsTLVPeerSetSID struct {
 	SID    uint32
 }
 
-func NewLsTLVPeerSetSID(l *uint32) *LsTLVPeerSetSID {
+func NewLsTLVPeerSetSID(l *LsBgpPeerSegmentSID) *LsTLVPeerNodeSID {
 	var flags uint8
-	return &LsTLVPeerSetSID{
+	if l.Flags.Value {
+		flags = flags & (1 >> 7)
+	}
+	if l.Flags.Local {
+		flags = flags & (1 >> 6)
+	}
+	if l.Flags.Backup {
+		flags = flags & (1 >> 5)
+	}
+	if l.Flags.Persistent {
+		flags = flags & (1 >> 4)
+	}
+
+	// https://tools.ietf.org/html/rfc9086#section-5
+	var sidlen uint16
+	if l.Flags.Value {
+		sidlen = 7
+	} else {
+		sidlen = 8
+	}
+
+	return &LsTLVPeerNodeSID{
 		LsTLV: LsTLV{
 			Type:   BGP_ASPATH_ATTR_TYPE_SET,
-			Length: 7, // TODO
+			Length: sidlen,
 		},
-		Flags:  flags, // TODO
-		Weight: 0,     // TODO
-		SID:    *l,
+		Flags:  flags,
+		Weight: l.Weight,
+		SID:    l.SID,
 	}
 }
 
@@ -9056,10 +9149,9 @@ type LsAttributePrefix struct {
 }
 
 type LsAttributeBgpPeerSegment struct {
-	// TODO flag
-	BgpPeerNodeSid      *uint32 `json:"bgp_peer_node_sid,omitempty"`
-	BgpPeerAdjacencySid *uint32 `json:"bgp_peer_adjacency_sid,omitempty"`
-	BgpPeerSetSid       *uint32 `json:"bgp_peer_set_sid,omitempty"`
+	BgpPeerNodeSid      *LsBgpPeerSegmentSID `json:"bgp_peer_node_sid,omitempty"`
+	BgpPeerAdjacencySid *LsBgpPeerSegmentSID `json:"bgp_peer_adjacency_sid,omitempty"`
+	BgpPeerSetSid       *LsBgpPeerSegmentSID `json:"bgp_peer_set_sid,omitempty"`
 }
 
 type LsAttribute struct {
@@ -9154,13 +9246,19 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 			l.Prefix.SrPrefixSID = &v.SID
 
 		case *LsTLVPeerNodeSID:
-			l.BgpPeerSegment.BgpPeerNodeSid = &v.SID
+			l.BgpPeerSegment.BgpPeerNodeSid.Flags = NewBgpPeerSegmentSIDFlag(v.Flags)
+			l.BgpPeerSegment.BgpPeerNodeSid.Weight = v.Weight
+			l.BgpPeerSegment.BgpPeerNodeSid.SID = v.SID
 
 		case *LsTLVPeerAdjacencySID:
-			l.BgpPeerSegment.BgpPeerAdjacencySid = &v.SID
+			l.BgpPeerSegment.BgpPeerAdjacencySid.Flags = NewBgpPeerSegmentSIDFlag(v.Flags)
+			l.BgpPeerSegment.BgpPeerAdjacencySid.Weight = v.Weight
+			l.BgpPeerSegment.BgpPeerAdjacencySid.SID = v.SID
 
 		case *LsTLVPeerSetSID:
-			l.BgpPeerSegment.BgpPeerSetSid = &v.SID
+			l.BgpPeerSegment.BgpPeerSetSid.Flags = NewBgpPeerSegmentSIDFlag(v.Flags)
+			l.BgpPeerSegment.BgpPeerSetSid.Weight = v.Weight
+			l.BgpPeerSegment.BgpPeerSetSid.SID = v.SID
 		}
 	}
 
