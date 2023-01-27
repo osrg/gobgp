@@ -65,6 +65,8 @@
         remove-private-as = "all"
         # To enable peer group setting, uncomment the following
         #peer-group = "my-peer-group"
+        # Force sending Software Version Capability, default: disabled.
+        #send-software-version = true
     [neighbors.as-path-options.config]
         allow-own-as = 1
         replace-peer-as = true

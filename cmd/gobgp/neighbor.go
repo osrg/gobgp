@@ -474,6 +474,16 @@ func showNeighbor(args []string) error {
 				fmt.Println("      Remote:")
 				fmt.Printf("         name: %s, domain: %s\n", m.(*bgp.CapFQDN).HostName, m.(*bgp.CapFQDN).DomainName)
 			}
+		case bgp.BGP_CAP_SOFT_VERSION:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			if m := lookup(c, lcaps); m != nil {
+				fmt.Println("      Local:")
+				fmt.Printf("         %s\n", m.(*bgp.CapSoftwareVersion).SoftwareVersion)
+			}
+			if m := lookup(c, rcaps); m != nil {
+				fmt.Println("      Remote:")
+				fmt.Printf("         %s\n", m.(*bgp.CapSoftwareVersion).SoftwareVersion)
+			}
 		default:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
