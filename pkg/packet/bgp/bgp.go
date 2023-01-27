@@ -356,6 +356,7 @@ const (
 	BGP_CAP_ENHANCED_ROUTE_REFRESH      BGPCapabilityCode = 70
 	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART BGPCapabilityCode = 71
 	BGP_CAP_FQDN                        BGPCapabilityCode = 73
+	BGP_CAP_SOFT_VERSION                BGPCapabilityCode = 75
 	BGP_CAP_ROUTE_REFRESH_CISCO         BGPCapabilityCode = 128
 )
 
@@ -371,6 +372,7 @@ var CapNameMap = map[BGPCapabilityCode]string{
 	BGP_CAP_ROUTE_REFRESH_CISCO:         "cisco-route-refresh",
 	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART: "long-lived-graceful-restart",
 	BGP_CAP_FQDN:                        "fqdn",
+	BGP_CAP_SOFT_VERSION:                "software-version",
 }
 
 func (c BGPCapabilityCode) String() string {
@@ -1049,6 +1051,56 @@ func NewCapFQDN(hostname string, domainname string) *CapFQDN {
 	}
 }
 
+type CapSoftwareVersion struct {
+	DefaultParameterCapability
+	SoftwareVersionLen uint8
+	SoftwareVersion    string
+}
+
+func (c *CapSoftwareVersion) DecodeFromBytes(data []byte) error {
+	c.DefaultParameterCapability.DecodeFromBytes(data)
+	data = data[2:]
+	if len(data) < 2 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilitySoftwareVersion bytes allowed")
+	}
+	softwareVersionLen := uint8(data[0])
+	c.SoftwareVersionLen = softwareVersionLen
+	c.SoftwareVersion = string(data[1:c.SoftwareVersionLen])
+	return nil
+}
+
+func (c *CapSoftwareVersion) Serialize() ([]byte, error) {
+	buf := make([]byte, c.SoftwareVersionLen+1)
+	buf[0] = c.SoftwareVersionLen
+	copy(buf[1:], []byte(c.SoftwareVersion))
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapSoftwareVersion) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		SoftwareVersionLen uint8  `json:"software_version_len"`
+		SoftwareVersion    string `json:"software_version"`
+	}{
+		SoftwareVersionLen: c.SoftwareVersionLen,
+		SoftwareVersion:    c.SoftwareVersion,
+	})
+}
+
+func NewCapSoftwareVersion(version string) *CapSoftwareVersion {
+	if len(version) > 64 {
+		version = version[:64]
+	}
+
+	return &CapSoftwareVersion{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_SOFT_VERSION,
+		},
+		uint8(len(version)),
+		version,
+	}
+}
+
 type CapUnknown struct {
 	DefaultParameterCapability
 }
@@ -1090,6 +1142,8 @@ func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 		c = &CapLongLivedGracefulRestart{}
 	case BGP_CAP_FQDN:
 		c = &CapFQDN{}
+	case BGP_CAP_SOFT_VERSION:
+		c = &CapSoftwareVersion{}
 	default:
 		c = &CapUnknown{}
 	}
