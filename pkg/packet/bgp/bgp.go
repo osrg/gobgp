@@ -1378,7 +1378,7 @@ func (r *IPAddrPrefixDefault) serializePrefix(bitLen uint8) ([]byte, error) {
 }
 
 func (r *IPAddrPrefixDefault) String() string {
-	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
+	return r.Prefix.String() + "/" + strconv.FormatUint(uint64(r.Length), 10)
 }
 
 func (r *IPAddrPrefixDefault) MarshalJSON() ([]byte, error) {
@@ -1479,7 +1479,7 @@ func (r *IPv6AddrPrefix) String() string {
 	if isIPv4MappedIPv6(r.Prefix) {
 		prefix = "::ffff:" + prefix
 	}
-	return fmt.Sprintf("%s/%d", prefix, r.Length)
+	return prefix + "/" + strconv.FormatUint(uint64(r.Length), 10)
 }
 
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
@@ -1981,12 +1981,12 @@ func (l *LabeledVPNIPAddrPrefix) Len(options ...*MarshallingOption) int {
 }
 
 func (l *LabeledVPNIPAddrPrefix) String() string {
-	return fmt.Sprintf("%s:%s", l.RD, l.IPPrefix())
+	return l.RD.String() + ":" + l.IPPrefix()
 }
 
 func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
 	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
-	return fmt.Sprintf("%s/%d", l.IPAddrPrefixDefault.Prefix, masklen)
+	return l.IPAddrPrefixDefault.Prefix.String() + "/" + strconv.FormatUint(uint64(masklen), 10)
 }
 
 func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
@@ -2123,7 +2123,8 @@ func (l *LabeledIPAddrPrefix) String() string {
 	if isIPv4MappedIPv6(l.Prefix) {
 		prefix = "::ffff:" + prefix
 	}
-	return fmt.Sprintf("%s/%d", prefix, int(l.Length)-l.Labels.Len()*8)
+	masklen := int(l.Length)-l.Labels.Len()*8
+	return prefix + "/" + strconv.FormatUint(uint64(masklen), 10)
 }
 
 func (l *LabeledIPAddrPrefix) MarshalJSON() ([]byte, error) {
@@ -2245,7 +2246,7 @@ func (n *RouteTargetMembershipNLRI) String() string {
 	if n.RouteTarget != nil {
 		target = n.RouteTarget.String()
 	}
-	return fmt.Sprintf("%d:%s", n.AS, target)
+	return strconv.FormatUint(uint64(n.AS), 10) + ":" + target
 }
 
 func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
@@ -3317,7 +3318,7 @@ func (n *EVPNNLRI) String() string {
 	if n.RouteTypeData != nil {
 		return n.RouteTypeData.String()
 	}
-	return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
+	return strconv.FormatUint(uint64(n.RouteType), 10) + ":" + strconv.FormatUint(uint64(n.Length), 10)
 }
 
 func (n *EVPNNLRI) MarshalJSON() ([]byte, error) {
@@ -4705,7 +4706,9 @@ func (n *FlowSpecNLRI) Len(options ...*MarshallingOption) int {
 func (n *FlowSpecNLRI) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
 	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
-		buf.WriteString(fmt.Sprintf("[rd: %s]", n.rd))
+		buf.WriteString("[rd: ")
+		buf.WriteString(n.rd.String())
+		buf.WriteString("]")
 	}
 	for _, v := range n.Value {
 		buf.WriteString(v.String())
@@ -9075,7 +9078,7 @@ func (l *LsAddrPrefix) String() string {
 		return "NLRI: (nil)"
 	}
 
-	return fmt.Sprintf("NLRI { %s }", l.NLRI.String())
+	return "NLRI { " + l.NLRI.String() + " }"
 }
 
 func (l *LsAddrPrefix) Flat() map[string]string {
