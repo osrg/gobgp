@@ -2123,7 +2123,7 @@ func (l *LabeledIPAddrPrefix) String() string {
 	if isIPv4MappedIPv6(l.Prefix) {
 		prefix = "::ffff:" + prefix
 	}
-	masklen := int(l.Length)-l.Labels.Len()*8
+	masklen := int(l.Length) - l.Labels.Len()*8
 	return prefix + "/" + strconv.FormatUint(uint64(masklen), 10)
 }
 
@@ -11216,7 +11216,7 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *TwoOctetAsSpecificExtended) String() string {
-	return fmt.Sprintf("%d:%d", e.AS, e.LocalAdmin)
+	return strconv.FormatUint(uint64(e.AS), 10) + ":" + strconv.FormatUint(uint64(e.LocalAdmin), 10)
 }
 
 func (e *TwoOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -11270,7 +11270,7 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *IPv4AddressSpecificExtended) String() string {
-	return fmt.Sprintf("%s:%d", e.IPv4.String(), e.LocalAdmin)
+	return e.IPv4.String() + ":" + strconv.FormatUint(uint64(e.LocalAdmin), 10)
 }
 
 func (e *IPv4AddressSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -11328,7 +11328,7 @@ func (e *IPv6AddressSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *IPv6AddressSpecificExtended) String() string {
-	return fmt.Sprintf("%s:%d", e.IPv6.String(), e.LocalAdmin)
+	return e.IPv6.String() + ":" + strconv.FormatUint(uint64(e.LocalAdmin), 10)
 }
 
 func (e *IPv6AddressSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -11390,7 +11390,8 @@ func (e *FourOctetAsSpecificExtended) String() string {
 	binary.BigEndian.PutUint32(buf[:4], e.AS)
 	asUpper := binary.BigEndian.Uint16(buf[0:2])
 	asLower := binary.BigEndian.Uint16(buf[2:4])
-	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
+	return strconv.FormatUint(uint64(asUpper), 10) + "." + strconv.FormatUint(uint64(asLower), 10) +
+		":" + strconv.FormatUint(uint64(e.LocalAdmin), 10)
 }
 
 func (e *FourOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -11614,7 +11615,7 @@ func (e *LinkBandwidthExtended) Serialize() ([]byte, error) {
 }
 
 func (e *LinkBandwidthExtended) String() string {
-	return fmt.Sprintf("%d:%d", e.AS, uint32(e.Bandwidth))
+	return strconv.FormatUint(uint64(e.AS), 10) + ":" + strconv.FormatUint(uint64(e.Bandwidth), 10)
 }
 
 func (e *LinkBandwidthExtended) MarshalJSON() ([]byte, error) {
@@ -11653,7 +11654,7 @@ func (e *ColorExtended) Serialize() ([]byte, error) {
 }
 
 func (e *ColorExtended) String() string {
-	return fmt.Sprintf("%d", e.Color)
+	return strconv.FormatUint(uint64(e.Color), 10)
 }
 
 func (e *ColorExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
@@ -11717,7 +11718,7 @@ func (e *EncapExtended) String() string {
 	case TUNNEL_TYPE_GENEVE:
 		return "GENEVE"
 	default:
-		return fmt.Sprintf("tunnel: %d", e.TunnelType)
+		return "tunnel: " + strconv.FormatUint(uint64(e.TunnelType), 10)
 	}
 }
 
@@ -11800,7 +11801,7 @@ func (e *OpaqueExtended) Serialize() ([]byte, error) {
 func (e *OpaqueExtended) String() string {
 	var buf [8]byte
 	copy(buf[1:], e.Value)
-	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf[:]))
+	return strconv.FormatUint(binary.BigEndian.Uint64(buf[:]), 10)
 }
 
 func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
@@ -11896,7 +11897,7 @@ func (e *ESILabelExtended) Serialize() ([]byte, error) {
 
 func (e *ESILabelExtended) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
-	buf.WriteString(fmt.Sprintf("esi-label: %d", e.Label))
+	buf.WriteString("esi-label: " + strconv.FormatUint(uint64(e.Label), 10))
 	if e.IsSingleActive {
 		buf.WriteString(", single-active")
 	}
@@ -11942,7 +11943,7 @@ func (e *ESImportRouteTarget) Serialize() ([]byte, error) {
 }
 
 func (e *ESImportRouteTarget) String() string {
-	return fmt.Sprintf("es-import rt: %s", e.ESImport.String())
+	return "es-import rt: " + e.ESImport.String()
 }
 
 func (e *ESImportRouteTarget) MarshalJSON() ([]byte, error) {
@@ -11990,7 +11991,7 @@ func (e *MacMobilityExtended) Serialize() ([]byte, error) {
 
 func (e *MacMobilityExtended) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
-	buf.WriteString(fmt.Sprintf("mac-mobility: %d", e.Sequence))
+	buf.WriteString("mac-mobility: " + strconv.FormatUint(uint64(e.Sequence), 10))
 	if e.IsSticky {
 		buf.WriteString(", sticky")
 	}
@@ -12036,7 +12037,7 @@ func (e *RouterMacExtended) Serialize() ([]byte, error) {
 }
 
 func (e *RouterMacExtended) String() string {
-	return fmt.Sprintf("router's mac: %s", e.Mac.String())
+	return "router's mac: " + e.Mac.String()
 }
 
 func (e *RouterMacExtended) MarshalJSON() ([]byte, error) {
@@ -12123,10 +12124,10 @@ func (e *TrafficRateExtended) String() string {
 	if e.Rate == 0 {
 		buf.WriteString("discard")
 	} else {
-		buf.WriteString(fmt.Sprintf("rate: %f", e.Rate))
+		buf.WriteString("rate: " + strconv.FormatFloat(float64(e.Rate), 'f', 6, 32))
 	}
 	if e.AS != 0 {
-		buf.WriteString(fmt.Sprintf("(as: %d)", e.AS))
+		buf.WriteString("(as: " + strconv.FormatUint(uint64(e.AS), 10) + ")")
 	}
 	return buf.String()
 }
@@ -12178,7 +12179,7 @@ func (e *TrafficActionExtended) String() string {
 	if e.Sample {
 		ss = append(ss, "sample")
 	}
-	return fmt.Sprintf("action: %s", strings.Join(ss, "-"))
+	return "action: " + strings.Join(ss, "-")
 }
 
 func (e *TrafficActionExtended) MarshalJSON() ([]byte, error) {
@@ -12214,7 +12215,7 @@ func (e *RedirectTwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *RedirectTwoOctetAsSpecificExtended) String() string {
-	return fmt.Sprintf("redirect: %s", e.TwoOctetAsSpecificExtended.String())
+	return "redirect: " + e.TwoOctetAsSpecificExtended.String()
 }
 
 func (e *RedirectTwoOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -12246,7 +12247,7 @@ func (e *RedirectIPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *RedirectIPv4AddressSpecificExtended) String() string {
-	return fmt.Sprintf("redirect: %s", e.IPv4AddressSpecificExtended.String())
+	return "redirect: " + e.IPv4AddressSpecificExtended.String()
 }
 
 func (e *RedirectIPv4AddressSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -12282,7 +12283,7 @@ func (e *RedirectIPv6AddressSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *RedirectIPv6AddressSpecificExtended) String() string {
-	return fmt.Sprintf("redirect: %s", e.IPv6AddressSpecificExtended.String())
+	return "redirect: " + e.IPv6AddressSpecificExtended.String()
 }
 
 func (e *RedirectIPv6AddressSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -12318,7 +12319,7 @@ func (e *RedirectFourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 }
 
 func (e *RedirectFourOctetAsSpecificExtended) String() string {
-	return fmt.Sprintf("redirect: %s", e.FourOctetAsSpecificExtended.String())
+	return "redirect: " + e.FourOctetAsSpecificExtended.String()
 }
 
 func (e *RedirectFourOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
@@ -12351,7 +12352,7 @@ func (e *TrafficRemarkExtended) Serialize() ([]byte, error) {
 }
 
 func (e *TrafficRemarkExtended) String() string {
-	return fmt.Sprintf("remark: %d", e.DSCP)
+	return "remark: " + strconv.FormatUint(uint64(e.DSCP), 10)
 }
 
 func (e *TrafficRemarkExtended) MarshalJSON() ([]byte, error) {
@@ -12466,7 +12467,7 @@ func (e *UnknownExtended) Serialize() ([]byte, error) {
 func (e *UnknownExtended) String() string {
 	var buf [8]byte
 	copy(buf[1:], e.Value)
-	return fmt.Sprintf("%d", binary.BigEndian.Uint64(buf[:]))
+	return strconv.FormatUint(binary.BigEndian.Uint64(buf[:]), 10)
 }
 
 func (e *UnknownExtended) MarshalJSON() ([]byte, error) {
