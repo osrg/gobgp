@@ -9377,10 +9377,10 @@ func (p *PathAttributeLs) String() string {
 	var buf bytes.Buffer
 
 	for _, tlv := range p.TLVs {
-		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
+		buf.WriteString(tlv.String() + " ")
 	}
 	if buf.String() != "" {
-		return fmt.Sprintf("{LsAttributes: %s}", buf.String())
+		return "{LsAttributes: " + buf.String() + "}"
 	}
 	return ""
 }
@@ -9976,7 +9976,7 @@ func (p *PathAttributeOrigin) String() string {
 	case BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
 		typ = "?"
 	}
-	return fmt.Sprintf("{Origin: %s}", typ)
+	return "{Origin: " + typ + "}"
 }
 
 func (p *PathAttributeOrigin) MarshalJSON() ([]byte, error) {
@@ -10363,7 +10363,7 @@ func (p *PathAttributeNextHop) Serialize(options ...*MarshallingOption) ([]byte,
 }
 
 func (p *PathAttributeNextHop) String() string {
-	return fmt.Sprintf("{Nexthop: %s}", p.Value)
+	return "{Nexthop: " + p.Value.String() + "}"
 }
 
 func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
@@ -10425,7 +10425,7 @@ func (p *PathAttributeMultiExitDisc) Serialize(options ...*MarshallingOption) ([
 }
 
 func (p *PathAttributeMultiExitDisc) String() string {
-	return fmt.Sprintf("{Med: %d}", p.Value)
+	return "{Med: " + strconv.FormatUint(uint64(p.Value), 10) + "}"
 }
 
 func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
@@ -10476,7 +10476,7 @@ func (p *PathAttributeLocalPref) Serialize(options ...*MarshallingOption) ([]byt
 }
 
 func (p *PathAttributeLocalPref) String() string {
-	return fmt.Sprintf("{LocalPref: %d}", p.Value)
+	return "{LocalPref: " + strconv.FormatUint(uint64(p.Value), 10) + "}"
 }
 
 func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
@@ -10594,7 +10594,8 @@ func (p *PathAttributeAggregator) Serialize(options ...*MarshallingOption) ([]by
 }
 
 func (p *PathAttributeAggregator) String() string {
-	return fmt.Sprintf("{Aggregate: {AS: %d, Address: %s}}", p.Value.AS, p.Value.Address)
+	return "{Aggregate: {AS: " + strconv.FormatUint(uint64(p.Value.AS), 10) +
+		", Address: " + p.Value.Address.String() + "}}"
 }
 
 func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
@@ -10727,10 +10728,11 @@ func (p *PathAttributeCommunities) String() string {
 		if ok {
 			l = append(l, n)
 		} else {
-			l = append(l, fmt.Sprintf("%d:%d", (0xffff0000&v)>>16, 0xffff&v))
+			comm := strconv.FormatUint(uint64((0xffff0000&v)>>16), 10) + ":" + strconv.FormatUint(uint64(0xffff&v), 10)
+			l = append(l, comm)
 		}
 	}
-	return fmt.Sprintf("{Communities: %s}", strings.Join(l, ", "))
+	return "{Communities: " + strings.Join(l, ", ") + "}"
 }
 
 func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
@@ -10776,7 +10778,7 @@ func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte, options ...*Mar
 }
 
 func (p *PathAttributeOriginatorId) String() string {
-	return fmt.Sprintf("{Originator: %s}", p.Value)
+	return "{Originator: " + p.Value.String() + "}"
 }
 
 func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
@@ -12602,7 +12604,7 @@ func (p *PathAttributeExtendedCommunities) String() string {
 			buf.WriteString(", ")
 		}
 	}
-	return fmt.Sprintf("{Extcomms: %s}", buf.String())
+	return "{Extcomms: " + buf.String() + "}"
 }
 
 func (p *PathAttributeExtendedCommunities) MarshalJSON() ([]byte, error) {
@@ -12739,7 +12741,8 @@ func (p *PathAttributeAs4Aggregator) Serialize(options ...*MarshallingOption) ([
 }
 
 func (p *PathAttributeAs4Aggregator) String() string {
-	return fmt.Sprintf("{As4Aggregator: {AS: %d, Address: %s}}", p.Value.AS, p.Value.Address)
+	return "{As4Aggregator: {AS: " +
+		strconv.FormatUint(uint64(p.Value.AS), 10) + ", Address: " + p.Value.Address.String() + "}}"
 }
 
 func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
@@ -13297,7 +13300,7 @@ func (p *PathAttributeTunnelEncap) String() string {
 	for i, v := range p.Value {
 		tlvList[i] = v.String()
 	}
-	return fmt.Sprintf("{TunnelEncap: %s}", strings.Join(tlvList, ", "))
+	return "{TunnelEncap: " + strings.Join(tlvList, ", ") + "}"
 }
 
 func (p *PathAttributeTunnelEncap) MarshalJSON() ([]byte, error) {
@@ -13597,9 +13600,9 @@ func (p *PathAttributeIP6ExtendedCommunities) Serialize(options ...*MarshallingO
 func (p *PathAttributeIP6ExtendedCommunities) String() string {
 	buf := make([]string, len(p.Value))
 	for i, v := range p.Value {
-		buf[i] = fmt.Sprintf("[%s]", v.String())
+		buf[i] = "[" + v.String() + "]"
 	}
-	return fmt.Sprintf("{Extcomms: %s}", strings.Join(buf, ","))
+	return "{Extcomms: " + strings.Join(buf, ",") + "}"
 }
 
 func (p *PathAttributeIP6ExtendedCommunities) MarshalJSON() ([]byte, error) {
