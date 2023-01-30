@@ -18,6 +18,7 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	golang.org/x/net v0.4.0
 	golang.org/x/text v0.5.0
+	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 )

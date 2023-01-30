@@ -68,6 +68,7 @@ type GobgpApiClient interface {
 	ResetRpki(ctx context.Context, in *ResetRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (GobgpApi_ListRpkiTableClient, error)
 	EnableZebra(ctx context.Context, in *EnableZebraRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EnableModifyHostFIB(ctx context.Context, in *EnableModifyHostFIBRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	EnableMrt(ctx context.Context, in *EnableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DisableMrt(ctx context.Context, in *DisableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	AddBmp(ctx context.Context, in *AddBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -826,6 +827,15 @@ func (c *gobgpApiClient) EnableZebra(ctx context.Context, in *EnableZebraRequest
 	return out, nil
 }
 
+func (c *gobgpApiClient) EnableModifyHostFIB(ctx context.Context, in *EnableModifyHostFIBRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/apipb.GobgpApi/EnableModifyHostFIB", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gobgpApiClient) EnableMrt(ctx context.Context, in *EnableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/apipb.GobgpApi/EnableMrt", in, out, opts...)
@@ -956,6 +966,7 @@ type GobgpApiServer interface {
 	ResetRpki(context.Context, *ResetRpkiRequest) (*emptypb.Empty, error)
 	ListRpkiTable(*ListRpkiTableRequest, GobgpApi_ListRpkiTableServer) error
 	EnableZebra(context.Context, *EnableZebraRequest) (*emptypb.Empty, error)
+	EnableModifyHostFIB(context.Context, *EnableModifyHostFIBRequest) (*emptypb.Empty, error)
 	EnableMrt(context.Context, *EnableMrtRequest) (*emptypb.Empty, error)
 	DisableMrt(context.Context, *DisableMrtRequest) (*emptypb.Empty, error)
 	AddBmp(context.Context, *AddBmpRequest) (*emptypb.Empty, error)
@@ -1115,6 +1126,9 @@ func (UnimplementedGobgpApiServer) ListRpkiTable(*ListRpkiTableRequest, GobgpApi
 }
 func (UnimplementedGobgpApiServer) EnableZebra(context.Context, *EnableZebraRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnableZebra not implemented")
+}
+func (UnimplementedGobgpApiServer) EnableModifyHostFIB(context.Context, *EnableModifyHostFIBRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnableModifyHostFIB not implemented")
 }
 func (UnimplementedGobgpApiServer) EnableMrt(context.Context, *EnableMrtRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnableMrt not implemented")
@@ -2073,6 +2087,24 @@ func _GobgpApi_EnableZebra_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GobgpApi_EnableModifyHostFIB_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnableModifyHostFIBRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GobgpApiServer).EnableModifyHostFIB(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apipb.GobgpApi/EnableModifyHostFIB",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GobgpApiServer).EnableModifyHostFIB(ctx, req.(*EnableModifyHostFIBRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GobgpApi_EnableMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EnableMrtRequest)
 	if err := dec(in); err != nil {
@@ -2334,6 +2366,10 @@ var GobgpApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EnableZebra",
 			Handler:    _GobgpApi_EnableZebra_Handler,
+		},
+		{
+			MethodName: "EnableModifyHostFIB",
+			Handler:    _GobgpApi_EnableModifyHostFIB_Handler,
 		},
 		{
 			MethodName: "EnableMrt",

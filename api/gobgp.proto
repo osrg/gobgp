@@ -100,6 +100,8 @@ service GobgpApi {
 
   rpc EnableZebra(EnableZebraRequest) returns(google.protobuf.Empty);
 
+  rpc EnableModifyHostFIB(EnableModifyHostFIBRequest) returns(google.protobuf.Empty);
+
   rpc EnableMrt(EnableMrtRequest) returns(google.protobuf.Empty);
   rpc DisableMrt(DisableMrtRequest) returns(google.protobuf.Empty);
 
@@ -401,6 +403,9 @@ message EnableZebraRequest {
   uint32 nexthop_trigger_delay = 5;
   uint32 mpls_label_range_size = 6;
   string software_name = 7;
+}
+
+message EnableModifyHostFIBRequest {
 }
 
 message EnableMrtRequest {

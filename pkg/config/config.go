@@ -250,6 +250,13 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 		}
 	}
 
+	if newConfig.Experimental.ModifyHostFib.Config.Enabled {
+		if err := bgpServer.EnableModifyHostFIB(ctx, &api.EnableModifyHostFIBRequest{}); err != nil {
+			bgpServer.Log().Fatal("failed to enable ModifyHostFIB functionality",
+				log.Fields{"Topic": "config", "Error": err})
+		}
+	}
+
 	if len(newConfig.Collector.Config.Url) > 0 {
 		bgpServer.Log().Fatal("collector feature is not supported",
 			log.Fields{"Topic": "config"})

@@ -49,3 +49,6 @@ unicast
 uptime
 vpls
 zapi
+natively
+netipPrefix
+netip

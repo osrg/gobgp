@@ -156,26 +156,27 @@ func LoggerOption(logger log.Logger) ServerOption {
 }
 
 type BgpServer struct {
-	apiServer    *server
-	bgpConfig    config.Bgp
-	acceptCh     chan *net.TCPConn
-	incomings    []*channels.InfiniteChannel
-	mgmtCh       chan *mgmtOp
-	policy       *table.RoutingPolicy
-	listeners    []*tcpListener
-	neighborMap  map[string]*peer
-	peerGroupMap map[string]*peerGroup
-	globalRib    *table.TableManager
-	rsRib        *table.TableManager
-	roaManager   *roaManager
-	shutdownWG   *sync.WaitGroup
-	watcherMap   map[watchEventType][]*watcher
-	zclient      *zebraClient
-	bmpManager   *bmpClientManager
-	mrtManager   *mrtManager
-	roaTable     *table.ROATable
-	uuidMap      map[string]uuid.UUID
-	logger       log.Logger
+	apiServer           *server
+	bgpConfig           config.Bgp
+	acceptCh            chan *net.TCPConn
+	incomings           []*channels.InfiniteChannel
+	mgmtCh              chan *mgmtOp
+	policy              *table.RoutingPolicy
+	listeners           []*tcpListener
+	neighborMap         map[string]*peer
+	peerGroupMap        map[string]*peerGroup
+	globalRib           *table.TableManager
+	rsRib               *table.TableManager
+	roaManager          *roaManager
+	shutdownWG          *sync.WaitGroup
+	watcherMap          map[watchEventType][]*watcher
+	zclient             *zebraClient
+	modifyHostFIBClient *modifyHostFIBClient
+	bmpManager          *bmpClientManager
+	mrtManager          *mrtManager
+	roaTable            *table.ROATable
+	uuidMap             map[string]uuid.UUID
+	logger              log.Logger
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -221,6 +222,10 @@ func (s *BgpServer) Stop() {
 
 	if s.apiServer != nil {
 		s.apiServer.grpcServer.Stop()
+	}
+
+	if s.modifyHostFIBClient != nil {
+		s.modifyHostFIBClient.stop()
 	}
 }
 
@@ -1790,6 +1795,21 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 		}
 		var err error
 		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize, software)
+		return err
+	}, false)
+}
+
+func (s *BgpServer) EnableModifyHostFIB(ctx context.Context, r *api.EnableModifyHostFIBRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+	return s.mgmtOperation(func() error {
+		if s.modifyHostFIBClient != nil {
+			return fmt.Errorf("modifyHostFIBClient already created")
+		}
+
+		var err error
+		s.modifyHostFIBClient, err = newModifyHostFIBClient(s)
 		return err
 	}, false)
 }
