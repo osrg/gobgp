@@ -115,7 +115,7 @@ func Test_MUPType1SessionTransformedRouteIPv4(t *testing.T) {
 	rd, _ := ParseRouteDistinguisher("100:100")
 	r := &MUPType1SessionTransformedRoute{
 		RD:                    rd,
-		Prefix:                netip.MustParsePrefix("192.100.0.1/32"),
+		Prefix:                netip.MustParsePrefix("192.100.0.0/24"),
 		TEID:                  100,
 		QFI:                   9,
 		EndpointAddressLength: 32,
@@ -140,7 +140,7 @@ func Test_MUPType1SessionTransformedRouteIPv6(t *testing.T) {
 	rd, _ := ParseRouteDistinguisher("100:100")
 	r := &MUPType1SessionTransformedRoute{
 		RD:                    rd,
-		Prefix:                netip.MustParsePrefix("2001:db8:1:1::1/128"),
+		Prefix:                netip.MustParsePrefix("2001:db8:1::/48"),
 		TEID:                  100,
 		QFI:                   9,
 		EndpointAddressLength: 128,
