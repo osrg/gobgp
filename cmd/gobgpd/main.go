@@ -31,6 +31,8 @@ import (
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -61,6 +63,7 @@ func main() {
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
 		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
+		MetricsPath     string `long:"metrics-path" description:"specify path for prometheus metrics" default:"/metrics"`
 		UseSdNotify     bool   `long:"sdnotify" description:"use sd_notify protocol"`
 		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
 		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
@@ -88,7 +91,14 @@ func main() {
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
+	metricRegistry := prometheus.NewRegistry()
+
 	if !opts.PProfDisable {
+		http.Handle(opts.MetricsPath, promhttp.InstrumentMetricHandler(
+			metricRegistry,
+			promhttp.HandlerFor(metricRegistry, promhttp.HandlerOpts{}),
+		))
+
 		go func() {
 			logger.Println(http.ListenAndServe(opts.PProfHost, nil))
 		}()
@@ -170,7 +180,12 @@ func main() {
 	}
 
 	logger.Info("gobgpd started")
-	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts), server.LoggerOption(&builtinLogger{logger: logger}))
+	bgpServer := server.NewBgpServer(
+		server.GrpcListenAddress(opts.GrpcHosts),
+		server.GrpcOption(grpcOpts),
+		server.LoggerOption(&builtinLogger{logger: logger}),
+		server.Metrics(metricRegistry),
+	)
 	go bgpServer.Serve()
 
 	if opts.UseSdNotify {
