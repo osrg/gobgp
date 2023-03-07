@@ -148,7 +148,7 @@ func main() {
 		// server cert/key
 		cert, err := tls.LoadX509KeyPair(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
-			logger.Fatalf("Failed to load server certificate/keypair: %v", err)
+			logger.Fatalf("Failed to load server certificate/key pair: %v", err)
 		}
 		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 
