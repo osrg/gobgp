@@ -26,9 +26,9 @@ import (
 )
 
 func Test_buildTcpMD5Sig(t *testing.T) {
-	s, _ := buildTcpMD5Sig("1.2.3.4", "hello")
+	s := buildTcpMD5Sig("1.2.3.4", "hello")
 
-	if unsafe.Sizeof(s) != 216 {
+	if unsafe.Sizeof(*s) != 216 {
 		t.Error("TCPM5Sig struct size is wrong", unsafe.Sizeof(s))
 	}
 
@@ -47,7 +47,7 @@ func Test_buildTcpMD5Sig(t *testing.T) {
 }
 
 func Test_buildTcpMD5Sigv6(t *testing.T) {
-	s, _ := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55", "helloworld")
+	s := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55", "helloworld")
 
 	buf1 := new(bytes.Buffer)
 	if err := binary.Write(buf1, binary.LittleEndian, s); err != nil {
