@@ -77,7 +77,25 @@ func (m *peerMetricsCollector) Describe(out chan<- *prometheus.Desc) {
 }
 
 func (m *peerMetricsCollector) Collect(out chan<- prometheus.Metric) {
-	msg := m.collectMessageCounters()
+	var msg config.Messages
+	type familyCnt struct {
+		received, accepted int
+	}
+	routeCnt := make(map[bgp.RouteFamily]familyCnt)
+
+	m.server.mgmtOperation(func() error {
+		msg = m.collectMessageCounters()
+
+		for _, family := range m.peer.configuredRFlist() {
+			flist := []bgp.RouteFamily{family}
+			routeCnt[family] = familyCnt{
+				received: m.peer.adjRibIn.Count(flist),
+				accepted: m.peer.adjRibIn.Accepted(flist),
+			}
+		}
+		return nil
+	}, false)
+
 	send := func(desc *prometheus.Desc, cnt uint64) {
 		out <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, float64(cnt))
 	}
@@ -104,21 +122,17 @@ func (m *peerMetricsCollector) Collect(out chan<- prometheus.Metric) {
 	send(bgpSentDiscardedTotalDesc, msg.Sent.Discarded)
 	send(bgpSentMessageTotalDesc, msg.Sent.Total)
 
-	for _, family := range m.peer.configuredRFlist() {
-		flist := []bgp.RouteFamily{family}
-		received := m.peer.adjRibIn.Count(flist)
-		accepted := m.peer.adjRibIn.Accepted(flist)
-
+	for family, cnt := range routeCnt {
 		out <- prometheus.MustNewConstMetric(
 			bgpRoutesReceivedDesc,
 			prometheus.GaugeValue,
-			float64(received),
+			float64(cnt.received),
 			family.String(),
 		)
 		out <- prometheus.MustNewConstMetric(
 			bgpRoutesAcceptedDesc,
 			prometheus.GaugeValue,
-			float64(accepted),
+			float64(cnt.accepted),
 			family.String(),
 		)
 	}
