@@ -30,7 +30,7 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
