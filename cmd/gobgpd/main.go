@@ -17,6 +17,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,6 +65,7 @@ func main() {
 		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
 		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
 		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
+		TLSClientCAFile string `long:"tls-client-ca-file" description:"Optional TLS client CA file to authenticate clients against"`
 		Version         bool   `long:"version" description:"show version number"`
 	}
 	_, err := flags.Parse(&opts)
@@ -142,10 +145,27 @@ func main() {
 	maxSize := 256 << 20
 	grpcOpts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxSize), grpc.MaxSendMsgSize(maxSize)}
 	if opts.TLS {
-		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
+		// server cert/key
+		cert, err := tls.LoadX509KeyPair(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
-			logger.Fatalf("Failed to generate credentials: %v", err)
+			logger.Fatalf("Failed to load server certificate/key pair: %v", err)
 		}
+		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
+
+		// client CA
+		if len(opts.TLSClientCAFile) != 0 {
+			tlsConfig.ClientCAs = x509.NewCertPool()
+			pemCerts, err := os.ReadFile(opts.TLSClientCAFile)
+			if err != nil {
+				logger.Fatalf("Failed to load client CA certificates from %q: %v", opts.TLSClientCAFile, err)
+			}
+			if ok := tlsConfig.ClientCAs.AppendCertsFromPEM(pemCerts); !ok {
+				logger.Fatalf("No valid client CA certificates in %q", opts.TLSClientCAFile)
+			}
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+
+		creds := credentials.NewTLS(tlsConfig)
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
