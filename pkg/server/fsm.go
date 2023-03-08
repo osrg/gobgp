@@ -557,6 +557,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 			d := net.Dialer{
 				LocalAddr: laddr,
 				Timeout:   time.Duration(max(retryInterval-1, minConnectRetryInterval)) * time.Second,
+				KeepAlive: -1,
 				Control: func(network, address string, c syscall.RawConn) error {
 					return dialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
 				},

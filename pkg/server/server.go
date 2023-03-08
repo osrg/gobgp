@@ -143,6 +143,19 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 				}
 				return err
 			}
+
+			err = conn.SetKeepAlive(false)
+			if err != nil {
+				conn.Close()
+				close(closeCh)
+				logger.Warn("Failed to SetKeepAlive",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+						"Error": err})
+				return err
+			}
+
 			select {
 			case ch <- conn:
 			case <-listenerCtx.Done():
