@@ -1700,6 +1700,21 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					if f == bgp.RF_RTC_UC {
 						rtc = true
 					}
+					peer.fsm.lock.RLock()
+					peerInfo := &table.PeerInfo{
+						AS:           peer.fsm.peerInfo.AS,
+						ID:           peer.fsm.peerInfo.ID,
+						LocalAS:      peer.fsm.peerInfo.LocalAS,
+						LocalID:      peer.fsm.peerInfo.LocalID,
+						Address:      peer.fsm.peerInfo.Address,
+						LocalAddress: peer.fsm.peerInfo.LocalAddress,
+					}
+					peer.fsm.lock.RUnlock()
+					ev := &watchEventEor{
+						Family:   f,
+						PeerInfo: peerInfo,
+					}
+					s.notifyWatcher(watchEventTypeEor, ev)
 					for i, a := range peerAfiSafis {
 						if a.State.Family == f {
 							peer.fsm.lock.Lock()
@@ -4126,6 +4141,8 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			case api.WatchEventRequest_Table_Filter_POST_POLICY:
 				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+			case api.WatchEventRequest_Table_Filter_EOR:
+				opts = append(opts, watchEor(filter.Init))
 			}
 		}
 	}
@@ -4178,6 +4195,19 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 							},
 						},
 					})
+				case *watchEventEor:
+					eor := table.NewEOR(msg.Family)
+					eor.SetSource(msg.PeerInfo)
+					path := eorToPathAPI(eor)
+
+					fn(&api.WatchEventResponse{
+						Event: &api.WatchEventResponse_Table{
+							Table: &api.WatchEventResponse_TableEvent{
+								Paths: []*api.Path{path},
+							},
+						},
+					})
+
 				case *watchEventPeer:
 					fn(&api.WatchEventResponse{
 						Event: &api.WatchEventResponse_Peer{
@@ -4248,6 +4278,7 @@ const (
 	watchEventTypePeerState  watchEventType = "peerstate"
 	watchEventTypeTable      watchEventType = "table"
 	watchEventTypeRecvMsg    watchEventType = "receivedmessage"
+	watchEventTypeEor        watchEventType = "eor"
 )
 
 type watchEvent interface {
@@ -4325,6 +4356,11 @@ type watchEventMessage struct {
 	IsSent       bool
 }
 
+type watchEventEor struct {
+	Family   bgp.RouteFamily
+	PeerInfo *table.PeerInfo
+}
+
 type watchOptions struct {
 	bestPath         bool
 	preUpdate        bool
@@ -4338,6 +4374,8 @@ type watchOptions struct {
 	initPostUpdate bool
 	tableName      string
 	recvMessage    bool
+	initEor        bool
+	eor            bool
 }
 
 type watchOption func(*watchOptions)
@@ -4395,6 +4433,15 @@ func watchPostUpdate(current bool, peerAddress string, peerGroup string) watchOp
 				}
 				return false
 			}
+		}
+	}
+}
+
+func watchEor(current bool) watchOption {
+	return func(o *watchOptions) {
+		o.eor = true
+		if current {
+			o.initEor = true
 		}
 	}
 }
@@ -4570,6 +4617,9 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			}
 			register(watchEventTypePostUpdate, w)
 		}
+		if w.opts.eor {
+			register(watchEventTypeEor, w)
+		}
 		if w.opts.peerState {
 			for _, p := range s.neighborMap {
 				w.notify(newWatchEventPeer(p, nil, p.fsm.state, PEER_EVENT_INIT))
@@ -4584,6 +4634,31 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil),
 				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
 			})
+		}
+		if w.opts.initEor && s.active() == nil {
+			for _, p := range s.neighborMap {
+				func() {
+					p.fsm.lock.RLock()
+					defer p.fsm.lock.RUnlock()
+					for _, a := range p.fsm.pConf.AfiSafis {
+						if s := a.MpGracefulRestart.State; s.Enabled && s.EndOfRibReceived {
+							family := a.State.Family
+							peerInfo := &table.PeerInfo{
+								AS:           p.fsm.peerInfo.AS,
+								ID:           p.fsm.peerInfo.ID,
+								LocalAS:      p.fsm.peerInfo.LocalAS,
+								LocalID:      p.fsm.peerInfo.LocalID,
+								Address:      p.fsm.peerInfo.Address,
+								LocalAddress: p.fsm.peerInfo.LocalAddress,
+							}
+							w.notify(&watchEventEor{
+								Family:   family,
+								PeerInfo: peerInfo,
+							})
+						}
+					}
+				}()
+			}
 		}
 		if w.opts.initUpdate {
 			for _, peer := range s.neighborMap {
