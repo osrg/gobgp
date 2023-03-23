@@ -16,6 +16,8 @@
 package main
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -1121,6 +1123,35 @@ func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop 
 	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_DIRECT_SEGMENT_DISCOVERY, r), psid, extcomms, nil
 }
 
+func parseTeid(s string) (teid netip.Addr, err error) {
+	// Hex format
+	if s, ok := strings.CutPrefix(s, "0x"); ok {
+		b, err := hex.DecodeString(s)
+		if err != nil {
+			return teid, err
+		}
+		if len(b) < 4 {
+			b = append(b, make([]byte, 4-len(b))...)
+		}
+		if teid, ok = netip.AddrFromSlice(b); ok {
+			return teid, nil
+		}
+	}
+	// IP address format
+	if teid, err = netip.ParseAddr(s); err == nil {
+		return teid, err
+	}
+	// Decimal format
+	b := [4]byte{}
+	n, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return teid, err
+	}
+	binary.BigEndian.PutUint32(b[:], uint32(n))
+	teid = netip.AddrFrom4(b)
+	return teid, nil
+}
+
 func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
@@ -1154,12 +1185,9 @@ func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	teid, err := strconv.ParseUint(m["teid"][0], 10, 32)
+	teid, err := parseTeid(m["teid"][0])
 	if err != nil {
 		return nil, nil, nil, err
-	}
-	if teid == 0 {
-		return nil, nil, nil, fmt.Errorf("teid should not be 0")
 	}
 	qfi, err := strconv.ParseUint(m["qfi"][0], 10, 8)
 	if err != nil {
@@ -1178,7 +1206,7 @@ func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	r := &bgp.MUPType1SessionTransformedRoute{
 		RD:                    rd,
 		Prefix:                prefix,
-		TEID:                  uint32(teid),
+		TEID:                  teid,
 		QFI:                   uint8(qfi),
 		EndpointAddressLength: uint8(ea.BitLen()),
 		EndpointAddress:       ea,
@@ -1188,16 +1216,17 @@ func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 
 func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
-	// <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]
-	req := 5
+	// <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
+	req := 6
 	if len(args) < req {
 		return nil, nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"rd":   paramSingle,
-		"rt":   paramSingle,
-		"teid": paramSingle,
-		"mup":  paramSingle,
+		"rd":                      paramSingle,
+		"rt":                      paramSingle,
+		"endpoint-address-length": paramSingle,
+		"teid":                    paramSingle,
+		"mup":                     paramSingle,
 	})
 	if err != nil {
 		return nil, nil, nil, err
@@ -1205,7 +1234,7 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	if len(m[""]) < 1 {
 		return nil, nil, nil, fmt.Errorf("specify endpoint")
 	}
-	for _, f := range []string{"rd", "rt", "teid", "mup"} {
+	for _, f := range []string{"rd", "rt", "endpoint-address-length", "teid", "mup"} {
 		for len(m[f]) == 0 {
 			return nil, nil, nil, fmt.Errorf("specify %s", f)
 		}
@@ -1218,12 +1247,16 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	teid, err := strconv.ParseUint(m["teid"][0], 10, 32)
+	eaLen, err := strconv.ParseUint(m["endpoint-address-length"][0], 10, 8)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if teid == 0 {
-		return nil, nil, nil, fmt.Errorf("teid should not be 0")
+	if (ea.Is4() && eaLen > 64) || (ea.Is6() && eaLen > 160) {
+		return nil, nil, nil, fmt.Errorf("endpoint-address-length too large: %d", eaLen)
+	}
+	teid, err := parseTeid(m["teid"][0])
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	extcomms := make([]string, 0)
 	if len(m["rt"]) > 0 {
@@ -1236,9 +1269,9 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 
 	r := &bgp.MUPType2SessionTransformedRoute{
 		RD:                    rd,
-		EndpointAddressLength: uint8(ea.BitLen()),
+		EndpointAddressLength: uint8(eaLen),
 		EndpointAddress:       ea,
-		TEID:                  uint32(teid),
+		TEID:                  teid,
 	}
 	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r), nil, extcomms, nil
 }
@@ -1871,7 +1904,7 @@ usage: %s rib %s { isd <ISD> | dsd <DSD> | t1st <T1ST> | t2st <T2ST> } -a mup-ip
     <ISD>  : <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
     <DSD>  : <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
     <T1ST> : <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
-    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]`,
+    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]`,
 			err,
 			cmdstr,
 			modtype,
@@ -1881,7 +1914,7 @@ usage: %s rib %s { isd <ISD> | dsd <DSD> | t1st <T1ST> | t2st <T2ST> } -a mup-ip
     <ISD>  : <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
     <DSD>  : <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
     <T1ST> : <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
-    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]`,
+    <T2ST> : <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]`,
 			err,
 			cmdstr,
 			modtype,
