@@ -95,6 +95,8 @@ gobgp global rib del -a ipv4-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <tei
 gobgp global rib del -a ipv6-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
 ```
 
+The format of the TEID: hexadecimal (beginning with '0x'), decimal (uint32), or IPv4.
+
 #### Example - Type 1 Session Transformed Route
 
 ```console
@@ -102,49 +104,51 @@ gobgp global rib del -a ipv6-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <tei
 $ gobgp global rib add -a ipv4-mup t1st 192.168.0.1/32 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 10.0.0.1 nexthop 10.0.0.2
 
 $ gobgp global rib -a ipv4-mup
-   Network                                                                              Next Hop             AS_PATH              Age        Attrs
-*> [type:t1st][rd:100:100][prefix:192.168.0.1/32][teid:12345][qfi:9][endpoint:10.0.0.1] 10.0.0.2                                  00:00:03   [{Origin: ?} {Extcomms: [10:10]}]
+   Network                                                                                   Next Hop             AS_PATH              Age        Attrs
+*> [type:t1st][rd:100:100][prefix:192.168.0.1/32][teid:0x00003039][qfi:9][endpoint:10.0.0.1] 10.0.0.2                                  00:00:03   [{Origin: ?} {Extcomms: [10:10]}]
 
 # IPv6
 $ gobgp global rib add -a ipv6-mup t1st 2001:db8:1:1::1/128 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 2001::1 nexthop 10.0.0.2
 
 $ gobgp global rib -a ipv6-mup
-   Network                                                                                  Next Hop             AS_PATH              Age        Attrs
-*> [type:t1st][rd:100:100][prefix:2001:db8:1:1::1/128][teid:12345][qfi:9][endpoint:2001::1] 10.0.0.2                                  00:00:05   [{Origin: ?} {Extcomms: [10:10]}]
+   Network                                                                                       Next Hop             AS_PATH              Age        Attrs
+*> [type:t1st][rd:100:100][prefix:2001:db8:1:1::1/128][teid:0x00003039][qfi:9][endpoint:2001::1] 10.0.0.2                                  00:00:05   [{Origin: ?} {Extcomms: [10:10]}]
 ```
 
 ### Type 2 Session Transformed Route
 
 ```shell
 # Add a route
-gobgp global rib add -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]
-gobgp global rib add -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]
+gobgp global rib add -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
+gobgp global rib add -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
 
 # Show routes
 gobgp global rib -a ipv4-mup
 gobgp global rib -a ipv6-mup
 
 # Delete a route
-gobgp global rib del -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]
-gobgp global rib del -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] teid <teid> [mup <segment identifier>]
+gobgp global rib del -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
+gobgp global rib del -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
 ```
+
+The format of the TEID: hexadecimal (beginning with '0x'), decimal (uint32), or IPv4.
 
 #### Example - Type 2 Session Transformed Route
 
 ```console
 # IPv4
-$ gobgp global rib add -a ipv4-mup t2st 10.0.0.1 rd 100:100 rt 10:10 teid 12345 mup 10:10 nexthop 10.0.0.2
+$ gobgp global rib add -a ipv4-mup t2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 64 teid 12345 mup 10:10 nexthop 10.0.0.2
 
 $ gobgp global rib -a ipv4-mup
-   Network                                                Next Hop             AS_PATH              Age        Attrs
-*> [type:t2st][rd:100:100][endpoint:10.0.0.1][teid:12345] 10.0.0.2                                  00:00:04   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
+   Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
+*> [type:t2st][rd:100:100][endpoint-address-length:64][endpoint:10.0.0.1][teid:0.0.48.57]                                            10.0.0.2                                  00:00:21   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
 
 # IPv6
-$ gobgp global rib add -a ipv6-mup t2st 2001::1 rd 100:100 rt 10:10 teid 12345 mup 10:10 nexthop 10.0.0.2
+$ gobgp global rib add -a ipv6-mup t2st 2001::1 rd 100:100 rt 10:10 endpoint-address-length 160 teid 12345 mup 10:10 nexthop 10.0.0.2
 
 $ gobgp global rib -a ipv6-mup
-   Network                                               Next Hop             AS_PATH              Age        Attrs
-*> [type:t2st][rd:100:100][endpoint:2001::1][teid:12345] 10.0.0.2                                  00:00:05   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
+   Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
+*> [type:t2st][rd:100:100][endpoint-address-length:160][endpoint:2001::1][teid:0.0.48.57]                                            10.0.0.2                                  00:00:47   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
 ```
 
 ## Example setup with netns
@@ -233,17 +237,18 @@ sudo ip netns exec red gobgp global rib add -a ipv4-mup t2st 10.0.0.1 rd 100:100
 
 ```console
 $ sudo ip netns exec red gobgp global rib -a ipv4-mup
-   Network                                                                              Next Hop             AS_PATH              Age        Attrs
-*> [type:dsd][rd:100:100][prefix:10.0.0.1]                                              2001::2                                   00:00:05   [{Origin: ?} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 19 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
-*> [type:t1st][rd:100:100][prefix:192.168.0.1/32][teid:12345][qfi:9][endpoint:10.0.0.1] 10.0.0.2                                  00:00:05   [{Origin: ?} {Extcomms: [10:10]}]
-*> [type:t2st][rd:100:100][endpoint:10.0.0.1][teid:12345]                               10.0.0.2                                  00:00:05   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
-*> [type:isd][rd:100:100][prefix:10.0.0.0/24]                                           2001::2                                   00:00:05   [{Origin: ?} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 72 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+   Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
+*> [type:isd][rd:100:100][prefix:10.0.0.0/24]                                                                                        2001::2                                   00:00:19   [{Origin: ?} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 72 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:dsd][rd:100:100][prefix:10.0.0.1]                                                                                           2001::2                                   00:00:18   [{Origin: ?} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 19 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:t1st][rd:100:100][prefix:192.168.0.1/32]                                         0.0.48.57  9          10.0.0.1             10.0.0.2                                  00:00:18   [{Origin: ?} {Extcomms: [10:10]}]
+*> [type:t2st][rd:100:100][endpoint-address-length:64][endpoint:10.0.0.1][teid:0.0.48.57]
 
 $ sudo ip netns exec blue gobgp global rib -a ipv4-mup   Network                                                                              Next Hop             AS_PATH              Age        Attrs
-*> [type:t1st][rd:100:100][prefix:192.168.0.1/32][teid:12345][qfi:9][endpoint:10.0.0.1] 10.0.0.2                                  00:00:41   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]}]
-*> [type:t2st][rd:100:100][endpoint:10.0.0.1][teid:12345]                               10.0.0.2                                  00:00:41   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]}]
-*> [type:isd][rd:100:100][prefix:10.0.0.0/24]                                           2001::2                                   00:00:41   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 72 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
-*> [type:dsd][rd:100:100][prefix:10.0.0.1]                                              2001::2                                   00:00:41   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 19 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+   Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
+*> [type:isd][rd:100:100][prefix:10.0.0.0/24]                                                                                        2001::2                                   00:00:56   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 72 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:dsd][rd:100:100][prefix:10.0.0.1]                                                                                           2001::2                                   00:00:56   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 19 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:t1st][rd:100:100][prefix:192.168.0.1/32]                                         0.0.48.57  9          10.0.0.1             10.0.0.2                                  00:00:56   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]}]
+*> [type:t2st][rd:100:100][endpoint-address-length:64][endpoint:10.0.0.1][teid:0.0.48.57]                                            10.0.0.2                                  00:00:26   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]}]
 ```
 
 #### Delete MUP Routes (IPv4)
@@ -270,18 +275,18 @@ sudo ip netns exec red gobgp global rib add -a ipv6-mup t2st 2001::1 rd 100:100 
 
 ```console
 $ sudo ip netns exec red gobgp global rib -a ipv6-mup
-   Network                                                                                  Next Hop             AS_PATH              Age        Attrs
-*> [type:t2st][rd:100:100][endpoint:2001::1][teid:12345]                                    10.0.0.2                                  00:00:09   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
-*> [type:isd][rd:100:100][prefix:2001::/64]                                                 2001::2                                   00:00:10   [{Origin: ?} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 71 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
-*> [type:dsd][rd:100:100][prefix:2001::1]                                                   2001::2                                   00:00:10   [{Origin: ?} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:2:2:: Flag: 0 Endpoint Behavior: 18 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
-*> [type:t1st][rd:100:100][prefix:2001:db8:1:1::1/128][teid:12345][qfi:9][endpoint:2001::1] 10.0.0.2                                  00:00:10   [{Origin: ?} {Extcomms: [10:10]}]
+   Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
+*> [type:isd][rd:100:100][prefix:2001::/64]                                                                                          2001::2                                   00:00:14   [{Origin: ?} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 71 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:dsd][rd:100:100][prefix:2001::1]                                                                                            2001::2                                   00:00:14   [{Origin: ?} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:2:2:: Flag: 0 Endpoint Behavior: 18 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:t1st][rd:100:100][prefix:2001:db8:1:1::1/128]                                    0.0.48.57  9          2001::1              10.0.0.2                                  00:00:14   [{Origin: ?} {Extcomms: [10:10]}]
+*> [type:t2st][rd:100:100][endpoint-address-length:160][endpoint:2001::1][teid:0.0.48.57]                                            10.0.0.2                                  00:00:14   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
 
 $ sudo ip netns exec blue gobgp global rib -a ipv6-mup
-   Network                                                                                  Next Hop             AS_PATH              Age        Attrs
-*> [type:t1st][rd:100:100][prefix:2001:db8:1:1::1/128][teid:12345][qfi:9][endpoint:2001::1] 10.0.0.2                                  00:00:34   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]}]
-*> [type:t2st][rd:100:100][endpoint:2001::1][teid:12345]                                    10.0.0.2                                  00:00:33   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]}]
-*> [type:isd][rd:100:100][prefix:2001::/64]                                                 2001::2                                   00:00:34   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 71 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
-*> [type:dsd][rd:100:100][prefix:2001::1]                                                   2001::2                                   00:00:34   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:2:2:: Flag: 0 Endpoint Behavior: 18 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 40, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+   Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
+*> [type:isd][rd:100:100][prefix:2001::/64]                                                                                          2001::2                                   00:00:18   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:1:1:: Flag: 0 Endpoint Behavior: 71 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:dsd][rd:100:100][prefix:2001::1]                                                                                            2001::2                                   00:00:18   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]} {Prefix SID attributes: {SRv6 L3 Service Attribute: {SRv6 Information Sub TLV: SID: 2001:db8:2:2:: Flag: 0 Endpoint Behavior: 18 {SRv6 Structure Sub Sub TLV: [ Locator Block Length: 64, Locator Node Length: 24, Function Length: 16, Argument Length: 0, Transposition Length: 0, Transposition Offset: 0] } } } }]
+*> [type:t1st][rd:100:100][prefix:2001:db8:1:1::1/128]                                    0.0.48.57  9          2001::1              10.0.0.2                                  00:00:18   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10]}]
+*> [type:t2st][rd:100:100][endpoint-address-length:160][endpoint:2001::1][teid:0.0.48.57]                                            10.0.0.2                                  00:00:18   [{Origin: ?} {LocalPref: 100} {Extcomms: [10:10], [10:10]}]
 ```
 
 #### Delete MUP Routes (IPv6)
