@@ -702,9 +702,10 @@ func (r *MUPType2SessionTransformedRoute) MarshalJSON() ([]byte, error) {
 		EndpointAddress       string                      `json:"endpoint_address"`
 		TEID                  string                      `json:"teid"`
 	}{
-		RD:              r.RD,
-		EndpointAddress: r.EndpointAddress.String(),
-		TEID:            r.TEID.String(),
+		RD:                    r.RD,
+		EndpointAddressLength: r.EndpointAddressLength,
+		EndpointAddress:       r.EndpointAddress.String(),
+		TEID:                  r.TEID.String(),
 	})
 }
 
