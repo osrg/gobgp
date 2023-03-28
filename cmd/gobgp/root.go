@@ -26,21 +26,25 @@ import (
 )
 
 var globalOpts struct {
-	Host         string
-	Port         int
-	Target       string
-	Debug        bool
-	Quiet        bool
-	Json         bool
-	GenCmpl      bool
-	BashCmplFile string
-	PprofPort    int
-	TLS          bool
-	CaFile       string
+	Host           string
+	Port           int
+	Target         string
+	Debug          bool
+	Quiet          bool
+	Json           bool
+	GenCmpl        bool
+	BashCmplFile   string
+	PprofPort      int
+	TLS            bool
+	ClientCertFile string
+	ClientKeyFile  string
+	CaFile         string
 }
 
-var client api.GobgpApiClient
-var ctx context.Context
+var (
+	client api.GobgpApiClient
+	ctx    context.Context
+)
 
 func newRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
@@ -92,6 +96,8 @@ func newRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().StringVarP(&globalOpts.BashCmplFile, "bash-cmpl-file", "", "gobgp-completion.bash", "bash cmpl filename")
 	rootCmd.PersistentFlags().IntVarP(&globalOpts.PprofPort, "pprof-port", "r", 0, "pprof port")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.TLS, "tls", "", false, "connection uses TLS if true, else plain TCP")
+	rootCmd.PersistentFlags().StringVarP(&globalOpts.ClientCertFile, "tls-client-cert-file", "", "", "Optional file path to TLS client certificate")
+	rootCmd.PersistentFlags().StringVarP(&globalOpts.ClientKeyFile, "tls-client-key-file", "", "", "Optional file path to TLS client key")
 	rootCmd.PersistentFlags().StringVarP(&globalOpts.CaFile, "tls-ca-file", "", "", "The file containing the CA root cert file")
 
 	globalCmd := newGlobalCmd()

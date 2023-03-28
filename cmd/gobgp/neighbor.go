@@ -854,8 +854,6 @@ func showNeighborRib(r string, name string, args []string) error {
 	switch rf {
 	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_EVPN:
 		showLabel = true
-	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
-		showMUP = true
 	}
 
 	var filter []*api.TableLookupPrefix
@@ -865,7 +863,11 @@ func showNeighborRib(r string, name string, args []string) error {
 		case bgp.RF_EVPN:
 			// Uses target as EVPN Route Type string
 		case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
-			// Uses target as MUP Route Type string
+			// Uses target as MUP Route Type string or route key
+			// Only t1st has MUP specific columns
+			if target == "t1st" {
+				showMUP = true
+			}
 		default:
 			if _, _, err = parseCIDRorIP(target); err != nil {
 				return err
