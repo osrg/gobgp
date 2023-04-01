@@ -1,4 +1,4 @@
-package server
+package metrics
 
 import (
 	"context"
@@ -10,13 +10,16 @@ import (
 	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/pkg/server"
 )
 
 func TestMetrics(test *testing.T) {
-	registry := prometheus.NewRegistry()
-
 	assert := assert.New(test)
-	s := NewBgpServer(Metrics(registry))
+	s := server.NewBgpServer()
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(NewBgpCollector(s))
+
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -40,7 +43,7 @@ func TestMetrics(test *testing.T) {
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.Nil(err)
 
-	t := NewBgpServer()
+	t := server.NewBgpServer()
 	go t.Serve()
 	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -69,7 +72,13 @@ func TestMetrics(test *testing.T) {
 	}
 
 	ch := make(chan struct{})
-	waitEstablished(s, ch)
+	s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
+		if peer := r.GetPeer(); peer != nil {
+			if peer.Type == api.WatchEventResponse_PeerEvent_STATE && peer.Peer.State.SessionState == api.PeerState_ESTABLISHED {
+				close(ch)
+			}
+		}
+	})
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.Nil(err)

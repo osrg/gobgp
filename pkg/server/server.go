@@ -30,8 +30,6 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/google/uuid"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
 	api "github.com/osrg/gobgp/v3/api"
@@ -135,7 +133,6 @@ type options struct {
 	grpcAddress string
 	grpcOption  []grpc.ServerOption
 	logger      log.Logger
-	metrics     prometheus.Registerer
 }
 
 type ServerOption func(*options)
@@ -155,12 +152,6 @@ func GrpcOption(opt []grpc.ServerOption) ServerOption {
 func LoggerOption(logger log.Logger) ServerOption {
 	return func(o *options) {
 		o.logger = logger
-	}
-}
-
-func Metrics(metrics prometheus.Registerer) ServerOption {
-	return func(o *options) {
-		o.metrics = metrics
 	}
 }
 
@@ -185,7 +176,6 @@ type BgpServer struct {
 	roaTable     *table.ROATable
 	uuidMap      map[string]uuid.UUID
 	logger       log.Logger
-	metrics      prometheus.Registerer
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -209,27 +199,12 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		roaManager:   newROAManager(roaTable, logger),
 		roaTable:     roaTable,
 		logger:       logger,
-		metrics:      opts.metrics,
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
-
-		var grpcMetrics *grpc_prometheus.ServerMetrics
-		if opts.metrics != nil {
-			grpcMetrics = grpc_prometheus.NewServerMetrics()
-			opts.metrics.MustRegister(grpcMetrics)
-			opts.grpcOption = append(
-				opts.grpcOption,
-				grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
-				grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
-			)
-		}
 		s.apiServer = newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
-		if grpcMetrics != nil {
-			grpcMetrics.InitializeMetrics(s.apiServer.grpcServer)
-		}
 		go func() {
 			if err := s.apiServer.serve(); err != nil {
 				logger.Fatal("failed to listen grpc port",
@@ -3087,18 +3062,6 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}
 	peer.startFSMHandler()
 	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, nil)
-
-	if s.metrics != nil {
-		m := prometheus.WrapRegistererWith(prometheus.Labels{"peer": addr}, s.metrics)
-		if err := m.Register(&peerMetricsCollector{s, peer}); err != nil {
-			s.logger.Warn("failed to register metrics collector",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"Err":   err})
-		}
-	}
-
 	return nil
 }
 
@@ -3199,11 +3162,6 @@ func (s *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) erro
 	n.stopPeerRestarting()
 	n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	n.fsm.h.ctxCancel()
-
-	if s.metrics != nil {
-		m := prometheus.WrapRegistererWith(prometheus.Labels{"peer": addr}, s.metrics)
-		m.Unregister(&peerMetricsCollector{s, n})
-	}
 
 	delete(s.neighborMap, addr)
 	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
