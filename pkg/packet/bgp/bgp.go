@@ -4374,12 +4374,9 @@ func NewFlowSpecComponentItem(op uint8, value uint64) *FlowSpecComponentItem {
 					return uint32(i)
 				}
 			}
-			// return invalid order
-			return 4
+			// Return 8 octet order
+			return 3
 		}()
-	}
-	if order > 3 {
-		return nil
 	}
 	v.Op = uint8(uint32(v.Op) | order<<4)
 	return v
