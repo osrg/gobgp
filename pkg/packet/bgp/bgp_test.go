@@ -18,6 +18,7 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -441,6 +442,28 @@ func Test_FlowSpecNlri(t *testing.T) {
 	assert.Nil(err)
 	// should be equal
 	assert.Equal(n1, n2)
+}
+
+func Test_NewFlowSpecComponentItemLength(t *testing.T) {
+	item := NewFlowSpecComponentItem(0, 0)
+	assert.Equal(t, 1, item.Len())
+	item = NewFlowSpecComponentItem(0, math.MaxUint8)
+	assert.Equal(t, 1, item.Len())
+
+	item = NewFlowSpecComponentItem(0, math.MaxUint8+1)
+	assert.Equal(t, 2, item.Len())
+	item = NewFlowSpecComponentItem(0, math.MaxUint16)
+	assert.Equal(t, 2, item.Len())
+
+	item = NewFlowSpecComponentItem(0, math.MaxUint16+1)
+	assert.Equal(t, 4, item.Len())
+	item = NewFlowSpecComponentItem(0, math.MaxUint32)
+	assert.Equal(t, 4, item.Len())
+
+	item = NewFlowSpecComponentItem(0, math.MaxUint32+1)
+	assert.Equal(t, 8, item.Len())
+	item = NewFlowSpecComponentItem(0, math.MaxUint64)
+	assert.Equal(t, 8, item.Len())
 }
 
 func Test_LinkBandwidthExtended(t *testing.T) {
