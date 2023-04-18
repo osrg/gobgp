@@ -1,7 +1,8 @@
 package config
 
 import (
-	"golang.org/x/net/context"
+	"context"
+
 	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
