@@ -369,6 +369,10 @@ var (
 		Afi:  api.Family_AFI_L2VPN,
 		Safi: api.Family_SAFI_EVPN,
 	}
+	l2vpnVPLS = &api.Family{
+		Afi:  api.Family_AFI_L2VPN,
+		Safi: api.Family_SAFI_VPLS,
+	}
 	ipv4Encap = &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_ENCAPSULATION,
@@ -437,6 +441,8 @@ func checkAddressFamily(def *api.Family) (*api.Family, error) {
 		f = ipv6MPLS
 	case "evpn":
 		f = evpn
+	case "l2vpn-vpls":
+		f = l2vpnVPLS
 	case "encap", "ipv4-encap":
 		f = ipv4Encap
 	case "ipv6-encap":

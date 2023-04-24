@@ -44,7 +44,7 @@ func Test_VPLSExtended_decoding(t *testing.T) {
 
 func Test_VPLSNLRI(t *testing.T) {
 	assert := assert.New(t)
-	n1 := NewVPLSNLRI(NewRouteDistinguisherTwoOctetAS(65500, 10), 1, 3, 8, *NewMPLSLabelStack(100, 200))
+	n1 := NewVPLSNLRI(NewRouteDistinguisherTwoOctetAS(65500, 10), 1, 3, 8, 100)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2 := &VPLSNLRI{}
@@ -69,7 +69,7 @@ func Test_VPLSNLRI_decoding(t *testing.T) {
 	require.NoError(t, err)
 
 	ns := make([]AddrPrefixInterface, 0)
-	ns = append(ns, NewVPLSNLRI(NewRouteDistinguisherTwoOctetAS(65017, 104), 1, 1, 8, *NewMPLSLabelStack(800000)))
+	ns = append(ns, NewVPLSNLRI(NewRouteDistinguisherTwoOctetAS(65017, 104), 1, 1, 8, 800000))
 	m2 := NewPathAttributeMpReachNLRI("192.0.2.7", ns)
 	m2.PathAttribute.Flags |= BGP_ATTR_FLAG_EXTENDED_LENGTH
 

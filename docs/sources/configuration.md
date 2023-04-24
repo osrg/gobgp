@@ -130,6 +130,9 @@
         afi-safi-name = "l2vpn-evpn"
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
+        afi-safi-name = "l2vpn-vpls"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "rtc"
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]

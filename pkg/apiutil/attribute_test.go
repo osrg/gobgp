@@ -458,6 +458,51 @@ func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 	}
 }
 
+func Test_MpReachNLRIAttribute_VPLS(t *testing.T) {
+	assert := assert.New(t)
+
+	nlris := make([]*apb.Any, 0, 1)
+	rd, err := apb.New(&api.RouteDistinguisherTwoOctetASN{
+		Admin:    65000,
+		Assigned: 100,
+	})
+	assert.Nil(err)
+	a, err := apb.New(&api.VPLSNLRI{
+		Rd:             rd,
+		VeId:           101,
+		VeBlockOffset:  100,
+		VeBlockSize:    10,
+		LabelBlockBase: 1000,
+	})
+	assert.Nil(err)
+	nlris = append(nlris, a)
+
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_VPLS,
+		},
+		NextHops: []string{"192.168.1.1"},
+		Nlris:    nlris,
+	}
+
+	a, err = apb.New(input)
+	assert.Nil(err)
+	n, err := UnmarshalAttribute(a)
+	assert.Nil(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.Equal(input.Family.Afi, output.Family.Afi)
+	assert.Equal(input.Family.Safi, output.Family.Safi)
+	assert.Equal(input.NextHops, output.NextHops)
+	assert.Equal(1, len(output.Nlris))
+	for idx, inputNLRI := range input.Nlris {
+		outputNLRI := output.Nlris[idx]
+		assert.Equal(inputNLRI.TypeUrl, outputNLRI.TypeUrl)
+		assert.Equal(inputNLRI.Value, outputNLRI.Value)
+	}
+}
+
 func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 	assert := assert.New(t)
 
@@ -1507,6 +1552,12 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
+	a, err = apb.New(&api.VPLSExtended{
+		ControlFlags: 0x00,
+		Mtu:          1500,
+	})
+	assert.Nil(err)
+	communities = append(communities, a)
 
 	input := &api.ExtendedCommunitiesAttribute{
 		Communities: communities,
@@ -1518,7 +1569,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	assert.Nil(err)
 
 	output, _ := NewExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeExtendedCommunities))
-	assert.Equal(21, len(output.Communities))
+	assert.Equal(22, len(output.Communities))
 	for idx, inputCommunity := range input.Communities {
 		outputCommunity := output.Communities[idx]
 		assert.Equal(inputCommunity.TypeUrl, outputCommunity.TypeUrl)
