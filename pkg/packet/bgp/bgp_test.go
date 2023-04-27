@@ -1082,6 +1082,38 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	assert.Equal(bufin, bufout)
 }
 
+func Test_MpReachNLRIWithImplicitPrefix(t *testing.T) {
+	assert := assert.New(t)
+	bufin := []byte{
+		0x80, 0x0e, 0x11, // flags(1), type(1), length(1)
+		0x10,                   // nexthoplen(1)
+		0x20, 0x01, 0x0d, 0xb8, // nexthop(32)
+		0x00, 0x01, 0x00, 0x00, // = "2001:db8:1::1"
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01,
+	}
+	prefix := NewIPAddrPrefix(24, "192.168.10.0")
+	// Test DecodeFromBytes()
+	p := &PathAttributeMpReachNLRI{}
+	option := &MarshallingOption{ImplicitPrefix: prefix}
+	err := p.DecodeFromBytes(bufin, option)
+	assert.Nil(err)
+	// Test decoded values
+	assert.Equal(BGPAttrFlag(0x80), p.Flags)
+	assert.Equal(BGPAttrType(0xe), p.Type)
+	assert.Equal(uint16(0x11), p.Length)
+	assert.Equal(prefix.AFI(), p.AFI)
+	assert.Equal(prefix.SAFI(), p.SAFI)
+	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	value := []AddrPrefixInterface{prefix}
+	assert.Equal(value, p.Value)
+	// Test Serialize()
+	bufout, err := p.Serialize(option)
+	assert.Nil(err)
+	// Test serialised value
+	assert.Equal(bufin, bufout)
+}
+
 func Test_ParseRouteDistinguisher(t *testing.T) {
 	assert := assert.New(t)
 
