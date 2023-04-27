@@ -365,7 +365,7 @@ type RibEntry struct {
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
-func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
+func (e *RibEntry) DecodeFromBytes(data []byte, prefix bgp.AddrPrefixInterface) ([]byte, error) {
 	if len(data) < 8 {
 		return nil, errNotAllRibEntryBytesAvailable
 	}
@@ -384,7 +384,7 @@ func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = p.DecodeFromBytes(data)
+		err = p.DecodeFromBytes(data, &bgp.MarshallingOption{ImplicitPrefix: prefix})
 		if err != nil {
 			return nil, err
 		}
@@ -398,21 +398,11 @@ func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (e *RibEntry) Serialize() ([]byte, error) {
+func (e *RibEntry) Serialize(prefix bgp.AddrPrefixInterface) ([]byte, error) {
 	pbuf := make([]byte, 0)
 	totalLen := 0
 	for _, pattr := range e.PathAttributes {
-		// TODO special modification is needed for MP_REACH_NLRI
-		// but also Quagga doesn't implement this.
-		//
-		// RFC 6396 4.3.4
-		// There is one exception to the encoding of BGP attributes for the BGP
-		// MP_REACH_NLRI attribute (BGP Type Code 14).
-		// Since the AFI, SAFI, and NLRI information is already encoded
-		// in the RIB Entry Header or RIB_GENERIC Entry Header,
-		// only the Next Hop Address Length and Next Hop Address fields are included.
-
-		pb, err := pattr.Serialize()
+		pb, err := pattr.Serialize(&bgp.MarshallingOption{ImplicitPrefix: prefix})
 		if err != nil {
 			return nil, err
 		}
@@ -492,7 +482,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		e := &RibEntry{
 			isAddPath: u.isAddPath,
 		}
-		data, err = e.DecodeFromBytes(data)
+		data, err = e.DecodeFromBytes(data, prefix)
 		if err != nil {
 			return err
 		}
@@ -524,7 +514,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, bbuf...)
 	for _, entry := range u.Entries {
-		bbuf, err = entry.Serialize()
+		bbuf, err = entry.Serialize(u.Prefix)
 		if err != nil {
 			return nil, err
 		}
