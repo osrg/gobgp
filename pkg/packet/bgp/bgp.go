@@ -6917,8 +6917,14 @@ func (l *LsTLVBgpRouterID) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVBgpRouterID) Serialize() ([]byte, error) {
-	var buf [4]byte
-	copy(buf[:], l.RouterID)
+	tmpaddr := l.RouterID
+	if tmpaddr.To4() != nil {
+		var buf [4]byte
+		copy(buf[:], l.RouterID.To4())
+		return l.LsTLV.Serialize(buf[:])
+	}
+	var buf [16]byte
+	copy(buf[:], l.RouterID.To16())
 	return l.LsTLV.Serialize(buf[:])
 }
 
