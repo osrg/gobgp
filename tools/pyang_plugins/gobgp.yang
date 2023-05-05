@@ -169,6 +169,20 @@ module gobgp {
     reference "RFC7752";
   }
 
+  identity IPV4-MUP {
+    base bgp-types:afi-safi-type;
+    description
+      "MUP IPv4 (AFI,SAFI = 1,85)";
+    reference "https://www.ietf.org/archive/id/draft-mpmz-bess-mup-safi-01.html";
+  }
+
+  identity IPV6-MUP {
+    base bgp-types:afi-safi-type;
+    description
+      "MUP IPv6 (AFI,SAFI = 2,85)";
+    reference "https://www.ietf.org/archive/id/draft-mpmz-bess-mup-safi-01.html";
+  }
+
   grouping gobgp-message-counter {
     description
       "Counters for all BGPMessage types";
@@ -989,6 +1003,12 @@ module gobgp {
       type boolean;
     }
     leaf long-lived-enabled {
+      type boolean;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    leaf send-software-version {
       type boolean;
     }
   }

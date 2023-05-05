@@ -1876,6 +1876,63 @@ func Test_LsTLVIgpRouterID(t *testing.T) {
 	}
 }
 
+func Test_LsTLVBgpRouterID(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in   []byte
+		want string
+		err  bool
+	}{
+		{[]byte{0x02, 0x04, 0x00, 0x04, 0x0a, 0xff, 0x00, 0x01}, `{"type":516,"bgp_router_id":"10.255.0.1"}`, false},
+		{[]byte{0x02, 0x04, 0x00, 0x05, 0x0a, 0xff, 0x00, 0x01, 0x02}, "", true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVBgpRouterID{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+	}
+}
+
+func Test_LsTLVBgpConfederationMember(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in   []byte
+		want string
+		err  bool
+	}{
+		{[]byte{0x02, 0x05, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07}, `{"type":517,"bgp_confederation_member":117901063}`, false},
+		{[]byte{0x02, 0x05, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, 0xFF}, `{"type":517,"bgp_confederation_member":117901063}`, false},
+		{[]byte{0x02, 0x05, 0x00, 0x03, 0x07, 0x07, 0x07}, "", true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVBgpConfederationMember{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+	}
+}
+
 func Test_LsTLVOspfAreaID(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2676,6 +2733,117 @@ func Test_LsTLVPrefixSID(t *testing.T) {
 	}
 }
 
+func Test_LsTLVPeerNodeSID(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x4d, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x01, 0x88, 0x94}, `{"type":1101,"peer_node_sid":100500}`, true, false},
+		{[]byte{0x04, 0x4d, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff}, `{"type":1101,"peer_node_sid":1048575}`, false, false},
+		{[]byte{0x04, 0x4d, 0x00, 0x08, 0xc0, 0x00, 0x00, 0x00, 0x04, 0x3B, 0x73, 0x49}, `{"type":1101,"peer_node_sid":71005001}`, true, false},
+		{[]byte{0x04, 0x4d, 0x00, 0x06, 0xc0, 0x02, 0x03, 0x04, 0x05, 0x11}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x07, 0x04, 0x3B, 0x73, 0x49, 0x05, 0x06, 0x07}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVPeerNodeSID{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			s, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, s)
+		}
+	}
+}
+
+func Test_LsTLVPeerAdjacencySID(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x4e, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x01, 0x88, 0x94}, `{"type":1102,"peer_adjacency_sid":100500}`, true, false},
+		{[]byte{0x04, 0x4e, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff}, `{"type":1102,"peer_adjacency_sid":1048575}`, false, false},
+		{[]byte{0x04, 0x4e, 0x00, 0x08, 0xc0, 0x00, 0x00, 0x00, 0x04, 0x3B, 0x73, 0x49}, `{"type":1102,"peer_adjacency_sid":71005001}`, true, false},
+		{[]byte{0x04, 0x4e, 0x00, 0x06, 0xc0, 0x02, 0x03, 0x04, 0x05, 0x11}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x07, 0x04, 0x3B, 0x73, 0x49, 0x05, 0x06, 0x07}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVPeerAdjacencySID{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			s, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, s)
+		}
+	}
+}
+
+func Test_LsTLVPeerSetSID(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x4f, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x01, 0x88, 0x94}, `{"type":1103,"peer_set_sid":100500}`, true, false},
+		{[]byte{0x04, 0x4f, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff}, `{"type":1103,"peer_set_sid":1048575}`, false, false},
+		{[]byte{0x04, 0x4f, 0x00, 0x08, 0xc0, 0x00, 0x00, 0x00, 0x04, 0x3B, 0x73, 0x49}, `{"type":1103,"peer_set_sid":71005001}`, true, false},
+		{[]byte{0x04, 0x4f, 0x00, 0x06, 0xc0, 0x02, 0x03, 0x04, 0x05, 0x11}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x07, 0x04, 0x3B, 0x73, 0x49, 0x05, 0x06, 0x07}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVPeerSetSID{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			s, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, s)
+		}
+	}
+}
+
 func Test_LsTLVSourceRouterID(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2875,6 +3043,14 @@ func Test_LsNodeDescriptor(t *testing.T) {
 			0x01, 0x00, 0x00, 0x0a, // Missing optional TLVs
 			0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 		}, "{ASN: 0, BGP LS ID: 0, OSPF AREA: 0, IGP ROUTER ID: 0102.0304.0506}", false, true},
+		{[]byte{
+			0x01, 0x01, 0x00, 0x20, // Remote Node Desc
+			0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+			0x02, 0x01, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV BGP LS ID: 117901063
+			0x02, 0x04, 0x00, 0x04, 0x0a, 0xff, 0x00, 0x01, // TLV BGP ROUTER ID: "10.255.0.1"
+			0x02, 0x05, 0x00, 0x04, 0x07, 0x07, 0x07, 0x08, // TLV BGP CONFEDERATION MEMBER: 117901064
+		}, "{ASN: 117901063, BGP LS ID: 117901063, BGP ROUTER ID: 10.255.0.1}",
+			false, true},
 	}
 
 	for _, test := range tests {
@@ -3173,7 +3349,7 @@ func Test_PathAttributeLs(t *testing.T) {
 			0xde, 0xad, 0x00, 0x01, 0xFF, // Unknown TLV
 		},
 			"{LsAttributes: {Node Flags: XXVRBETO} {Opaque attribute: [1 2 3]} {Node Name: rtr} {ISIS Area ID: [114 116 114]} {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {SR Capabilities: Flags:0 SRGB Ranges: 100500:135500 } {SR Algorithms: [1 2 3]} {SR LocalBlock: Flags:0 SRGB Ranges: 100500:135500 } }",
-			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{}}`,
+			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{},"bgp_peer_segment":{}}`,
 			false, false},
 		{[]byte{
 			// LS Attribute with all Node-related TLVs.
@@ -3189,7 +3365,7 @@ func Test_PathAttributeLs(t *testing.T) {
 			0x04, 0x0c, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x88, 0xb8, 0x04, 0x89, 0x00, 0x03, 0x01, 0x88, 0x94, // Local block: Range 35000, first label: 100500
 		},
 			"{LsAttributes: {Node Flags: XXVRBETO} {Opaque attribute: [1 2 3]} {Node Name: rtr} {ISIS Area ID: [114 116 114]} {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {SR Capabilities: Flags:0 SRGB Ranges: 100500:135500 } {SR Algorithms: [1 2 3]} {SR LocalBlock: Flags:0 SRGB Ranges: 100500:135500 } }",
-			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{}}`,
+			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{},"bgp_peer_segment":{}}`,
 			true, false},
 		{[]byte{
 			// LS Attribute with truncated length
@@ -3214,7 +3390,7 @@ func Test_PathAttributeLs(t *testing.T) {
 			0x04, 0x4b, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Adjacency SID: 100500
 		},
 			"{LsAttributes: {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {Remote RouterID IPv4: 2.2.2.2} {Remote RouterID IPv6: 2001:db8::dead} {Admin Group: 07070707} {Max Link BW: 329.39062} {Max Reservable Link BW: 329.39062} {Unreserved BW: [329.39062 329.39062 329.39062 329.39062 329.39062 329.39062 329.39062 329.39062]} {TE Default metric: 117901063} {IGP metric: 1} {Opaque link attribute: [1 2 3]} {Link Name: rtr} {Adjacency SID: 100500} }",
-			`{"type":41,"flags":128,"node":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"link":{"name":"rtr","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","remote_router_id_ipv4":"2.2.2.2","remote_router_id_ipv6":"2001:db8::dead","admin_group":117901063,"default_te_metric":117901063,"igp_metric":1,"opaque":"AQID","bandwidth":329.39062,"reservable_bandwidth":329.39062,"unreserved_bandwidth":[329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062],"adjacency_sid":100500},"prefix":{}}`,
+			`{"type":41,"flags":128,"node":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"link":{"name":"rtr","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","remote_router_id_ipv4":"2.2.2.2","remote_router_id_ipv6":"2001:db8::dead","admin_group":117901063,"default_te_metric":117901063,"igp_metric":1,"opaque":"AQID","bandwidth":329.39062,"reservable_bandwidth":329.39062,"unreserved_bandwidth":[329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062],"adjacency_sid":100500},"prefix":{},"bgp_peer_segment":{}}`,
 			true, false},
 		{[]byte{
 			// LS Attribute with all Link-related TLVs.
@@ -3224,7 +3400,7 @@ func Test_PathAttributeLs(t *testing.T) {
 			0x04, 0x86, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Prefix SID: 100500
 		},
 			"{LsAttributes: {IGP Flags: XXXXPLND} {Prefix opaque attribute: [1 2 3]} {Prefix SID: 100500} }",
-			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sid":100500}}`,
+			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sid":100500},"bgp_peer_segment":{}}`,
 			true, false},
 	}
 

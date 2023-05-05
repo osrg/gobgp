@@ -17,23 +17,29 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
 
 	"github.com/coreos/go-systemd/v22/daemon"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/pretty"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/osrg/gobgp/v3/internal/pkg/metrics"
 	"github.com/osrg/gobgp/v3/internal/pkg/version"
 	"github.com/osrg/gobgp/v3/pkg/config"
 	"github.com/osrg/gobgp/v3/pkg/server"
@@ -57,12 +63,14 @@ func main() {
 		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
-		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
+		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof and metrics" default:"localhost:6060"`
 		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
+		MetricsPath     string `long:"metrics-path" description:"specify path for prometheus metrics, empty value disables them" default:"/metrics"`
 		UseSdNotify     bool   `long:"sdnotify" description:"use sd_notify protocol"`
 		TLS             bool   `long:"tls" description:"enable TLS authentication for gRPC API"`
 		TLSCertFile     string `long:"tls-cert-file" description:"The TLS cert file"`
 		TLSKeyFile      string `long:"tls-key-file" description:"The TLS key file"`
+		TLSClientCAFile string `long:"tls-client-ca-file" description:"Optional TLS client CA file to authenticate clients against"`
 		Version         bool   `long:"version" description:"show version number"`
 	}
 	_, err := flags.Parse(&opts)
@@ -85,9 +93,20 @@ func main() {
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
+	httpMux := http.NewServeMux()
 	if !opts.PProfDisable {
+		httpMux.HandleFunc("/debug/pprof/", pprof.Index)
+		httpMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		httpMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		httpMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		httpMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
+	if opts.MetricsPath != "" {
+		httpMux.Handle(opts.MetricsPath, promhttp.Handler())
+	}
+	if !opts.PProfDisable || opts.MetricsPath != "" {
 		go func() {
-			logger.Println(http.ListenAndServe(opts.PProfHost, nil))
+			logger.Println(http.ListenAndServe(opts.PProfHost, httpMux))
 		}()
 	}
 
@@ -142,15 +161,41 @@ func main() {
 	maxSize := 256 << 20
 	grpcOpts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxSize), grpc.MaxSendMsgSize(maxSize)}
 	if opts.TLS {
-		creds, err := credentials.NewServerTLSFromFile(opts.TLSCertFile, opts.TLSKeyFile)
+		// server cert/key
+		cert, err := tls.LoadX509KeyPair(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
-			logger.Fatalf("Failed to generate credentials: %v", err)
+			logger.Fatalf("Failed to load server certificate/key pair: %v", err)
 		}
+		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
+
+		// client CA
+		if len(opts.TLSClientCAFile) != 0 {
+			tlsConfig.ClientCAs = x509.NewCertPool()
+			pemCerts, err := os.ReadFile(opts.TLSClientCAFile)
+			if err != nil {
+				logger.Fatalf("Failed to load client CA certificates from %q: %v", opts.TLSClientCAFile, err)
+			}
+			if ok := tlsConfig.ClientCAs.AppendCertsFromPEM(pemCerts); !ok {
+				logger.Fatalf("No valid client CA certificates in %q", opts.TLSClientCAFile)
+			}
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+
+		creds := credentials.NewTLS(tlsConfig)
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+
+	if opts.MetricsPath != "" {
+		grpcOpts = append(
+			grpcOpts,
+			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		)
 	}
 
 	logger.Info("gobgpd started")
 	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts), server.LoggerOption(&builtinLogger{logger: logger}))
+	prometheus.MustRegister(metrics.NewBgpCollector(bgpServer))
 	go bgpServer.Serve()
 
 	if opts.UseSdNotify {

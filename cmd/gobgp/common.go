@@ -18,7 +18,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -191,19 +196,111 @@ func extractReserved(args []string, keys map[string]int) (map[string][]string, e
 	return m, nil
 }
 
+func loadCertificatePEM(filePath string) (*x509.Certificate, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	rest := content
+	var block *pem.Block
+	var cert *x509.Certificate
+	for len(rest) > 0 {
+		block, rest = pem.Decode(content)
+		if block == nil {
+			// no PEM data found, rest will not have been modified
+			break
+		}
+		content = rest
+		switch block.Type {
+		case "CERTIFICATE":
+			cert, err = x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			return cert, err
+		default:
+			// not the PEM block we're looking for
+			continue
+		}
+	}
+	return nil, errors.New("no certificate PEM block found")
+}
+
+func loadKeyPEM(filePath string) (crypto.PrivateKey, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	rest := content
+	var block *pem.Block
+	var key crypto.PrivateKey
+	for len(rest) > 0 {
+		block, rest = pem.Decode(content)
+		if block == nil {
+			// no PEM data found, rest will not have been modified
+			break
+		}
+		switch block.Type {
+		case "RSA PRIVATE KEY":
+			key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			return key, err
+		case "PRIVATE KEY":
+			key, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			return key, err
+		case "EC PRIVATE KEY":
+			key, err = x509.ParseECPrivateKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			return key, err
+		default:
+			// not the PEM block we're looking for
+			continue
+		}
+	}
+	return nil, errors.New("no private key PEM block found")
+}
+
 func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, error) {
 	grpcOpts := []grpc.DialOption{grpc.WithBlock()}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
-		if globalOpts.CaFile == "" {
-			creds = credentials.NewClientTLSFromCert(nil, "")
-		} else {
-			var err error
-			creds, err = credentials.NewClientTLSFromFile(globalOpts.CaFile, "")
+		tlsConfig := new(tls.Config)
+		if len(globalOpts.CaFile) != 0 {
+			pemCerts, err := os.ReadFile(globalOpts.CaFile)
 			if err != nil {
 				exitWithError(err)
 			}
+			tlsConfig.RootCAs = x509.NewCertPool()
+			if !tlsConfig.RootCAs.AppendCertsFromPEM(pemCerts) {
+				exitWithError(errors.New("no valid CA certificates to load"))
+			}
 		}
+		if len(globalOpts.ClientCertFile) != 0 && len(globalOpts.ClientKeyFile) != 0 {
+			cert, err := loadCertificatePEM(globalOpts.ClientCertFile)
+			if err != nil {
+				exitWithError(fmt.Errorf("failed to load client certificate: %w", err))
+			}
+			key, err := loadKeyPEM(globalOpts.ClientKeyFile)
+			if err != nil {
+				exitWithError(fmt.Errorf("failed to load client key: %w", err))
+			}
+			tlsConfig.Certificates = []tls.Certificate{
+				{
+					Certificate: [][]byte{cert.Raw},
+					PrivateKey:  key,
+				},
+			}
+		}
+		creds = credentials.NewTLS(tlsConfig)
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(creds))
 	} else {
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -271,6 +368,10 @@ var (
 	evpn = &api.Family{
 		Afi:  api.Family_AFI_L2VPN,
 		Safi: api.Family_SAFI_EVPN,
+	}
+	l2vpnVPLS = &api.Family{
+		Afi:  api.Family_AFI_L2VPN,
+		Safi: api.Family_SAFI_VPLS,
 	}
 	ipv4Encap = &api.Family{
 		Afi:  api.Family_AFI_IP,
@@ -340,6 +441,8 @@ func checkAddressFamily(def *api.Family) (*api.Family, error) {
 		f = ipv6MPLS
 	case "evpn":
 		f = evpn
+	case "l2vpn-vpls":
+		f = l2vpnVPLS
 	case "encap", "ipv4-encap":
 		f = ipv4Encap
 	case "ipv6-encap":

@@ -38,7 +38,6 @@ func verifyRTRMessage(t *testing.T, m1 RTRMessage) {
 }
 
 func randUint32() uint32 {
-	rand.Seed(time.Now().UnixNano())
 	return rand.Uint32()
 }
 

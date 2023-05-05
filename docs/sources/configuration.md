@@ -65,6 +65,8 @@
         remove-private-as = "all"
         # To enable peer group setting, uncomment the following
         #peer-group = "my-peer-group"
+        # Force sending Software Version Capability, default: disabled.
+        #send-software-version = true
     [neighbors.as-path-options.config]
         allow-own-as = 1
         replace-peer-as = true
@@ -128,6 +130,9 @@
         afi-safi-name = "l2vpn-evpn"
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
+        afi-safi-name = "l2vpn-vpls"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "rtc"
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
@@ -141,6 +146,12 @@
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-flowspec"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv4-mup"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv6-mup"
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "opaque"

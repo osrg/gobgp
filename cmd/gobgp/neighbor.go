@@ -38,13 +38,16 @@ import (
 
 // used in showRoute() to determine the width of each column
 var (
-	columnWidthPrefix  = 20
-	columnWidthNextHop = 20
-	columnWidthAsPath  = 20
-	columnWidthLabel   = 10
+	columnWidthPrefix   = 20
+	columnWidthNextHop  = 20
+	columnWidthAsPath   = 20
+	columnWidthLabel    = 10
+	columnWidthTEID     = 10
+	columnWidthQFI      = 10
+	columnWidthEndpoint = 20
 )
 
-func updateColumnWidth(nlri, nexthop, aspath, label string) {
+func updateColumnWidth(nlri, nexthop, aspath, label, teid, qfi, endpoint string) {
 	if prefixLen := len(nlri); columnWidthPrefix < prefixLen {
 		columnWidthPrefix = prefixLen
 	}
@@ -56,6 +59,15 @@ func updateColumnWidth(nlri, nexthop, aspath, label string) {
 	}
 	if columnWidthLabel < len(label) {
 		columnWidthLabel = len(label)
+	}
+	if columnWidthTEID < len(teid) {
+		columnWidthTEID = len(teid)
+	}
+	if columnWidthQFI < len(qfi) {
+		columnWidthQFI = len(qfi)
+	}
+	if columnWidthEndpoint < len(endpoint) {
+		columnWidthEndpoint = len(endpoint)
 	}
 }
 
@@ -84,10 +96,18 @@ func getNeighbors(address string, enableAdv bool) ([]*api.Peer, error) {
 	return l, err
 }
 
-func getASN(p *api.Peer) string {
+func getRemoteASN(p *api.Peer) string {
 	asn := "*"
 	if p.State.PeerAsn > 0 {
 		asn = fmt.Sprint(p.State.PeerAsn)
+	}
+	return asn
+}
+
+func getLocalASN(p *api.Peer) string {
+	asn := "*"
+	if p.State.LocalAsn > 0 {
+		asn = fmt.Sprint(p.State.LocalAsn)
 	}
 	return asn
 }
@@ -169,7 +189,7 @@ func showNeighbors(vrf string) error {
 		} else if j := len(n.State.NeighborAddress); j > maxaddrlen {
 			maxaddrlen = j
 		}
-		if l := len(getASN(n)); l > maxaslen {
+		if l := len(getRemoteASN(n)); l > maxaslen {
 			maxaslen = l
 		}
 		timeStr := "never"
@@ -224,7 +244,7 @@ func showNeighbors(vrf string) error {
 			neigh = n.Conf.NeighborInterface
 		}
 		received, accepted, _, _ := counter(n)
-		fmt.Printf(format, neigh, getASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(received), fmt.Sprint(accepted))
+		fmt.Printf(format, neigh, getRemoteASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(received), fmt.Sprint(accepted))
 	}
 
 	return nil
@@ -243,7 +263,7 @@ func showNeighbor(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("BGP neighbor is %s, remote AS %s", p.State.NeighborAddress, getASN(p))
+	fmt.Printf("BGP neighbor is %s, remote AS %s", p.State.NeighborAddress, getRemoteASN(p))
 
 	if p.RouteReflector.RouteReflectorClient {
 		fmt.Printf(", route-reflector-client\n")
@@ -265,6 +285,7 @@ func showNeighbor(args []string) error {
 		fmt.Print("\n")
 	}
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.State.Queues.Output, p.State.Flops)
+	fmt.Printf("  Local address is %s, local ASN: %s\n", p.Transport.LocalAddress, getLocalASN(p))
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.State.NegotiatedHoldTime), int(p.Timers.State.KeepaliveInterval))
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
 
@@ -462,6 +483,16 @@ func showNeighbor(args []string) error {
 				fmt.Println("      Remote:")
 				fmt.Printf("         name: %s, domain: %s\n", m.(*bgp.CapFQDN).HostName, m.(*bgp.CapFQDN).DomainName)
 			}
+		case bgp.BGP_CAP_SOFT_VERSION:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			if m := lookup(c, lcaps); m != nil {
+				fmt.Println("      Local:")
+				fmt.Printf("         %s\n", m.(*bgp.CapSoftwareVersion).SoftwareVersion)
+			}
+			if m := lookup(c, rcaps); m != nil {
+				fmt.Println("      Remote:")
+				fmt.Printf("         %s\n", m.(*bgp.CapSoftwareVersion).SoftwareVersion)
+			}
 		default:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
@@ -555,7 +586,7 @@ func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttrib
 	return fmt.Sprint(s)
 }
 
-func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
+func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
 	nlri, _ := apiutil.GetNativeNlri(p)
 
 	// Path Symbols (e.g. "*>")
@@ -577,6 +608,17 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	if showLabel {
 		label = bgp.LabelString(nlri)
 		args = append(args, label)
+	}
+
+	// MUP
+	teid := ""
+	qfi := ""
+	endpoint := ""
+	if showMUP {
+		teid = bgp.TEIDString(nlri)
+		qfi = bgp.QFIString(nlri)
+		endpoint = bgp.EndpointString(nlri)
+		args = append(args, teid, qfi, endpoint)
 	}
 
 	attrs, _ := apiutil.GetNativePathAttributes(p)
@@ -608,17 +650,17 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	pattrstr := getPathAttributeString(nlri, attrs)
 	args = append(args, pattrstr)
 
-	updateColumnWidth(nlri.String(), nexthop, aspathstr, label)
+	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, teid, qfi, endpoint)
 
 	return args
 }
 
-func showRoute(dsts []*api.Destination, showAge, showBest, showLabel bool, showIdentifier bgp.BGPAddPathMode) {
+func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP bool, showIdentifier bgp.BGPAddPathMode) {
 	pathStrs := make([][]interface{}, 0, len(dsts))
 	now := time.Now()
 	for _, dst := range dsts {
 		for idx, p := range dst.Paths {
-			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showIdentifier))
+			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showMUP, showIdentifier))
 		}
 	}
 
@@ -635,6 +677,10 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel bool, showI
 	if showLabel {
 		headers = append(headers, "Labels")
 		format += fmt.Sprintf("%%-%ds ", columnWidthLabel)
+	}
+	if showMUP {
+		headers = append(headers, "TEID", "QFI", "Endpoint")
+		format += fmt.Sprintf("%%-%ds %%-%ds %%-%ds ", columnWidthTEID, columnWidthQFI, columnWidthEndpoint)
 	}
 	headers = append(headers, "Next Hop", "AS_PATH")
 	format += fmt.Sprintf("%%-%ds %%-%ds ", columnWidthNextHop, columnWidthAsPath)
@@ -792,6 +838,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showBest := false
 	showAge := true
 	showLabel := false
+	showMUP := false
 	showIdentifier := bgp.BGP_ADD_PATH_NONE
 	validationTarget := ""
 
@@ -825,7 +872,11 @@ func showNeighborRib(r string, name string, args []string) error {
 		case bgp.RF_EVPN:
 			// Uses target as EVPN Route Type string
 		case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
-			// Uses target as MUP Route Type string
+			// Uses target as MUP Route Type string or route key
+			// Only t1st has MUP specific columns
+			if target == "t1st" {
+				showMUP = true
+			}
 		default:
 			if _, _, err = parseCIDRorIP(target); err != nil {
 				return err
@@ -986,7 +1037,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 		}
 		if len(dsts) > 0 {
-			showRoute(dsts, showAge, showBest, showLabel, showIdentifier)
+			showRoute(dsts, showAge, showBest, showLabel, showMUP, showIdentifier)
 		} else {
 			fmt.Println("Network not in table")
 		}

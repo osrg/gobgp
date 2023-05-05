@@ -16,6 +16,7 @@
 package server
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -23,10 +24,8 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/net/context"
-
-	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/packet/rtr"
