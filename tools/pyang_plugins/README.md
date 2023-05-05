@@ -37,5 +37,5 @@ $ PYTHONPATH=. ./bin/pyang \
   $HOME/public/release/models/bgp/openconfig-bgp.yang \
   $HOME/public/release/models/policy/openconfig-routing-policy.yang \
   $GOBGP/tools/pyang_plugins/gobgp.yang \
-  | gofmt > $GOBGP/pkg/bgpconfig/bgp_configs.go
+  | gofmt > $GOBGP/pkg/config/bgp_configs.go
 ```
