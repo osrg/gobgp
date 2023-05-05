@@ -31,7 +31,7 @@ import (
 	"golang.org/x/text/language"
 
 	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
+	"github.com/osrg/gobgp/v3/pkg/config"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
@@ -1262,7 +1262,7 @@ func modNeighbor(cmdType string, args []string) error {
 
 	getNeighborAddress := func() (string, error) {
 		if unnumbered {
-			return bgpconfig.GetIPv6LinkLocalNeighborAddress(m["interface"][0])
+			return config.GetIPv6LinkLocalNeighborAddress(m["interface"][0])
 		}
 		return m[""][0], nil
 	}

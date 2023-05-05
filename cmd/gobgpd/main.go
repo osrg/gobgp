@@ -41,7 +41,7 @@ import (
 
 	"github.com/osrg/gobgp/v3/internal/pkg/metrics"
 	"github.com/osrg/gobgp/v3/internal/pkg/version"
-	"github.com/osrg/gobgp/v3/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/gobgp"
 	"github.com/osrg/gobgp/v3/pkg/server"
 )
 
@@ -142,7 +142,7 @@ func main() {
 	}
 
 	if opts.Dry {
-		c, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
+		c, err := gobgp.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
 				"Topic": "Config",
@@ -216,7 +216,7 @@ func main() {
 
 	signal.Notify(sigCh, syscall.SIGHUP)
 
-	initialConfig, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
+	initialConfig, err := gobgp.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
@@ -227,7 +227,7 @@ func main() {
 		"Topic": "Config",
 	}).Info("Finished reading the config file")
 
-	currentConfig, err := config.InitialConfig(context.Background(), bgpServer, initialConfig, opts.GracefulRestart)
+	currentConfig, err := gobgp.InitialConfig(context.Background(), bgpServer, initialConfig, opts.GracefulRestart)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
@@ -244,7 +244,7 @@ func main() {
 		logger.WithFields(logrus.Fields{
 			"Topic": "Config",
 		}).Info("Reload the config file")
-		newConfig, err := config.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
+		newConfig, err := gobgp.ReadConfigFile(opts.ConfigFile, opts.ConfigType)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
 				"Topic": "Config",
@@ -253,7 +253,7 @@ func main() {
 			continue
 		}
 
-		currentConfig, err = config.UpdateConfig(context.Background(), bgpServer, currentConfig, newConfig)
+		currentConfig, err = gobgp.UpdateConfig(context.Background(), bgpServer, currentConfig, newConfig)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"Topic": "Config",

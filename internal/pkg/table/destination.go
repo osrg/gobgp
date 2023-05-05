@@ -23,13 +23,13 @@ import (
 	"net"
 	"sort"
 
-	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
+	"github.com/osrg/gobgp/v3/pkg/config"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
-var SelectionOptions bgpconfig.RouteSelectionOptionsConfig
-var UseMultiplePaths bgpconfig.UseMultiplePathsConfig
+var SelectionOptions config.RouteSelectionOptionsConfig
+var UseMultiplePaths config.UseMultiplePathsConfig
 
 type BestPathReason uint8
 
@@ -118,7 +118,7 @@ func (i *PeerInfo) String() string {
 	return s.String()
 }
 
-func NewPeerInfo(g *bgpconfig.Global, p *bgpconfig.Neighbor) *PeerInfo {
+func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 	clusterID := net.ParseIP(string(p.RouteReflector.State.RouteReflectorClusterId)).To4()
 	// exclude zone info
 	naddr, _ := net.ResolveIPAddr("ip", p.State.NeighborAddress)

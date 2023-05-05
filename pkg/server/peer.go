@@ -20,7 +20,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
+	"github.com/osrg/gobgp/v3/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
@@ -31,28 +31,28 @@ const (
 )
 
 type peerGroup struct {
-	Conf             *bgpconfig.PeerGroup
-	members          map[string]bgpconfig.Neighbor
-	dynamicNeighbors map[string]*bgpconfig.DynamicNeighbor
+	Conf             *config.PeerGroup
+	members          map[string]config.Neighbor
+	dynamicNeighbors map[string]*config.DynamicNeighbor
 }
 
-func newPeerGroup(c *bgpconfig.PeerGroup) *peerGroup {
+func newPeerGroup(c *config.PeerGroup) *peerGroup {
 	return &peerGroup{
 		Conf:             c,
-		members:          make(map[string]bgpconfig.Neighbor),
-		dynamicNeighbors: make(map[string]*bgpconfig.DynamicNeighbor),
+		members:          make(map[string]config.Neighbor),
+		dynamicNeighbors: make(map[string]*config.DynamicNeighbor),
 	}
 }
 
-func (pg *peerGroup) AddMember(c bgpconfig.Neighbor) {
+func (pg *peerGroup) AddMember(c config.Neighbor) {
 	pg.members[c.State.NeighborAddress] = c
 }
 
-func (pg *peerGroup) DeleteMember(c bgpconfig.Neighbor) {
+func (pg *peerGroup) DeleteMember(c config.Neighbor) {
 	delete(pg.members, c.State.NeighborAddress)
 }
 
-func (pg *peerGroup) AddDynamicNeighbor(c *bgpconfig.DynamicNeighbor) {
+func (pg *peerGroup) AddDynamicNeighbor(c *config.DynamicNeighbor) {
 	pg.dynamicNeighbors[c.Config.Prefix] = c
 }
 
@@ -60,21 +60,21 @@ func (pg *peerGroup) DeleteDynamicNeighbor(prefix string) {
 	delete(pg.dynamicNeighbors, prefix)
 }
 
-func newDynamicPeer(g *bgpconfig.Global, neighborAddress string, pg *bgpconfig.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
-	conf := bgpconfig.Neighbor{
-		Config: bgpconfig.NeighborConfig{
+func newDynamicPeer(g *config.Global, neighborAddress string, pg *config.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
+	conf := config.Neighbor{
+		Config: config.NeighborConfig{
 			PeerGroup: pg.Config.PeerGroupName,
 		},
-		State: bgpconfig.NeighborState{
+		State: config.NeighborState{
 			NeighborAddress: neighborAddress,
 		},
-		Transport: bgpconfig.Transport{
-			Config: bgpconfig.TransportConfig{
+		Transport: config.Transport{
+			Config: config.TransportConfig{
 				PassiveMode: true,
 			},
 		},
 	}
-	if err := bgpconfig.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
+	if err := config.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
 		logger.Debug("Can't overwrite neighbor config",
 			log.Fields{
 				"Topic": "Peer",
@@ -82,7 +82,7 @@ func newDynamicPeer(g *bgpconfig.Global, neighborAddress string, pg *bgpconfig.P
 				"Error": err})
 		return nil
 	}
-	if err := bgpconfig.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
+	if err := config.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
 		logger.Debug("Can't set default config",
 			log.Fields{
 				"Topic": "Peer",
@@ -107,7 +107,7 @@ type peer struct {
 	llgrEndChs        []chan struct{}
 }
 
-func newPeer(g *bgpconfig.Global, conf *bgpconfig.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
+func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
 	peer := &peer{
 		localRib:          loc,
 		policy:            policy,
@@ -119,7 +119,7 @@ func newPeer(g *bgpconfig.Global, conf *bgpconfig.Neighbor, loc *table.TableMana
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
-	rfs, _ := bgpconfig.AfiSafis(conf.AfiSafis).ToRfList()
+	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.fsm.logger, rfs)
 	return peer
 }
@@ -152,7 +152,7 @@ func (peer *peer) TableID() string {
 func (peer *peer) isIBGPPeer() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	return peer.fsm.pConf.State.PeerType == bgpconfig.PEER_TYPE_INTERNAL
+	return peer.fsm.pConf.State.PeerType == config.PEER_TYPE_INTERNAL
 }
 
 func (peer *peer) isRouteServerClient() bool {
@@ -216,7 +216,7 @@ func (peer *peer) recvedAllEOR() bool {
 func (peer *peer) configuredRFlist() []bgp.RouteFamily {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	rfs, _ := bgpconfig.AfiSafis(peer.fsm.pConf.AfiSafis).ToRfList()
+	rfs, _ := config.AfiSafis(peer.fsm.pConf.AfiSafis).ToRfList()
 	return rfs
 }
 
@@ -411,7 +411,7 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	return nil
 }
 
-func (peer *peer) doPrefixLimit(k bgp.RouteFamily, c *bgpconfig.PrefixLimitConfig) *bgp.BGPMessage {
+func (peer *peer) doPrefixLimit(k bgp.RouteFamily, c *config.PrefixLimitConfig) *bgp.BGPMessage {
 	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
 		count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
 		pct := int(c.ShutdownThresholdPct)
@@ -437,7 +437,7 @@ func (peer *peer) doPrefixLimit(k bgp.RouteFamily, c *bgpconfig.PrefixLimitConfi
 
 }
 
-func (peer *peer) updatePrefixLimitConfig(c []bgpconfig.AfiSafi) error {
+func (peer *peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 	peer.fsm.lock.RLock()
 	x := peer.fsm.pConf.AfiSafis
 	peer.fsm.lock.RUnlock()
@@ -445,7 +445,7 @@ func (peer *peer) updatePrefixLimitConfig(c []bgpconfig.AfiSafi) error {
 	if len(x) != len(y) {
 		return fmt.Errorf("changing supported afi-safi is not allowed")
 	}
-	m := make(map[bgp.RouteFamily]bgpconfig.PrefixLimitConfig)
+	m := make(map[bgp.RouteFamily]config.PrefixLimitConfig)
 	for _, e := range x {
 		m[e.State.Family] = e.PrefixLimit.Config
 	}

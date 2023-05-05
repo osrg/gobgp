@@ -20,7 +20,7 @@ import (
 	"sort"
 
 	"github.com/k-sone/critbitgo"
-	"github.com/osrg/gobgp/v3/pkg/bgpconfig"
+	"github.com/osrg/gobgp/v3/pkg/config"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
@@ -189,7 +189,7 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 	var as uint32
 
 	validation := &Validation{
-		Status:          bgpconfig.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND,
+		Status:          config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND,
 		Reason:          RPKI_VALIDATION_REASON_TYPE_NONE,
 		Matched:         make([]*ROA, 0),
 		UnmatchedLength: make([]*ROA, 0),
@@ -235,16 +235,16 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 	})
 
 	if len(validation.Matched) != 0 {
-		validation.Status = bgpconfig.RPKI_VALIDATION_RESULT_TYPE_VALID
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_VALID
 		validation.Reason = RPKI_VALIDATION_REASON_TYPE_NONE
 	} else if len(validation.UnmatchedAs) != 0 {
-		validation.Status = bgpconfig.RPKI_VALIDATION_RESULT_TYPE_INVALID
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
 		validation.Reason = RPKI_VALIDATION_REASON_TYPE_AS
 	} else if len(validation.UnmatchedLength) != 0 {
-		validation.Status = bgpconfig.RPKI_VALIDATION_RESULT_TYPE_INVALID
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
 		validation.Reason = RPKI_VALIDATION_REASON_TYPE_LENGTH
 	} else {
-		validation.Status = bgpconfig.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+		validation.Status = config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 		validation.Reason = RPKI_VALIDATION_REASON_TYPE_NONE
 	}
 
