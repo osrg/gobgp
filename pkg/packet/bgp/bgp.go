@@ -7943,7 +7943,7 @@ func NewLsTLVAdjacencySID(l *uint32) *LsTLVAdjacencySID {
 	var flags uint8
 	return &LsTLVAdjacencySID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_ADJACENCY_SID,
 			Length: 7, // TODO: Implementation to judge 7 octets or 8 octets
 		},
 		Flags:  flags,
@@ -8075,7 +8075,7 @@ type LsTLVPeerNodeSID struct {
 func NewLsTLVPeerNodeSID(l *LsBgpPeerSegmentSID) *LsTLVPeerNodeSID {
 	return &LsTLVPeerNodeSID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_PEER_NODE_SID,
 			Length: l.Flags.SidLen(),
 		},
 		Flags:  l.Flags.FlagBits(),
@@ -8166,7 +8166,7 @@ type LsTLVPeerAdjacencySID struct {
 func NewLsTLVPeerAdjacencySID(l *LsBgpPeerSegmentSID) *LsTLVPeerAdjacencySID {
 	return &LsTLVPeerAdjacencySID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_ADJACENCY_SID,
 			Length: l.Flags.SidLen(),
 		},
 		Flags:  l.Flags.FlagBits(),
@@ -8257,7 +8257,7 @@ type LsTLVPeerSetSID struct {
 func NewLsTLVPeerSetSID(l *LsBgpPeerSegmentSID) *LsTLVPeerSetSID {
 	return &LsTLVPeerSetSID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_PEER_SET_SID,
 			Length: l.Flags.SidLen(),
 		},
 		Flags:  l.Flags.FlagBits(),
