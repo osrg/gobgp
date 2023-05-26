@@ -227,7 +227,6 @@ func (n *Neighbor) NeedsResendOpenMessage(new *Neighbor) bool {
 		!n.AddPaths.Config.Equal(&new.AddPaths.Config) ||
 		!n.AsPathOptions.Config.Equal(&new.AsPathOptions.Config) ||
 		!n.GracefulRestart.Config.Equal(&new.GracefulRestart.Config) ||
-		!n.EbgpMultihop.Config.Equal(&new.EbgpMultihop.Config) ||
 		isAfiSafiChanged(n.AfiSafis, new.AfiSafis)
 }
 

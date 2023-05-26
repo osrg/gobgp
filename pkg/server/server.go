@@ -3342,7 +3342,32 @@ func (s *BgpServer) updateNeighbor(c *config.Neighbor) (needsSoftResetIn bool, e
 				"Err":   err})
 		// rollback to original state
 		peer.fsm.pConf = original
+		return needsSoftResetIn, err
 	}
+
+	setTTL := false
+	if !original.EbgpMultihop.Config.Equal(&c.EbgpMultihop.Config) {
+		peer.fsm.pConf.EbgpMultihop.Config = c.EbgpMultihop.Config
+		setTTL = true
+	}
+	if !original.TtlSecurity.Config.Equal(&c.TtlSecurity.Config) {
+		peer.fsm.pConf.TtlSecurity.Config = c.TtlSecurity.Config
+		setTTL = true
+	}
+	if setTTL {
+		if err := setPeerConnTTL(peer.fsm); err != nil {
+			s.logger.Error("failed to set peer connection TTL",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+					"Err":   err})
+			// rollback to original state
+			peer.fsm.pConf = original
+			setPeerConnTTL(peer.fsm)
+			return needsSoftResetIn, err
+		}
+	}
+
 	return needsSoftResetIn, err
 }
 
