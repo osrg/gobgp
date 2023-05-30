@@ -114,7 +114,7 @@ func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		fsm:               newFSM(g, conf, logger),
 		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
-	if peer.isRouteServerClient() {
+	if peer.isRouteServerClient() || peer.hasDedicatedRib() {
 		peer.tableId = conf.State.NeighborAddress
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
@@ -159,6 +159,12 @@ func (peer *peer) isRouteServerClient() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	return peer.fsm.pConf.RouteServer.Config.RouteServerClient
+}
+
+func (peer *peer) hasDedicatedRib() bool {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	return peer.fsm.pConf.DedicatedRib.Config.Enabled
 }
 
 func (peer *peer) isSecondaryRouteEnabled() bool {

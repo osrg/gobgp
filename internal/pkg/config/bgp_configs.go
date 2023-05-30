@@ -1910,6 +1910,9 @@ type PeerGroup struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:dedicated
+	// Configure Dedicated Rib feature.
+	DedicatedRib DedicatedRib `mapstructure:"dedicated-rib" json:"dedicated-rib,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -2026,6 +2029,55 @@ type TtlSecurity struct {
 }
 
 func (lhs *TtlSecurity) Equal(rhs *TtlSecurity) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:state.
+// State information for Dedicated Rib.
+type DedicatedRibState struct {
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	// Enable features for Dedicated Rib.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+}
+
+// struct for container gobgp:config.
+// Configuration parameters for Dedicated Rib.
+type DedicatedRibConfig struct {
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	// Enable features for Dedicated Rib.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+}
+
+func (lhs *DedicatedRibConfig) Equal(rhs *DedicatedRibConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:dedicated.
+// Configure Dedicated Rib feature.
+type DedicatedRib struct {
+	// original -> gobgp:dedicated-rib-config
+	// Configuration parameters for Dedicated Rib.
+	Config DedicatedRibConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:dedicated-rib-state
+	// State information for Dedicated Rib.
+	State DedicatedRibState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *DedicatedRib) Equal(rhs *DedicatedRib) bool {
 	if lhs == nil || rhs == nil {
 		return false
 	}
@@ -3298,6 +3350,9 @@ type Neighbor struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:dedicated
+	// Configure Dedicated Rib feature.
+	DedicatedRib DedicatedRib `mapstructure:"dedicated-rib" json:"dedicated-rib,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {

@@ -167,6 +167,7 @@ type BgpServer struct {
 	peerGroupMap map[string]*peerGroup
 	globalRib    *table.TableManager
 	rsRib        *table.TableManager
+	dedicatedRib map[string]*table.TableManager
 	roaManager   *roaManager
 	shutdownWG   *sync.WaitGroup
 	watcherMap   map[watchEventType][]*watcher
@@ -1146,18 +1147,30 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 
 func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 	rs := peer != nil && peer.isRouteServerClient()
-	vrf := false
-	if peer != nil {
-		peer.fsm.lock.RLock()
-		vrf = !rs && peer.fsm.pConf.Config.Vrf != ""
-		peer.fsm.lock.RUnlock()
-	}
+	dedicated := peer != nil && peer.hasDedicatedRib()
 
 	tableId := table.GLOBAL_RIB_NAME
 	rib := s.globalRib
 	if rs {
 		tableId = peer.TableID()
 		rib = s.rsRib
+	}
+
+	if dedicated {
+		tableId = peer.TableID()
+		rib = s.dedicatedRib[tableId]
+	}
+
+	s.propagateRibUpdate(peer, tableId, rib, pathList)
+}
+
+func (s *BgpServer) propagateRibUpdate(peer *peer, tableId string, rib *table.TableManager, pathList []*table.Path) {
+	rs := peer != nil && peer.isRouteServerClient()
+	vrf := false
+	if peer != nil {
+		peer.fsm.lock.RLock()
+		vrf = !rs && peer.fsm.pConf.Config.Vrf != ""
+		peer.fsm.lock.RUnlock()
 	}
 
 	for _, path := range pathList {
@@ -1252,7 +1265,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		}
 
 		if dsts := rib.Update(path); len(dsts) > 0 {
-			s.propagateUpdateToNeighbors(peer, path, dsts, true)
+			s.propagateUpdateToNeighbors(tableId, peer, path, dsts, true)
 		}
 	}
 }
@@ -1273,19 +1286,21 @@ func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*
 	return bestList, oldList, mpathList
 }
 
-func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
+func (s *BgpServer) propagateUpdateToNeighbors(tableId string, source *peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
 	if table.SelectionOptions.DisableBestPathSelection {
 		return
 	}
 	var gBestList, gOldList, bestList, oldList []*table.Path
 	var mpathList [][]*table.Path
 	if source == nil || !source.isRouteServerClient() {
-		gBestList, gOldList, mpathList = dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+		gBestList, gOldList, mpathList = dstsToPaths(tableId, 0, dsts)
 		s.notifyBestWatcher(gBestList, mpathList)
 	}
 	family := newPath.GetRouteFamily()
 	for _, targetPeer := range s.neighborMap {
-		if (source == nil && targetPeer.isRouteServerClient()) || (source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient()) {
+		if (source == nil && targetPeer.isRouteServerClient()) ||
+		   (source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient()) ||
+		   (source == nil && !targetPeer.isRouteServerClient() && tableId != targetPeer.tableId) {
 			continue
 		}
 		f := func() bgp.RouteFamily {
@@ -2117,6 +2132,18 @@ func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	return err
 }
 
+func (s *BgpServer) addRibPathList(vrfId string, peerRib string, pathList []*table.Path) error {
+	err := s.fixupApiPath(vrfId, pathList)
+	if err == nil {
+		rib, ok := s.dedicatedRib[peerRib]
+		if !ok {
+			return fmt.Errorf("rib %s is unknown", peerRib)
+		}
+		s.propagateRibUpdate(nil, peerRib, rib, pathList)
+	}
+	return err
+}
+
 func (s *BgpServer) addPathStream(vrfId string, pathList []*table.Path) error {
 	err := s.mgmtOperation(func() error {
 		return s.addPathList(vrfId, pathList)
@@ -2139,7 +2166,11 @@ func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.Ad
 		if err != nil {
 			return err
 		}
-		err = s.addPathList(r.VrfId, []*table.Path{path})
+		if r.PeerRib == "" {
+			err = s.addPathList(r.VrfId, []*table.Path{path})
+		} else {
+			err = s.addRibPathList(r.VrfId, r.PeerRib, []*table.Path{path})
+		}
 		if err != nil {
 			return err
 		}
@@ -2211,7 +2242,15 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 				delete(s.uuidMap, pathTokey(p))
 			}
 		}
-		s.propagateUpdate(nil, deletePathList)
+		if r.PeerRib != "" {
+			rib, ok := s.dedicatedRib[r.PeerRib]
+			if !ok {
+				return fmt.Errorf("rib %s is unknown", r.PeerRib)
+			}
+			s.propagateRibUpdate(nil, r.PeerRib, rib, deletePathList)
+		} else {
+			s.propagateUpdate(nil, deletePathList)
+		}
 		return nil
 	}, true)
 }
@@ -2257,6 +2296,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 		s.globalRib = table.NewTableManager(s.logger, rfs)
 		s.rsRib = table.NewTableManager(s.logger, rfs)
+		s.dedicatedRib = make(map[string]*table.TableManager)
 
 		if err := s.policy.Initialize(); err != nil {
 			return err
@@ -2718,12 +2758,16 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.RouteFamily) (info *table
 			if !ok {
 				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 			}
-			if !peer.isRouteServerClient() {
+			if !peer.isRouteServerClient() && !peer.hasDedicatedRib() {
 				return fmt.Errorf("neighbor %v doesn't have local rib", addr)
 			}
 			id = peer.ID()
 			as = peer.AS()
-			m = s.rsRib
+			if peer.isRouteServerClient() {
+				m = s.rsRib
+			} else if peer.hasDedicatedRib() {
+				m = s.dedicatedRib[id]
+			}
 		}
 
 		af := bgp.RouteFamily(family)
@@ -3030,6 +3074,12 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 	if c.RouteServer.Config.RouteServerClient && c.RouteReflector.Config.RouteReflectorClient {
 		return fmt.Errorf("can't be both route-server-client and route-reflector-client")
 	}
+	if c.DedicatedRib.Config.Enabled && c.RouteReflector.Config.RouteReflectorClient {
+		return fmt.Errorf("can't be both dedicated-client and route-reflector-client")
+	}
+	if c.DedicatedRib.Config.Enabled && c.RouteServer.Config.RouteServerClient {
+		return fmt.Errorf("can't be both dedicated-client and route-server-client")
+	}
 
 	if s.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range s.listListeners(addr) {
@@ -3052,7 +3102,14 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 	rib := s.globalRib
 	if c.RouteServer.Config.RouteServerClient {
 		rib = s.rsRib
+	} else if c.DedicatedRib.Config.Enabled {
+		families, _ := config.AfiSafis(c.AfiSafis).ToRfList()
+		if _, ok := s.dedicatedRib[addr]; !ok {
+			s.dedicatedRib[addr] = table.NewTableManager(s.logger, families)
+		}
+		rib = s.dedicatedRib[addr]
 	}
+
 	peer := newPeer(&s.bgpConfig.Global, c, rib, s.policy, s.logger)
 	s.addIncoming(peer.fsm.incomingCh)
 	s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
@@ -3165,6 +3222,9 @@ func (s *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) erro
 
 	delete(s.neighborMap, addr)
 	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
+	if c.DedicatedRib.Config.Enabled {
+		delete(s.dedicatedRib, addr)
+	}
 	return nil
 }
 
@@ -4339,12 +4399,16 @@ func (w *watcher) Generate(t watchEventType) error {
 				if !ok {
 					return fmt.Errorf("neighbor that has %v doesn't exist", w.opts.tableName)
 				}
-				if !peer.isRouteServerClient() {
+				if !peer.isRouteServerClient() && !peer.hasDedicatedRib() {
 					return fmt.Errorf("neighbor %v doesn't have local rib", w.opts.tableName)
 				}
 				id = peer.ID()
 				as = peer.AS()
-				rib = w.s.rsRib
+				if peer.isRouteServerClient() {
+					rib = w.s.rsRib
+				} else if peer.hasDedicatedRib() {
+					rib = w.s.dedicatedRib[id]
+				}
 			}
 
 			pathList := func() map[string][]*table.Path {

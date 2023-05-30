@@ -229,6 +229,7 @@ message AddPathRequest {
   TableType table_type = 1;
   string vrf_id = 2;
   Path path = 3;
+  string peer_rib = 4;
 }
 
 message AddPathResponse { bytes uuid = 1; }
@@ -239,6 +240,7 @@ message DeletePathRequest {
   Family family = 3;
   Path path = 4;
   bytes uuid = 5;
+  string peer_rib = 6;
 }
 
 // API representation of table.LookupPrefix
@@ -555,6 +557,7 @@ message Peer {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  DedicatedRib dedicated_rib = 12;
 }
 
 message PeerGroup {
@@ -569,6 +572,7 @@ message PeerGroup {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  DedicatedRib dedicated_rib = 12;
 }
 
 message DynamicNeighbor {
@@ -1117,4 +1121,8 @@ message SetLogLevelRequest {
     PANIC = 0; FATAL = 1; ERROR = 2; WARN = 3; INFO = 4; DEBUG = 5; TRACE = 6;
   }
   Level level = 1;
+}
+
+message DedicatedRib {
+  bool enabled = 1;
 }
