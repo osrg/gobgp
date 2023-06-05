@@ -4630,7 +4630,7 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 					p.fsm.lock.RLock()
 					defer p.fsm.lock.RUnlock()
 					for _, a := range p.fsm.pConf.AfiSafis {
-						if s := a.MpGracefulRestart.State; s.Enabled && s.EndOfRibReceived {
+						if s := a.MpGracefulRestart.State; s.EndOfRibReceived {
 							family := a.State.Family
 							peerInfo := &table.PeerInfo{
 								AS:           p.fsm.peerInfo.AS,
