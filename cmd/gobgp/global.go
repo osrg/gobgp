@@ -536,13 +536,14 @@ func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"esi":        paramList,
-		"etag":       paramSingle,
-		"label":      paramSingle,
-		"rd":         paramSingle,
-		"rt":         paramList,
-		"encap":      paramSingle,
-		"router-mac": paramSingle})
+		"esi":             paramList,
+		"etag":            paramSingle,
+		"label":           paramSingle,
+		"rd":              paramSingle,
+		"rt":              paramList,
+		"encap":           paramSingle,
+		"router-mac":      paramSingle,
+		"default-gateway": paramFlag})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -631,11 +632,8 @@ func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		extcomms = append(extcomms, "router-mac", m["router-mac"][0])
 	}
 
-	for _, a := range args {
-		if a == "default-gateway" {
-			extcomms = append(extcomms, "default-gateway")
-			break
-		}
+	if _, ok := m["default-gateway"]; ok {
+		extcomms = append(extcomms, "default-gateway")
 	}
 
 	r := &bgp.EVPNMacIPAdvertisementRoute{
