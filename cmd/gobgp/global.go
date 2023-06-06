@@ -470,7 +470,7 @@ func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 		"rd":        paramSingle,
 		"rt":        paramList,
 		"encap":     paramSingle,
-		"esi-label": paramSingle})
+		"esi-label": paramList})
 	if err != nil {
 		return nil, nil, err
 	}
