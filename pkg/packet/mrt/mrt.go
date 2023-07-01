@@ -365,7 +365,7 @@ type RibEntry struct {
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
-func (e *RibEntry) DecodeFromBytes(data []byte, prefix bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
 	if len(data) < 8 {
 		return nil, errNotAllRibEntryBytesAvailable
 	}
@@ -384,7 +384,16 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix bgp.AddrPrefixInterface) 
 		if err != nil {
 			return nil, err
 		}
-		err = p.DecodeFromBytes(data, &bgp.MarshallingOption{ImplicitPrefix: prefix})
+
+		// HACK: keeps compatibility
+		switch len(prefix) {
+		case 0:
+			err = p.DecodeFromBytes(data)
+		case 1:
+			err = p.DecodeFromBytes(data, &bgp.MarshallingOption{ImplicitPrefix: prefix[0]})
+		default:
+			return nil, fmt.Errorf("only one prefix should be used")
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -398,11 +407,21 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix bgp.AddrPrefixInterface) 
 	return data, nil
 }
 
-func (e *RibEntry) Serialize(prefix bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) Serialize(prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
 	pbuf := make([]byte, 0)
 	totalLen := 0
 	for _, pattr := range e.PathAttributes {
-		pb, err := pattr.Serialize(&bgp.MarshallingOption{ImplicitPrefix: prefix})
+		var pb []byte
+		var err error
+		// HACK: keeps compatibility
+		switch len(prefix) {
+		case 0:
+			pb, err = pattr.Serialize()
+		case 1:
+			pb, err = pattr.Serialize(&bgp.MarshallingOption{ImplicitPrefix: prefix[0]})
+		default:
+			return nil, fmt.Errorf("only one prefix should be used")
+		}
 		if err != nil {
 			return nil, err
 		}
