@@ -10380,7 +10380,7 @@ func (p *PathAttributeAsPath) String() string {
 	for _, param := range p.Value {
 		params = append(params, param.String())
 	}
-	return strings.Join(params, " ")
+	return "{AsPath: " + strings.Join(params, " ") + "}"
 }
 
 func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
