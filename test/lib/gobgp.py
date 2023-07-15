@@ -153,6 +153,8 @@ class GoBGPContainer(BGPContainer):
         return daemons
 
     def _is_running(self):
+        print ("Running command gobgp global 2>&1")
+        print (self.local('gobgp global', capture=True))
         return self.local('gobgp global'
                           ' > /dev/null 2>&1; echo $?', capture=True) == '0'
 
