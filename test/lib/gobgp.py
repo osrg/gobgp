@@ -358,7 +358,7 @@ class GoBGPContainer(BGPContainer):
     def _merge_dict(self, dct, merge_dct):
         for k, v in merge_dct.items():
             if (k in dct and isinstance(dct[k], dict)
-                    and isinstance(merge_dct[k], collections.Mapping)):
+                    and isinstance(merge_dct[k], collections.abc.Mapping)):
                 self._merge_dict(dct[k], merge_dct[k])
             else:
                 dct[k] = merge_dct[k]
