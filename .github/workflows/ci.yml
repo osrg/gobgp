@@ -9,7 +9,7 @@ jobs:
       matrix:
         GOOS: ['freebsd', 'openbsd', 'darwin', 'windows']
         GOARCH: ['amd64']
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -25,7 +25,7 @@ jobs:
 
   unit:
     name: unit
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -37,7 +37,7 @@ jobs:
 
   unit386:
     name: unit386
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       GOARCH: 386
     steps:
@@ -51,7 +51,7 @@ jobs:
 
   golangci:
     name: lint
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -62,7 +62,7 @@ jobs:
 
   embeded:
     name: embeded
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -74,7 +74,7 @@ jobs:
 
   lintdoc:
     name: lintdoc
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -87,7 +87,7 @@ jobs:
 
   build:
     name: build container image
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -112,7 +112,7 @@ jobs:
 
   router:
     name: router
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -126,7 +126,7 @@ jobs:
 
   evpn:
     name: evpn
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -140,7 +140,7 @@ jobs:
 
   flowspec:
     name: flowspec
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -154,7 +154,7 @@ jobs:
 
   global-policy:
     name: global-policy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -168,7 +168,7 @@ jobs:
 
   graceful-restart:
     name: graceful-restart
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -182,7 +182,7 @@ jobs:
 
   ibgp:
     name: ibgp
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -196,7 +196,7 @@ jobs:
 
   rr:
     name: route-refector
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -210,7 +210,7 @@ jobs:
 
   as2:
     name: as2
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -224,7 +224,7 @@ jobs:
 
   ipv4-v6:
     name: ipv4-v6
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -241,7 +241,7 @@ jobs:
 
   malformed:
     name: malformed
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -255,7 +255,7 @@ jobs:
 
   rs-policy-grpc:
     name: rs-policy-grpc
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -269,7 +269,7 @@ jobs:
 
   rs-policy:
     name: rs-policy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -283,7 +283,7 @@ jobs:
 
   softreset:
     name: softreset
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -297,7 +297,7 @@ jobs:
 
   rs1:
     name: routeserver1
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -311,7 +311,7 @@ jobs:
 
   rs2:
     name: routeserver2
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -325,7 +325,7 @@ jobs:
 
   llgr:
     name: llgr
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -339,7 +339,7 @@ jobs:
 
   vrf-neighbor1:
     name: vrf-neighbor1
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -353,7 +353,7 @@ jobs:
 
   vrf-neighbor2:
     name: vrf-neighbor2
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -367,7 +367,7 @@ jobs:
 
   rtc:
     name: rtc
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -381,7 +381,7 @@ jobs:
 
   unnumbered:
     name: unnumbered
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -402,7 +402,7 @@ jobs:
 
   aspath:
     name: aspath
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -416,7 +416,7 @@ jobs:
 
   addpath:
     name: addpath
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -430,7 +430,7 @@ jobs:
 
   malformed-handling:
     name: malformed-handling
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -444,7 +444,7 @@ jobs:
 
   confederation:
     name: confederation
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -458,7 +458,7 @@ jobs:
 
   zebra:
     name: zebra
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -472,7 +472,7 @@ jobs:
 
   zebra-nht:
     name: zebra-nht
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -486,7 +486,7 @@ jobs:
 
   zapi-v3:
     name: zapi-v3
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -500,7 +500,7 @@ jobs:
 
   zapi-v3-multipath:
     name: zapi-v3-multipath
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -514,7 +514,7 @@ jobs:
 
   mup:
     name: mup
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
     steps:
       - uses: actions/checkout@v3
