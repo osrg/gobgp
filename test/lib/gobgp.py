@@ -111,7 +111,7 @@ class GoBGPContainer(BGPContainer):
     def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
         c << '#!/bin/sh'
-        c << '/go/bin/gobgpd -f {0}/gobgpd.conf --api-hosts="0.0.0.0:50051" -l {1} -p {2} -t {3} > ' \
+        c << '/go/bin/gobgpd -f {0}/gobgpd.conf --api-hosts="[::]:50051" -l {1} -p {2} -t {3} > ' \
              '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '', self.config_format)
         cmd = 'echo "{0:s}" > {1}/start.sh'.format(str(c), self.config_dir)
         local(cmd, capture=True)
