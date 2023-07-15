@@ -21,6 +21,10 @@ from lib.gobgp import GoBGPContainer
 import sys
 import os
 import time
+
+import collections
+collections.Callable = collections.abc.Callable
+
 import nose
 from lib.noseplugin import OptionParser, parser_option
 from itertools import combinations

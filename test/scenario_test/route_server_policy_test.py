@@ -19,6 +19,9 @@ import time
 import unittest
 import inspect
 
+import collections
+collections.Callable = collections.abc.Callable
+
 import nose
 from nose.tools import (
     assert_true,

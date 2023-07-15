@@ -18,6 +18,9 @@ import unittest
 import sys
 import time
 
+import collections
+collections.Callable = collections.abc.Callable
+
 import nose
 
 from lib.noseplugin import OptionParser, parser_option

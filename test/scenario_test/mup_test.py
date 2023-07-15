@@ -21,6 +21,9 @@ import unittest
 import logging
 log = logging.getLogger(__name__)
 
+import collections
+collections.Callable = collections.abc.Callable
+
 import nose
 
 from lib.noseplugin import OptionParser, parser_option
