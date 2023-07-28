@@ -1849,6 +1849,9 @@ func TestFullCyclePrefixSID(t *testing.T) {
 			if err != nil {
 				t.Fatalf("test failed with error: %+v", err)
 			}
+			if recoveredPrefixSID.Len() != attribute.Len() {
+				t.Fatalf("recovered attribute length (%d) is not matching original attribute length (%d)", recoveredPrefixSID.Len(), attribute.Len())
+			}
 			recovered, err := recoveredPrefixSID.Serialize()
 			if err != nil {
 				t.Fatalf("test failed with error: %+v", err)
