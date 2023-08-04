@@ -467,20 +467,24 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	if len(prefixes) != 0 {
 		switch t.routeFamily {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-			f := func(prefixStr string) bool {
+			f := func(prefixStr string) (bool, error) {
 				var nlri bgp.AddrPrefixInterface
+				var err error
 				if t.routeFamily == bgp.RF_IPv4_UC {
-					nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, prefixStr)
+					nlri, err = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, prefixStr)
 				} else {
-					nlri, _ = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, prefixStr)
+					nlri, err = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, prefixStr)
+				}
+				if err != nil {
+					return false, err
 				}
 				if dst := t.GetDestination(nlri); dst != nil {
 					if d := dst.Select(dOption); d != nil {
 						r.setDestination(d)
-						return true
+						return true, nil
 					}
 				}
-				return false
+				return false, nil
 			}
 
 			for _, p := range prefixes {
@@ -517,7 +521,11 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 							if err != nil {
 								return nil, err
 							}
-							if f(prefix.String()) {
+							ret, err := f(prefix.String())
+							if err != nil {
+								return nil, err
+							}
+							if ret {
 								break
 							}
 						}

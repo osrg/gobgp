@@ -88,6 +88,33 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	assert.Equal(t, "3343:faba:3903:128::/63", ipv6.String())
 }
 
+func Test_MalformedPrefixLookup(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		inPrefix    string
+		routeFamily RouteFamily
+		want        AddrPrefixInterface
+		err         bool
+	}{
+		{"129.6.128/22", RF_IPv4_UC, nil, true},
+		{"foo", RF_IPv4_UC, nil, true},
+		{"3343:faba:3903:128::::/63", RF_IPv6_UC, nil, true},
+		{"foo", RF_IPv6_UC, nil, true},
+	}
+
+	for _, test := range tests {
+		afi, safi := RouteFamilyToAfiSafi(RF_IPv4_UC)
+		p, err := NewPrefixFromRouteFamily(afi, safi, test.inPrefix)
+		if test.err {
+			assert.Error(err)
+		} else {
+			assert.Equal(test.want, p)
+		}
+	}
+
+}
+
 func Test_IPAddrDecode(t *testing.T) {
 	r := IPAddrPrefixDefault{}
 	b := make([]byte, 16)

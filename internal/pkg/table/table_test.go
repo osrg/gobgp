@@ -103,6 +103,84 @@ func TestTableKey(t *testing.T) {
 	assert.Equal(t, len(tb.GetDestinations()), 2)
 }
 
+func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
+	table := NewTable(logger, bgp.RF_IPv4_UC)
+	assert.Equal(t, 0, len(table.GetDestinations()))
+
+	tests := []struct {
+		name   string
+		prefix string
+		option LookupOption
+		found  int
+	}{
+		{
+			name:   "Malformed IPv4 Address",
+			prefix: "2.2.2.2.2",
+			option: LOOKUP_EXACT,
+			found:  0,
+		},
+		{
+			name:   "exact match with RD and prefix that does not exist",
+			prefix: "foo",
+			option: LOOKUP_EXACT,
+			found:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filteredTable, _ := table.Select(
+				TableSelectOption{
+					LookupPrefixes: []*LookupPrefix{{
+						Prefix:       tt.prefix,
+						LookupOption: tt.option,
+					}},
+				},
+			)
+			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+		})
+	}
+}
+
+func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
+	table := NewTable(logger, bgp.RF_IPv6_UC)
+	assert.Equal(t, 0, len(table.GetDestinations()))
+
+	tests := []struct {
+		name   string
+		prefix string
+		option LookupOption
+		found  int
+	}{
+		{
+			name:   "Malformed IPv6 Address: 3343:faba:3903:128::::/63",
+			prefix: "3343:faba:3903:128::::/63",
+			option: LOOKUP_EXACT,
+			found:  0,
+		},
+		{
+			name:   "Malformed IPv6 Address: foo",
+			prefix: "foo",
+			option: LOOKUP_EXACT,
+			found:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filteredTable, _ := table.Select(
+				TableSelectOption{
+					LookupPrefixes: []*LookupPrefix{{
+						Prefix:       tt.prefix,
+						LookupOption: tt.option,
+					}},
+				},
+			)
+			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+		})
+	}
+}
+
 func TestTableSelectVPNv4(t *testing.T) {
 	prefixes := []string{
 		"100:100:2.2.2.0/25",

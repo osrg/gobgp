@@ -9604,26 +9604,29 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
 	family := AfiSafiToRouteFamily(afi, safi)
 
-	f := func(s string) AddrPrefixInterface {
-		addr, net, _ := net.ParseCIDR(s)
+	f := func(s string) (AddrPrefixInterface, error) {
+		addr, net, err := net.ParseCIDR(s)
+		if err != nil {
+			return nil, err
+		}
 		len, _ := net.Mask.Size()
 		switch family {
 		case RF_IPv4_UC, RF_IPv4_MC:
-			return NewIPAddrPrefix(uint8(len), addr.String())
+			return NewIPAddrPrefix(uint8(len), addr.String()), nil
 		}
-		return NewIPv6AddrPrefix(uint8(len), addr.String())
+		return NewIPv6AddrPrefix(uint8(len), addr.String()), nil
 	}
 
 	switch family {
 	case RF_IPv4_UC, RF_IPv4_MC:
 		if len(prefixStr) > 0 {
-			prefix = f(prefixStr[0])
+			prefix, err = f(prefixStr[0])
 		} else {
 			prefix = NewIPAddrPrefix(0, "")
 		}
 	case RF_IPv6_UC, RF_IPv6_MC:
 		if len(prefixStr) > 0 {
-			prefix = f(prefixStr[0])
+			prefix, err = f(prefixStr[0])
 		} else {
 			prefix = NewIPv6AddrPrefix(0, "")
 		}
