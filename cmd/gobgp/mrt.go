@@ -111,7 +111,7 @@ func injectMrt() error {
 				paths := make([]*api.Path, 0, len(rib.Entries))
 
 				for _, e := range rib.Entries {
-					if len(peers) < int(e.PeerIndex) {
+					if len(peers) <= int(e.PeerIndex) {
 						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)", e.PeerIndex, len(peers)))
 					}
 					//t := time.Unix(int64(e.OriginatedTime), 0)
