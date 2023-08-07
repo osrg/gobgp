@@ -4039,9 +4039,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 			case api.WatchEventRequest_Table_Filter_BEST:
 				opts = append(opts, watchBestPath(filter.Init))
 			case api.WatchEventRequest_Table_Filter_ADJIN:
-				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress))
+				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			case api.WatchEventRequest_Table_Filter_POST_POLICY:
-				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress))
+				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			}
 		}
 	}
@@ -4267,37 +4267,49 @@ func watchBestPath(current bool) watchOption {
 	}
 }
 
-func watchUpdate(current bool, peerAddress string) watchOption {
+func watchUpdate(current bool, peerAddress string, peerGroup string) watchOption {
 	return func(o *watchOptions) {
 		o.preUpdate = true
 		if current {
 			o.initUpdate = true
 		}
-		if peerAddress != "" {
+		if peerAddress != "" || peerGroup != "" {
 			o.preUpdateFilter = func(w watchEvent) bool {
 				ev, ok := w.(*watchEventUpdate)
 				if !ok || ev == nil {
 					return false
 				}
-				return ev.Neighbor.State.NeighborAddress == peerAddress
+				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == peerAddress {
+					return true
+				}
+				if len(peerGroup) > 0 && ev.Neighbor.State.PeerGroup == peerGroup {
+					return true
+				}
+				return false
 			}
 		}
 	}
 }
 
-func watchPostUpdate(current bool, peerAddress string) watchOption {
+func watchPostUpdate(current bool, peerAddress string, peerGroup string) watchOption {
 	return func(o *watchOptions) {
 		o.postUpdate = true
 		if current {
 			o.initPostUpdate = true
 		}
-		if peerAddress != "" {
+		if peerAddress != "" || peerGroup != "" {
 			o.postUpdateFilter = func(w watchEvent) bool {
 				ev, ok := w.(*watchEventUpdate)
 				if !ok || ev == nil {
 					return false
 				}
-				return ev.Neighbor.State.NeighborAddress == peerAddress
+				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == peerAddress {
+					return true
+				}
+				if len(peerGroup) > 0 && ev.Neighbor.State.PeerGroup == peerGroup {
+					return true
+				}
+				return false
 			}
 		}
 	}
