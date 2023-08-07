@@ -4039,9 +4039,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 			case api.WatchEventRequest_Table_Filter_BEST:
 				opts = append(opts, watchBestPath(filter.Init))
 			case api.WatchEventRequest_Table_Filter_ADJIN:
-				opts = append(opts, watchUpdate(filter.Init, ""))
+				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			case api.WatchEventRequest_Table_Filter_POST_POLICY:
-				opts = append(opts, watchPostUpdate(filter.Init, ""))
+				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			}
 		}
 	}
@@ -4242,46 +4242,76 @@ type watchEventMessage struct {
 }
 
 type watchOptions struct {
-	bestpath       bool
-	preUpdate      bool
-	postUpdate     bool
+	bestPath         bool
+	preUpdate        bool
+	preUpdateFilter  func(w watchEvent) bool
+	postUpdate       bool
+	postUpdateFilter func(w watchEvent) bool
+
 	peerState      bool
 	initBest       bool
 	initUpdate     bool
 	initPostUpdate bool
 	tableName      string
 	recvMessage    bool
-	peerAddress    string
 }
 
 type watchOption func(*watchOptions)
 
 func watchBestPath(current bool) watchOption {
 	return func(o *watchOptions) {
-		o.bestpath = true
+		o.bestPath = true
 		if current {
 			o.initBest = true
 		}
 	}
 }
 
-func watchUpdate(current bool, peerAddress string) watchOption {
+func watchUpdate(current bool, peerAddress string, peerGroup string) watchOption {
 	return func(o *watchOptions) {
 		o.preUpdate = true
 		if current {
 			o.initUpdate = true
 		}
-		o.peerAddress = peerAddress
+		if peerAddress != "" || peerGroup != "" {
+			o.preUpdateFilter = func(w watchEvent) bool {
+				ev, ok := w.(*watchEventUpdate)
+				if !ok || ev == nil {
+					return false
+				}
+				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == peerAddress {
+					return true
+				}
+				if len(peerGroup) > 0 && ev.Neighbor.State.PeerGroup == peerGroup {
+					return true
+				}
+				return false
+			}
+		}
 	}
 }
 
-func watchPostUpdate(current bool, peerAddress string) watchOption {
+func watchPostUpdate(current bool, peerAddress string, peerGroup string) watchOption {
 	return func(o *watchOptions) {
 		o.postUpdate = true
 		if current {
 			o.initPostUpdate = true
 		}
-		o.peerAddress = peerAddress
+		if peerAddress != "" || peerGroup != "" {
+			o.postUpdateFilter = func(w watchEvent) bool {
+				ev, ok := w.(*watchEventUpdate)
+				if !ok || ev == nil {
+					return false
+				}
+				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == peerAddress {
+					return true
+				}
+				if len(peerGroup) > 0 && ev.Neighbor.State.PeerGroup == peerGroup {
+					return true
+				}
+				return false
+			}
+		}
 	}
 }
 
@@ -4315,6 +4345,9 @@ type watcher struct {
 	realCh chan watchEvent
 	ch     *channels.InfiniteChannel
 	s      *BgpServer
+	// filters are used for notifyWatcher by using the filter for the given watchEvent,
+	// call notify method for skipping filtering.
+	filters map[watchEventType]func(w watchEvent) bool
 }
 
 func (w *watcher) Event() <-chan watchEvent {
@@ -4408,8 +4441,15 @@ func (s *BgpServer) isWatched(typ watchEventType) bool {
 	return len(s.watcherMap[typ]) != 0
 }
 
+// notifyWatcher notifies all watchers of the watchEventType about the event.
+// If the filter is set(and not nil) for the watchEventType, it will be used for filtering.
+// Otherwise, all events will be processed without any filtering.
 func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
 	for _, w := range s.watcherMap[typ] {
+		if f := w.filters[typ]; f != nil && !f(ev) {
+			// Filter is set and the event doesn't pass it.
+			continue
+		}
 		w.notify(ev)
 	}
 }
@@ -4417,9 +4457,10 @@ func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
 func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 	s.mgmtOperation(func() error {
 		w = &watcher{
-			s:      s,
-			realCh: make(chan watchEvent, 8),
-			ch:     channels.NewInfiniteChannel(),
+			s:       s,
+			realCh:  make(chan watchEvent, 8),
+			ch:      channels.NewInfiniteChannel(),
+			filters: make(map[watchEventType]func(w watchEvent) bool),
 		}
 
 		for _, opt := range opts {
@@ -4430,13 +4471,19 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			s.watcherMap[t] = append(s.watcherMap[t], w)
 		}
 
-		if w.opts.bestpath {
+		if w.opts.bestPath {
 			register(watchEventTypeBestPath, w)
 		}
 		if w.opts.preUpdate {
+			if w.opts.preUpdateFilter != nil {
+				w.filters[watchEventTypePreUpdate] = w.opts.preUpdateFilter
+			}
 			register(watchEventTypePreUpdate, w)
 		}
 		if w.opts.postUpdate {
+			if w.opts.postUpdateFilter != nil {
+				w.filters[watchEventTypePostUpdate] = w.opts.postUpdateFilter
+			}
 			register(watchEventTypePostUpdate, w)
 		}
 		if w.opts.peerState {
@@ -4458,15 +4505,19 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			for _, peer := range s.neighborMap {
 				peer.fsm.lock.RLock()
 				notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
-				peerAddress := peer.fsm.peerInfo.Address.String()
 				peer.fsm.lock.RUnlock()
 				if notEstablished {
 					continue
 				}
-				if len(w.opts.peerAddress) > 0 && w.opts.peerAddress != peerAddress {
-					continue
-				}
 				configNeighbor := w.s.toConfig(peer, false)
+				if w.opts.preUpdateFilter != nil {
+					ev := &watchEventUpdate{ // use fake event to check filter.
+						Neighbor: configNeighbor,
+					}
+					if !w.opts.preUpdateFilter(ev) {
+						continue
+					}
+				}
 				for _, rf := range peer.configuredRFlist() {
 					peer.fsm.lock.RLock()
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
@@ -4524,11 +4575,7 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 					if peer, ok := s.neighborMap[peerAddress]; ok {
 						configNeighbor = w.s.toConfig(peer, false)
 					}
-					if w.opts.peerAddress != "" && w.opts.peerAddress != peerAddress {
-						continue
-					}
-
-					w.notify(&watchEventUpdate{
+					ev := &watchEventUpdate{
 						PeerAS:      peerInfo.AS,
 						PeerAddress: peerInfo.Address,
 						PeerID:      peerInfo.ID,
@@ -4536,7 +4583,12 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 						Neighbor:    configNeighbor,
 						PathList:    paths,
 						Init:        true,
-					})
+					}
+					if w.opts.postUpdateFilter != nil && !w.opts.postUpdateFilter(ev) {
+						continue
+					}
+
+					w.notify(ev)
 
 					eor := bgp.NewEndOfRib(rf)
 					eorBuf, _ := eor.Serialize()
