@@ -4039,9 +4039,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 			case api.WatchEventRequest_Table_Filter_BEST:
 				opts = append(opts, watchBestPath(filter.Init))
 			case api.WatchEventRequest_Table_Filter_ADJIN:
-				opts = append(opts, watchUpdate(filter.Init, ""))
+				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress))
 			case api.WatchEventRequest_Table_Filter_POST_POLICY:
-				opts = append(opts, watchPostUpdate(filter.Init, ""))
+				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress))
 			}
 		}
 	}

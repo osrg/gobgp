@@ -1839,3 +1839,178 @@ func TestListPathWithIdentifiers(t *testing.T) {
 		t.Errorf("IDs differed for VRF RIB (-got, +want):\n%s", diff)
 	}
 }
+
+func TestWatchEvent(test *testing.T) {
+	assert := assert.New(test)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 10179,
+		},
+	})
+	assert.Nil(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peer1 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         2,
+		},
+		Transport: &api.Transport{
+			PassiveMode: true,
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
+	assert.Nil(err)
+
+	d1 := &api.DefinedSet{
+		DefinedType: api.DefinedType_PREFIX,
+		Name:        "d1",
+		Prefixes: []*api.Prefix{
+			{
+				IpPrefix:      "10.1.0.0/24",
+				MaskLengthMax: 24,
+				MaskLengthMin: 24,
+			},
+		},
+	}
+	s1 := &api.Statement{
+		Name: "s1",
+		Conditions: &api.Conditions{
+			PrefixSet: &api.MatchSet{
+				Name: "d1",
+			},
+		},
+		Actions: &api.Actions{
+			RouteAction: api.RouteAction_REJECT,
+		},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
+	assert.Nil(err)
+	p1 := &api.Policy{
+		Name:       "p1",
+		Statements: []*api.Statement{s1},
+	}
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p1})
+	assert.Nil(err)
+	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_IMPORT,
+			Policies:      []*api.Policy{p1},
+			DefaultAction: api.RouteAction_ACCEPT,
+		},
+	})
+	assert.Nil(err)
+
+	t := NewBgpServer()
+	go t.Serve()
+	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	assert.Nil(err)
+	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	family := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	nlri1, _ := apb.New(&api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	})
+
+	a1, _ := apb.New(&api.OriginAttribute{
+		Origin: 0,
+	})
+	a2, _ := apb.New(&api.NextHopAttribute{
+		NextHop: "10.0.0.1",
+	})
+	attrs := []*apb.Any{a1, a2}
+
+	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri1,
+			Pattrs: attrs,
+		},
+	})
+	assert.Nil(err)
+
+	nlri2, _ := apb.New(&api.IPAddressPrefix{
+		Prefix:    "10.2.0.0",
+		PrefixLen: 24,
+	})
+	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri2,
+			Pattrs: attrs,
+		},
+	})
+	assert.Nil(err)
+
+	peer2 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         1,
+		},
+		Transport: &api.Transport{
+			RemotePort: 10179,
+		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
+	}
+	ch := make(chan struct{})
+	go waitEstablished(s, ch)
+
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
+	assert.Nil(err)
+	<-ch
+	for {
+		count := 0
+		s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_IN, Family: family, Name: "127.0.0.1"}, func(d *api.Destination) {
+			count++
+		})
+		if count == 2 {
+			break
+		}
+	}
+
+	count := 0
+	done := make(chan struct{}, 1)
+	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
+		Table: &api.WatchEventRequest_Table{
+			Filters: []*api.WatchEventRequest_Table_Filter{
+				{
+					Type:        api.WatchEventRequest_Table_Filter_ADJIN,
+					PeerAddress: "127.0.0.1",
+					Init:        true,
+				},
+			},
+		},
+	}, func(*api.WatchEventResponse) {
+		count++
+		if count == 2 {
+			close(done)
+		}
+	})
+	assert.Nil(err)
+	<-done
+
+	assert.Equal(2, count)
+}
