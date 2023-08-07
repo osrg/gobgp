@@ -1707,6 +1707,7 @@ func TestDeleteVrf(t *testing.T) {
 func TestAddBogusPath(t *testing.T) {
 	ctx := context.Background()
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	nlri, _ := apb.New(&api.IPAddressPrefix{})
 
