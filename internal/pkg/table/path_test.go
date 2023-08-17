@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -335,14 +335,14 @@ func TestRemovePrivateAS(t *testing.T) {
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nlri := bgp.NewIPAddrPrefix(24, "30.30.30.0")
 	path := NewPath(nil, nlri, false, []bgp.PathAttributeInterface{aspath}, time.Now(), false)
-	path.RemovePrivateAS(10, config.REMOVE_PRIVATE_AS_OPTION_ALL)
+	path.RemovePrivateAS(10, oc.REMOVE_PRIVATE_AS_OPTION_ALL)
 	list := path.GetAsList()
 	assert.Equal(t, len(list), 2)
 	assert.Equal(t, list[0], uint32(1))
 	assert.Equal(t, list[1], uint32(2))
 
 	path = NewPath(nil, nlri, false, []bgp.PathAttributeInterface{aspath}, time.Now(), false)
-	path.RemovePrivateAS(10, config.REMOVE_PRIVATE_AS_OPTION_REPLACE)
+	path.RemovePrivateAS(10, oc.REMOVE_PRIVATE_AS_OPTION_REPLACE)
 	list = path.GetAsList()
 	assert.Equal(t, len(list), 4)
 	assert.Equal(t, list[0], uint32(10))
