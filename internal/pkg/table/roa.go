@@ -20,7 +20,7 @@ import (
 	"sort"
 
 	"github.com/k-sone/critbitgo"
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
