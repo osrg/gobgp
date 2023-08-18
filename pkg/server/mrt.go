@@ -21,8 +21,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
+	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/packet/mrt"

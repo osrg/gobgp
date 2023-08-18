@@ -6,9 +6,9 @@ import (
 	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/server"
