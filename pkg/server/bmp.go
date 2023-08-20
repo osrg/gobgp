@@ -154,8 +154,8 @@ func (b *bmpClient) loop() {
 				tickerCh = t.C
 			}
 
-			write := func(msg *bmp.BMPMessage) error {
-				buf, _ := msg.Serialize()
+			write := func(msg *bmp.BMPMessage, options ...*bgp.MarshallingOption) error {
+				buf, _ := msg.Serialize(options...)
 				_, err := conn.Write(buf)
 				if err != nil {
 					b.s.logger.Warn("failed to write to bmp server",
@@ -197,14 +197,14 @@ func (b *bmpClient) loop() {
 								}
 							}
 							for _, path := range pathList {
-								for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{path}) {
-									payload, _ := u.Serialize()
-									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, path.GetTimestamp().Unix(), payload)); err != nil {
+								for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{path}, msg.MarshallingOptions...) {
+									payload, _ := u.Serialize(msg.MarshallingOptions...)
+									if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, true, info, path.GetTimestamp().Unix(), payload), msg.MarshallingOptions...); err != nil {
 										return false
 									}
 								}
 							}
-						} else if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, msg.FourBytesAs, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
+						} else if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, msg.FourBytesAs, info, msg.Timestamp.Unix(), msg.Payload), msg.MarshallingOptions...); err != nil {
 							return false
 						}
 					case *watchEventBestPath:

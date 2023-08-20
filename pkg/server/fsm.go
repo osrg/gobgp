@@ -192,7 +192,7 @@ type fsm struct {
 	peerInfo             *table.PeerInfo
 	gracefulRestartTimer *time.Timer
 	twoByteAsTrans       bool
-	marshallingOptions   *bgp.MarshallingOption
+	marshallingOptions   []*bgp.MarshallingOption
 	notification         chan *bgp.BGPMessage
 	logger               log.Logger
 }
@@ -1012,7 +1012,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	options := h.fsm.marshallingOptions
 	h.fsm.lock.RUnlock()
 
-	m, err := bgp.ParseBGPBody(hd, bodyBuf, options)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, options...)
 	if err != nil {
 		handling = h.handlingError(m, err, useRevisedError)
 		h.fsm.bgpMessageStateUpdate(0, true)
@@ -1355,9 +1355,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 
 					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
-						fsm.marshallingOptions = &bgp.MarshallingOption{
+						fsm.marshallingOptions = []*bgp.MarshallingOption{{
 							AddPath: fsm.rfMap,
-						}
+						}}
 					} else {
 						fsm.marshallingOptions = nil
 					}
@@ -1647,7 +1647,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
-		b, err := m.Serialize(h.fsm.marshallingOptions)
+		b, err := m.Serialize(h.fsm.marshallingOptions...)
 		fsm.lock.RUnlock()
 		if err != nil {
 			fsm.lock.RLock()
@@ -1751,7 +1751,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 				h.fsm.lock.RLock()
 				options := h.fsm.marshallingOptions
 				h.fsm.lock.RUnlock()
-				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
+				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options...) {
 					if err := send(msg); err != nil {
 						return nil
 					}
@@ -1820,7 +1820,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		case <-ctx.Done():
 			select {
 			case m := <-fsm.notification:
-				b, _ := m.Serialize(h.fsm.marshallingOptions)
+				b, _ := m.Serialize(h.fsm.marshallingOptions...)
 				h.conn.Write(b)
 			default:
 				// nothing to do
