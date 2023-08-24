@@ -1803,6 +1803,37 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 	}
 }
 
+// ParseVPNPrefix splits VPNv4/VPNv6 to exactly three parts for efficiency.
+//  1. RD admin subfield
+//  2. RD assigned subfield
+//  3. IP prefix
+//
+// No need to join IPv6 prefix parts afterwards.
+//
+// Then parses this IP prefix and returns
+//  1. RouteDistinguisherInterface
+//  2. IP address
+//  3. the network implied by the IP and prefix length
+//  4. error if parsing fails on any step
+func ParseVPNPrefix(prefix string) (RouteDistinguisherInterface, net.IP, *net.IPNet, error) {
+	elems := strings.SplitN(prefix, ":", 3)
+	if len(elems) < 3 {
+		return nil, nil, nil, fmt.Errorf("invalid prefix format: %q", prefix)
+	}
+
+	rd, err := ParseRouteDistinguisher(elems[0] + ":" + elems[1])
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	addr, network, err := net.ParseCIDR(elems[2])
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to parse CIDR %s: %w", elems[2], err)
+	}
+
+	return rd, addr, network, nil
+}
+
 //
 // RFC3107 Carrying Label Information in BGP-4
 //
@@ -9605,9 +9636,43 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8, prefixStr ...string) (pref
 			prefix = NewIPv6AddrPrefix(0, "")
 		}
 	case RF_IPv4_VPN:
-		prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
+		if len(prefixStr) == 0 {
+			prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
+			break
+		}
+
+		rd, addr, network, err := ParseVPNPrefix(prefixStr[0])
+		if err != nil {
+			return nil, err
+		}
+
+		length, _ := network.Mask.Size()
+
+		prefix = NewLabeledVPNIPAddrPrefix(
+			uint8(length),
+			addr.String(),
+			*NewMPLSLabelStack(),
+			rd,
+		)
 	case RF_IPv6_VPN:
-		prefix = NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil)
+		if len(prefixStr) == 0 {
+			prefix = NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil)
+			break
+		}
+
+		rd, addr, network, err := ParseVPNPrefix(prefixStr[0])
+		if err != nil {
+			return nil, err
+		}
+
+		length, _ := network.Mask.Size()
+
+		prefix = NewLabeledVPNIPv6AddrPrefix(
+			uint8(length),
+			addr.String(),
+			*NewMPLSLabelStack(),
+			rd,
+		)
 	case RF_IPv4_MPLS:
 		prefix = NewLabeledIPAddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_IPv6_MPLS:

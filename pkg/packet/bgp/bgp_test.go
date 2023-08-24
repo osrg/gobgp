@@ -1168,6 +1168,87 @@ func Test_ParseRouteDistinguisher(t *testing.T) {
 	assert.Equal(uint16(10000), rdType2.Assigned)
 }
 
+func TestParseVPNPrefix(t *testing.T) {
+	var tests = []struct {
+		name     string
+		prefix   string
+		valid    bool
+		rd       RouteDistinguisherInterface
+		ipPrefix string
+	}{
+		{
+			name:     "test valid RD type 0 VPNv4 prefix",
+			prefix:   "100:100:10.0.0.1/32",
+			valid:    true,
+			rd:       NewRouteDistinguisherTwoOctetAS(uint16(100), uint32(100)),
+			ipPrefix: "10.0.0.1/32",
+		},
+		{
+			name:     "test valid RD type 1 VPNv4 prefix",
+			prefix:   "1.1.1.1:100:10.0.0.1/32",
+			valid:    true,
+			rd:       NewRouteDistinguisherIPAddressAS("1.1.1.1", uint16(100)),
+			ipPrefix: "10.0.0.1/32",
+		},
+		{
+			name:     "test valid RD type 2 VPNv4 prefix",
+			prefix:   "0.54233:100:10.0.0.1/32",
+			valid:    true,
+			rd:       NewRouteDistinguisherFourOctetAS(uint32(54233), uint16(100)),
+			ipPrefix: "10.0.0.1/32",
+		},
+		{
+			name:     "test invalid VPNv4 prefix",
+			prefix:   "100:10.0.0.1/32",
+			valid:    false,
+			rd:       nil,
+			ipPrefix: "10.0.0.1/32",
+		},
+		{
+			name:     "test valid RD type 0 VPNv6 prefix",
+			prefix:   "100:100:100:1::/64",
+			valid:    true,
+			rd:       NewRouteDistinguisherTwoOctetAS(uint16(100), uint32(100)),
+			ipPrefix: "100:1::/64",
+		},
+		{
+			name:     "test valid RD type 1 VPNv6 prefix",
+			prefix:   "1.1.1.1:100:100:1::/64",
+			valid:    true,
+			rd:       NewRouteDistinguisherIPAddressAS("1.1.1.1", uint16(100)),
+			ipPrefix: "100:1::/64",
+		},
+		{
+			name:     "test valid RD type 2 VPNv6 prefix",
+			prefix:   "0.54233:100:100:1::/64",
+			valid:    true,
+			rd:       NewRouteDistinguisherFourOctetAS(uint32(54233), uint16(100)),
+			ipPrefix: "100:1::/64",
+		},
+		{
+			name:     "test invalid VPNv6 prefix",
+			prefix:   "100:1::/64",
+			valid:    false,
+			rd:       nil,
+			ipPrefix: "100:1::/64",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rd, _, network, err := ParseVPNPrefix(tt.prefix)
+			if !tt.valid {
+				assert.NotNil(t, err)
+				return
+			}
+
+			assert.Nil(t, err)
+			assert.Equal(t, tt.rd, rd)
+			assert.Equal(t, tt.ipPrefix, network.String())
+		})
+	}
+}
+
 func Test_ParseEthernetSegmentIdentifier(t *testing.T) {
 	assert := assert.New(t)
 
