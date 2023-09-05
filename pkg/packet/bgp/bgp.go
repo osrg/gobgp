@@ -1777,7 +1777,7 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 func parseRdAndRt(input string) ([]string, error) {
 	elems := _regexpRouteDistinguisher.FindStringSubmatch(input)
 	if len(elems) != 11 {
-		return nil, errors.New("failed to parse")
+		return nil, fmt.Errorf("failed to parse RD %q", input)
 	}
 	return elems, nil
 }
@@ -1803,22 +1803,11 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 	}
 }
 
-// ParseVPNPrefix splits VPNv4/VPNv6 to exactly three parts for efficiency.
-//  1. RD admin subfield
-//  2. RD assigned subfield
-//  3. IP prefix
-//
-// No need to join IPv6 prefix parts afterwards.
-//
-// Then parses this IP prefix and returns
-//  1. RouteDistinguisherInterface
-//  2. IP address
-//  3. the network implied by the IP and prefix length
-//  4. error if parsing fails on any step
+// ParseVPNPrefix parses VPNv4/VPNv6 prefix.
 func ParseVPNPrefix(prefix string) (RouteDistinguisherInterface, net.IP, *net.IPNet, error) {
 	elems := strings.SplitN(prefix, ":", 3)
 	if len(elems) < 3 {
-		return nil, nil, nil, fmt.Errorf("invalid prefix format: %q", prefix)
+		return nil, nil, nil, fmt.Errorf("invalid VPN prefix format: %q", prefix)
 	}
 
 	rd, err := ParseRouteDistinguisher(elems[0] + ":" + elems[1])
@@ -1827,11 +1816,14 @@ func ParseVPNPrefix(prefix string) (RouteDistinguisherInterface, net.IP, *net.IP
 	}
 
 	addr, network, err := net.ParseCIDR(elems[2])
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to parse CIDR %s: %w", elems[2], err)
-	}
+	return rd, addr, network, err
+}
 
-	return rd, addr, network, nil
+// ContainsCIDR checks if one IPNet is a subnet of another.
+func ContainsCIDR(n1, n2 *net.IPNet) bool {
+	ones1, _ := n1.Mask.Size()
+	ones2, _ := n2.Mask.Size()
+	return ones1 <= ones2 && n1.Contains(n2.IP)
 }
 
 //

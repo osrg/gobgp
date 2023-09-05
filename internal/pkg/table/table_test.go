@@ -103,134 +103,216 @@ func TestTableKey(t *testing.T) {
 	assert.Equal(t, len(tb.GetDestinations()), 2)
 }
 
-func TestTableSelect(t *testing.T) {
-	// Test VPNv4 table
-	existingVpnv4Prefix1 := "100:100:10.1.1.0/27"
-	existingVpnv4Prefix2 := "100:100:10.1.1.0/28"
+func TestTableSelectVPNv4(t *testing.T) {
+	prefixes := []string{
+		"100:100:2.2.2.0/25",
+		"100:100:2.2.2.2/32",
+		"200:100:2.2.2.2/32",
+		"300:100:2.2.2.2/32",
+		"100:100:2.2.2.3/32",
+		"100:100:2.2.2.4/32",
+		"1.1.1.1:1:2.2.2.5/32",
+		"8732:1:2.2.2.5/32",
+		"8732:1:3.3.3.3/32",
+	}
 
-	vpnv4Prefix1, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, existingVpnv4Prefix1)
-	vpnv4Prefix2, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, existingVpnv4Prefix2)
-	vpnv4Destination1 := NewDestination(vpnv4Prefix1, 0, NewPath(nil, vpnv4Prefix1, false, nil, time.Now(), false))
-	vpnv4Destination2 := NewDestination(vpnv4Prefix2, 0, NewPath(nil, vpnv4Prefix2, false, nil, time.Now(), false))
+	table := NewTable(logger, bgp.RF_IPv4_VPN)
+	for _, prefix := range prefixes {
+		nlri, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefix)
 
-	vpnv4Table := NewTable(logger, bgp.RF_IPv4_VPN)
-	assert.Equal(t, 13, len(vpnv4Table.tableKey(vpnv4Destination1.GetNlri())))
+		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
+		table.setDestination(destination)
+	}
+	assert.Equal(t, 9, len(table.GetDestinations()))
 
-	vpnv4Table.setDestination(vpnv4Destination1)
-	vpnv4Table.setDestination(vpnv4Destination2)
-	assert.Equal(t, 2, len(vpnv4Table.GetDestinations()))
-
-	// exact match
-	filteredVpnv4Table, _ := vpnv4Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: existingVpnv4Prefix1}},
+	tests := []struct {
+		name   string
+		prefix string
+		RD     string
+		option LookupOption
+		found  int
+	}{
+		{
+			name:   "exact match with RD that does not exist",
+			prefix: "2.2.2.2/32",
+			RD:     "500:500",
+			option: LOOKUP_EXACT,
+			found:  0,
 		},
-	)
-	assert.Equal(t, 1, len(filteredVpnv4Table.GetDestinations()))
-
-	// longer match
-	shorterVpnv4Prefix := "100:100:10.1.1.0/24"
-	filteredVpnv4TableLonger, _ := vpnv4Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: shorterVpnv4Prefix, LookupOption: LOOKUP_LONGER}},
+		{
+			name:   "exact match with RD and prefix that does not exist",
+			prefix: "4.4.4.4/32",
+			RD:     "100:100",
+			option: LOOKUP_EXACT,
+			found:  0,
 		},
-	)
-	assert.Equal(t, 2, len(filteredVpnv4TableLonger.GetDestinations()))
-
-	// shorter match
-	longerVpnv4Prefix := "100:100:10.1.1.0/32"
-	filteredVpnv4TableShorter, _ := vpnv4Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: longerVpnv4Prefix, LookupOption: LOOKUP_SHORTER}},
+		{
+			name:   "exact match with RD",
+			prefix: "2.2.2.0/25",
+			RD:     "100:100",
+			option: LOOKUP_EXACT,
+			found:  1,
 		},
-	)
-	assert.Equal(t, 2, len(filteredVpnv4TableShorter.GetDestinations()))
-
-	// does not exist
-	nonExistingVpnv4Prefix := "100:100:20.0.0.0/24"
-
-	emptyVpnv4Table, _ := vpnv4Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: nonExistingVpnv4Prefix}},
+		{
+			name:   "longer match with RD",
+			prefix: "2.2.2.0/25",
+			RD:     "100:100",
+			option: LOOKUP_LONGER,
+			found:  4,
 		},
-	)
-	assert.Equal(t, 0, len(emptyVpnv4Table.GetDestinations()))
-
-	// invalid
-	invalidVpnv4Prefix := "30.0.0.0/24"
-	noVpnv4Prefix, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, invalidVpnv4Prefix)
-	assert.Nil(t, noVpnv4Prefix)
-
-	// Test VPNv6 table
-	existingVpnv6Prefix1 := "1.1.1.1:1:100:1::/64"
-	existingVpnv6Prefix2 := "1.1.1.1:1:100:2::/64"
-
-	vpnv6Prefix1, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, existingVpnv6Prefix1)
-	vpnv6Prefix2, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, existingVpnv6Prefix2)
-	vpnv6Destination1 := NewDestination(vpnv6Prefix1, 0, NewPath(nil, vpnv6Prefix1, false, nil, time.Now(), false))
-	vpnv6Destination2 := NewDestination(vpnv6Prefix2, 0, NewPath(nil, vpnv6Prefix2, false, nil, time.Now(), false))
-
-	vpnv6Table := NewTable(logger, bgp.RF_IPv6_VPN)
-	assert.Equal(t, 25, len(vpnv6Table.tableKey(vpnv6Destination1.GetNlri())))
-
-	vpnv6Table.setDestination(vpnv6Destination1)
-	vpnv6Table.setDestination(vpnv6Destination2)
-	assert.Equal(t, 2, len(vpnv6Table.GetDestinations()))
-
-	// exact match
-	filteredVpnv6Table, _ := vpnv6Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: existingVpnv6Prefix1}},
+		{
+			name:   "shorter match with RD",
+			prefix: "2.2.2.2/32",
+			RD:     "100:100",
+			option: LOOKUP_SHORTER,
+			found:  2,
 		},
-	)
-	assert.Equal(t, 1, len(filteredVpnv6Table.GetDestinations()))
-
-	// longer match
-	shorterVpnv6Prefix := "1.1.1.1:1:100::/16"
-	filteredVpnv6TableLonger, _ := vpnv6Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: shorterVpnv6Prefix, LookupOption: LOOKUP_LONGER}},
+		{
+			name:   "exact match without RD for prefix that does not exist",
+			prefix: "4.4.4.4/32",
+			option: LOOKUP_EXACT,
+			found:  0,
 		},
-	)
-	assert.Equal(t, 2, len(filteredVpnv6TableLonger.GetDestinations()))
-
-	filteredVpnv6TableLongerNoMatch, _ := vpnv6Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: shorterVpnv6Prefix, LookupOption: LOOKUP_SHORTER}},
+		{
+			name:   "exact match without RD",
+			prefix: "2.2.2.2/32",
+			option: LOOKUP_EXACT,
+			found:  3,
 		},
-	)
-	assert.Equal(t, 0, len(filteredVpnv6TableLongerNoMatch.GetDestinations()))
-
-	// shorter match
-	longerVpnv6Prefix := "1.1.1.1:1:100:1::/96"
-	filteredVpnv6TableShorter, _ := vpnv6Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: longerVpnv6Prefix, LookupOption: LOOKUP_SHORTER}},
+		{
+			name:   "longer match without RD",
+			prefix: "2.2.2.0/24",
+			option: LOOKUP_LONGER,
+			found:  8,
 		},
-	)
-	assert.Equal(t, 1, len(filteredVpnv6TableShorter.GetDestinations()))
-
-	filteredVpnv6TableShorterNoMatch, _ := vpnv6Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: longerVpnv6Prefix, LookupOption: LOOKUP_LONGER}},
+		{
+			name:   "shorter match without RD",
+			prefix: "2.2.2.2/32",
+			option: LOOKUP_SHORTER,
+			found:  4,
 		},
-	)
-	assert.Equal(t, 0, len(filteredVpnv6TableShorterNoMatch.GetDestinations()))
+	}
 
-	// does not exist
-	nonExistingVpnv6Prefix := "1.1.1.1:1:200:1::/64"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filteredTable, _ := table.Select(
+				TableSelectOption{
+					LookupPrefixes: []*LookupPrefix{{
+						Prefix:       tt.prefix,
+						RD:           tt.RD,
+						LookupOption: tt.option,
+					}},
+				},
+			)
+			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+		})
+	}
+}
 
-	emptyVpnv6Table, _ := vpnv6Table.Select(
-		TableSelectOption{
-			LookupPrefixes: []*LookupPrefix{{Prefix: nonExistingVpnv6Prefix}},
+func TestTableSelectVPNv6(t *testing.T) {
+	prefixes := []string{
+		"100:100:100::/32",
+		"100:100:100::/64",
+		"100:100:100:1::/64",
+		"100:100:100:2::/64",
+		"200:100:100:2::/64",
+		"300:100:100:2::/64",
+		"100:100:100:3:1::/48",
+		"100:100:100:3:1:2::/64",
+		"100:100:100:2:3:4:5:6::/96",
+	}
+
+	table := NewTable(logger, bgp.RF_IPv6_VPN)
+	for _, prefix := range prefixes {
+		nlri, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefix)
+
+		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
+		table.setDestination(destination)
+	}
+	assert.Equal(t, 9, len(table.GetDestinations()))
+
+	tests := []struct {
+		name   string
+		prefix string
+		RD     string
+		option LookupOption
+		found  int
+	}{
+		{
+			name:   "exact match with RD that does not exist",
+			prefix: "100::/32",
+			RD:     "500:500",
+			option: LOOKUP_EXACT,
+			found:  0,
 		},
-	)
-	assert.Equal(t, 0, len(emptyVpnv6Table.GetDestinations()))
+		{
+			name:   "exact match with RD and prefix that does not exist",
+			prefix: "200::/32",
+			RD:     "100:100",
+			option: LOOKUP_EXACT,
+			found:  0,
+		},
+		{
+			name:   "exact match with RD",
+			prefix: "100:2::/64",
+			RD:     "100:100",
+			option: LOOKUP_EXACT,
+			found:  1,
+		},
+		{
+			name:   "longer match with RD",
+			prefix: "100::/16",
+			RD:     "100:100",
+			option: LOOKUP_LONGER,
+			found:  7,
+		},
+		{
+			name:   "shorter match with RD",
+			prefix: "100::/96",
+			RD:     "100:100",
+			option: LOOKUP_SHORTER,
+			found:  2,
+		},
+		{
+			name:   "exact match without RD for prefix that does not exist",
+			prefix: "100:5::/64",
+			option: LOOKUP_EXACT,
+			found:  0,
+		},
+		{
+			name:   "exact match without RD",
+			prefix: "100:2::/64",
+			option: LOOKUP_EXACT,
+			found:  3,
+		},
+		{
+			name:   "longer match without RD",
+			prefix: "100:3::/32",
+			option: LOOKUP_LONGER,
+			found:  2,
+		},
+		{
+			name:   "shorter match without RD",
+			prefix: "100:2::/96",
+			option: LOOKUP_SHORTER,
+			found:  3,
+		},
+	}
 
-	// invalid
-	invalidVpnv6Prefix := "300:1::/64"
-	noVpnv6Prefix, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, invalidVpnv6Prefix)
-	assert.Nil(t, noVpnv6Prefix)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filteredTable, _ := table.Select(
+				TableSelectOption{
+					LookupPrefixes: []*LookupPrefix{{
+						Prefix:       tt.prefix,
+						RD:           tt.RD,
+						LookupOption: tt.option,
+					}},
+				},
+			)
+			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+		})
+	}
 }
 
 func TableCreatePeer() []*PeerInfo {

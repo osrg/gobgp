@@ -2639,6 +2639,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 		for _, p := range r.Prefixes {
 			l = append(l, &table.LookupPrefix{
 				Prefix:       p.Prefix,
+				RD:           p.Rd,
 				LookupOption: table.LookupOption(p.Type),
 			})
 		}

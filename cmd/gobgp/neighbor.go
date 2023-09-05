@@ -841,6 +841,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showMUP := false
 	showIdentifier := bgp.BGP_ADD_PATH_NONE
 	validationTarget := ""
+	rd := ""
 
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
@@ -889,6 +890,25 @@ func showNeighborRib(r string, name string, args []string) error {
 				option = api.TableLookupPrefix_LONGER
 			} else if args[0] == "shorter-prefixes" {
 				option = api.TableLookupPrefix_SHORTER
+			} else if args[0] == "rd" {
+				switch rf {
+				case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+				case bgp.RF_EVPN:
+					return fmt.Errorf("route distinguisher option for %q family is not implemented yet", rf)
+				default:
+					return fmt.Errorf("route distinguisher is not applicable to %q family", rf)
+				}
+
+				if len(args) < 2 {
+					return fmt.Errorf("no route distinguisher value specified")
+				}
+				args = args[1:]
+
+				rd := args[0]
+				_, err = bgp.ParseRouteDistinguisher(rd)
+				if err != nil {
+					return err
+				}
 			} else if args[0] == "validation" {
 				if r != cmdAdjIn {
 					return fmt.Errorf("RPKI information is supported for only adj-in")
@@ -901,6 +921,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 		filter = []*api.TableLookupPrefix{{
 			Prefix: target,
+			Rd:     rd,
 			Type:   option,
 		},
 		}

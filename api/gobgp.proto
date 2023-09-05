@@ -249,6 +249,7 @@ message TableLookupPrefix {
   enum Type { EXACT = 0; LONGER = 1; SHORTER = 2; }
   string prefix = 1;
   Type type = 2;
+  string rd = 3;
 }
 
 message ListPathRequest {

@@ -12,6 +12,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // GobgpApiClient is the client API for GobgpApi service.
@@ -111,7 +112,7 @@ func (c *gobgpApiClient) GetBgp(ctx context.Context, in *GetBgpRequest, opts ...
 }
 
 func (c *gobgpApiClient) WatchEvent(ctx context.Context, in *WatchEventRequest, opts ...grpc.CallOption) (GobgpApi_WatchEventClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[0], "/apipb.GobgpApi/WatchEvent", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[0], "/apipb.GobgpApi/WatchEvent", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +162,7 @@ func (c *gobgpApiClient) DeletePeer(ctx context.Context, in *DeletePeerRequest, 
 }
 
 func (c *gobgpApiClient) ListPeer(ctx context.Context, in *ListPeerRequest, opts ...grpc.CallOption) (GobgpApi_ListPeerClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[1], "/apipb.GobgpApi/ListPeer", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[1], "/apipb.GobgpApi/ListPeer", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +257,7 @@ func (c *gobgpApiClient) DeletePeerGroup(ctx context.Context, in *DeletePeerGrou
 }
 
 func (c *gobgpApiClient) ListPeerGroup(ctx context.Context, in *ListPeerGroupRequest, opts ...grpc.CallOption) (GobgpApi_ListPeerGroupClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[2], "/apipb.GobgpApi/ListPeerGroup", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[2], "/apipb.GobgpApi/ListPeerGroup", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +307,7 @@ func (c *gobgpApiClient) AddDynamicNeighbor(ctx context.Context, in *AddDynamicN
 }
 
 func (c *gobgpApiClient) ListDynamicNeighbor(ctx context.Context, in *ListDynamicNeighborRequest, opts ...grpc.CallOption) (GobgpApi_ListDynamicNeighborClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[3], "/apipb.GobgpApi/ListDynamicNeighbor", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[3], "/apipb.GobgpApi/ListDynamicNeighbor", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +366,7 @@ func (c *gobgpApiClient) DeletePath(ctx context.Context, in *DeletePathRequest, 
 }
 
 func (c *gobgpApiClient) ListPath(ctx context.Context, in *ListPathRequest, opts ...grpc.CallOption) (GobgpApi_ListPathClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[4], "/apipb.GobgpApi/ListPath", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[4], "/apipb.GobgpApi/ListPath", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +398,7 @@ func (x *gobgpApiListPathClient) Recv() (*ListPathResponse, error) {
 }
 
 func (c *gobgpApiClient) AddPathStream(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_AddPathStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[5], "/apipb.GobgpApi/AddPathStream", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[5], "/apipb.GobgpApi/AddPathStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +459,7 @@ func (c *gobgpApiClient) DeleteVrf(ctx context.Context, in *DeleteVrfRequest, op
 }
 
 func (c *gobgpApiClient) ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (GobgpApi_ListVrfClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[6], "/apipb.GobgpApi/ListVrf", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[6], "/apipb.GobgpApi/ListVrf", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +509,7 @@ func (c *gobgpApiClient) DeletePolicy(ctx context.Context, in *DeletePolicyReque
 }
 
 func (c *gobgpApiClient) ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (GobgpApi_ListPolicyClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[7], "/apipb.GobgpApi/ListPolicy", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[7], "/apipb.GobgpApi/ListPolicy", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -567,7 +568,7 @@ func (c *gobgpApiClient) DeleteDefinedSet(ctx context.Context, in *DeleteDefined
 }
 
 func (c *gobgpApiClient) ListDefinedSet(ctx context.Context, in *ListDefinedSetRequest, opts ...grpc.CallOption) (GobgpApi_ListDefinedSetClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[8], "/apipb.GobgpApi/ListDefinedSet", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[8], "/apipb.GobgpApi/ListDefinedSet", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -617,7 +618,7 @@ func (c *gobgpApiClient) DeleteStatement(ctx context.Context, in *DeleteStatemen
 }
 
 func (c *gobgpApiClient) ListStatement(ctx context.Context, in *ListStatementRequest, opts ...grpc.CallOption) (GobgpApi_ListStatementClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[9], "/apipb.GobgpApi/ListStatement", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[9], "/apipb.GobgpApi/ListStatement", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -667,7 +668,7 @@ func (c *gobgpApiClient) DeletePolicyAssignment(ctx context.Context, in *DeleteP
 }
 
 func (c *gobgpApiClient) ListPolicyAssignment(ctx context.Context, in *ListPolicyAssignmentRequest, opts ...grpc.CallOption) (GobgpApi_ListPolicyAssignmentClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[10], "/apipb.GobgpApi/ListPolicyAssignment", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[10], "/apipb.GobgpApi/ListPolicyAssignment", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -726,7 +727,7 @@ func (c *gobgpApiClient) DeleteRpki(ctx context.Context, in *DeleteRpkiRequest, 
 }
 
 func (c *gobgpApiClient) ListRpki(ctx context.Context, in *ListRpkiRequest, opts ...grpc.CallOption) (GobgpApi_ListRpkiClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[11], "/apipb.GobgpApi/ListRpki", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[11], "/apipb.GobgpApi/ListRpki", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -785,7 +786,7 @@ func (c *gobgpApiClient) ResetRpki(ctx context.Context, in *ResetRpkiRequest, op
 }
 
 func (c *gobgpApiClient) ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (GobgpApi_ListRpkiTableClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[12], "/apipb.GobgpApi/ListRpkiTable", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[12], "/apipb.GobgpApi/ListRpkiTable", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -862,7 +863,7 @@ func (c *gobgpApiClient) DeleteBmp(ctx context.Context, in *DeleteBmpRequest, op
 }
 
 func (c *gobgpApiClient) ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (GobgpApi_ListBmpClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_GobgpApi_serviceDesc.Streams[13], "/apipb.GobgpApi/ListBmp", opts...)
+	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[13], "/apipb.GobgpApi/ListBmp", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1142,8 +1143,8 @@ type UnsafeGobgpApiServer interface {
 	mustEmbedUnimplementedGobgpApiServer()
 }
 
-func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
-	s.RegisterService(&_GobgpApi_serviceDesc, srv)
+func RegisterGobgpApiServer(s grpc.ServiceRegistrar, srv GobgpApiServer) {
+	s.RegisterService(&GobgpApi_ServiceDesc, srv)
 }
 
 func _GobgpApi_StartBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -2183,7 +2184,10 @@ func _GobgpApi_SetLogLevel_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-var _GobgpApi_serviceDesc = grpc.ServiceDesc{
+// GobgpApi_ServiceDesc is the grpc.ServiceDesc for GobgpApi service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var GobgpApi_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "apipb.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
 	Methods: []grpc.MethodDesc{

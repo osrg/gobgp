@@ -39,6 +39,7 @@ const (
 
 type LookupPrefix struct {
 	Prefix string
+	RD     string
 	LookupOption
 }
 
@@ -251,7 +252,6 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		if err != nil {
 			return nil, err
 		}
-
 		ones, bits := network.Mask.Size()
 
 		r := critbitgo.NewNet()
@@ -270,16 +270,19 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 
 			r.Add(nlriToIPNet(dst.nlri), dst)
 		}
+
 		p := &net.IPNet{
 			IP:   network.IP,
 			Mask: net.CIDRMask((ones>>3)<<3, bits),
 		}
+
 		mask := 0
 		div := 0
 		if ones%8 != 0 {
 			mask = 8 - ones&0x7
 			div = ones >> 3
 		}
+
 		r.WalkPrefix(p, func(n *net.IPNet, v interface{}) bool {
 			if mask != 0 && n.IP[div]>>mask != p.IP[div]>>mask {
 				return true
@@ -548,23 +551,57 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 			for _, p := range prefixes {
 				switch p.LookupOption {
 				case LOOKUP_LONGER:
-					ds, err := t.GetLongerPrefixDestinations(p.Prefix)
+					_, prefix, err := net.ParseCIDR(p.Prefix)
 					if err != nil {
 						return nil, err
 					}
+
+					if p.RD == "" {
+						for _, dst := range t.GetDestinations() {
+							tablePrefix := nlriToIPNet(dst.nlri)
+
+							if bgp.ContainsCIDR(prefix, tablePrefix) {
+								r.setDestination(dst)
+							}
+						}
+
+						return r, nil
+					}
+
+					ds, err := t.GetLongerPrefixDestinations(p.RD + ":" + p.Prefix)
+					if err != nil {
+						return nil, err
+					}
+
 					for _, dst := range ds {
 						if d := dst.Select(dOption); d != nil {
 							r.setDestination(d)
 						}
 					}
 				case LOOKUP_SHORTER:
-					rd, addr, network, err := bgp.ParseVPNPrefix(p.Prefix)
+					addr, prefix, err := net.ParseCIDR(p.Prefix)
 					if err != nil {
 						return nil, err
 					}
 
-					ones, _ := network.Mask.Size()
+					if p.RD == "" {
+						for _, dst := range t.GetDestinations() {
+							tablePrefix := nlriToIPNet(dst.nlri)
 
+							if bgp.ContainsCIDR(tablePrefix, prefix) {
+								r.setDestination(dst)
+							}
+						}
+
+						return r, nil
+					}
+
+					rd, err := bgp.ParseRouteDistinguisher(p.RD)
+					if err != nil {
+						return nil, err
+					}
+
+					ones, _ := prefix.Mask.Size()
 					for i := ones; i >= 0; i-- {
 						_, prefix, _ := net.ParseCIDR(addr.String() + "/" + strconv.Itoa(i))
 
@@ -574,7 +611,18 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						}
 					}
 				default:
-					err := f(p.Prefix)
+					if p.RD == "" {
+						for _, dst := range t.GetDestinations() {
+							net := nlriToIPNet(dst.nlri)
+							if net.String() == p.Prefix {
+								r.setDestination(dst)
+							}
+						}
+
+						return r, nil
+					}
+
+					err := f(p.RD + ":" + p.Prefix)
 					if err != nil {
 						return nil, err
 					}

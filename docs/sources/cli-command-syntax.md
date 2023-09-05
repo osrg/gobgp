@@ -46,7 +46,7 @@ gobgp has the following subcommands.
 # show all Route information
 % gobgp global rib [-a <address family>]
 # show a specific route information
-% gobgp global rib [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+% gobgp global rib [<prefix>|<host>] [rd <rd>] [longer-prefixes|shorter-prefixes] [-a <address family>]
 # show table summary
 % gobgp global rib summary [-a <address family>]
 ```
@@ -154,7 +154,7 @@ The following options can be specified in the neighbor subcommand:
 # show all routes in [local|adj-in|adj-out] table
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [-a <address family>]
 # show a specific route in [local|adj-in|adj-out] table
-% gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+% gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [rd <rd>] [longer-prefixes|shorter-prefixes] [-a <address family>]
 # show table summary
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] summary [-a <address family>]
 # show RPKI detailed information in adj-in table
