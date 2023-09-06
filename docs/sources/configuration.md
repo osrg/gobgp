@@ -58,6 +58,7 @@
 [[neighbors]]
     [neighbors.config]
         peer-as = 2
+        # To disable AS checking set to 0
         auth-password = "password"
         neighbor-address = "192.168.10.2"
         # override global.config.as value
