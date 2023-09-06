@@ -904,7 +904,7 @@ func showNeighborRib(r string, name string, args []string) error {
 				}
 				args = args[1:]
 
-				rd := args[0]
+				rd = args[0]
 				_, err = bgp.ParseRouteDistinguisher(rd)
 				if err != nil {
 					return err
