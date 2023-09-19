@@ -3715,3 +3715,17 @@ func Test_BGPOpenDecodeCapabilities(t *testing.T) {
 	assert.Equal(t, tuples[0].RouteFamily, RF_IPv4_UC)
 	assert.Equal(t, tuples[0].Mode, BGP_ADD_PATH_SEND)
 }
+
+func FuzzParseBGPMessage(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		ParseBGPMessage(data)
+	})
+}
+
+func FuzzParseFlowSpecComponents(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data string) {
+		ParseFlowSpecComponents(RF_FS_IPv4_UC, data)
+	})
+}

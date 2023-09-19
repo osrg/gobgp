@@ -300,3 +300,21 @@ func TestMrtSplit(t *testing.T) {
 	t.Logf("scanner scanned %d serialized keepalives from the buffer", numread)
 	assert.Equal(t, numwrite, numread)
 }
+
+func FuzzMRT(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) < 16 {
+			return
+		}
+
+		hdr := &MRTHeader{}
+		err := hdr.DecodeFromBytes(data[:MRT_COMMON_HEADER_LEN])
+
+		if err != nil {
+			return
+		}
+
+		ParseMRTBody(hdr, data[MRT_COMMON_HEADER_LEN:])
+	})
+}
