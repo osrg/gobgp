@@ -21,6 +21,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"sync"
@@ -1074,7 +1075,16 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				h.fsm.lock.RLock()
 				rfMap := h.fsm.rfMap
 				h.fsm.lock.RUnlock()
-				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed)
+
+				// Allow updates from loopback addresses if the GoBGP instance
+				// itself is assigned to 127.0.0.0/8, since this can happen when
+				// testing, where multiple GoBGP instances might be created within
+				// 127.0.0.0/8.
+				var allowLoopback bool
+				if routerIDAddr, err := netip.ParseAddr(h.fsm.gConf.Config.RouterId); err == nil && routerIDAddr.Is4() {
+					allowLoopback = routerIDAddr.IsLoopback()
+				}
+				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, allowLoopback)
 				if !ok {
 					handling = h.handlingError(m, err, useRevisedError)
 				}
