@@ -172,8 +172,8 @@ type adminStateOperation struct {
 }
 
 type fsm struct {
-	gConf                *config.Global
-	pConf                *config.Neighbor
+	gConf                *gobgp.Global
+	pConf                *gobgp.Neighbor
 	lock                 sync.RWMutex
 	state                bgp.FSMState
 	outgoingCh           *channels.InfiniteChannel
@@ -262,12 +262,12 @@ func (fsm *fsm) bmpStatsUpdate(statType uint16, increment int) {
 	}
 }
 
-func newFSM(gConf *config.Global, pConf *config.Neighbor, logger log.Logger) *fsm {
+func newFSM(gConf *gobgp.Global, pConf *gobgp.Neighbor, logger log.Logger) *fsm {
 	adminState := adminStateUp
 	if pConf.Config.AdminDown {
 		adminState = adminStateDown
 	}
-	pConf.State.SessionState = config.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
+	pConf.State.SessionState = gobgp.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	pConf.Timers.State.Downtime = time.Now().Unix()
 	fsm := &fsm{
 		gConf:                gConf,
@@ -515,7 +515,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 		if fsm.pConf.TtlSecurity.Config.Enabled {
 			ttl = 255
 			ttlMin = fsm.pConf.TtlSecurity.Config.TtlMin
-		} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+		} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == gobgp.PEER_TYPE_EXTERNAL {
 			ttl = 1
 			if fsm.pConf.EbgpMultihop.Config.Enabled {
 				ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
@@ -688,7 +688,7 @@ func setPeerConnTTL(fsm *fsm) error {
 	if fsm.pConf.TtlSecurity.Config.Enabled {
 		ttl = 255
 		ttlMin = int(fsm.pConf.TtlSecurity.Config.TtlMin)
-	} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+	} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == gobgp.PEER_TYPE_EXTERNAL {
 		if fsm.pConf.EbgpMultihop.Config.Enabled {
 			ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
 		} else if fsm.pConf.Transport.Config.Ttl != 0 {
@@ -724,7 +724,7 @@ func setPeerConnMSS(fsm *fsm) error {
 	return nil
 }
 
-func capAddPathFromConfig(pConf *config.Neighbor) bgp.ParameterCapabilityInterface {
+func capAddPathFromConfig(pConf *gobgp.Neighbor) bgp.ParameterCapabilityInterface {
 	tuples := make([]*bgp.CapAddPathTuple, 0, len(pConf.AfiSafis))
 	for _, af := range pConf.AfiSafis {
 		var mode bgp.BGPAddPathMode
@@ -744,13 +744,13 @@ func capAddPathFromConfig(pConf *config.Neighbor) bgp.ParameterCapabilityInterfa
 	return bgp.NewCapAddPath(tuples)
 }
 
-func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInterface {
+func capabilitiesFromConfig(pConf *gobgp.Neighbor) []bgp.ParameterCapabilityInterface {
 	fqdn, _ := os.Hostname()
 	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
 	caps = append(caps, bgp.NewCapRouteRefresh())
 	caps = append(caps, bgp.NewCapFQDN(fqdn, ""))
 
-	if pConf.Config.SendSoftwareVersion || pConf.Config.PeerType == config.PEER_TYPE_INTERNAL {
+	if pConf.Config.SendSoftwareVersion || pConf.Config.PeerType == gobgp.PEER_TYPE_INTERNAL {
 		softwareVersion := fmt.Sprintf("GoBGP/%s", version.Version())
 		caps = append(caps, bgp.NewCapSoftwareVersion(softwareVersion))
 	}
@@ -798,7 +798,7 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 
 	// Extended Nexthop Capability (Code 5)
 	tuples := []*bgp.CapExtendedNexthopTuple{}
-	families, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
+	families, _ := gobgp.AfiSafis(pConf.AfiSafis).ToRfList()
 	for _, family := range families {
 		if family == bgp.RF_IPv6_UC {
 			continue
@@ -818,7 +818,7 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 	return caps
 }
 
-func buildopen(gConf *config.Global, pConf *config.Neighbor) *bgp.BGPMessage {
+func buildopen(gConf *gobgp.Global, pConf *gobgp.Neighbor) *bgp.BGPMessage {
 	caps := capabilitiesFromConfig(pConf)
 	opt := bgp.NewOptionParameterCapability(caps)
 	holdTime := uint16(pConf.Timers.Config.HoldTime)
@@ -1182,7 +1182,7 @@ func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error 
 	return nil
 }
 
-func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bgp.BGPAddPathMode) {
+func open2Cap(open *bgp.BGPOpen, n *gobgp.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bgp.BGPAddPathMode) {
 	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
 	for _, p := range open.OptParams {
 		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
@@ -1330,9 +1330,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.lock.RUnlock()
 					if asnNegotiationSkipped {
 						fsm.lock.Lock()
-						typ := config.PEER_TYPE_EXTERNAL
+						typ := gobgp.PEER_TYPE_EXTERNAL
 						if fsm.peerInfo.LocalAS == peerAs {
-							typ = config.PEER_TYPE_INTERNAL
+							typ = gobgp.PEER_TYPE_INTERNAL
 						}
 						fsm.pConf.State.PeerType = typ
 						fsm.logger.Info("skipped asn negotiation",

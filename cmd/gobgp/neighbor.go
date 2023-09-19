@@ -1283,7 +1283,7 @@ func modNeighbor(cmdType string, args []string) error {
 
 	getNeighborAddress := func() (string, error) {
 		if unnumbered {
-			return config.GetIPv6LinkLocalNeighborAddress(m["interface"][0])
+			return gobgp.GetIPv6LinkLocalNeighborAddress(m["interface"][0])
 		}
 		return m[""][0], nil
 	}

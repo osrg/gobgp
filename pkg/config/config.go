@@ -16,8 +16,8 @@ import (
 
 // ReadConfigFile parses a config file into a BgpConfigSet which can be applied
 // using InitialConfig and UpdateConfig.
-func ReadConfigFile(configFile, configType string) (*config.BgpConfigSet, error) {
-	return config.ReadConfigfile(configFile, configType)
+func ReadConfigFile(configFile, configType string) (*gobgp.BgpConfigSet, error) {
+	return gobgp.ReadConfigfile(configFile, configType)
 }
 
 func marshalRouteTargets(l []string) ([]*apb.Any, error) {
@@ -36,13 +36,13 @@ func marshalRouteTargets(l []string) ([]*apb.Any, error) {
 	return rtList, nil
 }
 
-func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *config.ApplyPolicyConfig) {
-	toDefaultTable := func(r config.DefaultPolicyType) table.RouteType {
+func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *gobgp.ApplyPolicyConfig) {
+	toDefaultTable := func(r gobgp.DefaultPolicyType) table.RouteType {
 		var def table.RouteType
 		switch r {
-		case config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
+		case gobgp.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
 			def = table.ROUTE_TYPE_ACCEPT
-		case config.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
+		case gobgp.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
 			def = table.ROUTE_TYPE_REJECT
 		}
 		return def
@@ -81,7 +81,7 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *con
 
 }
 
-func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []config.PeerGroup) {
+func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []gobgp.PeerGroup) {
 	for _, pg := range addedPg {
 		bgpServer.Log().Info("Add PeerGroup",
 			log.Fields{
@@ -90,7 +90,7 @@ func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []c
 			})
 
 		if err := bgpServer.AddPeerGroup(ctx, &api.AddPeerGroupRequest{
-			PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
+			PeerGroup: gobgp.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
 			bgpServer.Log().Warn("Failed to add PeerGroup",
 				log.Fields{
@@ -101,7 +101,7 @@ func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []c
 	}
 }
 
-func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedPg []config.PeerGroup) {
+func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedPg []gobgp.PeerGroup) {
 	for _, pg := range deletedPg {
 		bgpServer.Log().Info("delete PeerGroup",
 			log.Fields{
@@ -119,14 +119,14 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 	}
 }
 
-func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedPg []config.PeerGroup) bool {
+func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedPg []gobgp.PeerGroup) bool {
 	for _, pg := range updatedPg {
 		bgpServer.Log().Info("update PeerGroup",
 			log.Fields{
 				"Topic": "config",
 				"Key":   pg.Config.PeerGroupName})
 		if u, err := bgpServer.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{
-			PeerGroup: config.NewPeerGroupFromConfigStruct(&pg),
+			PeerGroup: gobgp.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
 			bgpServer.Log().Warn("Failed to update PeerGroup",
 				log.Fields{
@@ -140,7 +140,7 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 	return false
 }
 
-func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynamicNeighbors []config.DynamicNeighbor) {
+func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynamicNeighbors []gobgp.DynamicNeighbor) {
 	for _, dn := range dynamicNeighbors {
 		bgpServer.Log().Info("Add Dynamic Neighbor to PeerGroup",
 			log.Fields{
@@ -163,14 +163,14 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 	}
 }
 
-func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []config.Neighbor) {
+func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []gobgp.Neighbor) {
 	for _, p := range added {
 		bgpServer.Log().Info("Add Peer",
 			log.Fields{
 				"Topic": "config",
 				"Key":   p.State.NeighborAddress})
 		if err := bgpServer.AddPeer(ctx, &api.AddPeerRequest{
-			Peer: config.NewPeerFromConfigStruct(&p),
+			Peer: gobgp.NewPeerFromConfigStruct(&p),
 		}); err != nil {
 			bgpServer.Log().Warn("Failed to add Peer",
 				log.Fields{
@@ -181,7 +181,7 @@ func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []conf
 	}
 }
 
-func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted []config.Neighbor) {
+func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted []gobgp.Neighbor) {
 	for _, p := range deleted {
 		bgpServer.Log().Info("Delete Peer",
 			log.Fields{
@@ -199,14 +199,14 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 	}
 }
 
-func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated []config.Neighbor) bool {
+func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated []gobgp.Neighbor) bool {
 	for _, p := range updated {
 		bgpServer.Log().Info("Update Peer",
 			log.Fields{
 				"Topic": "config",
 				"Key":   p.State.NeighborAddress})
 		if u, err := bgpServer.UpdatePeer(ctx, &api.UpdatePeerRequest{
-			Peer: config.NewPeerFromConfigStruct(&p),
+			Peer: gobgp.NewPeerFromConfigStruct(&p),
 		}); err != nil {
 			bgpServer.Log().Warn("Failed to update Peer",
 				log.Fields{
@@ -225,9 +225,9 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 // configuration can be applied using UpdateConfig. The BgpConfigSet can be
 // obtained by calling ReadConfigFile. If graceful restart behavior is desired,
 // pass true for isGracefulRestart. Otherwise, pass false.
-func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *config.BgpConfigSet, isGracefulRestart bool) (*config.BgpConfigSet, error) {
+func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *gobgp.BgpConfigSet, isGracefulRestart bool) (*gobgp.BgpConfigSet, error) {
 	if err := bgpServer.StartBgp(ctx, &api.StartBgpRequest{
-		Global: config.NewGlobalFromConfigStruct(&newConfig.Global),
+		Global: gobgp.NewGlobalFromConfigStruct(&newConfig.Global),
 	}); err != nil {
 		bgpServer.Log().Fatal("failed to set global config",
 			log.Fields{"Topic": "config", "Error": err})
@@ -329,7 +329,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 				log.Fields{"Topic": "config", "Error": err})
 		}
 	}
-	p := config.ConfigSetToRoutingPolicy(newConfig)
+	p := gobgp.ConfigSetToRoutingPolicy(newConfig)
 	rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
 	if err != nil {
 		bgpServer.Log().Fatal("failed to update policy config",
@@ -365,14 +365,14 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 // hangle graceful restart and 2) requires a BgpConfigSet for the previous
 // configuration so that it can compute the delta between it and the new
 // config. The new BgpConfigSet can be obtained using ReadConfigFile.
-func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig *config.BgpConfigSet) (*config.BgpConfigSet, error) {
-	addedPg, deletedPg, updatedPg := config.UpdatePeerGroupConfig(bgpServer.Log(), c, newConfig)
-	added, deleted, updated := config.UpdateNeighborConfig(bgpServer.Log(), c, newConfig)
-	updatePolicy := config.CheckPolicyDifference(bgpServer.Log(), config.ConfigSetToRoutingPolicy(c), config.ConfigSetToRoutingPolicy(newConfig))
+func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig *gobgp.BgpConfigSet) (*gobgp.BgpConfigSet, error) {
+	addedPg, deletedPg, updatedPg := gobgp.UpdatePeerGroupConfig(bgpServer.Log(), c, newConfig)
+	added, deleted, updated := gobgp.UpdateNeighborConfig(bgpServer.Log(), c, newConfig)
+	updatePolicy := gobgp.CheckPolicyDifference(bgpServer.Log(), gobgp.ConfigSetToRoutingPolicy(c), gobgp.ConfigSetToRoutingPolicy(newConfig))
 
 	if updatePolicy {
 		bgpServer.Log().Info("policy config is update", log.Fields{"Topic": "config"})
-		p := config.ConfigSetToRoutingPolicy(newConfig)
+		p := gobgp.ConfigSetToRoutingPolicy(newConfig)
 		rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
 		if err != nil {
 			bgpServer.Log().Warn("failed to update policy config",

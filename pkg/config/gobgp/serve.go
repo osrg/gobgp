@@ -1,4 +1,4 @@
-package config
+package gobgp
 
 import (
 	"github.com/spf13/viper"

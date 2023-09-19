@@ -251,7 +251,7 @@ func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 		if len(args) > 1 {
 			mask = args[1]
 		}
-		min, max, err := config.ParseMaskLength(args[0], mask)
+		min, max, err := gobgp.ParseMaskLength(args[0], mask)
 		if err != nil {
 			return nil, err
 		}
@@ -779,11 +779,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[0]) {
 		case "valid":
-			stmt.Conditions.RpkiResult = int32(config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_VALID])
+			stmt.Conditions.RpkiResult = int32(gobgp.RpkiValidationResultTypeToIntMap[gobgp.RPKI_VALIDATION_RESULT_TYPE_VALID])
 		case "invalid":
-			stmt.Conditions.RpkiResult = int32(config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_INVALID])
+			stmt.Conditions.RpkiResult = int32(gobgp.RpkiValidationResultTypeToIntMap[gobgp.RPKI_VALIDATION_RESULT_TYPE_INVALID])
 		case "not-found":
-			stmt.Conditions.RpkiResult = int32(config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND])
+			stmt.Conditions.RpkiResult = int32(gobgp.RpkiValidationResultTypeToIntMap[gobgp.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND])
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
