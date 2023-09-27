@@ -70,7 +70,6 @@ This will produce a version number of
 
 The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-standards/project-layout).
 
-
 ## Fuzzing
 
 Run [Go Fuzzing](https://go.dev/security/fuzz)
