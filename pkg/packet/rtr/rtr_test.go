@@ -115,3 +115,10 @@ func Test_RTRErrorReport(t *testing.T) {
 	// when it has both "erroneous PDU" and "Arbitrary Text"
 	verifyRTRMessage(t, NewRTRErrorReport(CORRUPT_DATA, errPDU, errText2))
 }
+
+func FuzzParseRTR(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		ParseRTR(data)
+	})
+}
