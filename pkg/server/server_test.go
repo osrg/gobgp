@@ -33,7 +33,7 @@ import (
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
@@ -105,7 +105,7 @@ func TestModPolicyAssign(t *testing.T) {
 	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p3"})})
 	assert.Nil(err)
 
-	f := func(l []*gobgp.PolicyDefinition) *api.PolicyAssignment {
+	f := func(l []*oc.PolicyDefinition) *api.PolicyAssignment {
 		pl := make([]*api.Policy, 0, len(l))
 		for _, d := range l {
 			pl = append(pl, table.ToPolicyApi(d))
@@ -115,7 +115,7 @@ func TestModPolicyAssign(t *testing.T) {
 		}
 	}
 
-	r := f([]*gobgp.PolicyDefinition{{Name: "p1"}, {Name: "p2"}, {Name: "p3"}})
+	r := f([]*oc.PolicyDefinition{{Name: "p1"}, {Name: "p2"}, {Name: "p3"}})
 	r.Direction = api.PolicyDirection_IMPORT
 	r.DefaultAction = api.RouteAction_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
@@ -133,7 +133,7 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(len(ps[0].Policies), 3)
 
-	r = f([]*gobgp.PolicyDefinition{{Name: "p1"}})
+	r = f([]*oc.PolicyDefinition{{Name: "p1"}})
 	r.Direction = api.PolicyDirection_IMPORT
 	r.DefaultAction = api.RouteAction_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
@@ -716,13 +716,13 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 }
 
 func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
-	nConf := &gobgp.Neighbor{Config: gobgp.NeighborConfig{PeerAs: as, NeighborAddress: address}}
-	gConf := &gobgp.Global{Config: gobgp.GlobalConfig{As: myAs}}
-	gobgp.SetDefaultNeighborConfigValues(nConf, nil, gConf)
+	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
+	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
+	oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
 	policy := table.NewRoutingPolicy(logger)
-	policy.Reset(&gobgp.RoutingPolicy{}, nil)
+	policy.Reset(&oc.RoutingPolicy{}, nil)
 	p := newPeer(
-		&gobgp.Global{Config: gobgp.GlobalConfig{As: myAs}},
+		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
 		rib,
 		policy,
@@ -825,33 +825,33 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	rib2 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
 	p2, _ := newPeerandInfo(1, 3, "192.168.0.2", rib2)
 
-	comSet1 := gobgp.CommunitySet{
+	comSet1 := oc.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
 	p2.policy.AddDefinedSet(s)
 
-	statement := gobgp.Statement{
+	statement := oc.Statement{
 		Name: "stmt1",
-		Conditions: gobgp.Conditions{
-			BgpConditions: gobgp.BgpConditions{
-				MatchCommunitySet: gobgp.MatchCommunitySet{
+		Conditions: oc.Conditions{
+			BgpConditions: oc.BgpConditions{
+				MatchCommunitySet: oc.MatchCommunitySet{
 					CommunitySet: "comset1",
 				},
 			},
 		},
-		Actions: gobgp.Actions{
-			RouteDisposition: gobgp.ROUTE_DISPOSITION_REJECT_ROUTE,
+		Actions: oc.Actions{
+			RouteDisposition: oc.ROUTE_DISPOSITION_REJECT_ROUTE,
 		},
 	}
-	policy := gobgp.PolicyDefinition{
+	policy := oc.PolicyDefinition{
 		Name:       "policy1",
-		Statements: []gobgp.Statement{statement},
+		Statements: []oc.Statement{statement},
 	}
 	p, _ := table.NewPolicy(policy)
 	p2.policy.AddPolicy(p, false)
-	policies := []*gobgp.PolicyDefinition{
+	policies := []*oc.PolicyDefinition{
 		{
 			Name: "policy1",
 		},
@@ -893,8 +893,8 @@ func TestPeerGroup(test *testing.T) {
 	assert.Nil(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	g := &gobgp.PeerGroup{
-		Config: gobgp.PeerGroupConfig{
+	g := &oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
@@ -902,13 +902,13 @@ func TestPeerGroup(test *testing.T) {
 	err = s.addPeerGroup(g)
 	assert.Nil(err)
 
-	n := &gobgp.Neighbor{
-		Config: gobgp.NeighborConfig{
+	n := &oc.Neighbor{
+		Config: oc.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
 			PeerGroup:       "g",
 		},
-		Transport: gobgp.Transport{
-			Config: gobgp.TransportConfig{
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
 				PassiveMode: true,
 			},
 		},
@@ -924,8 +924,8 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
-	gobgp.RegisterConfiguredFields("127.0.0.1", configured)
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: gobgp.NewPeerFromConfigStruct(n)})
+	oc.RegisterConfiguredFields("127.0.0.1", configured)
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(n)})
 	assert.Nil(err)
 
 	t := NewBgpServer()
@@ -940,18 +940,18 @@ func TestPeerGroup(test *testing.T) {
 	assert.Nil(err)
 	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	m := &gobgp.Neighbor{
-		Config: gobgp.NeighborConfig{
+	m := &oc.Neighbor{
+		Config: oc.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          1,
 		},
-		Transport: gobgp.Transport{
-			Config: gobgp.TransportConfig{
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
 				RemotePort: 10179,
 			},
 		},
-		Timers: gobgp.Timers{
-			Config: gobgp.TimersConfig{
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
 				ConnectRetry:           1,
 				IdleHoldTimeAfterReset: 1,
 			},
@@ -959,7 +959,7 @@ func TestPeerGroup(test *testing.T) {
 	}
 	ch := make(chan struct{})
 	go waitEstablished(s, ch)
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: gobgp.NewPeerFromConfigStruct(m)})
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 	<-ch
 }
@@ -979,8 +979,8 @@ func TestDynamicNeighbor(t *testing.T) {
 	assert.Nil(err)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	g := &gobgp.PeerGroup{
-		Config: gobgp.PeerGroupConfig{
+	g := &oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
@@ -1009,18 +1009,18 @@ func TestDynamicNeighbor(t *testing.T) {
 	assert.Nil(err)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	m := &gobgp.Neighbor{
-		Config: gobgp.NeighborConfig{
+	m := &oc.Neighbor{
+		Config: oc.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          1,
 		},
-		Transport: gobgp.Transport{
-			Config: gobgp.TransportConfig{
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
 				RemotePort: 10179,
 			},
 		},
-		Timers: gobgp.Timers{
-			Config: gobgp.TimersConfig{
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
 				ConnectRetry:           1,
 				IdleHoldTimeAfterReset: 1,
 			},
@@ -1028,7 +1028,7 @@ func TestDynamicNeighbor(t *testing.T) {
 	}
 	ch := make(chan struct{})
 	go waitEstablished(s2, ch)
-	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: gobgp.NewPeerFromConfigStruct(m)})
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 	<-ch
 }
@@ -1142,17 +1142,17 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 }
 
 func TestFamiliesForSoftreset(t *testing.T) {
-	f := func(f bgp.RouteFamily) gobgp.AfiSafi {
-		return gobgp.AfiSafi{
-			State: gobgp.AfiSafiState{
+	f := func(f bgp.RouteFamily) oc.AfiSafi {
+		return oc.AfiSafi{
+			State: oc.AfiSafiState{
 				Family: f,
 			},
 		}
 	}
 	peer := &peer{
 		fsm: &fsm{
-			pConf: &gobgp.Neighbor{
-				AfiSafis: []gobgp.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
+			pConf: &oc.Neighbor{
+				AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 			},
 		},
 	}
@@ -1185,26 +1185,26 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 	return s
 }
 
-func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []gobgp.AfiSafiType) error {
+func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []oc.AfiSafiType) error {
 	for i, server := range servers {
 		for j, peer := range servers {
 			if i == j {
 				continue
 			}
 
-			neighborConfig := &gobgp.Neighbor{
-				Config: gobgp.NeighborConfig{
+			neighborConfig := &oc.Neighbor{
+				Config: oc.NeighborConfig{
 					NeighborAddress: "127.0.0.1",
 					PeerAs:          peer.bgpConfig.Global.Config.As,
 				},
-				AfiSafis: gobgp.AfiSafis{},
-				Transport: gobgp.Transport{
-					Config: gobgp.TransportConfig{
+				AfiSafis: oc.AfiSafis{},
+				Transport: oc.Transport{
+					Config: oc.TransportConfig{
 						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
 					},
 				},
-				Timers: gobgp.Timers{
-					Config: gobgp.TimersConfig{
+				Timers: oc.Timers{
+					Config: oc.TimersConfig{
 						ConnectRetry:           1,
 						IdleHoldTimeAfterReset: 1,
 					},
@@ -1217,15 +1217,15 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 			}
 
 			for _, family := range families {
-				neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, gobgp.AfiSafi{
-					Config: gobgp.AfiSafiConfig{
+				neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, oc.AfiSafi{
+					Config: oc.AfiSafiConfig{
 						AfiSafiName: family,
 						Enabled:     true,
 					},
 				})
 			}
 
-			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: gobgp.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
+			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -1299,7 +1299,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 
-	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []gobgp.AfiSafiType{gobgp.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, gobgp.AFI_SAFI_TYPE_RTC}); err != nil {
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
 	watcher := s1.watch(watchUpdate(true, "", ""))

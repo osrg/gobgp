@@ -1,4 +1,4 @@
-package gobgp
+package oc
 
 import (
 	"github.com/spf13/viper"

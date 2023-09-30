@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
-	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
@@ -370,7 +370,7 @@ func TestBadBGPIdentifier(t *testing.T) {
 
 func makePeerAndHandler() (*peer, *fsmHandler) {
 	p := &peer{
-		fsm: newFSM(&gobgp.Global{}, &gobgp.Neighbor{}, log.NewDefaultLogger()),
+		fsm: newFSM(&oc.Global{}, &oc.Neighbor{}, log.NewDefaultLogger()),
 	}
 
 	h := &fsmHandler{

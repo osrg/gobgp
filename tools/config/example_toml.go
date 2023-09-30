@@ -5,47 +5,47 @@ import (
 	"fmt"
 
 	"github.com/BurntSushi/toml"
-	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 )
 
 func main() {
-	b := gobgp.Bgp{
-		Global: gobgp.Global{
-			Config: gobgp.GlobalConfig{
+	b := oc.Bgp{
+		Global: oc.Global{
+			Config: oc.GlobalConfig{
 				As:       12332,
 				RouterId: "10.0.0.1",
 			},
 		},
-		Neighbors: []gobgp.Neighbor{
+		Neighbors: []oc.Neighbor{
 			{
-				Config: gobgp.NeighborConfig{
+				Config: oc.NeighborConfig{
 					PeerAs:          12333,
 					AuthPassword:    "apple",
 					NeighborAddress: "192.168.177.33",
 				},
-				AfiSafis: []gobgp.AfiSafi{
+				AfiSafis: []oc.AfiSafi{
 					{
-						Config: gobgp.AfiSafiConfig{
+						Config: oc.AfiSafiConfig{
 							AfiSafiName: "ipv4-unicast",
 						},
 					},
 					{
-						Config: gobgp.AfiSafiConfig{
+						Config: oc.AfiSafiConfig{
 							AfiSafiName: "ipv6-unicast",
 						},
 					},
 				},
-				ApplyPolicy: gobgp.ApplyPolicy{
+				ApplyPolicy: oc.ApplyPolicy{
 
-					Config: gobgp.ApplyPolicyConfig{
+					Config: oc.ApplyPolicyConfig{
 						ImportPolicyList:    []string{"pd1"},
-						DefaultImportPolicy: gobgp.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
+						DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
 					},
 				},
 			},
 
 			{
-				Config: gobgp.NeighborConfig{
+				Config: oc.NeighborConfig{
 					PeerAs:          12334,
 					AuthPassword:    "orange",
 					NeighborAddress: "192.168.177.32",
@@ -53,7 +53,7 @@ func main() {
 			},
 
 			{
-				Config: gobgp.NeighborConfig{
+				Config: oc.NeighborConfig{
 					PeerAs:          12335,
 					AuthPassword:    "grape",
 					NeighborAddress: "192.168.177.34",
@@ -76,91 +76,91 @@ func main() {
 	fmt.Printf("%v\n", buffer.String())
 }
 
-func policy() gobgp.RoutingPolicy {
+func policy() oc.RoutingPolicy {
 
-	ps := gobgp.PrefixSet{
+	ps := oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList: []gobgp.Prefix{
+		PrefixList: []oc.Prefix{
 			{
 				IpPrefix:        "10.3.192.0/21",
 				MasklengthRange: "21..24",
 			}},
 	}
 
-	ns := gobgp.NeighborSet{
+	ns := oc.NeighborSet{
 		NeighborSetName:  "ns1",
 		NeighborInfoList: []string{"10.0.0.2"},
 	}
 
-	cs := gobgp.CommunitySet{
+	cs := oc.CommunitySet{
 		CommunitySetName: "community1",
 		CommunityList:    []string{"65100:10"},
 	}
 
-	ecs := gobgp.ExtCommunitySet{
+	ecs := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecommunity1",
 		ExtCommunityList:    []string{"RT:65001:200"},
 	}
 
-	as := gobgp.AsPathSet{
+	as := oc.AsPathSet{
 		AsPathSetName: "aspath1",
 		AsPathList:    []string{"^65100"},
 	}
 
-	bds := gobgp.BgpDefinedSets{
-		CommunitySets:    []gobgp.CommunitySet{cs},
-		ExtCommunitySets: []gobgp.ExtCommunitySet{ecs},
-		AsPathSets:       []gobgp.AsPathSet{as},
+	bds := oc.BgpDefinedSets{
+		CommunitySets:    []oc.CommunitySet{cs},
+		ExtCommunitySets: []oc.ExtCommunitySet{ecs},
+		AsPathSets:       []oc.AsPathSet{as},
 	}
 
-	ds := gobgp.DefinedSets{
-		PrefixSets:     []gobgp.PrefixSet{ps},
-		NeighborSets:   []gobgp.NeighborSet{ns},
+	ds := oc.DefinedSets{
+		PrefixSets:     []oc.PrefixSet{ps},
+		NeighborSets:   []oc.NeighborSet{ns},
 		BgpDefinedSets: bds,
 	}
 
-	al := gobgp.AsPathLength{
+	al := oc.AsPathLength{
 		Operator: "eq",
 		Value:    2,
 	}
 
-	s := gobgp.Statement{
+	s := oc.Statement{
 		Name: "statement1",
-		Conditions: gobgp.Conditions{
+		Conditions: oc.Conditions{
 
-			MatchPrefixSet: gobgp.MatchPrefixSet{
+			MatchPrefixSet: oc.MatchPrefixSet{
 				PrefixSet:       "ps1",
-				MatchSetOptions: gobgp.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+				MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
 			},
 
-			MatchNeighborSet: gobgp.MatchNeighborSet{
+			MatchNeighborSet: oc.MatchNeighborSet{
 				NeighborSet:     "ns1",
-				MatchSetOptions: gobgp.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+				MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
 			},
 
-			BgpConditions: gobgp.BgpConditions{
-				MatchCommunitySet: gobgp.MatchCommunitySet{
+			BgpConditions: oc.BgpConditions{
+				MatchCommunitySet: oc.MatchCommunitySet{
 					CommunitySet:    "community1",
-					MatchSetOptions: gobgp.MATCH_SET_OPTIONS_TYPE_ANY,
+					MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 
-				MatchExtCommunitySet: gobgp.MatchExtCommunitySet{
+				MatchExtCommunitySet: oc.MatchExtCommunitySet{
 					ExtCommunitySet: "ecommunity1",
-					MatchSetOptions: gobgp.MATCH_SET_OPTIONS_TYPE_ANY,
+					MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 
-				MatchAsPathSet: gobgp.MatchAsPathSet{
+				MatchAsPathSet: oc.MatchAsPathSet{
 					AsPathSet:       "aspath1",
-					MatchSetOptions: gobgp.MATCH_SET_OPTIONS_TYPE_ANY,
+					MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 				AsPathLength: al,
 			},
 		},
-		Actions: gobgp.Actions{
+		Actions: oc.Actions{
 			RouteDisposition: "reject-route",
-			BgpActions: gobgp.BgpActions{
-				SetCommunity: gobgp.SetCommunity{
-					SetCommunityMethod: gobgp.SetCommunityMethod{
+			BgpActions: oc.BgpActions{
+				SetCommunity: oc.SetCommunity{
+					SetCommunityMethod: oc.SetCommunityMethod{
 						CommunitiesList: []string{"65100:20"},
 					},
 					Options: "ADD",
@@ -170,14 +170,14 @@ func policy() gobgp.RoutingPolicy {
 		},
 	}
 
-	pd := gobgp.PolicyDefinition{
+	pd := oc.PolicyDefinition{
 		Name:       "pd1",
-		Statements: []gobgp.Statement{s},
+		Statements: []oc.Statement{s},
 	}
 
-	p := gobgp.RoutingPolicy{
+	p := oc.RoutingPolicy{
 		DefinedSets:       ds,
-		PolicyDefinitions: []gobgp.PolicyDefinition{pd},
+		PolicyDefinitions: []oc.PolicyDefinition{pd},
 	}
 
 	return p

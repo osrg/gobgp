@@ -1,4 +1,4 @@
-package gobgp
+package oc
 
 import (
 	"encoding/binary"

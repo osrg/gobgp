@@ -37,7 +37,7 @@ import (
 	"github.com/osrg/gobgp/v3/internal/pkg/version"
 	"github.com/osrg/gobgp/v3/internal/pkg/zebra"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/config/gobgp"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/packet/bmp"
@@ -157,7 +157,7 @@ func LoggerOption(logger log.Logger) ServerOption {
 
 type BgpServer struct {
 	apiServer    *server
-	bgpConfig    gobgp.Bgp
+	bgpConfig    oc.Bgp
 	acceptCh     chan *net.TCPConn
 	incomings    []*channels.InfiniteChannel
 	mgmtCh       chan *mgmtOp
@@ -801,7 +801,7 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 	s.notifyWatcher(watchEventTypeBestPath, w)
 }
 
-func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *gobgp.Neighbor {
+func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	// create copy which can be access to without mutex
 	peer.fsm.lock.RLock()
 	conf := *peer.fsm.pConf
@@ -809,7 +809,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *gobgp.Neighbor {
 	peerCapMap := peer.fsm.capMap
 	peer.fsm.lock.RUnlock()
 
-	conf.AfiSafis = make([]gobgp.AfiSafi, len(peerAfiSafis))
+	conf.AfiSafis = make([]oc.AfiSafi, len(peerAfiSafis))
 	for i, af := range peerAfiSafis {
 		conf.AfiSafis[i] = af
 		conf.AfiSafis[i].AddPaths.State.Receive = peer.isAddPathReceiveEnabled(af.State.Family)
@@ -834,8 +834,8 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *gobgp.Neighbor {
 
 	peer.fsm.lock.RLock()
 	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
-	conf.State.SessionState = gobgp.IntToSessionStateMap[int(peer.fsm.state)]
-	conf.State.AdminState = gobgp.IntToAdminStateMap[int(peer.fsm.adminState)]
+	conf.State.SessionState = oc.IntToSessionStateMap[int(peer.fsm.state)]
+	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
 	state := peer.fsm.state
 	peer.fsm.lock.RUnlock()
 
@@ -1367,7 +1367,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		nextState := e.MsgData.(bgp.FSMState)
 		peer.fsm.lock.Lock()
 		oldState := bgp.FSMState(peer.fsm.pConf.State.SessionState.ToInt())
-		peer.fsm.pConf.State.SessionState = gobgp.IntToSessionStateMap[int(nextState)]
+		peer.fsm.pConf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 		peer.fsm.lock.Unlock()
 
 		peer.fsm.StateChange(nextState)
@@ -1611,10 +1611,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		peer.fsm.lock.RUnlock()
 		if adminStateDown {
 			peer.fsm.lock.Lock()
-			peer.fsm.pConf.State = gobgp.NeighborState{}
+			peer.fsm.pConf.State = oc.NeighborState{}
 			peer.fsm.pConf.State.NeighborAddress = peer.fsm.pConf.Config.NeighborAddress
 			peer.fsm.pConf.State.PeerAs = peer.fsm.pConf.Config.PeerAs
-			peer.fsm.pConf.Timers.State = gobgp.TimersState{}
+			peer.fsm.pConf.Timers.State = oc.TimersState{}
 			peer.fsm.lock.Unlock()
 		}
 		peer.startFSMHandler()
@@ -1816,12 +1816,12 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 			sysDescr = version.Version()
 		}
 		s.logger.Debug("add bmp server", log.Fields{"address": r.Address, "port": r.Port, "policy": r.Policy})
-		return s.bmpManager.addServer(&gobgp.BmpServerConfig{
+		return s.bmpManager.addServer(&oc.BmpServerConfig{
 			Address:               r.Address,
 			Port:                  port,
 			SysName:               sysname,
 			SysDescr:              sysDescr,
-			RouteMonitoringPolicy: gobgp.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Policy)],
+			RouteMonitoringPolicy: oc.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Policy)],
 			StatisticsTimeout:     uint16(r.StatisticsTimeout),
 		})
 	}, true)
@@ -1832,7 +1832,7 @@ func (s *BgpServer) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) erro
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.bmpManager.deleteServer(&gobgp.BmpServerConfig{
+		return s.bmpManager.deleteServer(&oc.BmpServerConfig{
 			Address: r.Address,
 			Port:    r.Port,
 		})
@@ -1852,8 +1852,8 @@ func (s *BgpServer) ListBmp(ctx context.Context, req *api.ListBmpRequest, fn fun
 					Port:    s.c.Port,
 				},
 				State: &api.ListBmpResponse_BmpStation_State{
-					Uptime:   gobgp.ProtoTimestamp(atomic.LoadInt64(&s.uptime)),
-					Downtime: gobgp.ProtoTimestamp(atomic.LoadInt64(&s.downtime)),
+					Uptime:   oc.ProtoTimestamp(atomic.LoadInt64(&s.uptime)),
+					Downtime: oc.ProtoTimestamp(atomic.LoadInt64(&s.downtime)),
 				},
 			})
 		}
@@ -1887,7 +1887,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 			s.shutdownWG.Add(1)
 		}
 		for _, name := range names {
-			if err := s.deleteNeighbor(&gobgp.Neighbor{Config: gobgp.NeighborConfig{
+			if err := s.deleteNeighbor(&oc.Neighbor{Config: oc.NeighborConfig{
 				NeighborAddress: name}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED); err != nil {
 				return err
 			}
@@ -1895,7 +1895,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		for _, l := range s.listeners {
 			l.Close()
 		}
-		s.bgpConfig.Global = gobgp.Global{}
+		s.bgpConfig.Global = oc.Global{}
 		return nil
 	}, false)
 
@@ -1915,24 +1915,24 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		return err
 	}
 
-	getConfig := func(id string) (*gobgp.ApplyPolicy, error) {
-		f := func(id string, dir table.PolicyDirection) (gobgp.DefaultPolicyType, []string, error) {
+	getConfig := func(id string) (*oc.ApplyPolicy, error) {
+		f := func(id string, dir table.PolicyDirection) (oc.DefaultPolicyType, []string, error) {
 			rt, policies, err := s.policy.GetPolicyAssignment(id, dir)
 			if err != nil {
-				return gobgp.DEFAULT_POLICY_TYPE_REJECT_ROUTE, nil, err
+				return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE, nil, err
 			}
 			names := make([]string, 0, len(policies))
 			for _, p := range policies {
 				names = append(names, p.Name)
 			}
-			t := gobgp.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			t := oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			if rt == table.ROUTE_TYPE_REJECT {
-				t = gobgp.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+				t = oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 			}
 			return t, names, nil
 		}
 
-		c := &gobgp.ApplyPolicy{}
+		c := &oc.ApplyPolicy{}
 		rt, policies, err := f(id, table.POLICY_DIRECTION_IMPORT)
 		if err != nil {
 			return nil, err
@@ -1949,7 +1949,7 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 	}
 
 	return s.mgmtOperation(func() error {
-		ap := make(map[string]gobgp.ApplyPolicy, len(s.neighborMap)+1)
+		ap := make(map[string]oc.ApplyPolicy, len(s.neighborMap)+1)
 		a, err := getConfig(table.GLOBAL_RIB_NAME)
 		if err != nil {
 			return err
@@ -2238,7 +2238,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		}
 
 		c := newGlobalFromAPIStruct(g)
-		if err := gobgp.SetDefaultGlobalConfigValues(c); err != nil {
+		if err := oc.SetDefaultGlobalConfigValues(c); err != nil {
 			return err
 		}
 
@@ -2254,7 +2254,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 			s.acceptCh = acceptCh
 		}
 
-		rfs, _ := gobgp.AfiSafis(c.AfiSafis).ToRfList()
+		rfs, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
 		s.globalRib = table.NewTableManager(s.logger, rfs)
 		s.rsRib = table.NewTableManager(s.logger, rfs)
 
@@ -2856,7 +2856,7 @@ func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicN
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
-	toApi := func(dn *gobgp.DynamicNeighbor) *api.DynamicNeighbor {
+	toApi := func(dn *oc.DynamicNeighbor) *api.DynamicNeighbor {
 		return &api.DynamicNeighbor{
 			Prefix:    dn.Config.Prefix,
 			PeerGroup: dn.Config.PeerGroup,
@@ -2898,7 +2898,7 @@ func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupReque
 			if peerGroupName != "" && peerGroupName != k {
 				continue
 			}
-			pg := gobgp.NewPeerGroupFromConfigStruct(group.Conf)
+			pg := oc.NewPeerGroupFromConfigStruct(group.Conf)
 			l = append(l, pg)
 		}
 		return nil
@@ -2931,7 +2931,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 				continue
 			}
 			// FIXME: should remove toConfig() conversion
-			p := gobgp.NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised))
+			p := oc.NewPeerFromConfigStruct(s.toConfig(peer, getAdvertised))
 			for _, family := range peer.configuredRFlist() {
 				for i, afisafi := range p.AfiSafis {
 					if !afisafi.Config.Enabled {
@@ -2973,7 +2973,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 	return nil
 }
 
-func (s *BgpServer) addPeerGroup(c *gobgp.PeerGroup) error {
+func (s *BgpServer) addPeerGroup(c *oc.PeerGroup) error {
 	name := c.Config.PeerGroupName
 	if _, y := s.peerGroupMap[name]; y {
 		return fmt.Errorf("can't overwrite the existing peer-group: %s", name)
@@ -2989,7 +2989,7 @@ func (s *BgpServer) addPeerGroup(c *gobgp.PeerGroup) error {
 	return nil
 }
 
-func (s *BgpServer) addNeighbor(c *gobgp.Neighbor) error {
+func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	addr, err := c.ExtractNeighborAddress()
 	if err != nil {
 		return err
@@ -2999,7 +2999,7 @@ func (s *BgpServer) addNeighbor(c *gobgp.Neighbor) error {
 		return fmt.Errorf("can't overwrite the existing peer: %s", addr)
 	}
 
-	var pgConf *gobgp.PeerGroup
+	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		pg, ok := s.peerGroupMap[c.Config.PeerGroup]
 		if !ok {
@@ -3008,7 +3008,7 @@ func (s *BgpServer) addNeighbor(c *gobgp.Neighbor) error {
 		pgConf = pg.Conf
 	}
 
-	if err := gobgp.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
+	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
 		return err
 	}
 
@@ -3016,7 +3016,7 @@ func (s *BgpServer) addNeighbor(c *gobgp.Neighbor) error {
 		if c.RouteServer.Config.RouteServerClient {
 			return fmt.Errorf("route server client can't be enslaved to VRF")
 		}
-		families, _ := gobgp.AfiSafis(c.AfiSafis).ToRfList()
+		families, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
 		for _, f := range families {
 			if f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC && f != bgp.RF_FS_IPv4_UC && f != bgp.RF_FS_IPv6_UC {
 				return fmt.Errorf("%s is not supported for VRF enslaved neighbor", f)
@@ -3097,7 +3097,7 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		c := &gobgp.DynamicNeighbor{Config: gobgp.DynamicNeighborConfig{
+		c := &oc.DynamicNeighbor{Config: oc.DynamicNeighborConfig{
 			Prefix:    r.DynamicNeighbor.Prefix,
 			PeerGroup: r.DynamicNeighbor.PeerGroup},
 		}
@@ -3120,7 +3120,7 @@ func (s *BgpServer) deletePeerGroup(name string) error {
 	return nil
 }
 
-func (s *BgpServer) deleteNeighbor(c *gobgp.Neighbor, code, subcode uint8) error {
+func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
 	if c.Config.PeerGroup != "" {
 		_, y := s.peerGroupMap[c.Config.PeerGroup]
 		if y {
@@ -3135,7 +3135,7 @@ func (s *BgpServer) deleteNeighbor(c *gobgp.Neighbor, code, subcode uint8) error
 
 	if intf := c.Config.NeighborInterface; intf != "" {
 		var err error
-		addr, err = gobgp.GetIPv6LinkLocalNeighborAddress(intf)
+		addr, err = oc.GetIPv6LinkLocalNeighborAddress(intf)
 		if err != nil {
 			return err
 		}
@@ -3192,7 +3192,7 @@ func (s *BgpServer) DeletePeer(ctx context.Context, r *api.DeletePeerRequest) er
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		c := &gobgp.Neighbor{Config: gobgp.NeighborConfig{
+		c := &oc.Neighbor{Config: oc.NeighborConfig{
 			NeighborAddress:   r.Address,
 			NeighborInterface: r.Interface,
 		}}
@@ -3210,7 +3210,7 @@ func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDyna
 	}, true)
 }
 
-func (s *BgpServer) updatePeerGroup(pg *gobgp.PeerGroup) (needsSoftResetIn bool, err error) {
+func (s *BgpServer) updatePeerGroup(pg *oc.PeerGroup) (needsSoftResetIn bool, err error) {
 	name := pg.Config.PeerGroupName
 
 	_, ok := s.peerGroupMap[name]
@@ -3246,8 +3246,8 @@ func (s *BgpServer) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupR
 	return &api.UpdatePeerGroupResponse{NeedsSoftResetIn: doSoftreset}, err
 }
 
-func (s *BgpServer) updateNeighbor(c *gobgp.Neighbor) (needsSoftResetIn bool, err error) {
-	var pgConf *gobgp.PeerGroup
+func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err error) {
+	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		if pg, ok := s.peerGroupMap[c.Config.PeerGroup]; ok {
 			pgConf = pg.Conf
@@ -3255,7 +3255,7 @@ func (s *BgpServer) updateNeighbor(c *gobgp.Neighbor) (needsSoftResetIn bool, er
 			return needsSoftResetIn, fmt.Errorf("no such peer-group: %s", c.Config.PeerGroup)
 		}
 	}
-	if err := gobgp.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
+	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
 		return needsSoftResetIn, err
 	}
 
@@ -3524,7 +3524,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
-	var cd *gobgp.DefinedSets
+	var cd *oc.DefinedSets
 	var err error
 	err = s.mgmtOperation(func() error {
 		cd, err = s.policy.GetDefinedSet(table.DefinedType(r.DefinedType), r.Name)
@@ -3879,10 +3879,10 @@ func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) erro
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.mrtManager.enable(&gobgp.MrtConfig{
+		return s.mrtManager.enable(&oc.MrtConfig{
 			DumpInterval:     r.DumpInterval,
 			RotationInterval: r.RotationInterval,
-			DumpType:         gobgp.IntToMrtTypeMap[int(r.Type)],
+			DumpType:         oc.IntToMrtTypeMap[int(r.Type)],
 			FileName:         r.Filename,
 		})
 	}, false)
@@ -3893,7 +3893,7 @@ func (s *BgpServer) DisableMrt(ctx context.Context, r *api.DisableMrtRequest) er
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.mrtManager.disable(&gobgp.MrtConfig{})
+		return s.mrtManager.disable(&oc.MrtConfig{})
 	}, false)
 }
 
@@ -3912,8 +3912,8 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn fun
 					RemotePort: uint32(r.Config.Port),
 				},
 				State: &api.RPKIState{
-					Uptime:        gobgp.ProtoTimestamp(r.State.Uptime),
-					Downtime:      gobgp.ProtoTimestamp(r.State.Downtime),
+					Uptime:        oc.ProtoTimestamp(r.State.Uptime),
+					Downtime:      oc.ProtoTimestamp(r.State.Downtime),
 					Up:            r.State.Up,
 					RecordIpv4:    r.State.RecordsV4,
 					RecordIpv6:    r.State.RecordsV6,
@@ -4183,7 +4183,7 @@ type watchEventUpdate struct {
 	PostPolicy   bool
 	Init         bool
 	PathList     []*table.Path
-	Neighbor     *gobgp.Neighbor
+	Neighbor     *oc.Neighbor
 }
 
 type PeerEventType uint32
@@ -4221,7 +4221,7 @@ type watchEventAdjIn struct {
 type watchEventTable struct {
 	RouterID string
 	PathList map[string][]*table.Path
-	Neighbor []*gobgp.Neighbor
+	Neighbor []*oc.Neighbor
 }
 
 type watchEventBestPath struct {
@@ -4392,7 +4392,7 @@ func (w *watcher) Generate(t watchEventType) error {
 				}
 				return pathList
 			}()
-			l := make([]*gobgp.Neighbor, 0, len(w.s.neighborMap))
+			l := make([]*oc.Neighbor, 0, len(w.s.neighborMap))
 			for _, peer := range w.s.neighborMap {
 				l = append(l, w.s.toConfig(peer, false))
 			}
@@ -4571,7 +4571,7 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 				}
 				for peerInfo, paths := range pathsByPeer {
 					// create copy which can be access to without mutex
-					var configNeighbor *gobgp.Neighbor
+					var configNeighbor *oc.Neighbor
 					peerAddress := peerInfo.Address.String()
 					if peer, ok := s.neighborMap[peerAddress]; ok {
 						configNeighbor = w.s.toConfig(peer, false)
