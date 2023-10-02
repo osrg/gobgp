@@ -1120,3 +1120,28 @@ func Test_vrfLabelBody(t *testing.T) {
 		assert.Equal(bufIn, bufOut)
 	}
 }
+
+func FuzzZapi(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+
+		if len(data) < 16 {
+			return
+		}
+
+		for v := MinZapiVer; v <= MaxZapiVer; v++ {
+
+			ZAPIHeaderSize := int(HeaderSize(v))
+
+			hd := &Header{}
+			err := hd.decodeFromBytes(data[:ZAPIHeaderSize])
+
+			if err != nil {
+				return
+			}
+
+			software := NewSoftware(v, "")
+			parseMessage(hd, data[:ZAPIHeaderSize], software)
+		}
+	})
+}

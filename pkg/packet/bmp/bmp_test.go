@@ -158,3 +158,10 @@ func Test_RouteMonitoringUnknownType(t *testing.T) {
 	_, err := ParseBMPMessage(data)
 	require.NoError(t, err)
 }
+
+func FuzzParseBMPMessage(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		ParseBMPMessage(data)
+	})
+}

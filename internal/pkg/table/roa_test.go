@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +38,7 @@ func strToASParam(str string) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(atype, as)})
 }
 
-func validateOne(rt *ROATable, cidr, aspathStr string) config.RpkiValidationResultType {
+func validateOne(rt *ROATable, cidr, aspathStr string) oc.RpkiValidationResultType {
 	var nlri bgp.AddrPrefixInterface
 	ip, r, _ := net.ParseCIDR(cidr)
 	length, _ := r.Mask.Size()
@@ -61,22 +61,22 @@ func TestValidate0(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
 
 	r := validateOne(table, "192.168.0.0/24", "100")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "192.168.0.0/24", "100 200")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "192.168.0.0/24", "300")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	r = validateOne(table, "192.168.0.0/25", "100")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "192.168.0.0/25", "200")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	r = validateOne(table, "192.168.0.0/25", "300")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 }
 
 func TestValidate1(t *testing.T) {
@@ -86,10 +86,10 @@ func TestValidate1(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/16", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "10.0.0.0/16", "65001")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 }
 
 func TestValidate2(t *testing.T) {
@@ -97,13 +97,13 @@ func TestValidate2(t *testing.T) {
 
 	table := NewROATable(logger)
 
-	var r config.RpkiValidationResultType
+	var r oc.RpkiValidationResultType
 
 	r = validateOne(table, "10.0.0.0/16", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
 	r = validateOne(table, "10.0.0.0/16", "65001")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 }
 
 func TestValidate3(t *testing.T) {
@@ -113,16 +113,16 @@ func TestValidate3(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/8", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
 	r = validateOne(table, "10.0.0.0/17", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	table = NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	r = validateOne(table, "10.0.0.0/17", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 }
 
 func TestValidate4(t *testing.T) {
@@ -133,10 +133,10 @@ func TestValidate4(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
 
 	r := validateOne(table, "10.0.0.0/16", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "10.0.0.0/16", "65001")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 }
 
 func TestValidate5(t *testing.T) {
@@ -147,7 +147,7 @@ func TestValidate5(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/16", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 }
 
 func TestValidate6(t *testing.T) {
@@ -157,13 +157,13 @@ func TestValidate6(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
 
 	r := validateOne(table, "10.0.0.0/7", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
 	r = validateOne(table, "10.0.0.0/8", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	r = validateOne(table, "10.0.0.0/24", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 }
 
 func TestValidate7(t *testing.T) {
@@ -173,13 +173,13 @@ func TestValidate7(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/24", "{65000}")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
 	r = validateOne(table, "10.0.0.0/24", "{65001}")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 
 	r = validateOne(table, "10.0.0.0/24", "{65000,65001}")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 }
 
 func TestValidate8(t *testing.T) {
@@ -190,10 +190,10 @@ func TestValidate8(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	r := validateOne(table, "10.0.0.0/24", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "10.0.0.0/24", "65001")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 }
 
 func TestValidate9(t *testing.T) {
@@ -204,10 +204,10 @@ func TestValidate9(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 
 	r := validateOne(table, "10.0.0.0/24", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
 	r = validateOne(table, "10.0.0.0/24", "65001")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 }
 
 func TestValidate10(t *testing.T) {
@@ -218,8 +218,8 @@ func TestValidate10(t *testing.T) {
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65001, ""))
 
 	r := validateOne(table, "10.0.0.0/24", "65000")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	r = validateOne(table, "10.0.0.0/24", "65001")
-	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_VALID)
 }

@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -61,13 +61,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
 	match1 := pl1.Match(path)
 	assert.Equal(t, true, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/23", MasklengthRange: ""})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/23", MasklengthRange: ""})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -85,10 +85,10 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.11.0.0/16", MasklengthRange: "21..24"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.11.0.0/16", MasklengthRange: "21..24"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -106,10 +106,10 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.64.0/24", MasklengthRange: "21..24"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.64.0/24", MasklengthRange: "21..24"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.64.0/16", MasklengthRange: "21..24"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.64.0/16", MasklengthRange: "21..24"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -127,13 +127,13 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..23"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..23"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "25..26"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "25..26"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -151,13 +151,13 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: ""})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: ""})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123:1::/64", MasklengthRange: ""})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123:1::/64", MasklengthRange: ""})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
-	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -175,10 +175,10 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:128::/48", MasklengthRange: "64..80"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:128::/48", MasklengthRange: "64..80"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -196,10 +196,10 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123:64::/64", MasklengthRange: "64..80"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123:64::/64", MasklengthRange: "64..80"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123:64::/48", MasklengthRange: "64..80"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123:64::/48", MasklengthRange: "64..80"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -217,13 +217,13 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "62..63"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "62..63"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "65..66"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "65..66"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "63..65"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "63..65"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -244,9 +244,9 @@ func TestPolicyNotMatch(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.3.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 	s := createStatement("statement1", "ps1", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -274,9 +274,9 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
@@ -305,9 +305,9 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	pd := createPolicyDefinition("pd1", s)
@@ -348,8 +348,8 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
 
 	s := createStatement("statement1", "ps1", "", false)
 	pd := createPolicyDefinition("pd1", s)
@@ -395,8 +395,8 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 
 	// create policy
 	ns := createNeighborSet("ns1", "10.0.1.1")
-	ds := config.DefinedSets{}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
@@ -445,9 +445,9 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	psIPv6 := createPrefixSet("psIPv6", "2001:123:123::/48", "64..80")
 	nsIPv6 := createNeighborSet("nsIPv6", "2001::192:168:50:1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{psIPv4, psIPv6}
-	ds.NeighborSets = []config.NeighborSet{nsIPv4, nsIPv6}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{psIPv4, psIPv6}
+	ds.NeighborSets = []oc.NeighborSet{nsIPv4, nsIPv6}
 
 	stIPv4 := createStatement("statement1", "psIPv4", "nsIPv4", false)
 	stIPv6 := createStatement("statement2", "psIPv6", "nsIPv6", false)
@@ -488,7 +488,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create match condition
-	asPathLength := config.AsPathLength{
+	asPathLength := oc.AsPathLength{
 		Operator: "eq",
 		Value:    5,
 	}
@@ -498,7 +498,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, c.Evaluate(path, nil))
 
 	// create match condition
-	asPathLength = config.AsPathLength{
+	asPathLength = oc.AsPathLength{
 		Operator: "ge",
 		Value:    3,
 	}
@@ -508,7 +508,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, c.Evaluate(path, nil))
 
 	// create match condition
-	asPathLength = config.AsPathLength{
+	asPathLength = oc.AsPathLength{
 		Operator: "le",
 		Value:    3,
 	}
@@ -534,9 +534,9 @@ func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.1/32"}
 	pd := createPolicyDefinition("pd1", s)
@@ -566,9 +566,9 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.12"}
 	pd := createPolicyDefinition("pd1", s)
@@ -604,12 +604,12 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	// create match condition
-	asPathLength := config.AsPathLength{
+	asPathLength := oc.AsPathLength{
 		Operator: "le",
 		Value:    10,
 	}
@@ -659,7 +659,7 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create match condition
-	asPathLength := config.AsPathLength{
+	asPathLength := oc.AsPathLength{
 		Operator: "eq",
 		Value:    5,
 	}
@@ -669,7 +669,7 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, c.Evaluate(path, nil))
 
 	// create match condition
-	asPathLength = config.AsPathLength{
+	asPathLength = oc.AsPathLength{
 		Operator: "ge",
 		Value:    3,
 	}
@@ -679,7 +679,7 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, c.Evaluate(path, nil))
 
 	// create match condition
-	asPathLength = config.AsPathLength{
+	asPathLength = oc.AsPathLength{
 		Operator: "le",
 		Value:    3,
 	}
@@ -730,12 +730,12 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	// create match condition
-	asPathLength := config.AsPathLength{
+	asPathLength := oc.AsPathLength{
 		Operator: "le",
 		Value:    10,
 	}
@@ -784,45 +784,45 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	path2 := ProcessMessage(updateMsg2, peer, time.Now())[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{"^65001"},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := oc.AsPathSet{
 		AsPathSetName: "asset2",
 		AsPathList:    []string{"65005$"},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := oc.AsPathSet{
 		AsPathSetName: "asset3",
 		AsPathList:    []string{"65004", "65005$"},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := oc.AsPathSet{
 		AsPathSetName: "asset4",
 		AsPathList:    []string{"65000$"},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := oc.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList:    []string{"65010"},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := oc.AsPathSet{
 		AsPathSetName: "asset6",
 		AsPathList:    []string{"^65010$"},
 	}
 
 	m := make(map[string]DefinedSet)
-	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	for _, s := range []oc.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6} {
 		a, _ := NewAsPathSet(s)
 		m[s.AsPathSetName] = a
 	}
 
-	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+	createAspathC := func(name string, option oc.MatchSetOptionsType) *AsPathCondition {
+		matchSet := oc.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p, _ := NewAsPathCondition(matchSet)
@@ -832,14 +832,14 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 		return p
 	}
 
-	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p7 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ALL)
-	p8 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_INVERT)
+	p1 := createAspathC("asset1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ALL)
+	p8 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -872,60 +872,60 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{"^65001_65000"},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := oc.AsPathSet{
 		AsPathSetName: "asset2",
 		AsPathList:    []string{"65004_65005$"},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := oc.AsPathSet{
 		AsPathSetName: "asset3",
 		AsPathList:    []string{"65001_65000_54000"},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := oc.AsPathSet{
 		AsPathSetName: "asset4",
 		AsPathList:    []string{"54000_65004_65005"},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := oc.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList:    []string{"^65001 65000 54000 65004 65005$"},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := oc.AsPathSet{
 		AsPathSetName: "asset6",
 		AsPathList:    []string{".*_[0-9]+_65005"},
 	}
 
-	asPathSet7 := config.AsPathSet{
+	asPathSet7 := oc.AsPathSet{
 		AsPathSetName: "asset7",
 		AsPathList:    []string{".*_5[0-9]+_[0-9]+"},
 	}
 
-	asPathSet8 := config.AsPathSet{
+	asPathSet8 := oc.AsPathSet{
 		AsPathSetName: "asset8",
 		AsPathList:    []string{"6[0-9]+_6[0-9]+_5[0-9]+"},
 	}
 
-	asPathSet9 := config.AsPathSet{
+	asPathSet9 := oc.AsPathSet{
 		AsPathSetName: "asset9",
 		AsPathList:    []string{"6[0-9]+__6[0-9]+"},
 	}
 
 	m := make(map[string]DefinedSet)
-	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	for _, s := range []oc.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9} {
 		a, _ := NewAsPathSet(s)
 		m[s.AsPathSetName] = a
 	}
 
-	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+	createAspathC := func(name string, option oc.MatchSetOptionsType) *AsPathCondition {
+		matchSet := oc.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p, _ := NewAsPathCondition(matchSet)
@@ -935,15 +935,15 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 		return p
 	}
 
-	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p8 := createAspathC("asset8", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p9 := createAspathC("asset9", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p1 := createAspathC("asset1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset7", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p8 := createAspathC("asset8", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p9 := createAspathC("asset9", oc.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -1016,13 +1016,13 @@ func TestAsPathCondition(t *testing.T) {
 	}
 
 	for k, v := range tests {
-		s, _ := NewAsPathSet(config.AsPathSet{
+		s, _ := NewAsPathSet(oc.AsPathSet{
 			AsPathSetName: k,
 			AsPathList:    []string{k},
 		})
-		c, _ := NewAsPathCondition(config.MatchAsPathSet{
+		c, _ := NewAsPathCondition(oc.MatchAsPathSet{
 			AsPathSet:       k,
-			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+			MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
 		})
 		c.set = s
 		for _, a := range v {
@@ -1058,7 +1058,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{"65005$"},
 	}
@@ -1066,10 +1066,10 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets = []config.AsPathSet{asPathSet}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+	ds.BgpDefinedSets.AsPathSets = []oc.AsPathSet{asPathSet}
 
 	s := createStatement("statement1", "ps1", "ns1", false)
 	s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
@@ -1124,17 +1124,17 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	path2 := ProcessMessage(updateMsg2, peer, time.Now())[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{fmt.Sprintf("^%d", createAs4Value("65001.1"))},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := oc.AsPathSet{
 		AsPathSetName: "asset2",
 		AsPathList:    []string{fmt.Sprintf("%d$", createAs4Value("65005.1"))},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := oc.AsPathSet{
 		AsPathSetName: "asset3",
 		AsPathList: []string{
 			fmt.Sprintf("%d", createAs4Value("65004.1")),
@@ -1142,21 +1142,21 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := oc.AsPathSet{
 		AsPathSetName: "asset4",
 		AsPathList: []string{
 			fmt.Sprintf("%d$", createAs4Value("65000.1")),
 		},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := oc.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList: []string{
 			fmt.Sprintf("%d", createAs4Value("65010.1")),
 		},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := oc.AsPathSet{
 		AsPathSetName: "asset6",
 		AsPathList: []string{
 			fmt.Sprintf("%d$", createAs4Value("65010.1")),
@@ -1164,14 +1164,14 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	}
 
 	m := make(map[string]DefinedSet)
-	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	for _, s := range []oc.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6} {
 		a, _ := NewAsPathSet(s)
 		m[s.AsPathSetName] = a
 	}
 
-	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+	createAspathC := func(name string, option oc.MatchSetOptionsType) *AsPathCondition {
+		matchSet := oc.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p, _ := NewAsPathCondition(matchSet)
@@ -1181,15 +1181,15 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 		return p
 	}
 
-	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p1 := createAspathC("asset1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
 
-	p7 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ALL)
-	p8 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_INVERT)
+	p7 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ALL)
+	p8 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -1230,72 +1230,72 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList: []string{
 			fmt.Sprintf("^%d_%d", createAs4Value("65001.1"), createAs4Value("65000.1")),
 		},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := oc.AsPathSet{
 		AsPathSetName: "asset2",
 		AsPathList: []string{
 			fmt.Sprintf("%d_%d$", createAs4Value("65004.1"), createAs4Value("65005.1")),
 		},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := oc.AsPathSet{
 		AsPathSetName: "asset3",
 		AsPathList: []string{
 			fmt.Sprintf("%d_%d_%d", createAs4Value("65001.1"), createAs4Value("65000.1"), createAs4Value("54000.1")),
 		},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := oc.AsPathSet{
 		AsPathSetName: "asset4",
 		AsPathList: []string{
 			fmt.Sprintf("%d_%d_%d", createAs4Value("54000.1"), createAs4Value("65004.1"), createAs4Value("65005.1")),
 		},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := oc.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList: []string{
 			fmt.Sprintf("^%d %d %d %d %d$", createAs4Value("65001.1"), createAs4Value("65000.1"), createAs4Value("54000.1"), createAs4Value("65004.1"), createAs4Value("65005.1")),
 		},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := oc.AsPathSet{
 		AsPathSetName: "asset6",
 		AsPathList: []string{
 			fmt.Sprintf(".*_[0-9]+_%d", createAs4Value("65005.1")),
 		},
 	}
 
-	asPathSet7 := config.AsPathSet{
+	asPathSet7 := oc.AsPathSet{
 		AsPathSetName: "asset7",
 		AsPathList:    []string{".*_3[0-9]+_[0-9]+"},
 	}
 
-	asPathSet8 := config.AsPathSet{
+	asPathSet8 := oc.AsPathSet{
 		AsPathSetName: "asset8",
 		AsPathList:    []string{"4[0-9]+_4[0-9]+_3[0-9]+"},
 	}
 
-	asPathSet9 := config.AsPathSet{
+	asPathSet9 := oc.AsPathSet{
 		AsPathSetName: "asset9",
 		AsPathList:    []string{"4[0-9]+__4[0-9]+"},
 	}
 
 	m := make(map[string]DefinedSet)
-	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	for _, s := range []oc.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9} {
 		a, _ := NewAsPathSet(s)
 		m[s.AsPathSetName] = a
 	}
 
-	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+	createAspathC := func(name string, option oc.MatchSetOptionsType) *AsPathCondition {
+		matchSet := oc.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p, _ := NewAsPathCondition(matchSet)
@@ -1305,15 +1305,15 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 		return p
 	}
 
-	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p8 := createAspathC("asset8", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p9 := createAspathC("asset9", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p1 := createAspathC("asset1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset7", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p8 := createAspathC("asset8", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p9 := createAspathC("asset9", oc.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -1358,7 +1358,7 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{fmt.Sprintf("%d$", createAs4Value("65005.1"))},
 	}
@@ -1366,10 +1366,10 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets = []config.AsPathSet{asPathSet}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+	ds.BgpDefinedSets.AsPathSets = []oc.AsPathSet{asPathSet}
 
 	s := createStatement("statement1", "ps1", "ns1", false)
 	s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
@@ -1417,50 +1417,50 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 	path1 := ProcessMessage(updateMsg1, peer, time.Now())[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{fmt.Sprintf("^%d", createAs4Value("65001.1"))},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := oc.AsPathSet{
 		AsPathSetName: "asset2",
 		AsPathList:    []string{"4000$"},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := oc.AsPathSet{
 		AsPathSetName: "asset3",
 		AsPathList:    []string{fmt.Sprintf("%d", createAs4Value("65004.1")), "4000$"},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := oc.AsPathSet{
 		AsPathSetName: "asset4",
 		AsPathList:    []string{fmt.Sprintf("%d_%d_%d", createAs4Value("54000.1"), 100, 5000)},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := oc.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList:    []string{".*_[0-9]+_100"},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := oc.AsPathSet{
 		AsPathSetName: "asset6",
 		AsPathList:    []string{".*_3[0-9]+_[0]+"},
 	}
 
-	asPathSet7 := config.AsPathSet{
+	asPathSet7 := oc.AsPathSet{
 		AsPathSetName: "asset7",
 		AsPathList:    []string{".*_3[0-9]+_[1]+"},
 	}
 
 	m := make(map[string]DefinedSet)
-	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	for _, s := range []oc.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6, asPathSet7} {
 		a, _ := NewAsPathSet(s)
 		m[s.AsPathSetName] = a
 	}
 
-	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+	createAspathC := func(name string, option oc.MatchSetOptionsType) *AsPathCondition {
+		matchSet := oc.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p, _ := NewAsPathCondition(matchSet)
@@ -1470,13 +1470,13 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 		return p
 	}
 
-	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ALL)
-	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p1 := createAspathC("asset1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", oc.MATCH_SET_OPTIONS_TYPE_ALL)
+	p4 := createAspathC("asset4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset7", oc.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -1530,47 +1530,47 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	path2 := ProcessMessage(updateMsg2, peer, time.Now())[0]
 
 	// create match condition
-	comSet1 := config.CommunitySet{
+	comSet1 := oc.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList:    []string{"65001:10", "65001:50", "65001:100"},
 	}
 
-	comSet2 := config.CommunitySet{
+	comSet2 := oc.CommunitySet{
 		CommunitySetName: "comset2",
 		CommunityList:    []string{"65001:200"},
 	}
 
-	comSet3 := config.CommunitySet{
+	comSet3 := oc.CommunitySet{
 		CommunitySetName: "comset3",
 		CommunityList:    []string{"4259905936"},
 	}
 
-	comSet4 := config.CommunitySet{
+	comSet4 := oc.CommunitySet{
 		CommunitySetName: "comset4",
 		CommunityList:    []string{"^[0-9]*:300$"},
 	}
 
-	comSet5 := config.CommunitySet{
+	comSet5 := oc.CommunitySet{
 		CommunitySetName: "comset5",
 		CommunityList:    []string{"INTERNET"},
 	}
 
-	comSet6 := config.CommunitySet{
+	comSet6 := oc.CommunitySet{
 		CommunitySetName: "comset6",
 		CommunityList:    []string{"NO_EXPORT"},
 	}
 
-	comSet7 := config.CommunitySet{
+	comSet7 := oc.CommunitySet{
 		CommunitySetName: "comset7",
 		CommunityList:    []string{"NO_ADVERTISE"},
 	}
 
-	comSet8 := config.CommunitySet{
+	comSet8 := oc.CommunitySet{
 		CommunitySetName: "comset8",
 		CommunityList:    []string{"NO_EXPORT_SUBCONFED"},
 	}
 
-	comSet9 := config.CommunitySet{
+	comSet9 := oc.CommunitySet{
 		CommunitySetName: "comset9",
 		CommunityList: []string{
 			"65001:\\d+",
@@ -1578,7 +1578,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	comSet10 := config.CommunitySet{
+	comSet10 := oc.CommunitySet{
 		CommunitySetName: "comset10",
 		CommunityList: []string{
 			"65001:1",
@@ -1589,14 +1589,14 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 
 	m := make(map[string]DefinedSet)
 
-	for _, c := range []config.CommunitySet{comSet1, comSet2, comSet3,
+	for _, c := range []oc.CommunitySet{comSet1, comSet2, comSet3,
 		comSet4, comSet5, comSet6, comSet7, comSet8, comSet9, comSet10} {
 		s, _ := NewCommunitySet(c)
 		m[c.CommunitySetName] = s
 	}
 
-	createCommunityC := func(name string, option config.MatchSetOptionsType) *CommunityCondition {
-		matchSet := config.MatchCommunitySet{}
+	createCommunityC := func(name string, option oc.MatchSetOptionsType) *CommunityCondition {
+		matchSet := oc.MatchCommunitySet{}
 		matchSet.CommunitySet = name
 		matchSet.MatchSetOptions = option
 		c, _ := NewCommunityCondition(matchSet)
@@ -1607,20 +1607,20 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	}
 
 	// ANY case
-	p1 := createCommunityC("comset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createCommunityC("comset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createCommunityC("comset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p4 := createCommunityC("comset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createCommunityC("comset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createCommunityC("comset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p7 := createCommunityC("comset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p8 := createCommunityC("comset8", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p1 := createCommunityC("comset1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createCommunityC("comset2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createCommunityC("comset3", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createCommunityC("comset4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createCommunityC("comset5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createCommunityC("comset6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createCommunityC("comset7", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p8 := createCommunityC("comset8", oc.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// ALL case
-	p9 := createCommunityC("comset9", config.MATCH_SET_OPTIONS_TYPE_ALL)
+	p9 := createCommunityC("comset9", oc.MATCH_SET_OPTIONS_TYPE_ALL)
 
 	// INVERT case
-	p10 := createCommunityC("comset10", config.MATCH_SET_OPTIONS_TYPE_INVERT)
+	p10 := createCommunityC("comset10", oc.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -1665,17 +1665,17 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{"65005$"},
 	}
 
-	comSet1 := config.CommunitySet{
+	comSet1 := oc.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList:    []string{"65001:100", "65001:200", "65001:300"},
 	}
 
-	comSet2 := config.CommunitySet{
+	comSet2 := oc.CommunitySet{
 		CommunitySetName: "comset2",
 		CommunityList:    []string{"65050:\\d+"},
 	}
@@ -1683,11 +1683,11 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets = []config.AsPathSet{asPathSet}
-	ds.BgpDefinedSets.CommunitySets = []config.CommunitySet{comSet1, comSet2}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+	ds.BgpDefinedSets.AsPathSets = []oc.AsPathSet{asPathSet}
+	ds.BgpDefinedSets.CommunitySets = []oc.CommunitySet{comSet1, comSet2}
 
 	s1 := createStatement("statement1", "ps1", "ns1", false)
 	s1.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
@@ -1734,9 +1734,9 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	community := "65000:100"
 
@@ -1778,9 +1778,9 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	community := "65000:100"
 
@@ -1825,9 +1825,9 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", community1)
@@ -1871,9 +1871,9 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", ".*:100")
@@ -1917,9 +1917,9 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", "^(0|45686):[0-9]+")
@@ -1961,9 +1961,9 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	// action NULL is obsolate
@@ -2070,64 +2070,64 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	}
 
 	// create match condition
-	ecomSet1 := config.ExtCommunitySet{
+	ecomSet1 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
 		ExtCommunityList:    []string{"RT:65001:200"},
 	}
-	ecomSet2 := config.ExtCommunitySet{
+	ecomSet2 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
 		ExtCommunityList:    []string{"RT:10.0.0.1:300"},
 	}
-	ecomSet3 := config.ExtCommunitySet{
+	ecomSet3 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet3",
 		ExtCommunityList:    []string{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
 	}
-	ecomSet4 := config.ExtCommunitySet{
+	ecomSet4 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet4",
 		ExtCommunityList:    []string{"RT:65002:200"},
 	}
-	ecomSet5 := config.ExtCommunitySet{
+	ecomSet5 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet5",
 		ExtCommunityList:    []string{"RT:10.0.0.2:300"},
 	}
-	ecomSet6 := config.ExtCommunitySet{
+	ecomSet6 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet6",
 		ExtCommunityList:    []string{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
 	}
-	ecomSet7 := config.ExtCommunitySet{
+	ecomSet7 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet7",
 		ExtCommunityList:    []string{"SoO:65010:300"},
 	}
-	ecomSet8 := config.ExtCommunitySet{
+	ecomSet8 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet8",
 		ExtCommunityList:    []string{"SoO:10.0.10.10:[0-9]+"},
 	}
-	ecomSet9 := config.ExtCommunitySet{
+	ecomSet9 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet9",
 		ExtCommunityList:    []string{"RT:[0-9]+:[0-9]+"},
 	}
-	ecomSet10 := config.ExtCommunitySet{
+	ecomSet10 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet10",
 		ExtCommunityList:    []string{"RT:.+:\\d00", "SoO:.+:\\d00"},
 	}
-	ecomSet11 := config.ExtCommunitySet{
+	ecomSet11 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet11",
 		ExtCommunityList:    []string{"RT:65001:2", "SoO:11.0.10.10:[0-9]+"},
 	}
-	ecomSet12 := config.ExtCommunitySet{
+	ecomSet12 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet12",
 		ExtCommunityList:    []string{"LB:65001:125000"},
 	}
 
 	m := make(map[string]DefinedSet)
-	for _, c := range []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
+	for _, c := range []oc.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
 		ecomSet8, ecomSet9, ecomSet10, ecomSet11, ecomSet12} {
 		s, _ := NewExtCommunitySet(c)
 		m[s.Name()] = s
 	}
 
-	createExtCommunityC := func(name string, option config.MatchSetOptionsType) *ExtCommunityCondition {
-		matchSet := config.MatchExtCommunitySet{}
+	createExtCommunityC := func(name string, option oc.MatchSetOptionsType) *ExtCommunityCondition {
+		matchSet := oc.MatchExtCommunitySet{}
 		matchSet.ExtCommunitySet = name
 		matchSet.MatchSetOptions = option
 		c, _ := NewExtCommunityCondition(matchSet)
@@ -2138,21 +2138,21 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 		return c
 	}
 
-	p1 := createExtCommunityC("ecomSet1", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p2 := createExtCommunityC("ecomSet2", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p3 := createExtCommunityC("ecomSet3", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p4 := createExtCommunityC("ecomSet4", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p5 := createExtCommunityC("ecomSet5", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p6 := createExtCommunityC("ecomSet6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p7 := createExtCommunityC("ecomSet7", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p8 := createExtCommunityC("ecomSet8", config.MATCH_SET_OPTIONS_TYPE_ANY)
-	p9 := createExtCommunityC("ecomSet9", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p1 := createExtCommunityC("ecomSet1", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createExtCommunityC("ecomSet2", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createExtCommunityC("ecomSet3", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createExtCommunityC("ecomSet4", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createExtCommunityC("ecomSet5", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createExtCommunityC("ecomSet6", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createExtCommunityC("ecomSet7", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p8 := createExtCommunityC("ecomSet8", oc.MATCH_SET_OPTIONS_TYPE_ANY)
+	p9 := createExtCommunityC("ecomSet9", oc.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// ALL case
-	p10 := createExtCommunityC("ecomSet10", config.MATCH_SET_OPTIONS_TYPE_ALL)
+	p10 := createExtCommunityC("ecomSet10", oc.MATCH_SET_OPTIONS_TYPE_ALL)
 
 	// INVERT case
-	p11 := createExtCommunityC("ecomSet11", config.MATCH_SET_OPTIONS_TYPE_INVERT)
+	p11 := createExtCommunityC("ecomSet11", oc.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -2247,16 +2247,16 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer, time.Now())[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := oc.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []string{"65005$"},
 	}
 
-	ecomSet1 := config.ExtCommunitySet{
+	ecomSet1 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
 		ExtCommunityList:    []string{"RT:65001:201"},
 	}
-	ecomSet2 := config.ExtCommunitySet{
+	ecomSet2 := oc.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
 		ExtCommunityList:    []string{"RT:[0-9]+:[0-9]+"},
 	}
@@ -2264,11 +2264,11 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.2.1.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets = []config.AsPathSet{asPathSet}
-	ds.BgpDefinedSets.ExtCommunitySets = []config.ExtCommunitySet{ecomSet1, ecomSet2}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+	ds.BgpDefinedSets.AsPathSets = []oc.AsPathSet{asPathSet}
+	ds.BgpDefinedSets.ExtCommunitySets = []oc.ExtCommunitySet{ecomSet1, ecomSet2}
 
 	s1 := createStatement("statement1", "ps1", "ns1", false)
 	s1.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
@@ -2315,13 +2315,13 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	m := "200"
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions.SetMed = oc.BgpSetMedType(m)
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2359,14 +2359,14 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	m := "+200"
 	ma := "300"
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions.SetMed = oc.BgpSetMedType(m)
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2403,15 +2403,15 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	m := fmt.Sprintf("+%d", uint32(math.MaxUint32))
 	ma := "1"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions.SetMed = oc.BgpSetMedType(m)
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2449,15 +2449,15 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	m := "-50"
 	ma := "50"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions.SetMed = oc.BgpSetMedType(m)
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2495,15 +2495,15 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	m := "-101"
 	ma := "100"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions.SetMed = oc.BgpSetMedType(m)
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2540,13 +2540,13 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	m := "-50"
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions.SetMed = oc.BgpSetMedType(m)
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2588,9 +2588,9 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetAsPathPrepend.As = "65002"
@@ -2632,9 +2632,9 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetAsPathPrepend.As = "last-as"
@@ -2682,9 +2682,9 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetAsPathPrepend.As = fmt.Sprintf("%d", createAs4Value("65002.1"))
@@ -2739,9 +2739,9 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets = []config.PrefixSet{ps}
-	ds.NeighborSets = []config.NeighborSet{ns}
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	s.Actions.BgpActions.SetAsPathPrepend.As = "last-as"
@@ -2833,23 +2833,23 @@ func TestLocalPrefAction(t *testing.T) {
 	assert.Equal(t, int(lp.Value), int(10))
 }
 
-func createStatement(name, psname, nsname string, accept bool) config.Statement {
-	c := config.Conditions{
-		MatchPrefixSet: config.MatchPrefixSet{
+func createStatement(name, psname, nsname string, accept bool) oc.Statement {
+	c := oc.Conditions{
+		MatchPrefixSet: oc.MatchPrefixSet{
 			PrefixSet: psname,
 		},
-		MatchNeighborSet: config.MatchNeighborSet{
+		MatchNeighborSet: oc.MatchNeighborSet{
 			NeighborSet: nsname,
 		},
 	}
-	rd := config.ROUTE_DISPOSITION_REJECT_ROUTE
+	rd := oc.ROUTE_DISPOSITION_REJECT_ROUTE
 	if accept {
-		rd = config.ROUTE_DISPOSITION_ACCEPT_ROUTE
+		rd = oc.ROUTE_DISPOSITION_ACCEPT_ROUTE
 	}
-	a := config.Actions{
+	a := oc.Actions{
 		RouteDisposition: rd,
 	}
-	s := config.Statement{
+	s := oc.Statement{
 		Name:       name,
 		Conditions: c,
 		Actions:    a,
@@ -2857,10 +2857,10 @@ func createStatement(name, psname, nsname string, accept bool) config.Statement 
 	return s
 }
 
-func createSetCommunity(operation string, community ...string) config.SetCommunity {
+func createSetCommunity(operation string, community ...string) oc.SetCommunity {
 
-	s := config.SetCommunity{
-		SetCommunityMethod: config.SetCommunityMethod{
+	s := oc.SetCommunity{
+		SetCommunityMethod: oc.SetCommunityMethod{
 			CommunitiesList: community,
 		},
 		Options: operation,
@@ -2875,26 +2875,26 @@ func stringToCommunityValue(comStr string) uint32 {
 	return uint32(asn<<16 | val)
 }
 
-func createPolicyDefinition(defName string, stmt ...config.Statement) config.PolicyDefinition {
-	pd := config.PolicyDefinition{
+func createPolicyDefinition(defName string, stmt ...oc.Statement) oc.PolicyDefinition {
+	pd := oc.PolicyDefinition{
 		Name:       defName,
-		Statements: []config.Statement(stmt),
+		Statements: []oc.Statement(stmt),
 	}
 	return pd
 }
 
-func createRoutingPolicy(ds config.DefinedSets, pd ...config.PolicyDefinition) config.RoutingPolicy {
-	pl := config.RoutingPolicy{
+func createRoutingPolicy(ds oc.DefinedSets, pd ...oc.PolicyDefinition) oc.RoutingPolicy {
+	pl := oc.RoutingPolicy{
 		DefinedSets:       ds,
-		PolicyDefinitions: []config.PolicyDefinition(pd),
+		PolicyDefinitions: []oc.PolicyDefinition(pd),
 	}
 	return pl
 }
 
-func createPrefixSet(name string, prefix string, maskLength string) config.PrefixSet {
-	ps := config.PrefixSet{
+func createPrefixSet(name string, prefix string, maskLength string) oc.PrefixSet {
+	ps := oc.PrefixSet{
 		PrefixSetName: name,
-		PrefixList: []config.Prefix{
+		PrefixList: []oc.Prefix{
 			{
 				IpPrefix:        prefix,
 				MasklengthRange: maskLength,
@@ -2903,8 +2903,8 @@ func createPrefixSet(name string, prefix string, maskLength string) config.Prefi
 	return ps
 }
 
-func createNeighborSet(name string, addr string) config.NeighborSet {
-	ns := config.NeighborSet{
+func createNeighborSet(name string, addr string) oc.NeighborSet {
+	ns := oc.NeighborSet{
 		NeighborSetName:  name,
 		NeighborInfoList: []string{addr},
 	}
@@ -2920,48 +2920,48 @@ func createAs4Value(s string) uint32 {
 
 func TestPrefixSetOperation(t *testing.T) {
 	// tryp to create prefixset with multiple families
-	p1 := config.Prefix{
+	p1 := oc.Prefix{
 		IpPrefix:        "0.0.0.0/0",
 		MasklengthRange: "0..7",
 	}
-	p2 := config.Prefix{
+	p2 := oc.Prefix{
 		IpPrefix:        "0::/25",
 		MasklengthRange: "25..128",
 	}
-	_, err := NewPrefixSet(config.PrefixSet{
+	_, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1, p2},
+		PrefixList:    []oc.Prefix{p1, p2},
 	})
 	assert.NotNil(t, err)
-	m1, _ := NewPrefixSet(config.PrefixSet{
+	m1, _ := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1},
+		PrefixList:    []oc.Prefix{p1},
 	})
-	m2, err := NewPrefixSet(config.PrefixSet{PrefixSetName: "ps2"})
+	m2, err := NewPrefixSet(oc.PrefixSet{PrefixSetName: "ps2"})
 	assert.Nil(t, err)
 	err = m1.Append(m2)
 	assert.Nil(t, err)
 	err = m2.Append(m1)
 	assert.Nil(t, err)
 	assert.Equal(t, bgp.RF_IPv4_UC, m2.family)
-	p3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
-	p4, _ := NewPrefix(config.Prefix{IpPrefix: "0::/25", MasklengthRange: ""})
+	p3, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
+	p4, _ := NewPrefix(oc.Prefix{IpPrefix: "0::/25", MasklengthRange: ""})
 	_, err = NewPrefixSetFromApiStruct("ps3", []*Prefix{p3, p4})
 	assert.NotNil(t, err)
 }
 
 func TestPrefixSetMatch(t *testing.T) {
-	p1 := config.Prefix{
+	p1 := oc.Prefix{
 		IpPrefix:        "0.0.0.0/0",
 		MasklengthRange: "0..7",
 	}
-	p2 := config.Prefix{
+	p2 := oc.Prefix{
 		IpPrefix:        "0.0.0.0/0",
 		MasklengthRange: "25..32",
 	}
-	ps, err := NewPrefixSet(config.PrefixSet{
+	ps, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1, p2},
+		PrefixList:    []oc.Prefix{p1, p2},
 	})
 	assert.Nil(t, err)
 	m := &PrefixCondition{
@@ -2980,13 +2980,13 @@ func TestPrefixSetMatch(t *testing.T) {
 	path = NewPath(nil, bgp.NewIPAddrPrefix(30, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
-	p3 := config.Prefix{
+	p3 := oc.Prefix{
 		IpPrefix:        "0.0.0.0/0",
 		MasklengthRange: "9..10",
 	}
-	ps2, err := NewPrefixSet(config.PrefixSet{
+	ps2, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps2",
-		PrefixList:    []config.Prefix{p3},
+		PrefixList:    []oc.Prefix{p3},
 	})
 	assert.Nil(t, err)
 	err = ps.Append(ps2)
@@ -2995,9 +2995,9 @@ func TestPrefixSetMatch(t *testing.T) {
 	path = NewPath(nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
-	ps3, err := NewPrefixSet(config.PrefixSet{
+	ps3, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps3",
-		PrefixList:    []config.Prefix{p1},
+		PrefixList:    []oc.Prefix{p1},
 	})
 	assert.Nil(t, err)
 	err = ps.Remove(ps3)
@@ -3008,13 +3008,13 @@ func TestPrefixSetMatch(t *testing.T) {
 }
 
 func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
-	p1 := config.Prefix{
+	p1 := oc.Prefix{
 		IpPrefix:        "c000::/3",
 		MasklengthRange: "3..128",
 	}
-	ps, err := NewPrefixSet(config.PrefixSet{
+	ps, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1},
+		PrefixList:    []oc.Prefix{p1},
 	})
 	assert.Nil(t, err)
 	m := &PrefixCondition{
@@ -3026,13 +3026,13 @@ func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
 }
 
 func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
-	p1 := config.Prefix{
+	p1 := oc.Prefix{
 		IpPrefix:        "2806:106e:19::/48",
 		MasklengthRange: "48..48",
 	}
-	ps, err := NewPrefixSet(config.PrefixSet{
+	ps, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1},
+		PrefixList:    []oc.Prefix{p1},
 	})
 	assert.Nil(t, err)
 	m := &PrefixCondition{
@@ -3051,13 +3051,13 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 }
 
 func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
-	p1 := config.Prefix{
+	p1 := oc.Prefix{
 		IpPrefix:        "10.10.10.0/24",
 		MasklengthRange: "24..32",
 	}
-	ps, err := NewPrefixSet(config.PrefixSet{
+	ps, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1},
+		PrefixList:    []oc.Prefix{p1},
 	})
 	assert.Nil(t, err)
 	m := &PrefixCondition{
@@ -3081,13 +3081,13 @@ func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
 }
 
 func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
-	p1 := config.Prefix{
+	p1 := oc.Prefix{
 		IpPrefix:        "2001:123:123:1::/64",
 		MasklengthRange: "64..128",
 	}
-	ps, err := NewPrefixSet(config.PrefixSet{
+	ps, err := NewPrefixSet(oc.PrefixSet{
 		PrefixSetName: "ps1",
-		PrefixList:    []config.Prefix{p1},
+		PrefixList:    []oc.Prefix{p1},
 	})
 	assert.Nil(t, err)
 	m := &PrefixCondition{
@@ -3117,7 +3117,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	}
 	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
-	c := config.LargeCommunitySet{
+	c := oc.LargeCommunitySet{
 		LargeCommunitySetName: "l0",
 		LargeCommunityList: []string{
 			"100:100:100",
@@ -3128,7 +3128,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	set, err := NewLargeCommunitySet(c)
 	assert.Equal(t, err, nil)
 
-	m, err := NewLargeCommunityCondition(config.MatchLargeCommunitySet{
+	m, err := NewLargeCommunityCondition(oc.MatchLargeCommunitySet{
 		LargeCommunitySet: "l0",
 	})
 	assert.Equal(t, err, nil)
@@ -3136,43 +3136,43 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 
 	assert.Equal(t, m.Evaluate(p, nil), true)
 
-	a, err := NewLargeCommunityAction(config.SetLargeCommunity{
-		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+	a, err := NewLargeCommunityAction(oc.SetLargeCommunity{
+		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
 			CommunitiesList: []string{"100:100:100"},
 		},
-		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+		Options: oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 	assert.Equal(t, err, nil)
 	p, _ = a.Apply(p, nil)
 
 	assert.Equal(t, m.Evaluate(p, nil), false)
 
-	a, err = NewLargeCommunityAction(config.SetLargeCommunity{
-		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+	a, err = NewLargeCommunityAction(oc.SetLargeCommunity{
+		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
 			CommunitiesList: []string{
 				"100:300:100",
 				"200:100:100",
 			},
 		},
-		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+		Options: oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
 	})
 	assert.Equal(t, err, nil)
 	p, _ = a.Apply(p, nil)
 
 	assert.Equal(t, m.Evaluate(p, nil), true)
 
-	a, err = NewLargeCommunityAction(config.SetLargeCommunity{
-		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+	a, err = NewLargeCommunityAction(oc.SetLargeCommunity{
+		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
 			CommunitiesList: []string{"^100:"},
 		},
-		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+		Options: oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 	assert.Equal(t, err, nil)
 	p, _ = a.Apply(p, nil)
 
 	assert.Equal(t, m.Evaluate(p, nil), false)
 
-	c = config.LargeCommunitySet{
+	c = oc.LargeCommunitySet{
 		LargeCommunitySetName: "l1",
 		LargeCommunityList: []string{
 			"200:",
@@ -3182,7 +3182,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 	set, err = NewLargeCommunitySet(c)
 	assert.Equal(t, err, nil)
 
-	m, err = NewLargeCommunityCondition(config.MatchLargeCommunitySet{
+	m, err = NewLargeCommunityCondition(oc.MatchLargeCommunitySet{
 		LargeCommunitySet: "l1",
 	})
 	assert.Equal(t, err, nil)
@@ -3198,14 +3198,14 @@ func TestLargeCommunitiesMatchClearAction(t *testing.T) {
 	}
 	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
-	a, err := NewLargeCommunityAction(config.SetLargeCommunity{
-		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+	a, err := NewLargeCommunityAction(oc.SetLargeCommunity{
+		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
 			CommunitiesList: []string{
 				"100:100:100",
 				"100:200:200",
 			},
 		},
-		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+		Options: oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
 	})
 
 	assert.Equal(t, err, nil)
@@ -3216,7 +3216,7 @@ func TestLargeCommunitiesMatchClearAction(t *testing.T) {
 }
 
 func TestAfiSafiInMatchPath(t *testing.T) {
-	condition, err := NewAfiSafiInCondition([]config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST})
+	condition, err := NewAfiSafiInCondition([]oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST})
 	require.NoError(t, err)
 
 	rtExtCom, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_ROUTE_TARGET, "100:100")
@@ -3252,20 +3252,20 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 
 func TestMultipleStatementPolicy(t *testing.T) {
 	r := NewRoutingPolicy(logger)
-	rp := config.RoutingPolicy{
-		PolicyDefinitions: []config.PolicyDefinition{{
+	rp := oc.RoutingPolicy{
+		PolicyDefinitions: []oc.PolicyDefinition{{
 			Name: "p1",
-			Statements: []config.Statement{
+			Statements: []oc.Statement{
 				{
-					Actions: config.Actions{
-						BgpActions: config.BgpActions{
+					Actions: oc.Actions{
+						BgpActions: oc.BgpActions{
 							SetMed: "+100",
 						},
 					},
 				},
 				{
-					Actions: config.Actions{
-						BgpActions: config.BgpActions{
+					Actions: oc.Actions{
+						BgpActions: oc.BgpActions{
 							SetLocalPref: 100,
 						},
 					},

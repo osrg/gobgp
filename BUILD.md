@@ -69,3 +69,17 @@ This will produce a version number of
 ## Layout
 
 The GoBGP project adopts [Standard Go Project Layout](https://github.com/golang-standards/project-layout).
+
+## Fuzzing
+
+Run [Go Fuzzing](https://go.dev/security/fuzz)
+
+```bash
+go test -fuzz=FuzzParseRTR                      $PWD/pkg/packet/rtr
+go test -fuzz=FuzzParseBMPMessage               $PWD/pkg/packet/bmp
+go test -fuzz=FuzzParseBGPMessage               $PWD/pkg/packet/bgp
+go test -fuzz=FuzzParseLargeCommunity           $PWD/pkg/packet/bgp
+go test -fuzz=FuzzParseFlowSpecComponents       $PWD/pkg/packet/bgp
+go test -fuzz=FuzzMRT                           $PWD/pkg/packet/mrt
+go test -fuzz=FuzzZapi                          $PWD/internal/pkg/zebra
+```

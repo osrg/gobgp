@@ -444,3 +444,10 @@ func TestValidateLargeCommunities(t *testing.T) {
 	assert.Nil(err)
 	assert.True(len(a.Values) == 2)
 }
+
+func FuzzParseLargeCommunity(f *testing.F) {
+
+	f.Fuzz(func(t *testing.T, data string) {
+		ParseLargeCommunity(data)
+	})
+}

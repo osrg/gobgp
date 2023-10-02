@@ -31,9 +31,9 @@ import (
 	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/internal/pkg/config"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
@@ -105,7 +105,7 @@ func TestModPolicyAssign(t *testing.T) {
 	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p3"})})
 	assert.Nil(err)
 
-	f := func(l []*config.PolicyDefinition) *api.PolicyAssignment {
+	f := func(l []*oc.PolicyDefinition) *api.PolicyAssignment {
 		pl := make([]*api.Policy, 0, len(l))
 		for _, d := range l {
 			pl = append(pl, table.ToPolicyApi(d))
@@ -115,7 +115,7 @@ func TestModPolicyAssign(t *testing.T) {
 		}
 	}
 
-	r := f([]*config.PolicyDefinition{{Name: "p1"}, {Name: "p2"}, {Name: "p3"}})
+	r := f([]*oc.PolicyDefinition{{Name: "p1"}, {Name: "p2"}, {Name: "p3"}})
 	r.Direction = api.PolicyDirection_IMPORT
 	r.DefaultAction = api.RouteAction_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
@@ -133,7 +133,7 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(len(ps[0].Policies), 3)
 
-	r = f([]*config.PolicyDefinition{{Name: "p1"}})
+	r = f([]*oc.PolicyDefinition{{Name: "p1"}})
 	r.Direction = api.PolicyDirection_IMPORT
 	r.DefaultAction = api.RouteAction_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
@@ -716,13 +716,13 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 }
 
 func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
-	nConf := &config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}}
-	gConf := &config.Global{Config: config.GlobalConfig{As: myAs}}
-	config.SetDefaultNeighborConfigValues(nConf, nil, gConf)
+	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
+	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
+	oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
 	policy := table.NewRoutingPolicy(logger)
-	policy.Reset(&config.RoutingPolicy{}, nil)
+	policy.Reset(&oc.RoutingPolicy{}, nil)
 	p := newPeer(
-		&config.Global{Config: config.GlobalConfig{As: myAs}},
+		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
 		rib,
 		policy,
@@ -825,33 +825,33 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	rib2 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
 	p2, _ := newPeerandInfo(1, 3, "192.168.0.2", rib2)
 
-	comSet1 := config.CommunitySet{
+	comSet1 := oc.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
 	p2.policy.AddDefinedSet(s)
 
-	statement := config.Statement{
+	statement := oc.Statement{
 		Name: "stmt1",
-		Conditions: config.Conditions{
-			BgpConditions: config.BgpConditions{
-				MatchCommunitySet: config.MatchCommunitySet{
+		Conditions: oc.Conditions{
+			BgpConditions: oc.BgpConditions{
+				MatchCommunitySet: oc.MatchCommunitySet{
 					CommunitySet: "comset1",
 				},
 			},
 		},
-		Actions: config.Actions{
-			RouteDisposition: config.ROUTE_DISPOSITION_REJECT_ROUTE,
+		Actions: oc.Actions{
+			RouteDisposition: oc.ROUTE_DISPOSITION_REJECT_ROUTE,
 		},
 	}
-	policy := config.PolicyDefinition{
+	policy := oc.PolicyDefinition{
 		Name:       "policy1",
-		Statements: []config.Statement{statement},
+		Statements: []oc.Statement{statement},
 	}
 	p, _ := table.NewPolicy(policy)
 	p2.policy.AddPolicy(p, false)
-	policies := []*config.PolicyDefinition{
+	policies := []*oc.PolicyDefinition{
 		{
 			Name: "policy1",
 		},
@@ -893,8 +893,8 @@ func TestPeerGroup(test *testing.T) {
 	assert.Nil(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	g := &config.PeerGroup{
-		Config: config.PeerGroupConfig{
+	g := &oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
@@ -902,13 +902,13 @@ func TestPeerGroup(test *testing.T) {
 	err = s.addPeerGroup(g)
 	assert.Nil(err)
 
-	n := &config.Neighbor{
-		Config: config.NeighborConfig{
+	n := &oc.Neighbor{
+		Config: oc.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
 			PeerGroup:       "g",
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
 				PassiveMode: true,
 			},
 		},
@@ -924,8 +924,8 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
-	config.RegisterConfiguredFields("127.0.0.1", configured)
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(n)})
+	oc.RegisterConfiguredFields("127.0.0.1", configured)
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(n)})
 	assert.Nil(err)
 
 	t := NewBgpServer()
@@ -940,18 +940,18 @@ func TestPeerGroup(test *testing.T) {
 	assert.Nil(err)
 	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	m := &config.Neighbor{
-		Config: config.NeighborConfig{
+	m := &oc.Neighbor{
+		Config: oc.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          1,
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
 				RemotePort: 10179,
 			},
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
 				ConnectRetry:           1,
 				IdleHoldTimeAfterReset: 1,
 			},
@@ -959,7 +959,7 @@ func TestPeerGroup(test *testing.T) {
 	}
 	ch := make(chan struct{})
 	go waitEstablished(s, ch)
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 	<-ch
 }
@@ -979,8 +979,8 @@ func TestDynamicNeighbor(t *testing.T) {
 	assert.Nil(err)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	g := &config.PeerGroup{
-		Config: config.PeerGroupConfig{
+	g := &oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
 			PeerAs:        2,
 			PeerGroupName: "g",
 		},
@@ -1009,18 +1009,18 @@ func TestDynamicNeighbor(t *testing.T) {
 	assert.Nil(err)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	m := &config.Neighbor{
-		Config: config.NeighborConfig{
+	m := &oc.Neighbor{
+		Config: oc.NeighborConfig{
 			NeighborAddress: "127.0.0.1",
 			PeerAs:          1,
 		},
-		Transport: config.Transport{
-			Config: config.TransportConfig{
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
 				RemotePort: 10179,
 			},
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
 				ConnectRetry:           1,
 				IdleHoldTimeAfterReset: 1,
 			},
@@ -1028,7 +1028,7 @@ func TestDynamicNeighbor(t *testing.T) {
 	}
 	ch := make(chan struct{})
 	go waitEstablished(s2, ch)
-	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(m)})
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.Nil(err)
 	<-ch
 }
@@ -1142,17 +1142,17 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 }
 
 func TestFamiliesForSoftreset(t *testing.T) {
-	f := func(f bgp.RouteFamily) config.AfiSafi {
-		return config.AfiSafi{
-			State: config.AfiSafiState{
+	f := func(f bgp.RouteFamily) oc.AfiSafi {
+		return oc.AfiSafi{
+			State: oc.AfiSafiState{
 				Family: f,
 			},
 		}
 	}
 	peer := &peer{
 		fsm: &fsm{
-			pConf: &config.Neighbor{
-				AfiSafis: []config.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
+			pConf: &oc.Neighbor{
+				AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 			},
 		},
 	}
@@ -1185,26 +1185,26 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 	return s
 }
 
-func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []config.AfiSafiType) error {
+func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []oc.AfiSafiType) error {
 	for i, server := range servers {
 		for j, peer := range servers {
 			if i == j {
 				continue
 			}
 
-			neighborConfig := &config.Neighbor{
-				Config: config.NeighborConfig{
+			neighborConfig := &oc.Neighbor{
+				Config: oc.NeighborConfig{
 					NeighborAddress: "127.0.0.1",
 					PeerAs:          peer.bgpConfig.Global.Config.As,
 				},
-				AfiSafis: config.AfiSafis{},
-				Transport: config.Transport{
-					Config: config.TransportConfig{
+				AfiSafis: oc.AfiSafis{},
+				Transport: oc.Transport{
+					Config: oc.TransportConfig{
 						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
 					},
 				},
-				Timers: config.Timers{
-					Config: config.TimersConfig{
+				Timers: oc.Timers{
+					Config: oc.TimersConfig{
 						ConnectRetry:           1,
 						IdleHoldTimeAfterReset: 1,
 					},
@@ -1217,15 +1217,15 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 			}
 
 			for _, family := range families {
-				neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, config.AfiSafi{
-					Config: config.AfiSafiConfig{
+				neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, oc.AfiSafi{
+					Config: oc.AfiSafiConfig{
 						AfiSafiName: family,
 						Enabled:     true,
 					},
 				})
 			}
 
-			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: config.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
+			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -1299,7 +1299,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 
-	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []config.AfiSafiType{config.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, config.AFI_SAFI_TYPE_RTC}); err != nil {
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
 	watcher := s1.watch(watchUpdate(true, "", ""))

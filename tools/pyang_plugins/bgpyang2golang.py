@@ -769,7 +769,7 @@ _typedef_exclude = [
 
 def generate_header(fd):
     print(_COPYRIGHT_NOTICE, file=fd)
-    print('package config', file=fd)
+    print('package oc', file=fd)
     print('', file=fd)
     print('import (', file=fd)
     print('"fmt"', file=fd)
