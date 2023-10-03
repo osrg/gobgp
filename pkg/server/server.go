@@ -915,12 +915,13 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEventType) *watchEventPeer {
 	var laddr string
 	var rport, lport uint16
+
+	peer.fsm.lock.RLock()
 	if peer.fsm.conn != nil {
 		_, rport = peer.fsm.RemoteHostPort()
 		laddr, lport = peer.fsm.LocalHostPort()
 	}
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
-	peer.fsm.lock.RLock()
 	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
 		Type:          t,
