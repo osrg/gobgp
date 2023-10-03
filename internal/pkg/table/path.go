@@ -328,11 +328,14 @@ func (path *Path) IsIBGP() bool {
 
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
+	newOriginInfo := *path.info
+
 	return &Path{
 		parent:           path,
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		attrsHash:        path.attrsHash,
+		info:             &newOriginInfo,
 	}
 }
 
