@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -83,7 +84,7 @@ func TestCalculate2(t *testing.T) {
 	path1 := ProcessMessage(update1, peer1, time.Now())[0]
 
 	d := NewDestination(nlri, 0)
-	d.Calculate(logger, path1)
+	d.Calculate(logger, path1, &oc.RouteSelectionOptionsConfig {})
 
 	// suppose peer2 sends grammaatically correct but semantically flawed update message
 	// which has a withdrawal nlri not advertised before
@@ -92,7 +93,7 @@ func TestCalculate2(t *testing.T) {
 	path2 := ProcessMessage(update2, peer2, time.Now())[0]
 	assert.Equal(t, path2.IsWithdraw, true)
 
-	d.Calculate(logger, path2)
+	d.Calculate(logger, path2, &oc.RouteSelectionOptionsConfig {})
 
 	// we have a path from peer1 here
 	assert.Equal(t, len(d.knownPathList), 1)
@@ -102,7 +103,7 @@ func TestCalculate2(t *testing.T) {
 	path3 := ProcessMessage(update3, peer2, time.Now())[0]
 	assert.Equal(t, path3.IsWithdraw, false)
 
-	d.Calculate(logger, path3)
+	d.Calculate(logger, path3, &oc.RouteSelectionOptionsConfig {})
 
 	// this time, we have paths from peer1 and peer2
 	assert.Equal(t, len(d.knownPathList), 2)
@@ -112,7 +113,7 @@ func TestCalculate2(t *testing.T) {
 	update4 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	path4 := ProcessMessage(update4, peer3, time.Now())[0]
 
-	d.Calculate(logger, path4)
+	d.Calculate(logger, path4, &oc.RouteSelectionOptionsConfig {})
 
 	// we must have paths from peer1, peer2 and peer3
 	assert.Equal(t, len(d.knownPathList), 3)
@@ -156,7 +157,7 @@ func TestMedTieBreaker(t *testing.T) {
 	}()
 
 	// same AS
-	assert.Equal(t, compareByMED(p0, p1), p0)
+	assert.Equal(t, compareByMED(p0, p1, &oc.RouteSelectionOptionsConfig {}), p0)
 
 	p2 := func() *Path {
 		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003})})
@@ -165,7 +166,7 @@ func TestMedTieBreaker(t *testing.T) {
 	}()
 
 	// different AS
-	assert.Equal(t, compareByMED(p0, p2), (*Path)(nil))
+	assert.Equal(t, compareByMED(p0, p2, &oc.RouteSelectionOptionsConfig {}), (*Path)(nil))
 
 	p3 := func() *Path {
 		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65003, 65004}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65003})})
@@ -180,7 +181,7 @@ func TestMedTieBreaker(t *testing.T) {
 	}()
 
 	// ignore confed
-	assert.Equal(t, compareByMED(p3, p4), p3)
+	assert.Equal(t, compareByMED(p3, p4, &oc.RouteSelectionOptionsConfig {}), p3)
 
 	p5 := func() *Path {
 		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeMultiExitDisc(0)}
@@ -193,7 +194,7 @@ func TestMedTieBreaker(t *testing.T) {
 	}()
 
 	// no aspath
-	assert.Equal(t, compareByMED(p5, p6), p5)
+	assert.Equal(t, compareByMED(p5, p6, &oc.RouteSelectionOptionsConfig {}), p5)
 }
 
 func TestTimeTieBreaker(t *testing.T) {
@@ -212,17 +213,19 @@ func TestTimeTieBreaker(t *testing.T) {
 	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
 
 	d := NewDestination(nlri, 0)
-	d.Calculate(logger, path1)
-	d.Calculate(logger, path2)
+	d.Calculate(logger, path1, &oc.RouteSelectionOptionsConfig {})
+	d.Calculate(logger, path2, &oc.RouteSelectionOptionsConfig {})
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("", 0).GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
 
 	// this option disables tie breaking by age
-	SelectionOptions.ExternalCompareRouterId = true
+	selectionOptions := oc.RouteSelectionOptionsConfig {
+		ExternalCompareRouterId: true,
+	}
 	d = NewDestination(nlri, 0)
-	d.Calculate(logger, path1)
-	d.Calculate(logger, path2)
+	d.Calculate(logger, path1, &selectionOptions)
+	d.Calculate(logger, path2, &selectionOptions)
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("", 0).GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
@@ -315,7 +318,9 @@ func updateMsgD3() *bgp.BGPMessage {
 }
 
 func TestMultipath(t *testing.T) {
-	UseMultiplePaths.Enabled = true
+	useMultiplePaths := oc.UseMultiplePathsConfig {
+		Enabled: true,
+	}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -347,17 +352,17 @@ func TestMultipath(t *testing.T) {
 	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 
 	d := NewDestination(nlri[0], 0)
-	d.Calculate(logger, path2)
+	d.Calculate(logger, path2, &oc.RouteSelectionOptionsConfig{})
 
-	best, old, multi := d.Calculate(logger, path1).GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, old, multi := d.Calculate(logger, path1, &oc.RouteSelectionOptionsConfig{}).GetChanges(GLOBAL_RIB_NAME, 0, false, &useMultiplePaths)
 	assert.NotNil(t, best)
 	assert.Equal(t, old, path2)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
 
 	path3 := path2.Clone(true)
-	dd := d.Calculate(logger, path3)
-	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	dd := d.Calculate(logger, path3, &oc.RouteSelectionOptionsConfig{})
+	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false, &useMultiplePaths)
 	assert.Nil(t, best)
 	assert.Equal(t, old, path1)
 	assert.Equal(t, len(multi), 1)
@@ -374,8 +379,8 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
-	dd = d.Calculate(logger, path4)
-	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	dd = d.Calculate(logger, path4, &oc.RouteSelectionOptionsConfig{})
+	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false, &useMultiplePaths)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
@@ -389,12 +394,10 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
-	best, _, multi = d.Calculate(logger, path5).GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, _, multi = d.Calculate(logger, path5, &oc.RouteSelectionOptionsConfig{}).GetChanges(GLOBAL_RIB_NAME, 0, false, &useMultiplePaths)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 3)
-
-	UseMultiplePaths.Enabled = false
 }
 
 func TestIdMap(t *testing.T) {

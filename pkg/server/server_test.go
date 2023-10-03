@@ -734,12 +734,12 @@ func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*
 	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address), ID: net.ParseIP(address)}
 }
 
-func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
+func process(rib *table.TableManager, l []*table.Path, useMultiplePaths *oc.UseMultiplePathsConfig) (*table.Path, *table.Path) {
 	dsts := make([]*table.Update, 0)
 	for _, path := range l {
 		dsts = append(dsts, rib.Update(path)...)
 	}
-	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts, useMultiplePaths)
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
@@ -751,7 +751,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	as := uint32(65000)
 	p1As := uint32(65001)
 	p2As := uint32(65002)
-	rib := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC}, &oc.RouteSelectionOptionsConfig{}, &oc.UseMultiplePathsConfig{})
 	p1, pi1 := newPeerandInfo(as, p1As, "192.168.0.1", rib)
 	p2, pi2 := newPeerandInfo(as, p2As, "192.168.0.2", rib)
 
@@ -763,12 +763,12 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
-	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
+	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false, &oc.UseMultiplePathsConfig{})
 	assert.Equal(t, new, path1)
 	filterpath(p1, new, old)
 	filterpath(p2, new, old)
 
-	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	new, old = process(rib, []*table.Path{path1.Clone(true)}, &oc.UseMultiplePathsConfig{})
 	assert.Equal(t, new, path2)
 	// p1 and p2 advertized the same prefix and p1's was best. Then p1 withdraw it, so p2 must get withdawal.
 	path := filterpath(p2, new, old)
@@ -778,7 +778,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	// p1 should get the new best (from p2)
 	assert.Equal(t, filterpath(p1, new, old), path2)
 
-	new, old = process(rib, []*table.Path{path2.Clone(true)})
+	new, old = process(rib, []*table.Path{path2.Clone(true)}, &oc.UseMultiplePathsConfig{})
 	assert.True(t, new.IsWithdraw)
 	// p2 withdraw so p1 should get withdrawal.
 	path = filterpath(p1, new, old)
@@ -792,7 +792,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 
-	rib := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC}, &oc.RouteSelectionOptionsConfig{}, &oc.UseMultiplePathsConfig{})
 	p1, pi1 := newPeerandInfo(as, as, "192.168.0.1", rib)
 	//p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
 	p2, _ := newPeerandInfo(as, as, "192.168.0.2", rib)
@@ -804,14 +804,14 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
 	//path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
 
-	new, old := process(rib, []*table.Path{path1})
+	new, old := process(rib, []*table.Path{path1}, &oc.UseMultiplePathsConfig{})
 	assert.Equal(t, new, path1)
 	path := filterpath(p1, new, old)
 	assert.Nil(t, path)
 	path = filterpath(p2, new, old)
 	assert.Nil(t, path)
 
-	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	new, old = process(rib, []*table.Path{path1.Clone(true)}, &oc.UseMultiplePathsConfig{})
 	path = filterpath(p1, new, old)
 	assert.Nil(t, path)
 	path = filterpath(p2, new, old)
@@ -820,9 +820,9 @@ func TestFilterpathWithiBGP(t *testing.T) {
 }
 
 func TestFilterpathWithRejectPolicy(t *testing.T) {
-	rib1 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib1 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC}, &oc.RouteSelectionOptionsConfig{}, &oc.UseMultiplePathsConfig{})
 	_, pi1 := newPeerandInfo(1, 2, "192.168.0.1", rib1)
-	rib2 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib2 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC}, &oc.RouteSelectionOptionsConfig{}, &oc.UseMultiplePathsConfig{})
 	p2, _ := newPeerandInfo(1, 3, "192.168.0.2", rib2)
 
 	comSet1 := oc.CommunitySet{
@@ -865,7 +865,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
 		}
 		path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
-		new, old := process(rib2, []*table.Path{path1})
+		new, old := process(rib2, []*table.Path{path1}, &oc.UseMultiplePathsConfig{})
 		assert.Equal(t, new, path1)
 		s := NewBgpServer()
 		path2 := s.filterpath(p2, new, old)
@@ -913,18 +913,18 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
-	configured := map[string]interface{}{
-		"config": map[string]interface{}{
+	ocured := map[string]interface{}{
+		"oc": map[string]interface{}{
 			"neigbor-address": "127.0.0.1",
 			"peer-group":      "g",
 		},
 		"transport": map[string]interface{}{
-			"config": map[string]interface{}{
+			"oc": map[string]interface{}{
 				"passive-mode": true,
 			},
 		},
 	}
-	oc.RegisterConfiguredFields("127.0.0.1", configured)
+	oc.RegisterConfiguredFields("127.0.0.1", ocured)
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(n)})
 	assert.Nil(err)
 
@@ -1211,7 +1211,7 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 				},
 			}
 
-			// first server to get neighbor config is passive to hopefully make handshake faster
+			// first server to get neighbor oc is passive to hopefully make handshake faster
 			if j > i {
 				neighborConfig.Transport.Config.PassiveMode = true
 			}
