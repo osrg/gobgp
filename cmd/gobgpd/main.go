@@ -60,7 +60,7 @@ func main() {
 		Facility        string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
 		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
-		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
+		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:"[::1]:50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof and metrics" default:"localhost:6060"`
