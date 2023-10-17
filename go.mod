@@ -5,6 +5,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13
 	github.com/eapache/channels v1.1.0
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-test/deep v1.1.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.1
@@ -18,10 +19,11 @@ require (
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
 	github.com/vishvananda/netlink v1.2.1-beta.2
-	golang.org/x/sys v0.11.0
-	golang.org/x/text v0.12.0
-	google.golang.org/grpc v1.57.0
-	google.golang.org/protobuf v1.31.0
+	golang.org/x/sys v0.8.0
+	golang.org/x/text v0.9.0
+	golang.org/x/time v0.3.0
+	google.golang.org/grpc v1.55.0
+	google.golang.org/protobuf v1.30.0
 )
 
 require (
@@ -29,7 +31,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

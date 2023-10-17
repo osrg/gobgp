@@ -44,7 +44,7 @@ $ sudo -E gobgpd -f gobgpd.conf
 If you use a configuration format other than `toml`, you must specify the format
 by `-t` option.
 
-equivalent yaml configuration.
+Equivalent yaml configuration.
 
 ```yaml
 global:
@@ -65,6 +65,9 @@ $ sudo -E gobgpd -t yaml -f gobgpd.yml
 {"level":"info","msg":"Peer 10.0.255.1 is added","time":"2015-04-06T20:32:28+09:00"}
 {"level":"info","msg":"Peer 10.0.255.2 is added","time":"2015-04-06T20:32:28+09:00"}
 ```
+
+Sending the `SIGHUP` signal to `gobgpd` triggers a configuration reload.
+The `-a` option enables the auto reloading of the configuration whenever a change is detected.
 
 Let's show the information of all the peers.
 

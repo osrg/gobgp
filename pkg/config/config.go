@@ -20,6 +20,12 @@ func ReadConfigFile(configFile, configType string) (*oc.BgpConfigSet, error) {
 	return oc.ReadConfigfile(configFile, configType)
 }
 
+// WatchConfigFile calls the callback function anytime an update to the
+// config file is detected.
+func WatchConfigFile(configFile, configType string, callBack func()) {
+	oc.WatchConfigFile(configFile, configType, callBack)
+}
+
 func marshalRouteTargets(l []string) ([]*apb.Any, error) {
 	rtList := make([]*apb.Any, 0, len(l))
 	for _, rtString := range l {
