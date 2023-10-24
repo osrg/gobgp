@@ -40,6 +40,10 @@ const (
 	DefaultVrf = 0
 )
 
+var (
+	MaxSoftware = NewSoftware(MaxZapiVer, "frr8.2")
+)
+
 const (
 	headerMarker      uint8 = 255
 	frrHeaderMarker   uint8 = 254
