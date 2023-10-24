@@ -968,7 +968,7 @@ func Test_NexthopRegisterBody(t *testing.T) {
 	for v := MinZapiVer; v <= MaxZapiVer; v++ {
 		// Test decodeFromBytes()
 		software := NewSoftware(v, "")
-		b := &NexthopRegisterBody{api: command[v].toCommon(v, software)}
+		b := &NexthopRegisterBody{api: command[v].ToCommon(v, software)}
 		err := b.decodeFromBytes(bufIn, v, software)
 		assert.Nil(err)
 
@@ -1052,7 +1052,7 @@ func Test_NexthopUpdateBody(t *testing.T) {
 
 		// Test decodeFromBytes()
 		software := NewSoftware(v, "")
-		b := &NexthopUpdateBody{API: command[v].toCommon(v, software)}
+		b := &NexthopUpdateBody{API: command[v].ToCommon(v, software)}
 		err := b.decodeFromBytes(bufIn, v, software)
 		assert.Nil(err)
 
