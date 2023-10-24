@@ -51,7 +51,7 @@ func generateSRBehaviour() {
 	buf.Write(constants)
 
 	if err := os.WriteFile(srBehaviourTargetFile, buf.Bytes(), 0o664); err != nil {
-		doPanic("failed to write file %s: %w", )
+		doPanic("failed to write file %s: %w")
 	}
 }
 func doPanic(message string, args ...interface{}) {
