@@ -10029,9 +10029,6 @@ func (p *PathAttribute) DecodeFromBytes(data []byte, options ...*MarshallingOpti
 	}
 	p.Flags = BGPAttrFlag(data[0])
 	p.Type = BGPAttrType(data[1])
-	if eMsg := validatePathAttributeFlags(p.Type, p.Flags); eMsg != "" {
-		return nil, NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data, eMsg)
-	}
 
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		if len(data) < 4 {
@@ -10048,6 +10045,10 @@ func (p *PathAttribute) DecodeFromBytes(data []byte, options ...*MarshallingOpti
 	}
 	if len(data) < int(p.Length) {
 		return nil, NewMessageError(eCode, eSubCode, data, "attribute value length is short")
+	}
+
+	if eMsg := validatePathAttributeFlags(p.Type, p.Flags); eMsg != "" {
+		return nil, NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data, eMsg)
 	}
 
 	return data[:p.Length], nil
