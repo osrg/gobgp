@@ -471,6 +471,112 @@ class GoBGPTestBase(unittest.TestCase):
         paths = g1.get_adj_rib_out(g4, '50.0.0.0/24')
         self.assertEqual(len(paths), 0)
 
+    def test_24_add_quagga_md5(self):
+        q6 = QuaggaBGPContainer(name='q6', asn=65004, router_id='192.168.0.5')
+        self.quaggas['q6'] = q6
+        initial_wait_time = q6.run()
+        time.sleep(initial_wait_time)
+
+        self.gobgp.add_peer(q6, passwd='password')
+        q6.add_peer(self.gobgp, passwd='password')
+
+
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q6)
+
+    def test_25_add_quagga_md5_badpass(self):
+        q7 = QuaggaBGPContainer(name='q6', asn=65004, router_id='192.168.0.7')
+        self.quaggas['q7'] = q7
+        initial_wait_time = q7.run()
+        time.sleep(initial_wait_time)
+
+        self.gobgp.add_peer(q7, passwd='password')
+        q7.add_peer(self.gobgp, passwd='passwordBAD')
+
+        time.sleep(10)
+        state = self.gobgp.get_neighbor_state(q7)
+        # should not establish
+        self.assertEqual(state, BGP_FSM_ACTIVE)
+
+    def test_26_dynamic_peer(self):
+        gobgp_ctn_image_name = parser_option.gobgp_image
+        g5 = GoBGPContainer(name='g5', asn=65008, router_id='192.168.0.8',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level,
+                            bgp_config={
+                                'peer-groups': [
+                                    {
+                                        'config':{
+                                            'peer-group-name':'PG1',
+                                            'peer-as': 65004,
+                                            }
+                                        }
+                                    ],
+                                'dynamic-neighbors':[
+                                    {
+                                        'config': {
+                                            'prefix':'172.17.0.0/16',
+                                            'peer-group':'PG1'
+                                            }
+                                        }
+                                    
+                                    ]
+                                })
+        q8 = QuaggaBGPContainer(name='q8', asn=65004, router_id='192.168.0.5')
+        self.quaggas = { 'g8': q8 }
+
+        time.sleep(g5.run())
+        initial_wait_time = q8.run()
+        time.sleep(initial_wait_time)
+
+        q8.add_peer(g5)
+
+        time.sleep(initial_wait_time)
+
+        # should establish via the dynamic link
+        # note that we are checking it on the Quagga side since GoBGP
+        # config doesn't explicitly "know about" the peer
+        q8.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g5)
+
+    def test_27_dynamic_peer_md5(self):
+        gobgp_ctn_image_name = parser_option.gobgp_image
+        g6 = GoBGPContainer(name='g6', asn=65008, router_id='192.168.0.9',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level,
+                            bgp_config={
+                                'peer-groups': [
+                                    {
+                                        'config':{
+                                            'peer-group-name':'PG1',
+                                            'peer-as': 65004,
+                                            'auth-password': 'password',
+                                            }
+                                        }
+                                    ],
+                                'dynamic-neighbors':[
+                                    {
+                                        'config': {
+                                            'prefix':'172.17.0.0/16',
+                                            'peer-group':'PG1'
+                                            }
+                                        }
+                                    
+                                    ]
+                                })
+        q9 = QuaggaBGPContainer(name='q9', asn=65004, router_id='192.168.0.10')
+        self.quaggas = { 'g9': q9 }
+
+        time.sleep(g6.run())
+        initial_wait_time = q9.run()
+        time.sleep(initial_wait_time)
+
+        q9.add_peer(g6, passwd='password', passive=False)
+
+        # should establish via the dynamic link
+        # note that we are checking it on the Quagga side since GoBGP
+        # config doesn't explicitly "know about" the peer
+        q9.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g6, timeout=30)
+         
+
 
 if __name__ == '__main__':
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
