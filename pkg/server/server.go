@@ -3675,7 +3675,7 @@ func (s *BgpServer) AddDefinedSet(ctx context.Context, r *api.AddDefinedSetReque
 		if err != nil {
 			return err
 		}
-		return s.policy.AddDefinedSet(set)
+		return s.policy.AddDefinedSet(set, r.GetReplace())
 	}, false)
 }
 

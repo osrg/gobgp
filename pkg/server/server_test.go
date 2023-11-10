@@ -830,7 +830,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
-	p2.policy.AddDefinedSet(s)
+	p2.policy.AddDefinedSet(s, false)
 
 	statement := oc.Statement{
 		Name: "stmt1",
