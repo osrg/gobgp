@@ -2006,3 +2006,61 @@ func TestWatchEvent(test *testing.T) {
 
 	assert.Equal(2, count)
 }
+
+func TestAddDefinedSetReplace(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 10179,
+		},
+	})
+	assert.Nil(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	// set an initial policy
+	n1 := &api.DefinedSet{
+		DefinedType: api.DefinedType_NEIGHBOR,
+		Name:        "replaceme",
+		List:        []string{"203.0.113.1/32"},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: n1})
+	assert.Nil(err)
+
+	// confirm the policy is what we set
+	ns := make([]*api.DefinedSet, 0)
+	fn := func(ds *api.DefinedSet) {
+		ns = append(ns, ds)
+	}
+	err = s.ListDefinedSet(context.Background(), &api.ListDefinedSetRequest{
+		DefinedType: api.DefinedType_NEIGHBOR,
+		Name:        "replaceme",
+	}, fn)
+	assert.Nil(err)
+	assert.Equal(1, len(ns))
+	assert.Equal("replaceme", ns[0].Name)
+	assert.Equal([]string{"203.0.113.1/32"}, ns[0].List)
+
+	// now replace the policy
+	n2 := &api.DefinedSet{
+		DefinedType: api.DefinedType_NEIGHBOR,
+		Name:        "replaceme",
+		List:        []string{"203.0.113.2/32"},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: n2, Replace: true})
+	assert.Nil(err)
+
+	// confirm the policy was replaced
+	ns = make([]*api.DefinedSet, 0)
+	err = s.ListDefinedSet(context.Background(), &api.ListDefinedSetRequest{
+		DefinedType: api.DefinedType_NEIGHBOR,
+		Name:        "replaceme",
+	}, fn)
+	assert.Nil(err)
+	assert.Equal(1, len(ns))
+	assert.Equal("replaceme", ns[0].Name)
+	assert.Equal([]string{"203.0.113.2/32"}, ns[0].List)
+}
