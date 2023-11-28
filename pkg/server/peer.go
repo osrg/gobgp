@@ -136,11 +136,15 @@ func (peer *peer) ID() string {
 	return peer.fsm.pConf.State.NeighborAddress
 }
 
-func (peer *peer) RouterID() string {
+func (peer *peer) routerID() net.IP {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	if peer.fsm.peerInfo.ID != nil {
-		return peer.fsm.peerInfo.ID.String()
+	return peer.fsm.peerInfo.ID
+}
+
+func (peer *peer) RouterID() string {
+	if id := peer.routerID(); id != nil {
+		return id.String()
 	}
 	return ""
 }
@@ -377,7 +381,7 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	// (whichever is not the new best path), we fail to send a withdraw towards
 	// B, and the route is "stuck".
 	// TODO: considerations for RFC6286
-	if peer.RouterID() != path.GetSource().ID.String() {
+	if !peer.routerID().Equal(path.GetSource().ID) {
 		return path
 	}
 
