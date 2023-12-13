@@ -1,6 +1,6 @@
 # BGP Extensions for the Mobile User Plane (MUP) SAFI
 
-This feature is implementation of [the Internet-Draft, BGP Extensions for the Mobile User Plane (MUP) SAFI](https://datatracker.ietf.org/doc/html/draft-mpmz-bess-mup-safi-01).
+This feature is implementation of [the Internet-Draft, BGP Extensions for the Mobile User Plane (MUP) SAFI](https://datatracker.ietf.org/doc/html/draft-mpmz-bess-mup-safi-03).
 
 ## Contents
 
@@ -83,16 +83,16 @@ $ gobgp global rib -a ipv6-mup
 
 ```shell
 # Add a route
-gobgp global rib add -a ipv4-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
-gobgp global rib add -a ipv6-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
+gobgp global rib add -a ipv4-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint> [source <source>]
+gobgp global rib add -a ipv6-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint> [source <source>]
 
 # Show routes
 gobgp global rib -a ipv4-mup
 gobgp global rib -a ipv6-mup
 
 # Delete a route
-gobgp global rib del -a ipv4-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
-gobgp global rib del -a ipv6-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint>
+gobgp global rib del -a ipv4-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint> [source <source>]
+gobgp global rib del -a ipv6-mup t1st <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint> [source <source>]
 ```
 
 The format of the TEID: hexadecimal (beginning with '0x'), decimal (uint32), or IPv4.

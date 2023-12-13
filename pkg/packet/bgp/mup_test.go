@@ -110,54 +110,91 @@ func Test_MUPDirectSegmentDiscoveryRouteIPv6(t *testing.T) {
 	assert.Equal(n1, n2)
 }
 
-func Test_MUPType1SessionTransformedRouteIPv4(t *testing.T) {
+func Test_MUPType1SessionTransformedRoute(t *testing.T) {
 	assert := assert.New(t)
 	rd, _ := ParseRouteDistinguisher("100:100")
-	r := &MUPType1SessionTransformedRoute{
-		RD:                    rd,
-		Prefix:                netip.MustParsePrefix("192.100.0.0/24"),
-		TEID:                  netip.MustParseAddr("0.0.0.100"),
-		QFI:                   9,
-		EndpointAddressLength: 32,
-		EndpointAddress:       netip.MustParseAddr("10.10.10.1"),
+	ipv4SA := netip.MustParseAddr("10.10.10.2")
+	ipv6SA := netip.MustParseAddr("2001::2")
+	tests := []struct {
+		name string
+		in   *MUPType1SessionTransformedRoute
+		afi  uint16
+		rf   RouteFamily
+	}{
+		{
+			name: "IPv4",
+			in: &MUPType1SessionTransformedRoute{
+				RD:                    rd,
+				Prefix:                netip.MustParsePrefix("192.100.0.0/24"),
+				TEID:                  netip.MustParseAddr("0.0.0.100"),
+				QFI:                   9,
+				EndpointAddressLength: 32,
+				EndpointAddress:       netip.MustParseAddr("10.10.10.1"),
+			},
+			afi: AFI_IP,
+			rf:  RF_MUP_IPv4,
+		},
+		{
+			name: "IPv4_with_SourceAddress",
+			in: &MUPType1SessionTransformedRoute{
+				RD:                    rd,
+				Prefix:                netip.MustParsePrefix("192.100.0.0/24"),
+				TEID:                  netip.MustParseAddr("0.0.0.100"),
+				QFI:                   9,
+				EndpointAddressLength: 32,
+				EndpointAddress:       netip.MustParseAddr("10.10.10.1"),
+				SourceAddressLength:   32,
+				SourceAddress:         &ipv4SA,
+			},
+			afi: AFI_IP,
+			rf:  RF_MUP_IPv4,
+		},
+		{
+			name: "IPv6",
+			in: &MUPType1SessionTransformedRoute{
+				RD:                    rd,
+				Prefix:                netip.MustParsePrefix("2001:db8:1::/48"),
+				TEID:                  netip.MustParseAddr("0.0.0.100"),
+				QFI:                   9,
+				EndpointAddressLength: 128,
+				EndpointAddress:       netip.MustParseAddr("2001::1"),
+			},
+			afi: AFI_IP6,
+			rf:  RF_MUP_IPv6,
+		},
+		{
+			name: "IPv6_with_SourceAddress",
+			in: &MUPType1SessionTransformedRoute{
+				RD:                    rd,
+				Prefix:                netip.MustParsePrefix("2001:db8:1::/48"),
+				TEID:                  netip.MustParseAddr("0.0.0.100"),
+				QFI:                   9,
+				EndpointAddressLength: 128,
+				EndpointAddress:       netip.MustParseAddr("2001::1"),
+				SourceAddressLength:   128,
+				SourceAddress:         &ipv6SA,
+			},
+			afi: AFI_IP6,
+			rf:  RF_MUP_IPv6,
+		},
 	}
-	n1 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r)
-	buf1, err := n1.Serialize()
-	assert.Nil(err)
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv4))
-	assert.Nil(err)
-	err = n2.DecodeFromBytes(buf1)
-	assert.Nil(err)
 
-	t.Logf("%s", n1)
-	t.Logf("%s", n2)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n1 := NewMUPNLRI(tt.afi, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, tt.in)
+			buf1, err := n1.Serialize()
+			assert.Nil(err)
+			n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(tt.rf))
+			assert.Nil(err)
+			err = n2.DecodeFromBytes(buf1)
+			assert.Nil(err)
 
-	assert.Equal(n1, n2)
-}
+			t.Logf("%s", n1)
+			t.Logf("%s", n2)
 
-func Test_MUPType1SessionTransformedRouteIPv6(t *testing.T) {
-	assert := assert.New(t)
-	rd, _ := ParseRouteDistinguisher("100:100")
-	r := &MUPType1SessionTransformedRoute{
-		RD:                    rd,
-		Prefix:                netip.MustParsePrefix("2001:db8:1::/48"),
-		TEID:                  netip.MustParseAddr("0.0.0.100"),
-		QFI:                   9,
-		EndpointAddressLength: 128,
-		EndpointAddress:       netip.MustParseAddr("2001::1"),
+			assert.Equal(n1, n2)
+		})
 	}
-	n1 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r)
-	buf1, err := n1.Serialize()
-	assert.Nil(err)
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_MUP_IPv6))
-	assert.Nil(err)
-	err = n2.DecodeFromBytes(buf1)
-	assert.Nil(err)
-
-	t.Logf("%s", n1)
-	t.Logf("%s", n2)
-
-	assert.Equal(n1, n2)
 }
 
 func Test_MUPType2SessionTransformedRouteIPv4(t *testing.T) {
