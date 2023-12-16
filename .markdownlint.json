@@ -5,6 +5,7 @@
     "line-length": false,
     "commands-show-output": false,
     "no-duplicate-header": false,
+    "no-duplicate-heading": false,
     "no-inline-html": {
         "allowed_elements": [
             "br"
