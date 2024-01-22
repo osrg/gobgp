@@ -381,8 +381,12 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 
 const firstPeerCaseIndex = 3
 
-func (s *BgpServer) Serve() {
+func (s *BgpServer) Serve(optionalCh ...<-chan struct{}) {
 	s.listeners = make([]*tcpListener, 0, 2)
+	var stopCh <-chan struct{}
+	if len(optionalCh) > 0 {
+		stopCh = optionalCh[0]
+	}
 
 	handlefsmMsg := func(e *fsmMsg) {
 		fsm := e.fsm
@@ -456,7 +460,12 @@ func (s *BgpServer) Serve() {
 	}
 
 	for {
-		cases := make([]reflect.SelectCase, firstPeerCaseIndex+len(s.incomings))
+		casesSize := firstPeerCaseIndex + len(s.incomings)
+		if stopCh != nil {
+			casesSize++
+		}
+		cases := make([]reflect.SelectCase, casesSize)
+
 		cases[0] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(s.mgmtCh),
@@ -475,6 +484,12 @@ func (s *BgpServer) Serve() {
 				Chan: reflect.ValueOf(s.incomings[i-firstPeerCaseIndex].Out()),
 			}
 		}
+		if stopCh != nil {
+			cases[len(cases)-1] = reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(stopCh),
+			}
+		}
 
 		chosen, value, ok := reflect.Select(cases)
 		switch chosen {
@@ -487,7 +502,12 @@ func (s *BgpServer) Serve() {
 		case 2:
 			ev := value.Interface().(*roaEvent)
 			s.roaManager.HandleROAEvent(ev)
+		case len(cases) - 1:
+			return
 		default:
+			if stopCh != nil && chosen == len(cases)-1 {
+				return
+			}
 			// in the case of dynamic peer, handleFSMMessage closed incoming channel so
 			// nil fsmMsg can happen here.
 			if ok {
