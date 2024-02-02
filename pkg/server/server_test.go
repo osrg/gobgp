@@ -332,6 +332,77 @@ func TestListPathEnableFiltered(test *testing.T) {
 	})
 	attrs := []*apb.Any{a1, a2}
 
+	wantCommunities := []uint32{100<<16 | 100}
+	wantCommunities2 := []uint32{100<<16 | 100, 200<<16 | 200}
+
+	commSet, _ := table.NewCommunitySet(oc.CommunitySet{
+		CommunitySetName: "comset1",
+		CommunityList:    []string{"100:100"},
+	})
+	t.policy.AddDefinedSet(commSet, false)
+
+	// EXPORT
+	statement := oc.Statement{
+		Name: "stmt1",
+		Actions: oc.Actions{
+			BgpActions: oc.BgpActions{
+				SetCommunity: oc.SetCommunity{
+					SetCommunityMethod: oc.SetCommunityMethod{
+						CommunitiesList: []string{"100:100"},
+					},
+					Options: string(oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD),
+				},
+			},
+			RouteDisposition: oc.ROUTE_DISPOSITION_ACCEPT_ROUTE,
+		},
+	}
+	policy := oc.PolicyDefinition{
+		Name:       "policy1",
+		Statements: []oc.Statement{statement},
+	}
+	p, err := table.NewPolicy(policy)
+	if err != nil {
+		test.Fatalf("cannot create new policy: %v", err)
+	}
+	t.policy.AddPolicy(p, false)
+	policies := []*oc.PolicyDefinition{
+		{
+			Name: "policy1",
+		},
+	}
+	t.policy.AddPolicyAssignment(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_REJECT)
+
+	// IMPORT
+	statement = oc.Statement{
+		Name: "stmt1",
+		Actions: oc.Actions{
+			BgpActions: oc.BgpActions{
+				SetCommunity: oc.SetCommunity{
+					SetCommunityMethod: oc.SetCommunityMethod{
+						CommunitiesList: []string{"200:200"},
+					},
+					Options: string(oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD),
+				},
+			},
+			RouteDisposition: oc.ROUTE_DISPOSITION_ACCEPT_ROUTE,
+		},
+	}
+	policy = oc.PolicyDefinition{
+		Name:       "policy1",
+		Statements: []oc.Statement{statement},
+	}
+	p, err = table.NewPolicy(policy)
+	if err != nil {
+		test.Fatalf("cannot create new policy: %v", err)
+	}
+	s.policy.AddPolicy(p, false)
+	policies = []*oc.PolicyDefinition{
+		{
+			Name: "policy1",
+		},
+	}
+	s.policy.AddPolicyAssignment(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, policies, table.ROUTE_TYPE_REJECT)
+
 	t.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path: &api.Path{
@@ -378,8 +449,138 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	for {
 		count := 0
-		s.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_IN, Family: family, Name: "127.0.0.1"}, func(d *api.Destination) {
+		t.ListPath(context.Background(), &api.ListPathRequest{
+			TableType: api.TableType_ADJ_OUT,
+			Family:    family, Name: "127.0.0.1",
+			EnableFiltered: true,
+		}, func(d *api.Destination) {
 			count++
+			for _, path := range d.Paths {
+				if path.Filtered {
+					continue
+				}
+				var comms []uint32
+				for _, attr := range path.GetPattrs() {
+					m, err := attr.UnmarshalNew()
+					if err != nil {
+						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
+						continue
+					}
+					switch m := m.(type) {
+					case *api.CommunitiesAttribute:
+						comms = m.GetCommunities()
+					}
+				}
+				if diff := cmp.Diff([]uint32(nil), comms); diff != "" {
+					test.Errorf("AdjRibOutPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+				} else {
+					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+				}
+			}
+		})
+		if count == 2 {
+			break
+		}
+	}
+	for {
+		count := 0
+		t.ListPath(context.Background(), &api.ListPathRequest{
+			TableType: api.TableType_ADJ_OUT,
+			Family:    family, Name: "127.0.0.1",
+			EnableFiltered: true,
+		}, func(d *api.Destination) {
+			count++
+			for _, path := range d.Paths {
+				if !path.Filtered {
+					continue
+				}
+				var comms []uint32
+				for _, attr := range path.GetPattrs() {
+					m, err := attr.UnmarshalNew()
+					if err != nil {
+						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
+						continue
+					}
+					switch m := m.(type) {
+					case *api.CommunitiesAttribute:
+						comms = m.GetCommunities()
+					}
+				}
+				if diff := cmp.Diff(wantCommunities, comms); diff != "" {
+					test.Errorf("AdjRibOutPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+				} else {
+					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+				}
+			}
+		})
+		if count == 2 {
+			break
+		}
+	}
+	for {
+		count := 0
+		s.ListPath(context.Background(), &api.ListPathRequest{
+			TableType:      api.TableType_ADJ_IN,
+			Family:         family,
+			Name:           "127.0.0.1",
+			EnableFiltered: false,
+		}, func(d *api.Destination) {
+			count++
+			for _, path := range d.Paths {
+				var comms []uint32
+				for _, attr := range path.GetPattrs() {
+					m, err := attr.UnmarshalNew()
+					if err != nil {
+						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
+						continue
+					}
+					switch m := m.(type) {
+					case *api.CommunitiesAttribute:
+						comms = m.GetCommunities()
+					}
+				}
+				if diff := cmp.Diff(wantCommunities, comms); diff != "" {
+					test.Errorf("AdjRibInPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+				} else {
+					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+				}
+			}
+		})
+		if count == 2 {
+			break
+		}
+	}
+	for {
+		count := 0
+		s.ListPath(context.Background(), &api.ListPathRequest{
+			TableType:      api.TableType_ADJ_IN,
+			Family:         family,
+			Name:           "127.0.0.1",
+			EnableFiltered: true,
+		}, func(d *api.Destination) {
+			count++
+			for _, path := range d.Paths {
+				if !path.Filtered {
+					continue
+				}
+				var comms []uint32
+				for _, attr := range path.GetPattrs() {
+					m, err := attr.UnmarshalNew()
+					if err != nil {
+						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
+						continue
+					}
+					switch m := m.(type) {
+					case *api.CommunitiesAttribute:
+						comms = m.GetCommunities()
+					}
+				}
+				if diff := cmp.Diff(wantCommunities2, comms); diff != "" {
+					test.Errorf("AdjRibInPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+				} else {
+					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+				}
+			}
 		})
 		if count == 2 {
 			break

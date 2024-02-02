@@ -2614,6 +2614,10 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 		if in {
 			adjRib = peer.adjRibIn
 			if enableFiltered {
+				//adjRib = table.NewAdjRib(s.logger, peer.configuredRFlist())
+				//for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{family}, true) {
+				//}
+
 				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{family}, true) {
 					options := &table.PolicyOptions{
 						Validate: s.roaTable.Validate,
@@ -2621,6 +2625,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 					if s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options) == nil {
 						filtered[path.GetNlri().String()] = path
 					}
+					//adjRib.UpdateAdjRibOut([]*table.Path{path})
 				}
 			}
 		} else {
