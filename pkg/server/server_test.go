@@ -456,9 +456,6 @@ func TestListPathEnableFiltered(test *testing.T) {
 		}, func(d *api.Destination) {
 			count++
 			for _, path := range d.Paths {
-				if path.Filtered {
-					continue
-				}
 				var comms []uint32
 				for _, attr := range path.GetPattrs() {
 					m, err := attr.UnmarshalNew()
@@ -487,11 +484,11 @@ func TestListPathEnableFiltered(test *testing.T) {
 		t.ListPath(context.Background(), &api.ListPathRequest{
 			TableType: api.TableType_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
-			EnableFiltered: true,
+			EnableFiltered: false,
 		}, func(d *api.Destination) {
 			count++
 			for _, path := range d.Paths {
-				if !path.Filtered {
+				if path.Filtered {
 					continue
 				}
 				var comms []uint32
@@ -560,7 +557,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		}, func(d *api.Destination) {
 			count++
 			for _, path := range d.Paths {
-				if !path.Filtered {
+				if path.Filtered {
 					continue
 				}
 				var comms []uint32
