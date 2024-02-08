@@ -120,6 +120,16 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 				}
 				return err
 			}
+			err = conn.SetKeepAlive(false)
+			if err != nil {
+				conn.Close()
+				close(closeCh)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Error": err,
+				}).Warn("Failed to SetKeepAlive")
+				return err
+			}
 			ch <- conn
 		}
 	}()
