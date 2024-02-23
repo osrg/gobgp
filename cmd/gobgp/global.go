@@ -1888,8 +1888,6 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			return nil, err
 		}
 
-		extcomms = args[5:]
-
 		if rf == bgp.RF_IPv4_VPN {
 			if ip.To4() == nil {
 				return nil, fmt.Errorf("invalid ipv4 prefix")
@@ -1901,6 +1899,19 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			}
 			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(ones), ip.String(), *mpls, rd)
 		}
+
+		args = args[5:]
+
+		if len(args) > 1 && args[0] == "identifier" {
+			id, err := strconv.ParseUint(args[1], 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid format")
+			}
+			nlri.SetPathIdentifier(uint32(id))
+			args = args[2:]
+		}
+
+		extcomms = args
 	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 		if len(args) < 2 {
 			return nil, fmt.Errorf("invalid format")
