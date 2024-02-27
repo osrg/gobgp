@@ -625,11 +625,13 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					return old.Clone(true)
 				}
 			}
-			peer.fsm.logger.Debug("From same AS, ignore",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.ID(),
-					"Path":  path})
+			if peer.fsm.logger.GetLevel() >= log.DebugLevel {
+				peer.fsm.logger.Debug("From same AS, ignore",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.ID(),
+						"Path":  path})
+			}
 			return nil
 		}
 	}
