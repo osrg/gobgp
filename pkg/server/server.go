@@ -44,14 +44,16 @@ import (
 )
 
 type tcpListener struct {
-	l  *net.TCPListener
-	ch chan struct{}
+	l      *net.TCPListener
+	ch     chan struct{}
+	cancel context.CancelFunc
 }
 
 func (l *tcpListener) Close() error {
 	if err := l.l.Close(); err != nil {
 		return err
 	}
+	l.cancel()
 	<-l.ch
 	return nil
 }
@@ -106,6 +108,7 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 	}
 
 	closeCh := make(chan struct{})
+	listenerCtx, listenerCancel := context.WithCancel(context.Background())
 	go func() error {
 		for {
 			conn, err := listener.AcceptTCP()
@@ -120,12 +123,16 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 				}
 				return err
 			}
-			ch <- conn
+			select {
+			case ch <- conn:
+			case <-listenerCtx.Done():
+			}
 		}
 	}()
 	return &tcpListener{
-		l:  listener,
-		ch: closeCh,
+		l:      listener,
+		ch:     closeCh,
+		cancel: listenerCancel,
 	}, nil
 }
 
