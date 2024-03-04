@@ -4179,11 +4179,11 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 							l = append(l, p...)
 						}
 						for _, p := range l {
-							pl = append(pl, toPathApi(p, nil, true, false, false))
+							pl = append(pl, toPathApi(p, nil, false, false, false))
 						}
 					} else {
 						for _, p := range msg.PathList {
-							pl = append(pl, toPathApi(p, nil, true, false, false))
+							pl = append(pl, toPathApi(p, nil, false, false, false))
 						}
 					}
 					fn(&api.WatchEventResponse{
