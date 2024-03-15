@@ -87,7 +87,7 @@ class GoBGPIPv6Test(unittest.TestCase):
                 state = self.gobgp.get_neighbor_state(rs_client)
                 self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 local_rib = self.gobgp.get_local_rib(rs_client, rf=rf)
-                local_rib = [p['prefix'] for p in local_rib]
+                local_rib = [p["prefix"] for p in local_rib]
                 if len(local_rib) < (len(ctns) - 1):
                     time.sleep(self.wait_per_retry)
                     continue

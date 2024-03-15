@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import sys
+import json
 import time
 import unittest
 
@@ -34,6 +35,8 @@ from lib.noseplugin import OptionParser, parser_option
 
 
 class GoBGPTestBase(unittest.TestCase):
+    SEND_MAX = 5
+    INSTALLED_PATHS = SEND_MAX + 1
 
     @classmethod
     def setUpClass(cls):
@@ -56,14 +59,14 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        g1.add_peer(e1, addpath=True)
-        e1.add_peer(g1, addpath=True)
+        g1.add_peer(e1, addpath=16)
+        e1.add_peer(g1, addpath=16)
 
-        g1.add_peer(g2, addpath=False, is_rr_client=True)
-        g2.add_peer(g1, addpath=False)
+        g1.add_peer(g2, is_rr_client=True)
+        g2.add_peer(g1)
 
-        g1.add_peer(g3, addpath=True, is_rr_client=True)
-        g3.add_peer(g1, addpath=True)
+        g1.add_peer(g3, addpath=cls.SEND_MAX, is_rr_client=True)
+        g3.add_peer(g1, addpath=cls.SEND_MAX)
 
         cls.g1 = g1
         cls.g2 = g2
@@ -73,20 +76,26 @@ class GoBGPTestBase(unittest.TestCase):
     # test each neighbor state is turned establish
     def test_00_neighbor_established(self):
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
+        self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g3)
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.e1)
 
     # prepare routes with path_id (no error check)
     def test_01_prepare_add_paths_routes(self):
-        self.e1.add_route(route='192.168.100.0/24', identifier=10, aspath=[100, 200, 300])
-        self.e1.add_route(route='192.168.100.0/24', identifier=20, aspath=[100, 200])
-        self.e1.add_route(route='192.168.100.0/24', identifier=30, aspath=[100])
+        aspath = []
+        for i in range(self.INSTALLED_PATHS):
+            aspath.append((i + 1) * 100)
+            self.e1.add_route(
+                route="192.168.100.0/24",
+                identifier=(i + 1) * 10,
+                aspath=aspath,
+            )
 
     # test three routes are installed to the rib due to add-path feature
     def test_02_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 3)
+            self.assertEqual(len(rib[0]["paths"]), self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
@@ -96,7 +105,7 @@ class GoBGPTestBase(unittest.TestCase):
             rib = self.g2.get_global_rib()
             self.assertEqual(len(rib), 1)
             self.assertEqual(len(rib[0]['paths']), 1)
-            self.assertEqual(rib[0]['paths'][0]['aspath'], [100])
+            self.assertEqual(len(rib[0]["paths"][0]["aspath"]), 1)
 
         assert_several_times(f)
 
@@ -105,167 +114,179 @@ class GoBGPTestBase(unittest.TestCase):
         def f():
             rib = self.g3.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 3)
+            self.assertEqual(len(rib[0]["paths"]), self.SEND_MAX)
 
         assert_several_times(f)
 
+    def test_05_check_g1_adj_out(self):
+        adj_out = self.g1.get_adj_rib_out(self.g2, add_path_enabled=True)
+        self.assertEqual(len(adj_out), 1)
+        self.assertEqual(len(adj_out[0]["paths"]), 1)
+
+        adj_out = self.g1.get_adj_rib_out(self.g3, add_path_enabled=True)
+        self.assertEqual(len(adj_out), 1)
+        self.assertEqual(len(adj_out[0]["paths"]), self.INSTALLED_PATHS)
+        # expect the last path to be filtered
+        self.assertTrue(adj_out[0]["paths"][-1].get("send-max-filtered", False))
+
     # withdraw a route with path_id (no error check)
-    def test_05_withdraw_route_with_path_id(self):
-        self.e1.del_route(route='192.168.100.0/24', identifier=30)
+    def test_06_withdraw_route_with_path_id(self):
+        self.e1.del_route(route="192.168.100.0/24", identifier=10)
 
     # test the withdrawn route is removed from the rib
-    def test_06_check_g1_global_rib(self):
+    def test_07_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 2)
+            self.assertEqual(len(rib[0]["paths"]), self.INSTALLED_PATHS - 1)
+            # we deleted the highest priority path
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200]))
+                self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
     # test the best path is replaced due to the removal from g1 rib
-    def test_07_check_g2_global_rib(self):
+    def test_08_check_g2_global_rib(self):
         def f():
             rib = self.g2.get_global_rib()
             self.assertEqual(len(rib), 1)
             self.assertEqual(len(rib[0]['paths']), 1)
-            self.assertEqual(rib[0]['paths'][0]['aspath'], [100, 200])
+            self.assertEqual(len(rib[0]["paths"][0]["aspath"]), 2)
 
         assert_several_times(f)
 
     # test the withdrawn route is removed from the rib of g3
-    def test_08_check_g3_global_rib(self):
+    # and the filtered route is advertised to g3
+    def test_09_check_g3_global_rib(self):
         def f():
             rib = self.g3.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 2)
+            self.assertEqual(len(rib[0]["paths"]), self.SEND_MAX)
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200]))
+                self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
     # install a route with path_id via GoBGP CLI (no error check)
-    def test_09_install_add_paths_route_via_cli(self):
+    def test_10_install_add_paths_route_via_cli(self):
         # identifier is duplicated with the identifier of the route from e1
         self.g1.add_route(route='192.168.100.0/24', identifier=10, local_pref=500)
 
     # test the route from CLI is installed to the rib
-    def test_10_check_g1_global_rib(self):
+    def test_11_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 3)
+            self.assertEqual(len(rib[0]["paths"]), self.INSTALLED_PATHS)
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200],
-                                               []))
-                if not path['aspath']:  # path['aspath'] == []
+                if not path["aspath"]:
                     self.assertEqual(path['local-pref'], 500)
+                else:
+                    self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
-    def test_11_check_g1_adj_out(self):
+    def test_12_check_g1_adj_out(self):
         adj_out = self.g1.get_adj_rib_out(self.g2, add_path_enabled=True)
         self.assertEqual(len(adj_out), 1)
-        self.assertEqual(len(adj_out[0]['paths']), 1)
+        self.assertEqual(len(adj_out[0]["paths"]), 1)
 
         adj_out = self.g1.get_adj_rib_out(self.g3, add_path_enabled=True)
         self.assertEqual(len(adj_out), 1)
-        self.assertEqual(len(adj_out[0]['paths']), 3)
+        self.assertEqual(len(adj_out[0]["paths"]), self.INSTALLED_PATHS)
+        print(json.dumps(adj_out, indent=2))
+        # the new best path shouldn't be advertised as it is added after
+        # the limit is reached
+        self.assertEqual(adj_out[0]["paths"][0]["local-pref"], 500)
+        self.assertTrue(adj_out[0]["paths"][0].get("send-max-filtered", False))
 
     # test the best path is replaced due to the CLI route from g1 rib
-    def test_12_check_g2_global_rib(self):
+    def test_13_check_g2_global_rib(self):
         def f():
             rib = self.g2.get_global_rib()
             self.assertEqual(len(rib), 1)
             self.assertEqual(len(rib[0]['paths']), 1)
-            self.assertEqual(rib[0]['paths'][0]['aspath'], [])
+            self.assertEqual(len(rib[0]["paths"][0]["aspath"]), 0)
+            self.assertEqual(rib[0]["paths"][0]["local-pref"], 500)
 
         assert_several_times(f)
 
     # test the route from CLI is advertised from g1
-    def test_13_check_g3_global_rib(self):
+    def test_14_check_g3_global_rib(self):
         def f():
             rib = self.g3.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 3)
+            print(json.dumps(rib, indent=2))
+            self.assertEqual(len(rib[0]["paths"]), self.SEND_MAX)
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200],
-                                               []))
-                if not path['aspath']:  # path['aspath'] == []
-                    self.assertEqual(path['local-pref'], 500)
+                self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
     # remove non-existing route with path_id via GoBGP CLI (no error check)
-    def test_14_remove_non_existing_add_paths_route_via_cli(self):
+    def test_15_remove_non_existing_add_paths_route_via_cli(self):
         # specify locally non-existing identifier which has the same value
         # with the identifier of the route from e1
         self.g1.del_route(route='192.168.100.0/24', identifier=20)
 
     # test none of route is removed by non-existing path_id via CLI
-    def test_15_check_g1_global_rib(self):
+    def test_16_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 3)
+            self.assertEqual(len(rib[0]["paths"]), self.INSTALLED_PATHS)
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200],
-                                               []))
-                if not path['aspath']:  # path['aspath'] == []
+                if not path["aspath"]:
                     self.assertEqual(path['local-pref'], 500)
+                else:
+                    self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
     # remove route with path_id via GoBGP CLI (no error check)
-    def test_16_remove_add_paths_route_via_cli(self):
+    def test_17_remove_add_paths_route_via_cli(self):
         self.g1.del_route(route='192.168.100.0/24', identifier=10)
 
-    def test_17_check_g1_adj_out(self):
+    def test_18_check_g1_adj_out(self):
         adj_out = self.g1.get_adj_rib_out(self.g2, add_path_enabled=True)
         self.assertEqual(len(adj_out), 1)
-        self.assertEqual(len(adj_out[0]['paths']), 1)
+        self.assertEqual(len(adj_out[0]["paths"]), 1)
 
         adj_out = self.g1.get_adj_rib_out(self.g3, add_path_enabled=True)
         self.assertEqual(len(adj_out), 1)
-        self.assertEqual(len(adj_out[0]['paths']), 2)
+        self.assertEqual(len(adj_out[0]["paths"]), self.INSTALLED_PATHS - 1)
 
     # test the route is removed from the rib via CLI
-    def test_18_check_g1_global_rib(self):
+    def test_19_check_g1_global_rib(self):
         def f():
             rib = self.g1.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 2)
+            self.assertEqual(len(rib[0]["paths"]), self.INSTALLED_PATHS - 1)
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200]))
+                if not path["aspath"]:
+                    self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 
     # test the best path is replaced the removal from g1 rib
-    def test_19_check_g2_global_rib(self):
+    def test_20_check_g2_global_rib(self):
         def f():
             rib = self.g2.get_global_rib()
             self.assertEqual(len(rib), 1)
             self.assertEqual(len(rib[0]['paths']), 1)
-            self.assertEqual(rib[0]['paths'][0]['aspath'], [100, 200])
+            self.assertEqual(len(rib[0]["paths"][0]["aspath"]), 2)
 
         assert_several_times(f)
 
     # test the removed route from CLI is withdrawn by g1
-    def test_20_check_g3_global_rib(self):
+    def test_21_check_g3_global_rib(self):
         def f():
             rib = self.g3.get_global_rib()
             self.assertEqual(len(rib), 1)
-            self.assertEqual(len(rib[0]['paths']), 2)
+            self.assertEqual(len(rib[0]["paths"]), self.SEND_MAX)
             for path in rib[0]['paths']:
-                self.assertIn(path['aspath'], ([100, 200, 300],
-                                               [100, 200]))
+                if not path["aspath"]:
+                    self.assertTrue(2 <= len(path["aspath"]) <= self.INSTALLED_PATHS)
 
         assert_several_times(f)
 

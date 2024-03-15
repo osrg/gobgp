@@ -53,7 +53,7 @@ func TestPathGetPrefix(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
 	prefix := "10.10.10.0/24"
-	r_prefix := pathP[0].getPrefix()
+	r_prefix := pathP[0].GetPrefix()
 	assert.Equal(t, r_prefix, prefix)
 }
 

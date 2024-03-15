@@ -586,7 +586,7 @@ func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttrib
 	return fmt.Sprint(s)
 }
 
-func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
+func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP, showSendMaxFiltered bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
 	nlri, _ := apiutil.GetNativeNlri(p)
 
 	// Path Symbols (e.g. "*>")
@@ -650,17 +650,27 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	pattrstr := getPathAttributeString(nlri, attrs)
 	args = append(args, pattrstr)
 
+	if showSendMaxFiltered {
+		if p.SendMaxFiltered {
+			args = append(args, "send-max-filtered")
+		} else if p.Filtered {
+			args = append(args, "policy-filtered")
+		} else {
+			args = append(args, "not filtered")
+		}
+	}
+
 	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, teid, qfi, endpoint)
 
 	return args
 }
 
-func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP bool, showIdentifier bgp.BGPAddPathMode) {
+func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP, showSendMaxFiltered bool, showIdentifier bgp.BGPAddPathMode) {
 	pathStrs := make([][]interface{}, 0, len(dsts))
 	now := time.Now()
 	for _, dst := range dsts {
 		for idx, p := range dst.Paths {
-			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showMUP, showIdentifier))
+			pathStrs = append(pathStrs, makeShowRouteArgs(p, idx, now, showAge, showBest, showLabel, showMUP, showSendMaxFiltered, showIdentifier))
 		}
 	}
 
@@ -690,6 +700,11 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP bo
 	}
 	headers = append(headers, "Attrs")
 	format += "%-s\n"
+
+	if showSendMaxFiltered {
+		headers = append(headers, "Filtered")
+		format += "%-s\n"
+	}
 
 	fmt.Printf(format, headers...)
 	for _, pathStr := range pathStrs {
@@ -839,6 +854,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showAge := true
 	showLabel := false
 	showMUP := false
+	showSendMaxFiltered := false
 	showIdentifier := bgp.BGP_ADD_PATH_NONE
 	validationTarget := ""
 	rd := ""
@@ -852,6 +868,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		showBest = true
 	case cmdAdjOut:
 		showAge = false
+		showSendMaxFiltered = true
 	case cmdVRF:
 		def = ipv4UC
 		showBest = true
@@ -1058,7 +1075,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 		}
 		if len(dsts) > 0 {
-			showRoute(dsts, showAge, showBest, showLabel, showMUP, showIdentifier)
+			showRoute(dsts, showAge, showBest, showLabel, showMUP, showSendMaxFiltered, showIdentifier)
 		} else {
 			fmt.Println("Network not in table")
 		}

@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 import collections
 import json
 from itertools import chain
@@ -484,9 +483,10 @@ class GoBGPContainer(BGPContainer):
                 n['route-reflector'] = {'config': {'route-reflector-client': True,
                                                    'route-reflector-cluster-id': cluster_id}}
 
-            if info['addpath']:
-                n['add-paths'] = {'config': {'receive': True,
-                                             'send-max': 16}}
+            if info["addpath"] > 0:
+                n["add-paths"] = {
+                    "config": {"receive": True, "send-max": info["addpath"]}
+                }
 
             if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
                 n['apply-policy'] = {'config': {}}
@@ -536,11 +536,11 @@ class GoBGPContainer(BGPContainer):
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print(yellow('[{0}\'s new gobgpd.conf]'.format(self.name)))
-            if self.config_format is 'toml':
+            if self.config_format == "toml":
                 raw = toml.dumps(config)
-            elif self.config_format is 'yaml':
+            elif self.config_format == "yaml":
                 raw = yaml.dump(config)
-            elif self.config_format is 'json':
+            elif self.config_format == "json":
                 raw = json.dumps(config)
             else:
                 raise Exception('invalid config_format {0}'.format(self.config_format))
@@ -666,11 +666,11 @@ class GoBGPContainer(BGPContainer):
 class RawGoBGPContainer(GoBGPContainer):
     def __init__(self, name, config, ctn_image_name='osrg/gobgp',
                  log_level='debug', zebra=False, config_format='yaml'):
-        if config_format is 'toml':
+        if config_format == "toml":
             d = toml.loads(config)
-        elif config_format is 'yaml':
+        elif config_format == "yaml":
             d = yaml.load(config)
-        elif config_format is 'json':
+        elif config_format == "json":
             d = json.loads(config)
         else:
             raise Exception('invalid config format {0}'.format(config_format))
