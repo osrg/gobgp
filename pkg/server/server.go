@@ -760,13 +760,14 @@ func (s *BgpServer) postFilterpath(peer *peer, path *table.Path) *table.Path {
 	if path != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
 		path.RemoveLocalPref()
 	}
+
 	return path
 }
 
 func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 	path, options, stop := s.prePolicyFilterpath(peer, path, old)
 	if stop {
-		return path
+		return nil
 	}
 	options.Validate = s.roaTable.Validate
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
@@ -1132,7 +1133,6 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 	}
 
 	outgoing := make([]*table.Path, 0, len(paths))
-
 	for idx, path := range paths {
 		var old *table.Path
 		if olds != nil {
@@ -1285,7 +1285,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		}
 
 		if dsts := rib.Update(path); len(dsts) > 0 {
-			s.propagateUpdateToNeighbors(peer, path, dsts, true)
+			s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
 		}
 	}
 }
@@ -1306,7 +1306,7 @@ func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*
 	return bestList, oldList, mpathList
 }
 
-func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
+func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
 	if table.SelectionOptions.DisableBestPathSelection {
 		return
 	}
@@ -1344,11 +1344,41 @@ func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path
 				bestList = func() []*table.Path {
 					l := make([]*table.Path, 0, len(dsts))
 					for _, d := range dsts {
-						l = append(l, d.GetWithdrawnPath()...)
+						toDelete := d.GetWithdrawnPath()
+						toActuallyDelete := make([]*table.Path, 0, len(toDelete))
+						for _, p := range toDelete {
+							// the path was never advertized to the peer
+							if targetPeer.unsetPathSendMaxFiltered(p) {
+								continue
+							}
+							toActuallyDelete = append(toActuallyDelete, p)
+						}
+
+						if len(toActuallyDelete) == 0 {
+							continue
+						}
+
+						destination := rib.GetDestination(toActuallyDelete[0])
+						dstPrefix := toActuallyDelete[0].GetPrefix()
+						targetPeer.decrementRoutesCount(dstPrefix, f, uint8(len(toActuallyDelete)))
+						l = append(l, toActuallyDelete...)
+
+						// the destination has been removed from the table
+						// e.g. no more paths to it
+						if destination == nil {
+							continue
+						}
+
+						toAdd := targetPeer.getSendMaxFilteredPathList(destination, len(toActuallyDelete))
+						targetPeer.incrementRoutesCount(dstPrefix, f, uint8(len(toAdd)))
+						for _, p := range toAdd {
+							targetPeer.unsetPathSendMaxFiltered(p)
+						}
+						l = append(l, toAdd...)
 					}
 					return l
 				}()
-			} else {
+			} else if targetPeer.canSendPathWithinLimit(newPath) {
 				bestList = []*table.Path{newPath}
 				if newPath.GetRouteFamily() == bgp.RF_RTC_UC {
 					// we assumes that new "path" nlri was already sent before. This assumption avoids the
@@ -1360,6 +1390,14 @@ func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path
 						}
 					}
 				}
+			} else {
+				bestList = []*table.Path{}
+				s.logger.Warn("exceeding max routes for prefix",
+					log.Fields{
+						"Topic":  "Peer",
+						"Key":    targetPeer.ID(),
+						"Prefix": newPath.GetPrefix(),
+					})
 			}
 			oldList = nil
 		} else if targetPeer.isRouteServerClient() {
@@ -2154,7 +2192,7 @@ func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
 }
 
 func pathTokey(path *table.Path) string {
-	return fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.GetNlri().String())
+	return fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.GetPrefix())
 }
 
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
@@ -2624,7 +2662,7 @@ func (s *BgpServer) getVrfRib(name string, family bgp.RouteFamily, prefixes []*t
 	return
 }
 
-func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[string]*table.Path, v map[*table.Path]*table.Validation, err error) {
+func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		peer, ok := s.neighborMap[addr]
 		if !ok {
@@ -2634,23 +2672,26 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 		as := peer.AS()
 
 		var adjRib *table.AdjRib
-		filtered = make(map[string]*table.Path)
+		var toUpdate []*table.Path
+		filtered = make(map[table.PathLocalKey]table.FilteredType)
 		if in {
 			adjRib = peer.adjRibIn
 			if enableFiltered {
+				toUpdate = make([]*table.Path, 0)
 				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{family}, true) {
 					options := &table.PolicyOptions{
 						Validate: s.roaTable.Validate,
 					}
 					if p := s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options); p == nil {
-						filtered[path.GetNlri().String()] = path
+						filtered[path.GetLocalKey()] = table.PolicyFiltered
 					} else {
-						adjRib.Update([]*table.Path{p})
+						toUpdate = append(toUpdate, p)
 					}
 				}
 			}
 		} else {
 			adjRib = table.NewAdjRib(s.logger, peer.configuredRFlist())
+			pathList := make([]*table.Path, 0)
 			if enableFiltered {
 				for _, path := range s.getPossibleBest(peer, family) {
 					path, options, stop := s.prePolicyFilterpath(peer, path, nil)
@@ -2660,15 +2701,23 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 					options.Validate = s.roaTable.Validate
 					p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 					if p == nil {
-						filtered[path.GetNlri().String()] = path
+						filtered[path.GetLocalKey()] = table.PolicyFiltered
 					}
-					adjRib.UpdateAdjRibOut([]*table.Path{path})
+					pathList = append(pathList, path)
 				}
 			} else {
-				accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist())
-				adjRib.UpdateAdjRibOut(accepted)
+				pathList, _ = s.getBestFromLocal(peer, peer.configuredRFlist())
+			}
+			toUpdate = make([]*table.Path, 0, len(pathList))
+			for _, p := range pathList {
+				pathLocalKey := p.GetLocalKey()
+				if peer.isPathSendMaxFiltered(p) {
+					filtered[pathLocalKey] = filtered[pathLocalKey] | table.SendMaxFiltered
+				}
+				toUpdate = append(toUpdate, p)
 			}
 		}
+		adjRib.Update(toUpdate)
 		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, AS: as, LookupPrefixes: prefixes})
 		v = s.validateTable(rib)
 		return err
@@ -2682,7 +2731,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 	}
 	var tbl *table.Table
 	var v map[*table.Path]*table.Validation
-	var filtered map[string]*table.Path
+	var filtered map[table.PathLocalKey]table.FilteredType
 
 	f := func() []*table.LookupPrefix {
 		l := make([]*table.LookupPrefix, 0, len(r.Prefixes))
@@ -2740,10 +2789,13 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 					}
 				}
 				d.Paths = append(d.Paths, p)
-				if r.EnableFiltered {
-					if _, ok := filtered[path.GetNlri().String()]; ok {
-						p.Filtered = true
-					}
+				if r.EnableFiltered && filtered[path.GetLocalKey()]&table.PolicyFiltered > 0 {
+					p.Filtered = true
+				}
+				// we always want to know that some paths are filtered out
+				// by send-max attribute
+				if filtered[path.GetLocalKey()]&table.SendMaxFiltered > 0 {
+					p.SendMaxFiltered = true
 				}
 			}
 

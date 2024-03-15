@@ -480,7 +480,6 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.add_peer(q6, passwd='password')
         q6.add_peer(self.gobgp, passwd='password')
 
-
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q6)
 
     def test_25_add_quagga_md5_badpass(self):
@@ -575,7 +574,6 @@ class GoBGPTestBase(unittest.TestCase):
         # note that we are checking it on the Quagga side since GoBGP
         # config doesn't explicitly "know about" the peer
         q9.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g6, timeout=30)
-         
 
 
 if __name__ == '__main__':

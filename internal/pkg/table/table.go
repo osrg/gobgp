@@ -171,7 +171,7 @@ func (t *Table) validatePath(path *Path) {
 			log.Fields{
 				"Topic":      "Table",
 				"Key":        t.routeFamily,
-				"Prefix":     path.GetNlri().String(),
+				"Prefix":     path.GetPrefix(),
 				"ReceivedRf": path.GetRouteFamily().String()})
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {

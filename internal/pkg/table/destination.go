@@ -185,10 +185,7 @@ func rsFilter(id string, as uint32, path *Path) bool {
 		return false
 	}
 
-	if id != GLOBAL_RIB_NAME && (path.GetSource().Address.String() == id || isASLoop(as, path)) {
-		return true
-	}
-	return false
+	return id != GLOBAL_RIB_NAME && (path.GetSource().Address.String() == id || isASLoop(as, path))
 }
 
 func (dd *Destination) GetKnownPathList(id string, as uint32) []*Path {
