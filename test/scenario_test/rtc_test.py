@@ -841,11 +841,11 @@ class GoBGPTestBase(unittest.TestCase):
         # +-------------+      +-------------+
         g3, g4, g5 = self.g3, self.g4, self.g5
 
-        g3.update_peer(g4, vpn=True, addpath=True, is_rr_client=True)
-        g4.update_peer(g3, vpn=True, addpath=True)
+        g3.update_peer(g4, vpn=True, addpath=16, is_rr_client=True)
+        g4.update_peer(g3, vpn=True, addpath=16)
 
-        g3.update_peer(g5, vpn=True, addpath=True, is_rr_client=True)
-        g5.update_peer(g3, vpn=True, addpath=True)
+        g3.update_peer(g5, vpn=True, addpath=16, is_rr_client=True)
+        g5.update_peer(g3, vpn=True, addpath=16)
 
         g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g4)
         g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g5)

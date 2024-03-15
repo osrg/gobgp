@@ -544,6 +544,7 @@ message Path {
   uint32 local_identifier = 19;
   bytes nlri_binary = 20;
   repeated bytes pattrs_binary = 21;
+  bool send_max_filtered = 22;
 }
 
 message Destination {
