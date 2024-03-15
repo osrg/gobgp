@@ -2627,8 +2627,10 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.RouteFamily, in bool, enab
 					options := &table.PolicyOptions{
 						Validate: s.roaTable.Validate,
 					}
-					if s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options) == nil {
+					if p := s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options); p == nil {
 						filtered[path.GetNlri().String()] = path
+					} else {
+						adjRib.Update([]*table.Path{p})
 					}
 				}
 			}
