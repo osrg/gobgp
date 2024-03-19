@@ -23,6 +23,7 @@ import (
 
 	farm "github.com/dgryski/go-farm"
 
+	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
@@ -114,14 +115,18 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 type TableManager struct {
 	Tables map[bgp.RouteFamily]*Table
 	Vrfs   map[string]*Vrf
+	SelectionOptions *oc.RouteSelectionOptionsConfig
+	UseMultiplePaths *oc.UseMultiplePathsConfig
 	rfList []bgp.RouteFamily
 	logger log.Logger
 }
 
-func NewTableManager(logger log.Logger, rfList []bgp.RouteFamily) *TableManager {
+func NewTableManager(logger log.Logger, rfList []bgp.RouteFamily, selectionOptions *oc.RouteSelectionOptionsConfig, useMultiplePaths *oc.UseMultiplePathsConfig) *TableManager {
 	t := &TableManager{
 		Tables: make(map[bgp.RouteFamily]*Table),
 		Vrfs:   make(map[string]*Vrf),
+		SelectionOptions: selectionOptions,
+		UseMultiplePaths: useMultiplePaths,
 		rfList: rfList,
 		logger: logger,
 	}
@@ -192,7 +197,7 @@ func (manager *TableManager) update(newPath *Path) *Update {
 	t := manager.Tables[newPath.GetRouteFamily()]
 	t.validatePath(newPath)
 	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
-	u := dst.Calculate(manager.logger, newPath)
+	u := dst.Calculate(manager.logger, newPath, manager.SelectionOptions)
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)
 	}
@@ -294,7 +299,7 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 }
 
 func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.RouteFamily) []*Path {
-	if SelectionOptions.DisableBestPathSelection {
+	if manager.SelectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, there is no best path.
 		return nil
 	}
@@ -306,7 +311,7 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 }
 
 func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
-	if !UseMultiplePaths.Enabled || SelectionOptions.DisableBestPathSelection {
+	if !manager.UseMultiplePaths.Enabled || manager.SelectionOptions.DisableBestPathSelection {
 		// Note: If multi path not enabled or best path selection disabled,
 		// there is no best multi path.
 		return nil

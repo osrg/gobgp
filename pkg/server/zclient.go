@@ -420,7 +420,7 @@ func (z *zebraClient) loop() {
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
 			case *watchEventBestPath:
-				if table.UseMultiplePaths.Enabled {
+				if z.server.bgpConfig.Global.UseMultiplePaths.Config.Enabled {
 					for _, paths := range msg.MultiPathList {
 						z.updatePathByNexthopCache(paths)
 						for i := range msg.Vrf {
