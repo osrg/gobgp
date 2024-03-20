@@ -76,7 +76,7 @@ class ExaBGPContainer(BGPContainer):
             caps = []
             if info['as2']:
                 caps.append('        asn4 disable;')
-            if info['addpath']:
+            if info["addpath"] > 0:
                 caps.append('        add-path send/receive;')
             if caps:
                 cmd << '    capability {'

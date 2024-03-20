@@ -128,15 +128,14 @@ def wait_for_completion(f, timeout=120):
 
 
 def try_several_times(f, t=3, s=1):
-    e = Exception
     for _ in range(t):
         try:
             r = f()
-        except RuntimeError as e:
+        except RuntimeError:
             time.sleep(s)
         else:
             return r
-    raise e
+    raise Exception
 
 
 def assert_several_times(f, t=30, s=1):
@@ -144,8 +143,9 @@ def assert_several_times(f, t=30, s=1):
     for _ in range(t):
         try:
             f()
-        except AssertionError as e:
+        except AssertionError as ae:
             time.sleep(s)
+            e = ae
         else:
             return
     raise e
@@ -361,14 +361,35 @@ class BGPContainer(Container):
             raise Exception('peer not exists')
         self.add_peer(peer, **kwargs)
 
-    def add_peer(self, peer, passwd=None, vpn=False, is_rs_client=False,
-                 policies=None, passive=False,
-                 is_rr_client=False, cluster_id=None,
-                 flowspec=False, bridge='', reload_config=True, as2=False,
-                 graceful_restart=None, local_as=None, prefix_limit=None,
-                 v6=False, llgr=None, vrf='', interface='', allow_as_in=0,
-                 remove_private_as=None, replace_peer_as=False, addpath=False,
-                 treat_as_withdraw=False, remote_as=None, mup=False):
+    def add_peer(
+        self,
+        peer,
+        passwd=None,
+        vpn=False,
+        is_rs_client=False,
+        policies=None,
+        passive=False,
+        is_rr_client=False,
+        cluster_id=None,
+        flowspec=False,
+        bridge="",
+        reload_config=True,
+        as2=False,
+        graceful_restart=None,
+        local_as=None,
+        prefix_limit=None,
+        v6=False,
+        llgr=None,
+        vrf="",
+        interface="",
+        allow_as_in=0,
+        remove_private_as=None,
+        replace_peer_as=False,
+        addpath=0,
+        treat_as_withdraw=False,
+        remote_as=None,
+        mup=False,
+    ):
         neigh_addr = ''
         local_addr = ''
         it = itertools.product(self.ip_addrs, peer.ip_addrs)

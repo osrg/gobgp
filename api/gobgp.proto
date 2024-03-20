@@ -535,15 +535,16 @@ message Path {
   uint32 source_asn = 10;
   string source_id = 11;
   bool filtered = 12;
-  bool stale = 13;
-  bool is_from_external = 14;
-  string neighbor_ip = 15;
-  bytes uuid = 16; // only paths installed by AddPath API have this
-  bool is_nexthop_invalid = 17;
-  uint32 identifier = 18;
-  uint32 local_identifier = 19;
-  bytes nlri_binary = 20;
-  repeated bytes pattrs_binary = 21;
+  bool send_max_filtered = 13;
+  bool stale = 14;
+  bool is_from_external = 15;
+  string neighbor_ip = 16;
+  bytes uuid = 17; // only paths installed by AddPath API have this
+  bool is_nexthop_invalid = 18;
+  uint32 identifier = 19;
+  uint32 local_identifier = 20;
+  bytes nlri_binary = 21;
+  repeated bytes pattrs_binary = 22;
 }
 
 message Destination {

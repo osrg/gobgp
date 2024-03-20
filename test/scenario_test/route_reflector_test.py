@@ -162,17 +162,45 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(max(ctn.run() for ctn in [rr, acme1, acme2, tyrell1, tyrell2]))
 
-        rr.add_peer(acme1, vpn=True, addpath=True, graceful_restart=True, llgr=True, is_rr_client=True)
-        acme1.add_peer(rr, vpn=True, addpath=True, graceful_restart=True, llgr=True)
+        rr.add_peer(
+            acme1,
+            vpn=True,
+            addpath=16,
+            graceful_restart=True,
+            llgr=True,
+            is_rr_client=True,
+        )
+        acme1.add_peer(rr, vpn=True, addpath=16, graceful_restart=True, llgr=True)
 
-        rr.add_peer(acme2, vpn=True, addpath=True, graceful_restart=True, llgr=True, is_rr_client=True)
-        acme2.add_peer(rr, vpn=True, addpath=True, graceful_restart=True, llgr=True)
+        rr.add_peer(
+            acme2,
+            vpn=True,
+            addpath=16,
+            graceful_restart=True,
+            llgr=True,
+            is_rr_client=True,
+        )
+        acme2.add_peer(rr, vpn=True, addpath=16, graceful_restart=True, llgr=True)
 
-        rr.add_peer(tyrell1, vpn=True, addpath=True, graceful_restart=True, llgr=True, is_rr_client=True)
-        tyrell1.add_peer(rr, vpn=True, addpath=True, graceful_restart=True, llgr=True)
+        rr.add_peer(
+            tyrell1,
+            vpn=True,
+            addpath=16,
+            graceful_restart=True,
+            llgr=True,
+            is_rr_client=True,
+        )
+        tyrell1.add_peer(rr, vpn=True, addpath=16, graceful_restart=True, llgr=True)
 
-        rr.add_peer(tyrell2, vpn=True, addpath=True, graceful_restart=True, llgr=True, is_rr_client=True)
-        tyrell2.add_peer(rr, vpn=True, addpath=True, graceful_restart=True, llgr=True)
+        rr.add_peer(
+            tyrell2,
+            vpn=True,
+            addpath=16,
+            graceful_restart=True,
+            llgr=True,
+            is_rr_client=True,
+        )
+        tyrell2.add_peer(rr, vpn=True, addpath=16, graceful_restart=True, llgr=True)
 
         self.__class__.rr = rr
         self.__class__.acme1 = acme1

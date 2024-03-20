@@ -55,10 +55,10 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        g1.add_peer(g2, vpn=True, addpath=True)
-        g2.add_peer(g1, vpn=True, addpath=True)
-        g1.add_peer(g3, vpn=True, addpath=True)
-        g3.add_peer(g1, vpn=True, addpath=True)
+        g1.add_peer(g2, vpn=True, addpath=16)
+        g2.add_peer(g1, vpn=True, addpath=16)
+        g1.add_peer(g3, vpn=True, addpath=16)
+        g3.add_peer(g1, vpn=True, addpath=16)
 
         cls.g1 = g1
         cls.g2 = g2

@@ -98,21 +98,25 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 }
 
 type peer struct {
-	tableId           string
-	fsm               *fsm
-	adjRibIn          *table.AdjRib
-	policy            *table.RoutingPolicy
-	localRib          *table.TableManager
-	prefixLimitWarned map[bgp.RouteFamily]bool
-	llgrEndChs        []chan struct{}
+	tableId             string
+	fsm                 *fsm
+	adjRibIn            *table.AdjRib
+	policy              *table.RoutingPolicy
+	localRib            *table.TableManager
+	prefixLimitWarned   map[bgp.RouteFamily]bool
+	dstRoutesCount      map[bgp.RouteFamily]map[string]uint8
+	sendMaxPathFiltered map[table.PathLocalKey]struct{}
+	llgrEndChs          []chan struct{}
 }
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
 	peer := &peer{
-		localRib:          loc,
-		policy:            policy,
-		fsm:               newFSM(g, conf, logger),
-		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
+		localRib:            loc,
+		policy:              policy,
+		fsm:                 newFSM(g, conf, logger),
+		prefixLimitWarned:   make(map[bgp.RouteFamily]bool),
+		dstRoutesCount:      make(map[bgp.RouteFamily]map[string]uint8),
+		sendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
 	}
 	if peer.isRouteServerClient() {
 		peer.tableId = conf.State.NeighborAddress
@@ -198,6 +202,128 @@ func (peer *peer) isAddPathReceiveEnabled(family bgp.RouteFamily) bool {
 
 func (peer *peer) isAddPathSendEnabled(family bgp.RouteFamily) bool {
 	return (peer.getAddPathMode(family) & bgp.BGP_ADD_PATH_SEND) > 0
+}
+
+func (peer *peer) getAddPathSendMax(family bgp.RouteFamily) uint8 {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if a.State.Family == family {
+			return a.AddPaths.Config.SendMax
+		}
+	}
+	return 0
+}
+
+func (peer *peer) getRoutesCount(dstPrefix string, family bgp.RouteFamily) uint8 {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	if _, ok := peer.dstRoutesCount[family]; ok {
+		return peer.dstRoutesCount[family][dstPrefix]
+	}
+	return 0
+}
+
+func (peer *peer) setRoutesCount(dstPrefix string, family bgp.RouteFamily, count uint8) {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	if _, ok := peer.dstRoutesCount[family]; !ok {
+		peer.dstRoutesCount[family] = make(map[string]uint8)
+	}
+	peer.dstRoutesCount[family][dstPrefix] = count
+}
+
+func (peer *peer) incrementRoutesCount(dstPrefix string, family bgp.RouteFamily, inc uint8) {
+	if inc == 0 {
+		return
+	}
+
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	if _, ok := peer.dstRoutesCount[family]; !ok {
+		peer.dstRoutesCount[family] = make(map[string]uint8)
+	}
+	newCount := peer.dstRoutesCount[family][dstPrefix] + inc
+	if newCount < peer.dstRoutesCount[family][dstPrefix] {
+		newCount = 0xFF
+	}
+	peer.dstRoutesCount[family][dstPrefix] = newCount
+}
+
+func (peer *peer) decrementRoutesCount(dstPrefix string, family bgp.RouteFamily, dec uint8) {
+	if dec == 0 {
+		return
+	}
+
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	if _, ok := peer.dstRoutesCount[family]; !ok {
+		peer.dstRoutesCount[family] = make(map[string]uint8)
+	}
+	newCount := peer.dstRoutesCount[family][dstPrefix] - dec
+	if newCount > peer.dstRoutesCount[family][dstPrefix] {
+		newCount = 0
+	}
+	peer.dstRoutesCount[family][dstPrefix] = newCount
+}
+
+func (peer *peer) isPathSendMaxFiltered(path *table.Path) bool {
+	if path == nil {
+		return false
+	}
+	_, found := peer.sendMaxPathFiltered[path.GetLocalKey()]
+	return found
+}
+
+func (peer *peer) unsetPathSendMaxFiltered(path *table.Path) bool {
+	if path == nil {
+		return false
+	}
+	if _, ok := peer.sendMaxPathFiltered[path.GetLocalKey()]; !ok {
+		return false
+	}
+	delete(peer.sendMaxPathFiltered, path.GetLocalKey())
+	return true
+}
+
+func (peer *peer) getSendMaxFilteredPathList(dest *table.Destination, limit int) []*table.Path {
+	knownPathList := dest.GetKnownPathList(peer.TableID(), peer.AS())
+	list := make([]*table.Path, 0, len(knownPathList))
+	for _, p := range knownPathList {
+		if !peer.isPathSendMaxFiltered(p) {
+			continue
+		}
+		list = append(list, p)
+		if limit > 0 && len(list) == limit {
+			break
+		}
+	}
+	return list
+}
+
+func (peer *peer) canSendPathWithinLimit(path *table.Path) bool {
+	if path == nil {
+		return false
+	}
+
+	family := path.GetRouteFamily()
+	dstPrefix := path.GetPrefix()
+	sendMax := peer.getAddPathSendMax(family)
+	dstRouteCount := peer.getRoutesCount(dstPrefix, family)
+
+	if dstRouteCount >= sendMax {
+		peer.sendMaxPathFiltered[path.GetLocalKey()] = struct{}{}
+		return false
+	}
+
+	if dstRouteCount > 0 && path.IsWithdraw {
+		peer.decrementRoutesCount(dstPrefix, family, 1)
+	} else if dstRouteCount < sendMax && !path.IsWithdraw {
+		peer.incrementRoutesCount(dstPrefix, family, 1)
+	} else {
+		return false
+	}
+	return true
 }
 
 func (peer *peer) isDynamicNeighbor() bool {
@@ -440,7 +566,6 @@ func (peer *peer) doPrefixLimit(k bgp.RouteFamily, c *oc.PrefixLimitConfig) *bgp
 		}
 	}
 	return nil
-
 }
 
 func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) error {
