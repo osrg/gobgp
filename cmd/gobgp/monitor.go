@@ -94,6 +94,7 @@ func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
 func newMonitorCmd() *cobra.Command {
 
 	var current bool
+	var batchSize uint32
 
 	monitor := func(recver interface {
 		Recv() (*api.WatchEventResponse, error)
@@ -132,6 +133,7 @@ func newMonitorCmd() *cobra.Command {
 						},
 					},
 				},
+				BatchSize: batchSize,
 			})
 			if err != nil {
 				exitWithError(err)
@@ -225,6 +227,7 @@ func newMonitorCmd() *cobra.Command {
 	monitorCmd.AddCommand(adjInCmd)
 
 	monitorCmd.PersistentFlags().BoolVarP(&current, "current", "", false, "dump current contents")
+	monitorCmd.PersistentFlags().Uint32VarP(&batchSize, "batch-size", "", 0, "max paths per event message")
 
 	return monitorCmd
 }
