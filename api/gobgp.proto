@@ -134,6 +134,9 @@ message WatchEventRequest {
     repeated Filter filters = 1;
   }
   Table table = 2;
+
+  // Max number of paths to include in a single message. 0 for unlimited.
+  uint32 batch_size = 3;
 }
 
 message WatchEventResponse {
