@@ -1122,6 +1122,12 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
+	if s.Conditions.BgpConditions.CommunityCount.Operator != "" {
+		cs.CommunityCount = &api.CommunityCount{
+			Count: s.Conditions.BgpConditions.CommunityCount.Value,
+			Type:  api.CommunityCount_Type(s.Conditions.BgpConditions.CommunityCount.Operator.ToInt()),
+		}
+	}
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
 			Length: s.Conditions.BgpConditions.AsPathLength.Value,
@@ -1334,6 +1340,16 @@ func newNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborConditio
 		MatchSetOptions: typ,
 	}
 	return table.NewNeighborCondition(c)
+}
+
+func newCommunityCountConditionFromApiStruct(a *api.CommunityCount) (*table.CommunityCountCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewCommunityCountCondition(oc.CommunityCount{
+		Operator: oc.IntToAttributeComparisonMap[int(a.Type)],
+		Value:    a.Count,
+	})
 }
 
 func newAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLengthCondition, error) {
@@ -1558,6 +1574,9 @@ func newStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return newNeighborConditionFromApiStruct(a.Conditions.NeighborSet)
+			},
+			func() (table.Condition, error) {
+				return newCommunityCountConditionFromApiStruct(a.Conditions.CommunityCount)
 			},
 			func() (table.Condition, error) {
 				return newAsPathLengthConditionFromApiStruct(a.Conditions.AsPathLength)
