@@ -1636,6 +1636,199 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 
 }
 
+func TestCommunityCountConditionEvaluate(t *testing.T) {
+	// common setup
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+
+	tests := []struct {
+		desc             string
+		inPath           *Path
+		inCommunityCount uint32
+	}{{
+		desc: "no-communities",
+		inPath: func() *Path {
+			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+			nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+			return ProcessMessage(updateMsg, peer, time.Now())[0]
+		}(),
+		inCommunityCount: 0,
+	}, {
+		desc: "no-communities-one-ext-community",
+		inPath: func() *Path {
+			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
+				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				AS:           65001,
+				LocalAdmin:   200,
+				IsTransitive: true,
+			}
+			ec := []bgp.ExtendedCommunityInterface{eComAsSpecific}
+			extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
+			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
+			nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+			return ProcessMessage(updateMsg, peer, time.Now())[0]
+		}(),
+		inCommunityCount: 0,
+	}, {
+		desc: "one-community",
+		inPath: func() *Path {
+			communities := bgp.NewPathAttributeCommunities([]uint32{stringToCommunityValue("65001:111")})
+			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
+			nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+			return ProcessMessage(updateMsg, peer, time.Now())[0]
+		}(),
+		inCommunityCount: 1,
+	}, {
+		desc: "one-community-one-ext-community-one-large-community",
+		inPath: func() *Path {
+			communities := bgp.NewPathAttributeCommunities([]uint32{stringToCommunityValue("65001:111")})
+			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
+				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				AS:           65001,
+				LocalAdmin:   200,
+				IsTransitive: true,
+			}
+			ec := []bgp.ExtendedCommunityInterface{eComAsSpecific}
+			extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
+			largeCommunities := bgp.NewPathAttributeLargeCommunities([]*bgp.LargeCommunity{
+				{ASN: 100, LocalData1: 100, LocalData2: 100},
+				{ASN: 100, LocalData1: 200, LocalData2: 200},
+			})
+			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities, extCommunities, largeCommunities}
+			nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+			return ProcessMessage(updateMsg, peer, time.Now())[0]
+		}(),
+		inCommunityCount: 1,
+	}, {
+		desc: "two-communities-one-ext-community",
+		inPath: func() *Path {
+			communities := bgp.NewPathAttributeCommunities([]uint32{
+				stringToCommunityValue("65001:111"),
+				stringToCommunityValue("65001:222"),
+			})
+			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
+				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				AS:           65001,
+				LocalAdmin:   200,
+				IsTransitive: true,
+			}
+			ec := []bgp.ExtendedCommunityInterface{eComAsSpecific}
+			extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
+			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities, extCommunities}
+			nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+			return ProcessMessage(updateMsg, peer, time.Now())[0]
+		}(),
+		inCommunityCount: 2,
+	}, {
+		desc: "ten-communities",
+		inPath: func() *Path {
+			communities := bgp.NewPathAttributeCommunities([]uint32{
+				stringToCommunityValue("65001:111"),
+				stringToCommunityValue("65001:222"),
+				stringToCommunityValue("65001:333"),
+				stringToCommunityValue("65001:444"),
+				stringToCommunityValue("65001:555"),
+				0x00000000,
+				0xFFFFFF01,
+				0xFFFFFF02,
+				0xFFFFFF03,
+				0xFFFFFF04,
+			})
+			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
+				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				AS:           65001,
+				LocalAdmin:   200,
+				IsTransitive: true,
+			}
+			ec := []bgp.ExtendedCommunityInterface{eComAsSpecific}
+			extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
+			largeCommunities := bgp.NewPathAttributeLargeCommunities([]*bgp.LargeCommunity{
+				{ASN: 100, LocalData1: 100, LocalData2: 100},
+				{ASN: 100, LocalData1: 200, LocalData2: 200},
+			})
+			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities, extCommunities, largeCommunities}
+			nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+			return ProcessMessage(updateMsg, peer, time.Now())[0]
+		}(),
+		inCommunityCount: 10,
+	}}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			tests := []struct {
+				desc              string
+				inComparisonCount uint32
+			}{{
+				desc:              "zero",
+				inComparisonCount: 0,
+			}, {
+				desc:              "two",
+				inComparisonCount: 2,
+			}}
+			for _, ttt := range tests {
+				t.Run(ttt.desc, func(t *testing.T) {
+					tests := []struct {
+						desc        string
+						inCondition oc.CommunityCount
+						inWant      bool
+					}{{
+						desc: "equal",
+						inCondition: oc.CommunityCount{
+							Operator: oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ,
+							Value:    tt.inCommunityCount,
+						},
+						inWant: tt.inCommunityCount == ttt.inComparisonCount,
+					}, {
+						desc: "greater-or-equal",
+						inCondition: oc.CommunityCount{
+							Operator: oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_GE,
+							Value:    tt.inCommunityCount,
+						},
+						inWant: tt.inCommunityCount >= ttt.inComparisonCount,
+					}, {
+						desc: "less-or-equal",
+						inCondition: oc.CommunityCount{
+							Operator: oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_LE,
+							Value:    tt.inCommunityCount,
+						},
+						inWant: tt.inCommunityCount <= ttt.inComparisonCount,
+					}}
+					for _, tttt := range tests {
+						t.Run(fmt.Sprintf("%s-%v", tttt.desc, tttt.inWant), func(t *testing.T) {
+							p, err := NewCommunityCountCondition(tttt.inCondition)
+							if err != nil {
+								t.Fatalf("error while creating CommunityCountCondition: %v", err)
+							}
+							want := true
+							if got := p.Evaluate(tt.inPath, nil); got != want {
+								t.Errorf("Evaluate CommunityCount (%v %v %v): got: %v, want: %v", tt.inCommunityCount, tttt.inCondition.Operator, tttt.inCondition.Value, want, got)
+							}
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	// setup
@@ -1692,14 +1885,23 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	s1 := createStatement("statement1", "ps1", "ns1", false)
 	s1.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
 	s1.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = "comset1"
+	s1.Conditions.BgpConditions.CommunityCount.Operator = oc.ATTRIBUTE_COMPARISON_EQ
+	s1.Conditions.BgpConditions.CommunityCount.Value = 8
 
 	s2 := createStatement("statement2", "ps1", "ns1", false)
 	s2.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
-	s2.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = "comset2"
+	s2.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = "comset1"
+	s2.Conditions.BgpConditions.CommunityCount.Operator = oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_GE
+	s2.Conditions.BgpConditions.CommunityCount.Value = 9
+
+	s3 := createStatement("statement3", "ps1", "ns1", false)
+	s3.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
+	s3.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = "comset2"
 
 	pd1 := createPolicyDefinition("pd1", s1)
 	pd2 := createPolicyDefinition("pd2", s2)
-	pl := createRoutingPolicy(ds, pd1, pd2)
+	pd3 := createPolicyDefinition("pd3", s3)
+	pl := createRoutingPolicy(ds, pd1, pd2, pd3)
 
 	//test
 	r := NewRoutingPolicy(logger)
@@ -1711,6 +1913,11 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	assert.Equal(t, newPath, path)
 
 	p = r.policyMap["pd2"]
+	pType, newPath = p.Apply(logger, path, nil)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType)
+	assert.Equal(t, newPath, path)
+
+	p = r.policyMap["pd3"]
 	pType, newPath = p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
