@@ -1650,9 +1650,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				if allEnd {
 					for _, p := range s.neighborMap {
 						p.fsm.lock.Lock()
+						peerLocalRestarting := p.fsm.pConf.GracefulRestart.State.LocalRestarting
 						p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 						p.fsm.lock.Unlock()
-						if !p.isGracefulRestartEnabled() {
+						if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
 							continue
 						}
 						paths, _ := s.getBestFromLocal(p, p.configuredRFlist())
@@ -1791,9 +1792,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					if allEnd {
 						for _, p := range s.neighborMap {
 							p.fsm.lock.Lock()
+							peerLocalRestarting := p.fsm.pConf.GracefulRestart.State.LocalRestarting
 							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 							p.fsm.lock.Unlock()
-							if !p.isGracefulRestartEnabled() {
+							if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
 								continue
 							}
 							paths, _ := s.getBestFromLocal(p, p.negotiatedRFList())
