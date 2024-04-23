@@ -864,8 +864,11 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 
 	conf.State.RemoteCapabilityList = remoteCap
 
-	peer.fsm.lock.RLock()
+	peer.fsm.lock.Lock()
 	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
+	peer.fsm.lock.Unlock()
+
+	peer.fsm.lock.RLock()
 	conf.State.SessionState = oc.IntToSessionStateMap[int(peer.fsm.state)]
 	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
 	state := peer.fsm.state
@@ -948,12 +951,15 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 	var laddr string
 	var rport, lport uint16
 
+	peer.fsm.lock.Lock()
+	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
+	peer.fsm.lock.Unlock()
+
 	peer.fsm.lock.RLock()
 	if peer.fsm.conn != nil {
 		_, rport = peer.fsm.RemoteHostPort()
 		laddr, lport = peer.fsm.LocalHostPort()
 	}
-	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
 		Type:          t,

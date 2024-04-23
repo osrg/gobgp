@@ -1254,9 +1254,9 @@ func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
-	fsm.lock.RLock()
+	fsm.lock.Lock()
 	m := buildopen(fsm.gConf, fsm.pConf)
-	fsm.lock.RUnlock()
+	fsm.lock.Unlock()
 
 	b, _ := m.Serialize()
 	fsm.conn.Write(b)
