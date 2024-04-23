@@ -2041,6 +2041,9 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 	}, 0)
 
 	for _, path := range evpnPaths {
+		if path == nil {
+			continue
+		}
 		nlri := path.GetNlri().(*bgp.EVPNNLRI)
 		target, ok := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 		if !ok {
