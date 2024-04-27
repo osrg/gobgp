@@ -1,7 +1,7 @@
 # Graceful Restart
 
 This page explains how to configure [Graceful Restart](https://tools.ietf.org/html/rfc4724),
-[Graceful Restart Notification Support](https://tools.ietf.org/html/draft-ietf-idr-bgp-gr-notification-07) and
+[Graceful Restart Notification Support](https://tools.ietf.org/html/rfc8538) and
 [Long Lived Graceful Restart](https://tools.ietf.org/html/draft-uttaro-idr-bgp-persistence-02).
 Graceful Restart has two sides. One is restarting speaker which does restart,
 the other is receiving speaker (helper speaker) which helps a restarting speaker
@@ -153,7 +153,7 @@ Default value of `restart-time` is equal to `hold-time`.
 [RFC4724](https://tools.ietf.org/html/rfc4724) specifies gracful restart procedures are triggered only when
 the BGP session between graceful restart capable peers turns down without
 a notification message for backward compatibility.
-[Graceful Restart Notification Support](https://tools.ietf.org/html/draft-ietf-idr-bgp-gr-notification-07)
+[Graceful Restart Notification Support](https://tools.ietf.org/html/rfc8538)
 expands this to trigger graceful restart procedures also with a notification message.
 To turn on this feature, add `notification-enabled = true` to configuration like below.
 
