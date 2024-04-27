@@ -14647,6 +14647,34 @@ func NewBGPNotificationMessage(errcode uint8, errsubcode uint8, data []byte) *BG
 	}
 }
 
+// RFC8538 makes a suggestion that which Cease notification subcodes should be
+// mapped to the Hard Reset. This function takes a subcode and returns true if
+// the subcode should be treated as a Hard Reset. Otherwise, it returns false.
+//
+// The second argument is a boolean value that indicates whether the Hard Reset
+// should be performed on the Admin Reset. This reflects the RFC8538's
+// suggestion that the implementation should provide a control to treat the
+// Admin Reset as a Hard Reset. When the second argument is true, the function
+// returns true if the subcode is BGP_ERROR_SUB_ADMINISTRATIVE_RESET.
+// Otherwise, it returns false.
+//
+// As RFC8538 states, it is not mandatory to follow this suggestion. You can
+// use this function when you want to follow the suggestion.
+func ShouldHardReset(subcode uint8, hardResetOnAdminReset bool) bool {
+	switch subcode {
+	case BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED,
+		BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN,
+		BGP_ERROR_SUB_PEER_DECONFIGURED,
+		BGP_ERROR_SUB_HARD_RESET:
+		return true
+	default:
+		if hardResetOnAdminReset && subcode == BGP_ERROR_SUB_ADMINISTRATIVE_RESET {
+			return true
+		}
+		return false
+	}
+}
+
 type BGPKeepAlive struct {
 }
 
