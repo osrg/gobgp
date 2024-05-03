@@ -924,6 +924,16 @@ func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doRep
 	}
 }
 
+func (path *Path) GetRouteTargets() []bgp.ExtendedCommunityInterface {
+	rts := make([]bgp.ExtendedCommunityInterface, 0)
+	for _, ec := range path.GetExtCommunities() {
+		if t, st := ec.GetTypes(); t <= bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC && st == bgp.EC_SUBTYPE_ROUTE_TARGET {
+			rts = append(rts, ec)
+		}
+	}
+	return rts
+}
+
 func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
 	if a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY); a != nil {
 		v := a.(*bgp.PathAttributeLargeCommunities).Values
