@@ -51,6 +51,11 @@ var (
 		"Number of routes accepted from peer",
 		rfLabels, nil,
 	)
+	bgpRoutesAdvertisedDesc = prometheus.NewDesc(
+		"bgp_routes_advertised",
+		"Number of routes advertised to peer",
+		rfLabels, nil,
+	)
 )
 
 func NewBgpCollector(server *server.BgpServer) prometheus.Collector {
@@ -82,10 +87,11 @@ func (c *bgpCollector) Describe(out chan<- *prometheus.Desc) {
 
 	out <- bgpRoutesReceivedDesc
 	out <- bgpRoutesAcceptedDesc
+	out <- bgpRoutesAdvertisedDesc
 }
 
 func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
-	req := &api.ListPeerRequest{EnableAdvertised: false}
+	req := &api.ListPeerRequest{EnableAdvertised: true}
 	err := c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
 		peerState := p.GetState()
 		peerAddr := peerState.GetNeighborAddress()
@@ -128,21 +134,29 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			if !afiSafi.GetConfig().GetEnabled() {
 				continue
 			}
+			afiState := afiSafi.GetState()
 			family := bgp.AfiSafiToRouteFamily(
-				uint16(afiSafi.GetState().GetFamily().GetAfi()),
-				uint8(afiSafi.GetState().GetFamily().GetSafi()),
+				uint16(afiState.GetFamily().GetAfi()),
+				uint8(afiState.GetFamily().GetSafi()),
 			).String()
+			labelValues := []string{peerAddr, family}
 			out <- prometheus.MustNewConstMetric(
 				bgpRoutesReceivedDesc,
 				prometheus.GaugeValue,
-				float64(afiSafi.GetState().GetReceived()),
-				peerAddr, family,
+				float64(afiState.GetReceived()),
+				labelValues...,
 			)
 			out <- prometheus.MustNewConstMetric(
 				bgpRoutesAcceptedDesc,
 				prometheus.GaugeValue,
-				float64(afiSafi.GetState().GetAccepted()),
-				peerAddr, family,
+				float64(afiState.GetAccepted()),
+				labelValues...,
+			)
+			out <- prometheus.MustNewConstMetric(
+				bgpRoutesAdvertisedDesc,
+				prometheus.GaugeValue,
+				float64(afiState.GetAdvertised()),
+				labelValues...,
 			)
 		}
 	})
