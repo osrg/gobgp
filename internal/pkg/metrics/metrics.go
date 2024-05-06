@@ -15,8 +15,9 @@ type bgpCollector struct {
 }
 
 var (
-	peerLabels = []string{"peer"}
-	rfLabels   = []string{"peer", "route_family"}
+	peerLabels      = []string{"peer"}
+	peerStateLabels = []string{"peer", "session_state", "admin_state"}
+	rfLabels        = []string{"peer", "route_family"}
 
 	bgpReceivedUpdateTotalDesc         = prometheus.NewDesc("bgp_received_update_total", "Number of received BGP UPDATE messages from peer", peerLabels, nil)
 	bgpReceivedNotificationTotalDesc   = prometheus.NewDesc("bgp_received_notification_total", "Number of received BGP NOTIFICATION messages from peer", peerLabels, nil)
@@ -37,6 +38,8 @@ var (
 	bgpSentWithdrawPrefixTotalDesc = prometheus.NewDesc("bgp_sent_withdraw_prefix_total", "Number of sent BGP WITHDRAW-PREFIX messages from peer", peerLabels, nil)
 	bgpSentDiscardedTotalDesc      = prometheus.NewDesc("bgp_sent_discarded_total", "Number of discarded BGP messages from peer", peerLabels, nil)
 	bgpSentMessageTotalDesc        = prometheus.NewDesc("bgp_sent_message_total", "Number of sent BGP messages from peer", peerLabels, nil)
+
+	bgpPeerStateDesc = prometheus.NewDesc("bgp_peer_state", "State of the BGP session with peer", peerStateLabels, nil)
 
 	bgpRoutesReceivedDesc = prometheus.NewDesc(
 		"bgp_routes_received",
@@ -75,6 +78,8 @@ func (c *bgpCollector) Describe(out chan<- *prometheus.Desc) {
 	out <- bgpSentDiscardedTotalDesc
 	out <- bgpSentMessageTotalDesc
 
+	out <- bgpPeerStateDesc
+
 	out <- bgpRoutesReceivedDesc
 	out <- bgpRoutesAcceptedDesc
 }
@@ -82,8 +87,10 @@ func (c *bgpCollector) Describe(out chan<- *prometheus.Desc) {
 func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 	req := &api.ListPeerRequest{EnableAdvertised: false}
 	err := c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
-		peerAddr := p.GetConf().GetNeighborAddress()
-		msg := p.GetState().GetMessages()
+		peerState := p.GetState()
+		peerAddr := peerState.GetNeighborAddress()
+		msg := peerState.GetMessages()
+
 		send := func(desc *prometheus.Desc, cnt uint64) {
 			out <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, float64(cnt), peerAddr)
 		}
@@ -107,6 +114,15 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		send(bgpSentWithdrawPrefixTotalDesc, uint64(msg.Sent.WithdrawPrefix))
 		send(bgpSentDiscardedTotalDesc, msg.Sent.Discarded)
 		send(bgpSentMessageTotalDesc, msg.Sent.Total)
+
+		out <- prometheus.MustNewConstMetric(
+			bgpPeerStateDesc,
+			prometheus.GaugeValue,
+			1.0,
+			peerAddr,
+			peerState.GetSessionState().String(),
+			peerState.GetAdminState().String(),
+		)
 
 		for _, afiSafi := range p.GetAfiSafis() {
 			if !afiSafi.GetConfig().GetEnabled() {
