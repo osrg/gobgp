@@ -1013,6 +1013,12 @@ module gobgp {
     }
   }
 
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group/bgp:config" {
+    leaf send-software-version {
+      type boolean;
+    }
+  }
+
   augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
     description "route server configuration for peer-group";
     uses gobgp-route-server-config-set;

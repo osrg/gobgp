@@ -176,6 +176,7 @@
   [peer-groups.config]
     peer-group-name = "my-peer-group"
     peer-as = 65000
+    #send-software-version = true
   [[peer-groups.afi-safis]]
     [peer-groups.afi-safis.config]
       afi-safi-name = "ipv4-unicast"
