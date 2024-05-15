@@ -110,4 +110,22 @@ func TestConfigExample(t *testing.T) {
 	assert.NoError(v.ReadInConfig())
 	assert.NoError(v.UnmarshalExact(c))
 	assert.NoError(setDefaultConfigValuesWithViper(v, c))
+
+	// Test if we can set the parameters for a peer-group
+	for _, peerGroup := range c.PeerGroups {
+		if peerGroup.Config.PeerGroupName != "my-peer-group" {
+			continue
+		}
+
+		assert.True(peerGroup.Config.SendSoftwareVersion)
+	}
+
+	// Test if the peer-group inheritance works for neighbors
+	for _, neighbor := range c.Neighbors {
+		if neighbor.Config.PeerGroup != "my-peer-group" {
+			continue
+		}
+
+		assert.True(neighbor.Config.SendSoftwareVersion)
+	}
 }

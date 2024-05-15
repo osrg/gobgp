@@ -172,11 +172,16 @@
     #    enabled = true
     #    ttl-min = 255  # 255 means directly connected
 
+[[neighbors]]
+    [neighbors.config]
+        peer-group = "my-peer-group"
+        neighbor-address = "127.0.0.2"
+
 [[peer-groups]]
   [peer-groups.config]
     peer-group-name = "my-peer-group"
     peer-as = 65000
-    #send-software-version = true
+    send-software-version = true
   [[peer-groups.afi-safis]]
     [peer-groups.afi-safis.config]
       afi-safi-name = "ipv4-unicast"
