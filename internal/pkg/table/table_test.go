@@ -393,6 +393,98 @@ func TestTableSelectVPNv6(t *testing.T) {
 	}
 }
 
+func TestTableKeyEVPNMacIPAdvertisementRoute(t *testing.T) {
+	assert := assert.New(t)
+	table := NewTable(logger, bgp.RF_EVPN)
+
+	rd := bgp.NewRouteDistinguisherFourOctetAS(1, 2)
+	esi := bgp.EthernetSegmentIdentifier{}
+	var etag uint32 = 3
+	mac := "00:11:22:33:44:55"
+	ip := "11.11.11.11"
+	labels := []uint32{}
+
+	key_orig := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		mac,
+		ip,
+		labels))
+
+	key_rd := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		bgp.NewRouteDistinguisherFourOctetAS(3, 4),
+		esi,
+		etag,
+		mac,
+		ip,
+		labels))
+	assert.NotEqual(key_orig, key_rd)
+
+	key_etag := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		5,
+		mac,
+		ip,
+		labels))
+	assert.NotEqual(key_orig, key_etag)
+
+	key_mac := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		"00:aa:bb:cc:dd:ee",
+		ip,
+		labels))
+	assert.NotEqual(key_orig, key_mac)
+
+	key_ip_empty := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		mac,
+		"",
+		labels))
+	assert.NotEqual(key_orig, key_ip_empty)
+
+	key_ipv4 := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		mac,
+		"22.22.22.22",
+		labels))
+	assert.NotEqual(key_orig, key_ipv4)
+
+	key_ipv6_1 := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		mac,
+		"bbbb:bbbb:bbbb:bbbb:bbbb:bbbb:bbbb:bbbb",
+		labels))
+	assert.NotEqual(key_orig, key_ipv6_1)
+
+	key_ipv6_2 := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		mac,
+		"bbbb:bbbb::",
+		labels))
+	assert.NotEqual(key_orig, key_ipv6_2)
+
+	key_ipv6_3 := table.tableKey(bgp.NewEVPNMacIPAdvertisementRoute(
+		rd,
+		esi,
+		etag,
+		mac,
+		"::bbbb:bbbb",
+		labels))
+	assert.NotEqual(key_orig, key_ipv6_3)
+}
+
 func TableCreatePeer() []*PeerInfo {
 	peerT1 := &PeerInfo{AS: 65000}
 	peerT2 := &PeerInfo{AS: 65001}
