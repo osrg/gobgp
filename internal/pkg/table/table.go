@@ -16,6 +16,7 @@
 package table
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/bits"
 	"net"
@@ -439,11 +440,15 @@ func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	case *bgp.EVPNNLRI:
 		switch U := T.RouteTypeData.(type) {
 		case *bgp.EVPNMacIPAdvertisementRoute:
-			b := make([]byte, 15)
+			b := make([]byte, 0, 37)
 			serializedRD, _ := U.RD.Serialize()
-			copy(b, serializedRD)
-			b[8] = bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT
-			copy(b[9:15], U.MacAddress)
+			b = append(b, serializedRD...)
+			b = append(b, bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT)
+			b = append(b, U.MacAddressLength)
+			b = append(b, U.MacAddress...)
+			b = binary.LittleEndian.AppendUint32(b, U.ETag)
+			b = append(b, U.IPAddressLength)
+			b = append(b, U.IPAddress...)
 			return *(*string)(unsafe.Pointer(&b))
 		}
 	}
