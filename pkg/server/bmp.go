@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fatih/set"
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/config/oc"
@@ -213,12 +214,66 @@ func (b *bmpClient) loop() {
 							AS:      b.s.bgpConfig.Global.Config.As,
 							ID:      net.ParseIP(b.s.bgpConfig.Global.Config.RouterId).To4(),
 						}
-						for _, p := range msg.PathList {
-							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
-							if payload, err := u.Serialize(); err != nil {
-								return false
-							} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, true, info, p.GetTimestamp().Unix(), payload)); err != nil {
-								return false
+						if table.UseMultiplePaths.Enabled {
+							var hMap = make(map[string]int)
+							var newSet = set.New(set.NonThreadSafe)
+							var oldSet = set.New(set.NonThreadSafe)
+
+							if len(msg.MultiPathList) != 0 {
+								for i, p := range msg.MultiPathList[0] {
+									if p.IsWithdraw {
+										continue
+									}
+
+									nh := p.GetNexthop().String()
+									newSet.Add(nh)
+									hMap[nh] = i
+								}
+							}
+
+							if len(msg.OldMultiPathList) != 0 {
+								for i, p := range msg.OldMultiPathList[0] {
+									nh := p.GetNexthop().String()
+									oldSet.Add(nh)
+									hMap[nh] = i
+								}
+							}
+
+							delSet := set.Difference(oldSet, newSet)
+							addSet := set.Difference(newSet, oldSet)
+
+							for _, i := range delSet.List() {
+								nh := i.(string)
+								p := msg.OldMultiPathList[0][hMap[nh]]
+								p.IsWithdraw = true
+
+								u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
+								if payload, err := u.Serialize(); err != nil {
+									return false
+								} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, true, info, p.GetTimestamp().Unix(), payload)); err != nil {
+									return false
+								}
+							}
+
+							for _, i := range addSet.List() {
+								nh := i.(string)
+								p := msg.MultiPathList[0][hMap[nh]]
+
+								u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
+								if payload, err := u.Serialize(); err != nil {
+									return false
+								} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, true, info, p.GetTimestamp().Unix(), payload)); err != nil {
+									return false
+								}
+							}
+						} else {
+							for _, p := range msg.PathList {
+								u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
+								if payload, err := u.Serialize(); err != nil {
+									return false
+								} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, true, info, p.GetTimestamp().Unix(), payload)); err != nil {
+									return false
+								}
 							}
 						}
 					case *watchEventPeer:

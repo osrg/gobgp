@@ -349,7 +349,7 @@ func TestMultipath(t *testing.T) {
 	d := NewDestination(nlri[0], 0)
 	d.Calculate(logger, path2)
 
-	best, old, multi := d.Calculate(logger, path1).GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, old, multi, _ := d.Calculate(logger, path1).GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, old, path2)
 	assert.Equal(t, len(multi), 2)
@@ -357,7 +357,7 @@ func TestMultipath(t *testing.T) {
 
 	path3 := path2.Clone(true)
 	dd := d.Calculate(logger, path3)
-	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, old, multi, _ = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.Nil(t, best)
 	assert.Equal(t, old, path1)
 	assert.Equal(t, len(multi), 1)
@@ -375,7 +375,7 @@ func TestMultipath(t *testing.T) {
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
 	dd = d.Calculate(logger, path4)
-	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, _, multi, _ = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
@@ -389,7 +389,7 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
-	best, _, multi = d.Calculate(logger, path5).GetChanges(GLOBAL_RIB_NAME, 0, false)
+	best, _, multi, _ = d.Calculate(logger, path5).GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 3)
