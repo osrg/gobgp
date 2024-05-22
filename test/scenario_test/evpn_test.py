@@ -67,7 +67,9 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
         g1.local("gobgp vrf add vrf1 rd 10:10 rt both 10:10")
-        g2.local("gobgp vrf add vrf1 rd 10:10 rt both 10:10")
+        g1.local("gobgp vrf add vrf2 rd 10:20 rt both 10:20")
+        g2.local("gobgp vrf add vrf1 rd 20:10 rt both 10:10")
+        g2.local("gobgp vrf add vrf2 rd 20:20 rt both 10:20")
 
         for a, b in combinations(ctns, 2):
             a.add_peer(b, vpn=True, passwd='evpn')
@@ -114,7 +116,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_03_check_mac_mobility(self):
         self.g2.local('gobgp global rib add '
                       '-a evpn macadv 11:22:33:44:55:66 10.0.0.1 esi AS 2 1 1 etag 1000 label 1000 '
-                      'rd 10:20 rt 10:10')
+                      'rd 20:10 rt 10:10')
 
         time.sleep(3)
 
@@ -130,7 +132,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_check_mac_mobility_again(self):
         self.g1.local('gobgp global rib add '
                       '-a evpn macadv 11:22:33:44:55:66 10.0.0.1 esi AS 3 1 1 etag 1000 label 1000 '
-                      'rd 10:20 rt 10:10')
+                      'rd 10:10 rt 10:10')
 
         time.sleep(3)
 
@@ -142,6 +144,36 @@ class GoBGPTestBase(unittest.TestCase):
         n_addrs = [i[1].split('/')[0] for i in self.g1.ip_addrs]
         self.assertTrue(path['nexthop'] in n_addrs)
         self.assertEqual(get_mac_mobility_sequence(path['attrs']), 1)
+
+    def test_05_check_mac_mobility_per_mac_vrf(self):
+        self.g2.local('gobgp global rib add '
+                      '-a evpn macadv 11:22:33:44:55:66 10.0.0.1 esi AS 4 1 1 etag 2000 label 2000 '
+                      'rd 20:20 rt 10:20')
+
+        time.sleep(3)
+
+        grib = self.g2.get_global_rib(rf='evpn')
+        self.assertEqual(len(grib), 2)
+        # first route is from previous tests
+        dst = grib[0]
+        self.assertEqual(len(dst['paths']), 1)
+        path = dst['paths'][0]
+        n_addrs = [i[1].split('/')[0] for i in self.g1.ip_addrs]
+        self.assertTrue(path['nexthop'] in n_addrs)
+        self.assertEqual(get_mac_mobility_sequence(path['attrs']), 1)
+
+        # dump global rib again on other gobgp instance to have our second route have the nexthop
+        # filled out. otherwise it'd be 0.0.0.0.
+        grib = self.g1.get_global_rib(rf='evpn')
+        self.assertEqual(len(grib), 2)
+        # second route from this test, in another mac-vrf
+        dst = grib[1]
+        self.assertEqual(len(dst['paths']), 1)
+        path = dst['paths'][0]
+        n_addrs = [i[1].split('/')[0] for i in self.g2.ip_addrs]
+        self.assertTrue(path['nexthop'] in n_addrs)
+        # no mac mobility for this route
+        self.assertEqual(get_mac_mobility_sequence(path['attrs']), -1)
 
 
 if __name__ == '__main__':
