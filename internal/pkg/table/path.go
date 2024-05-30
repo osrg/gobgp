@@ -142,6 +142,7 @@ type Path struct {
 	IsNexthopInvalid bool
 	IsWithdraw       bool
 }
+
 type FilteredType uint8
 
 const (
@@ -150,7 +151,21 @@ const (
 	SendMaxFiltered
 )
 
-type PathLocalKey string
+type PathDestLocalKey struct {
+	Family bgp.RouteFamily
+	Prefix string
+}
+type PathLocalKey struct {
+	PathDestLocalKey
+	Id uint32
+}
+
+func NewPathDestLocalKey(f bgp.RouteFamily, destPrefix string) *PathDestLocalKey {
+	return &PathDestLocalKey{
+		Family: f,
+		Prefix: destPrefix,
+	}
+}
 
 var localSource = &PeerInfo{}
 
@@ -590,8 +605,18 @@ func (path *Path) String() string {
 
 // GetLocalKey identifies the path in the local BGP server.
 func (path *Path) GetLocalKey() PathLocalKey {
-	// return PathLocalKey(path.GetPrefix())
-	return PathLocalKey(fmt.Sprintf("%s:%s:%d", path.GetRouteFamily(), path.GetNlri(), path.GetNlri().PathLocalIdentifier()))
+	return PathLocalKey{
+		PathDestLocalKey: path.GetDestLocalKey(),
+		Id:               path.GetNlri().PathLocalIdentifier(),
+	}
+}
+
+// GetDestLocalKey identifies the path destination in the local BGP server.
+func (path *Path) GetDestLocalKey() PathDestLocalKey {
+	return PathDestLocalKey{
+		Family: path.GetRouteFamily(),
+		Prefix: path.GetNlri().String(),
+	}
 }
 
 func (path *Path) GetPrefix() string {
