@@ -872,6 +872,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	peer.fsm.lock.RLock()
 	conf.State.SessionState = oc.IntToSessionStateMap[int(peer.fsm.state)]
 	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
+	conf.State.Flops = peer.fsm.pConf.State.Flops
 	state := peer.fsm.state
 	peer.fsm.lock.RUnlock()
 
