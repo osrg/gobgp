@@ -518,6 +518,78 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, false, c.Evaluate(path, nil))
 }
 
+func TestOriginConditionEvaluate(t *testing.T) {
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(uint8(oc.BGP_ORIGIN_ATTR_TYPE_IGP.ToInt()))
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	// create match condition
+	c, err := NewOriginCondition(oc.BGP_ORIGIN_ATTR_TYPE_IGP)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test
+	assert.Equal(t, true, c.Evaluate(path, nil))
+
+	// create match condition
+	c, err = NewOriginCondition(oc.BGP_ORIGIN_ATTR_TYPE_EGP)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test
+	assert.Equal(t, false, c.Evaluate(path, nil))
+
+	// Change the route origin.
+	action, err := NewOriginAction(oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE)
+	assert.Nil(t, err)
+
+	path, _ = action.Apply(path, nil)
+	assert.NotNil(t, path)
+
+	// create match condition
+	c, err = NewOriginCondition(oc.BGP_ORIGIN_ATTR_TYPE_IGP)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test
+	assert.Equal(t, false, c.Evaluate(path, nil))
+
+	// create match condition
+	c, err = NewOriginCondition(oc.BGP_ORIGIN_ATTR_TYPE_EGP)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test
+	assert.Equal(t, false, c.Evaluate(path, nil))
+
+	// create match condition
+	c, err = NewOriginCondition(oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test
+	assert.Equal(t, true, c.Evaluate(path, nil))
+
+}
+
 func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
@@ -3038,6 +3110,58 @@ func TestLocalPrefAction(t *testing.T) {
 	assert.NotNil(t, attr)
 	lp := attr.(*bgp.PathAttributeLocalPref)
 	assert.Equal(t, int(lp.Value), int(10))
+}
+
+func TestOriginAction(t *testing.T) {
+	action, err := NewOriginAction(oc.BGP_ORIGIN_ATTR_TYPE_EGP)
+	assert.Nil(t, err)
+
+	nlri := bgp.NewIPAddrPrefix(24, "10.0.0.0")
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65002.1"),
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+		}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+
+	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+
+	path := NewPath(nil, nlri, false, attrs, time.Now(), false)
+	p, _ := action.Apply(path, nil)
+	assert.NotNil(t, p)
+
+	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	assert.NotNil(t, attr)
+	lp := attr.(*bgp.PathAttributeOrigin)
+	assert.Equal(t, int(lp.Value), oc.BGP_ORIGIN_ATTR_TYPE_EGP.ToInt())
+
+	action, err = NewOriginAction(oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE)
+	assert.Nil(t, err)
+
+	p, _ = action.Apply(p, nil)
+	assert.NotNil(t, p)
+
+	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	assert.NotNil(t, attr)
+	lp = attr.(*bgp.PathAttributeOrigin)
+	assert.Equal(t, int(lp.Value), oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE.ToInt())
+
+	action, err = NewOriginAction(oc.BGP_ORIGIN_ATTR_TYPE_IGP)
+	assert.Nil(t, err)
+
+	p, _ = action.Apply(p, nil)
+	assert.NotNil(t, p)
+
+	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	assert.NotNil(t, attr)
+	lp = attr.(*bgp.PathAttributeOrigin)
+	assert.Equal(t, int(lp.Value), oc.BGP_ORIGIN_ATTR_TYPE_IGP.ToInt())
 }
 
 func createStatement(name, psname, nsname string, accept bool) oc.Statement {

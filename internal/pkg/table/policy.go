@@ -155,6 +155,7 @@ const (
 	CONDITION_NEXT_HOP
 	CONDITION_AFI_SAFI_IN
 	CONDITION_COMMUNITY_COUNT
+	CONDITION_ORIGIN
 )
 
 type ActionType int
@@ -168,6 +169,7 @@ const (
 	ACTION_NEXTHOP
 	ACTION_LOCAL_PREF
 	ACTION_LARGE_COMMUNITY
+	ACTION_ORIGIN
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -2008,6 +2010,38 @@ func NewRouteTypeCondition(c oc.RouteType) (*RouteTypeCondition, error) {
 	}, nil
 }
 
+type OriginCondition struct {
+	origin oc.BgpOriginAttrType
+}
+
+func (c *OriginCondition) Type() ConditionType {
+	return CONDITION_ORIGIN
+}
+
+func (c *OriginCondition) Set() DefinedSet {
+	return nil
+}
+
+// compare if origin matches the one in the condition.
+func (c *OriginCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	originInt, err := path.GetOrigin()
+	if err != nil {
+		return false
+	}
+	return int(originInt) == c.origin.ToInt()
+}
+
+func (c *OriginCondition) Name() string { return "" }
+
+func NewOriginCondition(origin oc.BgpOriginAttrType) (*OriginCondition, error) {
+	if origin.ToInt() == -1 {
+		return nil, nil
+	}
+	return &OriginCondition{
+		origin: origin,
+	}, nil
+}
+
 type AfiSafiInCondition struct {
 	routeFamilies []bgp.RouteFamily
 }
@@ -2544,6 +2578,44 @@ func NewLocalPrefAction(value uint32) (*LocalPrefAction, error) {
 	}, nil
 }
 
+type OriginAction struct {
+	value oc.BgpOriginAttrType
+}
+
+func (a *OriginAction) Type() ActionType {
+	return ACTION_ORIGIN
+}
+
+func (a *OriginAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
+	originInt := a.value.ToInt()
+	if originInt == -1 {
+		return nil, fmt.Errorf("internal error: got invalid value for origin action")
+	}
+	path.setPathAttr(bgp.NewPathAttributeOrigin(uint8(originInt)))
+	return path, nil
+}
+
+func (a *OriginAction) ToConfig() oc.BgpOriginAttrType {
+	return a.value
+}
+
+func (a *OriginAction) String() string {
+	return fmt.Sprintf("%q", a.value)
+}
+
+func (a *OriginAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
+func NewOriginAction(value oc.BgpOriginAttrType) (*OriginAction, error) {
+	if value.ToInt() == -1 {
+		return nil, nil
+	}
+	return &OriginAction{
+		value: value,
+	}, nil
+}
+
 type AsPathPrependAction struct {
 	asn         uint32
 	useLeftMost bool
@@ -2763,6 +2835,8 @@ func (s *Statement) ToConfig() *oc.Statement {
 					cond.BgpConditions.RpkiValidationResult = v.result
 				case *RouteTypeCondition:
 					cond.BgpConditions.RouteType = v.typ
+				case *OriginCondition:
+					cond.BgpConditions.OriginEq = v.origin
 				case *AfiSafiInCondition:
 					res := make([]oc.AfiSafiType, 0, len(v.routeFamilies))
 					for _, rf := range v.routeFamilies {
@@ -2801,6 +2875,8 @@ func (s *Statement) ToConfig() *oc.Statement {
 					act.BgpActions.SetLocalPref = v.ToConfig()
 				case *NexthopAction:
 					act.BgpActions.SetNextHop = v.ToConfig()
+				case *OriginAction:
+					act.BgpActions.SetRouteOrigin = v.ToConfig()
 				}
 			}
 			return act
@@ -2959,6 +3035,9 @@ func NewStatement(c oc.Statement) (*Statement, error) {
 			return NewRouteTypeCondition(c.Conditions.BgpConditions.RouteType)
 		},
 		func() (Condition, error) {
+			return NewOriginCondition(c.Conditions.BgpConditions.OriginEq)
+		},
+		func() (Condition, error) {
 			return NewAsPathCondition(c.Conditions.BgpConditions.MatchAsPathSet)
 		},
 		func() (Condition, error) {
@@ -3012,6 +3091,9 @@ func NewStatement(c oc.Statement) (*Statement, error) {
 		},
 		func() (Action, error) {
 			return NewNexthopAction(c.Actions.BgpActions.SetNextHop)
+		},
+		func() (Action, error) {
+			return NewOriginAction(c.Actions.BgpActions.SetRouteOrigin)
 		},
 	}
 	as = make([]Action, 0, len(afs))
@@ -4008,6 +4090,16 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Type:  api.CommunityCount_Type(s.Conditions.BgpConditions.CommunityCount.Operator.ToInt()),
 		}
 	}
+	if s.Conditions.BgpConditions.OriginEq.ToInt() != -1 {
+		switch s.Actions.BgpActions.SetRouteOrigin {
+		case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
+			cs.Origin = api.RouteOriginType_ORIGIN_IGP
+		case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
+			cs.Origin = api.RouteOriginType_ORIGIN_EGP
+		case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
+			cs.Origin = api.RouteOriginType_ORIGIN_INCOMPLETE
+		}
+	}
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
 			Length: s.Conditions.BgpConditions.AsPathLength.Value,
@@ -4155,6 +4247,23 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.LocalPrefAction{Value: s.Actions.BgpActions.SetLocalPref}
+		}(),
+		OriginAction: func() *api.OriginAction {
+			if s.Actions.BgpActions.SetRouteOrigin.ToInt() == -1 {
+				return nil
+			}
+			var apiOrigin api.RouteOriginType
+			switch s.Actions.BgpActions.SetRouteOrigin {
+			case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
+				apiOrigin = api.RouteOriginType_ORIGIN_IGP
+			case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
+				apiOrigin = api.RouteOriginType_ORIGIN_EGP
+			case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
+				apiOrigin = api.RouteOriginType_ORIGIN_INCOMPLETE
+			default:
+				return nil
+			}
+			return &api.OriginAction{Origin: apiOrigin}
 		}(),
 	}
 	return &api.Statement{

@@ -104,6 +104,8 @@ func prettyString(v interface{}) string {
 		return a.Address
 	case *api.AsPrependAction:
 		return fmt.Sprintf("prepend %d %d times", a.Asn, a.Repeat)
+	case *api.OriginAction:
+		return fmt.Sprintf("%v", a.GetOrigin())
 	}
 	return "unknown"
 }
