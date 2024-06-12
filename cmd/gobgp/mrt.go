@@ -16,6 +16,7 @@
 package main
 
 import (
+	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -33,20 +34,21 @@ import (
 )
 
 func injectMrt() error {
-	var reader io.ReadCloser
+	var reader io.Reader
 	fileReader, err := os.Open(mrtOpts.Filename)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %s", err)
 	}
-	defer fileReader.Close()
 
 	if strings.HasSuffix(mrtOpts.Filename, ".gz") {
 		gzReader, err := gzip.NewReader(fileReader)
 		if err != nil {
 			return fmt.Errorf("failed to open gzip file: %s", err)
 		}
-		defer gzReader.Close()
 		reader = gzReader
+	} else if strings.HasSuffix(mrtOpts.Filename, ".bz2") {
+		bz2Reader := bzip2.NewReader(fileReader)
+		reader = bz2Reader
 	} else {
 		reader = fileReader
 	}
