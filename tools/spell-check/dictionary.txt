@@ -16,6 +16,7 @@ flowspec
 gobgp
 gobgpd
 grpc
+gzip
 ibgp
 ipproto
 isis
