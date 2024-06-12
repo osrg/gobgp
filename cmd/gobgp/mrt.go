@@ -16,10 +16,12 @@
 package main
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -31,10 +33,22 @@ import (
 )
 
 func injectMrt() error {
-
-	file, err := os.Open(mrtOpts.Filename)
+	var reader io.ReadCloser
+	fileReader, err := os.Open(mrtOpts.Filename)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %s", err)
+	}
+	defer fileReader.Close()
+
+	if strings.HasSuffix(mrtOpts.Filename, ".gz") {
+		gzReader, err := gzip.NewReader(fileReader)
+		if err != nil {
+			return fmt.Errorf("failed to open gzip file: %s", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	} else {
+		reader = fileReader
 	}
 
 	if mrtOpts.NextHop != nil && !mrtOpts.SkipV4 && !mrtOpts.SkipV6 {
@@ -52,7 +66,7 @@ func injectMrt() error {
 		var peers []*mrt.Peer
 		for {
 			buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
-			_, err := file.Read(buf)
+			_, err := io.ReadFull(reader, buf)
 			if err == io.EOF {
 				break
 			} else if err != nil {
@@ -66,7 +80,7 @@ func injectMrt() error {
 			}
 
 			buf = make([]byte, h.Len)
-			_, err = file.Read(buf)
+			_, err = io.ReadFull(reader, buf)
 			if err != nil {
 				exitWithError(fmt.Errorf("failed to read"))
 			}
