@@ -2693,9 +2693,10 @@ func NewAsPathPrependAction(action oc.SetAsPathPrepend) (*AsPathPrependAction, e
 }
 
 type NexthopAction struct {
-	value     net.IP
-	self      bool
-	unchanged bool
+	value       net.IP
+	self        bool
+	peerAddress bool
+	unchanged   bool
 }
 
 func (a *NexthopAction) Type() ActionType {
@@ -2703,13 +2704,18 @@ func (a *NexthopAction) Type() ActionType {
 }
 
 func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error) {
-	if a.self {
+	switch {
+	case a.self:
 		if options != nil && options.Info != nil && options.Info.LocalAddress != nil {
 			path.SetNexthop(options.Info.LocalAddress)
 		}
 		return path, nil
-	}
-	if a.unchanged {
+	case a.peerAddress:
+		if options != nil && options.Info != nil && options.Info.Address != nil {
+			path.SetNexthop(options.Info.Address)
+		}
+		return path, nil
+	case a.unchanged:
 		if options != nil && options.OldNextHop != nil {
 			path.SetNexthop(options.OldNextHop)
 		}
@@ -2720,10 +2726,12 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error)
 }
 
 func (a *NexthopAction) ToConfig() oc.BgpNextHopType {
-	if a.self {
+	switch {
+	case a.self:
 		return oc.BgpNextHopType("self")
-	}
-	if a.unchanged {
+	case a.peerAddress:
+		return oc.BgpNextHopType("peer-address")
+	case a.unchanged:
 		return oc.BgpNextHopType("unchanged")
 	}
 	return oc.BgpNextHopType(a.value.String())
@@ -2744,6 +2752,10 @@ func NewNexthopAction(c oc.BgpNextHopType) (*NexthopAction, error) {
 	case "self":
 		return &NexthopAction{
 			self: true,
+		}, nil
+	case "peer-address":
+		return &NexthopAction{
+			peerAddress: true,
 		}, nil
 	case "unchanged":
 		return &NexthopAction{
@@ -4228,12 +4240,16 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 
-			if string(s.Actions.BgpActions.SetNextHop) == "self" {
+			switch string(s.Actions.BgpActions.SetNextHop) {
+			case "self":
 				return &api.NexthopAction{
 					Self: true,
 				}
-			}
-			if string(s.Actions.BgpActions.SetNextHop) == "unchanged" {
+			case "peer-address":
+				return &api.NexthopAction{
+					PeerAddress: true,
+				}
+			case "unchanged":
 				return &api.NexthopAction{
 					Unchanged: true,
 				}

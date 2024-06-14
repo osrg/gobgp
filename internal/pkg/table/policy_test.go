@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 
@@ -652,6 +653,87 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
 	pType, newPath := r.policyMap["pd1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
+}
+
+func TestSetNextHop(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.2"), LocalAddress: net.ParseIP("20.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.5")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	// create policy
+	ps := createPrefixSet("ps", "10.10.0.0/16", "21..24")
+	ns := createNeighborSet("ns", "10.0.0.2")
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+
+	t.Run("custom", func(t *testing.T) {
+		s1 := createStatement("statement1", "ps", "ns", true)
+		s1.Actions.BgpActions.SetNextHop = oc.BgpNextHopType("10.2.2.2")
+		s1.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_NONE
+		s2 := createStatement("statement2", "ps", "ns", true)
+		s2.Conditions.BgpConditions.NextHopInList = []string{"10.2.2.2"}
+		pd := createPolicyDefinition("pd1", s1, s2)
+		pl := createRoutingPolicy(ds, pd)
+
+		r := NewRoutingPolicy(logger)
+		err := r.reload(pl)
+		assert.Nil(t, err)
+		pType, newPath := r.policyMap["pd1"].Apply(logger, path, &PolicyOptions{Info: peer})
+		assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+		path.SetNexthop(net.ParseIP("10.2.2.2"))
+		if diff := cmp.Diff(newPath, path); diff != "" {
+			t.Errorf("(-want, +got):\n%s", diff)
+		}
+	})
+
+	t.Run("self", func(t *testing.T) {
+		s1 := createStatement("statement1", "ps", "ns", true)
+		s1.Actions.BgpActions.SetNextHop = oc.BgpNextHopType("self")
+		s1.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_NONE
+		s2 := createStatement("statement2", "ps", "ns", true)
+		s2.Conditions.BgpConditions.NextHopInList = []string{"20.0.0.1"}
+		pd := createPolicyDefinition("pd1", s1, s2)
+		pl := createRoutingPolicy(ds, pd)
+
+		r := NewRoutingPolicy(logger)
+		err := r.reload(pl)
+		assert.Nil(t, err)
+		pType, newPath := r.policyMap["pd1"].Apply(logger, path, &PolicyOptions{Info: peer})
+		assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+		path.SetNexthop(net.ParseIP("20.0.0.1"))
+		if diff := cmp.Diff(newPath, path); diff != "" {
+			t.Errorf("(-want, +got):\n%s", diff)
+		}
+	})
+
+	t.Run("peer-address", func(t *testing.T) {
+		s1 := createStatement("statement1", "ps", "ns", true)
+		s1.Actions.BgpActions.SetNextHop = oc.BgpNextHopType("peer-address")
+		s1.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_NONE
+		s2 := createStatement("statement2", "ps", "ns", true)
+		s2.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.2"}
+		pd := createPolicyDefinition("pd1", s1, s2)
+		pl := createRoutingPolicy(ds, pd)
+
+		r := NewRoutingPolicy(logger)
+		err := r.reload(pl)
+		assert.Nil(t, err)
+		pType, newPath := r.policyMap["pd1"].Apply(logger, path, &PolicyOptions{Info: peer})
+		assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+		path.SetNexthop(net.ParseIP("10.0.0.2"))
+		if diff := cmp.Diff(newPath, path); diff != "" {
+			t.Errorf("(-want, +got):\n%s", diff)
+		}
+	})
 }
 
 func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {

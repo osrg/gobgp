@@ -1257,14 +1257,18 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 
-			if string(s.Actions.BgpActions.SetNextHop) == "self" {
+			switch string(s.Actions.BgpActions.SetNextHop) {
+			case "self":
 				return &api.NexthopAction{
 					Self: true,
 				}
-			}
-			if string(s.Actions.BgpActions.SetNextHop) == "unchanged" {
+			case "unchanged":
 				return &api.NexthopAction{
 					Unchanged: true,
+				}
+			case "peer-address":
+				return &api.NexthopAction{
+					PeerAddress: true,
 				}
 			}
 			return &api.NexthopAction{
@@ -1606,11 +1610,13 @@ func newNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, 
 	}
 	return table.NewNexthopAction(oc.BgpNextHopType(
 		func() string {
-			if a.Self {
+			switch {
+			case a.Self:
 				return "self"
-			}
-			if a.Unchanged {
+			case a.Unchanged:
 				return "unchanged"
+			case a.PeerAddress:
+				return "peer-address"
 			}
 			return a.Address
 		}(),
