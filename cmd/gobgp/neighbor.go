@@ -699,12 +699,13 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP, s
 		format += "%-10s "
 	}
 	headers = append(headers, "Attrs")
-	format += "%-s\n"
+	format += "%-s"
 
 	if showSendMaxFiltered {
 		headers = append(headers, "Filtered")
-		format += "%-s\n"
+		format += "%-s"
 	}
+	format += "\n"
 
 	fmt.Printf(format, headers...)
 	for _, pathStr := range pathStrs {
