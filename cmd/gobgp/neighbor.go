@@ -945,13 +945,19 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 	}
 
-	var t api.TableType
+	var (
+		t              api.TableType
+		enableFiltered bool
+	)
 	switch r {
 	case cmdGlobal:
 		t = api.TableType_GLOBAL
 	case cmdLocal:
 		t = api.TableType_LOCAL
-	case cmdAdjIn, cmdAccepted, cmdRejected:
+	case cmdAccepted, cmdRejected:
+		enableFiltered = true
+		fallthrough
+	case cmdAdjIn:
 		t = api.TableType_ADJ_IN
 		showIdentifier = bgp.BGP_ADD_PATH_RECEIVE
 	case cmdAdjOut:
@@ -962,11 +968,12 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
-		TableType: t,
-		Family:    family,
-		Name:      name,
-		Prefixes:  filter,
-		SortType:  api.ListPathRequest_PREFIX,
+		TableType:      t,
+		Family:         family,
+		Name:           name,
+		Prefixes:       filter,
+		SortType:       api.ListPathRequest_PREFIX,
+		EnableFiltered: enableFiltered,
 	})
 	if err != nil {
 		return err
@@ -1060,19 +1067,15 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 
 		for _, d := range dsts {
-			switch r {
-			case cmdAccepted:
+			if enableFiltered {
+				showFiltered := r == cmdRejected
 				l := make([]*api.Path, 0, len(d.Paths))
 				for _, p := range d.GetPaths() {
-					if !p.Filtered {
+					if p.Filtered == showFiltered {
 						l = append(l, p)
 					}
 				}
 				d.Paths = l
-			case cmdRejected:
-				// always nothing
-				d.Paths = []*api.Path{}
-			default:
 			}
 		}
 		if len(dsts) > 0 {

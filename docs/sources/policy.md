@@ -985,6 +985,8 @@ $ gobgp neighbor 10.0.255.3 local
 *> 10.33.0.0/16       10.0.255.1      [65001]    00:49:38   [{Origin: 0} {Med: 0}]
 ```
 
+Routes accepted or rejected by import policy can be checked using `gobgp neighbor 10.0.255.2 accepted|rejected` command.
+
 ## Policy and Soft Reset
 
 When you change an import policy and reset the inbound routing table (aka soft reset in), a withdraw for a route rejected by the latest import policies will be sent to peers. However, when you change an export policy and reset the outbound routing table (aka soft reset out), even if a route is rejected by the latest export policies, a withdraw for the route will not be sent.
