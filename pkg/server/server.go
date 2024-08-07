@@ -872,7 +872,6 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	peer.fsm.lock.RLock()
 	conf.State.SessionState = oc.IntToSessionStateMap[int(peer.fsm.state)]
 	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
-	conf.State.Flops = peer.fsm.pConf.State.Flops
 	state := peer.fsm.state
 	peer.fsm.lock.RUnlock()
 
@@ -1381,14 +1380,11 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 						knownPathList := destination.GetKnownPathList(targetPeer.TableID(), targetPeer.AS())
 						toAdd := make([]*table.Path, 0, len(knownPathList))
 						for _, p := range knownPathList {
-							// If the path is filtered by policies, there is no need to send the path
-							// Otherwise, we send only paths that were previously filtered because of the max path limit
+							// if the path is filtered, there is no need to send the path
 							p := s.filterpath(targetPeer, p, nil)
 							if p == nil || !targetPeer.isPathSendMaxFiltered(p) {
 								continue
 							}
-							// We unset the flag as the path is not filtered anymore
-							targetPeer.unsetPathSendMaxFiltered(p)
 							toAdd = append(toAdd, p)
 							if len(toAdd) == len(toActuallyDelete) {
 								break
@@ -2194,10 +2190,8 @@ func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
 			switch r := nlri.RouteTypeData.(type) {
 			case *bgp.EVPNMacIPAdvertisementRoute:
 				// MAC Mobility Extended Community
-				var paths []*table.Path
-				for _, ec := range path.GetRouteTargets() {
-					paths = append(paths, s.globalRib.GetPathListWithMac(table.GLOBAL_RIB_NAME, 0, []bgp.RouteFamily{bgp.RF_EVPN}, ec, r.MacAddress)...)
-				}
+				mac := path.GetNlri().(*bgp.EVPNNLRI).RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).MacAddress
+				paths := s.globalRib.GetPathListWithMac(table.GLOBAL_RIB_NAME, 0, []bgp.RouteFamily{bgp.RF_EVPN}, mac)
 				if m := getMacMobilityExtendedCommunity(r.ETag, r.MacAddress, paths); m != nil {
 					pm := getMacMobilityExtendedCommunity(r.ETag, r.MacAddress, []*table.Path{path})
 					if pm == nil {
@@ -3334,7 +3328,6 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
 
 	n.stopPeerRestarting()
 	n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
-	n.fsm.h.ctxCancel()
 
 	delete(s.neighborMap, addr)
 	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
