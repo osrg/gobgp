@@ -98,8 +98,10 @@ func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []o
 		if err := bgpServer.AddPeerGroup(ctx, &api.AddPeerGroupRequest{
 			PeerGroup: oc.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to add PeerGroup",
+			bgpServer.Log().Fatal("Failed to add PeerGroup",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
 					"Error": err})
@@ -116,8 +118,10 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 		if err := bgpServer.DeletePeerGroup(ctx, &api.DeletePeerGroupRequest{
 			Name: pg.Config.PeerGroupName,
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to delete PeerGroup",
+			bgpServer.Log().Fatal("Failed to delete PeerGroup",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
 					"Error": err})
@@ -134,8 +138,10 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 		if u, err := bgpServer.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{
 			PeerGroup: oc.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to update PeerGroup",
+			bgpServer.Log().Fatal("Failed to update PeerGroup",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
 					"Error": err})
@@ -159,8 +165,10 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 				PeerGroup: dn.Config.PeerGroup,
 			},
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to add Dynamic Neighbor to PeerGroup",
+			bgpServer.Log().Fatal("Failed to add Dynamic Neighbor to PeerGroup",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic":  "config",
 					"Key":    dn.Config.PeerGroup,
 					"Prefix": dn.Config.Prefix,
@@ -178,8 +186,10 @@ func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []oc.N
 		if err := bgpServer.AddPeer(ctx, &api.AddPeerRequest{
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to add Peer",
+			bgpServer.Log().Fatal("Failed to add Peer",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
 					"Error": err})
@@ -196,8 +206,10 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 		if err := bgpServer.DeletePeer(ctx, &api.DeletePeerRequest{
 			Address: p.State.NeighborAddress,
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to delete Peer",
+			bgpServer.Log().Fatal("Failed to delete Peer",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
 					"Error": err})
@@ -214,8 +226,10 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 		if u, err := bgpServer.UpdatePeer(ctx, &api.UpdatePeerRequest{
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		}); err != nil {
-			bgpServer.Log().Warn("Failed to update Peer",
+			bgpServer.Log().Fatal("Failed to update Peer",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
 					"Error": err})
@@ -381,8 +395,10 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 		p := oc.ConfigSetToRoutingPolicy(newConfig)
 		rp, err := table.NewAPIRoutingPolicyFromConfigStruct(p)
 		if err != nil {
-			bgpServer.Log().Warn("failed to update policy config",
+			bgpServer.Log().Fatal("failed to update policy config",
 				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+
 					"Topic": "config",
 					"Error": err})
 		} else {

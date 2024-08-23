@@ -57,6 +57,7 @@ func main() {
 		ConfigFile       string `short:"f" long:"config-file" description:"specifying a config file"`
 		ConfigType       string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
 		ConfigAutoReload bool   `short:"a" long:"config-auto-reload" description:"activate config auto reload on changes"`
+		ConfigStrict     bool   `long:"config-strict" description:"make any config error fatal"`
 		LogLevel         string `short:"l" long:"log-level" description:"specifying log level"`
 		LogPlain         bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
 		UseSyslog        string `short:"s" long:"syslog" description:"use syslogd"`
@@ -197,7 +198,8 @@ func main() {
 	}
 
 	logger.Info("gobgpd started")
-	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts), server.LoggerOption(&builtinLogger{logger: logger}))
+	bgpLogger := &builtinLogger{logger: logger, cfgStrict: opts.ConfigStrict}
+	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts), server.LoggerOption(bgpLogger))
 	prometheus.MustRegister(metrics.NewBgpCollector(bgpServer))
 	go bgpServer.Serve()
 
@@ -258,6 +260,8 @@ func main() {
 		})
 	}
 
+	// Avoid crashing gobgpd on reload - it shouldn't flush policy entirely, so it's safe to continue to run
+	bgpLogger.cfgStrict = false
 	for sig := range sigCh {
 		if sig != syscall.SIGHUP {
 			stopServer(bgpServer, opts.UseSdNotify)
