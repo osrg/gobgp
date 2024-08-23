@@ -105,7 +105,8 @@ func addSyslogHook(host, facility string) error {
 }
 
 type builtinLogger struct {
-	logger *logrus.Logger
+	logger    *logrus.Logger
+	cfgStrict bool
 }
 
 func (l *builtinLogger) Panic(msg string, fields log.Fields) {
@@ -113,6 +114,13 @@ func (l *builtinLogger) Panic(msg string, fields log.Fields) {
 }
 
 func (l *builtinLogger) Fatal(msg string, fields log.Fields) {
+	if facility, hasFacility := fields[log.FieldFacility];
+		hasFacility && facility == log.FacilityConfig && !l.cfgStrict {
+		// Backward compatibility with old behavior when any logical config error was treated as warning
+		l.logger.WithFields(logrus.Fields(fields)).Warn(msg)
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields(fields)).Fatal(msg)
 }
 

@@ -31,6 +31,15 @@ const (
 	TraceLevel
 )
 
+const (
+	FieldFacility = "_facility"
+)
+
+var (
+	FacilityUnspecified interface{} = "unspecified"
+	FacilityConfig      interface{} = "config"
+)
+
 type Fields map[string]interface{}
 
 type Logger interface {
