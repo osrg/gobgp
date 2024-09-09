@@ -18,7 +18,7 @@ type configErrorLogger struct {
 }
 
 func (l *configErrorLogger) Fatal(msg string, fields log.Fields) {
-	if facility, hasFacility := fields[log.FieldFacility]; hasFacility && facility == log.FacilityConfig {
+	if fields.HasFacility(log.FacilityConfig) {
 		l.configErrors = append(l.configErrors, msg)
 		l.DefaultLogger.Error(msg, fields)
 	} else {

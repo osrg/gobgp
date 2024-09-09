@@ -29,10 +29,17 @@ func addSyslogHook(_, _ string) error {
 }
 
 type builtinLogger struct {
-	logger *logrus.Logger
+	logger    *logrus.Logger
+	cfgStrict bool
 }
 
 func (l *builtinLogger) Panic(msg string, fields log.Fields) {
+	if fields.HasFacility(log.FacilityConfig) && !l.cfgStrict {
+		// Backward compatibility with old behavior when any logical config error was treated as warning
+		l.logger.WithFields(logrus.Fields(fields)).Warn(msg)
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields(fields)).Panic(msg)
 }
 
