@@ -114,8 +114,7 @@ func (l *builtinLogger) Panic(msg string, fields log.Fields) {
 }
 
 func (l *builtinLogger) Fatal(msg string, fields log.Fields) {
-	if facility, hasFacility := fields[log.FieldFacility];
-		hasFacility && facility == log.FacilityConfig && !l.cfgStrict {
+	if fields.HasFacility(log.FacilityConfig) && !l.cfgStrict {
 		// Backward compatibility with old behavior when any logical config error was treated as warning
 		l.logger.WithFields(logrus.Fields(fields)).Warn(msg)
 		return
