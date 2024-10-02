@@ -769,6 +769,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.Transport.Config.LocalPort = uint16(a.Transport.LocalPort)
 		pconf.Transport.Config.BindInterface = a.Transport.BindInterface
 		pconf.Transport.Config.TcpMss = uint16(a.Transport.TcpMss)
+		pconf.Transport.Config.Netns = a.Transport.Netns
 	}
 	if a.EbgpMultihop != nil {
 		pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
@@ -1908,6 +1909,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 			RouterId:         a.RouterId,
 			Port:             a.ListenPort,
 			LocalAddressList: a.ListenAddresses,
+			Netns:            a.Netns,
 		},
 		ApplyPolicy: *applyPolicy,
 		AfiSafis:    families,
