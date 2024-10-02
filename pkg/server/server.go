@@ -60,7 +60,7 @@ func (l *tcpListener) Close() error {
 }
 
 // avoid mapped IPv6 address
-func newTCPListener(logger log.Logger, address string, port uint32, bindToDev string, ch chan *net.TCPConn) (*tcpListener, error) {
+func newTCPListener(logger log.Logger, address string, port uint32, bindToDev string, netNs string, ch chan *net.TCPConn) (*tcpListener, error) {
 	proto := "tcp4"
 	family := syscall.AF_INET
 	if ip := net.ParseIP(address); ip == nil {
@@ -70,6 +70,12 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 		family = syscall.AF_INET6
 	}
 	addr := net.JoinHostPort(address, strconv.Itoa(int(port)))
+
+	cleanNs, err := NsEnter(netNs)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanNs()
 
 	var lc net.ListenConfig
 	lc.Control = func(network, address string, c syscall.RawConn) error {
@@ -140,6 +146,7 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 type options struct {
 	grpcAddress string
 	grpcOption  []grpc.ServerOption
+	netNs       string
 	logger      log.Logger
 }
 
@@ -154,6 +161,12 @@ func GrpcListenAddress(addr string) ServerOption {
 func GrpcOption(opt []grpc.ServerOption) ServerOption {
 	return func(o *options) {
 		o.grpcOption = opt
+	}
+}
+
+func NetNs(ns string) ServerOption {
+	return func(o *options) {
+		o.netNs = ns
 	}
 }
 
@@ -214,6 +227,12 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
 		go func() {
+			cleanNs, err := NsEnter(opts.netNs)
+			if err != nil {
+				logger.Fatal("failed to enter network namespace",
+					log.Fields{"Error": err})
+			}
+			defer cleanNs()
 			if err := s.apiServer.serve(); err != nil {
 				logger.Fatal("failed to listen grpc port",
 					log.Fields{"Err": err})
@@ -2383,7 +2402,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		if c.Config.Port > 0 {
 			acceptCh := make(chan *net.TCPConn, 32)
 			for _, addr := range c.Config.LocalAddressList {
-				l, err := newTCPListener(s.logger, addr, uint32(c.Config.Port), g.BindToDevice, acceptCh)
+				l, err := newTCPListener(s.logger, addr, uint32(c.Config.Port), g.BindToDevice, g.Netns, acceptCh)
 				if err != nil {
 					return err
 				}
@@ -3151,6 +3170,10 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	addr, err := c.ExtractNeighborAddress()
 	if err != nil {
 		return err
+	}
+
+	if c.Transport.Config.Netns == "" {
+		c.Transport.Config.Netns = s.bgpConfig.Global.Config.Netns
 	}
 
 	if _, y := s.neighborMap[addr]; y {

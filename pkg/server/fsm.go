@@ -494,7 +494,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fsm := h.fsm
 
-	retry, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string) {
+	retry, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, netns, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string, string) {
 		fsm.lock.RLock()
 		defer fsm.lock.RUnlock()
 
@@ -521,7 +521,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
 			}
 		}
-		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress, int(fsm.pConf.Transport.Config.LocalPort), fsm.pConf.Transport.Config.BindInterface
+		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress, int(fsm.pConf.Transport.Config.LocalPort), fsm.gConf.Config.Netns, fsm.pConf.Transport.Config.BindInterface
 	}()
 
 	tick := minConnectRetryInterval
@@ -545,20 +545,35 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 			}
 		}
 
-		laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
-		if err != nil {
-			fsm.logger.Warn("failed to resolve local address",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr})
-		}
+		func() {
+			cleanNs, err := NsEnter(netns)
+			if err != nil {
+				fsm.logger.Warn("failed to enter netns",
+					log.Fields{
+						"Topic":    "Peer",
+						"Key":      addr,
+						"Namspace": netns,
+						"Error":    err})
+				tick = retry
+				return
+			}
+			defer cleanNs()
 
-		if err == nil {
+			laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
+			if err != nil {
+				fsm.logger.Warn("failed to resolve local address",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   addr})
+				tick = retry
+				return
+			}
+
 			d := net.Dialer{
 				LocalAddr: laddr,
 				Timeout:   time.Duration(tick-1) * time.Second,
 				Control: func(network, address string, c syscall.RawConn) error {
-					return dialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
+					return dialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface, netns)
 				},
 			}
 
@@ -593,8 +608,8 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 							"Error": err})
 				}
 			}
-		}
-		tick = retry
+			tick = retry
+		}()
 	}
 }
 

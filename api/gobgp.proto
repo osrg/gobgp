@@ -751,6 +751,7 @@ message Transport {
   uint32 remote_port = 6;
   uint32 tcp_mss = 7;
   string bind_interface = 8;
+  string netns = 9;
 }
 
 message RouteServer {
@@ -1108,6 +1109,7 @@ message Global {
   GracefulRestart graceful_restart = 10;
   ApplyPolicy apply_policy = 11;
   string bind_to_device = 12;
+  string netns = 13;
 }
 
 message Confederation {
