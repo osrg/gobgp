@@ -230,8 +230,14 @@ func main() {
 
 	logger.Info("gobgpd started")
 	bgpLogger := &builtinLogger{logger: logger, cfgStrict: opts.ConfigStrict}
-	bgpServer := server.NewBgpServer(server.GrpcListenAddress(opts.GrpcHosts), server.GrpcOption(grpcOpts), server.LoggerOption(bgpLogger))
+	fsmTimingCollector := metrics.NewFSMTimingsCollector()
+	bgpServer := server.NewBgpServer(
+		server.GrpcListenAddress(opts.GrpcHosts),
+		server.GrpcOption(grpcOpts),
+		server.LoggerOption(bgpLogger),
+		server.TimingHookOption(fsmTimingCollector))
 	prometheus.MustRegister(metrics.NewBgpCollector(bgpServer))
+	prometheus.MustRegister(fsmTimingCollector)
 	go bgpServer.Serve()
 
 	if opts.UseSdNotify {

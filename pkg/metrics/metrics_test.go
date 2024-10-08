@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
@@ -140,4 +142,49 @@ func TestMetrics(test *testing.T) {
 
 	cancel()
 	<-ch
+}
+
+func TestFSMLoopMetrics(t *testing.T) {
+	assert, require := assert.New(t), require.New(t)
+
+	fsmCollector := NewFSMTimingsCollector()
+	registry := prometheus.NewRegistry()
+	err := registry.Register(fsmCollector)
+	assert.NoError(err)
+
+	s := server.NewBgpServer(server.TimingHookOption(fsmCollector))
+	go s.Serve()
+
+	const metricName = "fsm_loop_mgmt_op_timing_sec"
+	metrics, err := registry.Gather()
+	require.NoError(err)
+	hist := getMetric(metrics, metricName)
+	require.NotNil(hist)
+	assert.Equal(uint64(0), *hist.Metric[0].Histogram.SampleCount)
+
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	// StartBgp counts as single management operation
+	metrics, err = registry.Gather()
+	require.NoError(err)
+	hist = getMetric(metrics, metricName)
+	require.NotNil(hist)
+	assert.Equal(uint64(1), *hist.Metric[0].Histogram.SampleCount)
+}
+
+func getMetric(metrics []*dto.MetricFamily, metricName string) *dto.MetricFamily {
+	for _, m := range metrics {
+		if m.GetName() == metricName {
+			return m
+		}
+	}
+	return nil
 }

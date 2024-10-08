@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -9,6 +11,77 @@ import (
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v3/pkg/server"
 )
+
+type fsmTimingsCollector struct {
+	timingHistograms, waitHistograms []prometheus.Histogram
+}
+
+type FSMTimingsCollector interface {
+	server.FSMTimingHook
+	prometheus.Collector
+}
+
+var (
+	fsmOperationInfixes = [server.FSMOperationTypeCount]string{
+		"mgmt_op",
+		"accept",
+		"event",
+		"message",
+	}
+
+	fsmOperationDescriptions = [server.FSMOperationTypeCount]string{
+		"management operation",
+		"TCP accept",
+		"event",
+		"BGP message",
+	}
+)
+
+func NewFSMTimingsCollector() FSMTimingsCollector {
+	const namespace = "fsm_loop"
+	c := &fsmTimingsCollector{
+		timingHistograms: make([]prometheus.Histogram, server.FSMOperationTypeCount),
+		waitHistograms:   make([]prometheus.Histogram, server.FSMOperationTypeCount),
+	}
+
+	fsmHistograms := make([]prometheus.Histogram, server.FSMOperationTypeCount)
+	for i := range fsmHistograms {
+		c.timingHistograms[i] = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    prometheus.BuildFQName(namespace, fsmOperationInfixes[i], "timing_sec"),
+			Help:    fmt.Sprintf("Histogram of %s timings", fsmOperationDescriptions[i]),
+			Buckets: prometheus.DefBuckets,
+		})
+		c.waitHistograms[i] = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    prometheus.BuildFQName(namespace, fsmOperationInfixes[i], "wait_sec"),
+			Help:    fmt.Sprintf("Histogram of %s channel delays", fsmOperationDescriptions[i]),
+			Buckets: prometheus.DefBuckets,
+		})
+	}
+	return c
+}
+
+func (f *fsmTimingsCollector) Observe(op server.FSMOperation, tOp, tWait time.Duration) {
+	f.timingHistograms[op].Observe(tOp.Seconds())
+	if tWait != 0 {
+		f.waitHistograms[op].Observe(tWait.Seconds())
+	}
+}
+
+func (f *fsmTimingsCollector) Describe(descs chan<- *prometheus.Desc) {
+	for _, histogramList := range [][]prometheus.Histogram{f.timingHistograms, f.waitHistograms} {
+		for _, h := range histogramList {
+			h.Describe(descs)
+		}
+	}
+}
+
+func (f *fsmTimingsCollector) Collect(metrics chan<- prometheus.Metric) {
+	for _, histogramList := range [][]prometheus.Histogram{f.timingHistograms, f.waitHistograms} {
+		for _, h := range histogramList {
+			h.Collect(metrics)
+		}
+	}
+}
 
 type bgpCollector struct {
 	server *server.BgpServer
