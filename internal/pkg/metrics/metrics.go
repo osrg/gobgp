@@ -22,7 +22,7 @@ const (
 var (
 	// Labels appended to the metrics
 	peerLabels         = []string{"peer"}
-	peerRouterIdLabels = []string{"peer", "routerId"}
+	peerRouterIdLabels = []string{"peer", "router_id"}
 	peerStateLabels    = []string{"peer", "session_state", "admin_state"}
 	rfLabels           = []string{"peer", "route_family"}
 
