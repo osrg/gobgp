@@ -35,6 +35,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 - [EVPN](docs/sources/evpn.md)
 - [Flowspec](docs/sources/flowspec.md)
 - [RPKI](docs/sources/rpki.md)
+- [Metrics](docs/sources/metrics.md)
 - [Managing GoBGP with your favorite language with gRPC](docs/sources/grpc-client.md)
 - Go Native BGP Library
   - [Basics](docs/sources/lib.md)
