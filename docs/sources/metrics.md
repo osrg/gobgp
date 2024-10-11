@@ -11,6 +11,7 @@ Assume you finished [Getting Started](getting-started.md).
 - [Scrapping the metrics](#scrapping-the-metrics)
 - [Exported metrics](#exported-metrics)
 - [Label values](#label-values)
+- [Grafana dashboard](#grafana-dashboard)
 
 ## Scrapping the metrics
 
@@ -96,3 +97,7 @@ Some labels can have specific values depending on the state of GoBGP or of the p
 - `session_state`: the BGP FSM status of the peer, can be either `UNKNOWN`, `IDLE`, `CONNECT`, `IDLE`, `ACTIVE`, `OPENSENT`, `OPENCONFIRM` or `ESTABLISHED`
 - `admin_state`: administrative state of the peer, can be either `DOWN`, `UP` or `PFX_CNT` if prefix limit is reached
 - `route_family`: any address family supported by GoBGP (e.g `ipv4`, `ipv6`, `evpn`)
+
+## Grafana dashboard
+
+There is an example Grafana panel to display some metrics about GoBGP available [here](https://grafana.com/grafana/dashboards/22061-gobgp/)
