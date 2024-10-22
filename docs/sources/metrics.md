@@ -8,18 +8,18 @@ Assume you finished [Getting Started](getting-started.md).
 
 ## Contents
 
-- [Scrapping the metrics](#scrapping-the-metrics)
+- [Scraping the metrics](#scraping-the-metrics)
 - [Exported metrics](#exported-metrics)
 - [Label values](#label-values)
 - [Grafana dashboard](#grafana-dashboard)
 
-## Scrapping the metrics
+## Scraping the metrics
 
 GoBGP exposes the metric endpoint and the pprof endpoint using the same startup flag: `--pprof-host`. By default, it listens locally on port `6060`.  
 The path on which the Prometheus metrics are exposed by default is `/metrics` and can be overriden using `--metrics-path`. Ensure `--pprof-disable` is not specified, or it will disable both `pprof` and
 the metric endpoint, unless an override for the path is specified through `--metrics-path` (in that case, metrics will be exposed anyways).  
 
-Manually scrap the metrics to verify your setup is working:
+Manually scrape the metrics to verify your setup is working:
 
 ```bash
 curl -s localhost:6060/metrics
