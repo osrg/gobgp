@@ -72,16 +72,16 @@
         allow-own-as = 1
         replace-peer-as = true
     [neighbors.timers.config]
-        connect-retry = 5
-        hold-time = 9
-        keepalive-interval = 3
+        connect-retry = 5 #unit of measurement is seconds
+        hold-time = 9 #unit of measurement is seconds
+        keepalive-interval = 3 #unit of measurement is seconds
     [neighbors.transport.config]
         passive-mode = true
         local-address = "192.168.10.1"
         remote-port = 2016
         ttl = 64  # default value on Linux
     [neighbors.ebgp-multihop.config]
-        enabled = true
+        enabled = true #directly connection should be set false，if not ，peer will be deleted after hold-time
         multihop-ttl = 100
     [neighbors.route-reflector.config]
         route-reflector-client = true
