@@ -151,6 +151,7 @@ class GoBGPTestBase(unittest.TestCase):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
+        g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
         g1.local("ip route add blackhole {}/32".format(g2.ip_addrs[0][1].split("/")[0]))
         g1.local("ip route add blackhole {}/32".format(g3.ip_addrs[0][1].split("/")[0]))
         g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
