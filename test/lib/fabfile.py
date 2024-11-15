@@ -11,8 +11,8 @@ def make_gobgp_ctn(ctx, tag='gobgp',
     if local_gobgp_path == '':
         local_gobgp_path = os.getcwd()
 
-    local('CGO_ENABLED=0 go build "-ldflags=-s -w -buildid=" ./cmd/gobgp')
-    local('CGO_ENABLED=0 go build "-ldflags=-s -w -buildid=" ./cmd/gobgpd')
+    local('GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build "-ldflags=-s -w -buildid=" ./cmd/gobgp')
+    local('GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build "-ldflags=-s -w -buildid=" ./cmd/gobgpd')
 
     c = CmdBuffer()
     c << 'FROM {0}'.format(from_image)

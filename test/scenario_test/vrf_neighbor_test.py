@@ -36,11 +36,13 @@ class GoBGPTestBase(unittest.TestCase):
     def setUpClass(cls):
         gobgp_ctn_image_name = parser_option.gobgp_image
         base.TEST_PREFIX = parser_option.test_prefix
-
+        print("0")
         g1 = GoBGPContainer(name='g1', asn=65001, router_id='192.168.0.1',
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level,
                             config_format='yaml')
+
+        print("1")
         g2 = GoBGPContainer(name='g2', asn=65002, router_id='192.168.0.2',
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level,

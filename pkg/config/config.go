@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"net"
 
 	apb "google.golang.org/protobuf/types/known/anypb"
 
@@ -308,13 +309,25 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			bgpServer.Log().Fatal("failed to set vrf config",
 				log.Fields{"Topic": "config", "Error": err})
 		}
+
+		if vrf.Config.RoutersMac != "" {
+			_, err := net.ParseMAC(vrf.Config.RoutersMac)
+			if err != nil {
+				bgpServer.Log().Fatal("failed to set vrf config",
+					log.Fields{"Topic": "config", "Error": err})
+			}
+		}
+
 		if err := bgpServer.AddVrf(ctx, &api.AddVrfRequest{
 			Vrf: &api.Vrf{
-				Name:     vrf.Config.Name,
-				Rd:       a,
-				Id:       uint32(vrf.Config.Id),
-				ImportRt: importRtList,
-				ExportRt: exportRtList,
+				Name:                 vrf.Config.Name,
+				Rd:                   a,
+				Id:                   uint32(vrf.Config.Id),
+				ImportRt:             importRtList,
+				ExportRt:             exportRtList,
+				RoutersMac:           vrf.Config.RoutersMac,
+				ImportAsEvpnIpprefix: vrf.Config.ImportToGlobalAsEvpnType5,
+				EthernetTag:          vrf.Config.EthernetTag,
 			},
 		}); err != nil {
 			bgpServer.Log().Fatal("failed to set vrf config",

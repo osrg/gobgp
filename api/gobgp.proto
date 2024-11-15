@@ -1088,6 +1088,9 @@ message Vrf {
   // or FourOctetAsSpecificExtended.
   repeated google.protobuf.Any export_rt = 4;
   uint32 id = 5;
+  bool import_as_evpn_ipprefix = 6;
+  string routers_mac = 7;
+  uint32 ethernet_tag = 8;
 }
 
 message DefaultRouteDistance {
