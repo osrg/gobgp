@@ -974,6 +974,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		Prefixes:       filter,
 		SortType:       api.ListPathRequest_PREFIX,
 		EnableFiltered: enableFiltered,
+		BatchSize:      subOpts.BatchSize,
 	})
 	if err != nil {
 		return err

@@ -100,6 +100,7 @@ const (
 
 var subOpts struct {
 	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family"`
+	BatchSize     uint64 `short:"b" long:"batch-size" description:"Size of the temporary buffer in the server memory. Zero is unlimited (default)"`
 }
 
 var neighborsOpts struct {

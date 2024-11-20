@@ -2326,6 +2326,7 @@ func newGlobalCmd() *cobra.Command {
 	}
 
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	ribCmd.PersistentFlags().Uint64VarP(&subOpts.BatchSize, "batch-size", "b", 0, "Size of the temporary buffer in the server memory. Zero is unlimited (default)")
 
 	for _, v := range []string{cmdAdd, cmdDel} {
 		cmd := &cobra.Command{
