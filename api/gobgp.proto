@@ -24,9 +24,13 @@ syntax = "proto3";
 package apipb;
 option go_package = "github.com/osrg/gobgp/v3/api;apipb";
 
-import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "attribute.proto";
+import "capability.proto";
+import "common.proto";
+import "extcom.proto";
+import "nlri.proto";
 
 
 // Interface exported by the server.
@@ -460,32 +464,6 @@ message ListBmpResponse {
   BmpStation station = 1;
 }
 
-message Family {
-  enum Afi {
-    AFI_UNKNOWN = 0; AFI_IP = 1; AFI_IP6 = 2; AFI_L2VPN = 25; AFI_LS = 16388;
-    AFI_OPAQUE = 16397;
-  }
-
-  enum Safi {
-    SAFI_UNKNOWN = 0; SAFI_UNICAST = 1; SAFI_MULTICAST = 2; SAFI_MPLS_LABEL = 4;
-    SAFI_ENCAPSULATION = 7;
-    SAFI_VPLS = 65;
-    SAFI_EVPN = 70;
-    SAFI_LS = 71;
-    SAFI_SR_POLICY = 73;
-    SAFI_MUP = 85;
-    SAFI_MPLS_VPN = 128;
-    SAFI_MPLS_VPN_MULTICAST = 129;
-    SAFI_ROUTE_TARGET_CONSTRAINTS = 132;
-    SAFI_FLOW_SPEC_UNICAST = 133;
-    SAFI_FLOW_SPEC_VPN = 134;
-    SAFI_KEY_VALUE = 241;
-  }
-
-  Afi afi = 1;
-  Safi safi = 2;
-}
-
 enum TableType { GLOBAL = 0; LOCAL = 1; ADJ_IN = 2; ADJ_OUT = 3; VRF = 4; }
 
 message Validation {
@@ -503,32 +481,8 @@ message Validation {
 }
 
 message Path {
-  // One of the following defined in "api/attribute.proto":
-  // - IPAddressPrefix
-  // - LabeledIPAddressPrefix
-  // - EncapsulationNLRI
-  // - VPLSNLRI
-  // - EVPNEthernetAutoDiscoveryRoute
-  // - EVPNMACIPAdvertisementRoute
-  // - EVPNInclusiveMulticastEthernetTagRoute
-  // - EVPNEthernetSegmentRoute
-  // - EVPNIPPrefixRoute
-  // - EVPNIPMSIRoute
-  // - LabeledVPNIPAddressPrefix
-  // - RouteTargetMembershipNLRI
-  // - FlowSpecNLRI
-  // - VPNFlowSpecNLRI
-  // - OpaqueNLRI
-  // - LsAddrPrefix
-  // - SRPolicyNLRI
-  // - MUPInterworkSegmentDiscoveryRoute
-  // - MUPDirectSegmentDiscoveryRoute
-  // - MUPType1SessionTransformedRoute
-  // - MUPType2SessionTransformedRoute
-  google.protobuf.Any nlri = 1;
-  // Each attribute must be one of *Attribute defined in
-  // "api/attribute.proto".
-  repeated google.protobuf.Any pattrs = 2;
+  NLRI nlri = 1;
+  repeated Attribute pattrs = 2;
   google.protobuf.Timestamp age = 3;
   bool best = 4;
   bool is_withdraw = 5;
@@ -690,10 +644,8 @@ message PeerState {
   AdminState admin_state = 15;
   uint32 out_q = 16;
   uint32 flops = 17;
-  // Each attribute must be one of *Capability defined in
-  // "api/capability.proto".
-  repeated google.protobuf.Any remote_cap = 18;
-  repeated google.protobuf.Any local_cap = 19;
+  repeated Capability remote_cap = 18;
+  repeated Capability local_cap = 19;
   string router_id = 20;
 }
 
@@ -1072,21 +1024,9 @@ message Roa {
 
 message Vrf {
   string name = 1;
-  // Route Distinguisher must be one of
-  // RouteDistinguisherTwoOctetAS,
-  // RouteDistinguisherIPAddressAS,
-  // or RouteDistinguisherFourOctetAS.
-  google.protobuf.Any rd = 2;
-  // List of the Import Route Targets. Each must be one of
-  // TwoOctetAsSpecificExtended,
-  // IPv4AddressSpecificExtended,
-  // or FourOctetAsSpecificExtended.
-  repeated google.protobuf.Any import_rt = 3;
-  // List of the Export Route Targets. Each must be one of
-  // TwoOctetAsSpecificExtended,
-  // IPv4AddressSpecificExtended,
-  // or FourOctetAsSpecificExtended.
-  repeated google.protobuf.Any export_rt = 4;
+  RouteDistinguisher rd = 2;
+  repeated RouteTarget import_rt = 3;
+  repeated RouteTarget export_rt = 4;
   uint32 id = 5;
 }
 

@@ -24,7 +24,25 @@ syntax = "proto3";
 package apipb;
 option go_package = "github.com/osrg/gobgp/v3/api;apipb";
 
-import "gobgp.proto";
+import "common.proto";
+
+message Capability {
+  oneof cap {
+    UnknownCapability                  unknown                     = 1;
+    MultiProtocolCapability            multi_protocol              = 2;
+    RouteRefreshCapability             route_refresh               = 3;
+    CarryingLabelInfoCapability        carrying_label_info         = 4;
+    ExtendedNexthopCapability          extended_nexthop            = 5;
+    GracefulRestartCapability          graceful_restart            = 6;
+    FourOctetASNCapability             four_octet_asn              = 7;
+    AddPathCapability                  add_path                    = 8;
+    EnhancedRouteRefreshCapability     enhanced_route_refresh      = 9;
+    LongLivedGracefulRestartCapability long_lived_graceful_restart = 10;
+    RouteRefreshCiscoCapability        route_refresh_cisco         = 11;
+    FqdnCapability                     fqdn                        = 12;
+    SoftwareVersionCapability          software_version            = 13;
+  }
+}
 
 message MultiProtocolCapability {
     apipb.Family family = 1;
