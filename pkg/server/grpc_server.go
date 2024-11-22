@@ -31,7 +31,6 @@ import (
 
 	"github.com/dgryski/go-farm"
 	"google.golang.org/grpc"
-	apb "google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 
@@ -166,7 +165,7 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	}
 }
 
-func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *apb.Any, anyPattrs []*apb.Any, path *table.Path, v *table.Validation) *api.Path {
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
 	p := &api.Path{
 		Nlri:               anyNlri,
@@ -209,8 +208,8 @@ func eorToPathAPI(path *table.Path) *api.Path {
 
 func toPathApi(path *table.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
 	var (
-		anyNlri   *apb.Any
-		anyPattrs []*apb.Any
+		anyNlri   *api.NLRI
+		anyPattrs []*api.Attribute
 	)
 	nlri := path.GetNlri()
 	if !onlyBinary {

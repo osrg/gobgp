@@ -24,9 +24,38 @@ syntax = "proto3";
 package apipb;
 option go_package = "github.com/osrg/gobgp/v4/api;apipb";
 
-import "google/protobuf/any.proto";
-import "gobgp.proto";
+import "common.proto";
+import "extcom.proto";
+import "nlri.proto";
 
+
+message Attribute {
+  oneof attr {
+    UnknownAttribute                unknown                  = 1;
+    OriginAttribute                 origin                   = 2;
+    AsPathAttribute                 as_path                  = 3;
+    NextHopAttribute                next_hop                 = 4;
+    MultiExitDiscAttribute          multi_exit_disc          = 5;
+    LocalPrefAttribute              local_pref               = 6;
+    AtomicAggregateAttribute        atomic_aggregate         = 7;
+    AggregatorAttribute             aggregator               = 8;
+    CommunitiesAttribute            communities              = 9;
+    OriginatorIdAttribute           originator_id            = 10;
+    ClusterListAttribute            cluster_list             = 11;
+    MpReachNLRIAttribute            mp_reach                 = 12;
+    MpUnreachNLRIAttribute          mp_unreach               = 13;
+    ExtendedCommunitiesAttribute    extended_communities     = 14;
+    As4PathAttribute                as4_path                 = 15;
+    As4AggregatorAttribute          as4_aggregator           = 16;
+    PmsiTunnelAttribute             pmsi_tunnel              = 17;
+    TunnelEncapAttribute            tunnel_encap             = 18;
+    IP6ExtendedCommunitiesAttribute ip6_extended_communities = 19;
+    AigpAttribute                   aigp                     = 20;
+    LargeCommunitiesAttribute       large_communities        = 21;
+    LsAttribute                     ls                       = 22;
+    PrefixSID                       prefix_sid               = 23;
+  }
+}
 
 message OriginAttribute { uint32 origin = 1; }
 
@@ -60,534 +89,20 @@ message OriginatorIdAttribute { string id = 1; }
 
 message ClusterListAttribute { repeated string ids = 1; }
 
-// IPAddressPrefix represents the NLRI for:
-// - AFI=1, SAFI=1
-// - AFI=2, SAFI=1
-message IPAddressPrefix {
-  uint32 prefix_len = 1;
-  string prefix = 2;
-}
-
-// LabeledIPAddressPrefix represents the NLRI for:
-// - AFI=1, SAFI=4
-// - AFI=2, SAFI=4
-message LabeledIPAddressPrefix {
-  repeated uint32 labels = 1;
-  uint32 prefix_len = 2;
-  string prefix = 3;
-}
-
-// EncapsulationNLRI represents the NLRI for:
-// - AFI=1, SAFI=7
-// - AFI=2, SAFI=7
-message EncapsulationNLRI { string address = 1; }
-
-message RouteDistinguisherTwoOctetASN {
-  uint32 admin = 1;
-  uint32 assigned = 2;
-}
-
-message RouteDistinguisherIPAddress {
-  string admin = 1;
-  uint32 assigned = 2;
-}
-
-message RouteDistinguisherFourOctetASN {
-  uint32 admin = 1;
-  uint32 assigned = 2;
-}
-
-message EthernetSegmentIdentifier {
-  uint32 type = 1;
-  bytes value = 2;
-}
-
-// VPLSNLRI represents the NLRI for:
-// - AFI=25, SAFI=65
-message VPLSNLRI {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  uint32 ve_id = 2;
-  uint32 ve_block_offset = 3;
-  uint32 ve_block_size = 4;
-  uint32 label_block_base = 5;
-}
-
-
-// EVPNEthernetAutoDiscoveryRoute represents the NLRI for:
-// - AFI=25, SAFI=70, RouteType=1
-message EVPNEthernetAutoDiscoveryRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  EthernetSegmentIdentifier esi = 2;
-  uint32 ethernet_tag = 3;
-  uint32 label = 4;
-}
-
-// EVPNMACIPAdvertisementRoute represents the NLRI for:
-// - AFI=25, SAFI=70, RouteType=2
-message EVPNMACIPAdvertisementRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  EthernetSegmentIdentifier esi = 2;
-  uint32 ethernet_tag = 3;
-  string mac_address = 4;
-  string ip_address = 5;
-  repeated uint32 labels = 6;
-}
-
-// EVPNInclusiveMulticastEthernetTagRoute represents the NLRI for:
-// - AFI=25, SAFI=70, RouteType=3
-message EVPNInclusiveMulticastEthernetTagRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  uint32 ethernet_tag = 2;
-  string ip_address = 3;
-}
-
-// EVPNEthernetSegmentRoute represents the NLRI for:
-// - AFI=25, SAFI=70, RouteType=4
-message EVPNEthernetSegmentRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  EthernetSegmentIdentifier esi = 2;
-  string ip_address = 3;
-}
-
-// EVPNIPPrefixRoute represents the NLRI for:
-// - AFI=25, SAFI=70, RouteType=5
-message EVPNIPPrefixRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  EthernetSegmentIdentifier esi = 2;
-  uint32 ethernet_tag = 3;
-  string ip_prefix = 4;
-  uint32 ip_prefix_len = 5;
-  string gw_address = 6;
-  uint32 label = 7;
-}
-
-// EVPNIPMSIRoute represents the NLRI for:
-// - AFI=25, SAFI=70, RouteType=9
-message EVPNIPMSIRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  uint32 ethernet_tag = 2;
-  google.protobuf.Any rt = 3;
-}
-
-// SRPolicyNLRI represents the NLRI for:
-// - AFI=1, SAFI=73
-// - AFI=2, SAFI=73
-message SRPolicyNLRI {
-  // length field carries the length of NLRI portion expressed in bits
-  uint32 length = 1;
-  // distinguisher field carries 4-octet value uniquely identifying the policy
-  // in the context of <color, endpoint> tuple.
-  uint32 distinguisher = 2;
-  // color field carries 4-octet value identifying (with the endpoint) the
-  // policy.  The color is used to match the color of the destination
-  // prefixes to steer traffic into the SR Policy
-  uint32 color = 3;
-  // endpoint field identifies the endpoint of a policy.  The Endpoint may
-  // represent a single node or a set of nodes (e.g., an anycast
-  // address).  The Endpoint is an IPv4 (4-octet) address or an IPv6
-  // (16-octet) address according to the AFI of the NLRI.
-  bytes endpoint = 4;
-}
-
-// LabeledVPNIPAddressPrefix represents the NLRI for:
-// - AFI=1, SAFI=128
-// - AFI=2, SAFI=128
-message LabeledVPNIPAddressPrefix {
-  repeated uint32 labels = 1;
-  // One of:
-  // - TwoOctetAsSpecificExtended
-  // - IPv4AddressSpecificExtended
-  // - FourOctetAsSpecificExtended
-  google.protobuf.Any rd = 2;
-  uint32 prefix_len = 3;
-  string prefix = 4;
-}
-
-// RouteTargetMembershipNLRI represents the NLRI for:
-// - AFI=1, SAFI=132
-message RouteTargetMembershipNLRI {
-  uint32 asn = 1;
-  // One of:
-  // - TwoOctetAsSpecificExtended
-  // - IPv4AddressSpecificExtended
-  // - FourOctetAsSpecificExtended
-  google.protobuf.Any rt = 2;
-}
-
-message FlowSpecIPPrefix {
-  uint32 type = 1;
-  uint32 prefix_len = 2;
-  string prefix = 3;
-  // IPv6 only
-  uint32 offset = 4;
-}
-
-message FlowSpecMAC {
-  uint32 type = 1;
-  string address = 2;
-}
-
-message FlowSpecComponentItem {
-  // Operator for Numeric type, Operand for Bitmask type
-  uint32 op = 1;
-  uint64 value = 2;
-}
-
-message FlowSpecComponent {
-  uint32 type = 1;
-  repeated FlowSpecComponentItem items = 2;
-}
-
-// FlowSpecNLRI represents the NLRI for:
-// - AFI=1, SAFI=133
-// - AFI=2, SAFI=133
-message FlowSpecNLRI {
-  // One of:
-  // - FlowSpecIPPrefix
-  // - FlowSpecMAC
-  // - FlowSpecComponent
-  repeated google.protobuf.Any rules = 1;
-}
-
-// VPNFlowSpecNLRI represents the NLRI for:
-// - AFI=1, SAFI=134
-// - AFI=2, SAFI=134
-// - AFI=25, SAFI=134
-message VPNFlowSpecNLRI {
-  // One of:
-  // - RouteDistinguisherTwoOctetAS
-  // - RouteDistinguisherIPAddressAS
-  // - RouteDistinguisherFourOctetAS
-  google.protobuf.Any rd = 1;
-  // One of:
-  // - FlowSpecIPPrefix
-  // - FlowSpecMAC
-  // - FlowSpecComponent
-  repeated google.protobuf.Any rules = 2;
-}
-
-// OpaqueNLRI represents the NLRI for:
-// - AFI=16397, SAFI=241
-message OpaqueNLRI {
-  bytes key = 1;
-  bytes value = 2;
-}
-
-message LsNodeDescriptor {
-  uint32 asn = 1;
-  uint32 bgp_ls_id = 2;
-  uint32 ospf_area_id = 3;
-  bool pseudonode = 4;
-  string igp_router_id = 5;
-  string bgp_router_id = 6;
-  uint32 bgp_confederation_member = 7;
-}
-
-message LsLinkDescriptor {
-  uint32 link_local_id = 1;
-  uint32 link_remote_id = 2;
-  string interface_addr_ipv4 = 3;
-  string neighbor_addr_ipv4 = 4;
-  string interface_addr_ipv6 = 5;
-  string neighbor_addr_ipv6 = 6;
-}
-
-enum LsOspfRouteType {
-   LS_OSPF_ROUTE_TYPE_UNKNOWN = 0;
-   LS_OSPF_ROUTE_TYPE_INTRA_AREA = 1;
-   LS_OSPF_ROUTE_TYPE_INTER_AREA = 2;
-   LS_OSPF_ROUTE_TYPE_EXTERNAL1 = 3;
-   LS_OSPF_ROUTE_TYPE_EXTERNAL2 = 4;
-   LS_OSPF_ROUTE_TYPE_NSSA1 = 5;
-   LS_OSPF_ROUTE_TYPE_NSSA2 = 6;
-}
-
-message LsPrefixDescriptor {
-  repeated string ip_reachability = 1;
-  LsOspfRouteType ospf_route_type = 2;
-}
-
-message LsNodeNLRI { LsNodeDescriptor local_node = 1; }
-
-message LsLinkNLRI {
-  LsNodeDescriptor local_node = 1;
-  LsNodeDescriptor remote_node = 2;
-  LsLinkDescriptor link_descriptor = 3;
-}
-
-message LsPrefixV4NLRI {
-  LsNodeDescriptor local_node = 1;
-  LsPrefixDescriptor prefix_descriptor = 2;
-}
-
-message LsPrefixV6NLRI {
-  LsNodeDescriptor local_node = 1;
-  LsPrefixDescriptor prefix_descriptor = 2;
-}
-
-// TODO: LsSrPolicyiCandidatePathNLRI
-
-message LsSrv6SIDNLRI {
-    LsNodeDescriptor local_node = 1;
-    LsSrv6SIDInformation srv6_sid_information = 2;
-    LsMultiTopologyIdentifier multi_topo_id = 3;
-}
-
-// Based om RFC 7752, Table 1.
-enum LsNLRIType {
-  LS_NLRI_UNKNOWN = 0;
-  LS_NLRI_NODE = 1;
-  LS_NLRI_LINK = 2;
-  LS_NLRI_PREFIX_V4 = 3;
-  LS_NLRI_PREFIX_V6 = 4;
-  LS_NLRI_SRV6_SID = 6;
-}
-
-enum LsProtocolID {
-  LS_PROTOCOL_UNKNOWN = 0; LS_PROTOCOL_ISIS_L1 = 1; LS_PROTOCOL_ISIS_L2 = 2;
-  LS_PROTOCOL_OSPF_V2 = 3;
-  LS_PROTOCOL_DIRECT = 4;
-  LS_PROTOCOL_STATIC = 5;
-  LS_PROTOCOL_OSPF_V3 = 6;
-}
-
-// LsAddrPrefix represents the NLRI for:
-// - AFI=16388, SAFI=71
-message LsAddrPrefix {
-  LsNLRIType type = 1;
-  // One of:
-  // - LsNodeNLRI
-  // - LsLinkNLRI
-  // - LsPrefixV4NLRI
-  // - LsPrefixV6NLRI
-  // - LsSrv6SIDNLRI
-  google.protobuf.Any nlri = 2;
-  uint32 length = 3;
-  LsProtocolID protocol_id = 4;
-  uint64 identifier = 5;
-}
-
-message MUPInterworkSegmentDiscoveryRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  string prefix = 2;
-}
-
-message MUPDirectSegmentDiscoveryRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  string address = 2;
-}
-
-message MUPType1SessionTransformedRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  uint32 prefix_length = 2 [deprecated = true];
-  string prefix = 3;
-  uint32 teid = 4;
-  uint32 qfi = 5;
-  uint32 endpoint_address_length = 6;
-  string endpoint_address = 7;
-  uint32 source_address_length = 8;
-  string source_address = 9;
-}
-
-message MUPType2SessionTransformedRoute {
-  // One of:
-  // - RouteDistinguisherTwoOctetASN
-  // - RouteDistinguisherIPAddress
-  // - RouteDistinguisherFourOctetASN
-  google.protobuf.Any rd = 1;
-  uint32 endpoint_address_length = 2;
-  string endpoint_address = 3;
-  uint32 teid = 4;
-}
-
 message MpReachNLRIAttribute {
-  apipb.Family family = 1;
+  Family family = 1;
   repeated string next_hops = 2;
-  // Each NLRI must be one of:
-  // - IPAddressPrefix
-  // - LabeledIPAddressPrefix
-  // - EncapsulationNLRI
-  // - EVPNEthernetAutoDiscoveryRoute
-  // - EVPNMACIPAdvertisementRoute
-  // - EVPNInclusiveMulticastEthernetTagRoute
-  // - EVPNEthernetSegmentRoute
-  // - EVPNIPPrefixRoute
-  // - EVPNIPMSIRoute
-  // - LabeledVPNIPAddressPrefix
-  // - RouteTargetMembershipNLRI
-  // - FlowSpecNLRI
-  // - VPNFlowSpecNLRI
-  // - OpaqueNLRI
-  // - LsAddrPrefix
-  // - SR Policy NLRI
-  // - MUPInterworkSegmentDiscoveryRoute
-  // - MUPDirectSegmentDiscoveryRoute
-  // - MUPType1SessionTransformedRoute
-  // - MUPType2SessionTransformedRoute
-  repeated google.protobuf.Any nlris = 3;
+  repeated NLRI nlris = 3;
 }
 
 message MpUnreachNLRIAttribute {
   apipb.Family family = 1;
   // The same as NLRI field of MpReachNLRIAttribute
-  repeated google.protobuf.Any nlris = 3;
-}
-
-message TwoOctetAsSpecificExtended {
-  bool is_transitive = 1;
-  uint32 sub_type = 2;
-  uint32 asn = 3;
-  uint32 local_admin = 4;
-}
-
-message IPv4AddressSpecificExtended {
-  bool is_transitive = 1;
-  uint32 sub_type = 2;
-  string address = 3;
-  uint32 local_admin = 4;
-}
-
-message FourOctetAsSpecificExtended {
-  bool is_transitive = 1;
-  uint32 sub_type = 2;
-  uint32 asn = 3;
-  uint32 local_admin = 4;
-}
-
-message LinkBandwidthExtended {
-  uint32 asn = 1;
-  float bandwidth = 2;
-}
-
-message ValidationExtended { uint32 state = 1; }
-
-message ColorExtended { uint32 color = 1; }
-
-message EncapExtended { uint32 tunnel_type = 1; }
-
-message DefaultGatewayExtended {}
-
-message OpaqueExtended {
-  bool is_transitive = 1;
-  bytes value = 3;
-}
-
-message ESILabelExtended {
-  bool is_single_active = 1;
-  uint32 label = 2;
-}
-
-message ESImportRouteTarget { string es_import = 1; }
-
-message MacMobilityExtended {
-  bool is_sticky = 1;
-  uint32 sequence_num = 2;
-}
-
-message RouterMacExtended { string mac = 1; }
-
-message TrafficRateExtended {
-  uint32 asn = 1;
-  float rate = 2;
-}
-
-message TrafficActionExtended {
-  bool terminal = 1;
-  bool sample = 2;
-}
-
-message RedirectTwoOctetAsSpecificExtended {
-  uint32 asn = 1;
-  uint32 local_admin = 2;
-}
-
-message RedirectIPv4AddressSpecificExtended {
-  string address = 1;
-  uint32 local_admin = 2;
-}
-
-message RedirectFourOctetAsSpecificExtended {
-  uint32 asn = 1;
-  uint32 local_admin = 2;
-}
-
-message TrafficRemarkExtended { uint32 dscp = 1; }
-
-message MUPExtended {
-  uint32 sub_type = 1;
-  uint32 segment_id2 = 2;
-  uint32 segment_id4 = 3;
-}
-
-message VPLSExtended {
-  uint32 control_flags = 1;
-  uint32 mtu = 2;
-}
-
-message UnknownExtended {
-  uint32 type = 1;
-  bytes value = 2;
+  repeated NLRI nlris = 3;
 }
 
 message ExtendedCommunitiesAttribute {
-  // Each Community must be one of:
-  // - TwoOctetAsSpecificExtended
-  // - IPv4AddressSpecificExtended
-  // - FourOctetAsSpecificExtended
-  // - OpaqueExtended
-  // - ESILabelExtended
-  // - MacMobilityExtended
-  // - RouterMacExtended
-  // - TrafficRateExtended
-  // - TrafficActionExtended
-  // - RedirectTwoOctetAsSpecificExtended
-  // - RedirectIPv4AddressSpecificExtended
-  // - RedirectFourOctetAsSpecificExtended
-  // - TrafficRemarkExtended
-  // - MUPExtended
-  // - VPLSExtended
-  // - UnknownExtended
-  repeated google.protobuf.Any communities = 1;
+  repeated ExtendedCommunity communities = 1;
 }
 
 message As4PathAttribute { repeated AsSegment segments = 1; }
@@ -623,10 +138,10 @@ message TunnelEncapSubTLVSRCandidatePathName { string candidate_path_name = 1; }
 message TunnelEncapSubTLVSRPriority { uint32 priority = 1; }
 
 message TunnelEncapSubTLVSRBindingSID {
-  // bsid must be one of:
-  // - SRBindingSID
-  // - SRv6BindingSID
-  google.protobuf.Any bsid = 1;
+  oneof bsid {
+    SRBindingSID   sr_binding_sid   = 1;
+    SRv6BindingSID srv6_binding_sid = 2;
+  }
 }
 
 message SRBindingSID {
@@ -724,10 +239,14 @@ message SegmentTypeB {
 
 message TunnelEncapSubTLVSRSegmentList {
   SRWeight weight = 1;
-  // segments must be one of:
-  // - SegmentTypeA
-  // - SegmentTypeB
-  repeated google.protobuf.Any segments = 2;
+
+  message Segment {
+    oneof segment {
+      SegmentTypeA a = 1;
+      SegmentTypeB b = 2;
+    }
+  }
+  repeated Segment segments = 2;
 }
 
 message TunnelEncapSubTLVEgressEndpoint {
@@ -745,13 +264,23 @@ message TunnelEncapSubTLVUnknown {
 
 message TunnelEncapTLV {
   uint32 type = 1;
-  // Each TLV must be one of:
-  // - TunnelEncapSubTLVEncapsulation
-  // - TunnelEncapSubTLVProtocol
-  // - TunnelEncapSubTLVColor
-  // - TunnelEncapSubTLVSRPolicy
-  // - TunnelEncapSubTLVUnknown
-  repeated google.protobuf.Any tlvs = 2;
+  message TLV {
+    oneof tlv {
+      TunnelEncapSubTLVUnknown             unknown             = 1;
+      TunnelEncapSubTLVEncapsulation       encapsulation       = 2;
+      TunnelEncapSubTLVProtocol            protocol            = 3;
+      TunnelEncapSubTLVColor               color               = 4;
+      TunnelEncapSubTLVEgressEndpoint      egress_endpoint     = 5;
+      TunnelEncapSubTLVUDPDestPort         udp_dest_port       = 6;
+      TunnelEncapSubTLVSRPreference        sr_preference       = 7;
+      TunnelEncapSubTLVSRPriority          sr_priority         = 8;
+      TunnelEncapSubTLVSRCandidatePathName sr_candidate_path_name = 9;
+      TunnelEncapSubTLVSRENLP              sr_enlp             = 10;
+      TunnelEncapSubTLVSRBindingSID        sr_binding_sid      = 11;
+      TunnelEncapSubTLVSRSegmentList       sr_segment_list     = 12;
+    }
+  }
+  repeated TLV tlvs = 2;
 }
 
 message TunnelEncapAttribute { repeated TunnelEncapTLV tlvs = 1; }
@@ -769,10 +298,13 @@ message RedirectIPv6AddressSpecificExtended {
 }
 
 message IP6ExtendedCommunitiesAttribute {
-  // Each Community must be one of:
-  // - IPv6AddressSpecificExtended
-  // - RedirectIPv6AddressSpecificExtended
-  repeated google.protobuf.Any communities = 1;
+  message Community {
+    oneof extcom {
+      IPv6AddressSpecificExtended         ipv6_address_specific          = 1;
+      RedirectIPv6AddressSpecificExtended redirect_ipv6_address_specific = 2;
+    }
+  }
+  repeated Community communities = 1;
 }
 
 message AigpTLVIGPMetric { uint64 metric = 1; }
@@ -783,10 +315,13 @@ message AigpTLVUnknown {
 }
 
 message AigpAttribute {
-  // Each TLV must be one of:
-  // - AigpTLVIGPMetric
-  // - AigpTLVUnknown
-  repeated google.protobuf.Any tlvs = 1;
+  message TLV {
+    oneof tlv {
+      AigpTLVUnknown     unknown    = 1;
+        AigpTLVIGPMetric igp_metric = 2;
+    }
+  }
+  repeated TLV tlvs = 1;
 }
 
 message LargeCommunity {
@@ -907,52 +442,59 @@ message SRv6StructureSubSubTLV {
   uint32 transposition_offset = 6;
 }
 
+message SRv6SubSubTLV {
+  oneof tlv {
+    SRv6StructureSubSubTLV structure = 1;
+  }
+}
+
+message SRv6SubSubTLVs {
+  repeated SRv6SubSubTLV tlvs = 1;
+}
+
 message SRv6SIDFlags {
   // Placeholder for future sid flags
   bool flag_1 = 1;
 }
-
-message SRv6TLV { repeated google.protobuf.Any tlv = 1; }
 
 // https://tools.ietf.org/html/draft-dawra-bess-srv6-services-02#section-2.1.1
 message SRv6InformationSubTLV {
   bytes sid = 1;
   SRv6SIDFlags flags = 2;
   uint32 endpoint_behavior = 3;
-  // SRv6TLV is one of:
-  // - SRv6StructureSubSubTLV
-  map<uint32, SRv6TLV> sub_sub_tlvs = 4;
+  map<uint32, SRv6SubSubTLVs> sub_sub_tlvs = 4;
+}
+
+message SRv6SubTLV {
+  oneof tlv {
+    SRv6InformationSubTLV information = 1;
+  }
+}
+
+message SRv6SubTLVs {
+  repeated SRv6SubTLV tlvs = 1;
 }
 
 // https://www.rfc-editor.org/rfc/rfc9252.html#section-2
 message SRv6L3ServiceTLV {
-  // SRv6TLV is one of:
-  // - SRv6InformationSubTLV
-  map<uint32, SRv6TLV> sub_tlvs = 1;
+  map<uint32, SRv6SubTLVs> sub_tlvs = 1;
 }
 
 // https://www.rfc-editor.org/rfc/rfc9252.html#section-2
 message SRv6L2ServiceTLV {
-  // SRv6TLV is one of:
-  // - SRv6InformationSubTLV
-  map<uint32, SRv6TLV> sub_tlvs = 1;
+  map<uint32, SRv6SubTLVs> sub_tlvs = 1;
 }
 
 // https://tools.ietf.org/html/rfc8669
 message PrefixSID {
   // tlv is one of:
-  // - IndexLabelTLV Type 1 (not yet implemented)
-  // - OriginatorSRGBTLV Type 3 (not yet implemented)
-  // - SRv6L3ServiceTLV Type 5
-  // - SRv6L2ServiceTLV Type 6
-  repeated google.protobuf.Any tlvs = 1;
-}
-
-// https://tools.ietf.org/html/rfc9552
-message LsSrv6SIDInformation {
-  repeated string sids = 1;
-}
-
-message LsMultiTopologyIdentifier {
-  repeated uint32 multi_topo_ids = 1;
+  message TLV {
+    oneof tlv {
+      // IndexLabelTLV Type 1 (not yet implemented)
+      // OriginatorSRGBTLV Type 3 (not yet implemented)
+      SRv6L3ServiceTLV l3_service = 3;
+      SRv6L2ServiceTLV l2_service = 4;
+    }
+  }
+  repeated TLV tlvs = 1;
 }
