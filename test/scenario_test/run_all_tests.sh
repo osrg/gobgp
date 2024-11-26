@@ -18,16 +18,6 @@ TESTDIR=`pwd`/test/scenario_test
 
 PIDS=()
 
-WS=`pwd`
-GOBGP=`pwd`
-GOBGP_IMAGE=gobgp
-
-echo $GOBGP
-echo $GOBGP_IMAGE
-echo $TESTDIR
-echo $PYTHONPATH
-echo $WS
-
 # route server test
 python3 $TESTDIR/route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -s -x --with-xunit --xunit-file=${WS}/nosetest.xml &
 PIDS=("${PIDS[@]}" $!)

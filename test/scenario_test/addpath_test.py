@@ -60,7 +60,6 @@ class GoBGPTestBase(unittest.TestCase):
                             log_level=parser_option.gobgp_log_level)
         e1 = ExaBGPContainer(name="e1", asn=65000, router_id="192.168.0.6")
 
-
         ctns = [g1, g2, g3, g4, g5, e1]
         initial_wait_time = max(ctn.run() for ctn in ctns)
 
