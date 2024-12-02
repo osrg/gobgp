@@ -41,9 +41,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/metrics"
 	"github.com/osrg/gobgp/v3/internal/pkg/version"
 	"github.com/osrg/gobgp/v3/pkg/config"
+	"github.com/osrg/gobgp/v3/pkg/metrics"
 	"github.com/osrg/gobgp/v3/pkg/server"
 )
 
