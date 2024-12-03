@@ -42,6 +42,15 @@
         # are preferred than both-rt-list.
         both-rt-list = ["65000:100"]
 
+[[vrfs]]
+    [vrfs.config]
+        name = "vrf2"
+        rd = "65000:200"
+        both-rt-list = ["65000:200"]
+        import-as-evpn-ipprefix = true
+        routers-mac = "ca:fe:00:00:be:ef"
+        ethernet-tag = 100
+
 [[mrt-dump]]
     [mrt-dump.config]
         dump-type = "updates"
