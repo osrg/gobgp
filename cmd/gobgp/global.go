@@ -2249,7 +2249,7 @@ func showGlobalConfig() error {
 	fmt.Println("AS:       ", g.Asn)
 	fmt.Println("Router-ID:", g.RouterId)
 	if len(g.ListenAddresses) > 0 {
-		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
+		fmt.Printf("Listening Port: %d, Addresses: %s, NetNs: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "), g.Netns)
 	}
 	if g.UseMultiplePaths {
 		fmt.Printf("Multipath: enabled")
@@ -2263,6 +2263,7 @@ func modGlobalConfig(args []string) error {
 		"router-id":        paramSingle,
 		"listen-port":      paramSingle,
 		"listen-addresses": paramList,
+		"netns":            paramSingle,
 		"use-multipath":    paramFlag})
 	if err != nil || len(m["as"]) != 1 || len(m["router-id"]) != 1 {
 		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
@@ -2294,6 +2295,7 @@ func modGlobalConfig(args []string) error {
 			RouterId:         id.String(),
 			ListenPort:       int32(port),
 			ListenAddresses:  m["listen-addresses"],
+			Netns:            m["netns"][0],
 			UseMultiplePaths: useMultipath,
 		},
 	})

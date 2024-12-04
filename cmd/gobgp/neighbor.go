@@ -284,8 +284,12 @@ func showNeighbor(args []string) error {
 	} else {
 		fmt.Print("\n")
 	}
+	netns := "default"
+	if p.Transport.Netns != "" {
+		netns = p.Transport.Netns
+	}
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.State.Queues.Output, p.State.Flops)
-	fmt.Printf("  Local address is %s, local ASN: %s\n", p.Transport.LocalAddress, getLocalASN(p))
+	fmt.Printf("  Local address is %s in %s netns, local ASN: %s\n", p.Transport.LocalAddress, netns, getLocalASN(p))
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.State.NegotiatedHoldTime), int(p.Timers.State.KeepaliveInterval))
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
 
