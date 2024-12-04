@@ -1435,7 +1435,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	assert.Nil(err)
 
 	// Wait for the s1 to receive the tcp connection from s2.
-	ev := <-incoming.Out()
+	ev := <-incoming
 	msg := ev.(*fsmMsg)
 	nextState := msg.MsgData.(bgp.FSMState)
 	assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
@@ -1453,7 +1453,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	assert.Nil(err)
 
 	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
+	incoming <- msg
 
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.

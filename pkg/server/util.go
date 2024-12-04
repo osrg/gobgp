@@ -27,6 +27,12 @@ import (
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
+func cleanFiniteChannel(ch chan interface{}) {
+	close(ch)
+	for range ch {
+	}
+}
+
 func cleanInfiniteChannel(ch *channels.InfiniteChannel) {
 	ch.Close()
 	// drain all remaining items
