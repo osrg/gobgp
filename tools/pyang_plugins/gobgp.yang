@@ -1458,4 +1458,24 @@ module gobgp {
       }
     }
   }
+
+  grouping bgp-update-processing {
+    container bgp-update-processing {
+      container config {
+        leaf preserve-nlris {
+          description "Saves original MPReachNLRI in a same way it was received from wire.
+            Might contain duplicate NLRIs for each path.";
+          type boolean;
+        }
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    uses bgp-update-processing;
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    uses bgp-update-processing;
+  }
 }

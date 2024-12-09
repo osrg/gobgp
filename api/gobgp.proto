@@ -567,6 +567,7 @@ message Peer {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  BgpUpdateProcessing bgp_update_processing = 12;
 }
 
 message PeerGroup {
@@ -581,6 +582,7 @@ message PeerGroup {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  BgpUpdateProcessing bgp_update_processing = 12;
 }
 
 message DynamicNeighbor {
@@ -1151,4 +1153,12 @@ message SetLogLevelRequest {
     PANIC = 0; FATAL = 1; ERROR = 2; WARN = 3; INFO = 4; DEBUG = 5; TRACE = 6;
   }
   Level level = 1;
+}
+
+message BgpUpdateProcessing {
+  BgpUpdateProcessingConfig config = 1;
+}
+
+message BgpUpdateProcessingConfig {
+  bool preserve_nlris = 1;
 }

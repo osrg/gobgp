@@ -1917,6 +1917,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	bgpMessage4 := bgp.NewBGPUpdateMessage(nil, pathAttributes4, nlri4)
 
 	peer1 := peerR1()
+	peer1.PreserveNlris = true
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 5, len(pList))
 	for _, p := range pList {
@@ -1958,6 +1959,35 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	// check table
 	table := tm.Tables[bgp.RF_IPv4_UC]
 	assert.Equal(t, 13, len(table.GetDestinations()))
+
+}
+
+func TestProcessBGPUpdate_multiple_nlri_ipv4_split(t *testing.T) {
+	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspath := createAsPathAttribute([]uint32{65000, 65100, 65200})
+	mpReach := createMpReach("10.50.60.70", []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(32, "10.0.0.1"),
+		bgp.NewIPAddrPrefix(32, "10.0.0.2"),
+		bgp.NewIPAddrPrefix(32, "10.0.0.3"),
+	})
+	med := bgp.NewPathAttributeMultiExitDisc(200)
+	localpref := bgp.NewPathAttributeLocalPref(200)
+	pathAttributes := []bgp.PathAttributeInterface{
+		mpReach, origin, aspath, med, localpref,
+	}
+	bgpMessage := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
+
+	peer1 := peerR1()
+	pList, err := tm.ProcessUpdate(peer1, bgpMessage)
+	assert.Equal(t, len(mpReach.Value), len(pList))
+	for i, p := range pList {
+		attr := p.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+		assert.Equal(t, mpReach.Nexthop, attr.Nexthop)
+		assert.Equal(t, []bgp.AddrPrefixInterface{mpReach.Value[i]}, attr.Value)
+	}
+	assert.NoError(t, err)
 
 }
 
@@ -2061,6 +2091,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	bgpMessage4 := bgp.NewBGPUpdateMessage(nil, pathAttributes4, nil)
 
 	peer1 := peerR1()
+	peer1.PreserveNlris = true
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 5, len(pList))
 	for _, p := range pList {
