@@ -1282,7 +1282,12 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*apb.Any, error) {
 			Prefix:    v.Prefix.String(),
 		}
 	case *bgp.RouteTargetMembershipNLRI:
-		rt, err := MarshalRT(v.RouteTarget)
+		rt, err := func() (*apb.Any, error) {
+			if v.RouteTarget == nil {
+				return nil, nil
+			}
+			return MarshalRT(v.RouteTarget)
+		}()
 		if err != nil {
 			return nil, err
 		}
@@ -1620,7 +1625,12 @@ func UnmarshalNLRI(rf bgp.RouteFamily, an *apb.Any) (bgp.AddrPrefixInterface, er
 			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix, *bgp.NewMPLSLabelStack(v.Labels...), rd)
 		}
 	case *api.RouteTargetMembershipNLRI:
-		rt, err := UnmarshalRT(v.Rt)
+		rt, err := func() (bgp.ExtendedCommunityInterface, error) {
+			if v.Rt == nil {
+				return nil, nil
+			}
+			return UnmarshalRT(v.Rt)
+		}()
 		if err != nil {
 			return nil, err
 		}

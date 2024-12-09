@@ -209,6 +209,39 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal("65546:1000000", r.String())
 
+	// Default
+	buf = make([]byte, 1)
+	buf[0] = 0 // in bit length
+	r = &RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	assert.Equal("default", r.String())
+	buf, err = r.Serialize()
+	assert.Equal(nil, err)
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	assert.Equal("default", r.String())
+	r = NewRouteTargetMembershipNLRI(0, nil)
+	buf, err = r.Serialize()
+	assert.Equal(nil, err)
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	assert.Equal("default", r.String())
+
+	// AS only
+	buf = make([]byte, 5)
+	buf[0] = 32 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	r = &RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	assert.Equal("65546:0:0", r.String())
+	r = NewRouteTargetMembershipNLRI(65546, nil)
+	buf, err = r.Serialize()
+	assert.Equal(nil, err)
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	assert.Equal("65546:0:0", r.String())
 }
 
 func Test_MalformedUpdateMsg(t *testing.T) {

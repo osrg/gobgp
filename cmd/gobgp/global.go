@@ -1651,6 +1651,41 @@ func parseLsArgs(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, 
 	return nil, nil, fmt.Errorf("invalid nlriType. expect [link] but %s", nlriType)
 }
 
+func parseRtcArgs(args []string) (bgp.AddrPrefixInterface, error) {
+	// Format:
+	// asn <asn> rt <rt> | default
+	m, err := extractReserved(args, map[string]int{
+		"asn":     paramSingle,
+		"rt":      paramSingle,
+		"default": paramFlag,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := m["default"]; ok {
+		return bgp.NewRouteTargetMembershipNLRI(0, nil), nil
+	}
+
+	for _, f := range []string{"asn", "rt"} {
+		if len(m[f]) == 0 {
+			return nil, fmt.Errorf("specify %s", f)
+		}
+	}
+
+	asn, err := toAs4Value(m["asn"][0])
+	if err != nil {
+		return nil, err
+	}
+
+	rt, err := bgp.ParseRouteTarget(m["rt"][0])
+	if err != nil {
+		return nil, err
+	}
+
+	return bgp.NewRouteTargetMembershipNLRI(asn, rt), nil
+}
+
 func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	typ := bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	for idx, arg := range args {
@@ -2056,6 +2091,8 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		nlri, psid, extcomms, err = parseMUPArgs(args, bgp.AFI_IP6, nexthop)
 	case bgp.RF_LS:
 		nlri, ls, err = parseLsArgs(args)
+	case bgp.RF_RTC_UC:
+		nlri, err = parseRtcArgs(args)
 	default:
 		return nil, fmt.Errorf("unsupported route family: %s", rf)
 	}
@@ -2298,6 +2335,19 @@ usage: %s rib %s key <KEY> [value <VALUE>]`,
 			cmdstr,
 			modtype,
 		)
+
+		rtcHelpMsgFmt := fmt.Sprintf(`error: %s
+usage: %s rib -a %%s %s %%s [origin { igp | egp | incomplete }] [aspath <ASPATH>] [nexthop <ADDRESS>] [med <NUM>] [local-pref <NUM>] [community <COMMUNITY>] [aigp metric <NUM>] [large-community <LARGE_COMMUNITY>] [aggregator <AGGREGATOR>]
+    <ASPATH>: <AS>[,<AS>],
+    <COMMUNITY>: xxx:xxx|internet|planned-shut|accept-own|route-filter-translated-v4|route-filter-v4|route-filter-translated-v6|route-filter-v6|llgr-stale|no-llgr|blackhole|no-export|no-advertise|no-export-subconfed|no-peer,
+    <LARGE_COMMUNITY>: xxx:xxx:xxx[,<LARGE_COMMUNITY>],
+    <AGGREGATOR>: <AS>:<ADDRESS>`,
+			err,
+			cmdstr,
+			modtype,
+		)
+		helpErrMap[bgp.RF_RTC_UC] = fmt.Errorf(rtcHelpMsgFmt, "rtc", "{ asn <ASN> rt <RT> | default }")
+
 		if err, ok := helpErrMap[rf]; ok {
 			return err
 		}

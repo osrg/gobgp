@@ -2296,21 +2296,29 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*Mar
 		}
 	}
 	if len(data) < 1 {
-		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "prefix misses length field")
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
 	}
 	n.Length = data[0]
-	data = data[1 : n.Length/8+1]
-	if len(data) == 0 {
+	if n.Length == 0 {
 		return nil
-	} else if len(data) != 12 {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all RouteTargetMembershipNLRI bytes available")
+	}
+	data = data[1:]
+	if n.Length < 32 || len(data)*8 < int(n.Length) {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "bad RouteTargetMembershipNLRI length")
 	}
 	n.AS = binary.BigEndian.Uint32(data[0:4])
+	if n.Length < 96 {
+		return nil
+	}
 	rt, err := ParseExtended(data[4:])
-	n.RouteTarget = rt
 	if err != nil {
 		return err
 	}
+	n.RouteTarget = rt
 	return nil
 }
 
@@ -2323,13 +2331,16 @@ func (n *RouteTargetMembershipNLRI) Serialize(options ...*MarshallingOption) ([]
 			return nil, err
 		}
 	}
-	if n.RouteTarget == nil {
+	if n.Length == 0 {
 		return append(buf, 0), nil
 	}
 	offset := len(buf)
 	buf = append(buf, make([]byte, 5)...)
-	buf[offset] = 96
+	buf[offset] = n.Length
 	binary.BigEndian.PutUint32(buf[offset+1:], n.AS)
+	if n.RouteTarget == nil {
+		return buf, nil
+	}
 	ebuf, err := n.RouteTarget.Serialize()
 	if err != nil {
 		return nil, err
@@ -2346,14 +2357,14 @@ func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
 }
 
 func (n *RouteTargetMembershipNLRI) Len(options ...*MarshallingOption) int {
-	if n.AS == 0 && n.RouteTarget == nil {
-		return 1
-	}
-	return 13
+	return 1 + (int(n.Length)+7)/8
 }
 
 func (n *RouteTargetMembershipNLRI) String() string {
-	target := "default"
+	if n.Length == 0 {
+		return "default"
+	}
+	target := "0:0"
 	if n.RouteTarget != nil {
 		target = n.RouteTarget.String()
 	}
@@ -2371,7 +2382,9 @@ func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
 	l := 12 * 8
 	if as == 0 && target == nil {
-		l = 1
+		l = 0
+	} else if target == nil {
+		l = 32
 	}
 	return &RouteTargetMembershipNLRI{
 		Length:      uint8(l),

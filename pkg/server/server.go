@@ -1322,8 +1322,15 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					// Ignore duplicate Membership announcements
 					membershipsForSource := s.globalRib.GetPathListWithSource(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_RTC_UC}, path.GetSource())
 					found := false
+					equalRT := func(a, b bgp.ExtendedCommunityInterface) bool {
+						if a == nil && b == nil {
+							return true
+						}
+						return a != nil && b != nil && a.String() == b.String()
+					}
 					for _, membership := range membershipsForSource {
-						if membership.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget.String() == rt.String() {
+						mrt := membership.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+						if equalRT(mrt, rt) {
 							found = true
 							break
 						}
