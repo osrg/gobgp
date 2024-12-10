@@ -17,6 +17,8 @@ Before sending pull request, please make sure that your changes have passed both
 
 ## Changing the gRPC API
 
+### Origin go-tools approach
+
 If you change the gRPC API, generate `api/*.pb.go` in the following way:
 
 ```bash
@@ -24,6 +26,14 @@ $ ./tools/grpc/genproto.sh
 ```
 
 In order for the script to run, you'll need protoc (version 3.19.1) in your PATH.
+
+### Using `buf`
+
+[buf](https://github.com/bufbuild/buf) is a morden tool for managing `Protobuf`. Installation guide can be found [here](https://docs.buf.build/installation).
+
+To generate the `go` code from proto definitions, once the `buf` is installed on local system, just run `buf generate api` on the root level of `gobgpd` project. It will produce `api/*.pb.go` in `github.com/osrg/gobgp/api` folder as it is when using `go-tools` appraoch.
+
+This new tool has the potential in future to help increase compatilibity and stability through out API changes and refactoring.
 
 ## Releases
 
