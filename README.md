@@ -50,6 +50,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 - [Confederation](docs/sources/bgp-confederation.md)
 - Data Center Networking
   - [Unnumbered BGP](docs/sources/unnumbered-bgp.md)
+- [Sentry](docs/sources/sentry.md)
 
 ### Externals
 
