@@ -958,6 +958,11 @@ module gobgp {
       description "Interface name for binding.";
       type string;
     }
+
+    leaf netns {
+        description "Network namespace to use.";
+        type string;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {
@@ -1344,6 +1349,9 @@ module gobgp {
         type int32;
     }
     leaf-list local-address {
+        type string;
+    }
+    leaf netns {
         type string;
     }
   }
