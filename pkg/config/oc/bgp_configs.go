@@ -1332,6 +1332,15 @@ type VrfConfig struct {
 	// List of both import and export Route Targets for this VRF. Each
 	// configuration for import and export Route Targets will be preferred.
 	BothRtList []string `mapstructure:"both-rt-list" json:"both-rt-list,omitempty"`
+	// Switch to enable importing routes from global RIB as EVPN Type 5. Default is false.
+	// In this case, routes are imported as VPNv(4|6)
+	ImportToGlobalAsEvpnType5 bool `mapstructure:"import-as-evpn-ipprefix" json:"import-as-evpn-ipprefix,omitempty"`
+	// Router's MAC address to be added to the EVPN route as an extended community
+	// in case ImportToGlobalAsEvpn is enabled
+	RoutersMac string `mapstructure:"routers-mac" json:"routers-mac,omitempty"`
+	// ETag value to be added to the EVPN route as an extended community
+	// in case ImportToGlobalAsEvpn is enabled
+	EthernetTag uint32 `mapstructure:"ethernet-tag" json:"ethernet-tag,omitempty"`
 }
 
 func (lhs *VrfConfig) Equal(rhs *VrfConfig) bool {

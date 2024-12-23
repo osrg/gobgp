@@ -316,18 +316,27 @@ func (peer *peer) negotiatedRFList() []bgp.RouteFamily {
 	return l
 }
 
-func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily {
+func (peer *peer) toGlobalFamilies(families []bgp.RouteFamily, vrfs map[string]*table.Vrf) []bgp.RouteFamily {
 	id := peer.ID()
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	if peer.fsm.pConf.Config.Vrf != "" {
+		currVrf := vrfs[peer.fsm.pConf.Config.Vrf]
 		fs := make([]bgp.RouteFamily, 0, len(families))
 		for _, f := range families {
 			switch f {
 			case bgp.RF_IPv4_UC:
-				fs = append(fs, bgp.RF_IPv4_VPN)
+				if currVrf.ImportToGlobalAsEvpnType5 {
+					fs = append(fs, bgp.RF_EVPN)
+				} else {
+					fs = append(fs, bgp.RF_IPv4_VPN)
+				}
 			case bgp.RF_IPv6_UC:
-				fs = append(fs, bgp.RF_IPv6_VPN)
+				if currVrf.ImportToGlobalAsEvpnType5 {
+					fs = append(fs, bgp.RF_EVPN)
+				} else {
+					fs = append(fs, bgp.RF_IPv6_VPN)
+				}
 			case bgp.RF_FS_IPv4_UC:
 				fs = append(fs, bgp.RF_FS_IPv4_VPN)
 			case bgp.RF_FS_IPv6_UC:

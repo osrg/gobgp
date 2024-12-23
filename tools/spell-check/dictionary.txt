@@ -18,6 +18,7 @@ gobgpd
 grpc
 gzip
 ibgp
+ipprefix
 ipproto
 isis
 keepalive
