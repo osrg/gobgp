@@ -167,7 +167,7 @@ type BgpServer struct {
 	apiServer    *server
 	bgpConfig    oc.Bgp
 	acceptCh     chan *net.TCPConn
-	incomings    []*channels.InfiniteChannel
+	incomings    []chan interface{}
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
 	listeners    []*tcpListener
@@ -232,11 +232,11 @@ func (s *BgpServer) Stop() {
 	}
 }
 
-func (s *BgpServer) addIncoming(ch *channels.InfiniteChannel) {
+func (s *BgpServer) addIncoming(ch chan interface{}) {
 	s.incomings = append(s.incomings, ch)
 }
 
-func (s *BgpServer) delIncoming(ch *channels.InfiniteChannel) {
+func (s *BgpServer) delIncoming(ch chan interface{}) {
 	for i, c := range s.incomings {
 		if c == ch {
 			s.incomings = append(s.incomings[:i], s.incomings[i+1:]...)
@@ -444,7 +444,7 @@ func (s *BgpServer) Serve() {
 			}
 
 			cleanInfiniteChannel(fsm.outgoingCh)
-			cleanInfiniteChannel(fsm.incomingCh)
+			cleanFiniteChannel(fsm.incomingCh)
 			s.delIncoming(fsm.incomingCh)
 			if s.shutdownWG != nil && len(s.incomings) == 0 {
 				s.shutdownWG.Done()
@@ -480,7 +480,7 @@ func (s *BgpServer) Serve() {
 		for i := firstPeerCaseIndex; i < len(cases); i++ {
 			cases[i] = reflect.SelectCase{
 				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(s.incomings[i-firstPeerCaseIndex].Out()),
+				Chan: reflect.ValueOf(s.incomings[i-firstPeerCaseIndex]),
 			}
 		}
 
@@ -1467,7 +1467,7 @@ func (s *BgpServer) deleteDynamicNeighbor(peer *peer, oldState bgp.FSMState, e *
 	delete(s.neighborMap, peer.fsm.pConf.State.NeighborAddress)
 	peer.fsm.lock.RUnlock()
 	cleanInfiniteChannel(peer.fsm.outgoingCh)
-	cleanInfiniteChannel(peer.fsm.incomingCh)
+	cleanFiniteChannel(peer.fsm.incomingCh)
 	s.delIncoming(peer.fsm.incomingCh)
 	s.broadcastPeerState(peer, oldState, e)
 }
