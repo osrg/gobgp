@@ -567,6 +567,11 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
 		},
 		AfiSafis: afiSafis,
+		BgpUpdateProcessing: &api.BgpUpdateProcessing{
+			Config: &api.BgpUpdateProcessingConfig{
+				PreserveNlris: pconf.BgpUpdateProcessing.Config.PreserveNlris,
+			},
+		},
 	}
 }
 
@@ -646,6 +651,11 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			TcpMss:       uint32(pconf.Transport.Config.TcpMss),
 		},
 		AfiSafis: afiSafis,
+		BgpUpdateProcessing: &api.BgpUpdateProcessing{
+			Config: &api.BgpUpdateProcessingConfig{
+				PreserveNlris: pconf.BgpUpdateProcessing.Config.PreserveNlris,
+			},
+		},
 	}
 }
 
