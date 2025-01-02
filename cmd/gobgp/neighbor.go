@@ -45,9 +45,10 @@ var (
 	columnWidthTEID     = 10
 	columnWidthQFI      = 10
 	columnWidthEndpoint = 20
+	columnWidthAttrs    = 20
 )
 
-func updateColumnWidth(nlri, nexthop, aspath, label, teid, qfi, endpoint string) {
+func updateColumnWidth(nlri, nexthop, aspath, label, teid, qfi, endpoint, attrs string) {
 	if prefixLen := len(nlri); columnWidthPrefix < prefixLen {
 		columnWidthPrefix = prefixLen
 	}
@@ -69,6 +70,10 @@ func updateColumnWidth(nlri, nexthop, aspath, label, teid, qfi, endpoint string)
 	if columnWidthEndpoint < len(endpoint) {
 		columnWidthEndpoint = len(endpoint)
 	}
+	if columnWidthAttrs < len(attrs) {
+		columnWidthAttrs = len(attrs)
+	}
+
 }
 
 func getNeighbors(address string, enableAdv bool) ([]*api.Peer, error) {
@@ -660,7 +665,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 		}
 	}
 
-	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, teid, qfi, endpoint)
+	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, teid, qfi, endpoint, pattrstr)
 
 	return args
 }
@@ -699,7 +704,7 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP, s
 		format += "%-10s "
 	}
 	headers = append(headers, "Attrs")
-	format += "%-s"
+	format += fmt.Sprintf("%%-%ds ", columnWidthAttrs)
 
 	if showSendMaxFiltered {
 		headers = append(headers, "Filtered")
