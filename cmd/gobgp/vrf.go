@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,7 +54,7 @@ func getVrfs() ([]*api.Vrf, error) {
 }
 
 func showVrfs() error {
-	maxLens := []int{20, 20, 20, 20, 5}
+	maxLens := []int{20, 20, 20, 20, 20, 5, 20, 5}
 	vrfs, err := getVrfs()
 	if err != nil {
 		return err
@@ -98,19 +99,19 @@ func showVrfs() error {
 		if err != nil {
 			return err
 		}
-		lines = append(lines, []string{name, rdStr, importRts, exportRts, fmt.Sprintf("%d", v.Id)})
+		lines = append(lines, []string{name, rdStr, importRts, exportRts, v.RoutersMac, fmt.Sprintf("%d", v.Id), fmt.Sprintf("%v", v.ImportAsEvpnIpprefix), fmt.Sprintf("%d", v.EthernetTag)})
 
-		for i, v := range []int{len(name), len(rdStr), len(importRts), len(exportRts)} {
+		for i, v := range []int{len(name), len(rdStr), len(importRts), len(exportRts), len(v.RoutersMac)} {
 			if v > maxLens[i] {
 				maxLens[i] = v + 4
 			}
 		}
 
 	}
-	format := fmt.Sprintf("  %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", maxLens[0], maxLens[1], maxLens[2], maxLens[3], maxLens[4])
-	fmt.Printf(format, "Name", "RD", "Import RT", "Export RT", "ID")
+	format := fmt.Sprintf("  %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", maxLens[0], maxLens[1], maxLens[2], maxLens[3], maxLens[4], maxLens[5], maxLens[6], maxLens[7])
+	fmt.Printf(format, "Name", "RD", "Import RT", "Export RT", "Router's MAC", "ID", "Import as EVPN", "Ethernet Tag")
 	for _, l := range lines {
-		fmt.Printf(format, l[0], l[1], l[2], l[3], l[4])
+		fmt.Printf(format, l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7])
 	}
 	return nil
 }
@@ -123,9 +124,13 @@ func modVrf(typ string, args []string) error {
 	switch typ {
 	case cmdAdd:
 		a, err := extractReserved(args, map[string]int{
-			"rd": paramSingle,
-			"rt": paramList,
-			"id": paramSingle})
+			"rd":             paramSingle,
+			"rt":             paramList,
+			"id":             paramSingle,
+			"import-as-evpn": paramFlag,
+			"routers-mac":    paramSingle,
+			"ethernet-tag":   paramSingle,
+		})
 		if err != nil || len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 {
 			//lint:ignore ST1005 cli example
 			return fmt.Errorf("usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
@@ -172,13 +177,37 @@ func modVrf(typ string, args []string) error {
 		irt, _ := apiutil.MarshalRTs(importRt)
 		ert, _ := apiutil.MarshalRTs(exportRt)
 
+		var etag uint64
+		if len(a["ethernet-tag"]) > 0 {
+			etag, err = strconv.ParseUint(a["ethernet-tag"][0], 10, 32)
+			if err != nil {
+				return err
+			}
+		}
+
+		importAsEVPN := false
+		if _, ok := a["import-as-evpn"]; ok {
+			importAsEVPN = true
+		}
+
+		routersMac := ""
+		if mac, ok := a["routers-mac"]; ok {
+			if _, err := net.ParseMAC(mac[0]); err != nil {
+				return fmt.Errorf("invalid router's mac: %q", mac[0])
+			}
+			routersMac = mac[0]
+		}
+
 		_, err = client.AddVrf(ctx, &api.AddVrfRequest{
 			Vrf: &api.Vrf{
-				Name:     name,
-				Rd:       v,
-				ImportRt: irt,
-				ExportRt: ert,
-				Id:       uint32(id),
+				Name:                 name,
+				Rd:                   v,
+				ImportRt:             irt,
+				ExportRt:             ert,
+				Id:                   uint32(id),
+				ImportAsEvpnIpprefix: importAsEVPN,
+				RoutersMac:           routersMac,
+				EthernetTag:          uint32(etag),
 			},
 		})
 		return err

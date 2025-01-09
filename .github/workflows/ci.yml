@@ -365,6 +365,20 @@ jobs:
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 test/scenario_test/vrf_neighbor_test2.py --gobgp-image gobgp -x -s
 
+  vrf-neighbor3:
+    name: vrf-neighbor3
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 test/scenario_test/vrf_neighbor_test3.py --gobgp-image gobgp -x -s
+
   rtc:
     name: rtc
     runs-on: ubuntu-22.04
