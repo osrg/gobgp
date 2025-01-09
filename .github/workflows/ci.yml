@@ -103,7 +103,7 @@ jobs:
           docker save gobgp-oq > gobgp-oq.tar
 
       - name: upload image file
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifact
           path: |
@@ -116,7 +116,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -130,7 +130,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -144,7 +144,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -158,7 +158,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -172,7 +172,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -186,7 +186,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -200,7 +200,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -214,7 +214,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -228,7 +228,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -245,7 +245,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -259,7 +259,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -273,7 +273,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -287,7 +287,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -301,7 +301,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -315,7 +315,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -329,7 +329,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -343,7 +343,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -357,7 +357,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -371,7 +371,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -385,7 +385,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -406,7 +406,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -420,7 +420,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -434,7 +434,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -448,7 +448,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -462,7 +462,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -476,7 +476,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -490,7 +490,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -504,7 +504,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -518,7 +518,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
       - name: test
         run: |
           docker load < artifact/gobgp.tar
