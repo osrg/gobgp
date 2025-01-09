@@ -1916,6 +1916,8 @@ type PeerGroup struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:bgp-update-processing
+	BgpUpdateProcessing BgpUpdateProcessing `mapstructure:"bgp-update-processing" json:"bgp-update-processing,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -1978,6 +1980,44 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 		return false
 	}
 	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	if !lhs.BgpUpdateProcessing.Equal(&(rhs.BgpUpdateProcessing)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:config.
+type BgpUpdateProcessingConfig struct {
+	// original -> gobgp:preserve-nlris
+	// gobgp:preserve-nlris's original type is boolean.
+	// Saves original MPReachNLRI in a same way it was received from wire.
+	// Might contain duplicate NLRIs for each path.
+	PreserveNlris bool `mapstructure:"preserve-nlris" json:"preserve-nlris,omitempty"`
+}
+
+func (lhs *BgpUpdateProcessingConfig) Equal(rhs *BgpUpdateProcessingConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.PreserveNlris != rhs.PreserveNlris {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:bgp-update-processing.
+type BgpUpdateProcessing struct {
+	// original -> gobgp:bgp-update-processing-config
+	Config BgpUpdateProcessingConfig `mapstructure:"config" json:"config,omitempty"`
+}
+
+func (lhs *BgpUpdateProcessing) Equal(rhs *BgpUpdateProcessing) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
 	return true
@@ -3175,9 +3215,6 @@ type NeighborConfig struct {
 	// original -> bgp:peer-group
 	// The peer-group with which this neighbor is associated.
 	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
-	// original -> gobgp:send-software-version
-	// gobgp:send-software-version's original type is boolean.
-	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
 	// original -> bgp:neighbor-address
 	// bgp:neighbor-address's original type is inet:ip-address.
 	// Address of the BGP peer, either in IPv4 or IPv6.
@@ -3190,6 +3227,9 @@ type NeighborConfig struct {
 	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
+	// original -> gobgp:send-software-version
+	// gobgp:send-software-version's original type is boolean.
+	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -3304,6 +3344,8 @@ type Neighbor struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:bgp-update-processing
+	BgpUpdateProcessing BgpUpdateProcessing `mapstructure:"bgp-update-processing" json:"bgp-update-processing,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
@@ -3366,6 +3408,9 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 		return false
 	}
 	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	if !lhs.BgpUpdateProcessing.Equal(&(rhs.BgpUpdateProcessing)) {
 		return false
 	}
 	return true
