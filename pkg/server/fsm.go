@@ -38,6 +38,7 @@ import (
 
 const (
 	minConnectRetryInterval = 5
+	bufferSize              = 16
 )
 
 type fsmStateReasonType uint8
@@ -177,7 +178,7 @@ type fsm struct {
 	lock                 sync.RWMutex
 	state                bgp.FSMState
 	outgoingCh           *channels.InfiniteChannel
-	incomingCh           *channels.InfiniteChannel
+	incomingCh           chan interface{}
 	reason               *fsmStateReason
 	conn                 net.Conn
 	connCh               chan net.Conn
@@ -274,7 +275,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		pConf:                pConf,
 		state:                bgp.BGP_FSM_IDLE,
 		outgoingCh:           channels.NewInfiniteChannel(),
-		incomingCh:           channels.NewInfiniteChannel(),
+		incomingCh:           make(chan interface{}, bufferSize),
 		connCh:               make(chan net.Conn, 1),
 		opensentHoldTime:     float64(holdtimeOpensent),
 		adminState:           adminState,
@@ -382,9 +383,9 @@ func (fsm *fsm) sendNotification(code, subType uint8, data []byte, msg string) (
 type fsmHandler struct {
 	fsm              *fsm
 	conn             net.Conn
-	msgCh            *channels.InfiniteChannel
+	msgCh            chan interface{}
 	stateReasonCh    chan fsmStateReason
-	incoming         *channels.InfiniteChannel
+	incoming         chan interface{}
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
 	sentNotification *bgp.BGPMessage
@@ -1184,12 +1185,12 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 
 func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error {
 	defer func() {
-		h.msgCh.Close()
+		close(h.msgCh)
 		wg.Done()
 	}()
 	fmsg, _ := h.recvMessageWithError()
 	if fmsg != nil {
-		h.msgCh.In() <- fmsg
+		h.msgCh <- fmsg
 	}
 	return nil
 }
@@ -1262,7 +1263,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.msgCh = channels.NewInfiniteChannel()
+	h.msgCh = make(chan interface{}, bufferSize)
 
 	fsm.lock.RLock()
 	h.conn = fsm.conn
@@ -1313,7 +1314,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
-		case i, ok := <-h.msgCh.Out():
+		case i, ok := <-h.msgCh:
 			if !ok {
 				continue
 			}
@@ -1527,7 +1528,7 @@ func keepaliveTicker(fsm *fsm) *time.Ticker {
 func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
-	h.msgCh = channels.NewInfiniteChannel()
+	h.msgCh = make(chan interface{}, bufferSize)
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
@@ -1584,7 +1585,7 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-		case i, ok := <-h.msgCh.Out():
+		case i, ok := <-h.msgCh:
 			if !ok {
 				continue
 			}
@@ -1812,7 +1813,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	for {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil {
-			h.msgCh.In() <- fmsg
+			h.msgCh <- fmsg
 		}
 		if err != nil {
 			return nil
@@ -2005,7 +2006,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	fsm.lock.RUnlock()
 
 	fsm.lock.RLock()
-	h.incoming.In() <- &fsmMsg{
+	h.incoming <- &fsmMsg{
 		fsm:         fsm,
 		MsgType:     fsmMsgStateChange,
 		MsgSrc:      fsm.pConf.State.NeighborAddress,
