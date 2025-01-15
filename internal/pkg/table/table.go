@@ -440,6 +440,10 @@ func (t *Table) setDestination(dst *Destination) {
 }
 
 func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
+	return TableKey(nlri)
+}
+
+func TableKey(nlri bgp.AddrPrefixInterface) string {
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
 		b := make([]byte, 5)

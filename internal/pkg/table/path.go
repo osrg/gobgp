@@ -337,6 +337,10 @@ func (path *Path) GetTimestamp() time.Time {
 	return time.Unix(path.OriginInfo().timestamp, 0)
 }
 
+func (path *Path) SetTimestamp(t time.Time) {
+	path.setTimestamp(t)
+}
+
 func (path *Path) setTimestamp(t time.Time) {
 	path.OriginInfo().timestamp = t.Unix()
 }
