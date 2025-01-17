@@ -16,15 +16,10 @@ def make_gobgp_ctn(ctx, tag='gobgp',
 
     c = CmdBuffer()
     c << 'FROM {0}'.format(from_image)
-    c << 'COPY gobgp/gobgpd /go/bin/gobgpd'
-    c << 'COPY gobgp/gobgp /go/bin/gobgp'
+    c << 'COPY gobgpd /go/bin/gobgpd'
+    c << 'COPY gobgp /go/bin/gobgp'
 
-    rindex = local_gobgp_path.rindex('gobgp')
-    if rindex < 0:
-        raise Exception('{0} seems not gobgp dir'.format(local_gobgp_path))
-
-    workdir = local_gobgp_path[:rindex]
-    os.chdir(workdir)
+    os.chdir(local_gobgp_path)
     local('echo \'{0}\' > Dockerfile'.format(str(c)))
     local('docker build -t {0} .'.format(tag))
     local('rm Dockerfile')
