@@ -86,6 +86,9 @@ type PeerInfo struct {
 	RouteReflectorClusterID net.IP
 	MultihopTtl             uint8
 	Confederation           bool
+
+	// BGP Update handling behavior
+	PreserveNlris bool
 }
 
 func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
@@ -131,6 +134,8 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor) *PeerInfo {
 		RouteReflectorClusterID: clusterID,
 		MultihopTtl:             p.EbgpMultihop.Config.MultihopTtl,
 		Confederation:           p.IsConfederationMember(g),
+
+		PreserveNlris: p.BgpUpdateProcessing.Config.PreserveNlris,
 	}
 }
 

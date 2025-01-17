@@ -806,6 +806,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 			}
 		}
 	}
+	if a.BgpUpdateProcessing != nil {
+		pconf.BgpUpdateProcessing.Config.PreserveNlris = a.BgpUpdateProcessing.Config.PreserveNlris
+	}
 	return pconf, nil
 }
 
@@ -893,6 +896,9 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.State.TotalPrefixes = a.Info.TotalPrefixes
 		pconf.State.PeerAs = a.Info.PeerAsn
 		pconf.State.PeerType = oc.IntToPeerTypeMap[int(a.Info.Type)]
+	}
+	if a.BgpUpdateProcessing != nil {
+		pconf.BgpUpdateProcessing.Config.PreserveNlris = a.BgpUpdateProcessing.Config.PreserveNlris
 	}
 	return pconf, nil
 }
