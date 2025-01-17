@@ -1458,4 +1458,91 @@ module gobgp {
       }
     }
   }
+
+  grouping channel {
+    description
+      "channel configurations";
+
+    leaf channel-type {
+      type enumeration {
+        enum infinite {
+          description "use InfiniteChannel (default)";
+        }
+        enum buffer {
+          description "use BufferChannel";
+        }
+      }
+    }
+
+    leaf size {
+      description
+        "Input channel size";
+      type uint64;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group/bgp:config" {
+    leaf incoming-channel-timeout {
+      description
+        "Timeout for push message to input channel in seconds";
+      type uint32;
+    }
+    container incoming-channel {
+      uses channel;
+    }
+    container outgoing-channel {
+      uses channel;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    leaf incoming-channel-timeout {
+      description
+        "Timeout for push message to input channel in seconds";
+      type uint32;
+    }
+    container incoming-channel {
+      uses channel;
+    }
+    container outgoing-channel {
+      uses channel;
+    }
+  }
+
+  grouping channel-state {
+    container channel-state {
+      description
+        "Channel's stats";
+      leaf in {
+        type uint64;
+      }
+      leaf notifications {
+        type uint64;
+      }
+      leaf collected {
+        type uint64;
+      }
+      leaf rewritten {
+        type uint64;
+      }
+      leaf retries {
+        type uint64;
+      }
+      leaf out {
+        type uint64;
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf incoming-channel-dropped {
+      type uint64;
+    }
+    container incoming-channel-state {
+      uses channel-state;
+    }
+    container outgoing-channel-state {
+      uses channel-state;
+    }
+  }
 }
