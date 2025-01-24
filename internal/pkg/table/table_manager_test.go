@@ -1979,35 +1979,37 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
 	// check PathAttribute
 	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
-		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
-		pathNexthop := pathAttributes[4]
+		bgpPathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
+		bgpUpdateNexthop := bgpPathAttributes[4]
+		expectedNexthopAttr := bgp.NewPathAttributeMpReachNLRI(
+			bgpUpdateNexthop.(*bgp.PathAttributeMpReachNLRI).Nexthop.String(),
+			[]bgp.AddrPrefixInterface{actual.GetNlri()})
 		attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-		expectedNexthopAttr := attr.(*bgp.PathAttributeMpReachNLRI)
+		pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
-		expectedOrigin := pathAttributes[0]
+		expectedOrigin := bgpPathAttributes[0]
 		attr = actual.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
-		expectedAsPath := pathAttributes[1]
+		expectedAsPath := bgpPathAttributes[1]
 		attr = actual.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
-		expectedMed := pathAttributes[2]
+		expectedMed := bgpPathAttributes[2]
 		attr = actual.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 
-		expectedLocalpref := pathAttributes[3]
+		expectedLocalpref := bgpPathAttributes[3]
 		attr = actual.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 		localpref := attr.(*bgp.PathAttributeLocalPref)
 		assert.Equal(t, expectedLocalpref, localpref)
 
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), len(actual.GetPathAttrs()))
-
+		assert.Equal(t, len(bgpPathAttributes), len(actual.GetPathAttrs()))
 	}
 
 	checkBestPathResult := func(rf bgp.RouteFamily, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
@@ -2102,6 +2104,35 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	// check table
 	table := tm.Tables[bgp.RF_IPv6_UC]
 	assert.Equal(t, 13, len(table.GetDestinations()))
+
+}
+
+func TestProcessBGPUpdate_multiple_nlri_ipv4_split(t *testing.T) {
+	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspath := createAsPathAttribute([]uint32{65000, 65100, 65200})
+	mpReach := createMpReach("10.50.60.70", []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(32, "10.0.0.1"),
+		bgp.NewIPAddrPrefix(32, "10.0.0.2"),
+		bgp.NewIPAddrPrefix(32, "10.0.0.3"),
+	})
+	med := bgp.NewPathAttributeMultiExitDisc(200)
+	localpref := bgp.NewPathAttributeLocalPref(200)
+	pathAttributes := []bgp.PathAttributeInterface{
+		mpReach, origin, aspath, med, localpref,
+	}
+	bgpMessage := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
+
+	peer1 := peerR1()
+	pList, err := tm.ProcessUpdate(peer1, bgpMessage)
+	assert.Equal(t, len(mpReach.Value), len(pList))
+	for i, p := range pList {
+		attr := p.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+		assert.Equal(t, mpReach.Nexthop, attr.Nexthop)
+		assert.Equal(t, []bgp.AddrPrefixInterface{mpReach.Value[i]}, attr.Value)
+	}
+	assert.NoError(t, err)
 
 }
 
