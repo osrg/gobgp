@@ -562,10 +562,10 @@ func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) error {
 }
 
 func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
-	m := e.MsgData.(*bgp.BGPMessage)
-	update := m.Body.(*bgp.BGPUpdate)
-
 	if peer.fsm.logger.GetLevel() >= log.DebugLevel {
+		m := e.MsgData.(*bgp.BGPMessage)
+		update := m.Body.(*bgp.BGPUpdate)
+
 		peer.fsm.logger.Debug("received update",
 			log.Fields{
 				"Topic":       "Peer",
@@ -578,10 +578,10 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	peer.fsm.lock.Unlock()
-	if len(e.PathList) > 0 {
-		paths := make([]*table.Path, 0, len(e.PathList))
+	if len(e.Paths) > 0 {
+		paths := make([]*table.Path, 0, len(e.Paths))
 		eor := []bgp.RouteFamily{}
-		for _, path := range e.PathList {
+		for _, path := range e.Paths {
 			if path.IsEOR() {
 				family := path.GetRouteFamily()
 				peer.fsm.logger.Debug("EOR received",
@@ -627,7 +627,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			}
 			paths = append(paths, path)
 		}
-		peer.adjRibIn.Update(e.PathList)
+		peer.adjRibIn.Update(e.Paths)
 		peer.fsm.lock.RLock()
 		peerAfiSafis := peer.fsm.pConf.AfiSafis
 		peer.fsm.lock.RUnlock()

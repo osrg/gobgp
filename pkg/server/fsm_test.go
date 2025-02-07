@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/v3/internal/pkg/channels"
 	"github.com/osrg/gobgp/v3/pkg/config/oc"
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
