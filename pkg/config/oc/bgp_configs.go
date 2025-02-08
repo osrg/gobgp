@@ -3175,9 +3175,6 @@ type NeighborConfig struct {
 	// original -> bgp:peer-group
 	// The peer-group with which this neighbor is associated.
 	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
-	// original -> gobgp:send-software-version
-	// gobgp:send-software-version's original type is boolean.
-	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
 	// original -> bgp:neighbor-address
 	// bgp:neighbor-address's original type is inet:ip-address.
 	// Address of the BGP peer, either in IPv4 or IPv6.
@@ -3190,6 +3187,9 @@ type NeighborConfig struct {
 	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
+	// original -> gobgp:send-software-version
+	// gobgp:send-software-version's original type is boolean.
+	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
