@@ -57,6 +57,10 @@ func injectMrt() error {
 		fmt.Println("You should probably specify either --no-ipv4 or --no-ipv6 when overwriting nexthop, unless your dump contains only one type of routes")
 	}
 
+	if mrtOpts.Best && mrtOpts.PeerASN != 0 {
+		fmt.Println("--only-best has no effect when --peer-asn is specified")
+	}
+
 	var idx int64
 	if mrtOpts.QueueSize < 1 {
 		return fmt.Errorf("specified queue size is smaller than 1, refusing to run with unbounded memory usage")
@@ -132,6 +136,10 @@ func injectMrt() error {
 					}
 					//t := time.Unix(int64(e.OriginatedTime), 0)
 
+					if mrtOpts.PeerASN != 0 && peers[e.PeerIndex].AS != mrtOpts.PeerASN {
+						continue
+					}
+
 					var attrs []bgp.PathAttributeInterface
 					switch subType {
 					case mrt.RIB_IPV4_UNICAST, mrt.RIB_IPV4_UNICAST_ADDPATH:
@@ -169,7 +177,7 @@ func injectMrt() error {
 				}
 
 				// TODO: calculate properly if necessary.
-				if mrtOpts.Best {
+				if mrtOpts.Best && len(paths) > 0 {
 					paths = []*api.Path{paths[0]}
 				}
 
@@ -250,5 +258,6 @@ func newMrtCmd() *cobra.Command {
 	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.SkipV6, "no-ipv6", "", false, "Do not import IPv6 routes")
 	mrtCmd.PersistentFlags().IntVarP(&mrtOpts.QueueSize, "queue-size", "", 1<<10, "Maximum number of updates to keep queued")
 	mrtCmd.PersistentFlags().IPVarP(&mrtOpts.NextHop, "nexthop", "", nil, "Overwrite nexthop")
+	mrtCmd.PersistentFlags().Uint32VarP(&mrtOpts.PeerASN, "peer-asn", "", 0, "Inject prefixes only from specified AS number")
 	return mrtCmd
 }

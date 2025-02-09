@@ -117,6 +117,7 @@ var mrtOpts struct {
 	SkipV4      bool   `long:"no-ipv4" description:"Skip importing IPv4 routes"`
 	SkipV6      bool   `long:"no-ipv4" description:"Skip importing IPv6 routes"`
 	NextHop     net.IP `long:"nexthop" description:"Rewrite nexthop"`
+	PeerASN     uint32 `long:"peer-asn" description:"Inject prefixes only from specified AS number"`
 }
 
 var bmpOpts struct {
