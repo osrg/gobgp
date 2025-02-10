@@ -750,7 +750,7 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	peerVrf := peer.fsm.pConf.Config.Vrf
 	peer.fsm.lock.RUnlock()
 	if path != nil && peerVrf != "" {
-		if f := path.GetRouteFamily(); f != bgp.RF_IPv4_VPN && f != bgp.RF_IPv6_VPN && f != bgp.RF_FS_IPv4_VPN && f != bgp.RF_FS_IPv6_VPN {
+		if f := path.GetRouteFamily(); f != bgp.RF_IPv4_VPN && f != bgp.RF_IPv6_VPN && f != bgp.RF_FS_IPv4_VPN && f != bgp.RF_FS_IPv6_VPN && f != bgp.RF_EVPN {
 			return nil, nil, true
 		}
 		vrf := peer.localRib.Vrfs[peerVrf]
@@ -1080,7 +1080,7 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.RouteFamily) ([]*t
 	filtered := []*table.Path{}
 
 	if peer.isSecondaryRouteEnabled() {
-		for _, family := range peer.toGlobalFamilies(rfList) {
+		for _, family := range peer.toGlobalFamilies(rfList, s.globalRib.Vrfs) {
 			dsts := s.rsRib.Tables[family].GetDestinations()
 			dl := make([]*table.Update, 0, len(dsts))
 			for _, d := range dsts {
@@ -1097,7 +1097,7 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.RouteFamily) ([]*t
 		return pathList, filtered
 	}
 
-	for _, family := range peer.toGlobalFamilies(rfList) {
+	for _, family := range peer.toGlobalFamilies(rfList, s.globalRib.Vrfs) {
 		for _, path := range s.getPossibleBest(peer, family) {
 			if p := s.filterpath(peer, path, nil); p != nil {
 				pathList = append(pathList, p)
@@ -1389,8 +1389,23 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 					return bgp.RF_FS_IPv4_UC
 				case bgp.RF_FS_IPv6_VPN:
 					return bgp.RF_FS_IPv6_UC
+				case bgp.RF_EVPN:
+					nlri := newPath.GetNlri()
+					n := nlri.(*bgp.EVPNNLRI)
+					switch n.RouteType {
+					case bgp.EVPN_IP_PREFIX:
+						ipPrefixRoute := n.RouteTypeData.(*bgp.EVPNIPPrefixRoute)
+						if ipPrefixRoute.IPPrefix != nil {
+							if ipPrefixRoute.IPPrefix.To4() != nil {
+								return bgp.RF_IPv4_UC
+							} else {
+								return bgp.RF_IPv6_UC
+							}
+						}
+					}
 				}
 			}
+
 			return family
 		}()
 		if targetPeer.isAddPathSendEnabled(f) {
@@ -1497,6 +1512,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			if !needOld {
 				oldList = nil
 			}
+
 			if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
 				sendfsmOutgoingMsg(targetPeer, paths, nil, false)
 			}
@@ -2471,11 +2487,14 @@ func (s *BgpServer) ListVrf(ctx context.Context, r *api.ListVrfRequest, fn func(
 		irt, _ := apiutil.MarshalRTs(v.ImportRt)
 		ert, _ := apiutil.MarshalRTs(v.ExportRt)
 		return &api.Vrf{
-			Name:     v.Name,
-			Rd:       d,
-			Id:       v.Id,
-			ImportRt: irt,
-			ExportRt: ert,
+			Name:                 v.Name,
+			Rd:                   d,
+			Id:                   v.Id,
+			ImportRt:             irt,
+			ExportRt:             ert,
+			ImportAsEvpnIpprefix: v.ImportToGlobalAsEvpnType5,
+			RoutersMac:           v.RoutersMac,
+			EthernetTag:          v.EthernetTag,
 		}
 	}
 	var l []*api.Vrf
@@ -2507,6 +2526,7 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 	return s.mgmtOperation(func() error {
 		name := r.Vrf.Name
 		id := r.Vrf.Id
+		etag := r.Vrf.EthernetTag
 
 		rd, err := apiutil.UnmarshalRD(r.Vrf.Rd)
 		if err != nil {
@@ -2521,12 +2541,21 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 			return err
 		}
 
+		importAsEvpn := r.Vrf.ImportAsEvpnIpprefix
+		mac := r.Vrf.RoutersMac
+		if mac != "" {
+			_, err := net.ParseMAC(r.Vrf.RoutersMac)
+			if err != nil {
+				return err
+			}
+		}
+
 		pi := &table.PeerInfo{
 			AS:      s.bgpConfig.Global.Config.As,
 			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
 
-		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
+		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi, importAsEvpn, mac, etag); err != nil {
 			return err
 		} else if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)

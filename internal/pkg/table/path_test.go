@@ -2,6 +2,7 @@
 package table
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -247,6 +248,113 @@ func TestGetPathAttrs(t *testing.T) {
 	path2 := path1.Clone(false)
 	path2.setPathAttr(bgp.NewPathAttributeNextHop("192.168.50.1"))
 	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP))
+}
+
+func Test_ToGlobalPath_IPv4(t *testing.T) {
+	vrf := &Vrf{
+		Rd:                        bgp.NewRouteDistinguisherTwoOctetAS(100, 100),
+		ImportToGlobalAsEvpnType5: false,
+		MplsLabel:                 100,
+	}
+
+	prefix := "192.168.1.0/24"
+	_, network, _ := net.ParseCIDR(prefix)
+	prefixLen, _ := network.Mask.Size()
+
+	path := NewPath(nil, bgp.NewIPAddrPrefix(uint8(prefixLen), network.IP.String()), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+
+	err := vrf.ToGlobalPath(path)
+	assert.NoError(t, err)
+
+	nlri := path.GetNlri()
+	family := path.GetRouteFamily()
+	assert.Equal(t, bgp.RF_IPv4_VPN, family)
+	vpnNlri := nlri.(*bgp.LabeledVPNIPAddrPrefix)
+	assert.Equal(t, prefix, vpnNlri.IPPrefix())
+	assert.Equal(t, vrf.Rd, vpnNlri.RD)
+}
+
+func Test_ToGlobalPath_IPv4_EVPN(t *testing.T) {
+	vrf := &Vrf{
+		Rd:                        bgp.NewRouteDistinguisherTwoOctetAS(100, 100),
+		ImportToGlobalAsEvpnType5: true,
+		EthernetTag:               100,
+	}
+
+	prefix := "192.168.1.0/24"
+	_, network, _ := net.ParseCIDR(prefix)
+	prefixLen, _ := network.Mask.Size()
+
+	path := NewPath(nil, bgp.NewIPAddrPrefix(uint8(prefixLen), network.IP.String()), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+
+	err := vrf.ToGlobalPath(path)
+	assert.NoError(t, err)
+
+	family := path.GetRouteFamily()
+	assert.Equal(t, bgp.RF_EVPN, family)
+	nlri := path.GetNlri()
+	evpnNlri := nlri.(*bgp.EVPNNLRI)
+	assert.Equal(t, bgp.EVPN_IP_PREFIX, int(evpnNlri.RouteType))
+	ipPrefix := evpnNlri.RouteTypeData.(*bgp.EVPNIPPrefixRoute)
+	assert.Equal(t, vrf.Rd, ipPrefix.RD)
+	assert.Equal(t, vrf.EthernetTag, ipPrefix.ETag)
+}
+
+func Test_ToGlobal_IPv4(t *testing.T) {
+	vrf := &Vrf{
+		Rd:                        bgp.NewRouteDistinguisherTwoOctetAS(100, 100),
+		ImportToGlobalAsEvpnType5: false,
+		MplsLabel:                 100,
+	}
+
+	prefix := "192.168.1.0/24"
+	_, network, _ := net.ParseCIDR(prefix)
+	prefixLen, _ := network.Mask.Size()
+
+	original := NewPath(nil, bgp.NewIPAddrPrefix(uint8(prefixLen), network.IP.String()), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := original.ToGlobal(vrf)
+
+	nlri := path.GetNlri()
+	family := path.GetRouteFamily()
+	assert.Equal(t, bgp.RF_IPv4_VPN, family)
+	vpnNlri := nlri.(*bgp.LabeledVPNIPAddrPrefix)
+	assert.Equal(t, prefix, vpnNlri.IPPrefix())
+	assert.Equal(t, vrf.Rd, vpnNlri.RD)
+}
+
+func Test_ToLocal_IPv4VPN(t *testing.T) {
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(100, 100)
+	prefix := "192.168.1.0/24"
+	_, network, _ := net.ParseCIDR(prefix)
+	prefixLen, _ := network.Mask.Size()
+
+	labels := []uint32{100}
+	mpls := bgp.NewMPLSLabelStack(labels...)
+	original := NewPath(nil, bgp.NewLabeledVPNIPAddrPrefix(uint8(prefixLen), network.IP.String(), *mpls, rd), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+
+	path := original.ToLocal()
+	nlri := path.GetNlri()
+	family := path.GetRouteFamily()
+	assert.Equal(t, bgp.RF_IPv4_UC, family)
+	ipNlri := nlri.(*bgp.IPAddrPrefix)
+	assert.Equal(t, prefix, ipNlri.String())
+}
+
+func Test_ToLocal_EVPN_IPPrefix(t *testing.T) {
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(100, 100)
+	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"single-homed"})
+	prefix := "192.168.1.0"
+	prefixLen := uint8(24)
+	tag := uint32(100)
+
+	original := NewPath(nil, bgp.NewEVPNIPPrefixRoute(rd, esi, tag, prefixLen, prefix, "0.0.0.0", 0), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+
+	path := original.ToLocal()
+	nlri := path.GetNlri()
+	family := path.GetRouteFamily()
+	assert.Equal(t, bgp.RF_IPv4_UC, family)
+	ipNlri := nlri.(*bgp.IPAddrPrefix)
+	assert.Equal(t, fmt.Sprintf("%s/%d", prefix, prefixLen), ipNlri.String())
 }
 
 func PathCreatePeer() []*PeerInfo {

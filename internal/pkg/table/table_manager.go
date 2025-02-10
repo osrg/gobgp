@@ -135,23 +135,30 @@ func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
 	return manager.rfList
 }
 
-func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
+func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo, importAsEvpnIpprefix bool, routersMac string, etag uint32) ([]*Path, error) {
 	if _, ok := manager.Vrfs[name]; ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
 	manager.logger.Debug("add vrf",
 		log.Fields{
-			"Topic":    "Vrf",
-			"Key":      name,
-			"Rd":       rd,
-			"ImportRt": importRt,
-			"ExportRt": exportRt})
+			"Topic":        "Vrf",
+			"Key":          name,
+			"Rd":           rd,
+			"ImportRt":     importRt,
+			"ExportRt":     exportRt,
+			"ImportAsEvpn": importAsEvpnIpprefix,
+			"RoutersMac":   routersMac,
+			"ETag":         etag,
+		})
 	manager.Vrfs[name] = &Vrf{
-		Name:     name,
-		Id:       id,
-		Rd:       rd,
-		ImportRt: importRt,
-		ExportRt: exportRt,
+		Name:                      name,
+		Id:                        id,
+		Rd:                        rd,
+		ImportRt:                  importRt,
+		ExportRt:                  exportRt,
+		ImportToGlobalAsEvpnType5: importAsEvpnIpprefix,
+		RoutersMac:                routersMac,
+		EthernetTag:               etag,
 	}
 	msgs := make([]*Path, 0, len(importRt))
 	nexthop := "0.0.0.0"
@@ -176,12 +183,16 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	}
 	manager.logger.Debug("delete vrf",
 		log.Fields{
-			"Topic":     "Vrf",
-			"Key":       vrf.Name,
-			"Rd":        vrf.Rd,
-			"ImportRt":  vrf.ImportRt,
-			"ExportRt":  vrf.ExportRt,
-			"MplsLabel": vrf.MplsLabel})
+			"Topic":        "Vrf",
+			"Key":          vrf.Name,
+			"Rd":           vrf.Rd,
+			"ImportRt":     vrf.ImportRt,
+			"ExportRt":     vrf.ExportRt,
+			"MplsLabel":    vrf.MplsLabel,
+			"ImportAsEvpn": vrf.ImportToGlobalAsEvpnType5,
+			"RoutersMac":   vrf.RoutersMac,
+			"EthernetTag":  vrf.EthernetTag,
+		})
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]
 	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)

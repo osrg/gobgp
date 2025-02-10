@@ -27,6 +27,7 @@ from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
+    BGP_FSM_IDLE,
     BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
     wait_for_completion,
@@ -52,7 +53,7 @@ class GoBGPTestBase(unittest.TestCase):
                             config_format='yaml')
         g3 = GoBGPContainer(name='g3', asn=65001, router_id='192.168.0.3',
                             ctn_image_name=gobgp_ctn_image_name,
-                            log_level=parser_option.gobgp_log_level,
+                            log_level='debug',
                             config_format='yaml')
         g4 = GoBGPContainer(name='g4', asn=65001, router_id='192.168.0.4',
                             ctn_image_name=gobgp_ctn_image_name,
@@ -69,8 +70,8 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        g3.local("gobgp vrf add red rd 10:10 rt both 10:10")
-        g3.local("gobgp vrf add blue rd 20:20 rt both 20:20")
+        g3.local("gobgp vrf add red rd 10:10 rt both 10:10 import-as-evpn routers-mac ca:fe:00:00:be:ef ethernet-tag 100")
+        g3.local("gobgp vrf add blue rd 20:20 rt both 20:20 import-as-evpn routers-mac ca:fe:00:00:fe:ed ethernet-tag 200")
 
         g1.add_peer(g3, graceful_restart=True, llgr=True)
         g3.add_peer(g1, vrf='red', is_rr_client=True, graceful_restart=True, llgr=True)
@@ -100,7 +101,8 @@ class GoBGPTestBase(unittest.TestCase):
     def test_02_add_routes(self):
         self.g1.local("gobgp global rib add 10.0.0.0/24")
         self.g4.local("gobgp global rib add 10.0.0.0/24")
-        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="evpn")) == 2)
         wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g1, rf="ipv4")) == 1)
         wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g2, rf="ipv4")) == 1)
         wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g4, rf="ipv4")) == 1)
@@ -110,7 +112,12 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_03_disable(self):
         self.g3.disable_peer(self.g1)
-        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 1)
+        self.g3.wait_for(expected_state=BGP_FSM_IDLE, peer=self.g1)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="evpn")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g2, rf="ipv4")) == 0)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g4, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g5, rf="ipv4")) == 1)
         wait_for_completion(lambda: len(self.g2.get_global_rib()) == 0)
         wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
         self.g3.enable_peer(self.g1)
@@ -119,14 +126,24 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_softreset_in(self):
         self.g3.softreset(self.g1)
         wait_for_completion(lambda: len(self.g3.get_global_rib()) == 0)
-        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="evpn")) == 2)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g1, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g2, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g4, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g5, rf="ipv4")) == 1)
         wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
         wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
 
     def test_05_softreset_out(self):
         self.g3.softreset(self.g2, type='out')
         wait_for_completion(lambda: len(self.g3.get_global_rib()) == 0)
-        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="evpn")) == 2)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g1, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g2, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_in(peer=self.g4, rf="ipv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_adj_rib_out(peer=self.g5, rf="ipv4")) == 1)
         wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
         wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
 
@@ -134,10 +151,10 @@ class GoBGPTestBase(unittest.TestCase):
         self.g1.stop_gobgp()
         self.g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=self.g1)
 
-        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="evpn")) == 2)
         wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
 
-        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 1)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="evpn")) == 1)
         wait_for_completion(lambda: len(self.g2.get_global_rib()) == 0)
 
 

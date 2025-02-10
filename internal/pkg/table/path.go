@@ -1115,11 +1115,18 @@ func (lhs *Path) Compare(rhs *Path) int {
 
 func (v *Vrf) ToGlobalPath(path *Path) error {
 	nlri := path.GetNlri()
+	addRoutersMacAttr := false
 	switch rf := path.GetRouteFamily(); rf {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		if v.ImportToGlobalAsEvpnType5 {
+			esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"single-homed"})
+			path.OriginInfo().nlri = bgp.NewEVPNIPPrefixRoute(v.Rd, esi, v.EthernetTag, n.Length, n.Prefix.String(), "0.0.0.0", 0)
+			addRoutersMacAttr = true
+		} else {
+			path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		}
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_FS_IPv4_UC:
 		n := nlri.(*bgp.FlowSpecIPv4Unicast)
@@ -1129,7 +1136,13 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		if v.ImportToGlobalAsEvpnType5 {
+			esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"single-homed"})
+			path.OriginInfo().nlri = bgp.NewEVPNIPPrefixRoute(v.Rd, esi, v.EthernetTag, n.Length, n.Prefix.String(), "0.0.0.0", 0)
+			addRoutersMacAttr = true
+		} else {
+			path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		}
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_FS_IPv6_UC:
 		n := nlri.(*bgp.FlowSpecIPv6Unicast)
@@ -1159,7 +1172,12 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	default:
 		return fmt.Errorf("unsupported route family for vrf: %s", rf)
 	}
-	path.SetExtCommunities(v.ExportRt, false)
+	extCommunity := v.ExportRt
+	if addRoutersMacAttr {
+		extCommunity = append(extCommunity, bgp.NewRoutersMacExtended(v.RoutersMac))
+	}
+	path.SetExtCommunities(extCommunity, false)
+
 	return nil
 }
 
@@ -1167,15 +1185,28 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	nlri := p.GetNlri()
 	nh := p.GetNexthop()
 	pathId := nlri.PathIdentifier()
+	addRoutersMacAttr := false
 	switch rf := p.GetRouteFamily(); rf {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
-		nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
-		nlri.SetPathIdentifier(pathId)
+		if vrf.ImportToGlobalAsEvpnType5 {
+			esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"single-homed"})
+			nlri = bgp.NewEVPNIPPrefixRoute(vrf.Rd, esi, vrf.EthernetTag, n.Length, n.Prefix.String(), "0.0.0.0", 0)
+			addRoutersMacAttr = true
+		} else {
+			nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
+			nlri.SetPathIdentifier(pathId)
+		}
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
-		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
-		nlri.SetPathIdentifier(pathId)
+		if vrf.ImportToGlobalAsEvpnType5 {
+			esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"single-homed"})
+			nlri = bgp.NewEVPNIPPrefixRoute(vrf.Rd, esi, vrf.EthernetTag, n.Length, n.Prefix.String(), "0.0.0.0", 0)
+			addRoutersMacAttr = true
+		} else {
+			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
+			nlri.SetPathIdentifier(pathId)
+		}
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
 		switch n.RouteType {
@@ -1222,9 +1253,15 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 		return p
 	}
 	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
-	path.SetExtCommunities(vrf.ExportRt, false)
+
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
+
+	extCommunities := vrf.ExportRt
+	if addRoutersMacAttr {
+		extCommunities = append(extCommunities, bgp.NewRoutersMacExtended(vrf.RoutersMac))
+	}
+	path.SetExtCommunities(extCommunities, false)
 	return path
 }
 
@@ -1258,12 +1295,21 @@ func (p *Path) ToLocal() *Path {
 		nlri = bgp.NewFlowSpecIPv6Unicast(n.FlowSpecNLRI.Value)
 		nlri.SetPathLocalIdentifier(localPathId)
 		nlri.SetPathIdentifier(pathId)
+	case bgp.RF_EVPN:
+		n := nlri.(*bgp.EVPNNLRI)
+		v, ok := n.RouteTypeData.(*bgp.EVPNIPPrefixRoute)
+		if !ok {
+			return p
+		}
+		nlri = bgp.NewIPAddrPrefix(v.IPPrefixLength, v.IPPrefix.String())
+		nlri.SetPathLocalIdentifier(localPathId)
+		nlri.SetPathIdentifier(pathId)
 	default:
 		return p
 	}
 	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	switch f {
-	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_EVPN:
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
 		extcomms := path.GetExtCommunities()
