@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	minConnectRetryInterval = 5
+	minConnectRetryInterval = 1
 )
 
 type fsmStateReasonType uint8
@@ -494,7 +494,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fsm := h.fsm
 
-	retry, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string) {
+	retryInterval, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string) {
 		fsm.lock.RLock()
 		defer fsm.lock.RUnlock()
 
@@ -524,25 +524,29 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress, int(fsm.pConf.Transport.Config.LocalPort), fsm.pConf.Transport.Config.BindInterface
 	}()
 
-	tick := minConnectRetryInterval
+	tick := 0
 	for {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		timer := time.NewTimer(time.Duration(r.Intn(tick)+tick) * time.Second)
-		select {
-		case <-ctx.Done():
-			fsm.logger.Debug("stop connect loop",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr})
-			timer.Stop()
-			return
-		case <-timer.C:
-			if fsm.logger.GetLevel() >= log.DebugLevel {
-				fsm.logger.Debug("try to connect",
+		if tick > 0 {
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			timer := time.NewTimer(time.Duration(r.Intn(tick)+tick) * time.Second)
+			select {
+			case <-ctx.Done():
+				fsm.logger.Debug("stop connect loop",
 					log.Fields{
 						"Topic": "Peer",
 						"Key":   addr})
+				timer.Stop()
+				return
+			case <-timer.C:
+				// try to connect
 			}
+		}
+
+		if fsm.logger.GetLevel() >= log.DebugLevel {
+			fsm.logger.Debug("try to connect",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   addr})
 		}
 
 		laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
@@ -556,7 +560,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 		if err == nil {
 			d := net.Dialer{
 				LocalAddr: laddr,
-				Timeout:   time.Duration(tick-1) * time.Second,
+				Timeout:   time.Duration(max(retryInterval-1, minConnectRetryInterval)) * time.Second,
 				Control: func(network, address string, c syscall.RawConn) error {
 					return dialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
 				},
@@ -594,7 +598,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				}
 			}
 		}
-		tick = retry
+		tick = retryInterval
 	}
 }
 
