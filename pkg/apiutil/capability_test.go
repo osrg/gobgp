@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"google.golang.org/protobuf/proto"
-	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
@@ -36,8 +35,7 @@ func Test_MultiProtocolCapability(t *testing.T) {
 		},
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_MultiProtocol{MultiProtocol: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 	c := n.(*bgp.CapMultiProtocol)
@@ -52,8 +50,7 @@ func Test_RouteRefreshCapability(t *testing.T) {
 
 	input := &api.RouteRefreshCapability{}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_RouteRefresh{RouteRefresh: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -66,8 +63,7 @@ func Test_CarryingLabelInfoCapability(t *testing.T) {
 
 	input := &api.CarryingLabelInfoCapability{}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_CarryingLabelInfo{CarryingLabelInfo: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -93,8 +89,7 @@ func Test_ExtendedNexthopCapability(t *testing.T) {
 		},
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_ExtendedNexthop{ExtendedNexthop: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 	c := n.(*bgp.CapExtendedNexthop)
@@ -124,8 +119,7 @@ func Test_GracefulRestartCapability(t *testing.T) {
 		},
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_GracefulRestart{GracefulRestart: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -148,8 +142,7 @@ func Test_FourOctetASNumberCapability(t *testing.T) {
 		Asn: 100,
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_FourOctetAsn{FourOctetAsn: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -175,8 +168,7 @@ func Test_AddPathCapability(t *testing.T) {
 		},
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_AddPath{AddPath: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -194,8 +186,7 @@ func Test_EnhancedRouteRefreshCapability(t *testing.T) {
 
 	input := &api.EnhancedRouteRefreshCapability{}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_EnhancedRouteRefresh{EnhancedRouteRefresh: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -219,8 +210,7 @@ func Test_LongLivedGracefulRestartCapability(t *testing.T) {
 		},
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_LongLivedGracefulRestart{LongLivedGracefulRestart: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -240,8 +230,7 @@ func Test_RouteRefreshCiscoCapability(t *testing.T) {
 
 	input := &api.RouteRefreshCiscoCapability{}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_RouteRefreshCisco{RouteRefreshCisco: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
@@ -257,8 +246,7 @@ func Test_UnknownCapability(t *testing.T) {
 		Value: []byte{0x11, 0x22, 0x33, 0x44},
 	}
 
-	a, err := apb.New(input)
-	assert.Nil(err)
+	a := &api.Capability{Cap: &api.Capability_Unknown{Unknown: input}}
 	n, err := unmarshalCapability(a)
 	assert.Nil(err)
 
