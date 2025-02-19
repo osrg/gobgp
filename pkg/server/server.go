@@ -691,7 +691,7 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 
-	if !peer.isRouteServerClient() && isASLoop(peer, path) && !path.IsLocal() {
+	if !peer.isRouteServerClient() && isASLoop(peer, path) {
 		return nil
 	}
 	return path
