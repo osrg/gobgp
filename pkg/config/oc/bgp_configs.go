@@ -783,6 +783,39 @@ func (v SessionState) ToInt() int {
 	return i
 }
 
+// typedef for identity bgp:channel-type.
+type ChannelType string
+
+const (
+	CHANNEL_TYPE_INFINITE ChannelType = "infinite"
+	CHANNEL_TYPE_BUFFER   ChannelType = "buffer"
+)
+
+var ChannelTypeToIntMap = map[ChannelType]int{
+	CHANNEL_TYPE_INFINITE: 0,
+	CHANNEL_TYPE_BUFFER:   1,
+}
+
+var IntToChannelTypeMap = map[int]ChannelType{
+	0: CHANNEL_TYPE_INFINITE,
+	1: CHANNEL_TYPE_BUFFER,
+}
+
+func (v ChannelType) Validate() error {
+	if _, ok := ChannelTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid ChannelType: %s", v)
+	}
+	return nil
+}
+
+func (v ChannelType) ToInt() int {
+	i, ok := ChannelTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
 // typedef for identity bgp:admin-state.
 type AdminState string
 
@@ -1814,6 +1847,13 @@ type PeerGroupConfig struct {
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
+	// original -> gobgp:incoming-channel-timeout
+	// Timeout for push message to input channel in seconds.
+	IncomingChannelTimeout uint32 `mapstructure:"incoming-channel-timeout" json:"incoming-channel-timeout,omitempty"`
+	// original -> gobgp:incoming-channel
+	IncomingChannel IncomingChannel `mapstructure:"incoming-channel" json:"incoming-channel,omitempty"`
+	// original -> gobgp:outgoing-channel
+	OutgoingChannel OutgoingChannel `mapstructure:"outgoing-channel" json:"outgoing-channel,omitempty"`
 }
 
 func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
@@ -1848,6 +1888,15 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {
+		return false
+	}
+	if lhs.IncomingChannelTimeout != rhs.IncomingChannelTimeout {
+		return false
+	}
+	if !lhs.IncomingChannel.Equal(&(rhs.IncomingChannel)) {
+		return false
+	}
+	if !lhs.OutgoingChannel.Equal(&(rhs.OutgoingChannel)) {
 		return false
 	}
 	return true
@@ -2801,6 +2850,37 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 	return true
 }
 
+// struct for container gobgp:outgoing-channel-state.
+type OutgoingChannelState struct {
+	// original -> gobgp:channel-state
+	// Channel's stats.
+	ChannelState ChannelState `mapstructure:"channel-state" json:"channel-state,omitempty"`
+}
+
+// struct for container gobgp:channel-state.
+// Channel's stats.
+type ChannelState struct {
+	// original -> gobgp:in
+	In uint64 `mapstructure:"in" json:"in,omitempty"`
+	// original -> gobgp:notifications
+	Notifications uint64 `mapstructure:"notifications" json:"notifications,omitempty"`
+	// original -> gobgp:collected
+	Collected uint64 `mapstructure:"collected" json:"collected,omitempty"`
+	// original -> gobgp:rewritten
+	Rewritten uint64 `mapstructure:"rewritten" json:"rewritten,omitempty"`
+	// original -> gobgp:retries
+	Retries uint64 `mapstructure:"retries" json:"retries,omitempty"`
+	// original -> gobgp:out
+	Out uint64 `mapstructure:"out" json:"out,omitempty"`
+}
+
+// struct for container gobgp:incoming-channel-state.
+type IncomingChannelState struct {
+	// original -> gobgp:channel-state
+	// Channel's stats.
+	ChannelState ChannelState `mapstructure:"channel-state" json:"channel-state,omitempty"`
+}
+
 // struct for container gobgp:adj-table.
 type AdjTable struct {
 	// original -> gobgp:ADVERTISED
@@ -3131,6 +3211,56 @@ type NeighborState struct {
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 	// original -> gobgp:remote-router-id
 	RemoteRouterId string `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
+	// original -> gobgp:incoming-channel-dropped
+	IncomingChannelDropped uint64 `mapstructure:"incoming-channel-dropped" json:"incoming-channel-dropped,omitempty"`
+	// original -> gobgp:incoming-channel-state
+	IncomingChannelState IncomingChannelState `mapstructure:"incoming-channel-state" json:"incoming-channel-state,omitempty"`
+	// original -> gobgp:outgoing-channel-state
+	OutgoingChannelState OutgoingChannelState `mapstructure:"outgoing-channel-state" json:"outgoing-channel-state,omitempty"`
+}
+
+// struct for container gobgp:outgoing-channel.
+type OutgoingChannel struct {
+	// original -> gobgp:channel-type
+	ChannelType ChannelType `mapstructure:"channel-type" json:"channel-type,omitempty"`
+	// original -> gobgp:size
+	// Input channel size.
+	Size uint64 `mapstructure:"size" json:"size,omitempty"`
+}
+
+func (lhs *OutgoingChannel) Equal(rhs *OutgoingChannel) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.ChannelType != rhs.ChannelType {
+		return false
+	}
+	if lhs.Size != rhs.Size {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:incoming-channel.
+type IncomingChannel struct {
+	// original -> gobgp:channel-type
+	ChannelType ChannelType `mapstructure:"channel-type" json:"channel-type,omitempty"`
+	// original -> gobgp:size
+	// Input channel size.
+	Size uint64 `mapstructure:"size" json:"size,omitempty"`
+}
+
+func (lhs *IncomingChannel) Equal(rhs *IncomingChannel) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.ChannelType != rhs.ChannelType {
+		return false
+	}
+	if lhs.Size != rhs.Size {
+		return false
+	}
+	return true
 }
 
 // struct for container bgp:config.
@@ -3175,12 +3305,12 @@ type NeighborConfig struct {
 	// original -> bgp:peer-group
 	// The peer-group with which this neighbor is associated.
 	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
-	// original -> gobgp:send-software-version
-	// gobgp:send-software-version's original type is boolean.
-	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
 	// original -> bgp:neighbor-address
 	// bgp:neighbor-address's original type is inet:ip-address.
 	// Address of the BGP peer, either in IPv4 or IPv6.
+	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
+	// original -> gobgp:incoming-channel-timeout
+	// Timeout for push message to input channel in seconds.
 	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
 	// original -> gobgp:admin-down
 	// gobgp:admin-down's original type is boolean.
@@ -3190,6 +3320,13 @@ type NeighborConfig struct {
 	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
+	// original -> gobgp:send-software-version
+	// gobgp:send-software-version's original type is boolean.
+	IncomingChannelTimeout uint32 `mapstructure:"incoming-channel-timeout" json:"incoming-channel-timeout,omitempty"`
+	// original -> gobgp:incoming-channel
+	IncomingChannel IncomingChannel `mapstructure:"incoming-channel" json:"incoming-channel,omitempty"`
+	// original -> gobgp:outgoing-channel
+	OutgoingChannel OutgoingChannel `mapstructure:"outgoing-channel" json:"outgoing-channel,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -3236,6 +3373,15 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {
+		return false
+	}
+	if lhs.IncomingChannelTimeout != rhs.IncomingChannelTimeout {
+		return false
+	}
+	if !lhs.IncomingChannel.Equal(&(rhs.IncomingChannel)) {
+		return false
+	}
+	if !lhs.OutgoingChannel.Equal(&(rhs.OutgoingChannel)) {
 		return false
 	}
 	return true

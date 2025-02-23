@@ -506,6 +506,8 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.UseMultiplePaths.Config, &pg.UseMultiplePaths.Config, "neighbor.use-multiple-paths.config", v)
 	overwriteConfig(&c.RouteServer.Config, &pg.RouteServer.Config, "neighbor.route-server.config", v)
 	overwriteConfig(&c.TtlSecurity.Config, &pg.TtlSecurity.Config, "neighbor.ttl-security.config", v)
+	overwriteConfig(&c.Config.IncomingChannel, &pg.Config.IncomingChannel, "neighbor.config.incoming-channel", v)
+	overwriteConfig(&c.Config.OutgoingChannel, &pg.Config.OutgoingChannel, "neighbor.config.outgoing-channel", v)
 
 	if !v.IsSet("neighbor.afi-safis") {
 		c.AfiSafis = append([]AfiSafi{}, pg.AfiSafis...)

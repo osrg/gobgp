@@ -289,6 +289,39 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.State.NegotiatedHoldTime), int(p.Timers.State.KeepaliveInterval))
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
 
+	incomingChannelType := "Infinite"
+	if p.Conf.IncomingChannel.Type == api.ChannelType_BUFFER {
+		incomingChannelType = "Buffer"
+	}
+	fmt.Printf("  IncomingChannel: %s\n", incomingChannelType)
+	if p.State != nil && p.State.IncomingChannel != nil {
+		if incomingChannelType == "Buffer" {
+			fmt.Printf("    In: %d\n", p.State.IncomingChannel.In)
+			fmt.Printf("    Notifications: %d\n", p.State.IncomingChannel.Notifications)
+			fmt.Printf("    Collected: %d\n", p.State.IncomingChannel.Collected)
+			fmt.Printf("    Rewritten: %d\n", p.State.IncomingChannel.Rewritten)
+			fmt.Printf("    Retries: %d\n", p.State.IncomingChannel.Retries)
+			fmt.Printf("    Out: %d\n", p.State.IncomingChannel.Out)
+		}
+	}
+	fmt.Printf("    Dropped: %d\n", p.State.IncomingChannelDropped)
+
+	outgoingChannelType := "Infinite"
+	if p.Conf.OutgoingChannel.Type == api.ChannelType_BUFFER {
+		outgoingChannelType = "Buffer"
+	}
+	fmt.Printf("  OutgoingChannel: %s\n", outgoingChannelType)
+	if p.State != nil && p.State.OutgoingChannel != nil {
+		if outgoingChannelType == "Buffer" {
+			fmt.Printf("    In: %d\n", p.State.OutgoingChannel.In)
+			fmt.Printf("    Notifications: %d\n", p.State.OutgoingChannel.Notifications)
+			fmt.Printf("    Collected: %d\n", p.State.OutgoingChannel.Collected)
+			fmt.Printf("    Rewritten: %d\n", p.State.OutgoingChannel.Rewritten)
+			fmt.Printf("    Retries: %d\n", p.State.OutgoingChannel.Retries)
+			fmt.Printf("    Out: %d\n", p.State.OutgoingChannel.Out)
+		}
+	}
+
 	elems := make([]string, 0, 3)
 	if as := p.Conf.AllowOwnAsn; as > 0 {
 		elems = append(elems, fmt.Sprintf("Allow Own AS: %d", as))
