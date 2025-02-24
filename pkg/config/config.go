@@ -3,8 +3,6 @@ package config
 import (
 	"context"
 
-	apb "google.golang.org/protobuf/types/known/anypb"
-
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/apiutil"
@@ -26,8 +24,8 @@ func WatchConfigFile(configFile, configType string, callBack func()) {
 	oc.WatchConfigFile(configFile, configType, callBack)
 }
 
-func marshalRouteTargets(l []string) ([]*apb.Any, error) {
-	rtList := make([]*apb.Any, 0, len(l))
+func marshalRouteTargets(l []string) ([]*api.RouteTarget, error) {
+	rtList := make([]*api.RouteTarget, 0, len(l))
 	for _, rtString := range l {
 		rt, err := bgp.ParseRouteTarget(rtString)
 		if err != nil {

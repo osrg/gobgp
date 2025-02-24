@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/pkg/log"
@@ -64,26 +63,26 @@ func main() {
 	}
 
 	// add routes
-	nlri, _ := apb.New(&api.IPAddressPrefix{
+	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.0.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 
-	a1, _ := apb.New(&api.OriginAttribute{
+	a1 := &api.Attribute{Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
 		Origin: 0,
-	})
-	a2, _ := apb.New(&api.NextHopAttribute{
+	}}}
+	a2 := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
 		NextHop: "10.0.0.1",
-	})
-	a3, _ := apb.New(&api.AsPathAttribute{
+	}}}
+	a3 := &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
 		Segments: []*api.AsSegment{
 			{
 				Type:    2,
 				Numbers: []uint32{6762, 39919, 65000, 35753, 65000},
 			},
 		},
-	})
-	attrs := []*apb.Any{a1, a2, a3}
+	}}}
+	attrs := []*api.Attribute{a1, a2, a3}
 
 	_, err := s.AddPath(context.Background(), &api.AddPathRequest{
 		Path: &api.Path{
@@ -102,25 +101,25 @@ func main() {
 	}
 
 	// add v6 route
-	nlri, _ = apb.New(&api.IPAddressPrefix{
+	nlri = &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		PrefixLen: 64,
 		Prefix:    "2001:db8:1::",
-	})
-	v6Attrs, _ := apb.New(&api.MpReachNLRIAttribute{
+	}}}
+	v6Attrs := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: &api.MpReachNLRIAttribute{
 		Family:   v6Family,
 		NextHops: []string{"2001:db8::1"},
-		Nlris:    []*apb.Any{nlri},
-	})
+		Nlris:    []*api.NLRI{nlri},
+	}}}
 
-	c, _ := apb.New(&api.CommunitiesAttribute{
+	c := &api.Attribute{Attr: &api.Attribute_Communities{Communities: &api.CommunitiesAttribute{
 		Communities: []uint32{100, 200},
-	})
+	}}}
 
 	_, err = s.AddPath(context.Background(), &api.AddPathRequest{
 		Path: &api.Path{
 			Family: v6Family,
 			Nlri:   nlri,
-			Pattrs: []*apb.Any{a1, v6Attrs, c},
+			Pattrs: []*api.Attribute{a1, v6Attrs, c},
 		},
 	})
 	if err != nil {

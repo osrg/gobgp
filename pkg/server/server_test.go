@@ -28,7 +28,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	apb "google.golang.org/protobuf/types/known/anypb"
 
 	api "github.com/osrg/gobgp/v3/api"
 	"github.com/osrg/gobgp/v3/internal/pkg/table"
@@ -413,18 +412,23 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Safi: api.Family_SAFI_UNICAST,
 	}
 
-	nlri1, _ := apb.New(&api.IPAddressPrefix{
+	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.1.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 
-	a1, _ := apb.New(&api.OriginAttribute{
-		Origin: 0,
-	})
-	a2, _ := apb.New(&api.NextHopAttribute{
-		NextHop: "10.0.0.1",
-	})
-	attrs := []*apb.Any{a1, a2}
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
 
 	server2.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
@@ -435,10 +439,10 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	})
 
-	nlri2, _ := apb.New(&api.IPAddressPrefix{
+	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 	server2.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path: &api.Path{
@@ -465,14 +469,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 			for _, path := range d.Paths {
 				var comms []uint32
 				for _, attr := range path.GetPattrs() {
-					m, err := attr.UnmarshalNew()
-					if err != nil {
-						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
-						continue
-					}
-					switch m := m.(type) {
-					case *api.CommunitiesAttribute:
-						comms = m.GetCommunities()
+					switch m := attr.GetAttr().(type) {
+					case *api.Attribute_Communities:
+						comms = m.Communities.GetCommunities()
 					}
 				}
 				if diff := cmp.Diff(wantEmptyCommunities, comms); diff != "" {
@@ -502,14 +501,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 				}
 				var comms []uint32
 				for _, attr := range path.GetPattrs() {
-					m, err := attr.UnmarshalNew()
-					if err != nil {
-						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
-						continue
-					}
-					switch m := m.(type) {
-					case *api.CommunitiesAttribute:
-						comms = m.GetCommunities()
+					switch m := attr.GetAttr().(type) {
+					case *api.Attribute_Communities:
+						comms = m.Communities.GetCommunities()
 					}
 				}
 				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
@@ -536,14 +530,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 			for _, path := range d.Paths {
 				var comms []uint32
 				for _, attr := range path.GetPattrs() {
-					m, err := attr.UnmarshalNew()
-					if err != nil {
-						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
-						continue
-					}
-					switch m := m.(type) {
-					case *api.CommunitiesAttribute:
-						comms = m.GetCommunities()
+					switch m := attr.GetAttr().(type) {
+					case *api.Attribute_Communities:
+						comms = m.Communities.GetCommunities()
 					}
 				}
 				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
@@ -573,14 +562,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 				}
 				var comms []uint32
 				for _, attr := range path.GetPattrs() {
-					m, err := attr.UnmarshalNew()
-					if err != nil {
-						test.Fatalf("Unable to unmarshal a GoBGP path attribute: %v", err)
-						continue
-					}
-					switch m := m.(type) {
-					case *api.CommunitiesAttribute:
-						comms = m.GetCommunities()
+					switch m := attr.GetAttr().(type) {
+					case *api.Attribute_Communities:
+						comms = m.Communities.GetCommunities()
 					}
 				}
 				if diff := cmp.Diff(wantCommunitiesAfterImportPolicies, comms); diff != "" {
@@ -651,10 +635,10 @@ func TestListPathEnableFiltered(test *testing.T) {
 	})
 	assert.Nil(err)
 
-	nlri3, _ := apb.New(&api.IPAddressPrefix{
+	nlri3 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.3.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 	server1.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path: &api.Path{
@@ -664,10 +648,10 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	})
 
-	nlri4, _ := apb.New(&api.IPAddressPrefix{
+	nlri4 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.4.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 	server1.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path: &api.Path{
@@ -1719,37 +1703,37 @@ func TestAddDeletePath(t *testing.T) {
 	ctx := context.Background()
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 
-	nlri, _ := apb.New(&api.IPAddressPrefix{
+	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.0.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 
-	nlri6, _ := apb.New(&api.IPAddressPrefix{
+	nlri6 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "2001:DB8::",
 		PrefixLen: 32,
-	})
+	}}}
 
-	nh1, _ := apb.New(&api.NextHopAttribute{
+	nh1 := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
 		NextHop: "fd00::1",
-	})
+	}}}
 
-	nh2, _ := apb.New(&api.NextHopAttribute{
+	nh2 := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
 		NextHop: "fd00::2",
-	})
+	}}}
 
-	nh3, _ := apb.New(&api.NextHopAttribute{
+	nh3 := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
 		NextHop: "10.0.0.1",
-	})
+	}}}
 
-	nh4, _ := apb.New(&api.NextHopAttribute{
+	nh4 := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
 		NextHop: "10.0.0.2",
-	})
+	}}}
 
-	a1, _ := apb.New(&api.OriginAttribute{
+	a1 := &api.Attribute{Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
 		Origin: 0,
-	})
+	}}}
 
-	attrs := []*apb.Any{a1, nh3}
+	attrs := []*api.Attribute{a1, nh3}
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,
@@ -1854,7 +1838,7 @@ func TestAddDeletePath(t *testing.T) {
 			Safi: api.Family_SAFI_UNICAST,
 		},
 		Nlri:       nlri6,
-		Pattrs:     []*apb.Any{a1, nh1},
+		Pattrs:     []*api.Attribute{a1, nh1},
 		Identifier: 1,
 	}
 
@@ -1864,7 +1848,7 @@ func TestAddDeletePath(t *testing.T) {
 			Safi: api.Family_SAFI_UNICAST,
 		},
 		Nlri:       nlri6,
-		Pattrs:     []*apb.Any{a1, nh2},
+		Pattrs:     []*api.Attribute{a1, nh2},
 		Identifier: 2,
 	}
 
@@ -1903,7 +1887,7 @@ func TestAddDeletePath(t *testing.T) {
 			Safi: api.Family_SAFI_UNICAST,
 		},
 		Nlri:       nlri,
-		Pattrs:     []*apb.Any{a1, nh3},
+		Pattrs:     []*api.Attribute{a1, nh3},
 		Identifier: 1,
 	}
 
@@ -1913,7 +1897,7 @@ func TestAddDeletePath(t *testing.T) {
 			Safi: api.Family_SAFI_UNICAST,
 		},
 		Nlri:       nlri,
-		Pattrs:     []*apb.Any{a1, nh4},
+		Pattrs:     []*api.Attribute{a1, nh4},
 		Identifier: 2,
 	}
 
@@ -1986,14 +1970,14 @@ func TestAddDeletePath(t *testing.T) {
 	assert.Equal(t, len(s.uuidMap), 1)
 	u := r.Uuid
 
-	asPath, _ := apb.New(&api.AsPathAttribute{
+	asPath := &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
 		Segments: []*api.AsSegment{
 			{
 				Type:    1, // SET
 				Numbers: []uint32{100, 200, 300},
 			},
 		},
-	})
+	}}}
 
 	p2.Pattrs = append(p2.Pattrs, asPath)
 	r, err = s.AddPath(ctx, &api.AddPathRequest{
@@ -2036,30 +2020,30 @@ func TestAddBogusPath(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	nlri, _ := apb.New(&api.IPAddressPrefix{})
+	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{}}}
 
-	a, _ := apb.New(&api.MpReachNLRIAttribute{})
+	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: &api.MpReachNLRIAttribute{}}}
 
 	_, err := s.AddPath(ctx, &api.AddPathRequest{
 		Path: &api.Path{
 			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
 			Nlri:   nlri,
-			Pattrs: []*apb.Any{a},
+			Pattrs: []*api.Attribute{a},
 		},
 	})
 	assert.NotNil(t, err)
 
-	nlri, _ = apb.New(&api.IPAddressPrefix{})
+	nlri = &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{}}}
 
-	a, _ = apb.New(&api.MpReachNLRIAttribute{
+	a = &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: &api.MpReachNLRIAttribute{
 		Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_FLOW_SPEC_UNICAST},
-	})
+	}}}
 
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
 		Path: &api.Path{
 			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
 			Nlri:   nlri,
-			Pattrs: []*apb.Any{a},
+			Pattrs: []*api.Attribute{a},
 		},
 	})
 	assert.NotNil(t, err)
@@ -2088,18 +2072,23 @@ func TestListPathWithIdentifiers(t *testing.T) {
 		Safi: api.Family_SAFI_UNICAST,
 	}
 
-	nlri1, _ := apb.New(&api.IPAddressPrefix{
+	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.1.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 
-	a1, _ := apb.New(&api.OriginAttribute{
-		Origin: 0,
-	})
-	a2, _ := apb.New(&api.NextHopAttribute{
-		NextHop: "10.0.0.1",
-	})
-	attrs := []*apb.Any{a1, a2}
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
 	paths := []*api.Path{
 		{
 			Family:     family,
@@ -2250,18 +2239,23 @@ func TestWatchEvent(test *testing.T) {
 		Safi: api.Family_SAFI_UNICAST,
 	}
 
-	nlri1, _ := apb.New(&api.IPAddressPrefix{
+	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.1.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 
-	a1, _ := apb.New(&api.OriginAttribute{
-		Origin: 0,
-	})
-	a2, _ := apb.New(&api.NextHopAttribute{
-		NextHop: "10.0.0.1",
-	})
-	attrs := []*apb.Any{a1, a2}
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
 
 	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
@@ -2273,10 +2267,10 @@ func TestWatchEvent(test *testing.T) {
 	})
 	assert.Nil(err)
 
-	nlri2, _ := apb.New(&api.IPAddressPrefix{
+	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
-	})
+	}}}
 	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_GLOBAL,
 		Path: &api.Path{
