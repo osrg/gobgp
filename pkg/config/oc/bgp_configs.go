@@ -2216,6 +2216,11 @@ type AsPathOptionsState struct {
 	// Replace occurrences of the peer's AS in the AS_PATH
 	// with the local autonomous system number.
 	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as,omitempty"`
+	// Bypasses as-path loop detection on locally sourced (static) routes
+	// when exporting towards iBGP neighbors. This is needed in some environments
+	// where gobgp is functioning as a route injector. Non-local routes
+	// are still checked for as-path loops.
+	AllowAsPathLoopLocal bool `mapstructure:"allow-aspath-loop-local" json:"allow-aspath-loop-local,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -2231,6 +2236,11 @@ type AsPathOptionsConfig struct {
 	// Replace occurrences of the peer's AS in the AS_PATH
 	// with the local autonomous system number.
 	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as,omitempty"`
+	// Bypasses as-path loop detection on locally sourced (static) routes
+	// when exporting towards neighbors. This is needed in some environments
+	// where gobgp is functioning as a route injector. Non-local routes
+	// are still checked for as-path loops.
+	AllowAsPathLoopLocal bool `mapstructure:"allow-aspath-loop-local" json:"allow-aspath-loop-local,omitempty"`
 }
 
 func (lhs *AsPathOptionsConfig) Equal(rhs *AsPathOptionsConfig) bool {

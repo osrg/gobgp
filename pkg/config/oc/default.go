@@ -109,6 +109,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 
 	n.State.PeerAs = n.Config.PeerAs
 	n.AsPathOptions.State.AllowOwnAs = n.AsPathOptions.Config.AllowOwnAs
+	n.AsPathOptions.State.AllowAsPathLoopLocal = n.AsPathOptions.Config.AllowAsPathLoopLocal
 
 	if !v.IsSet("neighbor.error-handling.config.treat-as-withdraw") {
 		n.ErrorHandling.Config.TreatAsWithdraw = true
