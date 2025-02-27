@@ -13,13 +13,13 @@ if ! [[ "$0" =~ "tools/grpc/genproto.sh" ]]; then
 	exit 255
 fi
 
-if ! [[ $(protoc --version) =~ "3.19.1" ]]; then
-	echo "could not find protoc 3.19.1, is it installed + in PATH?"
+if ! [[ $(protoc --version) =~ "25.6" ]]; then
+	echo "could not find protoc 25.6, is it installed + in PATH?"
 	exit 255
 fi
 
 echo "installing plugins"
-go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.5
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1.0
 
 echo "generating code"

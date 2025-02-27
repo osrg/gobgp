@@ -23,7 +23,7 @@ If you change the gRPC API, generate `api/*.pb.go` in the following way:
 $ ./tools/grpc/genproto.sh
 ```
 
-In order for the script to run, you'll need protoc (version 3.19.1) in your PATH.
+In order for the script to run, you'll need protoc (version 25.6) in your PATH.
 
 ## Releases
 
