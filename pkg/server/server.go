@@ -1040,6 +1040,22 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 		_, rport = peer.fsm.RemoteHostPort()
 		laddr, lport = peer.fsm.LocalHostPort()
 	}
+
+	remoteCaps := make([]*api.Capability, 0)
+	if peer.fsm.state >= bgp.BGP_FSM_OPENCONFIRM {
+		// Adding peer remote capabilities to the event
+		capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
+		for code, caps := range peer.fsm.capMap {
+			if code == bgp.BGP_CAP_FQDN {
+				// skip FQDN capability as it generates errors when Marshalling
+				continue
+			}
+			capList = append(capList, caps...)
+		}
+		if foundCaps, err := apiutil.MarshalCapabilities(capList); err == nil {
+			remoteCaps = foundCaps
+		}
+	}
 	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
 		Type:          t,
@@ -1057,6 +1073,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 		AdminState:    peer.fsm.adminState,
 		Timestamp:     time.Now(),
 		PeerInterface: peer.fsm.pConf.Config.NeighborInterface,
+		RemoteCap:     remoteCaps,
 	}
 	peer.fsm.lock.RUnlock()
 
@@ -4411,6 +4428,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
 										AdminState:      api.PeerState_AdminState(msg.AdminState),
 										RouterId:        msg.PeerID.String(),
+										RemoteCap:       msg.RemoteCap,
 									},
 									Transport: &api.Transport{
 										LocalAddress: msg.LocalAddress.String(),
@@ -4529,6 +4547,7 @@ type watchEventPeer struct {
 	AdminState    adminState
 	Timestamp     time.Time
 	PeerInterface string
+	RemoteCap     []*api.Capability
 }
 
 type watchEventAdjIn struct {
