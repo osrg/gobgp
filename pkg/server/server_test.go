@@ -215,11 +215,27 @@ func TestListPolicyAssignment(t *testing.T) {
 	assert.Equal(4, len(ps))
 }
 
-func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState) {
+func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
 		if peer := r.GetPeer(); peer != nil {
 			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == state {
+				remoteCaps, err := apiutil.UnmarshalCapabilities(peer.Peer.GetState().GetRemoteCap())
+				if err != nil {
+					return
+				}
+				for _, rf := range expectedFamilies {
+					found := false
+					for _, cap := range remoteCaps {
+						if cap.Code() == bgp.BGP_CAP_MULTIPROTOCOL && cap.(*bgp.CapMultiProtocol).CapValue == rf {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return
+					}
+				}
 				close(ch)
 				watchCancel()
 			}
@@ -232,7 +248,11 @@ func waitActive(s *BgpServer, ch chan struct{}) {
 }
 
 func waitEstablished(s *BgpServer, ch chan struct{}) {
-	waitState(s, ch, api.PeerState_ESTABLISHED)
+	waitEstablishedWithFamilies(s, ch)
+}
+
+func waitEstablishedWithFamilies(s *BgpServer, ch chan struct{}, rfs ...bgp.Family) {
+	waitState(s, ch, api.PeerState_ESTABLISHED, rfs...)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -2295,9 +2315,27 @@ func TestWatchEvent(test *testing.T) {
 				IdleHoldTimeAfterReset: 1,
 			},
 		},
+		AfiSafis: []*api.AfiSafi{
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP6,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+		},
 	}
 	ch := make(chan struct{})
-	go waitEstablished(s, ch)
+	go waitEstablishedWithFamilies(s, ch, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.Nil(err)
