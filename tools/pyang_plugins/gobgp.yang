@@ -1458,4 +1458,26 @@ module gobgp {
       }
     }
   }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:as-path-options/bgp:config" {
+    leaf allow-as-path-loop-local {
+      type boolean;
+      description
+        "Bypasses as-path loop detection on locally sourced (static) routes
+        when exporting towards iBGP neighbors. This is needed in some environments
+        where gobgp is functioning as a route injector. Non-local routes
+        are still checked for as-path loops.";
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:as-path-options/bgp:state" {
+    leaf allow-as-path-loop-local {
+      type boolean;
+      description
+        "Bypasses as-path loop detection on locally sourced (static) routes
+        when exporting towards iBGP neighbors. This is needed in some environments
+        where gobgp is functioning as a route injector. Non-local routes
+        are still checked for as-path loops.";
+    }
+  }
 }
