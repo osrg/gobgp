@@ -9169,7 +9169,7 @@ func (l *LsAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) 
 
 	buf := make([]byte, 4+len(ser))
 	binary.BigEndian.PutUint16(buf[:2], uint16(l.Type))
-	binary.BigEndian.PutUint16(buf[2:], l.Length)
+	binary.BigEndian.PutUint16(buf[2:4], uint16(len(ser)))
 	copy(buf[4:], ser)
 
 	return buf, nil
