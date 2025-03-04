@@ -7347,6 +7347,7 @@ type PeerGroupConf struct {
 	RouteFlapDamping    bool                   `protobuf:"varint,8,opt,name=route_flap_damping,json=routeFlapDamping,proto3" json:"route_flap_damping,omitempty"`
 	SendCommunity       uint32                 `protobuf:"varint,9,opt,name=send_community,json=sendCommunity,proto3" json:"send_community,omitempty"`
 	SendSoftwareVersion bool                   `protobuf:"varint,10,opt,name=send_software_version,json=sendSoftwareVersion,proto3" json:"send_software_version,omitempty"`
+	SharedPolicy        bool                   `protobuf:"varint,11,opt,name=shared_policy,json=sharedPolicy,proto3" json:"shared_policy,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -7447,6 +7448,13 @@ func (x *PeerGroupConf) GetSendCommunity() uint32 {
 func (x *PeerGroupConf) GetSendSoftwareVersion() bool {
 	if x != nil {
 		return x.SendSoftwareVersion
+	}
+	return false
+}
+
+func (x *PeerGroupConf) GetSharedPolicy() bool {
+	if x != nil {
+		return x.SharedPolicy
 	}
 	return false
 }
@@ -13023,7 +13031,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\n" +
 	"admin_down\x18\x0f \x01(\bR\tadminDown\x122\n" +
 	"\x15send_software_version\x18\x10 \x01(\bR\x13sendSoftwareVersion\x125\n" +
-	"\x17allow_aspath_loop_local\x18\x11 \x01(\bR\x14allowAspathLoopLocal\"\x9d\x03\n" +
+	"\x17allow_aspath_loop_local\x18\x11 \x01(\bR\x14allowAspathLoopLocal\"\xc2\x03\n" +
 	"\rPeerGroupConf\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +
@@ -13035,7 +13043,8 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x12route_flap_damping\x18\b \x01(\bR\x10routeFlapDamping\x12%\n" +
 	"\x0esend_community\x18\t \x01(\rR\rsendCommunity\x122\n" +
 	"\x15send_software_version\x18\n" +
-	" \x01(\bR\x13sendSoftwareVersion\"\xb2\x03\n" +
+	" \x01(\bR\x13sendSoftwareVersion\x12#\n" +
+	"\rshared_policy\x18\v \x01(\bR\fsharedPolicy\"\xb2\x03\n" +
 	"\x0ePeerGroupState\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +

@@ -49,6 +49,20 @@ func defaultAfiSafi(typ AfiSafiType, enable bool) AfiSafi {
 	}
 }
 
+// SetDefaultNeighborConfigValues specifies configuration options in Neighbor struct
+// filling defaults from it's peer group (if it has one) or global config. Some packagess
+// might have their own representation of config such as PeerInfo in table package.
+//
+// It also fills state fields to corresponding computed values.
+//
+// Overall flow of config options looks like this:
+//
+//	g ----> pg ----> PeerInfo
+//	 \       |       ^
+//	  \      v      /
+//	   \---> n ----/
+//
+// (not counting viper here)
 func SetDefaultNeighborConfigValues(n *Neighbor, pg *PeerGroup, g *Global) error {
 	// Determines this function is called against the same Neighbor struct,
 	// and if already called, returns immediately.
@@ -78,23 +92,16 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	}
 
 	if n.Config.LocalAs == 0 {
-		n.Config.LocalAs = g.Config.As
-		if !g.Confederation.Config.Enabled || n.IsConfederation(g) {
-			n.Config.LocalAs = g.Config.As
-		} else {
-			n.Config.LocalAs = g.Confederation.Config.Identifier
-		}
+		n.Config.LocalAs = getLocalAsForPeer(g, n.Config.PeerAs)
 	}
 	n.State.LocalAs = n.Config.LocalAs
 
-	if n.Config.PeerAs != n.Config.LocalAs {
-		n.Config.PeerType = PEER_TYPE_EXTERNAL
-		n.State.PeerType = PEER_TYPE_EXTERNAL
+	n.Config.PeerType = getConfigPeerType(n.Config.PeerAs, n.Config.LocalAs)
+	n.State.PeerType = n.Config.PeerType
+	if n.Config.PeerType == PEER_TYPE_EXTERNAL {
 		n.State.RemovePrivateAs = n.Config.RemovePrivateAs
 		n.AsPathOptions.State.ReplacePeerAs = n.AsPathOptions.Config.ReplacePeerAs
 	} else {
-		n.Config.PeerType = PEER_TYPE_INTERNAL
-		n.State.PeerType = PEER_TYPE_INTERNAL
 		if string(n.Config.RemovePrivateAs) != "" {
 			return fmt.Errorf("can't set remove-private-as for iBGP peer")
 		}
@@ -102,6 +109,8 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			return fmt.Errorf("can't set replace-peer-as for iBGP peer")
 		}
 	}
+	n.State.PeerAs = n.Config.PeerAs
+	n.AsPathOptions.State.AllowOwnAs = n.AsPathOptions.Config.AllowOwnAs
 
 	if !n.State.NeighborAddress.IsValid() {
 		n.State.NeighborAddress = n.Config.NeighborAddress
@@ -247,15 +256,64 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	}
 
 	if n.RouteReflector.Config.RouteReflectorClient {
-		if !n.RouteReflector.Config.RouteReflectorClusterId.IsValid() {
-			n.RouteReflector.State.RouteReflectorClusterId = g.Config.RouterId
-		} else {
-			if !n.RouteReflector.Config.RouteReflectorClusterId.IsValid() || !n.RouteReflector.Config.RouteReflectorClusterId.Is4() {
-				return fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address")
-			}
+		clusterId, err := getConfigClusterId(g, n.RouteReflector.Config.RouteReflectorClusterId)
+		if err != nil {
+			return err
 		}
+		n.RouteReflector.State.RouteReflectorClusterId = clusterId
 	}
 	return nil
+}
+
+// SetPeerGroupStateValues fills some of the values in State fields
+// NOTE: for now we set bare minimum for table.NewPeerGroupInfo
+func SetPeerGroupStateValues(pg *PeerGroup, g *Global) error {
+	if pg.Config.LocalAs == 0 {
+		pg.Config.LocalAs = getLocalAsForPeer(g, pg.Config.PeerAs)
+	}
+	pg.State.LocalAs = pg.Config.LocalAs
+	pg.State.PeerAs = pg.Config.PeerAs
+
+	// Not checking validity of various as handling options here as setDefaultNeighborConfigValuesWithViper
+	// will do that anyway
+	pg.Config.PeerType = getConfigPeerType(pg.Config.PeerAs, pg.Config.LocalAs)
+	pg.State.PeerType = pg.Config.PeerType
+
+	if pg.RouteReflector.Config.RouteReflectorClient {
+		clusterId, err := getConfigClusterId(g, pg.RouteReflector.Config.RouteReflectorClusterId)
+		if err != nil {
+			return err
+		}
+
+		pg.RouteReflector.State.RouteReflectorClusterId = clusterId
+	}
+
+	return nil
+}
+
+func getLocalAsForPeer(g *Global, peerAs uint32) uint32 {
+	if g.Confederation.Config.Enabled && !g.IsConfederation(peerAs) {
+		return g.Confederation.Config.Identifier
+	}
+	return g.Config.As
+}
+
+func getConfigPeerType(peerAs, localAs uint32) PeerType {
+	if peerAs != localAs {
+		return PEER_TYPE_EXTERNAL
+	}
+	return PEER_TYPE_INTERNAL
+}
+
+func getConfigClusterId(g *Global, configClusterId netip.Addr) (netip.Addr, error) {
+	if !configClusterId.IsValid() {
+		return g.Config.RouterId, nil
+	}
+
+	if !configClusterId.Is4() {
+		return netip.Addr{}, fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address")
+	}
+	return configClusterId, nil
 }
 
 func SetDefaultGlobalConfigValues(g *Global) error {

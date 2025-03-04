@@ -1768,6 +1768,9 @@ type PeerGroupState struct {
 	// original -> bgp-op:total-prefixes
 	// .
 	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes,omitempty"`
+	// original -> gobgp:shared-policy
+	// gobgp:shared-policy's original type is boolean.
+	SharedPolicy bool `mapstructure:"shared-policy" json:"shared-policy,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -1815,6 +1818,9 @@ type PeerGroupConfig struct {
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
+	// original -> gobgp:shared-policy
+	// gobgp:shared-policy's original type is boolean.
+	SharedPolicy bool `mapstructure:"shared-policy" json:"shared-policy,omitempty"`
 }
 
 func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
@@ -1849,6 +1855,9 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {
+		return false
+	}
+	if lhs.SharedPolicy != rhs.SharedPolicy {
 		return false
 	}
 	return true
