@@ -301,8 +301,14 @@ func (c *bgpCollector) Describe(out chan<- *prometheus.Desc) {
 }
 
 func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
+	bgpServer, err := c.server.GetBgp(context.Background(), &api.GetBgpRequest{})
+	if err != nil {
+		out <- prometheus.NewInvalidMetric(prometheus.NewDesc("error", "error during metric collection", nil, nil), err)
+		return
+	}
+
 	req := &api.ListPeerRequest{EnableAdvertised: true}
-	err := c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
+	err = c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
 		peerState := p.GetState()
 		peerAddr := peerState.GetNeighborAddress()
 		peerTimers := p.GetTimers()
@@ -369,7 +375,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			float64(peerState.GetLocalAsn()),
 			peerAddr,
-			p.Transport.GetLocalAddress(),
+			bgpServer.Global.RouterId,
 		)
 
 		// Session and administrative state of the peer
