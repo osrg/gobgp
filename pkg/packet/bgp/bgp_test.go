@@ -3555,6 +3555,66 @@ func Test_LsAddrPrefix(t *testing.T) {
 	}
 }
 
+func Test_LsTLVMultiTopoID(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in        []byte
+		str       string
+		err       bool
+		serialize bool
+	}{
+		{[]byte{
+			0x01, 0x07, 0x00, 0x02, // Multi-Topology ID, correct length
+			0x00, 0x01, // Multi-Topology ID: 1
+		}, "{MultiTopoIDs: 1}", false, true},
+	}
+	for _, test := range tests {
+		topo := LsTLVMultiTopoID{}
+		if test.err {
+			assert.Error(topo.DecodeFromBytes(test.in))
+		} else {
+			assert.NoError(topo.DecodeFromBytes(test.in))
+			assert.Equal(test.str, topo.String())
+			if test.serialize {
+				got, err := topo.Serialize()
+				assert.NoError(err)
+				assert.Equal(test.in, got)
+			}
+		}
+	}
+}
+
+func Test_LsTLVSrv6SIDInfo(t *testing.T) {
+	assert := assert.New(t)
+
+	var tests = []struct {
+		in        []byte
+		str       string
+		err       bool
+		serialize bool
+	}{
+		{[]byte{
+			0x02, 0x06, 0x00, 0x10, // TLV SRv6 SID Information, correct length
+			0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // TLV SRv6 SID: fd00::1
+		}, "{SIDs: fd00::1}", false, true},
+	}
+	for _, test := range tests {
+		srv6 := LsTLVSrv6SIDInfo{}
+		if test.err {
+			assert.Error(srv6.DecodeFromBytes(test.in))
+		} else {
+			assert.NoError(srv6.DecodeFromBytes(test.in))
+			assert.Equal(test.str, srv6.String())
+			if test.serialize {
+				got, err := srv6.Serialize()
+				assert.NoError(err)
+				assert.Equal(test.in, got)
+			}
+		}
+	}
+}
+
 func Test_PathAttributeLs(t *testing.T) {
 	assert := assert.New(t)
 
