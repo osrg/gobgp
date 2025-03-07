@@ -1520,6 +1520,108 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	return nlri, pathAttributeLs, nil
 }
 
+func parseLsSRv6SIDNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, error) {
+	// Format:
+	// gobgp global rib add -a ls srv6sid bgp identifier <identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...]
+	req := 11
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+
+	m, err := extractReserved(args, map[string]int{
+		"identifier":                     paramSingle,
+		"local-asn":                      paramSingle,
+		"local-bgp-ls-id":                paramSingle,
+		"local-bgp-router-id":            paramSingle,
+		"local-bgp-confederation-member": paramSingle,
+		"sids":                           paramList,
+		"multi-topology-id":              paramList,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	identifier, err := strconv.ParseUint(m["identifier"][0], 10, 64)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	localAsn, err := strconv.ParseUint(m["local-asn"][0], 10, 64)
+	if err != nil {
+		return nil, nil, err
+
+	}
+	localBgpLsId, err := strconv.ParseUint(m["local-bgp-ls-id"][0], 10, 64)
+	if err != nil {
+		return nil, nil, err
+
+	}
+	localBgpConfederationMember, err := strconv.ParseUint(m["local-bgp-confederation-member"][0], 10, 64)
+	if err != nil {
+		return nil, nil, err
+
+	}
+	lnd := &bgp.LsNodeDescriptor{
+		Asn:                    uint32(localAsn),
+		BGPLsID:                uint32(localBgpLsId),
+		OspfAreaID:             0,
+		PseudoNode:             false,
+		IGPRouterID:            "",
+		BGPRouterID:            net.ParseIP(m["local-bgp-router-id"][0]).To4(),
+		BGPConfederationMember: uint32(localBgpConfederationMember),
+	}
+	lndTLV := bgp.NewLsTLVNodeDescriptor(lnd, bgp.LS_TLV_LOCAL_NODE_DESC)
+
+	sids, ssiLen := apiutil.StringToNetIPLsTLVSrv6SIDInfo(m["sids"])
+	ssi := &bgp.LsTLVSrv6SIDInfo{
+		LsTLV: bgp.LsTLV{
+			Type:   bgp.LS_TLV_SRV6_SID_INFO,
+			Length: ssiLen,
+		},
+		SIDs: sids,
+	}
+
+	// Parse multi-topology-id values from the reserved parameters.
+	var multiTopoIDs []uint16
+	if ids, ok := m["multi-topology-id"]; ok && len(ids) > 0 {
+		for _, idStr := range ids {
+			id, err := strconv.ParseUint(idStr, 10, 16)
+			if err != nil {
+				return nil, nil, err
+			}
+			multiTopoIDs = append(multiTopoIDs, uint16(id))
+		}
+	}
+	mti := &bgp.LsTLVMultiTopoID{
+		LsTLV: bgp.LsTLV{
+			Type:   bgp.LS_TLV_MULTI_TOPO_ID,
+			Length: uint16(2 * len(multiTopoIDs)),
+		},
+		MultiTopoIDs: multiTopoIDs,
+	}
+
+	const CodeLen = 1
+	const topologyLen = 8
+	LsNLRIhdrlen := lndTLV.Len() + mti.Len() + ssi.Len() + topologyLen + CodeLen
+	lsNlri := bgp.LsNLRI{
+		NLRIType:   bgp.LS_NLRI_TYPE_SRV6_SID,
+		Length:     uint16(LsNLRIhdrlen),
+		ProtocolID: 7,
+		Identifier: identifier,
+	}
+	nlri := &bgp.LsAddrPrefix{
+		Type:   bgp.LS_NLRI_TYPE_SRV6_SID,
+		Length: 4,
+		NLRI: &bgp.LsSrv6SIDNLRI{
+			LsNLRI:        lsNlri,
+			LocalNodeDesc: &lndTLV,
+			MultiTopoID:   mti,
+			Srv6SIDInfo:   ssi,
+		},
+	}
+	return nlri, nil, nil
+}
+
 func lsTLVTypeSelect(s string) bgp.LsTLVType {
 	switch s {
 	case "node":
@@ -1531,7 +1633,6 @@ func lsTLVTypeSelect(s string) bgp.LsTLVType {
 	}
 
 	return bgp.LS_TLV_UNKNOWN
-
 }
 
 func parseLsArgs(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, error) {
@@ -1541,8 +1642,10 @@ func parseLsArgs(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, 
 	nlriType := args[0]
 	switch nlriType {
 	case "link":
-		return parseLsLinkNLRIType(args, afi)
-		// TODO: case node / IPv4 Topology Prefix / IPv6 Topology Prefix / TE Policy / SRv6 SID
+		return parseLsLinkNLRIType(args)
+		// TODO: case IPv4 Topology Prefix / IPv6 Topology Prefix / TE Policy
+	case "srv6sid":
+		return parseLsSRv6SIDNLRIType(args)
 	}
 
 	return nil, nil, fmt.Errorf("invalid nlriType. expect [link] but %s", nlriType)
