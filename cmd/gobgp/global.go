@@ -1375,7 +1375,7 @@ func parseLsLinkNLRIType(args []string, afi uint16) (bgp.AddrPrefixInterface, *b
 		OspfAreaID:             0,
 		PseudoNode:             false,
 		IGPRouterID:            "",
-		BGPRouterID:            net.ParseIP(m["local-bgp-router-id"][0]),
+		BGPRouterID:            net.ParseIP(m["local-bgp-router-id"][0]).To4(),
 		BGPConfederationMember: uint32(localBgpConfederationMember),
 	}
 	RemoteAsn, err := strconv.ParseUint(m["remote-asn"][0], 10, 64)
