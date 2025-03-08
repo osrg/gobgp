@@ -39,7 +39,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 - [Managing GoBGP with your favorite language with gRPC](docs/sources/grpc-client.md)
 - Go Native BGP Library
   - [Basics](docs/sources/lib.md)
-  - [BGP-LS](docs/sources/lib-ls.md)
+  - [BGP-LS](docs/sources/bgp-ls.md)
   - [SR Policy](docs/sources/lib-srpolicy.md)
 - [Graceful Restart](docs/sources/graceful-restart.md)
 - [Additional Paths](docs/sources/add-paths.md)

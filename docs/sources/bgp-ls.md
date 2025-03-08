@@ -1,12 +1,73 @@
-# Using BGP-LS in GoBGP library mode
-
-This page explains how to use GoBGP for getting BGP-LS prefixes.
+# BGP-LS
 
 ## Contents
 
-- [Basic BGP-LS Example](#basic-bgp-ls-example)
+- [CLI Syntax](#cli-syntax)
+- [Using BGP-LS in GoBGP library mode](#using-bgp-ls-in-gobgp-library-mode)
 
-## Basic BGP-LS Example
+## CLI Syntax
+
+### Add a route
+
+Currently, gobgp global rib add supports adding only LINK NLRI and SRv6 SID NLRI.
+
+```shell
+# LINK NLRI
+$ gobgp global rib add -a ls link bgp identifier <bgp-identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] remote-asn 65001 remote-bgp-ls-id <remote-bgp-ls-id> remote-bgp-router-id <remote-bgp-router-id> remote-bgp-confederation-member <remote-confederation-member> ipv4-interface-address <ipv4-interface-address> ipv4-neighbor-address <ipv4-neighbor-address> sid <sid-value> sid-type <sid-type> v-flag <v-flag> l-flag <l-flag> b-flag <b-flag> p-flag <p-flag> weight <weight> ipv6-interface-address <ipv6-interface-address> ipv6-neighbor-address <ipv6-neighbor-address>
+
+# SRv6 SID NLRI
+$ gobgp global rib add -a ls srv6sid bgp identifier <identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...]
+```
+
+### Show routes
+
+```shell
+gobgp global rib -a ls
+```
+
+### Example - NODE NLRI
+
+```shell
+# Show routes
+$gobgp:/# gobgp global rib -a ls
+   Network                                                                            Next Hop             AS_PATH              Age        Attrs
+*> NLRI { NODE { LOCAL_NODE: {ASN: 65002, BGP LS ID: 0, BGP ROUTER ID: 2.2.2.2}} }    172.100.100.102      65002                00:00:01   [{Origin: i} ]
+*  NLRI { NODE { LOCAL_NODE: {ASN: 65002, BGP LS ID: 0, BGP ROUTER ID: 2.2.2.2}} }    172.100.100.101      65001 65002          00:00:01   [{Origin: i} ]
+*> NLRI { NODE { LOCAL_NODE: {ASN: 65002, BGP LS ID: 0, BGP ROUTER ID: 1.1.1.1}} }    172.100.100.102      65002                00:00:01   [{Origin: i} ]
+*  NLRI { NODE { LOCAL_NODE: {ASN: 65002, BGP LS ID: 0, BGP ROUTER ID: 1.1.1.1}} }    172.100.100.101      65001 65002          00:00:01   [{Origin: i} ]
+*> NLRI { NODE { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 2.2.2.2}} }    172.100.100.101      65001                00:00:01   [{Origin: i} ]
+*  NLRI { NODE { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 2.2.2.2}} }    172.100.100.102      65002 65001          00:00:01   [{Origin: i} ]
+*> NLRI { NODE { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 1.1.1.1}} }    172.100.100.101      65001                00:00:01   [{Origin: i} ]
+*  NLRI { NODE { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 1.1.1.1}} }    172.100.100.102      65002 65001          00:00:01   [{Origin: i} ]
+```
+
+### Example - LINK NLRI
+
+```shell
+# Add a routes
+# IPv4
+$ gobgp global rib add -a ls link bgp identifier 0 local-asn 65002 local-bgp-ls-id 0 local-bgp-router-id 2.2.2.2 local-bgp-confederation-member 1 remote-asn 65001 remote-bgp-ls-id 0 remote-bgp-router-id 1.1.1.1 remote-bgp-confederation-member 0 ipv4-interface-address 10.0.0.2 ipv4-neighbor-address 10.0.0.1 sid 1000002 sid-type node v-flag l-flag b-flag p-flag weight 1 ipv6-interface-address fd00::1 ipv6-neighbor-address fd00::2
+
+# Show routes
+$ gobgp global rib -a ls
+   Network                                                                                                                                              Next Hop             AS_PATH              Age        Attrs
+*> NLRI { LINK { LOCAL_NODE: 2.2.2.2 REMOTE_NODE: 1.1.1.1 LINK: 10.0.0.2->10.0.0.1} }    0.0.0.0                                   00:57:59   [{Origin: ?} {LsAttributes: {Peer Node SID: 1000002} }]
+(snip.)
+```
+
+### Example - SRv6 SID NLRI
+
+```shell
+# Add a routes
+$ gobgp global rib add -a ls srv6sid bgp identifier 0 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 192.168.255.1 local-bgp-confederation-member 1 sids fd00::1 multi-topology-id 1
+
+# Show routes
+$ gobgp global rib -a ls
+   Network                                                                                                                                              Next Hop             AS_PATH              Age        Attrs
+*> NLRI { SRv6SID { LOCAL_NODE: {ASN: 65000, BGP LS ID: 0, BGP ROUTER ID: 192.168.255.1} SRv6_SID: {SIDs: fd00::1} MULTI_TOPO_IDs: {MultiTopoIDs: 1}} } 0.0.0.0                                   00:00:08   [{Origin: ?}]
+```
+
+## Using BGP-LS in GoBGP library mode
 
 ```go
 package main
