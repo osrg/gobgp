@@ -182,7 +182,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
                 else:
                     emit_type_name = t.arg
 
-            # case embeded enumeration
+            # case embedded enumeration
             elif is_enum(type_obj):
                 emit_type_name = val_name_go
 
