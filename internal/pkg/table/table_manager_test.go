@@ -2314,3 +2314,148 @@ func update_fromR2viaR1_ipv6() *bgp.BGPMessage {
 	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 
 }
+
+func TestTableManagerRTC(t *testing.T) {
+	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+
+	rtStrings := []string{"100:100", "100:200", "100:300", "100:400"}
+	rts := make([]bgp.ExtendedCommunityInterface, 0)
+	for _, strRT := range rtStrings {
+		rt, err := bgp.ParseRouteTarget(strRT)
+		assert.Nil(t, err)
+		rts = append(rts, rt)
+	}
+	assert.Equal(t, 4, len(rts))
+
+	declarations6 := []testPathWithRTs{
+		{
+			prefix: "100:100:100:1::/64",
+			rts:    []bgp.ExtendedCommunityInterface{rts[3]},
+		},
+		{
+			prefix: "101:100:100:3:1::/48",
+			rts:    []bgp.ExtendedCommunityInterface{rts[3], rts[1]},
+		},
+		{
+			prefix: "100:300:10.10.10.13/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[2]},
+		},
+	}
+	var paths6 []*Path
+	tm.Tables[bgp.RF_IPv6_VPN], paths6 = makeTableWithRT(t, tm.Tables[bgp.RF_IPv6_VPN], declarations6, bgp.RF_IPv6_VPN)
+
+	declarations4 := []testPathWithRTs{
+		{
+			prefix: "100:100:10.10.10.10/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0]},
+		},
+		{
+			prefix: "101:100:10.10.10.11/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0], rts[1]},
+		},
+		{
+			prefix: "100:200:10.10.10.12/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[1]},
+		},
+		{
+			prefix: "100:300:10.10.10.13/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[2]},
+		},
+	}
+	var paths4 []*Path
+	tm.Tables[bgp.RF_IPv4_VPN], paths4 = makeTableWithRT(t, tm.Tables[bgp.RF_IPv4_VPN], declarations4, bgp.RF_IPv4_VPN)
+
+	hash0, err := bgp.ExtCommRouteTargetKey(rts[0])
+	assert.Nil(t, err)
+	pathsRT := tm.GetBestPathListForAddedRT(hash0, "127.0.0.1:1", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[0], paths4[1]}))
+
+	hash1, err := bgp.ExtCommRouteTargetKey(rts[1])
+	assert.Nil(t, err)
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash1, "127.0.0.1:1", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[1], paths4[2], paths6[1]}))
+
+	hash2, err := bgp.ExtCommRouteTargetKey(rts[2])
+	assert.Nil(t, err)
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash2, "127.0.0.1:1", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[3], paths6[2]}))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash1, "127.0.0.1:1", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash0, "127.0.0.1:2", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[0], paths4[1]}))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash1, "127.0.0.1:2", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[1], paths4[2], paths6[1]}))
+
+	hash3, err := bgp.ExtCommRouteTargetKey(rts[3])
+	assert.Nil(t, err)
+	pathsRT = tm.GetBestPathListForAddedRT(hash3, "127.0.0.1:2", "global", 0,
+		[]bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC})
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths6[0], paths6[1]}))
+
+	update := tm.Tables[bgp.RF_IPv4_VPN].update(paths4[2].Clone(true))
+	assert.Equal(t, 0, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths4[2]))
+
+	update = tm.Tables[bgp.RF_IPv4_VPN].update(paths4[1].Clone(false))
+	assert.Equal(t, 1, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.KnownPathList[0].Equal(paths4[1]))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths4[1]))
+
+	update = tm.Tables[bgp.RF_IPv6_VPN].update(paths6[1].Clone(true))
+	assert.Equal(t, 0, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths6[1]))
+
+	rf := []bgp.RouteFamily{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_IPv4_UC}
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash0, "127.0.0.1:1", "global", 0, rf)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash1, "127.0.0.1:1", "global", 0, rf)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash2, "127.0.0.1:1", "global", 0, rf)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = tm.GetBestPathListForWithdrawnRT(tm.BestPathListForRTMaxLen(hash0, rf), hash0, "127.0.0.1:1", "global", 0, rf)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[0], paths4[1]}))
+
+	pathsRT = tm.GetBestPathListForWithdrawnRT(0, hash1, "127.0.0.1:1", "global", 0, rf)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[1]}))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash1, "127.0.0.1:1", "global", 0, rf)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[1]}))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash2, "127.0.0.1:3", "global", 0, rf)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[3], paths6[2]}))
+
+	pathsRT = tm.GetBestPathListForAddedRT(hash2, "127.0.0.1:3", "global", 0, rf)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = tm.GetBestPathListForWithdrawnRT(30, hash2, "127.0.0.1:3", "global", 0, rf)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths4[3], paths6[2]}))
+}
