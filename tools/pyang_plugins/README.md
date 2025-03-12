@@ -14,7 +14,7 @@ Python 3.
 Clone the required resources by using Git:
 
 ```shell
-$ cd $HOME
+$ export CWD=`pwd`
 $ git clone https://github.com/osrg/gobgp
 $ git clone https://github.com/osrg/public
 $ git clone https://github.com/osrg/yang
@@ -24,18 +24,17 @@ $ git clone https://github.com/osrg/pyang
 Generate config/bgp_configs.go from yang files:
 
 ```shell
-$ export GOBGP=`pwd`
-$ cd $HOME/pyang
+$ cd pyang
 $ source ./env.sh
 $ PYTHONPATH=. ./bin/pyang \
-  --plugindir $GOBGP/tools/pyang_plugins \
-  -p $HOME/yang/standard/ietf/RFC \
-  -p $HOME/public/release/models \
-  -p $HOME/public/release/models/bgp \
-  -p $HOME/public/release/models/policy \
+  --plugindir $CWD/gobgp/tools/pyang_plugins \
+  -p $CWD/yang/standard/ietf/RFC \
+  -p $CWD/public/release/models \
+  -p $CWD/public/release/models/bgp \
+  -p $CWD/public/release/models/policy \
   -f golang \
-  $HOME/public/release/models/policy/openconfig-routing-policy.yang \
-  $HOME/public/release/models/bgp/openconfig-bgp.yang \
-  $GOBGP/tools/pyang_plugins/gobgp.yang \
-  | gofmt > $GOBGP/pkg/config/oc/bgp_configs.go
+  $CWD/public/release/models/policy/openconfig-routing-policy.yang \
+  $CWD/public/release/models/bgp/openconfig-bgp.yang \
+  $CWD/gobgp/tools/pyang_plugins/gobgp.yang \
+  | gofmt > $CWD/gobgp/pkg/config/oc/bgp_configs.go
 ```
