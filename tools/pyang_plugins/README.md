@@ -7,7 +7,7 @@ This is a pyang plugin to generate config/bgp_configs.go from
 
 ## Prerequisites
 
-Python 2.
+Python 3.
 
 ## How to use
 
@@ -34,8 +34,8 @@ $ PYTHONPATH=. ./bin/pyang \
   -p $HOME/public/release/models/bgp \
   -p $HOME/public/release/models/policy \
   -f golang \
-  $HOME/public/release/models/bgp/openconfig-bgp.yang \
   $HOME/public/release/models/policy/openconfig-routing-policy.yang \
+  $HOME/public/release/models/bgp/openconfig-bgp.yang \
   $GOBGP/tools/pyang_plugins/gobgp.yang \
   | gofmt > $GOBGP/pkg/config/oc/bgp_configs.go
 ```
