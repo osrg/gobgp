@@ -3154,7 +3154,11 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 						advertised := uint64(0)
 						if getAdvertised {
 							pathList, _ := s.getBestFromLocal(peer, flist)
-							advertised = uint64(len(pathList))
+							for _, path := range pathList {
+								if !path.IsEOR() {
+									advertised++
+								}
+							}
 						}
 						p.AfiSafis[i].State = &api.AfiSafiState{
 							Family:     c.Family,
