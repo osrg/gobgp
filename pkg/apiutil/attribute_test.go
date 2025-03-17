@@ -1208,6 +1208,41 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 	}
 }
 
+func Test_MpReachNLRIAttribute_IPv4_Opaque(t *testing.T) {
+	assert := assert.New(t)
+
+	nlris := make([]*apb.Any, 0, 1)
+	a, err := apb.New(&api.OpaqueNLRI{
+		Key:   []byte{0x48, 0x65, 0x6c, 0x6c, 0x6f}, //hello
+		Value: []byte{0x77, 0x6f, 0x72, 0x6c, 0x64}, //world
+	})
+	assert.Nil(err)
+	nlris = append(nlris, a)
+
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_OPAQUE,
+			Safi: api.Family_SAFI_KEY_VALUE,
+		},
+		NextHops: []string{"192.168.1.1"},
+		Nlris:    nlris,
+	}
+	a, err = apb.New(input)
+	assert.Nil(err)
+	n, err := UnmarshalAttribute(a)
+	assert.Nil(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.Equal(input.Family.Afi, output.Family.Afi)
+	assert.Equal(input.Family.Safi, output.Family.Safi)
+	assert.Equal(1, len(output.Nlris))
+	for idx, inputNLRI := range input.Nlris {
+		outputNLRI := output.Nlris[idx]
+		assert.Equal(inputNLRI.TypeUrl, outputNLRI.TypeUrl)
+		assert.Equal(inputNLRI.Value, outputNLRI.Value)
+	}
+}
+
 func Test_MpReachNLRIAttribute_MUPInterworkSegmentDiscoveryRoute(t *testing.T) {
 	assert := assert.New(t)
 

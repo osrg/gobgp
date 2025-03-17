@@ -1345,6 +1345,11 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*apb.Any, error) {
 			Rd:    rd,
 			Rules: rules,
 		}
+	case *bgp.OpaqueNLRI:
+		nlri = &api.OpaqueNLRI{
+			Key:   v.Key,
+			Value: v.Value,
+		}
 	case *bgp.LsAddrPrefix:
 		switch n := v.NLRI.(type) {
 		case *bgp.LsNodeNLRI:
@@ -1648,6 +1653,8 @@ func UnmarshalNLRI(rf bgp.RouteFamily, an *apb.Any) (bgp.AddrPrefixInterface, er
 		case bgp.RF_FS_L2_VPN:
 			nlri = bgp.NewFlowSpecL2VPN(rd, rules)
 		}
+	case *api.OpaqueNLRI:
+		nlri = bgp.NewOpaqueNLRI(v.Key, v.Value)
 	case *api.MUPInterworkSegmentDiscoveryRoute:
 		rd, err := UnmarshalRD(v.Rd)
 		if err != nil {
