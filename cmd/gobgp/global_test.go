@@ -65,3 +65,36 @@ func Test_ParseEvpnPath(t *testing.T) {
 		})
 	}
 }
+
+func Test_ParseFlowSpecPath(t *testing.T) {
+	var tests = []struct {
+		name        string
+		rf          bgp.RouteFamily
+		path        string
+		expectedErr bool
+	}{
+		{"FlowSpec Redirect OK: All SRv6 Policy parameters specified", bgp.RF_FS_IPv6_UC, "match destination 2001:db8::/64 then redirect fd00:1::1:0 color 100 prefix 2001:db8:2:2::/64 locator-node-length 24 function-length 16 behavior END_DT6", false},
+		{"FlowSpec Redirect OK: Only color specified", bgp.RF_FS_IPv6_UC, "match destination 2001:db8::/64 then redirect fd00:1::1:0 color 100", false},
+		{"FlowSpec Redirect OK: No color specified", bgp.RF_FS_IPv6_UC, "match destination 2001:db8::/64 then redirect fd00:1::1:0", false},
+		{"FlowSpec Redirect NG: Missing 'color' of SR Policy", bgp.RF_FS_IPv6_UC, "match destination 2001:db8::/64 then redirect fd00:1::1:0 prefix 2001:db8:2:2::/64 locator-node-length 24 function-length 16 behavior END_DT6", true},
+		{"FlowSpec Redirect NG: Missing 'behavior' of SR Policy", bgp.RF_FS_IPv6_UC, "match destination 2001:db8::/64 then redirect fd00:1::1:0 color 100 prefix 2001:db8:2:2::/64 locator-node-length 24 function-length 16", true},
+		{"FlowSpec Redirect NG: Wrong action", bgp.RF_FS_IPv6_UC, "match destination 2001:db8::/64 then accept color 100 prefix 2001:db8:2:2::/64 locator-node-length 24 function-length 16 behavior END_DT6", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			path, err := parsePath(tt.rf, strings.Split(tt.path, " "))
+			if tt.expectedErr {
+				assert.NotNil(err)
+			} else {
+				assert.Nil(err)
+				i := 0
+				attrs, _ := apiutil.GetNativePathAttributes(path)
+				for _, a := range attrs {
+					assert.True(i < int(a.GetType()))
+					i = int(a.GetType())
+				}
+			}
+		})
+	}
+}
