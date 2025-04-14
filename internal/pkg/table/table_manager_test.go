@@ -38,7 +38,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 		dsts = append(dsts, manager.Update(path)...)
 	}
 	for _, d := range dsts {
-		b, _, _ := d.GetChanges(GLOBAL_RIB_NAME, 0, false)
+		b, _, _, _ := d.GetChanges(GLOBAL_RIB_NAME, 0, false)
 		pathList = append(pathList, b)
 	}
 	return pathList, nil

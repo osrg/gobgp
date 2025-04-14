@@ -961,7 +961,7 @@ func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path
 	for _, path := range l {
 		dsts = append(dsts, rib.Update(path)...)
 	}
-	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+	news, olds, _, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
@@ -985,7 +985,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
-	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
+	new, old, _, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
 	assert.Equal(t, new, path1)
 	filterpath(p1, new, old)
 	filterpath(p2, new, old)
