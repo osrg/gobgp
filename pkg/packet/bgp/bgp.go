@@ -189,11 +189,13 @@ const (
 	EC_SUBTYPE_L2_INFO                 ExtendedCommunityAttrSubType = 0x0A // EC_TYPE: 0x80
 	EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6   ExtendedCommunityAttrSubType = 0x0B // EC_TYPE: 0x80
 
-	EC_SUBTYPE_MAC_MOBILITY  ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x06
-	EC_SUBTYPE_ESI_LABEL     ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x06
-	EC_SUBTYPE_ES_IMPORT     ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x06
-	EC_SUBTYPE_ROUTER_MAC    ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x06
-	EC_SUBTYPE_L2_ATTRIBUTES ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x06
+	EC_SUBTYPE_MAC_MOBILITY    ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x06
+	EC_SUBTYPE_ESI_LABEL       ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x06
+	EC_SUBTYPE_ES_IMPORT       ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x06
+	EC_SUBTYPE_ROUTER_MAC      ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x06
+	EC_SUBTYPE_L2_ATTRIBUTES   ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x06
+	EC_SUBTYPE_ETREE           ExtendedCommunityAttrSubType = 0x05 // EC_TYPE: 0x06
+	EC_SUBTYPE_MULTICAST_FLAGS ExtendedCommunityAttrSubType = 0x09 // EC_TYPE: 0x06
 
 	EC_SUBTYPE_UUID_BASED_RT ExtendedCommunityAttrSubType = 0x11
 )
@@ -12892,6 +12894,126 @@ func (e *Layer2AttributesExtended) GetTypes() (ExtendedCommunityAttrType, Extend
 	return EC_TYPE_EVPN, EC_SUBTYPE_L2_ATTRIBUTES
 }
 
+type ETreeExtended struct {
+	Label  uint32
+	IsLeaf bool
+}
+
+func (e *ETreeExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ETREE)
+	if e.IsLeaf {
+		buf[2] = byte(1)
+	}
+	buf[3] = 0
+	buf[4] = 0
+	buf[5] = byte((e.Label >> 16) & 0xff)
+	buf[6] = byte((e.Label >> 8) & 0xff)
+	buf[7] = byte(e.Label & 0xff)
+	return buf, nil
+}
+
+func (e *ETreeExtended) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString("etree:")
+	if e.IsLeaf {
+		buf.WriteString("leaf:")
+	} else {
+		buf.WriteString("root:")
+	}
+	buf.WriteString(strconv.FormatUint(uint64(e.Label), 10))
+	return buf.String()
+}
+
+func (e *ETreeExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Label   uint32                       `json:"label"`
+		IsLeaf  bool                         `json:"is_leaf"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Label:   e.Label,
+		IsLeaf:  e.IsLeaf,
+	})
+}
+
+func (e *ETreeExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ETREE
+}
+
+func NewETreeExtended(label uint32, isLeaf bool) *ETreeExtended {
+	return &ETreeExtended{
+		Label:  label,
+		IsLeaf: isLeaf,
+	}
+}
+
+type MulticastFlagsExtended struct {
+	IsIGMPProxy bool
+	IsMLDProxy  bool
+}
+
+type MulticastFlags uint8
+
+const (
+	IGMP_PROXY MulticastFlags = 1 << 0
+	MLD_PROXY  MulticastFlags = 1 << 1
+)
+
+func (e *MulticastFlagsExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_MULTICAST_FLAGS)
+
+	if e.IsIGMPProxy {
+		buf[3] |= uint8(IGMP_PROXY)
+	} else if e.IsMLDProxy {
+		buf[3] |= uint8(MLD_PROXY)
+	}
+	return buf, nil
+}
+
+func (e *MulticastFlagsExtended) String() string {
+	ss := make([]string, 0, 2)
+	if e.IsIGMPProxy {
+		ss = append(ss, "igmp-proxy")
+	}
+	if e.IsMLDProxy {
+		ss = append(ss, "mld-proxy")
+	}
+	return "multicast-flags: " + strings.Join(ss, ",")
+}
+
+func (e *MulticastFlagsExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type      ExtendedCommunityAttrType    `json:"type"`
+		Subtype   ExtendedCommunityAttrSubType `json:"subtype"`
+		IGMPProxy bool                         `json:"is_igmp_proxy,omitempty"`
+		MLDProxy  bool                         `json:"is_mld_proxy,omitempty"`
+	}{
+		Type:      t,
+		Subtype:   s,
+		IGMPProxy: e.IsIGMPProxy,
+		MLDProxy:  e.IsMLDProxy,
+	})
+}
+
+func (e *MulticastFlagsExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_MULTICAST_FLAGS
+}
+
+func NewMulticastFlagsExtended(isIGMPProxy bool, isMLDProxy bool) *MulticastFlagsExtended {
+	return &MulticastFlagsExtended{
+		IsIGMPProxy: isIGMPProxy,
+		IsMLDProxy:  isMLDProxy,
+	}
+}
+
 func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 	if ExtendedCommunityAttrType(data[0]) != EC_TYPE_EVPN {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_EVPN: %d", data[0]))
@@ -12939,6 +13061,23 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 				IsPrimaryPe:    flags&uint8(PRIMARY_PE) > 0,
 				IsBackupPe:     flags&uint8(BACKUP_PE) > 0,
 				Mtu:            binary.BigEndian.Uint16(data[4:6]),
+			}, nil
+		}
+	case EC_SUBTYPE_ETREE:
+		var isLeaf bool
+		if data[2] == 1 {
+			isLeaf = true
+		}
+		label := uint32(data[5])<<16 | uint32(data[6])<<8 | uint32(data[7])
+		return &ETreeExtended{
+			IsLeaf: isLeaf,
+			Label:  label,
+		}, nil
+	case EC_SUBTYPE_MULTICAST_FLAGS:
+		if flags := data[3]; flags != 0 {
+			return &MulticastFlagsExtended{
+				IsIGMPProxy: flags&uint8(IGMP_PROXY) > 0,
+				IsMLDProxy:  flags&uint8(MLD_PROXY) > 0,
 			}, nil
 		}
 	}
@@ -15536,6 +15675,14 @@ func (e *FourOctetAsSpecificExtended) Flat() map[string]string {
 }
 
 func (e *ESILabelExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ETreeExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *MulticastFlagsExtended) Flat() map[string]string {
 	return map[string]string{}
 }
 

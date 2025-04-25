@@ -11,6 +11,7 @@ dscp
 ebgp
 enlp
 ethernet
+etree
 evpn
 flowspec
 gobgp

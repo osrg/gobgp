@@ -49,6 +49,8 @@ const (
 	ctRT
 	ctEncap
 	ctESILabel
+	ctETree
+	ctMulticastFlags
 	ctRouterMAC
 	ctDefaultGateway
 	ctValid
@@ -69,6 +71,8 @@ var extCommNameMap = map[extCommType]string{
 	ctRT:             "rt",
 	ctEncap:          "encap",
 	ctESILabel:       "esi-label",
+	ctETree:          "etree",
+	ctMulticastFlags: "multicast-flags",
 	ctRouterMAC:      "router-mac",
 	ctDefaultGateway: "default-gateway",
 	ctValid:          "valid",
@@ -89,6 +93,8 @@ var extCommValueMap = map[string]extCommType{
 	extCommNameMap[ctRT]:             ctRT,
 	extCommNameMap[ctEncap]:          ctEncap,
 	extCommNameMap[ctESILabel]:       ctESILabel,
+	extCommNameMap[ctETree]:          ctETree,
+	extCommNameMap[ctMulticastFlags]: ctMulticastFlags,
 	extCommNameMap[ctRouterMAC]:      ctRouterMAC,
 	extCommNameMap[ctDefaultGateway]: ctDefaultGateway,
 	extCommNameMap[ctValid]:          ctValid,
@@ -249,6 +255,55 @@ func esiLabelParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
+func eTreeParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != extCommNameMap[ctETree] {
+		return nil, fmt.Errorf("invalid etree")
+	}
+	label, err := strconv.ParseUint(args[1], 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	isLeaf := false
+	if len(args) > 2 {
+		switch args[2] {
+		case "leaf":
+			isLeaf = true
+		case "root":
+			isLeaf = false
+		default:
+			return nil, fmt.Errorf("invalid etree")
+		}
+	}
+	o := &bgp.ETreeExtended{
+		Label:  uint32(label),
+		IsLeaf: isLeaf,
+	}
+	return []bgp.ExtendedCommunityInterface{o}, nil
+}
+
+func multicastFlagsParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != extCommNameMap[ctMulticastFlags] {
+		return nil, fmt.Errorf("invalid multicast flags")
+	}
+	isIGMPProxy := false
+	isMLDProxy := false
+	if len(args) > 1 {
+		switch args[1] {
+		case "igmp-proxy":
+			isIGMPProxy = true
+		case "mld-proxy":
+			isMLDProxy = true
+		default:
+			return nil, fmt.Errorf("unknown multicast flag")
+		}
+	}
+	o := &bgp.MulticastFlagsExtended{
+		IsIGMPProxy: isIGMPProxy,
+		IsMLDProxy:  isMLDProxy,
+	}
+	return []bgp.ExtendedCommunityInterface{o}, nil
+}
+
 func routerMacParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	if len(args) < 2 || args[0] != extCommNameMap[ctRouterMAC] {
 		return nil, fmt.Errorf("invalid router's mac")
@@ -340,6 +395,8 @@ var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	ctRT:             rtParser,
 	ctEncap:          encapParser,
 	ctESILabel:       esiLabelParser,
+	ctETree:          eTreeParser,
+	ctMulticastFlags: multicastFlagsParser,
 	ctRouterMAC:      routerMacParser,
 	ctDefaultGateway: defaultGatewayParser,
 	ctValid:          validationParser,

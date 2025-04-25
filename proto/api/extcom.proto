@@ -109,6 +109,16 @@ message VPLSExtended {
   uint32 mtu = 2;
 }
 
+message ETreeExtended {
+  bool is_leaf = 1;
+  uint32 label = 2;
+}
+
+message MulticastFlagsExtended {
+  bool is_igmp_proxy = 1;
+  bool is_mld_proxy = 2;
+}
+
 message UnknownExtended {
   uint32 type = 1;
   bytes value = 2;
@@ -138,6 +148,8 @@ message ExtendedCommunity {
     TrafficRemarkExtended traffic_remark = 20;
     MUPExtended mup = 21;
     VPLSExtended vpls = 22;
+    ETreeExtended etree = 23;
+    MulticastFlagsExtended multicast_flags = 24;
   }
 }
 
