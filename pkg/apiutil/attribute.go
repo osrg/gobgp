@@ -2057,6 +2057,16 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 				IsSingleActive: v.IsSingleActive,
 				Label:          v.Label,
 			}
+		case *bgp.ETreeExtended:
+			community = &api.ETreeExtended{
+				IsLeaf: v.IsLeaf,
+				Label:  v.Label,
+			}
+		case *bgp.MulticastFlagsExtended:
+			community = &api.MulticastFlagsExtended{
+				IsIgmpProxy: v.IsIGMPProxy,
+				IsMldProxy: v.IsMLDProxy,
+			}
 		case *bgp.ESImportRouteTarget:
 			community = &api.ESImportRouteTarget{
 				EsImport: v.ESImport.String(),
@@ -2155,6 +2165,10 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 			community = bgp.NewOpaqueExtended(v.IsTransitive, v.Value)
 		case *api.ESILabelExtended:
 			community = bgp.NewESILabelExtended(v.Label, v.IsSingleActive)
+		case *api.ETreeExtended:
+			community = bgp.NewETreeExtended(v.Label, v.IsLeaf)
+		case *api.MulticastFlagsExtended:
+			community = bgp.NewMulticastFlagsExtended(v.IsIgmpProxy, v.IsMldProxy)
 		case *api.ESImportRouteTarget:
 			community = bgp.NewESImportRouteTarget(v.EsImport)
 		case *api.MacMobilityExtended:
