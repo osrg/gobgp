@@ -766,7 +766,7 @@ func TestMonitor(test *testing.T) {
 	<-ch
 
 	// Test WatchBestPath.
-	w := s.watch(watchBestPath(false))
+	w := s.watch(watchBestPath(false, false, false, false))
 
 	// Advertises a route.
 	attrs := []bgp.PathAttributeInterface{
@@ -858,7 +858,7 @@ func TestMonitor(test *testing.T) {
 
 	// Test bestpath events with vrf and rt import
 	w.Stop()
-	w = s.watch(watchBestPath(false))
+	w = s.watch(watchBestPath(false, false, false, false))
 	attrs = []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("10.0.0.1"),

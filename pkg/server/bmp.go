@@ -137,7 +137,7 @@ func (b *bmpClient) loop() {
 				ops = append(ops, watchPostUpdate(true, "", ""))
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchBestPath(true))
+				ops = append(ops, watchBestPath(true, false, false, false))
 			}
 			if b.c.RouteMirroringEnabled {
 				ops = append(ops, watchMessage(false))
