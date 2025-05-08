@@ -1540,6 +1540,18 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 	})
 	assert.Nil(err)
 	communities = append(communities, a)
+	a, err = apb.New(&api.ETreeExtended{
+		IsLeaf: true,
+		Label:  501,
+	})
+	assert.Nil(err)
+	communities = append(communities, a)
+	a, err = apb.New(&api.MulticastFlagsExtended{
+		IsIGMPProxy: true,
+		IsMLDProxy: false,
+	})
+	assert.Nil(err)
+	communities = append(communities, a)
 	a, err = apb.New(&api.ESImportRouteTarget{
 		EsImport: "aa:bb:cc:dd:ee:ff",
 	})
