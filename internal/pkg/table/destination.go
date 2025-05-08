@@ -522,7 +522,7 @@ func (u *Update) GetWithdrawnPath() []*Path {
 	return l
 }
 
-func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, []*Path) {
+func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, []*Path, []*Path) {
 	best, old := func(id string) (*Path, *Path) {
 		old := getBestPath(id, as, u.OldKnownPathList)
 		best := getBestPath(id, as, u.KnownPathList)
@@ -564,6 +564,7 @@ func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, 
 	}(id)
 
 	var multi []*Path
+	var oldMulti []*Path
 
 	if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
 		diff := func(lhs, rhs []*Path) bool {
@@ -581,12 +582,13 @@ func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, 
 		newM := getMultiBestPath(id, u.KnownPathList)
 		if diff(oldM, newM) {
 			multi = newM
+			oldMulti = oldM
 			if len(newM) == 0 {
 				multi = []*Path{best}
 			}
 		}
 	}
-	return best, old, multi
+	return best, old, multi, oldMulti
 }
 
 func compareByLLGRStaleCommunity(path1, path2 *Path) *Path {

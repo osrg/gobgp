@@ -5,6 +5,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13
 	github.com/eapache/channels v1.1.0
+	github.com/fatih/set v0.2.1
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/getsentry/sentry-go v0.30.0
 	github.com/go-test/deep v1.1.0
