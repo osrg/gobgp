@@ -9947,7 +9947,7 @@ func RouteFamilyToAfiSafi(rf RouteFamily) (uint16, uint8) {
 	return uint16(int(rf) >> 16), uint8(int(rf) & 0xff)
 }
 
-type RouteFamily int
+type RouteFamily uint32
 
 func (f RouteFamily) String() string {
 	if n, y := AddressFamilyNameMap[f]; y {
