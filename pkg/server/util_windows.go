@@ -24,7 +24,7 @@ import (
 
 	"github.com/eapache/channels"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 func cleanInfiniteChannel(ch *channels.InfiniteChannel) {

@@ -1,4 +1,4 @@
-module github.com/osrg/gobgp/v3
+module github.com/osrg/gobgp/v4
 
 require (
 	github.com/BurntSushi/toml v1.3.2

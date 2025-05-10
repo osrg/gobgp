@@ -57,9 +57,9 @@ If you have a non-standard release and want to have more build information there
 
 ```bash
 go build -ldflags \
-	"-X github.com/osrg/gobgp/v3/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
-	 -X github.com/osrg/gobgp/v3/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
-	 -X github.com/osrg/gobgp/v3/internal/pkg/version.IDENTIFIER=alpha"
+	"-X github.com/osrg/gobgp/v4/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
+	 -X github.com/osrg/gobgp/v4/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
+	 -X github.com/osrg/gobgp/v4/internal/pkg/version.IDENTIFIER=alpha"
 ```
 
 This will produce a version number of

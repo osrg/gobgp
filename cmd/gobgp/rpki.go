@@ -23,7 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	api "github.com/osrg/gobgp/v3/api"
+	api "github.com/osrg/gobgp/v4/api"
 )
 
 func showRPKIServer(args []string) error {

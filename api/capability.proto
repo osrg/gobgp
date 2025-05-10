@@ -22,7 +22,7 @@
 syntax = "proto3";
 
 package apipb;
-option go_package = "github.com/osrg/gobgp/v3/api;apipb";
+option go_package = "github.com/osrg/gobgp/v4/api;apipb";
 
 import "gobgp.proto";
 

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 func TestMetrics(test *testing.T) {
