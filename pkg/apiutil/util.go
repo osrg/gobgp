@@ -21,8 +21,8 @@ import (
 	"net"
 	"time"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 )
 

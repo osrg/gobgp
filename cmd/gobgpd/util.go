@@ -27,7 +27,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/osrg/gobgp/v3/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/sirupsen/logrus"
 	lSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )

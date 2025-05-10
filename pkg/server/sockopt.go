@@ -22,7 +22,7 @@ import (
 	"net"
 	"syscall"
 
-	"github.com/osrg/gobgp/v3/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {

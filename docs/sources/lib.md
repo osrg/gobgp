@@ -18,9 +18,9 @@ import (
 	"github.com/sirupsen/logrus"
 	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 func main() {
@@ -135,7 +135,7 @@ func main() {
 	time.Sleep(time.Minute * 3)
 }
 
-// implement github.com/osrg/gobgp/v3/pkg/log/Logger interface
+// implement github.com/osrg/gobgp/v4/pkg/log/Logger interface
 type myLogger struct {
 	logger *logrus.Logger
 }
