@@ -25,7 +25,7 @@
 // 	protoc        (unknown)
 // source: api/attribute.proto
 
-package apipb
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -779,7 +779,7 @@ func (x *OriginAttribute) GetOrigin() uint32 {
 
 type AsSegment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          AsSegment_Type         `protobuf:"varint,1,opt,name=type,proto3,enum=apipb.AsSegment_Type" json:"type,omitempty"`
+	Type          AsSegment_Type         `protobuf:"varint,1,opt,name=type,proto3,enum=api.AsSegment_Type" json:"type,omitempty"`
 	Numbers       []uint32               `protobuf:"varint,2,rep,packed,name=numbers,proto3" json:"numbers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1970,7 +1970,7 @@ func (x *SRBindingSID) GetSid() []byte {
 
 type SRv6EndPointBehavior struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Behavior      SRv6Behavior           `protobuf:"varint,1,opt,name=behavior,proto3,enum=apipb.SRv6Behavior" json:"behavior,omitempty"`
+	Behavior      SRv6Behavior           `protobuf:"varint,1,opt,name=behavior,proto3,enum=api.SRv6Behavior" json:"behavior,omitempty"`
 	BlockLen      uint32                 `protobuf:"varint,2,opt,name=block_len,json=blockLen,proto3" json:"block_len,omitempty"`
 	NodeLen       uint32                 `protobuf:"varint,3,opt,name=node_len,json=nodeLen,proto3" json:"node_len,omitempty"`
 	FuncLen       uint32                 `protobuf:"varint,4,opt,name=func_len,json=funcLen,proto3" json:"func_len,omitempty"`
@@ -2123,7 +2123,7 @@ func (x *SRv6BindingSID) GetEndpointBehaviorStructure() *SRv6EndPointBehavior {
 type TunnelEncapSubTLVSRENLP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Flags         uint32                 `protobuf:"varint,1,opt,name=flags,proto3" json:"flags,omitempty"`
-	Enlp          ENLPType               `protobuf:"varint,2,opt,name=enlp,proto3,enum=apipb.ENLPType" json:"enlp,omitempty"`
+	Enlp          ENLPType               `protobuf:"varint,2,opt,name=enlp,proto3,enum=api.ENLPType" json:"enlp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5173,43 +5173,43 @@ var File_api_attribute_proto protoreflect.FileDescriptor
 
 const file_api_attribute_proto_rawDesc = "" +
 	"\n" +
-	"\x13api/attribute.proto\x12\x05apipb\x1a\x10api/common.proto\x1a\x10api/extcom.proto\x1a\x0eapi/nlri.proto\"\xc9\v\n" +
-	"\tAttribute\x123\n" +
-	"\aunknown\x18\x01 \x01(\v2\x17.apipb.UnknownAttributeH\x00R\aunknown\x120\n" +
-	"\x06origin\x18\x02 \x01(\v2\x16.apipb.OriginAttributeH\x00R\x06origin\x121\n" +
-	"\aas_path\x18\x03 \x01(\v2\x16.apipb.AsPathAttributeH\x00R\x06asPath\x124\n" +
-	"\bnext_hop\x18\x04 \x01(\v2\x17.apipb.NextHopAttributeH\x00R\anextHop\x12G\n" +
-	"\x0fmulti_exit_disc\x18\x05 \x01(\v2\x1d.apipb.MultiExitDiscAttributeH\x00R\rmultiExitDisc\x12:\n" +
+	"\x13api/attribute.proto\x12\x03api\x1a\x10api/common.proto\x1a\x10api/extcom.proto\x1a\x0eapi/nlri.proto\"\x9b\v\n" +
+	"\tAttribute\x121\n" +
+	"\aunknown\x18\x01 \x01(\v2\x15.api.UnknownAttributeH\x00R\aunknown\x12.\n" +
+	"\x06origin\x18\x02 \x01(\v2\x14.api.OriginAttributeH\x00R\x06origin\x12/\n" +
+	"\aas_path\x18\x03 \x01(\v2\x14.api.AsPathAttributeH\x00R\x06asPath\x122\n" +
+	"\bnext_hop\x18\x04 \x01(\v2\x15.api.NextHopAttributeH\x00R\anextHop\x12E\n" +
+	"\x0fmulti_exit_disc\x18\x05 \x01(\v2\x1b.api.MultiExitDiscAttributeH\x00R\rmultiExitDisc\x128\n" +
 	"\n" +
-	"local_pref\x18\x06 \x01(\v2\x19.apipb.LocalPrefAttributeH\x00R\tlocalPref\x12L\n" +
-	"\x10atomic_aggregate\x18\a \x01(\v2\x1f.apipb.AtomicAggregateAttributeH\x00R\x0fatomicAggregate\x12<\n" +
+	"local_pref\x18\x06 \x01(\v2\x17.api.LocalPrefAttributeH\x00R\tlocalPref\x12J\n" +
+	"\x10atomic_aggregate\x18\a \x01(\v2\x1d.api.AtomicAggregateAttributeH\x00R\x0fatomicAggregate\x12:\n" +
 	"\n" +
-	"aggregator\x18\b \x01(\v2\x1a.apipb.AggregatorAttributeH\x00R\n" +
-	"aggregator\x12?\n" +
-	"\vcommunities\x18\t \x01(\v2\x1b.apipb.CommunitiesAttributeH\x00R\vcommunities\x12C\n" +
+	"aggregator\x18\b \x01(\v2\x18.api.AggregatorAttributeH\x00R\n" +
+	"aggregator\x12=\n" +
+	"\vcommunities\x18\t \x01(\v2\x19.api.CommunitiesAttributeH\x00R\vcommunities\x12A\n" +
 	"\roriginator_id\x18\n" +
-	" \x01(\v2\x1c.apipb.OriginatorIdAttributeH\x00R\foriginatorId\x12@\n" +
-	"\fcluster_list\x18\v \x01(\v2\x1b.apipb.ClusterListAttributeH\x00R\vclusterList\x128\n" +
-	"\bmp_reach\x18\f \x01(\v2\x1b.apipb.MpReachNLRIAttributeH\x00R\ampReach\x12>\n" +
+	" \x01(\v2\x1a.api.OriginatorIdAttributeH\x00R\foriginatorId\x12>\n" +
+	"\fcluster_list\x18\v \x01(\v2\x19.api.ClusterListAttributeH\x00R\vclusterList\x126\n" +
+	"\bmp_reach\x18\f \x01(\v2\x19.api.MpReachNLRIAttributeH\x00R\ampReach\x12<\n" +
 	"\n" +
-	"mp_unreach\x18\r \x01(\v2\x1d.apipb.MpUnreachNLRIAttributeH\x00R\tmpUnreach\x12X\n" +
-	"\x14extended_communities\x18\x0e \x01(\v2#.apipb.ExtendedCommunitiesAttributeH\x00R\x13extendedCommunities\x124\n" +
-	"\bas4_path\x18\x0f \x01(\v2\x17.apipb.As4PathAttributeH\x00R\aas4Path\x12F\n" +
-	"\x0eas4_aggregator\x18\x10 \x01(\v2\x1d.apipb.As4AggregatorAttributeH\x00R\ras4Aggregator\x12=\n" +
-	"\vpmsi_tunnel\x18\x11 \x01(\v2\x1a.apipb.PmsiTunnelAttributeH\x00R\n" +
-	"pmsiTunnel\x12@\n" +
-	"\ftunnel_encap\x18\x12 \x01(\v2\x1b.apipb.TunnelEncapAttributeH\x00R\vtunnelEncap\x12b\n" +
-	"\x18ip6_extended_communities\x18\x13 \x01(\v2&.apipb.IP6ExtendedCommunitiesAttributeH\x00R\x16ip6ExtendedCommunities\x12*\n" +
-	"\x04aigp\x18\x14 \x01(\v2\x14.apipb.AigpAttributeH\x00R\x04aigp\x12O\n" +
-	"\x11large_communities\x18\x15 \x01(\v2 .apipb.LargeCommunitiesAttributeH\x00R\x10largeCommunities\x12$\n" +
-	"\x02ls\x18\x16 \x01(\v2\x12.apipb.LsAttributeH\x00R\x02ls\x121\n" +
+	"mp_unreach\x18\r \x01(\v2\x1b.api.MpUnreachNLRIAttributeH\x00R\tmpUnreach\x12V\n" +
+	"\x14extended_communities\x18\x0e \x01(\v2!.api.ExtendedCommunitiesAttributeH\x00R\x13extendedCommunities\x122\n" +
+	"\bas4_path\x18\x0f \x01(\v2\x15.api.As4PathAttributeH\x00R\aas4Path\x12D\n" +
+	"\x0eas4_aggregator\x18\x10 \x01(\v2\x1b.api.As4AggregatorAttributeH\x00R\ras4Aggregator\x12;\n" +
+	"\vpmsi_tunnel\x18\x11 \x01(\v2\x18.api.PmsiTunnelAttributeH\x00R\n" +
+	"pmsiTunnel\x12>\n" +
+	"\ftunnel_encap\x18\x12 \x01(\v2\x19.api.TunnelEncapAttributeH\x00R\vtunnelEncap\x12`\n" +
+	"\x18ip6_extended_communities\x18\x13 \x01(\v2$.api.IP6ExtendedCommunitiesAttributeH\x00R\x16ip6ExtendedCommunities\x12(\n" +
+	"\x04aigp\x18\x14 \x01(\v2\x12.api.AigpAttributeH\x00R\x04aigp\x12M\n" +
+	"\x11large_communities\x18\x15 \x01(\v2\x1e.api.LargeCommunitiesAttributeH\x00R\x10largeCommunities\x12\"\n" +
+	"\x02ls\x18\x16 \x01(\v2\x10.api.LsAttributeH\x00R\x02ls\x12/\n" +
 	"\n" +
-	"prefix_sid\x18\x17 \x01(\v2\x10.apipb.PrefixSIDH\x00R\tprefixSidB\x06\n" +
+	"prefix_sid\x18\x17 \x01(\v2\x0e.api.PrefixSIDH\x00R\tprefixSidB\x06\n" +
 	"\x04attr\")\n" +
 	"\x0fOriginAttribute\x12\x16\n" +
-	"\x06origin\x18\x01 \x01(\rR\x06origin\"\xad\x01\n" +
-	"\tAsSegment\x12)\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x15.apipb.AsSegment.TypeR\x04type\x12\x18\n" +
+	"\x06origin\x18\x01 \x01(\rR\x06origin\"\xab\x01\n" +
+	"\tAsSegment\x12'\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x13.api.AsSegment.TypeR\x04type\x12\x18\n" +
 	"\anumbers\x18\x02 \x03(\rR\anumbers\"[\n" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
@@ -5217,9 +5217,9 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x06AS_SET\x10\x01\x12\x0f\n" +
 	"\vAS_SEQUENCE\x10\x02\x12\x16\n" +
 	"\x12AS_CONFED_SEQUENCE\x10\x03\x12\x11\n" +
-	"\rAS_CONFED_SET\x10\x04\"?\n" +
-	"\x0fAsPathAttribute\x12,\n" +
-	"\bsegments\x18\x01 \x03(\v2\x10.apipb.AsSegmentR\bsegments\"-\n" +
+	"\rAS_CONFED_SET\x10\x04\"=\n" +
+	"\x0fAsPathAttribute\x12*\n" +
+	"\bsegments\x18\x01 \x03(\v2\x0e.api.AsSegmentR\bsegments\"-\n" +
 	"\x10NextHopAttribute\x12\x19\n" +
 	"\bnext_hop\x18\x01 \x01(\tR\anextHop\"*\n" +
 	"\x16MultiExitDiscAttribute\x12\x10\n" +
@@ -5236,18 +5236,18 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x15OriginatorIdAttribute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"(\n" +
 	"\x14ClusterListAttribute\x12\x10\n" +
-	"\x03ids\x18\x01 \x03(\tR\x03ids\"}\n" +
-	"\x14MpReachNLRIAttribute\x12%\n" +
-	"\x06family\x18\x01 \x01(\v2\r.apipb.FamilyR\x06family\x12\x1b\n" +
-	"\tnext_hops\x18\x02 \x03(\tR\bnextHops\x12!\n" +
-	"\x05nlris\x18\x03 \x03(\v2\v.apipb.NLRIR\x05nlris\"b\n" +
-	"\x16MpUnreachNLRIAttribute\x12%\n" +
-	"\x06family\x18\x01 \x01(\v2\r.apipb.FamilyR\x06family\x12!\n" +
-	"\x05nlris\x18\x03 \x03(\v2\v.apipb.NLRIR\x05nlris\"Z\n" +
-	"\x1cExtendedCommunitiesAttribute\x12:\n" +
-	"\vcommunities\x18\x01 \x03(\v2\x18.apipb.ExtendedCommunityR\vcommunities\"@\n" +
-	"\x10As4PathAttribute\x12,\n" +
-	"\bsegments\x18\x01 \x03(\v2\x10.apipb.AsSegmentR\bsegments\"D\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\"y\n" +
+	"\x14MpReachNLRIAttribute\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x12\x1b\n" +
+	"\tnext_hops\x18\x02 \x03(\tR\bnextHops\x12\x1f\n" +
+	"\x05nlris\x18\x03 \x03(\v2\t.api.NLRIR\x05nlris\"^\n" +
+	"\x16MpUnreachNLRIAttribute\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x12\x1f\n" +
+	"\x05nlris\x18\x03 \x03(\v2\t.api.NLRIR\x05nlris\"X\n" +
+	"\x1cExtendedCommunitiesAttribute\x128\n" +
+	"\vcommunities\x18\x01 \x03(\v2\x16.api.ExtendedCommunityR\vcommunities\">\n" +
+	"\x10As4PathAttribute\x12*\n" +
+	"\bsegments\x18\x01 \x03(\v2\x0e.api.AsSegmentR\bsegments\"D\n" +
 	"\x16As4AggregatorAttribute\x12\x10\n" +
 	"\x03asn\x18\x02 \x01(\rR\x03asn\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\tR\aaddress\"e\n" +
@@ -5271,30 +5271,30 @@ const file_api_attribute_proto_rawDesc = "" +
 	"$TunnelEncapSubTLVSRCandidatePathName\x12.\n" +
 	"\x13candidate_path_name\x18\x01 \x01(\tR\x11candidatePathName\"9\n" +
 	"\x1bTunnelEncapSubTLVSRPriority\x12\x1a\n" +
-	"\bpriority\x18\x01 \x01(\rR\bpriority\"\xa7\x01\n" +
-	"\x1dTunnelEncapSubTLVSRBindingSID\x12;\n" +
-	"\x0esr_binding_sid\x18\x01 \x01(\v2\x13.apipb.SRBindingSIDH\x00R\fsrBindingSid\x12A\n" +
-	"\x10srv6_binding_sid\x18\x02 \x01(\v2\x15.apipb.SRv6BindingSIDH\x00R\x0esrv6BindingSidB\x06\n" +
+	"\bpriority\x18\x01 \x01(\rR\bpriority\"\xa3\x01\n" +
+	"\x1dTunnelEncapSubTLVSRBindingSID\x129\n" +
+	"\x0esr_binding_sid\x18\x01 \x01(\v2\x11.api.SRBindingSIDH\x00R\fsrBindingSid\x12?\n" +
+	"\x10srv6_binding_sid\x18\x02 \x01(\v2\x13.api.SRv6BindingSIDH\x00R\x0esrv6BindingSidB\x06\n" +
 	"\x04bsid\"N\n" +
 	"\fSRBindingSID\x12\x15\n" +
 	"\x06s_flag\x18\x01 \x01(\bR\x05sFlag\x12\x15\n" +
 	"\x06i_flag\x18\x02 \x01(\bR\x05iFlag\x12\x10\n" +
-	"\x03sid\x18\x03 \x01(\fR\x03sid\"\xb3\x01\n" +
-	"\x14SRv6EndPointBehavior\x12/\n" +
-	"\bbehavior\x18\x01 \x01(\x0e2\x13.apipb.SRv6BehaviorR\bbehavior\x12\x1b\n" +
+	"\x03sid\x18\x03 \x01(\fR\x03sid\"\xb1\x01\n" +
+	"\x14SRv6EndPointBehavior\x12-\n" +
+	"\bbehavior\x18\x01 \x01(\x0e2\x11.api.SRv6BehaviorR\bbehavior\x12\x1b\n" +
 	"\tblock_len\x18\x02 \x01(\rR\bblockLen\x12\x19\n" +
 	"\bnode_len\x18\x03 \x01(\rR\anodeLen\x12\x19\n" +
 	"\bfunc_len\x18\x04 \x01(\rR\afuncLen\x12\x17\n" +
-	"\aarg_len\x18\x05 \x01(\rR\x06argLen\"\xc4\x01\n" +
+	"\aarg_len\x18\x05 \x01(\rR\x06argLen\"\xc2\x01\n" +
 	"\x0eSRv6BindingSID\x12\x15\n" +
 	"\x06s_flag\x18\x01 \x01(\bR\x05sFlag\x12\x15\n" +
 	"\x06i_flag\x18\x02 \x01(\bR\x05iFlag\x12\x15\n" +
 	"\x06b_flag\x18\x03 \x01(\bR\x05bFlag\x12\x10\n" +
-	"\x03sid\x18\x04 \x01(\fR\x03sid\x12[\n" +
-	"\x1bendpoint_behavior_structure\x18\x05 \x01(\v2\x1b.apipb.SRv6EndPointBehaviorR\x19endpointBehaviorStructure\"T\n" +
+	"\x03sid\x18\x04 \x01(\fR\x03sid\x12Y\n" +
+	"\x1bendpoint_behavior_structure\x18\x05 \x01(\v2\x19.api.SRv6EndPointBehaviorR\x19endpointBehaviorStructure\"R\n" +
 	"\x17TunnelEncapSubTLVSRENLP\x12\x14\n" +
-	"\x05flags\x18\x01 \x01(\rR\x05flags\x12#\n" +
-	"\x04enlp\x18\x02 \x01(\x0e2\x0f.apipb.ENLPTypeR\x04enlp\"8\n" +
+	"\x05flags\x18\x01 \x01(\rR\x05flags\x12!\n" +
+	"\x04enlp\x18\x02 \x01(\x0e2\r.api.ENLPTypeR\x04enlp\"8\n" +
 	"\bSRWeight\x12\x14\n" +
 	"\x05flags\x18\x01 \x01(\rR\x05flags\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\"j\n" +
@@ -5302,20 +5302,20 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x06v_flag\x18\x01 \x01(\bR\x05vFlag\x12\x15\n" +
 	"\x06a_flag\x18\x02 \x01(\bR\x05aFlag\x12\x15\n" +
 	"\x06s_flag\x18\x03 \x01(\bR\x05sFlag\x12\x15\n" +
-	"\x06b_flag\x18\x04 \x01(\bR\x05bFlag\"O\n" +
-	"\fSegmentTypeA\x12)\n" +
-	"\x05flags\x18\x01 \x01(\v2\x13.apipb.SegmentFlagsR\x05flags\x12\x14\n" +
-	"\x05label\x18\x02 \x01(\rR\x05label\"\xa8\x01\n" +
-	"\fSegmentTypeB\x12)\n" +
-	"\x05flags\x18\x01 \x01(\v2\x13.apipb.SegmentFlagsR\x05flags\x12\x10\n" +
-	"\x03sid\x18\x02 \x01(\fR\x03sid\x12[\n" +
-	"\x1bendpoint_behavior_structure\x18\x03 \x01(\v2\x1b.apipb.SRv6EndPointBehaviorR\x19endpointBehaviorStructure\"\xf4\x01\n" +
-	"\x1eTunnelEncapSubTLVSRSegmentList\x12'\n" +
-	"\x06weight\x18\x01 \x01(\v2\x0f.apipb.SRWeightR\x06weight\x12I\n" +
-	"\bsegments\x18\x02 \x03(\v2-.apipb.TunnelEncapSubTLVSRSegmentList.SegmentR\bsegments\x1a^\n" +
-	"\aSegment\x12#\n" +
-	"\x01a\x18\x01 \x01(\v2\x13.apipb.SegmentTypeAH\x00R\x01a\x12#\n" +
-	"\x01b\x18\x02 \x01(\v2\x13.apipb.SegmentTypeBH\x00R\x01bB\t\n" +
+	"\x06b_flag\x18\x04 \x01(\bR\x05bFlag\"M\n" +
+	"\fSegmentTypeA\x12'\n" +
+	"\x05flags\x18\x01 \x01(\v2\x11.api.SegmentFlagsR\x05flags\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\rR\x05label\"\xa4\x01\n" +
+	"\fSegmentTypeB\x12'\n" +
+	"\x05flags\x18\x01 \x01(\v2\x11.api.SegmentFlagsR\x05flags\x12\x10\n" +
+	"\x03sid\x18\x02 \x01(\fR\x03sid\x12Y\n" +
+	"\x1bendpoint_behavior_structure\x18\x03 \x01(\v2\x19.api.SRv6EndPointBehaviorR\x19endpointBehaviorStructure\"\xec\x01\n" +
+	"\x1eTunnelEncapSubTLVSRSegmentList\x12%\n" +
+	"\x06weight\x18\x01 \x01(\v2\r.api.SRWeightR\x06weight\x12G\n" +
+	"\bsegments\x18\x02 \x03(\v2+.api.TunnelEncapSubTLVSRSegmentList.SegmentR\bsegments\x1aZ\n" +
+	"\aSegment\x12!\n" +
+	"\x01a\x18\x01 \x01(\v2\x11.api.SegmentTypeAH\x00R\x01a\x12!\n" +
+	"\x01b\x18\x02 \x01(\v2\x11.api.SegmentTypeBH\x00R\x01bB\t\n" +
 	"\asegment\";\n" +
 	"\x1fTunnelEncapSubTLVEgressEndpoint\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\"2\n" +
@@ -5323,28 +5323,28 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x04port\x18\x01 \x01(\rR\x04port\"D\n" +
 	"\x18TunnelEncapSubTLVUnknown\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\rR\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\xd5\a\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xbb\a\n" +
 	"\x0eTunnelEncapTLV\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\rR\x04type\x12-\n" +
-	"\x04tlvs\x18\x02 \x03(\v2\x19.apipb.TunnelEncapTLV.TLVR\x04tlvs\x1a\xff\x06\n" +
-	"\x03TLV\x12;\n" +
-	"\aunknown\x18\x01 \x01(\v2\x1f.apipb.TunnelEncapSubTLVUnknownH\x00R\aunknown\x12M\n" +
-	"\rencapsulation\x18\x02 \x01(\v2%.apipb.TunnelEncapSubTLVEncapsulationH\x00R\rencapsulation\x12>\n" +
-	"\bprotocol\x18\x03 \x01(\v2 .apipb.TunnelEncapSubTLVProtocolH\x00R\bprotocol\x125\n" +
-	"\x05color\x18\x04 \x01(\v2\x1d.apipb.TunnelEncapSubTLVColorH\x00R\x05color\x12Q\n" +
-	"\x0fegress_endpoint\x18\x05 \x01(\v2&.apipb.TunnelEncapSubTLVEgressEndpointH\x00R\x0eegressEndpoint\x12I\n" +
-	"\rudp_dest_port\x18\x06 \x01(\v2#.apipb.TunnelEncapSubTLVUDPDestPortH\x00R\vudpDestPort\x12K\n" +
-	"\rsr_preference\x18\a \x01(\v2$.apipb.TunnelEncapSubTLVSRPreferenceH\x00R\fsrPreference\x12E\n" +
-	"\vsr_priority\x18\b \x01(\v2\".apipb.TunnelEncapSubTLVSRPriorityH\x00R\n" +
-	"srPriority\x12b\n" +
-	"\x16sr_candidate_path_name\x18\t \x01(\v2+.apipb.TunnelEncapSubTLVSRCandidatePathNameH\x00R\x13srCandidatePathName\x129\n" +
+	"\x04type\x18\x01 \x01(\rR\x04type\x12+\n" +
+	"\x04tlvs\x18\x02 \x03(\v2\x17.api.TunnelEncapTLV.TLVR\x04tlvs\x1a\xe7\x06\n" +
+	"\x03TLV\x129\n" +
+	"\aunknown\x18\x01 \x01(\v2\x1d.api.TunnelEncapSubTLVUnknownH\x00R\aunknown\x12K\n" +
+	"\rencapsulation\x18\x02 \x01(\v2#.api.TunnelEncapSubTLVEncapsulationH\x00R\rencapsulation\x12<\n" +
+	"\bprotocol\x18\x03 \x01(\v2\x1e.api.TunnelEncapSubTLVProtocolH\x00R\bprotocol\x123\n" +
+	"\x05color\x18\x04 \x01(\v2\x1b.api.TunnelEncapSubTLVColorH\x00R\x05color\x12O\n" +
+	"\x0fegress_endpoint\x18\x05 \x01(\v2$.api.TunnelEncapSubTLVEgressEndpointH\x00R\x0eegressEndpoint\x12G\n" +
+	"\rudp_dest_port\x18\x06 \x01(\v2!.api.TunnelEncapSubTLVUDPDestPortH\x00R\vudpDestPort\x12I\n" +
+	"\rsr_preference\x18\a \x01(\v2\".api.TunnelEncapSubTLVSRPreferenceH\x00R\fsrPreference\x12C\n" +
+	"\vsr_priority\x18\b \x01(\v2 .api.TunnelEncapSubTLVSRPriorityH\x00R\n" +
+	"srPriority\x12`\n" +
+	"\x16sr_candidate_path_name\x18\t \x01(\v2).api.TunnelEncapSubTLVSRCandidatePathNameH\x00R\x13srCandidatePathName\x127\n" +
 	"\asr_enlp\x18\n" +
-	" \x01(\v2\x1e.apipb.TunnelEncapSubTLVSRENLPH\x00R\x06srEnlp\x12L\n" +
-	"\x0esr_binding_sid\x18\v \x01(\v2$.apipb.TunnelEncapSubTLVSRBindingSIDH\x00R\fsrBindingSid\x12O\n" +
-	"\x0fsr_segment_list\x18\f \x01(\v2%.apipb.TunnelEncapSubTLVSRSegmentListH\x00R\rsrSegmentListB\x05\n" +
-	"\x03tlv\"A\n" +
-	"\x14TunnelEncapAttribute\x12)\n" +
-	"\x04tlvs\x18\x01 \x03(\v2\x15.apipb.TunnelEncapTLVR\x04tlvs\"\x98\x01\n" +
+	" \x01(\v2\x1c.api.TunnelEncapSubTLVSRENLPH\x00R\x06srEnlp\x12J\n" +
+	"\x0esr_binding_sid\x18\v \x01(\v2\".api.TunnelEncapSubTLVSRBindingSIDH\x00R\fsrBindingSid\x12M\n" +
+	"\x0fsr_segment_list\x18\f \x01(\v2#.api.TunnelEncapSubTLVSRSegmentListH\x00R\rsrSegmentListB\x05\n" +
+	"\x03tlv\"?\n" +
+	"\x14TunnelEncapAttribute\x12'\n" +
+	"\x04tlvs\x18\x01 \x03(\v2\x13.api.TunnelEncapTLVR\x04tlvs\"\x98\x01\n" +
 	"\x1bIPv6AddressSpecificExtended\x12#\n" +
 	"\ris_transitive\x18\x01 \x01(\bR\fisTransitive\x12\x19\n" +
 	"\bsub_type\x18\x02 \x01(\rR\asubType\x12\x18\n" +
@@ -5354,33 +5354,33 @@ const file_api_attribute_proto_rawDesc = "" +
 	"#RedirectIPv6AddressSpecificExtended\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1f\n" +
 	"\vlocal_admin\x18\x02 \x01(\rR\n" +
-	"localAdmin\"\xda\x02\n" +
-	"\x1fIP6ExtendedCommunitiesAttribute\x12R\n" +
-	"\vcommunities\x18\x01 \x03(\v20.apipb.IP6ExtendedCommunitiesAttribute.CommunityR\vcommunities\x1a\xe2\x01\n" +
-	"\tCommunity\x12X\n" +
-	"\x15ipv6_address_specific\x18\x01 \x01(\v2\".apipb.IPv6AddressSpecificExtendedH\x00R\x13ipv6AddressSpecific\x12q\n" +
-	"\x1eredirect_ipv6_address_specific\x18\x02 \x01(\v2*.apipb.RedirectIPv6AddressSpecificExtendedH\x00R\x1bredirectIpv6AddressSpecificB\b\n" +
+	"localAdmin\"\xd4\x02\n" +
+	"\x1fIP6ExtendedCommunitiesAttribute\x12P\n" +
+	"\vcommunities\x18\x01 \x03(\v2..api.IP6ExtendedCommunitiesAttribute.CommunityR\vcommunities\x1a\xde\x01\n" +
+	"\tCommunity\x12V\n" +
+	"\x15ipv6_address_specific\x18\x01 \x01(\v2 .api.IPv6AddressSpecificExtendedH\x00R\x13ipv6AddressSpecific\x12o\n" +
+	"\x1eredirect_ipv6_address_specific\x18\x02 \x01(\v2(.api.RedirectIPv6AddressSpecificExtendedH\x00R\x1bredirectIpv6AddressSpecificB\b\n" +
 	"\x06extcom\"*\n" +
 	"\x10AigpTLVIGPMetric\x12\x16\n" +
 	"\x06metric\x18\x01 \x01(\x04R\x06metric\":\n" +
 	"\x0eAigpTLVUnknown\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\rR\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\xb8\x01\n" +
-	"\rAigpAttribute\x12,\n" +
-	"\x04tlvs\x18\x01 \x03(\v2\x18.apipb.AigpAttribute.TLVR\x04tlvs\x1ay\n" +
-	"\x03TLV\x121\n" +
-	"\aunknown\x18\x01 \x01(\v2\x15.apipb.AigpTLVUnknownH\x00R\aunknown\x128\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xb2\x01\n" +
+	"\rAigpAttribute\x12*\n" +
+	"\x04tlvs\x18\x01 \x03(\v2\x16.api.AigpAttribute.TLVR\x04tlvs\x1au\n" +
+	"\x03TLV\x12/\n" +
+	"\aunknown\x18\x01 \x01(\v2\x13.api.AigpTLVUnknownH\x00R\aunknown\x126\n" +
 	"\n" +
-	"igp_metric\x18\x02 \x01(\v2\x17.apipb.AigpTLVIGPMetricH\x00R\tigpMetricB\x05\n" +
+	"igp_metric\x18\x02 \x01(\v2\x15.api.AigpTLVIGPMetricH\x00R\tigpMetricB\x05\n" +
 	"\x03tlv\"u\n" +
 	"\x0eLargeCommunity\x12!\n" +
 	"\fglobal_admin\x18\x01 \x01(\rR\vglobalAdmin\x12\x1f\n" +
 	"\vlocal_data1\x18\x02 \x01(\rR\n" +
 	"localData1\x12\x1f\n" +
 	"\vlocal_data2\x18\x03 \x01(\rR\n" +
-	"localData2\"T\n" +
-	"\x19LargeCommunitiesAttribute\x127\n" +
-	"\vcommunities\x18\x01 \x03(\v2\x15.apipb.LargeCommunityR\vcommunities\"\x9b\x01\n" +
+	"localData2\"R\n" +
+	"\x19LargeCommunitiesAttribute\x125\n" +
+	"\vcommunities\x18\x01 \x03(\v2\x13.api.LargeCommunityR\vcommunities\"\x9b\x01\n" +
 	"\vLsNodeFlags\x12\x1a\n" +
 	"\boverload\x18\x01 \x01(\bR\boverload\x12\x1a\n" +
 	"\battached\x18\x02 \x01(\bR\battached\x12\x1a\n" +
@@ -5397,23 +5397,23 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x0epropagate_nssa\x18\x04 \x01(\bR\rpropagateNssa\"3\n" +
 	"\tLsSrRange\x12\x14\n" +
 	"\x05begin\x18\x01 \x01(\rR\x05begin\x12\x10\n" +
-	"\x03end\x18\x02 \x01(\rR\x03end\"\x8a\x01\n" +
+	"\x03end\x18\x02 \x01(\rR\x03end\"\x88\x01\n" +
 	"\x10LsSrCapabilities\x12%\n" +
 	"\x0eipv4_supported\x18\x01 \x01(\bR\ripv4Supported\x12%\n" +
-	"\x0eipv6_supported\x18\x02 \x01(\bR\ripv6Supported\x12(\n" +
-	"\x06ranges\x18\x03 \x03(\v2\x10.apipb.LsSrRangeR\x06ranges\":\n" +
-	"\x0eLsSrLocalBlock\x12(\n" +
-	"\x06ranges\x18\x01 \x03(\v2\x10.apipb.LsSrRangeR\x06ranges\"\xfd\x02\n" +
+	"\x0eipv6_supported\x18\x02 \x01(\bR\ripv6Supported\x12&\n" +
+	"\x06ranges\x18\x03 \x03(\v2\x0e.api.LsSrRangeR\x06ranges\"8\n" +
+	"\x0eLsSrLocalBlock\x12&\n" +
+	"\x06ranges\x18\x01 \x03(\v2\x0e.api.LsSrRangeR\x06ranges\"\xf7\x02\n" +
 	"\x0fLsAttributeNode\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
-	"\x05flags\x18\x02 \x01(\v2\x12.apipb.LsNodeFlagsR\x05flags\x12&\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12&\n" +
+	"\x05flags\x18\x02 \x01(\v2\x10.api.LsNodeFlagsR\x05flags\x12&\n" +
 	"\x0flocal_router_id\x18\x03 \x01(\tR\rlocalRouterId\x12+\n" +
 	"\x12local_router_id_v6\x18\x04 \x01(\tR\x0flocalRouterIdV6\x12\x1b\n" +
 	"\tisis_area\x18\x05 \x01(\fR\bisisArea\x12\x16\n" +
-	"\x06opaque\x18\x06 \x01(\fR\x06opaque\x12@\n" +
-	"\x0fsr_capabilities\x18\a \x01(\v2\x17.apipb.LsSrCapabilitiesR\x0esrCapabilities\x12#\n" +
-	"\rsr_algorithms\x18\b \x01(\fR\fsrAlgorithms\x12;\n" +
-	"\x0esr_local_block\x18\t \x01(\v2\x15.apipb.LsSrLocalBlockR\fsrLocalBlock\"\x9b\x04\n" +
+	"\x06opaque\x18\x06 \x01(\fR\x06opaque\x12>\n" +
+	"\x0fsr_capabilities\x18\a \x01(\v2\x15.api.LsSrCapabilitiesR\x0esrCapabilities\x12#\n" +
+	"\rsr_algorithms\x18\b \x01(\fR\fsrAlgorithms\x129\n" +
+	"\x0esr_local_block\x18\t \x01(\v2\x13.api.LsSrLocalBlockR\fsrLocalBlock\"\x9b\x04\n" +
 	"\x0fLsAttributeLink\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12&\n" +
 	"\x0flocal_router_id\x18\x02 \x01(\tR\rlocalRouterId\x12+\n" +
@@ -5431,9 +5431,9 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x14reservable_bandwidth\x18\v \x01(\x02R\x13reservableBandwidth\x121\n" +
 	"\x14unreserved_bandwidth\x18\f \x03(\x02R\x13unreservedBandwidth\x12(\n" +
 	"\x10sr_adjacency_sid\x18\r \x01(\rR\x0esrAdjacencySid\x12\x14\n" +
-	"\x05srlgs\x18\x0e \x03(\rR\x05srlgs\"\x7f\n" +
-	"\x11LsAttributePrefix\x12.\n" +
-	"\tigp_flags\x18\x01 \x01(\v2\x11.apipb.LsIGPFlagsR\bigpFlags\x12\x16\n" +
+	"\x05srlgs\x18\x0e \x03(\rR\x05srlgs\"}\n" +
+	"\x11LsAttributePrefix\x12,\n" +
+	"\tigp_flags\x18\x01 \x01(\v2\x0f.api.LsIGPFlagsR\bigpFlags\x12\x16\n" +
 	"\x06opaque\x18\x02 \x01(\fR\x06opaque\x12\"\n" +
 	"\rsr_prefix_sid\x18\x03 \x01(\rR\vsrPrefixSid\"~\n" +
 	"\x18LsBgpPeerSegmentSIDFlags\x12\x14\n" +
@@ -5442,20 +5442,20 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x06backup\x18\x03 \x01(\bR\x06backup\x12\x1e\n" +
 	"\n" +
 	"persistent\x18\x04 \x01(\bR\n" +
-	"persistent\"v\n" +
-	"\x13LsBgpPeerSegmentSID\x125\n" +
-	"\x05flags\x18\x01 \x01(\v2\x1f.apipb.LsBgpPeerSegmentSIDFlagsR\x05flags\x12\x16\n" +
+	"persistent\"t\n" +
+	"\x13LsBgpPeerSegmentSID\x123\n" +
+	"\x05flags\x18\x01 \x01(\v2\x1d.api.LsBgpPeerSegmentSIDFlagsR\x05flags\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\x12\x10\n" +
-	"\x03sid\x18\x03 \x01(\rR\x03sid\"\xf8\x01\n" +
-	"\x19LsAttributeBgpPeerSegment\x12E\n" +
-	"\x11bgp_peer_node_sid\x18\x01 \x01(\v2\x1a.apipb.LsBgpPeerSegmentSIDR\x0ebgpPeerNodeSid\x12O\n" +
-	"\x16bgp_peer_adjacency_sid\x18\x02 \x01(\v2\x1a.apipb.LsBgpPeerSegmentSIDR\x13bgpPeerAdjacencySid\x12C\n" +
-	"\x10bgp_peer_set_sid\x18\x03 \x01(\v2\x1a.apipb.LsBgpPeerSegmentSIDR\rbgpPeerSetSid\"\xe3\x01\n" +
-	"\vLsAttribute\x12*\n" +
-	"\x04node\x18\x01 \x01(\v2\x16.apipb.LsAttributeNodeR\x04node\x12*\n" +
-	"\x04link\x18\x02 \x01(\v2\x16.apipb.LsAttributeLinkR\x04link\x120\n" +
-	"\x06prefix\x18\x03 \x01(\v2\x18.apipb.LsAttributePrefixR\x06prefix\x12J\n" +
-	"\x10bgp_peer_segment\x18\x04 \x01(\v2 .apipb.LsAttributeBgpPeerSegmentR\x0ebgpPeerSegment\"R\n" +
+	"\x03sid\x18\x03 \x01(\rR\x03sid\"\xf2\x01\n" +
+	"\x19LsAttributeBgpPeerSegment\x12C\n" +
+	"\x11bgp_peer_node_sid\x18\x01 \x01(\v2\x18.api.LsBgpPeerSegmentSIDR\x0ebgpPeerNodeSid\x12M\n" +
+	"\x16bgp_peer_adjacency_sid\x18\x02 \x01(\v2\x18.api.LsBgpPeerSegmentSIDR\x13bgpPeerAdjacencySid\x12A\n" +
+	"\x10bgp_peer_set_sid\x18\x03 \x01(\v2\x18.api.LsBgpPeerSegmentSIDR\rbgpPeerSetSid\"\xdb\x01\n" +
+	"\vLsAttribute\x12(\n" +
+	"\x04node\x18\x01 \x01(\v2\x14.api.LsAttributeNodeR\x04node\x12(\n" +
+	"\x04link\x18\x02 \x01(\v2\x14.api.LsAttributeLinkR\x04link\x12.\n" +
+	"\x06prefix\x18\x03 \x01(\v2\x16.api.LsAttributePrefixR\x06prefix\x12H\n" +
+	"\x10bgp_peer_segment\x18\x04 \x01(\v2\x1e.api.LsAttributeBgpPeerSegmentR\x0ebgpPeerSegment\"R\n" +
 	"\x10UnknownAttribute\x12\x14\n" +
 	"\x05flags\x18\x01 \x01(\rR\x05flags\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\rR\x04type\x12\x14\n" +
@@ -5466,46 +5466,46 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x0ffunction_length\x18\x03 \x01(\rR\x0efunctionLength\x12'\n" +
 	"\x0fargument_length\x18\x04 \x01(\rR\x0eargumentLength\x121\n" +
 	"\x14transposition_length\x18\x05 \x01(\rR\x13transpositionLength\x121\n" +
-	"\x14transposition_offset\x18\x06 \x01(\rR\x13transpositionOffset\"U\n" +
-	"\rSRv6SubSubTLV\x12=\n" +
-	"\tstructure\x18\x01 \x01(\v2\x1d.apipb.SRv6StructureSubSubTLVH\x00R\tstructureB\x05\n" +
-	"\x03tlv\":\n" +
-	"\x0eSRv6SubSubTLVs\x12(\n" +
-	"\x04tlvs\x18\x01 \x03(\v2\x14.apipb.SRv6SubSubTLVR\x04tlvs\"%\n" +
+	"\x14transposition_offset\x18\x06 \x01(\rR\x13transpositionOffset\"S\n" +
+	"\rSRv6SubSubTLV\x12;\n" +
+	"\tstructure\x18\x01 \x01(\v2\x1b.api.SRv6StructureSubSubTLVH\x00R\tstructureB\x05\n" +
+	"\x03tlv\"8\n" +
+	"\x0eSRv6SubSubTLVs\x12&\n" +
+	"\x04tlvs\x18\x01 \x03(\v2\x12.api.SRv6SubSubTLVR\x04tlvs\"%\n" +
 	"\fSRv6SIDFlags\x12\x15\n" +
-	"\x06flag_1\x18\x01 \x01(\bR\x05flag1\"\xa7\x02\n" +
+	"\x06flag_1\x18\x01 \x01(\bR\x05flag1\"\xa1\x02\n" +
 	"\x15SRv6InformationSubTLV\x12\x10\n" +
-	"\x03sid\x18\x01 \x01(\fR\x03sid\x12)\n" +
-	"\x05flags\x18\x02 \x01(\v2\x13.apipb.SRv6SIDFlagsR\x05flags\x12+\n" +
-	"\x11endpoint_behavior\x18\x03 \x01(\rR\x10endpointBehavior\x12N\n" +
-	"\fsub_sub_tlvs\x18\x04 \x03(\v2,.apipb.SRv6InformationSubTLV.SubSubTlvsEntryR\n" +
-	"subSubTlvs\x1aT\n" +
+	"\x03sid\x18\x01 \x01(\fR\x03sid\x12'\n" +
+	"\x05flags\x18\x02 \x01(\v2\x11.api.SRv6SIDFlagsR\x05flags\x12+\n" +
+	"\x11endpoint_behavior\x18\x03 \x01(\rR\x10endpointBehavior\x12L\n" +
+	"\fsub_sub_tlvs\x18\x04 \x03(\v2*.api.SRv6InformationSubTLV.SubSubTlvsEntryR\n" +
+	"subSubTlvs\x1aR\n" +
 	"\x0fSubSubTlvsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\rR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.apipb.SRv6SubSubTLVsR\x05value:\x028\x01\"U\n" +
+	"\x03key\x18\x01 \x01(\rR\x03key\x12)\n" +
+	"\x05value\x18\x02 \x01(\v2\x13.api.SRv6SubSubTLVsR\x05value:\x028\x01\"S\n" +
 	"\n" +
-	"SRv6SubTLV\x12@\n" +
-	"\vinformation\x18\x01 \x01(\v2\x1c.apipb.SRv6InformationSubTLVH\x00R\vinformationB\x05\n" +
-	"\x03tlv\"4\n" +
-	"\vSRv6SubTLVs\x12%\n" +
-	"\x04tlvs\x18\x01 \x03(\v2\x11.apipb.SRv6SubTLVR\x04tlvs\"\xa3\x01\n" +
-	"\x10SRv6L3ServiceTLV\x12?\n" +
-	"\bsub_tlvs\x18\x01 \x03(\v2$.apipb.SRv6L3ServiceTLV.SubTlvsEntryR\asubTlvs\x1aN\n" +
+	"SRv6SubTLV\x12>\n" +
+	"\vinformation\x18\x01 \x01(\v2\x1a.api.SRv6InformationSubTLVH\x00R\vinformationB\x05\n" +
+	"\x03tlv\"2\n" +
+	"\vSRv6SubTLVs\x12#\n" +
+	"\x04tlvs\x18\x01 \x03(\v2\x0f.api.SRv6SubTLVR\x04tlvs\"\x9f\x01\n" +
+	"\x10SRv6L3ServiceTLV\x12=\n" +
+	"\bsub_tlvs\x18\x01 \x03(\v2\".api.SRv6L3ServiceTLV.SubTlvsEntryR\asubTlvs\x1aL\n" +
 	"\fSubTlvsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\rR\x03key\x12(\n" +
-	"\x05value\x18\x02 \x01(\v2\x12.apipb.SRv6SubTLVsR\x05value:\x028\x01\"\xa3\x01\n" +
-	"\x10SRv6L2ServiceTLV\x12?\n" +
-	"\bsub_tlvs\x18\x01 \x03(\v2$.apipb.SRv6L2ServiceTLV.SubTlvsEntryR\asubTlvs\x1aN\n" +
+	"\x03key\x18\x01 \x01(\rR\x03key\x12&\n" +
+	"\x05value\x18\x02 \x01(\v2\x10.api.SRv6SubTLVsR\x05value:\x028\x01\"\x9f\x01\n" +
+	"\x10SRv6L2ServiceTLV\x12=\n" +
+	"\bsub_tlvs\x18\x01 \x03(\v2\".api.SRv6L2ServiceTLV.SubTlvsEntryR\asubTlvs\x1aL\n" +
 	"\fSubTlvsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\rR\x03key\x12(\n" +
-	"\x05value\x18\x02 \x01(\v2\x12.apipb.SRv6SubTLVsR\x05value:\x028\x01\"\xb8\x01\n" +
-	"\tPrefixSID\x12(\n" +
-	"\x04tlvs\x18\x01 \x03(\v2\x14.apipb.PrefixSID.TLVR\x04tlvs\x1a\x80\x01\n" +
-	"\x03TLV\x128\n" +
+	"\x03key\x18\x01 \x01(\rR\x03key\x12&\n" +
+	"\x05value\x18\x02 \x01(\v2\x10.api.SRv6SubTLVsR\x05value:\x028\x01\"\xb1\x01\n" +
+	"\tPrefixSID\x12&\n" +
+	"\x04tlvs\x18\x01 \x03(\v2\x12.api.PrefixSID.TLVR\x04tlvs\x1a|\n" +
+	"\x03TLV\x126\n" +
 	"\n" +
-	"l3_service\x18\x03 \x01(\v2\x17.apipb.SRv6L3ServiceTLVH\x00R\tl3Service\x128\n" +
+	"l3_service\x18\x03 \x01(\v2\x15.api.SRv6L3ServiceTLVH\x00R\tl3Service\x126\n" +
 	"\n" +
-	"l2_service\x18\x04 \x01(\v2\x17.apipb.SRv6L2ServiceTLVH\x00R\tl2ServiceB\x05\n" +
+	"l2_service\x18\x04 \x01(\v2\x15.api.SRv6L2ServiceTLVH\x00R\tl2ServiceB\x05\n" +
 	"\x03tlv*\xed\x05\n" +
 	"\fSRv6Behavior\x12\f\n" +
 	"\bRESERVED\x10\x00\x12\a\n" +
@@ -5559,7 +5559,7 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x05Type1\x10\x01\x12\t\n" +
 	"\x05Type2\x10\x02\x12\t\n" +
 	"\x05Type3\x10\x03\x12\t\n" +
-	"\x05Type4\x10\x04B$Z\"github.com/osrg/gobgp/v4/api;apipbb\x06proto3"
+	"\x05Type4\x10\x04B\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
 
 var (
 	file_api_attribute_proto_rawDescOnce sync.Once
@@ -5576,184 +5576,184 @@ func file_api_attribute_proto_rawDescGZIP() []byte {
 var file_api_attribute_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_api_attribute_proto_msgTypes = make([]protoimpl.MessageInfo, 78)
 var file_api_attribute_proto_goTypes = []any{
-	(SRv6Behavior)(0),                                 // 0: apipb.SRv6Behavior
-	(ENLPType)(0),                                     // 1: apipb.ENLPType
-	(AsSegment_Type)(0),                               // 2: apipb.AsSegment.Type
-	(*Attribute)(nil),                                 // 3: apipb.Attribute
-	(*OriginAttribute)(nil),                           // 4: apipb.OriginAttribute
-	(*AsSegment)(nil),                                 // 5: apipb.AsSegment
-	(*AsPathAttribute)(nil),                           // 6: apipb.AsPathAttribute
-	(*NextHopAttribute)(nil),                          // 7: apipb.NextHopAttribute
-	(*MultiExitDiscAttribute)(nil),                    // 8: apipb.MultiExitDiscAttribute
-	(*LocalPrefAttribute)(nil),                        // 9: apipb.LocalPrefAttribute
-	(*AtomicAggregateAttribute)(nil),                  // 10: apipb.AtomicAggregateAttribute
-	(*AggregatorAttribute)(nil),                       // 11: apipb.AggregatorAttribute
-	(*CommunitiesAttribute)(nil),                      // 12: apipb.CommunitiesAttribute
-	(*OriginatorIdAttribute)(nil),                     // 13: apipb.OriginatorIdAttribute
-	(*ClusterListAttribute)(nil),                      // 14: apipb.ClusterListAttribute
-	(*MpReachNLRIAttribute)(nil),                      // 15: apipb.MpReachNLRIAttribute
-	(*MpUnreachNLRIAttribute)(nil),                    // 16: apipb.MpUnreachNLRIAttribute
-	(*ExtendedCommunitiesAttribute)(nil),              // 17: apipb.ExtendedCommunitiesAttribute
-	(*As4PathAttribute)(nil),                          // 18: apipb.As4PathAttribute
-	(*As4AggregatorAttribute)(nil),                    // 19: apipb.As4AggregatorAttribute
-	(*PmsiTunnelAttribute)(nil),                       // 20: apipb.PmsiTunnelAttribute
-	(*TunnelEncapSubTLVEncapsulation)(nil),            // 21: apipb.TunnelEncapSubTLVEncapsulation
-	(*TunnelEncapSubTLVProtocol)(nil),                 // 22: apipb.TunnelEncapSubTLVProtocol
-	(*TunnelEncapSubTLVColor)(nil),                    // 23: apipb.TunnelEncapSubTLVColor
-	(*TunnelEncapSubTLVSRPreference)(nil),             // 24: apipb.TunnelEncapSubTLVSRPreference
-	(*TunnelEncapSubTLVSRCandidatePathName)(nil),      // 25: apipb.TunnelEncapSubTLVSRCandidatePathName
-	(*TunnelEncapSubTLVSRPriority)(nil),               // 26: apipb.TunnelEncapSubTLVSRPriority
-	(*TunnelEncapSubTLVSRBindingSID)(nil),             // 27: apipb.TunnelEncapSubTLVSRBindingSID
-	(*SRBindingSID)(nil),                              // 28: apipb.SRBindingSID
-	(*SRv6EndPointBehavior)(nil),                      // 29: apipb.SRv6EndPointBehavior
-	(*SRv6BindingSID)(nil),                            // 30: apipb.SRv6BindingSID
-	(*TunnelEncapSubTLVSRENLP)(nil),                   // 31: apipb.TunnelEncapSubTLVSRENLP
-	(*SRWeight)(nil),                                  // 32: apipb.SRWeight
-	(*SegmentFlags)(nil),                              // 33: apipb.SegmentFlags
-	(*SegmentTypeA)(nil),                              // 34: apipb.SegmentTypeA
-	(*SegmentTypeB)(nil),                              // 35: apipb.SegmentTypeB
-	(*TunnelEncapSubTLVSRSegmentList)(nil),            // 36: apipb.TunnelEncapSubTLVSRSegmentList
-	(*TunnelEncapSubTLVEgressEndpoint)(nil),           // 37: apipb.TunnelEncapSubTLVEgressEndpoint
-	(*TunnelEncapSubTLVUDPDestPort)(nil),              // 38: apipb.TunnelEncapSubTLVUDPDestPort
-	(*TunnelEncapSubTLVUnknown)(nil),                  // 39: apipb.TunnelEncapSubTLVUnknown
-	(*TunnelEncapTLV)(nil),                            // 40: apipb.TunnelEncapTLV
-	(*TunnelEncapAttribute)(nil),                      // 41: apipb.TunnelEncapAttribute
-	(*IPv6AddressSpecificExtended)(nil),               // 42: apipb.IPv6AddressSpecificExtended
-	(*RedirectIPv6AddressSpecificExtended)(nil),       // 43: apipb.RedirectIPv6AddressSpecificExtended
-	(*IP6ExtendedCommunitiesAttribute)(nil),           // 44: apipb.IP6ExtendedCommunitiesAttribute
-	(*AigpTLVIGPMetric)(nil),                          // 45: apipb.AigpTLVIGPMetric
-	(*AigpTLVUnknown)(nil),                            // 46: apipb.AigpTLVUnknown
-	(*AigpAttribute)(nil),                             // 47: apipb.AigpAttribute
-	(*LargeCommunity)(nil),                            // 48: apipb.LargeCommunity
-	(*LargeCommunitiesAttribute)(nil),                 // 49: apipb.LargeCommunitiesAttribute
-	(*LsNodeFlags)(nil),                               // 50: apipb.LsNodeFlags
-	(*LsIGPFlags)(nil),                                // 51: apipb.LsIGPFlags
-	(*LsSrRange)(nil),                                 // 52: apipb.LsSrRange
-	(*LsSrCapabilities)(nil),                          // 53: apipb.LsSrCapabilities
-	(*LsSrLocalBlock)(nil),                            // 54: apipb.LsSrLocalBlock
-	(*LsAttributeNode)(nil),                           // 55: apipb.LsAttributeNode
-	(*LsAttributeLink)(nil),                           // 56: apipb.LsAttributeLink
-	(*LsAttributePrefix)(nil),                         // 57: apipb.LsAttributePrefix
-	(*LsBgpPeerSegmentSIDFlags)(nil),                  // 58: apipb.LsBgpPeerSegmentSIDFlags
-	(*LsBgpPeerSegmentSID)(nil),                       // 59: apipb.LsBgpPeerSegmentSID
-	(*LsAttributeBgpPeerSegment)(nil),                 // 60: apipb.LsAttributeBgpPeerSegment
-	(*LsAttribute)(nil),                               // 61: apipb.LsAttribute
-	(*UnknownAttribute)(nil),                          // 62: apipb.UnknownAttribute
-	(*SRv6StructureSubSubTLV)(nil),                    // 63: apipb.SRv6StructureSubSubTLV
-	(*SRv6SubSubTLV)(nil),                             // 64: apipb.SRv6SubSubTLV
-	(*SRv6SubSubTLVs)(nil),                            // 65: apipb.SRv6SubSubTLVs
-	(*SRv6SIDFlags)(nil),                              // 66: apipb.SRv6SIDFlags
-	(*SRv6InformationSubTLV)(nil),                     // 67: apipb.SRv6InformationSubTLV
-	(*SRv6SubTLV)(nil),                                // 68: apipb.SRv6SubTLV
-	(*SRv6SubTLVs)(nil),                               // 69: apipb.SRv6SubTLVs
-	(*SRv6L3ServiceTLV)(nil),                          // 70: apipb.SRv6L3ServiceTLV
-	(*SRv6L2ServiceTLV)(nil),                          // 71: apipb.SRv6L2ServiceTLV
-	(*PrefixSID)(nil),                                 // 72: apipb.PrefixSID
-	(*TunnelEncapSubTLVSRSegmentList_Segment)(nil),    // 73: apipb.TunnelEncapSubTLVSRSegmentList.Segment
-	(*TunnelEncapTLV_TLV)(nil),                        // 74: apipb.TunnelEncapTLV.TLV
-	(*IP6ExtendedCommunitiesAttribute_Community)(nil), // 75: apipb.IP6ExtendedCommunitiesAttribute.Community
-	(*AigpAttribute_TLV)(nil),                         // 76: apipb.AigpAttribute.TLV
-	nil,                                               // 77: apipb.SRv6InformationSubTLV.SubSubTlvsEntry
-	nil,                                               // 78: apipb.SRv6L3ServiceTLV.SubTlvsEntry
-	nil,                                               // 79: apipb.SRv6L2ServiceTLV.SubTlvsEntry
-	(*PrefixSID_TLV)(nil),                             // 80: apipb.PrefixSID.TLV
-	(*Family)(nil),                                    // 81: apipb.Family
-	(*NLRI)(nil),                                      // 82: apipb.NLRI
-	(*ExtendedCommunity)(nil),                         // 83: apipb.ExtendedCommunity
+	(SRv6Behavior)(0),                                 // 0: api.SRv6Behavior
+	(ENLPType)(0),                                     // 1: api.ENLPType
+	(AsSegment_Type)(0),                               // 2: api.AsSegment.Type
+	(*Attribute)(nil),                                 // 3: api.Attribute
+	(*OriginAttribute)(nil),                           // 4: api.OriginAttribute
+	(*AsSegment)(nil),                                 // 5: api.AsSegment
+	(*AsPathAttribute)(nil),                           // 6: api.AsPathAttribute
+	(*NextHopAttribute)(nil),                          // 7: api.NextHopAttribute
+	(*MultiExitDiscAttribute)(nil),                    // 8: api.MultiExitDiscAttribute
+	(*LocalPrefAttribute)(nil),                        // 9: api.LocalPrefAttribute
+	(*AtomicAggregateAttribute)(nil),                  // 10: api.AtomicAggregateAttribute
+	(*AggregatorAttribute)(nil),                       // 11: api.AggregatorAttribute
+	(*CommunitiesAttribute)(nil),                      // 12: api.CommunitiesAttribute
+	(*OriginatorIdAttribute)(nil),                     // 13: api.OriginatorIdAttribute
+	(*ClusterListAttribute)(nil),                      // 14: api.ClusterListAttribute
+	(*MpReachNLRIAttribute)(nil),                      // 15: api.MpReachNLRIAttribute
+	(*MpUnreachNLRIAttribute)(nil),                    // 16: api.MpUnreachNLRIAttribute
+	(*ExtendedCommunitiesAttribute)(nil),              // 17: api.ExtendedCommunitiesAttribute
+	(*As4PathAttribute)(nil),                          // 18: api.As4PathAttribute
+	(*As4AggregatorAttribute)(nil),                    // 19: api.As4AggregatorAttribute
+	(*PmsiTunnelAttribute)(nil),                       // 20: api.PmsiTunnelAttribute
+	(*TunnelEncapSubTLVEncapsulation)(nil),            // 21: api.TunnelEncapSubTLVEncapsulation
+	(*TunnelEncapSubTLVProtocol)(nil),                 // 22: api.TunnelEncapSubTLVProtocol
+	(*TunnelEncapSubTLVColor)(nil),                    // 23: api.TunnelEncapSubTLVColor
+	(*TunnelEncapSubTLVSRPreference)(nil),             // 24: api.TunnelEncapSubTLVSRPreference
+	(*TunnelEncapSubTLVSRCandidatePathName)(nil),      // 25: api.TunnelEncapSubTLVSRCandidatePathName
+	(*TunnelEncapSubTLVSRPriority)(nil),               // 26: api.TunnelEncapSubTLVSRPriority
+	(*TunnelEncapSubTLVSRBindingSID)(nil),             // 27: api.TunnelEncapSubTLVSRBindingSID
+	(*SRBindingSID)(nil),                              // 28: api.SRBindingSID
+	(*SRv6EndPointBehavior)(nil),                      // 29: api.SRv6EndPointBehavior
+	(*SRv6BindingSID)(nil),                            // 30: api.SRv6BindingSID
+	(*TunnelEncapSubTLVSRENLP)(nil),                   // 31: api.TunnelEncapSubTLVSRENLP
+	(*SRWeight)(nil),                                  // 32: api.SRWeight
+	(*SegmentFlags)(nil),                              // 33: api.SegmentFlags
+	(*SegmentTypeA)(nil),                              // 34: api.SegmentTypeA
+	(*SegmentTypeB)(nil),                              // 35: api.SegmentTypeB
+	(*TunnelEncapSubTLVSRSegmentList)(nil),            // 36: api.TunnelEncapSubTLVSRSegmentList
+	(*TunnelEncapSubTLVEgressEndpoint)(nil),           // 37: api.TunnelEncapSubTLVEgressEndpoint
+	(*TunnelEncapSubTLVUDPDestPort)(nil),              // 38: api.TunnelEncapSubTLVUDPDestPort
+	(*TunnelEncapSubTLVUnknown)(nil),                  // 39: api.TunnelEncapSubTLVUnknown
+	(*TunnelEncapTLV)(nil),                            // 40: api.TunnelEncapTLV
+	(*TunnelEncapAttribute)(nil),                      // 41: api.TunnelEncapAttribute
+	(*IPv6AddressSpecificExtended)(nil),               // 42: api.IPv6AddressSpecificExtended
+	(*RedirectIPv6AddressSpecificExtended)(nil),       // 43: api.RedirectIPv6AddressSpecificExtended
+	(*IP6ExtendedCommunitiesAttribute)(nil),           // 44: api.IP6ExtendedCommunitiesAttribute
+	(*AigpTLVIGPMetric)(nil),                          // 45: api.AigpTLVIGPMetric
+	(*AigpTLVUnknown)(nil),                            // 46: api.AigpTLVUnknown
+	(*AigpAttribute)(nil),                             // 47: api.AigpAttribute
+	(*LargeCommunity)(nil),                            // 48: api.LargeCommunity
+	(*LargeCommunitiesAttribute)(nil),                 // 49: api.LargeCommunitiesAttribute
+	(*LsNodeFlags)(nil),                               // 50: api.LsNodeFlags
+	(*LsIGPFlags)(nil),                                // 51: api.LsIGPFlags
+	(*LsSrRange)(nil),                                 // 52: api.LsSrRange
+	(*LsSrCapabilities)(nil),                          // 53: api.LsSrCapabilities
+	(*LsSrLocalBlock)(nil),                            // 54: api.LsSrLocalBlock
+	(*LsAttributeNode)(nil),                           // 55: api.LsAttributeNode
+	(*LsAttributeLink)(nil),                           // 56: api.LsAttributeLink
+	(*LsAttributePrefix)(nil),                         // 57: api.LsAttributePrefix
+	(*LsBgpPeerSegmentSIDFlags)(nil),                  // 58: api.LsBgpPeerSegmentSIDFlags
+	(*LsBgpPeerSegmentSID)(nil),                       // 59: api.LsBgpPeerSegmentSID
+	(*LsAttributeBgpPeerSegment)(nil),                 // 60: api.LsAttributeBgpPeerSegment
+	(*LsAttribute)(nil),                               // 61: api.LsAttribute
+	(*UnknownAttribute)(nil),                          // 62: api.UnknownAttribute
+	(*SRv6StructureSubSubTLV)(nil),                    // 63: api.SRv6StructureSubSubTLV
+	(*SRv6SubSubTLV)(nil),                             // 64: api.SRv6SubSubTLV
+	(*SRv6SubSubTLVs)(nil),                            // 65: api.SRv6SubSubTLVs
+	(*SRv6SIDFlags)(nil),                              // 66: api.SRv6SIDFlags
+	(*SRv6InformationSubTLV)(nil),                     // 67: api.SRv6InformationSubTLV
+	(*SRv6SubTLV)(nil),                                // 68: api.SRv6SubTLV
+	(*SRv6SubTLVs)(nil),                               // 69: api.SRv6SubTLVs
+	(*SRv6L3ServiceTLV)(nil),                          // 70: api.SRv6L3ServiceTLV
+	(*SRv6L2ServiceTLV)(nil),                          // 71: api.SRv6L2ServiceTLV
+	(*PrefixSID)(nil),                                 // 72: api.PrefixSID
+	(*TunnelEncapSubTLVSRSegmentList_Segment)(nil),    // 73: api.TunnelEncapSubTLVSRSegmentList.Segment
+	(*TunnelEncapTLV_TLV)(nil),                        // 74: api.TunnelEncapTLV.TLV
+	(*IP6ExtendedCommunitiesAttribute_Community)(nil), // 75: api.IP6ExtendedCommunitiesAttribute.Community
+	(*AigpAttribute_TLV)(nil),                         // 76: api.AigpAttribute.TLV
+	nil,                                               // 77: api.SRv6InformationSubTLV.SubSubTlvsEntry
+	nil,                                               // 78: api.SRv6L3ServiceTLV.SubTlvsEntry
+	nil,                                               // 79: api.SRv6L2ServiceTLV.SubTlvsEntry
+	(*PrefixSID_TLV)(nil),                             // 80: api.PrefixSID.TLV
+	(*Family)(nil),                                    // 81: api.Family
+	(*NLRI)(nil),                                      // 82: api.NLRI
+	(*ExtendedCommunity)(nil),                         // 83: api.ExtendedCommunity
 }
 var file_api_attribute_proto_depIdxs = []int32{
-	62, // 0: apipb.Attribute.unknown:type_name -> apipb.UnknownAttribute
-	4,  // 1: apipb.Attribute.origin:type_name -> apipb.OriginAttribute
-	6,  // 2: apipb.Attribute.as_path:type_name -> apipb.AsPathAttribute
-	7,  // 3: apipb.Attribute.next_hop:type_name -> apipb.NextHopAttribute
-	8,  // 4: apipb.Attribute.multi_exit_disc:type_name -> apipb.MultiExitDiscAttribute
-	9,  // 5: apipb.Attribute.local_pref:type_name -> apipb.LocalPrefAttribute
-	10, // 6: apipb.Attribute.atomic_aggregate:type_name -> apipb.AtomicAggregateAttribute
-	11, // 7: apipb.Attribute.aggregator:type_name -> apipb.AggregatorAttribute
-	12, // 8: apipb.Attribute.communities:type_name -> apipb.CommunitiesAttribute
-	13, // 9: apipb.Attribute.originator_id:type_name -> apipb.OriginatorIdAttribute
-	14, // 10: apipb.Attribute.cluster_list:type_name -> apipb.ClusterListAttribute
-	15, // 11: apipb.Attribute.mp_reach:type_name -> apipb.MpReachNLRIAttribute
-	16, // 12: apipb.Attribute.mp_unreach:type_name -> apipb.MpUnreachNLRIAttribute
-	17, // 13: apipb.Attribute.extended_communities:type_name -> apipb.ExtendedCommunitiesAttribute
-	18, // 14: apipb.Attribute.as4_path:type_name -> apipb.As4PathAttribute
-	19, // 15: apipb.Attribute.as4_aggregator:type_name -> apipb.As4AggregatorAttribute
-	20, // 16: apipb.Attribute.pmsi_tunnel:type_name -> apipb.PmsiTunnelAttribute
-	41, // 17: apipb.Attribute.tunnel_encap:type_name -> apipb.TunnelEncapAttribute
-	44, // 18: apipb.Attribute.ip6_extended_communities:type_name -> apipb.IP6ExtendedCommunitiesAttribute
-	47, // 19: apipb.Attribute.aigp:type_name -> apipb.AigpAttribute
-	49, // 20: apipb.Attribute.large_communities:type_name -> apipb.LargeCommunitiesAttribute
-	61, // 21: apipb.Attribute.ls:type_name -> apipb.LsAttribute
-	72, // 22: apipb.Attribute.prefix_sid:type_name -> apipb.PrefixSID
-	2,  // 23: apipb.AsSegment.type:type_name -> apipb.AsSegment.Type
-	5,  // 24: apipb.AsPathAttribute.segments:type_name -> apipb.AsSegment
-	81, // 25: apipb.MpReachNLRIAttribute.family:type_name -> apipb.Family
-	82, // 26: apipb.MpReachNLRIAttribute.nlris:type_name -> apipb.NLRI
-	81, // 27: apipb.MpUnreachNLRIAttribute.family:type_name -> apipb.Family
-	82, // 28: apipb.MpUnreachNLRIAttribute.nlris:type_name -> apipb.NLRI
-	83, // 29: apipb.ExtendedCommunitiesAttribute.communities:type_name -> apipb.ExtendedCommunity
-	5,  // 30: apipb.As4PathAttribute.segments:type_name -> apipb.AsSegment
-	28, // 31: apipb.TunnelEncapSubTLVSRBindingSID.sr_binding_sid:type_name -> apipb.SRBindingSID
-	30, // 32: apipb.TunnelEncapSubTLVSRBindingSID.srv6_binding_sid:type_name -> apipb.SRv6BindingSID
-	0,  // 33: apipb.SRv6EndPointBehavior.behavior:type_name -> apipb.SRv6Behavior
-	29, // 34: apipb.SRv6BindingSID.endpoint_behavior_structure:type_name -> apipb.SRv6EndPointBehavior
-	1,  // 35: apipb.TunnelEncapSubTLVSRENLP.enlp:type_name -> apipb.ENLPType
-	33, // 36: apipb.SegmentTypeA.flags:type_name -> apipb.SegmentFlags
-	33, // 37: apipb.SegmentTypeB.flags:type_name -> apipb.SegmentFlags
-	29, // 38: apipb.SegmentTypeB.endpoint_behavior_structure:type_name -> apipb.SRv6EndPointBehavior
-	32, // 39: apipb.TunnelEncapSubTLVSRSegmentList.weight:type_name -> apipb.SRWeight
-	73, // 40: apipb.TunnelEncapSubTLVSRSegmentList.segments:type_name -> apipb.TunnelEncapSubTLVSRSegmentList.Segment
-	74, // 41: apipb.TunnelEncapTLV.tlvs:type_name -> apipb.TunnelEncapTLV.TLV
-	40, // 42: apipb.TunnelEncapAttribute.tlvs:type_name -> apipb.TunnelEncapTLV
-	75, // 43: apipb.IP6ExtendedCommunitiesAttribute.communities:type_name -> apipb.IP6ExtendedCommunitiesAttribute.Community
-	76, // 44: apipb.AigpAttribute.tlvs:type_name -> apipb.AigpAttribute.TLV
-	48, // 45: apipb.LargeCommunitiesAttribute.communities:type_name -> apipb.LargeCommunity
-	52, // 46: apipb.LsSrCapabilities.ranges:type_name -> apipb.LsSrRange
-	52, // 47: apipb.LsSrLocalBlock.ranges:type_name -> apipb.LsSrRange
-	50, // 48: apipb.LsAttributeNode.flags:type_name -> apipb.LsNodeFlags
-	53, // 49: apipb.LsAttributeNode.sr_capabilities:type_name -> apipb.LsSrCapabilities
-	54, // 50: apipb.LsAttributeNode.sr_local_block:type_name -> apipb.LsSrLocalBlock
-	51, // 51: apipb.LsAttributePrefix.igp_flags:type_name -> apipb.LsIGPFlags
-	58, // 52: apipb.LsBgpPeerSegmentSID.flags:type_name -> apipb.LsBgpPeerSegmentSIDFlags
-	59, // 53: apipb.LsAttributeBgpPeerSegment.bgp_peer_node_sid:type_name -> apipb.LsBgpPeerSegmentSID
-	59, // 54: apipb.LsAttributeBgpPeerSegment.bgp_peer_adjacency_sid:type_name -> apipb.LsBgpPeerSegmentSID
-	59, // 55: apipb.LsAttributeBgpPeerSegment.bgp_peer_set_sid:type_name -> apipb.LsBgpPeerSegmentSID
-	55, // 56: apipb.LsAttribute.node:type_name -> apipb.LsAttributeNode
-	56, // 57: apipb.LsAttribute.link:type_name -> apipb.LsAttributeLink
-	57, // 58: apipb.LsAttribute.prefix:type_name -> apipb.LsAttributePrefix
-	60, // 59: apipb.LsAttribute.bgp_peer_segment:type_name -> apipb.LsAttributeBgpPeerSegment
-	63, // 60: apipb.SRv6SubSubTLV.structure:type_name -> apipb.SRv6StructureSubSubTLV
-	64, // 61: apipb.SRv6SubSubTLVs.tlvs:type_name -> apipb.SRv6SubSubTLV
-	66, // 62: apipb.SRv6InformationSubTLV.flags:type_name -> apipb.SRv6SIDFlags
-	77, // 63: apipb.SRv6InformationSubTLV.sub_sub_tlvs:type_name -> apipb.SRv6InformationSubTLV.SubSubTlvsEntry
-	67, // 64: apipb.SRv6SubTLV.information:type_name -> apipb.SRv6InformationSubTLV
-	68, // 65: apipb.SRv6SubTLVs.tlvs:type_name -> apipb.SRv6SubTLV
-	78, // 66: apipb.SRv6L3ServiceTLV.sub_tlvs:type_name -> apipb.SRv6L3ServiceTLV.SubTlvsEntry
-	79, // 67: apipb.SRv6L2ServiceTLV.sub_tlvs:type_name -> apipb.SRv6L2ServiceTLV.SubTlvsEntry
-	80, // 68: apipb.PrefixSID.tlvs:type_name -> apipb.PrefixSID.TLV
-	34, // 69: apipb.TunnelEncapSubTLVSRSegmentList.Segment.a:type_name -> apipb.SegmentTypeA
-	35, // 70: apipb.TunnelEncapSubTLVSRSegmentList.Segment.b:type_name -> apipb.SegmentTypeB
-	39, // 71: apipb.TunnelEncapTLV.TLV.unknown:type_name -> apipb.TunnelEncapSubTLVUnknown
-	21, // 72: apipb.TunnelEncapTLV.TLV.encapsulation:type_name -> apipb.TunnelEncapSubTLVEncapsulation
-	22, // 73: apipb.TunnelEncapTLV.TLV.protocol:type_name -> apipb.TunnelEncapSubTLVProtocol
-	23, // 74: apipb.TunnelEncapTLV.TLV.color:type_name -> apipb.TunnelEncapSubTLVColor
-	37, // 75: apipb.TunnelEncapTLV.TLV.egress_endpoint:type_name -> apipb.TunnelEncapSubTLVEgressEndpoint
-	38, // 76: apipb.TunnelEncapTLV.TLV.udp_dest_port:type_name -> apipb.TunnelEncapSubTLVUDPDestPort
-	24, // 77: apipb.TunnelEncapTLV.TLV.sr_preference:type_name -> apipb.TunnelEncapSubTLVSRPreference
-	26, // 78: apipb.TunnelEncapTLV.TLV.sr_priority:type_name -> apipb.TunnelEncapSubTLVSRPriority
-	25, // 79: apipb.TunnelEncapTLV.TLV.sr_candidate_path_name:type_name -> apipb.TunnelEncapSubTLVSRCandidatePathName
-	31, // 80: apipb.TunnelEncapTLV.TLV.sr_enlp:type_name -> apipb.TunnelEncapSubTLVSRENLP
-	27, // 81: apipb.TunnelEncapTLV.TLV.sr_binding_sid:type_name -> apipb.TunnelEncapSubTLVSRBindingSID
-	36, // 82: apipb.TunnelEncapTLV.TLV.sr_segment_list:type_name -> apipb.TunnelEncapSubTLVSRSegmentList
-	42, // 83: apipb.IP6ExtendedCommunitiesAttribute.Community.ipv6_address_specific:type_name -> apipb.IPv6AddressSpecificExtended
-	43, // 84: apipb.IP6ExtendedCommunitiesAttribute.Community.redirect_ipv6_address_specific:type_name -> apipb.RedirectIPv6AddressSpecificExtended
-	46, // 85: apipb.AigpAttribute.TLV.unknown:type_name -> apipb.AigpTLVUnknown
-	45, // 86: apipb.AigpAttribute.TLV.igp_metric:type_name -> apipb.AigpTLVIGPMetric
-	65, // 87: apipb.SRv6InformationSubTLV.SubSubTlvsEntry.value:type_name -> apipb.SRv6SubSubTLVs
-	69, // 88: apipb.SRv6L3ServiceTLV.SubTlvsEntry.value:type_name -> apipb.SRv6SubTLVs
-	69, // 89: apipb.SRv6L2ServiceTLV.SubTlvsEntry.value:type_name -> apipb.SRv6SubTLVs
-	70, // 90: apipb.PrefixSID.TLV.l3_service:type_name -> apipb.SRv6L3ServiceTLV
-	71, // 91: apipb.PrefixSID.TLV.l2_service:type_name -> apipb.SRv6L2ServiceTLV
+	62, // 0: api.Attribute.unknown:type_name -> api.UnknownAttribute
+	4,  // 1: api.Attribute.origin:type_name -> api.OriginAttribute
+	6,  // 2: api.Attribute.as_path:type_name -> api.AsPathAttribute
+	7,  // 3: api.Attribute.next_hop:type_name -> api.NextHopAttribute
+	8,  // 4: api.Attribute.multi_exit_disc:type_name -> api.MultiExitDiscAttribute
+	9,  // 5: api.Attribute.local_pref:type_name -> api.LocalPrefAttribute
+	10, // 6: api.Attribute.atomic_aggregate:type_name -> api.AtomicAggregateAttribute
+	11, // 7: api.Attribute.aggregator:type_name -> api.AggregatorAttribute
+	12, // 8: api.Attribute.communities:type_name -> api.CommunitiesAttribute
+	13, // 9: api.Attribute.originator_id:type_name -> api.OriginatorIdAttribute
+	14, // 10: api.Attribute.cluster_list:type_name -> api.ClusterListAttribute
+	15, // 11: api.Attribute.mp_reach:type_name -> api.MpReachNLRIAttribute
+	16, // 12: api.Attribute.mp_unreach:type_name -> api.MpUnreachNLRIAttribute
+	17, // 13: api.Attribute.extended_communities:type_name -> api.ExtendedCommunitiesAttribute
+	18, // 14: api.Attribute.as4_path:type_name -> api.As4PathAttribute
+	19, // 15: api.Attribute.as4_aggregator:type_name -> api.As4AggregatorAttribute
+	20, // 16: api.Attribute.pmsi_tunnel:type_name -> api.PmsiTunnelAttribute
+	41, // 17: api.Attribute.tunnel_encap:type_name -> api.TunnelEncapAttribute
+	44, // 18: api.Attribute.ip6_extended_communities:type_name -> api.IP6ExtendedCommunitiesAttribute
+	47, // 19: api.Attribute.aigp:type_name -> api.AigpAttribute
+	49, // 20: api.Attribute.large_communities:type_name -> api.LargeCommunitiesAttribute
+	61, // 21: api.Attribute.ls:type_name -> api.LsAttribute
+	72, // 22: api.Attribute.prefix_sid:type_name -> api.PrefixSID
+	2,  // 23: api.AsSegment.type:type_name -> api.AsSegment.Type
+	5,  // 24: api.AsPathAttribute.segments:type_name -> api.AsSegment
+	81, // 25: api.MpReachNLRIAttribute.family:type_name -> api.Family
+	82, // 26: api.MpReachNLRIAttribute.nlris:type_name -> api.NLRI
+	81, // 27: api.MpUnreachNLRIAttribute.family:type_name -> api.Family
+	82, // 28: api.MpUnreachNLRIAttribute.nlris:type_name -> api.NLRI
+	83, // 29: api.ExtendedCommunitiesAttribute.communities:type_name -> api.ExtendedCommunity
+	5,  // 30: api.As4PathAttribute.segments:type_name -> api.AsSegment
+	28, // 31: api.TunnelEncapSubTLVSRBindingSID.sr_binding_sid:type_name -> api.SRBindingSID
+	30, // 32: api.TunnelEncapSubTLVSRBindingSID.srv6_binding_sid:type_name -> api.SRv6BindingSID
+	0,  // 33: api.SRv6EndPointBehavior.behavior:type_name -> api.SRv6Behavior
+	29, // 34: api.SRv6BindingSID.endpoint_behavior_structure:type_name -> api.SRv6EndPointBehavior
+	1,  // 35: api.TunnelEncapSubTLVSRENLP.enlp:type_name -> api.ENLPType
+	33, // 36: api.SegmentTypeA.flags:type_name -> api.SegmentFlags
+	33, // 37: api.SegmentTypeB.flags:type_name -> api.SegmentFlags
+	29, // 38: api.SegmentTypeB.endpoint_behavior_structure:type_name -> api.SRv6EndPointBehavior
+	32, // 39: api.TunnelEncapSubTLVSRSegmentList.weight:type_name -> api.SRWeight
+	73, // 40: api.TunnelEncapSubTLVSRSegmentList.segments:type_name -> api.TunnelEncapSubTLVSRSegmentList.Segment
+	74, // 41: api.TunnelEncapTLV.tlvs:type_name -> api.TunnelEncapTLV.TLV
+	40, // 42: api.TunnelEncapAttribute.tlvs:type_name -> api.TunnelEncapTLV
+	75, // 43: api.IP6ExtendedCommunitiesAttribute.communities:type_name -> api.IP6ExtendedCommunitiesAttribute.Community
+	76, // 44: api.AigpAttribute.tlvs:type_name -> api.AigpAttribute.TLV
+	48, // 45: api.LargeCommunitiesAttribute.communities:type_name -> api.LargeCommunity
+	52, // 46: api.LsSrCapabilities.ranges:type_name -> api.LsSrRange
+	52, // 47: api.LsSrLocalBlock.ranges:type_name -> api.LsSrRange
+	50, // 48: api.LsAttributeNode.flags:type_name -> api.LsNodeFlags
+	53, // 49: api.LsAttributeNode.sr_capabilities:type_name -> api.LsSrCapabilities
+	54, // 50: api.LsAttributeNode.sr_local_block:type_name -> api.LsSrLocalBlock
+	51, // 51: api.LsAttributePrefix.igp_flags:type_name -> api.LsIGPFlags
+	58, // 52: api.LsBgpPeerSegmentSID.flags:type_name -> api.LsBgpPeerSegmentSIDFlags
+	59, // 53: api.LsAttributeBgpPeerSegment.bgp_peer_node_sid:type_name -> api.LsBgpPeerSegmentSID
+	59, // 54: api.LsAttributeBgpPeerSegment.bgp_peer_adjacency_sid:type_name -> api.LsBgpPeerSegmentSID
+	59, // 55: api.LsAttributeBgpPeerSegment.bgp_peer_set_sid:type_name -> api.LsBgpPeerSegmentSID
+	55, // 56: api.LsAttribute.node:type_name -> api.LsAttributeNode
+	56, // 57: api.LsAttribute.link:type_name -> api.LsAttributeLink
+	57, // 58: api.LsAttribute.prefix:type_name -> api.LsAttributePrefix
+	60, // 59: api.LsAttribute.bgp_peer_segment:type_name -> api.LsAttributeBgpPeerSegment
+	63, // 60: api.SRv6SubSubTLV.structure:type_name -> api.SRv6StructureSubSubTLV
+	64, // 61: api.SRv6SubSubTLVs.tlvs:type_name -> api.SRv6SubSubTLV
+	66, // 62: api.SRv6InformationSubTLV.flags:type_name -> api.SRv6SIDFlags
+	77, // 63: api.SRv6InformationSubTLV.sub_sub_tlvs:type_name -> api.SRv6InformationSubTLV.SubSubTlvsEntry
+	67, // 64: api.SRv6SubTLV.information:type_name -> api.SRv6InformationSubTLV
+	68, // 65: api.SRv6SubTLVs.tlvs:type_name -> api.SRv6SubTLV
+	78, // 66: api.SRv6L3ServiceTLV.sub_tlvs:type_name -> api.SRv6L3ServiceTLV.SubTlvsEntry
+	79, // 67: api.SRv6L2ServiceTLV.sub_tlvs:type_name -> api.SRv6L2ServiceTLV.SubTlvsEntry
+	80, // 68: api.PrefixSID.tlvs:type_name -> api.PrefixSID.TLV
+	34, // 69: api.TunnelEncapSubTLVSRSegmentList.Segment.a:type_name -> api.SegmentTypeA
+	35, // 70: api.TunnelEncapSubTLVSRSegmentList.Segment.b:type_name -> api.SegmentTypeB
+	39, // 71: api.TunnelEncapTLV.TLV.unknown:type_name -> api.TunnelEncapSubTLVUnknown
+	21, // 72: api.TunnelEncapTLV.TLV.encapsulation:type_name -> api.TunnelEncapSubTLVEncapsulation
+	22, // 73: api.TunnelEncapTLV.TLV.protocol:type_name -> api.TunnelEncapSubTLVProtocol
+	23, // 74: api.TunnelEncapTLV.TLV.color:type_name -> api.TunnelEncapSubTLVColor
+	37, // 75: api.TunnelEncapTLV.TLV.egress_endpoint:type_name -> api.TunnelEncapSubTLVEgressEndpoint
+	38, // 76: api.TunnelEncapTLV.TLV.udp_dest_port:type_name -> api.TunnelEncapSubTLVUDPDestPort
+	24, // 77: api.TunnelEncapTLV.TLV.sr_preference:type_name -> api.TunnelEncapSubTLVSRPreference
+	26, // 78: api.TunnelEncapTLV.TLV.sr_priority:type_name -> api.TunnelEncapSubTLVSRPriority
+	25, // 79: api.TunnelEncapTLV.TLV.sr_candidate_path_name:type_name -> api.TunnelEncapSubTLVSRCandidatePathName
+	31, // 80: api.TunnelEncapTLV.TLV.sr_enlp:type_name -> api.TunnelEncapSubTLVSRENLP
+	27, // 81: api.TunnelEncapTLV.TLV.sr_binding_sid:type_name -> api.TunnelEncapSubTLVSRBindingSID
+	36, // 82: api.TunnelEncapTLV.TLV.sr_segment_list:type_name -> api.TunnelEncapSubTLVSRSegmentList
+	42, // 83: api.IP6ExtendedCommunitiesAttribute.Community.ipv6_address_specific:type_name -> api.IPv6AddressSpecificExtended
+	43, // 84: api.IP6ExtendedCommunitiesAttribute.Community.redirect_ipv6_address_specific:type_name -> api.RedirectIPv6AddressSpecificExtended
+	46, // 85: api.AigpAttribute.TLV.unknown:type_name -> api.AigpTLVUnknown
+	45, // 86: api.AigpAttribute.TLV.igp_metric:type_name -> api.AigpTLVIGPMetric
+	65, // 87: api.SRv6InformationSubTLV.SubSubTlvsEntry.value:type_name -> api.SRv6SubSubTLVs
+	69, // 88: api.SRv6L3ServiceTLV.SubTlvsEntry.value:type_name -> api.SRv6SubTLVs
+	69, // 89: api.SRv6L2ServiceTLV.SubTlvsEntry.value:type_name -> api.SRv6SubTLVs
+	70, // 90: api.PrefixSID.TLV.l3_service:type_name -> api.SRv6L3ServiceTLV
+	71, // 91: api.PrefixSID.TLV.l2_service:type_name -> api.SRv6L2ServiceTLV
 	92, // [92:92] is the sub-list for method output_type
 	92, // [92:92] is the sub-list for method input_type
 	92, // [92:92] is the sub-list for extension type_name

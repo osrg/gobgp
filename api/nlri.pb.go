@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: api/nlri.proto
 
-package apipb
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -2185,7 +2185,7 @@ func (x *LsLinkDescriptor) GetNeighborAddrIpv6() string {
 type LsPrefixDescriptor struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IpReachability []string               `protobuf:"bytes,1,rep,name=ip_reachability,json=ipReachability,proto3" json:"ip_reachability,omitempty"`
-	OspfRouteType  LsOspfRouteType        `protobuf:"varint,2,opt,name=ospf_route_type,json=ospfRouteType,proto3,enum=apipb.LsOspfRouteType" json:"ospf_route_type,omitempty"`
+	OspfRouteType  LsOspfRouteType        `protobuf:"varint,2,opt,name=ospf_route_type,json=ospfRouteType,proto3,enum=api.LsOspfRouteType" json:"ospf_route_type,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2596,10 +2596,10 @@ func (x *LsSrv6SIDNLRI) GetMultiTopoId() *LsMultiTopologyIdentifier {
 // - AFI=16388, SAFI=71
 type LsAddrPrefix struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          LsNLRIType             `protobuf:"varint,1,opt,name=type,proto3,enum=apipb.LsNLRIType" json:"type,omitempty"`
+	Type          LsNLRIType             `protobuf:"varint,1,opt,name=type,proto3,enum=api.LsNLRIType" json:"type,omitempty"`
 	Nlri          *LsAddrPrefix_LsNLRI   `protobuf:"bytes,2,opt,name=nlri,proto3" json:"nlri,omitempty"`
 	Length        uint32                 `protobuf:"varint,3,opt,name=length,proto3" json:"length,omitempty"`
-	ProtocolId    LsProtocolID           `protobuf:"varint,4,opt,name=protocol_id,json=protocolId,proto3,enum=apipb.LsProtocolID" json:"protocol_id,omitempty"`
+	ProtocolId    LsProtocolID           `protobuf:"varint,4,opt,name=protocol_id,json=protocolId,proto3,enum=api.LsProtocolID" json:"protocol_id,omitempty"`
 	Identifier    uint64                 `protobuf:"varint,5,opt,name=identifier,proto3" json:"identifier,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3086,31 +3086,31 @@ var File_api_nlri_proto protoreflect.FileDescriptor
 
 const file_api_nlri_proto_rawDesc = "" +
 	"\n" +
-	"\x0eapi/nlri.proto\x12\x05apipb\x1a\x10api/common.proto\x1a\x10api/extcom.proto\"\xb1\f\n" +
-	"\x04NLRI\x120\n" +
-	"\x06prefix\x18\x01 \x01(\v2\x16.apipb.IPAddressPrefixH\x00R\x06prefix\x12F\n" +
-	"\x0elabeled_prefix\x18\x02 \x01(\v2\x1d.apipb.LabeledIPAddressPrefixH\x00R\rlabeledPrefix\x12@\n" +
-	"\rencapsulation\x18\x03 \x01(\v2\x18.apipb.EncapsulationNLRIH\x00R\rencapsulation\x12%\n" +
-	"\x04vpls\x18\x04 \x01(\v2\x0f.apipb.VPLSNLRIH\x00R\x04vpls\x12Q\n" +
-	"\x10evpn_ethernet_ad\x18\x05 \x01(\v2%.apipb.EVPNEthernetAutoDiscoveryRouteH\x00R\x0eevpnEthernetAd\x12E\n" +
-	"\vevpn_macadv\x18\x06 \x01(\v2\".apipb.EVPNMACIPAdvertisementRouteH\x00R\n" +
-	"evpnMacadv\x12V\n" +
-	"\x0eevpn_multicast\x18\a \x01(\v2-.apipb.EVPNInclusiveMulticastEthernetTagRouteH\x00R\revpnMulticast\x12U\n" +
-	"\x15evpn_ethernet_segment\x18\b \x01(\v2\x1f.apipb.EVPNEthernetSegmentRouteH\x00R\x13evpnEthernetSegment\x12@\n" +
-	"\x0eevpn_ip_prefix\x18\t \x01(\v2\x18.apipb.EVPNIPPrefixRouteH\x00R\fevpnIpPrefix\x127\n" +
+	"\x0eapi/nlri.proto\x12\x03api\x1a\x10api/common.proto\x1a\x10api/extcom.proto\"\x87\f\n" +
+	"\x04NLRI\x12.\n" +
+	"\x06prefix\x18\x01 \x01(\v2\x14.api.IPAddressPrefixH\x00R\x06prefix\x12D\n" +
+	"\x0elabeled_prefix\x18\x02 \x01(\v2\x1b.api.LabeledIPAddressPrefixH\x00R\rlabeledPrefix\x12>\n" +
+	"\rencapsulation\x18\x03 \x01(\v2\x16.api.EncapsulationNLRIH\x00R\rencapsulation\x12#\n" +
+	"\x04vpls\x18\x04 \x01(\v2\r.api.VPLSNLRIH\x00R\x04vpls\x12O\n" +
+	"\x10evpn_ethernet_ad\x18\x05 \x01(\v2#.api.EVPNEthernetAutoDiscoveryRouteH\x00R\x0eevpnEthernetAd\x12C\n" +
+	"\vevpn_macadv\x18\x06 \x01(\v2 .api.EVPNMACIPAdvertisementRouteH\x00R\n" +
+	"evpnMacadv\x12T\n" +
+	"\x0eevpn_multicast\x18\a \x01(\v2+.api.EVPNInclusiveMulticastEthernetTagRouteH\x00R\revpnMulticast\x12S\n" +
+	"\x15evpn_ethernet_segment\x18\b \x01(\v2\x1d.api.EVPNEthernetSegmentRouteH\x00R\x13evpnEthernetSegment\x12>\n" +
+	"\x0eevpn_ip_prefix\x18\t \x01(\v2\x16.api.EVPNIPPrefixRouteH\x00R\fevpnIpPrefix\x125\n" +
 	"\vevpn_i_pmsi\x18\n" +
-	" \x01(\v2\x15.apipb.EVPNIPMSIRouteH\x00R\tevpnIPmsi\x12U\n" +
-	"\x15labeled_vpn_ip_prefix\x18\v \x01(\v2 .apipb.LabeledVPNIPAddressPrefixH\x00R\x12labeledVpnIpPrefix\x12Z\n" +
-	"\x17route_target_membership\x18\f \x01(\v2 .apipb.RouteTargetMembershipNLRIH\x00R\x15routeTargetMembership\x122\n" +
-	"\tflow_spec\x18\r \x01(\v2\x13.apipb.FlowSpecNLRIH\x00R\bflowSpec\x12<\n" +
-	"\rvpn_flow_spec\x18\x0e \x01(\v2\x16.apipb.VPNFlowSpecNLRIH\x00R\vvpnFlowSpec\x12+\n" +
-	"\x06opaque\x18\x0f \x01(\v2\x11.apipb.OpaqueNLRIH\x00R\x06opaque\x12;\n" +
-	"\x0els_addr_prefix\x18\x10 \x01(\v2\x13.apipb.LsAddrPrefixH\x00R\flsAddrPrefix\x122\n" +
-	"\tsr_policy\x18\x11 \x01(\v2\x13.apipb.SRPolicyNLRIH\x00R\bsrPolicy\x12q\n" +
-	"\x1fmup_interwork_segment_discovery\x18\x12 \x01(\v2(.apipb.MUPInterworkSegmentDiscoveryRouteH\x00R\x1cmupInterworkSegmentDiscovery\x12h\n" +
-	"\x1cmup_direct_segment_discovery\x18\x13 \x01(\v2%.apipb.MUPDirectSegmentDiscoveryRouteH\x00R\x19mupDirectSegmentDiscovery\x12l\n" +
-	"\x1emup_type_1_session_transformed\x18\x14 \x01(\v2&.apipb.MUPType1SessionTransformedRouteH\x00R\x1amupType1SessionTransformed\x12l\n" +
-	"\x1emup_type_2_session_transformed\x18\x15 \x01(\v2&.apipb.MUPType2SessionTransformedRouteH\x00R\x1amupType2SessionTransformedB\x06\n" +
+	" \x01(\v2\x13.api.EVPNIPMSIRouteH\x00R\tevpnIPmsi\x12S\n" +
+	"\x15labeled_vpn_ip_prefix\x18\v \x01(\v2\x1e.api.LabeledVPNIPAddressPrefixH\x00R\x12labeledVpnIpPrefix\x12X\n" +
+	"\x17route_target_membership\x18\f \x01(\v2\x1e.api.RouteTargetMembershipNLRIH\x00R\x15routeTargetMembership\x120\n" +
+	"\tflow_spec\x18\r \x01(\v2\x11.api.FlowSpecNLRIH\x00R\bflowSpec\x12:\n" +
+	"\rvpn_flow_spec\x18\x0e \x01(\v2\x14.api.VPNFlowSpecNLRIH\x00R\vvpnFlowSpec\x12)\n" +
+	"\x06opaque\x18\x0f \x01(\v2\x0f.api.OpaqueNLRIH\x00R\x06opaque\x129\n" +
+	"\x0els_addr_prefix\x18\x10 \x01(\v2\x11.api.LsAddrPrefixH\x00R\flsAddrPrefix\x120\n" +
+	"\tsr_policy\x18\x11 \x01(\v2\x11.api.SRPolicyNLRIH\x00R\bsrPolicy\x12o\n" +
+	"\x1fmup_interwork_segment_discovery\x18\x12 \x01(\v2&.api.MUPInterworkSegmentDiscoveryRouteH\x00R\x1cmupInterworkSegmentDiscovery\x12f\n" +
+	"\x1cmup_direct_segment_discovery\x18\x13 \x01(\v2#.api.MUPDirectSegmentDiscoveryRouteH\x00R\x19mupDirectSegmentDiscovery\x12j\n" +
+	"\x1emup_type_1_session_transformed\x18\x14 \x01(\v2$.api.MUPType1SessionTransformedRouteH\x00R\x1amupType1SessionTransformed\x12j\n" +
+	"\x1emup_type_2_session_transformed\x18\x15 \x01(\v2$.api.MUPType2SessionTransformedRouteH\x00R\x1amupType2SessionTransformedB\x06\n" +
 	"\x04nlri\"H\n" +
 	"\x0fIPAddressPrefix\x12\x1d\n" +
 	"\n" +
@@ -3122,67 +3122,67 @@ const file_api_nlri_proto_rawDesc = "" +
 	"prefix_len\x18\x02 \x01(\rR\tprefixLen\x12\x16\n" +
 	"\x06prefix\x18\x03 \x01(\tR\x06prefix\"-\n" +
 	"\x11EncapsulationNLRI\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\"\xc0\x01\n" +
-	"\bVPLSNLRI\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12\x13\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\"\xbe\x01\n" +
+	"\bVPLSNLRI\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12\x13\n" +
 	"\x05ve_id\x18\x02 \x01(\rR\x04veId\x12&\n" +
 	"\x0fve_block_offset\x18\x03 \x01(\rR\rveBlockOffset\x12\"\n" +
 	"\rve_block_size\x18\x04 \x01(\rR\vveBlockSize\x12(\n" +
 	"\x10label_block_base\x18\x05 \x01(\rR\x0elabelBlockBase\"E\n" +
 	"\x19EthernetSegmentIdentifier\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\rR\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\xb8\x01\n" +
-	"\x1eEVPNEthernetAutoDiscoveryRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x122\n" +
-	"\x03esi\x18\x02 \x01(\v2 .apipb.EthernetSegmentIdentifierR\x03esi\x12!\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xb4\x01\n" +
+	"\x1eEVPNEthernetAutoDiscoveryRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x120\n" +
+	"\x03esi\x18\x02 \x01(\v2\x1e.api.EthernetSegmentIdentifierR\x03esi\x12!\n" +
 	"\fethernet_tag\x18\x03 \x01(\rR\vethernetTag\x12\x14\n" +
-	"\x05label\x18\x04 \x01(\rR\x05label\"\xf7\x01\n" +
-	"\x1bEVPNMACIPAdvertisementRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x122\n" +
-	"\x03esi\x18\x02 \x01(\v2 .apipb.EthernetSegmentIdentifierR\x03esi\x12!\n" +
+	"\x05label\x18\x04 \x01(\rR\x05label\"\xf3\x01\n" +
+	"\x1bEVPNMACIPAdvertisementRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x120\n" +
+	"\x03esi\x18\x02 \x01(\v2\x1e.api.EthernetSegmentIdentifierR\x03esi\x12!\n" +
 	"\fethernet_tag\x18\x03 \x01(\rR\vethernetTag\x12\x1f\n" +
 	"\vmac_address\x18\x04 \x01(\tR\n" +
 	"macAddress\x12\x1d\n" +
 	"\n" +
 	"ip_address\x18\x05 \x01(\tR\tipAddress\x12\x16\n" +
-	"\x06labels\x18\x06 \x03(\rR\x06labels\"\x95\x01\n" +
-	"&EVPNInclusiveMulticastEthernetTagRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12!\n" +
+	"\x06labels\x18\x06 \x03(\rR\x06labels\"\x93\x01\n" +
+	"&EVPNInclusiveMulticastEthernetTagRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12!\n" +
 	"\fethernet_tag\x18\x02 \x01(\rR\vethernetTag\x12\x1d\n" +
 	"\n" +
-	"ip_address\x18\x03 \x01(\tR\tipAddress\"\x98\x01\n" +
-	"\x18EVPNEthernetSegmentRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x122\n" +
-	"\x03esi\x18\x02 \x01(\v2 .apipb.EthernetSegmentIdentifierR\x03esi\x12\x1d\n" +
+	"ip_address\x18\x03 \x01(\tR\tipAddress\"\x94\x01\n" +
+	"\x18EVPNEthernetSegmentRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x120\n" +
+	"\x03esi\x18\x02 \x01(\v2\x1e.api.EthernetSegmentIdentifierR\x03esi\x12\x1d\n" +
 	"\n" +
-	"ip_address\x18\x03 \x01(\tR\tipAddress\"\x8b\x02\n" +
-	"\x11EVPNIPPrefixRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x122\n" +
-	"\x03esi\x18\x02 \x01(\v2 .apipb.EthernetSegmentIdentifierR\x03esi\x12!\n" +
+	"ip_address\x18\x03 \x01(\tR\tipAddress\"\x87\x02\n" +
+	"\x11EVPNIPPrefixRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x120\n" +
+	"\x03esi\x18\x02 \x01(\v2\x1e.api.EthernetSegmentIdentifierR\x03esi\x12!\n" +
 	"\fethernet_tag\x18\x03 \x01(\rR\vethernetTag\x12\x1b\n" +
 	"\tip_prefix\x18\x04 \x01(\tR\bipPrefix\x12\"\n" +
 	"\rip_prefix_len\x18\x05 \x01(\rR\vipPrefixLen\x12\x1d\n" +
 	"\n" +
 	"gw_address\x18\x06 \x01(\tR\tgwAddress\x12\x14\n" +
-	"\x05label\x18\a \x01(\rR\x05label\"\x82\x01\n" +
-	"\x0eEVPNIPMSIRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12!\n" +
-	"\fethernet_tag\x18\x02 \x01(\rR\vethernetTag\x12\"\n" +
-	"\x02rt\x18\x03 \x01(\v2\x12.apipb.RouteTargetR\x02rt\"~\n" +
+	"\x05label\x18\a \x01(\rR\x05label\"~\n" +
+	"\x0eEVPNIPMSIRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12!\n" +
+	"\fethernet_tag\x18\x02 \x01(\rR\vethernetTag\x12 \n" +
+	"\x02rt\x18\x03 \x01(\v2\x10.api.RouteTargetR\x02rt\"~\n" +
 	"\fSRPolicyNLRI\x12\x16\n" +
 	"\x06length\x18\x01 \x01(\rR\x06length\x12$\n" +
 	"\rdistinguisher\x18\x02 \x01(\rR\rdistinguisher\x12\x14\n" +
 	"\x05color\x18\x03 \x01(\rR\x05color\x12\x1a\n" +
-	"\bendpoint\x18\x04 \x01(\fR\bendpoint\"\x95\x01\n" +
+	"\bendpoint\x18\x04 \x01(\fR\bendpoint\"\x93\x01\n" +
 	"\x19LabeledVPNIPAddressPrefix\x12\x16\n" +
-	"\x06labels\x18\x01 \x03(\rR\x06labels\x12)\n" +
-	"\x02rd\x18\x02 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12\x1d\n" +
+	"\x06labels\x18\x01 \x03(\rR\x06labels\x12'\n" +
+	"\x02rd\x18\x02 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12\x1d\n" +
 	"\n" +
 	"prefix_len\x18\x03 \x01(\rR\tprefixLen\x12\x16\n" +
-	"\x06prefix\x18\x04 \x01(\tR\x06prefix\"Q\n" +
+	"\x06prefix\x18\x04 \x01(\tR\x06prefix\"O\n" +
 	"\x19RouteTargetMembershipNLRI\x12\x10\n" +
-	"\x03asn\x18\x01 \x01(\rR\x03asn\x12\"\n" +
-	"\x02rt\x18\x02 \x01(\v2\x12.apipb.RouteTargetR\x02rt\"u\n" +
+	"\x03asn\x18\x01 \x01(\rR\x03asn\x12 \n" +
+	"\x02rt\x18\x02 \x01(\v2\x10.api.RouteTargetR\x02rt\"u\n" +
 	"\x10FlowSpecIPPrefix\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\rR\x04type\x12\x1d\n" +
 	"\n" +
@@ -3194,20 +3194,20 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\"=\n" +
 	"\x15FlowSpecComponentItem\x12\x0e\n" +
 	"\x02op\x18\x01 \x01(\rR\x02op\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x04R\x05value\"[\n" +
+	"\x05value\x18\x02 \x01(\x04R\x05value\"Y\n" +
 	"\x11FlowSpecComponent\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\rR\x04type\x122\n" +
-	"\x05items\x18\x02 \x03(\v2\x1c.apipb.FlowSpecComponentItemR\x05items\"\xb0\x01\n" +
-	"\fFlowSpecRule\x126\n" +
-	"\tip_prefix\x18\x01 \x01(\v2\x17.apipb.FlowSpecIPPrefixH\x00R\bipPrefix\x12&\n" +
-	"\x03mac\x18\x02 \x01(\v2\x12.apipb.FlowSpecMACH\x00R\x03mac\x128\n" +
-	"\tcomponent\x18\x03 \x01(\v2\x18.apipb.FlowSpecComponentH\x00R\tcomponentB\x06\n" +
-	"\x04rule\"9\n" +
-	"\fFlowSpecNLRI\x12)\n" +
-	"\x05rules\x18\x01 \x03(\v2\x13.apipb.FlowSpecRuleR\x05rules\"g\n" +
-	"\x0fVPNFlowSpecNLRI\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12)\n" +
-	"\x05rules\x18\x02 \x03(\v2\x13.apipb.FlowSpecRuleR\x05rules\"4\n" +
+	"\x04type\x18\x01 \x01(\rR\x04type\x120\n" +
+	"\x05items\x18\x02 \x03(\v2\x1a.api.FlowSpecComponentItemR\x05items\"\xaa\x01\n" +
+	"\fFlowSpecRule\x124\n" +
+	"\tip_prefix\x18\x01 \x01(\v2\x15.api.FlowSpecIPPrefixH\x00R\bipPrefix\x12$\n" +
+	"\x03mac\x18\x02 \x01(\v2\x10.api.FlowSpecMACH\x00R\x03mac\x126\n" +
+	"\tcomponent\x18\x03 \x01(\v2\x16.api.FlowSpecComponentH\x00R\tcomponentB\x06\n" +
+	"\x04rule\"7\n" +
+	"\fFlowSpecNLRI\x12'\n" +
+	"\x05rules\x18\x01 \x03(\v2\x11.api.FlowSpecRuleR\x05rules\"c\n" +
+	"\x0fVPNFlowSpecNLRI\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12'\n" +
+	"\x05rules\x18\x02 \x03(\v2\x11.api.FlowSpecRuleR\x05rules\"4\n" +
 	"\n" +
 	"OpaqueNLRI\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\fR\x03key\x12\x14\n" +
@@ -3229,62 +3229,62 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x13interface_addr_ipv4\x18\x03 \x01(\tR\x11interfaceAddrIpv4\x12,\n" +
 	"\x12neighbor_addr_ipv4\x18\x04 \x01(\tR\x10neighborAddrIpv4\x12.\n" +
 	"\x13interface_addr_ipv6\x18\x05 \x01(\tR\x11interfaceAddrIpv6\x12,\n" +
-	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6\"}\n" +
+	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6\"{\n" +
 	"\x12LsPrefixDescriptor\x12'\n" +
-	"\x0fip_reachability\x18\x01 \x03(\tR\x0eipReachability\x12>\n" +
-	"\x0fospf_route_type\x18\x02 \x01(\x0e2\x16.apipb.LsOspfRouteTypeR\rospfRouteType\"D\n" +
+	"\x0fip_reachability\x18\x01 \x03(\tR\x0eipReachability\x12<\n" +
+	"\x0fospf_route_type\x18\x02 \x01(\x0e2\x14.api.LsOspfRouteTypeR\rospfRouteType\"B\n" +
 	"\n" +
-	"LsNodeNLRI\x126\n" +
+	"LsNodeNLRI\x124\n" +
 	"\n" +
-	"local_node\x18\x01 \x01(\v2\x17.apipb.LsNodeDescriptorR\tlocalNode\"\xc0\x01\n" +
+	"local_node\x18\x01 \x01(\v2\x15.api.LsNodeDescriptorR\tlocalNode\"\xba\x01\n" +
 	"\n" +
-	"LsLinkNLRI\x126\n" +
+	"LsLinkNLRI\x124\n" +
 	"\n" +
-	"local_node\x18\x01 \x01(\v2\x17.apipb.LsNodeDescriptorR\tlocalNode\x128\n" +
-	"\vremote_node\x18\x02 \x01(\v2\x17.apipb.LsNodeDescriptorR\n" +
-	"remoteNode\x12@\n" +
-	"\x0flink_descriptor\x18\x03 \x01(\v2\x17.apipb.LsLinkDescriptorR\x0elinkDescriptor\"\x90\x01\n" +
-	"\x0eLsPrefixV4NLRI\x126\n" +
+	"local_node\x18\x01 \x01(\v2\x15.api.LsNodeDescriptorR\tlocalNode\x126\n" +
+	"\vremote_node\x18\x02 \x01(\v2\x15.api.LsNodeDescriptorR\n" +
+	"remoteNode\x12>\n" +
+	"\x0flink_descriptor\x18\x03 \x01(\v2\x15.api.LsLinkDescriptorR\x0elinkDescriptor\"\x8c\x01\n" +
+	"\x0eLsPrefixV4NLRI\x124\n" +
 	"\n" +
-	"local_node\x18\x01 \x01(\v2\x17.apipb.LsNodeDescriptorR\tlocalNode\x12F\n" +
-	"\x11prefix_descriptor\x18\x02 \x01(\v2\x19.apipb.LsPrefixDescriptorR\x10prefixDescriptor\"\x90\x01\n" +
-	"\x0eLsPrefixV6NLRI\x126\n" +
+	"local_node\x18\x01 \x01(\v2\x15.api.LsNodeDescriptorR\tlocalNode\x12D\n" +
+	"\x11prefix_descriptor\x18\x02 \x01(\v2\x17.api.LsPrefixDescriptorR\x10prefixDescriptor\"\x8c\x01\n" +
+	"\x0eLsPrefixV6NLRI\x124\n" +
 	"\n" +
-	"local_node\x18\x01 \x01(\v2\x17.apipb.LsNodeDescriptorR\tlocalNode\x12F\n" +
-	"\x11prefix_descriptor\x18\x02 \x01(\v2\x19.apipb.LsPrefixDescriptorR\x10prefixDescriptor\"*\n" +
+	"local_node\x18\x01 \x01(\v2\x15.api.LsNodeDescriptorR\tlocalNode\x12D\n" +
+	"\x11prefix_descriptor\x18\x02 \x01(\v2\x17.api.LsPrefixDescriptorR\x10prefixDescriptor\"*\n" +
 	"\x14LsSrv6SIDInformation\x12\x12\n" +
 	"\x04sids\x18\x01 \x03(\tR\x04sids\"A\n" +
 	"\x19LsMultiTopologyIdentifier\x12$\n" +
-	"\x0emulti_topo_ids\x18\x01 \x03(\rR\fmultiTopoIds\"\xdc\x01\n" +
-	"\rLsSrv6SIDNLRI\x126\n" +
+	"\x0emulti_topo_ids\x18\x01 \x03(\rR\fmultiTopoIds\"\xd6\x01\n" +
+	"\rLsSrv6SIDNLRI\x124\n" +
 	"\n" +
-	"local_node\x18\x01 \x01(\v2\x17.apipb.LsNodeDescriptorR\tlocalNode\x12M\n" +
-	"\x14srv6_sid_information\x18\x02 \x01(\v2\x1b.apipb.LsSrv6SIDInformationR\x12srv6SidInformation\x12D\n" +
-	"\rmulti_topo_id\x18\x03 \x01(\v2 .apipb.LsMultiTopologyIdentifierR\vmultiTopoId\"\xd7\x03\n" +
-	"\fLsAddrPrefix\x12%\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x11.apipb.LsNLRITypeR\x04type\x12.\n" +
-	"\x04nlri\x18\x02 \x01(\v2\x1a.apipb.LsAddrPrefix.LsNLRIR\x04nlri\x12\x16\n" +
-	"\x06length\x18\x03 \x01(\rR\x06length\x124\n" +
-	"\vprotocol_id\x18\x04 \x01(\x0e2\x13.apipb.LsProtocolIDR\n" +
+	"local_node\x18\x01 \x01(\v2\x15.api.LsNodeDescriptorR\tlocalNode\x12K\n" +
+	"\x14srv6_sid_information\x18\x02 \x01(\v2\x19.api.LsSrv6SIDInformationR\x12srv6SidInformation\x12B\n" +
+	"\rmulti_topo_id\x18\x03 \x01(\v2\x1e.api.LsMultiTopologyIdentifierR\vmultiTopoId\"\xc7\x03\n" +
+	"\fLsAddrPrefix\x12#\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x0f.api.LsNLRITypeR\x04type\x12,\n" +
+	"\x04nlri\x18\x02 \x01(\v2\x18.api.LsAddrPrefix.LsNLRIR\x04nlri\x12\x16\n" +
+	"\x06length\x18\x03 \x01(\rR\x06length\x122\n" +
+	"\vprotocol_id\x18\x04 \x01(\x0e2\x11.api.LsProtocolIDR\n" +
 	"protocolId\x12\x1e\n" +
 	"\n" +
 	"identifier\x18\x05 \x01(\x04R\n" +
-	"identifier\x1a\x81\x02\n" +
-	"\x06LsNLRI\x12'\n" +
-	"\x04node\x18\x01 \x01(\v2\x11.apipb.LsNodeNLRIH\x00R\x04node\x12'\n" +
-	"\x04link\x18\x02 \x01(\v2\x11.apipb.LsLinkNLRIH\x00R\x04link\x124\n" +
-	"\tprefix_v4\x18\x03 \x01(\v2\x15.apipb.LsPrefixV4NLRIH\x00R\bprefixV4\x124\n" +
-	"\tprefix_v6\x18\x04 \x01(\v2\x15.apipb.LsPrefixV6NLRIH\x00R\bprefixV6\x121\n" +
-	"\bsrv6_sid\x18\x05 \x01(\v2\x14.apipb.LsSrv6SIDNLRIH\x00R\asrv6SidB\x06\n" +
-	"\x04nlri\"f\n" +
-	"!MUPInterworkSegmentDiscoveryRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12\x16\n" +
-	"\x06prefix\x18\x02 \x01(\tR\x06prefix\"e\n" +
-	"\x1eMUPDirectSegmentDiscoveryRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xf1\x02\n" +
-	"\x1fMUPType1SessionTransformedRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x12'\n" +
+	"identifier\x1a\xf7\x01\n" +
+	"\x06LsNLRI\x12%\n" +
+	"\x04node\x18\x01 \x01(\v2\x0f.api.LsNodeNLRIH\x00R\x04node\x12%\n" +
+	"\x04link\x18\x02 \x01(\v2\x0f.api.LsLinkNLRIH\x00R\x04link\x122\n" +
+	"\tprefix_v4\x18\x03 \x01(\v2\x13.api.LsPrefixV4NLRIH\x00R\bprefixV4\x122\n" +
+	"\tprefix_v6\x18\x04 \x01(\v2\x13.api.LsPrefixV6NLRIH\x00R\bprefixV6\x12/\n" +
+	"\bsrv6_sid\x18\x05 \x01(\v2\x12.api.LsSrv6SIDNLRIH\x00R\asrv6SidB\x06\n" +
+	"\x04nlri\"d\n" +
+	"!MUPInterworkSegmentDiscoveryRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12\x16\n" +
+	"\x06prefix\x18\x02 \x01(\tR\x06prefix\"c\n" +
+	"\x1eMUPDirectSegmentDiscoveryRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12\x18\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xef\x02\n" +
+	"\x1fMUPType1SessionTransformedRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x12'\n" +
 	"\rprefix_length\x18\x02 \x01(\rB\x02\x18\x01R\fprefixLength\x12\x16\n" +
 	"\x06prefix\x18\x03 \x01(\tR\x06prefix\x12\x12\n" +
 	"\x04teid\x18\x04 \x01(\rR\x04teid\x12\x10\n" +
@@ -3292,9 +3292,9 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x17endpoint_address_length\x18\x06 \x01(\rR\x15endpointAddressLength\x12)\n" +
 	"\x10endpoint_address\x18\a \x01(\tR\x0fendpointAddress\x122\n" +
 	"\x15source_address_length\x18\b \x01(\rR\x13sourceAddressLength\x12%\n" +
-	"\x0esource_address\x18\t \x01(\tR\rsourceAddress\"\xc3\x01\n" +
-	"\x1fMUPType2SessionTransformedRoute\x12)\n" +
-	"\x02rd\x18\x01 \x01(\v2\x19.apipb.RouteDistinguisherR\x02rd\x126\n" +
+	"\x0esource_address\x18\t \x01(\tR\rsourceAddress\"\xc1\x01\n" +
+	"\x1fMUPType2SessionTransformedRoute\x12'\n" +
+	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x126\n" +
 	"\x17endpoint_address_length\x18\x02 \x01(\rR\x15endpointAddressLength\x12)\n" +
 	"\x10endpoint_address\x18\x03 \x01(\tR\x0fendpointAddress\x12\x12\n" +
 	"\x04teid\x18\x04 \x01(\rR\x04teid*\x89\x01\n" +
@@ -3321,7 +3321,7 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x1cLS_OSPF_ROUTE_TYPE_EXTERNAL1\x10\x03\x12 \n" +
 	"\x1cLS_OSPF_ROUTE_TYPE_EXTERNAL2\x10\x04\x12\x1c\n" +
 	"\x18LS_OSPF_ROUTE_TYPE_NSSA1\x10\x05\x12\x1c\n" +
-	"\x18LS_OSPF_ROUTE_TYPE_NSSA2\x10\x06B$Z\"github.com/osrg/gobgp/v4/api;apipbb\x06proto3"
+	"\x18LS_OSPF_ROUTE_TYPE_NSSA2\x10\x06B\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
 
 var (
 	file_api_nlri_proto_rawDescOnce sync.Once
@@ -3338,118 +3338,118 @@ func file_api_nlri_proto_rawDescGZIP() []byte {
 var file_api_nlri_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_api_nlri_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_api_nlri_proto_goTypes = []any{
-	(LsNLRIType)(0),                                // 0: apipb.LsNLRIType
-	(LsProtocolID)(0),                              // 1: apipb.LsProtocolID
-	(LsOspfRouteType)(0),                           // 2: apipb.LsOspfRouteType
-	(*NLRI)(nil),                                   // 3: apipb.NLRI
-	(*IPAddressPrefix)(nil),                        // 4: apipb.IPAddressPrefix
-	(*LabeledIPAddressPrefix)(nil),                 // 5: apipb.LabeledIPAddressPrefix
-	(*EncapsulationNLRI)(nil),                      // 6: apipb.EncapsulationNLRI
-	(*VPLSNLRI)(nil),                               // 7: apipb.VPLSNLRI
-	(*EthernetSegmentIdentifier)(nil),              // 8: apipb.EthernetSegmentIdentifier
-	(*EVPNEthernetAutoDiscoveryRoute)(nil),         // 9: apipb.EVPNEthernetAutoDiscoveryRoute
-	(*EVPNMACIPAdvertisementRoute)(nil),            // 10: apipb.EVPNMACIPAdvertisementRoute
-	(*EVPNInclusiveMulticastEthernetTagRoute)(nil), // 11: apipb.EVPNInclusiveMulticastEthernetTagRoute
-	(*EVPNEthernetSegmentRoute)(nil),               // 12: apipb.EVPNEthernetSegmentRoute
-	(*EVPNIPPrefixRoute)(nil),                      // 13: apipb.EVPNIPPrefixRoute
-	(*EVPNIPMSIRoute)(nil),                         // 14: apipb.EVPNIPMSIRoute
-	(*SRPolicyNLRI)(nil),                           // 15: apipb.SRPolicyNLRI
-	(*LabeledVPNIPAddressPrefix)(nil),              // 16: apipb.LabeledVPNIPAddressPrefix
-	(*RouteTargetMembershipNLRI)(nil),              // 17: apipb.RouteTargetMembershipNLRI
-	(*FlowSpecIPPrefix)(nil),                       // 18: apipb.FlowSpecIPPrefix
-	(*FlowSpecMAC)(nil),                            // 19: apipb.FlowSpecMAC
-	(*FlowSpecComponentItem)(nil),                  // 20: apipb.FlowSpecComponentItem
-	(*FlowSpecComponent)(nil),                      // 21: apipb.FlowSpecComponent
-	(*FlowSpecRule)(nil),                           // 22: apipb.FlowSpecRule
-	(*FlowSpecNLRI)(nil),                           // 23: apipb.FlowSpecNLRI
-	(*VPNFlowSpecNLRI)(nil),                        // 24: apipb.VPNFlowSpecNLRI
-	(*OpaqueNLRI)(nil),                             // 25: apipb.OpaqueNLRI
-	(*LsNodeDescriptor)(nil),                       // 26: apipb.LsNodeDescriptor
-	(*LsLinkDescriptor)(nil),                       // 27: apipb.LsLinkDescriptor
-	(*LsPrefixDescriptor)(nil),                     // 28: apipb.LsPrefixDescriptor
-	(*LsNodeNLRI)(nil),                             // 29: apipb.LsNodeNLRI
-	(*LsLinkNLRI)(nil),                             // 30: apipb.LsLinkNLRI
-	(*LsPrefixV4NLRI)(nil),                         // 31: apipb.LsPrefixV4NLRI
-	(*LsPrefixV6NLRI)(nil),                         // 32: apipb.LsPrefixV6NLRI
-	(*LsSrv6SIDInformation)(nil),                   // 33: apipb.LsSrv6SIDInformation
-	(*LsMultiTopologyIdentifier)(nil),              // 34: apipb.LsMultiTopologyIdentifier
-	(*LsSrv6SIDNLRI)(nil),                          // 35: apipb.LsSrv6SIDNLRI
-	(*LsAddrPrefix)(nil),                           // 36: apipb.LsAddrPrefix
-	(*MUPInterworkSegmentDiscoveryRoute)(nil),      // 37: apipb.MUPInterworkSegmentDiscoveryRoute
-	(*MUPDirectSegmentDiscoveryRoute)(nil),         // 38: apipb.MUPDirectSegmentDiscoveryRoute
-	(*MUPType1SessionTransformedRoute)(nil),        // 39: apipb.MUPType1SessionTransformedRoute
-	(*MUPType2SessionTransformedRoute)(nil),        // 40: apipb.MUPType2SessionTransformedRoute
-	(*LsAddrPrefix_LsNLRI)(nil),                    // 41: apipb.LsAddrPrefix.LsNLRI
-	(*RouteDistinguisher)(nil),                     // 42: apipb.RouteDistinguisher
-	(*RouteTarget)(nil),                            // 43: apipb.RouteTarget
+	(LsNLRIType)(0),                                // 0: api.LsNLRIType
+	(LsProtocolID)(0),                              // 1: api.LsProtocolID
+	(LsOspfRouteType)(0),                           // 2: api.LsOspfRouteType
+	(*NLRI)(nil),                                   // 3: api.NLRI
+	(*IPAddressPrefix)(nil),                        // 4: api.IPAddressPrefix
+	(*LabeledIPAddressPrefix)(nil),                 // 5: api.LabeledIPAddressPrefix
+	(*EncapsulationNLRI)(nil),                      // 6: api.EncapsulationNLRI
+	(*VPLSNLRI)(nil),                               // 7: api.VPLSNLRI
+	(*EthernetSegmentIdentifier)(nil),              // 8: api.EthernetSegmentIdentifier
+	(*EVPNEthernetAutoDiscoveryRoute)(nil),         // 9: api.EVPNEthernetAutoDiscoveryRoute
+	(*EVPNMACIPAdvertisementRoute)(nil),            // 10: api.EVPNMACIPAdvertisementRoute
+	(*EVPNInclusiveMulticastEthernetTagRoute)(nil), // 11: api.EVPNInclusiveMulticastEthernetTagRoute
+	(*EVPNEthernetSegmentRoute)(nil),               // 12: api.EVPNEthernetSegmentRoute
+	(*EVPNIPPrefixRoute)(nil),                      // 13: api.EVPNIPPrefixRoute
+	(*EVPNIPMSIRoute)(nil),                         // 14: api.EVPNIPMSIRoute
+	(*SRPolicyNLRI)(nil),                           // 15: api.SRPolicyNLRI
+	(*LabeledVPNIPAddressPrefix)(nil),              // 16: api.LabeledVPNIPAddressPrefix
+	(*RouteTargetMembershipNLRI)(nil),              // 17: api.RouteTargetMembershipNLRI
+	(*FlowSpecIPPrefix)(nil),                       // 18: api.FlowSpecIPPrefix
+	(*FlowSpecMAC)(nil),                            // 19: api.FlowSpecMAC
+	(*FlowSpecComponentItem)(nil),                  // 20: api.FlowSpecComponentItem
+	(*FlowSpecComponent)(nil),                      // 21: api.FlowSpecComponent
+	(*FlowSpecRule)(nil),                           // 22: api.FlowSpecRule
+	(*FlowSpecNLRI)(nil),                           // 23: api.FlowSpecNLRI
+	(*VPNFlowSpecNLRI)(nil),                        // 24: api.VPNFlowSpecNLRI
+	(*OpaqueNLRI)(nil),                             // 25: api.OpaqueNLRI
+	(*LsNodeDescriptor)(nil),                       // 26: api.LsNodeDescriptor
+	(*LsLinkDescriptor)(nil),                       // 27: api.LsLinkDescriptor
+	(*LsPrefixDescriptor)(nil),                     // 28: api.LsPrefixDescriptor
+	(*LsNodeNLRI)(nil),                             // 29: api.LsNodeNLRI
+	(*LsLinkNLRI)(nil),                             // 30: api.LsLinkNLRI
+	(*LsPrefixV4NLRI)(nil),                         // 31: api.LsPrefixV4NLRI
+	(*LsPrefixV6NLRI)(nil),                         // 32: api.LsPrefixV6NLRI
+	(*LsSrv6SIDInformation)(nil),                   // 33: api.LsSrv6SIDInformation
+	(*LsMultiTopologyIdentifier)(nil),              // 34: api.LsMultiTopologyIdentifier
+	(*LsSrv6SIDNLRI)(nil),                          // 35: api.LsSrv6SIDNLRI
+	(*LsAddrPrefix)(nil),                           // 36: api.LsAddrPrefix
+	(*MUPInterworkSegmentDiscoveryRoute)(nil),      // 37: api.MUPInterworkSegmentDiscoveryRoute
+	(*MUPDirectSegmentDiscoveryRoute)(nil),         // 38: api.MUPDirectSegmentDiscoveryRoute
+	(*MUPType1SessionTransformedRoute)(nil),        // 39: api.MUPType1SessionTransformedRoute
+	(*MUPType2SessionTransformedRoute)(nil),        // 40: api.MUPType2SessionTransformedRoute
+	(*LsAddrPrefix_LsNLRI)(nil),                    // 41: api.LsAddrPrefix.LsNLRI
+	(*RouteDistinguisher)(nil),                     // 42: api.RouteDistinguisher
+	(*RouteTarget)(nil),                            // 43: api.RouteTarget
 }
 var file_api_nlri_proto_depIdxs = []int32{
-	4,  // 0: apipb.NLRI.prefix:type_name -> apipb.IPAddressPrefix
-	5,  // 1: apipb.NLRI.labeled_prefix:type_name -> apipb.LabeledIPAddressPrefix
-	6,  // 2: apipb.NLRI.encapsulation:type_name -> apipb.EncapsulationNLRI
-	7,  // 3: apipb.NLRI.vpls:type_name -> apipb.VPLSNLRI
-	9,  // 4: apipb.NLRI.evpn_ethernet_ad:type_name -> apipb.EVPNEthernetAutoDiscoveryRoute
-	10, // 5: apipb.NLRI.evpn_macadv:type_name -> apipb.EVPNMACIPAdvertisementRoute
-	11, // 6: apipb.NLRI.evpn_multicast:type_name -> apipb.EVPNInclusiveMulticastEthernetTagRoute
-	12, // 7: apipb.NLRI.evpn_ethernet_segment:type_name -> apipb.EVPNEthernetSegmentRoute
-	13, // 8: apipb.NLRI.evpn_ip_prefix:type_name -> apipb.EVPNIPPrefixRoute
-	14, // 9: apipb.NLRI.evpn_i_pmsi:type_name -> apipb.EVPNIPMSIRoute
-	16, // 10: apipb.NLRI.labeled_vpn_ip_prefix:type_name -> apipb.LabeledVPNIPAddressPrefix
-	17, // 11: apipb.NLRI.route_target_membership:type_name -> apipb.RouteTargetMembershipNLRI
-	23, // 12: apipb.NLRI.flow_spec:type_name -> apipb.FlowSpecNLRI
-	24, // 13: apipb.NLRI.vpn_flow_spec:type_name -> apipb.VPNFlowSpecNLRI
-	25, // 14: apipb.NLRI.opaque:type_name -> apipb.OpaqueNLRI
-	36, // 15: apipb.NLRI.ls_addr_prefix:type_name -> apipb.LsAddrPrefix
-	15, // 16: apipb.NLRI.sr_policy:type_name -> apipb.SRPolicyNLRI
-	37, // 17: apipb.NLRI.mup_interwork_segment_discovery:type_name -> apipb.MUPInterworkSegmentDiscoveryRoute
-	38, // 18: apipb.NLRI.mup_direct_segment_discovery:type_name -> apipb.MUPDirectSegmentDiscoveryRoute
-	39, // 19: apipb.NLRI.mup_type_1_session_transformed:type_name -> apipb.MUPType1SessionTransformedRoute
-	40, // 20: apipb.NLRI.mup_type_2_session_transformed:type_name -> apipb.MUPType2SessionTransformedRoute
-	42, // 21: apipb.VPLSNLRI.rd:type_name -> apipb.RouteDistinguisher
-	42, // 22: apipb.EVPNEthernetAutoDiscoveryRoute.rd:type_name -> apipb.RouteDistinguisher
-	8,  // 23: apipb.EVPNEthernetAutoDiscoveryRoute.esi:type_name -> apipb.EthernetSegmentIdentifier
-	42, // 24: apipb.EVPNMACIPAdvertisementRoute.rd:type_name -> apipb.RouteDistinguisher
-	8,  // 25: apipb.EVPNMACIPAdvertisementRoute.esi:type_name -> apipb.EthernetSegmentIdentifier
-	42, // 26: apipb.EVPNInclusiveMulticastEthernetTagRoute.rd:type_name -> apipb.RouteDistinguisher
-	42, // 27: apipb.EVPNEthernetSegmentRoute.rd:type_name -> apipb.RouteDistinguisher
-	8,  // 28: apipb.EVPNEthernetSegmentRoute.esi:type_name -> apipb.EthernetSegmentIdentifier
-	42, // 29: apipb.EVPNIPPrefixRoute.rd:type_name -> apipb.RouteDistinguisher
-	8,  // 30: apipb.EVPNIPPrefixRoute.esi:type_name -> apipb.EthernetSegmentIdentifier
-	42, // 31: apipb.EVPNIPMSIRoute.rd:type_name -> apipb.RouteDistinguisher
-	43, // 32: apipb.EVPNIPMSIRoute.rt:type_name -> apipb.RouteTarget
-	42, // 33: apipb.LabeledVPNIPAddressPrefix.rd:type_name -> apipb.RouteDistinguisher
-	43, // 34: apipb.RouteTargetMembershipNLRI.rt:type_name -> apipb.RouteTarget
-	20, // 35: apipb.FlowSpecComponent.items:type_name -> apipb.FlowSpecComponentItem
-	18, // 36: apipb.FlowSpecRule.ip_prefix:type_name -> apipb.FlowSpecIPPrefix
-	19, // 37: apipb.FlowSpecRule.mac:type_name -> apipb.FlowSpecMAC
-	21, // 38: apipb.FlowSpecRule.component:type_name -> apipb.FlowSpecComponent
-	22, // 39: apipb.FlowSpecNLRI.rules:type_name -> apipb.FlowSpecRule
-	42, // 40: apipb.VPNFlowSpecNLRI.rd:type_name -> apipb.RouteDistinguisher
-	22, // 41: apipb.VPNFlowSpecNLRI.rules:type_name -> apipb.FlowSpecRule
-	2,  // 42: apipb.LsPrefixDescriptor.ospf_route_type:type_name -> apipb.LsOspfRouteType
-	26, // 43: apipb.LsNodeNLRI.local_node:type_name -> apipb.LsNodeDescriptor
-	26, // 44: apipb.LsLinkNLRI.local_node:type_name -> apipb.LsNodeDescriptor
-	26, // 45: apipb.LsLinkNLRI.remote_node:type_name -> apipb.LsNodeDescriptor
-	27, // 46: apipb.LsLinkNLRI.link_descriptor:type_name -> apipb.LsLinkDescriptor
-	26, // 47: apipb.LsPrefixV4NLRI.local_node:type_name -> apipb.LsNodeDescriptor
-	28, // 48: apipb.LsPrefixV4NLRI.prefix_descriptor:type_name -> apipb.LsPrefixDescriptor
-	26, // 49: apipb.LsPrefixV6NLRI.local_node:type_name -> apipb.LsNodeDescriptor
-	28, // 50: apipb.LsPrefixV6NLRI.prefix_descriptor:type_name -> apipb.LsPrefixDescriptor
-	26, // 51: apipb.LsSrv6SIDNLRI.local_node:type_name -> apipb.LsNodeDescriptor
-	33, // 52: apipb.LsSrv6SIDNLRI.srv6_sid_information:type_name -> apipb.LsSrv6SIDInformation
-	34, // 53: apipb.LsSrv6SIDNLRI.multi_topo_id:type_name -> apipb.LsMultiTopologyIdentifier
-	0,  // 54: apipb.LsAddrPrefix.type:type_name -> apipb.LsNLRIType
-	41, // 55: apipb.LsAddrPrefix.nlri:type_name -> apipb.LsAddrPrefix.LsNLRI
-	1,  // 56: apipb.LsAddrPrefix.protocol_id:type_name -> apipb.LsProtocolID
-	42, // 57: apipb.MUPInterworkSegmentDiscoveryRoute.rd:type_name -> apipb.RouteDistinguisher
-	42, // 58: apipb.MUPDirectSegmentDiscoveryRoute.rd:type_name -> apipb.RouteDistinguisher
-	42, // 59: apipb.MUPType1SessionTransformedRoute.rd:type_name -> apipb.RouteDistinguisher
-	42, // 60: apipb.MUPType2SessionTransformedRoute.rd:type_name -> apipb.RouteDistinguisher
-	29, // 61: apipb.LsAddrPrefix.LsNLRI.node:type_name -> apipb.LsNodeNLRI
-	30, // 62: apipb.LsAddrPrefix.LsNLRI.link:type_name -> apipb.LsLinkNLRI
-	31, // 63: apipb.LsAddrPrefix.LsNLRI.prefix_v4:type_name -> apipb.LsPrefixV4NLRI
-	32, // 64: apipb.LsAddrPrefix.LsNLRI.prefix_v6:type_name -> apipb.LsPrefixV6NLRI
-	35, // 65: apipb.LsAddrPrefix.LsNLRI.srv6_sid:type_name -> apipb.LsSrv6SIDNLRI
+	4,  // 0: api.NLRI.prefix:type_name -> api.IPAddressPrefix
+	5,  // 1: api.NLRI.labeled_prefix:type_name -> api.LabeledIPAddressPrefix
+	6,  // 2: api.NLRI.encapsulation:type_name -> api.EncapsulationNLRI
+	7,  // 3: api.NLRI.vpls:type_name -> api.VPLSNLRI
+	9,  // 4: api.NLRI.evpn_ethernet_ad:type_name -> api.EVPNEthernetAutoDiscoveryRoute
+	10, // 5: api.NLRI.evpn_macadv:type_name -> api.EVPNMACIPAdvertisementRoute
+	11, // 6: api.NLRI.evpn_multicast:type_name -> api.EVPNInclusiveMulticastEthernetTagRoute
+	12, // 7: api.NLRI.evpn_ethernet_segment:type_name -> api.EVPNEthernetSegmentRoute
+	13, // 8: api.NLRI.evpn_ip_prefix:type_name -> api.EVPNIPPrefixRoute
+	14, // 9: api.NLRI.evpn_i_pmsi:type_name -> api.EVPNIPMSIRoute
+	16, // 10: api.NLRI.labeled_vpn_ip_prefix:type_name -> api.LabeledVPNIPAddressPrefix
+	17, // 11: api.NLRI.route_target_membership:type_name -> api.RouteTargetMembershipNLRI
+	23, // 12: api.NLRI.flow_spec:type_name -> api.FlowSpecNLRI
+	24, // 13: api.NLRI.vpn_flow_spec:type_name -> api.VPNFlowSpecNLRI
+	25, // 14: api.NLRI.opaque:type_name -> api.OpaqueNLRI
+	36, // 15: api.NLRI.ls_addr_prefix:type_name -> api.LsAddrPrefix
+	15, // 16: api.NLRI.sr_policy:type_name -> api.SRPolicyNLRI
+	37, // 17: api.NLRI.mup_interwork_segment_discovery:type_name -> api.MUPInterworkSegmentDiscoveryRoute
+	38, // 18: api.NLRI.mup_direct_segment_discovery:type_name -> api.MUPDirectSegmentDiscoveryRoute
+	39, // 19: api.NLRI.mup_type_1_session_transformed:type_name -> api.MUPType1SessionTransformedRoute
+	40, // 20: api.NLRI.mup_type_2_session_transformed:type_name -> api.MUPType2SessionTransformedRoute
+	42, // 21: api.VPLSNLRI.rd:type_name -> api.RouteDistinguisher
+	42, // 22: api.EVPNEthernetAutoDiscoveryRoute.rd:type_name -> api.RouteDistinguisher
+	8,  // 23: api.EVPNEthernetAutoDiscoveryRoute.esi:type_name -> api.EthernetSegmentIdentifier
+	42, // 24: api.EVPNMACIPAdvertisementRoute.rd:type_name -> api.RouteDistinguisher
+	8,  // 25: api.EVPNMACIPAdvertisementRoute.esi:type_name -> api.EthernetSegmentIdentifier
+	42, // 26: api.EVPNInclusiveMulticastEthernetTagRoute.rd:type_name -> api.RouteDistinguisher
+	42, // 27: api.EVPNEthernetSegmentRoute.rd:type_name -> api.RouteDistinguisher
+	8,  // 28: api.EVPNEthernetSegmentRoute.esi:type_name -> api.EthernetSegmentIdentifier
+	42, // 29: api.EVPNIPPrefixRoute.rd:type_name -> api.RouteDistinguisher
+	8,  // 30: api.EVPNIPPrefixRoute.esi:type_name -> api.EthernetSegmentIdentifier
+	42, // 31: api.EVPNIPMSIRoute.rd:type_name -> api.RouteDistinguisher
+	43, // 32: api.EVPNIPMSIRoute.rt:type_name -> api.RouteTarget
+	42, // 33: api.LabeledVPNIPAddressPrefix.rd:type_name -> api.RouteDistinguisher
+	43, // 34: api.RouteTargetMembershipNLRI.rt:type_name -> api.RouteTarget
+	20, // 35: api.FlowSpecComponent.items:type_name -> api.FlowSpecComponentItem
+	18, // 36: api.FlowSpecRule.ip_prefix:type_name -> api.FlowSpecIPPrefix
+	19, // 37: api.FlowSpecRule.mac:type_name -> api.FlowSpecMAC
+	21, // 38: api.FlowSpecRule.component:type_name -> api.FlowSpecComponent
+	22, // 39: api.FlowSpecNLRI.rules:type_name -> api.FlowSpecRule
+	42, // 40: api.VPNFlowSpecNLRI.rd:type_name -> api.RouteDistinguisher
+	22, // 41: api.VPNFlowSpecNLRI.rules:type_name -> api.FlowSpecRule
+	2,  // 42: api.LsPrefixDescriptor.ospf_route_type:type_name -> api.LsOspfRouteType
+	26, // 43: api.LsNodeNLRI.local_node:type_name -> api.LsNodeDescriptor
+	26, // 44: api.LsLinkNLRI.local_node:type_name -> api.LsNodeDescriptor
+	26, // 45: api.LsLinkNLRI.remote_node:type_name -> api.LsNodeDescriptor
+	27, // 46: api.LsLinkNLRI.link_descriptor:type_name -> api.LsLinkDescriptor
+	26, // 47: api.LsPrefixV4NLRI.local_node:type_name -> api.LsNodeDescriptor
+	28, // 48: api.LsPrefixV4NLRI.prefix_descriptor:type_name -> api.LsPrefixDescriptor
+	26, // 49: api.LsPrefixV6NLRI.local_node:type_name -> api.LsNodeDescriptor
+	28, // 50: api.LsPrefixV6NLRI.prefix_descriptor:type_name -> api.LsPrefixDescriptor
+	26, // 51: api.LsSrv6SIDNLRI.local_node:type_name -> api.LsNodeDescriptor
+	33, // 52: api.LsSrv6SIDNLRI.srv6_sid_information:type_name -> api.LsSrv6SIDInformation
+	34, // 53: api.LsSrv6SIDNLRI.multi_topo_id:type_name -> api.LsMultiTopologyIdentifier
+	0,  // 54: api.LsAddrPrefix.type:type_name -> api.LsNLRIType
+	41, // 55: api.LsAddrPrefix.nlri:type_name -> api.LsAddrPrefix.LsNLRI
+	1,  // 56: api.LsAddrPrefix.protocol_id:type_name -> api.LsProtocolID
+	42, // 57: api.MUPInterworkSegmentDiscoveryRoute.rd:type_name -> api.RouteDistinguisher
+	42, // 58: api.MUPDirectSegmentDiscoveryRoute.rd:type_name -> api.RouteDistinguisher
+	42, // 59: api.MUPType1SessionTransformedRoute.rd:type_name -> api.RouteDistinguisher
+	42, // 60: api.MUPType2SessionTransformedRoute.rd:type_name -> api.RouteDistinguisher
+	29, // 61: api.LsAddrPrefix.LsNLRI.node:type_name -> api.LsNodeNLRI
+	30, // 62: api.LsAddrPrefix.LsNLRI.link:type_name -> api.LsLinkNLRI
+	31, // 63: api.LsAddrPrefix.LsNLRI.prefix_v4:type_name -> api.LsPrefixV4NLRI
+	32, // 64: api.LsAddrPrefix.LsNLRI.prefix_v6:type_name -> api.LsPrefixV6NLRI
+	35, // 65: api.LsAddrPrefix.LsNLRI.srv6_sid:type_name -> api.LsSrv6SIDNLRI
 	66, // [66:66] is the sub-list for method output_type
 	66, // [66:66] is the sub-list for method input_type
 	66, // [66:66] is the sub-list for extension type_name

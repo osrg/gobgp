@@ -21,7 +21,7 @@ import (
 	"net"
 	"strconv"
 
-	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 	"github.com/spf13/cobra"
 )

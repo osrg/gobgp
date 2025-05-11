@@ -21,8 +21,8 @@
 
 syntax = "proto3";
 
-package apipb;
-option go_package = "github.com/osrg/gobgp/v4/api;apipb";
+package api;
+option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 import "api/common.proto";
 
@@ -45,7 +45,7 @@ message Capability {
 }
 
 message MultiProtocolCapability {
-    apipb.Family family = 1;
+    api.Family family = 1;
 }
 
 message RouteRefreshCapability {
@@ -55,11 +55,11 @@ message CarryingLabelInfoCapability {
 }
 
 message ExtendedNexthopCapabilityTuple {
-    apipb.Family nlri_family = 1;
+    api.Family nlri_family = 1;
     // Nexthop AFI must be either
     // gobgp.IPv4 or
     // gobgp.IPv6.
-    apipb.Family nexthop_family = 2;
+    api.Family nexthop_family = 2;
 }
 
 message ExtendedNexthopCapability {
@@ -67,7 +67,7 @@ message ExtendedNexthopCapability {
 }
 
 message GracefulRestartCapabilityTuple {
-    apipb.Family family = 1;
+    api.Family family = 1;
     uint32 flags = 2;
 }
 
@@ -82,7 +82,7 @@ message FourOctetASNCapability {
 }
 
 message AddPathCapabilityTuple {
-    apipb.Family family = 1;
+    api.Family family = 1;
     enum Mode {
         NONE = 0;
         RECEIVE = 1;
@@ -100,7 +100,7 @@ message EnhancedRouteRefreshCapability {
 }
 
 message LongLivedGracefulRestartCapabilityTuple {
-    apipb.Family family = 1;
+    api.Family family = 1;
     uint32 flags = 2;
     uint32 time = 3;
 }

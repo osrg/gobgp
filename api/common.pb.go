@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: api/common.proto
 
-package apipb
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -169,8 +169,8 @@ func (Family_Safi) EnumDescriptor() ([]byte, []int) {
 
 type Family struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Afi           Family_Afi             `protobuf:"varint,1,opt,name=afi,proto3,enum=apipb.Family_Afi" json:"afi,omitempty"`
-	Safi          Family_Safi            `protobuf:"varint,2,opt,name=safi,proto3,enum=apipb.Family_Safi" json:"safi,omitempty"`
+	Afi           Family_Afi             `protobuf:"varint,1,opt,name=afi,proto3,enum=api.Family_Afi" json:"afi,omitempty"`
+	Safi          Family_Safi            `protobuf:"varint,2,opt,name=safi,proto3,enum=api.Family_Safi" json:"safi,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -477,10 +477,10 @@ var File_api_common_proto protoreflect.FileDescriptor
 
 const file_api_common_proto_rawDesc = "" +
 	"\n" +
-	"\x10api/common.proto\x12\x05apipb\"\x91\x04\n" +
-	"\x06Family\x12#\n" +
-	"\x03afi\x18\x01 \x01(\x0e2\x11.apipb.Family.AfiR\x03afi\x12&\n" +
-	"\x04safi\x18\x02 \x01(\x0e2\x12.apipb.Family.SafiR\x04safi\"^\n" +
+	"\x10api/common.proto\x12\x03api\"\x8d\x04\n" +
+	"\x06Family\x12!\n" +
+	"\x03afi\x18\x01 \x01(\x0e2\x0f.api.Family.AfiR\x03afi\x12$\n" +
+	"\x04safi\x18\x02 \x01(\x0e2\x10.api.Family.SafiR\x04safi\"^\n" +
 	"\x03Afi\x12\x0f\n" +
 	"\vAFI_UNKNOWN\x10\x00\x12\n" +
 	"\n" +
@@ -515,13 +515,13 @@ const file_api_common_proto_rawDesc = "" +
 	"\bassigned\x18\x02 \x01(\rR\bassigned\"R\n" +
 	"\x1eRouteDistinguisherFourOctetASN\x12\x14\n" +
 	"\x05admin\x18\x01 \x01(\rR\x05admin\x12\x1a\n" +
-	"\bassigned\x18\x02 \x01(\rR\bassigned\"\xfa\x01\n" +
-	"\x12RouteDistinguisher\x12J\n" +
-	"\rtwo_octet_asn\x18\x01 \x01(\v2$.apipb.RouteDistinguisherTwoOctetASNH\x00R\vtwoOctetAsn\x12C\n" +
+	"\bassigned\x18\x02 \x01(\rR\bassigned\"\xf4\x01\n" +
+	"\x12RouteDistinguisher\x12H\n" +
+	"\rtwo_octet_asn\x18\x01 \x01(\v2\".api.RouteDistinguisherTwoOctetASNH\x00R\vtwoOctetAsn\x12A\n" +
 	"\n" +
-	"ip_address\x18\x02 \x01(\v2\".apipb.RouteDistinguisherIPAddressH\x00R\tipAddress\x12M\n" +
-	"\x0efour_octet_asn\x18\x03 \x01(\v2%.apipb.RouteDistinguisherFourOctetASNH\x00R\ffourOctetAsnB\x04\n" +
-	"\x02rdB$Z\"github.com/osrg/gobgp/v4/api;apipbb\x06proto3"
+	"ip_address\x18\x02 \x01(\v2 .api.RouteDistinguisherIPAddressH\x00R\tipAddress\x12K\n" +
+	"\x0efour_octet_asn\x18\x03 \x01(\v2#.api.RouteDistinguisherFourOctetASNH\x00R\ffourOctetAsnB\x04\n" +
+	"\x02rdB\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
 
 var (
 	file_api_common_proto_rawDescOnce sync.Once
@@ -538,20 +538,20 @@ func file_api_common_proto_rawDescGZIP() []byte {
 var file_api_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_api_common_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_api_common_proto_goTypes = []any{
-	(Family_Afi)(0),                        // 0: apipb.Family.Afi
-	(Family_Safi)(0),                       // 1: apipb.Family.Safi
-	(*Family)(nil),                         // 2: apipb.Family
-	(*RouteDistinguisherTwoOctetASN)(nil),  // 3: apipb.RouteDistinguisherTwoOctetASN
-	(*RouteDistinguisherIPAddress)(nil),    // 4: apipb.RouteDistinguisherIPAddress
-	(*RouteDistinguisherFourOctetASN)(nil), // 5: apipb.RouteDistinguisherFourOctetASN
-	(*RouteDistinguisher)(nil),             // 6: apipb.RouteDistinguisher
+	(Family_Afi)(0),                        // 0: api.Family.Afi
+	(Family_Safi)(0),                       // 1: api.Family.Safi
+	(*Family)(nil),                         // 2: api.Family
+	(*RouteDistinguisherTwoOctetASN)(nil),  // 3: api.RouteDistinguisherTwoOctetASN
+	(*RouteDistinguisherIPAddress)(nil),    // 4: api.RouteDistinguisherIPAddress
+	(*RouteDistinguisherFourOctetASN)(nil), // 5: api.RouteDistinguisherFourOctetASN
+	(*RouteDistinguisher)(nil),             // 6: api.RouteDistinguisher
 }
 var file_api_common_proto_depIdxs = []int32{
-	0, // 0: apipb.Family.afi:type_name -> apipb.Family.Afi
-	1, // 1: apipb.Family.safi:type_name -> apipb.Family.Safi
-	3, // 2: apipb.RouteDistinguisher.two_octet_asn:type_name -> apipb.RouteDistinguisherTwoOctetASN
-	4, // 3: apipb.RouteDistinguisher.ip_address:type_name -> apipb.RouteDistinguisherIPAddress
-	5, // 4: apipb.RouteDistinguisher.four_octet_asn:type_name -> apipb.RouteDistinguisherFourOctetASN
+	0, // 0: api.Family.afi:type_name -> api.Family.Afi
+	1, // 1: api.Family.safi:type_name -> api.Family.Safi
+	3, // 2: api.RouteDistinguisher.two_octet_asn:type_name -> api.RouteDistinguisherTwoOctetASN
+	4, // 3: api.RouteDistinguisher.ip_address:type_name -> api.RouteDistinguisherIPAddress
+	5, // 4: api.RouteDistinguisher.four_octet_asn:type_name -> api.RouteDistinguisherFourOctetASN
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name

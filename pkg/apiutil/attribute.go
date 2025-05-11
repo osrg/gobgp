@@ -22,7 +22,7 @@ import (
 	"net"
 	"net/netip"
 
-	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 

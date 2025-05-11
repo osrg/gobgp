@@ -21,7 +21,7 @@ import (
 	_ "net/http/pprof"
 	"strconv"
 
-	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/spf13/cobra"
 )
 

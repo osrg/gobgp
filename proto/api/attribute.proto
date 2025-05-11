@@ -21,8 +21,8 @@
 
 syntax = "proto3";
 
-package apipb;
-option go_package = "github.com/osrg/gobgp/v4/api;apipb";
+package api;
+option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 import "api/common.proto";
 import "api/extcom.proto";
@@ -96,7 +96,7 @@ message MpReachNLRIAttribute {
 }
 
 message MpUnreachNLRIAttribute {
-  apipb.Family family = 1;
+  api.Family family = 1;
   // The same as NLRI field of MpReachNLRIAttribute
   repeated NLRI nlris = 3;
 }

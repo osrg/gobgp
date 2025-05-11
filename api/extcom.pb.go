@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: api/extcom.proto
 
-package apipb
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -1661,7 +1661,7 @@ var File_api_extcom_proto protoreflect.FileDescriptor
 
 const file_api_extcom_proto_rawDesc = "" +
 	"\n" +
-	"\x10api/extcom.proto\x12\x05apipb\"\x8f\x01\n" +
+	"\x10api/extcom.proto\x12\x03api\"\x8f\x01\n" +
 	"\x1aTwoOctetAsSpecificExtended\x12#\n" +
 	"\ris_transitive\x18\x01 \x01(\bR\fisTransitive\x12\x19\n" +
 	"\bsub_type\x18\x02 \x01(\rR\asubType\x12\x10\n" +
@@ -1735,40 +1735,40 @@ const file_api_extcom_proto_rawDesc = "" +
 	"\x03mtu\x18\x02 \x01(\rR\x03mtu\";\n" +
 	"\x0fUnknownExtended\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\rR\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\xa2\f\n" +
-	"\x11ExtendedCommunity\x122\n" +
-	"\aunknown\x18\x01 \x01(\v2\x16.apipb.UnknownExtendedH\x00R\aunknown\x12V\n" +
-	"\x15two_octet_as_specific\x18\x02 \x01(\v2!.apipb.TwoOctetAsSpecificExtendedH\x00R\x12twoOctetAsSpecific\x12X\n" +
-	"\x15ipv4_address_specific\x18\x03 \x01(\v2\".apipb.IPv4AddressSpecificExtendedH\x00R\x13ipv4AddressSpecific\x12Y\n" +
-	"\x16four_octet_as_specific\x18\x04 \x01(\v2\".apipb.FourOctetAsSpecificExtendedH\x00R\x13fourOctetAsSpecific\x12E\n" +
-	"\x0elink_bandwidth\x18\x05 \x01(\v2\x1c.apipb.LinkBandwidthExtendedH\x00R\rlinkBandwidth\x12;\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xf6\v\n" +
+	"\x11ExtendedCommunity\x120\n" +
+	"\aunknown\x18\x01 \x01(\v2\x14.api.UnknownExtendedH\x00R\aunknown\x12T\n" +
+	"\x15two_octet_as_specific\x18\x02 \x01(\v2\x1f.api.TwoOctetAsSpecificExtendedH\x00R\x12twoOctetAsSpecific\x12V\n" +
+	"\x15ipv4_address_specific\x18\x03 \x01(\v2 .api.IPv4AddressSpecificExtendedH\x00R\x13ipv4AddressSpecific\x12W\n" +
+	"\x16four_octet_as_specific\x18\x04 \x01(\v2 .api.FourOctetAsSpecificExtendedH\x00R\x13fourOctetAsSpecific\x12C\n" +
+	"\x0elink_bandwidth\x18\x05 \x01(\v2\x1a.api.LinkBandwidthExtendedH\x00R\rlinkBandwidth\x129\n" +
 	"\n" +
-	"validation\x18\x06 \x01(\v2\x19.apipb.ValidationExtendedH\x00R\n" +
-	"validation\x12,\n" +
-	"\x05color\x18\a \x01(\v2\x14.apipb.ColorExtendedH\x00R\x05color\x12,\n" +
-	"\x05encap\x18\b \x01(\v2\x14.apipb.EncapExtendedH\x00R\x05encap\x12H\n" +
-	"\x0fdefault_gateway\x18\t \x01(\v2\x1d.apipb.DefaultGatewayExtendedH\x00R\x0edefaultGateway\x12/\n" +
+	"validation\x18\x06 \x01(\v2\x17.api.ValidationExtendedH\x00R\n" +
+	"validation\x12*\n" +
+	"\x05color\x18\a \x01(\v2\x12.api.ColorExtendedH\x00R\x05color\x12*\n" +
+	"\x05encap\x18\b \x01(\v2\x12.api.EncapExtendedH\x00R\x05encap\x12F\n" +
+	"\x0fdefault_gateway\x18\t \x01(\v2\x1b.api.DefaultGatewayExtendedH\x00R\x0edefaultGateway\x12-\n" +
 	"\x06opaque\x18\n" +
-	" \x01(\v2\x15.apipb.OpaqueExtendedH\x00R\x06opaque\x126\n" +
-	"\tesi_label\x18\v \x01(\v2\x17.apipb.ESILabelExtendedH\x00R\besiLabel\x129\n" +
-	"\tes_import\x18\f \x01(\v2\x1a.apipb.ESImportRouteTargetH\x00R\besImport\x12?\n" +
-	"\fmac_mobility\x18\r \x01(\v2\x1a.apipb.MacMobilityExtendedH\x00R\vmacMobility\x129\n" +
+	" \x01(\v2\x13.api.OpaqueExtendedH\x00R\x06opaque\x124\n" +
+	"\tesi_label\x18\v \x01(\v2\x15.api.ESILabelExtendedH\x00R\besiLabel\x127\n" +
+	"\tes_import\x18\f \x01(\v2\x18.api.ESImportRouteTargetH\x00R\besImport\x12=\n" +
+	"\fmac_mobility\x18\r \x01(\v2\x18.api.MacMobilityExtendedH\x00R\vmacMobility\x127\n" +
 	"\n" +
-	"router_mac\x18\x0e \x01(\v2\x18.apipb.RouterMacExtendedH\x00R\trouterMac\x12?\n" +
-	"\ftraffic_rate\x18\x0f \x01(\v2\x1a.apipb.TrafficRateExtendedH\x00R\vtrafficRate\x12E\n" +
-	"\x0etraffic_action\x18\x10 \x01(\v2\x1c.apipb.TrafficActionExtendedH\x00R\rtrafficAction\x12o\n" +
-	"\x1eredirect_two_octet_as_specific\x18\x11 \x01(\v2).apipb.RedirectTwoOctetAsSpecificExtendedH\x00R\x1aredirectTwoOctetAsSpecific\x12q\n" +
-	"\x1eredirect_ipv4_address_specific\x18\x12 \x01(\v2*.apipb.RedirectIPv4AddressSpecificExtendedH\x00R\x1bredirectIpv4AddressSpecific\x12r\n" +
-	"\x1fredirect_four_octet_as_specific\x18\x13 \x01(\v2*.apipb.RedirectFourOctetAsSpecificExtendedH\x00R\x1bredirectFourOctetAsSpecific\x12E\n" +
-	"\x0etraffic_remark\x18\x14 \x01(\v2\x1c.apipb.TrafficRemarkExtendedH\x00R\rtrafficRemark\x12&\n" +
-	"\x03mup\x18\x15 \x01(\v2\x12.apipb.MUPExtendedH\x00R\x03mup\x12)\n" +
-	"\x04vpls\x18\x16 \x01(\v2\x13.apipb.VPLSExtendedH\x00R\x04vplsB\b\n" +
-	"\x06extcom\"\xa0\x02\n" +
-	"\vRouteTarget\x12V\n" +
-	"\x15two_octet_as_specific\x18\x01 \x01(\v2!.apipb.TwoOctetAsSpecificExtendedH\x00R\x12twoOctetAsSpecific\x12X\n" +
-	"\x15ipv4_address_specific\x18\x02 \x01(\v2\".apipb.IPv4AddressSpecificExtendedH\x00R\x13ipv4AddressSpecific\x12Y\n" +
-	"\x16four_octet_as_specific\x18\x03 \x01(\v2\".apipb.FourOctetAsSpecificExtendedH\x00R\x13fourOctetAsSpecificB\x04\n" +
-	"\x02rtB$Z\"github.com/osrg/gobgp/v4/api;apipbb\x06proto3"
+	"router_mac\x18\x0e \x01(\v2\x16.api.RouterMacExtendedH\x00R\trouterMac\x12=\n" +
+	"\ftraffic_rate\x18\x0f \x01(\v2\x18.api.TrafficRateExtendedH\x00R\vtrafficRate\x12C\n" +
+	"\x0etraffic_action\x18\x10 \x01(\v2\x1a.api.TrafficActionExtendedH\x00R\rtrafficAction\x12m\n" +
+	"\x1eredirect_two_octet_as_specific\x18\x11 \x01(\v2'.api.RedirectTwoOctetAsSpecificExtendedH\x00R\x1aredirectTwoOctetAsSpecific\x12o\n" +
+	"\x1eredirect_ipv4_address_specific\x18\x12 \x01(\v2(.api.RedirectIPv4AddressSpecificExtendedH\x00R\x1bredirectIpv4AddressSpecific\x12p\n" +
+	"\x1fredirect_four_octet_as_specific\x18\x13 \x01(\v2(.api.RedirectFourOctetAsSpecificExtendedH\x00R\x1bredirectFourOctetAsSpecific\x12C\n" +
+	"\x0etraffic_remark\x18\x14 \x01(\v2\x1a.api.TrafficRemarkExtendedH\x00R\rtrafficRemark\x12$\n" +
+	"\x03mup\x18\x15 \x01(\v2\x10.api.MUPExtendedH\x00R\x03mup\x12'\n" +
+	"\x04vpls\x18\x16 \x01(\v2\x11.api.VPLSExtendedH\x00R\x04vplsB\b\n" +
+	"\x06extcom\"\x9a\x02\n" +
+	"\vRouteTarget\x12T\n" +
+	"\x15two_octet_as_specific\x18\x01 \x01(\v2\x1f.api.TwoOctetAsSpecificExtendedH\x00R\x12twoOctetAsSpecific\x12V\n" +
+	"\x15ipv4_address_specific\x18\x02 \x01(\v2 .api.IPv4AddressSpecificExtendedH\x00R\x13ipv4AddressSpecific\x12W\n" +
+	"\x16four_octet_as_specific\x18\x03 \x01(\v2 .api.FourOctetAsSpecificExtendedH\x00R\x13fourOctetAsSpecificB\x04\n" +
+	"\x02rtB\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
 
 var (
 	file_api_extcom_proto_rawDescOnce sync.Once
@@ -1784,57 +1784,57 @@ func file_api_extcom_proto_rawDescGZIP() []byte {
 
 var file_api_extcom_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_api_extcom_proto_goTypes = []any{
-	(*TwoOctetAsSpecificExtended)(nil),          // 0: apipb.TwoOctetAsSpecificExtended
-	(*IPv4AddressSpecificExtended)(nil),         // 1: apipb.IPv4AddressSpecificExtended
-	(*FourOctetAsSpecificExtended)(nil),         // 2: apipb.FourOctetAsSpecificExtended
-	(*LinkBandwidthExtended)(nil),               // 3: apipb.LinkBandwidthExtended
-	(*ValidationExtended)(nil),                  // 4: apipb.ValidationExtended
-	(*ColorExtended)(nil),                       // 5: apipb.ColorExtended
-	(*EncapExtended)(nil),                       // 6: apipb.EncapExtended
-	(*DefaultGatewayExtended)(nil),              // 7: apipb.DefaultGatewayExtended
-	(*OpaqueExtended)(nil),                      // 8: apipb.OpaqueExtended
-	(*ESILabelExtended)(nil),                    // 9: apipb.ESILabelExtended
-	(*ESImportRouteTarget)(nil),                 // 10: apipb.ESImportRouteTarget
-	(*MacMobilityExtended)(nil),                 // 11: apipb.MacMobilityExtended
-	(*RouterMacExtended)(nil),                   // 12: apipb.RouterMacExtended
-	(*TrafficRateExtended)(nil),                 // 13: apipb.TrafficRateExtended
-	(*TrafficActionExtended)(nil),               // 14: apipb.TrafficActionExtended
-	(*RedirectTwoOctetAsSpecificExtended)(nil),  // 15: apipb.RedirectTwoOctetAsSpecificExtended
-	(*RedirectIPv4AddressSpecificExtended)(nil), // 16: apipb.RedirectIPv4AddressSpecificExtended
-	(*RedirectFourOctetAsSpecificExtended)(nil), // 17: apipb.RedirectFourOctetAsSpecificExtended
-	(*TrafficRemarkExtended)(nil),               // 18: apipb.TrafficRemarkExtended
-	(*MUPExtended)(nil),                         // 19: apipb.MUPExtended
-	(*VPLSExtended)(nil),                        // 20: apipb.VPLSExtended
-	(*UnknownExtended)(nil),                     // 21: apipb.UnknownExtended
-	(*ExtendedCommunity)(nil),                   // 22: apipb.ExtendedCommunity
-	(*RouteTarget)(nil),                         // 23: apipb.RouteTarget
+	(*TwoOctetAsSpecificExtended)(nil),          // 0: api.TwoOctetAsSpecificExtended
+	(*IPv4AddressSpecificExtended)(nil),         // 1: api.IPv4AddressSpecificExtended
+	(*FourOctetAsSpecificExtended)(nil),         // 2: api.FourOctetAsSpecificExtended
+	(*LinkBandwidthExtended)(nil),               // 3: api.LinkBandwidthExtended
+	(*ValidationExtended)(nil),                  // 4: api.ValidationExtended
+	(*ColorExtended)(nil),                       // 5: api.ColorExtended
+	(*EncapExtended)(nil),                       // 6: api.EncapExtended
+	(*DefaultGatewayExtended)(nil),              // 7: api.DefaultGatewayExtended
+	(*OpaqueExtended)(nil),                      // 8: api.OpaqueExtended
+	(*ESILabelExtended)(nil),                    // 9: api.ESILabelExtended
+	(*ESImportRouteTarget)(nil),                 // 10: api.ESImportRouteTarget
+	(*MacMobilityExtended)(nil),                 // 11: api.MacMobilityExtended
+	(*RouterMacExtended)(nil),                   // 12: api.RouterMacExtended
+	(*TrafficRateExtended)(nil),                 // 13: api.TrafficRateExtended
+	(*TrafficActionExtended)(nil),               // 14: api.TrafficActionExtended
+	(*RedirectTwoOctetAsSpecificExtended)(nil),  // 15: api.RedirectTwoOctetAsSpecificExtended
+	(*RedirectIPv4AddressSpecificExtended)(nil), // 16: api.RedirectIPv4AddressSpecificExtended
+	(*RedirectFourOctetAsSpecificExtended)(nil), // 17: api.RedirectFourOctetAsSpecificExtended
+	(*TrafficRemarkExtended)(nil),               // 18: api.TrafficRemarkExtended
+	(*MUPExtended)(nil),                         // 19: api.MUPExtended
+	(*VPLSExtended)(nil),                        // 20: api.VPLSExtended
+	(*UnknownExtended)(nil),                     // 21: api.UnknownExtended
+	(*ExtendedCommunity)(nil),                   // 22: api.ExtendedCommunity
+	(*RouteTarget)(nil),                         // 23: api.RouteTarget
 }
 var file_api_extcom_proto_depIdxs = []int32{
-	21, // 0: apipb.ExtendedCommunity.unknown:type_name -> apipb.UnknownExtended
-	0,  // 1: apipb.ExtendedCommunity.two_octet_as_specific:type_name -> apipb.TwoOctetAsSpecificExtended
-	1,  // 2: apipb.ExtendedCommunity.ipv4_address_specific:type_name -> apipb.IPv4AddressSpecificExtended
-	2,  // 3: apipb.ExtendedCommunity.four_octet_as_specific:type_name -> apipb.FourOctetAsSpecificExtended
-	3,  // 4: apipb.ExtendedCommunity.link_bandwidth:type_name -> apipb.LinkBandwidthExtended
-	4,  // 5: apipb.ExtendedCommunity.validation:type_name -> apipb.ValidationExtended
-	5,  // 6: apipb.ExtendedCommunity.color:type_name -> apipb.ColorExtended
-	6,  // 7: apipb.ExtendedCommunity.encap:type_name -> apipb.EncapExtended
-	7,  // 8: apipb.ExtendedCommunity.default_gateway:type_name -> apipb.DefaultGatewayExtended
-	8,  // 9: apipb.ExtendedCommunity.opaque:type_name -> apipb.OpaqueExtended
-	9,  // 10: apipb.ExtendedCommunity.esi_label:type_name -> apipb.ESILabelExtended
-	10, // 11: apipb.ExtendedCommunity.es_import:type_name -> apipb.ESImportRouteTarget
-	11, // 12: apipb.ExtendedCommunity.mac_mobility:type_name -> apipb.MacMobilityExtended
-	12, // 13: apipb.ExtendedCommunity.router_mac:type_name -> apipb.RouterMacExtended
-	13, // 14: apipb.ExtendedCommunity.traffic_rate:type_name -> apipb.TrafficRateExtended
-	14, // 15: apipb.ExtendedCommunity.traffic_action:type_name -> apipb.TrafficActionExtended
-	15, // 16: apipb.ExtendedCommunity.redirect_two_octet_as_specific:type_name -> apipb.RedirectTwoOctetAsSpecificExtended
-	16, // 17: apipb.ExtendedCommunity.redirect_ipv4_address_specific:type_name -> apipb.RedirectIPv4AddressSpecificExtended
-	17, // 18: apipb.ExtendedCommunity.redirect_four_octet_as_specific:type_name -> apipb.RedirectFourOctetAsSpecificExtended
-	18, // 19: apipb.ExtendedCommunity.traffic_remark:type_name -> apipb.TrafficRemarkExtended
-	19, // 20: apipb.ExtendedCommunity.mup:type_name -> apipb.MUPExtended
-	20, // 21: apipb.ExtendedCommunity.vpls:type_name -> apipb.VPLSExtended
-	0,  // 22: apipb.RouteTarget.two_octet_as_specific:type_name -> apipb.TwoOctetAsSpecificExtended
-	1,  // 23: apipb.RouteTarget.ipv4_address_specific:type_name -> apipb.IPv4AddressSpecificExtended
-	2,  // 24: apipb.RouteTarget.four_octet_as_specific:type_name -> apipb.FourOctetAsSpecificExtended
+	21, // 0: api.ExtendedCommunity.unknown:type_name -> api.UnknownExtended
+	0,  // 1: api.ExtendedCommunity.two_octet_as_specific:type_name -> api.TwoOctetAsSpecificExtended
+	1,  // 2: api.ExtendedCommunity.ipv4_address_specific:type_name -> api.IPv4AddressSpecificExtended
+	2,  // 3: api.ExtendedCommunity.four_octet_as_specific:type_name -> api.FourOctetAsSpecificExtended
+	3,  // 4: api.ExtendedCommunity.link_bandwidth:type_name -> api.LinkBandwidthExtended
+	4,  // 5: api.ExtendedCommunity.validation:type_name -> api.ValidationExtended
+	5,  // 6: api.ExtendedCommunity.color:type_name -> api.ColorExtended
+	6,  // 7: api.ExtendedCommunity.encap:type_name -> api.EncapExtended
+	7,  // 8: api.ExtendedCommunity.default_gateway:type_name -> api.DefaultGatewayExtended
+	8,  // 9: api.ExtendedCommunity.opaque:type_name -> api.OpaqueExtended
+	9,  // 10: api.ExtendedCommunity.esi_label:type_name -> api.ESILabelExtended
+	10, // 11: api.ExtendedCommunity.es_import:type_name -> api.ESImportRouteTarget
+	11, // 12: api.ExtendedCommunity.mac_mobility:type_name -> api.MacMobilityExtended
+	12, // 13: api.ExtendedCommunity.router_mac:type_name -> api.RouterMacExtended
+	13, // 14: api.ExtendedCommunity.traffic_rate:type_name -> api.TrafficRateExtended
+	14, // 15: api.ExtendedCommunity.traffic_action:type_name -> api.TrafficActionExtended
+	15, // 16: api.ExtendedCommunity.redirect_two_octet_as_specific:type_name -> api.RedirectTwoOctetAsSpecificExtended
+	16, // 17: api.ExtendedCommunity.redirect_ipv4_address_specific:type_name -> api.RedirectIPv4AddressSpecificExtended
+	17, // 18: api.ExtendedCommunity.redirect_four_octet_as_specific:type_name -> api.RedirectFourOctetAsSpecificExtended
+	18, // 19: api.ExtendedCommunity.traffic_remark:type_name -> api.TrafficRemarkExtended
+	19, // 20: api.ExtendedCommunity.mup:type_name -> api.MUPExtended
+	20, // 21: api.ExtendedCommunity.vpls:type_name -> api.VPLSExtended
+	0,  // 22: api.RouteTarget.two_octet_as_specific:type_name -> api.TwoOctetAsSpecificExtended
+	1,  // 23: api.RouteTarget.ipv4_address_specific:type_name -> api.IPv4AddressSpecificExtended
+	2,  // 24: api.RouteTarget.four_octet_as_specific:type_name -> api.FourOctetAsSpecificExtended
 	25, // [25:25] is the sub-list for method output_type
 	25, // [25:25] is the sub-list for method input_type
 	25, // [25:25] is the sub-list for extension type_name

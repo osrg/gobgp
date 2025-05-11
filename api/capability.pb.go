@@ -25,7 +25,7 @@
 // 	protoc        (unknown)
 // source: api/capability.proto
 
-package apipb
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -726,7 +726,7 @@ func (x *FourOctetASNCapability) GetAsn() uint32 {
 type AddPathCapabilityTuple struct {
 	state         protoimpl.MessageState      `protogen:"open.v1"`
 	Family        *Family                     `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
-	Mode          AddPathCapabilityTuple_Mode `protobuf:"varint,2,opt,name=mode,proto3,enum=apipb.AddPathCapabilityTuple_Mode" json:"mode,omitempty"`
+	Mode          AddPathCapabilityTuple_Mode `protobuf:"varint,2,opt,name=mode,proto3,enum=api.AddPathCapabilityTuple_Mode" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1147,60 +1147,60 @@ var File_api_capability_proto protoreflect.FileDescriptor
 
 const file_api_capability_proto_rawDesc = "" +
 	"\n" +
-	"\x14api/capability.proto\x12\x05apipb\x1a\x10api/common.proto\"\xe7\a\n" +
+	"\x14api/capability.proto\x12\x03api\x1a\x10api/common.proto\"\xcd\a\n" +
 	"\n" +
-	"Capability\x124\n" +
-	"\aunknown\x18\x01 \x01(\v2\x18.apipb.UnknownCapabilityH\x00R\aunknown\x12G\n" +
-	"\x0emulti_protocol\x18\x02 \x01(\v2\x1e.apipb.MultiProtocolCapabilityH\x00R\rmultiProtocol\x12D\n" +
-	"\rroute_refresh\x18\x03 \x01(\v2\x1d.apipb.RouteRefreshCapabilityH\x00R\frouteRefresh\x12T\n" +
-	"\x13carrying_label_info\x18\x04 \x01(\v2\".apipb.CarryingLabelInfoCapabilityH\x00R\x11carryingLabelInfo\x12M\n" +
-	"\x10extended_nexthop\x18\x05 \x01(\v2 .apipb.ExtendedNexthopCapabilityH\x00R\x0fextendedNexthop\x12M\n" +
-	"\x10graceful_restart\x18\x06 \x01(\v2 .apipb.GracefulRestartCapabilityH\x00R\x0fgracefulRestart\x12E\n" +
-	"\x0efour_octet_asn\x18\a \x01(\v2\x1d.apipb.FourOctetASNCapabilityH\x00R\ffourOctetAsn\x125\n" +
-	"\badd_path\x18\b \x01(\v2\x18.apipb.AddPathCapabilityH\x00R\aaddPath\x12]\n" +
-	"\x16enhanced_route_refresh\x18\t \x01(\v2%.apipb.EnhancedRouteRefreshCapabilityH\x00R\x14enhancedRouteRefresh\x12j\n" +
+	"Capability\x122\n" +
+	"\aunknown\x18\x01 \x01(\v2\x16.api.UnknownCapabilityH\x00R\aunknown\x12E\n" +
+	"\x0emulti_protocol\x18\x02 \x01(\v2\x1c.api.MultiProtocolCapabilityH\x00R\rmultiProtocol\x12B\n" +
+	"\rroute_refresh\x18\x03 \x01(\v2\x1b.api.RouteRefreshCapabilityH\x00R\frouteRefresh\x12R\n" +
+	"\x13carrying_label_info\x18\x04 \x01(\v2 .api.CarryingLabelInfoCapabilityH\x00R\x11carryingLabelInfo\x12K\n" +
+	"\x10extended_nexthop\x18\x05 \x01(\v2\x1e.api.ExtendedNexthopCapabilityH\x00R\x0fextendedNexthop\x12K\n" +
+	"\x10graceful_restart\x18\x06 \x01(\v2\x1e.api.GracefulRestartCapabilityH\x00R\x0fgracefulRestart\x12C\n" +
+	"\x0efour_octet_asn\x18\a \x01(\v2\x1b.api.FourOctetASNCapabilityH\x00R\ffourOctetAsn\x123\n" +
+	"\badd_path\x18\b \x01(\v2\x16.api.AddPathCapabilityH\x00R\aaddPath\x12[\n" +
+	"\x16enhanced_route_refresh\x18\t \x01(\v2#.api.EnhancedRouteRefreshCapabilityH\x00R\x14enhancedRouteRefresh\x12h\n" +
 	"\x1blong_lived_graceful_restart\x18\n" +
-	" \x01(\v2).apipb.LongLivedGracefulRestartCapabilityH\x00R\x18longLivedGracefulRestart\x12T\n" +
-	"\x13route_refresh_cisco\x18\v \x01(\v2\".apipb.RouteRefreshCiscoCapabilityH\x00R\x11routeRefreshCisco\x12+\n" +
-	"\x04fqdn\x18\f \x01(\v2\x15.apipb.FqdnCapabilityH\x00R\x04fqdn\x12M\n" +
-	"\x10software_version\x18\r \x01(\v2 .apipb.SoftwareVersionCapabilityH\x00R\x0fsoftwareVersionB\x05\n" +
-	"\x03cap\"@\n" +
-	"\x17MultiProtocolCapability\x12%\n" +
-	"\x06family\x18\x01 \x01(\v2\r.apipb.FamilyR\x06family\"\x18\n" +
+	" \x01(\v2'.api.LongLivedGracefulRestartCapabilityH\x00R\x18longLivedGracefulRestart\x12R\n" +
+	"\x13route_refresh_cisco\x18\v \x01(\v2 .api.RouteRefreshCiscoCapabilityH\x00R\x11routeRefreshCisco\x12)\n" +
+	"\x04fqdn\x18\f \x01(\v2\x13.api.FqdnCapabilityH\x00R\x04fqdn\x12K\n" +
+	"\x10software_version\x18\r \x01(\v2\x1e.api.SoftwareVersionCapabilityH\x00R\x0fsoftwareVersionB\x05\n" +
+	"\x03cap\">\n" +
+	"\x17MultiProtocolCapability\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\"\x18\n" +
 	"\x16RouteRefreshCapability\"\x1d\n" +
-	"\x1bCarryingLabelInfoCapability\"\x86\x01\n" +
-	"\x1eExtendedNexthopCapabilityTuple\x12.\n" +
-	"\vnlri_family\x18\x01 \x01(\v2\r.apipb.FamilyR\n" +
-	"nlriFamily\x124\n" +
-	"\x0enexthop_family\x18\x02 \x01(\v2\r.apipb.FamilyR\rnexthopFamily\"Z\n" +
-	"\x19ExtendedNexthopCapability\x12=\n" +
-	"\x06tuples\x18\x01 \x03(\v2%.apipb.ExtendedNexthopCapabilityTupleR\x06tuples\"]\n" +
-	"\x1eGracefulRestartCapabilityTuple\x12%\n" +
-	"\x06family\x18\x01 \x01(\v2\r.apipb.FamilyR\x06family\x12\x14\n" +
-	"\x05flags\x18\x02 \x01(\rR\x05flags\"\x84\x01\n" +
+	"\x1bCarryingLabelInfoCapability\"\x82\x01\n" +
+	"\x1eExtendedNexthopCapabilityTuple\x12,\n" +
+	"\vnlri_family\x18\x01 \x01(\v2\v.api.FamilyR\n" +
+	"nlriFamily\x122\n" +
+	"\x0enexthop_family\x18\x02 \x01(\v2\v.api.FamilyR\rnexthopFamily\"X\n" +
+	"\x19ExtendedNexthopCapability\x12;\n" +
+	"\x06tuples\x18\x01 \x03(\v2#.api.ExtendedNexthopCapabilityTupleR\x06tuples\"[\n" +
+	"\x1eGracefulRestartCapabilityTuple\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x12\x14\n" +
+	"\x05flags\x18\x02 \x01(\rR\x05flags\"\x82\x01\n" +
 	"\x19GracefulRestartCapability\x12\x14\n" +
 	"\x05flags\x18\x01 \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\x02 \x01(\rR\x04time\x12=\n" +
-	"\x06tuples\x18\x03 \x03(\v2%.apipb.GracefulRestartCapabilityTupleR\x06tuples\"*\n" +
+	"\x04time\x18\x02 \x01(\rR\x04time\x12;\n" +
+	"\x06tuples\x18\x03 \x03(\v2#.api.GracefulRestartCapabilityTupleR\x06tuples\"*\n" +
 	"\x16FourOctetASNCapability\x12\x10\n" +
-	"\x03asn\x18\x01 \x01(\rR\x03asn\"\xaa\x01\n" +
-	"\x16AddPathCapabilityTuple\x12%\n" +
-	"\x06family\x18\x01 \x01(\v2\r.apipb.FamilyR\x06family\x126\n" +
-	"\x04mode\x18\x02 \x01(\x0e2\".apipb.AddPathCapabilityTuple.ModeR\x04mode\"1\n" +
+	"\x03asn\x18\x01 \x01(\rR\x03asn\"\xa6\x01\n" +
+	"\x16AddPathCapabilityTuple\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x124\n" +
+	"\x04mode\x18\x02 \x01(\x0e2 .api.AddPathCapabilityTuple.ModeR\x04mode\"1\n" +
 	"\x04Mode\x12\b\n" +
 	"\x04NONE\x10\x00\x12\v\n" +
 	"\aRECEIVE\x10\x01\x12\b\n" +
 	"\x04SEND\x10\x02\x12\b\n" +
-	"\x04BOTH\x10\x03\"J\n" +
-	"\x11AddPathCapability\x125\n" +
-	"\x06tuples\x18\x01 \x03(\v2\x1d.apipb.AddPathCapabilityTupleR\x06tuples\" \n" +
-	"\x1eEnhancedRouteRefreshCapability\"z\n" +
-	"'LongLivedGracefulRestartCapabilityTuple\x12%\n" +
-	"\x06family\x18\x01 \x01(\v2\r.apipb.FamilyR\x06family\x12\x14\n" +
+	"\x04BOTH\x10\x03\"H\n" +
+	"\x11AddPathCapability\x123\n" +
+	"\x06tuples\x18\x01 \x03(\v2\x1b.api.AddPathCapabilityTupleR\x06tuples\" \n" +
+	"\x1eEnhancedRouteRefreshCapability\"x\n" +
+	"'LongLivedGracefulRestartCapabilityTuple\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x12\x14\n" +
 	"\x05flags\x18\x02 \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\x03 \x01(\rR\x04time\"l\n" +
-	"\"LongLivedGracefulRestartCapability\x12F\n" +
-	"\x06tuples\x18\x01 \x03(\v2..apipb.LongLivedGracefulRestartCapabilityTupleR\x06tuples\"\x1d\n" +
+	"\x04time\x18\x03 \x01(\rR\x04time\"j\n" +
+	"\"LongLivedGracefulRestartCapability\x12D\n" +
+	"\x06tuples\x18\x01 \x03(\v2,.api.LongLivedGracefulRestartCapabilityTupleR\x06tuples\"\x1d\n" +
 	"\x1bRouteRefreshCiscoCapability\"N\n" +
 	"\x0eFqdnCapability\x12\x1b\n" +
 	"\thost_name\x18\x01 \x01(\tR\bhostName\x12\x1f\n" +
@@ -1210,7 +1210,7 @@ const file_api_capability_proto_rawDesc = "" +
 	"\x10software_version\x18\x01 \x01(\tR\x0fsoftwareVersion\"=\n" +
 	"\x11UnknownCapability\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\rR\x04code\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05valueB$Z\"github.com/osrg/gobgp/v4/api;apipbb\x06proto3"
+	"\x05value\x18\x02 \x01(\fR\x05valueB\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
 
 var (
 	file_api_capability_proto_rawDescOnce sync.Once
@@ -1227,52 +1227,52 @@ func file_api_capability_proto_rawDescGZIP() []byte {
 var file_api_capability_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_api_capability_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_api_capability_proto_goTypes = []any{
-	(AddPathCapabilityTuple_Mode)(0),                // 0: apipb.AddPathCapabilityTuple.Mode
-	(*Capability)(nil),                              // 1: apipb.Capability
-	(*MultiProtocolCapability)(nil),                 // 2: apipb.MultiProtocolCapability
-	(*RouteRefreshCapability)(nil),                  // 3: apipb.RouteRefreshCapability
-	(*CarryingLabelInfoCapability)(nil),             // 4: apipb.CarryingLabelInfoCapability
-	(*ExtendedNexthopCapabilityTuple)(nil),          // 5: apipb.ExtendedNexthopCapabilityTuple
-	(*ExtendedNexthopCapability)(nil),               // 6: apipb.ExtendedNexthopCapability
-	(*GracefulRestartCapabilityTuple)(nil),          // 7: apipb.GracefulRestartCapabilityTuple
-	(*GracefulRestartCapability)(nil),               // 8: apipb.GracefulRestartCapability
-	(*FourOctetASNCapability)(nil),                  // 9: apipb.FourOctetASNCapability
-	(*AddPathCapabilityTuple)(nil),                  // 10: apipb.AddPathCapabilityTuple
-	(*AddPathCapability)(nil),                       // 11: apipb.AddPathCapability
-	(*EnhancedRouteRefreshCapability)(nil),          // 12: apipb.EnhancedRouteRefreshCapability
-	(*LongLivedGracefulRestartCapabilityTuple)(nil), // 13: apipb.LongLivedGracefulRestartCapabilityTuple
-	(*LongLivedGracefulRestartCapability)(nil),      // 14: apipb.LongLivedGracefulRestartCapability
-	(*RouteRefreshCiscoCapability)(nil),             // 15: apipb.RouteRefreshCiscoCapability
-	(*FqdnCapability)(nil),                          // 16: apipb.FqdnCapability
-	(*SoftwareVersionCapability)(nil),               // 17: apipb.SoftwareVersionCapability
-	(*UnknownCapability)(nil),                       // 18: apipb.UnknownCapability
-	(*Family)(nil),                                  // 19: apipb.Family
+	(AddPathCapabilityTuple_Mode)(0),                // 0: api.AddPathCapabilityTuple.Mode
+	(*Capability)(nil),                              // 1: api.Capability
+	(*MultiProtocolCapability)(nil),                 // 2: api.MultiProtocolCapability
+	(*RouteRefreshCapability)(nil),                  // 3: api.RouteRefreshCapability
+	(*CarryingLabelInfoCapability)(nil),             // 4: api.CarryingLabelInfoCapability
+	(*ExtendedNexthopCapabilityTuple)(nil),          // 5: api.ExtendedNexthopCapabilityTuple
+	(*ExtendedNexthopCapability)(nil),               // 6: api.ExtendedNexthopCapability
+	(*GracefulRestartCapabilityTuple)(nil),          // 7: api.GracefulRestartCapabilityTuple
+	(*GracefulRestartCapability)(nil),               // 8: api.GracefulRestartCapability
+	(*FourOctetASNCapability)(nil),                  // 9: api.FourOctetASNCapability
+	(*AddPathCapabilityTuple)(nil),                  // 10: api.AddPathCapabilityTuple
+	(*AddPathCapability)(nil),                       // 11: api.AddPathCapability
+	(*EnhancedRouteRefreshCapability)(nil),          // 12: api.EnhancedRouteRefreshCapability
+	(*LongLivedGracefulRestartCapabilityTuple)(nil), // 13: api.LongLivedGracefulRestartCapabilityTuple
+	(*LongLivedGracefulRestartCapability)(nil),      // 14: api.LongLivedGracefulRestartCapability
+	(*RouteRefreshCiscoCapability)(nil),             // 15: api.RouteRefreshCiscoCapability
+	(*FqdnCapability)(nil),                          // 16: api.FqdnCapability
+	(*SoftwareVersionCapability)(nil),               // 17: api.SoftwareVersionCapability
+	(*UnknownCapability)(nil),                       // 18: api.UnknownCapability
+	(*Family)(nil),                                  // 19: api.Family
 }
 var file_api_capability_proto_depIdxs = []int32{
-	18, // 0: apipb.Capability.unknown:type_name -> apipb.UnknownCapability
-	2,  // 1: apipb.Capability.multi_protocol:type_name -> apipb.MultiProtocolCapability
-	3,  // 2: apipb.Capability.route_refresh:type_name -> apipb.RouteRefreshCapability
-	4,  // 3: apipb.Capability.carrying_label_info:type_name -> apipb.CarryingLabelInfoCapability
-	6,  // 4: apipb.Capability.extended_nexthop:type_name -> apipb.ExtendedNexthopCapability
-	8,  // 5: apipb.Capability.graceful_restart:type_name -> apipb.GracefulRestartCapability
-	9,  // 6: apipb.Capability.four_octet_asn:type_name -> apipb.FourOctetASNCapability
-	11, // 7: apipb.Capability.add_path:type_name -> apipb.AddPathCapability
-	12, // 8: apipb.Capability.enhanced_route_refresh:type_name -> apipb.EnhancedRouteRefreshCapability
-	14, // 9: apipb.Capability.long_lived_graceful_restart:type_name -> apipb.LongLivedGracefulRestartCapability
-	15, // 10: apipb.Capability.route_refresh_cisco:type_name -> apipb.RouteRefreshCiscoCapability
-	16, // 11: apipb.Capability.fqdn:type_name -> apipb.FqdnCapability
-	17, // 12: apipb.Capability.software_version:type_name -> apipb.SoftwareVersionCapability
-	19, // 13: apipb.MultiProtocolCapability.family:type_name -> apipb.Family
-	19, // 14: apipb.ExtendedNexthopCapabilityTuple.nlri_family:type_name -> apipb.Family
-	19, // 15: apipb.ExtendedNexthopCapabilityTuple.nexthop_family:type_name -> apipb.Family
-	5,  // 16: apipb.ExtendedNexthopCapability.tuples:type_name -> apipb.ExtendedNexthopCapabilityTuple
-	19, // 17: apipb.GracefulRestartCapabilityTuple.family:type_name -> apipb.Family
-	7,  // 18: apipb.GracefulRestartCapability.tuples:type_name -> apipb.GracefulRestartCapabilityTuple
-	19, // 19: apipb.AddPathCapabilityTuple.family:type_name -> apipb.Family
-	0,  // 20: apipb.AddPathCapabilityTuple.mode:type_name -> apipb.AddPathCapabilityTuple.Mode
-	10, // 21: apipb.AddPathCapability.tuples:type_name -> apipb.AddPathCapabilityTuple
-	19, // 22: apipb.LongLivedGracefulRestartCapabilityTuple.family:type_name -> apipb.Family
-	13, // 23: apipb.LongLivedGracefulRestartCapability.tuples:type_name -> apipb.LongLivedGracefulRestartCapabilityTuple
+	18, // 0: api.Capability.unknown:type_name -> api.UnknownCapability
+	2,  // 1: api.Capability.multi_protocol:type_name -> api.MultiProtocolCapability
+	3,  // 2: api.Capability.route_refresh:type_name -> api.RouteRefreshCapability
+	4,  // 3: api.Capability.carrying_label_info:type_name -> api.CarryingLabelInfoCapability
+	6,  // 4: api.Capability.extended_nexthop:type_name -> api.ExtendedNexthopCapability
+	8,  // 5: api.Capability.graceful_restart:type_name -> api.GracefulRestartCapability
+	9,  // 6: api.Capability.four_octet_asn:type_name -> api.FourOctetASNCapability
+	11, // 7: api.Capability.add_path:type_name -> api.AddPathCapability
+	12, // 8: api.Capability.enhanced_route_refresh:type_name -> api.EnhancedRouteRefreshCapability
+	14, // 9: api.Capability.long_lived_graceful_restart:type_name -> api.LongLivedGracefulRestartCapability
+	15, // 10: api.Capability.route_refresh_cisco:type_name -> api.RouteRefreshCiscoCapability
+	16, // 11: api.Capability.fqdn:type_name -> api.FqdnCapability
+	17, // 12: api.Capability.software_version:type_name -> api.SoftwareVersionCapability
+	19, // 13: api.MultiProtocolCapability.family:type_name -> api.Family
+	19, // 14: api.ExtendedNexthopCapabilityTuple.nlri_family:type_name -> api.Family
+	19, // 15: api.ExtendedNexthopCapabilityTuple.nexthop_family:type_name -> api.Family
+	5,  // 16: api.ExtendedNexthopCapability.tuples:type_name -> api.ExtendedNexthopCapabilityTuple
+	19, // 17: api.GracefulRestartCapabilityTuple.family:type_name -> api.Family
+	7,  // 18: api.GracefulRestartCapability.tuples:type_name -> api.GracefulRestartCapabilityTuple
+	19, // 19: api.AddPathCapabilityTuple.family:type_name -> api.Family
+	0,  // 20: api.AddPathCapabilityTuple.mode:type_name -> api.AddPathCapabilityTuple.Mode
+	10, // 21: api.AddPathCapability.tuples:type_name -> api.AddPathCapabilityTuple
+	19, // 22: api.LongLivedGracefulRestartCapabilityTuple.family:type_name -> api.Family
+	13, // 23: api.LongLivedGracefulRestartCapability.tuples:type_name -> api.LongLivedGracefulRestartCapabilityTuple
 	24, // [24:24] is the sub-list for method output_type
 	24, // [24:24] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
