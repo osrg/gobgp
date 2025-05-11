@@ -24,9 +24,9 @@ syntax = "proto3";
 package apipb;
 option go_package = "github.com/osrg/gobgp/v4/api;apipb";
 
-import "common.proto";
-import "extcom.proto";
-import "nlri.proto";
+import "api/common.proto";
+import "api/extcom.proto";
+import "api/nlri.proto";
 
 
 message Attribute {

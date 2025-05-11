@@ -24,7 +24,7 @@ syntax = "proto3";
 package apipb;
 option go_package = "github.com/osrg/gobgp/v4/api;apipb";
 
-import "common.proto";
+import "api/common.proto";
 
 message Capability {
   oneof cap {

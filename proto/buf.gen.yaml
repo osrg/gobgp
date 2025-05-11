@@ -1,0 +1,13 @@
+# Learn more: https://buf.build/docs/configuration/v2/buf-gen-yaml
+version: v2
+
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.6
+    out: ../
+    opt:
+      - paths=source_relative
+
+  - remote: buf.build/grpc/go:v1.5.1
+    out: ../
+    opt:
+      - paths=source_relative

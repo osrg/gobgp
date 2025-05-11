@@ -26,11 +26,11 @@ option go_package = "github.com/osrg/gobgp/v4/api;apipb";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "attribute.proto";
-import "capability.proto";
-import "common.proto";
-import "extcom.proto";
-import "nlri.proto";
+import "api/attribute.proto";
+import "api/capability.proto";
+import "api/common.proto";
+import "api/extcom.proto";
+import "api/nlri.proto";
 
 
 // Interface exported by the server.
