@@ -1,18 +1,26 @@
 syntax = "proto3";
 
 package api;
+
 option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 // Common types for pretty much everywhere
 
 message Family {
   enum Afi {
-    AFI_UNKNOWN = 0; AFI_IP = 1; AFI_IP6 = 2; AFI_L2VPN = 25; AFI_LS = 16388;
+    AFI_UNKNOWN = 0;
+    AFI_IP = 1;
+    AFI_IP6 = 2;
+    AFI_L2VPN = 25;
+    AFI_LS = 16388;
     AFI_OPAQUE = 16397;
   }
 
   enum Safi {
-    SAFI_UNKNOWN = 0; SAFI_UNICAST = 1; SAFI_MULTICAST = 2; SAFI_MPLS_LABEL = 4;
+    SAFI_UNKNOWN = 0;
+    SAFI_UNICAST = 1;
+    SAFI_MULTICAST = 2;
+    SAFI_MPLS_LABEL = 4;
     SAFI_ENCAPSULATION = 7;
     SAFI_VPLS = 65;
     SAFI_EVPN = 70;
@@ -48,8 +56,8 @@ message RouteDistinguisherFourOctetASN {
 
 message RouteDistinguisher {
   oneof rd {
-    RouteDistinguisherTwoOctetASN  two_octet_asn = 1;
-    RouteDistinguisherIPAddress    ip_address = 2;
+    RouteDistinguisherTwoOctetASN two_octet_asn = 1;
+    RouteDistinguisherIPAddress ip_address = 2;
     RouteDistinguisherFourOctetASN four_octet_asn = 3;
   }
 }

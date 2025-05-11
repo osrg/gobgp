@@ -22,59 +22,72 @@
 syntax = "proto3";
 
 package api;
-option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 import "api/common.proto";
 import "api/extcom.proto";
 import "api/nlri.proto";
 
+option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 message Attribute {
   oneof attr {
-    UnknownAttribute                unknown                  = 1;
-    OriginAttribute                 origin                   = 2;
-    AsPathAttribute                 as_path                  = 3;
-    NextHopAttribute                next_hop                 = 4;
-    MultiExitDiscAttribute          multi_exit_disc          = 5;
-    LocalPrefAttribute              local_pref               = 6;
-    AtomicAggregateAttribute        atomic_aggregate         = 7;
-    AggregatorAttribute             aggregator               = 8;
-    CommunitiesAttribute            communities              = 9;
-    OriginatorIdAttribute           originator_id            = 10;
-    ClusterListAttribute            cluster_list             = 11;
-    MpReachNLRIAttribute            mp_reach                 = 12;
-    MpUnreachNLRIAttribute          mp_unreach               = 13;
-    ExtendedCommunitiesAttribute    extended_communities     = 14;
-    As4PathAttribute                as4_path                 = 15;
-    As4AggregatorAttribute          as4_aggregator           = 16;
-    PmsiTunnelAttribute             pmsi_tunnel              = 17;
-    TunnelEncapAttribute            tunnel_encap             = 18;
+    UnknownAttribute unknown = 1;
+    OriginAttribute origin = 2;
+    AsPathAttribute as_path = 3;
+    NextHopAttribute next_hop = 4;
+    MultiExitDiscAttribute multi_exit_disc = 5;
+    LocalPrefAttribute local_pref = 6;
+    AtomicAggregateAttribute atomic_aggregate = 7;
+    AggregatorAttribute aggregator = 8;
+    CommunitiesAttribute communities = 9;
+    OriginatorIdAttribute originator_id = 10;
+    ClusterListAttribute cluster_list = 11;
+    MpReachNLRIAttribute mp_reach = 12;
+    MpUnreachNLRIAttribute mp_unreach = 13;
+    ExtendedCommunitiesAttribute extended_communities = 14;
+    As4PathAttribute as4_path = 15;
+    As4AggregatorAttribute as4_aggregator = 16;
+    PmsiTunnelAttribute pmsi_tunnel = 17;
+    TunnelEncapAttribute tunnel_encap = 18;
     IP6ExtendedCommunitiesAttribute ip6_extended_communities = 19;
-    AigpAttribute                   aigp                     = 20;
-    LargeCommunitiesAttribute       large_communities        = 21;
-    LsAttribute                     ls                       = 22;
-    PrefixSID                       prefix_sid               = 23;
+    AigpAttribute aigp = 20;
+    LargeCommunitiesAttribute large_communities = 21;
+    LsAttribute ls = 22;
+    PrefixSID prefix_sid = 23;
   }
 }
 
-message OriginAttribute { uint32 origin = 1; }
+message OriginAttribute {
+  uint32 origin = 1;
+}
 
 message AsSegment {
   enum Type {
-    UNKNOWN = 0; AS_SET = 1; AS_SEQUENCE = 2;
-    AS_CONFED_SEQUENCE = 3; AS_CONFED_SET = 4;
+    UNKNOWN = 0;
+    AS_SET = 1;
+    AS_SEQUENCE = 2;
+    AS_CONFED_SEQUENCE = 3;
+    AS_CONFED_SET = 4;
   }
   Type type = 1;
   repeated uint32 numbers = 2;
 }
 
-message AsPathAttribute { repeated AsSegment segments = 1; }
+message AsPathAttribute {
+  repeated AsSegment segments = 1;
+}
 
-message NextHopAttribute { string next_hop = 1; }
+message NextHopAttribute {
+  string next_hop = 1;
+}
 
-message MultiExitDiscAttribute { uint32 med = 1; }
+message MultiExitDiscAttribute {
+  uint32 med = 1;
+}
 
-message LocalPrefAttribute { uint32 local_pref = 1; }
+message LocalPrefAttribute {
+  uint32 local_pref = 1;
+}
 
 message AtomicAggregateAttribute {}
 
@@ -83,11 +96,17 @@ message AggregatorAttribute {
   string address = 2;
 }
 
-message CommunitiesAttribute { repeated uint32 communities = 1; }
+message CommunitiesAttribute {
+  repeated uint32 communities = 1;
+}
 
-message OriginatorIdAttribute { string id = 1; }
+message OriginatorIdAttribute {
+  string id = 1;
+}
 
-message ClusterListAttribute { repeated string ids = 1; }
+message ClusterListAttribute {
+  repeated string ids = 1;
+}
 
 message MpReachNLRIAttribute {
   Family family = 1;
@@ -105,7 +124,9 @@ message ExtendedCommunitiesAttribute {
   repeated ExtendedCommunity communities = 1;
 }
 
-message As4PathAttribute { repeated AsSegment segments = 1; }
+message As4PathAttribute {
+  repeated AsSegment segments = 1;
+}
 
 message As4AggregatorAttribute {
   uint32 asn = 2;
@@ -124,22 +145,30 @@ message TunnelEncapSubTLVEncapsulation {
   bytes cookie = 2;
 }
 
-message TunnelEncapSubTLVProtocol { uint32 protocol = 1; }
+message TunnelEncapSubTLVProtocol {
+  uint32 protocol = 1;
+}
 
-message TunnelEncapSubTLVColor { uint32 color = 1; }
+message TunnelEncapSubTLVColor {
+  uint32 color = 1;
+}
 
 message TunnelEncapSubTLVSRPreference {
   uint32 flags = 1;
   uint32 preference = 2;
 }
 
-message TunnelEncapSubTLVSRCandidatePathName { string candidate_path_name = 1; }
+message TunnelEncapSubTLVSRCandidatePathName {
+  string candidate_path_name = 1;
+}
 
-message TunnelEncapSubTLVSRPriority { uint32 priority = 1; }
+message TunnelEncapSubTLVSRPriority {
+  uint32 priority = 1;
+}
 
 message TunnelEncapSubTLVSRBindingSID {
   oneof bsid {
-    SRBindingSID   sr_binding_sid   = 1;
+    SRBindingSID sr_binding_sid = 1;
     SRv6BindingSID srv6_binding_sid = 2;
   }
 }
@@ -151,7 +180,10 @@ message SRBindingSID {
 }
 
 enum SRv6Behavior {
-  RESERVED = 0; END = 1; END_WITH_PSP = 2; END_WITH_USP = 3;
+  RESERVED = 0;
+  END = 1;
+  END_WITH_PSP = 2;
+  END_WITH_USP = 3;
   END_WITH_PSP_USP = 4;
   ENDX = 5;
   ENDX_WITH_PSP = 6;
@@ -207,7 +239,13 @@ message SRv6BindingSID {
   SRv6EndPointBehavior endpoint_behavior_structure = 5;
 }
 
-enum ENLPType { Reserved = 0; Type1 = 1; Type2 = 2; Type3 = 3; Type4 = 4; }
+enum ENLPType {
+  Reserved = 0;
+  Type1 = 1;
+  Type2 = 2;
+  Type3 = 3;
+  Type4 = 4;
+}
 
 message TunnelEncapSubTLVSRENLP {
   uint32 flags = 1;
@@ -250,11 +288,11 @@ message TunnelEncapSubTLVSRSegmentList {
 }
 
 message TunnelEncapSubTLVEgressEndpoint {
-    string address = 1;
+  string address = 1;
 }
 
 message TunnelEncapSubTLVUDPDestPort {
-    uint32 port = 1;
+  uint32 port = 1;
 }
 
 message TunnelEncapSubTLVUnknown {
@@ -266,24 +304,26 @@ message TunnelEncapTLV {
   uint32 type = 1;
   message TLV {
     oneof tlv {
-      TunnelEncapSubTLVUnknown             unknown             = 1;
-      TunnelEncapSubTLVEncapsulation       encapsulation       = 2;
-      TunnelEncapSubTLVProtocol            protocol            = 3;
-      TunnelEncapSubTLVColor               color               = 4;
-      TunnelEncapSubTLVEgressEndpoint      egress_endpoint     = 5;
-      TunnelEncapSubTLVUDPDestPort         udp_dest_port       = 6;
-      TunnelEncapSubTLVSRPreference        sr_preference       = 7;
-      TunnelEncapSubTLVSRPriority          sr_priority         = 8;
+      TunnelEncapSubTLVUnknown unknown = 1;
+      TunnelEncapSubTLVEncapsulation encapsulation = 2;
+      TunnelEncapSubTLVProtocol protocol = 3;
+      TunnelEncapSubTLVColor color = 4;
+      TunnelEncapSubTLVEgressEndpoint egress_endpoint = 5;
+      TunnelEncapSubTLVUDPDestPort udp_dest_port = 6;
+      TunnelEncapSubTLVSRPreference sr_preference = 7;
+      TunnelEncapSubTLVSRPriority sr_priority = 8;
       TunnelEncapSubTLVSRCandidatePathName sr_candidate_path_name = 9;
-      TunnelEncapSubTLVSRENLP              sr_enlp             = 10;
-      TunnelEncapSubTLVSRBindingSID        sr_binding_sid      = 11;
-      TunnelEncapSubTLVSRSegmentList       sr_segment_list     = 12;
+      TunnelEncapSubTLVSRENLP sr_enlp = 10;
+      TunnelEncapSubTLVSRBindingSID sr_binding_sid = 11;
+      TunnelEncapSubTLVSRSegmentList sr_segment_list = 12;
     }
   }
   repeated TLV tlvs = 2;
 }
 
-message TunnelEncapAttribute { repeated TunnelEncapTLV tlvs = 1; }
+message TunnelEncapAttribute {
+  repeated TunnelEncapTLV tlvs = 1;
+}
 
 message IPv6AddressSpecificExtended {
   bool is_transitive = 1;
@@ -300,14 +340,16 @@ message RedirectIPv6AddressSpecificExtended {
 message IP6ExtendedCommunitiesAttribute {
   message Community {
     oneof extcom {
-      IPv6AddressSpecificExtended         ipv6_address_specific          = 1;
+      IPv6AddressSpecificExtended ipv6_address_specific = 1;
       RedirectIPv6AddressSpecificExtended redirect_ipv6_address_specific = 2;
     }
   }
   repeated Community communities = 1;
 }
 
-message AigpTLVIGPMetric { uint64 metric = 1; }
+message AigpTLVIGPMetric {
+  uint64 metric = 1;
+}
 
 message AigpTLVUnknown {
   uint32 type = 1;
@@ -317,8 +359,8 @@ message AigpTLVUnknown {
 message AigpAttribute {
   message TLV {
     oneof tlv {
-      AigpTLVUnknown     unknown    = 1;
-        AigpTLVIGPMetric igp_metric = 2;
+      AigpTLVUnknown unknown = 1;
+      AigpTLVIGPMetric igp_metric = 2;
     }
   }
   repeated TLV tlvs = 1;
@@ -330,7 +372,9 @@ message LargeCommunity {
   uint32 local_data2 = 3;
 }
 
-message LargeCommunitiesAttribute { repeated LargeCommunity communities = 1; }
+message LargeCommunitiesAttribute {
+  repeated LargeCommunity communities = 1;
+}
 
 message LsNodeFlags {
   bool overload = 1;
@@ -359,7 +403,9 @@ message LsSrCapabilities {
   repeated LsSrRange ranges = 3;
 }
 
-message LsSrLocalBlock { repeated LsSrRange ranges = 1; }
+message LsSrLocalBlock {
+  repeated LsSrRange ranges = 1;
+}
 
 message LsAttributeNode {
   string name = 1;
@@ -401,15 +447,15 @@ message LsAttributePrefix {
 }
 
 message LsBgpPeerSegmentSIDFlags {
-  bool value  = 1;
+  bool value = 1;
   bool local = 2;
   bool backup = 3;
   bool persistent = 4;
 }
 
 message LsBgpPeerSegmentSID {
-  LsBgpPeerSegmentSIDFlags  flags = 1;
-  uint32 weight  = 2;
+  LsBgpPeerSegmentSIDFlags flags = 1;
+  uint32 weight = 2;
   uint32 sid = 3;
 }
 

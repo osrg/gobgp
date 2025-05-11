@@ -1,36 +1,37 @@
 syntax = "proto3";
 
 package api;
-option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 import "api/common.proto";
 import "api/extcom.proto";
+
+option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 // Main NLRI type
 
 message NLRI {
   oneof nlri {
-    IPAddressPrefix prefix                                            = 1;
-    LabeledIPAddressPrefix labeled_prefix                             = 2;
-    EncapsulationNLRI encapsulation                                   = 3;
-    VPLSNLRI vpls                                                     = 4;
-    EVPNEthernetAutoDiscoveryRoute evpn_ethernet_ad                   = 5;
-    EVPNMACIPAdvertisementRoute evpn_macadv                           = 6;
-    EVPNInclusiveMulticastEthernetTagRoute evpn_multicast             = 7;
-    EVPNEthernetSegmentRoute evpn_ethernet_segment                    = 8;
-    EVPNIPPrefixRoute evpn_ip_prefix                                  = 9;
-    EVPNIPMSIRoute evpn_i_pmsi                                        = 10;
-    LabeledVPNIPAddressPrefix labeled_vpn_ip_prefix                   = 11;
-    RouteTargetMembershipNLRI route_target_membership                 = 12;
-    FlowSpecNLRI flow_spec                                            = 13;
-    VPNFlowSpecNLRI vpn_flow_spec                                     = 14;
-    OpaqueNLRI opaque                                                 = 15;
-    LsAddrPrefix ls_addr_prefix                                       = 16;
-    SRPolicyNLRI sr_policy                                            = 17;
+    IPAddressPrefix prefix = 1;
+    LabeledIPAddressPrefix labeled_prefix = 2;
+    EncapsulationNLRI encapsulation = 3;
+    VPLSNLRI vpls = 4;
+    EVPNEthernetAutoDiscoveryRoute evpn_ethernet_ad = 5;
+    EVPNMACIPAdvertisementRoute evpn_macadv = 6;
+    EVPNInclusiveMulticastEthernetTagRoute evpn_multicast = 7;
+    EVPNEthernetSegmentRoute evpn_ethernet_segment = 8;
+    EVPNIPPrefixRoute evpn_ip_prefix = 9;
+    EVPNIPMSIRoute evpn_i_pmsi = 10;
+    LabeledVPNIPAddressPrefix labeled_vpn_ip_prefix = 11;
+    RouteTargetMembershipNLRI route_target_membership = 12;
+    FlowSpecNLRI flow_spec = 13;
+    VPNFlowSpecNLRI vpn_flow_spec = 14;
+    OpaqueNLRI opaque = 15;
+    LsAddrPrefix ls_addr_prefix = 16;
+    SRPolicyNLRI sr_policy = 17;
     MUPInterworkSegmentDiscoveryRoute mup_interwork_segment_discovery = 18;
-    MUPDirectSegmentDiscoveryRoute mup_direct_segment_discovery       = 19;
-    MUPType1SessionTransformedRoute mup_type_1_session_transformed    = 20;
-    MUPType2SessionTransformedRoute mup_type_2_session_transformed    = 21;
+    MUPDirectSegmentDiscoveryRoute mup_direct_segment_discovery = 19;
+    MUPType1SessionTransformedRoute mup_type_1_session_transformed = 20;
+    MUPType2SessionTransformedRoute mup_type_2_session_transformed = 21;
   }
 }
 
@@ -54,7 +55,9 @@ message LabeledIPAddressPrefix {
 // EncapsulationNLRI represents the NLRI for:
 // - AFI=1, SAFI=7
 // - AFI=2, SAFI=7
-message EncapsulationNLRI { string address = 1; }
+message EncapsulationNLRI {
+  string address = 1;
+}
 
 // VPLSNLRI represents the NLRI for:
 // - AFI=25, SAFI=65
@@ -190,8 +193,8 @@ message FlowSpecComponent {
 
 message FlowSpecRule {
   oneof rule {
-    FlowSpecIPPrefix  ip_prefix = 1;
-    FlowSpecMAC       mac       = 2;
+    FlowSpecIPPrefix ip_prefix = 1;
+    FlowSpecMAC mac = 2;
     FlowSpecComponent component = 3;
   }
 }
@@ -230,7 +233,9 @@ enum LsNLRIType {
 }
 
 enum LsProtocolID {
-  LS_PROTOCOL_UNKNOWN = 0; LS_PROTOCOL_ISIS_L1 = 1; LS_PROTOCOL_ISIS_L2 = 2;
+  LS_PROTOCOL_UNKNOWN = 0;
+  LS_PROTOCOL_ISIS_L1 = 1;
+  LS_PROTOCOL_ISIS_L2 = 2;
   LS_PROTOCOL_OSPF_V2 = 3;
   LS_PROTOCOL_DIRECT = 4;
   LS_PROTOCOL_STATIC = 5;
@@ -257,13 +262,13 @@ message LsLinkDescriptor {
 }
 
 enum LsOspfRouteType {
-   LS_OSPF_ROUTE_TYPE_UNKNOWN = 0;
-   LS_OSPF_ROUTE_TYPE_INTRA_AREA = 1;
-   LS_OSPF_ROUTE_TYPE_INTER_AREA = 2;
-   LS_OSPF_ROUTE_TYPE_EXTERNAL1 = 3;
-   LS_OSPF_ROUTE_TYPE_EXTERNAL2 = 4;
-   LS_OSPF_ROUTE_TYPE_NSSA1 = 5;
-   LS_OSPF_ROUTE_TYPE_NSSA2 = 6;
+  LS_OSPF_ROUTE_TYPE_UNKNOWN = 0;
+  LS_OSPF_ROUTE_TYPE_INTRA_AREA = 1;
+  LS_OSPF_ROUTE_TYPE_INTER_AREA = 2;
+  LS_OSPF_ROUTE_TYPE_EXTERNAL1 = 3;
+  LS_OSPF_ROUTE_TYPE_EXTERNAL2 = 4;
+  LS_OSPF_ROUTE_TYPE_NSSA1 = 5;
+  LS_OSPF_ROUTE_TYPE_NSSA2 = 6;
 }
 
 message LsPrefixDescriptor {
@@ -271,7 +276,9 @@ message LsPrefixDescriptor {
   LsOspfRouteType ospf_route_type = 2;
 }
 
-message LsNodeNLRI { LsNodeDescriptor local_node = 1; }
+message LsNodeNLRI {
+  LsNodeDescriptor local_node = 1;
+}
 
 message LsLinkNLRI {
   LsNodeDescriptor local_node = 1;
@@ -311,11 +318,11 @@ message LsAddrPrefix {
   LsNLRIType type = 1;
   message LsNLRI {
     oneof nlri {
-      LsNodeNLRI     node      = 1;
-      LsLinkNLRI     link      = 2;
+      LsNodeNLRI node = 1;
+      LsLinkNLRI link = 2;
       LsPrefixV4NLRI prefix_v4 = 3;
       LsPrefixV6NLRI prefix_v6 = 4;
-      LsSrv6SIDNLRI  srv6_sid  = 5;
+      LsSrv6SIDNLRI srv6_sid = 5;
     }
   }
   LsNLRI nlri = 2;

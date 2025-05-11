@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package api;
+
 option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 // BGP Extended communities
@@ -31,11 +32,17 @@ message LinkBandwidthExtended {
   float bandwidth = 2;
 }
 
-message ValidationExtended { uint32 state = 1; }
+message ValidationExtended {
+  uint32 state = 1;
+}
 
-message ColorExtended { uint32 color = 1; }
+message ColorExtended {
+  uint32 color = 1;
+}
 
-message EncapExtended { uint32 tunnel_type = 1; }
+message EncapExtended {
+  uint32 tunnel_type = 1;
+}
 
 message DefaultGatewayExtended {}
 
@@ -49,14 +56,18 @@ message ESILabelExtended {
   uint32 label = 2;
 }
 
-message ESImportRouteTarget { string es_import = 1; }
+message ESImportRouteTarget {
+  string es_import = 1;
+}
 
 message MacMobilityExtended {
   bool is_sticky = 1;
   uint32 sequence_num = 2;
 }
 
-message RouterMacExtended { string mac = 1; }
+message RouterMacExtended {
+  string mac = 1;
+}
 
 message TrafficRateExtended {
   uint32 asn = 1;
@@ -83,7 +94,9 @@ message RedirectFourOctetAsSpecificExtended {
   uint32 local_admin = 2;
 }
 
-message TrafficRemarkExtended { uint32 dscp = 1; }
+message TrafficRemarkExtended {
+  uint32 dscp = 1;
+}
 
 message MUPExtended {
   uint32 sub_type = 1;
@@ -103,35 +116,35 @@ message UnknownExtended {
 
 message ExtendedCommunity {
   oneof extcom {
-    UnknownExtended                     unknown                         = 1;
-    TwoOctetAsSpecificExtended          two_octet_as_specific           = 2;
-    IPv4AddressSpecificExtended         ipv4_address_specific           = 3;
-    FourOctetAsSpecificExtended         four_octet_as_specific          = 4;
-    LinkBandwidthExtended               link_bandwidth                  = 5;
-    ValidationExtended                  validation                      = 6;
-    ColorExtended                       color                           = 7;
-    EncapExtended                       encap                           = 8;
-    DefaultGatewayExtended              default_gateway                 = 9;
-    OpaqueExtended                      opaque                          = 10;
-    ESILabelExtended                    esi_label                       = 11;
-    ESImportRouteTarget                 es_import                       = 12;
-    MacMobilityExtended                 mac_mobility                    = 13;
-    RouterMacExtended                   router_mac                      = 14;
-    TrafficRateExtended                 traffic_rate                    = 15;
-    TrafficActionExtended               traffic_action                  = 16;
-    RedirectTwoOctetAsSpecificExtended  redirect_two_octet_as_specific  = 17;
-    RedirectIPv4AddressSpecificExtended redirect_ipv4_address_specific  = 18;
+    UnknownExtended unknown = 1;
+    TwoOctetAsSpecificExtended two_octet_as_specific = 2;
+    IPv4AddressSpecificExtended ipv4_address_specific = 3;
+    FourOctetAsSpecificExtended four_octet_as_specific = 4;
+    LinkBandwidthExtended link_bandwidth = 5;
+    ValidationExtended validation = 6;
+    ColorExtended color = 7;
+    EncapExtended encap = 8;
+    DefaultGatewayExtended default_gateway = 9;
+    OpaqueExtended opaque = 10;
+    ESILabelExtended esi_label = 11;
+    ESImportRouteTarget es_import = 12;
+    MacMobilityExtended mac_mobility = 13;
+    RouterMacExtended router_mac = 14;
+    TrafficRateExtended traffic_rate = 15;
+    TrafficActionExtended traffic_action = 16;
+    RedirectTwoOctetAsSpecificExtended redirect_two_octet_as_specific = 17;
+    RedirectIPv4AddressSpecificExtended redirect_ipv4_address_specific = 18;
     RedirectFourOctetAsSpecificExtended redirect_four_octet_as_specific = 19;
-    TrafficRemarkExtended               traffic_remark                  = 20;
-    MUPExtended                         mup                             = 21;
-    VPLSExtended                        vpls                            = 22;
+    TrafficRemarkExtended traffic_remark = 20;
+    MUPExtended mup = 21;
+    VPLSExtended vpls = 22;
   }
 }
 
 message RouteTarget {
   oneof rt {
-    TwoOctetAsSpecificExtended  two_octet_as_specific  = 1;
-    IPv4AddressSpecificExtended ipv4_address_specific  = 2;
+    TwoOctetAsSpecificExtended two_octet_as_specific = 1;
+    IPv4AddressSpecificExtended ipv4_address_specific = 2;
     FourOctetAsSpecificExtended four_octet_as_specific = 3;
   }
 }
