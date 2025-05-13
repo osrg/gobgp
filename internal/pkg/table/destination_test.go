@@ -350,14 +350,17 @@ func TestMultipath(t *testing.T) {
 	d := NewDestination(nlri[0], 0)
 	d.Calculate(logger, path2)
 
-	best, old, multi := d.Calculate(logger, path1).GetChanges(GLOBAL_RIB_NAME, 0, false)
+	dd, oldC := d.Calculate(logger, path1)
+	assert.Nil(t, oldC)
+	best, old, multi := dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, old, path2)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
 
 	path3 := path2.Clone(true)
-	dd := d.Calculate(logger, path3)
+	dd, oldC = d.Calculate(logger, path3)
+	assert.Equal(t, path2, oldC)
 	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.Nil(t, best)
 	assert.Equal(t, old, path1)
@@ -375,7 +378,8 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
-	dd = d.Calculate(logger, path4)
+	dd, oldDD := d.Calculate(logger, path4)
+	assert.Nil(t, oldDD)
 	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 1)
@@ -390,7 +394,8 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
-	best, _, multi = d.Calculate(logger, path5).GetChanges(GLOBAL_RIB_NAME, 0, false)
+	dd, _ = d.Calculate(logger, path5)
+	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 3)
@@ -454,7 +459,7 @@ func TestDestination_Calculate_ExplicitWithdraw(t *testing.T) {
 
 	// Test explicit withdraw
 	withdrawPath := NewPath(peer1, nlri, true, attrs, time.Now(), false)
-	update := d.Calculate(logger, withdrawPath)
+	update, _ := d.Calculate(logger, withdrawPath)
 
 	assert.Len(t, update.KnownPathList, 1)
 	assert.Equal(t, peer2.Address.String(), update.KnownPathList[0].GetSource().Address.String())
@@ -479,7 +484,7 @@ func TestDestination_Calculate_ImplicitWithdraw(t *testing.T) {
 		bgp.NewPathAttributeMultiExitDisc(100),
 	}
 	p2 := NewPath(peer1, nlri, false, newAttrs, time.Now(), false)
-	update := d.Calculate(logger, p2)
+	update, _ := d.Calculate(logger, p2)
 
 	assert.Len(t, update.KnownPathList, 1)
 	assert.Equal(t, uint32(100), update.KnownPathList[0].getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc).Value)
@@ -653,7 +658,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 
 	logger := log.NewDefaultLogger()
 	p4 := NewPath(nil, bgp.NewIPAddrPrefix(24, "13.2.6.0"), false, attrs, time.Now(), false)
-	update := d.Calculate(logger, p4)
+	update, _ := d.Calculate(logger, p4)
 	assert.Len(t, update.KnownPathList, 3)
 	assert.Len(t, update.KnownPathList, 3)
 	assert.NotEqualValues(t, update.OldKnownPathList, update.KnownPathList)
@@ -663,7 +668,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 	// p1 is no implecit withdrawn
 	p1 = NewPath(nil, bgp.NewIPAddrPrefix(24, "13.2.3.0"), false, attrs, time.Now(), true)
 	d = NewDestination(nlri, 0, p1, p2, p3)
-	update = d.Calculate(logger, p4)
+	update, _ = d.Calculate(logger, p4)
 	assert.Len(t, update.KnownPathList, 3)
 	assert.Len(t, update.KnownPathList, 3)
 	assert.NotEqualValues(t, update.OldKnownPathList, update.KnownPathList)
@@ -674,7 +679,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 
 	p5 := NewPath(nil, bgp.NewIPAddrPrefix(24, "13.2.8.0"), false, attrs, time.Now(), false)
 	d = NewDestination(nlri, 0, p1, p2, p3, p5)
-	update = d.Calculate(logger, p4)
+	update, _ = d.Calculate(logger, p4)
 
 	assert.Len(t, update.KnownPathList, 4)
 	assert.Len(t, update.KnownPathList, 4)
