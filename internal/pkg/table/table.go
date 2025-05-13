@@ -187,6 +187,79 @@ func (e EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.Hardware
 	}
 }
 
+// rtState stores state for a specific route.
+// Contains sets of paths that include this route and peers that are requesting this route.
+type rtState struct {
+	// Paths that include this rt.
+	paths map[*Path]struct{}
+	// Peers that ask for this rt.
+	peers map[string]struct{}
+}
+
+func (el *rtState) empty() bool {
+	return len(el.paths) == 0 && len(el.peers) == 0
+}
+
+func newRtState() *rtState {
+	rtTable := &rtState{
+		paths: make(map[*Path]struct{}),
+		peers: make(map[string]struct{}),
+	}
+	return rtTable
+}
+
+// rtIndex is used for route indexing in global tables and maintaining route lists for responding to RTC requests.
+//
+// The index must:
+// - Register all non-RTC paths added to the Table (currently only in 'func (t *Table) update(newPath *Path)')
+// - Unregister all VPN paths removed from the Table (same location)
+//
+// In other words, rtIndex must maintain the same set of paths as the Table itself.
+type rtIndex struct {
+	rts map[uint64]*rtState
+}
+
+func (rtc *rtIndex) register(path *Path) {
+	if path == nil {
+		return
+	}
+	for _, ext := range path.GetExtCommunities() {
+		key, err := extCommRouteTargetKey(ext)
+		if err != nil {
+			// ext is not route target, skip it.
+			continue
+		}
+		rtTable, found := rtc.rts[key]
+		if !found {
+			rtTable = newRtState()
+			rtc.rts[key] = rtTable
+		}
+		rtTable.paths[path] = struct{}{}
+	}
+}
+
+func (rtc *rtIndex) unregister(path *Path, deleteEmpty bool) {
+	if path == nil {
+		return
+	}
+	for _, ext := range path.GetExtCommunities() {
+		key, err := extCommRouteTargetKey(ext)
+		if err != nil {
+			// ext is not route target, skip it.
+			continue
+		}
+		rtTable, found := rtc.rts[key]
+		if !found {
+			// ext hasn't been registered, skip it.
+			continue
+		}
+		delete(rtTable.paths, path)
+		if deleteEmpty && rtTable.empty() {
+			delete(rtc.rts, key)
+		}
+	}
+}
+
 type Table struct {
 	Family       bgp.Family
 	destinations Destinations
@@ -194,6 +267,8 @@ type Table struct {
 	// adjRts is an RT->count map (reference count of RTC paths per RT).
 	// It is used only for Adj-RIB tables with RF_RTC_UC.
 	adjRts *rtCounter
+	// grtRts stores information about RTs that are included in table paths.
+	grtRts *rtIndex
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
@@ -212,6 +287,13 @@ func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*de
 			rts: make(map[uint64]int),
 		}
 	}
+
+	if !isAdj && rf != bgp.RF_RTC_UC {
+		t.grtRts = &rtIndex{
+			rts: make(map[uint64]*rtState),
+		}
+	}
+
 	for _, dst := range dsts {
 		t.setDestination(dst)
 	}
@@ -361,7 +443,16 @@ func (t *Table) getOrCreateDest(nlri bgp.NLRI, size int) *destination {
 func (t *Table) update(newPath *Path) *Update {
 	t.validatePath(newPath)
 	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
-	u := dst.Calculate(t.logger, newPath)
+	u, oldPath := dst.Calculate(t.logger, newPath)
+
+	if t.grtRts != nil {
+		if newPath.IsWithdraw {
+			t.grtRts.unregister(oldPath, true)
+		} else {
+			t.grtRts.unregister(oldPath, false)
+			t.grtRts.register(newPath)
+		}
+	}
 
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)
@@ -929,7 +1020,7 @@ func extCommRouteTargetKey(routeTarget bgp.ExtendedCommunityInterface) (uint64, 
 	}
 }
 
-func nlriRouteTargetKey(nlri *bgp.RouteTargetMembershipNLRI) (uint64, error) {
+func NlriRouteTargetKey(nlri *bgp.RouteTargetMembershipNLRI) (uint64, error) {
 	if nlri.RouteTarget == nil {
 		return DefaultRT, nil
 	}
