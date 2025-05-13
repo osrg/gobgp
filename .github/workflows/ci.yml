@@ -49,6 +49,17 @@ jobs:
           go env GOARCH
           go test -timeout 240s ./...
 
+  protobuf-format:
+    name: protobuf-format
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: latest
+      - run: |
+          buf format --diff --exit-code
+
   golangci:
     name: lint
     runs-on: ubuntu-22.04
