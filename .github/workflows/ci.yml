@@ -33,7 +33,7 @@ jobs:
           go-version: 'stable'
       - run: |
           go test -race -timeout 240s ./...
-          if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/v3/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
+          if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/v4/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
 
   unit386:
     name: unit386
