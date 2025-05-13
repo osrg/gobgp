@@ -9563,7 +9563,7 @@ func (l *LsAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 	case LS_NLRI_TYPE_PREFIX_IPV6:
 		prefixv6 := &LsPrefixV6NLRI{}
 		prefixv6.Length = l.Length
-		prefixv6.NLRIType = LS_NLRI_TYPE_PREFIX_IPV4
+		prefixv6.NLRIType = LS_NLRI_TYPE_PREFIX_IPV6
 		l.NLRI = prefixv6
 
 	// TODO: LS_NLRI_TYPE_SR_POLICY_CANDIDATE_PATH
