@@ -183,18 +183,22 @@ type Table struct {
 	Family       bgp.Family
 	destinations Destinations
 	logger       log.Logger
+	// rtc is used for RTC rt saving. Every global vpn table has vpnPathsPart,
+	// every Adj RF_RTC_UC table has rtPathsPart, and other tables have not rtc instance.
+	rtc rtcHandler
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
 	macIndex EVPNMacNLRIs
 }
 
-func NewTable(logger log.Logger, rf bgp.Family, dsts ...*Destination) *Table {
+func newTablePartial(logger log.Logger, rf bgp.Family, isAdj bool, dsts ...*Destination) *Table {
 	t := &Table{
 		Family:       rf,
 		destinations: make(Destinations),
 		logger:       logger,
 		macIndex:     make(EVPNMacNLRIs),
+		rtc:          newRTCPart(rf, isAdj),
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)
@@ -204,6 +208,14 @@ func NewTable(logger log.Logger, rf bgp.Family, dsts ...*Destination) *Table {
 
 func (t *Table) GetFamily() bgp.Family {
 	return t.Family
+}
+
+func NewTable(logger log.Logger, rf bgp.Family, dsts ...*Destination) *Table {
+	return newTablePartial(logger, rf, false, dsts...)
+}
+
+func NewAdjTable(logger log.Logger, rf bgp.Family, dsts ...*Destination) *Table {
+	return newTablePartial(logger, rf, true, dsts...)
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
@@ -346,7 +358,16 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface, size int) *Destina
 func (t *Table) update(newPath *Path) *Update {
 	t.validatePath(newPath)
 	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
-	u := dst.Calculate(t.logger, newPath)
+	u, oldPath := dst.Calculate(t.logger, newPath)
+
+	if t.rtc != nil {
+		if newPath.IsWithdraw {
+			t.rtc.unregister(oldPath, true)
+		} else {
+			t.rtc.unregister(oldPath, false)
+			t.rtc.register(newPath)
+		}
+	}
 
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(dst)
