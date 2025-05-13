@@ -272,7 +272,7 @@ func loadKeyPEM(filePath string) (crypto.PrivateKey, error) {
 }
 
 func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, error) {
-	grpcOpts := []grpc.DialOption{grpc.WithBlock()}
+	grpcOpts := []grpc.DialOption{}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
 		tlsConfig := new(tls.Config)
@@ -318,12 +318,15 @@ func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, err
 		}
 		grpcOpts = append(grpcOpts, grpc.WithContextDialer(dialer))
 	}
-	cc, cancel := context.WithTimeout(ctx, time.Second)
 
-	conn, err := grpc.DialContext(cc, target, grpcOpts...)
+	conn, err := grpc.NewClient(target, grpcOpts...)
 	if err != nil {
-		return nil, cancel, err
+		return nil, nil, err
 	}
+	conn.Connect()
+
+	_, cancel := context.WithTimeout(ctx, time.Second)
+
 	return api.NewGobgpApiClient(conn), cancel, nil
 }
 
