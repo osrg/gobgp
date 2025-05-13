@@ -139,7 +139,7 @@ router-id = "10.0.255.254"
     neighbor-address = "10.0.255.2"
   [neighbors.route-server.config]
     route-server-client = true
-  [neighbors.apply-policy-config]
+  [neighbors.apply-policy.config]
     import-policy-list = ["AS65002-IMPORT-RPKI"]
 
 
