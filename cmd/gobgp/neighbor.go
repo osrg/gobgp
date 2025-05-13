@@ -442,7 +442,7 @@ func showNeighbor(args []string) error {
 					default:
 						nhafi = fmt.Sprintf("%d", t.NexthopAFI)
 					}
-					line := fmt.Sprintf("nlri: %s, nexthop: %s", bgp.AfiSafiToFamily(t.NLRIAFI, uint8(t.NLRISAFI)), nhafi)
+					line := fmt.Sprintf("            nlri: %s, nexthop: %s", bgp.AfiSafiToFamily(t.NLRIAFI, uint8(t.NLRISAFI)), nhafi)
 					lines = append(lines, line)
 				}
 				return strings.Join(lines, "\n")
@@ -450,13 +450,13 @@ func showNeighbor(args []string) error {
 			if m := lookup(c, lcaps); m != nil {
 				e := m.(*bgp.CapExtendedNexthop)
 				if s := exnhStr(e); len(s) > 0 {
-					fmt.Printf("        Local:  %s\n", s)
+					fmt.Printf("        Local:\n%s\n", s)
 				}
 			}
 			if m := lookup(c, rcaps); m != nil {
 				e := m.(*bgp.CapExtendedNexthop)
 				if s := exnhStr(e); len(s) > 0 {
-					fmt.Printf("        Remote: %s\n", s)
+					fmt.Printf("        Remote:\n%s\n", s)
 				}
 			}
 		case bgp.BGP_CAP_ADD_PATH:
