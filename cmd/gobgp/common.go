@@ -271,8 +271,8 @@ func loadKeyPEM(filePath string) (crypto.PrivateKey, error) {
 	return nil, errors.New("no private key PEM block found")
 }
 
-func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, error) {
-	grpcOpts := []grpc.DialOption{grpc.WithBlock()}
+func newConn() (*grpc.ClientConn, error) {
+	grpcOpts := []grpc.DialOption{}
 	if globalOpts.TLS {
 		var creds credentials.TransportCredentials
 		tlsConfig := new(tls.Config)
@@ -318,13 +318,7 @@ func newClient(ctx context.Context) (api.GobgpApiClient, context.CancelFunc, err
 		}
 		grpcOpts = append(grpcOpts, grpc.WithContextDialer(dialer))
 	}
-	cc, cancel := context.WithTimeout(ctx, time.Second)
-
-	conn, err := grpc.DialContext(cc, target, grpcOpts...)
-	if err != nil {
-		return nil, cancel, err
-	}
-	return api.NewGobgpApiClient(conn), cancel, nil
+	return grpc.NewClient(target, grpcOpts...)
 }
 
 func addr2AddressFamily(a net.IP) *api.Family {
