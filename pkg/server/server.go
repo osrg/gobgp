@@ -543,18 +543,15 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 	peer.fsm.lock.RLock()
 	_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
 	peer.fsm.lock.RUnlock()
-	if y && path.GetFamily() != bgp.RF_RTC_UC {
+	if y && path.GetFamily() != bgp.RF_RTC_UC && !peer.adjRibIn.HasRTinRtcTable(table.DefaultRT) {
 		ignore := true
 		for _, ext := range path.GetExtCommunities() {
-			for _, p := range peer.adjRibIn.PathList([]bgp.Family{bgp.RF_RTC_UC}, true) {
-				rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-				// Note: nil RT means the default route target
-				if rt == nil || ext.String() == rt.String() {
-					ignore = false
-					break
-				}
+			key, err := table.ExtCommRouteTargetKey(ext)
+			if err != nil {
+				continue
 			}
-			if !ignore {
+			if peer.adjRibIn.HasRTinRtcTable(key) {
+				ignore = false
 				break
 			}
 		}
@@ -1091,6 +1088,18 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family) ([]*table.
 	return pathList, filtered
 }
 
+func (s *BgpServer) filterPathListForWithdrawnRT(rt uint64, peer *peer, rfList []bgp.Family) []*table.Path {
+	maxLen := s.globalRib.BestPathListForRTMaxLen(rt, rfList)
+
+	filtered := make([]*table.Path, 0, maxLen)
+	for _, path := range s.globalRib.GetBestPathListForWithdrawnRT(maxLen, rt, peer.ID(), peer.TableID(), 0, rfList) {
+		if p := s.filterpath(peer, path, nil); p == nil {
+			filtered = append(filtered, path)
+		}
+	}
+	return filtered
+}
+
 func needToAdvertise(peer *peer) bool {
 	peer.fsm.lock.RLock()
 	notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
@@ -1269,50 +1278,51 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			// between the previous and current state of the route distribution
 			// graph that is derived from Route Target membership information.
 			if peer != nil && path != nil && path.GetFamily() == bgp.RF_RTC_UC {
-				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+				nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+				if !ok {
+					s.logger.Warn("Route Target Constraint wrong format, ignore",
+						log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.ID(),
+							"Data":  path,
+						})
+					continue
+				}
+				rtHash, err := table.NlriRouteTargetKey(nlri)
+				if err != nil {
+					s.logger.Warn("Route Target Constraint wrong format, ignore",
+						log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.ID(),
+							"Data":  path,
+						})
+					continue
+				}
 				fs := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
 				for _, f := range peer.negotiatedRFList() {
 					if f != bgp.RF_RTC_UC {
 						fs = append(fs, f)
 					}
 				}
-				var candidates []*table.Path
+				var paths []*table.Path
 				if path.IsWithdraw {
-					// Note: The paths to be withdrawn are filtered because the
-					// given RT on RTM NLRI is already removed from adj-RIB-in.
-					_, candidates = s.getBestFromLocal(peer, fs)
+					if rtHash == table.DefaultRT {
+						// Note: The paths to be withdrawn are filtered because the
+						// given RT on RTM NLRI is already removed from adj-RIB-in.
+						_, paths = s.getBestFromLocal(peer, fs)
+						withdrawnPaths := make([]*table.Path, 0, len(paths))
+						for _, p := range paths {
+							withdrawnPaths = append(withdrawnPaths, p.Clone(true))
+						}
+						paths = withdrawnPaths
+					} else {
+						paths = s.filterPathListForWithdrawnRT(rtHash, peer, fs)
+					}
 				} else {
-					// https://github.com/osrg/gobgp/issues/1777
-					// Ignore duplicate Membership announcements
-					membershipsForSource := s.globalRib.GetPathListWithSource(table.GLOBAL_RIB_NAME, []bgp.Family{bgp.RF_RTC_UC}, path.GetSource())
-					found := false
-					equalRT := func(a, b bgp.ExtendedCommunityInterface) bool {
-						if a == nil && b == nil {
-							return true
-						}
-						return a != nil && b != nil && a.String() == b.String()
-					}
-					for _, membership := range membershipsForSource {
-						mrt := membership.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-						if equalRT(mrt, rt) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						candidates = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
-					}
-				}
-				paths := make([]*table.Path, 0, len(candidates))
-				for _, p := range candidates {
-					for _, ext := range p.GetExtCommunities() {
-						if rt == nil || ext.String() == rt.String() {
-							if path.IsWithdraw {
-								p = p.Clone(true)
-							}
-							paths = append(paths, p)
-							break
-						}
+					if rtHash == table.DefaultRT {
+						paths = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+					} else {
+						paths = s.globalRib.GetBestPathListForAddedRT(rtHash, peer.ID(), peer.TableID(), 0, fs)
 					}
 				}
 				if path.IsWithdraw {
