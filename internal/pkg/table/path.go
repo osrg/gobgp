@@ -1043,6 +1043,10 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return false
 	}
 
+	if lhs == rhs {
+		return true
+	}
+
 	lhsPathAttrs := lhs.GetPathAttrs()
 	rhsPathAttrs := rhs.GetPathAttrs()
 	// comparing by length first as it's quite fast (with golang slice)
@@ -1373,4 +1377,62 @@ func nlriToIPNet(nlri bgp.NLRI) *net.IPNet {
 		}
 	}
 	return nil
+}
+
+func bestPathListForRT(id string, as uint32, withdraw bool, inPaths map[*Path]struct{}, outPaths []*Path) []*Path {
+	for p := range inPaths {
+		if p.IsNexthopInvalid || rsFilter(id, as, p) {
+			continue
+		}
+		if !p.IsWithdraw && withdraw {
+			p = p.Clone(true)
+		}
+		outPaths = append(outPaths, p)
+	}
+	return outPaths
+}
+
+func (t *Table) bestPathListForRTMaxLen(rt uint64) int {
+	if t.grtRts == nil {
+		return 0
+	}
+	if rtTable, found := t.grtRts.rts[rt]; found {
+		return len(rtTable.paths)
+	}
+	return 0
+}
+
+func (t *Table) getBestsForDetachedRTFromPeer(rt uint64, peerId string, tableId string, as uint32, paths []*Path) []*Path {
+	if t.grtRts == nil {
+		// Note: "return paths" means "no new paths are returned".
+		return paths
+	}
+	if rtTable, found := t.grtRts.rts[rt]; found {
+		if _, foundId := rtTable.peers[peerId]; foundId {
+			delete(rtTable.peers, peerId)
+			if !rtTable.empty() {
+				return bestPathListForRT(tableId, as, true, rtTable.paths, paths)
+			}
+			delete(t.grtRts.rts, rt)
+		}
+	}
+	return paths
+}
+
+func (t *Table) getBestsForNewlyAttachedRTtoPeer(rt uint64, peerId string, tableId string, as uint32, paths []*Path) []*Path {
+	if t.grtRts == nil {
+		// Note: "return paths" means "no new paths are returned".
+		return paths
+	}
+	if rtTable, found := t.grtRts.rts[rt]; !found {
+		rtTable = newRtState()
+		t.grtRts.rts[rt] = rtTable
+		rtTable.peers[peerId] = struct{}{}
+	} else {
+		if _, foundId := rtTable.peers[peerId]; !foundId {
+			rtTable.peers[peerId] = struct{}{}
+			return bestPathListForRT(tableId, as, false, rtTable.paths, paths)
+		}
+	}
+	return paths
 }
