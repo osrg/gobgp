@@ -92,10 +92,10 @@ func Test_MalformedPrefixLookup(t *testing.T) {
 	assert := assert.New(t)
 
 	var tests = []struct {
-		inPrefix    string
-		routeFamily RouteFamily
-		want        AddrPrefixInterface
-		err         bool
+		inPrefix string
+		Family   Family
+		want     AddrPrefixInterface
+		err      bool
 	}{
 		{"129.6.128/22", RF_IPv4_UC, nil, true},
 		{"foo", RF_IPv4_UC, nil, true},
@@ -104,8 +104,8 @@ func Test_MalformedPrefixLookup(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		afi, safi := RouteFamilyToAfiSafi(RF_IPv4_UC)
-		p, err := NewPrefixFromRouteFamily(afi, safi, test.inPrefix)
+		afi, safi := FamilyToAfiSafi(RF_IPv4_UC)
+		p, err := NewPrefixFromFamily(afi, safi, test.inPrefix)
 		if test.err {
 			assert.Error(err)
 		} else {
@@ -495,7 +495,7 @@ func Test_FlowSpecNlri(t *testing.T) {
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_UC))
+	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_IPv4_UC))
 	assert.Nil(err)
 
 	err = n2.DecodeFromBytes(buf1)
@@ -611,7 +611,7 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	buf1, err := n1.Serialize()
 	require.NoError(t, err)
 
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv6_UC))
+	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_IPv6_UC))
 	require.NoError(t, err)
 
 	err = n2.DecodeFromBytes(buf1)
@@ -649,7 +649,7 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	n1 := NewFlowSpecL2VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_L2_VPN))
+	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_L2_VPN))
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
@@ -675,7 +675,7 @@ func Test_FlowSpecNlriVPN(t *testing.T) {
 	n1 := NewFlowSpecIPv4VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_VPN))
+	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_IPv4_VPN))
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	require.NoError(t, err)
@@ -701,7 +701,7 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, r)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_EVPN))
+	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_EVPN))
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
@@ -723,7 +723,7 @@ func Test_CapExtendedNexthop(t *testing.T) {
 
 func Test_AddPath(t *testing.T) {
 	assert := assert.New(t)
-	opt := &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}}
+	opt := &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewIPAddrPrefix(24, "10.10.10.0")
 		assert.Equal(n1.PathIdentifier(), uint32(0))
@@ -746,7 +746,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(0))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH, RF_IPv6_UC: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH, RF_IPv6_UC: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewIPv6AddrPrefix(64, "2001::")
 		n1.SetPathLocalIdentifier(10)
@@ -757,7 +757,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(10))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_IPv4_VPN: BGP_ADD_PATH_BOTH, RF_IPv6_VPN: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_VPN: BGP_ADD_PATH_BOTH, RF_IPv6_VPN: BGP_ADD_PATH_BOTH}}
 	{
 		rd, _ := ParseRouteDistinguisher("100:100")
 		labels := NewMPLSLabelStack(100, 200)
@@ -782,7 +782,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_IPv4_MPLS: BGP_ADD_PATH_BOTH, RF_IPv6_MPLS: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_MPLS: BGP_ADD_PATH_BOTH, RF_IPv6_MPLS: BGP_ADD_PATH_BOTH}}
 	{
 		labels := NewMPLSLabelStack(100, 200)
 		n1 := NewLabeledIPAddrPrefix(24, "10.10.10.0", *labels)
@@ -805,7 +805,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_RTC_UC: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_RTC_UC: BGP_ADD_PATH_BOTH}}
 	{
 		rt, _ := ParseRouteTarget("100:100")
 		n1 := NewRouteTargetMembershipNLRI(65000, rt)
@@ -817,7 +817,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(30))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_EVPN: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_EVPN: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
 			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
@@ -830,7 +830,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(40))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_IPv4_ENCAP: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_ENCAP: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewEncapNLRI("10.10.10.0")
 		n1.SetPathLocalIdentifier(50)
@@ -841,7 +841,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(50))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0"))})
 		n1.SetPathLocalIdentifier(60)
@@ -852,7 +852,7 @@ func Test_AddPath(t *testing.T) {
 		assert.Nil(err)
 		assert.Equal(n2.PathIdentifier(), uint32(60))
 	}
-	opt = &MarshallingOption{AddPath: map[RouteFamily]BGPAddPathMode{RF_OPAQUE: BGP_ADD_PATH_BOTH}}
+	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_OPAQUE: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewOpaqueNLRI([]byte("key"), []byte("value"))
 		n1.SetPathLocalIdentifier(70)
@@ -894,7 +894,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.0")
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
-	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_IPv6_UC))
+	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_IPv6_UC))
 	assert.Nil(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.Nil(err)
@@ -906,7 +906,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.0", *label)
 	buf1, err = n3.Serialize()
 	assert.Nil(err)
-	n4, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_IPv6_MPLS))
+	n4, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_IPv6_MPLS))
 	assert.Nil(err)
 	err = n4.DecodeFromBytes(buf1)
 	assert.Nil(err)
@@ -3805,7 +3805,7 @@ func Test_BGPOpenDecodeCapabilities(t *testing.T) {
 	assert.Len(t, capMap[BGP_CAP_ADD_PATH], 1)
 	tuples := capMap[BGP_CAP_ADD_PATH][0].(*CapAddPath).Tuples
 	assert.Len(t, tuples, 1)
-	assert.Equal(t, tuples[0].RouteFamily, RF_IPv4_UC)
+	assert.Equal(t, tuples[0].Family, RF_IPv4_UC)
 	assert.Equal(t, tuples[0].Mode, BGP_ADD_PATH_SEND)
 }
 

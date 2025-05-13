@@ -10,7 +10,7 @@ import (
 
 type SRPolicyNLRI struct {
 	PrefixDefault
-	rf            RouteFamily
+	rf            Family
 	Length        uint8
 	Distinguisher uint32
 	Color         uint32
@@ -28,7 +28,7 @@ func (s *SRPolicyNLRI) Flat() map[string]string {
 	return map[string]string{}
 }
 
-func (s *SRPolicyNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*MarshallingOption) error {
+func (s *SRPolicyNLRI) decodeFromBytes(rf Family, data []byte, options ...*MarshallingOption) error {
 	if IsAddPathEnabled(true, rf, options) {
 		var err error
 		data, err = s.decodePathIdentifier(data)
@@ -78,12 +78,12 @@ func (s *SRPolicyNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 }
 
 func (s *SRPolicyNLRI) AFI() uint16 {
-	afi, _ := RouteFamilyToAfiSafi(s.rf)
+	afi, _ := FamilyToAfiSafi(s.rf)
 	return afi
 }
 
 func (s *SRPolicyNLRI) SAFI() uint8 {
-	_, safi := RouteFamilyToAfiSafi(s.rf)
+	_, safi := FamilyToAfiSafi(s.rf)
 	return safi
 }
 
@@ -93,7 +93,7 @@ func (s *SRPolicyNLRI) Len(options ...*MarshallingOption) int {
 }
 
 func (s *SRPolicyNLRI) String() string {
-	afi, _ := RouteFamilyToAfiSafi(s.rf)
+	afi, _ := FamilyToAfiSafi(s.rf)
 	var endp string
 	switch afi {
 	case AFI_IP:

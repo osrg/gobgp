@@ -389,7 +389,7 @@ func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 	return exts, nil
 }
 
-func parseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// match <rule>... [then <action>...] [rd <rd>] [rt <rt>...]
 	// or
@@ -1836,8 +1836,8 @@ func extractAsPath(args []string) ([]string, bgp.PathAttributeInterface, error) 
 	return args, nil, nil
 }
 
-func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error) {
-	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+func extractNexthop(rf bgp.Family, args []string) ([]string, string, error) {
+	afi, _ := bgp.FamilyToAfiSafi(rf)
 	nexthop := "0.0.0.0"
 	if afi == bgp.AFI_IP6 {
 		nexthop = "::"
@@ -1981,7 +1981,7 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 	return args, nil, nil
 }
 
-func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
+func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var psid *bgp.PathAttributePrefixSID
@@ -2210,7 +2210,7 @@ func modPath(resource string, name, modtype string, args []string) error {
 	if err != nil {
 		return err
 	}
-	rf := apiutil.ToRouteFamily(f)
+	rf := apiutil.ToFamily(f)
 	path, err := parsePath(rf, args)
 	if err != nil {
 		cmdstr := "global"
@@ -2238,7 +2238,7 @@ func modPath(resource string, name, modtype string, args []string) error {
 		sort.SliceStable(ss, func(i, j int) bool { return ss[i] < ss[j] })
 		ss = append(ss, "<DEC_NUM>")
 		etherTypes := strings.Join(ss, ", ")
-		helpErrMap := map[bgp.RouteFamily]error{}
+		helpErrMap := map[bgp.Family]error{}
 		baseHelpMsgFmt := fmt.Sprintf(`error: %s
 usage: %s rib -a %%s %s <PREFIX> %%s [origin { igp | egp | incomplete }] [aspath <ASPATH>] [nexthop <ADDRESS>] [med <NUM>] [local-pref <NUM>] [community <COMMUNITY>] [aigp metric <NUM>] [large-community <LARGE_COMMUNITY>] [aggregator <AGGREGATOR>]
     <ASPATH>: <AS>[,<AS>],

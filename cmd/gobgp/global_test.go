@@ -69,7 +69,7 @@ func Test_ParseEvpnPath(t *testing.T) {
 func Test_ParseFlowSpecPath(t *testing.T) {
 	var tests = []struct {
 		name        string
-		rf          bgp.RouteFamily
+		rf          bgp.Family
 		path        string
 		expectedErr bool
 	}{

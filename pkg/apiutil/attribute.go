@@ -75,12 +75,12 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if a.MpReach.Family == nil {
 			return nil, fmt.Errorf("empty family")
 		}
-		rf := ToRouteFamily(a.MpReach.Family)
+		rf := ToFamily(a.MpReach.Family)
 		nlris, err := UnmarshalNLRIs(rf, a.MpReach.Nlris)
 		if err != nil {
 			return nil, err
 		}
-		afi, safi := bgp.RouteFamilyToAfiSafi(rf)
+		afi, safi := bgp.FamilyToAfiSafi(rf)
 		nexthop := "0.0.0.0"
 		var linkLocalNexthop net.IP
 		if afi == bgp.AFI_IP6 {
@@ -104,7 +104,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		attr.LinkLocalNexthop = linkLocalNexthop
 		return attr, nil
 	case *api.Attribute_MpUnreach:
-		rf := ToRouteFamily(a.MpUnreach.Family)
+		rf := ToFamily(a.MpUnreach.Family)
 		nlris, err := UnmarshalNLRIs(rf, a.MpUnreach.Nlris)
 		if err != nil {
 			return nil, err
@@ -1496,7 +1496,7 @@ func MarshalNLRIs(values []bgp.AddrPrefixInterface) ([]*api.NLRI, error) {
 	return nlris, nil
 }
 
-func UnmarshalNLRI(rf bgp.RouteFamily, an *api.NLRI) (bgp.AddrPrefixInterface, error) {
+func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error) {
 	var nlri bgp.AddrPrefixInterface
 
 	switch n := an.GetNlri().(type) {
@@ -1891,7 +1891,7 @@ func UnmarshalNLRI(rf bgp.RouteFamily, an *api.NLRI) (bgp.AddrPrefixInterface, e
 	return nlri, nil
 }
 
-func UnmarshalNLRIs(rf bgp.RouteFamily, values []*api.NLRI) ([]bgp.AddrPrefixInterface, error) {
+func UnmarshalNLRIs(rf bgp.Family, values []*api.NLRI) ([]bgp.AddrPrefixInterface, error) {
 	nlris := make([]bgp.AddrPrefixInterface, 0, len(values))
 	for _, an := range values {
 		nlri, err := UnmarshalNLRI(rf, an)

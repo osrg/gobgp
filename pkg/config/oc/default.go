@@ -189,7 +189,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName))
+			rf, err := bgp.GetFamily(string(n.AfiSafis[i].Config.AfiSafiName))
 			if err != nil {
 				return err
 			}

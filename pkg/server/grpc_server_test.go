@@ -134,7 +134,7 @@ func TestToPathApi(t *testing.T) {
 	}
 }
 
-func eor(f bgp.RouteFamily) *table.Path {
+func eor(f bgp.Family) *table.Path {
 	p := table.NewEOR(f)
 	p.SetSource(&table.PeerInfo{
 		ID:           net.IP{10, 10, 10, 10},
@@ -146,7 +146,7 @@ func eor(f bgp.RouteFamily) *table.Path {
 }
 
 func eorNlri(afi uint16, safi uint8) *api.NLRI {
-	n, _ := bgp.NewPrefixFromRouteFamily(afi, safi)
+	n, _ := bgp.NewPrefixFromFamily(afi, safi)
 	return nlri(n)
 }
 

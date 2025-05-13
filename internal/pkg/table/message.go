@@ -282,7 +282,7 @@ type packerInterface interface {
 
 type packer struct {
 	eof    bool
-	family bgp.RouteFamily
+	family bgp.Family
 	total  uint32
 }
 
@@ -339,7 +339,7 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	return msgs
 }
 
-func newPackerMP(f bgp.RouteFamily) *packerMP {
+func newPackerMP(f bgp.Family) *packerMP {
 	return &packerMP{
 		packer: packer{
 			family: f,
@@ -482,7 +482,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	return msgs
 }
 
-func newPackerV4(f bgp.RouteFamily) *packerV4 {
+func newPackerV4(f bgp.Family) *packerV4 {
 	return &packerV4{
 		packer: packer{
 			family: f,
@@ -493,7 +493,7 @@ func newPackerV4(f bgp.RouteFamily) *packerV4 {
 	}
 }
 
-func newPacker(f bgp.RouteFamily) packerInterface {
+func newPacker(f bgp.Family) packerInterface {
 	switch f {
 	case bgp.RF_IPv4_UC:
 		return newPackerV4(bgp.RF_IPv4_UC)
@@ -505,9 +505,9 @@ func newPacker(f bgp.RouteFamily) packerInterface {
 func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	msgs := make([]*bgp.BGPMessage, 0, len(pathList))
 
-	m := make(map[bgp.RouteFamily]packerInterface)
+	m := make(map[bgp.Family]packerInterface)
 	for _, path := range pathList {
-		f := path.GetRouteFamily()
+		f := path.GetFamily()
 		if _, y := m[f]; !y {
 			m[f] = newPacker(f)
 		}

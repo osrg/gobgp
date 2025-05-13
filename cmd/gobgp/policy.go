@@ -811,7 +811,7 @@ func modCondition(name, op string, args []string) error {
 	case "afi-safi-in":
 		afiSafisInList := make([]*api.Family, 0, len(args))
 		for _, arg := range args {
-			afi, safi := bgp.RouteFamilyToAfiSafi(bgp.AddressFamilyValueMap[arg])
+			afi, safi := bgp.FamilyToAfiSafi(bgp.AddressFamilyValueMap[arg])
 			afiSafisInList = append(afiSafisInList, apiutil.ToApiFamily(afi, safi))
 		}
 		stmt.Conditions.AfiSafiIn = afiSafisInList

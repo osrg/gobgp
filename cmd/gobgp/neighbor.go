@@ -383,7 +383,7 @@ func showNeighbor(args []string) error {
 					str += "\n"
 				}
 				for _, t := range g.Tuples {
-					str += fmt.Sprintf("	    %s", bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI))
+					str += fmt.Sprintf("	    %s", bgp.AfiSafiToFamily(t.AFI, t.SAFI))
 					if t.Flags == 0x80 {
 						str += ", forward flag set"
 					}
@@ -408,7 +408,7 @@ func showNeighbor(args []string) error {
 			grStr := func(g *bgp.CapLongLivedGracefulRestart) string {
 				var str string
 				for _, t := range g.Tuples {
-					str += fmt.Sprintf("	    %s, restart time %d sec", bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI), t.RestartTime)
+					str += fmt.Sprintf("	    %s, restart time %d sec", bgp.AfiSafiToFamily(t.AFI, t.SAFI), t.RestartTime)
 					if t.Flags == 0x80 {
 						str += ", forward flag set"
 					}
@@ -442,7 +442,7 @@ func showNeighbor(args []string) error {
 					default:
 						nhafi = fmt.Sprintf("%d", t.NexthopAFI)
 					}
-					line := fmt.Sprintf("nlri: %s, nexthop: %s", bgp.AfiSafiToRouteFamily(t.NLRIAFI, uint8(t.NLRISAFI)), nhafi)
+					line := fmt.Sprintf("nlri: %s, nexthop: %s", bgp.AfiSafiToFamily(t.NLRIAFI, uint8(t.NLRISAFI)), nhafi)
 					lines = append(lines, line)
 				}
 				return strings.Join(lines, "\n")
@@ -464,13 +464,13 @@ func showNeighbor(args []string) error {
 			if m := lookup(c, lcaps); m != nil {
 				fmt.Println("      Local:")
 				for _, item := range m.(*bgp.CapAddPath).Tuples {
-					fmt.Printf("         %s:\t%s\n", item.RouteFamily, item.Mode)
+					fmt.Printf("         %s:\t%s\n", item.Family, item.Mode)
 				}
 			}
 			if m := lookup(c, rcaps); m != nil {
 				fmt.Println("      Remote:")
 				for _, item := range m.(*bgp.CapAddPath).Tuples {
-					fmt.Printf("         %s:\t%s\n", item.RouteFamily, item.Mode)
+					fmt.Printf("         %s:\t%s\n", item.Family, item.Mode)
 				}
 			}
 		case bgp.BGP_CAP_FQDN:
@@ -522,7 +522,7 @@ func showNeighbor(args []string) error {
 				fmt.Println("  Prefix Limits:")
 				first = false
 			}
-			rf := apiutil.ToRouteFamily(limit.Family)
+			rf := apiutil.ToFamily(limit.Family)
 			fmt.Printf("    %s:\tMaximum prefixes allowed %d", bgp.AddressFamilyNameMap[rf], limit.MaxPrefixes)
 			if limit.ShutdownThresholdPct > 0 {
 				fmt.Printf(", Threshold for warning message %d%%\n", limit.ShutdownThresholdPct)
@@ -878,7 +878,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	if err != nil {
 		return err
 	}
-	rf := apiutil.ToRouteFamily(family)
+	rf := apiutil.ToFamily(family)
 	switch rf {
 	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_EVPN:
 		showLabel = true
@@ -1360,11 +1360,11 @@ func modNeighbor(cmdType string, args []string) error {
 		if len(m["family"]) == 1 {
 			peer.AfiSafis = make([]*api.AfiSafi, 0) // for the case of cmdUpdate
 			for _, f := range strings.Split(m["family"][0], ",") {
-				rf, err := bgp.GetRouteFamily(f)
+				rf, err := bgp.GetFamily(f)
 				if err != nil {
 					return err
 				}
-				afi, safi := bgp.RouteFamilyToAfiSafi(rf)
+				afi, safi := bgp.FamilyToAfiSafi(rf)
 				peer.AfiSafis = append(peer.AfiSafis, &api.AfiSafi{Config: &api.AfiSafiConfig{Family: apiutil.ToApiFamily(afi, safi)}})
 			}
 		}

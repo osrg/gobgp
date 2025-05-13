@@ -957,7 +957,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	as := uint32(65000)
 	p1As := uint32(65001)
 	p2As := uint32(65002)
-	rib := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	p1, pi1 := newPeerandInfo(as, p1As, "192.168.0.1", rib)
 	p2, pi2 := newPeerandInfo(as, p2As, "192.168.0.2", rib)
 
@@ -998,7 +998,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 
-	rib := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	p1, pi1 := newPeerandInfo(as, as, "192.168.0.1", rib)
 	//p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
 	p2, _ := newPeerandInfo(as, as, "192.168.0.2", rib)
@@ -1026,9 +1026,9 @@ func TestFilterpathWithiBGP(t *testing.T) {
 }
 
 func TestFilterpathWithRejectPolicy(t *testing.T) {
-	rib1 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	_, pi1 := newPeerandInfo(1, 2, "192.168.0.1", rib1)
-	rib2 := table.NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	rib2 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	p2, _ := newPeerandInfo(1, 3, "192.168.0.2", rib2)
 
 	comSet1 := oc.CommunitySet{
@@ -1453,7 +1453,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 }
 
 func TestFamiliesForSoftreset(t *testing.T) {
-	f := func(f bgp.RouteFamily) oc.AfiSafi {
+	f := func(f bgp.Family) oc.AfiSafi {
 		return oc.AfiSafi{
 			State: oc.AfiSafiState{
 				Family: f,
@@ -1476,7 +1476,7 @@ func TestFamiliesForSoftreset(t *testing.T) {
 	assert.Equal(t, len(families), 1)
 	assert.Equal(t, families[0], bgp.RF_RTC_UC)
 
-	families = familiesForSoftreset(peer, bgp.RouteFamily(0))
+	families = familiesForSoftreset(peer, bgp.Family(0))
 	assert.Equal(t, len(families), 2)
 	assert.NotContains(t, families, bgp.RF_RTC_UC)
 }

@@ -174,7 +174,7 @@ func Test_AddPathCapability(t *testing.T) {
 
 	c := n.(*bgp.CapAddPath)
 	assert.Equal(1, len(c.Tuples))
-	assert.Equal(bgp.RF_IPv4_UC, c.Tuples[0].RouteFamily)
+	assert.Equal(bgp.RF_IPv4_UC, c.Tuples[0].Family)
 	assert.Equal(bgp.BGP_ADD_PATH_BOTH, c.Tuples[0].Mode)
 
 	output := NewAddPathCapability(c)

@@ -125,15 +125,15 @@ func makeAttributeList(
 }
 
 type TableManager struct {
-	Tables map[bgp.RouteFamily]*Table
+	Tables map[bgp.Family]*Table
 	Vrfs   map[string]*Vrf
-	rfList []bgp.RouteFamily
+	rfList []bgp.Family
 	logger log.Logger
 }
 
-func NewTableManager(logger log.Logger, rfList []bgp.RouteFamily) *TableManager {
+func NewTableManager(logger log.Logger, rfList []bgp.Family) *TableManager {
 	t := &TableManager{
-		Tables: make(map[bgp.RouteFamily]*Table),
+		Tables: make(map[bgp.Family]*Table),
 		Vrfs:   make(map[string]*Vrf),
 		rfList: rfList,
 		logger: logger,
@@ -144,7 +144,7 @@ func NewTableManager(logger log.Logger, rfList []bgp.RouteFamily) *TableManager 
 	return t
 }
 
-func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
+func (manager *TableManager) GetRFlist() []bgp.Family {
 	return manager.rfList
 }
 
@@ -208,7 +208,7 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 
 	// Except for a special case with EVPN, we'll have one destination.
 	updates := make([]*Update, 0, 1)
-	family := newPath.GetRouteFamily()
+	family := newPath.GetFamily()
 	if table, ok := manager.Tables[family]; ok {
 		updates = append(updates, table.update(newPath))
 
@@ -264,7 +264,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 	// and L3VNI in the VXLAN case).
 	var paths []*Path
 	for _, ec := range path.GetRouteTargets() {
-		paths = append(paths, manager.GetPathListWithMac(GLOBAL_RIB_NAME, 0, []bgp.RouteFamily{bgp.RF_EVPN}, ec, m1)...)
+		paths = append(paths, manager.GetPathListWithMac(GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_EVPN}, ec, m1)...)
 	}
 
 	for _, path2 := range paths {
@@ -281,7 +281,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 	return pathList
 }
 
-func (manager *TableManager) tables(list ...bgp.RouteFamily) []*Table {
+func (manager *TableManager) tables(list ...bgp.Family) []*Table {
 	l := make([]*Table, 0, len(manager.Tables))
 	if len(list) == 0 {
 		for _, v := range manager.Tables {
@@ -297,7 +297,7 @@ func (manager *TableManager) tables(list ...bgp.RouteFamily) []*Table {
 	return l
 }
 
-func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
+func (manager *TableManager) getDestinationCount(rfList []bgp.Family) int {
 	count := 0
 	for _, t := range manager.tables(rfList...) {
 		count += len(t.GetDestinations())
@@ -305,7 +305,7 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	return count
 }
 
-func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.Family) []*Path {
 	if SelectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, there is no best path.
 		return nil
@@ -317,7 +317,7 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 	return paths
 }
 
-func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
+func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family) [][]*Path {
 	if !UseMultiplePaths.Enabled || SelectionOptions.DisableBestPathSelection {
 		// Note: If multi path not enabled or best path selection disabled,
 		// there is no best multi path.
@@ -330,7 +330,7 @@ func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteF
 	return paths
 }
 
-func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.Family) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.GetKnownPathList(id, as)...)
@@ -338,7 +338,7 @@ func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.Rout
 	return paths
 }
 
-func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []bgp.RouteFamily, rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) []*Path {
+func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []bgp.Family, rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) []*Path {
 	var paths []*Path
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.GetKnownPathListWithMac(id, as, rt, mac, false)...)
@@ -346,7 +346,7 @@ func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []b
 	return paths
 }
 
-func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.RouteFamily, nexthop net.IP) []*Path {
+func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Family, nexthop net.IP) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
@@ -360,7 +360,7 @@ func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Rout
 	return paths
 }
 
-func (manager *TableManager) GetPathListWithSource(id string, rfList []bgp.RouteFamily, source *PeerInfo) []*Path {
+func (manager *TableManager) GetPathListWithSource(id string, rfList []bgp.Family, source *PeerInfo) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
@@ -378,7 +378,7 @@ func (manager *TableManager) GetDestination(path *Path) *Destination {
 	if path == nil {
 		return nil
 	}
-	family := path.GetRouteFamily()
+	family := path.GetFamily()
 	t, ok := manager.Tables[family]
 	if !ok {
 		return nil

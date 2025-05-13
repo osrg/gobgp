@@ -388,7 +388,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	} else if !path.IsWithdraw && nexthop == "" {
 		return nil, fmt.Errorf("nexthop not found")
 	}
-	rf := bgp.AfiSafiToRouteFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
+	rf := bgp.AfiSafiToFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
 	if resource != api.TableType_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
@@ -553,7 +553,7 @@ func readAfiSafiConfigFromAPIStruct(c *oc.AfiSafiConfig, a *api.AfiSafiConfig) {
 	if c == nil || a == nil {
 		return
 	}
-	rf := bgp.AfiSafiToRouteFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
+	rf := bgp.AfiSafiToFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
 	c.AfiSafiName = oc.AfiSafiType(rf.String())
 	c.Enabled = a.Enabled
 }
@@ -563,7 +563,7 @@ func readAfiSafiStateFromAPIStruct(s *oc.AfiSafiState, a *api.AfiSafiConfig) {
 		return
 	}
 	// Store only address family value for the convenience
-	s.Family = bgp.AfiSafiToRouteFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
+	s.Family = bgp.AfiSafiToFamily(uint16(a.Family.Afi), uint8(a.Family.Safi))
 }
 
 func readPrefixLimitFromAPIStruct(c *oc.PrefixLimit, a *api.PrefixLimit) {
@@ -1169,7 +1169,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		afiSafiIn := make([]*api.Family, 0)
 		for _, afiSafiType := range s.Conditions.BgpConditions.AfiSafiInList {
 			if mapped, ok := bgp.AddressFamilyValueMap[string(afiSafiType)]; ok {
-				afi, safi := bgp.RouteFamilyToAfiSafi(mapped)
+				afi, safi := bgp.FamilyToAfiSafi(mapped)
 				afiSafiIn = append(afiSafiIn, &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)})
 			}
 		}
@@ -1494,8 +1494,8 @@ func newAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondit
 	}
 	afiSafiTypes := make([]oc.AfiSafiType, 0, len(a))
 	for _, aType := range a {
-		rf := bgp.AfiSafiToRouteFamily(uint16(aType.Afi), uint8(aType.Safi))
-		if configType, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(rf)]; ok {
+		rf := bgp.AfiSafiToFamily(uint16(aType.Afi), uint8(aType.Safi))
+		if configType, ok := bgp.AddressFamilyNameMap[bgp.Family(rf)]; ok {
 			afiSafiTypes = append(afiSafiTypes, oc.AfiSafiType(configType))
 		} else {
 			return nil, fmt.Errorf("unknown afi-safi-in type value: %v", aType)
@@ -1885,7 +1885,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 	families := make([]oc.AfiSafi, 0, len(a.Families))
 	for _, f := range a.Families {
 		name := oc.IntToAfiSafiTypeMap[int(f)]
-		rf, _ := bgp.GetRouteFamily(string(name))
+		rf, _ := bgp.GetFamily(string(name))
 		families = append(families, oc.AfiSafi{
 			Config: oc.AfiSafiConfig{
 				AfiSafiName: name,

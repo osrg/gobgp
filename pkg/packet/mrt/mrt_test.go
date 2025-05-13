@@ -184,7 +184,7 @@ func TestMrtRib(t *testing.T) {
 		t.Fatal(err)
 	}
 	r2 := &Rib{
-		RouteFamily: bgp.RF_IPv4_UC,
+		Family: bgp.RF_IPv4_UC,
 	}
 	err = r2.DecodeFromBytes(b1)
 	if err != nil {
@@ -218,8 +218,8 @@ func TestMrtRibWithAddPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	r2 := &Rib{
-		RouteFamily: bgp.RF_IPv4_UC,
-		isAddPath:   true,
+		Family:    bgp.RF_IPv4_UC,
+		isAddPath: true,
 	}
 	err = r2.DecodeFromBytes(b1)
 	if err != nil {

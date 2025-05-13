@@ -393,7 +393,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 				continue
 			}
 			afiState := afiSafi.GetState()
-			family := bgp.AfiSafiToRouteFamily(
+			family := bgp.AfiSafiToFamily(
 				uint16(afiState.GetFamily().GetAfi()),
 				uint8(afiState.GetFamily().GetSafi()),
 			).String()

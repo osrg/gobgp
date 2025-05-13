@@ -135,7 +135,7 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily   bgp.RouteFamily
+	family        bgp.Family
 	nlri          bgp.AddrPrefixInterface
 	knownPathList []*Path
 	localIdMap    *Bitmap
@@ -143,7 +143,7 @@ type Destination struct {
 
 func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *Destination {
 	d := &Destination{
-		routeFamily:   bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()),
+		family:        bgp.AfiSafiToFamily(nlri.AFI(), nlri.SAFI()),
 		nlri:          nlri,
 		knownPathList: known,
 		localIdMap:    NewBitmap(mapSize),
@@ -155,12 +155,12 @@ func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *
 	return d
 }
 
-func (dd *Destination) Family() bgp.RouteFamily {
-	return dd.routeFamily
+func (dd *Destination) Family() bgp.Family {
+	return dd.family
 }
 
-func (dd *Destination) setRouteFamily(routeFamily bgp.RouteFamily) {
-	dd.routeFamily = routeFamily
+func (dd *Destination) setFamily(Family bgp.Family) {
+	dd.family = Family
 }
 
 func (dd *Destination) GetNlri() bgp.AddrPrefixInterface {
@@ -532,7 +532,7 @@ func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, 
 			// peers, it is necessary to consider all available iBGP paths for a
 			// given RT prefix, for building the outbound route filter, and not just
 			// the best path.
-			if best.GetRouteFamily() == bgp.RF_RTC_UC {
+			if best.GetFamily() == bgp.RF_RTC_UC {
 				return best, old
 			}
 			// For BGP Nexthop Tracking, checks if the nexthop reachability

@@ -186,7 +186,7 @@ type fsm struct {
 	adminState           adminState
 	adminStateCh         chan adminStateOperation
 	h                    *fsmHandler
-	rfMap                map[bgp.RouteFamily]bgp.BGPAddPathMode
+	rfMap                map[bgp.Family]bgp.BGPAddPathMode
 	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen             *bgp.BGPMessage
 	peerInfo             *table.PeerInfo
@@ -279,7 +279,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		opensentHoldTime:     float64(holdtimeOpensent),
 		adminState:           adminState,
 		adminStateCh:         make(chan adminStateOperation, 1),
-		rfMap:                make(map[bgp.RouteFamily]bgp.BGPAddPathMode),
+		rfMap:                make(map[bgp.Family]bgp.BGPAddPathMode),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
 		gracefulRestartTimer: time.NewTimer(time.Hour),
@@ -867,7 +867,7 @@ func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath) bool
 	return false
 }
 
-func extractRouteFamily(p *bgp.PathAttributeInterface) *bgp.RouteFamily {
+func extractFamily(p *bgp.PathAttributeInterface) *bgp.Family {
 	attr := *p
 
 	var afi uint16
@@ -884,11 +884,11 @@ func extractRouteFamily(p *bgp.PathAttributeInterface) *bgp.RouteFamily {
 		return nil
 	}
 
-	rf := bgp.AfiSafiToRouteFamily(afi, safi)
+	rf := bgp.AfiSafiToFamily(afi, safi)
 	return &rf
 }
 
-func (h *fsmHandler) afiSafiDisable(rf bgp.RouteFamily) string {
+func (h *fsmHandler) afiSafiDisable(rf bgp.Family) string {
 	h.fsm.lock.Lock()
 	defer h.fsm.lock.Unlock()
 
@@ -938,7 +938,7 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 					"Error": e})
 			h.fsm.lock.RUnlock()
 		case bgp.ERROR_HANDLING_AFISAFI_DISABLE:
-			rf := extractRouteFamily(factor.ErrorAttribute)
+			rf := extractFamily(factor.ErrorAttribute)
 			if rf == nil {
 				h.fsm.lock.RLock()
 				h.fsm.logger.Warn("Error occurred during AFI/SAFI disabling",
@@ -1194,7 +1194,7 @@ func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error 
 	return nil
 }
 
-func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bgp.BGPAddPathMode) {
+func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.Family]bgp.BGPAddPathMode) {
 	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
 	for _, p := range open.OptParams {
 		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
@@ -1223,19 +1223,19 @@ func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 	}
 
 	local := n.CreateRfMap()
-	remote := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
+	remote := make(map[bgp.Family]bgp.BGPAddPathMode)
 	for _, c := range capMap[bgp.BGP_CAP_MULTIPROTOCOL] {
 		family := c.(*bgp.CapMultiProtocol).CapValue
 		remote[family] = bgp.BGP_ADD_PATH_NONE
 		for _, a := range capMap[bgp.BGP_CAP_ADD_PATH] {
 			for _, i := range a.(*bgp.CapAddPath).Tuples {
-				if i.RouteFamily == family {
+				if i.Family == family {
 					remote[family] = i.Mode
 				}
 			}
 		}
 	}
-	negotiated := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
+	negotiated := make(map[bgp.Family]bgp.BGPAddPathMode)
 	for family, mode := range local {
 		if m, y := remote[family]; y {
 			n := bgp.BGP_ADD_PATH_NONE
@@ -1401,7 +1401,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						state.PeerRestartTime = uint16(cap.Time)
 
 						for _, t := range cap.Tuples {
-							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI)]
+							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToFamily(t.AFI, t.SAFI)]
 							for i, a := range fsm.pConf.AfiSafis {
 								if string(a.Config.AfiSafiName) == n {
 									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
@@ -1449,7 +1449,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						fsm.pConf.GracefulRestart.State.LongLivedEnabled = true
 						cap := llgr[len(llgr)-1].(*bgp.CapLongLivedGracefulRestart)
 						for _, t := range cap.Tuples {
-							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI)]
+							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToFamily(t.AFI, t.SAFI)]
 							for i, a := range fsm.pConf.AfiSafis {
 								if string(a.Config.AfiSafiName) == n {
 									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled = true
