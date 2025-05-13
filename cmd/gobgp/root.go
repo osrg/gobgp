@@ -72,8 +72,8 @@ func newRootCmd() *cobra.Command {
 				ctx, cancel = context.WithTimeout(context.Background(), time.Second*10)
 				client = api.NewGobgpApiClient(conn)
 				cleanup = func() {
-					defer conn.Close()
-					defer cancel()
+					conn.Close()
+					cancel()
 				}
 			}
 		},
