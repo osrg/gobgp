@@ -490,7 +490,7 @@ func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *
 				if err != nil {
 					return nil, nil, nil, err
 				}
-				behavior, ok := api.SRv6Behavior_value[m["behavior"][0]]
+				behavior, ok := api.SRV6Behavior_value["SRV6_BEHAVIOR_"+m["behavior"][0]]
 				if !ok {
 					return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
 				}
@@ -1063,7 +1063,7 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexth
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	behavior, ok := api.SRv6Behavior_value[m["behavior"][0]]
+	behavior, ok := api.SRV6Behavior_value["SRV6_BEHAVIOR_"+m["behavior"][0]]
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
 	}
@@ -1148,7 +1148,7 @@ func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	behavior, ok := api.SRv6Behavior_value[m["behavior"][0]]
+	behavior, ok := api.SRV6Behavior_value["SRV6_BEHAVIOR_"+m["behavior"][0]]
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
 	}

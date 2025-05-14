@@ -25,31 +25,31 @@ const (
 type LsNLRIType int32
 
 const (
-	LsNLRIType_LS_NLRI_UNKNOWN   LsNLRIType = 0
-	LsNLRIType_LS_NLRI_NODE      LsNLRIType = 1
-	LsNLRIType_LS_NLRI_LINK      LsNLRIType = 2
-	LsNLRIType_LS_NLRI_PREFIX_V4 LsNLRIType = 3
-	LsNLRIType_LS_NLRI_PREFIX_V6 LsNLRIType = 4
-	LsNLRIType_LS_NLRI_SRV6_SID  LsNLRIType = 6
+	LsNLRIType_LS_NLRI_TYPE_UNSPECIFIED LsNLRIType = 0
+	LsNLRIType_LS_NLRI_TYPE_NODE        LsNLRIType = 1
+	LsNLRIType_LS_NLRI_TYPE_LINK        LsNLRIType = 2
+	LsNLRIType_LS_NLRI_TYPE_PREFIX_V4   LsNLRIType = 3
+	LsNLRIType_LS_NLRI_TYPE_PREFIX_V6   LsNLRIType = 4
+	LsNLRIType_LS_NLRI_TYPE_SRV6_SID    LsNLRIType = 6
 )
 
 // Enum value maps for LsNLRIType.
 var (
 	LsNLRIType_name = map[int32]string{
-		0: "LS_NLRI_UNKNOWN",
-		1: "LS_NLRI_NODE",
-		2: "LS_NLRI_LINK",
-		3: "LS_NLRI_PREFIX_V4",
-		4: "LS_NLRI_PREFIX_V6",
-		6: "LS_NLRI_SRV6_SID",
+		0: "LS_NLRI_TYPE_UNSPECIFIED",
+		1: "LS_NLRI_TYPE_NODE",
+		2: "LS_NLRI_TYPE_LINK",
+		3: "LS_NLRI_TYPE_PREFIX_V4",
+		4: "LS_NLRI_TYPE_PREFIX_V6",
+		6: "LS_NLRI_TYPE_SRV6_SID",
 	}
 	LsNLRIType_value = map[string]int32{
-		"LS_NLRI_UNKNOWN":   0,
-		"LS_NLRI_NODE":      1,
-		"LS_NLRI_LINK":      2,
-		"LS_NLRI_PREFIX_V4": 3,
-		"LS_NLRI_PREFIX_V6": 4,
-		"LS_NLRI_SRV6_SID":  6,
+		"LS_NLRI_TYPE_UNSPECIFIED": 0,
+		"LS_NLRI_TYPE_NODE":        1,
+		"LS_NLRI_TYPE_LINK":        2,
+		"LS_NLRI_TYPE_PREFIX_V4":   3,
+		"LS_NLRI_TYPE_PREFIX_V6":   4,
+		"LS_NLRI_TYPE_SRV6_SID":    6,
 	}
 )
 
@@ -83,34 +83,34 @@ func (LsNLRIType) EnumDescriptor() ([]byte, []int) {
 type LsProtocolID int32
 
 const (
-	LsProtocolID_LS_PROTOCOL_UNKNOWN LsProtocolID = 0
-	LsProtocolID_LS_PROTOCOL_ISIS_L1 LsProtocolID = 1
-	LsProtocolID_LS_PROTOCOL_ISIS_L2 LsProtocolID = 2
-	LsProtocolID_LS_PROTOCOL_OSPF_V2 LsProtocolID = 3
-	LsProtocolID_LS_PROTOCOL_DIRECT  LsProtocolID = 4
-	LsProtocolID_LS_PROTOCOL_STATIC  LsProtocolID = 5
-	LsProtocolID_LS_PROTOCOL_OSPF_V3 LsProtocolID = 6
+	LsProtocolID_LS_PROTOCOL_ID_UNSPECIFIED LsProtocolID = 0
+	LsProtocolID_LS_PROTOCOL_ID_ISIS_L1     LsProtocolID = 1
+	LsProtocolID_LS_PROTOCOL_ID_ISIS_L2     LsProtocolID = 2
+	LsProtocolID_LS_PROTOCOL_ID_OSPF_V2     LsProtocolID = 3
+	LsProtocolID_LS_PROTOCOL_ID_DIRECT      LsProtocolID = 4
+	LsProtocolID_LS_PROTOCOL_ID_STATIC      LsProtocolID = 5
+	LsProtocolID_LS_PROTOCOL_ID_OSPF_V3     LsProtocolID = 6
 )
 
 // Enum value maps for LsProtocolID.
 var (
 	LsProtocolID_name = map[int32]string{
-		0: "LS_PROTOCOL_UNKNOWN",
-		1: "LS_PROTOCOL_ISIS_L1",
-		2: "LS_PROTOCOL_ISIS_L2",
-		3: "LS_PROTOCOL_OSPF_V2",
-		4: "LS_PROTOCOL_DIRECT",
-		5: "LS_PROTOCOL_STATIC",
-		6: "LS_PROTOCOL_OSPF_V3",
+		0: "LS_PROTOCOL_ID_UNSPECIFIED",
+		1: "LS_PROTOCOL_ID_ISIS_L1",
+		2: "LS_PROTOCOL_ID_ISIS_L2",
+		3: "LS_PROTOCOL_ID_OSPF_V2",
+		4: "LS_PROTOCOL_ID_DIRECT",
+		5: "LS_PROTOCOL_ID_STATIC",
+		6: "LS_PROTOCOL_ID_OSPF_V3",
 	}
 	LsProtocolID_value = map[string]int32{
-		"LS_PROTOCOL_UNKNOWN": 0,
-		"LS_PROTOCOL_ISIS_L1": 1,
-		"LS_PROTOCOL_ISIS_L2": 2,
-		"LS_PROTOCOL_OSPF_V2": 3,
-		"LS_PROTOCOL_DIRECT":  4,
-		"LS_PROTOCOL_STATIC":  5,
-		"LS_PROTOCOL_OSPF_V3": 6,
+		"LS_PROTOCOL_ID_UNSPECIFIED": 0,
+		"LS_PROTOCOL_ID_ISIS_L1":     1,
+		"LS_PROTOCOL_ID_ISIS_L2":     2,
+		"LS_PROTOCOL_ID_OSPF_V2":     3,
+		"LS_PROTOCOL_ID_DIRECT":      4,
+		"LS_PROTOCOL_ID_STATIC":      5,
+		"LS_PROTOCOL_ID_OSPF_V3":     6,
 	}
 )
 
@@ -144,19 +144,19 @@ func (LsProtocolID) EnumDescriptor() ([]byte, []int) {
 type LsOspfRouteType int32
 
 const (
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_UNKNOWN    LsOspfRouteType = 0
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_INTRA_AREA LsOspfRouteType = 1
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_INTER_AREA LsOspfRouteType = 2
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_EXTERNAL1  LsOspfRouteType = 3
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_EXTERNAL2  LsOspfRouteType = 4
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_NSSA1      LsOspfRouteType = 5
-	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_NSSA2      LsOspfRouteType = 6
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_UNSPECIFIED LsOspfRouteType = 0
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_INTRA_AREA  LsOspfRouteType = 1
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_INTER_AREA  LsOspfRouteType = 2
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_EXTERNAL1   LsOspfRouteType = 3
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_EXTERNAL2   LsOspfRouteType = 4
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_NSSA1       LsOspfRouteType = 5
+	LsOspfRouteType_LS_OSPF_ROUTE_TYPE_NSSA2       LsOspfRouteType = 6
 )
 
 // Enum value maps for LsOspfRouteType.
 var (
 	LsOspfRouteType_name = map[int32]string{
-		0: "LS_OSPF_ROUTE_TYPE_UNKNOWN",
+		0: "LS_OSPF_ROUTE_TYPE_UNSPECIFIED",
 		1: "LS_OSPF_ROUTE_TYPE_INTRA_AREA",
 		2: "LS_OSPF_ROUTE_TYPE_INTER_AREA",
 		3: "LS_OSPF_ROUTE_TYPE_EXTERNAL1",
@@ -165,13 +165,13 @@ var (
 		6: "LS_OSPF_ROUTE_TYPE_NSSA2",
 	}
 	LsOspfRouteType_value = map[string]int32{
-		"LS_OSPF_ROUTE_TYPE_UNKNOWN":    0,
-		"LS_OSPF_ROUTE_TYPE_INTRA_AREA": 1,
-		"LS_OSPF_ROUTE_TYPE_INTER_AREA": 2,
-		"LS_OSPF_ROUTE_TYPE_EXTERNAL1":  3,
-		"LS_OSPF_ROUTE_TYPE_EXTERNAL2":  4,
-		"LS_OSPF_ROUTE_TYPE_NSSA1":      5,
-		"LS_OSPF_ROUTE_TYPE_NSSA2":      6,
+		"LS_OSPF_ROUTE_TYPE_UNSPECIFIED": 0,
+		"LS_OSPF_ROUTE_TYPE_INTRA_AREA":  1,
+		"LS_OSPF_ROUTE_TYPE_INTER_AREA":  2,
+		"LS_OSPF_ROUTE_TYPE_EXTERNAL1":   3,
+		"LS_OSPF_ROUTE_TYPE_EXTERNAL2":   4,
+		"LS_OSPF_ROUTE_TYPE_NSSA1":       5,
+		"LS_OSPF_ROUTE_TYPE_NSSA2":       6,
 	}
 )
 
@@ -2231,7 +2231,7 @@ func (x *LsPrefixDescriptor) GetOspfRouteType() LsOspfRouteType {
 	if x != nil {
 		return x.OspfRouteType
 	}
-	return LsOspfRouteType_LS_OSPF_ROUTE_TYPE_UNKNOWN
+	return LsOspfRouteType_LS_OSPF_ROUTE_TYPE_UNSPECIFIED
 }
 
 type LsNodeNLRI struct {
@@ -2639,7 +2639,7 @@ func (x *LsAddrPrefix) GetType() LsNLRIType {
 	if x != nil {
 		return x.Type
 	}
-	return LsNLRIType_LS_NLRI_UNKNOWN
+	return LsNLRIType_LS_NLRI_TYPE_UNSPECIFIED
 }
 
 func (x *LsAddrPrefix) GetNlri() *LsAddrPrefix_LsNLRI {
@@ -2660,7 +2660,7 @@ func (x *LsAddrPrefix) GetProtocolId() LsProtocolID {
 	if x != nil {
 		return x.ProtocolId
 	}
-	return LsProtocolID_LS_PROTOCOL_UNKNOWN
+	return LsProtocolID_LS_PROTOCOL_ID_UNSPECIFIED
 }
 
 func (x *LsAddrPrefix) GetIdentifier() uint64 {
@@ -3297,25 +3297,25 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x02rd\x18\x01 \x01(\v2\x17.api.RouteDistinguisherR\x02rd\x126\n" +
 	"\x17endpoint_address_length\x18\x02 \x01(\rR\x15endpointAddressLength\x12)\n" +
 	"\x10endpoint_address\x18\x03 \x01(\tR\x0fendpointAddress\x12\x12\n" +
-	"\x04teid\x18\x04 \x01(\rR\x04teid*\x89\x01\n" +
+	"\x04teid\x18\x04 \x01(\rR\x04teid*\xab\x01\n" +
 	"\n" +
-	"LsNLRIType\x12\x13\n" +
-	"\x0fLS_NLRI_UNKNOWN\x10\x00\x12\x10\n" +
-	"\fLS_NLRI_NODE\x10\x01\x12\x10\n" +
-	"\fLS_NLRI_LINK\x10\x02\x12\x15\n" +
-	"\x11LS_NLRI_PREFIX_V4\x10\x03\x12\x15\n" +
-	"\x11LS_NLRI_PREFIX_V6\x10\x04\x12\x14\n" +
-	"\x10LS_NLRI_SRV6_SID\x10\x06*\xbb\x01\n" +
-	"\fLsProtocolID\x12\x17\n" +
-	"\x13LS_PROTOCOL_UNKNOWN\x10\x00\x12\x17\n" +
-	"\x13LS_PROTOCOL_ISIS_L1\x10\x01\x12\x17\n" +
-	"\x13LS_PROTOCOL_ISIS_L2\x10\x02\x12\x17\n" +
-	"\x13LS_PROTOCOL_OSPF_V2\x10\x03\x12\x16\n" +
-	"\x12LS_PROTOCOL_DIRECT\x10\x04\x12\x16\n" +
-	"\x12LS_PROTOCOL_STATIC\x10\x05\x12\x17\n" +
-	"\x13LS_PROTOCOL_OSPF_V3\x10\x06*\xf7\x01\n" +
-	"\x0fLsOspfRouteType\x12\x1e\n" +
-	"\x1aLS_OSPF_ROUTE_TYPE_UNKNOWN\x10\x00\x12!\n" +
+	"LsNLRIType\x12\x1c\n" +
+	"\x18LS_NLRI_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11LS_NLRI_TYPE_NODE\x10\x01\x12\x15\n" +
+	"\x11LS_NLRI_TYPE_LINK\x10\x02\x12\x1a\n" +
+	"\x16LS_NLRI_TYPE_PREFIX_V4\x10\x03\x12\x1a\n" +
+	"\x16LS_NLRI_TYPE_PREFIX_V6\x10\x04\x12\x19\n" +
+	"\x15LS_NLRI_TYPE_SRV6_SID\x10\x06*\xd4\x01\n" +
+	"\fLsProtocolID\x12\x1e\n" +
+	"\x1aLS_PROTOCOL_ID_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16LS_PROTOCOL_ID_ISIS_L1\x10\x01\x12\x1a\n" +
+	"\x16LS_PROTOCOL_ID_ISIS_L2\x10\x02\x12\x1a\n" +
+	"\x16LS_PROTOCOL_ID_OSPF_V2\x10\x03\x12\x19\n" +
+	"\x15LS_PROTOCOL_ID_DIRECT\x10\x04\x12\x19\n" +
+	"\x15LS_PROTOCOL_ID_STATIC\x10\x05\x12\x1a\n" +
+	"\x16LS_PROTOCOL_ID_OSPF_V3\x10\x06*\xfb\x01\n" +
+	"\x0fLsOspfRouteType\x12\"\n" +
+	"\x1eLS_OSPF_ROUTE_TYPE_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dLS_OSPF_ROUTE_TYPE_INTRA_AREA\x10\x01\x12!\n" +
 	"\x1dLS_OSPF_ROUTE_TYPE_INTER_AREA\x10\x02\x12 \n" +
 	"\x1cLS_OSPF_ROUTE_TYPE_EXTERNAL1\x10\x03\x12 \n" +

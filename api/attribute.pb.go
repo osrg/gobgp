@@ -42,194 +42,194 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type SRv6Behavior int32
+type SRV6Behavior int32
 
 const (
-	SRv6Behavior_RESERVED              SRv6Behavior = 0
-	SRv6Behavior_END                   SRv6Behavior = 1
-	SRv6Behavior_END_WITH_PSP          SRv6Behavior = 2
-	SRv6Behavior_END_WITH_USP          SRv6Behavior = 3
-	SRv6Behavior_END_WITH_PSP_USP      SRv6Behavior = 4
-	SRv6Behavior_ENDX                  SRv6Behavior = 5
-	SRv6Behavior_ENDX_WITH_PSP         SRv6Behavior = 6
-	SRv6Behavior_ENDX_WITH_USP         SRv6Behavior = 7
-	SRv6Behavior_ENDX_WITH_PSP_USP     SRv6Behavior = 8
-	SRv6Behavior_ENDT                  SRv6Behavior = 9
-	SRv6Behavior_ENDT_WITH_PSP         SRv6Behavior = 10
-	SRv6Behavior_ENDT_WITH_USP         SRv6Behavior = 11
-	SRv6Behavior_ENDT_WITH_PSP_USP     SRv6Behavior = 12
-	SRv6Behavior_END_B6_ENCAPS         SRv6Behavior = 14
-	SRv6Behavior_END_BM                SRv6Behavior = 15
-	SRv6Behavior_END_DX6               SRv6Behavior = 16
-	SRv6Behavior_END_DX4               SRv6Behavior = 17
-	SRv6Behavior_END_DT6               SRv6Behavior = 18
-	SRv6Behavior_END_DT4               SRv6Behavior = 19
-	SRv6Behavior_END_DT46              SRv6Behavior = 20
-	SRv6Behavior_END_DX2               SRv6Behavior = 21
-	SRv6Behavior_END_DX2V              SRv6Behavior = 22
-	SRv6Behavior_END_DT2U              SRv6Behavior = 23
-	SRv6Behavior_END_DT2M              SRv6Behavior = 24
-	SRv6Behavior_END_B6_ENCAPS_Red     SRv6Behavior = 27
-	SRv6Behavior_END_WITH_USD          SRv6Behavior = 28
-	SRv6Behavior_END_WITH_PSP_USD      SRv6Behavior = 29
-	SRv6Behavior_END_WITH_USP_USD      SRv6Behavior = 30
-	SRv6Behavior_END_WITH_PSP_USP_USD  SRv6Behavior = 31
-	SRv6Behavior_ENDX_WITH_USD         SRv6Behavior = 32
-	SRv6Behavior_ENDX_WITH_PSP_USD     SRv6Behavior = 33
-	SRv6Behavior_ENDX_WITH_USP_USD     SRv6Behavior = 34
-	SRv6Behavior_ENDX_WITH_PSP_USP_USD SRv6Behavior = 35
-	SRv6Behavior_ENDT_WITH_USD         SRv6Behavior = 36
-	SRv6Behavior_ENDT_WITH_PSP_USD     SRv6Behavior = 37
-	SRv6Behavior_ENDT_WITH_USP_USD     SRv6Behavior = 38
-	SRv6Behavior_ENDT_WITH_PSP_USP_USD SRv6Behavior = 39
-	SRv6Behavior_ENDM_GTP6D            SRv6Behavior = 69 // 0x0045
-	SRv6Behavior_ENDM_GTP6DI           SRv6Behavior = 70 // 0x0046
-	SRv6Behavior_ENDM_GTP6E            SRv6Behavior = 71 // 0x0047
-	SRv6Behavior_ENDM_GTP4E            SRv6Behavior = 72 // 0x0048
+	SRV6Behavior_SRV6_BEHAVIOR_UNSPECIFIED           SRV6Behavior = 0
+	SRV6Behavior_SRV6_BEHAVIOR_END                   SRV6Behavior = 1
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_PSP          SRV6Behavior = 2
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_USP          SRV6Behavior = 3
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_PSP_USP      SRV6Behavior = 4
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX                  SRV6Behavior = 5
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_PSP         SRV6Behavior = 6
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_USP         SRV6Behavior = 7
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_PSP_USP     SRV6Behavior = 8
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT                  SRV6Behavior = 9
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_PSP         SRV6Behavior = 10
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_USP         SRV6Behavior = 11
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_PSP_USP     SRV6Behavior = 12
+	SRV6Behavior_SRV6_BEHAVIOR_END_B6_ENCAPS         SRV6Behavior = 14
+	SRV6Behavior_SRV6_BEHAVIOR_END_BM                SRV6Behavior = 15
+	SRV6Behavior_SRV6_BEHAVIOR_END_DX6               SRV6Behavior = 16
+	SRV6Behavior_SRV6_BEHAVIOR_END_DX4               SRV6Behavior = 17
+	SRV6Behavior_SRV6_BEHAVIOR_END_DT6               SRV6Behavior = 18
+	SRV6Behavior_SRV6_BEHAVIOR_END_DT4               SRV6Behavior = 19
+	SRV6Behavior_SRV6_BEHAVIOR_END_DT46              SRV6Behavior = 20
+	SRV6Behavior_SRV6_BEHAVIOR_END_DX2               SRV6Behavior = 21
+	SRV6Behavior_SRV6_BEHAVIOR_END_DX2V              SRV6Behavior = 22
+	SRV6Behavior_SRV6_BEHAVIOR_END_DT2U              SRV6Behavior = 23
+	SRV6Behavior_SRV6_BEHAVIOR_END_DT2M              SRV6Behavior = 24
+	SRV6Behavior_SRV6_BEHAVIOR_END_B6_ENCAPS_RED     SRV6Behavior = 27
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_USD          SRV6Behavior = 28
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_PSP_USD      SRV6Behavior = 29
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_USP_USD      SRV6Behavior = 30
+	SRV6Behavior_SRV6_BEHAVIOR_END_WITH_PSP_USP_USD  SRV6Behavior = 31
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_USD         SRV6Behavior = 32
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_PSP_USD     SRV6Behavior = 33
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_USP_USD     SRV6Behavior = 34
+	SRV6Behavior_SRV6_BEHAVIOR_ENDX_WITH_PSP_USP_USD SRV6Behavior = 35
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_USD         SRV6Behavior = 36
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_PSP_USD     SRV6Behavior = 37
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_USP_USD     SRV6Behavior = 38
+	SRV6Behavior_SRV6_BEHAVIOR_ENDT_WITH_PSP_USP_USD SRV6Behavior = 39
+	SRV6Behavior_SRV6_BEHAVIOR_ENDM_GTP6D            SRV6Behavior = 69 // 0x0045
+	SRV6Behavior_SRV6_BEHAVIOR_ENDM_GTP6DI           SRV6Behavior = 70 // 0x0046
+	SRV6Behavior_SRV6_BEHAVIOR_ENDM_GTP6E            SRV6Behavior = 71 // 0x0047
+	SRV6Behavior_SRV6_BEHAVIOR_ENDM_GTP4E            SRV6Behavior = 72 // 0x0048
 )
 
-// Enum value maps for SRv6Behavior.
+// Enum value maps for SRV6Behavior.
 var (
-	SRv6Behavior_name = map[int32]string{
-		0:  "RESERVED",
-		1:  "END",
-		2:  "END_WITH_PSP",
-		3:  "END_WITH_USP",
-		4:  "END_WITH_PSP_USP",
-		5:  "ENDX",
-		6:  "ENDX_WITH_PSP",
-		7:  "ENDX_WITH_USP",
-		8:  "ENDX_WITH_PSP_USP",
-		9:  "ENDT",
-		10: "ENDT_WITH_PSP",
-		11: "ENDT_WITH_USP",
-		12: "ENDT_WITH_PSP_USP",
-		14: "END_B6_ENCAPS",
-		15: "END_BM",
-		16: "END_DX6",
-		17: "END_DX4",
-		18: "END_DT6",
-		19: "END_DT4",
-		20: "END_DT46",
-		21: "END_DX2",
-		22: "END_DX2V",
-		23: "END_DT2U",
-		24: "END_DT2M",
-		27: "END_B6_ENCAPS_Red",
-		28: "END_WITH_USD",
-		29: "END_WITH_PSP_USD",
-		30: "END_WITH_USP_USD",
-		31: "END_WITH_PSP_USP_USD",
-		32: "ENDX_WITH_USD",
-		33: "ENDX_WITH_PSP_USD",
-		34: "ENDX_WITH_USP_USD",
-		35: "ENDX_WITH_PSP_USP_USD",
-		36: "ENDT_WITH_USD",
-		37: "ENDT_WITH_PSP_USD",
-		38: "ENDT_WITH_USP_USD",
-		39: "ENDT_WITH_PSP_USP_USD",
-		69: "ENDM_GTP6D",
-		70: "ENDM_GTP6DI",
-		71: "ENDM_GTP6E",
-		72: "ENDM_GTP4E",
+	SRV6Behavior_name = map[int32]string{
+		0:  "SRV6_BEHAVIOR_UNSPECIFIED",
+		1:  "SRV6_BEHAVIOR_END",
+		2:  "SRV6_BEHAVIOR_END_WITH_PSP",
+		3:  "SRV6_BEHAVIOR_END_WITH_USP",
+		4:  "SRV6_BEHAVIOR_END_WITH_PSP_USP",
+		5:  "SRV6_BEHAVIOR_ENDX",
+		6:  "SRV6_BEHAVIOR_ENDX_WITH_PSP",
+		7:  "SRV6_BEHAVIOR_ENDX_WITH_USP",
+		8:  "SRV6_BEHAVIOR_ENDX_WITH_PSP_USP",
+		9:  "SRV6_BEHAVIOR_ENDT",
+		10: "SRV6_BEHAVIOR_ENDT_WITH_PSP",
+		11: "SRV6_BEHAVIOR_ENDT_WITH_USP",
+		12: "SRV6_BEHAVIOR_ENDT_WITH_PSP_USP",
+		14: "SRV6_BEHAVIOR_END_B6_ENCAPS",
+		15: "SRV6_BEHAVIOR_END_BM",
+		16: "SRV6_BEHAVIOR_END_DX6",
+		17: "SRV6_BEHAVIOR_END_DX4",
+		18: "SRV6_BEHAVIOR_END_DT6",
+		19: "SRV6_BEHAVIOR_END_DT4",
+		20: "SRV6_BEHAVIOR_END_DT46",
+		21: "SRV6_BEHAVIOR_END_DX2",
+		22: "SRV6_BEHAVIOR_END_DX2V",
+		23: "SRV6_BEHAVIOR_END_DT2U",
+		24: "SRV6_BEHAVIOR_END_DT2M",
+		27: "SRV6_BEHAVIOR_END_B6_ENCAPS_RED",
+		28: "SRV6_BEHAVIOR_END_WITH_USD",
+		29: "SRV6_BEHAVIOR_END_WITH_PSP_USD",
+		30: "SRV6_BEHAVIOR_END_WITH_USP_USD",
+		31: "SRV6_BEHAVIOR_END_WITH_PSP_USP_USD",
+		32: "SRV6_BEHAVIOR_ENDX_WITH_USD",
+		33: "SRV6_BEHAVIOR_ENDX_WITH_PSP_USD",
+		34: "SRV6_BEHAVIOR_ENDX_WITH_USP_USD",
+		35: "SRV6_BEHAVIOR_ENDX_WITH_PSP_USP_USD",
+		36: "SRV6_BEHAVIOR_ENDT_WITH_USD",
+		37: "SRV6_BEHAVIOR_ENDT_WITH_PSP_USD",
+		38: "SRV6_BEHAVIOR_ENDT_WITH_USP_USD",
+		39: "SRV6_BEHAVIOR_ENDT_WITH_PSP_USP_USD",
+		69: "SRV6_BEHAVIOR_ENDM_GTP6D",
+		70: "SRV6_BEHAVIOR_ENDM_GTP6DI",
+		71: "SRV6_BEHAVIOR_ENDM_GTP6E",
+		72: "SRV6_BEHAVIOR_ENDM_GTP4E",
 	}
-	SRv6Behavior_value = map[string]int32{
-		"RESERVED":              0,
-		"END":                   1,
-		"END_WITH_PSP":          2,
-		"END_WITH_USP":          3,
-		"END_WITH_PSP_USP":      4,
-		"ENDX":                  5,
-		"ENDX_WITH_PSP":         6,
-		"ENDX_WITH_USP":         7,
-		"ENDX_WITH_PSP_USP":     8,
-		"ENDT":                  9,
-		"ENDT_WITH_PSP":         10,
-		"ENDT_WITH_USP":         11,
-		"ENDT_WITH_PSP_USP":     12,
-		"END_B6_ENCAPS":         14,
-		"END_BM":                15,
-		"END_DX6":               16,
-		"END_DX4":               17,
-		"END_DT6":               18,
-		"END_DT4":               19,
-		"END_DT46":              20,
-		"END_DX2":               21,
-		"END_DX2V":              22,
-		"END_DT2U":              23,
-		"END_DT2M":              24,
-		"END_B6_ENCAPS_Red":     27,
-		"END_WITH_USD":          28,
-		"END_WITH_PSP_USD":      29,
-		"END_WITH_USP_USD":      30,
-		"END_WITH_PSP_USP_USD":  31,
-		"ENDX_WITH_USD":         32,
-		"ENDX_WITH_PSP_USD":     33,
-		"ENDX_WITH_USP_USD":     34,
-		"ENDX_WITH_PSP_USP_USD": 35,
-		"ENDT_WITH_USD":         36,
-		"ENDT_WITH_PSP_USD":     37,
-		"ENDT_WITH_USP_USD":     38,
-		"ENDT_WITH_PSP_USP_USD": 39,
-		"ENDM_GTP6D":            69,
-		"ENDM_GTP6DI":           70,
-		"ENDM_GTP6E":            71,
-		"ENDM_GTP4E":            72,
+	SRV6Behavior_value = map[string]int32{
+		"SRV6_BEHAVIOR_UNSPECIFIED":           0,
+		"SRV6_BEHAVIOR_END":                   1,
+		"SRV6_BEHAVIOR_END_WITH_PSP":          2,
+		"SRV6_BEHAVIOR_END_WITH_USP":          3,
+		"SRV6_BEHAVIOR_END_WITH_PSP_USP":      4,
+		"SRV6_BEHAVIOR_ENDX":                  5,
+		"SRV6_BEHAVIOR_ENDX_WITH_PSP":         6,
+		"SRV6_BEHAVIOR_ENDX_WITH_USP":         7,
+		"SRV6_BEHAVIOR_ENDX_WITH_PSP_USP":     8,
+		"SRV6_BEHAVIOR_ENDT":                  9,
+		"SRV6_BEHAVIOR_ENDT_WITH_PSP":         10,
+		"SRV6_BEHAVIOR_ENDT_WITH_USP":         11,
+		"SRV6_BEHAVIOR_ENDT_WITH_PSP_USP":     12,
+		"SRV6_BEHAVIOR_END_B6_ENCAPS":         14,
+		"SRV6_BEHAVIOR_END_BM":                15,
+		"SRV6_BEHAVIOR_END_DX6":               16,
+		"SRV6_BEHAVIOR_END_DX4":               17,
+		"SRV6_BEHAVIOR_END_DT6":               18,
+		"SRV6_BEHAVIOR_END_DT4":               19,
+		"SRV6_BEHAVIOR_END_DT46":              20,
+		"SRV6_BEHAVIOR_END_DX2":               21,
+		"SRV6_BEHAVIOR_END_DX2V":              22,
+		"SRV6_BEHAVIOR_END_DT2U":              23,
+		"SRV6_BEHAVIOR_END_DT2M":              24,
+		"SRV6_BEHAVIOR_END_B6_ENCAPS_RED":     27,
+		"SRV6_BEHAVIOR_END_WITH_USD":          28,
+		"SRV6_BEHAVIOR_END_WITH_PSP_USD":      29,
+		"SRV6_BEHAVIOR_END_WITH_USP_USD":      30,
+		"SRV6_BEHAVIOR_END_WITH_PSP_USP_USD":  31,
+		"SRV6_BEHAVIOR_ENDX_WITH_USD":         32,
+		"SRV6_BEHAVIOR_ENDX_WITH_PSP_USD":     33,
+		"SRV6_BEHAVIOR_ENDX_WITH_USP_USD":     34,
+		"SRV6_BEHAVIOR_ENDX_WITH_PSP_USP_USD": 35,
+		"SRV6_BEHAVIOR_ENDT_WITH_USD":         36,
+		"SRV6_BEHAVIOR_ENDT_WITH_PSP_USD":     37,
+		"SRV6_BEHAVIOR_ENDT_WITH_USP_USD":     38,
+		"SRV6_BEHAVIOR_ENDT_WITH_PSP_USP_USD": 39,
+		"SRV6_BEHAVIOR_ENDM_GTP6D":            69,
+		"SRV6_BEHAVIOR_ENDM_GTP6DI":           70,
+		"SRV6_BEHAVIOR_ENDM_GTP6E":            71,
+		"SRV6_BEHAVIOR_ENDM_GTP4E":            72,
 	}
 )
 
-func (x SRv6Behavior) Enum() *SRv6Behavior {
-	p := new(SRv6Behavior)
+func (x SRV6Behavior) Enum() *SRV6Behavior {
+	p := new(SRV6Behavior)
 	*p = x
 	return p
 }
 
-func (x SRv6Behavior) String() string {
+func (x SRV6Behavior) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (SRv6Behavior) Descriptor() protoreflect.EnumDescriptor {
+func (SRV6Behavior) Descriptor() protoreflect.EnumDescriptor {
 	return file_api_attribute_proto_enumTypes[0].Descriptor()
 }
 
-func (SRv6Behavior) Type() protoreflect.EnumType {
+func (SRV6Behavior) Type() protoreflect.EnumType {
 	return &file_api_attribute_proto_enumTypes[0]
 }
 
-func (x SRv6Behavior) Number() protoreflect.EnumNumber {
+func (x SRV6Behavior) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SRv6Behavior.Descriptor instead.
-func (SRv6Behavior) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use SRV6Behavior.Descriptor instead.
+func (SRV6Behavior) EnumDescriptor() ([]byte, []int) {
 	return file_api_attribute_proto_rawDescGZIP(), []int{0}
 }
 
 type ENLPType int32
 
 const (
-	ENLPType_Reserved ENLPType = 0
-	ENLPType_Type1    ENLPType = 1
-	ENLPType_Type2    ENLPType = 2
-	ENLPType_Type3    ENLPType = 3
-	ENLPType_Type4    ENLPType = 4
+	ENLPType_ENLP_TYPE_UNSPECIFIED ENLPType = 0
+	ENLPType_ENLP_TYPE_TYPE1       ENLPType = 1
+	ENLPType_ENLP_TYPE_TYPE2       ENLPType = 2
+	ENLPType_ENLP_TYPE_TYPE3       ENLPType = 3
+	ENLPType_ENLP_TYPE_TYPE4       ENLPType = 4
 )
 
 // Enum value maps for ENLPType.
 var (
 	ENLPType_name = map[int32]string{
-		0: "Reserved",
-		1: "Type1",
-		2: "Type2",
-		3: "Type3",
-		4: "Type4",
+		0: "ENLP_TYPE_UNSPECIFIED",
+		1: "ENLP_TYPE_TYPE1",
+		2: "ENLP_TYPE_TYPE2",
+		3: "ENLP_TYPE_TYPE3",
+		4: "ENLP_TYPE_TYPE4",
 	}
 	ENLPType_value = map[string]int32{
-		"Reserved": 0,
-		"Type1":    1,
-		"Type2":    2,
-		"Type3":    3,
-		"Type4":    4,
+		"ENLP_TYPE_UNSPECIFIED": 0,
+		"ENLP_TYPE_TYPE1":       1,
+		"ENLP_TYPE_TYPE2":       2,
+		"ENLP_TYPE_TYPE3":       3,
+		"ENLP_TYPE_TYPE4":       4,
 	}
 )
 
@@ -263,28 +263,28 @@ func (ENLPType) EnumDescriptor() ([]byte, []int) {
 type AsSegment_Type int32
 
 const (
-	AsSegment_UNKNOWN            AsSegment_Type = 0
-	AsSegment_AS_SET             AsSegment_Type = 1
-	AsSegment_AS_SEQUENCE        AsSegment_Type = 2
-	AsSegment_AS_CONFED_SEQUENCE AsSegment_Type = 3
-	AsSegment_AS_CONFED_SET      AsSegment_Type = 4
+	AsSegment_TYPE_UNSPECIFIED        AsSegment_Type = 0
+	AsSegment_TYPE_AS_SET             AsSegment_Type = 1
+	AsSegment_TYPE_AS_SEQUENCE        AsSegment_Type = 2
+	AsSegment_TYPE_AS_CONFED_SEQUENCE AsSegment_Type = 3
+	AsSegment_TYPE_AS_CONFED_SET      AsSegment_Type = 4
 )
 
 // Enum value maps for AsSegment_Type.
 var (
 	AsSegment_Type_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "AS_SET",
-		2: "AS_SEQUENCE",
-		3: "AS_CONFED_SEQUENCE",
-		4: "AS_CONFED_SET",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_AS_SET",
+		2: "TYPE_AS_SEQUENCE",
+		3: "TYPE_AS_CONFED_SEQUENCE",
+		4: "TYPE_AS_CONFED_SET",
 	}
 	AsSegment_Type_value = map[string]int32{
-		"UNKNOWN":            0,
-		"AS_SET":             1,
-		"AS_SEQUENCE":        2,
-		"AS_CONFED_SEQUENCE": 3,
-		"AS_CONFED_SET":      4,
+		"TYPE_UNSPECIFIED":        0,
+		"TYPE_AS_SET":             1,
+		"TYPE_AS_SEQUENCE":        2,
+		"TYPE_AS_CONFED_SEQUENCE": 3,
+		"TYPE_AS_CONFED_SET":      4,
 	}
 )
 
@@ -819,7 +819,7 @@ func (x *AsSegment) GetType() AsSegment_Type {
 	if x != nil {
 		return x.Type
 	}
-	return AsSegment_UNKNOWN
+	return AsSegment_TYPE_UNSPECIFIED
 }
 
 func (x *AsSegment) GetNumbers() []uint32 {
@@ -1970,7 +1970,7 @@ func (x *SRBindingSID) GetSid() []byte {
 
 type SRv6EndPointBehavior struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Behavior      SRv6Behavior           `protobuf:"varint,1,opt,name=behavior,proto3,enum=api.SRv6Behavior" json:"behavior,omitempty"`
+	Behavior      SRV6Behavior           `protobuf:"varint,1,opt,name=behavior,proto3,enum=api.SRV6Behavior" json:"behavior,omitempty"`
 	BlockLen      uint32                 `protobuf:"varint,2,opt,name=block_len,json=blockLen,proto3" json:"block_len,omitempty"`
 	NodeLen       uint32                 `protobuf:"varint,3,opt,name=node_len,json=nodeLen,proto3" json:"node_len,omitempty"`
 	FuncLen       uint32                 `protobuf:"varint,4,opt,name=func_len,json=funcLen,proto3" json:"func_len,omitempty"`
@@ -2009,11 +2009,11 @@ func (*SRv6EndPointBehavior) Descriptor() ([]byte, []int) {
 	return file_api_attribute_proto_rawDescGZIP(), []int{26}
 }
 
-func (x *SRv6EndPointBehavior) GetBehavior() SRv6Behavior {
+func (x *SRv6EndPointBehavior) GetBehavior() SRV6Behavior {
 	if x != nil {
 		return x.Behavior
 	}
-	return SRv6Behavior_RESERVED
+	return SRV6Behavior_SRV6_BEHAVIOR_UNSPECIFIED
 }
 
 func (x *SRv6EndPointBehavior) GetBlockLen() uint32 {
@@ -2169,7 +2169,7 @@ func (x *TunnelEncapSubTLVSRENLP) GetEnlp() ENLPType {
 	if x != nil {
 		return x.Enlp
 	}
-	return ENLPType_Reserved
+	return ENLPType_ENLP_TYPE_UNSPECIFIED
 }
 
 type SRWeight struct {
@@ -5207,17 +5207,16 @@ const file_api_attribute_proto_rawDesc = "" +
 	"prefix_sid\x18\x17 \x01(\v2\x0e.api.PrefixSIDH\x00R\tprefixSidB\x06\n" +
 	"\x04attr\")\n" +
 	"\x0fOriginAttribute\x12\x16\n" +
-	"\x06origin\x18\x01 \x01(\rR\x06origin\"\xab\x01\n" +
+	"\x06origin\x18\x01 \x01(\rR\x06origin\"\xc8\x01\n" +
 	"\tAsSegment\x12'\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x13.api.AsSegment.TypeR\x04type\x12\x18\n" +
-	"\anumbers\x18\x02 \x03(\rR\anumbers\"[\n" +
-	"\x04Type\x12\v\n" +
-	"\aUNKNOWN\x10\x00\x12\n" +
-	"\n" +
-	"\x06AS_SET\x10\x01\x12\x0f\n" +
-	"\vAS_SEQUENCE\x10\x02\x12\x16\n" +
-	"\x12AS_CONFED_SEQUENCE\x10\x03\x12\x11\n" +
-	"\rAS_CONFED_SET\x10\x04\"=\n" +
+	"\anumbers\x18\x02 \x03(\rR\anumbers\"x\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vTYPE_AS_SET\x10\x01\x12\x14\n" +
+	"\x10TYPE_AS_SEQUENCE\x10\x02\x12\x1b\n" +
+	"\x17TYPE_AS_CONFED_SEQUENCE\x10\x03\x12\x16\n" +
+	"\x12TYPE_AS_CONFED_SET\x10\x04\"=\n" +
 	"\x0fAsPathAttribute\x12*\n" +
 	"\bsegments\x18\x01 \x03(\v2\x0e.api.AsSegmentR\bsegments\"-\n" +
 	"\x10NextHopAttribute\x12\x19\n" +
@@ -5281,7 +5280,7 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x06i_flag\x18\x02 \x01(\bR\x05iFlag\x12\x10\n" +
 	"\x03sid\x18\x03 \x01(\fR\x03sid\"\xb1\x01\n" +
 	"\x14SRv6EndPointBehavior\x12-\n" +
-	"\bbehavior\x18\x01 \x01(\x0e2\x11.api.SRv6BehaviorR\bbehavior\x12\x1b\n" +
+	"\bbehavior\x18\x01 \x01(\x0e2\x11.api.SRV6BehaviorR\bbehavior\x12\x1b\n" +
 	"\tblock_len\x18\x02 \x01(\rR\bblockLen\x12\x19\n" +
 	"\bnode_len\x18\x03 \x01(\rR\anodeLen\x12\x19\n" +
 	"\bfunc_len\x18\x04 \x01(\rR\afuncLen\x12\x17\n" +
@@ -5506,60 +5505,57 @@ const file_api_attribute_proto_rawDesc = "" +
 	"l3_service\x18\x03 \x01(\v2\x15.api.SRv6L3ServiceTLVH\x00R\tl3Service\x126\n" +
 	"\n" +
 	"l2_service\x18\x04 \x01(\v2\x15.api.SRv6L2ServiceTLVH\x00R\tl2ServiceB\x05\n" +
-	"\x03tlv*\xed\x05\n" +
-	"\fSRv6Behavior\x12\f\n" +
-	"\bRESERVED\x10\x00\x12\a\n" +
-	"\x03END\x10\x01\x12\x10\n" +
-	"\fEND_WITH_PSP\x10\x02\x12\x10\n" +
-	"\fEND_WITH_USP\x10\x03\x12\x14\n" +
-	"\x10END_WITH_PSP_USP\x10\x04\x12\b\n" +
-	"\x04ENDX\x10\x05\x12\x11\n" +
-	"\rENDX_WITH_PSP\x10\x06\x12\x11\n" +
-	"\rENDX_WITH_USP\x10\a\x12\x15\n" +
-	"\x11ENDX_WITH_PSP_USP\x10\b\x12\b\n" +
-	"\x04ENDT\x10\t\x12\x11\n" +
-	"\rENDT_WITH_PSP\x10\n" +
-	"\x12\x11\n" +
-	"\rENDT_WITH_USP\x10\v\x12\x15\n" +
-	"\x11ENDT_WITH_PSP_USP\x10\f\x12\x11\n" +
-	"\rEND_B6_ENCAPS\x10\x0e\x12\n" +
+	"\x03tlv*\xae\n" +
 	"\n" +
-	"\x06END_BM\x10\x0f\x12\v\n" +
-	"\aEND_DX6\x10\x10\x12\v\n" +
-	"\aEND_DX4\x10\x11\x12\v\n" +
-	"\aEND_DT6\x10\x12\x12\v\n" +
-	"\aEND_DT4\x10\x13\x12\f\n" +
-	"\bEND_DT46\x10\x14\x12\v\n" +
-	"\aEND_DX2\x10\x15\x12\f\n" +
-	"\bEND_DX2V\x10\x16\x12\f\n" +
-	"\bEND_DT2U\x10\x17\x12\f\n" +
-	"\bEND_DT2M\x10\x18\x12\x15\n" +
-	"\x11END_B6_ENCAPS_Red\x10\x1b\x12\x10\n" +
-	"\fEND_WITH_USD\x10\x1c\x12\x14\n" +
-	"\x10END_WITH_PSP_USD\x10\x1d\x12\x14\n" +
-	"\x10END_WITH_USP_USD\x10\x1e\x12\x18\n" +
-	"\x14END_WITH_PSP_USP_USD\x10\x1f\x12\x11\n" +
-	"\rENDX_WITH_USD\x10 \x12\x15\n" +
-	"\x11ENDX_WITH_PSP_USD\x10!\x12\x15\n" +
-	"\x11ENDX_WITH_USP_USD\x10\"\x12\x19\n" +
-	"\x15ENDX_WITH_PSP_USP_USD\x10#\x12\x11\n" +
-	"\rENDT_WITH_USD\x10$\x12\x15\n" +
-	"\x11ENDT_WITH_PSP_USD\x10%\x12\x15\n" +
-	"\x11ENDT_WITH_USP_USD\x10&\x12\x19\n" +
-	"\x15ENDT_WITH_PSP_USP_USD\x10'\x12\x0e\n" +
-	"\n" +
-	"ENDM_GTP6D\x10E\x12\x0f\n" +
-	"\vENDM_GTP6DI\x10F\x12\x0e\n" +
-	"\n" +
-	"ENDM_GTP6E\x10G\x12\x0e\n" +
-	"\n" +
-	"ENDM_GTP4E\x10H*D\n" +
-	"\bENLPType\x12\f\n" +
-	"\bReserved\x10\x00\x12\t\n" +
-	"\x05Type1\x10\x01\x12\t\n" +
-	"\x05Type2\x10\x02\x12\t\n" +
-	"\x05Type3\x10\x03\x12\t\n" +
-	"\x05Type4\x10\x04B\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
+	"\fSRV6Behavior\x12\x1d\n" +
+	"\x19SRV6_BEHAVIOR_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11SRV6_BEHAVIOR_END\x10\x01\x12\x1e\n" +
+	"\x1aSRV6_BEHAVIOR_END_WITH_PSP\x10\x02\x12\x1e\n" +
+	"\x1aSRV6_BEHAVIOR_END_WITH_USP\x10\x03\x12\"\n" +
+	"\x1eSRV6_BEHAVIOR_END_WITH_PSP_USP\x10\x04\x12\x16\n" +
+	"\x12SRV6_BEHAVIOR_ENDX\x10\x05\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_ENDX_WITH_PSP\x10\x06\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_ENDX_WITH_USP\x10\a\x12#\n" +
+	"\x1fSRV6_BEHAVIOR_ENDX_WITH_PSP_USP\x10\b\x12\x16\n" +
+	"\x12SRV6_BEHAVIOR_ENDT\x10\t\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_ENDT_WITH_PSP\x10\n" +
+	"\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_ENDT_WITH_USP\x10\v\x12#\n" +
+	"\x1fSRV6_BEHAVIOR_ENDT_WITH_PSP_USP\x10\f\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_END_B6_ENCAPS\x10\x0e\x12\x18\n" +
+	"\x14SRV6_BEHAVIOR_END_BM\x10\x0f\x12\x19\n" +
+	"\x15SRV6_BEHAVIOR_END_DX6\x10\x10\x12\x19\n" +
+	"\x15SRV6_BEHAVIOR_END_DX4\x10\x11\x12\x19\n" +
+	"\x15SRV6_BEHAVIOR_END_DT6\x10\x12\x12\x19\n" +
+	"\x15SRV6_BEHAVIOR_END_DT4\x10\x13\x12\x1a\n" +
+	"\x16SRV6_BEHAVIOR_END_DT46\x10\x14\x12\x19\n" +
+	"\x15SRV6_BEHAVIOR_END_DX2\x10\x15\x12\x1a\n" +
+	"\x16SRV6_BEHAVIOR_END_DX2V\x10\x16\x12\x1a\n" +
+	"\x16SRV6_BEHAVIOR_END_DT2U\x10\x17\x12\x1a\n" +
+	"\x16SRV6_BEHAVIOR_END_DT2M\x10\x18\x12#\n" +
+	"\x1fSRV6_BEHAVIOR_END_B6_ENCAPS_RED\x10\x1b\x12\x1e\n" +
+	"\x1aSRV6_BEHAVIOR_END_WITH_USD\x10\x1c\x12\"\n" +
+	"\x1eSRV6_BEHAVIOR_END_WITH_PSP_USD\x10\x1d\x12\"\n" +
+	"\x1eSRV6_BEHAVIOR_END_WITH_USP_USD\x10\x1e\x12&\n" +
+	"\"SRV6_BEHAVIOR_END_WITH_PSP_USP_USD\x10\x1f\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_ENDX_WITH_USD\x10 \x12#\n" +
+	"\x1fSRV6_BEHAVIOR_ENDX_WITH_PSP_USD\x10!\x12#\n" +
+	"\x1fSRV6_BEHAVIOR_ENDX_WITH_USP_USD\x10\"\x12'\n" +
+	"#SRV6_BEHAVIOR_ENDX_WITH_PSP_USP_USD\x10#\x12\x1f\n" +
+	"\x1bSRV6_BEHAVIOR_ENDT_WITH_USD\x10$\x12#\n" +
+	"\x1fSRV6_BEHAVIOR_ENDT_WITH_PSP_USD\x10%\x12#\n" +
+	"\x1fSRV6_BEHAVIOR_ENDT_WITH_USP_USD\x10&\x12'\n" +
+	"#SRV6_BEHAVIOR_ENDT_WITH_PSP_USP_USD\x10'\x12\x1c\n" +
+	"\x18SRV6_BEHAVIOR_ENDM_GTP6D\x10E\x12\x1d\n" +
+	"\x19SRV6_BEHAVIOR_ENDM_GTP6DI\x10F\x12\x1c\n" +
+	"\x18SRV6_BEHAVIOR_ENDM_GTP6E\x10G\x12\x1c\n" +
+	"\x18SRV6_BEHAVIOR_ENDM_GTP4E\x10H*y\n" +
+	"\bENLPType\x12\x19\n" +
+	"\x15ENLP_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
+	"\x0fENLP_TYPE_TYPE1\x10\x01\x12\x13\n" +
+	"\x0fENLP_TYPE_TYPE2\x10\x02\x12\x13\n" +
+	"\x0fENLP_TYPE_TYPE3\x10\x03\x12\x13\n" +
+	"\x0fENLP_TYPE_TYPE4\x10\x04B\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
 
 var (
 	file_api_attribute_proto_rawDescOnce sync.Once
@@ -5576,7 +5572,7 @@ func file_api_attribute_proto_rawDescGZIP() []byte {
 var file_api_attribute_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_api_attribute_proto_msgTypes = make([]protoimpl.MessageInfo, 78)
 var file_api_attribute_proto_goTypes = []any{
-	(SRv6Behavior)(0),                                 // 0: api.SRv6Behavior
+	(SRV6Behavior)(0),                                 // 0: api.SRV6Behavior
 	(ENLPType)(0),                                     // 1: api.ENLPType
 	(AsSegment_Type)(0),                               // 2: api.AsSegment.Type
 	(*Attribute)(nil),                                 // 3: api.Attribute
@@ -5695,7 +5691,7 @@ var file_api_attribute_proto_depIdxs = []int32{
 	5,  // 30: api.As4PathAttribute.segments:type_name -> api.AsSegment
 	28, // 31: api.TunnelEncapSubTLVSRBindingSID.sr_binding_sid:type_name -> api.SRBindingSID
 	30, // 32: api.TunnelEncapSubTLVSRBindingSID.srv6_binding_sid:type_name -> api.SRv6BindingSID
-	0,  // 33: api.SRv6EndPointBehavior.behavior:type_name -> api.SRv6Behavior
+	0,  // 33: api.SRv6EndPointBehavior.behavior:type_name -> api.SRV6Behavior
 	29, // 34: api.SRv6BindingSID.endpoint_behavior_structure:type_name -> api.SRv6EndPointBehavior
 	1,  // 35: api.TunnelEncapSubTLVSRENLP.enlp:type_name -> api.ENLPType
 	33, // 36: api.SegmentTypeA.flags:type_name -> api.SegmentFlags

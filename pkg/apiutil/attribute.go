@@ -1347,7 +1347,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 				return nil, err
 			}
 			nlri.Nlri = &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
-				Type:       api.LsNLRIType_LS_NLRI_NODE,
+				Type:       api.LsNLRIType_LS_NLRI_TYPE_NODE,
 				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
@@ -1359,7 +1359,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 				return nil, err
 			}
 			nlri.Nlri = &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
-				Type:       api.LsNLRIType_LS_NLRI_LINK,
+				Type:       api.LsNLRIType_LS_NLRI_TYPE_LINK,
 				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
@@ -1371,7 +1371,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 				return nil, err
 			}
 			nlri.Nlri = &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
-				Type:       api.LsNLRIType_LS_NLRI_PREFIX_V4,
+				Type:       api.LsNLRIType_LS_NLRI_TYPE_PREFIX_V4,
 				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
@@ -1383,7 +1383,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 				return nil, err
 			}
 			nlri.Nlri = &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
-				Type:       api.LsNLRIType_LS_NLRI_PREFIX_V6,
+				Type:       api.LsNLRIType_LS_NLRI_TYPE_PREFIX_V6,
 				Nlri:       node,
 				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
@@ -1395,7 +1395,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 				return nil, err
 			}
 			nlri.Nlri = &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
-				Type:       api.LsNLRIType_LS_NLRI_SRV6_SID,
+				Type:       api.LsNLRIType_LS_NLRI_TYPE_SRV6_SID,
 				Nlri:       srv6,
 				Length:     uint32(v.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
@@ -2877,7 +2877,7 @@ func MarshalSRSegments(segs []bgp.TunnelEncapSubTLVInterface) ([]*api.TunnelEnca
 			}
 			if s.SRv6EBS != nil {
 				segment.EndpointBehaviorStructure = &api.SRv6EndPointBehavior{
-					Behavior: api.SRv6Behavior(s.SRv6EBS.Behavior),
+					Behavior: api.SRV6Behavior(s.SRv6EBS.Behavior),
 					BlockLen: uint32(s.SRv6EBS.BlockLen),
 					NodeLen:  uint32(s.SRv6EBS.NodeLen),
 					FuncLen:  uint32(s.SRv6EBS.FuncLen),

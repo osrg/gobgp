@@ -24,18 +24,18 @@ const (
 type Family_Afi int32
 
 const (
-	Family_AFI_UNKNOWN Family_Afi = 0
-	Family_AFI_IP      Family_Afi = 1
-	Family_AFI_IP6     Family_Afi = 2
-	Family_AFI_L2VPN   Family_Afi = 25
-	Family_AFI_LS      Family_Afi = 16388
-	Family_AFI_OPAQUE  Family_Afi = 16397
+	Family_AFI_UNSPECIFIED Family_Afi = 0
+	Family_AFI_IP          Family_Afi = 1
+	Family_AFI_IP6         Family_Afi = 2
+	Family_AFI_L2VPN       Family_Afi = 25
+	Family_AFI_LS          Family_Afi = 16388
+	Family_AFI_OPAQUE      Family_Afi = 16397
 )
 
 // Enum value maps for Family_Afi.
 var (
 	Family_Afi_name = map[int32]string{
-		0:     "AFI_UNKNOWN",
+		0:     "AFI_UNSPECIFIED",
 		1:     "AFI_IP",
 		2:     "AFI_IP6",
 		25:    "AFI_L2VPN",
@@ -43,12 +43,12 @@ var (
 		16397: "AFI_OPAQUE",
 	}
 	Family_Afi_value = map[string]int32{
-		"AFI_UNKNOWN": 0,
-		"AFI_IP":      1,
-		"AFI_IP6":     2,
-		"AFI_L2VPN":   25,
-		"AFI_LS":      16388,
-		"AFI_OPAQUE":  16397,
+		"AFI_UNSPECIFIED": 0,
+		"AFI_IP":          1,
+		"AFI_IP6":         2,
+		"AFI_L2VPN":       25,
+		"AFI_LS":          16388,
+		"AFI_OPAQUE":      16397,
 	}
 )
 
@@ -82,7 +82,7 @@ func (Family_Afi) EnumDescriptor() ([]byte, []int) {
 type Family_Safi int32
 
 const (
-	Family_SAFI_UNKNOWN                  Family_Safi = 0
+	Family_SAFI_UNSPECIFIED              Family_Safi = 0
 	Family_SAFI_UNICAST                  Family_Safi = 1
 	Family_SAFI_MULTICAST                Family_Safi = 2
 	Family_SAFI_MPLS_LABEL               Family_Safi = 4
@@ -103,7 +103,7 @@ const (
 // Enum value maps for Family_Safi.
 var (
 	Family_Safi_name = map[int32]string{
-		0:   "SAFI_UNKNOWN",
+		0:   "SAFI_UNSPECIFIED",
 		1:   "SAFI_UNICAST",
 		2:   "SAFI_MULTICAST",
 		4:   "SAFI_MPLS_LABEL",
@@ -121,7 +121,7 @@ var (
 		241: "SAFI_KEY_VALUE",
 	}
 	Family_Safi_value = map[string]int32{
-		"SAFI_UNKNOWN":                  0,
+		"SAFI_UNSPECIFIED":              0,
 		"SAFI_UNICAST":                  1,
 		"SAFI_MULTICAST":                2,
 		"SAFI_MPLS_LABEL":               4,
@@ -209,14 +209,14 @@ func (x *Family) GetAfi() Family_Afi {
 	if x != nil {
 		return x.Afi
 	}
-	return Family_AFI_UNKNOWN
+	return Family_AFI_UNSPECIFIED
 }
 
 func (x *Family) GetSafi() Family_Safi {
 	if x != nil {
 		return x.Safi
 	}
-	return Family_SAFI_UNKNOWN
+	return Family_SAFI_UNSPECIFIED
 }
 
 type RouteDistinguisherTwoOctetASN struct {
@@ -477,21 +477,21 @@ var File_api_common_proto protoreflect.FileDescriptor
 
 const file_api_common_proto_rawDesc = "" +
 	"\n" +
-	"\x10api/common.proto\x12\x03api\"\x8d\x04\n" +
+	"\x10api/common.proto\x12\x03api\"\x95\x04\n" +
 	"\x06Family\x12!\n" +
 	"\x03afi\x18\x01 \x01(\x0e2\x0f.api.Family.AfiR\x03afi\x12$\n" +
-	"\x04safi\x18\x02 \x01(\x0e2\x10.api.Family.SafiR\x04safi\"^\n" +
-	"\x03Afi\x12\x0f\n" +
-	"\vAFI_UNKNOWN\x10\x00\x12\n" +
+	"\x04safi\x18\x02 \x01(\x0e2\x10.api.Family.SafiR\x04safi\"b\n" +
+	"\x03Afi\x12\x13\n" +
+	"\x0fAFI_UNSPECIFIED\x10\x00\x12\n" +
 	"\n" +
 	"\x06AFI_IP\x10\x01\x12\v\n" +
 	"\aAFI_IP6\x10\x02\x12\r\n" +
 	"\tAFI_L2VPN\x10\x19\x12\f\n" +
 	"\x06AFI_LS\x10\x84\x80\x01\x12\x10\n" +
 	"\n" +
-	"AFI_OPAQUE\x10\x8d\x80\x01\"\xd9\x02\n" +
-	"\x04Safi\x12\x10\n" +
-	"\fSAFI_UNKNOWN\x10\x00\x12\x10\n" +
+	"AFI_OPAQUE\x10\x8d\x80\x01\"\xdd\x02\n" +
+	"\x04Safi\x12\x14\n" +
+	"\x10SAFI_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fSAFI_UNICAST\x10\x01\x12\x12\n" +
 	"\x0eSAFI_MULTICAST\x10\x02\x12\x13\n" +
 	"\x0fSAFI_MPLS_LABEL\x10\x04\x12\x16\n" +
