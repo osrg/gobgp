@@ -185,7 +185,7 @@ message DeletePeerResponse {}
 
 message ListPeerRequest {
   string address = 1;
-  bool enableAdvertised = 2;
+  bool enable_advertised = 2;
 }
 
 message ListPeerResponse {
@@ -589,9 +589,9 @@ message AddBmpRequest {
     ALL = 4;
   }
   MonitoringPolicy policy = 3;
-  int32 StatisticsTimeout = 4;
-  string SysName = 5;
-  string SysDescr = 6;
+  int32 statistics_timeout = 4;
+  string sys_name = 5;
+  string sys_descr = 6;
 }
 
 message AddBmpResponse {}

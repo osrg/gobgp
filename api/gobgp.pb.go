@@ -1869,7 +1869,7 @@ func (*DeletePeerResponse) Descriptor() ([]byte, []int) {
 type ListPeerRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Address          string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	EnableAdvertised bool                   `protobuf:"varint,2,opt,name=enableAdvertised,proto3" json:"enableAdvertised,omitempty"`
+	EnableAdvertised bool                   `protobuf:"varint,2,opt,name=enable_advertised,json=enableAdvertised,proto3" json:"enable_advertised,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -6120,9 +6120,9 @@ type AddBmpRequest struct {
 	Address           string                         `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
 	Port              uint32                         `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
 	Policy            AddBmpRequest_MonitoringPolicy `protobuf:"varint,3,opt,name=policy,proto3,enum=api.AddBmpRequest_MonitoringPolicy" json:"policy,omitempty"`
-	StatisticsTimeout int32                          `protobuf:"varint,4,opt,name=StatisticsTimeout,proto3" json:"StatisticsTimeout,omitempty"`
-	SysName           string                         `protobuf:"bytes,5,opt,name=SysName,proto3" json:"SysName,omitempty"`
-	SysDescr          string                         `protobuf:"bytes,6,opt,name=SysDescr,proto3" json:"SysDescr,omitempty"`
+	StatisticsTimeout int32                          `protobuf:"varint,4,opt,name=statistics_timeout,json=statisticsTimeout,proto3" json:"statistics_timeout,omitempty"`
+	SysName           string                         `protobuf:"bytes,5,opt,name=sys_name,json=sysName,proto3" json:"sys_name,omitempty"`
+	SysDescr          string                         `protobuf:"bytes,6,opt,name=sys_descr,json=sysDescr,proto3" json:"sys_descr,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -12500,10 +12500,10 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x11DeletePeerRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1c\n" +
 	"\tinterface\x18\x02 \x01(\tR\tinterface\"\x14\n" +
-	"\x12DeletePeerResponse\"W\n" +
+	"\x12DeletePeerResponse\"X\n" +
 	"\x0fListPeerRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12*\n" +
-	"\x10enableAdvertised\x18\x02 \x01(\bR\x10enableAdvertised\"1\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12+\n" +
+	"\x11enable_advertised\x18\x02 \x01(\bR\x10enableAdvertised\"1\n" +
 	"\x10ListPeerResponse\x12\x1d\n" +
 	"\x04peer\x18\x01 \x01(\v2\t.api.PeerR\x04peer\"[\n" +
 	"\x11UpdatePeerRequest\x12\x1d\n" +
@@ -12751,14 +12751,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x11EnableMrtResponse\"/\n" +
 	"\x11DisableMrtRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\"\x14\n" +
-	"\x12DisableMrtResponse\"\xa3\x02\n" +
+	"\x12DisableMrtResponse\"\xa6\x02\n" +
 	"\rAddBmpRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12;\n" +
-	"\x06policy\x18\x03 \x01(\x0e2#.api.AddBmpRequest.MonitoringPolicyR\x06policy\x12,\n" +
-	"\x11StatisticsTimeout\x18\x04 \x01(\x05R\x11StatisticsTimeout\x12\x18\n" +
-	"\aSysName\x18\x05 \x01(\tR\aSysName\x12\x1a\n" +
-	"\bSysDescr\x18\x06 \x01(\tR\bSysDescr\"C\n" +
+	"\x06policy\x18\x03 \x01(\x0e2#.api.AddBmpRequest.MonitoringPolicyR\x06policy\x12-\n" +
+	"\x12statistics_timeout\x18\x04 \x01(\x05R\x11statisticsTimeout\x12\x19\n" +
+	"\bsys_name\x18\x05 \x01(\tR\asysName\x12\x1b\n" +
+	"\tsys_descr\x18\x06 \x01(\tR\bsysDescr\"C\n" +
 	"\x10MonitoringPolicy\x12\a\n" +
 	"\x03PRE\x10\x00\x12\b\n" +
 	"\x04POST\x10\x01\x12\b\n" +
