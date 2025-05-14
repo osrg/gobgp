@@ -32,7 +32,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -41,165 +40,167 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GobgpApi_StartBgp_FullMethodName               = "/api.GobgpApi/StartBgp"
-	GobgpApi_StopBgp_FullMethodName                = "/api.GobgpApi/StopBgp"
-	GobgpApi_GetBgp_FullMethodName                 = "/api.GobgpApi/GetBgp"
-	GobgpApi_WatchEvent_FullMethodName             = "/api.GobgpApi/WatchEvent"
-	GobgpApi_AddPeer_FullMethodName                = "/api.GobgpApi/AddPeer"
-	GobgpApi_DeletePeer_FullMethodName             = "/api.GobgpApi/DeletePeer"
-	GobgpApi_ListPeer_FullMethodName               = "/api.GobgpApi/ListPeer"
-	GobgpApi_UpdatePeer_FullMethodName             = "/api.GobgpApi/UpdatePeer"
-	GobgpApi_ResetPeer_FullMethodName              = "/api.GobgpApi/ResetPeer"
-	GobgpApi_ShutdownPeer_FullMethodName           = "/api.GobgpApi/ShutdownPeer"
-	GobgpApi_EnablePeer_FullMethodName             = "/api.GobgpApi/EnablePeer"
-	GobgpApi_DisablePeer_FullMethodName            = "/api.GobgpApi/DisablePeer"
-	GobgpApi_AddPeerGroup_FullMethodName           = "/api.GobgpApi/AddPeerGroup"
-	GobgpApi_DeletePeerGroup_FullMethodName        = "/api.GobgpApi/DeletePeerGroup"
-	GobgpApi_ListPeerGroup_FullMethodName          = "/api.GobgpApi/ListPeerGroup"
-	GobgpApi_UpdatePeerGroup_FullMethodName        = "/api.GobgpApi/UpdatePeerGroup"
-	GobgpApi_AddDynamicNeighbor_FullMethodName     = "/api.GobgpApi/AddDynamicNeighbor"
-	GobgpApi_ListDynamicNeighbor_FullMethodName    = "/api.GobgpApi/ListDynamicNeighbor"
-	GobgpApi_DeleteDynamicNeighbor_FullMethodName  = "/api.GobgpApi/DeleteDynamicNeighbor"
-	GobgpApi_AddPath_FullMethodName                = "/api.GobgpApi/AddPath"
-	GobgpApi_DeletePath_FullMethodName             = "/api.GobgpApi/DeletePath"
-	GobgpApi_ListPath_FullMethodName               = "/api.GobgpApi/ListPath"
-	GobgpApi_AddPathStream_FullMethodName          = "/api.GobgpApi/AddPathStream"
-	GobgpApi_GetTable_FullMethodName               = "/api.GobgpApi/GetTable"
-	GobgpApi_AddVrf_FullMethodName                 = "/api.GobgpApi/AddVrf"
-	GobgpApi_DeleteVrf_FullMethodName              = "/api.GobgpApi/DeleteVrf"
-	GobgpApi_ListVrf_FullMethodName                = "/api.GobgpApi/ListVrf"
-	GobgpApi_AddPolicy_FullMethodName              = "/api.GobgpApi/AddPolicy"
-	GobgpApi_DeletePolicy_FullMethodName           = "/api.GobgpApi/DeletePolicy"
-	GobgpApi_ListPolicy_FullMethodName             = "/api.GobgpApi/ListPolicy"
-	GobgpApi_SetPolicies_FullMethodName            = "/api.GobgpApi/SetPolicies"
-	GobgpApi_AddDefinedSet_FullMethodName          = "/api.GobgpApi/AddDefinedSet"
-	GobgpApi_DeleteDefinedSet_FullMethodName       = "/api.GobgpApi/DeleteDefinedSet"
-	GobgpApi_ListDefinedSet_FullMethodName         = "/api.GobgpApi/ListDefinedSet"
-	GobgpApi_AddStatement_FullMethodName           = "/api.GobgpApi/AddStatement"
-	GobgpApi_DeleteStatement_FullMethodName        = "/api.GobgpApi/DeleteStatement"
-	GobgpApi_ListStatement_FullMethodName          = "/api.GobgpApi/ListStatement"
-	GobgpApi_AddPolicyAssignment_FullMethodName    = "/api.GobgpApi/AddPolicyAssignment"
-	GobgpApi_DeletePolicyAssignment_FullMethodName = "/api.GobgpApi/DeletePolicyAssignment"
-	GobgpApi_ListPolicyAssignment_FullMethodName   = "/api.GobgpApi/ListPolicyAssignment"
-	GobgpApi_SetPolicyAssignment_FullMethodName    = "/api.GobgpApi/SetPolicyAssignment"
-	GobgpApi_AddRpki_FullMethodName                = "/api.GobgpApi/AddRpki"
-	GobgpApi_DeleteRpki_FullMethodName             = "/api.GobgpApi/DeleteRpki"
-	GobgpApi_ListRpki_FullMethodName               = "/api.GobgpApi/ListRpki"
-	GobgpApi_EnableRpki_FullMethodName             = "/api.GobgpApi/EnableRpki"
-	GobgpApi_DisableRpki_FullMethodName            = "/api.GobgpApi/DisableRpki"
-	GobgpApi_ResetRpki_FullMethodName              = "/api.GobgpApi/ResetRpki"
-	GobgpApi_ListRpkiTable_FullMethodName          = "/api.GobgpApi/ListRpkiTable"
-	GobgpApi_EnableZebra_FullMethodName            = "/api.GobgpApi/EnableZebra"
-	GobgpApi_EnableMrt_FullMethodName              = "/api.GobgpApi/EnableMrt"
-	GobgpApi_DisableMrt_FullMethodName             = "/api.GobgpApi/DisableMrt"
-	GobgpApi_AddBmp_FullMethodName                 = "/api.GobgpApi/AddBmp"
-	GobgpApi_DeleteBmp_FullMethodName              = "/api.GobgpApi/DeleteBmp"
-	GobgpApi_ListBmp_FullMethodName                = "/api.GobgpApi/ListBmp"
-	GobgpApi_SetLogLevel_FullMethodName            = "/api.GobgpApi/SetLogLevel"
+	GoBgpService_StartBgp_FullMethodName               = "/api.GoBgpService/StartBgp"
+	GoBgpService_StopBgp_FullMethodName                = "/api.GoBgpService/StopBgp"
+	GoBgpService_GetBgp_FullMethodName                 = "/api.GoBgpService/GetBgp"
+	GoBgpService_WatchEvent_FullMethodName             = "/api.GoBgpService/WatchEvent"
+	GoBgpService_AddPeer_FullMethodName                = "/api.GoBgpService/AddPeer"
+	GoBgpService_DeletePeer_FullMethodName             = "/api.GoBgpService/DeletePeer"
+	GoBgpService_ListPeer_FullMethodName               = "/api.GoBgpService/ListPeer"
+	GoBgpService_UpdatePeer_FullMethodName             = "/api.GoBgpService/UpdatePeer"
+	GoBgpService_ResetPeer_FullMethodName              = "/api.GoBgpService/ResetPeer"
+	GoBgpService_ShutdownPeer_FullMethodName           = "/api.GoBgpService/ShutdownPeer"
+	GoBgpService_EnablePeer_FullMethodName             = "/api.GoBgpService/EnablePeer"
+	GoBgpService_DisablePeer_FullMethodName            = "/api.GoBgpService/DisablePeer"
+	GoBgpService_AddPeerGroup_FullMethodName           = "/api.GoBgpService/AddPeerGroup"
+	GoBgpService_DeletePeerGroup_FullMethodName        = "/api.GoBgpService/DeletePeerGroup"
+	GoBgpService_ListPeerGroup_FullMethodName          = "/api.GoBgpService/ListPeerGroup"
+	GoBgpService_UpdatePeerGroup_FullMethodName        = "/api.GoBgpService/UpdatePeerGroup"
+	GoBgpService_AddDynamicNeighbor_FullMethodName     = "/api.GoBgpService/AddDynamicNeighbor"
+	GoBgpService_ListDynamicNeighbor_FullMethodName    = "/api.GoBgpService/ListDynamicNeighbor"
+	GoBgpService_DeleteDynamicNeighbor_FullMethodName  = "/api.GoBgpService/DeleteDynamicNeighbor"
+	GoBgpService_AddPath_FullMethodName                = "/api.GoBgpService/AddPath"
+	GoBgpService_DeletePath_FullMethodName             = "/api.GoBgpService/DeletePath"
+	GoBgpService_ListPath_FullMethodName               = "/api.GoBgpService/ListPath"
+	GoBgpService_AddPathStream_FullMethodName          = "/api.GoBgpService/AddPathStream"
+	GoBgpService_GetTable_FullMethodName               = "/api.GoBgpService/GetTable"
+	GoBgpService_AddVrf_FullMethodName                 = "/api.GoBgpService/AddVrf"
+	GoBgpService_DeleteVrf_FullMethodName              = "/api.GoBgpService/DeleteVrf"
+	GoBgpService_ListVrf_FullMethodName                = "/api.GoBgpService/ListVrf"
+	GoBgpService_AddPolicy_FullMethodName              = "/api.GoBgpService/AddPolicy"
+	GoBgpService_DeletePolicy_FullMethodName           = "/api.GoBgpService/DeletePolicy"
+	GoBgpService_ListPolicy_FullMethodName             = "/api.GoBgpService/ListPolicy"
+	GoBgpService_SetPolicies_FullMethodName            = "/api.GoBgpService/SetPolicies"
+	GoBgpService_AddDefinedSet_FullMethodName          = "/api.GoBgpService/AddDefinedSet"
+	GoBgpService_DeleteDefinedSet_FullMethodName       = "/api.GoBgpService/DeleteDefinedSet"
+	GoBgpService_ListDefinedSet_FullMethodName         = "/api.GoBgpService/ListDefinedSet"
+	GoBgpService_AddStatement_FullMethodName           = "/api.GoBgpService/AddStatement"
+	GoBgpService_DeleteStatement_FullMethodName        = "/api.GoBgpService/DeleteStatement"
+	GoBgpService_ListStatement_FullMethodName          = "/api.GoBgpService/ListStatement"
+	GoBgpService_AddPolicyAssignment_FullMethodName    = "/api.GoBgpService/AddPolicyAssignment"
+	GoBgpService_DeletePolicyAssignment_FullMethodName = "/api.GoBgpService/DeletePolicyAssignment"
+	GoBgpService_ListPolicyAssignment_FullMethodName   = "/api.GoBgpService/ListPolicyAssignment"
+	GoBgpService_SetPolicyAssignment_FullMethodName    = "/api.GoBgpService/SetPolicyAssignment"
+	GoBgpService_AddRpki_FullMethodName                = "/api.GoBgpService/AddRpki"
+	GoBgpService_DeleteRpki_FullMethodName             = "/api.GoBgpService/DeleteRpki"
+	GoBgpService_ListRpki_FullMethodName               = "/api.GoBgpService/ListRpki"
+	GoBgpService_EnableRpki_FullMethodName             = "/api.GoBgpService/EnableRpki"
+	GoBgpService_DisableRpki_FullMethodName            = "/api.GoBgpService/DisableRpki"
+	GoBgpService_ResetRpki_FullMethodName              = "/api.GoBgpService/ResetRpki"
+	GoBgpService_ListRpkiTable_FullMethodName          = "/api.GoBgpService/ListRpkiTable"
+	GoBgpService_EnableZebra_FullMethodName            = "/api.GoBgpService/EnableZebra"
+	GoBgpService_EnableMrt_FullMethodName              = "/api.GoBgpService/EnableMrt"
+	GoBgpService_DisableMrt_FullMethodName             = "/api.GoBgpService/DisableMrt"
+	GoBgpService_AddBmp_FullMethodName                 = "/api.GoBgpService/AddBmp"
+	GoBgpService_DeleteBmp_FullMethodName              = "/api.GoBgpService/DeleteBmp"
+	GoBgpService_ListBmp_FullMethodName                = "/api.GoBgpService/ListBmp"
+	GoBgpService_SetLogLevel_FullMethodName            = "/api.GoBgpService/SetLogLevel"
 )
 
-// GobgpApiClient is the client API for GobgpApi service.
+// GoBgpServiceClient is the client API for GoBgpService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type GobgpApiClient interface {
-	StartBgp(ctx context.Context, in *StartBgpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	StopBgp(ctx context.Context, in *StopBgpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+//
+// Interface exported by the server.
+type GoBgpServiceClient interface {
+	StartBgp(ctx context.Context, in *StartBgpRequest, opts ...grpc.CallOption) (*StartBgpResponse, error)
+	StopBgp(ctx context.Context, in *StopBgpRequest, opts ...grpc.CallOption) (*StopBgpResponse, error)
 	GetBgp(ctx context.Context, in *GetBgpRequest, opts ...grpc.CallOption) (*GetBgpResponse, error)
 	WatchEvent(ctx context.Context, in *WatchEventRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchEventResponse], error)
-	AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeletePeer(ctx context.Context, in *DeletePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*AddPeerResponse, error)
+	DeletePeer(ctx context.Context, in *DeletePeerRequest, opts ...grpc.CallOption) (*DeletePeerResponse, error)
 	ListPeer(ctx context.Context, in *ListPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPeerResponse], error)
 	UpdatePeer(ctx context.Context, in *UpdatePeerRequest, opts ...grpc.CallOption) (*UpdatePeerResponse, error)
-	ResetPeer(ctx context.Context, in *ResetPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ShutdownPeer(ctx context.Context, in *ShutdownPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	EnablePeer(ctx context.Context, in *EnablePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DisablePeer(ctx context.Context, in *DisablePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	AddPeerGroup(ctx context.Context, in *AddPeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeletePeerGroup(ctx context.Context, in *DeletePeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ResetPeer(ctx context.Context, in *ResetPeerRequest, opts ...grpc.CallOption) (*ResetPeerResponse, error)
+	ShutdownPeer(ctx context.Context, in *ShutdownPeerRequest, opts ...grpc.CallOption) (*ShutdownPeerResponse, error)
+	EnablePeer(ctx context.Context, in *EnablePeerRequest, opts ...grpc.CallOption) (*EnablePeerResponse, error)
+	DisablePeer(ctx context.Context, in *DisablePeerRequest, opts ...grpc.CallOption) (*DisablePeerResponse, error)
+	AddPeerGroup(ctx context.Context, in *AddPeerGroupRequest, opts ...grpc.CallOption) (*AddPeerGroupResponse, error)
+	DeletePeerGroup(ctx context.Context, in *DeletePeerGroupRequest, opts ...grpc.CallOption) (*DeletePeerGroupResponse, error)
 	ListPeerGroup(ctx context.Context, in *ListPeerGroupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPeerGroupResponse], error)
 	UpdatePeerGroup(ctx context.Context, in *UpdatePeerGroupRequest, opts ...grpc.CallOption) (*UpdatePeerGroupResponse, error)
-	AddDynamicNeighbor(ctx context.Context, in *AddDynamicNeighborRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddDynamicNeighbor(ctx context.Context, in *AddDynamicNeighborRequest, opts ...grpc.CallOption) (*AddDynamicNeighborResponse, error)
 	ListDynamicNeighbor(ctx context.Context, in *ListDynamicNeighborRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDynamicNeighborResponse], error)
-	DeleteDynamicNeighbor(ctx context.Context, in *DeleteDynamicNeighborRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteDynamicNeighbor(ctx context.Context, in *DeleteDynamicNeighborRequest, opts ...grpc.CallOption) (*DeleteDynamicNeighborResponse, error)
 	AddPath(ctx context.Context, in *AddPathRequest, opts ...grpc.CallOption) (*AddPathResponse, error)
-	DeletePath(ctx context.Context, in *DeletePathRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeletePath(ctx context.Context, in *DeletePathRequest, opts ...grpc.CallOption) (*DeletePathResponse, error)
 	ListPath(ctx context.Context, in *ListPathRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPathResponse], error)
-	AddPathStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AddPathStreamRequest, emptypb.Empty], error)
+	AddPathStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AddPathStreamRequest, AddPathStreamResponse], error)
 	GetTable(ctx context.Context, in *GetTableRequest, opts ...grpc.CallOption) (*GetTableResponse, error)
-	AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteVrf(ctx context.Context, in *DeleteVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*AddVrfResponse, error)
+	DeleteVrf(ctx context.Context, in *DeleteVrfRequest, opts ...grpc.CallOption) (*DeleteVrfResponse, error)
 	ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListVrfResponse], error)
-	AddPolicy(ctx context.Context, in *AddPolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeletePolicy(ctx context.Context, in *DeletePolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddPolicy(ctx context.Context, in *AddPolicyRequest, opts ...grpc.CallOption) (*AddPolicyResponse, error)
+	DeletePolicy(ctx context.Context, in *DeletePolicyRequest, opts ...grpc.CallOption) (*DeletePolicyResponse, error)
 	ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyResponse], error)
-	SetPolicies(ctx context.Context, in *SetPoliciesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	AddDefinedSet(ctx context.Context, in *AddDefinedSetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteDefinedSet(ctx context.Context, in *DeleteDefinedSetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetPolicies(ctx context.Context, in *SetPoliciesRequest, opts ...grpc.CallOption) (*SetPoliciesResponse, error)
+	AddDefinedSet(ctx context.Context, in *AddDefinedSetRequest, opts ...grpc.CallOption) (*AddDefinedSetResponse, error)
+	DeleteDefinedSet(ctx context.Context, in *DeleteDefinedSetRequest, opts ...grpc.CallOption) (*DeleteDefinedSetResponse, error)
 	ListDefinedSet(ctx context.Context, in *ListDefinedSetRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDefinedSetResponse], error)
-	AddStatement(ctx context.Context, in *AddStatementRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteStatement(ctx context.Context, in *DeleteStatementRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddStatement(ctx context.Context, in *AddStatementRequest, opts ...grpc.CallOption) (*AddStatementResponse, error)
+	DeleteStatement(ctx context.Context, in *DeleteStatementRequest, opts ...grpc.CallOption) (*DeleteStatementResponse, error)
 	ListStatement(ctx context.Context, in *ListStatementRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListStatementResponse], error)
-	AddPolicyAssignment(ctx context.Context, in *AddPolicyAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeletePolicyAssignment(ctx context.Context, in *DeletePolicyAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddPolicyAssignment(ctx context.Context, in *AddPolicyAssignmentRequest, opts ...grpc.CallOption) (*AddPolicyAssignmentResponse, error)
+	DeletePolicyAssignment(ctx context.Context, in *DeletePolicyAssignmentRequest, opts ...grpc.CallOption) (*DeletePolicyAssignmentResponse, error)
 	ListPolicyAssignment(ctx context.Context, in *ListPolicyAssignmentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyAssignmentResponse], error)
-	SetPolicyAssignment(ctx context.Context, in *SetPolicyAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	AddRpki(ctx context.Context, in *AddRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteRpki(ctx context.Context, in *DeleteRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetPolicyAssignment(ctx context.Context, in *SetPolicyAssignmentRequest, opts ...grpc.CallOption) (*SetPolicyAssignmentResponse, error)
+	AddRpki(ctx context.Context, in *AddRpkiRequest, opts ...grpc.CallOption) (*AddRpkiResponse, error)
+	DeleteRpki(ctx context.Context, in *DeleteRpkiRequest, opts ...grpc.CallOption) (*DeleteRpkiResponse, error)
 	ListRpki(ctx context.Context, in *ListRpkiRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiResponse], error)
-	EnableRpki(ctx context.Context, in *EnableRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DisableRpki(ctx context.Context, in *DisableRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ResetRpki(ctx context.Context, in *ResetRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EnableRpki(ctx context.Context, in *EnableRpkiRequest, opts ...grpc.CallOption) (*EnableRpkiResponse, error)
+	DisableRpki(ctx context.Context, in *DisableRpkiRequest, opts ...grpc.CallOption) (*DisableRpkiResponse, error)
+	ResetRpki(ctx context.Context, in *ResetRpkiRequest, opts ...grpc.CallOption) (*ResetRpkiResponse, error)
 	ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiTableResponse], error)
-	EnableZebra(ctx context.Context, in *EnableZebraRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	EnableMrt(ctx context.Context, in *EnableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DisableMrt(ctx context.Context, in *DisableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	AddBmp(ctx context.Context, in *AddBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteBmp(ctx context.Context, in *DeleteBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EnableZebra(ctx context.Context, in *EnableZebraRequest, opts ...grpc.CallOption) (*EnableZebraResponse, error)
+	EnableMrt(ctx context.Context, in *EnableMrtRequest, opts ...grpc.CallOption) (*EnableMrtResponse, error)
+	DisableMrt(ctx context.Context, in *DisableMrtRequest, opts ...grpc.CallOption) (*DisableMrtResponse, error)
+	AddBmp(ctx context.Context, in *AddBmpRequest, opts ...grpc.CallOption) (*AddBmpResponse, error)
+	DeleteBmp(ctx context.Context, in *DeleteBmpRequest, opts ...grpc.CallOption) (*DeleteBmpResponse, error)
 	ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListBmpResponse], error)
-	SetLogLevel(ctx context.Context, in *SetLogLevelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetLogLevel(ctx context.Context, in *SetLogLevelRequest, opts ...grpc.CallOption) (*SetLogLevelResponse, error)
 }
 
-type gobgpApiClient struct {
+type goBgpServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewGobgpApiClient(cc grpc.ClientConnInterface) GobgpApiClient {
-	return &gobgpApiClient{cc}
+func NewGoBgpServiceClient(cc grpc.ClientConnInterface) GoBgpServiceClient {
+	return &goBgpServiceClient{cc}
 }
 
-func (c *gobgpApiClient) StartBgp(ctx context.Context, in *StartBgpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) StartBgp(ctx context.Context, in *StartBgpRequest, opts ...grpc.CallOption) (*StartBgpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_StartBgp_FullMethodName, in, out, cOpts...)
+	out := new(StartBgpResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_StartBgp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) StopBgp(ctx context.Context, in *StopBgpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) StopBgp(ctx context.Context, in *StopBgpRequest, opts ...grpc.CallOption) (*StopBgpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_StopBgp_FullMethodName, in, out, cOpts...)
+	out := new(StopBgpResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_StopBgp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) GetBgp(ctx context.Context, in *GetBgpRequest, opts ...grpc.CallOption) (*GetBgpResponse, error) {
+func (c *goBgpServiceClient) GetBgp(ctx context.Context, in *GetBgpRequest, opts ...grpc.CallOption) (*GetBgpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetBgpResponse)
-	err := c.cc.Invoke(ctx, GobgpApi_GetBgp_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, GoBgpService_GetBgp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) WatchEvent(ctx context.Context, in *WatchEventRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchEventResponse], error) {
+func (c *goBgpServiceClient) WatchEvent(ctx context.Context, in *WatchEventRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchEventResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[0], GobgpApi_WatchEvent_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[0], GoBgpService_WatchEvent_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -214,31 +215,31 @@ func (c *gobgpApiClient) WatchEvent(ctx context.Context, in *WatchEventRequest, 
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_WatchEventClient = grpc.ServerStreamingClient[WatchEventResponse]
+type GoBgpService_WatchEventClient = grpc.ServerStreamingClient[WatchEventResponse]
 
-func (c *gobgpApiClient) AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*AddPeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddPeer_FullMethodName, in, out, cOpts...)
+	out := new(AddPeerResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddPeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeletePeer(ctx context.Context, in *DeletePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeletePeer(ctx context.Context, in *DeletePeerRequest, opts ...grpc.CallOption) (*DeletePeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeletePeer_FullMethodName, in, out, cOpts...)
+	out := new(DeletePeerResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeletePeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListPeer(ctx context.Context, in *ListPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPeerResponse], error) {
+func (c *goBgpServiceClient) ListPeer(ctx context.Context, in *ListPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPeerResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[1], GobgpApi_ListPeer_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[1], GoBgpService_ListPeer_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -253,81 +254,81 @@ func (c *gobgpApiClient) ListPeer(ctx context.Context, in *ListPeerRequest, opts
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPeerClient = grpc.ServerStreamingClient[ListPeerResponse]
+type GoBgpService_ListPeerClient = grpc.ServerStreamingClient[ListPeerResponse]
 
-func (c *gobgpApiClient) UpdatePeer(ctx context.Context, in *UpdatePeerRequest, opts ...grpc.CallOption) (*UpdatePeerResponse, error) {
+func (c *goBgpServiceClient) UpdatePeer(ctx context.Context, in *UpdatePeerRequest, opts ...grpc.CallOption) (*UpdatePeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdatePeerResponse)
-	err := c.cc.Invoke(ctx, GobgpApi_UpdatePeer_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, GoBgpService_UpdatePeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ResetPeer(ctx context.Context, in *ResetPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) ResetPeer(ctx context.Context, in *ResetPeerRequest, opts ...grpc.CallOption) (*ResetPeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_ResetPeer_FullMethodName, in, out, cOpts...)
+	out := new(ResetPeerResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_ResetPeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ShutdownPeer(ctx context.Context, in *ShutdownPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) ShutdownPeer(ctx context.Context, in *ShutdownPeerRequest, opts ...grpc.CallOption) (*ShutdownPeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_ShutdownPeer_FullMethodName, in, out, cOpts...)
+	out := new(ShutdownPeerResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_ShutdownPeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) EnablePeer(ctx context.Context, in *EnablePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) EnablePeer(ctx context.Context, in *EnablePeerRequest, opts ...grpc.CallOption) (*EnablePeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_EnablePeer_FullMethodName, in, out, cOpts...)
+	out := new(EnablePeerResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_EnablePeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DisablePeer(ctx context.Context, in *DisablePeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DisablePeer(ctx context.Context, in *DisablePeerRequest, opts ...grpc.CallOption) (*DisablePeerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DisablePeer_FullMethodName, in, out, cOpts...)
+	out := new(DisablePeerResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DisablePeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddPeerGroup(ctx context.Context, in *AddPeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddPeerGroup(ctx context.Context, in *AddPeerGroupRequest, opts ...grpc.CallOption) (*AddPeerGroupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddPeerGroup_FullMethodName, in, out, cOpts...)
+	out := new(AddPeerGroupResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddPeerGroup_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeletePeerGroup(ctx context.Context, in *DeletePeerGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeletePeerGroup(ctx context.Context, in *DeletePeerGroupRequest, opts ...grpc.CallOption) (*DeletePeerGroupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeletePeerGroup_FullMethodName, in, out, cOpts...)
+	out := new(DeletePeerGroupResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeletePeerGroup_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListPeerGroup(ctx context.Context, in *ListPeerGroupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPeerGroupResponse], error) {
+func (c *goBgpServiceClient) ListPeerGroup(ctx context.Context, in *ListPeerGroupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPeerGroupResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[2], GobgpApi_ListPeerGroup_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[2], GoBgpService_ListPeerGroup_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -342,31 +343,31 @@ func (c *gobgpApiClient) ListPeerGroup(ctx context.Context, in *ListPeerGroupReq
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPeerGroupClient = grpc.ServerStreamingClient[ListPeerGroupResponse]
+type GoBgpService_ListPeerGroupClient = grpc.ServerStreamingClient[ListPeerGroupResponse]
 
-func (c *gobgpApiClient) UpdatePeerGroup(ctx context.Context, in *UpdatePeerGroupRequest, opts ...grpc.CallOption) (*UpdatePeerGroupResponse, error) {
+func (c *goBgpServiceClient) UpdatePeerGroup(ctx context.Context, in *UpdatePeerGroupRequest, opts ...grpc.CallOption) (*UpdatePeerGroupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdatePeerGroupResponse)
-	err := c.cc.Invoke(ctx, GobgpApi_UpdatePeerGroup_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, GoBgpService_UpdatePeerGroup_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddDynamicNeighbor(ctx context.Context, in *AddDynamicNeighborRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddDynamicNeighbor(ctx context.Context, in *AddDynamicNeighborRequest, opts ...grpc.CallOption) (*AddDynamicNeighborResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddDynamicNeighbor_FullMethodName, in, out, cOpts...)
+	out := new(AddDynamicNeighborResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddDynamicNeighbor_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListDynamicNeighbor(ctx context.Context, in *ListDynamicNeighborRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDynamicNeighborResponse], error) {
+func (c *goBgpServiceClient) ListDynamicNeighbor(ctx context.Context, in *ListDynamicNeighborRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDynamicNeighborResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[3], GobgpApi_ListDynamicNeighbor_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[3], GoBgpService_ListDynamicNeighbor_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -381,41 +382,41 @@ func (c *gobgpApiClient) ListDynamicNeighbor(ctx context.Context, in *ListDynami
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListDynamicNeighborClient = grpc.ServerStreamingClient[ListDynamicNeighborResponse]
+type GoBgpService_ListDynamicNeighborClient = grpc.ServerStreamingClient[ListDynamicNeighborResponse]
 
-func (c *gobgpApiClient) DeleteDynamicNeighbor(ctx context.Context, in *DeleteDynamicNeighborRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeleteDynamicNeighbor(ctx context.Context, in *DeleteDynamicNeighborRequest, opts ...grpc.CallOption) (*DeleteDynamicNeighborResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeleteDynamicNeighbor_FullMethodName, in, out, cOpts...)
+	out := new(DeleteDynamicNeighborResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteDynamicNeighbor_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddPath(ctx context.Context, in *AddPathRequest, opts ...grpc.CallOption) (*AddPathResponse, error) {
+func (c *goBgpServiceClient) AddPath(ctx context.Context, in *AddPathRequest, opts ...grpc.CallOption) (*AddPathResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddPathResponse)
-	err := c.cc.Invoke(ctx, GobgpApi_AddPath_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, GoBgpService_AddPath_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeletePath(ctx context.Context, in *DeletePathRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeletePath(ctx context.Context, in *DeletePathRequest, opts ...grpc.CallOption) (*DeletePathResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeletePath_FullMethodName, in, out, cOpts...)
+	out := new(DeletePathResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeletePath_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListPath(ctx context.Context, in *ListPathRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPathResponse], error) {
+func (c *goBgpServiceClient) ListPath(ctx context.Context, in *ListPathRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPathResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[4], GobgpApi_ListPath_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[4], GoBgpService_ListPath_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -430,54 +431,54 @@ func (c *gobgpApiClient) ListPath(ctx context.Context, in *ListPathRequest, opts
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPathClient = grpc.ServerStreamingClient[ListPathResponse]
+type GoBgpService_ListPathClient = grpc.ServerStreamingClient[ListPathResponse]
 
-func (c *gobgpApiClient) AddPathStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AddPathStreamRequest, emptypb.Empty], error) {
+func (c *goBgpServiceClient) AddPathStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AddPathStreamRequest, AddPathStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[5], GobgpApi_AddPathStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[5], GoBgpService_AddPathStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[AddPathStreamRequest, emptypb.Empty]{ClientStream: stream}
+	x := &grpc.GenericClientStream[AddPathStreamRequest, AddPathStreamResponse]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_AddPathStreamClient = grpc.ClientStreamingClient[AddPathStreamRequest, emptypb.Empty]
+type GoBgpService_AddPathStreamClient = grpc.ClientStreamingClient[AddPathStreamRequest, AddPathStreamResponse]
 
-func (c *gobgpApiClient) GetTable(ctx context.Context, in *GetTableRequest, opts ...grpc.CallOption) (*GetTableResponse, error) {
+func (c *goBgpServiceClient) GetTable(ctx context.Context, in *GetTableRequest, opts ...grpc.CallOption) (*GetTableResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetTableResponse)
-	err := c.cc.Invoke(ctx, GobgpApi_GetTable_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, GoBgpService_GetTable_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*AddVrfResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddVrf_FullMethodName, in, out, cOpts...)
+	out := new(AddVrfResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddVrf_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeleteVrf(ctx context.Context, in *DeleteVrfRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeleteVrf(ctx context.Context, in *DeleteVrfRequest, opts ...grpc.CallOption) (*DeleteVrfResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeleteVrf_FullMethodName, in, out, cOpts...)
+	out := new(DeleteVrfResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteVrf_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListVrfResponse], error) {
+func (c *goBgpServiceClient) ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListVrfResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[6], GobgpApi_ListVrf_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[6], GoBgpService_ListVrf_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -492,31 +493,31 @@ func (c *gobgpApiClient) ListVrf(ctx context.Context, in *ListVrfRequest, opts .
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListVrfClient = grpc.ServerStreamingClient[ListVrfResponse]
+type GoBgpService_ListVrfClient = grpc.ServerStreamingClient[ListVrfResponse]
 
-func (c *gobgpApiClient) AddPolicy(ctx context.Context, in *AddPolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddPolicy(ctx context.Context, in *AddPolicyRequest, opts ...grpc.CallOption) (*AddPolicyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddPolicy_FullMethodName, in, out, cOpts...)
+	out := new(AddPolicyResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddPolicy_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeletePolicy(ctx context.Context, in *DeletePolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeletePolicy(ctx context.Context, in *DeletePolicyRequest, opts ...grpc.CallOption) (*DeletePolicyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeletePolicy_FullMethodName, in, out, cOpts...)
+	out := new(DeletePolicyResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeletePolicy_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyResponse], error) {
+func (c *goBgpServiceClient) ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[7], GobgpApi_ListPolicy_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[7], GoBgpService_ListPolicy_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -531,41 +532,41 @@ func (c *gobgpApiClient) ListPolicy(ctx context.Context, in *ListPolicyRequest, 
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPolicyClient = grpc.ServerStreamingClient[ListPolicyResponse]
+type GoBgpService_ListPolicyClient = grpc.ServerStreamingClient[ListPolicyResponse]
 
-func (c *gobgpApiClient) SetPolicies(ctx context.Context, in *SetPoliciesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) SetPolicies(ctx context.Context, in *SetPoliciesRequest, opts ...grpc.CallOption) (*SetPoliciesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_SetPolicies_FullMethodName, in, out, cOpts...)
+	out := new(SetPoliciesResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_SetPolicies_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddDefinedSet(ctx context.Context, in *AddDefinedSetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddDefinedSet(ctx context.Context, in *AddDefinedSetRequest, opts ...grpc.CallOption) (*AddDefinedSetResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddDefinedSet_FullMethodName, in, out, cOpts...)
+	out := new(AddDefinedSetResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddDefinedSet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeleteDefinedSet(ctx context.Context, in *DeleteDefinedSetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeleteDefinedSet(ctx context.Context, in *DeleteDefinedSetRequest, opts ...grpc.CallOption) (*DeleteDefinedSetResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeleteDefinedSet_FullMethodName, in, out, cOpts...)
+	out := new(DeleteDefinedSetResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteDefinedSet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListDefinedSet(ctx context.Context, in *ListDefinedSetRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDefinedSetResponse], error) {
+func (c *goBgpServiceClient) ListDefinedSet(ctx context.Context, in *ListDefinedSetRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDefinedSetResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[8], GobgpApi_ListDefinedSet_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[8], GoBgpService_ListDefinedSet_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -580,31 +581,31 @@ func (c *gobgpApiClient) ListDefinedSet(ctx context.Context, in *ListDefinedSetR
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListDefinedSetClient = grpc.ServerStreamingClient[ListDefinedSetResponse]
+type GoBgpService_ListDefinedSetClient = grpc.ServerStreamingClient[ListDefinedSetResponse]
 
-func (c *gobgpApiClient) AddStatement(ctx context.Context, in *AddStatementRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddStatement(ctx context.Context, in *AddStatementRequest, opts ...grpc.CallOption) (*AddStatementResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddStatement_FullMethodName, in, out, cOpts...)
+	out := new(AddStatementResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddStatement_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeleteStatement(ctx context.Context, in *DeleteStatementRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeleteStatement(ctx context.Context, in *DeleteStatementRequest, opts ...grpc.CallOption) (*DeleteStatementResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeleteStatement_FullMethodName, in, out, cOpts...)
+	out := new(DeleteStatementResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteStatement_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListStatement(ctx context.Context, in *ListStatementRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListStatementResponse], error) {
+func (c *goBgpServiceClient) ListStatement(ctx context.Context, in *ListStatementRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListStatementResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[9], GobgpApi_ListStatement_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[9], GoBgpService_ListStatement_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -619,31 +620,31 @@ func (c *gobgpApiClient) ListStatement(ctx context.Context, in *ListStatementReq
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListStatementClient = grpc.ServerStreamingClient[ListStatementResponse]
+type GoBgpService_ListStatementClient = grpc.ServerStreamingClient[ListStatementResponse]
 
-func (c *gobgpApiClient) AddPolicyAssignment(ctx context.Context, in *AddPolicyAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddPolicyAssignment(ctx context.Context, in *AddPolicyAssignmentRequest, opts ...grpc.CallOption) (*AddPolicyAssignmentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddPolicyAssignment_FullMethodName, in, out, cOpts...)
+	out := new(AddPolicyAssignmentResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddPolicyAssignment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeletePolicyAssignment(ctx context.Context, in *DeletePolicyAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeletePolicyAssignment(ctx context.Context, in *DeletePolicyAssignmentRequest, opts ...grpc.CallOption) (*DeletePolicyAssignmentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeletePolicyAssignment_FullMethodName, in, out, cOpts...)
+	out := new(DeletePolicyAssignmentResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeletePolicyAssignment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListPolicyAssignment(ctx context.Context, in *ListPolicyAssignmentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyAssignmentResponse], error) {
+func (c *goBgpServiceClient) ListPolicyAssignment(ctx context.Context, in *ListPolicyAssignmentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyAssignmentResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[10], GobgpApi_ListPolicyAssignment_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[10], GoBgpService_ListPolicyAssignment_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -658,41 +659,41 @@ func (c *gobgpApiClient) ListPolicyAssignment(ctx context.Context, in *ListPolic
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPolicyAssignmentClient = grpc.ServerStreamingClient[ListPolicyAssignmentResponse]
+type GoBgpService_ListPolicyAssignmentClient = grpc.ServerStreamingClient[ListPolicyAssignmentResponse]
 
-func (c *gobgpApiClient) SetPolicyAssignment(ctx context.Context, in *SetPolicyAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) SetPolicyAssignment(ctx context.Context, in *SetPolicyAssignmentRequest, opts ...grpc.CallOption) (*SetPolicyAssignmentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_SetPolicyAssignment_FullMethodName, in, out, cOpts...)
+	out := new(SetPolicyAssignmentResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_SetPolicyAssignment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddRpki(ctx context.Context, in *AddRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddRpki(ctx context.Context, in *AddRpkiRequest, opts ...grpc.CallOption) (*AddRpkiResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddRpki_FullMethodName, in, out, cOpts...)
+	out := new(AddRpkiResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddRpki_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeleteRpki(ctx context.Context, in *DeleteRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeleteRpki(ctx context.Context, in *DeleteRpkiRequest, opts ...grpc.CallOption) (*DeleteRpkiResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeleteRpki_FullMethodName, in, out, cOpts...)
+	out := new(DeleteRpkiResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteRpki_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListRpki(ctx context.Context, in *ListRpkiRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiResponse], error) {
+func (c *goBgpServiceClient) ListRpki(ctx context.Context, in *ListRpkiRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[11], GobgpApi_ListRpki_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[11], GoBgpService_ListRpki_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -707,41 +708,41 @@ func (c *gobgpApiClient) ListRpki(ctx context.Context, in *ListRpkiRequest, opts
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListRpkiClient = grpc.ServerStreamingClient[ListRpkiResponse]
+type GoBgpService_ListRpkiClient = grpc.ServerStreamingClient[ListRpkiResponse]
 
-func (c *gobgpApiClient) EnableRpki(ctx context.Context, in *EnableRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) EnableRpki(ctx context.Context, in *EnableRpkiRequest, opts ...grpc.CallOption) (*EnableRpkiResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_EnableRpki_FullMethodName, in, out, cOpts...)
+	out := new(EnableRpkiResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_EnableRpki_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DisableRpki(ctx context.Context, in *DisableRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DisableRpki(ctx context.Context, in *DisableRpkiRequest, opts ...grpc.CallOption) (*DisableRpkiResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DisableRpki_FullMethodName, in, out, cOpts...)
+	out := new(DisableRpkiResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DisableRpki_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ResetRpki(ctx context.Context, in *ResetRpkiRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) ResetRpki(ctx context.Context, in *ResetRpkiRequest, opts ...grpc.CallOption) (*ResetRpkiResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_ResetRpki_FullMethodName, in, out, cOpts...)
+	out := new(ResetRpkiResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_ResetRpki_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiTableResponse], error) {
+func (c *goBgpServiceClient) ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiTableResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[12], GobgpApi_ListRpkiTable_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[12], GoBgpService_ListRpkiTable_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -756,61 +757,61 @@ func (c *gobgpApiClient) ListRpkiTable(ctx context.Context, in *ListRpkiTableReq
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListRpkiTableClient = grpc.ServerStreamingClient[ListRpkiTableResponse]
+type GoBgpService_ListRpkiTableClient = grpc.ServerStreamingClient[ListRpkiTableResponse]
 
-func (c *gobgpApiClient) EnableZebra(ctx context.Context, in *EnableZebraRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) EnableZebra(ctx context.Context, in *EnableZebraRequest, opts ...grpc.CallOption) (*EnableZebraResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_EnableZebra_FullMethodName, in, out, cOpts...)
+	out := new(EnableZebraResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_EnableZebra_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) EnableMrt(ctx context.Context, in *EnableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) EnableMrt(ctx context.Context, in *EnableMrtRequest, opts ...grpc.CallOption) (*EnableMrtResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_EnableMrt_FullMethodName, in, out, cOpts...)
+	out := new(EnableMrtResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_EnableMrt_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DisableMrt(ctx context.Context, in *DisableMrtRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DisableMrt(ctx context.Context, in *DisableMrtRequest, opts ...grpc.CallOption) (*DisableMrtResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DisableMrt_FullMethodName, in, out, cOpts...)
+	out := new(DisableMrtResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DisableMrt_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) AddBmp(ctx context.Context, in *AddBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) AddBmp(ctx context.Context, in *AddBmpRequest, opts ...grpc.CallOption) (*AddBmpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_AddBmp_FullMethodName, in, out, cOpts...)
+	out := new(AddBmpResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddBmp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) DeleteBmp(ctx context.Context, in *DeleteBmpRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) DeleteBmp(ctx context.Context, in *DeleteBmpRequest, opts ...grpc.CallOption) (*DeleteBmpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_DeleteBmp_FullMethodName, in, out, cOpts...)
+	out := new(DeleteBmpResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteBmp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *gobgpApiClient) ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListBmpResponse], error) {
+func (c *goBgpServiceClient) ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListBmpResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GobgpApi_ServiceDesc.Streams[13], GobgpApi_ListBmp_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[13], GoBgpService_ListBmp_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -825,1402 +826,1404 @@ func (c *gobgpApiClient) ListBmp(ctx context.Context, in *ListBmpRequest, opts .
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListBmpClient = grpc.ServerStreamingClient[ListBmpResponse]
+type GoBgpService_ListBmpClient = grpc.ServerStreamingClient[ListBmpResponse]
 
-func (c *gobgpApiClient) SetLogLevel(ctx context.Context, in *SetLogLevelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *goBgpServiceClient) SetLogLevel(ctx context.Context, in *SetLogLevelRequest, opts ...grpc.CallOption) (*SetLogLevelResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, GobgpApi_SetLogLevel_FullMethodName, in, out, cOpts...)
+	out := new(SetLogLevelResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_SetLogLevel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// GobgpApiServer is the server API for GobgpApi service.
-// All implementations must embed UnimplementedGobgpApiServer
+// GoBgpServiceServer is the server API for GoBgpService service.
+// All implementations must embed UnimplementedGoBgpServiceServer
 // for forward compatibility.
-type GobgpApiServer interface {
-	StartBgp(context.Context, *StartBgpRequest) (*emptypb.Empty, error)
-	StopBgp(context.Context, *StopBgpRequest) (*emptypb.Empty, error)
+//
+// Interface exported by the server.
+type GoBgpServiceServer interface {
+	StartBgp(context.Context, *StartBgpRequest) (*StartBgpResponse, error)
+	StopBgp(context.Context, *StopBgpRequest) (*StopBgpResponse, error)
 	GetBgp(context.Context, *GetBgpRequest) (*GetBgpResponse, error)
 	WatchEvent(*WatchEventRequest, grpc.ServerStreamingServer[WatchEventResponse]) error
-	AddPeer(context.Context, *AddPeerRequest) (*emptypb.Empty, error)
-	DeletePeer(context.Context, *DeletePeerRequest) (*emptypb.Empty, error)
+	AddPeer(context.Context, *AddPeerRequest) (*AddPeerResponse, error)
+	DeletePeer(context.Context, *DeletePeerRequest) (*DeletePeerResponse, error)
 	ListPeer(*ListPeerRequest, grpc.ServerStreamingServer[ListPeerResponse]) error
 	UpdatePeer(context.Context, *UpdatePeerRequest) (*UpdatePeerResponse, error)
-	ResetPeer(context.Context, *ResetPeerRequest) (*emptypb.Empty, error)
-	ShutdownPeer(context.Context, *ShutdownPeerRequest) (*emptypb.Empty, error)
-	EnablePeer(context.Context, *EnablePeerRequest) (*emptypb.Empty, error)
-	DisablePeer(context.Context, *DisablePeerRequest) (*emptypb.Empty, error)
-	AddPeerGroup(context.Context, *AddPeerGroupRequest) (*emptypb.Empty, error)
-	DeletePeerGroup(context.Context, *DeletePeerGroupRequest) (*emptypb.Empty, error)
+	ResetPeer(context.Context, *ResetPeerRequest) (*ResetPeerResponse, error)
+	ShutdownPeer(context.Context, *ShutdownPeerRequest) (*ShutdownPeerResponse, error)
+	EnablePeer(context.Context, *EnablePeerRequest) (*EnablePeerResponse, error)
+	DisablePeer(context.Context, *DisablePeerRequest) (*DisablePeerResponse, error)
+	AddPeerGroup(context.Context, *AddPeerGroupRequest) (*AddPeerGroupResponse, error)
+	DeletePeerGroup(context.Context, *DeletePeerGroupRequest) (*DeletePeerGroupResponse, error)
 	ListPeerGroup(*ListPeerGroupRequest, grpc.ServerStreamingServer[ListPeerGroupResponse]) error
 	UpdatePeerGroup(context.Context, *UpdatePeerGroupRequest) (*UpdatePeerGroupResponse, error)
-	AddDynamicNeighbor(context.Context, *AddDynamicNeighborRequest) (*emptypb.Empty, error)
+	AddDynamicNeighbor(context.Context, *AddDynamicNeighborRequest) (*AddDynamicNeighborResponse, error)
 	ListDynamicNeighbor(*ListDynamicNeighborRequest, grpc.ServerStreamingServer[ListDynamicNeighborResponse]) error
-	DeleteDynamicNeighbor(context.Context, *DeleteDynamicNeighborRequest) (*emptypb.Empty, error)
+	DeleteDynamicNeighbor(context.Context, *DeleteDynamicNeighborRequest) (*DeleteDynamicNeighborResponse, error)
 	AddPath(context.Context, *AddPathRequest) (*AddPathResponse, error)
-	DeletePath(context.Context, *DeletePathRequest) (*emptypb.Empty, error)
+	DeletePath(context.Context, *DeletePathRequest) (*DeletePathResponse, error)
 	ListPath(*ListPathRequest, grpc.ServerStreamingServer[ListPathResponse]) error
-	AddPathStream(grpc.ClientStreamingServer[AddPathStreamRequest, emptypb.Empty]) error
+	AddPathStream(grpc.ClientStreamingServer[AddPathStreamRequest, AddPathStreamResponse]) error
 	GetTable(context.Context, *GetTableRequest) (*GetTableResponse, error)
-	AddVrf(context.Context, *AddVrfRequest) (*emptypb.Empty, error)
-	DeleteVrf(context.Context, *DeleteVrfRequest) (*emptypb.Empty, error)
+	AddVrf(context.Context, *AddVrfRequest) (*AddVrfResponse, error)
+	DeleteVrf(context.Context, *DeleteVrfRequest) (*DeleteVrfResponse, error)
 	ListVrf(*ListVrfRequest, grpc.ServerStreamingServer[ListVrfResponse]) error
-	AddPolicy(context.Context, *AddPolicyRequest) (*emptypb.Empty, error)
-	DeletePolicy(context.Context, *DeletePolicyRequest) (*emptypb.Empty, error)
+	AddPolicy(context.Context, *AddPolicyRequest) (*AddPolicyResponse, error)
+	DeletePolicy(context.Context, *DeletePolicyRequest) (*DeletePolicyResponse, error)
 	ListPolicy(*ListPolicyRequest, grpc.ServerStreamingServer[ListPolicyResponse]) error
-	SetPolicies(context.Context, *SetPoliciesRequest) (*emptypb.Empty, error)
-	AddDefinedSet(context.Context, *AddDefinedSetRequest) (*emptypb.Empty, error)
-	DeleteDefinedSet(context.Context, *DeleteDefinedSetRequest) (*emptypb.Empty, error)
+	SetPolicies(context.Context, *SetPoliciesRequest) (*SetPoliciesResponse, error)
+	AddDefinedSet(context.Context, *AddDefinedSetRequest) (*AddDefinedSetResponse, error)
+	DeleteDefinedSet(context.Context, *DeleteDefinedSetRequest) (*DeleteDefinedSetResponse, error)
 	ListDefinedSet(*ListDefinedSetRequest, grpc.ServerStreamingServer[ListDefinedSetResponse]) error
-	AddStatement(context.Context, *AddStatementRequest) (*emptypb.Empty, error)
-	DeleteStatement(context.Context, *DeleteStatementRequest) (*emptypb.Empty, error)
+	AddStatement(context.Context, *AddStatementRequest) (*AddStatementResponse, error)
+	DeleteStatement(context.Context, *DeleteStatementRequest) (*DeleteStatementResponse, error)
 	ListStatement(*ListStatementRequest, grpc.ServerStreamingServer[ListStatementResponse]) error
-	AddPolicyAssignment(context.Context, *AddPolicyAssignmentRequest) (*emptypb.Empty, error)
-	DeletePolicyAssignment(context.Context, *DeletePolicyAssignmentRequest) (*emptypb.Empty, error)
+	AddPolicyAssignment(context.Context, *AddPolicyAssignmentRequest) (*AddPolicyAssignmentResponse, error)
+	DeletePolicyAssignment(context.Context, *DeletePolicyAssignmentRequest) (*DeletePolicyAssignmentResponse, error)
 	ListPolicyAssignment(*ListPolicyAssignmentRequest, grpc.ServerStreamingServer[ListPolicyAssignmentResponse]) error
-	SetPolicyAssignment(context.Context, *SetPolicyAssignmentRequest) (*emptypb.Empty, error)
-	AddRpki(context.Context, *AddRpkiRequest) (*emptypb.Empty, error)
-	DeleteRpki(context.Context, *DeleteRpkiRequest) (*emptypb.Empty, error)
+	SetPolicyAssignment(context.Context, *SetPolicyAssignmentRequest) (*SetPolicyAssignmentResponse, error)
+	AddRpki(context.Context, *AddRpkiRequest) (*AddRpkiResponse, error)
+	DeleteRpki(context.Context, *DeleteRpkiRequest) (*DeleteRpkiResponse, error)
 	ListRpki(*ListRpkiRequest, grpc.ServerStreamingServer[ListRpkiResponse]) error
-	EnableRpki(context.Context, *EnableRpkiRequest) (*emptypb.Empty, error)
-	DisableRpki(context.Context, *DisableRpkiRequest) (*emptypb.Empty, error)
-	ResetRpki(context.Context, *ResetRpkiRequest) (*emptypb.Empty, error)
+	EnableRpki(context.Context, *EnableRpkiRequest) (*EnableRpkiResponse, error)
+	DisableRpki(context.Context, *DisableRpkiRequest) (*DisableRpkiResponse, error)
+	ResetRpki(context.Context, *ResetRpkiRequest) (*ResetRpkiResponse, error)
 	ListRpkiTable(*ListRpkiTableRequest, grpc.ServerStreamingServer[ListRpkiTableResponse]) error
-	EnableZebra(context.Context, *EnableZebraRequest) (*emptypb.Empty, error)
-	EnableMrt(context.Context, *EnableMrtRequest) (*emptypb.Empty, error)
-	DisableMrt(context.Context, *DisableMrtRequest) (*emptypb.Empty, error)
-	AddBmp(context.Context, *AddBmpRequest) (*emptypb.Empty, error)
-	DeleteBmp(context.Context, *DeleteBmpRequest) (*emptypb.Empty, error)
+	EnableZebra(context.Context, *EnableZebraRequest) (*EnableZebraResponse, error)
+	EnableMrt(context.Context, *EnableMrtRequest) (*EnableMrtResponse, error)
+	DisableMrt(context.Context, *DisableMrtRequest) (*DisableMrtResponse, error)
+	AddBmp(context.Context, *AddBmpRequest) (*AddBmpResponse, error)
+	DeleteBmp(context.Context, *DeleteBmpRequest) (*DeleteBmpResponse, error)
 	ListBmp(*ListBmpRequest, grpc.ServerStreamingServer[ListBmpResponse]) error
-	SetLogLevel(context.Context, *SetLogLevelRequest) (*emptypb.Empty, error)
-	mustEmbedUnimplementedGobgpApiServer()
+	SetLogLevel(context.Context, *SetLogLevelRequest) (*SetLogLevelResponse, error)
+	mustEmbedUnimplementedGoBgpServiceServer()
 }
 
-// UnimplementedGobgpApiServer must be embedded to have
+// UnimplementedGoBgpServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedGobgpApiServer struct{}
+type UnimplementedGoBgpServiceServer struct{}
 
-func (UnimplementedGobgpApiServer) StartBgp(context.Context, *StartBgpRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) StartBgp(context.Context, *StartBgpRequest) (*StartBgpResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartBgp not implemented")
 }
-func (UnimplementedGobgpApiServer) StopBgp(context.Context, *StopBgpRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) StopBgp(context.Context, *StopBgpRequest) (*StopBgpResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StopBgp not implemented")
 }
-func (UnimplementedGobgpApiServer) GetBgp(context.Context, *GetBgpRequest) (*GetBgpResponse, error) {
+func (UnimplementedGoBgpServiceServer) GetBgp(context.Context, *GetBgpRequest) (*GetBgpResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBgp not implemented")
 }
-func (UnimplementedGobgpApiServer) WatchEvent(*WatchEventRequest, grpc.ServerStreamingServer[WatchEventResponse]) error {
+func (UnimplementedGoBgpServiceServer) WatchEvent(*WatchEventRequest, grpc.ServerStreamingServer[WatchEventResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchEvent not implemented")
 }
-func (UnimplementedGobgpApiServer) AddPeer(context.Context, *AddPeerRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddPeer(context.Context, *AddPeerRequest) (*AddPeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPeer not implemented")
 }
-func (UnimplementedGobgpApiServer) DeletePeer(context.Context, *DeletePeerRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeletePeer(context.Context, *DeletePeerRequest) (*DeletePeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePeer not implemented")
 }
-func (UnimplementedGobgpApiServer) ListPeer(*ListPeerRequest, grpc.ServerStreamingServer[ListPeerResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListPeer(*ListPeerRequest, grpc.ServerStreamingServer[ListPeerResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListPeer not implemented")
 }
-func (UnimplementedGobgpApiServer) UpdatePeer(context.Context, *UpdatePeerRequest) (*UpdatePeerResponse, error) {
+func (UnimplementedGoBgpServiceServer) UpdatePeer(context.Context, *UpdatePeerRequest) (*UpdatePeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePeer not implemented")
 }
-func (UnimplementedGobgpApiServer) ResetPeer(context.Context, *ResetPeerRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) ResetPeer(context.Context, *ResetPeerRequest) (*ResetPeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetPeer not implemented")
 }
-func (UnimplementedGobgpApiServer) ShutdownPeer(context.Context, *ShutdownPeerRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) ShutdownPeer(context.Context, *ShutdownPeerRequest) (*ShutdownPeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ShutdownPeer not implemented")
 }
-func (UnimplementedGobgpApiServer) EnablePeer(context.Context, *EnablePeerRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) EnablePeer(context.Context, *EnablePeerRequest) (*EnablePeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnablePeer not implemented")
 }
-func (UnimplementedGobgpApiServer) DisablePeer(context.Context, *DisablePeerRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DisablePeer(context.Context, *DisablePeerRequest) (*DisablePeerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisablePeer not implemented")
 }
-func (UnimplementedGobgpApiServer) AddPeerGroup(context.Context, *AddPeerGroupRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddPeerGroup(context.Context, *AddPeerGroupRequest) (*AddPeerGroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPeerGroup not implemented")
 }
-func (UnimplementedGobgpApiServer) DeletePeerGroup(context.Context, *DeletePeerGroupRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeletePeerGroup(context.Context, *DeletePeerGroupRequest) (*DeletePeerGroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePeerGroup not implemented")
 }
-func (UnimplementedGobgpApiServer) ListPeerGroup(*ListPeerGroupRequest, grpc.ServerStreamingServer[ListPeerGroupResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListPeerGroup(*ListPeerGroupRequest, grpc.ServerStreamingServer[ListPeerGroupResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListPeerGroup not implemented")
 }
-func (UnimplementedGobgpApiServer) UpdatePeerGroup(context.Context, *UpdatePeerGroupRequest) (*UpdatePeerGroupResponse, error) {
+func (UnimplementedGoBgpServiceServer) UpdatePeerGroup(context.Context, *UpdatePeerGroupRequest) (*UpdatePeerGroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePeerGroup not implemented")
 }
-func (UnimplementedGobgpApiServer) AddDynamicNeighbor(context.Context, *AddDynamicNeighborRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddDynamicNeighbor(context.Context, *AddDynamicNeighborRequest) (*AddDynamicNeighborResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddDynamicNeighbor not implemented")
 }
-func (UnimplementedGobgpApiServer) ListDynamicNeighbor(*ListDynamicNeighborRequest, grpc.ServerStreamingServer[ListDynamicNeighborResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListDynamicNeighbor(*ListDynamicNeighborRequest, grpc.ServerStreamingServer[ListDynamicNeighborResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListDynamicNeighbor not implemented")
 }
-func (UnimplementedGobgpApiServer) DeleteDynamicNeighbor(context.Context, *DeleteDynamicNeighborRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeleteDynamicNeighbor(context.Context, *DeleteDynamicNeighborRequest) (*DeleteDynamicNeighborResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDynamicNeighbor not implemented")
 }
-func (UnimplementedGobgpApiServer) AddPath(context.Context, *AddPathRequest) (*AddPathResponse, error) {
+func (UnimplementedGoBgpServiceServer) AddPath(context.Context, *AddPathRequest) (*AddPathResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPath not implemented")
 }
-func (UnimplementedGobgpApiServer) DeletePath(context.Context, *DeletePathRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeletePath(context.Context, *DeletePathRequest) (*DeletePathResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePath not implemented")
 }
-func (UnimplementedGobgpApiServer) ListPath(*ListPathRequest, grpc.ServerStreamingServer[ListPathResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListPath(*ListPathRequest, grpc.ServerStreamingServer[ListPathResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListPath not implemented")
 }
-func (UnimplementedGobgpApiServer) AddPathStream(grpc.ClientStreamingServer[AddPathStreamRequest, emptypb.Empty]) error {
+func (UnimplementedGoBgpServiceServer) AddPathStream(grpc.ClientStreamingServer[AddPathStreamRequest, AddPathStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method AddPathStream not implemented")
 }
-func (UnimplementedGobgpApiServer) GetTable(context.Context, *GetTableRequest) (*GetTableResponse, error) {
+func (UnimplementedGoBgpServiceServer) GetTable(context.Context, *GetTableRequest) (*GetTableResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTable not implemented")
 }
-func (UnimplementedGobgpApiServer) AddVrf(context.Context, *AddVrfRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddVrf(context.Context, *AddVrfRequest) (*AddVrfResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddVrf not implemented")
 }
-func (UnimplementedGobgpApiServer) DeleteVrf(context.Context, *DeleteVrfRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeleteVrf(context.Context, *DeleteVrfRequest) (*DeleteVrfResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteVrf not implemented")
 }
-func (UnimplementedGobgpApiServer) ListVrf(*ListVrfRequest, grpc.ServerStreamingServer[ListVrfResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListVrf(*ListVrfRequest, grpc.ServerStreamingServer[ListVrfResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListVrf not implemented")
 }
-func (UnimplementedGobgpApiServer) AddPolicy(context.Context, *AddPolicyRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddPolicy(context.Context, *AddPolicyRequest) (*AddPolicyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPolicy not implemented")
 }
-func (UnimplementedGobgpApiServer) DeletePolicy(context.Context, *DeletePolicyRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeletePolicy(context.Context, *DeletePolicyRequest) (*DeletePolicyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePolicy not implemented")
 }
-func (UnimplementedGobgpApiServer) ListPolicy(*ListPolicyRequest, grpc.ServerStreamingServer[ListPolicyResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListPolicy(*ListPolicyRequest, grpc.ServerStreamingServer[ListPolicyResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListPolicy not implemented")
 }
-func (UnimplementedGobgpApiServer) SetPolicies(context.Context, *SetPoliciesRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) SetPolicies(context.Context, *SetPoliciesRequest) (*SetPoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetPolicies not implemented")
 }
-func (UnimplementedGobgpApiServer) AddDefinedSet(context.Context, *AddDefinedSetRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddDefinedSet(context.Context, *AddDefinedSetRequest) (*AddDefinedSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddDefinedSet not implemented")
 }
-func (UnimplementedGobgpApiServer) DeleteDefinedSet(context.Context, *DeleteDefinedSetRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeleteDefinedSet(context.Context, *DeleteDefinedSetRequest) (*DeleteDefinedSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDefinedSet not implemented")
 }
-func (UnimplementedGobgpApiServer) ListDefinedSet(*ListDefinedSetRequest, grpc.ServerStreamingServer[ListDefinedSetResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListDefinedSet(*ListDefinedSetRequest, grpc.ServerStreamingServer[ListDefinedSetResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListDefinedSet not implemented")
 }
-func (UnimplementedGobgpApiServer) AddStatement(context.Context, *AddStatementRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddStatement(context.Context, *AddStatementRequest) (*AddStatementResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddStatement not implemented")
 }
-func (UnimplementedGobgpApiServer) DeleteStatement(context.Context, *DeleteStatementRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeleteStatement(context.Context, *DeleteStatementRequest) (*DeleteStatementResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteStatement not implemented")
 }
-func (UnimplementedGobgpApiServer) ListStatement(*ListStatementRequest, grpc.ServerStreamingServer[ListStatementResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListStatement(*ListStatementRequest, grpc.ServerStreamingServer[ListStatementResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListStatement not implemented")
 }
-func (UnimplementedGobgpApiServer) AddPolicyAssignment(context.Context, *AddPolicyAssignmentRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddPolicyAssignment(context.Context, *AddPolicyAssignmentRequest) (*AddPolicyAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPolicyAssignment not implemented")
 }
-func (UnimplementedGobgpApiServer) DeletePolicyAssignment(context.Context, *DeletePolicyAssignmentRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeletePolicyAssignment(context.Context, *DeletePolicyAssignmentRequest) (*DeletePolicyAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePolicyAssignment not implemented")
 }
-func (UnimplementedGobgpApiServer) ListPolicyAssignment(*ListPolicyAssignmentRequest, grpc.ServerStreamingServer[ListPolicyAssignmentResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListPolicyAssignment(*ListPolicyAssignmentRequest, grpc.ServerStreamingServer[ListPolicyAssignmentResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListPolicyAssignment not implemented")
 }
-func (UnimplementedGobgpApiServer) SetPolicyAssignment(context.Context, *SetPolicyAssignmentRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) SetPolicyAssignment(context.Context, *SetPolicyAssignmentRequest) (*SetPolicyAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetPolicyAssignment not implemented")
 }
-func (UnimplementedGobgpApiServer) AddRpki(context.Context, *AddRpkiRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddRpki(context.Context, *AddRpkiRequest) (*AddRpkiResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddRpki not implemented")
 }
-func (UnimplementedGobgpApiServer) DeleteRpki(context.Context, *DeleteRpkiRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeleteRpki(context.Context, *DeleteRpkiRequest) (*DeleteRpkiResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRpki not implemented")
 }
-func (UnimplementedGobgpApiServer) ListRpki(*ListRpkiRequest, grpc.ServerStreamingServer[ListRpkiResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListRpki(*ListRpkiRequest, grpc.ServerStreamingServer[ListRpkiResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListRpki not implemented")
 }
-func (UnimplementedGobgpApiServer) EnableRpki(context.Context, *EnableRpkiRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) EnableRpki(context.Context, *EnableRpkiRequest) (*EnableRpkiResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnableRpki not implemented")
 }
-func (UnimplementedGobgpApiServer) DisableRpki(context.Context, *DisableRpkiRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DisableRpki(context.Context, *DisableRpkiRequest) (*DisableRpkiResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisableRpki not implemented")
 }
-func (UnimplementedGobgpApiServer) ResetRpki(context.Context, *ResetRpkiRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) ResetRpki(context.Context, *ResetRpkiRequest) (*ResetRpkiResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetRpki not implemented")
 }
-func (UnimplementedGobgpApiServer) ListRpkiTable(*ListRpkiTableRequest, grpc.ServerStreamingServer[ListRpkiTableResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListRpkiTable(*ListRpkiTableRequest, grpc.ServerStreamingServer[ListRpkiTableResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListRpkiTable not implemented")
 }
-func (UnimplementedGobgpApiServer) EnableZebra(context.Context, *EnableZebraRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) EnableZebra(context.Context, *EnableZebraRequest) (*EnableZebraResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnableZebra not implemented")
 }
-func (UnimplementedGobgpApiServer) EnableMrt(context.Context, *EnableMrtRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) EnableMrt(context.Context, *EnableMrtRequest) (*EnableMrtResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnableMrt not implemented")
 }
-func (UnimplementedGobgpApiServer) DisableMrt(context.Context, *DisableMrtRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DisableMrt(context.Context, *DisableMrtRequest) (*DisableMrtResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisableMrt not implemented")
 }
-func (UnimplementedGobgpApiServer) AddBmp(context.Context, *AddBmpRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) AddBmp(context.Context, *AddBmpRequest) (*AddBmpResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddBmp not implemented")
 }
-func (UnimplementedGobgpApiServer) DeleteBmp(context.Context, *DeleteBmpRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) DeleteBmp(context.Context, *DeleteBmpRequest) (*DeleteBmpResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteBmp not implemented")
 }
-func (UnimplementedGobgpApiServer) ListBmp(*ListBmpRequest, grpc.ServerStreamingServer[ListBmpResponse]) error {
+func (UnimplementedGoBgpServiceServer) ListBmp(*ListBmpRequest, grpc.ServerStreamingServer[ListBmpResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListBmp not implemented")
 }
-func (UnimplementedGobgpApiServer) SetLogLevel(context.Context, *SetLogLevelRequest) (*emptypb.Empty, error) {
+func (UnimplementedGoBgpServiceServer) SetLogLevel(context.Context, *SetLogLevelRequest) (*SetLogLevelResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetLogLevel not implemented")
 }
-func (UnimplementedGobgpApiServer) mustEmbedUnimplementedGobgpApiServer() {}
-func (UnimplementedGobgpApiServer) testEmbeddedByValue()                  {}
+func (UnimplementedGoBgpServiceServer) mustEmbedUnimplementedGoBgpServiceServer() {}
+func (UnimplementedGoBgpServiceServer) testEmbeddedByValue()                      {}
 
-// UnsafeGobgpApiServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to GobgpApiServer will
+// UnsafeGoBgpServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to GoBgpServiceServer will
 // result in compilation errors.
-type UnsafeGobgpApiServer interface {
-	mustEmbedUnimplementedGobgpApiServer()
+type UnsafeGoBgpServiceServer interface {
+	mustEmbedUnimplementedGoBgpServiceServer()
 }
 
-func RegisterGobgpApiServer(s grpc.ServiceRegistrar, srv GobgpApiServer) {
-	// If the following call pancis, it indicates UnimplementedGobgpApiServer was
+func RegisterGoBgpServiceServer(s grpc.ServiceRegistrar, srv GoBgpServiceServer) {
+	// If the following call pancis, it indicates UnimplementedGoBgpServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&GobgpApi_ServiceDesc, srv)
+	s.RegisterService(&GoBgpService_ServiceDesc, srv)
 }
 
-func _GobgpApi_StartBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_StartBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StartBgpRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).StartBgp(ctx, in)
+		return srv.(GoBgpServiceServer).StartBgp(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_StartBgp_FullMethodName,
+		FullMethod: GoBgpService_StartBgp_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).StartBgp(ctx, req.(*StartBgpRequest))
+		return srv.(GoBgpServiceServer).StartBgp(ctx, req.(*StartBgpRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_StopBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_StopBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StopBgpRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).StopBgp(ctx, in)
+		return srv.(GoBgpServiceServer).StopBgp(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_StopBgp_FullMethodName,
+		FullMethod: GoBgpService_StopBgp_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).StopBgp(ctx, req.(*StopBgpRequest))
+		return srv.(GoBgpServiceServer).StopBgp(ctx, req.(*StopBgpRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_GetBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_GetBgp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetBgpRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).GetBgp(ctx, in)
+		return srv.(GoBgpServiceServer).GetBgp(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_GetBgp_FullMethodName,
+		FullMethod: GoBgpService_GetBgp_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).GetBgp(ctx, req.(*GetBgpRequest))
+		return srv.(GoBgpServiceServer).GetBgp(ctx, req.(*GetBgpRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_WatchEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_WatchEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchEventRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).WatchEvent(m, &grpc.GenericServerStream[WatchEventRequest, WatchEventResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).WatchEvent(m, &grpc.GenericServerStream[WatchEventRequest, WatchEventResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_WatchEventServer = grpc.ServerStreamingServer[WatchEventResponse]
+type GoBgpService_WatchEventServer = grpc.ServerStreamingServer[WatchEventResponse]
 
-func _GobgpApi_AddPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddPeer(ctx, in)
+		return srv.(GoBgpServiceServer).AddPeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddPeer_FullMethodName,
+		FullMethod: GoBgpService_AddPeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddPeer(ctx, req.(*AddPeerRequest))
+		return srv.(GoBgpServiceServer).AddPeer(ctx, req.(*AddPeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeletePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeletePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeletePeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeletePeer(ctx, in)
+		return srv.(GoBgpServiceServer).DeletePeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeletePeer_FullMethodName,
+		FullMethod: GoBgpService_DeletePeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeletePeer(ctx, req.(*DeletePeerRequest))
+		return srv.(GoBgpServiceServer).DeletePeer(ctx, req.(*DeletePeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListPeerRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListPeer(m, &grpc.GenericServerStream[ListPeerRequest, ListPeerResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListPeer(m, &grpc.GenericServerStream[ListPeerRequest, ListPeerResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPeerServer = grpc.ServerStreamingServer[ListPeerResponse]
+type GoBgpService_ListPeerServer = grpc.ServerStreamingServer[ListPeerResponse]
 
-func _GobgpApi_UpdatePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_UpdatePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdatePeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).UpdatePeer(ctx, in)
+		return srv.(GoBgpServiceServer).UpdatePeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_UpdatePeer_FullMethodName,
+		FullMethod: GoBgpService_UpdatePeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).UpdatePeer(ctx, req.(*UpdatePeerRequest))
+		return srv.(GoBgpServiceServer).UpdatePeer(ctx, req.(*UpdatePeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ResetPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_ResetPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResetPeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).ResetPeer(ctx, in)
+		return srv.(GoBgpServiceServer).ResetPeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_ResetPeer_FullMethodName,
+		FullMethod: GoBgpService_ResetPeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).ResetPeer(ctx, req.(*ResetPeerRequest))
+		return srv.(GoBgpServiceServer).ResetPeer(ctx, req.(*ResetPeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ShutdownPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_ShutdownPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ShutdownPeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).ShutdownPeer(ctx, in)
+		return srv.(GoBgpServiceServer).ShutdownPeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_ShutdownPeer_FullMethodName,
+		FullMethod: GoBgpService_ShutdownPeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).ShutdownPeer(ctx, req.(*ShutdownPeerRequest))
+		return srv.(GoBgpServiceServer).ShutdownPeer(ctx, req.(*ShutdownPeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_EnablePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_EnablePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EnablePeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).EnablePeer(ctx, in)
+		return srv.(GoBgpServiceServer).EnablePeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_EnablePeer_FullMethodName,
+		FullMethod: GoBgpService_EnablePeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).EnablePeer(ctx, req.(*EnablePeerRequest))
+		return srv.(GoBgpServiceServer).EnablePeer(ctx, req.(*EnablePeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DisablePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DisablePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DisablePeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DisablePeer(ctx, in)
+		return srv.(GoBgpServiceServer).DisablePeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DisablePeer_FullMethodName,
+		FullMethod: GoBgpService_DisablePeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DisablePeer(ctx, req.(*DisablePeerRequest))
+		return srv.(GoBgpServiceServer).DisablePeer(ctx, req.(*DisablePeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddPeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddPeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPeerGroupRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddPeerGroup(ctx, in)
+		return srv.(GoBgpServiceServer).AddPeerGroup(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddPeerGroup_FullMethodName,
+		FullMethod: GoBgpService_AddPeerGroup_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddPeerGroup(ctx, req.(*AddPeerGroupRequest))
+		return srv.(GoBgpServiceServer).AddPeerGroup(ctx, req.(*AddPeerGroupRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeletePeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeletePeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeletePeerGroupRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeletePeerGroup(ctx, in)
+		return srv.(GoBgpServiceServer).DeletePeerGroup(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeletePeerGroup_FullMethodName,
+		FullMethod: GoBgpService_DeletePeerGroup_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeletePeerGroup(ctx, req.(*DeletePeerGroupRequest))
+		return srv.(GoBgpServiceServer).DeletePeerGroup(ctx, req.(*DeletePeerGroupRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListPeerGroup_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListPeerGroup_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListPeerGroupRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListPeerGroup(m, &grpc.GenericServerStream[ListPeerGroupRequest, ListPeerGroupResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListPeerGroup(m, &grpc.GenericServerStream[ListPeerGroupRequest, ListPeerGroupResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPeerGroupServer = grpc.ServerStreamingServer[ListPeerGroupResponse]
+type GoBgpService_ListPeerGroupServer = grpc.ServerStreamingServer[ListPeerGroupResponse]
 
-func _GobgpApi_UpdatePeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_UpdatePeerGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdatePeerGroupRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).UpdatePeerGroup(ctx, in)
+		return srv.(GoBgpServiceServer).UpdatePeerGroup(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_UpdatePeerGroup_FullMethodName,
+		FullMethod: GoBgpService_UpdatePeerGroup_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).UpdatePeerGroup(ctx, req.(*UpdatePeerGroupRequest))
+		return srv.(GoBgpServiceServer).UpdatePeerGroup(ctx, req.(*UpdatePeerGroupRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddDynamicNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddDynamicNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddDynamicNeighborRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddDynamicNeighbor(ctx, in)
+		return srv.(GoBgpServiceServer).AddDynamicNeighbor(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddDynamicNeighbor_FullMethodName,
+		FullMethod: GoBgpService_AddDynamicNeighbor_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddDynamicNeighbor(ctx, req.(*AddDynamicNeighborRequest))
+		return srv.(GoBgpServiceServer).AddDynamicNeighbor(ctx, req.(*AddDynamicNeighborRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListDynamicNeighbor_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListDynamicNeighbor_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListDynamicNeighborRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListDynamicNeighbor(m, &grpc.GenericServerStream[ListDynamicNeighborRequest, ListDynamicNeighborResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListDynamicNeighbor(m, &grpc.GenericServerStream[ListDynamicNeighborRequest, ListDynamicNeighborResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListDynamicNeighborServer = grpc.ServerStreamingServer[ListDynamicNeighborResponse]
+type GoBgpService_ListDynamicNeighborServer = grpc.ServerStreamingServer[ListDynamicNeighborResponse]
 
-func _GobgpApi_DeleteDynamicNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeleteDynamicNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteDynamicNeighborRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeleteDynamicNeighbor(ctx, in)
+		return srv.(GoBgpServiceServer).DeleteDynamicNeighbor(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeleteDynamicNeighbor_FullMethodName,
+		FullMethod: GoBgpService_DeleteDynamicNeighbor_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeleteDynamicNeighbor(ctx, req.(*DeleteDynamicNeighborRequest))
+		return srv.(GoBgpServiceServer).DeleteDynamicNeighbor(ctx, req.(*DeleteDynamicNeighborRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddPath_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddPath_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPathRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddPath(ctx, in)
+		return srv.(GoBgpServiceServer).AddPath(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddPath_FullMethodName,
+		FullMethod: GoBgpService_AddPath_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddPath(ctx, req.(*AddPathRequest))
+		return srv.(GoBgpServiceServer).AddPath(ctx, req.(*AddPathRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeletePath_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeletePath_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeletePathRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeletePath(ctx, in)
+		return srv.(GoBgpServiceServer).DeletePath(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeletePath_FullMethodName,
+		FullMethod: GoBgpService_DeletePath_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeletePath(ctx, req.(*DeletePathRequest))
+		return srv.(GoBgpServiceServer).DeletePath(ctx, req.(*DeletePathRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListPath_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListPath_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListPathRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListPath(m, &grpc.GenericServerStream[ListPathRequest, ListPathResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListPath(m, &grpc.GenericServerStream[ListPathRequest, ListPathResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPathServer = grpc.ServerStreamingServer[ListPathResponse]
+type GoBgpService_ListPathServer = grpc.ServerStreamingServer[ListPathResponse]
 
-func _GobgpApi_AddPathStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GobgpApiServer).AddPathStream(&grpc.GenericServerStream[AddPathStreamRequest, emptypb.Empty]{ServerStream: stream})
+func _GoBgpService_AddPathStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(GoBgpServiceServer).AddPathStream(&grpc.GenericServerStream[AddPathStreamRequest, AddPathStreamResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_AddPathStreamServer = grpc.ClientStreamingServer[AddPathStreamRequest, emptypb.Empty]
+type GoBgpService_AddPathStreamServer = grpc.ClientStreamingServer[AddPathStreamRequest, AddPathStreamResponse]
 
-func _GobgpApi_GetTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_GetTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTableRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).GetTable(ctx, in)
+		return srv.(GoBgpServiceServer).GetTable(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_GetTable_FullMethodName,
+		FullMethod: GoBgpService_GetTable_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).GetTable(ctx, req.(*GetTableRequest))
+		return srv.(GoBgpServiceServer).GetTable(ctx, req.(*GetTableRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddVrfRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddVrf(ctx, in)
+		return srv.(GoBgpServiceServer).AddVrf(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddVrf_FullMethodName,
+		FullMethod: GoBgpService_AddVrf_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddVrf(ctx, req.(*AddVrfRequest))
+		return srv.(GoBgpServiceServer).AddVrf(ctx, req.(*AddVrfRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeleteVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeleteVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteVrfRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeleteVrf(ctx, in)
+		return srv.(GoBgpServiceServer).DeleteVrf(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeleteVrf_FullMethodName,
+		FullMethod: GoBgpService_DeleteVrf_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeleteVrf(ctx, req.(*DeleteVrfRequest))
+		return srv.(GoBgpServiceServer).DeleteVrf(ctx, req.(*DeleteVrfRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListVrf_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListVrf_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListVrfRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListVrf(m, &grpc.GenericServerStream[ListVrfRequest, ListVrfResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListVrf(m, &grpc.GenericServerStream[ListVrfRequest, ListVrfResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListVrfServer = grpc.ServerStreamingServer[ListVrfResponse]
+type GoBgpService_ListVrfServer = grpc.ServerStreamingServer[ListVrfResponse]
 
-func _GobgpApi_AddPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddPolicy(ctx, in)
+		return srv.(GoBgpServiceServer).AddPolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddPolicy_FullMethodName,
+		FullMethod: GoBgpService_AddPolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddPolicy(ctx, req.(*AddPolicyRequest))
+		return srv.(GoBgpServiceServer).AddPolicy(ctx, req.(*AddPolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeletePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeletePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeletePolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeletePolicy(ctx, in)
+		return srv.(GoBgpServiceServer).DeletePolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeletePolicy_FullMethodName,
+		FullMethod: GoBgpService_DeletePolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeletePolicy(ctx, req.(*DeletePolicyRequest))
+		return srv.(GoBgpServiceServer).DeletePolicy(ctx, req.(*DeletePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListPolicy_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListPolicy_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListPolicyRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListPolicy(m, &grpc.GenericServerStream[ListPolicyRequest, ListPolicyResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListPolicy(m, &grpc.GenericServerStream[ListPolicyRequest, ListPolicyResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPolicyServer = grpc.ServerStreamingServer[ListPolicyResponse]
+type GoBgpService_ListPolicyServer = grpc.ServerStreamingServer[ListPolicyResponse]
 
-func _GobgpApi_SetPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_SetPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetPoliciesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).SetPolicies(ctx, in)
+		return srv.(GoBgpServiceServer).SetPolicies(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_SetPolicies_FullMethodName,
+		FullMethod: GoBgpService_SetPolicies_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).SetPolicies(ctx, req.(*SetPoliciesRequest))
+		return srv.(GoBgpServiceServer).SetPolicies(ctx, req.(*SetPoliciesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddDefinedSetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddDefinedSet(ctx, in)
+		return srv.(GoBgpServiceServer).AddDefinedSet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddDefinedSet_FullMethodName,
+		FullMethod: GoBgpService_AddDefinedSet_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddDefinedSet(ctx, req.(*AddDefinedSetRequest))
+		return srv.(GoBgpServiceServer).AddDefinedSet(ctx, req.(*AddDefinedSetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeleteDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeleteDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteDefinedSetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeleteDefinedSet(ctx, in)
+		return srv.(GoBgpServiceServer).DeleteDefinedSet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeleteDefinedSet_FullMethodName,
+		FullMethod: GoBgpService_DeleteDefinedSet_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeleteDefinedSet(ctx, req.(*DeleteDefinedSetRequest))
+		return srv.(GoBgpServiceServer).DeleteDefinedSet(ctx, req.(*DeleteDefinedSetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListDefinedSet_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListDefinedSet_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListDefinedSetRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListDefinedSet(m, &grpc.GenericServerStream[ListDefinedSetRequest, ListDefinedSetResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListDefinedSet(m, &grpc.GenericServerStream[ListDefinedSetRequest, ListDefinedSetResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListDefinedSetServer = grpc.ServerStreamingServer[ListDefinedSetResponse]
+type GoBgpService_ListDefinedSetServer = grpc.ServerStreamingServer[ListDefinedSetResponse]
 
-func _GobgpApi_AddStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddStatementRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddStatement(ctx, in)
+		return srv.(GoBgpServiceServer).AddStatement(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddStatement_FullMethodName,
+		FullMethod: GoBgpService_AddStatement_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddStatement(ctx, req.(*AddStatementRequest))
+		return srv.(GoBgpServiceServer).AddStatement(ctx, req.(*AddStatementRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeleteStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeleteStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteStatementRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeleteStatement(ctx, in)
+		return srv.(GoBgpServiceServer).DeleteStatement(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeleteStatement_FullMethodName,
+		FullMethod: GoBgpService_DeleteStatement_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeleteStatement(ctx, req.(*DeleteStatementRequest))
+		return srv.(GoBgpServiceServer).DeleteStatement(ctx, req.(*DeleteStatementRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListStatement_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListStatement_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListStatementRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListStatement(m, &grpc.GenericServerStream[ListStatementRequest, ListStatementResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListStatement(m, &grpc.GenericServerStream[ListStatementRequest, ListStatementResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListStatementServer = grpc.ServerStreamingServer[ListStatementResponse]
+type GoBgpService_ListStatementServer = grpc.ServerStreamingServer[ListStatementResponse]
 
-func _GobgpApi_AddPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPolicyAssignmentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddPolicyAssignment(ctx, in)
+		return srv.(GoBgpServiceServer).AddPolicyAssignment(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddPolicyAssignment_FullMethodName,
+		FullMethod: GoBgpService_AddPolicyAssignment_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddPolicyAssignment(ctx, req.(*AddPolicyAssignmentRequest))
+		return srv.(GoBgpServiceServer).AddPolicyAssignment(ctx, req.(*AddPolicyAssignmentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeletePolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeletePolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeletePolicyAssignmentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeletePolicyAssignment(ctx, in)
+		return srv.(GoBgpServiceServer).DeletePolicyAssignment(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeletePolicyAssignment_FullMethodName,
+		FullMethod: GoBgpService_DeletePolicyAssignment_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeletePolicyAssignment(ctx, req.(*DeletePolicyAssignmentRequest))
+		return srv.(GoBgpServiceServer).DeletePolicyAssignment(ctx, req.(*DeletePolicyAssignmentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListPolicyAssignment_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListPolicyAssignment_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListPolicyAssignmentRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListPolicyAssignment(m, &grpc.GenericServerStream[ListPolicyAssignmentRequest, ListPolicyAssignmentResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListPolicyAssignment(m, &grpc.GenericServerStream[ListPolicyAssignmentRequest, ListPolicyAssignmentResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListPolicyAssignmentServer = grpc.ServerStreamingServer[ListPolicyAssignmentResponse]
+type GoBgpService_ListPolicyAssignmentServer = grpc.ServerStreamingServer[ListPolicyAssignmentResponse]
 
-func _GobgpApi_SetPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_SetPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetPolicyAssignmentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).SetPolicyAssignment(ctx, in)
+		return srv.(GoBgpServiceServer).SetPolicyAssignment(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_SetPolicyAssignment_FullMethodName,
+		FullMethod: GoBgpService_SetPolicyAssignment_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).SetPolicyAssignment(ctx, req.(*SetPolicyAssignmentRequest))
+		return srv.(GoBgpServiceServer).SetPolicyAssignment(ctx, req.(*SetPolicyAssignmentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddRpkiRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddRpki(ctx, in)
+		return srv.(GoBgpServiceServer).AddRpki(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddRpki_FullMethodName,
+		FullMethod: GoBgpService_AddRpki_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddRpki(ctx, req.(*AddRpkiRequest))
+		return srv.(GoBgpServiceServer).AddRpki(ctx, req.(*AddRpkiRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeleteRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeleteRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteRpkiRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeleteRpki(ctx, in)
+		return srv.(GoBgpServiceServer).DeleteRpki(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeleteRpki_FullMethodName,
+		FullMethod: GoBgpService_DeleteRpki_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeleteRpki(ctx, req.(*DeleteRpkiRequest))
+		return srv.(GoBgpServiceServer).DeleteRpki(ctx, req.(*DeleteRpkiRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListRpki_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListRpki_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListRpkiRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListRpki(m, &grpc.GenericServerStream[ListRpkiRequest, ListRpkiResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListRpki(m, &grpc.GenericServerStream[ListRpkiRequest, ListRpkiResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListRpkiServer = grpc.ServerStreamingServer[ListRpkiResponse]
+type GoBgpService_ListRpkiServer = grpc.ServerStreamingServer[ListRpkiResponse]
 
-func _GobgpApi_EnableRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_EnableRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EnableRpkiRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).EnableRpki(ctx, in)
+		return srv.(GoBgpServiceServer).EnableRpki(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_EnableRpki_FullMethodName,
+		FullMethod: GoBgpService_EnableRpki_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).EnableRpki(ctx, req.(*EnableRpkiRequest))
+		return srv.(GoBgpServiceServer).EnableRpki(ctx, req.(*EnableRpkiRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DisableRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DisableRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DisableRpkiRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DisableRpki(ctx, in)
+		return srv.(GoBgpServiceServer).DisableRpki(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DisableRpki_FullMethodName,
+		FullMethod: GoBgpService_DisableRpki_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DisableRpki(ctx, req.(*DisableRpkiRequest))
+		return srv.(GoBgpServiceServer).DisableRpki(ctx, req.(*DisableRpkiRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ResetRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_ResetRpki_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResetRpkiRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).ResetRpki(ctx, in)
+		return srv.(GoBgpServiceServer).ResetRpki(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_ResetRpki_FullMethodName,
+		FullMethod: GoBgpService_ResetRpki_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).ResetRpki(ctx, req.(*ResetRpkiRequest))
+		return srv.(GoBgpServiceServer).ResetRpki(ctx, req.(*ResetRpkiRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListRpkiTable_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListRpkiTable_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListRpkiTableRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListRpkiTable(m, &grpc.GenericServerStream[ListRpkiTableRequest, ListRpkiTableResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListRpkiTable(m, &grpc.GenericServerStream[ListRpkiTableRequest, ListRpkiTableResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListRpkiTableServer = grpc.ServerStreamingServer[ListRpkiTableResponse]
+type GoBgpService_ListRpkiTableServer = grpc.ServerStreamingServer[ListRpkiTableResponse]
 
-func _GobgpApi_EnableZebra_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_EnableZebra_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EnableZebraRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).EnableZebra(ctx, in)
+		return srv.(GoBgpServiceServer).EnableZebra(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_EnableZebra_FullMethodName,
+		FullMethod: GoBgpService_EnableZebra_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).EnableZebra(ctx, req.(*EnableZebraRequest))
+		return srv.(GoBgpServiceServer).EnableZebra(ctx, req.(*EnableZebraRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_EnableMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_EnableMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EnableMrtRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).EnableMrt(ctx, in)
+		return srv.(GoBgpServiceServer).EnableMrt(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_EnableMrt_FullMethodName,
+		FullMethod: GoBgpService_EnableMrt_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).EnableMrt(ctx, req.(*EnableMrtRequest))
+		return srv.(GoBgpServiceServer).EnableMrt(ctx, req.(*EnableMrtRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DisableMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DisableMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DisableMrtRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DisableMrt(ctx, in)
+		return srv.(GoBgpServiceServer).DisableMrt(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DisableMrt_FullMethodName,
+		FullMethod: GoBgpService_DisableMrt_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DisableMrt(ctx, req.(*DisableMrtRequest))
+		return srv.(GoBgpServiceServer).DisableMrt(ctx, req.(*DisableMrtRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_AddBmp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_AddBmp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddBmpRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).AddBmp(ctx, in)
+		return srv.(GoBgpServiceServer).AddBmp(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_AddBmp_FullMethodName,
+		FullMethod: GoBgpService_AddBmp_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).AddBmp(ctx, req.(*AddBmpRequest))
+		return srv.(GoBgpServiceServer).AddBmp(ctx, req.(*AddBmpRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_DeleteBmp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_DeleteBmp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteBmpRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).DeleteBmp(ctx, in)
+		return srv.(GoBgpServiceServer).DeleteBmp(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_DeleteBmp_FullMethodName,
+		FullMethod: GoBgpService_DeleteBmp_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).DeleteBmp(ctx, req.(*DeleteBmpRequest))
+		return srv.(GoBgpServiceServer).DeleteBmp(ctx, req.(*DeleteBmpRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GobgpApi_ListBmp_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GoBgpService_ListBmp_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListBmpRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GobgpApiServer).ListBmp(m, &grpc.GenericServerStream[ListBmpRequest, ListBmpResponse]{ServerStream: stream})
+	return srv.(GoBgpServiceServer).ListBmp(m, &grpc.GenericServerStream[ListBmpRequest, ListBmpResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type GobgpApi_ListBmpServer = grpc.ServerStreamingServer[ListBmpResponse]
+type GoBgpService_ListBmpServer = grpc.ServerStreamingServer[ListBmpResponse]
 
-func _GobgpApi_SetLogLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GoBgpService_SetLogLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetLogLevelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GobgpApiServer).SetLogLevel(ctx, in)
+		return srv.(GoBgpServiceServer).SetLogLevel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GobgpApi_SetLogLevel_FullMethodName,
+		FullMethod: GoBgpService_SetLogLevel_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GobgpApiServer).SetLogLevel(ctx, req.(*SetLogLevelRequest))
+		return srv.(GoBgpServiceServer).SetLogLevel(ctx, req.(*SetLogLevelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// GobgpApi_ServiceDesc is the grpc.ServiceDesc for GobgpApi service.
+// GoBgpService_ServiceDesc is the grpc.ServiceDesc for GoBgpService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var GobgpApi_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.GobgpApi",
-	HandlerType: (*GobgpApiServer)(nil),
+var GoBgpService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.GoBgpService",
+	HandlerType: (*GoBgpServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "StartBgp",
-			Handler:    _GobgpApi_StartBgp_Handler,
+			Handler:    _GoBgpService_StartBgp_Handler,
 		},
 		{
 			MethodName: "StopBgp",
-			Handler:    _GobgpApi_StopBgp_Handler,
+			Handler:    _GoBgpService_StopBgp_Handler,
 		},
 		{
 			MethodName: "GetBgp",
-			Handler:    _GobgpApi_GetBgp_Handler,
+			Handler:    _GoBgpService_GetBgp_Handler,
 		},
 		{
 			MethodName: "AddPeer",
-			Handler:    _GobgpApi_AddPeer_Handler,
+			Handler:    _GoBgpService_AddPeer_Handler,
 		},
 		{
 			MethodName: "DeletePeer",
-			Handler:    _GobgpApi_DeletePeer_Handler,
+			Handler:    _GoBgpService_DeletePeer_Handler,
 		},
 		{
 			MethodName: "UpdatePeer",
-			Handler:    _GobgpApi_UpdatePeer_Handler,
+			Handler:    _GoBgpService_UpdatePeer_Handler,
 		},
 		{
 			MethodName: "ResetPeer",
-			Handler:    _GobgpApi_ResetPeer_Handler,
+			Handler:    _GoBgpService_ResetPeer_Handler,
 		},
 		{
 			MethodName: "ShutdownPeer",
-			Handler:    _GobgpApi_ShutdownPeer_Handler,
+			Handler:    _GoBgpService_ShutdownPeer_Handler,
 		},
 		{
 			MethodName: "EnablePeer",
-			Handler:    _GobgpApi_EnablePeer_Handler,
+			Handler:    _GoBgpService_EnablePeer_Handler,
 		},
 		{
 			MethodName: "DisablePeer",
-			Handler:    _GobgpApi_DisablePeer_Handler,
+			Handler:    _GoBgpService_DisablePeer_Handler,
 		},
 		{
 			MethodName: "AddPeerGroup",
-			Handler:    _GobgpApi_AddPeerGroup_Handler,
+			Handler:    _GoBgpService_AddPeerGroup_Handler,
 		},
 		{
 			MethodName: "DeletePeerGroup",
-			Handler:    _GobgpApi_DeletePeerGroup_Handler,
+			Handler:    _GoBgpService_DeletePeerGroup_Handler,
 		},
 		{
 			MethodName: "UpdatePeerGroup",
-			Handler:    _GobgpApi_UpdatePeerGroup_Handler,
+			Handler:    _GoBgpService_UpdatePeerGroup_Handler,
 		},
 		{
 			MethodName: "AddDynamicNeighbor",
-			Handler:    _GobgpApi_AddDynamicNeighbor_Handler,
+			Handler:    _GoBgpService_AddDynamicNeighbor_Handler,
 		},
 		{
 			MethodName: "DeleteDynamicNeighbor",
-			Handler:    _GobgpApi_DeleteDynamicNeighbor_Handler,
+			Handler:    _GoBgpService_DeleteDynamicNeighbor_Handler,
 		},
 		{
 			MethodName: "AddPath",
-			Handler:    _GobgpApi_AddPath_Handler,
+			Handler:    _GoBgpService_AddPath_Handler,
 		},
 		{
 			MethodName: "DeletePath",
-			Handler:    _GobgpApi_DeletePath_Handler,
+			Handler:    _GoBgpService_DeletePath_Handler,
 		},
 		{
 			MethodName: "GetTable",
-			Handler:    _GobgpApi_GetTable_Handler,
+			Handler:    _GoBgpService_GetTable_Handler,
 		},
 		{
 			MethodName: "AddVrf",
-			Handler:    _GobgpApi_AddVrf_Handler,
+			Handler:    _GoBgpService_AddVrf_Handler,
 		},
 		{
 			MethodName: "DeleteVrf",
-			Handler:    _GobgpApi_DeleteVrf_Handler,
+			Handler:    _GoBgpService_DeleteVrf_Handler,
 		},
 		{
 			MethodName: "AddPolicy",
-			Handler:    _GobgpApi_AddPolicy_Handler,
+			Handler:    _GoBgpService_AddPolicy_Handler,
 		},
 		{
 			MethodName: "DeletePolicy",
-			Handler:    _GobgpApi_DeletePolicy_Handler,
+			Handler:    _GoBgpService_DeletePolicy_Handler,
 		},
 		{
 			MethodName: "SetPolicies",
-			Handler:    _GobgpApi_SetPolicies_Handler,
+			Handler:    _GoBgpService_SetPolicies_Handler,
 		},
 		{
 			MethodName: "AddDefinedSet",
-			Handler:    _GobgpApi_AddDefinedSet_Handler,
+			Handler:    _GoBgpService_AddDefinedSet_Handler,
 		},
 		{
 			MethodName: "DeleteDefinedSet",
-			Handler:    _GobgpApi_DeleteDefinedSet_Handler,
+			Handler:    _GoBgpService_DeleteDefinedSet_Handler,
 		},
 		{
 			MethodName: "AddStatement",
-			Handler:    _GobgpApi_AddStatement_Handler,
+			Handler:    _GoBgpService_AddStatement_Handler,
 		},
 		{
 			MethodName: "DeleteStatement",
-			Handler:    _GobgpApi_DeleteStatement_Handler,
+			Handler:    _GoBgpService_DeleteStatement_Handler,
 		},
 		{
 			MethodName: "AddPolicyAssignment",
-			Handler:    _GobgpApi_AddPolicyAssignment_Handler,
+			Handler:    _GoBgpService_AddPolicyAssignment_Handler,
 		},
 		{
 			MethodName: "DeletePolicyAssignment",
-			Handler:    _GobgpApi_DeletePolicyAssignment_Handler,
+			Handler:    _GoBgpService_DeletePolicyAssignment_Handler,
 		},
 		{
 			MethodName: "SetPolicyAssignment",
-			Handler:    _GobgpApi_SetPolicyAssignment_Handler,
+			Handler:    _GoBgpService_SetPolicyAssignment_Handler,
 		},
 		{
 			MethodName: "AddRpki",
-			Handler:    _GobgpApi_AddRpki_Handler,
+			Handler:    _GoBgpService_AddRpki_Handler,
 		},
 		{
 			MethodName: "DeleteRpki",
-			Handler:    _GobgpApi_DeleteRpki_Handler,
+			Handler:    _GoBgpService_DeleteRpki_Handler,
 		},
 		{
 			MethodName: "EnableRpki",
-			Handler:    _GobgpApi_EnableRpki_Handler,
+			Handler:    _GoBgpService_EnableRpki_Handler,
 		},
 		{
 			MethodName: "DisableRpki",
-			Handler:    _GobgpApi_DisableRpki_Handler,
+			Handler:    _GoBgpService_DisableRpki_Handler,
 		},
 		{
 			MethodName: "ResetRpki",
-			Handler:    _GobgpApi_ResetRpki_Handler,
+			Handler:    _GoBgpService_ResetRpki_Handler,
 		},
 		{
 			MethodName: "EnableZebra",
-			Handler:    _GobgpApi_EnableZebra_Handler,
+			Handler:    _GoBgpService_EnableZebra_Handler,
 		},
 		{
 			MethodName: "EnableMrt",
-			Handler:    _GobgpApi_EnableMrt_Handler,
+			Handler:    _GoBgpService_EnableMrt_Handler,
 		},
 		{
 			MethodName: "DisableMrt",
-			Handler:    _GobgpApi_DisableMrt_Handler,
+			Handler:    _GoBgpService_DisableMrt_Handler,
 		},
 		{
 			MethodName: "AddBmp",
-			Handler:    _GobgpApi_AddBmp_Handler,
+			Handler:    _GoBgpService_AddBmp_Handler,
 		},
 		{
 			MethodName: "DeleteBmp",
-			Handler:    _GobgpApi_DeleteBmp_Handler,
+			Handler:    _GoBgpService_DeleteBmp_Handler,
 		},
 		{
 			MethodName: "SetLogLevel",
-			Handler:    _GobgpApi_SetLogLevel_Handler,
+			Handler:    _GoBgpService_SetLogLevel_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "WatchEvent",
-			Handler:       _GobgpApi_WatchEvent_Handler,
+			Handler:       _GoBgpService_WatchEvent_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListPeer",
-			Handler:       _GobgpApi_ListPeer_Handler,
+			Handler:       _GoBgpService_ListPeer_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListPeerGroup",
-			Handler:       _GobgpApi_ListPeerGroup_Handler,
+			Handler:       _GoBgpService_ListPeerGroup_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListDynamicNeighbor",
-			Handler:       _GobgpApi_ListDynamicNeighbor_Handler,
+			Handler:       _GoBgpService_ListDynamicNeighbor_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListPath",
-			Handler:       _GobgpApi_ListPath_Handler,
+			Handler:       _GoBgpService_ListPath_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "AddPathStream",
-			Handler:       _GobgpApi_AddPathStream_Handler,
+			Handler:       _GoBgpService_AddPathStream_Handler,
 			ClientStreams: true,
 		},
 		{
 			StreamName:    "ListVrf",
-			Handler:       _GobgpApi_ListVrf_Handler,
+			Handler:       _GoBgpService_ListVrf_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListPolicy",
-			Handler:       _GobgpApi_ListPolicy_Handler,
+			Handler:       _GoBgpService_ListPolicy_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListDefinedSet",
-			Handler:       _GobgpApi_ListDefinedSet_Handler,
+			Handler:       _GoBgpService_ListDefinedSet_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListStatement",
-			Handler:       _GobgpApi_ListStatement_Handler,
+			Handler:       _GoBgpService_ListStatement_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListPolicyAssignment",
-			Handler:       _GobgpApi_ListPolicyAssignment_Handler,
+			Handler:       _GoBgpService_ListPolicyAssignment_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListRpki",
-			Handler:       _GobgpApi_ListRpki_Handler,
+			Handler:       _GoBgpService_ListRpki_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListRpkiTable",
-			Handler:       _GobgpApi_ListRpkiTable_Handler,
+			Handler:       _GoBgpService_ListRpkiTable_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "ListBmp",
-			Handler:       _GobgpApi_ListBmp_Handler,
+			Handler:       _GoBgpService_ListBmp_Handler,
 			ServerStreams: true,
 		},
 	},

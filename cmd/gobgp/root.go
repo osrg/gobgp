@@ -43,7 +43,7 @@ var globalOpts struct {
 }
 
 var (
-	client api.GobgpApiClient
+	client api.GoBgpServiceClient
 	ctx    context.Context
 )
 
@@ -70,7 +70,7 @@ func newRootCmd() *cobra.Command {
 				}
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(context.Background(), time.Second*10)
-				client = api.NewGobgpApiClient(conn)
+				client = api.NewGoBgpServiceClient(conn)
 				cleanup = func() {
 					conn.Close()
 					cancel()

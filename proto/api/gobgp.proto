@@ -28,92 +28,94 @@ import "api/capability.proto";
 import "api/common.proto";
 import "api/extcom.proto";
 import "api/nlri.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/osrg/gobgp/v4/api;api";
 
 // Interface exported by the server.
-
-service GobgpApi {
-  rpc StartBgp(StartBgpRequest) returns (google.protobuf.Empty);
-  rpc StopBgp(StopBgpRequest) returns (google.protobuf.Empty);
+service GoBgpService {
+  rpc StartBgp(StartBgpRequest) returns (StartBgpResponse);
+  rpc StopBgp(StopBgpRequest) returns (StopBgpResponse);
   rpc GetBgp(GetBgpRequest) returns (GetBgpResponse);
 
   rpc WatchEvent(WatchEventRequest) returns (stream WatchEventResponse);
 
-  rpc AddPeer(AddPeerRequest) returns (google.protobuf.Empty);
-  rpc DeletePeer(DeletePeerRequest) returns (google.protobuf.Empty);
+  rpc AddPeer(AddPeerRequest) returns (AddPeerResponse);
+  rpc DeletePeer(DeletePeerRequest) returns (DeletePeerResponse);
   rpc ListPeer(ListPeerRequest) returns (stream ListPeerResponse);
   rpc UpdatePeer(UpdatePeerRequest) returns (UpdatePeerResponse);
-  rpc ResetPeer(ResetPeerRequest) returns (google.protobuf.Empty);
-  rpc ShutdownPeer(ShutdownPeerRequest) returns (google.protobuf.Empty);
-  rpc EnablePeer(EnablePeerRequest) returns (google.protobuf.Empty);
-  rpc DisablePeer(DisablePeerRequest) returns (google.protobuf.Empty);
+  rpc ResetPeer(ResetPeerRequest) returns (ResetPeerResponse);
+  rpc ShutdownPeer(ShutdownPeerRequest) returns (ShutdownPeerResponse);
+  rpc EnablePeer(EnablePeerRequest) returns (EnablePeerResponse);
+  rpc DisablePeer(DisablePeerRequest) returns (DisablePeerResponse);
 
-  rpc AddPeerGroup(AddPeerGroupRequest) returns (google.protobuf.Empty);
-  rpc DeletePeerGroup(DeletePeerGroupRequest) returns (google.protobuf.Empty);
+  rpc AddPeerGroup(AddPeerGroupRequest) returns (AddPeerGroupResponse);
+  rpc DeletePeerGroup(DeletePeerGroupRequest) returns (DeletePeerGroupResponse);
   rpc ListPeerGroup(ListPeerGroupRequest) returns (stream ListPeerGroupResponse);
   rpc UpdatePeerGroup(UpdatePeerGroupRequest) returns (UpdatePeerGroupResponse);
 
-  rpc AddDynamicNeighbor(AddDynamicNeighborRequest) returns (google.protobuf.Empty);
+  rpc AddDynamicNeighbor(AddDynamicNeighborRequest) returns (AddDynamicNeighborResponse);
   rpc ListDynamicNeighbor(ListDynamicNeighborRequest) returns (stream ListDynamicNeighborResponse);
-  rpc DeleteDynamicNeighbor(DeleteDynamicNeighborRequest) returns (google.protobuf.Empty);
+  rpc DeleteDynamicNeighbor(DeleteDynamicNeighborRequest) returns (DeleteDynamicNeighborResponse);
 
   rpc AddPath(AddPathRequest) returns (AddPathResponse);
-  rpc DeletePath(DeletePathRequest) returns (google.protobuf.Empty);
+  rpc DeletePath(DeletePathRequest) returns (DeletePathResponse);
   rpc ListPath(ListPathRequest) returns (stream ListPathResponse);
-  rpc AddPathStream(stream AddPathStreamRequest) returns (google.protobuf.Empty);
+  rpc AddPathStream(stream AddPathStreamRequest) returns (AddPathStreamResponse);
 
   rpc GetTable(GetTableRequest) returns (GetTableResponse);
 
-  rpc AddVrf(AddVrfRequest) returns (google.protobuf.Empty);
-  rpc DeleteVrf(DeleteVrfRequest) returns (google.protobuf.Empty);
+  rpc AddVrf(AddVrfRequest) returns (AddVrfResponse);
+  rpc DeleteVrf(DeleteVrfRequest) returns (DeleteVrfResponse);
   rpc ListVrf(ListVrfRequest) returns (stream ListVrfResponse);
 
-  rpc AddPolicy(AddPolicyRequest) returns (google.protobuf.Empty);
-  rpc DeletePolicy(DeletePolicyRequest) returns (google.protobuf.Empty);
+  rpc AddPolicy(AddPolicyRequest) returns (AddPolicyResponse);
+  rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse);
   rpc ListPolicy(ListPolicyRequest) returns (stream ListPolicyResponse);
-  rpc SetPolicies(SetPoliciesRequest) returns (google.protobuf.Empty);
+  rpc SetPolicies(SetPoliciesRequest) returns (SetPoliciesResponse);
 
-  rpc AddDefinedSet(AddDefinedSetRequest) returns (google.protobuf.Empty);
-  rpc DeleteDefinedSet(DeleteDefinedSetRequest) returns (google.protobuf.Empty);
+  rpc AddDefinedSet(AddDefinedSetRequest) returns (AddDefinedSetResponse);
+  rpc DeleteDefinedSet(DeleteDefinedSetRequest) returns (DeleteDefinedSetResponse);
   rpc ListDefinedSet(ListDefinedSetRequest) returns (stream ListDefinedSetResponse);
 
-  rpc AddStatement(AddStatementRequest) returns (google.protobuf.Empty);
-  rpc DeleteStatement(DeleteStatementRequest) returns (google.protobuf.Empty);
+  rpc AddStatement(AddStatementRequest) returns (AddStatementResponse);
+  rpc DeleteStatement(DeleteStatementRequest) returns (DeleteStatementResponse);
   rpc ListStatement(ListStatementRequest) returns (stream ListStatementResponse);
 
-  rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (google.protobuf.Empty);
-  rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (google.protobuf.Empty);
+  rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (AddPolicyAssignmentResponse);
+  rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (DeletePolicyAssignmentResponse);
   rpc ListPolicyAssignment(ListPolicyAssignmentRequest) returns (stream ListPolicyAssignmentResponse);
-  rpc SetPolicyAssignment(SetPolicyAssignmentRequest) returns (google.protobuf.Empty);
+  rpc SetPolicyAssignment(SetPolicyAssignmentRequest) returns (SetPolicyAssignmentResponse);
 
-  rpc AddRpki(AddRpkiRequest) returns (google.protobuf.Empty);
-  rpc DeleteRpki(DeleteRpkiRequest) returns (google.protobuf.Empty);
+  rpc AddRpki(AddRpkiRequest) returns (AddRpkiResponse);
+  rpc DeleteRpki(DeleteRpkiRequest) returns (DeleteRpkiResponse);
   rpc ListRpki(ListRpkiRequest) returns (stream ListRpkiResponse);
-  rpc EnableRpki(EnableRpkiRequest) returns (google.protobuf.Empty);
-  rpc DisableRpki(DisableRpkiRequest) returns (google.protobuf.Empty);
-  rpc ResetRpki(ResetRpkiRequest) returns (google.protobuf.Empty);
+  rpc EnableRpki(EnableRpkiRequest) returns (EnableRpkiResponse);
+  rpc DisableRpki(DisableRpkiRequest) returns (DisableRpkiResponse);
+  rpc ResetRpki(ResetRpkiRequest) returns (ResetRpkiResponse);
   rpc ListRpkiTable(ListRpkiTableRequest) returns (stream ListRpkiTableResponse);
 
-  rpc EnableZebra(EnableZebraRequest) returns (google.protobuf.Empty);
+  rpc EnableZebra(EnableZebraRequest) returns (EnableZebraResponse);
 
-  rpc EnableMrt(EnableMrtRequest) returns (google.protobuf.Empty);
-  rpc DisableMrt(DisableMrtRequest) returns (google.protobuf.Empty);
+  rpc EnableMrt(EnableMrtRequest) returns (EnableMrtResponse);
+  rpc DisableMrt(DisableMrtRequest) returns (DisableMrtResponse);
 
-  rpc AddBmp(AddBmpRequest) returns (google.protobuf.Empty);
-  rpc DeleteBmp(DeleteBmpRequest) returns (google.protobuf.Empty);
+  rpc AddBmp(AddBmpRequest) returns (AddBmpResponse);
+  rpc DeleteBmp(DeleteBmpRequest) returns (DeleteBmpResponse);
   rpc ListBmp(ListBmpRequest) returns (stream ListBmpResponse);
 
-  rpc SetLogLevel(SetLogLevelRequest) returns (google.protobuf.Empty);
+  rpc SetLogLevel(SetLogLevelRequest) returns (SetLogLevelResponse);
 }
 
 message StartBgpRequest {
   Global global = 1;
 }
 
+message StartBgpResponse {}
+
 message StopBgpRequest {}
+
+message StopBgpResponse {}
 
 message GetBgpRequest {}
 
@@ -172,10 +174,14 @@ message AddPeerRequest {
   Peer peer = 1;
 }
 
+message AddPeerResponse {}
+
 message DeletePeerRequest {
   string address = 1;
   string interface = 2;
 }
+
+message DeletePeerResponse {}
 
 message ListPeerRequest {
   string address = 1;
@@ -212,27 +218,39 @@ message ResetPeerRequest {
   SoftResetDirection direction = 4;
 }
 
+message ResetPeerResponse {}
+
 message ShutdownPeerRequest {
   string address = 1;
   string communication = 2;
 }
 
+message ShutdownPeerResponse {}
+
 message EnablePeerRequest {
   string address = 1;
 }
+
+message EnablePeerResponse {}
 
 message DisablePeerRequest {
   string address = 1;
   string communication = 2;
 }
 
+message DisablePeerResponse {}
+
 message AddPeerGroupRequest {
   PeerGroup peer_group = 1;
 }
 
+message AddPeerGroupResponse {}
+
 message DeletePeerGroupRequest {
   string name = 1;
 }
+
+message DeletePeerGroupResponse {}
 
 message UpdatePeerGroupRequest {
   PeerGroup peer_group = 1;
@@ -255,10 +273,14 @@ message AddDynamicNeighborRequest {
   DynamicNeighbor dynamic_neighbor = 1;
 }
 
+message AddDynamicNeighborResponse {}
+
 message DeleteDynamicNeighborRequest {
   string prefix = 1;
   string peer_group = 2;
 }
+
+message DeleteDynamicNeighborResponse {}
 
 message ListDynamicNeighborRequest {
   string peer_group = 1;
@@ -285,6 +307,8 @@ message DeletePathRequest {
   Path path = 4;
   bytes uuid = 5;
 }
+
+message DeletePathResponse {}
 
 // API representation of table.LookupPrefix
 message TableLookupPrefix {
@@ -329,6 +353,8 @@ message AddPathStreamRequest {
   repeated Path paths = 3;
 }
 
+message AddPathStreamResponse {}
+
 message GetTableRequest {
   TableType table_type = 1;
   Family family = 2;
@@ -345,9 +371,13 @@ message AddVrfRequest {
   Vrf vrf = 1;
 }
 
+message AddVrfResponse {}
+
 message DeleteVrfRequest {
   string name = 1;
 }
+
+message DeleteVrfResponse {}
 
 message ListVrfRequest {
   string name = 1;
@@ -364,6 +394,8 @@ message AddPolicyRequest {
   bool refer_existing_statements = 2;
 }
 
+message AddPolicyResponse {}
+
 message DeletePolicyRequest {
   Policy policy = 1;
   // if this flag is set, gobgpd won't delete any statements
@@ -371,6 +403,8 @@ message DeletePolicyRequest {
   bool preserve_statements = 2;
   bool all = 3;
 }
+
+message DeletePolicyResponse {}
 
 message ListPolicyRequest {
   string name = 1;
@@ -386,15 +420,21 @@ message SetPoliciesRequest {
   repeated PolicyAssignment assignments = 3;
 }
 
+message SetPoliciesResponse {}
+
 message AddDefinedSetRequest {
   DefinedSet defined_set = 1;
   bool replace = 2;
 }
 
+message AddDefinedSetResponse {}
+
 message DeleteDefinedSetRequest {
   DefinedSet defined_set = 1;
   bool all = 2;
 }
+
+message DeleteDefinedSetResponse {}
 
 message ListDefinedSetRequest {
   DefinedType defined_type = 1;
@@ -409,10 +449,14 @@ message AddStatementRequest {
   Statement statement = 1;
 }
 
+message AddStatementResponse {}
+
 message DeleteStatementRequest {
   Statement statement = 1;
   bool all = 2;
 }
+
+message DeleteStatementResponse {}
 
 message ListStatementRequest {
   string name = 1;
@@ -426,10 +470,14 @@ message AddPolicyAssignmentRequest {
   PolicyAssignment assignment = 1;
 }
 
+message AddPolicyAssignmentResponse {}
+
 message DeletePolicyAssignmentRequest {
   PolicyAssignment assignment = 1;
   bool all = 2;
 }
+
+message DeletePolicyAssignmentResponse {}
 
 message ListPolicyAssignmentRequest {
   string name = 1;
@@ -444,16 +492,22 @@ message SetPolicyAssignmentRequest {
   PolicyAssignment assignment = 1;
 }
 
+message SetPolicyAssignmentResponse {}
+
 message AddRpkiRequest {
   string address = 1;
   uint32 port = 2;
   int64 lifetime = 3;
 }
 
+message AddRpkiResponse {}
+
 message DeleteRpkiRequest {
   string address = 1;
   uint32 port = 2;
 }
+
+message DeleteRpkiResponse {}
 
 message ListRpkiRequest {
   Family family = 1;
@@ -468,16 +522,22 @@ message EnableRpkiRequest {
   uint32 port = 2;
 }
 
+message EnableRpkiResponse {}
+
 message DisableRpkiRequest {
   string address = 1;
   uint32 port = 2;
 }
+
+message DisableRpkiResponse {}
 
 message ResetRpkiRequest {
   string address = 1;
   uint32 port = 2;
   bool soft = 3;
 }
+
+message ResetRpkiResponse {}
 
 message ListRpkiTableRequest {
   Family family = 1;
@@ -497,6 +557,8 @@ message EnableZebraRequest {
   string software_name = 7;
 }
 
+message EnableZebraResponse {}
+
 message EnableMrtRequest {
   enum DumpType {
     UPDATES = 0;
@@ -508,9 +570,13 @@ message EnableMrtRequest {
   uint64 rotation_interval = 4;
 }
 
+message EnableMrtResponse {}
+
 message DisableMrtRequest {
   string filename = 1;
 }
+
+message DisableMrtResponse {}
 
 message AddBmpRequest {
   string address = 1;
@@ -528,10 +594,14 @@ message AddBmpRequest {
   string SysDescr = 6;
 }
 
+message AddBmpResponse {}
+
 message DeleteBmpRequest {
   string address = 1;
   uint32 port = 2;
 }
+
+message DeleteBmpResponse {}
 
 message ListBmpRequest {}
 
@@ -1261,3 +1331,5 @@ message SetLogLevelRequest {
   }
   Level level = 1;
 }
+
+message SetLogLevelResponse {}
