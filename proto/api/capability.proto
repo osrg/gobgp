@@ -83,10 +83,10 @@ message FourOctetASNCapability {
 message AddPathCapabilityTuple {
   api.Family family = 1;
   enum Mode {
-    NONE = 0;
-    RECEIVE = 1;
-    SEND = 2;
-    BOTH = 3;
+    MODE_UNSPECIFIED = 0; // NONE
+    MODE_RECEIVE = 1;
+    MODE_SEND = 2;
+    MODE_BOTH = 3;
   }
   Mode mode = 2;
 }

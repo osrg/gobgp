@@ -45,25 +45,25 @@ const (
 type AddPathCapabilityTuple_Mode int32
 
 const (
-	AddPathCapabilityTuple_NONE    AddPathCapabilityTuple_Mode = 0
-	AddPathCapabilityTuple_RECEIVE AddPathCapabilityTuple_Mode = 1
-	AddPathCapabilityTuple_SEND    AddPathCapabilityTuple_Mode = 2
-	AddPathCapabilityTuple_BOTH    AddPathCapabilityTuple_Mode = 3
+	AddPathCapabilityTuple_MODE_UNSPECIFIED AddPathCapabilityTuple_Mode = 0 // NONE
+	AddPathCapabilityTuple_MODE_RECEIVE     AddPathCapabilityTuple_Mode = 1
+	AddPathCapabilityTuple_MODE_SEND        AddPathCapabilityTuple_Mode = 2
+	AddPathCapabilityTuple_MODE_BOTH        AddPathCapabilityTuple_Mode = 3
 )
 
 // Enum value maps for AddPathCapabilityTuple_Mode.
 var (
 	AddPathCapabilityTuple_Mode_name = map[int32]string{
-		0: "NONE",
-		1: "RECEIVE",
-		2: "SEND",
-		3: "BOTH",
+		0: "MODE_UNSPECIFIED",
+		1: "MODE_RECEIVE",
+		2: "MODE_SEND",
+		3: "MODE_BOTH",
 	}
 	AddPathCapabilityTuple_Mode_value = map[string]int32{
-		"NONE":    0,
-		"RECEIVE": 1,
-		"SEND":    2,
-		"BOTH":    3,
+		"MODE_UNSPECIFIED": 0,
+		"MODE_RECEIVE":     1,
+		"MODE_SEND":        2,
+		"MODE_BOTH":        3,
 	}
 )
 
@@ -772,7 +772,7 @@ func (x *AddPathCapabilityTuple) GetMode() AddPathCapabilityTuple_Mode {
 	if x != nil {
 		return x.Mode
 	}
-	return AddPathCapabilityTuple_NONE
+	return AddPathCapabilityTuple_MODE_UNSPECIFIED
 }
 
 type AddPathCapability struct {
@@ -1183,15 +1183,15 @@ const file_api_capability_proto_rawDesc = "" +
 	"\x04time\x18\x02 \x01(\rR\x04time\x12;\n" +
 	"\x06tuples\x18\x03 \x03(\v2#.api.GracefulRestartCapabilityTupleR\x06tuples\"*\n" +
 	"\x16FourOctetASNCapability\x12\x10\n" +
-	"\x03asn\x18\x01 \x01(\rR\x03asn\"\xa6\x01\n" +
+	"\x03asn\x18\x01 \x01(\rR\x03asn\"\xc1\x01\n" +
 	"\x16AddPathCapabilityTuple\x12#\n" +
 	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x124\n" +
-	"\x04mode\x18\x02 \x01(\x0e2 .api.AddPathCapabilityTuple.ModeR\x04mode\"1\n" +
-	"\x04Mode\x12\b\n" +
-	"\x04NONE\x10\x00\x12\v\n" +
-	"\aRECEIVE\x10\x01\x12\b\n" +
-	"\x04SEND\x10\x02\x12\b\n" +
-	"\x04BOTH\x10\x03\"H\n" +
+	"\x04mode\x18\x02 \x01(\x0e2 .api.AddPathCapabilityTuple.ModeR\x04mode\"L\n" +
+	"\x04Mode\x12\x14\n" +
+	"\x10MODE_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fMODE_RECEIVE\x10\x01\x12\r\n" +
+	"\tMODE_SEND\x10\x02\x12\r\n" +
+	"\tMODE_BOTH\x10\x03\"H\n" +
 	"\x11AddPathCapability\x123\n" +
 	"\x06tuples\x18\x01 \x03(\v2\x1b.api.AddPathCapabilityTupleR\x06tuples\" \n" +
 	"\x1eEnhancedRouteRefreshCapability\"x\n" +
