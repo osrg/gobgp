@@ -4165,11 +4165,11 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		RouteAction: func() api.RouteAction {
 			switch s.Actions.RouteDisposition {
 			case oc.ROUTE_DISPOSITION_ACCEPT_ROUTE:
-				return api.RouteAction_ACCEPT
+				return api.RouteAction_ROUTE_ACTION_ACCEPT
 			case oc.ROUTE_DISPOSITION_REJECT_ROUTE:
-				return api.RouteAction_REJECT
+				return api.RouteAction_ROUTE_ACTION_REJECT
 			}
-			return api.RouteAction_NONE
+			return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 		}(),
 		Community: func() *api.CommunityAction {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
@@ -4313,20 +4313,20 @@ func NewAPIPolicyAssignmentFromTableStruct(t *PolicyAssignment) *api.PolicyAssig
 		Direction: func() api.PolicyDirection {
 			switch t.Type {
 			case POLICY_DIRECTION_IMPORT:
-				return api.PolicyDirection_IMPORT
+				return api.PolicyDirection_POLICY_DIRECTION_IMPORT
 			case POLICY_DIRECTION_EXPORT:
-				return api.PolicyDirection_EXPORT
+				return api.PolicyDirection_POLICY_DIRECTION_EXPORT
 			}
-			return api.PolicyDirection_UNKNOWN
+			return api.PolicyDirection_POLICY_DIRECTION_UNSPECIFIED
 		}(),
 		DefaultAction: func() api.RouteAction {
 			switch t.Default {
 			case ROUTE_TYPE_ACCEPT:
-				return api.RouteAction_ACCEPT
+				return api.RouteAction_ROUTE_ACTION_ACCEPT
 			case ROUTE_TYPE_REJECT:
-				return api.RouteAction_REJECT
+				return api.RouteAction_ROUTE_ACTION_REJECT
 			}
-			return api.RouteAction_NONE
+			return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 		}(),
 		Name: t.Name,
 		Policies: func() []*api.Policy {

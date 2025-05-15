@@ -4055,9 +4055,9 @@ func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, 
 		name = peer.ID()
 	}
 	switch dir {
-	case api.PolicyDirection_IMPORT:
+	case api.PolicyDirection_POLICY_DIRECTION_IMPORT:
 		return name, table.POLICY_DIRECTION_IMPORT, nil
-	case api.PolicyDirection_EXPORT:
+	case api.PolicyDirection_POLICY_DIRECTION_EXPORT:
 		return name, table.POLICY_DIRECTION_EXPORT, nil
 	}
 	return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
@@ -4081,8 +4081,8 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 			names = append(names, r.Name)
 		}
 		dirs := make([]api.PolicyDirection, 0, 2)
-		if r.Direction == api.PolicyDirection_UNKNOWN {
-			dirs = []api.PolicyDirection{api.PolicyDirection_EXPORT, api.PolicyDirection_IMPORT}
+		if r.Direction == api.PolicyDirection_POLICY_DIRECTION_UNSPECIFIED {
+			dirs = []api.PolicyDirection{api.PolicyDirection_POLICY_DIRECTION_EXPORT, api.PolicyDirection_POLICY_DIRECTION_IMPORT}
 		} else {
 			dirs = append(dirs, r.Direction)
 		}

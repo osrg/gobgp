@@ -151,10 +151,10 @@ message WatchEventRequest {
 message WatchEventResponse {
   message PeerEvent {
     enum Type {
-      UNKNOWN = 0;
-      INIT = 1;
-      END_OF_INIT = 2;
-      STATE = 3;
+      TYPE_UNSPECIFIED = 0;
+      TYPE_INIT = 1;
+      TYPE_END_OF_INIT = 2;
+      TYPE_STATE = 3;
     }
     Type type = 1;
     Peer peer = 2;
@@ -329,8 +329,8 @@ message ListPathRequest {
   Family family = 3;
   repeated TableLookupPrefix prefixes = 4;
   enum SortType {
-    NONE = 0;
-    PREFIX = 1;
+    SORT_TYPE_UNSPECIFIED = 0;
+    SORT_TYPE_PREFIX = 1;
   }
   SortType sort_type = 5;
   bool enable_filtered = 6;
@@ -1161,9 +1161,9 @@ message Conditions {
 }
 
 enum RouteAction {
-  NONE = 0;
-  ACCEPT = 1;
-  REJECT = 2;
+  ROUTE_ACTION_UNSPECIFIED = 0;
+  ROUTE_ACTION_ACCEPT = 1;
+  ROUTE_ACTION_REJECT = 2;
 }
 
 message CommunityAction {
@@ -1230,9 +1230,9 @@ message Policy {
 }
 
 enum PolicyDirection {
-  UNKNOWN = 0;
-  IMPORT = 1;
-  EXPORT = 2;
+  POLICY_DIRECTION_UNSPECIFIED = 0;
+  POLICY_DIRECTION_IMPORT = 1;
+  POLICY_DIRECTION_EXPORT = 2;
 }
 
 message PolicyAssignment {

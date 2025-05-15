@@ -301,19 +301,19 @@ func newAfiSafiConfigFromConfigStruct(c *AfiSafi) *api.AfiSafiConfig {
 func newApplyPolicyFromConfigStruct(c *ApplyPolicy) *api.ApplyPolicy {
 	f := func(t DefaultPolicyType) api.RouteAction {
 		if t == DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			return api.RouteAction_ACCEPT
+			return api.RouteAction_ROUTE_ACTION_ACCEPT
 		} else if t == DEFAULT_POLICY_TYPE_REJECT_ROUTE {
-			return api.RouteAction_REJECT
+			return api.RouteAction_ROUTE_ACTION_REJECT
 		}
-		return api.RouteAction_NONE
+		return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 	}
 	applyPolicy := &api.ApplyPolicy{
 		ImportPolicy: &api.PolicyAssignment{
-			Direction:     api.PolicyDirection_IMPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
 			DefaultAction: f(c.Config.DefaultImportPolicy),
 		},
 		ExportPolicy: &api.PolicyAssignment{
-			Direction:     api.PolicyDirection_EXPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
 			DefaultAction: f(c.Config.DefaultExportPolicy),
 		},
 	}

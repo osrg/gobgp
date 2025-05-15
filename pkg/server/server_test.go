@@ -115,26 +115,26 @@ func TestModPolicyAssign(t *testing.T) {
 	}
 
 	r := f([]*oc.PolicyDefinition{{Name: "p1"}, {Name: "p2"}, {Name: "p3"}})
-	r.Direction = api.PolicyDirection_IMPORT
-	r.DefaultAction = api.RouteAction_ACCEPT
+	r.Direction = api.PolicyDirection_POLICY_DIRECTION_IMPORT
+	r.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
 	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
 
-	r.Direction = api.PolicyDirection_EXPORT
+	r.Direction = api.PolicyDirection_POLICY_DIRECTION_EXPORT
 	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
 
 	var ps []*api.PolicyAssignment
 	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name:      table.GLOBAL_RIB_NAME,
-		Direction: api.PolicyDirection_IMPORT}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
+		Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
 	assert.Equal(len(ps[0].Policies), 3)
 
 	r = f([]*oc.PolicyDefinition{{Name: "p1"}})
-	r.Direction = api.PolicyDirection_IMPORT
-	r.DefaultAction = api.RouteAction_ACCEPT
+	r.Direction = api.PolicyDirection_POLICY_DIRECTION_IMPORT
+	r.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
 	r.Name = table.GLOBAL_RIB_NAME
 	err = s.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{Assignment: r})
 	assert.Nil(err)
@@ -142,7 +142,7 @@ func TestModPolicyAssign(t *testing.T) {
 	ps = []*api.PolicyAssignment{}
 	s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name:      table.GLOBAL_RIB_NAME,
-		Direction: api.PolicyDirection_IMPORT}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
+		Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Equal(len(ps[0].Policies), 2)
 
 	ps = []*api.PolicyAssignment{}
@@ -186,8 +186,8 @@ func TestListPolicyAssignment(t *testing.T) {
 		assert.Nil(err)
 
 		pa := &api.PolicyAssignment{
-			Direction:     api.PolicyDirection_IMPORT,
-			DefaultAction: api.RouteAction_ACCEPT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
 			Name:          addr,
 			Policies:      []*api.Policy{{Name: fmt.Sprintf("p%d", i)}},
 		}
@@ -209,7 +209,7 @@ func TestListPolicyAssignment(t *testing.T) {
 
 	ps = []*api.PolicyAssignment{}
 	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
-		Direction: api.PolicyDirection_EXPORT,
+		Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT,
 	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
 	assert.Nil(err)
 	assert.Equal(4, len(ps))
@@ -219,7 +219,7 @@ func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState)
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
 		if peer := r.GetPeer(); peer != nil {
-			if peer.Type == api.WatchEventResponse_PeerEvent_STATE && peer.Peer.State.SessionState == state {
+			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == state {
 				close(ch)
 				watchCancel()
 			}
@@ -317,7 +317,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 			},
 		},
 		Actions: &api.Actions{
-			RouteAction: api.RouteAction_REJECT,
+			RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
 		},
 	}
 	err = server1.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
@@ -331,9 +331,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 	err = server1.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
 		Assignment: &api.PolicyAssignment{
 			Name:          table.GLOBAL_RIB_NAME,
-			Direction:     api.PolicyDirection_IMPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
 			Policies:      []*api.Policy{p1},
-			DefaultAction: api.RouteAction_ACCEPT,
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
 		},
 	})
 	assert.Nil(err)
@@ -614,7 +614,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 			},
 		},
 		Actions: &api.Actions{
-			RouteAction: api.RouteAction_REJECT,
+			RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
 		},
 	}
 	err = server1.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d2})
@@ -628,9 +628,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 	err = server1.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
 		Assignment: &api.PolicyAssignment{
 			Name:          table.GLOBAL_RIB_NAME,
-			Direction:     api.PolicyDirection_EXPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
 			Policies:      []*api.Policy{p2},
-			DefaultAction: api.RouteAction_ACCEPT,
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
 		},
 	})
 	assert.Nil(err)
@@ -2201,7 +2201,7 @@ func TestWatchEvent(test *testing.T) {
 			},
 		},
 		Actions: &api.Actions{
-			RouteAction: api.RouteAction_REJECT,
+			RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
 		},
 	}
 	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
@@ -2215,9 +2215,9 @@ func TestWatchEvent(test *testing.T) {
 	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
 		Assignment: &api.PolicyAssignment{
 			Name:          table.GLOBAL_RIB_NAME,
-			Direction:     api.PolicyDirection_IMPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
 			Policies:      []*api.Policy{p1},
-			DefaultAction: api.RouteAction_ACCEPT,
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
 		},
 	})
 	assert.Nil(err)

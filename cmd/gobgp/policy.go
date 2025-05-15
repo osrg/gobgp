@@ -500,9 +500,9 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Println(ind, "Nexthop: ", prettyString(a.Nexthop))
 	}
 
-	if a.RouteAction != api.RouteAction_NONE {
+	if a.RouteAction != api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
 		action := "accept"
-		if a.RouteAction == api.RouteAction_REJECT {
+		if a.RouteAction == api.RouteAction_ROUTE_ACTION_REJECT {
 			action = "reject"
 		}
 		fmt.Println(ind, action)
@@ -849,9 +849,9 @@ func modAction(name, op string, args []string) error {
 	cmd := "{ add | remove | replace } <value>..."
 	switch typ {
 	case "reject":
-		stmt.Actions.RouteAction = api.RouteAction_REJECT
+		stmt.Actions.RouteAction = api.RouteAction_ROUTE_ACTION_REJECT
 	case "accept":
-		stmt.Actions.RouteAction = api.RouteAction_ACCEPT
+		stmt.Actions.RouteAction = api.RouteAction_ROUTE_ACTION_ACCEPT
 	case "community":
 		stmt.Actions.Community = &api.CommunityAction{}
 		if len(args) < 1 {

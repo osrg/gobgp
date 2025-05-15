@@ -115,7 +115,7 @@ func main() {
 				},
 			},
 		},}, func(r *api.WatchEventResponse) {
-			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
 				log.Info(p)
 			} else if t := r.GetTable(); t != nil {
 				// Your application should do something useful with the BGP-LS path here.
@@ -135,10 +135,10 @@ func main() {
 		},
 		ApplyPolicy: &api.ApplyPolicy{
 			ImportPolicy: &api.PolicyAssignment{
-				DefaultAction: api.RouteAction_ACCEPT,
+				DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
 			},
 			ExportPolicy: &api.PolicyAssignment{
-				DefaultAction: api.RouteAction_REJECT,
+				DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
 			},
 		},
 		AfiSafis: []*api.AfiSafi{

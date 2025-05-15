@@ -972,7 +972,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		Family:         family,
 		Name:           name,
 		Prefixes:       filter,
-		SortType:       api.ListPathRequest_PREFIX,
+		SortType:       api.ListPathRequest_SORT_TYPE_PREFIX,
 		EnableFiltered: enableFiltered,
 		BatchSize:      subOpts.BatchSize,
 	})
@@ -1146,9 +1146,9 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 
 	switch strings.ToLower(policyType) {
 	case "import":
-		dir = api.PolicyDirection_IMPORT
+		dir = api.PolicyDirection_POLICY_DIRECTION_IMPORT
 	case "export":
-		dir = api.PolicyDirection_EXPORT
+		dir = api.PolicyDirection_POLICY_DIRECTION_EXPORT
 	default:
 		return fmt.Errorf("invalid policy type: choose from (import|export)")
 	}
@@ -1189,20 +1189,20 @@ func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 	for idx, arg := range args {
 		if arg == "default" {
 			if len(args) < (idx + 2) {
-				return nil, api.RouteAction_NONE, fmt.Errorf("specify default action [accept|reject]")
+				return nil, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, fmt.Errorf("specify default action [accept|reject]")
 			}
 			typ := args[idx+1]
 			switch strings.ToLower(typ) {
 			case "accept":
-				return append(args[:idx], args[idx+2:]...), api.RouteAction_ACCEPT, nil
+				return append(args[:idx], args[idx+2:]...), api.RouteAction_ROUTE_ACTION_ACCEPT, nil
 			case "reject":
-				return append(args[:idx], args[idx+2:]...), api.RouteAction_REJECT, nil
+				return append(args[:idx], args[idx+2:]...), api.RouteAction_ROUTE_ACTION_REJECT, nil
 			default:
-				return nil, api.RouteAction_NONE, fmt.Errorf("invalid default action")
+				return nil, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, fmt.Errorf("invalid default action")
 			}
 		}
 	}
-	return args, api.RouteAction_NONE, nil
+	return args, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, nil
 }
 
 func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
@@ -1216,9 +1216,9 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 
 	switch strings.ToLower(policyType) {
 	case "import":
-		assign.Direction = api.PolicyDirection_IMPORT
+		assign.Direction = api.PolicyDirection_POLICY_DIRECTION_IMPORT
 	case "export":
-		assign.Direction = api.PolicyDirection_EXPORT
+		assign.Direction = api.PolicyDirection_POLICY_DIRECTION_EXPORT
 	}
 
 	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)

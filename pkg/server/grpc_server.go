@@ -578,9 +578,9 @@ func readApplyPolicyFromAPIStruct(c *oc.ApplyPolicy, a *api.ApplyPolicy) {
 		return
 	}
 	f := func(a api.RouteAction) oc.DefaultPolicyType {
-		if a == api.RouteAction_ACCEPT {
+		if a == api.RouteAction_ROUTE_ACTION_ACCEPT {
 			return oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-		} else if a == api.RouteAction_REJECT {
+		} else if a == api.RouteAction_ROUTE_ACTION_REJECT {
 			return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 		}
 		return ""
@@ -1179,11 +1179,11 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		RouteAction: func() api.RouteAction {
 			switch s.Actions.RouteDisposition {
 			case oc.ROUTE_DISPOSITION_ACCEPT_ROUTE:
-				return api.RouteAction_ACCEPT
+				return api.RouteAction_ROUTE_ACTION_ACCEPT
 			case oc.ROUTE_DISPOSITION_REJECT_ROUTE:
-				return api.RouteAction_REJECT
+				return api.RouteAction_ROUTE_ACTION_REJECT
 			}
-			return api.RouteAction_NONE
+			return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 		}(),
 		Community: func() *api.CommunityAction {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
@@ -1504,11 +1504,11 @@ func newAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondit
 }
 
 func newRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, error) {
-	if a == api.RouteAction_NONE {
+	if a == api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
 		return nil, nil
 	}
 	accept := false
-	if a == api.RouteAction_ACCEPT {
+	if a == api.RouteAction_ROUTE_ACTION_ACCEPT {
 		accept = true
 	}
 	return &table.RoutingAction{
@@ -1847,9 +1847,9 @@ func (s *server) ListPolicyAssignment(r *api.ListPolicyAssignmentRequest, stream
 
 func defaultRouteType(d api.RouteAction) table.RouteType {
 	switch d {
-	case api.RouteAction_ACCEPT:
+	case api.RouteAction_ROUTE_ACTION_ACCEPT:
 		return table.ROUTE_TYPE_ACCEPT
-	case api.RouteAction_REJECT:
+	case api.RouteAction_ROUTE_ACTION_REJECT:
 		return table.ROUTE_TYPE_REJECT
 	default:
 		return table.ROUTE_TYPE_NONE

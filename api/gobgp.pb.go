@@ -312,22 +312,22 @@ func (RouteOriginType) EnumDescriptor() ([]byte, []int) {
 type RouteAction int32
 
 const (
-	RouteAction_NONE   RouteAction = 0
-	RouteAction_ACCEPT RouteAction = 1
-	RouteAction_REJECT RouteAction = 2
+	RouteAction_ROUTE_ACTION_UNSPECIFIED RouteAction = 0
+	RouteAction_ROUTE_ACTION_ACCEPT      RouteAction = 1
+	RouteAction_ROUTE_ACTION_REJECT      RouteAction = 2
 )
 
 // Enum value maps for RouteAction.
 var (
 	RouteAction_name = map[int32]string{
-		0: "NONE",
-		1: "ACCEPT",
-		2: "REJECT",
+		0: "ROUTE_ACTION_UNSPECIFIED",
+		1: "ROUTE_ACTION_ACCEPT",
+		2: "ROUTE_ACTION_REJECT",
 	}
 	RouteAction_value = map[string]int32{
-		"NONE":   0,
-		"ACCEPT": 1,
-		"REJECT": 2,
+		"ROUTE_ACTION_UNSPECIFIED": 0,
+		"ROUTE_ACTION_ACCEPT":      1,
+		"ROUTE_ACTION_REJECT":      2,
 	}
 )
 
@@ -361,22 +361,22 @@ func (RouteAction) EnumDescriptor() ([]byte, []int) {
 type PolicyDirection int32
 
 const (
-	PolicyDirection_UNKNOWN PolicyDirection = 0
-	PolicyDirection_IMPORT  PolicyDirection = 1
-	PolicyDirection_EXPORT  PolicyDirection = 2
+	PolicyDirection_POLICY_DIRECTION_UNSPECIFIED PolicyDirection = 0
+	PolicyDirection_POLICY_DIRECTION_IMPORT      PolicyDirection = 1
+	PolicyDirection_POLICY_DIRECTION_EXPORT      PolicyDirection = 2
 )
 
 // Enum value maps for PolicyDirection.
 var (
 	PolicyDirection_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "IMPORT",
-		2: "EXPORT",
+		0: "POLICY_DIRECTION_UNSPECIFIED",
+		1: "POLICY_DIRECTION_IMPORT",
+		2: "POLICY_DIRECTION_EXPORT",
 	}
 	PolicyDirection_value = map[string]int32{
-		"UNKNOWN": 0,
-		"IMPORT":  1,
-		"EXPORT":  2,
+		"POLICY_DIRECTION_UNSPECIFIED": 0,
+		"POLICY_DIRECTION_IMPORT":      1,
+		"POLICY_DIRECTION_EXPORT":      2,
 	}
 )
 
@@ -462,25 +462,25 @@ func (WatchEventRequest_Table_Filter_Type) EnumDescriptor() ([]byte, []int) {
 type WatchEventResponse_PeerEvent_Type int32
 
 const (
-	WatchEventResponse_PeerEvent_UNKNOWN     WatchEventResponse_PeerEvent_Type = 0
-	WatchEventResponse_PeerEvent_INIT        WatchEventResponse_PeerEvent_Type = 1
-	WatchEventResponse_PeerEvent_END_OF_INIT WatchEventResponse_PeerEvent_Type = 2
-	WatchEventResponse_PeerEvent_STATE       WatchEventResponse_PeerEvent_Type = 3
+	WatchEventResponse_PeerEvent_TYPE_UNSPECIFIED WatchEventResponse_PeerEvent_Type = 0
+	WatchEventResponse_PeerEvent_TYPE_INIT        WatchEventResponse_PeerEvent_Type = 1
+	WatchEventResponse_PeerEvent_TYPE_END_OF_INIT WatchEventResponse_PeerEvent_Type = 2
+	WatchEventResponse_PeerEvent_TYPE_STATE       WatchEventResponse_PeerEvent_Type = 3
 )
 
 // Enum value maps for WatchEventResponse_PeerEvent_Type.
 var (
 	WatchEventResponse_PeerEvent_Type_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "INIT",
-		2: "END_OF_INIT",
-		3: "STATE",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_INIT",
+		2: "TYPE_END_OF_INIT",
+		3: "TYPE_STATE",
 	}
 	WatchEventResponse_PeerEvent_Type_value = map[string]int32{
-		"UNKNOWN":     0,
-		"INIT":        1,
-		"END_OF_INIT": 2,
-		"STATE":       3,
+		"TYPE_UNSPECIFIED": 0,
+		"TYPE_INIT":        1,
+		"TYPE_END_OF_INIT": 2,
+		"TYPE_STATE":       3,
 	}
 )
 
@@ -613,19 +613,19 @@ func (TableLookupPrefix_Type) EnumDescriptor() ([]byte, []int) {
 type ListPathRequest_SortType int32
 
 const (
-	ListPathRequest_NONE   ListPathRequest_SortType = 0
-	ListPathRequest_PREFIX ListPathRequest_SortType = 1
+	ListPathRequest_SORT_TYPE_UNSPECIFIED ListPathRequest_SortType = 0
+	ListPathRequest_SORT_TYPE_PREFIX      ListPathRequest_SortType = 1
 )
 
 // Enum value maps for ListPathRequest_SortType.
 var (
 	ListPathRequest_SortType_name = map[int32]string{
-		0: "NONE",
-		1: "PREFIX",
+		0: "SORT_TYPE_UNSPECIFIED",
+		1: "SORT_TYPE_PREFIX",
 	}
 	ListPathRequest_SortType_value = map[string]int32{
-		"NONE":   0,
-		"PREFIX": 1,
+		"SORT_TYPE_UNSPECIFIED": 0,
+		"SORT_TYPE_PREFIX":      1,
 	}
 )
 
@@ -3384,7 +3384,7 @@ func (x *ListPathRequest) GetSortType() ListPathRequest_SortType {
 	if x != nil {
 		return x.SortType
 	}
-	return ListPathRequest_NONE
+	return ListPathRequest_SORT_TYPE_UNSPECIFIED
 }
 
 func (x *ListPathRequest) GetEnableFiltered() bool {
@@ -5047,7 +5047,7 @@ func (x *ListPolicyAssignmentRequest) GetDirection() PolicyDirection {
 	if x != nil {
 		return x.Direction
 	}
-	return PolicyDirection_UNKNOWN
+	return PolicyDirection_POLICY_DIRECTION_UNSPECIFIED
 }
 
 type ListPolicyAssignmentResponse struct {
@@ -11007,7 +11007,7 @@ func (x *Actions) GetRouteAction() RouteAction {
 	if x != nil {
 		return x.RouteAction
 	}
-	return RouteAction_NONE
+	return RouteAction_ROUTE_ACTION_UNSPECIFIED
 }
 
 func (x *Actions) GetCommunity() *CommunityAction {
@@ -11229,7 +11229,7 @@ func (x *PolicyAssignment) GetDirection() PolicyDirection {
 	if x != nil {
 		return x.Direction
 	}
-	return PolicyDirection_UNKNOWN
+	return PolicyDirection_POLICY_DIRECTION_UNSPECIFIED
 }
 
 func (x *PolicyAssignment) GetPolicies() []*Policy {
@@ -11243,7 +11243,7 @@ func (x *PolicyAssignment) GetDefaultAction() RouteAction {
 	if x != nil {
 		return x.DefaultAction
 	}
-	return RouteAction_NONE
+	return RouteAction_ROUTE_ACTION_UNSPECIFIED
 }
 
 type RoutingPolicy struct {
@@ -12240,7 +12240,7 @@ func (x *WatchEventResponse_PeerEvent) GetType() WatchEventResponse_PeerEvent_Ty
 	if x != nil {
 		return x.Type
 	}
-	return WatchEventResponse_PeerEvent_UNKNOWN
+	return WatchEventResponse_PeerEvent_TYPE_UNSPECIFIED
 }
 
 func (x *WatchEventResponse_PeerEvent) GetPeer() *Peer {
@@ -12481,18 +12481,19 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x04BEST\x10\x00\x12\t\n" +
 	"\x05ADJIN\x10\x01\x12\x0f\n" +
 	"\vPOST_POLICY\x10\x02\x12\a\n" +
-	"\x03EOR\x10\x03\"\xe5\x02\n" +
+	"\x03EOR\x10\x03\"\xfd\x02\n" +
 	"\x12WatchEventResponse\x127\n" +
 	"\x04peer\x18\x02 \x01(\v2!.api.WatchEventResponse.PeerEventH\x00R\x04peer\x12:\n" +
-	"\x05table\x18\x03 \x01(\v2\".api.WatchEventResponse.TableEventH\x00R\x05table\x1a\xa1\x01\n" +
+	"\x05table\x18\x03 \x01(\v2\".api.WatchEventResponse.TableEventH\x00R\x05table\x1a\xb9\x01\n" +
 	"\tPeerEvent\x12:\n" +
 	"\x04type\x18\x01 \x01(\x0e2&.api.WatchEventResponse.PeerEvent.TypeR\x04type\x12\x1d\n" +
-	"\x04peer\x18\x02 \x01(\v2\t.api.PeerR\x04peer\"9\n" +
-	"\x04Type\x12\v\n" +
-	"\aUNKNOWN\x10\x00\x12\b\n" +
-	"\x04INIT\x10\x01\x12\x0f\n" +
-	"\vEND_OF_INIT\x10\x02\x12\t\n" +
-	"\x05STATE\x10\x03\x1a-\n" +
+	"\x04peer\x18\x02 \x01(\v2\t.api.PeerR\x04peer\"Q\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tTYPE_INIT\x10\x01\x12\x14\n" +
+	"\x10TYPE_END_OF_INIT\x10\x02\x12\x0e\n" +
+	"\n" +
+	"TYPE_STATE\x10\x03\x1a-\n" +
 	"\n" +
 	"TableEvent\x12\x1f\n" +
 	"\x05paths\x18\x02 \x03(\v2\t.api.PathR\x05pathsB\a\n" +
@@ -12589,7 +12590,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x05EXACT\x10\x00\x12\n" +
 	"\n" +
 	"\x06LONGER\x10\x01\x12\v\n" +
-	"\aSHORTER\x10\x02\"\xe7\x03\n" +
+	"\aSHORTER\x10\x02\"\x82\x04\n" +
 	"\x0fListPathRequest\x12-\n" +
 	"\n" +
 	"table_type\x18\x01 \x01(\x0e2\x0e.api.TableTypeR\ttableType\x12\x12\n" +
@@ -12603,11 +12604,10 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x12enable_only_binary\x18\t \x01(\bR\x10enableOnlyBinary\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\n" +
-	" \x01(\x04R\tbatchSize\" \n" +
-	"\bSortType\x12\b\n" +
-	"\x04NONE\x10\x00\x12\n" +
-	"\n" +
-	"\x06PREFIX\x10\x01\"F\n" +
+	" \x01(\x04R\tbatchSize\";\n" +
+	"\bSortType\x12\x19\n" +
+	"\x15SORT_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10SORT_TYPE_PREFIX\x10\x01\"F\n" +
 	"\x10ListPathResponse\x122\n" +
 	"\vdestination\x18\x01 \x01(\v2\x10.api.DestinationR\vdestination\"}\n" +
 	"\x14AddPathStreamRequest\x12-\n" +
@@ -13374,19 +13374,15 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"ORIGIN_IGP\x10\x01\x12\x0e\n" +
 	"\n" +
 	"ORIGIN_EGP\x10\x02\x12\x15\n" +
-	"\x11ORIGIN_INCOMPLETE\x10\x03*/\n" +
-	"\vRouteAction\x12\b\n" +
-	"\x04NONE\x10\x00\x12\n" +
-	"\n" +
-	"\x06ACCEPT\x10\x01\x12\n" +
-	"\n" +
-	"\x06REJECT\x10\x02*6\n" +
-	"\x0fPolicyDirection\x12\v\n" +
-	"\aUNKNOWN\x10\x00\x12\n" +
-	"\n" +
-	"\x06IMPORT\x10\x01\x12\n" +
-	"\n" +
-	"\x06EXPORT\x10\x022\x94\x1d\n" +
+	"\x11ORIGIN_INCOMPLETE\x10\x03*]\n" +
+	"\vRouteAction\x12\x1c\n" +
+	"\x18ROUTE_ACTION_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13ROUTE_ACTION_ACCEPT\x10\x01\x12\x17\n" +
+	"\x13ROUTE_ACTION_REJECT\x10\x02*m\n" +
+	"\x0fPolicyDirection\x12 \n" +
+	"\x1cPOLICY_DIRECTION_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17POLICY_DIRECTION_IMPORT\x10\x01\x12\x1b\n" +
+	"\x17POLICY_DIRECTION_EXPORT\x10\x022\x94\x1d\n" +
 	"\fGoBgpService\x127\n" +
 	"\bStartBgp\x12\x14.api.StartBgpRequest\x1a\x15.api.StartBgpResponse\x124\n" +
 	"\aStopBgp\x12\x13.api.StopBgpRequest\x1a\x14.api.StopBgpResponse\x121\n" +

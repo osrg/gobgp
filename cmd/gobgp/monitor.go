@@ -169,7 +169,7 @@ func newMonitorCmd() *cobra.Command {
 				} else if err != nil {
 					exitWithError(err)
 				}
-				if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+				if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
 					s := p.Peer
 					if s.Conf.NeighborAddress == name {
 						if globalOpts.Json {
