@@ -1321,13 +1321,14 @@ message Rpki {
 
 message SetLogLevelRequest {
   enum Level {
-    PANIC = 0;
-    FATAL = 1;
-    ERROR = 2;
-    WARN = 3;
-    INFO = 4;
-    DEBUG = 5;
-    TRACE = 6;
+    LEVEL_UNSPECIFIED = 0;
+    LEVEL_PANIC = 1;
+    LEVEL_FATAL = 2;
+    LEVEL_ERROR = 3;
+    LEVEL_WARN = 4;
+    LEVEL_INFO = 5;
+    LEVEL_DEBUG = 6;
+    LEVEL_TRACE = 7;
   }
   Level level = 1;
 }

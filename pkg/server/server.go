@@ -32,6 +32,8 @@ import (
 	"github.com/eapache/channels"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -4427,8 +4429,27 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 }
 
 func (s *BgpServer) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) error {
-	oldLevel := uint32(s.logger.GetLevel())
-	newLevel := uint32(r.Level)
+	var newLevel log.LogLevel
+	switch r.Level {
+	case api.SetLogLevelRequest_LEVEL_PANIC:
+		newLevel = log.PanicLevel
+	case api.SetLogLevelRequest_LEVEL_FATAL:
+		newLevel = log.FatalLevel
+	case api.SetLogLevelRequest_LEVEL_ERROR:
+		newLevel = log.ErrorLevel
+	case api.SetLogLevelRequest_LEVEL_WARN:
+		newLevel = log.WarnLevel
+	case api.SetLogLevelRequest_LEVEL_INFO:
+		newLevel = log.InfoLevel
+	case api.SetLogLevelRequest_LEVEL_DEBUG:
+		newLevel = log.DebugLevel
+	case api.SetLogLevelRequest_LEVEL_TRACE:
+		newLevel = log.TraceLevel
+	default:
+		return status.Errorf(codes.InvalidArgument, "Unknown log level %s", r.Level)
+	}
+
+	oldLevel := s.logger.GetLevel()
 	if oldLevel == newLevel {
 		s.logger.Info("Logging level unchanged",
 			log.Fields{

@@ -1265,34 +1265,37 @@ func (MedAction_Type) EnumDescriptor() ([]byte, []int) {
 type SetLogLevelRequest_Level int32
 
 const (
-	SetLogLevelRequest_PANIC SetLogLevelRequest_Level = 0
-	SetLogLevelRequest_FATAL SetLogLevelRequest_Level = 1
-	SetLogLevelRequest_ERROR SetLogLevelRequest_Level = 2
-	SetLogLevelRequest_WARN  SetLogLevelRequest_Level = 3
-	SetLogLevelRequest_INFO  SetLogLevelRequest_Level = 4
-	SetLogLevelRequest_DEBUG SetLogLevelRequest_Level = 5
-	SetLogLevelRequest_TRACE SetLogLevelRequest_Level = 6
+	SetLogLevelRequest_LEVEL_UNSPECIFIED SetLogLevelRequest_Level = 0
+	SetLogLevelRequest_LEVEL_PANIC       SetLogLevelRequest_Level = 1
+	SetLogLevelRequest_LEVEL_FATAL       SetLogLevelRequest_Level = 2
+	SetLogLevelRequest_LEVEL_ERROR       SetLogLevelRequest_Level = 3
+	SetLogLevelRequest_LEVEL_WARN        SetLogLevelRequest_Level = 4
+	SetLogLevelRequest_LEVEL_INFO        SetLogLevelRequest_Level = 5
+	SetLogLevelRequest_LEVEL_DEBUG       SetLogLevelRequest_Level = 6
+	SetLogLevelRequest_LEVEL_TRACE       SetLogLevelRequest_Level = 7
 )
 
 // Enum value maps for SetLogLevelRequest_Level.
 var (
 	SetLogLevelRequest_Level_name = map[int32]string{
-		0: "PANIC",
-		1: "FATAL",
-		2: "ERROR",
-		3: "WARN",
-		4: "INFO",
-		5: "DEBUG",
-		6: "TRACE",
+		0: "LEVEL_UNSPECIFIED",
+		1: "LEVEL_PANIC",
+		2: "LEVEL_FATAL",
+		3: "LEVEL_ERROR",
+		4: "LEVEL_WARN",
+		5: "LEVEL_INFO",
+		6: "LEVEL_DEBUG",
+		7: "LEVEL_TRACE",
 	}
 	SetLogLevelRequest_Level_value = map[string]int32{
-		"PANIC": 0,
-		"FATAL": 1,
-		"ERROR": 2,
-		"WARN":  3,
-		"INFO":  4,
-		"DEBUG": 5,
-		"TRACE": 6,
+		"LEVEL_UNSPECIFIED": 0,
+		"LEVEL_PANIC":       1,
+		"LEVEL_FATAL":       2,
+		"LEVEL_ERROR":       3,
+		"LEVEL_WARN":        4,
+		"LEVEL_INFO":        5,
+		"LEVEL_DEBUG":       6,
+		"LEVEL_TRACE":       7,
 	}
 )
 
@@ -12008,7 +12011,7 @@ func (x *SetLogLevelRequest) GetLevel() SetLogLevelRequest_Level {
 	if x != nil {
 		return x.Level
 	}
-	return SetLogLevelRequest_PANIC
+	return SetLogLevelRequest_LEVEL_UNSPECIFIED
 }
 
 type SetLogLevelResponse struct {
@@ -13324,17 +13327,20 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"resetQuery\"O\n" +
 	"\x04Rpki\x12!\n" +
 	"\x04conf\x18\x01 \x01(\v2\r.api.RPKIConfR\x04conf\x12$\n" +
-	"\x05state\x18\x02 \x01(\v2\x0e.api.RPKIStateR\x05state\"\x9d\x01\n" +
+	"\x05state\x18\x02 \x01(\v2\x0e.api.RPKIStateR\x05state\"\xdf\x01\n" +
 	"\x12SetLogLevelRequest\x123\n" +
-	"\x05level\x18\x01 \x01(\x0e2\x1d.api.SetLogLevelRequest.LevelR\x05level\"R\n" +
-	"\x05Level\x12\t\n" +
-	"\x05PANIC\x10\x00\x12\t\n" +
-	"\x05FATAL\x10\x01\x12\t\n" +
-	"\x05ERROR\x10\x02\x12\b\n" +
-	"\x04WARN\x10\x03\x12\b\n" +
-	"\x04INFO\x10\x04\x12\t\n" +
-	"\x05DEBUG\x10\x05\x12\t\n" +
-	"\x05TRACE\x10\x06\"\x15\n" +
+	"\x05level\x18\x01 \x01(\x0e2\x1d.api.SetLogLevelRequest.LevelR\x05level\"\x93\x01\n" +
+	"\x05Level\x12\x15\n" +
+	"\x11LEVEL_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vLEVEL_PANIC\x10\x01\x12\x0f\n" +
+	"\vLEVEL_FATAL\x10\x02\x12\x0f\n" +
+	"\vLEVEL_ERROR\x10\x03\x12\x0e\n" +
+	"\n" +
+	"LEVEL_WARN\x10\x04\x12\x0e\n" +
+	"\n" +
+	"LEVEL_INFO\x10\x05\x12\x0f\n" +
+	"\vLEVEL_DEBUG\x10\x06\x12\x0f\n" +
+	"\vLEVEL_TRACE\x10\a\"\x15\n" +
 	"\x13SetLogLevelResponse*D\n" +
 	"\tTableType\x12\n" +
 	"\n" +
