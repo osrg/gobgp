@@ -823,7 +823,7 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchUpdate with "current" flag.
-	w = s.watch(watchUpdate(true, "", ""))
+	w = s.watch(watchUpdate(true, "", "", false, false, false))
 
 	// Test the initial route.
 	ev = <-w.Event()
@@ -1629,7 +1629,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher := s1.watch(watchUpdate(true, "", ""))
+	watcher := s1.watch(watchUpdate(true, "", "", false, false, false))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -2309,29 +2309,58 @@ func TestWatchEvent(test *testing.T) {
 	assert.Nil(err)
 	<-ch
 
-	count := 0
-	done := make(chan struct{})
-	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
-		Table: &api.WatchEventRequest_Table{
-			Filters: []*api.WatchEventRequest_Table_Filter{
-				{
-					Type:        api.WatchEventRequest_Table_Filter_ADJIN,
-					PeerAddress: "127.0.0.1",
-					Init:        true,
+	type testcases struct {
+		enableOnlyBinary   bool
+		enableNlriBinary   bool
+		enablePattrsBinary bool
+		verificationFunc   func(*api.Path) bool
+	}
+	for _, testcase := range []testcases{
+		{true, false, false, func(p *api.Path) bool {
+			return len(p.NlriBinary) > 0 && len(p.PattrsBinary) > 0 && len(p.Pattrs) == 0
+		}},
+		{false, true, false, func(p *api.Path) bool {
+			return len(p.NlriBinary) > 0 && len(p.PattrsBinary) == 0 && len(p.Pattrs) > 0
+		}},
+		{false, false, true, func(p *api.Path) bool {
+			return len(p.NlriBinary) == 0 && len(p.PattrsBinary) > 0 && len(p.Pattrs) > 0
+		}},
+	} {
+		count := 0
+		done := make(chan struct{})
+		once := true
+		err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
+			Table: &api.WatchEventRequest_Table{
+				Filters: []*api.WatchEventRequest_Table_Filter{
+					{
+						Type:                  api.WatchEventRequest_Table_Filter_ADJIN,
+						PeerAddress:           "127.0.0.1",
+						Init:                  true,
+						EnableOnlyBinary:      testcase.enableOnlyBinary,
+						EnableNlriBinary:      testcase.enableNlriBinary,
+						EnableAttributeBinary: testcase.enablePattrsBinary,
+					},
 				},
 			},
-		},
-	}, func(resp *api.WatchEventResponse) {
-		t := resp.Event.(*api.WatchEventResponse_Table)
-		count += len(t.Table.Paths)
-		if count == 2 {
-			close(done)
-		}
-	})
-	assert.Nil(err)
-	<-done
+		}, func(resp *api.WatchEventResponse) {
+			t := resp.Event.(*api.WatchEventResponse_Table)
+			count += len(t.Table.Paths)
+			fmt.Println(fmt.Sprintf("There was a message with length %d", count))
+			if count == 2 {
+				for _, path := range t.Table.Paths {
+					assert.True(testcase.verificationFunc(path))
+				}
+				if once {
+					close(done)
+					once = false
+				}
+			}
+		})
+		assert.Nil(err)
+		<-done
 
-	assert.Equal(2, count)
+		assert.Equal(2, count)
+	}
 }
 
 func TestAddDefinedSetReplace(t *testing.T) {
