@@ -1228,19 +1228,22 @@ func (CommunityAction_Type) EnumDescriptor() ([]byte, []int) {
 type MedAction_Type int32
 
 const (
-	MedAction_MOD     MedAction_Type = 0
-	MedAction_REPLACE MedAction_Type = 1
+	MedAction_TYPE_UNSPECIFIED MedAction_Type = 0
+	MedAction_TYPE_MOD         MedAction_Type = 1
+	MedAction_TYPE_REPLACE     MedAction_Type = 2
 )
 
 // Enum value maps for MedAction_Type.
 var (
 	MedAction_Type_name = map[int32]string{
-		0: "MOD",
-		1: "REPLACE",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_MOD",
+		2: "TYPE_REPLACE",
 	}
 	MedAction_Type_value = map[string]int32{
-		"MOD":     0,
-		"REPLACE": 1,
+		"TYPE_UNSPECIFIED": 0,
+		"TYPE_MOD":         1,
+		"TYPE_REPLACE":     2,
 	}
 )
 
@@ -10741,7 +10744,7 @@ func (x *MedAction) GetType() MedAction_Type {
 	if x != nil {
 		return x.Type
 	}
-	return MedAction_MOD
+	return MedAction_TYPE_UNSPECIFIED
 }
 
 func (x *MedAction) GetValue() int64 {
@@ -13222,13 +13225,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x03ADD\x10\x00\x12\n" +
 	"\n" +
 	"\x06REMOVE\x10\x01\x12\v\n" +
-	"\aREPLACE\x10\x02\"h\n" +
+	"\aREPLACE\x10\x02\"\x88\x01\n" +
 	"\tMedAction\x12'\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x13.api.MedAction.TypeR\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x03R\x05value\"\x1c\n" +
-	"\x04Type\x12\a\n" +
-	"\x03MOD\x10\x00\x12\v\n" +
-	"\aREPLACE\x10\x01\"_\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value\"<\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bTYPE_MOD\x10\x01\x12\x10\n" +
+	"\fTYPE_REPLACE\x10\x02\"_\n" +
 	"\x0fAsPrependAction\x12\x10\n" +
 	"\x03asn\x18\x01 \x01(\rR\x03asn\x12\x16\n" +
 	"\x06repeat\x18\x02 \x01(\rR\x06repeat\x12\"\n" +

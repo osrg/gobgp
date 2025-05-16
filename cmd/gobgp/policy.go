@@ -88,7 +88,7 @@ func prettyString(v interface{}) string {
 		}
 		return fmt.Sprintf("%s[%s]", typ, l)
 	case *api.MedAction:
-		if a.Type == api.MedAction_MOD && a.Value > 0 {
+		if a.Type == api.MedAction_TYPE_MOD && a.Value > 0 {
 			return fmt.Sprintf("+%d", a.Value)
 		}
 		return fmt.Sprintf("%d", a.Value)
@@ -912,12 +912,12 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Med.Value = int64(med)
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Med.Type = api.MedAction_MOD
+			stmt.Actions.Med.Type = api.MedAction_TYPE_MOD
 		case "sub":
-			stmt.Actions.Med.Type = api.MedAction_MOD
+			stmt.Actions.Med.Type = api.MedAction_TYPE_MOD
 			stmt.Actions.Med.Value = -1 * stmt.Actions.Med.Value
 		case "set":
-			stmt.Actions.Med.Type = api.MedAction_REPLACE
+			stmt.Actions.Med.Type = api.MedAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s med { add | sub | set } <value>", usage)
 		}

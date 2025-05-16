@@ -1181,8 +1181,9 @@ message CommunityAction {
 
 message MedAction {
   enum Type {
-    MOD = 0;
-    REPLACE = 1;
+    TYPE_UNSPECIFIED = 0;
+    TYPE_MOD = 1;
+    TYPE_REPLACE = 2;
   }
   Type type = 1;
   int64 value = 2;
