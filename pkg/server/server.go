@@ -3729,14 +3729,14 @@ func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) erro
 			}
 			family := bgp.Family(0)
 			switch r.Direction {
-			case api.ResetPeerRequest_IN:
+			case api.ResetPeerRequest_DIRECTION_IN:
 				err = s.sResetIn(addr, family)
-			case api.ResetPeerRequest_OUT:
+			case api.ResetPeerRequest_DIRECTION_OUT:
 				err = s.sResetOut(addr, family)
-			case api.ResetPeerRequest_BOTH:
+			case api.ResetPeerRequest_DIRECTION_BOTH:
 				err = s.sReset(addr, family)
 			default:
-				err = fmt.Errorf("unknown direction")
+				err = status.Errorf(codes.InvalidArgument, "unknown direction")
 			}
 			return err
 		}
@@ -4324,14 +4324,16 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 	if t := r.GetTable(); t != nil {
 		for _, filter := range t.Filters {
 			switch filter.Type {
-			case api.WatchEventRequest_Table_Filter_BEST:
+			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
 				opts = append(opts, watchBestPath(filter.Init))
-			case api.WatchEventRequest_Table_Filter_ADJIN:
+			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
 				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
-			case api.WatchEventRequest_Table_Filter_POST_POLICY:
+			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
 				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
-			case api.WatchEventRequest_Table_Filter_EOR:
+			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
 				opts = append(opts, watchEor(filter.Init))
+			default:
+				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
 			}
 		}
 	}

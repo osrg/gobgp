@@ -410,25 +410,28 @@ func (PolicyDirection) EnumDescriptor() ([]byte, []int) {
 type WatchEventRequest_Table_Filter_Type int32
 
 const (
-	WatchEventRequest_Table_Filter_BEST        WatchEventRequest_Table_Filter_Type = 0
-	WatchEventRequest_Table_Filter_ADJIN       WatchEventRequest_Table_Filter_Type = 1
-	WatchEventRequest_Table_Filter_POST_POLICY WatchEventRequest_Table_Filter_Type = 2
-	WatchEventRequest_Table_Filter_EOR         WatchEventRequest_Table_Filter_Type = 3
+	WatchEventRequest_Table_Filter_TYPE_UNSPECIFIED WatchEventRequest_Table_Filter_Type = 0
+	WatchEventRequest_Table_Filter_TYPE_BEST        WatchEventRequest_Table_Filter_Type = 1
+	WatchEventRequest_Table_Filter_TYPE_ADJIN       WatchEventRequest_Table_Filter_Type = 2
+	WatchEventRequest_Table_Filter_TYPE_POST_POLICY WatchEventRequest_Table_Filter_Type = 3
+	WatchEventRequest_Table_Filter_TYPE_EOR         WatchEventRequest_Table_Filter_Type = 4
 )
 
 // Enum value maps for WatchEventRequest_Table_Filter_Type.
 var (
 	WatchEventRequest_Table_Filter_Type_name = map[int32]string{
-		0: "BEST",
-		1: "ADJIN",
-		2: "POST_POLICY",
-		3: "EOR",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_BEST",
+		2: "TYPE_ADJIN",
+		3: "TYPE_POST_POLICY",
+		4: "TYPE_EOR",
 	}
 	WatchEventRequest_Table_Filter_Type_value = map[string]int32{
-		"BEST":        0,
-		"ADJIN":       1,
-		"POST_POLICY": 2,
-		"EOR":         3,
+		"TYPE_UNSPECIFIED": 0,
+		"TYPE_BEST":        1,
+		"TYPE_ADJIN":       2,
+		"TYPE_POST_POLICY": 3,
+		"TYPE_EOR":         4,
 	}
 )
 
@@ -511,52 +514,55 @@ func (WatchEventResponse_PeerEvent_Type) EnumDescriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{7, 0, 0}
 }
 
-type ResetPeerRequest_SoftResetDirection int32
+type ResetPeerRequest_Direction int32
 
 const (
-	ResetPeerRequest_IN   ResetPeerRequest_SoftResetDirection = 0
-	ResetPeerRequest_OUT  ResetPeerRequest_SoftResetDirection = 1
-	ResetPeerRequest_BOTH ResetPeerRequest_SoftResetDirection = 2
+	ResetPeerRequest_DIRECTION_UNSPECIFIED ResetPeerRequest_Direction = 0
+	ResetPeerRequest_DIRECTION_IN          ResetPeerRequest_Direction = 1
+	ResetPeerRequest_DIRECTION_OUT         ResetPeerRequest_Direction = 2
+	ResetPeerRequest_DIRECTION_BOTH        ResetPeerRequest_Direction = 3
 )
 
-// Enum value maps for ResetPeerRequest_SoftResetDirection.
+// Enum value maps for ResetPeerRequest_Direction.
 var (
-	ResetPeerRequest_SoftResetDirection_name = map[int32]string{
-		0: "IN",
-		1: "OUT",
-		2: "BOTH",
+	ResetPeerRequest_Direction_name = map[int32]string{
+		0: "DIRECTION_UNSPECIFIED",
+		1: "DIRECTION_IN",
+		2: "DIRECTION_OUT",
+		3: "DIRECTION_BOTH",
 	}
-	ResetPeerRequest_SoftResetDirection_value = map[string]int32{
-		"IN":   0,
-		"OUT":  1,
-		"BOTH": 2,
+	ResetPeerRequest_Direction_value = map[string]int32{
+		"DIRECTION_UNSPECIFIED": 0,
+		"DIRECTION_IN":          1,
+		"DIRECTION_OUT":         2,
+		"DIRECTION_BOTH":        3,
 	}
 )
 
-func (x ResetPeerRequest_SoftResetDirection) Enum() *ResetPeerRequest_SoftResetDirection {
-	p := new(ResetPeerRequest_SoftResetDirection)
+func (x ResetPeerRequest_Direction) Enum() *ResetPeerRequest_Direction {
+	p := new(ResetPeerRequest_Direction)
 	*p = x
 	return p
 }
 
-func (x ResetPeerRequest_SoftResetDirection) String() string {
+func (x ResetPeerRequest_Direction) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (ResetPeerRequest_SoftResetDirection) Descriptor() protoreflect.EnumDescriptor {
+func (ResetPeerRequest_Direction) Descriptor() protoreflect.EnumDescriptor {
 	return file_api_gobgp_proto_enumTypes[9].Descriptor()
 }
 
-func (ResetPeerRequest_SoftResetDirection) Type() protoreflect.EnumType {
+func (ResetPeerRequest_Direction) Type() protoreflect.EnumType {
 	return &file_api_gobgp_proto_enumTypes[9]
 }
 
-func (x ResetPeerRequest_SoftResetDirection) Number() protoreflect.EnumNumber {
+func (x ResetPeerRequest_Direction) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ResetPeerRequest_SoftResetDirection.Descriptor instead.
-func (ResetPeerRequest_SoftResetDirection) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use ResetPeerRequest_Direction.Descriptor instead.
+func (ResetPeerRequest_Direction) EnumDescriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{16, 0}
 }
 
@@ -564,22 +570,25 @@ func (ResetPeerRequest_SoftResetDirection) EnumDescriptor() ([]byte, []int) {
 type TableLookupPrefix_Type int32
 
 const (
-	TableLookupPrefix_EXACT   TableLookupPrefix_Type = 0
-	TableLookupPrefix_LONGER  TableLookupPrefix_Type = 1
-	TableLookupPrefix_SHORTER TableLookupPrefix_Type = 2
+	TableLookupPrefix_TYPE_UNSPECIFIED TableLookupPrefix_Type = 0
+	TableLookupPrefix_TYPE_EXACT       TableLookupPrefix_Type = 1
+	TableLookupPrefix_TYPE_LONGER      TableLookupPrefix_Type = 2
+	TableLookupPrefix_TYPE_SHORTER     TableLookupPrefix_Type = 3
 )
 
 // Enum value maps for TableLookupPrefix_Type.
 var (
 	TableLookupPrefix_Type_name = map[int32]string{
-		0: "EXACT",
-		1: "LONGER",
-		2: "SHORTER",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_EXACT",
+		2: "TYPE_LONGER",
+		3: "TYPE_SHORTER",
 	}
 	TableLookupPrefix_Type_value = map[string]int32{
-		"EXACT":   0,
-		"LONGER":  1,
-		"SHORTER": 2,
+		"TYPE_UNSPECIFIED": 0,
+		"TYPE_EXACT":       1,
+		"TYPE_LONGER":      2,
+		"TYPE_SHORTER":     3,
 	}
 )
 
@@ -2067,11 +2076,11 @@ func (x *UpdatePeerResponse) GetNeedsSoftResetIn() bool {
 }
 
 type ResetPeerRequest struct {
-	state         protoimpl.MessageState              `protogen:"open.v1"`
-	Address       string                              `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Communication string                              `protobuf:"bytes,2,opt,name=communication,proto3" json:"communication,omitempty"`
-	Soft          bool                                `protobuf:"varint,3,opt,name=soft,proto3" json:"soft,omitempty"`
-	Direction     ResetPeerRequest_SoftResetDirection `protobuf:"varint,4,opt,name=direction,proto3,enum=api.ResetPeerRequest_SoftResetDirection" json:"direction,omitempty"`
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Address       string                     `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Communication string                     `protobuf:"bytes,2,opt,name=communication,proto3" json:"communication,omitempty"`
+	Soft          bool                       `protobuf:"varint,3,opt,name=soft,proto3" json:"soft,omitempty"`
+	Direction     ResetPeerRequest_Direction `protobuf:"varint,4,opt,name=direction,proto3,enum=api.ResetPeerRequest_Direction" json:"direction,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2127,11 +2136,11 @@ func (x *ResetPeerRequest) GetSoft() bool {
 	return false
 }
 
-func (x *ResetPeerRequest) GetDirection() ResetPeerRequest_SoftResetDirection {
+func (x *ResetPeerRequest) GetDirection() ResetPeerRequest_Direction {
 	if x != nil {
 		return x.Direction
 	}
-	return ResetPeerRequest_IN
+	return ResetPeerRequest_DIRECTION_UNSPECIFIED
 }
 
 type ResetPeerResponse struct {
@@ -3293,7 +3302,7 @@ func (x *TableLookupPrefix) GetType() TableLookupPrefix_Type {
 	if x != nil {
 		return x.Type
 	}
-	return TableLookupPrefix_EXACT
+	return TableLookupPrefix_TYPE_UNSPECIFIED
 }
 
 func (x *TableLookupPrefix) GetRd() string {
@@ -12174,7 +12183,7 @@ func (x *WatchEventRequest_Table_Filter) GetType() WatchEventRequest_Table_Filte
 	if x != nil {
 		return x.Type
 	}
-	return WatchEventRequest_Table_Filter_BEST
+	return WatchEventRequest_Table_Filter_TYPE_UNSPECIFIED
 }
 
 func (x *WatchEventRequest_Table_Filter) GetInit() bool {
@@ -12462,26 +12471,28 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fStopBgpResponse\"\x0f\n" +
 	"\rGetBgpRequest\"5\n" +
 	"\x0eGetBgpResponse\x12#\n" +
-	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xbe\x03\n" +
+	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xe8\x03\n" +
 	"\x11WatchEventRequest\x12/\n" +
 	"\x04peer\x18\x01 \x01(\v2\x1b.api.WatchEventRequest.PeerR\x04peer\x122\n" +
 	"\x05table\x18\x02 \x01(\v2\x1c.api.WatchEventRequest.TableR\x05table\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x03 \x01(\rR\tbatchSize\x1a\x06\n" +
-	"\x04Peer\x1a\x9c\x02\n" +
+	"\x04Peer\x1a\xc6\x02\n" +
 	"\x05Table\x12=\n" +
-	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\xd3\x01\n" +
+	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\xfd\x01\n" +
 	"\x06Filter\x12<\n" +
 	"\x04type\x18\x01 \x01(\x0e2(.api.WatchEventRequest.Table.Filter.TypeR\x04type\x12\x12\n" +
 	"\x04init\x18\x02 \x01(\bR\x04init\x12!\n" +
 	"\fpeer_address\x18\x03 \x01(\tR\vpeerAddress\x12\x1d\n" +
 	"\n" +
-	"peer_group\x18\x04 \x01(\tR\tpeerGroup\"5\n" +
-	"\x04Type\x12\b\n" +
-	"\x04BEST\x10\x00\x12\t\n" +
-	"\x05ADJIN\x10\x01\x12\x0f\n" +
-	"\vPOST_POLICY\x10\x02\x12\a\n" +
-	"\x03EOR\x10\x03\"\xfd\x02\n" +
+	"peer_group\x18\x04 \x01(\tR\tpeerGroup\"_\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tTYPE_BEST\x10\x01\x12\x0e\n" +
+	"\n" +
+	"TYPE_ADJIN\x10\x02\x12\x14\n" +
+	"\x10TYPE_POST_POLICY\x10\x03\x12\f\n" +
+	"\bTYPE_EOR\x10\x04\"\xfd\x02\n" +
 	"\x12WatchEventResponse\x127\n" +
 	"\x04peer\x18\x02 \x01(\v2!.api.WatchEventResponse.PeerEventH\x00R\x04peer\x12:\n" +
 	"\x05table\x18\x03 \x01(\v2\".api.WatchEventResponse.TableEventH\x00R\x05table\x1a\xb9\x01\n" +
@@ -12514,16 +12525,17 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x04peer\x18\x01 \x01(\v2\t.api.PeerR\x04peer\x12'\n" +
 	"\x10do_soft_reset_in\x18\x02 \x01(\bR\rdoSoftResetIn\"C\n" +
 	"\x12UpdatePeerResponse\x12-\n" +
-	"\x13needs_soft_reset_in\x18\x01 \x01(\bR\x10needsSoftResetIn\"\xdf\x01\n" +
+	"\x13needs_soft_reset_in\x18\x01 \x01(\bR\x10needsSoftResetIn\"\x86\x02\n" +
 	"\x10ResetPeerRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12$\n" +
 	"\rcommunication\x18\x02 \x01(\tR\rcommunication\x12\x12\n" +
-	"\x04soft\x18\x03 \x01(\bR\x04soft\x12F\n" +
-	"\tdirection\x18\x04 \x01(\x0e2(.api.ResetPeerRequest.SoftResetDirectionR\tdirection\"/\n" +
-	"\x12SoftResetDirection\x12\x06\n" +
-	"\x02IN\x10\x00\x12\a\n" +
-	"\x03OUT\x10\x01\x12\b\n" +
-	"\x04BOTH\x10\x02\"\x13\n" +
+	"\x04soft\x18\x03 \x01(\bR\x04soft\x12=\n" +
+	"\tdirection\x18\x04 \x01(\x0e2\x1f.api.ResetPeerRequest.DirectionR\tdirection\"_\n" +
+	"\tDirection\x12\x19\n" +
+	"\x15DIRECTION_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fDIRECTION_IN\x10\x01\x12\x11\n" +
+	"\rDIRECTION_OUT\x10\x02\x12\x12\n" +
+	"\x0eDIRECTION_BOTH\x10\x03\"\x13\n" +
 	"\x11ResetPeerResponse\"U\n" +
 	"\x13ShutdownPeerRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12$\n" +
@@ -12581,16 +12593,17 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x06family\x18\x03 \x01(\v2\v.api.FamilyR\x06family\x12\x1d\n" +
 	"\x04path\x18\x04 \x01(\v2\t.api.PathR\x04path\x12\x12\n" +
 	"\x04uuid\x18\x05 \x01(\fR\x04uuid\"\x14\n" +
-	"\x12DeletePathResponse\"\x98\x01\n" +
+	"\x12DeletePathResponse\"\xbd\x01\n" +
 	"\x11TableLookupPrefix\x12\x16\n" +
 	"\x06prefix\x18\x01 \x01(\tR\x06prefix\x12/\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x1b.api.TableLookupPrefix.TypeR\x04type\x12\x0e\n" +
-	"\x02rd\x18\x03 \x01(\tR\x02rd\"*\n" +
-	"\x04Type\x12\t\n" +
-	"\x05EXACT\x10\x00\x12\n" +
+	"\x02rd\x18\x03 \x01(\tR\x02rd\"O\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
-	"\x06LONGER\x10\x01\x12\v\n" +
-	"\aSHORTER\x10\x02\"\x82\x04\n" +
+	"TYPE_EXACT\x10\x01\x12\x0f\n" +
+	"\vTYPE_LONGER\x10\x02\x12\x10\n" +
+	"\fTYPE_SHORTER\x10\x03\"\x82\x04\n" +
 	"\x0fListPathRequest\x12-\n" +
 	"\n" +
 	"table_type\x18\x01 \x01(\x0e2\x0e.api.TableTypeR\ttableType\x12\x12\n" +
@@ -13473,7 +13486,7 @@ var file_api_gobgp_proto_goTypes = []any{
 	(PolicyDirection)(0),                     // 6: api.PolicyDirection
 	(WatchEventRequest_Table_Filter_Type)(0), // 7: api.WatchEventRequest.Table.Filter.Type
 	(WatchEventResponse_PeerEvent_Type)(0),   // 8: api.WatchEventResponse.PeerEvent.Type
-	(ResetPeerRequest_SoftResetDirection)(0), // 9: api.ResetPeerRequest.SoftResetDirection
+	(ResetPeerRequest_Direction)(0),          // 9: api.ResetPeerRequest.Direction
 	(TableLookupPrefix_Type)(0),              // 10: api.TableLookupPrefix.Type
 	(ListPathRequest_SortType)(0),            // 11: api.ListPathRequest.SortType
 	(EnableMrtRequest_DumpType)(0),           // 12: api.EnableMrtRequest.DumpType
@@ -13702,7 +13715,7 @@ var file_api_gobgp_proto_depIdxs = []int32{
 	137, // 6: api.AddPeerRequest.peer:type_name -> api.Peer
 	137, // 7: api.ListPeerResponse.peer:type_name -> api.Peer
 	137, // 8: api.UpdatePeerRequest.peer:type_name -> api.Peer
-	9,   // 9: api.ResetPeerRequest.direction:type_name -> api.ResetPeerRequest.SoftResetDirection
+	9,   // 9: api.ResetPeerRequest.direction:type_name -> api.ResetPeerRequest.Direction
 	138, // 10: api.AddPeerGroupRequest.peer_group:type_name -> api.PeerGroup
 	138, // 11: api.UpdatePeerGroupRequest.peer_group:type_name -> api.PeerGroup
 	138, // 12: api.ListPeerGroupResponse.peer_group:type_name -> api.PeerGroup

@@ -130,10 +130,11 @@ message WatchEventRequest {
   message Table {
     message Filter {
       enum Type {
-        BEST = 0;
-        ADJIN = 1;
-        POST_POLICY = 2;
-        EOR = 3;
+        TYPE_UNSPECIFIED = 0;
+        TYPE_BEST = 1;
+        TYPE_ADJIN = 2;
+        TYPE_POST_POLICY = 3;
+        TYPE_EOR = 4;
       }
       Type type = 1;
       bool init = 2;
@@ -210,12 +211,13 @@ message ResetPeerRequest {
   string address = 1;
   string communication = 2;
   bool soft = 3;
-  enum SoftResetDirection {
-    IN = 0;
-    OUT = 1;
-    BOTH = 2;
+  enum Direction {
+    DIRECTION_UNSPECIFIED = 0;
+    DIRECTION_IN = 1;
+    DIRECTION_OUT = 2;
+    DIRECTION_BOTH = 3;
   }
-  SoftResetDirection direction = 4;
+  Direction direction = 4;
 }
 
 message ResetPeerResponse {}
@@ -314,9 +316,10 @@ message DeletePathResponse {}
 message TableLookupPrefix {
   // API representation of table.LookupOption
   enum Type {
-    EXACT = 0;
-    LONGER = 1;
-    SHORTER = 2;
+    TYPE_UNSPECIFIED = 0;
+    TYPE_EXACT = 1;
+    TYPE_LONGER = 2;
+    TYPE_SHORTER = 3;
   }
   string prefix = 1;
   Type type = 2;

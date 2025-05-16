@@ -2309,7 +2309,7 @@ func TestWatchEvent(test *testing.T) {
 		Table: &api.WatchEventRequest_Table{
 			Filters: []*api.WatchEventRequest_Table_Filter{
 				{
-					Type:        api.WatchEventRequest_Table_Filter_ADJIN,
+					Type:        api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
 					PeerAddress: "127.0.0.1",
 					Init:        true,
 				},

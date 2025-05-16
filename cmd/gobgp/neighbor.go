@@ -905,9 +905,9 @@ func showNeighborRib(r string, name string, args []string) error {
 		args = args[1:]
 		for len(args) != 0 {
 			if args[0] == "longer-prefixes" {
-				option = api.TableLookupPrefix_LONGER
+				option = api.TableLookupPrefix_TYPE_LONGER
 			} else if args[0] == "shorter-prefixes" {
-				option = api.TableLookupPrefix_SHORTER
+				option = api.TableLookupPrefix_TYPE_SHORTER
 			} else if args[0] == "rd" {
 				switch rf {
 				case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
@@ -1094,16 +1094,16 @@ func resetNeighbor(cmd string, remoteIP string, args []string) error {
 	}
 	var comm string
 	soft := true
-	dir := api.ResetPeerRequest_BOTH
+	dir := api.ResetPeerRequest_DIRECTION_BOTH
 	switch cmd {
 	case cmdReset:
 		soft = false
 		comm = neighborsOpts.Reason
 	case cmdSoftReset:
 	case cmdSoftResetIn:
-		dir = api.ResetPeerRequest_IN
+		dir = api.ResetPeerRequest_DIRECTION_IN
 	case cmdSoftResetOut:
-		dir = api.ResetPeerRequest_OUT
+		dir = api.ResetPeerRequest_DIRECTION_OUT
 	}
 	_, err := client.ResetPeer(ctx, &api.ResetPeerRequest{
 		Address:       remoteIP,

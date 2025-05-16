@@ -111,7 +111,7 @@ func main() {
 		Table: &api.WatchEventRequest_Table{
 			Filters: []*api.WatchEventRequest_Table_Filter{
 				{
-					Type: api.WatchEventRequest_Table_Filter_BEST,
+					Type: api.WatchEventRequest_Table_Filter_TYPE_BEST,
 				},
 			},
 		},}, func(r *api.WatchEventResponse) {

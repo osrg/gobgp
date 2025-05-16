@@ -128,7 +128,7 @@ func newMonitorCmd() *cobra.Command {
 				Table: &api.WatchEventRequest_Table{
 					Filters: []*api.WatchEventRequest_Table_Filter{
 						{
-							Type: api.WatchEventRequest_Table_Filter_BEST,
+							Type: api.WatchEventRequest_Table_Filter_TYPE_BEST,
 							Init: current,
 						},
 					},
@@ -205,7 +205,7 @@ func newMonitorCmd() *cobra.Command {
 				Table: &api.WatchEventRequest_Table{
 					Filters: []*api.WatchEventRequest_Table_Filter{
 						{
-							Type: api.WatchEventRequest_Table_Filter_ADJIN,
+							Type: api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
 							Init: current,
 						},
 					},
