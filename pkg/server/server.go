@@ -738,8 +738,10 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		}
 
 		if old != nil && old.IsLocal() {
-			// We assumes VRF with the specific RT is deleted.
-			path = old.Clone(true)
+			// If path == nil it will be set to old.Clone(true) in the
+			// func (s *BgpServer) filterpath(peer *peer, path, old *table.Path).
+			// Otherwise this is the local path changing without rt change. We
+			// need to update path or do nothing if path == old.
 		} else if peer.isRouteReflectorClient() {
 			// We need to send the path even if the peer is originator of the
 			// path in order to signal that the client should distribute route
