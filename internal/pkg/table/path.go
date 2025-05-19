@@ -1033,6 +1033,21 @@ func (path *Path) GetLocalPref() (uint32, error) {
 	return lp, nil
 }
 
+func (lhs *Path) EqualByNlri(rhs *Path) bool {
+	if rhs == nil {
+		return false
+	}
+	if lhs == rhs {
+		return true
+	}
+
+	if !lhs.GetSource().Equal(rhs.GetSource()) {
+		return false
+	}
+
+	return lhs.GetNlri().PathIdentifier() == rhs.GetNlri().PathIdentifier()
+}
+
 func (lhs *Path) Equal(rhs *Path) bool {
 	if rhs == nil {
 		return false
