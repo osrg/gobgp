@@ -24,6 +24,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCreateTable(t *testing.T) {
+	table := NewTable(logger, bgp.RF_FS_IPv4_VPN)
+	assert.NotNil(t, table.rtc)
+	_, checkType := table.rtc.(*vpnFamilyRTCMap)
+	assert.True(t, checkType)
+
+	table = NewTable(logger, bgp.RF_RTC_UC)
+	assert.Nil(t, table.rtc)
+
+	table = NewTable(logger, bgp.RF_IPv4_MPLS)
+	assert.NotNil(t, table.rtc)
+
+	_, checkType = table.rtc.(*vpnFamilyRTCMap)
+	assert.True(t, checkType)
+}
+
 func TestLookupLonger(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 
@@ -472,4 +488,158 @@ func updateMsgT3() *bgp.BGPMessage {
 	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
 	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+}
+
+type testPathWithRTs struct {
+	prefix string
+	rts    []bgp.ExtendedCommunityInterface
+}
+
+func TestTableRTC(t *testing.T) {
+	rtStrings := []string{"100:100", "100:200", "100:300"}
+	rts := make([]bgp.ExtendedCommunityInterface, 0)
+	for _, strRT := range rtStrings {
+		rt, err := bgp.ParseRouteTarget(strRT)
+		assert.Nil(t, err)
+		rts = append(rts, rt)
+	}
+	assert.Equal(t, 3, len(rts))
+
+	declarations := []testPathWithRTs{
+		{
+			prefix: "100:100:10.10.10.10/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0]},
+		},
+		{
+			prefix: "101:100:10.10.10.11/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0], rts[1]},
+		},
+		{
+			prefix: "100:200:10.10.10.12/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[1]},
+		},
+		{
+			prefix: "100:300:10.10.10.13/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[2]},
+		},
+	}
+	table, paths := makeTableWithRT(t, nil, declarations, bgp.RF_IPv4_VPN)
+	assert.Equal(t, 4, len(table.GetDestinations()))
+
+	hash0, err := bgp.ExtCommRouteTargetKey(rts[0])
+	assert.Nil(t, err)
+	pathsRT := table.getBestsForNewlyAttachedRTtoPeer(hash0, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	hash1, err := bgp.ExtCommRouteTargetKey(rts[1])
+	assert.Nil(t, err)
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2]}))
+
+	hash2, err := bgp.ExtCommRouteTargetKey(rts[2])
+	assert.Nil(t, err)
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash2, "127.0.0.1:1", "global", 0, pathsRT)
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2], paths[3]}))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash2, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash0, "127.0.0.1:2", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:2", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2]}))
+
+	update := table.update(paths[2].Clone(true))
+	assert.Equal(t, 0, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths[2]))
+
+	update = table.update(paths[1].Clone(false))
+	assert.Equal(t, 1, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.KnownPathList[0].Equal(paths[1]))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths[1]))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash0, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash2, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash0, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash2, "127.0.0.1:1", "global", 0, pathsRT)
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1], paths[3]}))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1]}))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1]}))
+}
+
+func equalPaths(paths1, paths2 []*Path) bool {
+	if len(paths1) != len(paths2) {
+		return false
+	}
+	cp2 := paths2[:]
+	for _, p1 := range paths1 {
+		found := false
+		for i2, p2 := range cp2 {
+			if p1.Equal(p2) {
+				found = true
+				cp2 = append(cp2[:i2], cp2[i2+1:]...)
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return len(cp2) == 0
+}
+
+func makeTableWithRT(t *testing.T, table *Table, declarations []testPathWithRTs, rf bgp.Family) (*Table, []*Path) {
+	if table == nil {
+		table = NewTable(logger, rf)
+	}
+	afi, safi := bgp.FamilyToAfiSafi(rf)
+	paths := make([]*Path, 0)
+	for _, item := range declarations {
+		nlri, _ := bgp.NewPrefixFromFamily(afi, safi, item.prefix)
+		var pattr *bgp.PathAttributeExtendedCommunities
+		if len(item.rts) > 0 {
+			pattr = bgp.NewPathAttributeExtendedCommunities(item.rts)
+		}
+		path := NewPath(nil, nlri, false, []bgp.PathAttributeInterface{pattr}, time.Now(), false)
+
+		update := table.update(path)
+		assert.Equal(t, 1, len(update.KnownPathList))
+		assert.Equal(t, 0, len(update.OldKnownPathList))
+		assert.True(t, update.KnownPathList[0].Equal(path))
+		paths = append(paths, path)
+	}
+	return table, paths
 }
