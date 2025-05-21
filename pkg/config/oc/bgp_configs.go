@@ -23,7 +23,7 @@ package oc
 import (
 	"fmt"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 func mapkey(index int, name string) string {
@@ -3994,7 +3994,7 @@ type AfiSafiState struct {
 	// original -> gobgp:family
 	// gobgp:family's original type is route-family.
 	// Address family value of AFI-SAFI pair translated from afi-safi-name.
-	Family bgp.RouteFamily `mapstructure:"family" json:"family,omitempty"`
+	Family bgp.Family `mapstructure:"family" json:"family,omitempty"`
 }
 
 // struct for container bgp-mp:config.

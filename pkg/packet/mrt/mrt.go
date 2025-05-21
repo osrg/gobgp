@@ -24,7 +24,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 const (
@@ -468,7 +468,7 @@ type Rib struct {
 	SequenceNumber uint32
 	Prefix         bgp.AddrPrefixInterface
 	Entries        []*RibEntry
-	RouteFamily    bgp.RouteFamily
+	Family         bgp.Family
 	isAddPath      bool
 }
 
@@ -478,13 +478,13 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	}
 	u.SequenceNumber = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
-	afi, safi := bgp.RouteFamilyToAfiSafi(u.RouteFamily)
+	afi, safi := bgp.FamilyToAfiSafi(u.Family)
 	if afi == 0 && safi == 0 {
 		afi = binary.BigEndian.Uint16(data[:2])
 		safi = data[2]
 		data = data[3:]
 	}
-	prefix, err := bgp.NewPrefixFromRouteFamily(afi, safi)
+	prefix, err := bgp.NewPrefixFromFamily(afi, safi)
 	if err != nil {
 		return err
 	}
@@ -513,7 +513,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 func (u *Rib) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
-	rf := bgp.AfiSafiToRouteFamily(u.Prefix.AFI(), u.Prefix.SAFI())
+	rf := bgp.AfiSafiToFamily(u.Prefix.AFI(), u.Prefix.SAFI())
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 	default:
@@ -543,12 +543,12 @@ func (u *Rib) Serialize() ([]byte, error) {
 }
 
 func NewRib(seq uint32, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
-	rf := bgp.AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
+	rf := bgp.AfiSafiToFamily(prefix.AFI(), prefix.SAFI())
 	return &Rib{
 		SequenceNumber: seq,
 		Prefix:         prefix,
 		Entries:        entries,
-		RouteFamily:    rf,
+		Family:         rf,
 		isAddPath:      entries[0].isAddPath,
 	}
 }
@@ -928,7 +928,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 	switch h.Type {
 	case TABLE_DUMPv2:
 		subType := MRTSubTypeTableDumpv2(h.SubType)
-		rf := bgp.RouteFamily(0)
+		rf := bgp.Family(0)
 		isAddPath := false
 		switch subType {
 		case PEER_INDEX_TABLE:
@@ -964,8 +964,8 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 
 		if msg.Body == nil {
 			msg.Body = &Rib{
-				RouteFamily: rf,
-				isAddPath:   isAddPath,
+				Family:    rf,
+				isAddPath: isAddPath,
 			}
 		}
 	case BGP4MP:

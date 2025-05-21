@@ -9,7 +9,7 @@ import (
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool, loopbackNextHopAllowed bool) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[Family]BGPAddPathMode, isEBGP bool, isConfed bool, loopbackNextHopAllowed bool) (bool, error) {
 	var strongestError error
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -81,7 +81,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP 
 	return strongestError == nil, strongestError
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, isEBGP bool, isConfed bool, loopbackNextHopAllowed bool) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, isEBGP bool, isConfed bool, loopbackNextHopAllowed bool) (bool, error) {
 	var strongestError error
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
@@ -92,7 +92,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 
 	checkPrefix := func(l []AddrPrefixInterface) error {
 		for _, prefix := range l {
-			rf := AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
+			rf := AfiSafiToFamily(prefix.AFI(), prefix.SAFI())
 			if _, ok := rfs[rf]; !ok {
 				return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not available for this session", rf))
 			}
@@ -125,7 +125,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 
 	switch p := a.(type) {
 	case *PathAttributeMpUnreachNLRI:
-		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
+		rf := AfiSafiToFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
 		}
@@ -133,7 +133,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathM
 			return false, err
 		}
 	case *PathAttributeMpReachNLRI:
-		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
+		rf := AfiSafiToFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
 		}

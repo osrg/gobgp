@@ -7,9 +7,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 type fsmTimingsCollector struct {
@@ -301,8 +301,14 @@ func (c *bgpCollector) Describe(out chan<- *prometheus.Desc) {
 }
 
 func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
+	bgpServer, err := c.server.GetBgp(context.Background(), &api.GetBgpRequest{})
+	if err != nil {
+		out <- prometheus.NewInvalidMetric(prometheus.NewDesc("error", "error during metric collection", nil, nil), err)
+		return
+	}
+
 	req := &api.ListPeerRequest{EnableAdvertised: true}
-	err := c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
+	err = c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
 		peerState := p.GetState()
 		peerAddr := peerState.GetNeighborAddress()
 		peerTimers := p.GetTimers()
@@ -369,7 +375,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			float64(peerState.GetLocalAsn()),
 			peerAddr,
-			p.Transport.GetLocalAddress(),
+			bgpServer.Global.RouterId,
 		)
 
 		// Session and administrative state of the peer
@@ -387,7 +393,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 				continue
 			}
 			afiState := afiSafi.GetState()
-			family := bgp.AfiSafiToRouteFamily(
+			family := bgp.AfiSafiToFamily(
 				uint16(afiState.GetFamily().GetAfi()),
 				uint8(afiState.GetFamily().GetSafi()),
 			).String()

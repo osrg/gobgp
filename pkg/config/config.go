@@ -3,15 +3,13 @@ package config
 import (
 	"context"
 
-	apb "google.golang.org/protobuf/types/known/anypb"
-
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/internal/pkg/table"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/config/oc"
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 // ReadConfigFile parses a config file into a BgpConfigSet which can be applied
@@ -26,8 +24,8 @@ func WatchConfigFile(configFile, configType string, callBack func()) {
 	oc.WatchConfigFile(configFile, configType, callBack)
 }
 
-func marshalRouteTargets(l []string) ([]*apb.Any, error) {
-	rtList := make([]*apb.Any, 0, len(l))
+func marshalRouteTargets(l []string) ([]*api.RouteTarget, error) {
+	rtList := make([]*api.RouteTarget, 0, len(l))
 	for _, rtString := range l {
 		rt, err := bgp.ParseRouteTarget(rtString)
 		if err != nil {
@@ -427,7 +425,7 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 	if updatePolicy {
 		if err := bgpServer.ResetPeer(ctx, &api.ResetPeerRequest{
 			Address:   "",
-			Direction: api.ResetPeerRequest_IN,
+			Direction: api.ResetPeerRequest_DIRECTION_IN,
 			Soft:      true,
 		}); err != nil {
 			bgpServer.Log().Fatal("failed to update policy config",

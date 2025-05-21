@@ -1,0 +1,546 @@
+// Copyright (C) 2018 Nippon Telegraph and Telephone Corporation.
+//
+// Permission is hereby granted, free of charge, to any person
+// obtaining a copy of this software and associated documentation files
+// (the "Software"), to deal in the Software without restriction,
+// including without limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of the Software,
+// and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+syntax = "proto3";
+
+package api;
+
+import "api/common.proto";
+import "api/extcom.proto";
+import "api/nlri.proto";
+
+option go_package = "github.com/osrg/gobgp/v4/api;api";
+
+message Attribute {
+  oneof attr {
+    UnknownAttribute unknown = 1;
+    OriginAttribute origin = 2;
+    AsPathAttribute as_path = 3;
+    NextHopAttribute next_hop = 4;
+    MultiExitDiscAttribute multi_exit_disc = 5;
+    LocalPrefAttribute local_pref = 6;
+    AtomicAggregateAttribute atomic_aggregate = 7;
+    AggregatorAttribute aggregator = 8;
+    CommunitiesAttribute communities = 9;
+    OriginatorIdAttribute originator_id = 10;
+    ClusterListAttribute cluster_list = 11;
+    MpReachNLRIAttribute mp_reach = 12;
+    MpUnreachNLRIAttribute mp_unreach = 13;
+    ExtendedCommunitiesAttribute extended_communities = 14;
+    As4PathAttribute as4_path = 15;
+    As4AggregatorAttribute as4_aggregator = 16;
+    PmsiTunnelAttribute pmsi_tunnel = 17;
+    TunnelEncapAttribute tunnel_encap = 18;
+    IP6ExtendedCommunitiesAttribute ip6_extended_communities = 19;
+    AigpAttribute aigp = 20;
+    LargeCommunitiesAttribute large_communities = 21;
+    LsAttribute ls = 22;
+    PrefixSID prefix_sid = 23;
+  }
+}
+
+message OriginAttribute {
+  uint32 origin = 1;
+}
+
+message AsSegment {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_AS_SET = 1;
+    TYPE_AS_SEQUENCE = 2;
+    TYPE_AS_CONFED_SEQUENCE = 3;
+    TYPE_AS_CONFED_SET = 4;
+  }
+  Type type = 1;
+  repeated uint32 numbers = 2;
+}
+
+message AsPathAttribute {
+  repeated AsSegment segments = 1;
+}
+
+message NextHopAttribute {
+  string next_hop = 1;
+}
+
+message MultiExitDiscAttribute {
+  uint32 med = 1;
+}
+
+message LocalPrefAttribute {
+  uint32 local_pref = 1;
+}
+
+message AtomicAggregateAttribute {}
+
+message AggregatorAttribute {
+  uint32 asn = 1;
+  string address = 2;
+}
+
+message CommunitiesAttribute {
+  repeated uint32 communities = 1;
+}
+
+message OriginatorIdAttribute {
+  string id = 1;
+}
+
+message ClusterListAttribute {
+  repeated string ids = 1;
+}
+
+message MpReachNLRIAttribute {
+  Family family = 1;
+  repeated string next_hops = 2;
+  repeated NLRI nlris = 3;
+}
+
+message MpUnreachNLRIAttribute {
+  api.Family family = 1;
+  // The same as NLRI field of MpReachNLRIAttribute
+  repeated NLRI nlris = 3;
+}
+
+message ExtendedCommunitiesAttribute {
+  repeated ExtendedCommunity communities = 1;
+}
+
+message As4PathAttribute {
+  repeated AsSegment segments = 1;
+}
+
+message As4AggregatorAttribute {
+  uint32 asn = 2;
+  string address = 3;
+}
+
+message PmsiTunnelAttribute {
+  uint32 flags = 1;
+  uint32 type = 2;
+  uint32 label = 3;
+  bytes id = 4;
+}
+
+message TunnelEncapSubTLVEncapsulation {
+  uint32 key = 1;
+  bytes cookie = 2;
+}
+
+message TunnelEncapSubTLVProtocol {
+  uint32 protocol = 1;
+}
+
+message TunnelEncapSubTLVColor {
+  uint32 color = 1;
+}
+
+message TunnelEncapSubTLVSRPreference {
+  uint32 flags = 1;
+  uint32 preference = 2;
+}
+
+message TunnelEncapSubTLVSRCandidatePathName {
+  string candidate_path_name = 1;
+}
+
+message TunnelEncapSubTLVSRPriority {
+  uint32 priority = 1;
+}
+
+message TunnelEncapSubTLVSRBindingSID {
+  oneof bsid {
+    SRBindingSID sr_binding_sid = 1;
+    SRv6BindingSID srv6_binding_sid = 2;
+  }
+}
+
+message SRBindingSID {
+  bool s_flag = 1;
+  bool i_flag = 2;
+  bytes sid = 3;
+}
+
+enum SRV6Behavior {
+  SRV6_BEHAVIOR_UNSPECIFIED = 0;
+  SRV6_BEHAVIOR_END = 1;
+  SRV6_BEHAVIOR_END_WITH_PSP = 2;
+  SRV6_BEHAVIOR_END_WITH_USP = 3;
+  SRV6_BEHAVIOR_END_WITH_PSP_USP = 4;
+  SRV6_BEHAVIOR_ENDX = 5;
+  SRV6_BEHAVIOR_ENDX_WITH_PSP = 6;
+  SRV6_BEHAVIOR_ENDX_WITH_USP = 7;
+  SRV6_BEHAVIOR_ENDX_WITH_PSP_USP = 8;
+  SRV6_BEHAVIOR_ENDT = 9;
+  SRV6_BEHAVIOR_ENDT_WITH_PSP = 10;
+  SRV6_BEHAVIOR_ENDT_WITH_USP = 11;
+  SRV6_BEHAVIOR_ENDT_WITH_PSP_USP = 12;
+  SRV6_BEHAVIOR_END_B6_ENCAPS = 14;
+  SRV6_BEHAVIOR_END_BM = 15;
+  SRV6_BEHAVIOR_END_DX6 = 16;
+  SRV6_BEHAVIOR_END_DX4 = 17;
+  SRV6_BEHAVIOR_END_DT6 = 18;
+  SRV6_BEHAVIOR_END_DT4 = 19;
+  SRV6_BEHAVIOR_END_DT46 = 20;
+  SRV6_BEHAVIOR_END_DX2 = 21;
+  SRV6_BEHAVIOR_END_DX2V = 22;
+  SRV6_BEHAVIOR_END_DT2U = 23;
+  SRV6_BEHAVIOR_END_DT2M = 24;
+  SRV6_BEHAVIOR_END_B6_ENCAPS_RED = 27;
+  SRV6_BEHAVIOR_END_WITH_USD = 28;
+  SRV6_BEHAVIOR_END_WITH_PSP_USD = 29;
+  SRV6_BEHAVIOR_END_WITH_USP_USD = 30;
+  SRV6_BEHAVIOR_END_WITH_PSP_USP_USD = 31;
+  SRV6_BEHAVIOR_ENDX_WITH_USD = 32;
+  SRV6_BEHAVIOR_ENDX_WITH_PSP_USD = 33;
+  SRV6_BEHAVIOR_ENDX_WITH_USP_USD = 34;
+  SRV6_BEHAVIOR_ENDX_WITH_PSP_USP_USD = 35;
+  SRV6_BEHAVIOR_ENDT_WITH_USD = 36;
+  SRV6_BEHAVIOR_ENDT_WITH_PSP_USD = 37;
+  SRV6_BEHAVIOR_ENDT_WITH_USP_USD = 38;
+  SRV6_BEHAVIOR_ENDT_WITH_PSP_USP_USD = 39;
+  SRV6_BEHAVIOR_ENDM_GTP6D = 69; // 0x0045
+  SRV6_BEHAVIOR_ENDM_GTP6DI = 70; // 0x0046
+  SRV6_BEHAVIOR_ENDM_GTP6E = 71; // 0x0047
+  SRV6_BEHAVIOR_ENDM_GTP4E = 72; // 0x0048
+}
+
+message SRv6EndPointBehavior {
+  SRV6Behavior behavior = 1;
+  uint32 block_len = 2;
+  uint32 node_len = 3;
+  uint32 func_len = 4;
+  uint32 arg_len = 5;
+}
+
+message SRv6BindingSID {
+  bool s_flag = 1;
+  bool i_flag = 2;
+  bool b_flag = 3;
+  bytes sid = 4;
+  SRv6EndPointBehavior endpoint_behavior_structure = 5;
+}
+
+enum ENLPType {
+  ENLP_TYPE_UNSPECIFIED = 0;
+  ENLP_TYPE_TYPE1 = 1;
+  ENLP_TYPE_TYPE2 = 2;
+  ENLP_TYPE_TYPE3 = 3;
+  ENLP_TYPE_TYPE4 = 4;
+}
+
+message TunnelEncapSubTLVSRENLP {
+  uint32 flags = 1;
+  ENLPType enlp = 2;
+}
+
+message SRWeight {
+  uint32 flags = 1;
+  uint32 weight = 2;
+}
+
+message SegmentFlags {
+  bool v_flag = 1;
+  bool a_flag = 2;
+  bool s_flag = 3;
+  bool b_flag = 4;
+}
+
+message SegmentTypeA {
+  SegmentFlags flags = 1;
+  uint32 label = 2;
+}
+
+message SegmentTypeB {
+  SegmentFlags flags = 1;
+  bytes sid = 2;
+  SRv6EndPointBehavior endpoint_behavior_structure = 3;
+}
+
+message TunnelEncapSubTLVSRSegmentList {
+  SRWeight weight = 1;
+
+  message Segment {
+    oneof segment {
+      SegmentTypeA a = 1;
+      SegmentTypeB b = 2;
+    }
+  }
+  repeated Segment segments = 2;
+}
+
+message TunnelEncapSubTLVEgressEndpoint {
+  string address = 1;
+}
+
+message TunnelEncapSubTLVUDPDestPort {
+  uint32 port = 1;
+}
+
+message TunnelEncapSubTLVUnknown {
+  uint32 type = 1;
+  bytes value = 2;
+}
+
+message TunnelEncapTLV {
+  uint32 type = 1;
+  message TLV {
+    oneof tlv {
+      TunnelEncapSubTLVUnknown unknown = 1;
+      TunnelEncapSubTLVEncapsulation encapsulation = 2;
+      TunnelEncapSubTLVProtocol protocol = 3;
+      TunnelEncapSubTLVColor color = 4;
+      TunnelEncapSubTLVEgressEndpoint egress_endpoint = 5;
+      TunnelEncapSubTLVUDPDestPort udp_dest_port = 6;
+      TunnelEncapSubTLVSRPreference sr_preference = 7;
+      TunnelEncapSubTLVSRPriority sr_priority = 8;
+      TunnelEncapSubTLVSRCandidatePathName sr_candidate_path_name = 9;
+      TunnelEncapSubTLVSRENLP sr_enlp = 10;
+      TunnelEncapSubTLVSRBindingSID sr_binding_sid = 11;
+      TunnelEncapSubTLVSRSegmentList sr_segment_list = 12;
+    }
+  }
+  repeated TLV tlvs = 2;
+}
+
+message TunnelEncapAttribute {
+  repeated TunnelEncapTLV tlvs = 1;
+}
+
+message IPv6AddressSpecificExtended {
+  bool is_transitive = 1;
+  uint32 sub_type = 2;
+  string address = 3;
+  uint32 local_admin = 4;
+}
+
+message RedirectIPv6AddressSpecificExtended {
+  string address = 1;
+  uint32 local_admin = 2;
+}
+
+message IP6ExtendedCommunitiesAttribute {
+  message Community {
+    oneof extcom {
+      IPv6AddressSpecificExtended ipv6_address_specific = 1;
+      RedirectIPv6AddressSpecificExtended redirect_ipv6_address_specific = 2;
+    }
+  }
+  repeated Community communities = 1;
+}
+
+message AigpTLVIGPMetric {
+  uint64 metric = 1;
+}
+
+message AigpTLVUnknown {
+  uint32 type = 1;
+  bytes value = 2;
+}
+
+message AigpAttribute {
+  message TLV {
+    oneof tlv {
+      AigpTLVUnknown unknown = 1;
+      AigpTLVIGPMetric igp_metric = 2;
+    }
+  }
+  repeated TLV tlvs = 1;
+}
+
+message LargeCommunity {
+  uint32 global_admin = 1;
+  uint32 local_data1 = 2;
+  uint32 local_data2 = 3;
+}
+
+message LargeCommunitiesAttribute {
+  repeated LargeCommunity communities = 1;
+}
+
+message LsNodeFlags {
+  bool overload = 1;
+  bool attached = 2;
+  bool external = 3;
+  bool abr = 4;
+  bool router = 5;
+  bool v6 = 6;
+}
+
+message LsIGPFlags {
+  bool down = 1;
+  bool no_unicast = 2;
+  bool local_address = 3;
+  bool propagate_nssa = 4;
+}
+
+message LsSrRange {
+  uint32 begin = 1;
+  uint32 end = 2;
+}
+
+message LsSrCapabilities {
+  bool ipv4_supported = 1;
+  bool ipv6_supported = 2;
+  repeated LsSrRange ranges = 3;
+}
+
+message LsSrLocalBlock {
+  repeated LsSrRange ranges = 1;
+}
+
+message LsAttributeNode {
+  string name = 1;
+  LsNodeFlags flags = 2;
+  string local_router_id = 3;
+  string local_router_id_v6 = 4;
+  bytes isis_area = 5;
+  bytes opaque = 6;
+
+  LsSrCapabilities sr_capabilities = 7;
+  bytes sr_algorithms = 8;
+  LsSrLocalBlock sr_local_block = 9;
+}
+
+message LsAttributeLink {
+  string name = 1;
+  string local_router_id = 2;
+  string local_router_id_v6 = 3;
+  string remote_router_id = 4;
+  string remote_router_id_v6 = 5;
+  uint32 admin_group = 6;
+  uint32 default_te_metric = 7;
+  uint32 igp_metric = 8;
+  bytes opaque = 9;
+
+  float bandwidth = 10;
+  float reservable_bandwidth = 11;
+  repeated float unreserved_bandwidth = 12;
+
+  uint32 sr_adjacency_sid = 13;
+  repeated uint32 srlgs = 14;
+}
+
+message LsAttributePrefix {
+  LsIGPFlags igp_flags = 1;
+  bytes opaque = 2;
+
+  uint32 sr_prefix_sid = 3;
+}
+
+message LsBgpPeerSegmentSIDFlags {
+  bool value = 1;
+  bool local = 2;
+  bool backup = 3;
+  bool persistent = 4;
+}
+
+message LsBgpPeerSegmentSID {
+  LsBgpPeerSegmentSIDFlags flags = 1;
+  uint32 weight = 2;
+  uint32 sid = 3;
+}
+
+message LsAttributeBgpPeerSegment {
+  LsBgpPeerSegmentSID bgp_peer_node_sid = 1;
+  LsBgpPeerSegmentSID bgp_peer_adjacency_sid = 2;
+  LsBgpPeerSegmentSID bgp_peer_set_sid = 3;
+}
+
+message LsAttribute {
+  LsAttributeNode node = 1;
+  LsAttributeLink link = 2;
+  LsAttributePrefix prefix = 3;
+  LsAttributeBgpPeerSegment bgp_peer_segment = 4;
+}
+
+message UnknownAttribute {
+  uint32 flags = 1;
+  uint32 type = 2;
+  bytes value = 3;
+}
+
+// https://www.rfc-editor.org/rfc/rfc9252.html#section-3.2.1
+message SRv6StructureSubSubTLV {
+  uint32 locator_block_length = 1;
+  uint32 locator_node_length = 2;
+  uint32 function_length = 3;
+  uint32 argument_length = 4;
+  uint32 transposition_length = 5;
+  uint32 transposition_offset = 6;
+}
+
+message SRv6SubSubTLV {
+  oneof tlv {
+    SRv6StructureSubSubTLV structure = 1;
+  }
+}
+
+message SRv6SubSubTLVs {
+  repeated SRv6SubSubTLV tlvs = 1;
+}
+
+message SRv6SIDFlags {
+  // Placeholder for future sid flags
+  bool flag_1 = 1;
+}
+
+// https://tools.ietf.org/html/draft-dawra-bess-srv6-services-02#section-2.1.1
+message SRv6InformationSubTLV {
+  bytes sid = 1;
+  SRv6SIDFlags flags = 2;
+  uint32 endpoint_behavior = 3;
+  map<uint32, SRv6SubSubTLVs> sub_sub_tlvs = 4;
+}
+
+message SRv6SubTLV {
+  oneof tlv {
+    SRv6InformationSubTLV information = 1;
+  }
+}
+
+message SRv6SubTLVs {
+  repeated SRv6SubTLV tlvs = 1;
+}
+
+// https://www.rfc-editor.org/rfc/rfc9252.html#section-2
+message SRv6L3ServiceTLV {
+  map<uint32, SRv6SubTLVs> sub_tlvs = 1;
+}
+
+// https://www.rfc-editor.org/rfc/rfc9252.html#section-2
+message SRv6L2ServiceTLV {
+  map<uint32, SRv6SubTLVs> sub_tlvs = 1;
+}
+
+// https://tools.ietf.org/html/rfc8669
+message PrefixSID {
+  // tlv is one of:
+  message TLV {
+    oneof tlv {
+      // IndexLabelTLV Type 1 (not yet implemented)
+      // OriginatorSRGBTLV Type 3 (not yet implemented)
+      SRv6L3ServiceTLV l3_service = 3;
+      SRv6L2ServiceTLV l2_service = 4;
+    }
+  }
+  repeated TLV tlvs = 1;
+}

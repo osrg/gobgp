@@ -24,9 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []interface{} {
@@ -128,7 +128,7 @@ func newMonitorCmd() *cobra.Command {
 				Table: &api.WatchEventRequest_Table{
 					Filters: []*api.WatchEventRequest_Table_Filter{
 						{
-							Type: api.WatchEventRequest_Table_Filter_BEST,
+							Type: api.WatchEventRequest_Table_Filter_TYPE_BEST,
 							Init: current,
 						},
 					},
@@ -169,7 +169,7 @@ func newMonitorCmd() *cobra.Command {
 				} else if err != nil {
 					exitWithError(err)
 				}
-				if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+				if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
 					s := p.Peer
 					if s.Conf.NeighborAddress == name {
 						if globalOpts.Json {
@@ -205,7 +205,7 @@ func newMonitorCmd() *cobra.Command {
 				Table: &api.WatchEventRequest_Table{
 					Filters: []*api.WatchEventRequest_Table_Filter{
 						{
-							Type: api.WatchEventRequest_Table_Filter_ADJIN,
+							Type: api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
 							Init: current,
 						},
 					},

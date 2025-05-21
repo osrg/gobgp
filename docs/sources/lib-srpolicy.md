@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v4/api"
 )
 
 func AddSRPolicy(client api.GobgpApiClient) error {

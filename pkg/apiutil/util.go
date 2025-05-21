@@ -21,8 +21,8 @@ import (
 	"net"
 	"time"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -87,9 +87,9 @@ func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttr
 	}, nil
 }
 
-func getNLRI(family bgp.RouteFamily, buf []byte) (bgp.AddrPrefixInterface, error) {
-	afi, safi := bgp.RouteFamilyToAfiSafi(family)
-	nlri, err := bgp.NewPrefixFromRouteFamily(afi, safi)
+func getNLRI(family bgp.Family, buf []byte) (bgp.AddrPrefixInterface, error) {
+	afi, safi := bgp.FamilyToAfiSafi(family)
+	nlri, err := bgp.NewPrefixFromFamily(afi, safi)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +104,9 @@ func GetNativeNlri(p *api.Path) (bgp.AddrPrefixInterface, error) {
 		return nil, fmt.Errorf("family cannot be nil")
 	}
 	if len(p.NlriBinary) > 0 {
-		return getNLRI(ToRouteFamily(p.Family), p.NlriBinary)
+		return getNLRI(ToFamily(p.Family), p.NlriBinary)
 	}
-	return UnmarshalNLRI(ToRouteFamily(p.Family), p.Nlri)
+	return UnmarshalNLRI(ToFamily(p.Family), p.Nlri)
 }
 
 func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) {
@@ -129,8 +129,8 @@ func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) 
 	return UnmarshalPathAttributes(p.Pattrs)
 }
 
-func ToRouteFamily(f *api.Family) bgp.RouteFamily {
-	return bgp.AfiSafiToRouteFamily(uint16(f.Afi), uint8(f.Safi))
+func ToFamily(f *api.Family) bgp.Family {
+	return bgp.AfiSafiToFamily(uint16(f.Afi), uint8(f.Safi))
 }
 
 func ToApiFamily(afi uint16, safi uint8) *api.Family {

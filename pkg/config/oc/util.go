@@ -26,9 +26,9 @@ import (
 
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 // Returns config file type by retrieving extension from the given path.
@@ -133,8 +133,8 @@ func (n *Neighbor) IsEBGPPeer(g *Global) bool {
 	return n.Config.PeerAs != n.Config.LocalAs
 }
 
-func (n *Neighbor) CreateRfMap() map[bgp.RouteFamily]bgp.BGPAddPathMode {
-	rfMap := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
+func (n *Neighbor) CreateRfMap() map[bgp.Family]bgp.BGPAddPathMode {
+	rfMap := make(map[bgp.Family]bgp.BGPAddPathMode)
 	for _, af := range n.AfiSafis {
 		mode := bgp.BGP_ADD_PATH_NONE
 		if af.AddPaths.State.Receive {
@@ -148,7 +148,7 @@ func (n *Neighbor) CreateRfMap() map[bgp.RouteFamily]bgp.BGPAddPathMode {
 	return rfMap
 }
 
-func (n *Neighbor) GetAfiSafi(family bgp.RouteFamily) *AfiSafi {
+func (n *Neighbor) GetAfiSafi(family bgp.Family) *AfiSafi {
 	for _, a := range n.AfiSafis {
 		if string(a.Config.AfiSafiName) == family.String() {
 			return &a
@@ -168,7 +168,7 @@ func (n *Neighbor) ExtractNeighborAddress() (string, error) {
 	return addr, nil
 }
 
-func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.RouteFamily) bool {
+func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.Family) bool {
 	for _, af := range n.AfiSafis {
 		if af.State.Family == family {
 			return af.AddPaths.State.Receive
@@ -179,8 +179,8 @@ func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.RouteFamily) bool {
 
 type AfiSafis []AfiSafi
 
-func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
-	rfs := make([]bgp.RouteFamily, 0, len(c))
+func (c AfiSafis) ToRfList() ([]bgp.Family, error) {
+	rfs := make([]bgp.Family, 0, len(c))
 	for _, af := range c {
 		rfs = append(rfs, af.State.Family)
 	}
@@ -282,7 +282,7 @@ func extractFamilyFromConfigAfiSafi(c *AfiSafi) uint32 {
 	// In case that Neighbor structure came from CLI or gRPC, address family
 	// value in AfiSafiState structure can be omitted.
 	// Here extracts value from AfiSafiName field in AfiSafiConfig structure.
-	if rf, err := bgp.GetRouteFamily(string(c.Config.AfiSafiName)); err == nil {
+	if rf, err := bgp.GetFamily(string(c.Config.AfiSafiName)); err == nil {
 		return uint32(rf)
 	}
 	// Ignores invalid address family name
@@ -291,7 +291,7 @@ func extractFamilyFromConfigAfiSafi(c *AfiSafi) uint32 {
 
 func newAfiSafiConfigFromConfigStruct(c *AfiSafi) *api.AfiSafiConfig {
 	rf := extractFamilyFromConfigAfiSafi(c)
-	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(rf))
+	afi, safi := bgp.FamilyToAfiSafi(bgp.Family(rf))
 	return &api.AfiSafiConfig{
 		Family:  &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
 		Enabled: c.Config.Enabled,
@@ -301,19 +301,19 @@ func newAfiSafiConfigFromConfigStruct(c *AfiSafi) *api.AfiSafiConfig {
 func newApplyPolicyFromConfigStruct(c *ApplyPolicy) *api.ApplyPolicy {
 	f := func(t DefaultPolicyType) api.RouteAction {
 		if t == DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			return api.RouteAction_ACCEPT
+			return api.RouteAction_ROUTE_ACTION_ACCEPT
 		} else if t == DEFAULT_POLICY_TYPE_REJECT_ROUTE {
-			return api.RouteAction_REJECT
+			return api.RouteAction_ROUTE_ACTION_REJECT
 		}
-		return api.RouteAction_NONE
+		return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 	}
 	applyPolicy := &api.ApplyPolicy{
 		ImportPolicy: &api.PolicyAssignment{
-			Direction:     api.PolicyDirection_IMPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
 			DefaultAction: f(c.Config.DefaultImportPolicy),
 		},
 		ExportPolicy: &api.PolicyAssignment{
-			Direction:     api.PolicyDirection_EXPORT,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
 			DefaultAction: f(c.Config.DefaultExportPolicy),
 		},
 	}
@@ -332,7 +332,7 @@ func newPrefixLimitFromConfigStruct(c *AfiSafi) *api.PrefixLimit {
 	if c.PrefixLimit.Config.MaxPrefixes == 0 {
 		return nil
 	}
-	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(c.State.Family))
+	afi, safi := bgp.FamilyToAfiSafi(bgp.Family(c.State.Family))
 	return &api.PrefixLimit{
 		Family:               &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
 		MaxPrefixes:          c.PrefixLimit.Config.MaxPrefixes,

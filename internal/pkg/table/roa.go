@@ -20,9 +20,9 @@ import (
 	"sort"
 
 	"github.com/k-sone/critbitgo"
-	"github.com/osrg/gobgp/v3/pkg/config/oc"
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 type ROA struct {
@@ -69,12 +69,12 @@ func (r *roaBucket) GetEntries() []*ROA {
 }
 
 type ROATable struct {
-	trees  map[bgp.RouteFamily]*critbitgo.Net
+	trees  map[bgp.Family]*critbitgo.Net
 	logger log.Logger
 }
 
 func NewROATable(logger log.Logger) *ROATable {
-	m := make(map[bgp.RouteFamily]*critbitgo.Net)
+	m := make(map[bgp.Family]*critbitgo.Net)
 	m[bgp.RF_IPv4_UC] = critbitgo.NewNet()
 	m[bgp.RF_IPv6_UC] = critbitgo.NewNet()
 	return &ROATable{
@@ -179,7 +179,7 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 		// RPKI isn't enabled or invalid path
 		return nil
 	}
-	tree, ok := rt.trees[path.GetRouteFamily()]
+	tree, ok := rt.trees[path.GetFamily()]
 	if !ok {
 		return nil
 	}
@@ -251,7 +251,7 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 	return validation
 }
 
-func (rt *ROATable) Info(family bgp.RouteFamily) (map[string]uint32, map[string]uint32) {
+func (rt *ROATable) Info(family bgp.Family) (map[string]uint32, map[string]uint32) {
 	records := make(map[string]uint32)
 	prefixes := make(map[string]uint32)
 
@@ -275,15 +275,15 @@ func (rt *ROATable) Info(family bgp.RouteFamily) (map[string]uint32, map[string]
 	return records, prefixes
 }
 
-func (rt *ROATable) List(family bgp.RouteFamily) ([]*ROA, error) {
-	var rfList []bgp.RouteFamily
+func (rt *ROATable) List(family bgp.Family) ([]*ROA, error) {
+	var rfList []bgp.Family
 	switch family {
 	case bgp.RF_IPv4_UC:
-		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC}
+		rfList = []bgp.Family{bgp.RF_IPv4_UC}
 	case bgp.RF_IPv6_UC:
-		rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC}
+		rfList = []bgp.Family{bgp.RF_IPv6_UC}
 	default:
-		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
+		rfList = []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 	}
 	l := make([]*ROA, 0)
 	for _, rf := range rfList {

@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/internal/pkg/table"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestParseHost(t *testing.T) {
@@ -78,8 +77,8 @@ func TestToPathApi(t *testing.T) {
 					false),
 			},
 			want: &api.Path{
-				Nlri:   anyNlri(bgp.NewIPAddrPrefix(8, "10.0.0.0")),
-				Pattrs: anyAttrs([]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}),
+				Nlri:   nlri(bgp.NewIPAddrPrefix(8, "10.0.0.0")),
+				Pattrs: attrs([]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_UNICAST,
@@ -95,12 +94,12 @@ func TestToPathApi(t *testing.T) {
 				path: eor(bgp.RF_IPv4_UC),
 			},
 			want: &api.Path{
-				Nlri: anyEorNlri(bgp.AFI_IP, bgp.SAFI_UNICAST),
+				Nlri: eorNlri(bgp.AFI_IP, bgp.SAFI_UNICAST),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_UNICAST,
 				},
-				Pattrs:     []*anypb.Any{},
+				Pattrs:     []*api.Attribute{},
 				Validation: &api.Validation{},
 				NeighborIp: "10.12.12.12",
 				SourceId:   "10.10.10.10",
@@ -112,12 +111,12 @@ func TestToPathApi(t *testing.T) {
 				path: eor(bgp.RF_IPv4_VPN),
 			},
 			want: &api.Path{
-				Nlri: anyEorNlri(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
+				Nlri: eorNlri(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_MPLS_VPN,
 				},
-				Pattrs:     []*anypb.Any{},
+				Pattrs:     []*api.Attribute{},
 				Validation: &api.Validation{},
 				NeighborIp: "10.12.12.12",
 				SourceId:   "10.10.10.10",
@@ -135,7 +134,7 @@ func TestToPathApi(t *testing.T) {
 	}
 }
 
-func eor(f bgp.RouteFamily) *table.Path {
+func eor(f bgp.Family) *table.Path {
 	p := table.NewEOR(f)
 	p.SetSource(&table.PeerInfo{
 		ID:           net.IP{10, 10, 10, 10},
@@ -146,17 +145,17 @@ func eor(f bgp.RouteFamily) *table.Path {
 	return p
 }
 
-func anyEorNlri(afi uint16, safi uint8) *anypb.Any {
-	n, _ := bgp.NewPrefixFromRouteFamily(afi, safi)
-	return anyNlri(n)
+func eorNlri(afi uint16, safi uint8) *api.NLRI {
+	n, _ := bgp.NewPrefixFromFamily(afi, safi)
+	return nlri(n)
 }
 
-func anyNlri(nlri bgp.AddrPrefixInterface) *anypb.Any {
-	anyNlri, _ := apiutil.MarshalNLRI(nlri)
-	return anyNlri
+func nlri(nlri bgp.AddrPrefixInterface) *api.NLRI {
+	apiNlri, _ := apiutil.MarshalNLRI(nlri)
+	return apiNlri
 }
 
-func anyAttrs(attrs []bgp.PathAttributeInterface) []*anypb.Any {
-	anyPattrs, _ := apiutil.MarshalPathAttributes(attrs)
-	return anyPattrs
+func attrs(attrs []bgp.PathAttributeInterface) []*api.Attribute {
+	apiAttrs, _ := apiutil.MarshalPathAttributes(attrs)
+	return apiAttrs
 }

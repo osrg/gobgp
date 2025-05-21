@@ -27,10 +27,10 @@ import (
 	"sync"
 
 	"github.com/k-sone/critbitgo"
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/config/oc"
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 type PolicyOptions struct {
@@ -254,13 +254,13 @@ func (l DefinedSetList) Less(i, j int) bool {
 
 type Prefix struct {
 	Prefix             *net.IPNet
-	AddressFamily      bgp.RouteFamily
+	AddressFamily      bgp.Family
 	MasklengthRangeMax uint8
 	MasklengthRangeMin uint8
 }
 
 func (p *Prefix) Match(path *Path) bool {
-	rf := path.GetRouteFamily()
+	rf := path.GetFamily()
 	if rf != p.AddressFamily {
 		return false
 	}
@@ -351,7 +351,7 @@ func NewPrefix(c oc.Prefix) (*Prefix, error) {
 type PrefixSet struct {
 	name   string
 	tree   *critbitgo.Net
-	family bgp.RouteFamily
+	family bgp.Family
 }
 
 func (s *PrefixSet) Name() string {
@@ -474,7 +474,7 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 		return nil, fmt.Errorf("empty prefix set name")
 	}
 	tree := critbitgo.NewNet()
-	var family bgp.RouteFamily
+	var family bgp.Family
 	for i, x := range prefixes {
 		if i == 0 {
 			family = x.AddressFamily
@@ -505,7 +505,7 @@ func NewPrefixSet(c oc.PrefixSet) (*PrefixSet, error) {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
 	tree := critbitgo.NewNet()
-	var family bgp.RouteFamily
+	var family bgp.Family
 	for i, x := range c.PrefixList {
 		y, err := NewPrefix(x)
 		if err != nil {
@@ -1446,8 +1446,8 @@ func (c *PrefixCondition) Option() MatchOption {
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
 func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	pathAfi, _ := bgp.RouteFamilyToAfiSafi(path.GetRouteFamily())
-	cAfi, _ := bgp.RouteFamilyToAfiSafi(c.set.family)
+	pathAfi, _ := bgp.FamilyToAfiSafi(path.GetFamily())
+	cAfi, _ := bgp.FamilyToAfiSafi(c.set.family)
 
 	if cAfi != pathAfi {
 		return false
@@ -2043,7 +2043,7 @@ func NewOriginCondition(origin oc.BgpOriginAttrType) (*OriginCondition, error) {
 }
 
 type AfiSafiInCondition struct {
-	routeFamilies []bgp.RouteFamily
+	routeFamilies []bgp.Family
 }
 
 func (c *AfiSafiInCondition) Type() ConditionType {
@@ -2052,7 +2052,7 @@ func (c *AfiSafiInCondition) Type() ConditionType {
 
 func (c *AfiSafiInCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	for _, rf := range c.routeFamilies {
-		if path.GetRouteFamily() == rf {
+		if path.GetFamily() == rf {
 			return true
 		}
 	}
@@ -2078,12 +2078,12 @@ func NewAfiSafiInCondition(afiSafInConfig []oc.AfiSafiType) (*AfiSafiInCondition
 		return nil, nil
 	}
 
-	routeFamilies := make([]bgp.RouteFamily, 0, len(afiSafInConfig))
+	routeFamilies := make([]bgp.Family, 0, len(afiSafInConfig))
 	for _, afiSafiValue := range afiSafInConfig {
 		if err := afiSafiValue.Validate(); err != nil {
 			return nil, err
 		}
-		rf, err := bgp.GetRouteFamily(string(afiSafiValue))
+		rf, err := bgp.GetFamily(string(afiSafiValue))
 		if err != nil {
 			return nil, err
 		}
@@ -4154,7 +4154,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		afiSafiIn := make([]*api.Family, 0)
 		for _, afiSafiType := range s.Conditions.BgpConditions.AfiSafiInList {
 			if mapped, ok := bgp.AddressFamilyValueMap[string(afiSafiType)]; ok {
-				afi, safi := bgp.RouteFamilyToAfiSafi(mapped)
+				afi, safi := bgp.FamilyToAfiSafi(mapped)
 				afiSafiIn = append(afiSafiIn, &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)})
 			}
 		}
@@ -4165,11 +4165,11 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		RouteAction: func() api.RouteAction {
 			switch s.Actions.RouteDisposition {
 			case oc.ROUTE_DISPOSITION_ACCEPT_ROUTE:
-				return api.RouteAction_ACCEPT
+				return api.RouteAction_ROUTE_ACTION_ACCEPT
 			case oc.ROUTE_DISPOSITION_REJECT_ROUTE:
-				return api.RouteAction_REJECT
+				return api.RouteAction_ROUTE_ACTION_REJECT
 			}
-			return api.RouteAction_NONE
+			return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 		}(),
 		Community: func() *api.CommunityAction {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
@@ -4313,20 +4313,20 @@ func NewAPIPolicyAssignmentFromTableStruct(t *PolicyAssignment) *api.PolicyAssig
 		Direction: func() api.PolicyDirection {
 			switch t.Type {
 			case POLICY_DIRECTION_IMPORT:
-				return api.PolicyDirection_IMPORT
+				return api.PolicyDirection_POLICY_DIRECTION_IMPORT
 			case POLICY_DIRECTION_EXPORT:
-				return api.PolicyDirection_EXPORT
+				return api.PolicyDirection_POLICY_DIRECTION_EXPORT
 			}
-			return api.PolicyDirection_UNKNOWN
+			return api.PolicyDirection_POLICY_DIRECTION_UNSPECIFIED
 		}(),
 		DefaultAction: func() api.RouteAction {
 			switch t.Default {
 			case ROUTE_TYPE_ACCEPT:
-				return api.RouteAction_ACCEPT
+				return api.RouteAction_ROUTE_ACTION_ACCEPT
 			case ROUTE_TYPE_REJECT:
-				return api.RouteAction_REJECT
+				return api.RouteAction_ROUTE_ACTION_REJECT
 			}
-			return api.RouteAction_NONE
+			return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 		}(),
 		Name: t.Name,
 		Policies: func() []*api.Policy {

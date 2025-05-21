@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -40,15 +40,15 @@ func TestDestinationNewIPv6(t *testing.T) {
 	assert.NotNil(t, ipv6d)
 }
 
-func TestDestinationSetRouteFamily(t *testing.T) {
+func TestDestinationSetFamily(t *testing.T) {
 	dd := &Destination{}
-	dd.setRouteFamily(bgp.RF_IPv4_UC)
+	dd.setFamily(bgp.RF_IPv4_UC)
 	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
-func TestDestinationGetRouteFamily(t *testing.T) {
+func TestDestinationGetFamily(t *testing.T) {
 	dd := &Destination{}
-	dd.setRouteFamily(bgp.RF_IPv6_UC)
+	dd.setFamily(bgp.RF_IPv6_UC)
 	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv6_UC)
 }

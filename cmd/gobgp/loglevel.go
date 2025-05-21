@@ -18,7 +18,7 @@ package main
 import (
 	"fmt"
 
-	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/spf13/cobra"
 )
 
@@ -27,19 +27,19 @@ func modLogLevelServer(cmdType string, args []string) error {
 
 	switch cmdType {
 	case cmdPanic:
-		level = api.SetLogLevelRequest_PANIC
+		level = api.SetLogLevelRequest_LEVEL_PANIC
 	case cmdFatal:
-		level = api.SetLogLevelRequest_FATAL
+		level = api.SetLogLevelRequest_LEVEL_FATAL
 	case cmdError:
-		level = api.SetLogLevelRequest_ERROR
+		level = api.SetLogLevelRequest_LEVEL_ERROR
 	case cmdWarn:
-		level = api.SetLogLevelRequest_WARN
+		level = api.SetLogLevelRequest_LEVEL_WARN
 	case cmdInfo:
-		level = api.SetLogLevelRequest_INFO
+		level = api.SetLogLevelRequest_LEVEL_INFO
 	case cmdDebug:
-		level = api.SetLogLevelRequest_DEBUG
+		level = api.SetLogLevelRequest_LEVEL_DEBUG
 	case cmdTrace:
-		level = api.SetLogLevelRequest_TRACE
+		level = api.SetLogLevelRequest_LEVEL_TRACE
 	default:
 		return fmt.Errorf("invalid log level: %s", cmdType)
 	}

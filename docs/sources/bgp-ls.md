@@ -78,9 +78,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/server"
-	"github.com/osrg/gobgp/v3/pkg/log"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/server"
+	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 func main() {
@@ -111,11 +111,11 @@ func main() {
 		Table: &api.WatchEventRequest_Table{
 			Filters: []*api.WatchEventRequest_Table_Filter{
 				{
-					Type: api.WatchEventRequest_Table_Filter_BEST,
+					Type: api.WatchEventRequest_Table_Filter_TYPE_BEST,
 				},
 			},
 		},}, func(r *api.WatchEventResponse) {
-			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_STATE {
+			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
 				log.Info(p)
 			} else if t := r.GetTable(); t != nil {
 				// Your application should do something useful with the BGP-LS path here.
@@ -135,10 +135,10 @@ func main() {
 		},
 		ApplyPolicy: &api.ApplyPolicy{
 			ImportPolicy: &api.PolicyAssignment{
-				DefaultAction: api.RouteAction_ACCEPT,
+				DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
 			},
 			ExportPolicy: &api.PolicyAssignment{
-				DefaultAction: api.RouteAction_REJECT,
+				DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
 			},
 		},
 		AfiSafis: []*api.AfiSafi{
@@ -163,7 +163,7 @@ func main() {
 	select {}
 }
 
-// implement github.com/osrg/gobgp/v3/pkg/log/Logger interface
+// implement github.com/osrg/gobgp/v4/pkg/log/Logger interface
 type myLogger struct {
 	logger *logrus.Logger
 }

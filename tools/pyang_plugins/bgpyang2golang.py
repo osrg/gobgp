@@ -729,7 +729,7 @@ _type_translation_map = {
     'yang:timeticks': 'int64',
     'ptypes:install-protocol-type': 'string',
     'binary': '[]byte',
-    'route-family': 'bgp.RouteFamily',
+    'route-family': 'bgp.Family',
     'bgp-capability': 'bgp.ParameterCapabilityInterface',
     'bgp-open-message': '*bgp.BGPMessage',
 }
@@ -774,7 +774,7 @@ def generate_header(fd):
     print('import (', file=fd)
     print('"fmt"', file=fd)
     print('', file=fd)
-    print('"github.com/osrg/gobgp/v3/pkg/packet/bgp"', file=fd)
+    print('"github.com/osrg/gobgp/v4/pkg/packet/bgp"', file=fd)
     print(')', file=fd)
     print('', file=fd)
 

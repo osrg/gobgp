@@ -27,11 +27,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/internal/pkg/table"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/config/oc"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 var (
@@ -500,9 +500,9 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Println(ind, "Nexthop: ", prettyString(a.Nexthop))
 	}
 
-	if a.RouteAction != api.RouteAction_NONE {
+	if a.RouteAction != api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
 		action := "accept"
-		if a.RouteAction == api.RouteAction_REJECT {
+		if a.RouteAction == api.RouteAction_ROUTE_ACTION_REJECT {
 			action = "reject"
 		}
 		fmt.Println(ind, action)
@@ -811,7 +811,7 @@ func modCondition(name, op string, args []string) error {
 	case "afi-safi-in":
 		afiSafisInList := make([]*api.Family, 0, len(args))
 		for _, arg := range args {
-			afi, safi := bgp.RouteFamilyToAfiSafi(bgp.AddressFamilyValueMap[arg])
+			afi, safi := bgp.FamilyToAfiSafi(bgp.AddressFamilyValueMap[arg])
 			afiSafisInList = append(afiSafisInList, apiutil.ToApiFamily(afi, safi))
 		}
 		stmt.Conditions.AfiSafiIn = afiSafisInList
@@ -849,9 +849,9 @@ func modAction(name, op string, args []string) error {
 	cmd := "{ add | remove | replace } <value>..."
 	switch typ {
 	case "reject":
-		stmt.Actions.RouteAction = api.RouteAction_REJECT
+		stmt.Actions.RouteAction = api.RouteAction_ROUTE_ACTION_REJECT
 	case "accept":
-		stmt.Actions.RouteAction = api.RouteAction_ACCEPT
+		stmt.Actions.RouteAction = api.RouteAction_ROUTE_ACTION_ACCEPT
 	case "community":
 		stmt.Actions.Community = &api.CommunityAction{}
 		if len(args) < 1 {

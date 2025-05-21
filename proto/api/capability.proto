@@ -1,0 +1,124 @@
+// Copyright (C) 2018 Nippon Telegraph and Telephone Corporation.
+//
+// Permission is hereby granted, free of charge, to any person
+// obtaining a copy of this software and associated documentation files
+// (the "Software"), to deal in the Software without restriction,
+// including without limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of the Software,
+// and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+syntax = "proto3";
+
+package api;
+
+import "api/common.proto";
+
+option go_package = "github.com/osrg/gobgp/v4/api;api";
+
+message Capability {
+  oneof cap {
+    UnknownCapability unknown = 1;
+    MultiProtocolCapability multi_protocol = 2;
+    RouteRefreshCapability route_refresh = 3;
+    CarryingLabelInfoCapability carrying_label_info = 4;
+    ExtendedNexthopCapability extended_nexthop = 5;
+    GracefulRestartCapability graceful_restart = 6;
+    FourOctetASNCapability four_octet_asn = 7;
+    AddPathCapability add_path = 8;
+    EnhancedRouteRefreshCapability enhanced_route_refresh = 9;
+    LongLivedGracefulRestartCapability long_lived_graceful_restart = 10;
+    RouteRefreshCiscoCapability route_refresh_cisco = 11;
+    FqdnCapability fqdn = 12;
+    SoftwareVersionCapability software_version = 13;
+  }
+}
+
+message MultiProtocolCapability {
+  api.Family family = 1;
+}
+
+message RouteRefreshCapability {}
+
+message CarryingLabelInfoCapability {}
+
+message ExtendedNexthopCapabilityTuple {
+  api.Family nlri_family = 1;
+  // Nexthop AFI must be either
+  // gobgp.IPv4 or
+  // gobgp.IPv6.
+  api.Family nexthop_family = 2;
+}
+
+message ExtendedNexthopCapability {
+  repeated ExtendedNexthopCapabilityTuple tuples = 1;
+}
+
+message GracefulRestartCapabilityTuple {
+  api.Family family = 1;
+  uint32 flags = 2;
+}
+
+message GracefulRestartCapability {
+  uint32 flags = 1;
+  uint32 time = 2;
+  repeated GracefulRestartCapabilityTuple tuples = 3;
+}
+
+message FourOctetASNCapability {
+  uint32 asn = 1;
+}
+
+message AddPathCapabilityTuple {
+  api.Family family = 1;
+  enum Mode {
+    MODE_UNSPECIFIED = 0; // NONE
+    MODE_RECEIVE = 1;
+    MODE_SEND = 2;
+    MODE_BOTH = 3;
+  }
+  Mode mode = 2;
+}
+
+message AddPathCapability {
+  repeated AddPathCapabilityTuple tuples = 1;
+}
+
+message EnhancedRouteRefreshCapability {}
+
+message LongLivedGracefulRestartCapabilityTuple {
+  api.Family family = 1;
+  uint32 flags = 2;
+  uint32 time = 3;
+}
+
+message LongLivedGracefulRestartCapability {
+  repeated LongLivedGracefulRestartCapabilityTuple tuples = 1;
+}
+
+message RouteRefreshCiscoCapability {}
+
+message FqdnCapability {
+  string host_name = 1;
+  string domain_name = 2;
+}
+
+message SoftwareVersionCapability {
+  string software_version = 1;
+}
+
+message UnknownCapability {
+  uint32 code = 1;
+  bytes value = 2;
+}

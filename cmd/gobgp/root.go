@@ -20,8 +20,9 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"strconv"
+	"time"
 
-	api "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/spf13/cobra"
 )
 
@@ -42,13 +43,14 @@ var globalOpts struct {
 }
 
 var (
-	client api.GobgpApiClient
+	client api.GoBgpServiceClient
 	ctx    context.Context
 )
 
 func newRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
-	var cancel context.CancelFunc
+	cleanup := func() {}
+
 	rootCmd := &cobra.Command{
 		Use: "gobgp",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -62,12 +64,16 @@ func newRootCmd() *cobra.Command {
 			}
 
 			if !globalOpts.GenCmpl {
-				var err error
-				ctx = context.Background()
-				client, cancel, err = newClient(ctx)
+				conn, err := newConn()
 				if err != nil {
-					cancel()
 					exitWithError(err)
+				}
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(context.Background(), time.Second*10)
+				client = api.NewGoBgpServiceClient(conn)
+				cleanup = func() {
+					conn.Close()
+					cancel()
 				}
 			}
 		},
@@ -79,10 +85,7 @@ func newRootCmd() *cobra.Command {
 			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			// if children declare their own, cancel is not called. Doesn't matter because the command will exit soon.
-			if cancel != nil {
-				cancel()
-			}
+			defer cleanup()
 		},
 	}
 

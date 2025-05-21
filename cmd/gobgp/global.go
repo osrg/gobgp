@@ -30,11 +30,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/internal/pkg/table"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 type extCommType int
@@ -389,23 +389,30 @@ func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 	return exts, nil
 }
 
-func parseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// match <rule>... [then <action>...] [rd <rd>] [rt <rt>...]
+	// or
+	// match <rule>... then redirect <rt> [color <color>] [prefix <prefix>] [locator-node-length <length>] [function-length <length>] [behavior <behavior>]
 	req := 3 // match <key1> <arg1> [<key2> <arg2>...]
 	if len(args) < req {
-		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+		return nil, nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
 	}
 	m, err := extractReserved(args, map[string]int{
-		"match": paramList,
-		"then":  paramList,
-		"rd":    paramSingle,
-		"rt":    paramList})
+		"match":               paramList,
+		"then":                paramList,
+		"rd":                  paramSingle,
+		"rt":                  paramList,
+		"color":               paramSingle,
+		"prefix":              paramSingle,
+		"locator-node-length": paramSingle,
+		"function-length":     paramSingle,
+		"behavior":            paramSingle})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if len(m["match"]) == 0 {
-		return nil, nil, fmt.Errorf("specify filtering rules with keyword 'match'")
+		return nil, nil, nil, fmt.Errorf("specify filtering rules with keyword 'match'")
 	}
 
 	var rd bgp.RouteDistinguisherInterface
@@ -413,11 +420,11 @@ func parseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	switch rf {
 	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
 		if len(m["rd"]) == 0 {
-			return nil, nil, fmt.Errorf("specify rd")
+			return nil, nil, nil, fmt.Errorf("specify rd")
 		}
 		var err error
 		if rd, err = bgp.ParseRouteDistinguisher(m["rd"][0]); err != nil {
-			return nil, nil, fmt.Errorf("invalid rd: %s", m["rd"][0])
+			return nil, nil, nil, fmt.Errorf("invalid rd: %s", m["rd"][0])
 		}
 		if len(m["rt"]) > 0 {
 			extcomms = append(extcomms, "rt")
@@ -425,16 +432,16 @@ func parseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 		}
 	default:
 		if len(m["rd"]) > 0 {
-			return nil, nil, fmt.Errorf("cannot specify rd for %s", rf.String())
+			return nil, nil, nil, fmt.Errorf("cannot specify rd for %s", rf.String())
 		}
 		if len(m["rt"]) > 0 {
-			return nil, nil, fmt.Errorf("cannot specify rt for %s", rf.String())
+			return nil, nil, nil, fmt.Errorf("cannot specify rt for %s", rf.String())
 		}
 	}
 
 	rules, err := bgp.ParseFlowSpecComponents(rf, strings.Join(m["match"], " "))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var nlri bgp.AddrPrefixInterface
@@ -450,10 +457,61 @@ func parseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	case bgp.RF_FS_L2_VPN:
 		nlri = bgp.NewFlowSpecL2VPN(rd, rules)
 	default:
-		return nil, nil, fmt.Errorf("invalid route family")
+		return nil, nil, nil, fmt.Errorf("invalid route family")
 	}
 
-	return nlri, extcomms, nil
+	var psid *bgp.PathAttributePrefixSID
+	hasAnySRv6PolicyParam := len(m["prefix"]) > 0 || len(m["locator-node-length"]) > 0 || len(m["function-length"]) > 0 || len(m["behavior"]) > 0
+
+	if len(m["then"]) != 0 && m["then"][0] == "redirect" {
+		if len(m["color"]) == 0 && hasAnySRv6PolicyParam {
+			return nil, nil, nil, fmt.Errorf("specify color")
+		}
+		if len(m["color"]) > 0 {
+			extcomms = append(extcomms, "color", m["color"][0])
+			if hasAnySRv6PolicyParam {
+				// Check if all optional SRv6 Policy parameters are specified.
+				required := []string{"prefix", "locator-node-length", "function-length", "behavior"}
+				for _, param := range required {
+					if len(m[param]) == 0 {
+						return nil, nil, nil, fmt.Errorf("specify %s", param)
+					}
+				}
+
+				sid, err := netip.ParsePrefix(m["prefix"][0])
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				nl, err := strconv.ParseUint(m["locator-node-length"][0], 10, 8)
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				fl, err := strconv.ParseUint(m["function-length"][0], 10, 8)
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				behavior, ok := api.SRV6Behavior_value["SRV6_BEHAVIOR_"+m["behavior"][0]]
+				if !ok {
+					return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
+				}
+
+				psid = bgp.NewPathAttributePrefixSID(
+					bgp.NewSRv6ServiceTLV(
+						bgp.TLVTypeSRv6L3Service,
+						bgp.NewSRv6InformationSubTLV(
+							sid.Addr(),
+							bgp.SRBehavior(behavior),
+							bgp.NewSRv6SIDStructureSubSubTLV(uint8(sid.Bits()), uint8(nl), uint8(fl), 0, 0, 0),
+						),
+					),
+				)
+			}
+		}
+	} else if hasAnySRv6PolicyParam {
+		return nil, nil, nil, fmt.Errorf("cannot specify %s for %s", strings.Join([]string{"prefix", "locator-node-length", "function-length", "behavior"}, ", "), m["then"][0])
+	}
+
+	return nlri, psid, extcomms, nil
 }
 
 func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -1005,7 +1063,7 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexth
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	behavior, ok := api.SRv6Behavior_value[m["behavior"][0]]
+	behavior, ok := api.SRV6Behavior_value["SRV6_BEHAVIOR_"+m["behavior"][0]]
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
 	}
@@ -1090,7 +1148,7 @@ func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	behavior, ok := api.SRv6Behavior_value[m["behavior"][0]]
+	behavior, ok := api.SRV6Behavior_value["SRV6_BEHAVIOR_"+m["behavior"][0]]
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
 	}
@@ -1778,8 +1836,8 @@ func extractAsPath(args []string) ([]string, bgp.PathAttributeInterface, error) 
 	return args, nil, nil
 }
 
-func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error) {
-	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+func extractNexthop(rf bgp.Family, args []string) ([]string, string, error) {
+	afi, _ := bgp.FamilyToAfiSafi(rf)
 	nexthop := "0.0.0.0"
 	if afi == bgp.AFI_IP6 {
 		nexthop = "::"
@@ -1923,7 +1981,7 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 	return args, nil, nil
 }
 
-func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
+func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var psid *bgp.PathAttributePrefixSID
@@ -2069,7 +2127,7 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = parseEvpnArgs(args)
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
-		nlri, extcomms, err = parseFlowSpecArgs(rf, args)
+		nlri, psid, extcomms, err = parseFlowSpecArgs(rf, args)
 	case bgp.RF_OPAQUE:
 		m, err := extractReserved(args, map[string]int{
 			"key":   paramSingle,
@@ -2152,7 +2210,7 @@ func modPath(resource string, name, modtype string, args []string) error {
 	if err != nil {
 		return err
 	}
-	rf := apiutil.ToRouteFamily(f)
+	rf := apiutil.ToFamily(f)
 	path, err := parsePath(rf, args)
 	if err != nil {
 		cmdstr := "global"
@@ -2180,7 +2238,7 @@ func modPath(resource string, name, modtype string, args []string) error {
 		sort.SliceStable(ss, func(i, j int) bool { return ss[i] < ss[j] })
 		ss = append(ss, "<DEC_NUM>")
 		etherTypes := strings.Join(ss, ", ")
-		helpErrMap := map[bgp.RouteFamily]error{}
+		helpErrMap := map[bgp.Family]error{}
 		baseHelpMsgFmt := fmt.Sprintf(`error: %s
 usage: %s rib -a %%s %s <PREFIX> %%s [origin { igp | egp | incomplete }] [aspath <ASPATH>] [nexthop <ADDRESS>] [med <NUM>] [local-pref <NUM>] [community <COMMUNITY>] [aigp metric <NUM>] [large-community <LARGE_COMMUNITY>] [aggregator <AGGREGATOR>]
     <ASPATH>: <AS>[,<AS>],
@@ -2205,7 +2263,7 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
     <THEN> : { %s |
                %s |
                %s <RATE> [as <AS>] |
-               %s <RT> |
+               %s <RT> [color <color>] [prefix <prefix>] [locator-node-length <length>] [function-length <length>] [behavior <behavior>] |
                %s <DEC_NUM> |
                %s { sample | terminal | sample-terminal } }...
     <RT> : xxx:yyy, xxx.xxx.xxx.xxx:yyy, xxxx::xxxx:yyy, xxx.xxx:yyy`,

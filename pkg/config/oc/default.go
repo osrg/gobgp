@@ -8,11 +8,11 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/version"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"github.com/osrg/gobgp/v3/pkg/packet/bmp"
-	"github.com/osrg/gobgp/v3/pkg/packet/rtr"
-	"github.com/osrg/gobgp/v3/pkg/zebra"
+	"github.com/osrg/gobgp/v4/internal/pkg/version"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
+	"github.com/osrg/gobgp/v4/pkg/packet/rtr"
+	"github.com/osrg/gobgp/v4/pkg/zebra"
 	"github.com/spf13/viper"
 )
 
@@ -189,7 +189,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			rf, err := bgp.GetRouteFamily(string(n.AfiSafis[i].Config.AfiSafiName))
+			rf, err := bgp.GetFamily(string(n.AfiSafis[i].Config.AfiSafiName))
 			if err != nil {
 				return err
 			}

@@ -24,11 +24,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 func getVrfs() ([]*api.Vrf, error) {
@@ -78,7 +77,7 @@ func showVrfs() error {
 		}
 		rdStr := rd.String()
 
-		f := func(rts []*apb.Any) (string, error) {
+		f := func(rts []*api.RouteTarget) (string, error) {
 			ret := make([]string, 0, len(rts))
 			for _, an := range rts {
 				rt, err := apiutil.UnmarshalRT(an)

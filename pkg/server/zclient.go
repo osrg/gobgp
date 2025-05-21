@@ -24,10 +24,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/table"
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"github.com/osrg/gobgp/v3/pkg/zebra"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
 
 // nexthopStateCache stores a map of nexthop IP to metric value. Especially,
@@ -116,7 +116,7 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 }
 
 func addLabelToNexthop(path *table.Path, z *zebraClient, msgFlags *zebra.MessageFlag, nexthop *zebra.Nexthop) {
-	rf := path.GetRouteFamily()
+	rf := path.GetFamily()
 	if rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN {
 		z.client.SetLabelFlag(msgFlags, nexthop)
 		switch rf {
@@ -147,7 +147,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	var nexthop zebra.Nexthop
 	nexthops := make([]zebra.Nexthop, 0, len(paths))
 	msgFlags := zebra.MessageNexthop
-	switch path.GetRouteFamily() {
+	switch path.GetFamily() {
 	case bgp.RF_IPv4_UC:
 		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
 	case bgp.RF_IPv4_VPN:
@@ -208,7 +208,7 @@ func newNexthopRegisterBody(paths []*table.Path, nexthopCache nexthopStateCache)
 	}
 	path := paths[0]
 
-	family := path.GetRouteFamily()
+	family := path.GetFamily()
 	nexthops := make([]*zebra.RegisteredNexthop, 0, len(paths))
 	for _, p := range paths {
 		nexthop := p.GetNexthop()
@@ -253,7 +253,7 @@ func newNexthopUnregisterBody(family uint16, prefix net.IP) *zebra.NexthopRegist
 func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint8, software zebra.Software) *table.Path {
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
-	family := body.RouteFamily(logger, version, software)
+	family := body.Family(logger, version, software)
 	isWithdraw := body.IsWithdraw(version, software)
 
 	var nlri bgp.AddrPrefixInterface
@@ -322,15 +322,15 @@ type zebraClient struct {
 
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
 	rib := &table.TableManager{
-		Tables: make(map[bgp.RouteFamily]*table.Table),
+		Tables: make(map[bgp.Family]*table.Table),
 	}
 
-	var rfList []bgp.RouteFamily
+	var rfList []bgp.Family
 	switch body.Prefix.Family {
 	case syscall.AF_INET:
-		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN}
+		rfList = []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN}
 	case syscall.AF_INET6:
-		rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
+		rfList = []bgp.Family{bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN}
 	}
 
 	for _, rf := range rfList {

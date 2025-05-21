@@ -9,10 +9,9 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	apb "google.golang.org/protobuf/types/known/anypb"
 
-	api "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 func TestMetrics(test *testing.T) {
@@ -76,7 +75,7 @@ func TestMetrics(test *testing.T) {
 	ch := make(chan struct{})
 	s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
 		if peer := r.GetPeer(); peer != nil {
-			if peer.Type == api.WatchEventResponse_PeerEvent_STATE && peer.Peer.State.SessionState == api.PeerState_ESTABLISHED {
+			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == api.PeerState_ESTABLISHED {
 				close(ch)
 			}
 		}
@@ -100,18 +99,23 @@ func TestMetrics(test *testing.T) {
 				ch <- struct{}{}
 				return
 			default:
-				nlri1, _ := apb.New(&api.IPAddressPrefix{
+				nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 					Prefix:    "10.1.0.0",
 					PrefixLen: 24,
-				})
+				}}}
 
-				a1, _ := apb.New(&api.OriginAttribute{
-					Origin: 0,
-				})
-				a2, _ := apb.New(&api.NextHopAttribute{
-					NextHop: "10.0.0.1",
-				})
-				attrs := []*apb.Any{a1, a2}
+				attrs := []*api.Attribute{
+					{
+						Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+							Origin: 0,
+						}},
+					},
+					{
+						Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+							NextHop: "10.0.0.1",
+						}},
+					},
+				}
 
 				t.AddPath(context.Background(), &api.AddPathRequest{
 					TableType: api.TableType_GLOBAL,

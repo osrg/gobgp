@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -56,9 +56,9 @@ func TestTableDeleteDest(t *testing.T) {
 	assert.Nil(t, gdest)
 }
 
-func TestTableGetRouteFamily(t *testing.T) {
+func TestTableGetFamily(t *testing.T) {
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	rf := ipv4t.GetRoutefamily()
+	rf := ipv4t.GetFamily()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
 
@@ -93,9 +93,9 @@ func TestTableGetDestinations(t *testing.T) {
 
 func TestTableKey(t *testing.T) {
 	tb := NewTable(logger, bgp.RF_IPv4_UC)
-	n1, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/0")
+	n1, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/0")
 	d1 := NewDestination(n1, 0)
-	n2, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")
+	n2, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")
 	d2 := NewDestination(n2, 0)
 	assert.Equal(t, len(tb.tableKey(d1.GetNlri())), 5)
 	tb.setDestination(d1)
@@ -196,7 +196,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 
 	table := NewTable(logger, bgp.RF_IPv4_VPN)
 	for _, prefix := range prefixes {
-		nlri, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefix)
+		nlri, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefix)
 
 		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
@@ -302,7 +302,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 
 	table := NewTable(logger, bgp.RF_IPv6_VPN)
 	for _, prefix := range prefixes {
-		nlri, _ := bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefix)
+		nlri, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefix)
 
 		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)

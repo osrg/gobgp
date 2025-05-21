@@ -21,11 +21,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/osrg/gobgp/v3/internal/pkg/table"
-	"github.com/osrg/gobgp/v3/pkg/config/oc"
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"github.com/osrg/gobgp/v3/pkg/packet/mrt"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/mrt"
 )
 
 const (
@@ -93,7 +93,7 @@ func (m *mrtWriter) loop() error {
 				}
 				mp := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.String(), e.LocalAddress.String(), e.FourBytesAs, nil)
 				mp.BGPMessagePayload = e.Payload
-				isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetRouteFamily())
+				isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
 				subtype := mrt.MESSAGE
 				switch {
 				case isAddPath && e.FourBytesAs:
@@ -148,7 +148,7 @@ func (m *mrtWriter) loop() error {
 
 				subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
 					t := mrt.RIB_GENERIC
-					switch p.GetRouteFamily() {
+					switch p.GetFamily() {
 					case bgp.RF_IPv4_UC:
 						t = mrt.RIB_IPV4_UNICAST
 					case bgp.RF_IPv4_MC:
@@ -188,7 +188,7 @@ func (m *mrtWriter) loop() error {
 						if path.IsLocal() {
 							isAddPath = true
 						} else if neighbor, ok := neighborMap[path.GetSource().Address.String()]; ok {
-							isAddPath = neighbor.IsAddPathReceiveEnabled(path.GetRouteFamily())
+							isAddPath = neighbor.IsAddPathReceiveEnabled(path.GetFamily())
 						}
 						if !isAddPath {
 							entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs(), false))

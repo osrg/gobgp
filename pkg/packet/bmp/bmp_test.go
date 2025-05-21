@@ -18,7 +18,7 @@ package bmp
 import (
 	"testing"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,7 +80,7 @@ func Test_RouteMonitoringAdjRIBOut(t *testing.T) {
 
 func Test_RouteMonitoringAddPath(t *testing.T) {
 	opt := &bgp.MarshallingOption{
-		AddPath: map[bgp.RouteFamily]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
 	}
 	p1 := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	p1.SetPathLocalIdentifier(10)

@@ -25,8 +25,8 @@ import (
 
 	"github.com/k-sone/critbitgo"
 
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 type LookupOption uint8
@@ -54,7 +54,7 @@ type TableSelectOption struct {
 }
 
 type Table struct {
-	routeFamily  bgp.RouteFamily
+	Family       bgp.Family
 	destinations map[string]*Destination
 	logger       log.Logger
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
@@ -63,9 +63,9 @@ type Table struct {
 	macIndex map[string]map[string]struct{}
 }
 
-func NewTable(logger log.Logger, rf bgp.RouteFamily, dsts ...*Destination) *Table {
+func NewTable(logger log.Logger, rf bgp.Family, dsts ...*Destination) *Table {
 	t := &Table{
-		routeFamily:  rf,
+		Family:       rf,
 		destinations: make(map[string]*Destination),
 		logger:       logger,
 		macIndex:     make(map[string]map[string]struct{}),
@@ -76,8 +76,8 @@ func NewTable(logger log.Logger, rf bgp.RouteFamily, dsts ...*Destination) *Tabl
 	return t
 }
 
-func (t *Table) GetRoutefamily() bgp.RouteFamily {
-	return t.routeFamily
+func (t *Table) GetFamily() bgp.Family {
+	return t.Family
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
@@ -109,7 +109,7 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 
 func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 	pathList := make([]*Path, 0)
-	if t.routeFamily != bgp.RF_RTC_UC {
+	if t.Family != bgp.RF_RTC_UC {
 		return pathList
 	}
 	for _, target := range vrf.ImportRt {
@@ -166,15 +166,15 @@ func (t *Table) validatePath(path *Path) {
 		t.logger.Error("path is nil",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   t.routeFamily})
+				"Key":   t.Family})
 	}
-	if path.GetRouteFamily() != t.routeFamily {
-		t.logger.Error("Invalid path. RouteFamily mismatch",
+	if path.GetFamily() != t.Family {
+		t.logger.Error("Invalid path. Family mismatch",
 			log.Fields{
 				"Topic":      "Table",
-				"Key":        t.routeFamily,
+				"Key":        t.Family,
 				"Prefix":     path.GetPrefix(),
-				"ReceivedRf": path.GetRouteFamily().String()})
+				"ReceivedRf": path.GetFamily().String()})
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
@@ -184,7 +184,7 @@ func (t *Table) validatePath(path *Path) {
 				t.logger.Fatal("AsPathParam must be converted to As4PathParam",
 					log.Fields{
 						"Topic": "Table",
-						"Key":   t.routeFamily,
+						"Key":   t.Family,
 						"As":    as})
 			}
 		}
@@ -193,13 +193,13 @@ func (t *Table) validatePath(path *Path) {
 		t.logger.Fatal("AS4_PATH must be converted to AS_PATH",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   t.routeFamily})
+				"Key":   t.Family})
 	}
 	if path.GetNlri() == nil {
 		t.logger.Fatal("path's nlri is nil",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   t.routeFamily})
+				"Key":   t.Family})
 	}
 }
 
@@ -260,7 +260,7 @@ func (t *Table) GetDestination(nlri bgp.AddrPrefixInterface) *Destination {
 
 func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) {
 	results := make([]*Destination, 0, len(t.GetDestinations()))
-	switch t.routeFamily {
+	switch t.Family {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 		_, prefix, err := net.ParseCIDR(key)
 		if err != nil {
@@ -304,7 +304,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		r := critbitgo.NewNet()
 		for _, dst := range t.GetDestinations() {
 			var dstRD bgp.RouteDistinguisherInterface
-			switch t.routeFamily {
+			switch t.Family {
 			case bgp.RF_IPv4_VPN:
 				dstRD = dst.nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
 			case bgp.RF_IPv6_VPN:
@@ -368,7 +368,7 @@ func (t *Table) GetEvpnDestinationsWithRouteType(typ string) ([]*Destination, er
 	}
 	destinations := t.GetDestinations()
 	results := make([]*Destination, 0, len(destinations))
-	switch t.routeFamily {
+	switch t.Family {
 	case bgp.RF_EVPN:
 		for _, dst := range destinations {
 			if nlri, ok := dst.nlri.(*bgp.EVPNNLRI); !ok {
@@ -401,7 +401,7 @@ func (t *Table) GetMUPDestinationsWithRouteType(p string) ([]*Destination, error
 	}
 	destinations := t.GetDestinations()
 	results := make([]*Destination, 0, len(destinations))
-	switch t.routeFamily {
+	switch t.Family {
 	case bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
 		for _, dst := range destinations {
 			if nlri, ok := dst.nlri.(*bgp.MUPNLRI); !ok {
@@ -544,21 +544,21 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	}
 	dOption := DestinationSelectOption{ID: id, AS: as, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
 	r := &Table{
-		routeFamily:  t.routeFamily,
+		Family:       t.Family,
 		destinations: make(map[string]*Destination),
 		macIndex:     make(map[string]map[string]struct{}),
 	}
 
 	if len(prefixes) != 0 {
-		switch t.routeFamily {
+		switch t.Family {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			f := func(prefixStr string) (bool, error) {
 				var nlri bgp.AddrPrefixInterface
 				var err error
-				if t.routeFamily == bgp.RF_IPv4_UC {
-					nlri, err = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, prefixStr)
+				if t.Family == bgp.RF_IPv4_UC {
+					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, prefixStr)
 				} else {
-					nlri, err = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, prefixStr)
+					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, prefixStr)
 				}
 				if err != nil {
 					return false, err
@@ -598,7 +598,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				default:
 					if host := net.ParseIP(key); host != nil {
 						masklen := 32
-						if t.routeFamily == bgp.RF_IPv6_UC {
+						if t.Family == bgp.RF_IPv6_UC {
 							masklen = 128
 						}
 						for i := masklen; i >= 0; i-- {
@@ -624,10 +624,10 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				var nlri bgp.AddrPrefixInterface
 				var err error
 
-				if t.routeFamily == bgp.RF_IPv4_VPN {
-					nlri, err = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefixStr)
+				if t.Family == bgp.RF_IPv4_VPN {
+					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefixStr)
 				} else {
-					nlri, err = bgp.NewPrefixFromRouteFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefixStr)
+					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefixStr)
 				}
 				if err != nil {
 					return fmt.Errorf("failed to create prefix: %w", err)

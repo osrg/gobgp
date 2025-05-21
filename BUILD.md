@@ -17,13 +17,14 @@ Before sending pull request, please make sure that your changes have passed both
 
 ## Changing the gRPC API
 
-If you change the gRPC API, generate `api/*.pb.go` in the following way:
+To generate gRPC code from Protobuf definitions, first make sure you have [buf](https://github.com/bufbuild/buf) installed.
+
+Then run the following:
 
 ```bash
-$ ./tools/grpc/genproto.sh
+$ cd proto
+$ buf generate
 ```
-
-In order for the script to run, you'll need protoc (version 25.6) in your PATH.
 
 ## Releases
 
@@ -57,9 +58,9 @@ If you have a non-standard release and want to have more build information there
 
 ```bash
 go build -ldflags \
-	"-X github.com/osrg/gobgp/v3/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
-	 -X github.com/osrg/gobgp/v3/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
-	 -X github.com/osrg/gobgp/v3/internal/pkg/version.IDENTIFIER=alpha"
+	"-X github.com/osrg/gobgp/v4/internal/pkg/version.COMMIT=`git rev-parse --short HEAD` \
+	 -X github.com/osrg/gobgp/v4/internal/pkg/version.METADATA="date.`date "+%Y%m%d"`" \
+	 -X github.com/osrg/gobgp/v4/internal/pkg/version.IDENTIFIER=alpha"
 ```
 
 This will produce a version number of

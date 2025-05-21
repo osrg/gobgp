@@ -27,8 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 const (
@@ -228,7 +228,7 @@ var zapi4SafiMap = map[Safi]Safi{
 	zapi4SafiEncap:   safiEncap,
 	zapi4SafiEvpn:    safiEvpn,
 }
-var safiRouteFamilyIPv4Map = map[Safi]bgp.RouteFamily{
+var safiFamilyIPv4Map = map[Safi]bgp.Family{
 	safiUnspec:         bgp.RF_OPAQUE,
 	SafiUnicast:        bgp.RF_IPv4_UC,
 	safiMulticast:      bgp.RF_IPv4_MC,
@@ -237,7 +237,7 @@ var safiRouteFamilyIPv4Map = map[Safi]bgp.RouteFamily{
 	safiLabeledUnicast: bgp.RF_IPv4_MPLS,
 	safiFlowspec:       bgp.RF_FS_IPv4_UC,
 }
-var safiRouteFamilyIPv6Map = map[Safi]bgp.RouteFamily{
+var safiFamilyIPv6Map = map[Safi]bgp.Family{
 	safiUnspec:         bgp.RF_OPAQUE,
 	SafiUnicast:        bgp.RF_IPv6_UC,
 	safiMulticast:      bgp.RF_IPv6_MC,
@@ -1600,8 +1600,8 @@ func (c *Client) SendRedistribute(t RouteType, vrfID uint32) error {
 
 // SendIPRoute sends ROUTE message to zebra daemon.
 func (c *Client) SendIPRoute(vrfID uint32, body *IPRouteBody, isWithdraw bool) error {
-	routeFamily := body.RouteFamily(c.logger, c.Version, c.Software)
-	if vrfID == DefaultVrf && (routeFamily == bgp.RF_IPv4_VPN || routeFamily == bgp.RF_IPv6_VPN) {
+	Family := body.Family(c.logger, c.Version, c.Software)
+	if vrfID == DefaultVrf && (Family == bgp.RF_IPv4_VPN || Family == bgp.RF_IPv6_VPN) {
 		return fmt.Errorf("RF_IPv4_VPN or RF_IPv6_VPN are not suitable for Default VRF (default forwarding table)")
 	}
 	command := RouteAdd
@@ -2523,8 +2523,8 @@ func (b *IPRouteBody) safi(logger log.Logger, version uint8, software Software) 
 	return safi // success to convert
 }
 
-// RouteFamily is referred in zclient
-func (b *IPRouteBody) RouteFamily(logger log.Logger, version uint8, software Software) bgp.RouteFamily {
+// Family is referred in zclient
+func (b *IPRouteBody) Family(logger log.Logger, version uint8, software Software) bgp.Family {
 	if b == nil {
 		return bgp.RF_OPAQUE // fail
 	}
@@ -2539,11 +2539,11 @@ func (b *IPRouteBody) RouteFamily(logger log.Logger, version uint8, software Sof
 	if family == syscall.AF_UNSPEC { // familyFromPrefix returs AF_UNSPEC
 		return bgp.RF_OPAQUE // fail
 	}
-	safiRouteFamilyMap := safiRouteFamilyIPv4Map // syscall.AF_INET
+	safiFamilyMap := safiFamilyIPv4Map // syscall.AF_INET
 	if family == syscall.AF_INET6 {
-		safiRouteFamilyMap = safiRouteFamilyIPv6Map
+		safiFamilyMap = safiFamilyIPv6Map
 	}
-	rf, ok := safiRouteFamilyMap[safi]
+	rf, ok := safiFamilyMap[safi]
 	if !ok {
 		return bgp.RF_OPAQUE // fail
 	}

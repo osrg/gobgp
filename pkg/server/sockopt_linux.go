@@ -26,7 +26,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/osrg/gobgp/v3/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 const (

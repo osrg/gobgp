@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v3/pkg/log"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -78,7 +78,7 @@ func peerR3() *PeerInfo {
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	bgpMessage := update_fromR1()
 	peer := peerR1()
@@ -89,7 +89,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage.Body.(*bgp.BGPUpdate).PathAttributes
@@ -128,7 +128,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	bgpMessage := update_fromR1_ipv6()
 	peer := peerR1()
@@ -139,7 +139,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage.Body.(*bgp.BGPUpdate).PathAttributes
@@ -179,7 +179,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 // test: compare localpref
 func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -221,7 +221,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -259,7 +259,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -301,7 +301,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -341,7 +341,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 // test: compare localOrigin
 func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -385,7 +385,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -423,7 +423,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -468,7 +468,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -508,7 +508,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 // test: compare AS_PATH
 func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	bgpMessage1 := update_fromR2viaR1()
 	peer1 := peerR1()
@@ -525,7 +525,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -563,7 +563,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	bgpMessage1 := update_fromR2viaR1_ipv6()
 	peer1 := peerR1()
@@ -580,7 +580,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -620,7 +620,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 // test: compare Origin
 func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(1)
@@ -662,7 +662,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -700,7 +700,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(1)
 	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
@@ -742,7 +742,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -782,7 +782,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 // test: compare MED
 func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -824,7 +824,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -862,7 +862,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
@@ -904,7 +904,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -944,7 +944,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 // test: compare AS_NUMBER(prefer eBGP path)
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -986,7 +986,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1024,7 +1024,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
@@ -1066,7 +1066,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1108,7 +1108,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 // test: compare Router ID
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	SelectionOptions.ExternalCompareRouterId = true
 
 	// low origin message
@@ -1151,7 +1151,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1189,7 +1189,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
@@ -1231,7 +1231,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1271,7 +1271,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 // test: withdraw and mpunreach path
 func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1313,7 +1313,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
@@ -1360,7 +1360,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	assert.NoError(t, err)
 
 	path = pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	checkPattr(bgpMessage1, path)
 	// check destination
@@ -1374,7 +1374,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 // TODO MP_UNREACH
 func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -1416,7 +1416,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1487,7 +1487,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	assert.NoError(t, err)
 
 	path = pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	checkPattr(bgpMessage1, path)
 	// check destination
@@ -1502,7 +1502,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 // handle bestpath lost
 func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1535,7 +1535,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
 	// check old best path
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
@@ -1572,7 +1572,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -1604,7 +1604,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 
 	// check old best path
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
@@ -1643,7 +1643,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 // test: implicit withdrawal case
 func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1684,7 +1684,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
@@ -1724,7 +1724,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65100, 65200})
@@ -1765,7 +1765,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 
 	// check type
 	path := pList[0]
-	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
+	assert.Equal(t, path.GetFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1831,7 +1831,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 // check multiple paths
 func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	createPathAttr := func(aspaths []uint32, nh string) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)
@@ -1872,8 +1872,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 		assert.Equal(t, len(pathAttributes), len(actual.GetPathAttrs()))
 	}
 
-	checkBestPathResult := func(rf bgp.RouteFamily, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
-		assert.Equal(t, p.GetRouteFamily(), rf)
+	checkBestPathResult := func(rf bgp.Family, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
+		assert.Equal(t, p.GetFamily(), rf)
 		checkPattr(m, p)
 		// check destination
 		assert.Equal(t, prefix, p.GetPrefix())
@@ -1964,7 +1964,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 // check multiple paths
 func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv6_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	createPathAttr := func(aspaths []uint32) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)
@@ -2012,8 +2012,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 		assert.Equal(t, len(bgpPathAttributes), len(actual.GetPathAttrs()))
 	}
 
-	checkBestPathResult := func(rf bgp.RouteFamily, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
-		assert.Equal(t, p.GetRouteFamily(), rf)
+	checkBestPathResult := func(rf bgp.Family, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
+		assert.Equal(t, p.GetFamily(), rf)
 		checkPattr(m, p)
 		// check destination
 		assert.Equal(t, prefix, p.GetPrefix())
@@ -2108,7 +2108,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 }
 
 func TestProcessBGPUpdate_multiple_nlri_ipv4_split(t *testing.T) {
-	tm := NewTableManager(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC})
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspath := createAsPathAttribute([]uint32{65000, 65100, 65200})
@@ -2152,7 +2152,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 
-	adjRib := NewAdjRib(logger, []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+	adjRib := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now())
@@ -2166,7 +2166,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	//t2 = path2.timestamp
 	adjRib.Update(pList2)
 
-	inList := adjRib.PathList([]bgp.RouteFamily{bgp.RF_IPv4_UC}, false)
+	inList := adjRib.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)
 	assert.Equal(t, len(inList), 1)
 	assert.Equal(t, inList[0].GetTimestamp(), t1)
 
@@ -2183,7 +2183,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	t3 := pList3[0].GetTimestamp()
 	adjRib.Update(pList3)
 
-	inList = adjRib.PathList([]bgp.RouteFamily{bgp.RF_IPv4_UC}, false)
+	inList = adjRib.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)
 	assert.Equal(t, len(inList), 1)
 	assert.Equal(t, inList[0].GetTimestamp(), t3)
 }
