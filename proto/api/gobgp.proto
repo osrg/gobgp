@@ -140,11 +140,11 @@ message WatchEventRequest {
       bool init = 2;
       string peer_address = 3;
       string peer_group = 4;
-    bool enable_nlri_binary = 5;
-    bool enable_attribute_binary = 6;
-    // enable_only_binary == true means that only nlri_binary and pattrs_binary
-    // will be used instead of nlri and pattrs for each Path in ListPathResponse.
-    bool enable_only_binary = 7;
+      bool enable_nlri_binary = 5;
+      bool enable_attribute_binary = 6;
+      // enable_only_binary == true means that only nlri_binary and pattrs_binary
+      // will be used instead of nlri and pattrs for each Path in ListPathResponse.
+      bool enable_only_binary = 7;
     }
     repeated Filter filters = 1;
   }
