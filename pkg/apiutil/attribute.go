@@ -2156,6 +2156,20 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 					Mtu:          uint32(v.MTU),
 				},
 			}
+		case *bgp.ETreeExtended:
+			community.Extcom = &api.ExtendedCommunity_ETree{
+				ETree: &api.ETreeExtended{
+					IsLeaf: v.IsLeaf,
+					Label:  v.Label,
+				},
+			}
+		case *bgp.MulticastFlagsExtended:
+			community.Extcom = &api.ExtendedCommunity_MulticastFlags{
+				MulticastFlags: &api.MulticastFlagsExtended{
+					IsIgmpProxy: v.IsIGMPProxy,
+					IsMldProxy:  v.IsMLDProxy,
+				},
+			}
 		case *bgp.UnknownExtended:
 			community.Extcom = &api.ExtendedCommunity_Unknown{
 				Unknown: &api.UnknownExtended{
@@ -2240,6 +2254,12 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 		case *api.ExtendedCommunity_Vpls:
 			v := comm.Vpls
 			community = bgp.NewVPLSExtended(uint8(v.ControlFlags), uint16(v.Mtu))
+		case *api.ExtendedCommunity_ETree:
+			v := comm.ETreeExtended
+			community = bgp.NewETreeExtended(v.Label, v.IsLeaf)
+		case *api.ExtendedCommunity_MulticastFlags:
+			v := comm.MulticastFlagsExtended
+			community = bgp.NewMulticastFlagsExtended(v.IsIgmpProxy, v.IsMldProxy)
 		case *api.ExtendedCommunity_Unknown:
 			v := comm.Unknown
 			community = bgp.NewUnknownExtended(bgp.ExtendedCommunityAttrType(v.Type), v.Value)
