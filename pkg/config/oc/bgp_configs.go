@@ -4285,6 +4285,9 @@ type GracefulRestartState struct {
 	// original -> gobgp:long-lived-enabled
 	// gobgp:long-lived-enabled's original type is boolean.
 	LongLivedEnabled bool `mapstructure:"long-lived-enabled" json:"long-lived-enabled,omitempty"`
+	// original -> gobgp:long-lived-running
+	// gobgp:long-lived-running's original type is boolean.
+	LongLivedRunning bool `mapstructure:"long-lived-running" json:"long-lived-running,omitempty"`
 }
 
 // struct for container bgp:config.
