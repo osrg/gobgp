@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -737,8 +738,10 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		}
 
 		if old != nil && old.IsLocal() {
-			// We assumes VRF with the specific RT is deleted.
-			path = old.Clone(true)
+			// If path == nil it will be set to old.Clone(true) in the
+			// func (s *BgpServer) filterpath(peer *peer, path, old *table.Path).
+			// Otherwise this is the local path changing without rt change. We
+			// need to update path or do nothing if path == old.
 		} else if peer.isRouteReflectorClient() {
 			// We need to send the path even if the peer is originator of the
 			// path in order to signal that the client should distribute route
@@ -1040,6 +1043,22 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 		_, rport = peer.fsm.RemoteHostPort()
 		laddr, lport = peer.fsm.LocalHostPort()
 	}
+
+	remoteCaps := make([]*api.Capability, 0)
+	if peer.fsm.state >= bgp.BGP_FSM_OPENCONFIRM {
+		// Adding peer remote capabilities to the event
+		capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
+		for code, caps := range peer.fsm.capMap {
+			if code == bgp.BGP_CAP_FQDN {
+				// skip FQDN capability as it generates errors when Marshalling
+				continue
+			}
+			capList = append(capList, caps...)
+		}
+		if foundCaps, err := apiutil.MarshalCapabilities(capList); err == nil {
+			remoteCaps = foundCaps
+		}
+	}
 	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
 		Type:          t,
@@ -1057,6 +1076,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 		AdminState:    peer.fsm.adminState,
 		Timestamp:     time.Now(),
 		PeerInterface: peer.fsm.pConf.Config.NeighborInterface,
+		RemoteCap:     remoteCaps,
 	}
 	peer.fsm.lock.RUnlock()
 
@@ -1702,9 +1722,17 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			ipaddr, _ := net.ResolveIPAddr("ip", laddr)
 			peer.fsm.peerInfo.LocalAddress = ipaddr.IP
 			if peer.fsm.pConf.Transport.Config.LocalAddress != netip.IPv4Unspecified().String() && peer.fsm.pConf.Transport.Config.LocalAddress != netip.IPv6Unspecified().String() {
-				peer.fsm.peerInfo.LocalAddress = net.ParseIP(peer.fsm.pConf.Transport.Config.LocalAddress)
-				peer.fsm.pConf.Transport.State.LocalAddress = peer.fsm.pConf.Transport.Config.LocalAddress
+				// Exclude zone info for v6 address like "fe80::1ff:fe23:4567:890a%eth2".
+				p := peer.fsm.pConf.Transport.Config.LocalAddress
+				if i := strings.IndexByte(p, '%'); i != -1 {
+					p = p[:i]
+				}
+				laddr := net.ParseIP(p)
+
+				peer.fsm.peerInfo.LocalAddress = laddr
+				peer.fsm.pConf.Transport.State.LocalAddress = laddr.String()
 			}
+
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
 			peer.fsm.lock.Unlock()
 			deferralExpiredFunc := func(family bgp.Family) func() {
@@ -4415,6 +4443,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
 										AdminState:      api.PeerState_AdminState(msg.AdminState),
 										RouterId:        msg.PeerID.String(),
+										RemoteCap:       msg.RemoteCap,
 									},
 									Transport: &api.Transport{
 										LocalAddress: msg.LocalAddress.String(),
@@ -4533,6 +4562,7 @@ type watchEventPeer struct {
 	AdminState    adminState
 	Timestamp     time.Time
 	PeerInterface string
+	RemoteCap     []*api.Capability
 }
 
 type watchEventAdjIn struct {

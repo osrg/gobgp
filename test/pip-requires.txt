@@ -8,3 +8,4 @@ docker-py
 ryu
 colored
 invoke == 1.2.0
+requests <= 2.25.1
