@@ -585,11 +585,12 @@ message AddBmpRequest {
   string address = 1;
   uint32 port = 2;
   enum MonitoringPolicy {
-    PRE = 0;
-    POST = 1;
-    BOTH = 2;
-    LOCAL = 3;
-    ALL = 4;
+    MONITORING_POLICY_UNSPECIFIED = 0;
+    MONITORING_POLICY_PRE = 1;
+    MONITORING_POLICY_POST = 2;
+    MONITORING_POLICY_BOTH = 3;
+    MONITORING_POLICY_LOCAL = 4;
+    MONITORING_POLICY_ALL = 5;
   }
   MonitoringPolicy policy = 3;
   int32 statistics_timeout = 4;

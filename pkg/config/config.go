@@ -284,13 +284,29 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 				log.Fields{"Topic": "config", "Error": err})
 		}
 	}
+	f := func(t oc.BmpRouteMonitoringPolicyType) api.AddBmpRequest_MonitoringPolicy {
+		switch t {
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY:
+			return api.AddBmpRequest_MONITORING_POLICY_PRE
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY:
+			return api.AddBmpRequest_MONITORING_POLICY_POST
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH:
+			return api.AddBmpRequest_MONITORING_POLICY_BOTH
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB:
+			return api.AddBmpRequest_MONITORING_POLICY_LOCAL
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL:
+			return api.AddBmpRequest_MONITORING_POLICY_ALL
+		}
+		return api.AddBmpRequest_MONITORING_POLICY_UNSPECIFIED
+	}
+
 	for _, c := range newConfig.BmpServers {
 		if err := bgpServer.AddBmp(ctx, &api.AddBmpRequest{
 			Address:           c.Config.Address,
 			Port:              c.Config.Port,
 			SysName:           c.Config.SysName,
 			SysDescr:          c.Config.SysDescr,
-			Policy:            api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+			Policy:            f(c.Config.RouteMonitoringPolicy),
 			StatisticsTimeout: int32(c.Config.StatisticsTimeout),
 		}); err != nil {
 			bgpServer.Log().Fatal("failed to set bmp config",

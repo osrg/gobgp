@@ -93,19 +93,19 @@ func modBmpServer(cmdType string, args []string) error {
 			return fmt.Errorf("invalid statistics-timeout value. it must be in the range 0-65535. default value is 0 and means disabled")
 		}
 
-		policyType := api.AddBmpRequest_PRE
+		policyType := api.AddBmpRequest_MONITORING_POLICY_PRE
 		if len(args) > 1 {
 			switch args[1] {
 			case "pre":
-				policyType = api.AddBmpRequest_PRE
+				policyType = api.AddBmpRequest_MONITORING_POLICY_PRE
 			case "post":
-				policyType = api.AddBmpRequest_POST
+				policyType = api.AddBmpRequest_MONITORING_POLICY_POST
 			case "both":
-				policyType = api.AddBmpRequest_BOTH
+				policyType = api.AddBmpRequest_MONITORING_POLICY_BOTH
 			case "local-rib":
-				policyType = api.AddBmpRequest_LOCAL
+				policyType = api.AddBmpRequest_MONITORING_POLICY_LOCAL
 			case "all":
-				policyType = api.AddBmpRequest_ALL
+				policyType = api.AddBmpRequest_MONITORING_POLICY_ALL
 			default:
 				return fmt.Errorf("invalid bmp policy type. valid type is {pre|post|both|local-rib|all}")
 			}

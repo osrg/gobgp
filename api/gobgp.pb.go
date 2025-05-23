@@ -714,28 +714,31 @@ func (EnableMrtRequest_DumpType) EnumDescriptor() ([]byte, []int) {
 type AddBmpRequest_MonitoringPolicy int32
 
 const (
-	AddBmpRequest_PRE   AddBmpRequest_MonitoringPolicy = 0
-	AddBmpRequest_POST  AddBmpRequest_MonitoringPolicy = 1
-	AddBmpRequest_BOTH  AddBmpRequest_MonitoringPolicy = 2
-	AddBmpRequest_LOCAL AddBmpRequest_MonitoringPolicy = 3
-	AddBmpRequest_ALL   AddBmpRequest_MonitoringPolicy = 4
+	AddBmpRequest_MONITORING_POLICY_UNSPECIFIED AddBmpRequest_MonitoringPolicy = 0
+	AddBmpRequest_MONITORING_POLICY_PRE         AddBmpRequest_MonitoringPolicy = 1
+	AddBmpRequest_MONITORING_POLICY_POST        AddBmpRequest_MonitoringPolicy = 2
+	AddBmpRequest_MONITORING_POLICY_BOTH        AddBmpRequest_MonitoringPolicy = 3
+	AddBmpRequest_MONITORING_POLICY_LOCAL       AddBmpRequest_MonitoringPolicy = 4
+	AddBmpRequest_MONITORING_POLICY_ALL         AddBmpRequest_MonitoringPolicy = 5
 )
 
 // Enum value maps for AddBmpRequest_MonitoringPolicy.
 var (
 	AddBmpRequest_MonitoringPolicy_name = map[int32]string{
-		0: "PRE",
-		1: "POST",
-		2: "BOTH",
-		3: "LOCAL",
-		4: "ALL",
+		0: "MONITORING_POLICY_UNSPECIFIED",
+		1: "MONITORING_POLICY_PRE",
+		2: "MONITORING_POLICY_POST",
+		3: "MONITORING_POLICY_BOTH",
+		4: "MONITORING_POLICY_LOCAL",
+		5: "MONITORING_POLICY_ALL",
 	}
 	AddBmpRequest_MonitoringPolicy_value = map[string]int32{
-		"PRE":   0,
-		"POST":  1,
-		"BOTH":  2,
-		"LOCAL": 3,
-		"ALL":   4,
+		"MONITORING_POLICY_UNSPECIFIED": 0,
+		"MONITORING_POLICY_PRE":         1,
+		"MONITORING_POLICY_POST":        2,
+		"MONITORING_POLICY_BOTH":        3,
+		"MONITORING_POLICY_LOCAL":       4,
+		"MONITORING_POLICY_ALL":         5,
 	}
 )
 
@@ -6190,7 +6193,7 @@ func (x *AddBmpRequest) GetPolicy() AddBmpRequest_MonitoringPolicy {
 	if x != nil {
 		return x.Policy
 	}
-	return AddBmpRequest_PRE
+	return AddBmpRequest_MONITORING_POLICY_UNSPECIFIED
 }
 
 func (x *AddBmpRequest) GetStatisticsTimeout() int32 {
@@ -12770,20 +12773,21 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x11EnableMrtResponse\"/\n" +
 	"\x11DisableMrtRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\"\x14\n" +
-	"\x12DisableMrtResponse\"\xa6\x02\n" +
+	"\x12DisableMrtResponse\"\xa4\x03\n" +
 	"\rAddBmpRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12;\n" +
 	"\x06policy\x18\x03 \x01(\x0e2#.api.AddBmpRequest.MonitoringPolicyR\x06policy\x12-\n" +
 	"\x12statistics_timeout\x18\x04 \x01(\x05R\x11statisticsTimeout\x12\x19\n" +
 	"\bsys_name\x18\x05 \x01(\tR\asysName\x12\x1b\n" +
-	"\tsys_descr\x18\x06 \x01(\tR\bsysDescr\"C\n" +
-	"\x10MonitoringPolicy\x12\a\n" +
-	"\x03PRE\x10\x00\x12\b\n" +
-	"\x04POST\x10\x01\x12\b\n" +
-	"\x04BOTH\x10\x02\x12\t\n" +
-	"\x05LOCAL\x10\x03\x12\a\n" +
-	"\x03ALL\x10\x04\"\x10\n" +
+	"\tsys_descr\x18\x06 \x01(\tR\bsysDescr\"\xc0\x01\n" +
+	"\x10MonitoringPolicy\x12!\n" +
+	"\x1dMONITORING_POLICY_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15MONITORING_POLICY_PRE\x10\x01\x12\x1a\n" +
+	"\x16MONITORING_POLICY_POST\x10\x02\x12\x1a\n" +
+	"\x16MONITORING_POLICY_BOTH\x10\x03\x12\x1b\n" +
+	"\x17MONITORING_POLICY_LOCAL\x10\x04\x12\x19\n" +
+	"\x15MONITORING_POLICY_ALL\x10\x05\"\x10\n" +
 	"\x0eAddBmpResponse\"@\n" +
 	"\x10DeleteBmpRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
