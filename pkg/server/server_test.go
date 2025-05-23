@@ -1729,8 +1729,8 @@ func TestDelVrfWithRTC(t *testing.T) {
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	s2.logger.SetLevel(log.DebugLevel)
 
-	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
-	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
+	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{}, 1)
+	addVrf(t, s2, "vrf1", "111:111", []string{}, []string{"111:111"}, 1)
 
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
@@ -1742,6 +1742,8 @@ func TestDelVrfWithRTC(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("2.2.2.2"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{
+			bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)}),
 	}
 	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
@@ -1825,7 +1827,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 	}
 }
 
-func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
+func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
@@ -1898,9 +1900,12 @@ func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
 	}
 	t1.Stop()
 
+	// Extra ExtComm for small difference between RTC messages:
+	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
 	attrsNH1 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("127.0.0.1"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200}),
+		bgp.NewPathAttributeNextHop("0.0.0.0"),
 	}
 	pathRtc1, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH1, time.Now())
 	if _, err := s1.AddPath(ctx, &api.AddPathRequest{

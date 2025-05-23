@@ -1033,7 +1033,7 @@ func (path *Path) GetLocalPref() (uint32, error) {
 	return lp, nil
 }
 
-func (lhs *Path) EqualByNlri(rhs *Path) bool {
+func (lhs *Path) EqualBySourceAndPathID(rhs *Path) bool {
 	if rhs == nil {
 		return false
 	}
