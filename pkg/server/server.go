@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -1702,9 +1703,17 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			ipaddr, _ := net.ResolveIPAddr("ip", laddr)
 			peer.fsm.peerInfo.LocalAddress = ipaddr.IP
 			if peer.fsm.pConf.Transport.Config.LocalAddress != netip.IPv4Unspecified().String() && peer.fsm.pConf.Transport.Config.LocalAddress != netip.IPv6Unspecified().String() {
-				peer.fsm.peerInfo.LocalAddress = net.ParseIP(peer.fsm.pConf.Transport.Config.LocalAddress)
-				peer.fsm.pConf.Transport.State.LocalAddress = peer.fsm.pConf.Transport.Config.LocalAddress
+				// Exclude zone info for v6 address like "fe80::1ff:fe23:4567:890a%eth2".
+				p := peer.fsm.pConf.Transport.Config.LocalAddress
+				if i := strings.IndexByte(p, '%'); i != -1 {
+					p = p[:i]
+				}
+				laddr := net.ParseIP(p)
+
+				peer.fsm.peerInfo.LocalAddress = laddr
+				peer.fsm.pConf.Transport.State.LocalAddress = laddr.String()
 			}
+
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
 			peer.fsm.lock.Unlock()
 			deferralExpiredFunc := func(family bgp.Family) func() {
