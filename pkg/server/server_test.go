@@ -770,7 +770,7 @@ func TestMonitor(test *testing.T) {
 	<-ch
 
 	// Test WatchBestPath.
-	w := s.watch(watchBestPath(false))
+	w := s.watch(watchBestPath(false, false, false, false))
 
 	// Advertises a route.
 	attrs := []bgp.PathAttributeInterface{
@@ -827,7 +827,7 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchUpdate with "current" flag.
-	w = s.watch(watchUpdate(true, "", ""))
+	w = s.watch(watchUpdate(true, "", "", false, false, false))
 
 	// Test the initial route.
 	ev = <-w.Event()
@@ -862,7 +862,7 @@ func TestMonitor(test *testing.T) {
 
 	// Test bestpath events with vrf and rt import
 	w.Stop()
-	w = s.watch(watchBestPath(false))
+	w = s.watch(watchBestPath(false, false, false, false))
 	attrs = []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("10.0.0.1"),
@@ -1633,7 +1633,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher := s1.watch(watchUpdate(true, "", ""))
+	watcher := s1.watch(watchUpdate(true, "", "", false, false, false))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -1735,8 +1735,8 @@ func TestDelVrfWithRTC(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(watchUpdate(true, "", ""))
-	watcher2 := s2.watch(watchUpdate(true, "", ""))
+	watcher1 := s1.watch(watchUpdate(true, "", "", false, false, false))
+	watcher2 := s2.watch(watchUpdate(true, "", "", false, false, false))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -1838,8 +1838,8 @@ func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(watchUpdate(true, "", ""))
-	watcher2 := s2.watch(watchUpdate(true, "", ""))
+	watcher1 := s1.watch(watchUpdate(true, "", "", false, false, false))
+	watcher2 := s2.watch(watchUpdate(true, "", "", false, false, false))
 
 	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 
@@ -2418,192 +2418,221 @@ func TestListPathWithIdentifiers(t *testing.T) {
 
 func TestWatchEvent(test *testing.T) {
 	assert := assert.New(test)
-	s := NewBgpServer()
-	go s.Serve()
-	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
-		Global: &api.Global{
-			Asn:        1,
-			RouterId:   "1.1.1.1",
-			ListenPort: 10179,
-		},
-	})
-	assert.Nil(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	peer1 := &api.Peer{
-		Conf: &api.PeerConf{
-			NeighborAddress: "127.0.0.1",
-			PeerAsn:         2,
-		},
-		Transport: &api.Transport{
-			PassiveMode: true,
-		},
+	type testcases struct {
+		enableOnlyBinary   bool
+		enableNlriBinary   bool
+		enablePattrsBinary bool
+		verificationFunc   func(*api.Path) bool
 	}
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
-	assert.Nil(err)
-
-	d1 := &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
-		Name:        "d1",
-		Prefixes: []*api.Prefix{
-			{
-				IpPrefix:      "10.1.0.0/24",
-				MaskLengthMax: 24,
-				MaskLengthMin: 24,
+	for _, testcase := range []testcases{
+		{true, false, false, func(p *api.Path) bool {
+			return len(p.NlriBinary) > 0 && len(p.PattrsBinary) > 0 && len(p.Pattrs) == 0
+		}},
+		{false, true, false, func(p *api.Path) bool {
+			return len(p.NlriBinary) > 0 && len(p.PattrsBinary) == 0 && len(p.Pattrs) > 0
+		}},
+		{false, false, true, func(p *api.Path) bool {
+			return len(p.NlriBinary) == 0 && len(p.PattrsBinary) > 0 && len(p.Pattrs) > 0
+		}},
+	} {
+		s := NewBgpServer()
+		go s.Serve()
+		err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:        1,
+				RouterId:   "1.1.1.1",
+				ListenPort: 10179,
 			},
-		},
-	}
-	s1 := &api.Statement{
-		Name: "s1",
-		Conditions: &api.Conditions{
-			PrefixSet: &api.MatchSet{
-				Name: "d1",
+		})
+		assert.Nil(err)
+
+		peer1 := &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: "127.0.0.1",
+				PeerAsn:         2,
 			},
-		},
-		Actions: &api.Actions{
-			RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
-		},
-	}
-	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
-	assert.Nil(err)
-	p1 := &api.Policy{
-		Name:       "p1",
-		Statements: []*api.Statement{s1},
-	}
-	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p1})
-	assert.Nil(err)
-	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
-		Assignment: &api.PolicyAssignment{
-			Name:          table.GLOBAL_RIB_NAME,
-			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
-			Policies:      []*api.Policy{p1},
-			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
-		},
-	})
-	assert.Nil(err)
-
-	t := NewBgpServer()
-	go t.Serve()
-	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
-		Global: &api.Global{
-			Asn:        2,
-			RouterId:   "2.2.2.2",
-			ListenPort: -1,
-		},
-	})
-	assert.Nil(err)
-	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
-
-	family := &api.Family{
-		Afi:  api.Family_AFI_IP,
-		Safi: api.Family_SAFI_UNICAST,
-	}
-
-	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-		Prefix:    "10.1.0.0",
-		PrefixLen: 24,
-	}}}
-
-	attrs := []*api.Attribute{
-		{
-			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
-				Origin: 0,
-			}},
-		},
-		{
-			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
-				NextHop: "10.0.0.1",
-			}},
-		},
-	}
-
-	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
-		Path: &api.Path{
-			Family: family,
-			Nlri:   nlri1,
-			Pattrs: attrs,
-		},
-	})
-	assert.Nil(err)
-
-	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-		Prefix:    "10.2.0.0",
-		PrefixLen: 24,
-	}}}
-	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
-		Path: &api.Path{
-			Family: family,
-			Nlri:   nlri2,
-			Pattrs: attrs,
-		},
-	})
-	assert.Nil(err)
-
-	peer2 := &api.Peer{
-		Conf: &api.PeerConf{
-			NeighborAddress: "127.0.0.1",
-			PeerAsn:         1,
-		},
-		Transport: &api.Transport{
-			RemotePort: 10179,
-		},
-		Timers: &api.Timers{
-			Config: &api.TimersConfig{
-				ConnectRetry:           1,
-				IdleHoldTimeAfterReset: 1,
+			Transport: &api.Transport{
+				PassiveMode: true,
 			},
-		},
-		AfiSafis: []*api.AfiSafi{
-			{
-				Config: &api.AfiSafiConfig{
-					Family: &api.Family{
-						Afi:  api.Family_AFI_IP,
-						Safi: api.Family_SAFI_UNICAST,
-					},
-				},
-			},
-			{
-				Config: &api.AfiSafiConfig{
-					Family: &api.Family{
-						Afi:  api.Family_AFI_IP6,
-						Safi: api.Family_SAFI_UNICAST,
-					},
-				},
-			},
-		},
-	}
-	ch := make(chan struct{})
-	go waitEstablishedWithFamilies(s, ch, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
-
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
-	assert.Nil(err)
-	<-ch
-
-	count := 0
-	done := make(chan struct{})
-	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
-		Table: &api.WatchEventRequest_Table{
-			Filters: []*api.WatchEventRequest_Table_Filter{
-				{
-					Type:        api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
-					PeerAddress: "127.0.0.1",
-					Init:        true,
-				},
-			},
-		},
-	}, func(resp *api.WatchEventResponse) {
-		t := resp.Event.(*api.WatchEventResponse_Table)
-		count += len(t.Table.Paths)
-		if count == 2 {
-			close(done)
 		}
-	})
-	assert.Nil(err)
-	<-done
+		err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
+		assert.Nil(err)
 
-	assert.Equal(2, count)
+		d1 := &api.DefinedSet{
+			DefinedType: api.DefinedType_PREFIX,
+			Name:        "d1",
+			Prefixes: []*api.Prefix{
+				{
+					IpPrefix:      "10.1.0.0/24",
+					MaskLengthMax: 24,
+					MaskLengthMin: 24,
+				},
+			},
+		}
+		s1 := &api.Statement{
+			Name: "s1",
+			Conditions: &api.Conditions{
+				PrefixSet: &api.MatchSet{
+					Name: "d1",
+				},
+			},
+			Actions: &api.Actions{
+				RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			},
+		}
+		err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
+		assert.Nil(err)
+		p1 := &api.Policy{
+			Name:       "p1",
+			Statements: []*api.Statement{s1},
+		}
+		err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p1})
+		assert.Nil(err)
+		err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
+			Assignment: &api.PolicyAssignment{
+				Name:          table.GLOBAL_RIB_NAME,
+				Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+				Policies:      []*api.Policy{p1},
+				DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+			},
+		})
+		assert.Nil(err)
+
+		t := NewBgpServer()
+		go t.Serve()
+		err = t.StartBgp(context.Background(), &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:        2,
+				RouterId:   "2.2.2.2",
+				ListenPort: -1,
+			},
+		})
+		assert.Nil(err)
+		defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+		family := &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		}
+
+		nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+			Prefix:    "10.1.0.0",
+			PrefixLen: 24,
+		}}}
+
+		attrs := []*api.Attribute{
+			{
+				Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+					Origin: 0,
+				}},
+			},
+			{
+				Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+					NextHop: "10.0.0.1",
+				}},
+			},
+		}
+
+		_, err = t.AddPath(context.Background(), &api.AddPathRequest{
+			TableType: api.TableType_GLOBAL,
+			Path: &api.Path{
+				Family: family,
+				Nlri:   nlri1,
+				Pattrs: attrs,
+			},
+		})
+		assert.Nil(err)
+
+		nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+			Prefix:    "10.2.0.0",
+			PrefixLen: 24,
+		}}}
+		_, err = t.AddPath(context.Background(), &api.AddPathRequest{
+			TableType: api.TableType_GLOBAL,
+			Path: &api.Path{
+				Family: family,
+				Nlri:   nlri2,
+				Pattrs: attrs,
+			},
+		})
+		assert.Nil(err)
+
+		peer2 := &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: "127.0.0.1",
+				PeerAsn:         1,
+			},
+			Transport: &api.Transport{
+				RemotePort: 10179,
+			},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{
+					ConnectRetry:           1,
+					IdleHoldTimeAfterReset: 1,
+				},
+			},
+			AfiSafis: []*api.AfiSafi{
+				{
+					Config: &api.AfiSafiConfig{
+						Family: &api.Family{
+							Afi:  api.Family_AFI_IP,
+							Safi: api.Family_SAFI_UNICAST,
+						},
+					},
+				},
+				{
+					Config: &api.AfiSafiConfig{
+						Family: &api.Family{
+							Afi:  api.Family_AFI_IP6,
+							Safi: api.Family_SAFI_UNICAST,
+						},
+					},
+				},
+			},
+		}
+		ch := make(chan struct{})
+		go waitEstablishedWithFamilies(s, ch, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+
+		err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
+		assert.Nil(err)
+		<-ch
+		count := 0
+		done := make(chan struct{})
+		once := true
+		err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
+			Table: &api.WatchEventRequest_Table{
+				Filters: []*api.WatchEventRequest_Table_Filter{
+					{
+						Type:                  api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
+						PeerAddress:           "127.0.0.1",
+						Init:                  true,
+						EnableOnlyBinary:      testcase.enableOnlyBinary,
+						EnableNlriBinary:      testcase.enableNlriBinary,
+						EnableAttributeBinary: testcase.enablePattrsBinary,
+					},
+				},
+			},
+		}, func(resp *api.WatchEventResponse) {
+			t := resp.Event.(*api.WatchEventResponse_Table)
+			count += len(t.Table.Paths)
+			fmt.Println(fmt.Sprintf("There was a message with length %d", count))
+			if count == 2 {
+				for _, path := range t.Table.Paths {
+					assert.True(testcase.verificationFunc(path))
+				}
+				if once {
+					close(done)
+					once = false
+				}
+			}
+		})
+		assert.Nil(err)
+		<-done
+
+		assert.Equal(2, count)
+		s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	}
 }
 
 func TestAddDefinedSetReplace(t *testing.T) {
