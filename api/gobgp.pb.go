@@ -1185,22 +1185,25 @@ func (Conditions_RouteType) EnumDescriptor() ([]byte, []int) {
 type CommunityAction_Type int32
 
 const (
-	CommunityAction_ADD     CommunityAction_Type = 0
-	CommunityAction_REMOVE  CommunityAction_Type = 1
-	CommunityAction_REPLACE CommunityAction_Type = 2
+	CommunityAction_TYPE_UNSPECIFIED CommunityAction_Type = 0
+	CommunityAction_TYPE_ADD         CommunityAction_Type = 1
+	CommunityAction_TYPE_REMOVE      CommunityAction_Type = 2
+	CommunityAction_TYPE_REPLACE     CommunityAction_Type = 3
 )
 
 // Enum value maps for CommunityAction_Type.
 var (
 	CommunityAction_Type_name = map[int32]string{
-		0: "ADD",
-		1: "REMOVE",
-		2: "REPLACE",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_ADD",
+		2: "TYPE_REMOVE",
+		3: "TYPE_REPLACE",
 	}
 	CommunityAction_Type_value = map[string]int32{
-		"ADD":     0,
-		"REMOVE":  1,
-		"REPLACE": 2,
+		"TYPE_UNSPECIFIED": 0,
+		"TYPE_ADD":         1,
+		"TYPE_REMOVE":      2,
+		"TYPE_REPLACE":     3,
 	}
 )
 
@@ -10698,7 +10701,7 @@ func (x *CommunityAction) GetType() CommunityAction_Type {
 	if x != nil {
 		return x.Type
 	}
-	return CommunityAction_ADD
+	return CommunityAction_TYPE_UNSPECIFIED
 }
 
 func (x *CommunityAction) GetCommunities() []string {
@@ -13225,15 +13228,15 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fROUTE_TYPE_NONE\x10\x00\x12\x17\n" +
 	"\x13ROUTE_TYPE_INTERNAL\x10\x01\x12\x17\n" +
 	"\x13ROUTE_TYPE_EXTERNAL\x10\x02\x12\x14\n" +
-	"\x10ROUTE_TYPE_LOCAL\x10\x03\"\x8c\x01\n" +
+	"\x10ROUTE_TYPE_LOCAL\x10\x03\"\xb1\x01\n" +
 	"\x0fCommunityAction\x12-\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x19.api.CommunityAction.TypeR\x04type\x12 \n" +
-	"\vcommunities\x18\x02 \x03(\tR\vcommunities\"(\n" +
-	"\x04Type\x12\a\n" +
-	"\x03ADD\x10\x00\x12\n" +
-	"\n" +
-	"\x06REMOVE\x10\x01\x12\v\n" +
-	"\aREPLACE\x10\x02\"\x88\x01\n" +
+	"\vcommunities\x18\x02 \x03(\tR\vcommunities\"M\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bTYPE_ADD\x10\x01\x12\x0f\n" +
+	"\vTYPE_REMOVE\x10\x02\x12\x10\n" +
+	"\fTYPE_REPLACE\x10\x03\"\x88\x01\n" +
 	"\tMedAction\x12'\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x13.api.MedAction.TypeR\x04type\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value\"<\n" +

@@ -1173,9 +1173,10 @@ enum RouteAction {
 
 message CommunityAction {
   enum Type {
-    ADD = 0;
-    REMOVE = 1;
-    REPLACE = 2;
+    TYPE_UNSPECIFIED = 0;
+    TYPE_ADD = 1;
+    TYPE_REMOVE = 2;
+    TYPE_REPLACE = 3;
   }
   Type type = 1;
   repeated string communities = 2;

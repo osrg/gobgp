@@ -31,6 +31,8 @@ import (
 
 	"github.com/dgryski/go-farm"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/osrg/gobgp/v4/api"
@@ -1189,8 +1191,17 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
 				return nil
 			}
+			action := api.CommunityAction_TYPE_UNSPECIFIED
+			switch oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options) {
+			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
+				action = api.CommunityAction_TYPE_ADD
+			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
+				action = api.CommunityAction_TYPE_REMOVE
+			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
+				action = api.CommunityAction_TYPE_REPLACE
+			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
+				Type:        action,
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
 		}(),
 		Med: func() *api.MedAction {
@@ -1516,12 +1527,30 @@ func newRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, err
 	}, nil
 }
 
+func apiCommunityActionToOcType(a api.CommunityAction_Type) (oc.BgpSetCommunityOptionType, error) {
+	switch a {
+	case api.CommunityAction_TYPE_UNSPECIFIED:
+		return oc.BgpSetCommunityOptionType(""), status.Errorf(codes.InvalidArgument, "unspecified community action type")
+	case api.CommunityAction_TYPE_ADD:
+		return oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD, nil
+	case api.CommunityAction_TYPE_REMOVE:
+		return oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE, nil
+	case api.CommunityAction_TYPE_REPLACE:
+		return oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE, nil
+	}
+	return oc.BgpSetCommunityOptionType(""), status.Errorf(codes.InvalidArgument, "unknown community action type: %v", a)
+}
+
 func newCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAction, error) {
 	if a == nil {
 		return nil, nil
 	}
+	op, err := apiCommunityActionToOcType(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	return table.NewCommunityAction(oc.SetCommunity{
-		Options: string(oc.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
+		Options: string(op),
 		SetCommunityMethod: oc.SetCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1532,8 +1561,12 @@ func newExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommu
 	if a == nil {
 		return nil, nil
 	}
+	op, err := apiCommunityActionToOcType(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	return table.NewExtCommunityAction(oc.SetExtCommunity{
-		Options: string(oc.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
+		Options: string(op),
 		SetExtCommunityMethod: oc.SetExtCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1544,8 +1577,12 @@ func newLargeCommunityActionFromApiStruct(a *api.CommunityAction) (*table.LargeC
 	if a == nil {
 		return nil, nil
 	}
+	op, err := apiCommunityActionToOcType(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	return table.NewLargeCommunityAction(oc.SetLargeCommunity{
-		Options: oc.IntToBgpSetCommunityOptionTypeMap[int(a.Type)],
+		Options: op,
 		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
 			CommunitiesList: a.Communities,
 		},

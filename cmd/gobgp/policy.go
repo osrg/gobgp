@@ -79,11 +79,11 @@ func prettyString(v interface{}) string {
 		l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
 		var typ string
 		switch a.Type {
-		case api.CommunityAction_ADD:
+		case api.CommunityAction_TYPE_ADD:
 			typ = "add"
-		case api.CommunityAction_REMOVE:
+		case api.CommunityAction_TYPE_REMOVE:
 			typ = "remove"
-		case api.CommunityAction_REPLACE:
+		case api.CommunityAction_TYPE_REPLACE:
 			typ = "replace"
 		}
 		return fmt.Sprintf("%s[%s]", typ, l)
@@ -860,11 +860,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Community.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Community.Type = api.CommunityAction_ADD
+			stmt.Actions.Community.Type = api.CommunityAction_TYPE_ADD
 		case "remove":
-			stmt.Actions.Community.Type = api.CommunityAction_REMOVE
+			stmt.Actions.Community.Type = api.CommunityAction_TYPE_REMOVE
 		case "replace":
-			stmt.Actions.Community.Type = api.CommunityAction_REPLACE
+			stmt.Actions.Community.Type = api.CommunityAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s community %s", usage, cmd)
 		}
@@ -876,11 +876,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.ExtCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.ExtCommunity.Type = api.CommunityAction_ADD
+			stmt.Actions.ExtCommunity.Type = api.CommunityAction_TYPE_ADD
 		case "remove":
-			stmt.Actions.ExtCommunity.Type = api.CommunityAction_REMOVE
+			stmt.Actions.ExtCommunity.Type = api.CommunityAction_TYPE_REMOVE
 		case "replace":
-			stmt.Actions.ExtCommunity.Type = api.CommunityAction_REPLACE
+			stmt.Actions.ExtCommunity.Type = api.CommunityAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s ext-community %s", usage, cmd)
 		}
@@ -892,11 +892,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.LargeCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.LargeCommunity.Type = api.CommunityAction_ADD
+			stmt.Actions.LargeCommunity.Type = api.CommunityAction_TYPE_ADD
 		case "remove":
-			stmt.Actions.LargeCommunity.Type = api.CommunityAction_REMOVE
+			stmt.Actions.LargeCommunity.Type = api.CommunityAction_TYPE_REMOVE
 		case "replace":
-			stmt.Actions.LargeCommunity.Type = api.CommunityAction_REPLACE
+			stmt.Actions.LargeCommunity.Type = api.CommunityAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s large-community %s", usage, cmd)
 		}
