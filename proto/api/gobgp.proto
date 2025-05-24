@@ -1136,11 +1136,12 @@ message CommunityCount {
   uint32 count = 2;
 }
 
-enum RouteOriginType {
-  ORIGIN_NONE = 0;
-  ORIGIN_IGP = 1;
-  ORIGIN_EGP = 2;
-  ORIGIN_INCOMPLETE = 3;
+enum OriginType {
+  ORIGIN_TYPE_UNSPECIFIED = 0;
+  ORIGIN_TYPE_NONE = 1;
+  ORIGIN_TYPE_IGP = 2;
+  ORIGIN_TYPE_EGP = 3;
+  ORIGIN_TYPE_INCOMPLETE = 4;
 }
 
 message Conditions {
@@ -1162,7 +1163,7 @@ message Conditions {
   repeated string next_hop_in_list = 10;
   repeated Family afi_safi_in = 11;
   CommunityCount community_count = 12;
-  RouteOriginType origin = 13;
+  OriginType origin = 13;
 }
 
 enum RouteAction {
@@ -1210,7 +1211,7 @@ message LocalPrefAction {
 }
 
 message OriginAction {
-  RouteOriginType origin = 1;
+  OriginType origin = 1;
 }
 
 message Actions {
