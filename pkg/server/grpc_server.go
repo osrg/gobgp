@@ -1295,14 +1295,14 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			if s.Actions.BgpActions.SetRouteOrigin.ToInt() == -1 {
 				return nil
 			}
-			var apiOrigin api.RouteOriginType
+			var apiOrigin api.OriginType
 			switch s.Actions.BgpActions.SetRouteOrigin {
 			case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
-				apiOrigin = api.RouteOriginType_ORIGIN_IGP
+				apiOrigin = api.OriginType_ORIGIN_TYPE_IGP
 			case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
-				apiOrigin = api.RouteOriginType_ORIGIN_EGP
+				apiOrigin = api.OriginType_ORIGIN_TYPE_EGP
 			case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
-				apiOrigin = api.RouteOriginType_ORIGIN_INCOMPLETE
+				apiOrigin = api.OriginType_ORIGIN_TYPE_INCOMPLETE
 			default:
 				return nil
 			}
@@ -1427,21 +1427,22 @@ func newRouteTypeConditionFromApiStruct(a api.Conditions_RouteType) (*table.Rout
 	return table.NewRouteTypeCondition(typ)
 }
 
-func newOriginConditionFromApiStruct(apiOrigin api.RouteOriginType) (*table.OriginCondition, error) {
+func newOriginConditionFromApiStruct(apiOrigin api.OriginType) (*table.OriginCondition, error) {
 	var origin oc.BgpOriginAttrType
 	switch apiOrigin {
-	case api.RouteOriginType_ORIGIN_NONE:
+	case api.OriginType_ORIGIN_TYPE_UNSPECIFIED:
 		return nil, nil
-	case api.RouteOriginType_ORIGIN_IGP:
+	case api.OriginType_ORIGIN_TYPE_NONE:
+		return nil, nil
+	case api.OriginType_ORIGIN_TYPE_IGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_IGP
-	case api.RouteOriginType_ORIGIN_EGP:
+	case api.OriginType_ORIGIN_TYPE_EGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_EGP
-	case api.RouteOriginType_ORIGIN_INCOMPLETE:
+	case api.OriginType_ORIGIN_TYPE_INCOMPLETE:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	default:
-		return nil, fmt.Errorf("unrecognized route origin type: %v", apiOrigin)
+		return nil, status.Errorf(codes.InvalidArgument, "unrecognized route origin type: %v", apiOrigin)
 	}
-
 	return table.NewOriginCondition(origin)
 }
 
@@ -1610,13 +1611,13 @@ func newOriginActionFromApiStruct(a *api.OriginAction) (*table.OriginAction, err
 
 	var origin oc.BgpOriginAttrType
 	switch v := a.GetOrigin(); v {
-	case api.RouteOriginType_ORIGIN_NONE:
+	case api.OriginType_ORIGIN_TYPE_NONE:
 		return nil, nil
-	case api.RouteOriginType_ORIGIN_IGP:
+	case api.OriginType_ORIGIN_TYPE_IGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_IGP
-	case api.RouteOriginType_ORIGIN_EGP:
+	case api.OriginType_ORIGIN_TYPE_EGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_EGP
-	case api.RouteOriginType_ORIGIN_INCOMPLETE:
+	case api.OriginType_ORIGIN_TYPE_INCOMPLETE:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	default:
 		return nil, fmt.Errorf("unrecognized route origin type: %v", v)

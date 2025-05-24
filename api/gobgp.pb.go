@@ -257,55 +257,58 @@ func (DefinedType) EnumDescriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{3}
 }
 
-type RouteOriginType int32
+type OriginType int32
 
 const (
-	RouteOriginType_ORIGIN_NONE       RouteOriginType = 0
-	RouteOriginType_ORIGIN_IGP        RouteOriginType = 1
-	RouteOriginType_ORIGIN_EGP        RouteOriginType = 2
-	RouteOriginType_ORIGIN_INCOMPLETE RouteOriginType = 3
+	OriginType_ORIGIN_TYPE_UNSPECIFIED OriginType = 0
+	OriginType_ORIGIN_TYPE_NONE        OriginType = 1
+	OriginType_ORIGIN_TYPE_IGP         OriginType = 2
+	OriginType_ORIGIN_TYPE_EGP         OriginType = 3
+	OriginType_ORIGIN_TYPE_INCOMPLETE  OriginType = 4
 )
 
-// Enum value maps for RouteOriginType.
+// Enum value maps for OriginType.
 var (
-	RouteOriginType_name = map[int32]string{
-		0: "ORIGIN_NONE",
-		1: "ORIGIN_IGP",
-		2: "ORIGIN_EGP",
-		3: "ORIGIN_INCOMPLETE",
+	OriginType_name = map[int32]string{
+		0: "ORIGIN_TYPE_UNSPECIFIED",
+		1: "ORIGIN_TYPE_NONE",
+		2: "ORIGIN_TYPE_IGP",
+		3: "ORIGIN_TYPE_EGP",
+		4: "ORIGIN_TYPE_INCOMPLETE",
 	}
-	RouteOriginType_value = map[string]int32{
-		"ORIGIN_NONE":       0,
-		"ORIGIN_IGP":        1,
-		"ORIGIN_EGP":        2,
-		"ORIGIN_INCOMPLETE": 3,
+	OriginType_value = map[string]int32{
+		"ORIGIN_TYPE_UNSPECIFIED": 0,
+		"ORIGIN_TYPE_NONE":        1,
+		"ORIGIN_TYPE_IGP":         2,
+		"ORIGIN_TYPE_EGP":         3,
+		"ORIGIN_TYPE_INCOMPLETE":  4,
 	}
 )
 
-func (x RouteOriginType) Enum() *RouteOriginType {
-	p := new(RouteOriginType)
+func (x OriginType) Enum() *OriginType {
+	p := new(OriginType)
 	*p = x
 	return p
 }
 
-func (x RouteOriginType) String() string {
+func (x OriginType) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (RouteOriginType) Descriptor() protoreflect.EnumDescriptor {
+func (OriginType) Descriptor() protoreflect.EnumDescriptor {
 	return file_api_gobgp_proto_enumTypes[4].Descriptor()
 }
 
-func (RouteOriginType) Type() protoreflect.EnumType {
+func (OriginType) Type() protoreflect.EnumType {
 	return &file_api_gobgp_proto_enumTypes[4]
 }
 
-func (x RouteOriginType) Number() protoreflect.EnumNumber {
+func (x OriginType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use RouteOriginType.Descriptor instead.
-func (RouteOriginType) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use OriginType.Descriptor instead.
+func (OriginType) EnumDescriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{4}
 }
 
@@ -10533,7 +10536,7 @@ type Conditions struct {
 	NextHopInList     []string               `protobuf:"bytes,10,rep,name=next_hop_in_list,json=nextHopInList,proto3" json:"next_hop_in_list,omitempty"`
 	AfiSafiIn         []*Family              `protobuf:"bytes,11,rep,name=afi_safi_in,json=afiSafiIn,proto3" json:"afi_safi_in,omitempty"`
 	CommunityCount    *CommunityCount        `protobuf:"bytes,12,opt,name=community_count,json=communityCount,proto3" json:"community_count,omitempty"`
-	Origin            RouteOriginType        `protobuf:"varint,13,opt,name=origin,proto3,enum=api.RouteOriginType" json:"origin,omitempty"`
+	Origin            OriginType             `protobuf:"varint,13,opt,name=origin,proto3,enum=api.OriginType" json:"origin,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -10652,11 +10655,11 @@ func (x *Conditions) GetCommunityCount() *CommunityCount {
 	return nil
 }
 
-func (x *Conditions) GetOrigin() RouteOriginType {
+func (x *Conditions) GetOrigin() OriginType {
 	if x != nil {
 		return x.Origin
 	}
-	return RouteOriginType_ORIGIN_NONE
+	return OriginType_ORIGIN_TYPE_UNSPECIFIED
 }
 
 type CommunityAction struct {
@@ -10937,7 +10940,7 @@ func (x *LocalPrefAction) GetValue() uint32 {
 
 type OriginAction struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Origin        RouteOriginType        `protobuf:"varint,1,opt,name=origin,proto3,enum=api.RouteOriginType" json:"origin,omitempty"`
+	Origin        OriginType             `protobuf:"varint,1,opt,name=origin,proto3,enum=api.OriginType" json:"origin,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10972,11 +10975,11 @@ func (*OriginAction) Descriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{171}
 }
 
-func (x *OriginAction) GetOrigin() RouteOriginType {
+func (x *OriginAction) GetOrigin() OriginType {
 	if x != nil {
 		return x.Origin
 	}
-	return RouteOriginType_ORIGIN_NONE
+	return OriginType_ORIGIN_TYPE_UNSPECIFIED
 }
 
 type Actions struct {
@@ -13204,7 +13207,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x04Type\x12\x06\n" +
 	"\x02EQ\x10\x00\x12\x06\n" +
 	"\x02GE\x10\x01\x12\x06\n" +
-	"\x02LE\x10\x02\"\x89\x06\n" +
+	"\x02LE\x10\x02\"\x84\x06\n" +
 	"\n" +
 	"Conditions\x12,\n" +
 	"\n" +
@@ -13222,8 +13225,8 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x10next_hop_in_list\x18\n" +
 	" \x03(\tR\rnextHopInList\x12+\n" +
 	"\vafi_safi_in\x18\v \x03(\v2\v.api.FamilyR\tafiSafiIn\x12<\n" +
-	"\x0fcommunity_count\x18\f \x01(\v2\x13.api.CommunityCountR\x0ecommunityCount\x12,\n" +
-	"\x06origin\x18\r \x01(\x0e2\x14.api.RouteOriginTypeR\x06origin\"h\n" +
+	"\x0fcommunity_count\x18\f \x01(\v2\x13.api.CommunityCountR\x0ecommunityCount\x12'\n" +
+	"\x06origin\x18\r \x01(\x0e2\x0f.api.OriginTypeR\x06origin\"h\n" +
 	"\tRouteType\x12\x13\n" +
 	"\x0fROUTE_TYPE_NONE\x10\x00\x12\x17\n" +
 	"\x13ROUTE_TYPE_INTERNAL\x10\x01\x12\x17\n" +
@@ -13254,9 +13257,9 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\tunchanged\x18\x03 \x01(\bR\tunchanged\x12!\n" +
 	"\fpeer_address\x18\x04 \x01(\bR\vpeerAddress\"'\n" +
 	"\x0fLocalPrefAction\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\rR\x05value\"<\n" +
-	"\fOriginAction\x12,\n" +
-	"\x06origin\x18\x01 \x01(\x0e2\x14.api.RouteOriginTypeR\x06origin\"\xde\x03\n" +
+	"\x05value\x18\x01 \x01(\rR\x05value\"7\n" +
+	"\fOriginAction\x12'\n" +
+	"\x06origin\x18\x01 \x01(\x0e2\x0f.api.OriginTypeR\x06origin\"\xde\x03\n" +
 	"\aActions\x123\n" +
 	"\froute_action\x18\x01 \x01(\x0e2\x10.api.RouteActionR\vrouteAction\x122\n" +
 	"\tcommunity\x18\x02 \x01(\v2\x14.api.CommunityActionR\tcommunity\x12 \n" +
@@ -13395,14 +13398,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\tCOMMUNITY\x10\x04\x12\x11\n" +
 	"\rEXT_COMMUNITY\x10\x05\x12\x13\n" +
 	"\x0fLARGE_COMMUNITY\x10\x06\x12\f\n" +
-	"\bNEXT_HOP\x10\a*Y\n" +
-	"\x0fRouteOriginType\x12\x0f\n" +
-	"\vORIGIN_NONE\x10\x00\x12\x0e\n" +
+	"\bNEXT_HOP\x10\a*\x85\x01\n" +
 	"\n" +
-	"ORIGIN_IGP\x10\x01\x12\x0e\n" +
-	"\n" +
-	"ORIGIN_EGP\x10\x02\x12\x15\n" +
-	"\x11ORIGIN_INCOMPLETE\x10\x03*]\n" +
+	"OriginType\x12\x1b\n" +
+	"\x17ORIGIN_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10ORIGIN_TYPE_NONE\x10\x01\x12\x13\n" +
+	"\x0fORIGIN_TYPE_IGP\x10\x02\x12\x13\n" +
+	"\x0fORIGIN_TYPE_EGP\x10\x03\x12\x1a\n" +
+	"\x16ORIGIN_TYPE_INCOMPLETE\x10\x04*]\n" +
 	"\vRouteAction\x12\x1c\n" +
 	"\x18ROUTE_ACTION_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ROUTE_ACTION_ACCEPT\x10\x01\x12\x17\n" +
@@ -13496,7 +13499,7 @@ var file_api_gobgp_proto_goTypes = []any{
 	(PeerType)(0),                            // 1: api.PeerType
 	(RemovePrivate)(0),                       // 2: api.RemovePrivate
 	(DefinedType)(0),                         // 3: api.DefinedType
-	(RouteOriginType)(0),                     // 4: api.RouteOriginType
+	(OriginType)(0),                          // 4: api.OriginType
 	(RouteAction)(0),                         // 5: api.RouteAction
 	(PolicyDirection)(0),                     // 6: api.PolicyDirection
 	(WatchEventRequest_Table_Filter_Type)(0), // 7: api.WatchEventRequest.Table.Filter.Type
@@ -13880,10 +13883,10 @@ var file_api_gobgp_proto_depIdxs = []int32{
 	187, // 156: api.Conditions.large_community_set:type_name -> api.MatchSet
 	220, // 157: api.Conditions.afi_safi_in:type_name -> api.Family
 	189, // 158: api.Conditions.community_count:type_name -> api.CommunityCount
-	4,   // 159: api.Conditions.origin:type_name -> api.RouteOriginType
+	4,   // 159: api.Conditions.origin:type_name -> api.OriginType
 	22,  // 160: api.CommunityAction.type:type_name -> api.CommunityAction.Type
 	23,  // 161: api.MedAction.type:type_name -> api.MedAction.Type
-	4,   // 162: api.OriginAction.origin:type_name -> api.RouteOriginType
+	4,   // 162: api.OriginAction.origin:type_name -> api.OriginType
 	5,   // 163: api.Actions.route_action:type_name -> api.RouteAction
 	191, // 164: api.Actions.community:type_name -> api.CommunityAction
 	192, // 165: api.Actions.med:type_name -> api.MedAction
