@@ -353,8 +353,17 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 		if len(c.Config.FileName) == 0 {
 			continue
 		}
+
+		dump_type := api.EnableMrtRequest_DUMP_TYPE_UNSPECIFIED
+		switch c.Config.DumpType {
+		case oc.MRT_TYPE_UPDATES:
+			dump_type = api.EnableMrtRequest_DUMP_TYPE_UPDATES
+		case oc.MRT_TYPE_TABLE:
+			dump_type = api.EnableMrtRequest_DUMP_TYPE_TABLE
+		}
+
 		if err := bgpServer.EnableMrt(ctx, &api.EnableMrtRequest{
-			Type:             api.EnableMrtRequest_DumpType(c.Config.DumpType.ToInt()),
+			DumpType:         dump_type,
 			Filename:         c.Config.FileName,
 			DumpInterval:     c.Config.DumpInterval,
 			RotationInterval: c.Config.RotationInterval,

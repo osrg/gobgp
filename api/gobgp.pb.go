@@ -668,19 +668,22 @@ func (ListPathRequest_SortType) EnumDescriptor() ([]byte, []int) {
 type EnableMrtRequest_DumpType int32
 
 const (
-	EnableMrtRequest_UPDATES EnableMrtRequest_DumpType = 0
-	EnableMrtRequest_TABLE   EnableMrtRequest_DumpType = 1
+	EnableMrtRequest_DUMP_TYPE_UNSPECIFIED EnableMrtRequest_DumpType = 0
+	EnableMrtRequest_DUMP_TYPE_UPDATES     EnableMrtRequest_DumpType = 1
+	EnableMrtRequest_DUMP_TYPE_TABLE       EnableMrtRequest_DumpType = 2
 )
 
 // Enum value maps for EnableMrtRequest_DumpType.
 var (
 	EnableMrtRequest_DumpType_name = map[int32]string{
-		0: "UPDATES",
-		1: "TABLE",
+		0: "DUMP_TYPE_UNSPECIFIED",
+		1: "DUMP_TYPE_UPDATES",
+		2: "DUMP_TYPE_TABLE",
 	}
 	EnableMrtRequest_DumpType_value = map[string]int32{
-		"UPDATES": 0,
-		"TABLE":   1,
+		"DUMP_TYPE_UNSPECIFIED": 0,
+		"DUMP_TYPE_UPDATES":     1,
+		"DUMP_TYPE_TABLE":       2,
 	}
 )
 
@@ -5951,7 +5954,7 @@ func (*EnableZebraResponse) Descriptor() ([]byte, []int) {
 
 type EnableMrtRequest struct {
 	state            protoimpl.MessageState    `protogen:"open.v1"`
-	Type             EnableMrtRequest_DumpType `protobuf:"varint,1,opt,name=type,proto3,enum=api.EnableMrtRequest_DumpType" json:"type,omitempty"`
+	DumpType         EnableMrtRequest_DumpType `protobuf:"varint,1,opt,name=dump_type,json=dumpType,proto3,enum=api.EnableMrtRequest_DumpType" json:"dump_type,omitempty"`
 	Filename         string                    `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
 	DumpInterval     uint64                    `protobuf:"varint,3,opt,name=dump_interval,json=dumpInterval,proto3" json:"dump_interval,omitempty"`
 	RotationInterval uint64                    `protobuf:"varint,4,opt,name=rotation_interval,json=rotationInterval,proto3" json:"rotation_interval,omitempty"`
@@ -5989,11 +5992,11 @@ func (*EnableMrtRequest) Descriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{99}
 }
 
-func (x *EnableMrtRequest) GetType() EnableMrtRequest_DumpType {
+func (x *EnableMrtRequest) GetDumpType() EnableMrtRequest_DumpType {
 	if x != nil {
-		return x.Type
+		return x.DumpType
 	}
-	return EnableMrtRequest_UPDATES
+	return EnableMrtRequest_DUMP_TYPE_UNSPECIFIED
 }
 
 func (x *EnableMrtRequest) GetFilename() string {
@@ -12761,15 +12764,16 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x15nexthop_trigger_delay\x18\x05 \x01(\rR\x13nexthopTriggerDelay\x121\n" +
 	"\x15mpls_label_range_size\x18\x06 \x01(\rR\x12mplsLabelRangeSize\x12#\n" +
 	"\rsoftware_name\x18\a \x01(\tR\fsoftwareName\"\x15\n" +
-	"\x13EnableZebraResponse\"\xd8\x01\n" +
-	"\x10EnableMrtRequest\x122\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x1e.api.EnableMrtRequest.DumpTypeR\x04type\x12\x1a\n" +
+	"\x13EnableZebraResponse\"\x90\x02\n" +
+	"\x10EnableMrtRequest\x12;\n" +
+	"\tdump_type\x18\x01 \x01(\x0e2\x1e.api.EnableMrtRequest.DumpTypeR\bdumpType\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12#\n" +
 	"\rdump_interval\x18\x03 \x01(\x04R\fdumpInterval\x12+\n" +
-	"\x11rotation_interval\x18\x04 \x01(\x04R\x10rotationInterval\"\"\n" +
-	"\bDumpType\x12\v\n" +
-	"\aUPDATES\x10\x00\x12\t\n" +
-	"\x05TABLE\x10\x01\"\x13\n" +
+	"\x11rotation_interval\x18\x04 \x01(\x04R\x10rotationInterval\"Q\n" +
+	"\bDumpType\x12\x19\n" +
+	"\x15DUMP_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11DUMP_TYPE_UPDATES\x10\x01\x12\x13\n" +
+	"\x0fDUMP_TYPE_TABLE\x10\x02\"\x13\n" +
 	"\x11EnableMrtResponse\"/\n" +
 	"\x11DisableMrtRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\"\x14\n" +
@@ -13768,7 +13772,7 @@ var file_api_gobgp_proto_depIdxs = []int32{
 	209, // 51: api.ListRpkiResponse.server:type_name -> api.Rpki
 	220, // 52: api.ListRpkiTableRequest.family:type_name -> api.Family
 	202, // 53: api.ListRpkiTableResponse.roa:type_name -> api.Roa
-	12,  // 54: api.EnableMrtRequest.type:type_name -> api.EnableMrtRequest.DumpType
+	12,  // 54: api.EnableMrtRequest.dump_type:type_name -> api.EnableMrtRequest.DumpType
 	13,  // 55: api.AddBmpRequest.policy:type_name -> api.AddBmpRequest.MonitoringPolicy
 	217, // 56: api.ListBmpResponse.station:type_name -> api.ListBmpResponse.BmpStation
 	14,  // 57: api.Validation.state:type_name -> api.Validation.State

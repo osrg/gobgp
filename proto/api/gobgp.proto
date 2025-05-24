@@ -564,10 +564,11 @@ message EnableZebraResponse {}
 
 message EnableMrtRequest {
   enum DumpType {
-    UPDATES = 0;
-    TABLE = 1;
+    DUMP_TYPE_UNSPECIFIED = 0;
+    DUMP_TYPE_UPDATES = 1;
+    DUMP_TYPE_TABLE = 2;
   }
-  DumpType type = 1;
+  DumpType dump_type = 1;
   string filename = 2;
   uint64 dump_interval = 3;
   uint64 rotation_interval = 4;

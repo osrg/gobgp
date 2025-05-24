@@ -4191,13 +4191,24 @@ func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAss
 
 func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) error {
 	if r == nil {
-		return fmt.Errorf("nil request")
+		return status.Errorf(codes.InvalidArgument, "null request")
 	}
+
+	var dump_type oc.MrtType
+	switch r.DumpType {
+	case api.EnableMrtRequest_DUMP_TYPE_UNSPECIFIED:
+		return status.Errorf(codes.InvalidArgument, "unspecified type")
+	case api.EnableMrtRequest_DUMP_TYPE_UPDATES:
+		dump_type = oc.MRT_TYPE_UPDATES
+	case api.EnableMrtRequest_DUMP_TYPE_TABLE:
+		dump_type = oc.MRT_TYPE_TABLE
+	}
+
 	return s.mgmtOperation(func() error {
 		return s.mrtManager.enable(&oc.MrtConfig{
 			DumpInterval:     r.DumpInterval,
 			RotationInterval: r.RotationInterval,
-			DumpType:         oc.IntToMrtTypeMap[int(r.Type)],
+			DumpType:         dump_type,
 			FileName:         r.Filename,
 		})
 	}, false)
