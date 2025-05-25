@@ -1138,10 +1138,9 @@ message CommunityCount {
 
 enum OriginType {
   ORIGIN_TYPE_UNSPECIFIED = 0;
-  ORIGIN_TYPE_NONE = 1;
-  ORIGIN_TYPE_IGP = 2;
-  ORIGIN_TYPE_EGP = 3;
-  ORIGIN_TYPE_INCOMPLETE = 4;
+  ORIGIN_TYPE_IGP = 1;
+  ORIGIN_TYPE_EGP = 2;
+  ORIGIN_TYPE_INCOMPLETE = 3;
 }
 
 message Conditions {

@@ -261,27 +261,24 @@ type OriginType int32
 
 const (
 	OriginType_ORIGIN_TYPE_UNSPECIFIED OriginType = 0
-	OriginType_ORIGIN_TYPE_NONE        OriginType = 1
-	OriginType_ORIGIN_TYPE_IGP         OriginType = 2
-	OriginType_ORIGIN_TYPE_EGP         OriginType = 3
-	OriginType_ORIGIN_TYPE_INCOMPLETE  OriginType = 4
+	OriginType_ORIGIN_TYPE_IGP         OriginType = 1
+	OriginType_ORIGIN_TYPE_EGP         OriginType = 2
+	OriginType_ORIGIN_TYPE_INCOMPLETE  OriginType = 3
 )
 
 // Enum value maps for OriginType.
 var (
 	OriginType_name = map[int32]string{
 		0: "ORIGIN_TYPE_UNSPECIFIED",
-		1: "ORIGIN_TYPE_NONE",
-		2: "ORIGIN_TYPE_IGP",
-		3: "ORIGIN_TYPE_EGP",
-		4: "ORIGIN_TYPE_INCOMPLETE",
+		1: "ORIGIN_TYPE_IGP",
+		2: "ORIGIN_TYPE_EGP",
+		3: "ORIGIN_TYPE_INCOMPLETE",
 	}
 	OriginType_value = map[string]int32{
 		"ORIGIN_TYPE_UNSPECIFIED": 0,
-		"ORIGIN_TYPE_NONE":        1,
-		"ORIGIN_TYPE_IGP":         2,
-		"ORIGIN_TYPE_EGP":         3,
-		"ORIGIN_TYPE_INCOMPLETE":  4,
+		"ORIGIN_TYPE_IGP":         1,
+		"ORIGIN_TYPE_EGP":         2,
+		"ORIGIN_TYPE_INCOMPLETE":  3,
 	}
 )
 
@@ -13398,14 +13395,13 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\tCOMMUNITY\x10\x04\x12\x11\n" +
 	"\rEXT_COMMUNITY\x10\x05\x12\x13\n" +
 	"\x0fLARGE_COMMUNITY\x10\x06\x12\f\n" +
-	"\bNEXT_HOP\x10\a*\x85\x01\n" +
+	"\bNEXT_HOP\x10\a*o\n" +
 	"\n" +
 	"OriginType\x12\x1b\n" +
-	"\x17ORIGIN_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10ORIGIN_TYPE_NONE\x10\x01\x12\x13\n" +
-	"\x0fORIGIN_TYPE_IGP\x10\x02\x12\x13\n" +
-	"\x0fORIGIN_TYPE_EGP\x10\x03\x12\x1a\n" +
-	"\x16ORIGIN_TYPE_INCOMPLETE\x10\x04*]\n" +
+	"\x17ORIGIN_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
+	"\x0fORIGIN_TYPE_IGP\x10\x01\x12\x13\n" +
+	"\x0fORIGIN_TYPE_EGP\x10\x02\x12\x1a\n" +
+	"\x16ORIGIN_TYPE_INCOMPLETE\x10\x03*]\n" +
 	"\vRouteAction\x12\x1c\n" +
 	"\x18ROUTE_ACTION_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ROUTE_ACTION_ACCEPT\x10\x01\x12\x17\n" +

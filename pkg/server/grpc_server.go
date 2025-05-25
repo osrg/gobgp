@@ -1432,8 +1432,6 @@ func newOriginConditionFromApiStruct(apiOrigin api.OriginType) (*table.OriginCon
 	switch apiOrigin {
 	case api.OriginType_ORIGIN_TYPE_UNSPECIFIED:
 		return nil, nil
-	case api.OriginType_ORIGIN_TYPE_NONE:
-		return nil, nil
 	case api.OriginType_ORIGIN_TYPE_IGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_IGP
 	case api.OriginType_ORIGIN_TYPE_EGP:
@@ -1611,7 +1609,7 @@ func newOriginActionFromApiStruct(a *api.OriginAction) (*table.OriginAction, err
 
 	var origin oc.BgpOriginAttrType
 	switch v := a.GetOrigin(); v {
-	case api.OriginType_ORIGIN_TYPE_NONE:
+	case api.OriginType_ORIGIN_TYPE_UNSPECIFIED:
 		return nil, nil
 	case api.OriginType_ORIGIN_TYPE_IGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_IGP
