@@ -1133,25 +1133,25 @@ func (CommunityCount_Type) EnumDescriptor() ([]byte, []int) {
 type Conditions_RouteType int32
 
 const (
-	Conditions_ROUTE_TYPE_NONE     Conditions_RouteType = 0
-	Conditions_ROUTE_TYPE_INTERNAL Conditions_RouteType = 1
-	Conditions_ROUTE_TYPE_EXTERNAL Conditions_RouteType = 2
-	Conditions_ROUTE_TYPE_LOCAL    Conditions_RouteType = 3
+	Conditions_ROUTE_TYPE_UNSPECIFIED Conditions_RouteType = 0
+	Conditions_ROUTE_TYPE_INTERNAL    Conditions_RouteType = 1
+	Conditions_ROUTE_TYPE_EXTERNAL    Conditions_RouteType = 2
+	Conditions_ROUTE_TYPE_LOCAL       Conditions_RouteType = 3
 )
 
 // Enum value maps for Conditions_RouteType.
 var (
 	Conditions_RouteType_name = map[int32]string{
-		0: "ROUTE_TYPE_NONE",
+		0: "ROUTE_TYPE_UNSPECIFIED",
 		1: "ROUTE_TYPE_INTERNAL",
 		2: "ROUTE_TYPE_EXTERNAL",
 		3: "ROUTE_TYPE_LOCAL",
 	}
 	Conditions_RouteType_value = map[string]int32{
-		"ROUTE_TYPE_NONE":     0,
-		"ROUTE_TYPE_INTERNAL": 1,
-		"ROUTE_TYPE_EXTERNAL": 2,
-		"ROUTE_TYPE_LOCAL":    3,
+		"ROUTE_TYPE_UNSPECIFIED": 0,
+		"ROUTE_TYPE_INTERNAL":    1,
+		"ROUTE_TYPE_EXTERNAL":    2,
+		"ROUTE_TYPE_LOCAL":       3,
 	}
 )
 
@@ -10621,7 +10621,7 @@ func (x *Conditions) GetRouteType() Conditions_RouteType {
 	if x != nil {
 		return x.RouteType
 	}
-	return Conditions_ROUTE_TYPE_NONE
+	return Conditions_ROUTE_TYPE_UNSPECIFIED
 }
 
 func (x *Conditions) GetLargeCommunitySet() *MatchSet {
@@ -13204,7 +13204,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x04Type\x12\x06\n" +
 	"\x02EQ\x10\x00\x12\x06\n" +
 	"\x02GE\x10\x01\x12\x06\n" +
-	"\x02LE\x10\x02\"\x84\x06\n" +
+	"\x02LE\x10\x02\"\x8b\x06\n" +
 	"\n" +
 	"Conditions\x12,\n" +
 	"\n" +
@@ -13223,9 +13223,9 @@ const file_api_gobgp_proto_rawDesc = "" +
 	" \x03(\tR\rnextHopInList\x12+\n" +
 	"\vafi_safi_in\x18\v \x03(\v2\v.api.FamilyR\tafiSafiIn\x12<\n" +
 	"\x0fcommunity_count\x18\f \x01(\v2\x13.api.CommunityCountR\x0ecommunityCount\x12'\n" +
-	"\x06origin\x18\r \x01(\x0e2\x0f.api.OriginTypeR\x06origin\"h\n" +
-	"\tRouteType\x12\x13\n" +
-	"\x0fROUTE_TYPE_NONE\x10\x00\x12\x17\n" +
+	"\x06origin\x18\r \x01(\x0e2\x0f.api.OriginTypeR\x06origin\"o\n" +
+	"\tRouteType\x12\x1a\n" +
+	"\x16ROUTE_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ROUTE_TYPE_INTERNAL\x10\x01\x12\x17\n" +
 	"\x13ROUTE_TYPE_EXTERNAL\x10\x02\x12\x14\n" +
 	"\x10ROUTE_TYPE_LOCAL\x10\x03\"\xb1\x01\n" +
