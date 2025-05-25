@@ -46,28 +46,31 @@ const (
 type TableType int32
 
 const (
-	TableType_GLOBAL  TableType = 0
-	TableType_LOCAL   TableType = 1
-	TableType_ADJ_IN  TableType = 2
-	TableType_ADJ_OUT TableType = 3
-	TableType_VRF     TableType = 4
+	TableType_TABLE_TYPE_UNSPECIFIED TableType = 0
+	TableType_TABLE_TYPE_GLOBAL      TableType = 1
+	TableType_TABLE_TYPE_LOCAL       TableType = 2
+	TableType_TABLE_TYPE_ADJ_IN      TableType = 3
+	TableType_TABLE_TYPE_ADJ_OUT     TableType = 4
+	TableType_TABLE_TYPE_VRF         TableType = 5
 )
 
 // Enum value maps for TableType.
 var (
 	TableType_name = map[int32]string{
-		0: "GLOBAL",
-		1: "LOCAL",
-		2: "ADJ_IN",
-		3: "ADJ_OUT",
-		4: "VRF",
+		0: "TABLE_TYPE_UNSPECIFIED",
+		1: "TABLE_TYPE_GLOBAL",
+		2: "TABLE_TYPE_LOCAL",
+		3: "TABLE_TYPE_ADJ_IN",
+		4: "TABLE_TYPE_ADJ_OUT",
+		5: "TABLE_TYPE_VRF",
 	}
 	TableType_value = map[string]int32{
-		"GLOBAL":  0,
-		"LOCAL":   1,
-		"ADJ_IN":  2,
-		"ADJ_OUT": 3,
-		"VRF":     4,
+		"TABLE_TYPE_UNSPECIFIED": 0,
+		"TABLE_TYPE_GLOBAL":      1,
+		"TABLE_TYPE_LOCAL":       2,
+		"TABLE_TYPE_ADJ_IN":      3,
+		"TABLE_TYPE_ADJ_OUT":     4,
+		"TABLE_TYPE_VRF":         5,
 	}
 )
 
@@ -3090,7 +3093,7 @@ func (x *AddPathRequest) GetTableType() TableType {
 	if x != nil {
 		return x.TableType
 	}
-	return TableType_GLOBAL
+	return TableType_TABLE_TYPE_UNSPECIFIED
 }
 
 func (x *AddPathRequest) GetVrfId() string {
@@ -3196,7 +3199,7 @@ func (x *DeletePathRequest) GetTableType() TableType {
 	if x != nil {
 		return x.TableType
 	}
-	return TableType_GLOBAL
+	return TableType_TABLE_TYPE_UNSPECIFIED
 }
 
 func (x *DeletePathRequest) GetVrfId() string {
@@ -3377,7 +3380,7 @@ func (x *ListPathRequest) GetTableType() TableType {
 	if x != nil {
 		return x.TableType
 	}
-	return TableType_GLOBAL
+	return TableType_TABLE_TYPE_UNSPECIFIED
 }
 
 func (x *ListPathRequest) GetName() string {
@@ -3530,7 +3533,7 @@ func (x *AddPathStreamRequest) GetTableType() TableType {
 	if x != nil {
 		return x.TableType
 	}
-	return TableType_GLOBAL
+	return TableType_TABLE_TYPE_UNSPECIFIED
 }
 
 func (x *AddPathStreamRequest) GetVrfId() string {
@@ -3626,7 +3629,7 @@ func (x *GetTableRequest) GetTableType() TableType {
 	if x != nil {
 		return x.TableType
 	}
-	return TableType_GLOBAL
+	return TableType_TABLE_TYPE_UNSPECIFIED
 }
 
 func (x *GetTableRequest) GetFamily() *Family {
@@ -13369,15 +13372,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"LEVEL_INFO\x10\x05\x12\x0f\n" +
 	"\vLEVEL_DEBUG\x10\x06\x12\x0f\n" +
 	"\vLEVEL_TRACE\x10\a\"\x15\n" +
-	"\x13SetLogLevelResponse*D\n" +
-	"\tTableType\x12\n" +
-	"\n" +
-	"\x06GLOBAL\x10\x00\x12\t\n" +
-	"\x05LOCAL\x10\x01\x12\n" +
-	"\n" +
-	"\x06ADJ_IN\x10\x02\x12\v\n" +
-	"\aADJ_OUT\x10\x03\x12\a\n" +
-	"\x03VRF\x10\x04*&\n" +
+	"\x13SetLogLevelResponse*\x97\x01\n" +
+	"\tTableType\x12\x1a\n" +
+	"\x16TABLE_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11TABLE_TYPE_GLOBAL\x10\x01\x12\x14\n" +
+	"\x10TABLE_TYPE_LOCAL\x10\x02\x12\x15\n" +
+	"\x11TABLE_TYPE_ADJ_IN\x10\x03\x12\x16\n" +
+	"\x12TABLE_TYPE_ADJ_OUT\x10\x04\x12\x12\n" +
+	"\x0eTABLE_TYPE_VRF\x10\x05*&\n" +
 	"\bPeerType\x12\f\n" +
 	"\bINTERNAL\x10\x00\x12\f\n" +
 	"\bEXTERNAL\x10\x01*=\n" +

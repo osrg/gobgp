@@ -390,7 +390,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		return nil, fmt.Errorf("nexthop not found")
 	}
 	rf := bgp.AfiSafiToFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
-	if resource != api.TableType_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
+	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
@@ -438,7 +438,7 @@ func (s *server) AddPathStream(stream api.GoBgpService_AddPathStreamServer) erro
 			return err
 		}
 
-		if arg.TableType != api.TableType_GLOBAL && arg.TableType != api.TableType_VRF {
+		if arg.TableType != api.TableType_TABLE_TYPE_GLOBAL && arg.TableType != api.TableType_TABLE_TYPE_VRF {
 			return fmt.Errorf("unsupported resource: %s", arg.TableType)
 		}
 		pathList := make([]*table.Path, 0, len(arg.Paths))

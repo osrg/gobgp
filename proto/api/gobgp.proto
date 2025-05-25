@@ -628,11 +628,12 @@ message ListBmpResponse {
 }
 
 enum TableType {
-  GLOBAL = 0;
-  LOCAL = 1;
-  ADJ_IN = 2;
-  ADJ_OUT = 3;
-  VRF = 4;
+  TABLE_TYPE_UNSPECIFIED = 0;
+  TABLE_TYPE_GLOBAL = 1;
+  TABLE_TYPE_LOCAL = 2;
+  TABLE_TYPE_ADJ_IN = 3;
+  TABLE_TYPE_ADJ_OUT = 4;
+  TABLE_TYPE_VRF = 5;
 }
 
 message Validation {

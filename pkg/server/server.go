@@ -2917,17 +2917,19 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 	}
 	var err error
 	switch r.TableType {
-	case api.TableType_LOCAL, api.TableType_GLOBAL:
+	case api.TableType_TABLE_TYPE_UNSPECIFIED:
+		return status.Error(codes.InvalidArgument, "unspecified table type")
+	case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 		tbl, v, err = s.getRib(r.Name, family, f())
-	case api.TableType_ADJ_IN:
+	case api.TableType_TABLE_TYPE_ADJ_IN:
 		in = true
 		fallthrough
-	case api.TableType_ADJ_OUT:
+	case api.TableType_TABLE_TYPE_ADJ_OUT:
 		tbl, filtered, v, err = s.getAdjRib(r.Name, family, in, r.EnableFiltered, f())
-	case api.TableType_VRF:
+	case api.TableType_TABLE_TYPE_VRF:
 		tbl, err = s.getVrfRib(r.Name, family, []*table.LookupPrefix{})
 	default:
-		return fmt.Errorf("unsupported resource type: %v", r.TableType)
+		return status.Errorf(codes.InvalidArgument, "unknown table type %d", r.TableType)
 	}
 
 	if err != nil {
@@ -2946,7 +2948,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 				if !table.SelectionOptions.DisableBestPathSelection {
 					if i == 0 {
 						switch r.TableType {
-						case api.TableType_LOCAL, api.TableType_GLOBAL:
+						case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 							p.Best = true
 						}
 					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
@@ -3074,17 +3076,19 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 	var err error
 	var info *table.TableInfo
 	switch r.TableType {
-	case api.TableType_GLOBAL, api.TableType_LOCAL:
+	case api.TableType_TABLE_TYPE_UNSPECIFIED:
+		return nil, status.Error(codes.InvalidArgument, "unspecified table type")
+	case api.TableType_TABLE_TYPE_GLOBAL, api.TableType_TABLE_TYPE_LOCAL:
 		info, err = s.getRibInfo(r.Name, family)
-	case api.TableType_ADJ_IN:
+	case api.TableType_TABLE_TYPE_ADJ_IN:
 		in = true
 		fallthrough
-	case api.TableType_ADJ_OUT:
+	case api.TableType_TABLE_TYPE_ADJ_OUT:
 		info, err = s.getAdjRibInfo(r.Name, family, in)
-	case api.TableType_VRF:
+	case api.TableType_TABLE_TYPE_VRF:
 		info, err = s.getVrfRibInfo(r.Name, family)
 	default:
-		return nil, fmt.Errorf("unsupported resource type: %s", r.TableType)
+		return nil, status.Errorf(codes.InvalidArgument, "unknown table type %d", r.TableType)
 	}
 
 	if err != nil {

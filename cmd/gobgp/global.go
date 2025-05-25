@@ -2412,9 +2412,9 @@ usage: %s rib -a %%s %s %%s [origin { igp | egp | incomplete }] [aspath <ASPATH>
 		return err
 	}
 
-	r := api.TableType_GLOBAL
+	r := api.TableType_TABLE_TYPE_GLOBAL
 	if resource == cmdVRF {
-		r = api.TableType_VRF
+		r = api.TableType_TABLE_TYPE_VRF
 	}
 
 	if modtype == cmdAdd {
@@ -2547,7 +2547,7 @@ func newGlobalCmd() *cobra.Command {
 						exitWithError(err)
 					}
 					if _, err = client.DeletePath(ctx, &api.DeletePathRequest{
-						TableType: api.TableType_GLOBAL,
+						TableType: api.TableType_TABLE_TYPE_GLOBAL,
 						Family:    family,
 					}); err != nil {
 						exitWithError(err)
