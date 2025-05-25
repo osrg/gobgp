@@ -1634,8 +1634,15 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		} else if nextStateIdle {
 			peer.fsm.lock.RLock()
 			longLivedEnabled := peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled
+			longLivedRunning := peer.fsm.longLivedRunning
 			peer.fsm.lock.RUnlock()
-			if longLivedEnabled {
+			// We must not restart LLGR timer until we have syncronized with
+			// the peer. Routes also need to be marked wit LLGR comm just once.
+			// https://datatracker.ietf.org/doc/html/rfc9494#session_resetsnever
+			if longLivedEnabled && !longLivedRunning {
+				peer.fsm.lock.Lock()
+				peer.fsm.longLivedRunning = true
+				peer.fsm.lock.Unlock()
 				llgr, no_llgr := peer.llgrFamilies()
 
 				s.propagateUpdate(peer, peer.DropAll(no_llgr))
@@ -1692,7 +1699,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 					}(f, endCh)
 				}
-			} else {
+			} else if !longLivedEnabled {
 				// RFC 4724 4.2
 				// If the session does not get re-established within the "Restart Time"
 				// that the peer advertised previously, the Receiving Speaker MUST

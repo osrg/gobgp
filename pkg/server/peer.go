@@ -450,7 +450,7 @@ func (peer *peer) stopPeerRestarting() {
 		close(ch)
 	}
 	peer.llgrEndChs = make([]chan struct{}, 0)
-
+	peer.fsm.longLivedRunning = false
 }
 
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
