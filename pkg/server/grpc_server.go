@@ -1127,13 +1127,13 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 	if s.Conditions.BgpConditions.CommunityCount.Operator != "" {
 		cs.CommunityCount = &api.CommunityCount{
 			Count: s.Conditions.BgpConditions.CommunityCount.Value,
-			Type:  api.CommunityCount_Type(s.Conditions.BgpConditions.CommunityCount.Operator.ToInt()),
+			Type:  table.ToComparisonApi(s.Conditions.BgpConditions.CommunityCount.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
 			Length: s.Conditions.BgpConditions.AsPathLength.Value,
-			Type:   api.AsPathLength_Type(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+			Type:   table.ToComparisonApi(s.Conditions.BgpConditions.AsPathLength.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {

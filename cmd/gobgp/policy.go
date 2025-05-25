@@ -67,11 +67,11 @@ func prettyString(v interface{}) string {
 	case *api.AsPathLength:
 		var typ string
 		switch a.Type {
-		case api.AsPathLength_EQ:
+		case api.Comparison_COMPARISON_EQ:
 			typ = "="
-		case api.AsPathLength_GE:
+		case api.Comparison_COMPARISON_GE:
 			typ = ">="
-		case api.AsPathLength_LE:
+		case api.Comparison_COMPARISON_LE:
 			typ = "<="
 		}
 		return fmt.Sprintf("%s%d", typ, a.Length)
@@ -769,11 +769,11 @@ func modCondition(name, op string, args []string) error {
 		stmt.Conditions.AsPathLength.Length = uint32(length)
 		switch strings.ToLower(args[1]) {
 		case "eq":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLength_EQ
+			stmt.Conditions.AsPathLength.Type = api.Comparison_COMPARISON_EQ
 		case "ge":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLength_GE
+			stmt.Conditions.AsPathLength.Type = api.Comparison_COMPARISON_GE
 		case "le":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLength_LE
+			stmt.Conditions.AsPathLength.Type = api.Comparison_COMPARISON_LE
 		default:
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}

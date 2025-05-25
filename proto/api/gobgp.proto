@@ -1117,23 +1117,20 @@ message MatchSet {
   string name = 2;
 }
 
+enum Comparison {
+  COMPARISON_UNSPECIFIED = 0;
+  COMPARISON_EQ = 1;
+  COMPARISON_GE = 2;
+  COMPARISON_LE = 3;
+}
+
 message AsPathLength {
-  enum Type {
-    EQ = 0;
-    GE = 1;
-    LE = 2;
-  }
-  Type type = 1;
+  Comparison type = 1;
   uint32 length = 2;
 }
 
 message CommunityCount {
-  enum Type {
-    EQ = 0;
-    GE = 1;
-    LE = 2;
-  }
-  Type type = 1;
+  Comparison type = 1;
   uint32 count = 2;
 }
 

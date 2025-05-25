@@ -4081,6 +4081,19 @@ type PolicyAssignment struct {
 	Default  RouteType
 }
 
+func ToComparisonApi(c oc.AttributeComparison) api.Comparison {
+	switch c {
+	case oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ, oc.ATTRIBUTE_COMPARISON_EQ:
+		return api.Comparison_COMPARISON_EQ
+	case oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_GE, oc.ATTRIBUTE_COMPARISON_GE:
+		return api.Comparison_COMPARISON_GE
+	case oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_LE, oc.ATTRIBUTE_COMPARISON_LE:
+		return api.Comparison_COMPARISON_LE
+	default:
+		return api.Comparison_COMPARISON_EQ
+	}
+}
+
 var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
 
 func toStatementApi(s *oc.Statement) *api.Statement {
@@ -4099,10 +4112,11 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
+
 	if s.Conditions.BgpConditions.CommunityCount.Operator != "" {
 		cs.CommunityCount = &api.CommunityCount{
 			Count: s.Conditions.BgpConditions.CommunityCount.Value,
-			Type:  api.CommunityCount_Type(s.Conditions.BgpConditions.CommunityCount.Operator.ToInt()),
+			Type:  ToComparisonApi(s.Conditions.BgpConditions.CommunityCount.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.OriginEq.ToInt() != -1 {
@@ -4118,7 +4132,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
 			Length: s.Conditions.BgpConditions.AsPathLength.Value,
-			Type:   api.AsPathLength_Type(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+			Type:   ToComparisonApi(s.Conditions.BgpConditions.AsPathLength.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
