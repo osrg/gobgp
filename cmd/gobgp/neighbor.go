@@ -211,9 +211,9 @@ func showNeighbors(vrf string) error {
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
 	formatFsm := func(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
 		switch admin {
-		case api.PeerState_DOWN:
+		case api.PeerState_ADMIN_STATE_DOWN:
 			return "Idle(Admin)"
-		case api.PeerState_PFX_CT:
+		case api.PeerState_ADMIN_STATE_PFX_CT:
 			return "Idle(PfxCt)"
 		}
 

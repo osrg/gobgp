@@ -463,6 +463,15 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	case REMOVE_PRIVATE_AS_OPTION_REPLACE:
 		removePrivate = api.RemovePrivate_REPLACE
 	}
+	var admin_state api.PeerState_AdminState
+	switch s.AdminState {
+	case ADMIN_STATE_UP:
+		admin_state = api.PeerState_ADMIN_STATE_UP
+	case ADMIN_STATE_DOWN:
+		admin_state = api.PeerState_ADMIN_STATE_DOWN
+	case ADMIN_STATE_PFX_CT:
+		admin_state = api.PeerState_ADMIN_STATE_PFX_CT
+	}
 	return &api.Peer{
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerConf{
@@ -485,7 +494,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		},
 		State: &api.PeerState{
 			SessionState: api.PeerState_SessionState(api.PeerState_SessionState_value[strings.ToUpper(string(s.SessionState))]),
-			AdminState:   api.PeerState_AdminState(s.AdminState.ToInt()),
+			AdminState:   admin_state,
 			Messages: &api.Messages{
 				Received: &api.Message{
 					Notification:   s.Messages.Received.Notification,

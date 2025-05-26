@@ -4462,6 +4462,15 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 					simpleSend([]*api.Path{path})
 
 				case *watchEventPeer:
+					var admin_state api.PeerState_AdminState
+					switch msg.AdminState {
+					case adminStateUp:
+						admin_state = api.PeerState_ADMIN_STATE_UP
+					case adminStateDown:
+						admin_state = api.PeerState_ADMIN_STATE_DOWN
+					case adminStatePfxCt:
+						admin_state = api.PeerState_ADMIN_STATE_PFX_CT
+					}
 					fn(&api.WatchEventResponse{
 						Event: &api.WatchEventResponse_Peer{
 							Peer: &api.WatchEventResponse_PeerEvent{
@@ -4478,7 +4487,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 										LocalAsn:        msg.LocalAS,
 										NeighborAddress: msg.PeerAddress.String(),
 										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
-										AdminState:      api.PeerState_AdminState(msg.AdminState),
+										AdminState:      admin_state,
 										RouterId:        msg.PeerID.String(),
 										RemoteCap:       msg.RemoteCap,
 									},

@@ -828,9 +828,10 @@ message PeerState {
   }
   SessionState session_state = 13;
   enum AdminState {
-    UP = 0;
-    DOWN = 1;
-    PFX_CT = 2; // prefix counter over limit
+    ADMIN_STATE_UNSPECIFIED = 0;
+    ADMIN_STATE_UP = 1;
+    ADMIN_STATE_DOWN = 2;
+    ADMIN_STATE_PFX_CT = 3; // prefix counter over limit
   }
   AdminState admin_state = 15;
   uint32 out_q = 16;

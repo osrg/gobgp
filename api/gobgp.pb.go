@@ -995,22 +995,25 @@ func (PeerState_SessionState) EnumDescriptor() ([]byte, []int) {
 type PeerState_AdminState int32
 
 const (
-	PeerState_UP     PeerState_AdminState = 0
-	PeerState_DOWN   PeerState_AdminState = 1
-	PeerState_PFX_CT PeerState_AdminState = 2 // prefix counter over limit
+	PeerState_ADMIN_STATE_UNSPECIFIED PeerState_AdminState = 0
+	PeerState_ADMIN_STATE_UP          PeerState_AdminState = 1
+	PeerState_ADMIN_STATE_DOWN        PeerState_AdminState = 2
+	PeerState_ADMIN_STATE_PFX_CT      PeerState_AdminState = 3 // prefix counter over limit
 )
 
 // Enum value maps for PeerState_AdminState.
 var (
 	PeerState_AdminState_name = map[int32]string{
-		0: "UP",
-		1: "DOWN",
-		2: "PFX_CT",
+		0: "ADMIN_STATE_UNSPECIFIED",
+		1: "ADMIN_STATE_UP",
+		2: "ADMIN_STATE_DOWN",
+		3: "ADMIN_STATE_PFX_CT",
 	}
 	PeerState_AdminState_value = map[string]int32{
-		"UP":     0,
-		"DOWN":   1,
-		"PFX_CT": 2,
+		"ADMIN_STATE_UNSPECIFIED": 0,
+		"ADMIN_STATE_UP":          1,
+		"ADMIN_STATE_DOWN":        2,
+		"ADMIN_STATE_PFX_CT":      3,
 	}
 )
 
@@ -7857,7 +7860,7 @@ func (x *PeerState) GetAdminState() PeerState_AdminState {
 	if x != nil {
 		return x.AdminState
 	}
-	return PeerState_UP
+	return PeerState_ADMIN_STATE_UNSPECIFIED
 }
 
 func (x *PeerState) GetOutQ() uint32 {
@@ -12918,7 +12921,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\fmultihop_ttl\x18\x02 \x01(\rR\vmultihopTtl\"\x83\x01\n" +
 	"\x0eRouteReflector\x124\n" +
 	"\x16route_reflector_client\x18\x01 \x01(\bR\x14routeReflectorClient\x12;\n" +
-	"\x1aroute_reflector_cluster_id\x18\x02 \x01(\tR\x17routeReflectorClusterId\"\x97\a\n" +
+	"\x1aroute_reflector_cluster_id\x18\x02 \x01(\tR\x17routeReflectorClusterId\"\xd8\a\n" +
 	"\tPeerState\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +
@@ -12951,13 +12954,13 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x06ACTIVE\x10\x03\x12\f\n" +
 	"\bOPENSENT\x10\x04\x12\x0f\n" +
 	"\vOPENCONFIRM\x10\x05\x12\x0f\n" +
-	"\vESTABLISHED\x10\x06\"*\n" +
+	"\vESTABLISHED\x10\x06\"k\n" +
 	"\n" +
-	"AdminState\x12\x06\n" +
-	"\x02UP\x10\x00\x12\b\n" +
-	"\x04DOWN\x10\x01\x12\n" +
-	"\n" +
-	"\x06PFX_CT\x10\x02\"V\n" +
+	"AdminState\x12\x1b\n" +
+	"\x17ADMIN_STATE_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eADMIN_STATE_UP\x10\x01\x12\x14\n" +
+	"\x10ADMIN_STATE_DOWN\x10\x02\x12\x16\n" +
+	"\x12ADMIN_STATE_PFX_CT\x10\x03\"V\n" +
 	"\bMessages\x12(\n" +
 	"\breceived\x18\x01 \x01(\v2\f.api.MessageR\breceived\x12 \n" +
 	"\x04sent\x18\x02 \x01(\v2\f.api.MessageR\x04sent\"\x97\x02\n" +
