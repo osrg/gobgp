@@ -3850,10 +3850,29 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	var dt table.DefinedType
+	switch r.DefinedType {
+	case api.DefinedType_DEFINED_TYPE_UNSPECIFIED:
+		return status.Error(codes.InvalidArgument, "unspecified defined type")
+	case api.DefinedType_DEFINED_TYPE_PREFIX:
+		dt = table.DEFINED_TYPE_PREFIX
+	case api.DefinedType_DEFINED_TYPE_NEIGHBOR:
+		dt = table.DEFINED_TYPE_NEIGHBOR
+	case api.DefinedType_DEFINED_TYPE_AS_PATH:
+		dt = table.DEFINED_TYPE_AS_PATH
+	case api.DefinedType_DEFINED_TYPE_COMMUNITY:
+		dt = table.DEFINED_TYPE_COMMUNITY
+	case api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY:
+		dt = table.DEFINED_TYPE_EXT_COMMUNITY
+	case api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY:
+		dt = table.DEFINED_TYPE_LARGE_COMMUNITY
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown defined type %d", r.DefinedType)
+	}
 	var cd *oc.DefinedSets
 	var err error
 	err = s.mgmtOperation(func() error {
-		cd, err = s.policy.GetDefinedSet(table.DefinedType(r.DefinedType), r.Name)
+		cd, err = s.policy.GetDefinedSet(dt, r.Name)
 		return err
 	}, false)
 
@@ -3872,7 +3891,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 
 	for _, cs := range cd.PrefixSets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_PREFIX,
+			DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 			Name:        cs.PrefixSetName,
 			Prefixes: func() []*api.Prefix {
 				l := make([]*api.Prefix, 0, len(cs.PrefixList))
@@ -3892,7 +3911,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.NeighborSets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_NEIGHBOR,
+			DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 			Name:        cs.NeighborSetName,
 			List:        cs.NeighborInfoList,
 		}
@@ -3902,7 +3921,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.CommunitySets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
 			Name:        cs.CommunitySetName,
 			List:        cs.CommunityList,
 		}
@@ -3912,7 +3931,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.ExtCommunitySets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_EXT_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY,
 			Name:        cs.ExtCommunitySetName,
 			List:        cs.ExtCommunityList,
 		}
@@ -3922,7 +3941,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.LargeCommunitySets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_LARGE_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 			Name:        cs.LargeCommunitySetName,
 			List:        cs.LargeCommunityList,
 		}
@@ -3932,7 +3951,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.AsPathSets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_AS_PATH,
+			DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH,
 			Name:        cs.AsPathSetName,
 			List:        cs.AsPathList,
 		}

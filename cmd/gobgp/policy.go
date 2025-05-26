@@ -173,17 +173,17 @@ func showDefinedSet(v string, args []string) error {
 	var typ api.DefinedType
 	switch v {
 	case cmdPrefix:
-		typ = api.DefinedType_PREFIX
+		typ = api.DefinedType_DEFINED_TYPE_PREFIX
 	case cmdNeighbor:
-		typ = api.DefinedType_NEIGHBOR
+		typ = api.DefinedType_DEFINED_TYPE_NEIGHBOR
 	case cmdAspath:
-		typ = api.DefinedType_AS_PATH
+		typ = api.DefinedType_DEFINED_TYPE_AS_PATH
 	case cmdCommunity:
-		typ = api.DefinedType_COMMUNITY
+		typ = api.DefinedType_DEFINED_TYPE_COMMUNITY
 	case cmdExtcommunity:
-		typ = api.DefinedType_EXT_COMMUNITY
+		typ = api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY
 	case cmdLargecommunity:
-		typ = api.DefinedType_LARGE_COMMUNITY
+		typ = api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
@@ -267,7 +267,7 @@ func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 		list = []*api.Prefix{prefix}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        name,
 		Prefixes:    list,
 	}, nil
@@ -294,7 +294,7 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        name,
 		List:        list,
 	}, nil
@@ -313,7 +313,7 @@ func parseAsPathSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_AS_PATH,
+		DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -331,7 +331,7 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_COMMUNITY,
+		DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -349,7 +349,7 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_EXT_COMMUNITY,
+		DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -367,7 +367,7 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_LARGE_COMMUNITY,
+		DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 		Name:        name,
 		List:        args,
 	}, nil

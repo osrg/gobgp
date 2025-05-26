@@ -970,8 +970,8 @@ func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, er
 		if ds.Name == "" {
 			return nil, fmt.Errorf("empty neighbor set name")
 		}
-		switch table.DefinedType(ds.DefinedType) {
-		case table.DEFINED_TYPE_PREFIX:
+		switch ds.DefinedType {
+		case api.DefinedType_DEFINED_TYPE_PREFIX:
 			prefixes := make([]oc.Prefix, 0, len(ds.Prefixes))
 			for _, p := range ds.Prefixes {
 				prefix, err := newConfigPrefixFromAPIStruct(p)
@@ -984,33 +984,33 @@ func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, er
 				PrefixSetName: ds.Name,
 				PrefixList:    prefixes,
 			})
-		case table.DEFINED_TYPE_NEIGHBOR:
+		case api.DefinedType_DEFINED_TYPE_NEIGHBOR:
 			ns = append(ns, oc.NeighborSet{
 				NeighborSetName:  ds.Name,
 				NeighborInfoList: ds.List,
 			})
-		case table.DEFINED_TYPE_AS_PATH:
+		case api.DefinedType_DEFINED_TYPE_AS_PATH:
 			as = append(as, oc.AsPathSet{
 				AsPathSetName: ds.Name,
 				AsPathList:    ds.List,
 			})
-		case table.DEFINED_TYPE_COMMUNITY:
+		case api.DefinedType_DEFINED_TYPE_COMMUNITY:
 			cs = append(cs, oc.CommunitySet{
 				CommunitySetName: ds.Name,
 				CommunityList:    ds.List,
 			})
-		case table.DEFINED_TYPE_EXT_COMMUNITY:
+		case api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY:
 			es = append(es, oc.ExtCommunitySet{
 				ExtCommunitySetName: ds.Name,
 				ExtCommunityList:    ds.List,
 			})
-		case table.DEFINED_TYPE_LARGE_COMMUNITY:
+		case api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY:
 			ls = append(ls, oc.LargeCommunitySet{
 				LargeCommunitySetName: ds.Name,
 				LargeCommunityList:    ds.List,
 			})
 		default:
-			return nil, fmt.Errorf("invalid defined type")
+			return nil, status.Errorf(codes.InvalidArgument, "unknown defined set type: %s", ds.DefinedType)
 		}
 	}
 
@@ -1030,8 +1030,8 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	switch table.DefinedType(a.DefinedType) {
-	case table.DEFINED_TYPE_PREFIX:
+	switch a.DefinedType {
+	case api.DefinedType_DEFINED_TYPE_PREFIX:
 		prefixes := make([]*table.Prefix, 0, len(a.Prefixes))
 		for _, p := range a.Prefixes {
 			prefix, err := newPrefixFromApiStruct(p)
@@ -1041,7 +1041,7 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 			prefixes = append(prefixes, prefix)
 		}
 		return table.NewPrefixSetFromApiStruct(a.Name, prefixes)
-	case table.DEFINED_TYPE_NEIGHBOR:
+	case api.DefinedType_DEFINED_TYPE_NEIGHBOR:
 		list := make([]net.IPNet, 0, len(a.List))
 		for _, x := range a.List {
 			_, addr, err := net.ParseCIDR(x)
@@ -1051,28 +1051,28 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 			list = append(list, *addr)
 		}
 		return table.NewNeighborSetFromApiStruct(a.Name, list)
-	case table.DEFINED_TYPE_AS_PATH:
+	case api.DefinedType_DEFINED_TYPE_AS_PATH:
 		return table.NewAsPathSet(oc.AsPathSet{
 			AsPathSetName: a.Name,
 			AsPathList:    a.List,
 		})
-	case table.DEFINED_TYPE_COMMUNITY:
+	case api.DefinedType_DEFINED_TYPE_COMMUNITY:
 		return table.NewCommunitySet(oc.CommunitySet{
 			CommunitySetName: a.Name,
 			CommunityList:    a.List,
 		})
-	case table.DEFINED_TYPE_EXT_COMMUNITY:
+	case api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY:
 		return table.NewExtCommunitySet(oc.ExtCommunitySet{
 			ExtCommunitySetName: a.Name,
 			ExtCommunityList:    a.List,
 		})
-	case table.DEFINED_TYPE_LARGE_COMMUNITY:
+	case api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY:
 		return table.NewLargeCommunitySet(oc.LargeCommunitySet{
 			LargeCommunitySetName: a.Name,
 			LargeCommunityList:    a.List,
 		})
 	default:
-		return nil, fmt.Errorf("invalid defined type")
+		return nil, status.Errorf(codes.InvalidArgument, "unknown defined set type: %s", a.DefinedType)
 	}
 }
 

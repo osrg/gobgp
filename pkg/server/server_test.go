@@ -319,7 +319,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Add IMPORT policy at server1 for rejecting 10.1.0.0/24
 	d1 := &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        "d1",
 		Prefixes: []*api.Prefix{
 			{
@@ -616,7 +616,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Validate filtering at the export side.
 	d2 := &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        "d2",
 		Prefixes: []*api.Prefix{
 			{
@@ -2448,7 +2448,7 @@ func TestWatchEvent(test *testing.T) {
 	assert.Nil(err)
 
 	d1 := &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        "d1",
 		Prefixes: []*api.Prefix{
 			{
@@ -2627,7 +2627,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 
 	// set an initial policy
 	n1 := &api.DefinedSet{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 		List:        []string{"203.0.113.1/32"},
 	}
@@ -2640,7 +2640,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 		ns = append(ns, ds)
 	}
 	err = s.ListDefinedSet(context.Background(), &api.ListDefinedSetRequest{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 	}, fn)
 	assert.Nil(err)
@@ -2650,7 +2650,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 
 	// now replace the policy
 	n2 := &api.DefinedSet{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 		List:        []string{"203.0.113.2/32"},
 	}
@@ -2660,7 +2660,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 	// confirm the policy was replaced
 	ns = make([]*api.DefinedSet, 0)
 	err = s.ListDefinedSet(context.Background(), &api.ListDefinedSetRequest{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 	}, fn)
 	assert.Nil(err)

@@ -199,37 +199,40 @@ func (RemovePrivate) EnumDescriptor() ([]byte, []int) {
 type DefinedType int32
 
 const (
-	DefinedType_PREFIX          DefinedType = 0
-	DefinedType_NEIGHBOR        DefinedType = 1
-	DefinedType_TAG             DefinedType = 2
-	DefinedType_AS_PATH         DefinedType = 3
-	DefinedType_COMMUNITY       DefinedType = 4
-	DefinedType_EXT_COMMUNITY   DefinedType = 5
-	DefinedType_LARGE_COMMUNITY DefinedType = 6
-	DefinedType_NEXT_HOP        DefinedType = 7
+	DefinedType_DEFINED_TYPE_UNSPECIFIED     DefinedType = 0
+	DefinedType_DEFINED_TYPE_PREFIX          DefinedType = 1
+	DefinedType_DEFINED_TYPE_NEIGHBOR        DefinedType = 2
+	DefinedType_DEFINED_TYPE_TAG             DefinedType = 3
+	DefinedType_DEFINED_TYPE_AS_PATH         DefinedType = 4
+	DefinedType_DEFINED_TYPE_COMMUNITY       DefinedType = 5
+	DefinedType_DEFINED_TYPE_EXT_COMMUNITY   DefinedType = 6
+	DefinedType_DEFINED_TYPE_LARGE_COMMUNITY DefinedType = 7
+	DefinedType_DEFINED_TYPE_NEXT_HOP        DefinedType = 8
 )
 
 // Enum value maps for DefinedType.
 var (
 	DefinedType_name = map[int32]string{
-		0: "PREFIX",
-		1: "NEIGHBOR",
-		2: "TAG",
-		3: "AS_PATH",
-		4: "COMMUNITY",
-		5: "EXT_COMMUNITY",
-		6: "LARGE_COMMUNITY",
-		7: "NEXT_HOP",
+		0: "DEFINED_TYPE_UNSPECIFIED",
+		1: "DEFINED_TYPE_PREFIX",
+		2: "DEFINED_TYPE_NEIGHBOR",
+		3: "DEFINED_TYPE_TAG",
+		4: "DEFINED_TYPE_AS_PATH",
+		5: "DEFINED_TYPE_COMMUNITY",
+		6: "DEFINED_TYPE_EXT_COMMUNITY",
+		7: "DEFINED_TYPE_LARGE_COMMUNITY",
+		8: "DEFINED_TYPE_NEXT_HOP",
 	}
 	DefinedType_value = map[string]int32{
-		"PREFIX":          0,
-		"NEIGHBOR":        1,
-		"TAG":             2,
-		"AS_PATH":         3,
-		"COMMUNITY":       4,
-		"EXT_COMMUNITY":   5,
-		"LARGE_COMMUNITY": 6,
-		"NEXT_HOP":        7,
+		"DEFINED_TYPE_UNSPECIFIED":     0,
+		"DEFINED_TYPE_PREFIX":          1,
+		"DEFINED_TYPE_NEIGHBOR":        2,
+		"DEFINED_TYPE_TAG":             3,
+		"DEFINED_TYPE_AS_PATH":         4,
+		"DEFINED_TYPE_COMMUNITY":       5,
+		"DEFINED_TYPE_EXT_COMMUNITY":   6,
+		"DEFINED_TYPE_LARGE_COMMUNITY": 7,
+		"DEFINED_TYPE_NEXT_HOP":        8,
 	}
 )
 
@@ -4498,7 +4501,7 @@ func (x *ListDefinedSetRequest) GetDefinedType() DefinedType {
 	if x != nil {
 		return x.DefinedType
 	}
-	return DefinedType_PREFIX
+	return DefinedType_DEFINED_TYPE_UNSPECIFIED
 }
 
 func (x *ListDefinedSetRequest) GetName() string {
@@ -10296,7 +10299,7 @@ func (x *DefinedSet) GetDefinedType() DefinedType {
 	if x != nil {
 		return x.DefinedType
 	}
-	return DefinedType_PREFIX
+	return DefinedType_DEFINED_TYPE_UNSPECIFIED
 }
 
 func (x *DefinedSet) GetName() string {
@@ -13333,17 +13336,17 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\vREMOVE_NONE\x10\x00\x12\x0e\n" +
 	"\n" +
 	"REMOVE_ALL\x10\x01\x12\v\n" +
-	"\aREPLACE\x10\x02*\x82\x01\n" +
-	"\vDefinedType\x12\n" +
-	"\n" +
-	"\x06PREFIX\x10\x00\x12\f\n" +
-	"\bNEIGHBOR\x10\x01\x12\a\n" +
-	"\x03TAG\x10\x02\x12\v\n" +
-	"\aAS_PATH\x10\x03\x12\r\n" +
-	"\tCOMMUNITY\x10\x04\x12\x11\n" +
-	"\rEXT_COMMUNITY\x10\x05\x12\x13\n" +
-	"\x0fLARGE_COMMUNITY\x10\x06\x12\f\n" +
-	"\bNEXT_HOP\x10\a*a\n" +
+	"\aREPLACE\x10\x02*\x88\x02\n" +
+	"\vDefinedType\x12\x1c\n" +
+	"\x18DEFINED_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13DEFINED_TYPE_PREFIX\x10\x01\x12\x19\n" +
+	"\x15DEFINED_TYPE_NEIGHBOR\x10\x02\x12\x14\n" +
+	"\x10DEFINED_TYPE_TAG\x10\x03\x12\x18\n" +
+	"\x14DEFINED_TYPE_AS_PATH\x10\x04\x12\x1a\n" +
+	"\x16DEFINED_TYPE_COMMUNITY\x10\x05\x12\x1e\n" +
+	"\x1aDEFINED_TYPE_EXT_COMMUNITY\x10\x06\x12 \n" +
+	"\x1cDEFINED_TYPE_LARGE_COMMUNITY\x10\a\x12\x19\n" +
+	"\x15DEFINED_TYPE_NEXT_HOP\x10\b*a\n" +
 	"\n" +
 	"Comparison\x12\x1a\n" +
 	"\x16COMPARISON_UNSPECIFIED\x10\x00\x12\x11\n" +

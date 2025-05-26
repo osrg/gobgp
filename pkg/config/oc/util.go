@@ -721,7 +721,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 			prefixes = append(prefixes, ap)
 		}
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_PREFIX,
+			DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 			Name:        ps.PrefixSetName,
 			Prefixes:    prefixes,
 		})
@@ -729,7 +729,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, ns := range t.NeighborSets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_NEIGHBOR,
+			DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 			Name:        ns.NeighborSetName,
 			List:        ns.NeighborInfoList,
 		})
@@ -738,7 +738,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 	bs := t.BgpDefinedSets
 	for _, cs := range bs.CommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
 			Name:        cs.CommunitySetName,
 			List:        cs.CommunityList,
 		})
@@ -746,7 +746,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, es := range bs.ExtCommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_EXT_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY,
 			Name:        es.ExtCommunitySetName,
 			List:        es.ExtCommunityList,
 		})
@@ -754,7 +754,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, ls := range bs.LargeCommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_LARGE_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 			Name:        ls.LargeCommunitySetName,
 			List:        ls.LargeCommunityList,
 		})
@@ -762,7 +762,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, as := range bs.AsPathSets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_AS_PATH,
+			DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH,
 			Name:        as.AsPathSetName,
 			List:        as.AsPathList,
 		})
