@@ -737,9 +737,9 @@ enum PeerType {
 }
 
 enum RemovePrivate {
-  REMOVE_NONE = 0;
-  REMOVE_ALL = 1;
-  REPLACE = 2;
+  REMOVE_PRIVATE_UNSPECIFIED = 0;
+  REMOVE_PRIVATE_ALL = 1;
+  REMOVE_PRIVATE_REPLACE = 2;
 }
 
 message PeerConf {

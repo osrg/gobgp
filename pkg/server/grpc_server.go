@@ -695,9 +695,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.Config.SendSoftwareVersion = a.Conf.SendSoftwareVersion
 
 		switch a.Conf.RemovePrivate {
-		case api.RemovePrivate_REMOVE_ALL:
+		case api.RemovePrivate_REMOVE_PRIVATE_ALL:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.RemovePrivate_REPLACE:
+		case api.RemovePrivate_REMOVE_PRIVATE_REPLACE:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -822,9 +822,9 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.Config.SendSoftwareVersion = a.Conf.SendSoftwareVersion
 
 		switch a.Conf.RemovePrivate {
-		case api.RemovePrivate_REMOVE_ALL:
+		case api.RemovePrivate_REMOVE_PRIVATE_ALL:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.RemovePrivate_REPLACE:
+		case api.RemovePrivate_REMOVE_PRIVATE_REPLACE:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 

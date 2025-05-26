@@ -459,9 +459,9 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	var removePrivate api.RemovePrivate
 	switch pconf.Config.RemovePrivateAs {
 	case REMOVE_PRIVATE_AS_OPTION_ALL:
-		removePrivate = api.RemovePrivate_REMOVE_ALL
+		removePrivate = api.RemovePrivate_REMOVE_PRIVATE_ALL
 	case REMOVE_PRIVATE_AS_OPTION_REPLACE:
-		removePrivate = api.RemovePrivate_REPLACE
+		removePrivate = api.RemovePrivate_REMOVE_PRIVATE_REPLACE
 	}
 	var admin_state api.PeerState_AdminState
 	switch s.AdminState {

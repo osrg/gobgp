@@ -150,22 +150,22 @@ func (PeerType) EnumDescriptor() ([]byte, []int) {
 type RemovePrivate int32
 
 const (
-	RemovePrivate_REMOVE_NONE RemovePrivate = 0
-	RemovePrivate_REMOVE_ALL  RemovePrivate = 1
-	RemovePrivate_REPLACE     RemovePrivate = 2
+	RemovePrivate_REMOVE_PRIVATE_UNSPECIFIED RemovePrivate = 0
+	RemovePrivate_REMOVE_PRIVATE_ALL         RemovePrivate = 1
+	RemovePrivate_REMOVE_PRIVATE_REPLACE     RemovePrivate = 2
 )
 
 // Enum value maps for RemovePrivate.
 var (
 	RemovePrivate_name = map[int32]string{
-		0: "REMOVE_NONE",
-		1: "REMOVE_ALL",
-		2: "REPLACE",
+		0: "REMOVE_PRIVATE_UNSPECIFIED",
+		1: "REMOVE_PRIVATE_ALL",
+		2: "REMOVE_PRIVATE_REPLACE",
 	}
 	RemovePrivate_value = map[string]int32{
-		"REMOVE_NONE": 0,
-		"REMOVE_ALL":  1,
-		"REPLACE":     2,
+		"REMOVE_PRIVATE_UNSPECIFIED": 0,
+		"REMOVE_PRIVATE_ALL":         1,
+		"REMOVE_PRIVATE_REPLACE":     2,
 	}
 )
 
@@ -7248,7 +7248,7 @@ func (x *PeerConf) GetRemovePrivate() RemovePrivate {
 	if x != nil {
 		return x.RemovePrivate
 	}
-	return RemovePrivate_REMOVE_NONE
+	return RemovePrivate_REMOVE_PRIVATE_UNSPECIFIED
 }
 
 func (x *PeerConf) GetRouteFlapDamping() bool {
@@ -7406,7 +7406,7 @@ func (x *PeerGroupConf) GetRemovePrivate() RemovePrivate {
 	if x != nil {
 		return x.RemovePrivate
 	}
-	return RemovePrivate_REMOVE_NONE
+	return RemovePrivate_REMOVE_PRIVATE_UNSPECIFIED
 }
 
 func (x *PeerGroupConf) GetRouteFlapDamping() bool {
@@ -7523,7 +7523,7 @@ func (x *PeerGroupState) GetRemovePrivate() RemovePrivate {
 	if x != nil {
 		return x.RemovePrivate
 	}
-	return RemovePrivate_REMOVE_NONE
+	return RemovePrivate_REMOVE_PRIVATE_UNSPECIFIED
 }
 
 func (x *PeerGroupState) GetRouteFlapDamping() bool {
@@ -7832,7 +7832,7 @@ func (x *PeerState) GetRemovePrivate() RemovePrivate {
 	if x != nil {
 		return x.RemovePrivate
 	}
-	return RemovePrivate_REMOVE_NONE
+	return RemovePrivate_REMOVE_PRIVATE_UNSPECIFIED
 }
 
 func (x *PeerState) GetRouteFlapDamping() bool {
@@ -13334,12 +13334,11 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0eTABLE_TYPE_VRF\x10\x05*&\n" +
 	"\bPeerType\x12\f\n" +
 	"\bINTERNAL\x10\x00\x12\f\n" +
-	"\bEXTERNAL\x10\x01*=\n" +
-	"\rRemovePrivate\x12\x0f\n" +
-	"\vREMOVE_NONE\x10\x00\x12\x0e\n" +
-	"\n" +
-	"REMOVE_ALL\x10\x01\x12\v\n" +
-	"\aREPLACE\x10\x02*\x88\x02\n" +
+	"\bEXTERNAL\x10\x01*c\n" +
+	"\rRemovePrivate\x12\x1e\n" +
+	"\x1aREMOVE_PRIVATE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12REMOVE_PRIVATE_ALL\x10\x01\x12\x1a\n" +
+	"\x16REMOVE_PRIVATE_REPLACE\x10\x02*\x88\x02\n" +
 	"\vDefinedType\x12\x1c\n" +
 	"\x18DEFINED_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13DEFINED_TYPE_PREFIX\x10\x01\x12\x19\n" +
