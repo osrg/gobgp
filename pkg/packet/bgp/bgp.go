@@ -459,10 +459,13 @@ func (c *DefaultParameterCapability) Code() BGPCapabilityCode {
 }
 
 func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
+	if len(data) < 2 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not enough DefaultParameterCapability bytes available")
+	}
 	c.CapCode = BGPCapabilityCode(data[0])
 	c.CapLen = data[1]
 	if len(data) < 2+int(c.CapLen) {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all OptionParameterCapability bytes available")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all DefaultParameterCapability bytes available")
 	}
 	if c.CapLen > 0 {
 		c.CapValue = data[2 : 2+c.CapLen]
@@ -489,7 +492,9 @@ type CapMultiProtocol struct {
 }
 
 func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	if len(data) < 4 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityMultiProtocol bytes available")
@@ -581,7 +586,9 @@ type CapExtendedNexthop struct {
 }
 
 func (c *CapExtendedNexthop) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	capLen := int(c.CapLen)
 	if capLen%6 != 0 || capLen < 6 || len(data) < capLen {
@@ -669,7 +676,9 @@ type CapGracefulRestart struct {
 }
 
 func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityGracefulRestart bytes available")
@@ -746,7 +755,9 @@ type CapFourOctetASNumber struct {
 }
 
 func (c *CapFourOctetASNumber) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	if len(data) < 4 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFourOctetASNumber bytes available")
@@ -833,7 +844,9 @@ type CapAddPath struct {
 }
 
 func (c *CapAddPath) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	capLen := int(c.CapLen)
 	if capLen%4 != 0 || capLen < 4 || len(data) < capLen {
@@ -947,7 +960,9 @@ type CapLongLivedGracefulRestart struct {
 }
 
 func (c *CapLongLivedGracefulRestart) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 
 	valueLen := int(c.CapLen)
@@ -1009,7 +1024,9 @@ type CapFQDN struct {
 }
 
 func (c *CapFQDN) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
@@ -1088,7 +1105,9 @@ type CapSoftwareVersion struct {
 }
 
 func (c *CapSoftwareVersion) DecodeFromBytes(data []byte) error {
-	c.DefaultParameterCapability.DecodeFromBytes(data)
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[2:]
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilitySoftwareVersion bytes allowed")
@@ -1180,8 +1199,10 @@ func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 	default:
 		c = &CapUnknown{}
 	}
-	err := c.DecodeFromBytes(data)
-	return c, err
+	if err := c.DecodeFromBytes(data); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 type OptionParameterInterface interface {
@@ -1619,6 +1640,9 @@ type RouteDistinguisherTwoOctetAS struct {
 }
 
 func (rd *RouteDistinguisherTwoOctetAS) DecodeFromBytes(data []byte) error {
+	if len(data) < 6 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not enough RouteDistinguisherTwoOctetAS bytes available")
+	}
 	rd.Admin = binary.BigEndian.Uint16(data[0:2])
 	rd.Assigned = binary.BigEndian.Uint32(data[2:6])
 	return nil
@@ -1664,6 +1688,9 @@ type RouteDistinguisherIPAddressAS struct {
 }
 
 func (rd *RouteDistinguisherIPAddressAS) DecodeFromBytes(data []byte) error {
+	if len(data) < 6 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not enough RouteDistinguisherIPAddressAS bytes available")
+	}
 	rd.Admin = data[0:4]
 	rd.Assigned = binary.BigEndian.Uint16(data[4:6])
 	return nil
@@ -1709,6 +1736,9 @@ type RouteDistinguisherFourOctetAS struct {
 }
 
 func (rd *RouteDistinguisherFourOctetAS) DecodeFromBytes(data []byte) error {
+	if len(data) < 6 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not enough RouteDistinguisherFourOctetAS bytes available")
+	}
 	rd.Admin = binary.BigEndian.Uint32(data[0:4])
 	rd.Assigned = binary.BigEndian.Uint16(data[4:6])
 	return nil
@@ -1755,6 +1785,9 @@ type RouteDistinguisherUnknown struct {
 }
 
 func (rd *RouteDistinguisherUnknown) DecodeFromBytes(data []byte) error {
+	if len(data) < 6 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not enough RouteDistinguisherUnknown bytes available")
+	}
 	rd.Value = data[0:6]
 	return nil
 }
@@ -11466,7 +11499,6 @@ type PathAttributeMpReachNLRI struct {
 }
 
 func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-
 	value, err := p.PathAttribute.DecodeFromBytes(data, options...)
 	if err != nil {
 		return err
@@ -13900,6 +13932,9 @@ func (t *TunnelEncapTLV) Len() int {
 }
 
 func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
+	if len(data) < 4 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not enough TunnelEncapTLV bytes available")
+	}
 	t.Type = TunnelType(binary.BigEndian.Uint16(data[0:2]))
 	t.Length = binary.BigEndian.Uint16(data[2:4])
 	data = data[4:]
@@ -15231,8 +15266,7 @@ func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMe
 
 func ParseBGPMessage(data []byte, options ...*MarshallingOption) (*BGPMessage, error) {
 	h := &BGPHeader{}
-	err := h.DecodeFromBytes(data, options...)
-	if err != nil {
+	if err := h.DecodeFromBytes(data, options...); err != nil {
 		return nil, err
 	}
 
