@@ -1103,11 +1103,11 @@ func matchSetOptionsRestrictedTypeToAPI(t oc.MatchSetOptionsRestrictedType) api.
 	t = t.DefaultAsNeeded()
 	switch t {
 	case oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:
-		return api.MatchSet_ANY
+		return api.MatchSet_TYPE_ANY
 	case oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT:
-		return api.MatchSet_INVERT
+		return api.MatchSet_TYPE_INVERT
 	}
-	return api.MatchSet_ANY
+	return api.MatchSet_TYPE_ANY
 }
 
 func toStatementApi(s *oc.Statement) *api.Statement {
@@ -1137,26 +1137,30 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions)
 		cs.AsPathSet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions)
 		cs.CommunitySet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions)
 		cs.ExtCommunitySet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions)
 		cs.LargeCommunitySet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
 		}
 	}
@@ -1319,14 +1323,14 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 func toConfigMatchSetOption(a api.MatchSet_Type) (oc.MatchSetOptionsType, error) {
 	var typ oc.MatchSetOptionsType
 	switch a {
-	case api.MatchSet_ANY:
+	case api.MatchSet_TYPE_ANY:
 		typ = oc.MATCH_SET_OPTIONS_TYPE_ANY
-	case api.MatchSet_ALL:
+	case api.MatchSet_TYPE_ALL:
 		typ = oc.MATCH_SET_OPTIONS_TYPE_ALL
-	case api.MatchSet_INVERT:
+	case api.MatchSet_TYPE_INVERT:
 		typ = oc.MATCH_SET_OPTIONS_TYPE_INVERT
 	default:
-		return typ, fmt.Errorf("invalid match type")
+		return typ, status.Errorf(codes.InvalidArgument, "invalid match type %d", a)
 	}
 	return typ, nil
 }
@@ -1334,12 +1338,12 @@ func toConfigMatchSetOption(a api.MatchSet_Type) (oc.MatchSetOptionsType, error)
 func toConfigMatchSetOptionRestricted(a api.MatchSet_Type) (oc.MatchSetOptionsRestrictedType, error) {
 	var typ oc.MatchSetOptionsRestrictedType
 	switch a {
-	case api.MatchSet_ANY:
+	case api.MatchSet_TYPE_ANY:
 		typ = oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
-	case api.MatchSet_INVERT:
+	case api.MatchSet_TYPE_INVERT:
 		typ = oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
 	default:
-		return typ, fmt.Errorf("invalid match type")
+		return typ, status.Errorf(codes.InvalidArgument, "invalid match restricted type %d", a)
 	}
 	return typ, nil
 }

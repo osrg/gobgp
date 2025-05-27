@@ -98,6 +98,18 @@ const (
 	MATCH_OPTION_INVERT
 )
 
+func (o MatchOption) ToApi() api.MatchSet_Type {
+	switch o {
+	case MATCH_OPTION_ANY:
+		return api.MatchSet_TYPE_ANY
+	case MATCH_OPTION_ALL:
+		return api.MatchSet_TYPE_ALL
+	case MATCH_OPTION_INVERT:
+		return api.MatchSet_TYPE_INVERT
+	}
+	panic(fmt.Sprintf("unknown MatchOption: %d", o))
+}
+
 func (o MatchOption) String() string {
 	switch o {
 	case MATCH_OPTION_ANY:
@@ -4101,14 +4113,14 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 	o, _ := NewMatchOption(s.Conditions.MatchPrefixSet.MatchSetOptions)
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
 		cs.PrefixSet = &api.MatchSet{
-			Type: api.MatchSet_Type(o),
+			Type: o.ToApi(),
 			Name: s.Conditions.MatchPrefixSet.PrefixSet,
 		}
 	}
 	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
 		o, _ := NewMatchOption(s.Conditions.MatchNeighborSet.MatchSetOptions)
 		cs.NeighborSet = &api.MatchSet{
-			Type: api.MatchSet_Type(o),
+			Type: o.ToApi(),
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
@@ -4136,26 +4148,30 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
+		o, _ := NewMatchOption(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions)
 		cs.AsPathSet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet != "" {
+		o, _ := NewMatchOption(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions)
 		cs.CommunitySet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
+		o, _ := NewMatchOption(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions)
 		cs.ExtCommunitySet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet != "" {
+		o, _ := NewMatchOption(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions)
 		cs.LargeCommunitySet = &api.MatchSet{
-			Type: api.MatchSet_Type(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
+			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
 		}
 	}

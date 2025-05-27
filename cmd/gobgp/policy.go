@@ -56,11 +56,11 @@ func prettyString(v interface{}) string {
 	case *api.MatchSet:
 		var typ string
 		switch a.Type {
-		case api.MatchSet_ALL:
+		case api.MatchSet_TYPE_ALL:
 			typ = "all"
-		case api.MatchSet_ANY:
+		case api.MatchSet_TYPE_ANY:
 			typ = "any"
-		case api.MatchSet_INVERT:
+		case api.MatchSet_TYPE_INVERT:
 			typ = "invert"
 		}
 		return fmt.Sprintf("%s %s", typ, a.GetName())
@@ -648,7 +648,9 @@ func modCondition(name, op string, args []string) error {
 	args = args[1:]
 	switch typ {
 	case "prefix":
-		stmt.Conditions.PrefixSet = &api.MatchSet{}
+		stmt.Conditions.PrefixSet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
 		if len(args) < 1 {
 			return fmt.Errorf("%s prefix <set-name> [{ any | invert }]", usage)
 		}
@@ -658,14 +660,16 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.PrefixSet.Type = api.MatchSet_ANY
+			stmt.Conditions.PrefixSet.Type = api.MatchSet_TYPE_ANY
 		case "invert":
-			stmt.Conditions.PrefixSet.Type = api.MatchSet_INVERT
+			stmt.Conditions.PrefixSet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s prefix <set-name> [{ any | invert }]", usage)
 		}
 	case "neighbor":
-		stmt.Conditions.NeighborSet = &api.MatchSet{}
+		stmt.Conditions.NeighborSet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
 		if len(args) < 1 {
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
 		}
@@ -675,14 +679,16 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.NeighborSet.Type = api.MatchSet_ANY
+			stmt.Conditions.NeighborSet.Type = api.MatchSet_TYPE_ANY
 		case "invert":
-			stmt.Conditions.NeighborSet.Type = api.MatchSet_INVERT
+			stmt.Conditions.NeighborSet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
 		}
 	case "as-path":
-		stmt.Conditions.AsPathSet = &api.MatchSet{}
+		stmt.Conditions.AsPathSet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
 		if len(args) < 1 {
 			return fmt.Errorf("%s as-path <set-name> [{ any | all | invert }]", usage)
 		}
@@ -692,16 +698,18 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.AsPathSet.Type = api.MatchSet_ANY
+			stmt.Conditions.AsPathSet.Type = api.MatchSet_TYPE_ANY
 		case "all":
-			stmt.Conditions.AsPathSet.Type = api.MatchSet_ALL
+			stmt.Conditions.AsPathSet.Type = api.MatchSet_TYPE_ALL
 		case "invert":
-			stmt.Conditions.AsPathSet.Type = api.MatchSet_INVERT
+			stmt.Conditions.AsPathSet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s as-path <set-name> [{ any | all | invert }]", usage)
 		}
 	case "community":
-		stmt.Conditions.CommunitySet = &api.MatchSet{}
+		stmt.Conditions.CommunitySet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
 		if len(args) < 1 {
 			return fmt.Errorf("%s community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -711,16 +719,18 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.CommunitySet.Type = api.MatchSet_ANY
+			stmt.Conditions.CommunitySet.Type = api.MatchSet_TYPE_ANY
 		case "all":
-			stmt.Conditions.CommunitySet.Type = api.MatchSet_ALL
+			stmt.Conditions.CommunitySet.Type = api.MatchSet_TYPE_ALL
 		case "invert":
-			stmt.Conditions.CommunitySet.Type = api.MatchSet_INVERT
+			stmt.Conditions.CommunitySet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s community <set-name> [{ any | all | invert }]", usage)
 		}
 	case "ext-community":
-		stmt.Conditions.ExtCommunitySet = &api.MatchSet{}
+		stmt.Conditions.ExtCommunitySet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
 		if len(args) < 1 {
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -730,16 +740,18 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchSet_ANY
+			stmt.Conditions.ExtCommunitySet.Type = api.MatchSet_TYPE_ANY
 		case "all":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchSet_ALL
+			stmt.Conditions.ExtCommunitySet.Type = api.MatchSet_TYPE_ALL
 		case "invert":
-			stmt.Conditions.ExtCommunitySet.Type = api.MatchSet_INVERT
+			stmt.Conditions.ExtCommunitySet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
 	case "large-community":
-		stmt.Conditions.LargeCommunitySet = &api.MatchSet{}
+		stmt.Conditions.LargeCommunitySet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
 		if len(args) < 1 {
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
@@ -749,11 +761,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[1]) {
 		case "any":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchSet_ANY
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchSet_TYPE_ANY
 		case "all":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchSet_ALL
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchSet_TYPE_ALL
 		case "invert":
-			stmt.Conditions.LargeCommunitySet.Type = api.MatchSet_INVERT
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
