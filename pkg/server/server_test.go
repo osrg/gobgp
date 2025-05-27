@@ -334,6 +334,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Conditions: &api.Conditions{
 			PrefixSet: &api.MatchSet{
 				Name: "d1",
+				Type: api.MatchSet_TYPE_ANY,
 			},
 		},
 		Actions: &api.Actions{
@@ -631,6 +632,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Conditions: &api.Conditions{
 			PrefixSet: &api.MatchSet{
 				Name: "d2",
+				Type: api.MatchSet_TYPE_ANY,
 			},
 		},
 		Actions: &api.Actions{
@@ -2463,6 +2465,7 @@ func TestWatchEvent(test *testing.T) {
 		Conditions: &api.Conditions{
 			PrefixSet: &api.MatchSet{
 				Name: "d1",
+				Type: api.MatchSet_TYPE_ANY,
 			},
 		},
 		Actions: &api.Actions{

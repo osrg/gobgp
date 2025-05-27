@@ -1111,9 +1111,10 @@ message DefinedSet {
 
 message MatchSet {
   enum Type {
-    ANY = 0;
-    ALL = 1;
-    INVERT = 2;
+    TYPE_UNSPECIFIED = 0;
+    TYPE_ANY = 1;
+    TYPE_ALL = 2;
+    TYPE_INVERT = 3;
   }
   Type type = 1;
   string name = 2;

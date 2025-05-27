@@ -1047,22 +1047,25 @@ func (PeerState_AdminState) EnumDescriptor() ([]byte, []int) {
 type MatchSet_Type int32
 
 const (
-	MatchSet_ANY    MatchSet_Type = 0
-	MatchSet_ALL    MatchSet_Type = 1
-	MatchSet_INVERT MatchSet_Type = 2
+	MatchSet_TYPE_UNSPECIFIED MatchSet_Type = 0
+	MatchSet_TYPE_ANY         MatchSet_Type = 1
+	MatchSet_TYPE_ALL         MatchSet_Type = 2
+	MatchSet_TYPE_INVERT      MatchSet_Type = 3
 )
 
 // Enum value maps for MatchSet_Type.
 var (
 	MatchSet_Type_name = map[int32]string{
-		0: "ANY",
-		1: "ALL",
-		2: "INVERT",
+		0: "TYPE_UNSPECIFIED",
+		1: "TYPE_ANY",
+		2: "TYPE_ALL",
+		3: "TYPE_INVERT",
 	}
 	MatchSet_Type_value = map[string]int32{
-		"ANY":    0,
-		"ALL":    1,
-		"INVERT": 2,
+		"TYPE_UNSPECIFIED": 0,
+		"TYPE_ANY":         1,
+		"TYPE_ALL":         2,
+		"TYPE_INVERT":      3,
 	}
 )
 
@@ -10368,7 +10371,7 @@ func (x *MatchSet) GetType() MatchSet_Type {
 	if x != nil {
 		return x.Type
 	}
-	return MatchSet_ANY
+	return MatchSet_TYPE_UNSPECIFIED
 }
 
 func (x *MatchSet) GetName() string {
@@ -13145,15 +13148,15 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\fdefined_type\x18\x01 \x01(\x0e2\x10.api.DefinedTypeR\vdefinedType\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04list\x18\x03 \x03(\tR\x04list\x12'\n" +
-	"\bprefixes\x18\x04 \x03(\v2\v.api.PrefixR\bprefixes\"l\n" +
+	"\bprefixes\x18\x04 \x03(\v2\v.api.PrefixR\bprefixes\"\x91\x01\n" +
 	"\bMatchSet\x12&\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x12.api.MatchSet.TypeR\x04type\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"$\n" +
-	"\x04Type\x12\a\n" +
-	"\x03ANY\x10\x00\x12\a\n" +
-	"\x03ALL\x10\x01\x12\n" +
-	"\n" +
-	"\x06INVERT\x10\x02\"K\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"I\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bTYPE_ANY\x10\x01\x12\f\n" +
+	"\bTYPE_ALL\x10\x02\x12\x0f\n" +
+	"\vTYPE_INVERT\x10\x03\"K\n" +
 	"\fAsPathLength\x12#\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x0f.api.ComparisonR\x04type\x12\x16\n" +
 	"\x06length\x18\x02 \x01(\rR\x06length\"K\n" +
