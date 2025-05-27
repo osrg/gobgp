@@ -27,7 +27,7 @@ import (
 )
 
 func TestMrtHdr(t *testing.T) {
-	h1, err := NewMRTHeader(10, TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
+	h1, err := NewMRTHeader(time.Unix(10, 0), TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,14 +44,23 @@ func TestMrtHdr(t *testing.T) {
 }
 
 func TestMrtHdrTime(t *testing.T) {
-	h1, err := NewMRTHeader(10, TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
+	ttime1 := time.Unix(10, 0)
+	h1, err := NewMRTHeader(ttime1, TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ttime := time.Unix(10, 0)
-	htime := h1.GetTime()
-	t.Logf("this timestamp should be 10s after epoch:%v", htime)
-	assert.Equal(t, h1.GetTime(), ttime)
+	h1time := h1.GetTime()
+	t.Logf("this timestamp should be 10s after epoch:%v", h1time)
+	assert.Equal(t, h1time, ttime1)
+
+	ttime2 := time.Unix(20, 123000)
+	h2, err := NewMRTHeader(ttime2, BGP4MP_ET, STATE_CHANGE, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h2time := h2.GetTime()
+	t.Logf("this timestamp should be 20s and 123ms after epoch:%v", h2time)
+	assert.Equal(t, h2time, ttime2)
 }
 
 func testPeer(t *testing.T, p1 *Peer) {
@@ -283,7 +292,7 @@ func TestMrtSplit(t *testing.T) {
 	for i := 0; i < numwrite; i++ {
 		msg := bgp.NewBGPKeepAliveMessage()
 		m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
-		mm, _ := NewMRTMessage(1234, BGP4MP, MESSAGE, m1)
+		mm, _ := NewMRTMessage(time.Unix(1234, 0), BGP4MP, MESSAGE, m1)
 		b1, err := mm.Serialize()
 		if err != nil {
 			t.Fatal(err)
@@ -302,7 +311,6 @@ func TestMrtSplit(t *testing.T) {
 }
 
 func FuzzMRT(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) < 16 {
 			return
@@ -310,7 +318,6 @@ func FuzzMRT(f *testing.F) {
 
 		hdr := &MRTHeader{}
 		err := hdr.DecodeFromBytes(data[:MRT_COMMON_HEADER_LEN])
-
 		if err != nil {
 			return
 		}
