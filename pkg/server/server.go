@@ -738,10 +738,10 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		}
 
 		if old != nil && old.IsLocal() {
-			// If path == nil it will be set to old.Clone(true) in the
-			// func (s *BgpServer) filterpath(peer *peer, path, old *table.Path).
-			// Otherwise this is the local path changing without rt change. We
-			// need to update path or do nothing if path == old.
+			// If it is vrf or rtc route deleting, it will work via explicitWithdraw
+			// and make old.Clone(true). The only way to get path != nil and old != nil
+			// is to change the path without changing rt. Then we need to update path or
+			// do nothing if path == old.
 		} else if peer.isRouteReflectorClient() {
 			// We need to send the path even if the peer is originator of the
 			// path in order to signal that the client should distribute route
@@ -1634,8 +1634,15 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		} else if nextStateIdle {
 			peer.fsm.lock.RLock()
 			longLivedEnabled := peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled
+			longLivedRunning := peer.fsm.longLivedRunning
 			peer.fsm.lock.RUnlock()
-			if longLivedEnabled {
+			// We must not restart LLGR timer until we have syncronized with
+			// the peer. Routes also need to be marked wit LLGR comm just once.
+			// https://datatracker.ietf.org/doc/html/rfc9494#session_resetsnever
+			if longLivedEnabled && !longLivedRunning {
+				peer.fsm.lock.Lock()
+				peer.fsm.longLivedRunning = true
+				peer.fsm.lock.Unlock()
 				llgr, no_llgr := peer.llgrFamilies()
 
 				s.propagateUpdate(peer, peer.DropAll(no_llgr))
@@ -1692,7 +1699,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 					}(f, endCh)
 				}
-			} else {
+			} else if !longLivedEnabled {
 				// RFC 4724 4.2
 				// If the session does not get re-established within the "Restart Time"
 				// that the peer advertised previously, the Receiving Speaker MUST
@@ -2917,17 +2924,19 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 	}
 	var err error
 	switch r.TableType {
-	case api.TableType_LOCAL, api.TableType_GLOBAL:
+	case api.TableType_TABLE_TYPE_UNSPECIFIED:
+		return status.Error(codes.InvalidArgument, "unspecified table type")
+	case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 		tbl, v, err = s.getRib(r.Name, family, f())
-	case api.TableType_ADJ_IN:
+	case api.TableType_TABLE_TYPE_ADJ_IN:
 		in = true
 		fallthrough
-	case api.TableType_ADJ_OUT:
+	case api.TableType_TABLE_TYPE_ADJ_OUT:
 		tbl, filtered, v, err = s.getAdjRib(r.Name, family, in, r.EnableFiltered, f())
-	case api.TableType_VRF:
+	case api.TableType_TABLE_TYPE_VRF:
 		tbl, err = s.getVrfRib(r.Name, family, []*table.LookupPrefix{})
 	default:
-		return fmt.Errorf("unsupported resource type: %v", r.TableType)
+		return status.Errorf(codes.InvalidArgument, "unknown table type %d", r.TableType)
 	}
 
 	if err != nil {
@@ -2946,7 +2955,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 				if !table.SelectionOptions.DisableBestPathSelection {
 					if i == 0 {
 						switch r.TableType {
-						case api.TableType_LOCAL, api.TableType_GLOBAL:
+						case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 							p.Best = true
 						}
 					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
@@ -3074,17 +3083,19 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 	var err error
 	var info *table.TableInfo
 	switch r.TableType {
-	case api.TableType_GLOBAL, api.TableType_LOCAL:
+	case api.TableType_TABLE_TYPE_UNSPECIFIED:
+		return nil, status.Error(codes.InvalidArgument, "unspecified table type")
+	case api.TableType_TABLE_TYPE_GLOBAL, api.TableType_TABLE_TYPE_LOCAL:
 		info, err = s.getRibInfo(r.Name, family)
-	case api.TableType_ADJ_IN:
+	case api.TableType_TABLE_TYPE_ADJ_IN:
 		in = true
 		fallthrough
-	case api.TableType_ADJ_OUT:
+	case api.TableType_TABLE_TYPE_ADJ_OUT:
 		info, err = s.getAdjRibInfo(r.Name, family, in)
-	case api.TableType_VRF:
+	case api.TableType_TABLE_TYPE_VRF:
 		info, err = s.getVrfRibInfo(r.Name, family)
 	default:
-		return nil, fmt.Errorf("unsupported resource type: %s", r.TableType)
+		return nil, status.Errorf(codes.InvalidArgument, "unknown table type %d", r.TableType)
 	}
 
 	if err != nil {
@@ -3839,10 +3850,29 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	var dt table.DefinedType
+	switch r.DefinedType {
+	case api.DefinedType_DEFINED_TYPE_UNSPECIFIED:
+		return status.Error(codes.InvalidArgument, "unspecified defined type")
+	case api.DefinedType_DEFINED_TYPE_PREFIX:
+		dt = table.DEFINED_TYPE_PREFIX
+	case api.DefinedType_DEFINED_TYPE_NEIGHBOR:
+		dt = table.DEFINED_TYPE_NEIGHBOR
+	case api.DefinedType_DEFINED_TYPE_AS_PATH:
+		dt = table.DEFINED_TYPE_AS_PATH
+	case api.DefinedType_DEFINED_TYPE_COMMUNITY:
+		dt = table.DEFINED_TYPE_COMMUNITY
+	case api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY:
+		dt = table.DEFINED_TYPE_EXT_COMMUNITY
+	case api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY:
+		dt = table.DEFINED_TYPE_LARGE_COMMUNITY
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown defined type %d", r.DefinedType)
+	}
 	var cd *oc.DefinedSets
 	var err error
 	err = s.mgmtOperation(func() error {
-		cd, err = s.policy.GetDefinedSet(table.DefinedType(r.DefinedType), r.Name)
+		cd, err = s.policy.GetDefinedSet(dt, r.Name)
 		return err
 	}, false)
 
@@ -3861,7 +3891,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 
 	for _, cs := range cd.PrefixSets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_PREFIX,
+			DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 			Name:        cs.PrefixSetName,
 			Prefixes: func() []*api.Prefix {
 				l := make([]*api.Prefix, 0, len(cs.PrefixList))
@@ -3881,7 +3911,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.NeighborSets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_NEIGHBOR,
+			DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 			Name:        cs.NeighborSetName,
 			List:        cs.NeighborInfoList,
 		}
@@ -3891,7 +3921,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.CommunitySets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
 			Name:        cs.CommunitySetName,
 			List:        cs.CommunityList,
 		}
@@ -3901,7 +3931,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.ExtCommunitySets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_EXT_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY,
 			Name:        cs.ExtCommunitySetName,
 			List:        cs.ExtCommunityList,
 		}
@@ -3911,7 +3941,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.LargeCommunitySets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_LARGE_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 			Name:        cs.LargeCommunitySetName,
 			List:        cs.LargeCommunityList,
 		}
@@ -3921,7 +3951,7 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	}
 	for _, cs := range cd.BgpDefinedSets.AsPathSets {
 		ad := &api.DefinedSet{
-			DefinedType: api.DefinedType_AS_PATH,
+			DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH,
 			Name:        cs.AsPathSetName,
 			List:        cs.AsPathList,
 		}
@@ -4191,13 +4221,24 @@ func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAss
 
 func (s *BgpServer) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) error {
 	if r == nil {
-		return fmt.Errorf("nil request")
+		return status.Errorf(codes.InvalidArgument, "null request")
 	}
+
+	var dump_type oc.MrtType
+	switch r.DumpType {
+	case api.EnableMrtRequest_DUMP_TYPE_UNSPECIFIED:
+		return status.Errorf(codes.InvalidArgument, "unspecified type")
+	case api.EnableMrtRequest_DUMP_TYPE_UPDATES:
+		dump_type = oc.MRT_TYPE_UPDATES
+	case api.EnableMrtRequest_DUMP_TYPE_TABLE:
+		dump_type = oc.MRT_TYPE_TABLE
+	}
+
 	return s.mgmtOperation(func() error {
 		return s.mrtManager.enable(&oc.MrtConfig{
 			DumpInterval:     r.DumpInterval,
 			RotationInterval: r.RotationInterval,
-			DumpType:         oc.IntToMrtTypeMap[int(r.Type)],
+			DumpType:         dump_type,
 			FileName:         r.Filename,
 		})
 	}, false)
@@ -4425,6 +4466,15 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 					simpleSend([]*api.Path{path})
 
 				case *watchEventPeer:
+					var admin_state api.PeerState_AdminState
+					switch msg.AdminState {
+					case adminStateUp:
+						admin_state = api.PeerState_ADMIN_STATE_UP
+					case adminStateDown:
+						admin_state = api.PeerState_ADMIN_STATE_DOWN
+					case adminStatePfxCt:
+						admin_state = api.PeerState_ADMIN_STATE_PFX_CT
+					}
 					fn(&api.WatchEventResponse{
 						Event: &api.WatchEventResponse_Peer{
 							Peer: &api.WatchEventResponse_PeerEvent{
@@ -4441,7 +4491,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 										LocalAsn:        msg.LocalAS,
 										NeighborAddress: msg.PeerAddress.String(),
 										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
-										AdminState:      api.PeerState_AdminState(msg.AdminState),
+										AdminState:      admin_state,
 										RouterId:        msg.PeerID.String(),
 										RemoteCap:       msg.RemoteCap,
 									},

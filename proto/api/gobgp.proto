@@ -569,10 +569,11 @@ message EnableZebraResponse {}
 
 message EnableMrtRequest {
   enum DumpType {
-    UPDATES = 0;
-    TABLE = 1;
+    DUMP_TYPE_UNSPECIFIED = 0;
+    DUMP_TYPE_UPDATES = 1;
+    DUMP_TYPE_TABLE = 2;
   }
-  DumpType type = 1;
+  DumpType dump_type = 1;
   string filename = 2;
   uint64 dump_interval = 3;
   uint64 rotation_interval = 4;
@@ -590,11 +591,12 @@ message AddBmpRequest {
   string address = 1;
   uint32 port = 2;
   enum MonitoringPolicy {
-    PRE = 0;
-    POST = 1;
-    BOTH = 2;
-    LOCAL = 3;
-    ALL = 4;
+    MONITORING_POLICY_UNSPECIFIED = 0;
+    MONITORING_POLICY_PRE = 1;
+    MONITORING_POLICY_POST = 2;
+    MONITORING_POLICY_BOTH = 3;
+    MONITORING_POLICY_LOCAL = 4;
+    MONITORING_POLICY_ALL = 5;
   }
   MonitoringPolicy policy = 3;
   int32 statistics_timeout = 4;
@@ -631,11 +633,12 @@ message ListBmpResponse {
 }
 
 enum TableType {
-  GLOBAL = 0;
-  LOCAL = 1;
-  ADJ_IN = 2;
-  ADJ_OUT = 3;
-  VRF = 4;
+  TABLE_TYPE_UNSPECIFIED = 0;
+  TABLE_TYPE_GLOBAL = 1;
+  TABLE_TYPE_LOCAL = 2;
+  TABLE_TYPE_ADJ_IN = 3;
+  TABLE_TYPE_ADJ_OUT = 4;
+  TABLE_TYPE_VRF = 5;
 }
 
 message Validation {
@@ -739,9 +742,9 @@ enum PeerType {
 }
 
 enum RemovePrivate {
-  REMOVE_NONE = 0;
-  REMOVE_ALL = 1;
-  REPLACE = 2;
+  REMOVE_PRIVATE_UNSPECIFIED = 0;
+  REMOVE_PRIVATE_ALL = 1;
+  REMOVE_PRIVATE_REPLACE = 2;
 }
 
 message PeerConf {
@@ -830,9 +833,10 @@ message PeerState {
   }
   SessionState session_state = 13;
   enum AdminState {
-    UP = 0;
-    DOWN = 1;
-    PFX_CT = 2; // prefix counter over limit
+    ADMIN_STATE_UNSPECIFIED = 0;
+    ADMIN_STATE_UP = 1;
+    ADMIN_STATE_DOWN = 2;
+    ADMIN_STATE_PFX_CT = 3; // prefix counter over limit
   }
   AdminState admin_state = 15;
   uint32 out_q = 16;
@@ -1092,14 +1096,15 @@ message Prefix {
 }
 
 enum DefinedType {
-  PREFIX = 0;
-  NEIGHBOR = 1;
-  TAG = 2;
-  AS_PATH = 3;
-  COMMUNITY = 4;
-  EXT_COMMUNITY = 5;
-  LARGE_COMMUNITY = 6;
-  NEXT_HOP = 7;
+  DEFINED_TYPE_UNSPECIFIED = 0;
+  DEFINED_TYPE_PREFIX = 1;
+  DEFINED_TYPE_NEIGHBOR = 2;
+  DEFINED_TYPE_TAG = 3;
+  DEFINED_TYPE_AS_PATH = 4;
+  DEFINED_TYPE_COMMUNITY = 5;
+  DEFINED_TYPE_EXT_COMMUNITY = 6;
+  DEFINED_TYPE_LARGE_COMMUNITY = 7;
+  DEFINED_TYPE_NEXT_HOP = 8;
 }
 
 message DefinedSet {
@@ -1119,31 +1124,28 @@ message MatchSet {
   string name = 2;
 }
 
+enum Comparison {
+  COMPARISON_UNSPECIFIED = 0;
+  COMPARISON_EQ = 1;
+  COMPARISON_GE = 2;
+  COMPARISON_LE = 3;
+}
+
 message AsPathLength {
-  enum Type {
-    EQ = 0;
-    GE = 1;
-    LE = 2;
-  }
-  Type type = 1;
+  Comparison type = 1;
   uint32 length = 2;
 }
 
 message CommunityCount {
-  enum Type {
-    EQ = 0;
-    GE = 1;
-    LE = 2;
-  }
-  Type type = 1;
+  Comparison type = 1;
   uint32 count = 2;
 }
 
-enum RouteOriginType {
-  ORIGIN_NONE = 0;
-  ORIGIN_IGP = 1;
-  ORIGIN_EGP = 2;
-  ORIGIN_INCOMPLETE = 3;
+enum OriginType {
+  ORIGIN_TYPE_UNSPECIFIED = 0;
+  ORIGIN_TYPE_IGP = 1;
+  ORIGIN_TYPE_EGP = 2;
+  ORIGIN_TYPE_INCOMPLETE = 3;
 }
 
 message Conditions {
@@ -1155,7 +1157,7 @@ message Conditions {
   MatchSet ext_community_set = 6;
   int32 rpki_result = 7;
   enum RouteType {
-    ROUTE_TYPE_NONE = 0;
+    ROUTE_TYPE_UNSPECIFIED = 0;
     ROUTE_TYPE_INTERNAL = 1;
     ROUTE_TYPE_EXTERNAL = 2;
     ROUTE_TYPE_LOCAL = 3;
@@ -1165,7 +1167,7 @@ message Conditions {
   repeated string next_hop_in_list = 10;
   repeated Family afi_safi_in = 11;
   CommunityCount community_count = 12;
-  RouteOriginType origin = 13;
+  OriginType origin = 13;
 }
 
 enum RouteAction {
@@ -1176,9 +1178,10 @@ enum RouteAction {
 
 message CommunityAction {
   enum Type {
-    ADD = 0;
-    REMOVE = 1;
-    REPLACE = 2;
+    TYPE_UNSPECIFIED = 0;
+    TYPE_ADD = 1;
+    TYPE_REMOVE = 2;
+    TYPE_REPLACE = 3;
   }
   Type type = 1;
   repeated string communities = 2;
@@ -1212,7 +1215,7 @@ message LocalPrefAction {
 }
 
 message OriginAction {
-  RouteOriginType origin = 1;
+  OriginType origin = 1;
 }
 
 message Actions {

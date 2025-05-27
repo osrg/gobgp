@@ -319,7 +319,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Add IMPORT policy at server1 for rejecting 10.1.0.0/24
 	d1 := &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        "d1",
 		Prefixes: []*api.Prefix{
 			{
@@ -451,7 +451,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	server2.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
 			Nlri:   nlri1,
@@ -464,7 +464,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		PrefixLen: 24,
 	}}}
 	server2.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
 			Nlri:   nlri2,
@@ -480,7 +480,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	for {
 		count := 0
 		server2.ListPath(context.Background(), &api.ListPathRequest{
-			TableType: api.TableType_ADJ_OUT,
+			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
 			// TODO(wenovus): This is confusing and we may want to change this.
 			EnableFiltered: true,
@@ -509,7 +509,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	for {
 		count := 0
 		server2.ListPath(context.Background(), &api.ListPathRequest{
-			TableType: api.TableType_ADJ_OUT,
+			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
 			// TODO(wenovus): This is confusing and we may want to change this.
 			EnableFiltered: false,
@@ -541,7 +541,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	for {
 		count := 0
 		server1.ListPath(context.Background(), &api.ListPathRequest{
-			TableType:      api.TableType_ADJ_IN,
+			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         family,
 			Name:           "127.0.0.1",
 			EnableFiltered: false,
@@ -570,7 +570,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	for {
 		count := 0
 		server1.ListPath(context.Background(), &api.ListPathRequest{
-			TableType:      api.TableType_ADJ_IN,
+			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         family,
 			Name:           "127.0.0.1",
 			EnableFiltered: true,
@@ -601,13 +601,13 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Check that 10.1.0.0/24 is filtered at the import side.
 	count := 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: family}, func(d *api.Destination) {
+	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
 		count++
 	})
 	assert.Equal(1, count)
 
 	filtered := 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_IN, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
 		if d.Paths[0].Filtered {
 			filtered++
 		}
@@ -616,7 +616,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Validate filtering at the export side.
 	d2 := &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        "d2",
 		Prefixes: []*api.Prefix{
 			{
@@ -660,7 +660,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		PrefixLen: 24,
 	}}}
 	server1.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
 			Nlri:   nlri3,
@@ -673,7 +673,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		PrefixLen: 24,
 	}}}
 	server1.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
 			Nlri:   nlri4,
@@ -682,14 +682,14 @@ func TestListPathEnableFiltered(test *testing.T) {
 	})
 
 	count = 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: family}, func(d *api.Destination) {
+	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
 		count++
 	})
 	assert.Equal(3, count)
 
 	count = 0
 	filtered = 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_ADJ_OUT, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
 		count++
 		if d.Paths[0].Filtered {
 			filtered++
@@ -780,7 +780,7 @@ func TestMonitor(test *testing.T) {
 	prefix := bgp.NewIPAddrPrefix(24, "10.0.0.0")
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 	if _, err := t.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path,
 	}); err != nil {
 		test.Fatal(err)
@@ -1644,7 +1644,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_VRF,
+		TableType: api.TableType_TABLE_TYPE_VRF,
 		VrfId:     "vrf1",
 		Path:      path,
 	}); err != nil {
@@ -1729,8 +1729,8 @@ func TestDelVrfWithRTC(t *testing.T) {
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	s2.logger.SetLevel(log.DebugLevel)
 
-	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
-	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
+	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{}, 1)
+	addVrf(t, s2, "vrf1", "111:111", []string{}, []string{"111:111"}, 1)
 
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
@@ -1742,12 +1742,14 @@ func TestDelVrfWithRTC(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("2.2.2.2"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{
+			bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)}),
 	}
 	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_VRF,
+		TableType: api.TableType_TABLE_TYPE_VRF,
 		VrfId:     "vrf1",
 		Path:      path,
 	}); err != nil {
@@ -1825,7 +1827,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 	}
 }
 
-func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
+func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
@@ -1855,7 +1857,7 @@ func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path,
 	}); err != nil {
 		t.Fatal(err)
@@ -1867,7 +1869,7 @@ func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
 	}
 	pathRtc0, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH0, time.Now())
 	if _, err := s1.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      pathRtc0,
 	}); err != nil {
 		t.Fatal(err)
@@ -1898,13 +1900,16 @@ func TestSameRTCMessagesWithDifferentNH(t *testing.T) {
 	}
 	t1.Stop()
 
+	// Extra ExtComm for small difference between RTC messages:
+	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
 	attrsNH1 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("127.0.0.1"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200}),
+		bgp.NewPathAttributeNextHop("0.0.0.0"),
 	}
 	pathRtc1, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH1, time.Now())
 	if _, err := s1.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      pathRtc1,
 	}); err != nil {
 		t.Fatal(err)
@@ -2007,7 +2012,7 @@ func TestAddDeletePath(t *testing.T) {
 
 	listRib := func(f *api.Family) []*api.Destination {
 		l := make([]*api.Destination, 0)
-		s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_GLOBAL, Family: f}, func(d *api.Destination) { l = append(l, d) })
+		s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(d *api.Destination) { l = append(l, d) })
 		return l
 	}
 
@@ -2031,13 +2036,13 @@ func TestAddDeletePath(t *testing.T) {
 
 	p1 := getPath()
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p1,
 	})
 	assert.Nil(t, err)
@@ -2045,14 +2050,14 @@ func TestAddDeletePath(t *testing.T) {
 
 	// DeletePath(ListPath()) without PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p1,
 	})
 	assert.Nil(t, err)
 	l := listRib(family)
 	assert.Equal(t, len(l), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      l[0].Paths[0],
 	})
 	assert.Nil(t, err)
@@ -2064,13 +2069,13 @@ func TestAddDeletePath(t *testing.T) {
 
 	// DeletePath(AddPath()) with PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
@@ -2078,14 +2083,14 @@ func TestAddDeletePath(t *testing.T) {
 
 	// DeletePath(ListPath()) with PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
 	l = listRib(family)
 	assert.Equal(t, len(l), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      l[0].Paths[0],
 	})
 	assert.Nil(t, err)
@@ -2113,28 +2118,28 @@ func TestAddDeletePath(t *testing.T) {
 	}
 
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, numPaths(family6), 1)
 
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, numPaths(family6), 2)
 
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, numPaths(family6), 1)
 
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path2,
 	})
 	assert.Nil(t, err)
@@ -2162,28 +2167,28 @@ func TestAddDeletePath(t *testing.T) {
 	}
 
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, numPaths(family), 1)
 
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, numPaths(family), 2)
 
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path1,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, numPaths(family), 1)
 
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path2,
 	})
 	assert.Nil(t, err)
@@ -2191,7 +2196,7 @@ func TestAddDeletePath(t *testing.T) {
 
 	// DeletePath(AddPath()) with different PeerInfo
 	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
@@ -2200,7 +2205,7 @@ func TestAddDeletePath(t *testing.T) {
 	p3.SourceAsn = 2
 	p3.SourceId = "1.1.1.2"
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p3,
 	})
 	assert.Nil(t, err)
@@ -2208,13 +2213,13 @@ func TestAddDeletePath(t *testing.T) {
 
 	// DeletePath(AddPath()) with uuid
 	r, err := s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Uuid:      r.Uuid,
 	})
 	assert.Nil(t, err)
@@ -2222,7 +2227,7 @@ func TestAddDeletePath(t *testing.T) {
 	assert.Equal(t, len(s.uuidMap), 0)
 
 	r, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
@@ -2241,7 +2246,7 @@ func TestAddDeletePath(t *testing.T) {
 
 	p2.Pattrs = append(p2.Pattrs, asPath)
 	r, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      p2,
 	})
 	assert.Nil(t, err)
@@ -2367,7 +2372,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	applyPathsTo := func(vrf string) {
 		for _, path := range paths {
 			_, err = s.AddPath(context.Background(), &api.AddPathRequest{
-				TableType: api.TableType_GLOBAL,
+				TableType: api.TableType_TABLE_TYPE_GLOBAL,
 				Path:      path,
 				VrfId:     vrf,
 			})
@@ -2399,7 +2404,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 
 	t.Logf("For Global RIB")
 	applyPathsTo("")
-	gotDestinations := destinationsFrom("", api.TableType_GLOBAL)
+	gotDestinations := destinationsFrom("", api.TableType_TABLE_TYPE_GLOBAL)
 	gotIDs := identifiersFrom(gotDestinations)
 	if diff := cmp.Diff(gotIDs, wantIDs); diff != "" {
 		t.Errorf("IDs differed for global RIB (-got, +want):\n%s", diff)
@@ -2409,7 +2414,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	vrfName := "vrf"
 	addVrf(t, s, vrfName, "0:0", []string{"0:0"}, []string{"0:0"}, 0)
 	applyPathsTo(vrfName)
-	gotDestinations = destinationsFrom(vrfName, api.TableType_VRF)
+	gotDestinations = destinationsFrom(vrfName, api.TableType_TABLE_TYPE_VRF)
 	gotIDs = identifiersFrom(gotDestinations)
 	if diff := cmp.Diff(gotIDs, wantIDs); diff != "" {
 		t.Errorf("IDs differed for VRF RIB (-got, +want):\n%s", diff)
@@ -2460,7 +2465,7 @@ func TestWatchEvent(test *testing.T) {
 		assert.Nil(err)
 
 		d1 := &api.DefinedSet{
-			DefinedType: api.DefinedType_PREFIX,
+			DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 			Name:        "d1",
 			Prefixes: []*api.Prefix{
 				{
@@ -2535,7 +2540,7 @@ func TestWatchEvent(test *testing.T) {
 		}
 
 		_, err = t.AddPath(context.Background(), &api.AddPathRequest{
-			TableType: api.TableType_GLOBAL,
+			TableType: api.TableType_TABLE_TYPE_GLOBAL,
 			Path: &api.Path{
 				Family: family,
 				Nlri:   nlri1,
@@ -2549,7 +2554,7 @@ func TestWatchEvent(test *testing.T) {
 			PrefixLen: 24,
 		}}}
 		_, err = t.AddPath(context.Background(), &api.AddPathRequest{
-			TableType: api.TableType_GLOBAL,
+			TableType: api.TableType_TABLE_TYPE_GLOBAL,
 			Path: &api.Path{
 				Family: family,
 				Nlri:   nlri2,
@@ -2616,7 +2621,6 @@ func TestWatchEvent(test *testing.T) {
 		}, func(resp *api.WatchEventResponse) {
 			t := resp.Event.(*api.WatchEventResponse_Table)
 			count += len(t.Table.Paths)
-			fmt.Println(fmt.Sprintf("There was a message with length %d", count))
 			if count == 2 {
 				for _, path := range t.Table.Paths {
 					assert.True(testcase.verificationFunc(path))
@@ -2651,7 +2655,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 
 	// set an initial policy
 	n1 := &api.DefinedSet{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 		List:        []string{"203.0.113.1/32"},
 	}
@@ -2664,7 +2668,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 		ns = append(ns, ds)
 	}
 	err = s.ListDefinedSet(context.Background(), &api.ListDefinedSetRequest{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 	}, fn)
 	assert.Nil(err)
@@ -2674,7 +2678,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 
 	// now replace the policy
 	n2 := &api.DefinedSet{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 		List:        []string{"203.0.113.2/32"},
 	}
@@ -2684,7 +2688,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 	// confirm the policy was replaced
 	ns = make([]*api.DefinedSet, 0)
 	err = s.ListDefinedSet(context.Background(), &api.ListDefinedSetRequest{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        "replaceme",
 	}, fn)
 	assert.Nil(err)

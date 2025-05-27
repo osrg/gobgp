@@ -118,7 +118,7 @@ func TestMetrics(test *testing.T) {
 				}
 
 				t.AddPath(context.Background(), &api.AddPathRequest{
-					TableType: api.TableType_GLOBAL,
+					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
 						Family: family,
 						Nlri:   nlri1,
@@ -126,7 +126,7 @@ func TestMetrics(test *testing.T) {
 					},
 				})
 				t.DeletePath(context.Background(), &api.DeletePathRequest{
-					TableType: api.TableType_GLOBAL,
+					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
 						Family: family,
 						Nlri:   nlri1,

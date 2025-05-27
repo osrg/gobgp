@@ -67,11 +67,11 @@ func prettyString(v interface{}) string {
 	case *api.AsPathLength:
 		var typ string
 		switch a.Type {
-		case api.AsPathLength_EQ:
+		case api.Comparison_COMPARISON_EQ:
 			typ = "="
-		case api.AsPathLength_GE:
+		case api.Comparison_COMPARISON_GE:
 			typ = ">="
-		case api.AsPathLength_LE:
+		case api.Comparison_COMPARISON_LE:
 			typ = "<="
 		}
 		return fmt.Sprintf("%s%d", typ, a.Length)
@@ -79,11 +79,11 @@ func prettyString(v interface{}) string {
 		l := regexpCommunityString.ReplaceAllString(strings.Join(a.Communities, ", "), "")
 		var typ string
 		switch a.Type {
-		case api.CommunityAction_ADD:
+		case api.CommunityAction_TYPE_ADD:
 			typ = "add"
-		case api.CommunityAction_REMOVE:
+		case api.CommunityAction_TYPE_REMOVE:
 			typ = "remove"
-		case api.CommunityAction_REPLACE:
+		case api.CommunityAction_TYPE_REPLACE:
 			typ = "replace"
 		}
 		return fmt.Sprintf("%s[%s]", typ, l)
@@ -173,17 +173,17 @@ func showDefinedSet(v string, args []string) error {
 	var typ api.DefinedType
 	switch v {
 	case cmdPrefix:
-		typ = api.DefinedType_PREFIX
+		typ = api.DefinedType_DEFINED_TYPE_PREFIX
 	case cmdNeighbor:
-		typ = api.DefinedType_NEIGHBOR
+		typ = api.DefinedType_DEFINED_TYPE_NEIGHBOR
 	case cmdAspath:
-		typ = api.DefinedType_AS_PATH
+		typ = api.DefinedType_DEFINED_TYPE_AS_PATH
 	case cmdCommunity:
-		typ = api.DefinedType_COMMUNITY
+		typ = api.DefinedType_DEFINED_TYPE_COMMUNITY
 	case cmdExtcommunity:
-		typ = api.DefinedType_EXT_COMMUNITY
+		typ = api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY
 	case cmdLargecommunity:
-		typ = api.DefinedType_LARGE_COMMUNITY
+		typ = api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
@@ -267,7 +267,7 @@ func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 		list = []*api.Prefix{prefix}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_PREFIX,
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 		Name:        name,
 		Prefixes:    list,
 	}, nil
@@ -294,7 +294,7 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_NEIGHBOR,
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        name,
 		List:        list,
 	}, nil
@@ -313,7 +313,7 @@ func parseAsPathSet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_AS_PATH,
+		DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -331,7 +331,7 @@ func parseCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_COMMUNITY,
+		DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -349,7 +349,7 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_EXT_COMMUNITY,
+		DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -367,7 +367,7 @@ func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
 		}
 	}
 	return &api.DefinedSet{
-		DefinedType: api.DefinedType_LARGE_COMMUNITY,
+		DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 		Name:        name,
 		List:        args,
 	}, nil
@@ -469,7 +469,7 @@ func printStatement(indent int, s *api.Statement) {
 	if c.RpkiResult != -1 {
 		fmt.Printf("%sRPKI result: %s\n", ind, strings.TrimPrefix(api.Validation_State(c.RpkiResult).String(), "STATE_"))
 	}
-	if c.RouteType != api.Conditions_ROUTE_TYPE_NONE {
+	if c.RouteType != api.Conditions_ROUTE_TYPE_UNSPECIFIED {
 		fmt.Printf("%sRoute Type: %s\n", ind, routeTypePrettyString(c.RouteType))
 	}
 	if c.AfiSafiIn != nil {
@@ -769,11 +769,11 @@ func modCondition(name, op string, args []string) error {
 		stmt.Conditions.AsPathLength.Length = uint32(length)
 		switch strings.ToLower(args[1]) {
 		case "eq":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLength_EQ
+			stmt.Conditions.AsPathLength.Type = api.Comparison_COMPARISON_EQ
 		case "ge":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLength_GE
+			stmt.Conditions.AsPathLength.Type = api.Comparison_COMPARISON_GE
 		case "le":
-			stmt.Conditions.AsPathLength.Type = api.AsPathLength_LE
+			stmt.Conditions.AsPathLength.Type = api.Comparison_COMPARISON_LE
 		default:
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}
@@ -860,11 +860,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Community.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.Community.Type = api.CommunityAction_ADD
+			stmt.Actions.Community.Type = api.CommunityAction_TYPE_ADD
 		case "remove":
-			stmt.Actions.Community.Type = api.CommunityAction_REMOVE
+			stmt.Actions.Community.Type = api.CommunityAction_TYPE_REMOVE
 		case "replace":
-			stmt.Actions.Community.Type = api.CommunityAction_REPLACE
+			stmt.Actions.Community.Type = api.CommunityAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s community %s", usage, cmd)
 		}
@@ -876,11 +876,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.ExtCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.ExtCommunity.Type = api.CommunityAction_ADD
+			stmt.Actions.ExtCommunity.Type = api.CommunityAction_TYPE_ADD
 		case "remove":
-			stmt.Actions.ExtCommunity.Type = api.CommunityAction_REMOVE
+			stmt.Actions.ExtCommunity.Type = api.CommunityAction_TYPE_REMOVE
 		case "replace":
-			stmt.Actions.ExtCommunity.Type = api.CommunityAction_REPLACE
+			stmt.Actions.ExtCommunity.Type = api.CommunityAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s ext-community %s", usage, cmd)
 		}
@@ -892,11 +892,11 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.LargeCommunity.Communities = args[1:]
 		switch strings.ToLower(args[0]) {
 		case "add":
-			stmt.Actions.LargeCommunity.Type = api.CommunityAction_ADD
+			stmt.Actions.LargeCommunity.Type = api.CommunityAction_TYPE_ADD
 		case "remove":
-			stmt.Actions.LargeCommunity.Type = api.CommunityAction_REMOVE
+			stmt.Actions.LargeCommunity.Type = api.CommunityAction_TYPE_REMOVE
 		case "replace":
-			stmt.Actions.LargeCommunity.Type = api.CommunityAction_REPLACE
+			stmt.Actions.LargeCommunity.Type = api.CommunityAction_TYPE_REPLACE
 		default:
 			return fmt.Errorf("%s large-community %s", usage, cmd)
 		}

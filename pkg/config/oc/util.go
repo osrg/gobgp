@@ -459,9 +459,18 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	var removePrivate api.RemovePrivate
 	switch pconf.Config.RemovePrivateAs {
 	case REMOVE_PRIVATE_AS_OPTION_ALL:
-		removePrivate = api.RemovePrivate_REMOVE_ALL
+		removePrivate = api.RemovePrivate_REMOVE_PRIVATE_ALL
 	case REMOVE_PRIVATE_AS_OPTION_REPLACE:
-		removePrivate = api.RemovePrivate_REPLACE
+		removePrivate = api.RemovePrivate_REMOVE_PRIVATE_REPLACE
+	}
+	var admin_state api.PeerState_AdminState
+	switch s.AdminState {
+	case ADMIN_STATE_UP:
+		admin_state = api.PeerState_ADMIN_STATE_UP
+	case ADMIN_STATE_DOWN:
+		admin_state = api.PeerState_ADMIN_STATE_DOWN
+	case ADMIN_STATE_PFX_CT:
+		admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 	}
 	return &api.Peer{
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
@@ -485,7 +494,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		},
 		State: &api.PeerState{
 			SessionState: api.PeerState_SessionState(api.PeerState_SessionState_value[strings.ToUpper(string(s.SessionState))]),
-			AdminState:   api.PeerState_AdminState(s.AdminState.ToInt()),
+			AdminState:   admin_state,
 			Messages: &api.Messages{
 				Received: &api.Message{
 					Notification:   s.Messages.Received.Notification,
@@ -721,7 +730,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 			prefixes = append(prefixes, ap)
 		}
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_PREFIX,
+			DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
 			Name:        ps.PrefixSetName,
 			Prefixes:    prefixes,
 		})
@@ -729,7 +738,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, ns := range t.NeighborSets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_NEIGHBOR,
+			DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 			Name:        ns.NeighborSetName,
 			List:        ns.NeighborInfoList,
 		})
@@ -738,7 +747,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 	bs := t.BgpDefinedSets
 	for _, cs := range bs.CommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
 			Name:        cs.CommunitySetName,
 			List:        cs.CommunityList,
 		})
@@ -746,7 +755,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, es := range bs.ExtCommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_EXT_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY,
 			Name:        es.ExtCommunitySetName,
 			List:        es.ExtCommunityList,
 		})
@@ -754,7 +763,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, ls := range bs.LargeCommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_LARGE_COMMUNITY,
+			DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 			Name:        ls.LargeCommunitySetName,
 			List:        ls.LargeCommunityList,
 		})
@@ -762,7 +771,7 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 
 	for _, as := range bs.AsPathSets {
 		definedSets = append(definedSets, &api.DefinedSet{
-			DefinedType: api.DefinedType_AS_PATH,
+			DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH,
 			Name:        as.AsPathSetName,
 			List:        as.AsPathList,
 		})

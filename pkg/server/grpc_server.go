@@ -31,6 +31,8 @@ import (
 
 	"github.com/dgryski/go-farm"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/osrg/gobgp/v4/api"
@@ -388,7 +390,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		return nil, fmt.Errorf("nexthop not found")
 	}
 	rf := bgp.AfiSafiToFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
-	if resource != api.TableType_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
+	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
@@ -436,7 +438,7 @@ func (s *server) AddPathStream(stream api.GoBgpService_AddPathStreamServer) erro
 			return err
 		}
 
-		if arg.TableType != api.TableType_GLOBAL && arg.TableType != api.TableType_VRF {
+		if arg.TableType != api.TableType_TABLE_TYPE_GLOBAL && arg.TableType != api.TableType_TABLE_TYPE_VRF {
 			return fmt.Errorf("unsupported resource: %s", arg.TableType)
 		}
 		pathList := make([]*table.Path, 0, len(arg.Paths))
@@ -693,9 +695,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.Config.SendSoftwareVersion = a.Conf.SendSoftwareVersion
 
 		switch a.Conf.RemovePrivate {
-		case api.RemovePrivate_REMOVE_ALL:
+		case api.RemovePrivate_REMOVE_PRIVATE_ALL:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.RemovePrivate_REPLACE:
+		case api.RemovePrivate_REMOVE_PRIVATE_REPLACE:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -820,9 +822,9 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.Config.SendSoftwareVersion = a.Conf.SendSoftwareVersion
 
 		switch a.Conf.RemovePrivate {
-		case api.RemovePrivate_REMOVE_ALL:
+		case api.RemovePrivate_REMOVE_PRIVATE_ALL:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_ALL
-		case api.RemovePrivate_REPLACE:
+		case api.RemovePrivate_REMOVE_PRIVATE_REPLACE:
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
@@ -968,8 +970,8 @@ func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, er
 		if ds.Name == "" {
 			return nil, fmt.Errorf("empty neighbor set name")
 		}
-		switch table.DefinedType(ds.DefinedType) {
-		case table.DEFINED_TYPE_PREFIX:
+		switch ds.DefinedType {
+		case api.DefinedType_DEFINED_TYPE_PREFIX:
 			prefixes := make([]oc.Prefix, 0, len(ds.Prefixes))
 			for _, p := range ds.Prefixes {
 				prefix, err := newConfigPrefixFromAPIStruct(p)
@@ -982,33 +984,33 @@ func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, er
 				PrefixSetName: ds.Name,
 				PrefixList:    prefixes,
 			})
-		case table.DEFINED_TYPE_NEIGHBOR:
+		case api.DefinedType_DEFINED_TYPE_NEIGHBOR:
 			ns = append(ns, oc.NeighborSet{
 				NeighborSetName:  ds.Name,
 				NeighborInfoList: ds.List,
 			})
-		case table.DEFINED_TYPE_AS_PATH:
+		case api.DefinedType_DEFINED_TYPE_AS_PATH:
 			as = append(as, oc.AsPathSet{
 				AsPathSetName: ds.Name,
 				AsPathList:    ds.List,
 			})
-		case table.DEFINED_TYPE_COMMUNITY:
+		case api.DefinedType_DEFINED_TYPE_COMMUNITY:
 			cs = append(cs, oc.CommunitySet{
 				CommunitySetName: ds.Name,
 				CommunityList:    ds.List,
 			})
-		case table.DEFINED_TYPE_EXT_COMMUNITY:
+		case api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY:
 			es = append(es, oc.ExtCommunitySet{
 				ExtCommunitySetName: ds.Name,
 				ExtCommunityList:    ds.List,
 			})
-		case table.DEFINED_TYPE_LARGE_COMMUNITY:
+		case api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY:
 			ls = append(ls, oc.LargeCommunitySet{
 				LargeCommunitySetName: ds.Name,
 				LargeCommunityList:    ds.List,
 			})
 		default:
-			return nil, fmt.Errorf("invalid defined type")
+			return nil, status.Errorf(codes.InvalidArgument, "unknown defined set type: %s", ds.DefinedType)
 		}
 	}
 
@@ -1028,8 +1030,8 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	switch table.DefinedType(a.DefinedType) {
-	case table.DEFINED_TYPE_PREFIX:
+	switch a.DefinedType {
+	case api.DefinedType_DEFINED_TYPE_PREFIX:
 		prefixes := make([]*table.Prefix, 0, len(a.Prefixes))
 		for _, p := range a.Prefixes {
 			prefix, err := newPrefixFromApiStruct(p)
@@ -1039,7 +1041,7 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 			prefixes = append(prefixes, prefix)
 		}
 		return table.NewPrefixSetFromApiStruct(a.Name, prefixes)
-	case table.DEFINED_TYPE_NEIGHBOR:
+	case api.DefinedType_DEFINED_TYPE_NEIGHBOR:
 		list := make([]net.IPNet, 0, len(a.List))
 		for _, x := range a.List {
 			_, addr, err := net.ParseCIDR(x)
@@ -1049,28 +1051,28 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 			list = append(list, *addr)
 		}
 		return table.NewNeighborSetFromApiStruct(a.Name, list)
-	case table.DEFINED_TYPE_AS_PATH:
+	case api.DefinedType_DEFINED_TYPE_AS_PATH:
 		return table.NewAsPathSet(oc.AsPathSet{
 			AsPathSetName: a.Name,
 			AsPathList:    a.List,
 		})
-	case table.DEFINED_TYPE_COMMUNITY:
+	case api.DefinedType_DEFINED_TYPE_COMMUNITY:
 		return table.NewCommunitySet(oc.CommunitySet{
 			CommunitySetName: a.Name,
 			CommunityList:    a.List,
 		})
-	case table.DEFINED_TYPE_EXT_COMMUNITY:
+	case api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY:
 		return table.NewExtCommunitySet(oc.ExtCommunitySet{
 			ExtCommunitySetName: a.Name,
 			ExtCommunityList:    a.List,
 		})
-	case table.DEFINED_TYPE_LARGE_COMMUNITY:
+	case api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY:
 		return table.NewLargeCommunitySet(oc.LargeCommunitySet{
 			LargeCommunitySetName: a.Name,
 			LargeCommunityList:    a.List,
 		})
 	default:
-		return nil, fmt.Errorf("invalid defined type")
+		return nil, status.Errorf(codes.InvalidArgument, "unknown defined set type: %s", a.DefinedType)
 	}
 }
 
@@ -1125,13 +1127,13 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 	if s.Conditions.BgpConditions.CommunityCount.Operator != "" {
 		cs.CommunityCount = &api.CommunityCount{
 			Count: s.Conditions.BgpConditions.CommunityCount.Value,
-			Type:  api.CommunityCount_Type(s.Conditions.BgpConditions.CommunityCount.Operator.ToInt()),
+			Type:  table.ToComparisonApi(s.Conditions.BgpConditions.CommunityCount.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
 			Length: s.Conditions.BgpConditions.AsPathLength.Value,
-			Type:   api.AsPathLength_Type(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+			Type:   table.ToComparisonApi(s.Conditions.BgpConditions.AsPathLength.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
@@ -1189,8 +1191,17 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
 				return nil
 			}
+			action := api.CommunityAction_TYPE_UNSPECIFIED
+			switch oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options) {
+			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
+				action = api.CommunityAction_TYPE_ADD
+			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
+				action = api.CommunityAction_TYPE_REMOVE
+			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
+				action = api.CommunityAction_TYPE_REPLACE
+			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
+				Type:        action,
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
 		}(),
 		Med: func() *api.MedAction {
@@ -1284,14 +1295,14 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			if s.Actions.BgpActions.SetRouteOrigin.ToInt() == -1 {
 				return nil
 			}
-			var apiOrigin api.RouteOriginType
+			var apiOrigin api.OriginType
 			switch s.Actions.BgpActions.SetRouteOrigin {
 			case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
-				apiOrigin = api.RouteOriginType_ORIGIN_IGP
+				apiOrigin = api.OriginType_ORIGIN_TYPE_IGP
 			case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
-				apiOrigin = api.RouteOriginType_ORIGIN_EGP
+				apiOrigin = api.OriginType_ORIGIN_TYPE_EGP
 			case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
-				apiOrigin = api.RouteOriginType_ORIGIN_INCOMPLETE
+				apiOrigin = api.OriginType_ORIGIN_TYPE_INCOMPLETE
 			default:
 				return nil
 			}
@@ -1416,21 +1427,20 @@ func newRouteTypeConditionFromApiStruct(a api.Conditions_RouteType) (*table.Rout
 	return table.NewRouteTypeCondition(typ)
 }
 
-func newOriginConditionFromApiStruct(apiOrigin api.RouteOriginType) (*table.OriginCondition, error) {
+func newOriginConditionFromApiStruct(apiOrigin api.OriginType) (*table.OriginCondition, error) {
 	var origin oc.BgpOriginAttrType
 	switch apiOrigin {
-	case api.RouteOriginType_ORIGIN_NONE:
+	case api.OriginType_ORIGIN_TYPE_UNSPECIFIED:
 		return nil, nil
-	case api.RouteOriginType_ORIGIN_IGP:
+	case api.OriginType_ORIGIN_TYPE_IGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_IGP
-	case api.RouteOriginType_ORIGIN_EGP:
+	case api.OriginType_ORIGIN_TYPE_EGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_EGP
-	case api.RouteOriginType_ORIGIN_INCOMPLETE:
+	case api.OriginType_ORIGIN_TYPE_INCOMPLETE:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	default:
-		return nil, fmt.Errorf("unrecognized route origin type: %v", apiOrigin)
+		return nil, status.Errorf(codes.InvalidArgument, "unrecognized route origin type: %v", apiOrigin)
 	}
-
 	return table.NewOriginCondition(origin)
 }
 
@@ -1516,12 +1526,30 @@ func newRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, err
 	}, nil
 }
 
+func apiCommunityActionToOcType(a api.CommunityAction_Type) (oc.BgpSetCommunityOptionType, error) {
+	switch a {
+	case api.CommunityAction_TYPE_UNSPECIFIED:
+		return oc.BgpSetCommunityOptionType(""), status.Errorf(codes.InvalidArgument, "unspecified community action type")
+	case api.CommunityAction_TYPE_ADD:
+		return oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD, nil
+	case api.CommunityAction_TYPE_REMOVE:
+		return oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE, nil
+	case api.CommunityAction_TYPE_REPLACE:
+		return oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE, nil
+	}
+	return oc.BgpSetCommunityOptionType(""), status.Errorf(codes.InvalidArgument, "unknown community action type: %v", a)
+}
+
 func newCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAction, error) {
 	if a == nil {
 		return nil, nil
 	}
+	op, err := apiCommunityActionToOcType(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	return table.NewCommunityAction(oc.SetCommunity{
-		Options: string(oc.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
+		Options: string(op),
 		SetCommunityMethod: oc.SetCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1532,8 +1560,12 @@ func newExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommu
 	if a == nil {
 		return nil, nil
 	}
+	op, err := apiCommunityActionToOcType(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	return table.NewExtCommunityAction(oc.SetExtCommunity{
-		Options: string(oc.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
+		Options: string(op),
 		SetExtCommunityMethod: oc.SetExtCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1544,8 +1576,12 @@ func newLargeCommunityActionFromApiStruct(a *api.CommunityAction) (*table.LargeC
 	if a == nil {
 		return nil, nil
 	}
+	op, err := apiCommunityActionToOcType(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	return table.NewLargeCommunityAction(oc.SetLargeCommunity{
-		Options: oc.IntToBgpSetCommunityOptionTypeMap[int(a.Type)],
+		Options: op,
 		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
@@ -1573,13 +1609,13 @@ func newOriginActionFromApiStruct(a *api.OriginAction) (*table.OriginAction, err
 
 	var origin oc.BgpOriginAttrType
 	switch v := a.GetOrigin(); v {
-	case api.RouteOriginType_ORIGIN_NONE:
+	case api.OriginType_ORIGIN_TYPE_UNSPECIFIED:
 		return nil, nil
-	case api.RouteOriginType_ORIGIN_IGP:
+	case api.OriginType_ORIGIN_TYPE_IGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_IGP
-	case api.RouteOriginType_ORIGIN_EGP:
+	case api.OriginType_ORIGIN_TYPE_EGP:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_EGP
-	case api.RouteOriginType_ORIGIN_INCOMPLETE:
+	case api.OriginType_ORIGIN_TYPE_INCOMPLETE:
 		origin = oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	default:
 		return nil, fmt.Errorf("unrecognized route origin type: %v", v)

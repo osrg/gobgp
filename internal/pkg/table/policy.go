@@ -4081,6 +4081,19 @@ type PolicyAssignment struct {
 	Default  RouteType
 }
 
+func ToComparisonApi(c oc.AttributeComparison) api.Comparison {
+	switch c {
+	case oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ, oc.ATTRIBUTE_COMPARISON_EQ:
+		return api.Comparison_COMPARISON_EQ
+	case oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_GE, oc.ATTRIBUTE_COMPARISON_GE:
+		return api.Comparison_COMPARISON_GE
+	case oc.ATTRIBUTE_COMPARISON_ATTRIBUTE_LE, oc.ATTRIBUTE_COMPARISON_LE:
+		return api.Comparison_COMPARISON_LE
+	default:
+		return api.Comparison_COMPARISON_EQ
+	}
+}
+
 var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
 
 func toStatementApi(s *oc.Statement) *api.Statement {
@@ -4099,26 +4112,27 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
 		}
 	}
+
 	if s.Conditions.BgpConditions.CommunityCount.Operator != "" {
 		cs.CommunityCount = &api.CommunityCount{
 			Count: s.Conditions.BgpConditions.CommunityCount.Value,
-			Type:  api.CommunityCount_Type(s.Conditions.BgpConditions.CommunityCount.Operator.ToInt()),
+			Type:  ToComparisonApi(s.Conditions.BgpConditions.CommunityCount.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.OriginEq.ToInt() != -1 {
 		switch s.Actions.BgpActions.SetRouteOrigin {
 		case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
-			cs.Origin = api.RouteOriginType_ORIGIN_IGP
+			cs.Origin = api.OriginType_ORIGIN_TYPE_IGP
 		case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
-			cs.Origin = api.RouteOriginType_ORIGIN_EGP
+			cs.Origin = api.OriginType_ORIGIN_TYPE_EGP
 		case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
-			cs.Origin = api.RouteOriginType_ORIGIN_INCOMPLETE
+			cs.Origin = api.OriginType_ORIGIN_TYPE_INCOMPLETE
 		}
 	}
 	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
 		cs.AsPathLength = &api.AsPathLength{
 			Length: s.Conditions.BgpConditions.AsPathLength.Value,
-			Type:   api.AsPathLength_Type(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+			Type:   ToComparisonApi(s.Conditions.BgpConditions.AsPathLength.Operator),
 		}
 	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
@@ -4162,6 +4176,21 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		cs.AfiSafiIn = afiSafiIn
 	}
 	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
+	community_action := func(action string) api.CommunityAction_Type {
+		fmt.Println("action0", action)
+		switch oc.BgpSetCommunityOptionType(action) {
+		case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
+			fmt.Println("action1", action)
+			return api.CommunityAction_TYPE_ADD
+		case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
+			fmt.Println("action2", action)
+			return api.CommunityAction_TYPE_REMOVE
+		case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
+			fmt.Println("action3", action)
+			return api.CommunityAction_TYPE_REPLACE
+		}
+		return api.CommunityAction_TYPE_UNSPECIFIED
+	}
 	as := &api.Actions{
 		RouteAction: func() api.RouteAction {
 			switch s.Actions.RouteDisposition {
@@ -4177,7 +4206,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
+				Type:        community_action(s.Actions.BgpActions.SetCommunity.Options),
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
 		}(),
 		Med: func() *api.MedAction {
@@ -4225,7 +4254,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
+				Type:        community_action(s.Actions.BgpActions.SetExtCommunity.Options),
 				Communities: s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -4234,7 +4263,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetLargeCommunity.Options)]),
+				Type:        community_action(string(s.Actions.BgpActions.SetLargeCommunity.Options)),
 				Communities: s.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -4271,14 +4300,14 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			if s.Actions.BgpActions.SetRouteOrigin.ToInt() == -1 {
 				return nil
 			}
-			var apiOrigin api.RouteOriginType
+			var apiOrigin api.OriginType
 			switch s.Actions.BgpActions.SetRouteOrigin {
 			case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
-				apiOrigin = api.RouteOriginType_ORIGIN_IGP
+				apiOrigin = api.OriginType_ORIGIN_TYPE_IGP
 			case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
-				apiOrigin = api.RouteOriginType_ORIGIN_EGP
+				apiOrigin = api.OriginType_ORIGIN_TYPE_EGP
 			case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
-				apiOrigin = api.RouteOriginType_ORIGIN_INCOMPLETE
+				apiOrigin = api.OriginType_ORIGIN_TYPE_INCOMPLETE
 			default:
 				return nil
 			}

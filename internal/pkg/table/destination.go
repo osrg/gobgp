@@ -291,7 +291,7 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 	isFound := -1
 	for i, path := range dest.knownPathList {
 		// We have a match if the source and path-id are same.
-		if path.EqualByNlri(withdraw) {
+		if path.EqualBySourceAndPathID(withdraw) {
 			isFound = i
 			withdraw.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
 		}
@@ -326,7 +326,7 @@ func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
 		// version num. as newPaths are implicit withdrawal of old
 		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 		// we get same paths again.
-		if newPath.EqualByNlri(path) {
+		if newPath.EqualBySourceAndPathID(path) {
 			if logger.GetLevel() >= log.DebugLevel {
 				logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
 					log.Fields{

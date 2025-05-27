@@ -211,9 +211,9 @@ func showNeighbors(vrf string) error {
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
 	formatFsm := func(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
 		switch admin {
-		case api.PeerState_DOWN:
+		case api.PeerState_ADMIN_STATE_DOWN:
 			return "Idle(Admin)"
-		case api.PeerState_PFX_CT:
+		case api.PeerState_ADMIN_STATE_PFX_CT:
 			return "Idle(PfxCt)"
 		}
 
@@ -294,9 +294,9 @@ func showNeighbor(args []string) error {
 		elems = append(elems, fmt.Sprintf("Allow Own AS: %d", as))
 	}
 	switch p.Conf.RemovePrivate {
-	case api.RemovePrivate_REMOVE_ALL:
+	case api.RemovePrivate_REMOVE_PRIVATE_ALL:
 		elems = append(elems, "Remove private AS: all")
-	case api.RemovePrivate_REPLACE:
+	case api.RemovePrivate_REMOVE_PRIVATE_REPLACE:
 		elems = append(elems, "Remove private AS: replace")
 	}
 	if p.Conf.ReplacePeerAsn {
@@ -806,15 +806,15 @@ func showRibInfo(r, name string) error {
 	var t api.TableType
 	switch r {
 	case cmdGlobal:
-		t = api.TableType_GLOBAL
+		t = api.TableType_TABLE_TYPE_GLOBAL
 	case cmdLocal:
-		t = api.TableType_LOCAL
+		t = api.TableType_TABLE_TYPE_LOCAL
 	case cmdAdjIn:
-		t = api.TableType_ADJ_IN
+		t = api.TableType_TABLE_TYPE_ADJ_IN
 	case cmdAdjOut:
-		t = api.TableType_ADJ_OUT
+		t = api.TableType_TABLE_TYPE_ADJ_OUT
 	case cmdVRF:
-		t = api.TableType_VRF
+		t = api.TableType_TABLE_TYPE_VRF
 	default:
 		return fmt.Errorf("invalid resource to show RIB info: %s", r)
 	}
@@ -951,20 +951,20 @@ func showNeighborRib(r string, name string, args []string) error {
 	)
 	switch r {
 	case cmdGlobal:
-		t = api.TableType_GLOBAL
+		t = api.TableType_TABLE_TYPE_GLOBAL
 	case cmdLocal:
-		t = api.TableType_LOCAL
+		t = api.TableType_TABLE_TYPE_LOCAL
 	case cmdAccepted, cmdRejected:
 		enableFiltered = true
 		fallthrough
 	case cmdAdjIn:
-		t = api.TableType_ADJ_IN
+		t = api.TableType_TABLE_TYPE_ADJ_IN
 		showIdentifier = bgp.BGP_ADD_PATH_RECEIVE
 	case cmdAdjOut:
-		t = api.TableType_ADJ_OUT
+		t = api.TableType_TABLE_TYPE_ADJ_OUT
 		showIdentifier = bgp.BGP_ADD_PATH_SEND
 	case cmdVRF:
-		t = api.TableType_VRF
+		t = api.TableType_TABLE_TYPE_VRF
 	}
 
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
@@ -1046,7 +1046,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			l := make([]*d, 0, len(rib))
 			for _, dst := range rib {
 				prefix := dst.Prefix
-				if t == api.TableType_VRF {
+				if t == api.TableType_TABLE_TYPE_VRF {
 					// extract prefix from original which is RD(AS:VRF):IPv4 or IPv6 address
 					s := strings.SplitN(prefix, ":", 3)
 					prefix = s[len(s)-1]
@@ -1390,9 +1390,9 @@ func modNeighbor(cmdType string, args []string) error {
 		if option, ok := m["remove-private-as"]; ok {
 			switch option[0] {
 			case "all":
-				peer.Conf.RemovePrivate = api.RemovePrivate_REMOVE_ALL
+				peer.Conf.RemovePrivate = api.RemovePrivate_REMOVE_PRIVATE_ALL
 			case "replace":
-				peer.Conf.RemovePrivate = api.RemovePrivate_REPLACE
+				peer.Conf.RemovePrivate = api.RemovePrivate_REMOVE_PRIVATE_REPLACE
 			default:
 				return fmt.Errorf("invalid remove-private-as value: all or replace")
 			}

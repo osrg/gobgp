@@ -122,7 +122,7 @@ func AddSRPolicy(client api.GobgpApiClient) error {
 	}
 	attrs := []*any.Any{origin, nh, rt, tun}
 	if _, err := client.AddPath(context.TODO(), &api.AddPathRequest{
-		TableType: api.TableType_GLOBAL,
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Nlri:      nlrisr,
 			Pattrs:    attrs,

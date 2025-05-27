@@ -284,13 +284,29 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 				log.Fields{"Topic": "config", "Error": err})
 		}
 	}
+	f := func(t oc.BmpRouteMonitoringPolicyType) api.AddBmpRequest_MonitoringPolicy {
+		switch t {
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY:
+			return api.AddBmpRequest_MONITORING_POLICY_PRE
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY:
+			return api.AddBmpRequest_MONITORING_POLICY_POST
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH:
+			return api.AddBmpRequest_MONITORING_POLICY_BOTH
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB:
+			return api.AddBmpRequest_MONITORING_POLICY_LOCAL
+		case oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL:
+			return api.AddBmpRequest_MONITORING_POLICY_ALL
+		}
+		return api.AddBmpRequest_MONITORING_POLICY_UNSPECIFIED
+	}
+
 	for _, c := range newConfig.BmpServers {
 		if err := bgpServer.AddBmp(ctx, &api.AddBmpRequest{
 			Address:           c.Config.Address,
 			Port:              c.Config.Port,
 			SysName:           c.Config.SysName,
 			SysDescr:          c.Config.SysDescr,
-			Policy:            api.AddBmpRequest_MonitoringPolicy(c.Config.RouteMonitoringPolicy.ToInt()),
+			Policy:            f(c.Config.RouteMonitoringPolicy),
 			StatisticsTimeout: int32(c.Config.StatisticsTimeout),
 		}); err != nil {
 			bgpServer.Log().Fatal("failed to set bmp config",
@@ -337,8 +353,17 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 		if len(c.Config.FileName) == 0 {
 			continue
 		}
+
+		dump_type := api.EnableMrtRequest_DUMP_TYPE_UNSPECIFIED
+		switch c.Config.DumpType {
+		case oc.MRT_TYPE_UPDATES:
+			dump_type = api.EnableMrtRequest_DUMP_TYPE_UPDATES
+		case oc.MRT_TYPE_TABLE:
+			dump_type = api.EnableMrtRequest_DUMP_TYPE_TABLE
+		}
+
 		if err := bgpServer.EnableMrt(ctx, &api.EnableMrtRequest{
-			Type:             api.EnableMrtRequest_DumpType(c.Config.DumpType.ToInt()),
+			DumpType:         dump_type,
 			Filename:         c.Config.FileName,
 			DumpInterval:     c.Config.DumpInterval,
 			RotationInterval: c.Config.RotationInterval,
