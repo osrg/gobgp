@@ -131,13 +131,13 @@ func (b *bmpClient) loop() {
 				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", log.Fields{"Topic": "bmp"})
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchUpdate(true, "", "", false, false, false))
+				ops = append(ops, watchUpdate(true, "", "", true, false, false))
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchPostUpdate(true, "", "", false, false, false))
+				ops = append(ops, watchPostUpdate(true, "", "", true, false, false))
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchBestPath(true, false, false, false))
+				ops = append(ops, watchBestPath(true, true, false, false))
 			}
 			if b.c.RouteMirroringEnabled {
 				ops = append(ops, watchMessage(false))

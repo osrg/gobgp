@@ -2951,7 +2951,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 			}
 			knownPathList := dst.GetAllKnownPathList()
 			for i, path := range knownPathList {
-				p := toPathApi(path, getValidation(v, path), r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+				p := toPathApi(path, getValidation(v, path), r.EnableOnlyProto, r.EnableNlriProto, r.EnableAttributeProto)
 				if !table.SelectionOptions.DisableBestPathSelection {
 					if i == 0 {
 						switch r.TableType {
@@ -4394,11 +4394,11 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 		for _, filter := range t.Filters {
 			switch filter.Type {
 			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
-				opts = append(opts, watchBestPath(filter.Init, filter.EnableOnlyBinary, filter.EnableNlriBinary, filter.EnableAttributeBinary))
+				opts = append(opts, watchBestPath(filter.Init, filter.EnableOnlyProto, filter.EnableNlriProto, filter.EnableAttributeProto))
 			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
-				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup, filter.EnableOnlyBinary, filter.EnableNlriBinary, filter.EnableAttributeBinary))
+				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup, filter.EnableOnlyProto, filter.EnableNlriProto, filter.EnableAttributeProto))
 			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
-				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup, filter.EnableOnlyBinary, filter.EnableNlriBinary, filter.EnableAttributeBinary))
+				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup, filter.EnableOnlyProto, filter.EnableNlriProto, filter.EnableAttributeProto))
 			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
 				opts = append(opts, watchEor(filter.Init))
 			default:
@@ -4428,9 +4428,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 					paths := make([]*api.Path, 0, r.BatchSize)
 					for _, path := range msg.PathList {
 						if msg.PostPolicy {
-							paths = append(paths, toPathApi(path, nil, w.opts.postUpdateOnlyBinary, w.opts.postUpdateEnableNlriBinary, w.opts.postUpdateEnableAttributeBinary))
+							paths = append(paths, toPathApi(path, nil, w.opts.postUpdateOnlyProto, w.opts.postUpdateEnableNlriProto, w.opts.postUpdateEnableAttributeProto))
 						} else {
-							paths = append(paths, toPathApi(path, nil, w.opts.updateOnlyBinary, w.opts.updateEnableNlriBinary, w.opts.updateEnableAttributeBinary))
+							paths = append(paths, toPathApi(path, nil, w.opts.updateOnlyProto, w.opts.updateEnableNlriProto, w.opts.updateEnableAttributeProto))
 						}
 						if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
 							simpleSend(paths)
@@ -4451,7 +4451,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 
 					pl := make([]*api.Path, 0, r.BatchSize)
 					for _, path := range paths {
-						pl = append(pl, toPathApi(path, nil, w.opts.bestOnlyBinary, w.opts.bestEnableNlriBinary, w.opts.bestEnableAttributeBinary))
+						pl = append(pl, toPathApi(path, nil, w.opts.bestOnlyProto, w.opts.bestEnableNlriProto, w.opts.bestEnableAttributeProto))
 						if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
 							simpleSend(pl)
 							pl = make([]*api.Path, 0, r.BatchSize)
@@ -4655,47 +4655,47 @@ type watchOptions struct {
 	postUpdate       bool
 	postUpdateFilter func(w watchEvent) bool
 
-	peerState                       bool
-	initBest                        bool
-	initUpdate                      bool
-	initPostUpdate                  bool
-	tableName                       string
-	recvMessage                     bool
-	initEor                         bool
-	eor                             bool
-	updateOnlyBinary                bool
-	updateEnableNlriBinary          bool
-	updateEnableAttributeBinary     bool
-	postUpdateOnlyBinary            bool
-	postUpdateEnableNlriBinary      bool
-	postUpdateEnableAttributeBinary bool
-	bestOnlyBinary                  bool
-	bestEnableNlriBinary            bool
-	bestEnableAttributeBinary       bool
+	peerState                      bool
+	initBest                       bool
+	initUpdate                     bool
+	initPostUpdate                 bool
+	tableName                      string
+	recvMessage                    bool
+	initEor                        bool
+	eor                            bool
+	updateOnlyProto                bool
+	updateEnableNlriProto          bool
+	updateEnableAttributeProto     bool
+	postUpdateOnlyProto            bool
+	postUpdateEnableNlriProto      bool
+	postUpdateEnableAttributeProto bool
+	bestOnlyProto                  bool
+	bestEnableNlriProto            bool
+	bestEnableAttributeProto       bool
 }
 
 type watchOption func(*watchOptions)
 
 func watchBestPath(
-	current bool, onlyBinary, enableNlriBinary, enableAttributeBinary bool) watchOption {
+	current bool, onlyProto, enableNlriProto, enableAttributeProto bool) watchOption {
 	return func(o *watchOptions) {
 		o.bestPath = true
 		if current {
 			o.initBest = true
 		}
-		o.bestOnlyBinary = onlyBinary
-		o.bestEnableNlriBinary = enableNlriBinary
-		o.bestEnableAttributeBinary = enableAttributeBinary
+		o.bestOnlyProto = onlyProto
+		o.bestEnableNlriProto = enableNlriProto
+		o.bestEnableAttributeProto = enableAttributeProto
 	}
 }
 
 func watchUpdate(
-	current bool, peerAddress string, peerGroup string, onlyBinary, enableNlriBinary, enableAttributeBinary bool) watchOption {
+	current bool, peerAddress string, peerGroup string, onlyProto, enableNlriProto, enableAttributeProto bool) watchOption {
 	return func(o *watchOptions) {
 		o.preUpdate = true
-		o.updateOnlyBinary = onlyBinary
-		o.updateEnableNlriBinary = enableNlriBinary
-		o.updateEnableAttributeBinary = enableAttributeBinary
+		o.updateOnlyProto = onlyProto
+		o.updateEnableNlriProto = enableNlriProto
+		o.updateEnableAttributeProto = enableAttributeProto
 		if current {
 			o.initUpdate = true
 		}
@@ -4718,12 +4718,12 @@ func watchUpdate(
 }
 
 func watchPostUpdate(
-	current bool, peerAddress string, peerGroup string, onlyBinary, enableNlriBinary, enableAttributeBinary bool) watchOption {
+	current bool, peerAddress string, peerGroup string, onlyProto, enableNlriProto, enableAttributeProto bool) watchOption {
 	return func(o *watchOptions) {
 		o.postUpdate = true
-		o.postUpdateOnlyBinary = onlyBinary
-		o.postUpdateEnableNlriBinary = enableNlriBinary
-		o.postUpdateEnableAttributeBinary = enableAttributeBinary
+		o.postUpdateOnlyProto = onlyProto
+		o.postUpdateEnableNlriProto = enableNlriProto
+		o.postUpdateEnableAttributeProto = enableAttributeProto
 		if current {
 			o.initPostUpdate = true
 		}

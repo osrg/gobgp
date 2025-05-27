@@ -50,7 +50,7 @@ func (m *mrtWriter) loop() error {
 	ops := []watchOption{}
 	switch m.c.DumpType {
 	case oc.MRT_TYPE_UPDATES:
-		ops = append(ops, watchUpdate(false, "", "", false, false, false))
+		ops = append(ops, watchUpdate(false, "", "", true, false, false))
 	case oc.MRT_TYPE_TABLE:
 		if len(m.c.TableName) > 0 {
 			ops = append(ops, watchTableName(m.c.TableName))

@@ -3291,18 +3291,18 @@ func (x *TableLookupPrefix) GetRd() string {
 }
 
 type ListPathRequest struct {
-	state                 protoimpl.MessageState   `protogen:"open.v1"`
-	TableType             TableType                `protobuf:"varint,1,opt,name=table_type,json=tableType,proto3,enum=api.TableType" json:"table_type,omitempty"`
-	Name                  string                   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Family                *Family                  `protobuf:"bytes,3,opt,name=family,proto3" json:"family,omitempty"`
-	Prefixes              []*TableLookupPrefix     `protobuf:"bytes,4,rep,name=prefixes,proto3" json:"prefixes,omitempty"`
-	SortType              ListPathRequest_SortType `protobuf:"varint,5,opt,name=sort_type,json=sortType,proto3,enum=api.ListPathRequest_SortType" json:"sort_type,omitempty"`
-	EnableFiltered        bool                     `protobuf:"varint,6,opt,name=enable_filtered,json=enableFiltered,proto3" json:"enable_filtered,omitempty"`
-	EnableNlriBinary      bool                     `protobuf:"varint,7,opt,name=enable_nlri_binary,json=enableNlriBinary,proto3" json:"enable_nlri_binary,omitempty"`
-	EnableAttributeBinary bool                     `protobuf:"varint,8,opt,name=enable_attribute_binary,json=enableAttributeBinary,proto3" json:"enable_attribute_binary,omitempty"`
-	// enable_only_binary == true means that only nlri_binary and pattrs_binary
-	// will be used instead of nlri and pattrs for each Path in ListPathResponse.
-	EnableOnlyBinary bool `protobuf:"varint,9,opt,name=enable_only_binary,json=enableOnlyBinary,proto3" json:"enable_only_binary,omitempty"`
+	state                protoimpl.MessageState   `protogen:"open.v1"`
+	TableType            TableType                `protobuf:"varint,1,opt,name=table_type,json=tableType,proto3,enum=api.TableType" json:"table_type,omitempty"`
+	Name                 string                   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Family               *Family                  `protobuf:"bytes,3,opt,name=family,proto3" json:"family,omitempty"`
+	Prefixes             []*TableLookupPrefix     `protobuf:"bytes,4,rep,name=prefixes,proto3" json:"prefixes,omitempty"`
+	SortType             ListPathRequest_SortType `protobuf:"varint,5,opt,name=sort_type,json=sortType,proto3,enum=api.ListPathRequest_SortType" json:"sort_type,omitempty"`
+	EnableFiltered       bool                     `protobuf:"varint,6,opt,name=enable_filtered,json=enableFiltered,proto3" json:"enable_filtered,omitempty"`
+	EnableNlriProto      bool                     `protobuf:"varint,7,opt,name=enable_nlri_proto,json=enableNlriProto,proto3" json:"enable_nlri_proto,omitempty"`
+	EnableAttributeProto bool                     `protobuf:"varint,8,opt,name=enable_attribute_proto,json=enableAttributeProto,proto3" json:"enable_attribute_proto,omitempty"`
+	// enable_only_proto == true means that only nlri and pattrs
+	// will be used instead of nlri_binary and pattrs_binary for each Path in ListPathResponse.
+	EnableOnlyProto bool `protobuf:"varint,9,opt,name=enable_only_proto,json=enableOnlyProto,proto3" json:"enable_only_proto,omitempty"`
 	// max ammount of paths to be allocated, unlimited by default
 	BatchSize     uint64 `protobuf:"varint,10,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3381,23 +3381,23 @@ func (x *ListPathRequest) GetEnableFiltered() bool {
 	return false
 }
 
-func (x *ListPathRequest) GetEnableNlriBinary() bool {
+func (x *ListPathRequest) GetEnableNlriProto() bool {
 	if x != nil {
-		return x.EnableNlriBinary
+		return x.EnableNlriProto
 	}
 	return false
 }
 
-func (x *ListPathRequest) GetEnableAttributeBinary() bool {
+func (x *ListPathRequest) GetEnableAttributeProto() bool {
 	if x != nil {
-		return x.EnableAttributeBinary
+		return x.EnableAttributeProto
 	}
 	return false
 }
 
-func (x *ListPathRequest) GetEnableOnlyBinary() bool {
+func (x *ListPathRequest) GetEnableOnlyProto() bool {
 	if x != nil {
-		return x.EnableOnlyBinary
+		return x.EnableOnlyProto
 	}
 	return false
 }
@@ -12118,18 +12118,18 @@ func (x *WatchEventRequest_Table) GetFilters() []*WatchEventRequest_Table_Filter
 }
 
 type WatchEventRequest_Table_Filter struct {
-	state                 protoimpl.MessageState              `protogen:"open.v1"`
-	Type                  WatchEventRequest_Table_Filter_Type `protobuf:"varint,1,opt,name=type,proto3,enum=api.WatchEventRequest_Table_Filter_Type" json:"type,omitempty"`
-	Init                  bool                                `protobuf:"varint,2,opt,name=init,proto3" json:"init,omitempty"`
-	PeerAddress           string                              `protobuf:"bytes,3,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"`
-	PeerGroup             string                              `protobuf:"bytes,4,opt,name=peer_group,json=peerGroup,proto3" json:"peer_group,omitempty"`
-	EnableNlriBinary      bool                                `protobuf:"varint,5,opt,name=enable_nlri_binary,json=enableNlriBinary,proto3" json:"enable_nlri_binary,omitempty"`
-	EnableAttributeBinary bool                                `protobuf:"varint,6,opt,name=enable_attribute_binary,json=enableAttributeBinary,proto3" json:"enable_attribute_binary,omitempty"`
-	// enable_only_binary == true means that only nlri_binary and pattrs_binary
-	// will be used instead of nlri and pattrs for each Path in ListPathResponse.
-	EnableOnlyBinary bool `protobuf:"varint,7,opt,name=enable_only_binary,json=enableOnlyBinary,proto3" json:"enable_only_binary,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                protoimpl.MessageState              `protogen:"open.v1"`
+	Type                 WatchEventRequest_Table_Filter_Type `protobuf:"varint,1,opt,name=type,proto3,enum=api.WatchEventRequest_Table_Filter_Type" json:"type,omitempty"`
+	Init                 bool                                `protobuf:"varint,2,opt,name=init,proto3" json:"init,omitempty"`
+	PeerAddress          string                              `protobuf:"bytes,3,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"`
+	PeerGroup            string                              `protobuf:"bytes,4,opt,name=peer_group,json=peerGroup,proto3" json:"peer_group,omitempty"`
+	EnableNlriProto      bool                                `protobuf:"varint,5,opt,name=enable_nlri_proto,json=enableNlriProto,proto3" json:"enable_nlri_proto,omitempty"`
+	EnableAttributeProto bool                                `protobuf:"varint,6,opt,name=enable_attribute_proto,json=enableAttributeProto,proto3" json:"enable_attribute_proto,omitempty"`
+	// enable_only_proto == true means that only nlri and pattrs will be used
+	// instead of nlri_binary and pattrs_binary for each Path in WatchEventResponse.
+	EnableOnlyProto bool `protobuf:"varint,7,opt,name=enable_only_proto,json=enableOnlyProto,proto3" json:"enable_only_proto,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *WatchEventRequest_Table_Filter) Reset() {
@@ -12190,23 +12190,23 @@ func (x *WatchEventRequest_Table_Filter) GetPeerGroup() string {
 	return ""
 }
 
-func (x *WatchEventRequest_Table_Filter) GetEnableNlriBinary() bool {
+func (x *WatchEventRequest_Table_Filter) GetEnableNlriProto() bool {
 	if x != nil {
-		return x.EnableNlriBinary
+		return x.EnableNlriProto
 	}
 	return false
 }
 
-func (x *WatchEventRequest_Table_Filter) GetEnableAttributeBinary() bool {
+func (x *WatchEventRequest_Table_Filter) GetEnableAttributeProto() bool {
 	if x != nil {
-		return x.EnableAttributeBinary
+		return x.EnableAttributeProto
 	}
 	return false
 }
 
-func (x *WatchEventRequest_Table_Filter) GetEnableOnlyBinary() bool {
+func (x *WatchEventRequest_Table_Filter) GetEnableOnlyProto() bool {
 	if x != nil {
-		return x.EnableOnlyBinary
+		return x.EnableOnlyProto
 	}
 	return false
 }
@@ -12475,24 +12475,24 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fStopBgpResponse\"\x0f\n" +
 	"\rGetBgpRequest\"5\n" +
 	"\x0eGetBgpResponse\x12#\n" +
-	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xfc\x04\n" +
+	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xf6\x04\n" +
 	"\x11WatchEventRequest\x12/\n" +
 	"\x04peer\x18\x01 \x01(\v2\x1b.api.WatchEventRequest.PeerR\x04peer\x122\n" +
 	"\x05table\x18\x02 \x01(\v2\x1c.api.WatchEventRequest.TableR\x05table\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x03 \x01(\rR\tbatchSize\x1a\x06\n" +
-	"\x04Peer\x1a\xda\x03\n" +
+	"\x04Peer\x1a\xd4\x03\n" +
 	"\x05Table\x12=\n" +
-	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\x91\x03\n" +
+	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\x8b\x03\n" +
 	"\x06Filter\x12<\n" +
 	"\x04type\x18\x01 \x01(\x0e2(.api.WatchEventRequest.Table.Filter.TypeR\x04type\x12\x12\n" +
 	"\x04init\x18\x02 \x01(\bR\x04init\x12!\n" +
 	"\fpeer_address\x18\x03 \x01(\tR\vpeerAddress\x12\x1d\n" +
 	"\n" +
-	"peer_group\x18\x04 \x01(\tR\tpeerGroup\x12,\n" +
-	"\x12enable_nlri_binary\x18\x05 \x01(\bR\x10enableNlriBinary\x126\n" +
-	"\x17enable_attribute_binary\x18\x06 \x01(\bR\x15enableAttributeBinary\x12,\n" +
-	"\x12enable_only_binary\x18\a \x01(\bR\x10enableOnlyBinary\"_\n" +
+	"peer_group\x18\x04 \x01(\tR\tpeerGroup\x12*\n" +
+	"\x11enable_nlri_proto\x18\x05 \x01(\bR\x0fenableNlriProto\x124\n" +
+	"\x16enable_attribute_proto\x18\x06 \x01(\bR\x14enableAttributeProto\x12*\n" +
+	"\x11enable_only_proto\x18\a \x01(\bR\x0fenableOnlyProto\"_\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tTYPE_BEST\x10\x01\x12\x0e\n" +
@@ -12610,7 +12610,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\n" +
 	"TYPE_EXACT\x10\x01\x12\x0f\n" +
 	"\vTYPE_LONGER\x10\x02\x12\x10\n" +
-	"\fTYPE_SHORTER\x10\x03\"\x82\x04\n" +
+	"\fTYPE_SHORTER\x10\x03\"\xfc\x03\n" +
 	"\x0fListPathRequest\x12-\n" +
 	"\n" +
 	"table_type\x18\x01 \x01(\x0e2\x0e.api.TableTypeR\ttableType\x12\x12\n" +
@@ -12618,10 +12618,10 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x06family\x18\x03 \x01(\v2\v.api.FamilyR\x06family\x122\n" +
 	"\bprefixes\x18\x04 \x03(\v2\x16.api.TableLookupPrefixR\bprefixes\x12:\n" +
 	"\tsort_type\x18\x05 \x01(\x0e2\x1d.api.ListPathRequest.SortTypeR\bsortType\x12'\n" +
-	"\x0fenable_filtered\x18\x06 \x01(\bR\x0eenableFiltered\x12,\n" +
-	"\x12enable_nlri_binary\x18\a \x01(\bR\x10enableNlriBinary\x126\n" +
-	"\x17enable_attribute_binary\x18\b \x01(\bR\x15enableAttributeBinary\x12,\n" +
-	"\x12enable_only_binary\x18\t \x01(\bR\x10enableOnlyBinary\x12\x1d\n" +
+	"\x0fenable_filtered\x18\x06 \x01(\bR\x0eenableFiltered\x12*\n" +
+	"\x11enable_nlri_proto\x18\a \x01(\bR\x0fenableNlriProto\x124\n" +
+	"\x16enable_attribute_proto\x18\b \x01(\bR\x14enableAttributeProto\x12*\n" +
+	"\x11enable_only_proto\x18\t \x01(\bR\x0fenableOnlyProto\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\n" +
 	" \x01(\x04R\tbatchSize\";\n" +
