@@ -128,6 +128,10 @@ type Validation struct {
 	UnmatchedLength []*ROA
 }
 
+type pathCommunitiesCache struct {
+	IsLLGRStale bool
+}
+
 type Path struct {
 	info      *originInfo
 	parent    *Path
@@ -141,6 +145,8 @@ type Path struct {
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
 	IsWithdraw       bool
+	// For computeKnownBestPath()
+	cache pathCommunitiesCache
 }
 
 type FilteredType uint8
@@ -426,12 +432,7 @@ func (path *Path) HasNoLLGR() bool {
 }
 
 func (path *Path) IsLLGRStale() bool {
-	for _, c := range path.GetCommunities() {
-		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
-			return true
-		}
-	}
-	return false
+	return path.cache.IsLLGRStale
 }
 
 func (path *Path) GetSourceAs() uint32 {
@@ -580,6 +581,10 @@ func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
 		path.dels = []bgp.BGPAttrType{typ}
 	} else {
 		path.dels = append(path.dels, typ)
+	}
+
+	if typ == bgp.BGP_ATTR_TYPE_COMMUNITIES {
+		path.cache.IsLLGRStale = false
 	}
 }
 
@@ -834,11 +839,18 @@ func (path *Path) GetCommunities() []uint32 {
 // SetCommunities adds or replaces communities with new ones.
 // If the length of communities is 0 and doReplace is true, it clears communities.
 func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
-
 	if len(communities) == 0 && doReplace {
 		// clear communities
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
 		return
+	}
+
+	isLLGRStale := false
+	for _, c := range communities {
+		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
+			isLLGRStale = true
+			break
+		}
 	}
 
 	newList := make([]uint32, 0)
@@ -856,25 +868,23 @@ func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
 	}
 	path.setPathAttr(bgp.NewPathAttributeCommunities(newList))
 
+	if isLLGRStale {
+		path.cache.IsLLGRStale = true
+	}
 }
 
 // RemoveCommunities removes specific communities.
 // If the length of communities is 0, it does nothing.
 // If all communities are removed, it removes Communities path attribute itself.
 func (path *Path) RemoveCommunities(communities []uint32) int {
-
 	if len(communities) == 0 {
 		// do nothing
 		return 0
 	}
 
-	find := func(val uint32) bool {
-		for _, com := range communities {
-			if com == val {
-				return true
-			}
-		}
-		return false
+	isCommunityIsSet := make(map[uint32]struct{})
+	for _, c := range communities {
+		isCommunityIsSet[c] = struct{}{}
 	}
 
 	count := 0
@@ -884,7 +894,7 @@ func (path *Path) RemoveCommunities(communities []uint32) int {
 		c := attr.(*bgp.PathAttributeCommunities)
 
 		for _, value := range c.Value {
-			if find(value) {
+			if _, found := isCommunityIsSet[value]; found {
 				count += 1
 			} else {
 				newList = append(newList, value)
@@ -896,6 +906,10 @@ func (path *Path) RemoveCommunities(communities []uint32) int {
 		} else {
 			path.delPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
 		}
+	}
+
+	if _, found := isCommunityIsSet[uint32(bgp.COMMUNITY_LLGR_STALE)]; found {
+		path.cache.IsLLGRStale = false
 	}
 	return count
 }

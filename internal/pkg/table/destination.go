@@ -594,7 +594,7 @@ func compareByLLGRStaleCommunity(path1, path2 *Path) *Path {
 	p2 := path2.IsLLGRStale()
 	if p1 == p2 {
 		return nil
-	} else if p1 {
+	} else if p1 { // if path1 is stale then path2 is better
 		return path2
 	}
 	return path1
