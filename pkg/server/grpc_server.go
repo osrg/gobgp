@@ -16,7 +16,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -29,7 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgryski/go-farm"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -432,15 +430,8 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	doWithdraw := isWithdraw || path.IsWithdraw
 	newPath := table.NewPath(pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
 	if !doWithdraw {
-		total := bytes.NewBuffer(make([]byte, 0))
-		for _, a := range newPath.GetPathAttrs() {
-			if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-				continue
-			}
-			b, _ := a.Serialize()
-			total.Write(b)
-		}
-		newPath.SetHash(farm.Hash32(total.Bytes()))
+		attrsHash := bgp.GetPathAttributesHash(newPath.GetPathAttrs(), bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		newPath.SetHash(attrsHash)
 	}
 	newPath.SetIsFromExternal(path.IsFromExternal)
 	return newPath, nil
