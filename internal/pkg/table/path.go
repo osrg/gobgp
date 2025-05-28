@@ -371,6 +371,62 @@ func (path *Path) root() *Path {
 	return p
 }
 
+// path.pathattrs and path.info.nlri are not cloned as they are interfaces, so the caller should not modify those by using Serialize() helper.
+func CloneTablePathTree(paths []*Path) []*Path {
+	oldPath2newPath := make(map[*Path]*Path, len(paths))
+	oldOriginInfo2newOriginInfo := make(map[*originInfo]*originInfo)
+	oldSource2newSource := make(map[*PeerInfo]*PeerInfo)
+
+	for _, p := range paths {
+		for pp := p; pp != nil; pp = pp.parent {
+			if _, found := oldPath2newPath[pp]; !found {
+				oldPath2newPath[pp] = new(Path)
+				*oldPath2newPath[pp] = *pp
+			}
+			if pp.info != nil {
+				if _, found := oldOriginInfo2newOriginInfo[pp.info]; !found {
+					oldOriginInfo2newOriginInfo[pp.info] = new(originInfo)
+					*oldOriginInfo2newOriginInfo[pp.info] = *pp.info
+					if pp.info.source != nil {
+						if _, found := oldSource2newSource[pp.info.source]; !found {
+							oldSource2newSource[pp.info.source] = new(PeerInfo)
+							*oldSource2newSource[pp.info.source] = *pp.info.source
+						}
+						oldOriginInfo2newOriginInfo[pp.info].source = oldSource2newSource[pp.info.source]
+					}
+				}
+			}
+			oldPath2newPath[pp].info = oldOriginInfo2newOriginInfo[pp.info]
+		}
+	}
+	// update the parent pointers
+	for _, p := range paths {
+		for pp := p; pp != nil; pp = pp.parent {
+			new, found := oldPath2newPath[pp]
+			if !found {
+				panic("no new path found")
+			}
+			if pp.parent != nil {
+				newParent, found := oldPath2newPath[pp.parent]
+				if !found {
+					panic("no new path found")
+				}
+				new.parent = newParent
+			}
+		}
+	}
+
+	newPaths := make([]*Path, len(paths))
+	for i, p := range paths {
+		new, found := oldPath2newPath[p]
+		if !found {
+			panic("no new path found")
+		}
+		newPaths[i] = new
+	}
+	return newPaths
+}
+
 func (path *Path) OriginInfo() *originInfo {
 	return path.root().info
 }
