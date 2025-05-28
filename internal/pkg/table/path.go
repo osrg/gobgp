@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net"
 	"sort"
@@ -511,44 +512,28 @@ func (a PathAttrs) Less(i, j int) bool {
 }
 
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
-	deleted := func(p *Path, typ bgp.BGPAttrType) bool {
-		_, found := p.dels[typ]
-		return found
-	}
+	deleted := make(map[bgp.BGPAttrType]struct{})
 	modified := make(map[bgp.BGPAttrType]bgp.PathAttributeInterface)
-	p := path
-	for {
-		if p.parent == nil {
-			list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs)))
-			// we assume that the original pathAttrs are
-			// in order, that is, other bgp speakers send
-			// attributes in order.
-			for typ, a := range p.pathAttrs {
-				if m, ok := modified[typ]; ok {
-					list = append(list, m)
-					delete(modified, typ)
-				} else if !deleted(p, typ) {
-					list = append(list, a)
-				}
-			}
-			if len(modified) > 0 {
-				// Huh, some attributes were newly
-				// added. So we need to sort...
-				for _, m := range modified {
-					list = append(list, m)
-				}
-			}
-			sort.Sort(list)
-			return list
-		} else {
-			for typ, a := range p.pathAttrs {
-				if _, ok := modified[typ]; !deleted(p, typ) && !ok {
-					modified[typ] = a
-				}
-			}
-		}
-		p = p.parent
+
+	revPaths := make([]*Path, 0)
+	for p := path; p != nil; p = p.parent {
+		revPaths = append(revPaths, p)
 	}
+
+	for i := len(revPaths) - 1; i >= 0; i-- {
+		p := revPaths[i]
+		maps.Copy(deleted, p.dels)
+		maps.Copy(modified, p.pathAttrs)
+	}
+
+	list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(modified)))
+	for t, a := range modified {
+		if _, ok := deleted[t]; !ok {
+			list = append(list, a)
+		}
+	}
+	sort.Sort(list)
+	return list
 }
 
 func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
