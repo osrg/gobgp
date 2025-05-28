@@ -392,3 +392,39 @@ func TestNLRIToIPNet(t *testing.T) {
 	ipNet = nlriToIPNet(bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8:53::", *labels, rd))
 	assert.Equal(t, n6, ipNet)
 }
+
+func TestCloneTablePathTree(t *testing.T) {
+	peerP := PathCreatePeer()
+	pathP := PathCreatePath(peerP)
+
+	pathPClone := make([]*Path, len(pathP))
+	for i, path := range pathP {
+		pathPClone[i] = path.Clone(false)
+	}
+
+	cpaths := CloneTablePathTree(pathPClone)
+	assert.NotNil(t, cpaths)
+	assert.Equal(t, len(cpaths), len(pathP))
+
+	testPath := func(expected, actual *Path) {
+		assert.True(t, expected != actual)
+		if expected.info != nil {
+			assert.True(t, expected.info != actual.info)
+			assert.True(t, expected.info.source != actual.info.source)
+		}
+		if expected.parent != nil {
+			assert.True(t, expected.parent != actual.parent)
+		}
+		// deep equality check
+		assert.Equal(t, expected, actual)
+		assert.Equal(t, expected.GetSource(), actual.GetSource())
+		assert.Equal(t, expected.GetNlri(), actual.GetNlri())
+		assert.Equal(t, expected.GetPathAttrs(), actual.GetPathAttrs())
+		assert.Equal(t, expected.GetTimestamp(), actual.GetTimestamp())
+	}
+	for i, path := range cpaths {
+		pathExpected := pathPClone[i]
+		testPath(pathExpected, path)
+		testPath(pathExpected.parent, path.parent)
+	}
+}
