@@ -134,8 +134,8 @@ type Validation struct {
 type Path struct {
 	info      *originInfo
 	parent    *Path
-	pathAttrs []bgp.PathAttributeInterface
-	dels      []bgp.BGPAttrType
+	pathAttrs map[bgp.BGPAttrType]bgp.PathAttributeInterface
+	dels      map[bgp.BGPAttrType]struct{}
 	attrsHash uint32
 	rejected  bool
 	// doesn't exist in the adj
@@ -180,7 +180,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		return nil
 	}
 
-	return &Path{
+	p := &Path{
 		info: &originInfo{
 			nlri:               nlri,
 			source:             source,
@@ -188,8 +188,13 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
 		IsWithdraw: isWithdraw,
-		pathAttrs:  pattrs,
+		pathAttrs:  make(map[bgp.BGPAttrType]bgp.PathAttributeInterface),
+		dels:       make(map[bgp.BGPAttrType]struct{}),
 	}
+	for _, a := range pattrs {
+		p.setPathAttr(a)
+	}
+	return p
 }
 
 func NewEOR(family bgp.Family) *Path {
@@ -200,6 +205,8 @@ func NewEOR(family bgp.Family) *Path {
 			nlri: nlri,
 			eor:  true,
 		},
+		pathAttrs: make(map[bgp.BGPAttrType]bgp.PathAttributeInterface),
+		dels:      make(map[bgp.BGPAttrType]struct{}),
 	}
 }
 
@@ -360,6 +367,8 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		attrsHash:        path.attrsHash,
+		pathAttrs:        make(map[bgp.BGPAttrType]bgp.PathAttributeInterface),
+		dels:             make(map[bgp.BGPAttrType]struct{}),
 	}
 }
 
@@ -502,24 +511,23 @@ func (a PathAttrs) Less(i, j int) bool {
 }
 
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
-	deleted := NewBitmap(math.MaxUint8)
-	modified := make(map[uint]bgp.PathAttributeInterface)
+	deleted := func(p *Path, typ bgp.BGPAttrType) bool {
+		_, found := p.dels[typ]
+		return found
+	}
+	modified := make(map[bgp.BGPAttrType]bgp.PathAttributeInterface)
 	p := path
 	for {
-		for _, t := range p.dels {
-			deleted.Flag(uint(t))
-		}
 		if p.parent == nil {
 			list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs)))
 			// we assume that the original pathAttrs are
 			// in order, that is, other bgp speakers send
 			// attributes in order.
-			for _, a := range p.pathAttrs {
-				typ := uint(a.GetType())
+			for typ, a := range p.pathAttrs {
 				if m, ok := modified[typ]; ok {
 					list = append(list, m)
 					delete(modified, typ)
-				} else if !deleted.GetFlag(typ) {
+				} else if !deleted(p, typ) {
 					list = append(list, a)
 				}
 			}
@@ -529,13 +537,12 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 				for _, m := range modified {
 					list = append(list, m)
 				}
-				sort.Sort(list)
 			}
+			sort.Sort(list)
 			return list
 		} else {
-			for _, a := range p.pathAttrs {
-				typ := uint(a.GetType())
-				if _, ok := modified[typ]; !deleted.GetFlag(typ) && !ok {
+			for typ, a := range p.pathAttrs {
+				if _, ok := modified[typ]; !deleted(p, typ) && !ok {
 					modified[typ] = a
 				}
 			}
@@ -547,15 +554,11 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 	p := path
 	for {
-		for _, t := range p.dels {
-			if t == typ {
-				return nil
-			}
+		if _, deleted := p.dels[typ]; deleted {
+			return nil
 		}
-		for _, a := range p.pathAttrs {
-			if a.GetType() == typ {
-				return a
-			}
+		if a, ok := p.pathAttrs[typ]; ok {
+			return a
 		}
 		if p.parent == nil {
 			return nil
@@ -565,26 +568,11 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 }
 
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
-	if len(path.pathAttrs) == 0 {
-		path.pathAttrs = []bgp.PathAttributeInterface{a}
-	} else {
-		aType := a.GetType()
-		for i, b := range path.pathAttrs {
-			if aType == b.GetType() {
-				path.pathAttrs[i] = a
-				return
-			}
-		}
-		path.pathAttrs = append(path.pathAttrs, a)
-	}
+	path.pathAttrs[a.GetType()] = a
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
-	if len(path.dels) == 0 {
-		path.dels = []bgp.BGPAttrType{typ}
-	} else {
-		path.dels = append(path.dels, typ)
-	}
+	path.dels[typ] = struct{}{}
 }
 
 // return Path's string representation
