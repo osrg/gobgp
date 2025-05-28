@@ -249,6 +249,47 @@ func TestGetPathAttrs(t *testing.T) {
 	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP))
 }
 
+func TestGetTransversalPathAttrs(t *testing.T) {
+	checkTransversalPathAttrs := func(t *testing.T, path *Path, expectedAttr bgp.BGPAttrType, checkIsNotExist ...bool) {
+		for _, attr := range path.GetTransversalPathAttrs() {
+			assert.NotNil(t, attr)
+		}
+		if len(checkIsNotExist) > 0 && checkIsNotExist[0] {
+			assert.Nil(t, path.GetTransversalPathAttrs()[expectedAttr])
+		} else {
+			assert.NotNil(t, path.GetTransversalPathAttrs()[expectedAttr])
+		}
+	}
+	paths := PathCreatePath(PathCreatePeer())
+	path0 := paths[0]
+	checkTransversalPathAttrs(t, path0, bgp.BGP_ATTR_TYPE_ORIGIN)
+	nextHop := path0.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	assert.NotNil(t, nextHop)
+	assert.Equal(t, nextHop.(*bgp.PathAttributeNextHop).Value.String(), "192.168.50.1")
+
+	path1 := path0.Clone(false)
+	path1.setPathAttr(bgp.NewPathAttributeNextHop("192.168.98.1"))
+	nextHop = path1.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	assert.NotNil(t, nextHop)
+	assert.Equal(t, nextHop.(*bgp.PathAttributeNextHop).Value.String(), "192.168.98.1")
+	path1.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	assert.NotNil(t, path1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN))
+	checkTransversalPathAttrs(t, path1, bgp.BGP_ATTR_TYPE_ORIGIN)
+	checkTransversalPathAttrs(t, path1, bgp.BGP_ATTR_TYPE_NEXT_HOP, true)
+
+	path2 := path1.Clone(false)
+	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN))
+	path2.delPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	// adding an attribute that has been deleted previously by underlayer, is not allowed
+	path2.setPathAttr(bgp.NewPathAttributeNextHop("192.168.99.1"))
+	checkTransversalPathAttrs(t, path2, bgp.BGP_ATTR_TYPE_ORIGIN, true)
+	checkTransversalPathAttrs(t, path2, bgp.BGP_ATTR_TYPE_NEXT_HOP, true)
+
+	nextHop = path2.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	assert.NotNil(t, nextHop)
+	assert.Equal(t, nextHop.(*bgp.PathAttributeNextHop).Value.String(), "192.168.99.1")
+}
+
 func PathCreatePeer() []*PeerInfo {
 	peerP1 := &PeerInfo{AS: 65000}
 	peerP2 := &PeerInfo{AS: 65001}
