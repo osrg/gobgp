@@ -568,8 +568,9 @@ func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 	if len(path.pathAttrs) == 0 {
 		path.pathAttrs = []bgp.PathAttributeInterface{a}
 	} else {
+		aType := a.GetType()
 		for i, b := range path.pathAttrs {
-			if a.GetType() == b.GetType() {
+			if aType == b.GetType() {
 				path.pathAttrs[i] = a
 				return
 			}
