@@ -18,6 +18,7 @@ package table
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -32,6 +33,8 @@ import (
 const (
 	DEFAULT_LOCAL_PREF = 100
 )
+
+var ErrNoMedPathAttr error = errors.New("no med path attr")
 
 type Bitmap struct {
 	bitmap []uint64
@@ -963,7 +966,7 @@ func (path *Path) SetLargeCommunities(cs []*bgp.LargeCommunity, doReplace bool) 
 func (path *Path) GetMed() (uint32, error) {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	if attr == nil {
-		return 0, fmt.Errorf("no med path attr")
+		return 0, ErrNoMedPathAttr
 	}
 	return attr.(*bgp.PathAttributeMultiExitDisc).Value, nil
 }
