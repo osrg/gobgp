@@ -50,11 +50,11 @@ func TestParseHost(t *testing.T) {
 
 func TestToPathApi(t *testing.T) {
 	type args struct {
-		path            *table.Path
-		v               *table.Validation
-		onlyBinary      bool
-		nlriBinary      bool
-		attributeBinary bool
+		path           *table.Path
+		v              *table.Validation
+		onlyProto      bool
+		nlriProto      bool
+		attributeProto bool
 	}
 	tests := []struct {
 		name string
@@ -75,6 +75,7 @@ func TestToPathApi(t *testing.T) {
 					[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)},
 					time.Time{},
 					false),
+				onlyProto: true,
 			},
 			want: &api.Path{
 				Nlri:   nlri(bgp.NewIPAddrPrefix(8, "10.0.0.0")),
@@ -92,6 +93,7 @@ func TestToPathApi(t *testing.T) {
 			name: "eor ipv4 path",
 			args: args{
 				path: eor(bgp.RF_IPv4_UC),
+				onlyProto: true,
 			},
 			want: &api.Path{
 				Nlri: eorNlri(bgp.AFI_IP, bgp.SAFI_UNICAST),
@@ -109,6 +111,7 @@ func TestToPathApi(t *testing.T) {
 			name: "eor vpn path",
 			args: args{
 				path: eor(bgp.RF_IPv4_VPN),
+				onlyProto: true,
 			},
 			want: &api.Path{
 				Nlri: eorNlri(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
@@ -125,7 +128,7 @@ func TestToPathApi(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apiPath := toPathApi(tt.args.path, tt.args.v, tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
+			apiPath := toPathApi(tt.args.path, tt.args.v, tt.args.onlyProto, tt.args.nlriProto, tt.args.attributeProto)
 			assert.Equal(t, tt.want.Nlri, apiPath.Nlri, "not equal nlri")
 			assert.Equal(t, tt.want.Pattrs, apiPath.Pattrs, "not equal attrs")
 			assert.Equal(t, tt.want.Family, apiPath.Family, "not equal family")

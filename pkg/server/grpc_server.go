@@ -207,22 +207,16 @@ func eorToPathAPI(path *table.Path) *api.Path {
 	return p
 }
 
-func toPathApi(path *table.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
+func toPathApi(path *table.Path, v *table.Validation, onlyProto, nlriProto, attributeProto bool) *api.Path {
 	var (
 		anyNlri   *api.NLRI
 		anyPattrs []*api.Attribute
 	)
 	nlri := path.GetNlri()
-	if !onlyBinary {
-		anyNlri, _ = apiutil.MarshalNLRI(nlri)
-		anyPattrs, _ = apiutil.MarshalPathAttributes(path.GetPathAttrs())
-	}
 	var binNlri []byte
-	if onlyBinary || nlriBinary {
-		binNlri, _ = nlri.Serialize()
-	}
 	var binPattrs [][]byte
-	if onlyBinary || attributeBinary {
+	if !onlyProto {
+		binNlri, _ = nlri.Serialize()
 		pa := path.GetPathAttrs()
 		binPattrs = make([][]byte, 0, len(pa))
 		for _, a := range pa {
@@ -231,6 +225,15 @@ func toPathApi(path *table.Path, v *table.Validation, onlyBinary, nlriBinary, at
 				binPattrs = append(binPattrs, b)
 			}
 		}
+	}
+	// onlyProto -> anyNlri and anyPattrs
+	// !onlyProto && nlriProto -> anyNlri and binPattrs
+	// !onlyProto && attributeProto -> binNlri and anyPattrs
+	if onlyProto || nlriProto {
+		anyNlri, _ = apiutil.MarshalNLRI(nlri)
+	}
+	if onlyProto || attributeProto {
+		anyPattrs, _ = apiutil.MarshalPathAttributes(path.GetPathAttrs())
 	}
 	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path, v)
 }

@@ -968,13 +968,14 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	stream, err := client.ListPath(ctx, &api.ListPathRequest{
-		TableType:      t,
-		Family:         family,
-		Name:           name,
-		Prefixes:       filter,
-		SortType:       api.ListPathRequest_SORT_TYPE_PREFIX,
-		EnableFiltered: enableFiltered,
-		BatchSize:      subOpts.BatchSize,
+		TableType:       t,
+		Family:          family,
+		Name:            name,
+		Prefixes:        filter,
+		SortType:        api.ListPathRequest_SORT_TYPE_PREFIX,
+		EnableFiltered:  enableFiltered,
+		BatchSize:       subOpts.BatchSize,
+		EnableOnlyProto: true,
 	})
 	if err != nil {
 		return err
