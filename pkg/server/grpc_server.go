@@ -675,16 +675,31 @@ func readAddPathsFromAPIStruct(c *oc.AddPaths, a *api.AddPaths) {
 	}
 }
 
+func PeerTypeFromApi(a api.PeerType) (oc.PeerType, error) {
+	switch a {
+	case api.PeerType_PEER_TYPE_EXTERNAL:
+		return oc.PEER_TYPE_EXTERNAL, nil
+	default:
+		// We should return an error but there are many code to use uninitialized PeerType..
+		// api.PeerType_PEER_TYPE_INTERNAL:
+		return oc.PEER_TYPE_INTERNAL, nil
+	}
+}
+
 func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 	pconf := &oc.Neighbor{}
 	if a.Conf != nil {
+		var err error
 		pconf.Config.PeerAs = a.Conf.PeerAsn
 		pconf.Config.LocalAs = a.Conf.LocalAsn
 		pconf.Config.AuthPassword = a.Conf.AuthPassword
 		pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroup = a.Conf.PeerGroup
-		pconf.Config.PeerType = oc.IntToPeerTypeMap[int(a.Conf.Type)]
+		pconf.Config.PeerType, err = PeerTypeFromApi(a.Conf.Type)
+		if err != nil {
+			return nil, err
+		}
 		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		pconf.Config.AdminDown = a.Conf.AdminDown
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
@@ -784,7 +799,11 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.State.AdminState = oc.IntToAdminStateMap[int(a.State.AdminState)]
 
 		pconf.State.PeerAs = a.State.PeerAsn
-		pconf.State.PeerType = oc.IntToPeerTypeMap[int(a.State.Type)]
+		var err error
+		pconf.State.PeerType, err = PeerTypeFromApi(a.State.Type)
+		if err != nil {
+			return nil, err
+		}
 		pconf.State.NeighborAddress = a.State.NeighborAddress
 
 		if a.State.Messages != nil {
@@ -893,7 +912,11 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.State.TotalPaths = a.Info.TotalPaths
 		pconf.State.TotalPrefixes = a.Info.TotalPrefixes
 		pconf.State.PeerAs = a.Info.PeerAsn
-		pconf.State.PeerType = oc.IntToPeerTypeMap[int(a.Info.Type)]
+		var err error
+		pconf.State.PeerType, err = PeerTypeFromApi(a.Info.Type)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return pconf, nil
 }

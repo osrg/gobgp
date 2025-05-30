@@ -104,19 +104,22 @@ func (TableType) EnumDescriptor() ([]byte, []int) {
 type PeerType int32
 
 const (
-	PeerType_INTERNAL PeerType = 0
-	PeerType_EXTERNAL PeerType = 1
+	PeerType_PEER_TYPE_UNSPECIFIED PeerType = 0
+	PeerType_PEER_TYPE_INTERNAL    PeerType = 1
+	PeerType_PEER_TYPE_EXTERNAL    PeerType = 2
 )
 
 // Enum value maps for PeerType.
 var (
 	PeerType_name = map[int32]string{
-		0: "INTERNAL",
-		1: "EXTERNAL",
+		0: "PEER_TYPE_UNSPECIFIED",
+		1: "PEER_TYPE_INTERNAL",
+		2: "PEER_TYPE_EXTERNAL",
 	}
 	PeerType_value = map[string]int32{
-		"INTERNAL": 0,
-		"EXTERNAL": 1,
+		"PEER_TYPE_UNSPECIFIED": 0,
+		"PEER_TYPE_INTERNAL":    1,
+		"PEER_TYPE_EXTERNAL":    2,
 	}
 )
 
@@ -7244,7 +7247,7 @@ func (x *PeerConf) GetType() PeerType {
 	if x != nil {
 		return x.Type
 	}
-	return PeerType_INTERNAL
+	return PeerType_PEER_TYPE_UNSPECIFIED
 }
 
 func (x *PeerConf) GetRemovePrivate() RemovePrivate {
@@ -7402,7 +7405,7 @@ func (x *PeerGroupConf) GetType() PeerType {
 	if x != nil {
 		return x.Type
 	}
-	return PeerType_INTERNAL
+	return PeerType_PEER_TYPE_UNSPECIFIED
 }
 
 func (x *PeerGroupConf) GetRemovePrivate() RemovePrivate {
@@ -7519,7 +7522,7 @@ func (x *PeerGroupState) GetType() PeerType {
 	if x != nil {
 		return x.Type
 	}
-	return PeerType_INTERNAL
+	return PeerType_PEER_TYPE_UNSPECIFIED
 }
 
 func (x *PeerGroupState) GetRemovePrivate() RemovePrivate {
@@ -7821,7 +7824,7 @@ func (x *PeerState) GetType() PeerType {
 	if x != nil {
 		return x.Type
 	}
-	return PeerType_INTERNAL
+	return PeerType_PEER_TYPE_UNSPECIFIED
 }
 
 func (x *PeerState) GetQueues() *Queues {
@@ -13334,10 +13337,11 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x10TABLE_TYPE_LOCAL\x10\x02\x12\x15\n" +
 	"\x11TABLE_TYPE_ADJ_IN\x10\x03\x12\x16\n" +
 	"\x12TABLE_TYPE_ADJ_OUT\x10\x04\x12\x12\n" +
-	"\x0eTABLE_TYPE_VRF\x10\x05*&\n" +
-	"\bPeerType\x12\f\n" +
-	"\bINTERNAL\x10\x00\x12\f\n" +
-	"\bEXTERNAL\x10\x01*c\n" +
+	"\x0eTABLE_TYPE_VRF\x10\x05*U\n" +
+	"\bPeerType\x12\x19\n" +
+	"\x15PEER_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12PEER_TYPE_INTERNAL\x10\x01\x12\x16\n" +
+	"\x12PEER_TYPE_EXTERNAL\x10\x02*c\n" +
 	"\rRemovePrivate\x12\x1e\n" +
 	"\x1aREMOVE_PRIVATE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12REMOVE_PRIVATE_ALL\x10\x01\x12\x1a\n" +

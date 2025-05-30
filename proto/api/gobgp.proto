@@ -732,8 +732,9 @@ message PrefixLimit {
 }
 
 enum PeerType {
-  INTERNAL = 0;
-  EXTERNAL = 1;
+  PEER_TYPE_UNSPECIFIED = 0;
+  PEER_TYPE_INTERNAL = 1;
+  PEER_TYPE_EXTERNAL = 2;
 }
 
 enum RemovePrivate {

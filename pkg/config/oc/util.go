@@ -434,6 +434,15 @@ func ProtoTimestamp(secs int64) *tspb.Timestamp {
 	return tspb.New(time.Unix(secs, 0))
 }
 
+func toPeerType(t PeerType) api.PeerType {
+	switch t {
+	case PEER_TYPE_EXTERNAL:
+		return api.PeerType_PEER_TYPE_EXTERNAL
+	default:
+		return api.PeerType_PEER_TYPE_INTERNAL
+	}
+}
+
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -478,7 +487,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			NeighborAddress:      pconf.Config.NeighborAddress,
 			PeerAsn:              pconf.Config.PeerAs,
 			LocalAsn:             pconf.Config.LocalAs,
-			Type:                 api.PeerType(pconf.Config.PeerType.ToInt()),
+			Type:                 toPeerType(pconf.Config.PeerType),
 			AuthPassword:         pconf.Config.AuthPassword,
 			RouteFlapDamping:     pconf.Config.RouteFlapDamping,
 			Description:          pconf.Config.Description,
@@ -519,7 +528,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			},
 			PeerAsn:         s.PeerAs,
 			LocalAsn:        s.LocalAs,
-			Type:            api.PeerType(s.PeerType.ToInt()),
+			Type:            toPeerType(s.PeerType),
 			NeighborAddress: pconf.State.NeighborAddress,
 			Queues:          &api.Queues{},
 			RemoteCap:       remoteCap,
@@ -597,7 +606,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		Conf: &api.PeerGroupConf{
 			PeerAsn:             pconf.Config.PeerAs,
 			LocalAsn:            pconf.Config.LocalAs,
-			Type:                api.PeerType(pconf.Config.PeerType.ToInt()),
+			Type:                toPeerType(pconf.Config.PeerType),
 			AuthPassword:        pconf.Config.AuthPassword,
 			RouteFlapDamping:    pconf.Config.RouteFlapDamping,
 			Description:         pconf.Config.Description,
@@ -606,7 +615,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		},
 		Info: &api.PeerGroupState{
 			PeerAsn:       s.PeerAs,
-			Type:          api.PeerType(s.PeerType.ToInt()),
+			Type:          toPeerType(s.PeerType),
 			TotalPaths:    s.TotalPaths,
 			TotalPrefixes: s.TotalPrefixes,
 		},
