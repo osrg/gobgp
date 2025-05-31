@@ -541,11 +541,11 @@ func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 	}
 	if v := p.GetValidation(); v != nil {
 		switch v.State {
-		case api.ValidationState_STATE_NOT_FOUND:
+		case api.ValidationState_VALIDATION_STATE_NOT_FOUND:
 			symbols += "N"
-		case api.ValidationState_STATE_VALID:
+		case api.ValidationState_VALIDATION_STATE_VALID:
 			symbols += "V"
-		case api.ValidationState_STATE_INVALID:
+		case api.ValidationState_VALIDATION_STATE_INVALID:
 			symbols += "I"
 		}
 
@@ -752,7 +752,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 	fmt.Printf("Target Prefix: %s, AS: %d\n", nlri.String(), origin)
 	fmt.Printf("  This route is %s", status)
 	switch status {
-	case api.ValidationState_STATE_INVALID:
+	case api.ValidationState_VALIDATION_STATE_INVALID:
 		fmt.Printf("  reason: %s\n", reason)
 		switch reason {
 		case api.Validation_REASON_ASN:
@@ -760,7 +760,7 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 		case api.Validation_REASON_LENGTH:
 			fmt.Println("  Route Prefix length is greater than the maximum length allowed by VRP(s) matching this route origin ASN.")
 		}
-	case api.ValidationState_STATE_NOT_FOUND:
+	case api.ValidationState_VALIDATION_STATE_NOT_FOUND:
 		fmt.Println("\n  No VRP Covers the Route Prefix")
 	default:
 		fmt.Print("\n\n")

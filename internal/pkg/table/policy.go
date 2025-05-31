@@ -4193,13 +4193,13 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 	}
 	switch s.Conditions.BgpConditions.RpkiValidationResult {
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NONE:
-		cs.RpkiResult = api.ValidationState_STATE_NONE
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_NONE
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
-		cs.RpkiResult = api.ValidationState_STATE_NOT_FOUND
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_NOT_FOUND
 	case oc.RPKI_VALIDATION_RESULT_TYPE_VALID:
-		cs.RpkiResult = api.ValidationState_STATE_VALID
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_VALID
 	case oc.RPKI_VALIDATION_RESULT_TYPE_INVALID:
-		cs.RpkiResult = api.ValidationState_STATE_INVALID
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_INVALID
 	}
 	community_action := func(action string) api.CommunityAction_Type {
 		fmt.Println("action0", action)

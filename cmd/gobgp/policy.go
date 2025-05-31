@@ -468,13 +468,13 @@ func printStatement(indent int, s *api.Statement) {
 	}
 	state := "UNSPECIFIED"
 	switch c.RpkiResult {
-	case api.ValidationState_STATE_NONE:
+	case api.ValidationState_VALIDATION_STATE_NONE:
 		state = "NONE"
-	case api.ValidationState_STATE_NOT_FOUND:
+	case api.ValidationState_VALIDATION_STATE_NOT_FOUND:
 		state = "NOT_FOUND"
-	case api.ValidationState_STATE_VALID:
+	case api.ValidationState_VALIDATION_STATE_VALID:
 		state = "VALID"
-	case api.ValidationState_STATE_INVALID:
+	case api.ValidationState_VALIDATION_STATE_INVALID:
 		state = "INVALID"
 	}
 	if c.RpkiResult != -1 {
@@ -806,11 +806,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[0]) {
 		case "valid":
-			stmt.Conditions.RpkiResult = api.ValidationState_STATE_VALID
+			stmt.Conditions.RpkiResult = api.ValidationState_VALIDATION_STATE_VALID
 		case "invalid":
-			stmt.Conditions.RpkiResult = api.ValidationState_STATE_INVALID
+			stmt.Conditions.RpkiResult = api.ValidationState_VALIDATION_STATE_INVALID
 		case "not-found":
-			stmt.Conditions.RpkiResult = api.ValidationState_STATE_NOT_FOUND
+			stmt.Conditions.RpkiResult = api.ValidationState_VALIDATION_STATE_NOT_FOUND
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}

@@ -104,28 +104,28 @@ func (TableType) EnumDescriptor() ([]byte, []int) {
 type ValidationState int32
 
 const (
-	ValidationState_STATE_UNSPECIFIED ValidationState = 0
-	ValidationState_STATE_NONE        ValidationState = 1
-	ValidationState_STATE_NOT_FOUND   ValidationState = 2
-	ValidationState_STATE_VALID       ValidationState = 3
-	ValidationState_STATE_INVALID     ValidationState = 4
+	ValidationState_VALIDATION_STATE_UNSPECIFIED ValidationState = 0
+	ValidationState_VALIDATION_STATE_NONE        ValidationState = 1
+	ValidationState_VALIDATION_STATE_NOT_FOUND   ValidationState = 2
+	ValidationState_VALIDATION_STATE_VALID       ValidationState = 3
+	ValidationState_VALIDATION_STATE_INVALID     ValidationState = 4
 )
 
 // Enum value maps for ValidationState.
 var (
 	ValidationState_name = map[int32]string{
-		0: "STATE_UNSPECIFIED",
-		1: "STATE_NONE",
-		2: "STATE_NOT_FOUND",
-		3: "STATE_VALID",
-		4: "STATE_INVALID",
+		0: "VALIDATION_STATE_UNSPECIFIED",
+		1: "VALIDATION_STATE_NONE",
+		2: "VALIDATION_STATE_NOT_FOUND",
+		3: "VALIDATION_STATE_VALID",
+		4: "VALIDATION_STATE_INVALID",
 	}
 	ValidationState_value = map[string]int32{
-		"STATE_UNSPECIFIED": 0,
-		"STATE_NONE":        1,
-		"STATE_NOT_FOUND":   2,
-		"STATE_VALID":       3,
-		"STATE_INVALID":     4,
+		"VALIDATION_STATE_UNSPECIFIED": 0,
+		"VALIDATION_STATE_NONE":        1,
+		"VALIDATION_STATE_NOT_FOUND":   2,
+		"VALIDATION_STATE_VALID":       3,
+		"VALIDATION_STATE_INVALID":     4,
 	}
 )
 
@@ -6447,7 +6447,7 @@ func (x *Validation) GetState() ValidationState {
 	if x != nil {
 		return x.State
 	}
-	return ValidationState_STATE_UNSPECIFIED
+	return ValidationState_VALIDATION_STATE_UNSPECIFIED
 }
 
 func (x *Validation) GetReason() Validation_Reason {
@@ -10589,7 +10589,7 @@ func (x *Conditions) GetRpkiResult() ValidationState {
 	if x != nil {
 		return x.RpkiResult
 	}
-	return ValidationState_STATE_UNSPECIFIED
+	return ValidationState_VALIDATION_STATE_UNSPECIFIED
 }
 
 func (x *Conditions) GetRouteType() Conditions_RouteType {
@@ -13338,14 +13338,13 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x10TABLE_TYPE_LOCAL\x10\x02\x12\x15\n" +
 	"\x11TABLE_TYPE_ADJ_IN\x10\x03\x12\x16\n" +
 	"\x12TABLE_TYPE_ADJ_OUT\x10\x04\x12\x12\n" +
-	"\x0eTABLE_TYPE_VRF\x10\x05*q\n" +
-	"\x0fValidationState\x12\x15\n" +
-	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
-	"\n" +
-	"STATE_NONE\x10\x01\x12\x13\n" +
-	"\x0fSTATE_NOT_FOUND\x10\x02\x12\x0f\n" +
-	"\vSTATE_VALID\x10\x03\x12\x11\n" +
-	"\rSTATE_INVALID\x10\x04*U\n" +
+	"\x0eTABLE_TYPE_VRF\x10\x05*\xa8\x01\n" +
+	"\x0fValidationState\x12 \n" +
+	"\x1cVALIDATION_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15VALIDATION_STATE_NONE\x10\x01\x12\x1e\n" +
+	"\x1aVALIDATION_STATE_NOT_FOUND\x10\x02\x12\x1a\n" +
+	"\x16VALIDATION_STATE_VALID\x10\x03\x12\x1c\n" +
+	"\x18VALIDATION_STATE_INVALID\x10\x04*U\n" +
 	"\bPeerType\x12\x19\n" +
 	"\x15PEER_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12PEER_TYPE_INTERNAL\x10\x01\x12\x16\n" +

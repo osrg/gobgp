@@ -156,15 +156,15 @@ func (s *server) ListPeer(r *api.ListPeerRequest, stream api.GoBgpService_ListPe
 func toApiState(s oc.RpkiValidationResultType) api.ValidationState {
 	switch s {
 	case oc.RPKI_VALIDATION_RESULT_TYPE_VALID:
-		return api.ValidationState_STATE_VALID
+		return api.ValidationState_VALIDATION_STATE_VALID
 	case oc.RPKI_VALIDATION_RESULT_TYPE_INVALID:
-		return api.ValidationState_STATE_INVALID
+		return api.ValidationState_VALIDATION_STATE_INVALID
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
-		return api.ValidationState_STATE_NOT_FOUND
+		return api.ValidationState_VALIDATION_STATE_NOT_FOUND
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NONE:
-		return api.ValidationState_STATE_NONE
+		return api.ValidationState_VALIDATION_STATE_NONE
 	default:
-		return api.ValidationState_STATE_UNSPECIFIED
+		return api.ValidationState_VALIDATION_STATE_UNSPECIFIED
 	}
 }
 
@@ -1233,15 +1233,15 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 	}
 	switch s.Conditions.BgpConditions.RpkiValidationResult {
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NONE:
-		cs.RpkiResult = api.ValidationState_STATE_NONE
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_NONE
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
-		cs.RpkiResult = api.ValidationState_STATE_NOT_FOUND
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_NOT_FOUND
 	case oc.RPKI_VALIDATION_RESULT_TYPE_VALID:
-		cs.RpkiResult = api.ValidationState_STATE_VALID
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_VALID
 	case oc.RPKI_VALIDATION_RESULT_TYPE_INVALID:
-		cs.RpkiResult = api.ValidationState_STATE_INVALID
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_INVALID
 	default:
-		cs.RpkiResult = api.ValidationState_STATE_UNSPECIFIED
+		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_UNSPECIFIED
 	}
 
 	as := &api.Actions{
@@ -1480,13 +1480,13 @@ func newRpkiValidationConditionFromApiStruct(a api.ValidationState) (*table.Rpki
 
 	c := oc.RpkiValidationResultType("")
 	switch a {
-	case api.ValidationState_STATE_NONE:
+	case api.ValidationState_VALIDATION_STATE_NONE:
 		c = oc.RPKI_VALIDATION_RESULT_TYPE_NONE
-	case api.ValidationState_STATE_NOT_FOUND:
+	case api.ValidationState_VALIDATION_STATE_NOT_FOUND:
 		c = oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
-	case api.ValidationState_STATE_VALID:
+	case api.ValidationState_VALIDATION_STATE_VALID:
 		c = oc.RPKI_VALIDATION_RESULT_TYPE_VALID
-	case api.ValidationState_STATE_INVALID:
+	case api.ValidationState_VALIDATION_STATE_INVALID:
 		c = oc.RPKI_VALIDATION_RESULT_TYPE_INVALID
 	default:
 		return nil, nil
