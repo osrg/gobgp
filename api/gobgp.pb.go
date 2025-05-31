@@ -12127,13 +12127,18 @@ func (x *WatchEventRequest_Table) GetFilters() []*WatchEventRequest_Table_Filter
 }
 
 type WatchEventRequest_Table_Filter struct {
-	state         protoimpl.MessageState              `protogen:"open.v1"`
-	Type          WatchEventRequest_Table_Filter_Type `protobuf:"varint,1,opt,name=type,proto3,enum=api.WatchEventRequest_Table_Filter_Type" json:"type,omitempty"`
-	Init          bool                                `protobuf:"varint,2,opt,name=init,proto3" json:"init,omitempty"`
-	PeerAddress   string                              `protobuf:"bytes,3,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"`
-	PeerGroup     string                              `protobuf:"bytes,4,opt,name=peer_group,json=peerGroup,proto3" json:"peer_group,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState              `protogen:"open.v1"`
+	Type                  WatchEventRequest_Table_Filter_Type `protobuf:"varint,1,opt,name=type,proto3,enum=api.WatchEventRequest_Table_Filter_Type" json:"type,omitempty"`
+	Init                  bool                                `protobuf:"varint,2,opt,name=init,proto3" json:"init,omitempty"`
+	PeerAddress           string                              `protobuf:"bytes,3,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"`
+	PeerGroup             string                              `protobuf:"bytes,4,opt,name=peer_group,json=peerGroup,proto3" json:"peer_group,omitempty"`
+	EnableNlriBinary      bool                                `protobuf:"varint,5,opt,name=enable_nlri_binary,json=enableNlriBinary,proto3" json:"enable_nlri_binary,omitempty"`
+	EnableAttributeBinary bool                                `protobuf:"varint,6,opt,name=enable_attribute_binary,json=enableAttributeBinary,proto3" json:"enable_attribute_binary,omitempty"`
+	// enable_only_binary == true means that only nlri_binary and pattrs_binary
+	// will be used instead of nlri and pattrs for each Path in ListPathResponse.
+	EnableOnlyBinary bool `protobuf:"varint,7,opt,name=enable_only_binary,json=enableOnlyBinary,proto3" json:"enable_only_binary,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *WatchEventRequest_Table_Filter) Reset() {
@@ -12192,6 +12197,27 @@ func (x *WatchEventRequest_Table_Filter) GetPeerGroup() string {
 		return x.PeerGroup
 	}
 	return ""
+}
+
+func (x *WatchEventRequest_Table_Filter) GetEnableNlriBinary() bool {
+	if x != nil {
+		return x.EnableNlriBinary
+	}
+	return false
+}
+
+func (x *WatchEventRequest_Table_Filter) GetEnableAttributeBinary() bool {
+	if x != nil {
+		return x.EnableAttributeBinary
+	}
+	return false
+}
+
+func (x *WatchEventRequest_Table_Filter) GetEnableOnlyBinary() bool {
+	if x != nil {
+		return x.EnableOnlyBinary
+	}
+	return false
 }
 
 type WatchEventResponse_PeerEvent struct {
@@ -12458,21 +12484,24 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fStopBgpResponse\"\x0f\n" +
 	"\rGetBgpRequest\"5\n" +
 	"\x0eGetBgpResponse\x12#\n" +
-	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xe8\x03\n" +
+	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xfc\x04\n" +
 	"\x11WatchEventRequest\x12/\n" +
 	"\x04peer\x18\x01 \x01(\v2\x1b.api.WatchEventRequest.PeerR\x04peer\x122\n" +
 	"\x05table\x18\x02 \x01(\v2\x1c.api.WatchEventRequest.TableR\x05table\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x03 \x01(\rR\tbatchSize\x1a\x06\n" +
-	"\x04Peer\x1a\xc6\x02\n" +
+	"\x04Peer\x1a\xda\x03\n" +
 	"\x05Table\x12=\n" +
-	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\xfd\x01\n" +
+	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\x91\x03\n" +
 	"\x06Filter\x12<\n" +
 	"\x04type\x18\x01 \x01(\x0e2(.api.WatchEventRequest.Table.Filter.TypeR\x04type\x12\x12\n" +
 	"\x04init\x18\x02 \x01(\bR\x04init\x12!\n" +
 	"\fpeer_address\x18\x03 \x01(\tR\vpeerAddress\x12\x1d\n" +
 	"\n" +
-	"peer_group\x18\x04 \x01(\tR\tpeerGroup\"_\n" +
+	"peer_group\x18\x04 \x01(\tR\tpeerGroup\x12,\n" +
+	"\x12enable_nlri_binary\x18\x05 \x01(\bR\x10enableNlriBinary\x126\n" +
+	"\x17enable_attribute_binary\x18\x06 \x01(\bR\x15enableAttributeBinary\x12,\n" +
+	"\x12enable_only_binary\x18\a \x01(\bR\x10enableOnlyBinary\"_\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tTYPE_BEST\x10\x01\x12\x0e\n" +
