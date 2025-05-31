@@ -362,7 +362,7 @@ func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
 }
 
 func (z *zebraClient) loop() {
-	w := z.server.watch([]watchOption{
+	w := z.server.watch([]WatchOption{
 		watchBestPath(true),
 		watchPostUpdate(true, "", ""),
 	}...)
@@ -419,7 +419,7 @@ func (z *zebraClient) loop() {
 			}
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
-			case *watchEventBestPath:
+			case *WatchEventBestPath:
 				if table.UseMultiplePaths.Enabled {
 					for _, paths := range msg.MultiPathList {
 						z.updatePathByNexthopCache(paths)
@@ -448,7 +448,7 @@ func (z *zebraClient) loop() {
 						}
 					}
 				}
-			case *watchEventUpdate:
+			case *WatchEventUpdate:
 				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
 					vrfID := uint32(0)
 					for _, vrf := range z.server.listVrf() {
