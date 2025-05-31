@@ -636,21 +636,23 @@ enum TableType {
   TABLE_TYPE_VRF = 5;
 }
 
+enum ValidationState {
+  STATE_UNSPECIFIED = 0;
+  STATE_NONE = 1;
+  STATE_NOT_FOUND = 2;
+  STATE_VALID = 3;
+  STATE_INVALID = 4;
+}
+
 message Validation {
-  enum State {
-    STATE_NONE = 0;
-    STATE_NOT_FOUND = 1;
-    STATE_VALID = 2;
-    STATE_INVALID = 3;
-  }
-
   enum Reason {
-    REASON_NONE = 0;
-    REASON_ASN = 1;
-    REASON_LENGTH = 2;
+    REASON_UNSPECIFIED = 0;
+    REASON_NONE = 1;
+    REASON_ASN = 2;
+    REASON_LENGTH = 3;
   }
 
-  State state = 1;
+  ValidationState state = 1;
   Reason reason = 2;
   repeated Roa matched = 3;
   repeated Roa unmatched_asn = 4;
@@ -1152,7 +1154,7 @@ message Conditions {
   MatchSet as_path_set = 4;
   MatchSet community_set = 5;
   MatchSet ext_community_set = 6;
-  int32 rpki_result = 7;
+  ValidationState rpki_result = 7;
   enum RouteType {
     ROUTE_TYPE_UNSPECIFIED = 0;
     ROUTE_TYPE_INTERNAL = 1;

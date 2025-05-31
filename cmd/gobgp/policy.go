@@ -466,8 +466,19 @@ func printStatement(indent int, s *api.Statement) {
 	if c.AsPathLength != nil {
 		fmt.Printf("%sAsPathLength: %s\n", ind, prettyString(c.AsPathLength))
 	}
+	state := "UNSPECIFIED"
+	switch c.RpkiResult {
+	case api.ValidationState_STATE_NONE:
+		state = "NONE"
+	case api.ValidationState_STATE_NOT_FOUND:
+		state = "NOT_FOUND"
+	case api.ValidationState_STATE_VALID:
+		state = "VALID"
+	case api.ValidationState_STATE_INVALID:
+		state = "INVALID"
+	}
 	if c.RpkiResult != -1 {
-		fmt.Printf("%sRPKI result: %s\n", ind, strings.TrimPrefix(api.Validation_State(c.RpkiResult).String(), "STATE_"))
+		fmt.Printf("%sRPKI result: %s\n", ind, state)
 	}
 	if c.RouteType != api.Conditions_ROUTE_TYPE_UNSPECIFIED {
 		fmt.Printf("%sRoute Type: %s\n", ind, routeTypePrettyString(c.RouteType))
@@ -795,11 +806,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[0]) {
 		case "valid":
-			stmt.Conditions.RpkiResult = int32(oc.RpkiValidationResultTypeToIntMap[oc.RPKI_VALIDATION_RESULT_TYPE_VALID])
+			stmt.Conditions.RpkiResult = api.ValidationState_STATE_VALID
 		case "invalid":
-			stmt.Conditions.RpkiResult = int32(oc.RpkiValidationResultTypeToIntMap[oc.RPKI_VALIDATION_RESULT_TYPE_INVALID])
+			stmt.Conditions.RpkiResult = api.ValidationState_STATE_INVALID
 		case "not-found":
-			stmt.Conditions.RpkiResult = int32(oc.RpkiValidationResultTypeToIntMap[oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND])
+			stmt.Conditions.RpkiResult = api.ValidationState_STATE_NOT_FOUND
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}

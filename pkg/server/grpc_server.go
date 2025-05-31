@@ -153,13 +153,41 @@ func (s *server) ListPeer(r *api.ListPeerRequest, stream api.GoBgpService_ListPe
 	return s.bgpServer.ListPeer(ctx, r, fn)
 }
 
+func toApiState(s oc.RpkiValidationResultType) api.ValidationState {
+	switch s {
+	case oc.RPKI_VALIDATION_RESULT_TYPE_VALID:
+		return api.ValidationState_STATE_VALID
+	case oc.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+		return api.ValidationState_STATE_INVALID
+	case oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+		return api.ValidationState_STATE_NOT_FOUND
+	case oc.RPKI_VALIDATION_RESULT_TYPE_NONE:
+		return api.ValidationState_STATE_NONE
+	default:
+		return api.ValidationState_STATE_UNSPECIFIED
+	}
+}
+
+func toApiReason(r table.RpkiValidationReasonType) api.Validation_Reason {
+	switch r {
+	case table.RPKI_VALIDATION_REASON_TYPE_NONE:
+		return api.Validation_REASON_NONE
+	case table.RPKI_VALIDATION_REASON_TYPE_AS:
+		return api.Validation_REASON_ASN
+	case table.RPKI_VALIDATION_REASON_TYPE_LENGTH:
+		return api.Validation_REASON_LENGTH
+	default:
+		return api.Validation_REASON_UNSPECIFIED
+	}
+}
+
 func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	if v == nil {
 		return &api.Validation{}
 	}
 	return &api.Validation{
-		State:           api.Validation_State(v.Status.ToInt()),
-		Reason:          api.Validation_Reason(v.Reason.ToInt()),
+		State:           toApiState(v.Status),
+		Reason:          toApiReason(v.Reason),
 		Matched:         newRoaListFromTableStructList(v.Matched),
 		UnmatchedAsn:    newRoaListFromTableStructList(v.UnmatchedAs),
 		UnmatchedLength: newRoaListFromTableStructList(v.UnmatchedLength),
@@ -1203,7 +1231,19 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		}
 		cs.AfiSafiIn = afiSafiIn
 	}
-	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
+	switch s.Conditions.BgpConditions.RpkiValidationResult {
+	case oc.RPKI_VALIDATION_RESULT_TYPE_NONE:
+		cs.RpkiResult = api.ValidationState_STATE_NONE
+	case oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+		cs.RpkiResult = api.ValidationState_STATE_NOT_FOUND
+	case oc.RPKI_VALIDATION_RESULT_TYPE_VALID:
+		cs.RpkiResult = api.ValidationState_STATE_VALID
+	case oc.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+		cs.RpkiResult = api.ValidationState_STATE_INVALID
+	default:
+		cs.RpkiResult = api.ValidationState_STATE_UNSPECIFIED
+	}
+
 	as := &api.Actions{
 		RouteAction: func() api.RouteAction {
 			switch s.Actions.RouteDisposition {
@@ -1436,11 +1476,23 @@ func newAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, e
 	return table.NewAsPathCondition(c)
 }
 
-func newRpkiValidationConditionFromApiStruct(a int32) (*table.RpkiValidationCondition, error) {
-	if a < 1 {
+func newRpkiValidationConditionFromApiStruct(a api.ValidationState) (*table.RpkiValidationCondition, error) {
+
+	c := oc.RpkiValidationResultType("")
+	switch a {
+	case api.ValidationState_STATE_NONE:
+		c = oc.RPKI_VALIDATION_RESULT_TYPE_NONE
+	case api.ValidationState_STATE_NOT_FOUND:
+		c = oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+	case api.ValidationState_STATE_VALID:
+		c = oc.RPKI_VALIDATION_RESULT_TYPE_VALID
+	case api.ValidationState_STATE_INVALID:
+		c = oc.RPKI_VALIDATION_RESULT_TYPE_INVALID
+	default:
 		return nil, nil
 	}
-	return table.NewRpkiValidationCondition(oc.IntToRpkiValidationResultTypeMap[int(a)])
+
+	return table.NewRpkiValidationCondition(c)
 }
 
 func newRouteTypeConditionFromApiStruct(a api.Conditions_RouteType) (*table.RouteTypeCondition, error) {
