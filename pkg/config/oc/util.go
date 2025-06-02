@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
@@ -481,6 +480,22 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	case ADMIN_STATE_PFX_CT:
 		admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 	}
+	var sessionState api.PeerState_SessionState
+	switch s.SessionState {
+	case SESSION_STATE_IDLE:
+		sessionState = api.PeerState_SESSION_STATE_IDLE
+	case SESSION_STATE_CONNECT:
+		sessionState = api.PeerState_SESSION_STATE_CONNECT
+	case SESSION_STATE_ACTIVE:
+		sessionState = api.PeerState_SESSION_STATE_ACTIVE
+	case SESSION_STATE_OPENSENT:
+		sessionState = api.PeerState_SESSION_STATE_OPENSENT
+	case SESSION_STATE_OPENCONFIRM:
+		sessionState = api.PeerState_SESSION_STATE_OPENCONFIRM
+	case SESSION_STATE_ESTABLISHED:
+		sessionState = api.PeerState_SESSION_STATE_ESTABLISHED
+	}
+
 	return &api.Peer{
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerConf{
@@ -502,7 +517,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			SendSoftwareVersion:  pconf.Config.SendSoftwareVersion,
 		},
 		State: &api.PeerState{
-			SessionState: api.PeerState_SessionState(api.PeerState_SessionState_value[strings.ToUpper(string(s.SessionState))]),
+			SessionState: sessionState,
 			AdminState:   admin_state,
 			Messages: &api.Messages{
 				Received: &api.Message{

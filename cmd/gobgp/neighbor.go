@@ -195,7 +195,7 @@ func showNeighbors(vrf string) error {
 		timeStr := "never"
 		if n.Timers.State.Uptime != nil {
 			t := n.Timers.State.Downtime.AsTime()
-			if n.State.SessionState == api.PeerState_ESTABLISHED {
+			if n.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
 				t = n.Timers.State.Uptime.AsTime()
 			}
 			timeStr = formatTimedelta(t)
@@ -218,20 +218,20 @@ func showNeighbors(vrf string) error {
 		}
 
 		switch fsm {
-		case api.PeerState_UNKNOWN:
+		case api.PeerState_SESSION_STATE_UNSPECIFIED:
 			// should never happen
 			return "Unknown"
-		case api.PeerState_IDLE:
+		case api.PeerState_SESSION_STATE_IDLE:
 			return "Idle"
-		case api.PeerState_CONNECT:
+		case api.PeerState_SESSION_STATE_CONNECT:
 			return "Connect"
-		case api.PeerState_ACTIVE:
+		case api.PeerState_SESSION_STATE_ACTIVE:
 			return "Active"
-		case api.PeerState_OPENSENT:
+		case api.PeerState_SESSION_STATE_OPENSENT:
 			return "Sent"
-		case api.PeerState_OPENCONFIRM:
+		case api.PeerState_SESSION_STATE_OPENCONFIRM:
 			return "Confirm"
-		case api.PeerState_ESTABLISHED:
+		case api.PeerState_SESSION_STATE_ESTABLISHED:
 			return "Establ"
 		default:
 			return string(fsm)
@@ -998,7 +998,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			if err != nil {
 				return err
 			}
-			if l[0].State.SessionState != api.PeerState_ESTABLISHED {
+			if l[0].State.SessionState != api.PeerState_SESSION_STATE_ESTABLISHED {
 				return fmt.Errorf("neighbor %v's BGP session is not established", name)
 			}
 		}

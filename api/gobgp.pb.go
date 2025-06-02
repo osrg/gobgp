@@ -943,34 +943,34 @@ func (Validation_Reason) EnumDescriptor() ([]byte, []int) {
 type PeerState_SessionState int32
 
 const (
-	PeerState_UNKNOWN     PeerState_SessionState = 0
-	PeerState_IDLE        PeerState_SessionState = 1
-	PeerState_CONNECT     PeerState_SessionState = 2
-	PeerState_ACTIVE      PeerState_SessionState = 3
-	PeerState_OPENSENT    PeerState_SessionState = 4
-	PeerState_OPENCONFIRM PeerState_SessionState = 5
-	PeerState_ESTABLISHED PeerState_SessionState = 6
+	PeerState_SESSION_STATE_UNSPECIFIED PeerState_SessionState = 0
+	PeerState_SESSION_STATE_IDLE        PeerState_SessionState = 1
+	PeerState_SESSION_STATE_CONNECT     PeerState_SessionState = 2
+	PeerState_SESSION_STATE_ACTIVE      PeerState_SessionState = 3
+	PeerState_SESSION_STATE_OPENSENT    PeerState_SessionState = 4
+	PeerState_SESSION_STATE_OPENCONFIRM PeerState_SessionState = 5
+	PeerState_SESSION_STATE_ESTABLISHED PeerState_SessionState = 6
 )
 
 // Enum value maps for PeerState_SessionState.
 var (
 	PeerState_SessionState_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "IDLE",
-		2: "CONNECT",
-		3: "ACTIVE",
-		4: "OPENSENT",
-		5: "OPENCONFIRM",
-		6: "ESTABLISHED",
+		0: "SESSION_STATE_UNSPECIFIED",
+		1: "SESSION_STATE_IDLE",
+		2: "SESSION_STATE_CONNECT",
+		3: "SESSION_STATE_ACTIVE",
+		4: "SESSION_STATE_OPENSENT",
+		5: "SESSION_STATE_OPENCONFIRM",
+		6: "SESSION_STATE_ESTABLISHED",
 	}
 	PeerState_SessionState_value = map[string]int32{
-		"UNKNOWN":     0,
-		"IDLE":        1,
-		"CONNECT":     2,
-		"ACTIVE":      3,
-		"OPENSENT":    4,
-		"OPENCONFIRM": 5,
-		"ESTABLISHED": 6,
+		"SESSION_STATE_UNSPECIFIED": 0,
+		"SESSION_STATE_IDLE":        1,
+		"SESSION_STATE_CONNECT":     2,
+		"SESSION_STATE_ACTIVE":      3,
+		"SESSION_STATE_OPENSENT":    4,
+		"SESSION_STATE_OPENCONFIRM": 5,
+		"SESSION_STATE_ESTABLISHED": 6,
 	}
 )
 
@@ -7865,7 +7865,7 @@ func (x *PeerState) GetSessionState() PeerState_SessionState {
 	if x != nil {
 		return x.SessionState
 	}
-	return PeerState_UNKNOWN
+	return PeerState_SESSION_STATE_UNSPECIFIED
 }
 
 func (x *PeerState) GetAdminState() PeerState_AdminState {
@@ -12928,7 +12928,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\fmultihop_ttl\x18\x02 \x01(\rR\vmultihopTtl\"\x83\x01\n" +
 	"\x0eRouteReflector\x124\n" +
 	"\x16route_reflector_client\x18\x01 \x01(\bR\x14routeReflectorClient\x12;\n" +
-	"\x1aroute_reflector_cluster_id\x18\x02 \x01(\tR\x17routeReflectorClusterId\"\xd8\a\n" +
+	"\x1aroute_reflector_cluster_id\x18\x02 \x01(\tR\x17routeReflectorClusterId\"\xbf\b\n" +
 	"\tPeerState\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +
@@ -12952,16 +12952,15 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\n" +
 	"remote_cap\x18\x12 \x03(\v2\x0f.api.CapabilityR\tremoteCap\x12,\n" +
 	"\tlocal_cap\x18\x13 \x03(\v2\x0f.api.CapabilityR\blocalCap\x12\x1b\n" +
-	"\trouter_id\x18\x14 \x01(\tR\brouterId\"n\n" +
-	"\fSessionState\x12\v\n" +
-	"\aUNKNOWN\x10\x00\x12\b\n" +
-	"\x04IDLE\x10\x01\x12\v\n" +
-	"\aCONNECT\x10\x02\x12\n" +
-	"\n" +
-	"\x06ACTIVE\x10\x03\x12\f\n" +
-	"\bOPENSENT\x10\x04\x12\x0f\n" +
-	"\vOPENCONFIRM\x10\x05\x12\x0f\n" +
-	"\vESTABLISHED\x10\x06\"k\n" +
+	"\trouter_id\x18\x14 \x01(\tR\brouterId\"\xd4\x01\n" +
+	"\fSessionState\x12\x1d\n" +
+	"\x19SESSION_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12SESSION_STATE_IDLE\x10\x01\x12\x19\n" +
+	"\x15SESSION_STATE_CONNECT\x10\x02\x12\x18\n" +
+	"\x14SESSION_STATE_ACTIVE\x10\x03\x12\x1a\n" +
+	"\x16SESSION_STATE_OPENSENT\x10\x04\x12\x1d\n" +
+	"\x19SESSION_STATE_OPENCONFIRM\x10\x05\x12\x1d\n" +
+	"\x19SESSION_STATE_ESTABLISHED\x10\x06\"k\n" +
 	"\n" +
 	"AdminState\x12\x1b\n" +
 	"\x17ADMIN_STATE_UNSPECIFIED\x10\x00\x12\x12\n" +

@@ -244,7 +244,7 @@ func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState,
 }
 
 func waitActive(s *BgpServer, ch chan struct{}) {
-	waitState(s, ch, api.PeerState_ACTIVE)
+	waitState(s, ch, api.PeerState_SESSION_STATE_ACTIVE)
 }
 
 func waitEstablished(s *BgpServer, ch chan struct{}) {
@@ -252,7 +252,7 @@ func waitEstablished(s *BgpServer, ch chan struct{}) {
 }
 
 func waitEstablishedWithFamilies(s *BgpServer, ch chan struct{}, rfs ...bgp.Family) {
-	waitState(s, ch, api.PeerState_ESTABLISHED, rfs...)
+	waitState(s, ch, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -1354,7 +1354,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
 		s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
-			if peer.State.SessionState == api.PeerState_IDLE {
+			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
 				close(done)
 			}
 		})

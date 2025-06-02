@@ -821,13 +821,13 @@ message PeerState {
   bool route_flap_damping = 11;
   uint32 send_community = 12;
   enum SessionState {
-    UNKNOWN = 0;
-    IDLE = 1;
-    CONNECT = 2;
-    ACTIVE = 3;
-    OPENSENT = 4;
-    OPENCONFIRM = 5;
-    ESTABLISHED = 6;
+    SESSION_STATE_UNSPECIFIED = 0;
+    SESSION_STATE_IDLE = 1;
+    SESSION_STATE_CONNECT = 2;
+    SESSION_STATE_ACTIVE = 3;
+    SESSION_STATE_OPENSENT = 4;
+    SESSION_STATE_OPENCONFIRM = 5;
+    SESSION_STATE_ESTABLISHED = 6;
   }
   SessionState session_state = 13;
   enum AdminState {

@@ -247,7 +247,7 @@ func (b *bmpClient) loop() {
 					var err error
 					b.s.ListPeer(context.Background(), &api.ListPeerRequest{EnableAdvertised: true},
 						func(peer *api.Peer) {
-							if err == nil && peer.State.SessionState == api.PeerState_ESTABLISHED {
+							if err == nil && peer.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
 								err = write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, time.Now().Unix(), peer))
 							}
 						})
