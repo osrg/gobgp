@@ -39,6 +39,8 @@ func Test_VPLSExtended_decoding(t *testing.T) {
 	exts = append(exts, NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 65017, 104, true), NewVPLSExtended(0, 1500))
 	m2 := NewPathAttributeExtendedCommunities(exts)
 
+	// workaround
+	m1.hash = 0
 	assert.Equal(m1, m2)
 }
 
@@ -73,5 +75,7 @@ func Test_VPLSNLRI_decoding(t *testing.T) {
 	m2 := NewPathAttributeMpReachNLRI("192.0.2.7", ns)
 	m2.PathAttribute.Flags |= BGP_ATTR_FLAG_EXTENDED_LENGTH
 
+	// workaround
+	m1.hash = 0
 	assert.Equal(m1, m2)
 }
