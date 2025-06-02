@@ -823,7 +823,26 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
 	}
 	if a.State != nil {
-		pconf.State.SessionState = oc.SessionState(strings.ToUpper(string(a.State.SessionState)))
+		var sessionState oc.SessionState
+		switch a.State.SessionState {
+		case api.PeerState_SESSION_STATE_UNSPECIFIED:
+			sessionState = oc.SESSION_STATE_IDLE
+		case api.PeerState_SESSION_STATE_IDLE:
+			sessionState = oc.SESSION_STATE_IDLE
+		case api.PeerState_SESSION_STATE_CONNECT:
+			sessionState = oc.SESSION_STATE_CONNECT
+		case api.PeerState_SESSION_STATE_ACTIVE:
+			sessionState = oc.SESSION_STATE_ACTIVE
+		case api.PeerState_SESSION_STATE_OPENSENT:
+			sessionState = oc.SESSION_STATE_OPENSENT
+		case api.PeerState_SESSION_STATE_OPENCONFIRM:
+			sessionState = oc.SESSION_STATE_OPENCONFIRM
+		case api.PeerState_SESSION_STATE_ESTABLISHED:
+			sessionState = oc.SESSION_STATE_ESTABLISHED
+		default:
+			sessionState = oc.SESSION_STATE_IDLE
+		}
+		pconf.State.SessionState = sessionState
 		pconf.State.AdminState = oc.IntToAdminStateMap[int(a.State.AdminState)]
 
 		pconf.State.PeerAs = a.State.PeerAsn
