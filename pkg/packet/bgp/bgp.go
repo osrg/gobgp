@@ -11668,6 +11668,9 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	if IsAddPathEnabled(true, AfiSafiToFamily(afi, safi), options) {
 		addpathLen = 4
 	}
+
+	vplsNLRIFamily := AfiSafiToFamily(AFI_L2VPN, SAFI_VPLS)
+	requireHashUpdate := false
 	for len(value) > 0 {
 		prefix, err := NewPrefixFromFamily(afi, safi)
 		if err != nil {
@@ -11677,11 +11680,18 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 		if err != nil {
 			return err
 		}
-		if len(value) < prefix.Len(options...)+addpathLen {
+		if vplsNLRIFamily == AfiSafiToFamily(afi, safi) {
+			// workaround for VPLS NLRI, we need to update the hash, as VPLSNLRI.LabelBlockBase field contain (MPLS label on 20bits) so the last 4 bits are not used and can contain garbage that will change the hash
+			requireHashUpdate = true
+		}
+		if prefix.Len(options...)+addpathLen > len(value) {
 			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
 		}
 		value = value[prefix.Len(options...)+addpathLen:]
 		p.Value = append(p.Value, prefix)
+	}
+	if requireHashUpdate {
+		p.Serialize()
 	}
 	return nil
 }
@@ -13226,6 +13236,8 @@ func NewTrafficRemarkExtended(dscp uint8) *TrafficRemarkExtended {
 	}
 }
 
+var errNoErrorButHashUpdateRequired = errors.New("no error, but would require a hash update") // workaround : as byte protocol contains some reserved fields that could be "site preference" like VPLSExtended bytes 6 and 7
+
 func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityInterface, error) {
 	typ := ExtendedCommunityAttrType(data[0])
 	if typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 {
@@ -13274,7 +13286,7 @@ func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityI
 		case byte(LAYER2ENCAPSULATION_TYPE_VPLS):
 			controlFlags := uint8(data[3])
 			mtu := binary.BigEndian.Uint16(data[4:6])
-			return NewVPLSExtended(controlFlags, mtu), nil
+			return NewVPLSExtended(controlFlags, mtu), errNoErrorButHashUpdateRequired
 		}
 	}
 	return &UnknownExtended{
@@ -13425,13 +13437,21 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte, options 
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
 	}
+	requireHashUpdate := false
 	for len(value) >= 8 {
 		e, err := ParseExtended(value)
-		if err != nil {
+		if err != nil && err != errNoErrorButHashUpdateRequired {
 			return err
+		}
+		if err == errNoErrorButHashUpdateRequired {
+			requireHashUpdate = true
 		}
 		p.Value = append(p.Value, e)
 		value = value[8:]
+	}
+	// see ErrNoErrorButHashUpdateRequired comment
+	if requireHashUpdate {
+		p.Serialize()
 	}
 	return nil
 }
