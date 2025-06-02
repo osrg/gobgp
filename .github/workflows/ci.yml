@@ -49,16 +49,20 @@ jobs:
           go env GOARCH
           go test -timeout 240s ./...
 
-  protobuf-format:
-    name: protobuf-format
+  protobuf-check:
+    name: protobuf lint and format check
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: latest
-      - run: |
-          buf format --diff --exit-code
+
+      - name: buf lint
+        run: buf lint proto/
+
+      - name: buf format check
+        run: buf format --diff --exit-code
 
   golangci:
     name: lint
