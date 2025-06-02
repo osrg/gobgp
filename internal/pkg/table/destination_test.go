@@ -433,3 +433,34 @@ func TestGetWithdrawnPath(t *testing.T) {
 	assert.Equal(t, len(l), 2)
 	assert.Equal(t, l[0].GetNlri(), p1.GetNlri())
 }
+
+func BenchmarkCalculate(b *testing.B) {
+	b.StopTimer()
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	// Create a 4 path setup for the given NLRI
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+
+	numPaths := 4
+	pathList := make([]*Path, numPaths)
+	for i := 0; i < numPaths; i++ {
+		// peer1 sends normal update message 10.10.0.0/24
+		update := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+		peeri := &PeerInfo{AS: uint32(i), Address: net.IP{byte(i), byte(i), byte(i), byte(i)}}
+		pathList[i] = ProcessMessage(update, peeri, time.Now())[0]
+	}
+
+	for i := 0; i < b.N; i++ {
+		d := NewDestination(nlri, 0)
+		b.StartTimer()
+		for j := 0; j < len(pathList); j++ {
+			d.Calculate(logger, pathList[j])
+		}
+		b.StopTimer()
+	}
+}
