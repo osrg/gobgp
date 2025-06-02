@@ -137,7 +137,7 @@ type Path struct {
 	parent    *Path
 	pathAttrs map[bgp.BGPAttrType]bgp.PathAttributeInterface
 	dels      map[bgp.BGPAttrType]struct{}
-	attrsHash uint32
+	attrsHash uint64
 	rejected  bool
 	// doesn't exist in the adj
 	dropped bool
@@ -1311,11 +1311,11 @@ func (p *Path) ToLocal() *Path {
 	return path
 }
 
-func (p *Path) SetHash(v uint32) {
+func (p *Path) SetHash(v uint64) {
 	p.attrsHash = v
 }
 
-func (p *Path) GetHash() uint32 {
+func (p *Path) GetHash() uint64 {
 	return p.attrsHash
 }
 
