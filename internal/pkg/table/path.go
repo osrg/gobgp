@@ -511,7 +511,7 @@ func (a PathAttrs) Less(i, j int) bool {
 	return a[i].GetType() < a[j].GetType()
 }
 
-func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
+func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttributeInterface {
 	deleted := make(map[bgp.BGPAttrType]struct{})
 	modified := make(map[bgp.BGPAttrType]bgp.PathAttributeInterface)
 
@@ -526,11 +526,17 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 		maps.Copy(modified, p.pathAttrs)
 	}
 
+	for t, _ := range deleted {
+		delete(modified, t)
+	}
+	return modified
+}
+
+func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
+	modified := path.GetTransversalPathAttrs()
 	list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(modified)))
-	for t, a := range modified {
-		if _, ok := deleted[t]; !ok {
-			list = append(list, a)
-		}
+	for _, a := range modified {
+		list = append(list, a)
 	}
 	sort.Sort(list)
 	return list
@@ -1034,15 +1040,41 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return false
 	}
 
-	pattrs := func(arg []bgp.PathAttributeInterface) []byte {
-		ret := make([]byte, 0)
-		for _, a := range arg {
-			aa, _ := a.Serialize()
-			ret = append(ret, aa...)
-		}
-		return ret
+	ltPath := lhs.GetTransversalPathAttrs()
+	rtPath := rhs.GetTransversalPathAttrs()
+	if len(ltPath) != len(rtPath) {
+		return false
 	}
-	return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
+
+	for t, a := range ltPath {
+		b, ok := rtPath[t]
+		if !ok {
+			return false
+		}
+		if a.GetFlags() != b.GetFlags() {
+			return false
+		}
+		if a.GetType() != b.GetType() {
+			return false
+		}
+		if a.Len() != b.Len() {
+			return false
+		}
+
+		// update hash if needed
+		hA := a.Hash()
+		hB := b.Hash()
+		if hA == 0 {
+			a.Serialize()
+		}
+		if hB == 0 {
+			b.Serialize()
+		}
+		if hA != hB {
+			return false
+		}
+	}
+	return true
 }
 
 func (path *Path) MarshalJSON() ([]byte, error) {
