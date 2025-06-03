@@ -1059,16 +1059,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 			return false
 		}
 
-		// update hash if needed
-		hA := a.Hash()
-		hB := b.Hash()
-		if hA == 0 {
-			a.Serialize()
-		}
-		if hB == 0 {
-			b.Serialize()
-		}
-		if hA != hB {
+		if bgp.GetPathAttributeHash(a) != bgp.GetPathAttributeHash(b) {
 			return false
 		}
 	}
@@ -1314,6 +1305,11 @@ func (p *Path) SetHash(v uint64) {
 }
 
 func (p *Path) GetHash() uint64 {
+	if p.attrsHash == 0 {
+		for _, a := range p.pathAttrs {
+			p.attrsHash ^= bgp.GetPathAttributeHash(a)
+		}
+	}
 	return p.attrsHash
 }
 
