@@ -48,6 +48,9 @@ func (n *VPLSNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) e
 		NLRI length.  Therefore, implementations of BGP-AD must ignore NLRI
 		that are greater than 12 bytes.
 	*/
+	if len(data) < 2 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
+	}
 	length := int(binary.BigEndian.Uint16(data[0:2]))
 	if len(data) < length+2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
@@ -55,6 +58,9 @@ func (n *VPLSNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) e
 	if length == 12 { // BGP-AD
 		// BGP-AD is not supported yet
 		return nil
+	}
+	if len(data) < 19 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
 	}
 	// VPLS-BGP
 	n.rd = GetRouteDistinguisher(data[2:10])

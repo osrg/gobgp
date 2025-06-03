@@ -468,7 +468,7 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all DefaultParameterCapability bytes available")
 	}
 	if c.CapLen > 0 {
-		c.CapValue = data[2 : 2+c.CapLen]
+		c.CapValue = data[2 : 2+int(c.CapLen)]
 	}
 	return nil
 }
@@ -483,7 +483,7 @@ func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
 }
 
 func (c *DefaultParameterCapability) Len() int {
-	return int(c.CapLen + 2)
+	return int(c.CapLen) + 2
 }
 
 type CapMultiProtocol struct {
@@ -1027,32 +1027,35 @@ func (c *CapFQDN) DecodeFromBytes(data []byte) error {
 	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
 		return err
 	}
-	data = data[2:]
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
+	data = data[2:]
 	rest := len(data)
 	if rest < 1 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
-	hostNameLen := uint8(data[0])
 	rest -= 1
-	c.HostNameLen = hostNameLen
-	if rest < int(hostNameLen) {
+	c.HostNameLen = data[0]
+	hostNameLen := int(c.HostNameLen)
+	if rest < hostNameLen {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
-	c.HostName = string(data[1 : c.HostNameLen+1])
-	rest -= int(hostNameLen)
+	if len(data) < hostNameLen+2 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
+	}
+	c.HostName = string(data[1 : hostNameLen+1])
+	rest -= hostNameLen
 	if rest < 1 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
 	rest -= 1
-	domainNameLen := uint8(data[c.HostNameLen+1])
+	domainNameLen := uint8(data[hostNameLen+1])
 	if rest < int(domainNameLen) {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
 	c.DomainNameLen = domainNameLen
-	c.DomainName = string(data[c.HostNameLen+2:])
+	c.DomainName = string(data[hostNameLen+2:])
 	return nil
 }
 
@@ -2056,13 +2059,16 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 		}
 	}
 	if len(data) < 1 {
-		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "prefix misses length field")
+		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "LabeledVPNIPAddrPrefix not enough data")
 	}
 	l.Length = uint8(data[0])
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data, options...)
 	if int(l.Length)-8*(l.Labels.Len()) < 0 {
 		l.Labels.Labels = []uint32{}
+	}
+	if len(data) < l.Labels.Len()+8 {
+		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "LabeledVPNIPAddrPrefix not enough data")
 	}
 	data = data[l.Labels.Len():]
 	l.RD = GetRouteDistinguisher(data)
@@ -2121,7 +2127,7 @@ func (l *LabeledVPNIPAddrPrefix) IPPrefixLen() uint8 {
 }
 
 func (l *LabeledVPNIPAddrPrefix) Len(options ...*MarshallingOption) int {
-	return 1 + l.Labels.Len() + l.RD.Len() + int((l.IPPrefixLen()+7)/8)
+	return 1 + l.Labels.Len() + l.RD.Len() + (int(l.IPPrefixLen())+7)/8
 }
 
 func (l *LabeledVPNIPAddrPrefix) String() string {
@@ -2222,6 +2228,9 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 			return err
 		}
 	}
+	if len(data) < 1 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "LabeledIPAddrPrefix not enough data")
+	}
 	l.Length = uint8(data[0])
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data)
@@ -2229,8 +2238,11 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 	if int(l.Length)-8*(l.Labels.Len()) < 0 {
 		l.Labels.Labels = []uint32{}
 	}
-	restbits := int(l.Length) - 8*(l.Labels.Len())
+	if len(data) < l.Labels.Len() {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "LabeledIPAddrPrefix not enough data")
+	}
 	data = data[l.Labels.Len():]
+	restbits := int(l.Length) - 8*(l.Labels.Len())
 	return l.decodePrefix(data, uint8(restbits), l.addrlen)
 }
 
@@ -2695,6 +2707,9 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Len() int {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad Ethernet Auto-discovery Route length")
+	}
 	er.RD = GetRouteDistinguisher(data)
 	rdLen := er.RD.Len()
 	if len(data) < rdLen+14 { // 14 is 10 for
@@ -2704,6 +2719,9 @@ func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
 		return err
+	}
+	if len(data) < 10+4 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad Ethernet Auto-discovery Route length")
 	}
 	data = data[10:]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
@@ -2799,12 +2817,15 @@ func (er *EVPNMacIPAdvertisementRoute) Len() int {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
+	}
 	er.RD = GetRouteDistinguisher(data)
 	rdLen := er.RD.Len()
-	if len(data) < rdLen {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad length of MAC/IP Advertisement Route")
+	if len(data) < rdLen+10+4+8 {
+		return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
 	}
-	data = data[er.RD.Len():]
+	data = data[rdLen:]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
 		return err
@@ -2817,9 +2838,15 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	er.IPAddressLength = data[7]
 	data = data[8:]
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		if len(data) < int(er.IPAddressLength/8) {
+			return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
+		}
 		er.IPAddress = net.IP(data[0:((er.IPAddressLength) / 8)])
 	} else if er.IPAddressLength != 0 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
+	}
+	if len(data) < int(er.IPAddressLength/8) {
+		return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
 	}
 	data = data[(er.IPAddressLength / 8):]
 	var label uint32
@@ -2827,6 +2854,9 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 		return err
 	}
 	er.Labels = append(er.Labels, label)
+	if len(data) < 3 {
+		return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
+	}
 	data = data[3:]
 	if len(data) == 3 {
 		if label, err = labelDecode(data); err != nil {
@@ -2955,16 +2985,22 @@ func (er *EVPNMulticastEthernetTagRoute) Len() int {
 }
 
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return malformedAttrListErr("invalid length of multicast ethernet tag route")
+	}
 	er.RD = GetRouteDistinguisher(data)
 	rdLen := er.RD.Len()
-	if len(data) < rdLen+4 {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid length of multicast ethernet tag route")
+	if len(data) < rdLen+4+1 {
+		return malformedAttrListErr("invalid length of multicast ethernet tag route")
 	}
-	data = data[er.RD.Len():]
+	data = data[rdLen:]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	er.IPAddressLength = data[4]
 	data = data[5:]
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		if len(data) < int(er.IPAddressLength/8) {
+			return malformedAttrListErr("invalid length of multicast ethernet tag route")
+		}
 		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
@@ -3053,17 +3089,23 @@ func (er *EVPNEthernetSegmentRoute) Len() int {
 }
 
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return malformedAttrListErr("invalid Ethernet Segment Route length")
+	}
 	er.RD = GetRouteDistinguisher(data)
 	rdLen := er.RD.Len()
-	if len(data) < rdLen {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid Ethernet Segment Route length")
+	if len(data) < rdLen+10+1 {
+		return malformedAttrListErr("invalid Ethernet Segment Route length")
 	}
-	data = data[er.RD.Len():]
+	data = data[rdLen:]
 	er.ESI.DecodeFromBytes(data)
 	data = data[10:]
 	er.IPAddressLength = data[0]
 	data = data[1:]
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		if len(data) < int(er.IPAddressLength/8) {
+			return malformedAttrListErr("invalid Ethernet Segment Route length")
+		}
 		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
@@ -3304,13 +3346,24 @@ func (er *EVPNIPMSIRoute) Len() int {
 }
 
 func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
-
+	if len(data) < 8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Parse extended community interface failed")
+	}
 	er.RD = GetRouteDistinguisher(data[0:8])
 
+	if len(data) < er.RD.Len() {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Parse extended community interface failed")
+	}
 	data = data[er.RD.Len():]
+	if len(data) < 4 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Parse extended community interface failed")
+	}
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 
 	data = data[4:]
+	if len(data) < 8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Parse extended community interface failed")
+	}
 	ec, err := ParseExtended(data[0:8])
 	if err != nil {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Parse extended community interface failed")
@@ -4253,11 +4306,20 @@ type flowSpecPrefix struct {
 }
 
 func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 1 {
+		return malformedAttrListErr("Parse flowSpecPrefix failed")
+	}
 	p.typ = BGPFlowSpecType(data[0])
+	if p.Prefix == nil {
+		return malformedAttrListErr("flowSpecPrefix: Prefix is nil")
+	}
 	return p.Prefix.DecodeFromBytes(data[1:], options...)
 }
 
 func (p *flowSpecPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	if p.Prefix == nil {
+		return nil, malformedAttrListErr("flowSpecPrefix: Prefix is nil")
+	}
 	bbuf, err := p.Prefix.Serialize(options...)
 	if err != nil {
 		return nil, err
@@ -4300,18 +4362,27 @@ type flowSpecPrefix6 struct {
 // draft-ietf-idr-flow-spec-v6-06
 // <type (1 octet), prefix length (1 octet), prefix offset(1 octet), prefix>
 func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 3 {
+		return malformedAttrListErr("not all flowSpecPrefix6 bits available")
+	}
 	p.typ = BGPFlowSpecType(data[0])
 	p.Offset = data[2]
 	prefix := append([]byte{data[1]}, data[3:]...)
+	if p.Prefix == nil {
+		return malformedAttrListErr("flowSpecPrefix6: Prefix is nil")
+	}
 	return p.Prefix.DecodeFromBytes(prefix, options...)
 }
 
 func (p *flowSpecPrefix6) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := []byte{byte(p.Type())}
+	if p.Prefix == nil {
+		return nil, malformedAttrListErr("flowSpecPrefix6: Prefix is nil")
+	}
 	bbuf, err := p.Prefix.Serialize(options...)
 	if err != nil {
 		return nil, err
 	}
+	buf := []byte{byte(p.Type())}
 	buf = append(buf, bbuf[0])
 	buf = append(buf, p.Offset)
 	return append(buf, bbuf[1:]...), nil
@@ -4491,6 +4562,9 @@ type FlowSpecComponent struct {
 }
 
 func (p *FlowSpecComponent) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 1 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+	}
 	p.typ = BGPFlowSpecType(data[0])
 	data = data[1:]
 	p.Items = make([]*FlowSpecComponentItem, 0)
@@ -4502,6 +4576,9 @@ func (p *FlowSpecComponent) DecodeFromBytes(data []byte, options ...*Marshalling
 		end := op & 0x80
 		l := 1 << ((op >> 4) & 0x3) // (min, max) = (1, 8)
 		v := make([]byte, 8)
+		if len(data) < 1+l {
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+		}
 		copy(v[8-l:], data[1:1+l])
 		i := binary.BigEndian.Uint64(v)
 		item := &FlowSpecComponentItem{op, i}
@@ -4710,6 +4787,9 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 			return err
 		}
 	}
+	if len(data) < 1 {
+		return malformedAttrListErr("not all flowspec component bytes available")
+	}
 	var length int
 	if (data[0]>>4) == 0xf && len(data) > 2 {
 		length = int(binary.BigEndian.Uint16(data[0:2]))
@@ -4718,17 +4798,17 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 		length = int(data[0])
 		data = data[1:]
 	} else {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+		return malformedAttrListErr("not all flowspec component bytes available")
 	}
 	if len(data) < length {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+		return malformedAttrListErr("not all flowspec component bytes available")
 	}
 
 	n.rf = rf
 
 	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
 		if length < 8 {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+			return malformedAttrListErr("not all flowspec component bytes available")
 		}
 		n.rd = GetRouteDistinguisher(data[:8])
 		data = data[8:]
@@ -4737,7 +4817,7 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 
 	for l := length; l > 0; {
 		if len(data) == 0 {
-			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+			return malformedAttrListErr("not all flowspec component bytes available")
 		}
 		t := BGPFlowSpecType(data[0])
 		var i FlowSpecComponentInterface
@@ -7492,7 +7572,7 @@ type LsTLVIPReachability struct {
 
 func (l *LsTLVIPReachability) ToIPNet(ipv6 bool) net.IPNet {
 	b := make([]byte, 16)
-	for i := 0; i < int(((l.PrefixLength-1)/8)+1); i++ {
+	for i := 0; i < ((int(l.PrefixLength)-1)/8)+1; i++ {
 		b[i] = l.Prefix[i]
 	}
 
@@ -7528,7 +7608,7 @@ func (l *LsTLVIPReachability) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Incorrect IP prefix length")
 	}
 
-	ll := int(((value[0] - 1) / 8) + 1)
+	ll := ((int(value[0]) - 1) / 8) + 1
 	if len(value[1:]) != ll {
 		return malformedAttrListErr("Malformed IP reachability TLV")
 	}
@@ -9563,7 +9643,7 @@ func (l *LsAddrPrefix) SAFI() uint8 {
 }
 
 func (l *LsAddrPrefix) Len(...*MarshallingOption) int {
-	return int(4 + l.Length)
+	return 4 + int(l.Length)
 }
 
 func (l *LsAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -10715,7 +10795,7 @@ func (a *AsPathParam) DecodeFromBytes(data []byte) error {
 	a.Type = data[0]
 	a.Num = data[1]
 	data = data[2:]
-	if len(data) < int(a.Num*2) {
+	if len(data) < int(a.Num)*2 {
 		return NewMessageError(eCode, eSubCode, nil, "AS param data length is short")
 	}
 	for i := 0; i < int(a.Num); i++ {
@@ -11533,6 +11613,9 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	if err != nil {
 		return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 	}
+	if len(value) < 1 {
+		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
+	}
 	nexthoplen := int(value[0])
 	if len(value) < 1+nexthoplen {
 		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
@@ -11582,7 +11665,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 		if err != nil {
 			return err
 		}
-		if prefix.Len(options...)+addpathLen > len(value) {
+		if len(value) < prefix.Len(options...)+addpathLen {
 			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
 		}
 		value = value[prefix.Len(options...)+addpathLen:]
@@ -11765,8 +11848,7 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 		}
-		err = prefix.DecodeFromBytes(value, options...)
-		if err != nil {
+		if err = prefix.DecodeFromBytes(value, options...); err != nil {
 			return err
 		}
 		if prefix.Len(options...)+addpathLen > len(value) {
@@ -13553,11 +13635,20 @@ func (t *TunnelEncapSubTLV) Len() int {
 }
 
 func (t *TunnelEncapSubTLV) DecodeFromBytes(data []byte) (value []byte, err error) {
+	if len(data) < 1 {
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
+	}
 	t.Type = EncapSubTLVType(data[0])
 	if t.Type >= 0x80 {
+		if len(data) < 3 {
+			return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
+		}
 		t.Length = binary.BigEndian.Uint16(data[1:3])
 		data = data[3:]
 	} else {
+		if len(data) < 2 {
+			return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
+		}
 		t.Length = uint16(data[1])
 		data = data[2:]
 	}

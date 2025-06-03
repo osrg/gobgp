@@ -209,6 +209,9 @@ func (s *SRv6L3ServiceAttribute) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if s.Length < 1 {
+		return malformedAttrListErr("SRv6L3ServiceAttribute malformed")
+	}
 	stlvs = stlvs[1:] // RESERVED(1)
 
 	for len(stlvs) >= subTLVHdrLen {
@@ -225,12 +228,18 @@ func (s *SRv6L3ServiceAttribute) DecodeFromBytes(data []byte) error {
 				SubSubTLVs: make([]PrefixSIDTLVInterface, 0),
 			}
 		default:
+			if len(data) < t.Len() {
+				return malformedAttrListErr("SRv6L3ServiceAttribute/SubTLV malformed")
+			}
 			data = data[t.Len():]
 			continue
 		}
 
 		if err := stlv.DecodeFromBytes(stlvs); err != nil {
 			return err
+		}
+		if len(stlvs) < t.Len() {
+			return malformedAttrListErr("SRv6L3ServiceAttribute/SubTLV malformed")
 		}
 		stlvs = stlvs[t.Len():]
 		s.SubTLVs = append(s.SubTLVs, stlv)
@@ -383,6 +392,9 @@ func (s *SRv6InformationSubTLV) DecodeFromBytes(data []byte) error {
 	// 4th reserved byte
 	p := 4
 	s.SID = make([]byte, 16)
+	if len(data) < p+16+1+2+1 {
+		return malformedAttrListErr("decoding failed: Prefix SID TLV malformed")
+	}
 	copy(s.SID, data[p:p+16])
 	p += 16
 	s.Flags = uint8(data[p])
@@ -495,7 +507,7 @@ func (s *SubSubTLV) DecodeFromBytes(data []byte) ([]byte, error) {
 	s.Type = SubSubTLVType(data[0])
 	s.Length = binary.BigEndian.Uint16(data[1:3])
 
-	if len(data) < s.Len() {
+	if len(data) < s.Len() || s.Len() < prefixSIDtlvHdrLen {
 		return nil, malformedAttrListErr("decoding failed: Prefix SID Sub Sub TLV malformed")
 	}
 
@@ -552,7 +564,7 @@ func (s *SRv6SIDStructureSubSubTLV) Serialize() ([]byte, error) {
 }
 
 func (s *SRv6SIDStructureSubSubTLV) DecodeFromBytes(data []byte) error {
-	if len(data) < subSubTLVHdrLen {
+	if len(data) < 9 {
 		return malformedAttrListErr("decoding failed: Prefix SID Sub Sub TLV malformed")
 	}
 	s.Type = SubSubTLVType(data[0])
@@ -643,6 +655,9 @@ func (s *SRv6ServiceTLV) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if s.Length < 1 {
+		return malformedAttrListErr("SRv6ServiceTLV malformed")
+	}
 	stlvs = stlvs[1:] // RESERVED(1)
 
 	for len(stlvs) >= subTLVHdrLen {
@@ -659,12 +674,18 @@ func (s *SRv6ServiceTLV) DecodeFromBytes(data []byte) error {
 				SubSubTLVs: make([]PrefixSIDTLVInterface, 0),
 			}
 		default:
+			if len(data) < t.Len() {
+				return malformedAttrListErr("SRv6ServiceTLV malformed")
+			}
 			data = data[t.Len():]
 			continue
 		}
 
 		if err := stlv.DecodeFromBytes(stlvs); err != nil {
 			return err
+		}
+		if len(stlvs) < t.Len() {
+			return malformedAttrListErr("SRv6ServiceTLV malformed")
 		}
 		stlvs = stlvs[t.Len():]
 		s.SubTLVs = append(s.SubTLVs, stlv)
