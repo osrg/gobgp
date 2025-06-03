@@ -376,12 +376,7 @@ func (p *packerV4) add(path *Path) {
 
 	key := uint64(0)
 	for _, v := range path.GetPathAttrs() {
-		h := v.Hash()
-		if h == 0 {
-			v.Serialize()
-			h = v.Hash()
-		}
-		key ^= h
+		key ^= bgp.GetPathAttributeHash(v)
 	}
 	path.SetHash(key)
 

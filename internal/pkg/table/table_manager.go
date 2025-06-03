@@ -72,12 +72,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 	var hash uint64
 	if len(adds) > 0 || reach != nil {
 		for _, a := range attrs {
-			h := a.Hash()
-			if h == 0 {
-				a.Serialize()
-				h = a.Hash()
-			}
-			hash ^= h
+			hash ^= bgp.GetPathAttributeHash(a)
 		}
 	}
 

@@ -430,12 +430,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 			if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
 				continue
 			}
-			h := a.Hash()
-			if h == 0 {
-				a.Serialize()
-				h = a.Hash()
-			}
-			attrsHash ^= h
+			attrsHash ^= bgp.GetPathAttributeHash(a)
 		}
 		newPath.SetHash(attrsHash)
 	}

@@ -10568,6 +10568,14 @@ type PathAttributeInterface interface {
 	Flat() map[string]string
 }
 
+func GetPathAttributeHash(o PathAttributeInterface) uint64 {
+	h := o.Hash()
+	if h == 0 {
+		o.Serialize()
+	}
+	return h
+}
+
 type PathAttribute struct {
 	hash   uint64 // hash for the whole payload, excluding the header Flags, Type, Length
 	Flags  BGPAttrFlag
