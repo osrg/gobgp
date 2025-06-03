@@ -10569,10 +10569,10 @@ type PathAttributeInterface interface {
 }
 
 type PathAttribute struct {
+	hash   uint64 // hash for the whole payload, excluding the header Flags, Type, Length
 	Flags  BGPAttrFlag
 	Type   BGPAttrType
 	Length uint16 // length of Value
-	hash   uint64 // hash for the whole payload, excluding the header Flags, Type, Length
 }
 
 func (p *PathAttribute) Len(options ...*MarshallingOption) int {
