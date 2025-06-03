@@ -432,6 +432,17 @@ func (path *Path) HasNoLLGR() bool {
 }
 
 func (path *Path) IsLLGRStale() bool {
+
+	slow := false
+	for _, c := range path.GetCommunities() {
+		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
+			slow = true
+		}
+	}
+	if slow != path.cache.IsLLGRStale {
+		panic("inconsistent LLGR stale state")
+	}
+
 	return path.cache.IsLLGRStale
 }
 
