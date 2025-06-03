@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -10582,7 +10583,7 @@ func (p *PathAttribute) Len(options ...*MarshallingOption) int {
 }
 
 func (p *PathAttribute) Hash() uint64 {
-	return p.hash
+	return atomic.LoadUint64(&p.hash)
 }
 
 func (p *PathAttribute) GetFlags() BGPAttrFlag {
@@ -10646,7 +10647,7 @@ func (p *PathAttribute) Serialize(value []byte, options ...*MarshallingOption) (
 	}
 	buf[0] = uint8(flags)
 	buf[1] = uint8(p.Type)
-	p.hash = fnv1a.AddBytes64(fnv1a.Init64, payload)
+	atomic.StoreUint64(&p.hash, fnv1a.AddBytes64(fnv1a.Init64, payload))
 	return buf, nil
 }
 
