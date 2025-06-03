@@ -512,7 +512,6 @@ func (a PathAttrs) Less(i, j int) bool {
 }
 
 func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttributeInterface {
-	deleted := make(map[bgp.BGPAttrType]struct{})
 	modified := make(map[bgp.BGPAttrType]bgp.PathAttributeInterface)
 
 	revPaths := make([]*Path, 0)
@@ -522,13 +521,12 @@ func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttribut
 
 	for i := len(revPaths) - 1; i >= 0; i-- {
 		p := revPaths[i]
-		maps.Copy(deleted, p.dels)
 		maps.Copy(modified, p.pathAttrs)
+		for t := range p.dels {
+			delete(modified, t)
+		}
 	}
 
-	for t, _ := range deleted {
-		delete(modified, t)
-	}
 	return modified
 }
 
