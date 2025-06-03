@@ -23,7 +23,6 @@ import (
 	"maps"
 	"math"
 	"net"
-	"sort"
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -536,7 +535,6 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 	for _, a := range modified {
 		list = append(list, a)
 	}
-	sort.Sort(list)
 	return list
 }
 
