@@ -531,9 +531,11 @@ func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttribut
 
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 	modified := path.GetTransversalPathAttrs()
-	list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(modified)))
+	list := make([]bgp.PathAttributeInterface, len(modified))
+	i := 0
 	for _, a := range modified {
-		list = append(list, a)
+		list[i] = a
+		i++
 	}
 	return list
 }
