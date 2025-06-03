@@ -188,7 +188,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
 		IsWithdraw: isWithdraw,
-		pathAttrs:  make(map[bgp.BGPAttrType]bgp.PathAttributeInterface),
+		pathAttrs:  make(map[bgp.BGPAttrType]bgp.PathAttributeInterface, len(pattrs)),
 		dels:       make(map[bgp.BGPAttrType]struct{}),
 	}
 	for _, a := range pattrs {
