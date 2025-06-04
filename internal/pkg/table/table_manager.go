@@ -158,7 +158,8 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 			"Key":      name,
 			"Rd":       rd,
 			"ImportRt": importRt,
-			"ExportRt": exportRt})
+			"ExportRt": exportRt,
+		})
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
 		Id:       id,
@@ -194,7 +195,8 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 			"Rd":        vrf.Rd,
 			"ImportRt":  vrf.ImportRt,
 			"ExportRt":  vrf.ExportRt,
-			"MplsLabel": vrf.MplsLabel})
+			"MplsLabel": vrf.MplsLabel,
+		})
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]
 	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)
@@ -210,11 +212,11 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 	updates := make([]*Update, 0, 1)
 	family := newPath.GetFamily()
 	if table, ok := manager.Tables[family]; ok {
-		updates = append(updates, table.update(newPath))
+		updates = append(updates, table.Update(newPath))
 
 		if family == bgp.RF_EVPN {
 			for _, p := range manager.handleMacMobility(newPath) {
-				updates = append(updates, table.update(p))
+				updates = append(updates, table.Update(p))
 			}
 		}
 	}
@@ -300,7 +302,7 @@ func (manager *TableManager) tables(list ...bgp.Family) []*Table {
 func (manager *TableManager) getDestinationCount(rfList []bgp.Family) int {
 	count := 0
 	for _, t := range manager.tables(rfList...) {
-		count += len(t.GetDestinations())
+		count += t.GetDestinationsCount()
 	}
 	return count
 }
