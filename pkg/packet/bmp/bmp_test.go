@@ -165,3 +165,11 @@ func FuzzParseBMPMessage(f *testing.F) {
 		ParseBMPMessage(data)
 	})
 }
+
+// grep -r DecodeFromBytes pkg/packet/bmp/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
+func FuzzDecodeFromBytes(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		(&BMPHeader{}).DecodeFromBytes(data)
+		(&BMPPeerHeader{}).DecodeFromBytes(data)
+	})
+}

@@ -122,3 +122,14 @@ func FuzzParseRTR(f *testing.F) {
 		ParseRTR(data)
 	})
 }
+
+// grep -r DecodeFromBytes pkg/packet/rtr/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
+func FuzzDecodeFromBytes(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		(&RTRCommon{}).DecodeFromBytes(data)
+		(&RTRReset{}).DecodeFromBytes(data)
+		(&RTRCacheResponse{}).DecodeFromBytes(data)
+		(&RTRIPPrefix{}).DecodeFromBytes(data)
+		(&RTRErrorReport{}).DecodeFromBytes(data)
+	})
+}

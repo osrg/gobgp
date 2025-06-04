@@ -325,3 +325,18 @@ func FuzzMRT(f *testing.F) {
 		ParseMRTBody(hdr, data[MRT_COMMON_HEADER_LEN:])
 	})
 }
+
+// grep -r DecodeFromBytes pkg/packet/mrt/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
+func FuzzDecodeFromBytes(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		(&MRTHeader{}).DecodeFromBytes(data)
+		(&Peer{}).DecodeFromBytes(data)
+		(&PeerIndexTable{}).DecodeFromBytes(data)
+		(&RibEntry{}).DecodeFromBytes(data)
+		(&Rib{}).DecodeFromBytes(data)
+		(&GeoPeer{}).DecodeFromBytes(data)
+		(&GeoPeerTable{}).DecodeFromBytes(data)
+		(&BGP4MPStateChange{}).DecodeFromBytes(data)
+		(&BGP4MPMessage{}).DecodeFromBytes(data)
+	})
+}
