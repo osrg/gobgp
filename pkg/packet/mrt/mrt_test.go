@@ -336,7 +336,17 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&Rib{}).DecodeFromBytes(data)
 		(&GeoPeer{}).DecodeFromBytes(data)
 		(&GeoPeerTable{}).DecodeFromBytes(data)
-		(&BGP4MPStateChange{}).DecodeFromBytes(data)
-		(&BGP4MPMessage{}).DecodeFromBytes(data)
+		if len(data) > 12 {
+			h := &BGP4MPHeader{isAS4: true}
+			h.decodeFromBytes(data[:12])
+			(&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[12:])
+			(&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[12:])
+		}
+		if len(data) > 8 {
+			h := &BGP4MPHeader{isAS4: false}
+			h.decodeFromBytes(data[:8])
+			(&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[8:])
+			(&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[8:])
+		}
 	})
 }

@@ -496,12 +496,15 @@ type Rib struct {
 
 func (u *Rib) DecodeFromBytes(data []byte) error {
 	if len(data) < 4 {
-		return fmt.Errorf("not all RibIpv4Unicast message bytes available")
+		return errors.New("not all RibIpv4Unicast message bytes available")
 	}
 	u.SequenceNumber = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
 	afi, safi := bgp.FamilyToAfiSafi(u.Family)
 	if afi == 0 && safi == 0 {
+		if len(data) < 3 {
+			return errors.New("not all RibIpv4Unicast message bytes available")
+		}
 		afi = binary.BigEndian.Uint16(data[:2])
 		safi = data[2]
 		data = data[3:]
@@ -515,6 +518,9 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		return err
 	}
 	u.Prefix = prefix
+	if len(data) < prefix.Len()+2 {
+		return errors.New("not all RibIpv4Unicast message bytes available")
+	}
 	data = data[prefix.Len():]
 	entryNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
