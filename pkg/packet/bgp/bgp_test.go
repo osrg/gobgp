@@ -3827,7 +3827,7 @@ func FuzzParseFlowSpecComponents(f *testing.F) {
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		(&MUPNLRI{}).DecodeFromBytes(data)
-		if len(data) > 2 {
+		if len(data) >= 2 {
 			l := len(data)
 			afi := binary.BigEndian.Uint16(data[l-2 : l])
 			(&MUPInterworkSegmentDiscoveryRoute{}).DecodeFromBytes(data[:l-2], afi)
