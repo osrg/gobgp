@@ -17,6 +17,7 @@ package bmp
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -61,6 +62,9 @@ func makeIP(data []byte) net.IP {
 }
 
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
+	if len(data) < BMP_HEADER_SIZE {
+		return errors.New("invalid BMP header length")
+	}
 	h.Version = data[0]
 	if data[0] != BMP_VERSION {
 		return fmt.Errorf("error version")
@@ -119,6 +123,9 @@ func (h *BMPPeerHeader) IsAdjRIBOut() bool {
 }
 
 func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
+	if len(data) < BMP_PEER_HEADER_SIZE {
+		return errors.New("invalid BMP Peer header length")
+	}
 	h.PeerType = data[0]
 	h.Flags = data[1]
 	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
