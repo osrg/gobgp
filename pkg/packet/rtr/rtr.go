@@ -17,6 +17,7 @@ package rtr
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 )
@@ -83,6 +84,9 @@ type RTRCommon struct {
 }
 
 func (m *RTRCommon) DecodeFromBytes(data []byte) error {
+	if len(data) < RTR_SERIAL_NOTIFY_LEN {
+		return errors.New("data too short for RTRCommon")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.SessionID = binary.BigEndian.Uint16(data[2:4])
@@ -138,6 +142,9 @@ type RTRReset struct {
 }
 
 func (m *RTRReset) DecodeFromBytes(data []byte) error {
+	if len(data) < RTR_RESET_QUERY_LEN {
+		return errors.New("data too short for RTRReset")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.Len = binary.BigEndian.Uint32(data[4:8])
@@ -173,6 +180,9 @@ type RTRCacheResponse struct {
 }
 
 func (m *RTRCacheResponse) DecodeFromBytes(data []byte) error {
+	if len(data) < RTR_CACHE_RESPONSE_LEN {
+		return errors.New("data too short for RTRCacheResponse")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.SessionID = binary.BigEndian.Uint16(data[2:4])
@@ -209,6 +219,9 @@ type RTRIPPrefix struct {
 }
 
 func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
+	if len(data) < RTR_IPV4_PREFIX_LEN {
+		return errors.New("data too short for RTRIPPrefix")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.Len = binary.BigEndian.Uint32(data[4:8])
@@ -219,6 +232,9 @@ func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 		m.Prefix = net.IP(data[12:16]).To4()
 		m.AS = binary.BigEndian.Uint32(data[16:20])
 	} else {
+		if len(data) < RTR_IPV6_PREFIX_LEN {
+			return errors.New("data too short for RTRIPPrefix")
+		}
 		m.Prefix = net.IP(data[12:28]).To16()
 		m.AS = binary.BigEndian.Uint32(data[28:32])
 	}
@@ -305,11 +321,17 @@ type RTRErrorReport struct {
 }
 
 func (m *RTRErrorReport) DecodeFromBytes(data []byte) error {
+	if len(data) < 12 {
+		return errors.New("data too short for RTRErrorReport")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.ErrorCode = binary.BigEndian.Uint16(data[2:4])
 	m.Len = binary.BigEndian.Uint32(data[4:8])
 	m.PDULen = binary.BigEndian.Uint32(data[8:12])
+	if len(data) < 12+int(m.PDULen)+4 {
+		return errors.New("data too short for RTRErrorReport")
+	}
 	m.PDU = make([]byte, m.PDULen)
 	copy(m.PDU, data[12:12+m.PDULen])
 	m.TextLen = binary.BigEndian.Uint32(data[12+m.PDULen : 16+m.PDULen])
