@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"sort"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
@@ -344,11 +345,8 @@ func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
 }
 
 func (dest *Destination) insertSort(newPath *Path) {
-	n := len(dest.knownPathList)
-	insertIdx := n // default to append at end
-
 	// Find the correct position for newPath
-	for i := 0; i < n; i++ {
+	insertIdx := sort.Search(len(dest.knownPathList), func(i int) bool {
 		//Determine where in the array newPath belongs. The slice
 		//is assumed to be in descending order: most preferred to least.
 		//
@@ -379,82 +377,72 @@ func (dest *Destination) insertSort(newPath *Path) {
 		path2 := dest.knownPathList[i]
 
 		if b := compareByLLGRStaleCommunity(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByReachableNexthop(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByLocalPref(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByLocalOrigin(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByASPath(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByOrigin(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByMED(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByASNumber(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByAge(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b, _ := compareByRouterID(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
 
 		if b := compareByNeighborAddress(path1, path2); b == path1 {
-			insertIdx = i
-			break
+			return true
 		} else if b == path2 {
-			continue
+			return false
 		}
-	}
+		return true
+	})
 
 	// Insert at the found position
 	dest.knownPathList = slices.Insert(dest.knownPathList, insertIdx, newPath)
