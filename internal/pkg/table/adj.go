@@ -17,6 +17,7 @@ package table
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -41,52 +42,50 @@ func NewAdjRib(logger log.Logger, rfList []bgp.Family) *AdjRib {
 }
 
 func (adj *AdjRib) Update(pathList []*Path) {
+	var old *Path
 	for _, path := range pathList {
 		if path == nil || path.IsEOR() {
 			continue
 		}
+		old = nil
 		rf := path.GetFamily()
-		t := adj.table[path.GetFamily()]
-		d := t.getOrCreateDest(path.GetNlri(), 0)
-		var old *Path
+		t := adj.table[rf]
+		d := t.GetOrCreateDest(path.GetNlri(), 0)
+
 		idx := -1
 		for i, p := range d.knownPathList {
 			if p.GetNlri().PathIdentifier() == path.GetNlri().PathIdentifier() {
+				old = d.knownPathList[i]
 				idx = i
 				break
 			}
 		}
-		if idx != -1 {
-			old = d.knownPathList[idx]
-		}
 
 		if path.IsWithdraw {
-			if idx != -1 {
-				d.knownPathList = append(d.knownPathList[:idx], d.knownPathList[idx+1:]...)
+			if old != nil {
+				d.knownPathList = slices.Delete(d.knownPathList, idx, idx+1)
 				if len(d.knownPathList) == 0 {
-					t.deleteDest(d)
+					t.DeleteDest(d)
 				}
 				if !old.IsRejected() {
 					adj.accepted[rf]--
 				}
 			}
 			path.SetDropped(true)
+		} else if old != nil {
+			if old.IsRejected() && !path.IsRejected() {
+				adj.accepted[rf]++
+			} else if !old.IsRejected() && path.IsRejected() {
+				adj.accepted[rf]--
+			}
+			if old.Equal(path) {
+				path.setTimestamp(old.GetTimestamp())
+			}
+			d.knownPathList[idx] = path
 		} else {
-			if idx != -1 {
-				if old.IsRejected() && !path.IsRejected() {
-					adj.accepted[rf]++
-				} else if !old.IsRejected() && path.IsRejected() {
-					adj.accepted[rf]--
-				}
-				if old.Equal(path) {
-					path.setTimestamp(old.GetTimestamp())
-				}
-				d.knownPathList[idx] = path
-			} else {
-				d.knownPathList = append(d.knownPathList, path)
-				if !path.IsRejected() {
-					adj.accepted[rf]++
-				}
+			d.knownPathList = append(d.knownPathList, path)
+			if !path.IsRejected() {
+				adj.accepted[rf]++
 			}
 		}
 	}
@@ -105,7 +104,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 			continue
 		}
 		t := adj.table[path.GetFamily()]
-		d := t.getOrCreateDest(path.GetNlri(), 0)
+		d := t.GetOrCreateDest(path.GetNlri(), 0)
 		d.knownPathList = append(d.knownPathList, path)
 	}
 }
@@ -113,11 +112,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 func (adj *AdjRib) walk(families []bgp.Family, fn func(*Destination) bool) {
 	for _, f := range families {
 		if t, ok := adj.table[f]; ok {
-			for _, d := range t.destinations {
-				if fn(d) {
-					return
-				}
-			}
+			t.WalkDestinations(fn)
 		}
 	}
 }

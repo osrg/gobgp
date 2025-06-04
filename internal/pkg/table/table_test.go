@@ -62,32 +62,17 @@ func TestTableGetFamily(t *testing.T) {
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
 
-func TestTableSetDestinations(t *testing.T) {
+func TestTableSetGetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.GetNlri())
+		tableKey := tableKey(path.GetNlri())
 		dest := NewDestination(path.GetNlri(), 0)
 		destinations[tableKey] = dest
 	}
-	ipv4t.setDestinations(destinations)
-	ds := ipv4t.GetDestinations()
-	assert.Equal(t, ds, destinations)
-}
-
-func TestTableGetDestinations(t *testing.T) {
-	peerT := DestCreatePeer()
-	pathT := DestCreatePath(peerT)
-	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make(map[string]*Destination)
-	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri(), 0)
-		destinations[tableKey] = dest
-	}
-	ipv4t.setDestinations(destinations)
+	ipv4t.destinations = destinations
 	ds := ipv4t.GetDestinations()
 	assert.Equal(t, ds, destinations)
 }
@@ -98,15 +83,15 @@ func TestTableKey(t *testing.T) {
 	d1 := NewDestination(n1, 0)
 	n2, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")
 	d2 := NewDestination(n2, 0)
-	assert.Equal(t, len(tb.tableKey(d1.GetNlri())), 5)
+	assert.Equal(t, len(tableKey(d1.GetNlri())), 5)
 	tb.setDestination(d1)
 	tb.setDestination(d2)
-	assert.Equal(t, len(tb.GetDestinations()), 2)
+	assert.Equal(t, tb.GetDestinationsCount(), 2)
 }
 
 func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv4_UC)
-	assert.Equal(t, 0, len(table.GetDestinations()))
+	assert.Equal(t, 0, table.GetDestinationsCount())
 
 	tests := []struct {
 		name   string
@@ -138,14 +123,14 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 					}},
 				},
 			)
-			assert.Error(t, err)
+			assert.Error(t, err, "Expected error for malformed IPv4 prefix")
 		})
 	}
 }
 
 func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv6_UC)
-	assert.Equal(t, 0, len(table.GetDestinations()))
+	assert.Equal(t, 0, table.GetDestinationsCount())
 
 	tests := []struct {
 		name   string
@@ -177,7 +162,7 @@ func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 					}},
 				},
 			)
-			assert.Error(t, err)
+			assert.Error(t, err, "Expected error for malformed IPv6 prefix")
 		})
 	}
 }
@@ -202,7 +187,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
 	}
-	assert.Equal(t, 9, len(table.GetDestinations()))
+	assert.Equal(t, 9, table.GetDestinationsCount())
 
 	tests := []struct {
 		name   string
@@ -283,8 +268,8 @@ func TestTableSelectVPNv4(t *testing.T) {
 					}},
 				},
 			)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+			assert.NoError(t, err, "Expected no error for valid VPNv4 prefix selection")
+			assert.Equal(t, tt.found, filteredTable.GetDestinationsCount())
 		})
 	}
 }
@@ -309,7 +294,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
 	}
-	assert.Equal(t, 9, len(table.GetDestinations()))
+	assert.Equal(t, 9, table.GetDestinationsCount())
 
 	tests := []struct {
 		name   string
@@ -390,8 +375,8 @@ func TestTableSelectVPNv6(t *testing.T) {
 					}},
 				},
 			)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+			assert.NoError(t, err, "Expected no error for valid VPNv6 prefix selection")
+			assert.Equal(t, tt.found, filteredTable.GetDestinationsCount())
 		})
 	}
 }
