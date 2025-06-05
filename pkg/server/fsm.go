@@ -172,30 +172,34 @@ type adminStateOperation struct {
 }
 
 type fsm struct {
-	gConf                *oc.Global
-	pConf                *oc.Neighbor
-	lock                 sync.RWMutex
-	state                bgp.FSMState
-	outgoingCh           *channels.InfiniteChannel
-	incomingCh           *channels.InfiniteChannel
-	reason               *fsmStateReason
-	conn                 net.Conn
-	connCh               chan net.Conn
-	idleHoldTime         float64
-	opensentHoldTime     float64
-	adminState           adminState
-	adminStateCh         chan adminStateOperation
-	h                    *fsmHandler
-	rfMap                map[bgp.Family]bgp.BGPAddPathMode
-	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen             *bgp.BGPMessage
-	peerInfo             *table.PeerInfo
-	gracefulRestartTimer *time.Timer
-	twoByteAsTrans       bool
-	marshallingOptions   *bgp.MarshallingOption
-	notification         chan *bgp.BGPMessage
-	logger               log.Logger
-	longLivedRunning     bool
+	gConf                 *oc.Global
+	pConf                 *oc.Neighbor
+	lock                  sync.RWMutex
+	state                 bgp.FSMState
+	processingStateWG     sync.WaitGroup
+	processingStateCtx    context.Context
+	processingStateCancel context.CancelFunc
+	outgoingCh            *channels.InfiniteChannel
+	incomingCh            *channels.InfiniteChannel
+	stateCh               chan *fsmMsg
+	reason                *fsmStateReason
+	conn                  net.Conn
+	connCh                chan net.Conn
+	idleHoldTime          float64
+	opensentHoldTime      float64
+	adminState            adminState
+	adminStateCh          chan adminStateOperation
+	h                     *fsmHandler
+	rfMap                 map[bgp.Family]bgp.BGPAddPathMode
+	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen              *bgp.BGPMessage
+	peerInfo              *table.PeerInfo
+	gracefulRestartTimer  *time.Timer
+	twoByteAsTrans        bool
+	marshallingOptions    *bgp.MarshallingOption
+	notification          chan *bgp.BGPMessage
+	logger                log.Logger
+	longLivedRunning      bool
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -268,24 +272,28 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 	if pConf.Config.AdminDown {
 		adminState = adminStateDown
 	}
+	stateCtx, stateCancel := context.WithCancel(context.Background())
 	pConf.State.SessionState = oc.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	pConf.Timers.State.Downtime = time.Now().Unix()
 	fsm := &fsm{
-		gConf:                gConf,
-		pConf:                pConf,
-		state:                bgp.BGP_FSM_IDLE,
-		outgoingCh:           channels.NewInfiniteChannel(),
-		incomingCh:           channels.NewInfiniteChannel(),
-		connCh:               make(chan net.Conn, 1),
-		opensentHoldTime:     float64(holdtimeOpensent),
-		adminState:           adminState,
-		adminStateCh:         make(chan adminStateOperation, 1),
-		rfMap:                make(map[bgp.Family]bgp.BGPAddPathMode),
-		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		peerInfo:             table.NewPeerInfo(gConf, pConf),
-		gracefulRestartTimer: time.NewTimer(time.Hour),
-		notification:         make(chan *bgp.BGPMessage, 1),
-		logger:               logger,
+		gConf:                 gConf,
+		pConf:                 pConf,
+		state:                 bgp.BGP_FSM_IDLE,
+		outgoingCh:            channels.NewInfiniteChannel(),
+		incomingCh:            channels.NewInfiniteChannel(),
+		stateCh:               make(chan *fsmMsg, 1),
+		processingStateCtx:    stateCtx,
+		processingStateCancel: stateCancel,
+		connCh:                make(chan net.Conn, 1),
+		opensentHoldTime:      float64(holdtimeOpensent),
+		adminState:            adminState,
+		adminStateCh:          make(chan adminStateOperation, 1),
+		rfMap:                 make(map[bgp.Family]bgp.BGPAddPathMode),
+		capMap:                make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		peerInfo:              table.NewPeerInfo(gConf, pConf),
+		gracefulRestartTimer:  time.NewTimer(time.Hour),
+		notification:          make(chan *bgp.BGPMessage, 1),
+		logger:                logger,
 	}
 	fsm.gracefulRestartTimer.Stop()
 	return fsm
@@ -396,7 +404,7 @@ type fsmHandler struct {
 }
 
 func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel) *fsmHandler {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(fsm.processingStateCtx)
 	h := &fsmHandler{
 		fsm:              fsm,
 		stateReasonCh:    make(chan fsmStateReason, 2),
@@ -2045,10 +2053,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 				"Reason": reason.String(),
 			})
 	}
-	fsm.lock.RUnlock()
-
-	fsm.lock.RLock()
-	h.incoming.In() <- &fsmMsg{
+	fsm.stateCh <- &fsmMsg{
 		fsm:         fsm,
 		MsgType:     fsmMsgStateChange,
 		MsgSrc:      fsm.pConf.State.NeighborAddress,

@@ -449,6 +449,17 @@ func (peer *peer) stopPeerRestarting() {
 	peer.fsm.longLivedRunning = false
 }
 
+func (peer *peer) stopStateProcessing() {
+	peer.fsm.processingStateCancel()
+	peer.fsm.lock.RLock()
+	if peer.fsm.h != nil {
+		peer.fsm.h.wg.Wait()
+	}
+	peer.fsm.lock.RUnlock()
+	peer.fsm.processingStateWG.Wait()
+	close(peer.fsm.stateCh)
+}
+
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	// Consider 3 peers - A, B, C and prefix P originated by C. Parallel eBGP
 	// sessions exist between A & B, and both have a single session with C.
