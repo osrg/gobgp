@@ -10349,6 +10349,7 @@ const (
 	BGP_ATTR_TYPE_LS                          // = 29
 	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 32
 	BGP_ATTR_TYPE_PREFIX_SID      BGPAttrType = 40
+	BGP_ATTR_TYPE_MAX             BGPAttrType = 41
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.

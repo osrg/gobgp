@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"net"
 	"time"
@@ -134,7 +133,7 @@ type Validation struct {
 type Path struct {
 	info      *originInfo
 	parent    *Path
-	pathAttrs map[bgp.BGPAttrType]bgp.PathAttributeInterface
+	pathAttrs []bgp.PathAttributeInterface
 	dels      map[bgp.BGPAttrType]struct{}
 	attrsHash uint64
 	rejected  bool
@@ -188,7 +187,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
 		IsWithdraw: isWithdraw,
-		pathAttrs:  make(map[bgp.BGPAttrType]bgp.PathAttributeInterface, len(pattrs)),
+		pathAttrs:  make([]bgp.PathAttributeInterface, bgp.BGP_ATTR_TYPE_MAX),
 		dels:       make(map[bgp.BGPAttrType]struct{}),
 	}
 	for _, a := range pattrs {
@@ -205,7 +204,7 @@ func NewEOR(family bgp.Family) *Path {
 			nlri: nlri,
 			eor:  true,
 		},
-		pathAttrs: make(map[bgp.BGPAttrType]bgp.PathAttributeInterface),
+		pathAttrs: make([]bgp.PathAttributeInterface, bgp.BGP_ATTR_TYPE_MAX),
 		dels:      make(map[bgp.BGPAttrType]struct{}),
 	}
 }
@@ -367,7 +366,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		attrsHash:        path.attrsHash,
-		pathAttrs:        make(map[bgp.BGPAttrType]bgp.PathAttributeInterface),
+		pathAttrs:        make([]bgp.PathAttributeInterface, bgp.BGP_ATTR_TYPE_MAX),
 		dels:             make(map[bgp.BGPAttrType]struct{}),
 	}
 }
@@ -520,9 +519,14 @@ func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttribut
 
 	for i := len(revPaths) - 1; i >= 0; i-- {
 		p := revPaths[i]
-		maps.Copy(modified, p.pathAttrs)
+		//		maps.Copy(modified, p.pathAttrs)
+		for _, a := range p.pathAttrs {
+			if a != nil {
+				modified[a.GetType()] = a
+			}
+		}
 		for t := range p.dels {
-			delete(modified, t)
+			modified[t] = nil
 		}
 	}
 
@@ -531,11 +535,11 @@ func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttribut
 
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 	modified := path.GetTransversalPathAttrs()
-	list := make([]bgp.PathAttributeInterface, len(modified))
-	i := 0
+	list := make([]bgp.PathAttributeInterface, 0)
 	for _, a := range modified {
-		list[i] = a
-		i++
+		if a != nil {
+			list = append(list, a)
+		}
 	}
 	return list
 }
@@ -546,7 +550,7 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 		if _, deleted := p.dels[typ]; deleted {
 			return nil
 		}
-		if a, ok := p.pathAttrs[typ]; ok {
+		if a := p.pathAttrs[typ]; a != nil {
 			return a
 		}
 		if p.parent == nil {
@@ -1045,8 +1049,8 @@ func (lhs *Path) Equal(rhs *Path) bool {
 	}
 
 	for t, a := range ltPath {
-		b, ok := rtPath[t]
-		if !ok {
+		b := rtPath[t]
+		if b == nil {
 			return false
 		}
 		if a.GetFlags() != b.GetFlags() {
@@ -1307,7 +1311,9 @@ func (p *Path) SetHash(v uint64) {
 func (p *Path) GetHash() uint64 {
 	if p.attrsHash == 0 {
 		for _, a := range p.pathAttrs {
-			p.attrsHash ^= bgp.GetPathAttributeHash(a)
+			if a != nil {
+				p.attrsHash ^= bgp.GetPathAttributeHash(a)
+			}
 		}
 	}
 	return p.attrsHash
