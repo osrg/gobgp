@@ -10573,6 +10573,7 @@ func GetPathAttributeHash(o PathAttributeInterface) uint64 {
 	h := o.Hash()
 	if h == 0 {
 		o.Serialize()
+		h = o.Hash()
 	}
 	return h
 }

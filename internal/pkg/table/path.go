@@ -129,6 +129,16 @@ type Validation struct {
 
 type PathAttributes [bgp.BGP_ATTR_TYPE_MAX]bgp.PathAttributeInterface
 
+func (pa PathAttributes) GetHash() uint64 {
+	var hash uint64
+	for _, a := range pa {
+		if a != nil {
+			hash ^= bgp.GetPathAttributeHash(a)
+		}
+	}
+	return hash
+}
+
 type Path struct {
 	info      *originInfo
 	parent    *Path
@@ -1307,13 +1317,10 @@ func (p *Path) SetHash(v uint64) {
 	p.attrsHash = v
 }
 
+// GetHash returns the hash value of the path attributes.
 func (p *Path) GetHash() uint64 {
 	if p.attrsHash == 0 {
-		for _, a := range p.pathAttrs {
-			if a != nil {
-				p.attrsHash ^= bgp.GetPathAttributeHash(a)
-			}
-		}
+		p.attrsHash = p.pathAttrs.GetHash()
 	}
 	return p.attrsHash
 }

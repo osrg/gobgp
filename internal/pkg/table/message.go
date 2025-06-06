@@ -374,10 +374,7 @@ func (p *packerV4) add(path *Path) {
 		return
 	}
 
-	key := uint64(0)
-	for _, v := range path.GetPathAttrs() {
-		key ^= bgp.GetPathAttributeHash(v)
-	}
+	key := path.GetHash()
 	path.SetHash(key)
 
 	if cages, y := p.hashmap[key]; y {
