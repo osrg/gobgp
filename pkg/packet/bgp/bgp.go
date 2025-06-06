@@ -5200,11 +5200,11 @@ func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption)
 		}
 	}
 	n.Length = binary.BigEndian.Uint16(data[0:2])
-	if len(data)-2 < int(n.Length) {
+	if len(data) < 2+int(n.Length) {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
 	}
-	n.Key = data[2 : 2+n.Length]
-	n.Value = data[2+n.Length:]
+	n.Key = data[2 : 2+int(n.Length)]
+	n.Value = data[2+int(n.Length):]
 	return nil
 }
 
