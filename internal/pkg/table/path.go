@@ -1303,6 +1303,7 @@ func (p *Path) SetHash(v uint64) {
 	p.attrsHash = v
 }
 
+// GetHash returns the hash value of the path attributes.
 func (p *Path) GetHash() uint64 {
 	if p.attrsHash == 0 {
 		for _, a := range p.pathAttrs {
