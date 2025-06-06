@@ -1769,25 +1769,32 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
+	for _, attr := range pathAttributes {
+		attr.Serialize() // ensure the hash is up to date
+	}
 
 	expectedNexthopAttr := pathAttributes[0]
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
+	pathNexthop.Serialize() // ensure the hash is up to date
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 	pathOrigin := attr.(*bgp.PathAttributeOrigin)
+	pathOrigin.Serialize() // ensure the hash is up to date
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	pathAspath := attr.(*bgp.PathAttributeAsPath)
+	pathAspath.Serialize() // ensure the hash is up to date
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
+	pathMed.Serialize() // ensure the hash is up to date
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute
