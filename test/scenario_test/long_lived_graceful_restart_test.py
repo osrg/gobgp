@@ -234,7 +234,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(1)
 
-        # llgr_stale route depreference must happend
+        # llgr_stale route depreference must happen
         # check g4's path is chosen as best and advertised
         rib = g3.get_global_rib('10.0.0.0/24')
         self.assertEqual(len(rib), 1)
@@ -251,7 +251,7 @@ class GoBGPTestBase(unittest.TestCase):
         rib = g3.get_global_rib('10.10.0.0/24')
         self.assertEqual(len(rib), 0)
 
-    def test_09_peer_disabled_during_gracefull_restart(self):
+    def test_09_peer_disabled_during_graceful_restart(self):
         g1 = self.bgpds['g1']
         g3 = self.bgpds['g3']
 
@@ -275,7 +275,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(g1.get_global_rib('10.20.0.0/24')), 1)
         r = g1.get_global_rib('10.20.0.0/24')[0]['paths'][0]
         comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))
-        self.assertEquals(comms.count(0xffff0006), 1)
+        self.assertEqual(comms.count(0xffff0006), 1)
 
 
 if __name__ == '__main__':
