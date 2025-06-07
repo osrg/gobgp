@@ -1218,6 +1218,14 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 			ControlFlags: 0x00,
 			Mtu:          1500,
 		}}},
+		{Extcom: &api.ExtendedCommunity_ETree{ETree: &api.ETreeExtended{
+			IsLeaf: true,
+			Label:  5001,
+		}}},
+		{Extcom: &api.ExtendedCommunity_MulticastFlags{MulticastFlags: &api.MulticastFlagsExtended{
+			IsIGMPProxy: true,
+			IsMLDProxy:  false,
+		}}},
 	}
 
 	input := &api.ExtendedCommunitiesAttribute{
