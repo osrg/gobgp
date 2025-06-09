@@ -454,19 +454,23 @@ type Update struct {
 }
 
 func getMultiBestPath(id string, pathList []*Path) []*Path {
-	list := make([]*Path, 0, len(pathList))
-	var best *Path
-	for _, p := range pathList {
-		if !p.IsNexthopInvalid {
-			if best == nil {
-				best = p
-				list = append(list, p)
-			} else if best.Compare(p) == 0 {
-				list = append(list, p)
-			}
-		}
+	// The path list of destinations in the global RIB are sorted
+	// in descending order. One of the criteria for being a better
+	// path is that it has a reachable next hop. Technically, if the
+	// first path is unreachable, then it's assumed none of them
+	// are. Therefore, we return an empty slice.
+	if len(pathList) == 0 || (len(pathList) > 0 && pathList[0].IsNexthopInvalid) {
+		// No reachable next hop found, so we return an empty slice.
+		return []*Path{}
 	}
-	return list
+	var best *Path = pathList[0]
+
+	// Attempt to find the first path that is both reachable and worse than the
+	// best path. Then return a slice paths from the best to that index.
+	index := sort.Search(len(pathList), func(i int) bool {
+		return pathList[i].IsNexthopInvalid || pathList[i].Compare(best) != 0
+	})
+	return pathList[0:index]
 }
 
 func (u *Update) GetWithdrawnPath() []*Path {

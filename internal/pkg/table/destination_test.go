@@ -434,7 +434,7 @@ func TestGetWithdrawnPath(t *testing.T) {
 	assert.Equal(t, l[0].GetNlri(), p1.GetNlri())
 }
 
-func BenchmarkCalculate(b *testing.B) {
+func BenchmarkMultiPath(b *testing.B) {
 	b.StopTimer()
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
 
@@ -455,12 +455,26 @@ func BenchmarkCalculate(b *testing.B) {
 		pathList[i] = ProcessMessage(update, peeri, time.Now())[0]
 	}
 
-	for i := 0; i < b.N; i++ {
+	b.Run("Benchmark Calculate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			d := NewDestination(nlri, 0)
+			b.StartTimer()
+			for j := 0; j < len(pathList); j++ {
+				d.Calculate(logger, pathList[j])
+			}
+			b.StopTimer()
+		}
+	})
+
+	b.Run("Benchmark GetMultiBestPath", func(b *testing.B) {
 		d := NewDestination(nlri, 0)
-		b.StartTimer()
 		for j := 0; j < len(pathList); j++ {
 			d.Calculate(logger, pathList[j])
 		}
-		b.StopTimer()
-	}
+		for i := 0; i < b.N; i++ {
+			b.StartTimer()
+			d.GetMultiBestPath(GLOBAL_RIB_NAME)
+			b.StopTimer()
+		}
+	})
 }
