@@ -1095,6 +1095,9 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// Return > 0 if lhs is preferred over the rhs
+// Return 0 if they are equal
+// Return < 0 if rhs is preferred over the lhs
 func (lhs *Path) Compare(rhs *Path) int {
 	if lhs.IsLocal() && !rhs.IsLocal() {
 		return 1
@@ -1111,24 +1114,24 @@ func (lhs *Path) Compare(rhs *Path) int {
 	lp1, _ := lhs.GetLocalPref()
 	lp2, _ := rhs.GetLocalPref()
 	if lp1 != lp2 {
-		return int(lp1 - lp2)
+		return int(lp1) - int(lp2)
 	}
 
 	l1 := lhs.GetAsPathLen()
 	l2 := rhs.GetAsPathLen()
 	if l1 != l2 {
-		return int(l2 - l1)
+		return int(l2) - int(l1)
 	}
 
 	o1, _ := lhs.GetOrigin()
 	o2, _ := rhs.GetOrigin()
 	if o1 != o2 {
-		return int(o2 - o1)
+		return int(o2) - int(o1)
 	}
 
 	m1, _ := lhs.GetMed()
 	m2, _ := rhs.GetMed()
-	return int(m2 - m1)
+	return int(m2) - int(m1)
 }
 
 func (v *Vrf) ToGlobalPath(path *Path) error {
