@@ -333,7 +333,9 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&Peer{}).DecodeFromBytes(data)
 		(&PeerIndexTable{}).DecodeFromBytes(data)
 		(&RibEntry{}).DecodeFromBytes(data)
+		(&RibEntry{isAddPath: true}).DecodeFromBytes(data)
 		(&Rib{}).DecodeFromBytes(data)
+		(&Rib{isAddPath: true}).DecodeFromBytes(data)
 		(&GeoPeer{}).DecodeFromBytes(data)
 		(&GeoPeerTable{}).DecodeFromBytes(data)
 		if len(data) > 12 {
