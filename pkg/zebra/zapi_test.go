@@ -1145,3 +1145,31 @@ func FuzzZapi(f *testing.F) {
 		}
 	})
 }
+
+// grep -r decodeFromBytes pkg/zebra | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.decodeFromBytes(data, version, software)|g' | awk -F ':' '{print $2}'
+func FuzzDecodeFromBytes(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte, version uint8, swName string, swVersion float64) {
+		software := Software{
+			name:    swName,
+			version: swVersion,
+		}
+		(&Header{}).decodeFromBytes(data)
+		(&unknownBody{}).decodeFromBytes(data, version, software)
+		(&HelloBody{}).decodeFromBytes(data, version, software)
+		(&redistributeBody{}).decodeFromBytes(data, version, software)
+		(&interfaceUpdateBody{}).decodeFromBytes(data, version, software)
+		(&interfaceAddressUpdateBody{}).decodeFromBytes(data, version, software)
+		(&routerIDUpdateBody{}).decodeFromBytes(data, version, software)
+		(&IPRouteBody{}).decodeFromBytes(data, version, software)
+		(&lookupBody{}).decodeFromBytes(data, version, software)
+		(&RegisteredNexthop{}).decodeFromBytes(data, version, software)
+		(&NexthopRegisterBody{}).decodeFromBytes(data, version, software)
+		(&NexthopUpdateBody{}).decodeFromBytes(data, version, software)
+		(&labelManagerConnectBody{}).decodeFromBytes(data, version, software)
+		(&GetLabelChunkBody{}).decodeFromBytes(data, version, software)
+		(&releaseLabelChunkBody{}).decodeFromBytes(data, version, software)
+		(&vrfLabelBody{}).decodeFromBytes(data, version, software)
+		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, false)
+		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, true)
+	})
+}
