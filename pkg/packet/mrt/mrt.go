@@ -148,6 +148,9 @@ func (h *MRTHeader) DecodeFromBytes(data []byte) error {
 	h.SubType = binary.BigEndian.Uint16(data[6:8])
 	h.Len = binary.BigEndian.Uint32(data[8:12])
 	if h.Type.HasExtendedTimestamp() {
+		if len(data) < 16 {
+			return fmt.Errorf("not all MRTHeader bytes are available. expected: %d, actual: %d", 16, len(data))
+		}
 		h.ExtendedTimestampMicroseconds = binary.BigEndian.Uint32(data[12:16])
 	}
 	return nil
@@ -395,6 +398,9 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterfac
 	e.PeerIndex = binary.BigEndian.Uint16(data[:2])
 	e.OriginatedTime = binary.BigEndian.Uint32(data[2:6])
 	if e.isAddPath {
+		if len(data) < 10+2 {
+			return nil, errNotAllRibEntryBytesAvailable
+		}
 		e.PathIdentifier = binary.BigEndian.Uint32(data[6:10])
 		data = data[10:]
 	} else {
