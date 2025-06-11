@@ -129,9 +129,18 @@ type Validation struct {
 
 type PathAttributes [bgp.BGP_ATTR_TYPE_MAX]bgp.PathAttributeInterface
 
-func (pa PathAttributes) GetHash() uint64 {
+// GetHash return the hash of all path attributes
+func (pa PathAttributes) GetHash(opts *pathHashOptions) uint64 {
+	if opts == nil {
+		opts = &pathHashOptions{}
+	}
 	var hash uint64
-	for _, a := range pa {
+	for _, aType := range bgp.BGPAttrTypeIterator {
+		if opts.ignoreReachUnReachNLRI && (aType == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI || aType == bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI) {
+			continue
+		}
+
+		a := pa[aType]
 		if a != nil {
 			hash ^= bgp.GetPathAttributeHash(a)
 		}
@@ -569,7 +578,7 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 	path.pathAttrs[a.GetType()] = a
 	// we reseting the hash attributes as attributes have changed
-	path.attrsHash = 0
+	path.SetHash(0)
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
@@ -1319,10 +1328,28 @@ func (p *Path) SetHash(v uint64) {
 	p.attrsHash = v
 }
 
-// GetHash returns the hash value of the path attributes.
-func (p *Path) GetHash() uint64 {
+type pathHashOptions struct {
+	ignoreReachUnReachNLRI bool
+}
+
+func IgnoreReachUnReach() PathHashOption {
+	return func(o *pathHashOptions) { o.ignoreReachUnReachNLRI = true }
+}
+
+type PathHashOption func(*pathHashOptions)
+
+// GetHash return the hash of all path attributes
+func (p *Path) GetHash(opts ...PathHashOption) uint64 {
+	// no local caching as we using only when propagating paths
+	o := &pathHashOptions{}
+	if len(opts) > 0 {
+		for _, opt := range opts {
+			opt(o)
+		}
+		return p.pathAttrs.GetHash(o)
+	}
 	if p.attrsHash == 0 {
-		p.attrsHash = p.pathAttrs.GetHash()
+		p.attrsHash = p.pathAttrs.GetHash(o)
 	}
 	return p.attrsHash
 }
