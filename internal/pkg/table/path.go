@@ -568,6 +568,8 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 	path.pathAttrs[a.GetType()] = a
+	// we reseting the hash attributes as attributes have changed
+	path.attrsHash = 0
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
