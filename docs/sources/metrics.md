@@ -100,4 +100,4 @@ Some labels can have specific values depending on the state of GoBGP or of the p
 
 ## Grafana dashboard
 
-There is an example Grafana panel to display some metrics about GoBGP available [here](https://grafana.com/grafana/dashboards/22061-gobgp/)
+There is an example [Grafana panel to display some metrics](https://grafana.com/grafana/dashboards/22061-gobgp/) about GoBGP available
