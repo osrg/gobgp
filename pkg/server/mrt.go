@@ -47,13 +47,13 @@ func (m *mrtWriter) Stop() {
 }
 
 func (m *mrtWriter) loop() error {
-	ops := []watchOption{}
+	ops := []WatchOption{}
 	switch m.c.DumpType {
 	case oc.MRT_TYPE_UPDATES:
-		ops = append(ops, watchUpdate(false, "", ""))
+		ops = append(ops, WatchUpdate(false, "", ""))
 	case oc.MRT_TYPE_TABLE:
 		if len(m.c.TableName) > 0 {
-			ops = append(ops, watchTableName(m.c.TableName))
+			ops = append(ops, WatchTableName(m.c.TableName))
 		}
 	}
 	w := m.s.watch(ops...)
@@ -87,7 +87,7 @@ func (m *mrtWriter) loop() error {
 		serialize := func(ev watchEvent) []*mrt.MRTMessage {
 			msg := make([]*mrt.MRTMessage, 0, 1)
 			switch e := ev.(type) {
-			case *watchEventUpdate:
+			case *WatchEventUpdate:
 				if e.Init {
 					return nil
 				}
