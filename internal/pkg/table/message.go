@@ -16,6 +16,7 @@
 package table
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 
@@ -350,7 +351,7 @@ func newPackerMP(f bgp.Family) *packerMP {
 
 type packerV4 struct {
 	packer
-	hashmap     map[uint64][]*Path
+	hashmap     map[uint64][]*cage
 	mpPaths     []*Path
 	withdrawals []*Path
 }
@@ -375,22 +376,26 @@ func (p *packerV4) add(path *Path) {
 	}
 
 	key := path.GetHash()
-	path.SetHash(key)
+	attrsB := bytes.NewBuffer(make([]byte, 0))
+	for _, v := range path.GetPathAttrs() {
+		b, _ := v.Serialize()
+		attrsB.Write(b)
+	}
 
 	if cages, y := p.hashmap[key]; y {
 		added := false
 		for _, c := range cages {
-			if c.GetHash() == key {
-				p.hashmap[key] = append(p.hashmap[key], path)
+			if bytes.Equal(c.attrsBytes, attrsB.Bytes()) {
+				c.paths = append(c.paths, path)
 				added = true
 				break
 			}
 		}
 		if !added {
-			p.hashmap[key] = append(p.hashmap[key], path)
+			p.hashmap[key] = append(p.hashmap[key], newCage(attrsB.Bytes(), path))
 		}
 	} else {
-		p.hashmap[key] = []*Path{path}
+		p.hashmap[key] = []*cage{newCage(attrsB.Bytes(), path)}
 	}
 }
 
@@ -435,32 +440,36 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nlris, nil, nil))
 	})
 
-	for _, paths := range p.hashmap {
-		attrs := paths[0].GetPathAttrs()
-		// we can apply a fix here when gobgp receives from MP peer
-		// and propagtes to non-MP peer
-		// we should make sure that next-hop exists in pathattrs
-		// while we build the update message
-		// we do not want to modify the `path` though
-		if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
-			attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
-		}
-		// if we have ever reach here
-		// there is no point keeping MP_REACH_NLRI in the announcement
-		attrs_without_mp := make([]bgp.PathAttributeInterface, 0, len(attrs))
-		for _, attr := range attrs {
-			if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-				attrs_without_mp = append(attrs_without_mp, attr)
-			}
-		}
-		attrsLen := 0
-		for _, a := range attrs_without_mp {
-			attrsLen += a.Len()
-		}
+	for _, cages := range p.hashmap {
+		for _, c := range cages {
+			paths := c.paths
 
-		loop(attrsLen, paths, func(nlris []*bgp.IPAddrPrefix) {
-			msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs_without_mp, nlris))
-		})
+			attrs := paths[0].GetPathAttrs()
+			// we can apply a fix here when gobgp receives from MP peer
+			// and propagtes to non-MP peer
+			// we should make sure that next-hop exists in pathattrs
+			// while we build the update message
+			// we do not want to modify the `path` though
+			if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
+				attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
+			}
+			// if we have ever reach here
+			// there is no point keeping MP_REACH_NLRI in the announcement
+			attrs_without_mp := make([]bgp.PathAttributeInterface, 0, len(attrs))
+			for _, attr := range attrs {
+				if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+					attrs_without_mp = append(attrs_without_mp, attr)
+				}
+			}
+			attrsLen := 0
+			for _, a := range attrs_without_mp {
+				attrsLen += a.Len()
+			}
+
+			loop(attrsLen, paths, func(nlris []*bgp.IPAddrPrefix) {
+				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs_without_mp, nlris))
+			})
+		}
 	}
 
 	for _, path := range p.mpPaths {
@@ -478,7 +487,7 @@ func newPackerV4(f bgp.Family) *packerV4 {
 		packer: packer{
 			family: f,
 		},
-		hashmap:     make(map[uint64][]*Path),
+		hashmap:     make(map[uint64][]*cage),
 		withdrawals: make([]*Path, 0),
 		mpPaths:     make([]*Path, 0),
 	}
