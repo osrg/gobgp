@@ -10352,6 +10352,15 @@ const (
 	BGP_ATTR_TYPE_MAX             BGPAttrType = 41
 )
 
+var BGPAttrTypeIterator []BGPAttrType
+
+func init() {
+	// Initialize BGPAttrTypeIterator with all defined BGPAttrType values
+	for t := range PathAttrFlags {
+		BGPAttrTypeIterator = append(BGPAttrTypeIterator, t)
+	}
+}
+
 // NOTIFICATION Error Code  RFC 4271 4.5.
 const (
 	_ = iota
