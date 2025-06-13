@@ -250,8 +250,11 @@ func TestGetPathAttrs(t *testing.T) {
 }
 
 func TestGetTransversalPathAttrs(t *testing.T) {
-	checkTransversalPathAttrs := func(t *testing.T, path *Path, expectedAttr bgp.BGPAttrType, checkIsNil ...bool) {
-		if len(checkIsNil) > 0 && checkIsNil[0] {
+	checkTransversalPathAttrs := func(t *testing.T, path *Path, expectedAttr bgp.BGPAttrType, checkIsNotExist ...bool) {
+		for _, attr := range path.GetTransversalPathAttrs() {
+			assert.NotNil(t, attr)
+		}
+		if len(checkIsNotExist) > 0 && checkIsNotExist[0] {
 			assert.Nil(t, path.GetTransversalPathAttrs()[expectedAttr])
 		} else {
 			assert.NotNil(t, path.GetTransversalPathAttrs()[expectedAttr])
@@ -277,9 +280,10 @@ func TestGetTransversalPathAttrs(t *testing.T) {
 	path2 := path1.Clone(false)
 	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN))
 	path2.delPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	// adding an attribute that has been deleted previously by underlayer, is not allowed
 	path2.setPathAttr(bgp.NewPathAttributeNextHop("192.168.99.1"))
 	checkTransversalPathAttrs(t, path2, bgp.BGP_ATTR_TYPE_ORIGIN, true)
-	checkTransversalPathAttrs(t, path2, bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	checkTransversalPathAttrs(t, path2, bgp.BGP_ATTR_TYPE_NEXT_HOP, true)
 
 	nextHop = path2.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	assert.NotNil(t, nextHop)
