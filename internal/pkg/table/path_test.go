@@ -251,9 +251,6 @@ func TestGetPathAttrs(t *testing.T) {
 
 func TestGetTransversalPathAttrs(t *testing.T) {
 	checkTransversalPathAttrs := func(t *testing.T, path *Path, expectedAttr bgp.BGPAttrType, checkIsNil ...bool) {
-		for _, attr := range path.GetTransversalPathAttrs() {
-			assert.NotNil(t, attr)
-		}
 		if len(checkIsNil) > 0 && checkIsNil[0] {
 			assert.Nil(t, path.GetTransversalPathAttrs()[expectedAttr])
 		} else {

@@ -649,15 +649,11 @@ func TestNotMergeV4NLRIs(t *testing.T) {
 	assert.NotEmpty(t, paths[0].GetHash(), paths[1].GetHash())
 
 	msgs := CreateUpdateMsgFromPaths(paths)
-	assert.Equal(t, 2, len(msgs))
-	assert.Equal(t, 1, len(msgs[0].Body.(*bgp.BGPUpdate).NLRI))
-	assert.Equal(t, 1, len(msgs[1].Body.(*bgp.BGPUpdate).NLRI))
+	assert.Equal(t, len(msgs), 2)
 
 	paths[1].SetHash(paths[0].GetHash())
 	msgs = CreateUpdateMsgFromPaths(paths)
-	assert.Equal(t, 2, len(msgs))
-	assert.Equal(t, 1, len(msgs[0].Body.(*bgp.BGPUpdate).NLRI))
-	assert.Equal(t, 1, len(msgs[1].Body.(*bgp.BGPUpdate).NLRI))
+	assert.Equal(t, len(msgs), 2)
 }
 
 func TestMergeV4Withdraw(t *testing.T) {

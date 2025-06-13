@@ -374,8 +374,24 @@ func (p *packerV4) add(path *Path) {
 		return
 	}
 
-	key := path.GetHash(IgnoreReachUnReach())
-	p.hashmap[key] = append(p.hashmap[key], path)
+	key := path.GetHash()
+	path.SetHash(key)
+
+	if cages, y := p.hashmap[key]; y {
+		added := false
+		for _, c := range cages {
+			if c.GetHash() == key {
+				p.hashmap[key] = append(p.hashmap[key], path)
+				added = true
+				break
+			}
+		}
+		if !added {
+			p.hashmap[key] = append(p.hashmap[key], path)
+		}
+	} else {
+		p.hashmap[key] = []*Path{path}
+	}
 }
 
 func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
