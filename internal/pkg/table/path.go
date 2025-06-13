@@ -540,11 +540,13 @@ func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttribut
 				modified[a.GetType()] = a
 			}
 		}
+	}
+	for i := len(revPaths) - 1; i >= 0; i-- {
+		p := revPaths[i]
 		for t := range p.dels {
 			delete(modified, t)
 		}
 	}
-
 	return modified
 }
 
