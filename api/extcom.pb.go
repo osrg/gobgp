@@ -1105,6 +1105,110 @@ func (x *VPLSExtended) GetMtu() uint32 {
 	return 0
 }
 
+type ETreeExtended struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IsLeaf        bool                   `protobuf:"varint,1,opt,name=is_leaf,json=isLeaf,proto3" json:"is_leaf,omitempty"`
+	Label         uint32                 `protobuf:"varint,2,opt,name=label,proto3" json:"label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ETreeExtended) Reset() {
+	*x = ETreeExtended{}
+	mi := &file_api_extcom_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ETreeExtended) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ETreeExtended) ProtoMessage() {}
+
+func (x *ETreeExtended) ProtoReflect() protoreflect.Message {
+	mi := &file_api_extcom_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ETreeExtended.ProtoReflect.Descriptor instead.
+func (*ETreeExtended) Descriptor() ([]byte, []int) {
+	return file_api_extcom_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ETreeExtended) GetIsLeaf() bool {
+	if x != nil {
+		return x.IsLeaf
+	}
+	return false
+}
+
+func (x *ETreeExtended) GetLabel() uint32 {
+	if x != nil {
+		return x.Label
+	}
+	return 0
+}
+
+type MulticastFlagsExtended struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IsIgmpProxy   bool                   `protobuf:"varint,1,opt,name=is_igmp_proxy,json=isIgmpProxy,proto3" json:"is_igmp_proxy,omitempty"`
+	IsMldProxy    bool                   `protobuf:"varint,2,opt,name=is_mld_proxy,json=isMldProxy,proto3" json:"is_mld_proxy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MulticastFlagsExtended) Reset() {
+	*x = MulticastFlagsExtended{}
+	mi := &file_api_extcom_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MulticastFlagsExtended) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MulticastFlagsExtended) ProtoMessage() {}
+
+func (x *MulticastFlagsExtended) ProtoReflect() protoreflect.Message {
+	mi := &file_api_extcom_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MulticastFlagsExtended.ProtoReflect.Descriptor instead.
+func (*MulticastFlagsExtended) Descriptor() ([]byte, []int) {
+	return file_api_extcom_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *MulticastFlagsExtended) GetIsIgmpProxy() bool {
+	if x != nil {
+		return x.IsIgmpProxy
+	}
+	return false
+}
+
+func (x *MulticastFlagsExtended) GetIsMldProxy() bool {
+	if x != nil {
+		return x.IsMldProxy
+	}
+	return false
+}
+
 type UnknownExtended struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          uint32                 `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
@@ -1115,7 +1219,7 @@ type UnknownExtended struct {
 
 func (x *UnknownExtended) Reset() {
 	*x = UnknownExtended{}
-	mi := &file_api_extcom_proto_msgTypes[21]
+	mi := &file_api_extcom_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1127,7 +1231,7 @@ func (x *UnknownExtended) String() string {
 func (*UnknownExtended) ProtoMessage() {}
 
 func (x *UnknownExtended) ProtoReflect() protoreflect.Message {
-	mi := &file_api_extcom_proto_msgTypes[21]
+	mi := &file_api_extcom_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1140,7 +1244,7 @@ func (x *UnknownExtended) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnknownExtended.ProtoReflect.Descriptor instead.
 func (*UnknownExtended) Descriptor() ([]byte, []int) {
-	return file_api_extcom_proto_rawDescGZIP(), []int{21}
+	return file_api_extcom_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *UnknownExtended) GetType() uint32 {
@@ -1183,6 +1287,8 @@ type ExtendedCommunity struct {
 	//	*ExtendedCommunity_TrafficRemark
 	//	*ExtendedCommunity_Mup
 	//	*ExtendedCommunity_Vpls
+	//	*ExtendedCommunity_Etree
+	//	*ExtendedCommunity_MulticastFlags
 	Extcom        isExtendedCommunity_Extcom `protobuf_oneof:"extcom"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1190,7 +1296,7 @@ type ExtendedCommunity struct {
 
 func (x *ExtendedCommunity) Reset() {
 	*x = ExtendedCommunity{}
-	mi := &file_api_extcom_proto_msgTypes[22]
+	mi := &file_api_extcom_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1202,7 +1308,7 @@ func (x *ExtendedCommunity) String() string {
 func (*ExtendedCommunity) ProtoMessage() {}
 
 func (x *ExtendedCommunity) ProtoReflect() protoreflect.Message {
-	mi := &file_api_extcom_proto_msgTypes[22]
+	mi := &file_api_extcom_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1215,7 +1321,7 @@ func (x *ExtendedCommunity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtendedCommunity.ProtoReflect.Descriptor instead.
 func (*ExtendedCommunity) Descriptor() ([]byte, []int) {
-	return file_api_extcom_proto_rawDescGZIP(), []int{22}
+	return file_api_extcom_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ExtendedCommunity) GetExtcom() isExtendedCommunity_Extcom {
@@ -1423,6 +1529,24 @@ func (x *ExtendedCommunity) GetVpls() *VPLSExtended {
 	return nil
 }
 
+func (x *ExtendedCommunity) GetEtree() *ETreeExtended {
+	if x != nil {
+		if x, ok := x.Extcom.(*ExtendedCommunity_Etree); ok {
+			return x.Etree
+		}
+	}
+	return nil
+}
+
+func (x *ExtendedCommunity) GetMulticastFlags() *MulticastFlagsExtended {
+	if x != nil {
+		if x, ok := x.Extcom.(*ExtendedCommunity_MulticastFlags); ok {
+			return x.MulticastFlags
+		}
+	}
+	return nil
+}
+
 type isExtendedCommunity_Extcom interface {
 	isExtendedCommunity_Extcom()
 }
@@ -1515,6 +1639,14 @@ type ExtendedCommunity_Vpls struct {
 	Vpls *VPLSExtended `protobuf:"bytes,22,opt,name=vpls,proto3,oneof"`
 }
 
+type ExtendedCommunity_Etree struct {
+	Etree *ETreeExtended `protobuf:"bytes,23,opt,name=etree,proto3,oneof"`
+}
+
+type ExtendedCommunity_MulticastFlags struct {
+	MulticastFlags *MulticastFlagsExtended `protobuf:"bytes,24,opt,name=multicast_flags,json=multicastFlags,proto3,oneof"`
+}
+
 func (*ExtendedCommunity_Unknown) isExtendedCommunity_Extcom() {}
 
 func (*ExtendedCommunity_TwoOctetAsSpecific) isExtendedCommunity_Extcom() {}
@@ -1559,6 +1691,10 @@ func (*ExtendedCommunity_Mup) isExtendedCommunity_Extcom() {}
 
 func (*ExtendedCommunity_Vpls) isExtendedCommunity_Extcom() {}
 
+func (*ExtendedCommunity_Etree) isExtendedCommunity_Extcom() {}
+
+func (*ExtendedCommunity_MulticastFlags) isExtendedCommunity_Extcom() {}
+
 type RouteTarget struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Rt:
@@ -1573,7 +1709,7 @@ type RouteTarget struct {
 
 func (x *RouteTarget) Reset() {
 	*x = RouteTarget{}
-	mi := &file_api_extcom_proto_msgTypes[23]
+	mi := &file_api_extcom_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1585,7 +1721,7 @@ func (x *RouteTarget) String() string {
 func (*RouteTarget) ProtoMessage() {}
 
 func (x *RouteTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_api_extcom_proto_msgTypes[23]
+	mi := &file_api_extcom_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1598,7 +1734,7 @@ func (x *RouteTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteTarget.ProtoReflect.Descriptor instead.
 func (*RouteTarget) Descriptor() ([]byte, []int) {
-	return file_api_extcom_proto_rawDescGZIP(), []int{23}
+	return file_api_extcom_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RouteTarget) GetRt() isRouteTarget_Rt {
@@ -1732,10 +1868,17 @@ const file_api_extcom_proto_rawDesc = "" +
 	"segmentId4\"E\n" +
 	"\fVPLSExtended\x12#\n" +
 	"\rcontrol_flags\x18\x01 \x01(\rR\fcontrolFlags\x12\x10\n" +
-	"\x03mtu\x18\x02 \x01(\rR\x03mtu\";\n" +
+	"\x03mtu\x18\x02 \x01(\rR\x03mtu\">\n" +
+	"\rETreeExtended\x12\x17\n" +
+	"\ais_leaf\x18\x01 \x01(\bR\x06isLeaf\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\rR\x05label\"^\n" +
+	"\x16MulticastFlagsExtended\x12\"\n" +
+	"\ris_igmp_proxy\x18\x01 \x01(\bR\visIgmpProxy\x12 \n" +
+	"\fis_mld_proxy\x18\x02 \x01(\bR\n" +
+	"isMldProxy\";\n" +
 	"\x0fUnknownExtended\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\rR\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\xf6\v\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xea\f\n" +
 	"\x11ExtendedCommunity\x120\n" +
 	"\aunknown\x18\x01 \x01(\v2\x14.api.UnknownExtendedH\x00R\aunknown\x12T\n" +
 	"\x15two_octet_as_specific\x18\x02 \x01(\v2\x1f.api.TwoOctetAsSpecificExtendedH\x00R\x12twoOctetAsSpecific\x12V\n" +
@@ -1762,7 +1905,9 @@ const file_api_extcom_proto_rawDesc = "" +
 	"\x1fredirect_four_octet_as_specific\x18\x13 \x01(\v2(.api.RedirectFourOctetAsSpecificExtendedH\x00R\x1bredirectFourOctetAsSpecific\x12C\n" +
 	"\x0etraffic_remark\x18\x14 \x01(\v2\x1a.api.TrafficRemarkExtendedH\x00R\rtrafficRemark\x12$\n" +
 	"\x03mup\x18\x15 \x01(\v2\x10.api.MUPExtendedH\x00R\x03mup\x12'\n" +
-	"\x04vpls\x18\x16 \x01(\v2\x11.api.VPLSExtendedH\x00R\x04vplsB\b\n" +
+	"\x04vpls\x18\x16 \x01(\v2\x11.api.VPLSExtendedH\x00R\x04vpls\x12*\n" +
+	"\x05etree\x18\x17 \x01(\v2\x12.api.ETreeExtendedH\x00R\x05etree\x12F\n" +
+	"\x0fmulticast_flags\x18\x18 \x01(\v2\x1b.api.MulticastFlagsExtendedH\x00R\x0emulticastFlagsB\b\n" +
 	"\x06extcom\"\x9a\x02\n" +
 	"\vRouteTarget\x12T\n" +
 	"\x15two_octet_as_specific\x18\x01 \x01(\v2\x1f.api.TwoOctetAsSpecificExtendedH\x00R\x12twoOctetAsSpecific\x12V\n" +
@@ -1782,7 +1927,7 @@ func file_api_extcom_proto_rawDescGZIP() []byte {
 	return file_api_extcom_proto_rawDescData
 }
 
-var file_api_extcom_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_api_extcom_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_api_extcom_proto_goTypes = []any{
 	(*TwoOctetAsSpecificExtended)(nil),          // 0: api.TwoOctetAsSpecificExtended
 	(*IPv4AddressSpecificExtended)(nil),         // 1: api.IPv4AddressSpecificExtended
@@ -1805,12 +1950,14 @@ var file_api_extcom_proto_goTypes = []any{
 	(*TrafficRemarkExtended)(nil),               // 18: api.TrafficRemarkExtended
 	(*MUPExtended)(nil),                         // 19: api.MUPExtended
 	(*VPLSExtended)(nil),                        // 20: api.VPLSExtended
-	(*UnknownExtended)(nil),                     // 21: api.UnknownExtended
-	(*ExtendedCommunity)(nil),                   // 22: api.ExtendedCommunity
-	(*RouteTarget)(nil),                         // 23: api.RouteTarget
+	(*ETreeExtended)(nil),                       // 21: api.ETreeExtended
+	(*MulticastFlagsExtended)(nil),              // 22: api.MulticastFlagsExtended
+	(*UnknownExtended)(nil),                     // 23: api.UnknownExtended
+	(*ExtendedCommunity)(nil),                   // 24: api.ExtendedCommunity
+	(*RouteTarget)(nil),                         // 25: api.RouteTarget
 }
 var file_api_extcom_proto_depIdxs = []int32{
-	21, // 0: api.ExtendedCommunity.unknown:type_name -> api.UnknownExtended
+	23, // 0: api.ExtendedCommunity.unknown:type_name -> api.UnknownExtended
 	0,  // 1: api.ExtendedCommunity.two_octet_as_specific:type_name -> api.TwoOctetAsSpecificExtended
 	1,  // 2: api.ExtendedCommunity.ipv4_address_specific:type_name -> api.IPv4AddressSpecificExtended
 	2,  // 3: api.ExtendedCommunity.four_octet_as_specific:type_name -> api.FourOctetAsSpecificExtended
@@ -1832,14 +1979,16 @@ var file_api_extcom_proto_depIdxs = []int32{
 	18, // 19: api.ExtendedCommunity.traffic_remark:type_name -> api.TrafficRemarkExtended
 	19, // 20: api.ExtendedCommunity.mup:type_name -> api.MUPExtended
 	20, // 21: api.ExtendedCommunity.vpls:type_name -> api.VPLSExtended
-	0,  // 22: api.RouteTarget.two_octet_as_specific:type_name -> api.TwoOctetAsSpecificExtended
-	1,  // 23: api.RouteTarget.ipv4_address_specific:type_name -> api.IPv4AddressSpecificExtended
-	2,  // 24: api.RouteTarget.four_octet_as_specific:type_name -> api.FourOctetAsSpecificExtended
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	21, // 22: api.ExtendedCommunity.etree:type_name -> api.ETreeExtended
+	22, // 23: api.ExtendedCommunity.multicast_flags:type_name -> api.MulticastFlagsExtended
+	0,  // 24: api.RouteTarget.two_octet_as_specific:type_name -> api.TwoOctetAsSpecificExtended
+	1,  // 25: api.RouteTarget.ipv4_address_specific:type_name -> api.IPv4AddressSpecificExtended
+	2,  // 26: api.RouteTarget.four_octet_as_specific:type_name -> api.FourOctetAsSpecificExtended
+	27, // [27:27] is the sub-list for method output_type
+	27, // [27:27] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_api_extcom_proto_init() }
@@ -1847,7 +1996,7 @@ func file_api_extcom_proto_init() {
 	if File_api_extcom_proto != nil {
 		return
 	}
-	file_api_extcom_proto_msgTypes[22].OneofWrappers = []any{
+	file_api_extcom_proto_msgTypes[24].OneofWrappers = []any{
 		(*ExtendedCommunity_Unknown)(nil),
 		(*ExtendedCommunity_TwoOctetAsSpecific)(nil),
 		(*ExtendedCommunity_Ipv4AddressSpecific)(nil),
@@ -1870,8 +2019,10 @@ func file_api_extcom_proto_init() {
 		(*ExtendedCommunity_TrafficRemark)(nil),
 		(*ExtendedCommunity_Mup)(nil),
 		(*ExtendedCommunity_Vpls)(nil),
+		(*ExtendedCommunity_Etree)(nil),
+		(*ExtendedCommunity_MulticastFlags)(nil),
 	}
-	file_api_extcom_proto_msgTypes[23].OneofWrappers = []any{
+	file_api_extcom_proto_msgTypes[25].OneofWrappers = []any{
 		(*RouteTarget_TwoOctetAsSpecific)(nil),
 		(*RouteTarget_Ipv4AddressSpecific)(nil),
 		(*RouteTarget_FourOctetAsSpecific)(nil),
@@ -1882,7 +2033,7 @@ func file_api_extcom_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_extcom_proto_rawDesc), len(file_api_extcom_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   24,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
