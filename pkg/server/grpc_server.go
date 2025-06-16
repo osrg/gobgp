@@ -312,7 +312,7 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 
 func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GoBgpService_WatchEventServer) error {
 	ctx, cancel := context.WithCancel(stream.Context())
-	err := s.bgpServer.WatchEvent(ctx, r, func(rsp *api.WatchEventResponse) {
+	err := s.bgpServer.WatchEvent(ctx, r, func(rsp *api.WatchEventResponse, _ time.Time) {
 		if err := stream.Send(rsp); err != nil {
 			cancel()
 			return

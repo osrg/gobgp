@@ -223,7 +223,7 @@ func TestListPolicyAssignment(t *testing.T) {
 //nolint:errcheck // WatchEvent won't return an error here
 func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
 	watchCtx, watchCancel := context.WithCancel(context.Background())
-	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
+	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
 		if peer := r.GetPeer(); peer != nil {
 			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == state {
 				remoteCaps, err := apiutil.UnmarshalCapabilities(peer.Peer.GetState().GetRemoteCap())
@@ -2623,7 +2623,7 @@ func TestWatchEvent(test *testing.T) {
 				},
 			},
 		},
-	}, func(resp *api.WatchEventResponse) {
+	}, func(resp *api.WatchEventResponse, _ time.Time) {
 		t := resp.Event.(*api.WatchEventResponse_Table)
 		count += len(t.Table.Paths)
 		if count == 2 {
