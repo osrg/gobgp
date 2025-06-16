@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var logger = log.NewDefaultLogger()
+var logger = log.NewTestLogger()
 
 // process BGPUpdate message
 // this function processes only BGPUpdate

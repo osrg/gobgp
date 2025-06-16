@@ -113,7 +113,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 func (adj *AdjRib) walk(families []bgp.Family, fn func(*Destination) bool) {
 	for _, f := range families {
 		if t, ok := adj.table[f]; ok {
-			for _, d := range t.destinations {
+			for _, d := range t.GetDestinations() {
 				if fn(d) {
 					return
 				}
