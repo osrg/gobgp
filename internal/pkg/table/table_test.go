@@ -104,6 +104,37 @@ func TestTableKey(t *testing.T) {
 	assert.Equal(t, len(tb.GetDestinations()), 2)
 }
 
+func BenchmarkTableKey(b *testing.B) {
+	tb := NewTable(logger, bgp.RF_IPv6_UC)
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(1, 2)
+	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
+	prefix := []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(24, "192.168.1.0"),
+		bgp.NewIPv6AddrPrefix(64, "2001:db8::"),
+		bgp.NewLabeledVPNIPAddrPrefix(24, "192.168.1.0", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
+		bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8::", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
+	}
+
+	b.Run("TableKey known types", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			for _, p := range prefix {
+				_ = tb.tableKey(p)
+			}
+		}
+	})
+
+	prefix = append(prefix, bgp.NewEVPNEthernetAutoDiscoveryRoute(rd, esi, 1, 2))
+	b.Run("TableKey with unknown type", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			for _, p := range prefix {
+				_ = tb.tableKey(p)
+			}
+		}
+	})
+}
+
 func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv4_UC)
 	assert.Equal(t, 0, len(table.GetDestinations()))
