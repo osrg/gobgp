@@ -39,14 +39,14 @@ func TestAddPath(t *testing.T) {
 
 	adj := NewAdjRib(logger, families)
 	adj.Update([]*Path{p1, p2})
-	assert.Equal(t, len(adj.table[family].destinations), 1)
+	assert.Equal(t, len(adj.table[family].GetDestinations()), 1)
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 
 	p3 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
 	adj.Update([]*Path{p3})
 
 	var found *Path
-	for _, d := range adj.table[family].destinations {
+	for _, d := range adj.table[family].GetDestinations() {
 		for _, p := range d.knownPathList {
 			if p.GetNlri().PathIdentifier() == nlri2.PathIdentifier() {
 				found = p
@@ -58,7 +58,7 @@ func TestAddPath(t *testing.T) {
 	adj.Update([]*Path{p3.Clone(true)})
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 1)
 	adj.Update([]*Path{p1.Clone(true)})
-	assert.Equal(t, 0, len(adj.table[family].destinations))
+	assert.Equal(t, 0, len(adj.table[family].GetDestinations()))
 }
 
 func TestAddPathAdjOut(t *testing.T) {
@@ -86,7 +86,7 @@ func TestAddPathAdjOut(t *testing.T) {
 
 	adj := NewAdjRib(logger, families)
 	adj.UpdateAdjRibOut([]*Path{p1, p2, p3, p4})
-	assert.Equal(t, len(adj.table[family].destinations), 1)
+	assert.Equal(t, len(adj.table[family].GetDestinations()), 1)
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 4)
 }
 
@@ -123,7 +123,7 @@ func TestStale(t *testing.T) {
 	droppedPathList := adj.DropStale(families)
 	assert.Equal(t, 2, len(droppedPathList))
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 1)
-	assert.Equal(t, 1, len(adj.table[family].destinations))
+	assert.Equal(t, 1, len(adj.table[family].GetDestinations()))
 }
 
 func TestLLGRStale(t *testing.T) {
@@ -160,5 +160,5 @@ func TestLLGRStale(t *testing.T) {
 	assert.Equal(t, 3, len(pathList)) // Does not return aslooped path that is retained in adjrib
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 1)
-	assert.Equal(t, 2, len(adj.table[family].destinations))
+	assert.Equal(t, 2, len(adj.table[family].GetDestinations()))
 }
