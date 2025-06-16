@@ -318,7 +318,7 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
 	found := -1
 	for i, path := range dest.knownPathList {
-		if newPath.NoImplicitWithdraw() {
+		if path.NoImplicitWithdraw() {
 			continue
 		}
 		// Here we just check if source is same and not check if path
