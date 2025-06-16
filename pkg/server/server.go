@@ -821,7 +821,7 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 	if !table.UseMultiplePaths.Enabled {
 		s.setPathVrfIdMap(clonedB, m)
 	}
-	w := &watchEventBestPath{PathList: clonedB, MultiPathList: clonedM}
+	w := &watchEventBestPath{PathList: clonedB, MultiPathList: clonedM, Timestamp: time.Now()}
 	if len(m) > 0 {
 		w.Vrf = m
 	}
@@ -4367,7 +4367,7 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
-func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse)) error {
+func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
@@ -4397,8 +4397,8 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 	}
 	w := s.watch(opts...)
 
-	simpleSend := func(paths []*api.Path) {
-		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}})
+	simpleSend := func(paths []*api.Path, when time.Time) {
+		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
 	}
 
 	go func() {
@@ -4413,11 +4413,11 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 					for _, path := range msg.PathList {
 						paths = append(paths, toPathApi(path, nil, false, false, false))
 						if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
-							simpleSend(paths)
+							simpleSend(paths, msg.Timestamp)
 							paths = make([]*api.Path, 0, r.BatchSize)
 						}
 					}
-					simpleSend(paths)
+					simpleSend(paths, msg.Timestamp)
 
 				case *watchEventBestPath:
 					var paths []*table.Path
@@ -4433,17 +4433,17 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 					for _, path := range paths {
 						pl = append(pl, toPathApi(path, nil, false, false, false))
 						if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
-							simpleSend(pl)
+							simpleSend(pl, msg.Timestamp)
 							pl = make([]*api.Path, 0, r.BatchSize)
 						}
 					}
-					simpleSend(pl)
+					simpleSend(pl, msg.Timestamp)
 
 				case *watchEventEor:
 					eor := table.NewEOR(msg.Family)
 					eor.SetSource(msg.PeerInfo)
 					path := eorToPathAPI(eor)
-					simpleSend([]*api.Path{path})
+					simpleSend([]*api.Path{path}, msg.Timestamp)
 
 				case *watchEventPeer:
 					var admin_state api.PeerState_AdminState
@@ -4483,7 +4483,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 								},
 							},
 						},
-					})
+					}, msg.Timestamp)
 				}
 			case <-ctx.Done():
 				return
@@ -4597,19 +4597,22 @@ type watchEventPeer struct {
 }
 
 type watchEventAdjIn struct {
-	PathList []*table.Path
+	PathList  []*table.Path
+	Timestamp time.Time
 }
 
 type watchEventTable struct {
-	RouterID string
-	PathList map[string][]*table.Path
-	Neighbor []*oc.Neighbor
+	RouterID  string
+	PathList  map[string][]*table.Path
+	Neighbor  []*oc.Neighbor
+	Timestamp time.Time
 }
 
 type watchEventBestPath struct {
 	PathList      []*table.Path
 	MultiPathList [][]*table.Path
 	Vrf           map[uint32]bool
+	Timestamp     time.Time
 }
 
 type watchEventMessage struct {
@@ -4625,8 +4628,9 @@ type watchEventMessage struct {
 }
 
 type watchEventEor struct {
-	Family   bgp.Family
-	PeerInfo *table.PeerInfo
+	Family    bgp.Family
+	PeerInfo  *table.PeerInfo
+	Timestamp time.Time
 }
 
 type watchOptions struct {
@@ -4903,9 +4907,11 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			w.notify(&watchEventBestPath{
 				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil),
 				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
+				Timestamp:     time.Now(),
 			})
 		}
 		if w.opts.initEor && s.active() == nil {
+			now := time.Now()
 			for _, p := range s.neighborMap {
 				func() {
 					p.fsm.lock.RLock()
@@ -4922,8 +4928,9 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 								LocalAddress: p.fsm.peerInfo.LocalAddress,
 							}
 							w.notify(&watchEventEor{
-								Family:   family,
-								PeerInfo: peerInfo,
+								Family:    family,
+								PeerInfo:  peerInfo,
+								Timestamp: now,
 							})
 						}
 					}

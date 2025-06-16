@@ -74,6 +74,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -114,7 +115,7 @@ func main() {
 					Type: api.WatchEventRequest_Table_Filter_TYPE_BEST,
 				},
 			},
-		},}, func(r *api.WatchEventResponse) {
+		},}, func(r *api.WatchEventResponse, when time.Time) {
 			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
 				log.Info(p)
 			} else if t := r.GetTable(); t != nil {
