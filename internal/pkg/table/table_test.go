@@ -16,6 +16,7 @@
 package table
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -61,19 +62,44 @@ func TestTableGetFamily(t *testing.T) {
 	rf := ipv4t.GetFamily()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
+func TestTableDestinationsCollision(t *testing.T) {
+	logger.Reset()
+	assert.Len(t, logger.Messages["error"], 0)
+	peerT := TableCreatePeer()
+	pathT := TableCreatePath(peerT)
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 
+	k := tableKey(pathT[0].GetNlri())
+	// fake an entry
+	ipv4t.destinations[k] = []*Destination{{nlri: pathT[1].GetNlri()}}
+	for _, path := range pathT {
+		dest := NewDestination(path.GetNlri(), 0)
+		ipv4t.setDestination(dest)
+	}
+	assert.Equal(t, 1, ipv4t.Info().NumCollision)
+	assert.Len(t, logger.Messages["warn"], 1)
+	assert.Equal(t, []string{"insert collision detected"}, logger.Messages["warn"])
+	logger.Reset()
+	assert.Len(t, logger.Messages["warn"], 0)
+}
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make(map[string]*Destination)
+	destinations := make([]*Destination, 0)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.GetNlri())
 		dest := NewDestination(path.GetNlri(), 0)
-		destinations[tableKey] = dest
+		destinations = append(destinations, dest)
+		ipv4t.setDestination(dest)
 	}
-	ipv4t.setDestinations(destinations)
+	// make them comparable
+	slices.SortFunc(destinations, func(a, b *Destination) int {
+		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+	})
 	ds := ipv4t.GetDestinations()
+	slices.SortFunc(ds, func(a, b *Destination) int {
+		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+	})
 	assert.Equal(t, ds, destinations)
 }
 
@@ -81,14 +107,20 @@ func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make(map[string]*Destination)
+	destinations := make([]*Destination, 0)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.GetNlri())
 		dest := NewDestination(path.GetNlri(), 0)
-		destinations[tableKey] = dest
+		destinations = append(destinations, dest)
+		ipv4t.setDestination(dest)
 	}
-	ipv4t.setDestinations(destinations)
+	// make them comparable
+	slices.SortFunc(destinations, func(a, b *Destination) int {
+		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+	})
 	ds := ipv4t.GetDestinations()
+	slices.SortFunc(ds, func(a, b *Destination) int {
+		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+	})
 	assert.Equal(t, ds, destinations)
 }
 
@@ -98,14 +130,14 @@ func TestTableKey(t *testing.T) {
 	d1 := NewDestination(n1, 0)
 	n2, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")
 	d2 := NewDestination(n2, 0)
-	assert.Equal(t, len(tb.tableKey(d1.GetNlri())), 5)
+
+	assert.NotEqual(t, tableKey(d1.GetNlri()), tableKey(d2.GetNlri()))
 	tb.setDestination(d1)
 	tb.setDestination(d2)
 	assert.Equal(t, len(tb.GetDestinations()), 2)
 }
 
 func BenchmarkTableKey(b *testing.B) {
-	tb := NewTable(logger, bgp.RF_IPv6_UC)
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(1, 2)
 	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
 	prefix := []bgp.AddrPrefixInterface{
@@ -119,7 +151,7 @@ func BenchmarkTableKey(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			for _, p := range prefix {
-				_ = tb.tableKey(p)
+				_ = tableKey(p)
 			}
 		}
 	})
@@ -129,7 +161,7 @@ func BenchmarkTableKey(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			for _, p := range prefix {
-				_ = tb.tableKey(p)
+				_ = tableKey(p)
 			}
 		}
 	})
