@@ -46,6 +46,8 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
+
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 type FSMOperation uint
@@ -217,13 +219,13 @@ type BgpServer struct {
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
 	listeners    []*tcpListener
-	neighborMap  map[string]*peer
+	neighborMap  cmap.ConcurrentMap[string, *peer]
 	peerGroupMap map[string]*peerGroup
 	globalRib    *table.TableManager
 	rsRib        *table.TableManager
 	roaManager   *roaManager
 	shutdownWG   *sync.WaitGroup
-	watcherMap   map[watchEventType][]*watcher
+	watcherMap   cmap.ConcurrentMap[watchEventType, []*watcher]
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
 	mrtManager   *mrtManager
@@ -247,11 +249,11 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	roaTable := table.NewROATable(logger)
 
 	s := &BgpServer{
-		neighborMap:  make(map[string]*peer),
+		neighborMap:  cmap.New[*peer](),
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(logger),
 		mgmtCh:       make(chan *mgmtOp, 1),
-		watcherMap:   make(map[watchEventType][]*watcher),
+		watcherMap:   cmap.NewStringer[watchEventType, []*watcher](),
 		uuidMap:      make(map[string]uuid.UUID),
 		roaManager:   newROAManager(roaTable, logger),
 		roaTable:     roaTable,
@@ -353,7 +355,7 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 	ipaddr, _ := net.ResolveIPAddr("ip", host)
 	remoteAddr := ipaddr.String()
-	peer, found := s.neighborMap[remoteAddr]
+	peer, found := s.neighborMap.Get(remoteAddr)
 	if found {
 		peer.fsm.lock.RLock()
 		adminStateNotUp := peer.fsm.adminState != adminStateUp
@@ -445,7 +447,7 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 			return
 		}
 
-		s.neighborMap[remoteAddr] = peer
+		s.neighborMap.Set(remoteAddr, peer)
 		peer.startFSMHandler()
 		go s.peerFsmLoop(peer)
 		s.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
@@ -1457,7 +1459,8 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 		s.notifyBestWatcher(gBestList, mpathList)
 	}
 	family := newPath.GetFamily()
-	for _, targetPeer := range s.neighborMap {
+	for peerTuple := range s.neighborMap.IterBuffered() {
+		targetPeer := peerTuple.Val
 		if source == nil && targetPeer.isRouteServerClient() || source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient() {
 			continue
 		}
@@ -1594,7 +1597,7 @@ func (s *BgpServer) deleteDynamicNeighbor(peer *peer, oldState bgp.FSMState, e *
 	peer.stopStateProcessing()
 	peer.stopPeerRestarting()
 	peer.fsm.lock.RLock()
-	delete(s.neighborMap, peer.fsm.pConf.State.NeighborAddress)
+	s.neighborMap.Remove(peer.fsm.pConf.State.NeighborAddress)
 	peer.fsm.lock.RUnlock()
 	cleanInfiniteChannel(peer.fsm.outgoingCh)
 	cleanInfiniteChannel(peer.fsm.incomingCh)
@@ -1849,15 +1852,16 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// ones that do not advertise the graceful restart capability) or (b)
 				// the Selection_Deferral_Timer referred to below has expired.
 				allEnd := func() bool {
-					for _, p := range s.neighborMap {
-						if !p.recvedAllEOR() {
+					for t := range s.neighborMap.IterBuffered() {
+						if !t.Val.recvedAllEOR() {
 							return false
 						}
 					}
 					return true
 				}()
 				if allEnd {
-					for _, p := range s.neighborMap {
+					for t := range s.neighborMap.IterBuffered() {
+						p := t.Val
 						p.fsm.lock.Lock()
 						peerLocalRestarting := p.fsm.pConf.GracefulRestart.State.LocalRestarting
 						p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
@@ -1992,15 +1996,16 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				peer.fsm.lock.RUnlock()
 				if localRestarting {
 					allEnd := func() bool {
-						for _, p := range s.neighborMap {
-							if !p.recvedAllEOR() {
+						for t := range s.neighborMap.IterBuffered() {
+							if !t.Val.recvedAllEOR() {
 								return false
 							}
 						}
 						return true
 					}()
 					if allEnd {
-						for _, p := range s.neighborMap {
+						for t := range s.neighborMap.IterBuffered() {
+							p := t.Val
 							p.fsm.lock.Lock()
 							peerLocalRestarting := p.fsm.pConf.GracefulRestart.State.LocalRestarting
 							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
@@ -2182,22 +2187,22 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
-	err := s.mgmtOperation(func() error {
-		names := make([]string, 0, len(s.neighborMap))
-		for k := range s.neighborMap {
-			names = append(names, k)
-		}
+	s.shutdownWG = new(sync.WaitGroup)
+	s.shutdownWG.Add(1)
 
-		if len(names) != 0 {
-			s.shutdownWG = new(sync.WaitGroup)
-			s.shutdownWG.Add(1)
-		}
-		for _, name := range names {
-			if err := s.deleteNeighbor(&oc.Neighbor{Config: oc.NeighborConfig{
-				NeighborAddress: name,
+	err := s.mgmtOperation(func() (err error) {
+		defer s.shutdownWG.Done()
+		hasNeighbors := false
+		for t := range s.neighborMap.IterBuffered() {
+			hasNeighbors = true
+			if err = s.deleteNeighbor(&oc.Neighbor{Config: oc.NeighborConfig{
+				NeighborAddress: t.Key,
 			}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED); err != nil {
-				return err
+				break
 			}
+		}
+		if !hasNeighbors {
+			return nil
 		}
 		for _, l := range s.listeners {
 			l.Close()
@@ -2209,10 +2214,8 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		return err
 	}
 
-	if s.shutdownWG != nil {
-		s.shutdownWG.Wait()
-		s.shutdownWG = nil
-	}
+	s.shutdownWG.Wait()
+	s.shutdownWG = nil
 	return nil
 }
 
@@ -2259,13 +2262,14 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 	}
 
 	return s.mgmtOperation(func() error {
-		ap := make(map[string]oc.ApplyPolicy, len(s.neighborMap)+1)
+		ap := make(map[string]oc.ApplyPolicy, s.neighborMap.Count()+1)
 		a, err := getConfig(table.GLOBAL_RIB_NAME)
 		if err != nil {
 			return err
 		}
 		ap[table.GLOBAL_RIB_NAME] = *a
-		for _, peer := range s.neighborMap {
+		for t := range s.neighborMap.IterBuffered() {
+			peer := t.Val
 			peer.fsm.lock.RLock()
 			s.logger.Info("call set policy",
 				log.Fields{
@@ -2674,7 +2678,8 @@ func (s *BgpServer) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) erro
 	}
 	return s.mgmtOperation(func() error {
 		name := r.Name
-		for _, n := range s.neighborMap {
+		for t := range s.neighborMap.IterBuffered() {
+			n := t.Val
 			n.fsm.lock.RLock()
 			peerVrf := n.fsm.pConf.Config.Vrf
 			n.fsm.lock.RUnlock()
@@ -2837,7 +2842,7 @@ func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*table.Loo
 		id := table.GLOBAL_RIB_NAME
 		as := uint32(0)
 		if len(addr) > 0 {
-			peer, ok := s.neighborMap[addr]
+			peer, ok := s.neighborMap.Get(addr)
 			if !ok {
 				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 			}
@@ -2895,7 +2900,7 @@ func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*table.
 
 func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
-		peer, ok := s.neighborMap[addr]
+		peer, ok := s.neighborMap.Get(addr)
 		if !ok {
 			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 		}
@@ -3052,7 +3057,7 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.Family) (info *table.Tabl
 		id := table.GLOBAL_RIB_NAME
 		as := uint32(0)
 		if len(addr) > 0 {
-			peer, ok := s.neighborMap[addr]
+			peer, ok := s.neighborMap.Get(addr)
 			if !ok {
 				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 			}
@@ -3079,7 +3084,7 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.Family) (info *table.Tabl
 
 func (s *BgpServer) getAdjRibInfo(addr string, family bgp.Family, in bool) (info *table.TableInfo, err error) {
 	err = s.mgmtOperation(func() error {
-		peer, ok := s.neighborMap[addr]
+		peer, ok := s.neighborMap.Get(addr)
 		if !ok {
 			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 		}
@@ -3266,8 +3271,10 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 	err := s.mgmtOperation(func() error {
 		address := r.Address
 		getAdvertised := r.EnableAdvertised
-		l = make([]*api.Peer, 0, len(s.neighborMap))
-		for k, peer := range s.neighborMap {
+		l = make([]*api.Peer, 0, s.neighborMap.Count())
+		for t := range s.neighborMap.IterBuffered() {
+			k := t.Key
+			peer := t.Val
 			peer.fsm.lock.RLock()
 			neighborIface := peer.fsm.pConf.Config.NeighborInterface
 			peer.fsm.lock.RUnlock()
@@ -3343,7 +3350,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		return err
 	}
 
-	if _, y := s.neighborMap[addr]; y {
+	if _, y := s.neighborMap.Get(addr); y {
 		return fmt.Errorf("can't overwrite the existing peer: %s", addr)
 	}
 
@@ -3409,7 +3416,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
-	s.neighborMap[addr] = peer
+	s.neighborMap.Set(addr, peer)
 	if name := c.Config.PeerGroup; name != "" {
 		s.peerGroupMap[name].AddMember(*c)
 	}
@@ -3519,7 +3526,7 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
 			return err
 		}
 	}
-	n, y := s.neighborMap[addr]
+	n, y := s.neighborMap.Get(addr)
 	if !y {
 		return fmt.Errorf("can't delete a peer configuration for %s", addr)
 	}
@@ -3546,7 +3553,7 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
 	n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	n.fsm.h.ctxCancel()
 
-	delete(s.neighborMap, addr)
+	s.neighborMap.Remove(addr)
 	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
 	return nil
 }
@@ -3557,7 +3564,8 @@ func (s *BgpServer) DeletePeerGroup(ctx context.Context, r *api.DeletePeerGroupR
 	}
 	return s.mgmtOperation(func() error {
 		name := r.Name
-		for _, n := range s.neighborMap {
+		for t := range s.neighborMap.IterBuffered() {
+			n := t.Val
 			n.fsm.lock.RLock()
 			peerGroup := n.fsm.pConf.Config.PeerGroup
 			n.fsm.lock.RUnlock()
@@ -3672,7 +3680,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		return needsSoftResetIn, err
 	}
 
-	peer, ok := s.neighborMap[addr]
+	peer, ok := s.neighborMap.Get(addr)
 	if !ok {
 		return needsSoftResetIn, fmt.Errorf("neighbor that has %v doesn't exist", addr)
 	}
@@ -3816,12 +3824,11 @@ func (s *BgpServer) UpdatePeer(ctx context.Context, r *api.UpdatePeerRequest) (r
 
 func (s *BgpServer) addrToPeers(addr string) (l []*peer, err error) {
 	if len(addr) == 0 {
-		for _, p := range s.neighborMap {
-			l = append(l, p)
+		for t := range s.neighborMap.IterBuffered() {
+			l = append(l, t.Val)
 		}
-		return l, nil
 	}
-	p, found := s.neighborMap[addr]
+	p, found := s.neighborMap.Get(addr)
 	if !found {
 		return l, fmt.Errorf("neighbor that has %v doesn't exist", addr)
 	}
@@ -4193,9 +4200,9 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 			return err
 		}
 
-		l := make([]string, 0, len(s.neighborMap)+1)
-		for _, peer := range s.neighborMap {
-			l = append(l, peer.ID())
+		l := make([]string, 0, s.neighborMap.Count()+1)
+		for t := range s.neighborMap.IterBuffered() {
+			l = append(l, t.Val.ID())
 		}
 		l = append(l, table.GLOBAL_RIB_NAME)
 
@@ -4211,7 +4218,7 @@ func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, 
 	if name == table.GLOBAL_RIB_NAME {
 		name = table.GLOBAL_RIB_NAME
 	} else {
-		peer, ok := s.neighborMap[name]
+		peer, ok := s.neighborMap.Get(name)
 		if !ok {
 			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", name)
 		}
@@ -4235,12 +4242,12 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 	}
 	var a []*api.PolicyAssignment
 	err := s.mgmtOperation(func() error {
-		names := make([]string, 0, len(s.neighborMap)+1)
+		names := make([]string, 0, s.neighborMap.Count()+1)
 		if r.Name == "" {
 			names = append(names, table.GLOBAL_RIB_NAME)
-			for name, peer := range s.neighborMap {
-				if peer.isRouteServerClient() {
-					names = append(names, name)
+			for t := range s.neighborMap.IterBuffered() {
+				if t.Val.isRouteServerClient() {
+					names = append(names, t.Key)
 				}
 			}
 		} else {
@@ -4674,6 +4681,10 @@ const (
 	watchEventTypeEor        watchEventType = "eor"
 )
 
+func (w watchEventType) String() string {
+	return string(w)
+}
+
 type watchEvent any
 
 type watchEventUpdate struct {
@@ -4883,7 +4894,8 @@ func (w *watcher) Generate(t watchEventType) error {
 		switch t {
 		case watchEventTypePreUpdate:
 			pathList := make([]*table.Path, 0)
-			for _, peer := range w.s.neighborMap {
+			for t := range w.s.neighborMap.IterBuffered() {
+				peer := t.Val
 				pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
 			}
 			w.notify(&watchEventAdjIn{PathList: clonePathList(pathList)})
@@ -4892,7 +4904,7 @@ func (w *watcher) Generate(t watchEventType) error {
 			as := uint32(0)
 			id := table.GLOBAL_RIB_NAME
 			if len(w.opts.tableName) > 0 {
-				peer, ok := w.s.neighborMap[w.opts.tableName]
+				peer, ok := w.s.neighborMap.Get(w.opts.tableName)
 				if !ok {
 					return fmt.Errorf("neighbor that has %v doesn't exist", w.opts.tableName)
 				}
@@ -4915,9 +4927,9 @@ func (w *watcher) Generate(t watchEventType) error {
 				}
 				return pathList
 			}()
-			l := make([]*oc.Neighbor, 0, len(w.s.neighborMap))
-			for _, peer := range w.s.neighborMap {
-				l = append(l, w.s.toConfig(peer, false))
+			l := make([]*oc.Neighbor, 0, w.s.neighborMap.Count())
+			for t := range w.s.neighborMap.IterBuffered() {
+				l = append(l, w.s.toConfig(t.Val, false))
 			}
 			w.notify(&watchEventTable{PathList: pathList, Neighbor: l})
 		default:
@@ -4944,10 +4956,12 @@ func (w *watcher) loop() {
 //nolint:errcheck // we don't care about the error here.
 func (w *watcher) Stop() {
 	w.s.mgmtOperation(func() error {
-		for k, l := range w.s.watcherMap {
+		for t := range w.s.watcherMap.IterBuffered() {
+			l := t.Val
 			for i, v := range l {
 				if w == v {
-					w.s.watcherMap[k] = append(l[:i], l[i+1:]...)
+					l = slices.Delete(l, i, i+1)
+					w.s.watcherMap.Set(t.Key, l)
 					break
 				}
 			}
@@ -4963,14 +4977,19 @@ func (w *watcher) Stop() {
 }
 
 func (s *BgpServer) isWatched(typ watchEventType) bool {
-	return len(s.watcherMap[typ]) != 0
+	return s.watcherMap.Has(typ)
 }
 
 // notifyWatcher notifies all watchers of the watchEventType about the event.
 // If the filter is set(and not nil) for the watchEventType, it will be used for filtering.
 // Otherwise, all events will be processed without any filtering.
 func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
-	for _, w := range s.watcherMap[typ] {
+	watchers, ok := s.watcherMap.Get(typ)
+	if !ok {
+		// No watchers for this type.
+		return
+	}
+	for _, w := range watchers {
 		if f := w.filters[typ]; f != nil && !f(ev) {
 			// Filter is set and the event doesn't pass it.
 			continue
@@ -4994,7 +5013,12 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 		}
 
 		register := func(t watchEventType, w *watcher) {
-			s.watcherMap[t] = append(s.watcherMap[t], w)
+			watchers, ok := s.watcherMap.Get(t)
+			if !ok {
+				watchers = make([]*watcher, 0, 1)
+			}
+			watchers = append(watchers, w)
+			s.watcherMap.Set(t, watchers)
 		}
 
 		if w.opts.bestPath {
@@ -5016,7 +5040,8 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			register(watchEventTypeEor, w)
 		}
 		if w.opts.peerState {
-			for _, p := range s.neighborMap {
+			for t := range s.neighborMap.IterBuffered() {
+				p := t.Val
 				w.notify(newWatchEventPeer(p, nil, p.fsm.state, PEER_EVENT_INIT))
 			}
 			w.notify(&watchEventPeer{Type: PEER_EVENT_END_OF_INIT})
@@ -5031,7 +5056,8 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			})
 		}
 		if w.opts.initEor && s.active() == nil {
-			for _, p := range s.neighborMap {
+			for t := range s.neighborMap.IterBuffered() {
+				p := t.Val
 				func() {
 					p.fsm.lock.RLock()
 					defer p.fsm.lock.RUnlock()
@@ -5056,7 +5082,8 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 			}
 		}
 		if w.opts.initUpdate {
-			for _, peer := range s.neighborMap {
+			for t := range s.neighborMap.IterBuffered() {
+				peer := t.Val
 				peer.fsm.lock.RLock()
 				notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
 				peer.fsm.lock.RUnlock()
@@ -5126,7 +5153,7 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 					// create copy which can be access to without mutex
 					var configNeighbor *oc.Neighbor
 					peerAddress := peerInfo.Address.String()
-					if peer, ok := s.neighborMap[peerAddress]; ok {
+					if peer, ok := s.neighborMap.Get(peerAddress); ok {
 						configNeighbor = w.s.toConfig(peer, false)
 					}
 					ev := &watchEventUpdate{

@@ -1345,7 +1345,8 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
-	for _, n := range s2.neighborMap {
+	for t := range s2.neighborMap.IterBuffered() {
+		n := t.Val
 		n.fsm.conn.Close()
 	}
 	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
@@ -1417,7 +1418,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
-	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
+	neighbor1, _ := s1.neighborMap.Get(p1.Conf.NeighborAddress)
 	incoming := neighbor1.fsm.incomingCh
 	err = s1.mgmtOperation(func() error {
 		s1.delIncoming(incoming)
@@ -1711,7 +1712,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		bgp.NewPathAttributeNextHop("1.1.1.1"),
 	}, time.Now(), false)
 
-	s1Peer := s2.neighborMap["127.0.0.1"]
+	s1Peer, _ := s2.neighborMap.Get("127.0.0.1")
 	s2.propagateUpdate(s1Peer, []*table.Path{rtcPath})
 
 	t2 := time.NewTimer(2 * time.Second)
