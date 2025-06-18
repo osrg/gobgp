@@ -1090,7 +1090,9 @@ func parseBMPMessage(data []byte, optionsFunc func(BMPPeerHeader) []*bgp.Marshal
 
 	var options []*bgp.MarshallingOption
 	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_TERMINATION {
-		msg.PeerHeader.DecodeFromBytes(data)
+		if err := msg.PeerHeader.DecodeFromBytes(data); err != nil {
+			return nil, fmt.Errorf("failed to decode BMP peer header: %w", err)
+		}
 		data = data[BMP_PEER_HEADER_SIZE:]
 		if optionsFunc != nil {
 			options = optionsFunc(msg.PeerHeader)
