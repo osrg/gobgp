@@ -63,7 +63,7 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 
 	def := toDefaultTable(a.DefaultImportPolicy)
 	ps := toPolicies(a.ImportPolicyList)
-	bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+	err := bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 			Name:     table.GLOBAL_RIB_NAME,
 			Type:     table.POLICY_DIRECTION_IMPORT,
@@ -71,10 +71,19 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 			Default:  def,
 		}),
 	})
+	if err != nil {
+		bgpServer.Log().Fatal("failed to set policy assignment",
+			log.Fields{
+				log.FieldFacility: log.FacilityConfig,
+				"Topic":           "config",
+				"Direction":       table.POLICY_DIRECTION_IMPORT,
+				"Error":           err,
+			})
+	}
 
 	def = toDefaultTable(a.DefaultExportPolicy)
 	ps = toPolicies(a.ExportPolicyList)
-	bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+	err = bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 			Name:     table.GLOBAL_RIB_NAME,
 			Type:     table.POLICY_DIRECTION_EXPORT,
@@ -82,6 +91,15 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 			Default:  def,
 		}),
 	})
+	if err != nil {
+		bgpServer.Log().Fatal("failed to set policy assignment",
+			log.Fields{
+				log.FieldFacility: log.FacilityConfig,
+				"Topic":           "config",
+				"Direction":       table.POLICY_DIRECTION_EXPORT,
+				"Error":           err,
+			})
+	}
 }
 
 func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []oc.PeerGroup) {
@@ -389,11 +407,16 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 	if err != nil {
 		bgpServer.Log().Fatal("failed to update policy config",
 			log.Fields{"Topic": "config", "Error": err})
-	} else {
-		bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
-			DefinedSets: rp.DefinedSets,
-			Policies:    rp.Policies,
-		})
+	} else if err := bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
+		DefinedSets: rp.DefinedSets,
+		Policies:    rp.Policies,
+	}); err != nil {
+		bgpServer.Log().Fatal("failed to set policies",
+			log.Fields{
+				log.FieldFacility: log.FacilityConfig,
+				"Topic":           "config",
+				"Error":           err,
+			})
 	}
 
 	assignGlobalpolicy(ctx, bgpServer, &newConfig.Global.ApplyPolicy.Config)
@@ -433,15 +456,19 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 			bgpServer.Log().Fatal("failed to update policy config",
 				log.Fields{
 					log.FieldFacility: log.FacilityConfig,
-
-					"Topic": "config",
-					"Error": err,
+					"Topic":           "config",
+					"Error":           err,
 				})
-		} else {
-			bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
-				DefinedSets: rp.DefinedSets,
-				Policies:    rp.Policies,
-			})
+		} else if err := bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
+			DefinedSets: rp.DefinedSets,
+			Policies:    rp.Policies,
+		}); err != nil {
+			bgpServer.Log().Fatal("failed to set policies",
+				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+					"Topic":           "config",
+					"Error":           err,
+				})
 		}
 	}
 	// global policy update
