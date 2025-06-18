@@ -29,5 +29,8 @@ func main() {
 		os.Exit(0)
 	}
 	grpc.EnableTracing = false
-	newRootCmd().Execute()
+	if err := newRootCmd().Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
