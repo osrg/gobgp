@@ -3330,7 +3330,7 @@ func (r *RoutingPolicy) getDefaultPolicy(id string, dir PolicyDirection) RouteTy
 	}
 }
 
-func (r *RoutingPolicy) setPolicy(id string, dir PolicyDirection, policies []*Policy) error {
+func (r *RoutingPolicy) setPolicy(id string, dir PolicyDirection, policies []*Policy) {
 	a, ok := r.assignmentMap[id]
 	if !ok {
 		a = &Assignment{}
@@ -3342,10 +3342,9 @@ func (r *RoutingPolicy) setPolicy(id string, dir PolicyDirection, policies []*Po
 		a.exportPolicies = policies
 	}
 	r.assignmentMap[id] = a
-	return nil
 }
 
-func (r *RoutingPolicy) setDefaultPolicy(id string, dir PolicyDirection, typ RouteType) error {
+func (r *RoutingPolicy) setDefaultPolicy(id string, dir PolicyDirection, typ RouteType) {
 	a, ok := r.assignmentMap[id]
 	if !ok {
 		a = &Assignment{}
@@ -3357,7 +3356,6 @@ func (r *RoutingPolicy) setDefaultPolicy(id string, dir PolicyDirection, typ Rou
 		a.defaultExportPolicy = typ
 	}
 	r.assignmentMap[id] = a
-	return nil
 }
 
 func (r *RoutingPolicy) getAssignmentFromConfig(dir PolicyDirection, a oc.ApplyPolicy) ([]*Policy, RouteType, error) {
@@ -3897,7 +3895,7 @@ func (r *RoutingPolicy) AddPolicyAssignment(id string, dir PolicyDirection, poli
 	}
 	cur := r.getPolicy(id, dir)
 	if cur == nil {
-		err = r.setPolicy(id, dir, ps)
+		r.setPolicy(id, dir, ps)
 	} else {
 		seen = make(map[string]bool)
 		ps = append(cur, ps...)
@@ -3908,10 +3906,10 @@ func (r *RoutingPolicy) AddPolicyAssignment(id string, dir PolicyDirection, poli
 			}
 			seen[x.Name] = true
 		}
-		err = r.setPolicy(id, dir, ps)
+		r.setPolicy(id, dir, ps)
 	}
 	if err == nil && def != ROUTE_TYPE_NONE {
-		err = r.setDefaultPolicy(id, dir, def)
+		r.setDefaultPolicy(id, dir, def)
 	}
 	return err
 }
@@ -3938,11 +3936,8 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 	cur := r.getPolicy(id, dir)
 
 	if all {
-		err = r.setPolicy(id, dir, nil)
-		if err != nil {
-			return
-		}
-		err = r.setDefaultPolicy(id, dir, ROUTE_TYPE_NONE)
+		r.setPolicy(id, dir, nil)
+		r.setDefaultPolicy(id, dir, ROUTE_TYPE_NONE)
 	} else {
 		l := len(cur) - len(ps)
 		if l < 0 {
@@ -3962,7 +3957,7 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 				n = append(n, y)
 			}
 		}
-		err = r.setPolicy(id, dir, n)
+		r.setPolicy(id, dir, n)
 	}
 	return err
 }
@@ -3987,9 +3982,9 @@ func (r *RoutingPolicy) SetPolicyAssignment(id string, dir PolicyDirection, poli
 		ps = append(ps, p)
 	}
 	r.getPolicy(id, dir)
-	err = r.setPolicy(id, dir, ps)
-	if err == nil && def != ROUTE_TYPE_NONE {
-		err = r.setDefaultPolicy(id, dir, def)
+	r.setPolicy(id, dir, ps)
+	if def != ROUTE_TYPE_NONE {
+		r.setDefaultPolicy(id, dir, def)
 	}
 	return err
 }
