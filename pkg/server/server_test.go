@@ -51,7 +51,8 @@ func TestStop(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	err = s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	assert.NoError(err)
 
 	s = NewBgpServer()
 	go s.Serve()
@@ -62,6 +63,8 @@ func TestStop(t *testing.T) {
 			ListenPort: -1,
 		},
 	})
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
 	assert.NoError(err)
 	p := &api.Peer{
 		Conf: &api.PeerConf{
@@ -77,8 +80,6 @@ func TestStop(t *testing.T) {
 
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{})
 	assert.Error(err)
-
-	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }
 
 func TestModPolicyAssign(t *testing.T) {
@@ -141,16 +142,18 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.NoError(err)
 
 	ps = []*api.PolicyAssignment{}
-	s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name:      table.GLOBAL_RIB_NAME,
 		Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT,
 	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
+	assert.NoError(err)
 	assert.Equal(len(ps[0].Policies), 2)
 
 	ps = []*api.PolicyAssignment{}
-	s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+	err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
 		Name: table.GLOBAL_RIB_NAME,
 	}, func(p *api.PolicyAssignment) { ps = append(ps, p) })
+	assert.NoError(err)
 	assert.Equal(len(ps), 2)
 }
 
@@ -217,6 +220,7 @@ func TestListPolicyAssignment(t *testing.T) {
 	assert.Equal(4, len(ps))
 }
 
+//nolint:errcheck // WatchEvent won't return an error here
 func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
@@ -366,7 +370,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 		CommunitySetName: "comset1",
 		CommunityList:    []string{"100:100"},
 	})
-	server2.policy.AddDefinedSet(commSet, false)
+	err = server2.policy.AddDefinedSet(commSet, false)
+	assert.NoError(err)
 
 	statement := oc.Statement{
 		Name: "stmt1",
@@ -390,13 +395,15 @@ func TestListPathEnableFiltered(test *testing.T) {
 	if err != nil {
 		test.Fatalf("cannot create new policy: %v", err)
 	}
-	server2.policy.AddPolicy(p, false)
+	err = server2.policy.AddPolicy(p, false)
+	assert.NoError(err)
 	policies := []*oc.PolicyDefinition{
 		{
 			Name: "policy1",
 		},
 	}
-	server2.policy.AddPolicyAssignment(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_REJECT)
+	err = server2.policy.AddPolicyAssignment(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_REJECT)
+	assert.NoError(err)
 
 	// Add IMPORT policy at server1 for accepting all routes and replacing communities.
 	statement = oc.Statement{
@@ -421,13 +428,15 @@ func TestListPathEnableFiltered(test *testing.T) {
 	if err != nil {
 		test.Fatalf("cannot create new policy: %v", err)
 	}
-	server1.policy.AddPolicy(p, false)
+	err = server1.policy.AddPolicy(p, false)
+	assert.NoError(err)
 	policies = []*oc.PolicyDefinition{
 		{
 			Name: "policy1",
 		},
 	}
-	server1.policy.AddPolicyAssignment(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, policies, table.ROUTE_TYPE_REJECT)
+	err = server1.policy.AddPolicyAssignment(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, policies, table.ROUTE_TYPE_REJECT)
+	assert.NoError(err)
 
 	// Add paths
 	family := &api.Family{
@@ -453,7 +462,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	}
 
-	server2.AddPath(context.Background(), &api.AddPathRequest{
+	_, err = server2.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
@@ -461,12 +470,13 @@ func TestListPathEnableFiltered(test *testing.T) {
 			Pattrs: attrs,
 		},
 	})
+	assert.NoError(err)
 
 	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	}}}
-	server2.AddPath(context.Background(), &api.AddPathRequest{
+	_, err = server2.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
@@ -474,147 +484,141 @@ func TestListPathEnableFiltered(test *testing.T) {
 			Pattrs: attrs,
 		},
 	})
+	assert.NoError(err)
 
 	var wantEmptyCommunities []uint32
 	wantCommunitiesAfterExportPolicies := []uint32{100<<16 | 100}
 	wantCommunitiesAfterImportPolicies := []uint32{200<<16 | 200}
 
 	// Check ADJ_OUT routes before applying export policies.
-	for {
-		count := 0
-		server2.ListPath(context.Background(), &api.ListPathRequest{
-			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
-			Family:    family, Name: "127.0.0.1",
-			// TODO(wenovus): This is confusing and we may want to change this.
-			EnableFiltered: true,
-		}, func(d *api.Destination) {
-			count++
-			for _, path := range d.Paths {
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
-				if diff := cmp.Diff(wantEmptyCommunities, comms); diff != "" {
-					test.Errorf("AdjRibOutPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
-				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+	count := 0
+	err = server2.ListPath(context.Background(), &api.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
+		Family:    family, Name: "127.0.0.1",
+		// TODO(wenovus): This is confusing and we may want to change this.
+		EnableFiltered: true,
+	}, func(d *api.Destination) {
+		count++
+		for _, path := range d.Paths {
+			var comms []uint32
+			for _, attr := range path.GetPattrs() {
+				switch m := attr.GetAttr().(type) {
+				case *api.Attribute_Communities:
+					comms = m.Communities.GetCommunities()
 				}
 			}
-		})
-		if count == 2 {
-			break
+			if diff := cmp.Diff(wantEmptyCommunities, comms); diff != "" {
+				test.Errorf("AdjRibOutPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+			} else {
+				test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+			}
 		}
-	}
+	})
+	assert.NoError(err)
+	assert.Equal(2, count)
+
 	// Check ADJ_OUT routes after applying export policies.
-	for {
-		count := 0
-		server2.ListPath(context.Background(), &api.ListPathRequest{
-			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
-			Family:    family, Name: "127.0.0.1",
-			// TODO(wenovus): This is confusing and we may want to change this.
-			EnableFiltered: false,
-		}, func(d *api.Destination) {
-			count++
-			for _, path := range d.Paths {
-				if path.Filtered {
-					continue
-				}
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
-				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
-					test.Errorf("AdjRibOutPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
-				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+	count = 0
+	err = server2.ListPath(context.Background(), &api.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
+		Family:    family, Name: "127.0.0.1",
+		// TODO(wenovus): This is confusing and we may want to change this.
+		EnableFiltered: false,
+	}, func(d *api.Destination) {
+		count++
+		for _, path := range d.Paths {
+			if path.Filtered {
+				continue
+			}
+			var comms []uint32
+			for _, attr := range path.GetPattrs() {
+				switch m := attr.GetAttr().(type) {
+				case *api.Attribute_Communities:
+					comms = m.Communities.GetCommunities()
 				}
 			}
-		})
-		if count == 2 {
-			break
+			if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
+				test.Errorf("AdjRibOutPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+			} else {
+				test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+			}
 		}
-	}
+	})
+	assert.NoError(err)
+	assert.Equal(2, count)
+
 	// Check ADJ_IN routes before applying import policies.
-	for {
-		count := 0
-		server1.ListPath(context.Background(), &api.ListPathRequest{
-			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
-			Family:         family,
-			Name:           "127.0.0.1",
-			EnableFiltered: false,
-		}, func(d *api.Destination) {
-			count++
-			for _, path := range d.Paths {
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
-				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
-					test.Errorf("AdjRibInPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
-				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+	count = 0
+	err = server1.ListPath(context.Background(), &api.ListPathRequest{
+		TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
+		Family:         family,
+		Name:           "127.0.0.1",
+		EnableFiltered: false,
+	}, func(d *api.Destination) {
+		count++
+		for _, path := range d.Paths {
+			var comms []uint32
+			for _, attr := range path.GetPattrs() {
+				switch m := attr.GetAttr().(type) {
+				case *api.Attribute_Communities:
+					comms = m.Communities.GetCommunities()
 				}
 			}
-		})
-		if count == 2 {
-			break
+			if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
+				test.Errorf("AdjRibInPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+			} else {
+				test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+			}
 		}
-	}
+	})
+	assert.NoError(err)
+	assert.Equal(2, count)
+
 	// Check ADJ_IN routes after applying import policies.
-	for {
-		count := 0
-		server1.ListPath(context.Background(), &api.ListPathRequest{
-			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
-			Family:         family,
-			Name:           "127.0.0.1",
-			EnableFiltered: true,
-		}, func(d *api.Destination) {
-			count++
-			for _, path := range d.Paths {
-				if path.Filtered {
-					continue
-				}
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
-				if diff := cmp.Diff(wantCommunitiesAfterImportPolicies, comms); diff != "" {
-					test.Errorf("AdjRibInPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
-				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+	count = 0
+	err = server1.ListPath(context.Background(), &api.ListPathRequest{
+		TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
+		Family:         family,
+		Name:           "127.0.0.1",
+		EnableFiltered: true,
+	}, func(d *api.Destination) {
+		count++
+		for _, path := range d.Paths {
+			if path.Filtered {
+				continue
+			}
+			var comms []uint32
+			for _, attr := range path.GetPattrs() {
+				switch m := attr.GetAttr().(type) {
+				case *api.Attribute_Communities:
+					comms = m.Communities.GetCommunities()
 				}
 			}
-		})
-		if count == 2 {
-			break
+			if diff := cmp.Diff(wantCommunitiesAfterImportPolicies, comms); diff != "" {
+				test.Errorf("AdjRibInPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+			} else {
+				test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+			}
 		}
-	}
+	})
+	assert.NoError(err)
+	assert.Equal(2, count)
 
 	// Check that 10.1.0.0/24 is filtered at the import side.
-	count := 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
+	count = 0
+	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
 		count++
 	})
+	assert.NoError(err)
 	assert.Equal(1, count)
 
 	filtered := 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
 		if d.Paths[0].Filtered {
 			filtered++
 		}
 	})
+	assert.NoError(err)
 	assert.Equal(1, filtered)
 
 	// Validate filtering at the export side.
@@ -663,7 +667,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Prefix:    "10.3.0.0",
 		PrefixLen: 24,
 	}}}
-	server1.AddPath(context.Background(), &api.AddPathRequest{
+	_, err = server1.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
@@ -671,12 +675,13 @@ func TestListPathEnableFiltered(test *testing.T) {
 			Pattrs: attrs,
 		},
 	})
+	assert.NoError(err)
 
 	nlri4 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.4.0.0",
 		PrefixLen: 24,
 	}}}
-	server1.AddPath(context.Background(), &api.AddPathRequest{
+	_, err = server1.AddPath(context.Background(), &api.AddPathRequest{
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path: &api.Path{
 			Family: family,
@@ -684,21 +689,24 @@ func TestListPathEnableFiltered(test *testing.T) {
 			Pattrs: attrs,
 		},
 	})
+	assert.NoError(err)
 
 	count = 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
+	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
 		count++
 	})
+	assert.NoError(err)
 	assert.Equal(3, count)
 
 	count = 0
 	filtered = 0
-	server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
 		count++
 		if d.Paths[0].Filtered {
 			filtered++
 		}
 	})
+	assert.NoError(err)
 	assert.Equal(2, count)
 	assert.Equal(1, filtered)
 }
@@ -945,12 +953,14 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
+func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
-	oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
+	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
+	assert.NoError(t, err)
 	policy := table.NewRoutingPolicy(logger)
-	policy.Reset(&oc.RoutingPolicy{}, nil)
+	err = policy.Reset(&oc.RoutingPolicy{}, nil)
+	assert.NoError(t, err)
 	p := newPeer(
 		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
@@ -982,8 +992,8 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	p1As := uint32(65001)
 	p2As := uint32(65002)
 	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	p1, pi1 := newPeerandInfo(as, p1As, "192.168.0.1", rib)
-	p2, pi2 := newPeerandInfo(as, p2As, "192.168.0.2", rib)
+	p1, pi1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
+	p2, pi2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
 
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
@@ -1023,9 +1033,9 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 
 	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	p1, pi1 := newPeerandInfo(as, as, "192.168.0.1", rib)
+	p1, pi1 := newPeerandInfo(t, as, as, "192.168.0.1", rib)
 	// p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
-	p2, _ := newPeerandInfo(as, as, "192.168.0.2", rib)
+	p2, _ := newPeerandInfo(t, as, as, "192.168.0.2", rib)
 
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}), bgp.NewPathAttributeLocalPref(200)}
@@ -1050,16 +1060,17 @@ func TestFilterpathWithiBGP(t *testing.T) {
 
 func TestFilterpathWithRejectPolicy(t *testing.T) {
 	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	_, pi1 := newPeerandInfo(1, 2, "192.168.0.1", rib1)
+	_, pi1 := newPeerandInfo(t, 1, 2, "192.168.0.1", rib1)
 	rib2 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	p2, _ := newPeerandInfo(1, 3, "192.168.0.2", rib2)
+	p2, _ := newPeerandInfo(t, 1, 3, "192.168.0.2", rib2)
 
 	comSet1 := oc.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
-	p2.policy.AddDefinedSet(s, false)
+	err := p2.policy.AddDefinedSet(s, false)
+	assert.NoError(t, err)
 
 	statement := oc.Statement{
 		Name: "stmt1",
@@ -1079,13 +1090,16 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		Statements: []oc.Statement{statement},
 	}
 	p, _ := table.NewPolicy(policy)
-	p2.policy.AddPolicy(p, false)
+	err = p2.policy.AddPolicy(p, false)
+	assert.NoError(t, err)
+
 	policies := []*oc.PolicyDefinition{
 		{
 			Name: "policy1",
 		},
 	}
-	p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
+	err = p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
+	assert.NoError(t, err)
 
 	for _, addCommunity := range []bool{false, true, false, true} {
 		nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
@@ -1334,7 +1348,8 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	for _, n := range s2.neighborMap {
 		n.fsm.conn.Close()
 	}
-	s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	assert.NoError(err)
 
 	time.Sleep(5 * time.Second)
 
@@ -1353,7 +1368,8 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	done := make(chan struct{})
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
-		s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
+		// ignore error, we will hit the context deadline
+		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
 			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
 				close(done)
 			}
@@ -1717,8 +1733,10 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		}
 	}
 
-	s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	err = s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	assert.NoError(t, err)
+	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	assert.NoError(t, err)
 }
 
 func TestDelVrfWithRTC(t *testing.T) {
@@ -2015,7 +2033,8 @@ func TestAddDeletePath(t *testing.T) {
 
 	listRib := func(f *api.Family) []*api.Destination {
 		l := make([]*api.Destination, 0)
-		s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(d *api.Destination) { l = append(l, d) })
+		err := s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(d *api.Destination) { l = append(l, d) })
+		assert.NoError(t, err)
 		return l
 	}
 
@@ -2256,11 +2275,12 @@ func TestAddDeletePath(t *testing.T) {
 	assert.Equal(t, len(listRib(family)), 1)
 	assert.Equal(t, len(s.uuidMap), 1)
 	assert.NotEqual(t, u, r.Uuid)
-	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }
 
 func TestDeleteNonExistingVrf(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
 	s.logger.SetLevel(log.DebugLevel)
 
 	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
@@ -2268,11 +2288,12 @@ func TestDeleteNonExistingVrf(t *testing.T) {
 	if err := s.DeleteVrf(context.Background(), req); err == nil {
 		t.Fatal("Did not raise error for invalid vrf deletion.", err)
 	}
-	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }
 
 func TestDeleteVrf(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
 	s.logger.SetLevel(log.DebugLevel)
 
 	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
@@ -2280,7 +2301,6 @@ func TestDeleteVrf(t *testing.T) {
 	if err := s.DeleteVrf(context.Background(), req); err != nil {
 		t.Fatal("Vrf delete failed", err)
 	}
-	s.StopBgp(context.Background(), &api.StopBgpRequest{})
 }
 
 func TestAddBogusPath(t *testing.T) {
