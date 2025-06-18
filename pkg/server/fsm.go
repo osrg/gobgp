@@ -1834,7 +1834,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 					if m.StayIdle {
 						// current user is only prefix-limit
 						// fix me if this is not the case
-						h.changeadminState(adminStatePfxCt)
+						_ = h.changeadminState(adminStatePfxCt)
 					}
 					if err := send(m.Notification); err != nil {
 						return nil
