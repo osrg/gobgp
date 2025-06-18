@@ -842,10 +842,11 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, false, c.Evaluate(path, nil))
 }
 
-func addPolicy(r *RoutingPolicy, x *Policy) {
+func addPolicy(t *testing.T, r *RoutingPolicy, x *Policy) {
 	for _, s := range x.Statements {
 		for _, c := range s.Conditions {
-			r.validateCondition(c)
+			err := r.validateCondition(c)
+			require.NoError(t, err, "Condition validation failed for statement %s", s.Name)
 		}
 	}
 }
@@ -900,9 +901,10 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 
 	// test
 	r := NewRoutingPolicy(logger)
-	r.reload(pl)
+	err := r.reload(pl)
+	assert.NoError(t, err)
 	p, _ := NewPolicy(pl.PolicyDefinitions[0])
-	addPolicy(r, p)
+	addPolicy(t, r, p)
 	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -1533,9 +1535,10 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 
 	// test
 	r := NewRoutingPolicy(logger)
-	r.reload(pl)
+	err := r.reload(pl)
+	assert.NoError(t, err)
 	p, _ := NewPolicy(pl.PolicyDefinitions[0])
-	addPolicy(r, p)
+	addPolicy(t, r, p)
 	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -2950,7 +2953,8 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 	// test
 	r := NewRoutingPolicy(logger)
-	r.reload(pl)
+	err := r.reload(pl)
+	assert.NoError(err)
 	p := r.policyMap["pd1"]
 
 	pType, newPath := p.Apply(logger, path, nil)
@@ -2993,7 +2997,8 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 	// test
 	r := NewRoutingPolicy(logger)
-	r.reload(pl)
+	err := r.reload(pl)
+	assert.NoError(err)
 	p := r.policyMap["pd1"]
 
 	pType, newPath := p.Apply(logger, path, nil)
@@ -3042,10 +3047,11 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 	// test
 	r := NewRoutingPolicy(logger)
-	r.reload(pl)
+	err := r.reload(pl)
+	assert.NoError(err)
 	p, err := NewPolicy(pl.PolicyDefinitions[0])
 	assert.NoError(err)
-	addPolicy(r, p)
+	addPolicy(t, r, p)
 
 	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
@@ -3098,9 +3104,10 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 	// test
 	r := NewRoutingPolicy(logger)
-	r.reload(pl)
+	err := r.reload(pl)
+	assert.NoError(err)
 	p, _ := NewPolicy(pl.PolicyDefinitions[0])
-	addPolicy(r, p)
+	addPolicy(t, r, p)
 
 	pType, newPath := p.Apply(logger, path, nil)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
