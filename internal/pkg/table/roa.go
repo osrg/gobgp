@@ -99,7 +99,16 @@ func (rt *ROATable) getBucket(roa *ROA) *roaBucket {
 			network: roa.Network,
 			entries: make([]*ROA, 0),
 		}
-		tree.Add(roa.Network, b)
+		if err := tree.Add(roa.Network, b); err != nil {
+			rt.logger.Error("Failed to add ROA",
+				log.Fields{
+					"Topic":   "rpki",
+					"Network": roa.Network.String(),
+					"AS":      roa.AS,
+					"MaxLen":  roa.MaxLen,
+					"Error":   err,
+				})
+		}
 		return b
 	}
 	return b.(*roaBucket)
@@ -170,7 +179,14 @@ func (rt *ROATable) DeleteAll(network string) {
 			return true
 		})
 		for _, key := range deleteNetworks {
-			tree.Delete(key)
+			if _, _, err := tree.Delete(key); err != nil {
+				rt.logger.Error("Failed to delete ROA",
+					log.Fields{
+						"Topic":   "rpki",
+						"Network": key.String(),
+						"Error":   err,
+					})
+			}
 		}
 	}
 }
