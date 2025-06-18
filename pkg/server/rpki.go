@@ -107,8 +107,7 @@ func (m *roaManager) Enable(address string) error {
 	for network, client := range m.clientMap {
 		add, _, _ := net.SplitHostPort(network)
 		if add == address {
-			client.enable(client.serialNumber)
-			return nil
+			return client.enable(client.serialNumber)
 		}
 	}
 	return fmt.Errorf("ROA server not found %s", address)
@@ -134,9 +133,8 @@ func (m *roaManager) SoftReset(address string) error {
 	for network, client := range m.clientMap {
 		add, _, _ := net.SplitHostPort(network)
 		if add == address {
-			client.softReset()
 			m.table.DeleteAll(network)
-			return nil
+			return client.softReset()
 		}
 	}
 	return fmt.Errorf("ROA server not found %s", address)
@@ -227,12 +225,26 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *oc.RpkiServerState, 
 		switch msg := m1.(type) {
 		case *rtr.RTRSerialNotify:
 			if before(client.serialNumber, msg.SerialNumber) {
-				client.enable(client.serialNumber)
+				if err := client.enable(client.serialNumber); err != nil {
+					m.logger.Error("Failed to send serial query",
+						log.Fields{
+							"Topic": "rpki",
+							"Host":  client.host,
+							"Error": err,
+						})
+				}
 			} else if client.serialNumber == msg.SerialNumber {
 				// nothing
 			} else {
 				// should not happen. try to get the whole ROAs.
-				client.softReset()
+				if err := client.softReset(); err != nil {
+					m.logger.Error("Failed to send soft reset",
+						log.Fields{
+							"Topic": "rpki",
+							"Host":  client.host,
+							"Error": err,
+						})
+				}
 			}
 			received.SerialNotify++
 		case *rtr.RTRSerialQuery:
@@ -277,7 +289,14 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *oc.RpkiServerState, 
 			}
 			client.pendingROAs = make([]*table.ROA, 0)
 		case *rtr.RTRCacheReset:
-			client.softReset()
+			if err := client.softReset(); err != nil {
+				m.logger.Error("Failed to send soft reset",
+					log.Fields{
+						"Topic": "rpki",
+						"Host":  client.host,
+						"Error": err,
+					})
+			}
 			received.CacheReset++
 		case *rtr.RTRErrorReport:
 			received.Error++
