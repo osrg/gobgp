@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
@@ -524,12 +525,7 @@ func overwriteConfig(c, pg any, tagPrefix string, v *viper.Viper) {
 		field := pgType.Field(i).Name
 		tag := tagPrefix + "." + pgType.Field(i).Tag.Get("mapstructure")
 		if func() bool {
-			for _, t := range forcedOverwrittenConfig {
-				if t == tag {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(forcedOverwrittenConfig, tag)
 		}() || !v.IsSet(tag) {
 			if nField := nValue.FieldByName(field); nField.IsValid() {
 				nField.Set(pgValue.FieldByName(field))

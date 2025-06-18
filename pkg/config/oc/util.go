@@ -20,6 +20,7 @@ import (
 	"net"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"time"
 
@@ -113,12 +114,7 @@ func (d *DynamicNeighbor) validate(b *BgpConfigSet) error {
 }
 
 func (n *Neighbor) IsConfederationMember(g *Global) bool {
-	for _, member := range g.Confederation.Config.MemberAsList {
-		if member == n.Config.PeerAs {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(g.Confederation.Config.MemberAsList, n.Config.PeerAs)
 }
 
 func (n *Neighbor) IsConfederation(g *Global) bool {

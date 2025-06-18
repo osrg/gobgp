@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"sort"
 	"time"
 
@@ -420,21 +421,11 @@ func (path *Path) SetDropped(y bool) {
 }
 
 func (path *Path) HasNoLLGR() bool {
-	for _, c := range path.GetCommunities() {
-		if c == uint32(bgp.COMMUNITY_NO_LLGR) {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(path.GetCommunities(), uint32(bgp.COMMUNITY_NO_LLGR))
 }
 
 func (path *Path) IsLLGRStale() bool {
-	for _, c := range path.GetCommunities() {
-		if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(path.GetCommunities(), uint32(bgp.COMMUNITY_LLGR_STALE))
 }
 
 func (path *Path) GetSourceAs() uint32 {
@@ -547,10 +538,8 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 	p := path
 	for {
-		for _, t := range p.dels {
-			if t == typ {
-				return nil
-			}
+		if slices.Contains(p.dels, typ) {
+			return nil
 		}
 		for _, a := range p.pathAttrs {
 			if a.GetType() == typ {
@@ -867,12 +856,7 @@ func (path *Path) RemoveCommunities(communities []uint32) int {
 	}
 
 	find := func(val uint32) bool {
-		for _, com := range communities {
-			if com == val {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(communities, val)
 	}
 
 	count := 0

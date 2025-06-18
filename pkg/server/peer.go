@@ -18,6 +18,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -360,12 +361,9 @@ func classifyFamilies(all, part []bgp.Family) ([]bgp.Family, []bgp.Family) {
 	b := []bgp.Family{}
 	for _, f := range all {
 		p := true
-		for _, g := range part {
-			if f == g {
-				p = false
-				a = append(a, f)
-				break
-			}
+		if slices.Contains(part, f) {
+			p = false
+			a = append(a, f)
 		}
 		if p {
 			b = append(b, f)
@@ -406,12 +404,7 @@ func (peer *peer) isLLGREnabledFamily(family bgp.Family) bool {
 		return false
 	}
 	fs, _ := peer.llgrFamilies()
-	for _, f := range fs {
-		if f == family {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(fs, family)
 }
 
 func (peer *peer) llgrRestartTime(family bgp.Family) uint32 {
