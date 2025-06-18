@@ -56,7 +56,9 @@ func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 			newPath.IsNexthopInvalid = true
 		} else {
 			newPath.IsNexthopInvalid = false
-			newPath.SetMed(int64(metric), true)
+			if err := newPath.SetMed(int64(metric), true); err != nil {
+				continue
+			}
 		}
 		updated = append(updated, newPath)
 	}
@@ -400,7 +402,14 @@ func (z *zebraClient) loop() {
 				if len(paths) == 0 {
 					// If there is no path bound for the given nexthop, send
 					// NEXTHOP_UNREGISTER message.
-					z.client.SendNexthopRegister(msg.Header.VrfID, newNexthopUnregisterBody(uint16(body.Prefix.Family), body.Prefix.Prefix), true)
+					err := z.client.SendNexthopRegister(msg.Header.VrfID, newNexthopUnregisterBody(uint16(body.Prefix.Family), body.Prefix.Prefix), true)
+					if err != nil {
+						z.server.logger.Error("failed to send nexthop unregister",
+							log.Fields{
+								"Topic": "Zebra",
+								"Error": err,
+							})
+					}
 					delete(z.nexthopCache, body.Prefix.Prefix.String())
 				}
 				z.updatePathByNexthopCache(paths)
@@ -432,10 +441,26 @@ func (z *zebraClient) loop() {
 						z.updatePathByNexthopCache(paths)
 						for i := range msg.Vrf {
 							if body, isWithdraw := newIPRouteBody(paths, i, z); body != nil {
-								z.client.SendIPRoute(i, body, isWithdraw)
+								err := z.client.SendIPRoute(i, body, isWithdraw)
+								if err != nil {
+									z.server.logger.Error("failed to send ip route",
+										log.Fields{
+											"Topic": "Zebra",
+											"Error": err,
+										})
+									continue
+								}
 							}
 							if body := newNexthopRegisterBody(paths, z.nexthopCache); body != nil {
-								z.client.SendNexthopRegister(i, body, false)
+								err := z.client.SendNexthopRegister(i, body, false)
+								if err != nil {
+									z.server.logger.Error("failed to send nexthop register",
+										log.Fields{
+											"Topic": "Zebra",
+											"Error": err,
+										})
+									continue
+								}
 							}
 						}
 					}
@@ -446,11 +471,24 @@ func (z *zebraClient) loop() {
 							if body, isWithdraw := newIPRouteBody([]*table.Path{path}, i, z); body != nil {
 								err := z.client.SendIPRoute(i, body, isWithdraw)
 								if err != nil {
+									z.server.logger.Error("failed to send ip route",
+										log.Fields{
+											"Topic": "Zebra",
+											"Error": err,
+										})
 									continue
 								}
 							}
 							if body := newNexthopRegisterBody([]*table.Path{path}, z.nexthopCache); body != nil {
-								z.client.SendNexthopRegister(i, body, false)
+								err := z.client.SendNexthopRegister(i, body, false)
+								if err != nil {
+									z.server.logger.Error("failed to send nexthop register",
+										log.Fields{
+											"Topic": "Zebra",
+											"Error": err,
+										})
+									continue
+								}
 							}
 						}
 					}
@@ -463,7 +501,15 @@ func (z *zebraClient) loop() {
 							vrfID = vrf.Id
 						}
 					}
-					z.client.SendNexthopRegister(vrfID, body, false)
+					err := z.client.SendNexthopRegister(vrfID, body, false)
+					if err != nil {
+						z.server.logger.Error("failed to send nexthop register",
+							log.Fields{
+								"Topic": "Zebra",
+								"Error": err,
+							})
+						continue
+					}
 				}
 			}
 		}
