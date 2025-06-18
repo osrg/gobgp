@@ -24,7 +24,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
+func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) {
 	ps := msg.PathAttributes
 	msg.PathAttributes = make([]bgp.PathAttributeInterface, len(ps))
 	copy(msg.PathAttributes, ps)
@@ -39,7 +39,7 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	if asAttr == nil {
-		return nil
+		return
 	}
 
 	as4Params := make([]*bgp.As4PathParam, 0, len(asAttr.Value))
@@ -77,7 +77,6 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 	if mkAs4 {
 		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Path(as4Params))
 	}
-	return nil
 }
 
 func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
