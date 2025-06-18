@@ -520,7 +520,7 @@ func overwriteConfig(c, pg any, tagPrefix string, v *viper.Viper) {
 	pgValue := reflect.Indirect(reflect.ValueOf(pg))
 	pgType := reflect.Indirect(pgValue).Type()
 
-	for i := 0; i < pgType.NumField(); i++ {
+	for i := range pgType.NumField() {
 		field := pgType.Field(i).Name
 		tag := tagPrefix + "." + pgType.Field(i).Tag.Get("mapstructure")
 		if func() bool {

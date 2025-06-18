@@ -7570,7 +7570,7 @@ type LsTLVIPReachability struct {
 
 func (l *LsTLVIPReachability) ToIPNet(ipv6 bool) net.IPNet {
 	b := make([]byte, 16)
-	for i := range +1 {
+	for i := range (int(l.PrefixLength)-1)/8 + 1 {
 		b[i] = l.Prefix[i]
 	}
 
