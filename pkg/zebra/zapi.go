@@ -3184,11 +3184,11 @@ func (b *lookupBody) decodeFromBytes(data []byte, version uint8, software Softwa
 	pos++
 	b.nexthops = []Nexthop{}
 	processFlag := nexthopHasType | nexthopProcessIFnameToIFindex
-	nexthopsByteLen, err := decodeNexthops(&b.nexthops, data[pos:], version, software, family, numNexthop, processFlag, MessageFlag(0), Flag(0), nexthopType(0))
+	_, err := decodeNexthops(&b.nexthops, data[pos:], version, software, family, numNexthop, processFlag, MessageFlag(0), Flag(0), nexthopType(0))
 	if err != nil {
 		return err
 	}
-	pos += nexthopsByteLen
+	// pos += nexthopsByteLen
 	return nil
 }
 
@@ -3243,7 +3243,7 @@ func (n *RegisteredNexthop) serialize(version uint8, software Software) ([]byte,
 	}
 	// Address Family (2 bytes)
 	binary.BigEndian.PutUint16(buf[pos:pos+2], n.Family) // stream_putw(s, PREFIX_FAMILY(p));
-	pos += 2
+	// pos += 2
 	// Prefix Length (1 byte)
 	addrByteLen, err := addressByteLength(uint8(n.Family))
 	if err != nil {
@@ -3251,7 +3251,7 @@ func (n *RegisteredNexthop) serialize(version uint8, software Software) ([]byte,
 	}
 
 	buf[3] = byte(addrByteLen * 8) // stream_putc(s, p->prefixlen);
-	pos += 1
+	// pos += 1
 	// Prefix (variable)
 	switch n.Family {
 	case uint16(syscall.AF_INET):
@@ -3530,11 +3530,11 @@ func (b *NexthopUpdateBody) decodeFromBytes(data []byte, version uint8, software
 		b.Message |= MessageLabel
 	}
 
-	nexthopsByteLen, err := decodeNexthops(&b.Nexthops, data[offset:], version, software, b.Prefix.Family, numNexthop, processFlag, b.Message, Flag(0), nexthopType(0))
+	_, err = decodeNexthops(&b.Nexthops, data[offset:], version, software, b.Prefix.Family, numNexthop, processFlag, b.Message, Flag(0), nexthopType(0))
 	if err != nil {
 		return err
 	}
-	offset += nexthopsByteLen
+	// offset += nexthopsByteLen
 	return nil
 }
 

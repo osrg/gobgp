@@ -127,7 +127,7 @@ func Test_interfaceUpdateBody(t *testing.T) {
 		pos += 6
 		if v > 2 {
 			buf[pos] = byte(0) // link param
-			pos++
+			// pos++
 		}
 		b := &interfaceUpdateBody{}
 		software := NewSoftware(v, "")
@@ -442,7 +442,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 			pos++
 		}
 		binary.BigEndian.PutUint32(buf[pos:], 1) // Ifindex
-		pos += 4
+		// pos += 4
 
 		r = &IPRouteBody{API: command[v]}
 		err = r.decodeFromBytes(buf, v, software)
@@ -499,7 +499,7 @@ func Test_IPRouteBody_IPv4(t *testing.T) {
 		buf[pos] = 1 // distance
 		pos++
 		binary.BigEndian.PutUint32(buf[pos:], 0) // metric
-		pos += 4
+		// pos += 4
 		r = &IPRouteBody{API: command[v]}
 		err = r.decodeFromBytes(buf, v, software)
 		assert.NoError(err)
@@ -746,7 +746,7 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 			pos++
 		}
 		binary.BigEndian.PutUint32(buf[pos:], 1) // Ifindex
-		pos += 4
+		// pos += 4
 
 		r = &IPRouteBody{API: command[v]}
 		err = r.decodeFromBytes(buf, v, software)
