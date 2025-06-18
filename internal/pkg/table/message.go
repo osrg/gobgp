@@ -79,7 +79,7 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) {
 	}
 }
 
-func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
+func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) {
 	var asAttr *bgp.PathAttributeAsPath
 	var as4Attr *bgp.PathAttributeAs4Path
 	asAttrPos := 0
@@ -112,7 +112,7 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
 	}
 
 	if asAttr == nil || as4Attr == nil {
-		return nil
+		return
 	}
 
 	asLen := 0
@@ -165,7 +165,7 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
 			log.Fields{
 				"Topic": "Table",
 			})
-		return nil
+		return
 	}
 
 	keepNum := asLen + asConfedLen - as4Len
@@ -207,7 +207,6 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
 	newIntfParams = append(newIntfParams, newParams...)
 
 	msg.PathAttributes[asAttrPos] = bgp.NewPathAttributeAsPath(newIntfParams)
-	return nil
 }
 
 func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {

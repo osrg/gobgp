@@ -1138,10 +1138,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 					}
 				}
 
-				if err = table.UpdatePathAttrs4ByteAs(h.fsm.logger, body); err != nil {
-					fmsg.MsgData = err
-					return fmsg, err
-				}
+				table.UpdatePathAttrs4ByteAs(h.fsm.logger, body)
 
 				if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
 					fmsg.MsgData = err
