@@ -1725,9 +1725,9 @@ func closeChannel(ch chan *Message) bool {
 	return false
 }
 
-func (c *Client) close() error {
+func (c *Client) close() {
 	closeChannel(c.outgoing)
-	return c.conn.Close()
+	c.conn.Close()
 }
 
 // SetLabelFlag is referred in zclient, this func sets label flag
