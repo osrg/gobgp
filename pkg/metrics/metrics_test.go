@@ -73,13 +73,14 @@ func TestMetrics(test *testing.T) {
 	}
 
 	ch := make(chan struct{})
-	s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
+	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
 		if peer := r.GetPeer(); peer != nil {
 			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
 				close(ch)
 			}
 		}
 	})
+	assert.NoError(err)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
@@ -117,7 +118,7 @@ func TestMetrics(test *testing.T) {
 					},
 				}
 
-				t.AddPath(context.Background(), &api.AddPathRequest{
+				_, err := t.AddPath(context.Background(), &api.AddPathRequest{
 					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
 						Family: family,
@@ -125,7 +126,8 @@ func TestMetrics(test *testing.T) {
 						Pattrs: attrs,
 					},
 				})
-				t.DeletePath(context.Background(), &api.DeletePathRequest{
+				assert.NoError(err)
+				err = t.DeletePath(context.Background(), &api.DeletePathRequest{
 					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
 						Family: family,
@@ -133,6 +135,7 @@ func TestMetrics(test *testing.T) {
 						Pattrs: attrs,
 					},
 				})
+				assert.NoError(err)
 			}
 		}
 	}()
