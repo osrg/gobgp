@@ -387,6 +387,7 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	} else if lhs.tree.Size() != 0 && rhs.family != lhs.family {
 		return fmt.Errorf("can't append different family")
 	}
+	//nolint:errcheck // tree.Add won't return an error
 	rhs.tree.Walk(nil, func(r *net.IPNet, v any) bool {
 		w, ok, _ := lhs.tree.Get(r)
 		if ok {
@@ -407,6 +408,7 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
+	//nolint:errcheck // tree.Delete/tree.Add won't return an error
 	rhs.tree.Walk(nil, func(r *net.IPNet, v any) bool {
 		w, ok, _ := lhs.tree.Get(r)
 		if !ok {
@@ -497,9 +499,11 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 		d, ok, _ := tree.Get(x.Prefix)
 		if ok {
 			ps := d.([]*Prefix)
-			tree.Add(x.Prefix, append(ps, x))
-		} else {
-			tree.Add(x.Prefix, []*Prefix{x})
+			if err := tree.Add(x.Prefix, append(ps, x)); err != nil {
+				return nil, fmt.Errorf("failed to add prefix %s: %w", x.PrefixString(), err)
+			}
+		} else if err := tree.Add(x.Prefix, []*Prefix{x}); err != nil {
+			return nil, fmt.Errorf("failed to add prefix %s: %w", x.PrefixString(), err)
 		}
 	}
 	return &PrefixSet{
@@ -532,9 +536,11 @@ func NewPrefixSet(c oc.PrefixSet) (*PrefixSet, error) {
 		d, ok, _ := tree.Get(y.Prefix)
 		if ok {
 			ps := d.([]*Prefix)
-			tree.Add(y.Prefix, append(ps, y))
-		} else {
-			tree.Add(y.Prefix, []*Prefix{y})
+			if err := tree.Add(y.Prefix, append(ps, y)); err != nil {
+				return nil, fmt.Errorf("failed to add prefix %s: %w", y.PrefixString(), err)
+			}
+		} else if err := tree.Add(y.Prefix, []*Prefix{y}); err != nil {
+			return nil, fmt.Errorf("failed to add prefix %s: %w", y.PrefixString(), err)
 		}
 	}
 	return &PrefixSet{
