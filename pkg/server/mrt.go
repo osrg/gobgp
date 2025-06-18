@@ -281,11 +281,21 @@ func (m *mrtWriter) loop() error {
 		case <-rotator.C:
 			if m.c.DumpType == oc.MRT_TYPE_UPDATES {
 				rotate()
-			} else {
-				w.Generate(watchEventTypeTable)
+			} else if err := w.Generate(watchEventTypeTable); err != nil {
+				m.s.logger.Warn("Failed to generate watch event",
+					log.Fields{
+						"Topic": "mrt",
+						"Error": err,
+					})
 			}
 		case <-dump.C:
-			w.Generate(watchEventTypeTable)
+			if err := w.Generate(watchEventTypeTable); err != nil {
+				m.s.logger.Warn("Failed to generate watch event",
+					log.Fields{
+						"Topic": "mrt",
+						"Error": err,
+					})
+			}
 		}
 	}
 }
