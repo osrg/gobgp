@@ -12573,19 +12573,8 @@ func NewOpaqueExtended(isTransitive bool, value []byte) *OpaqueExtended {
 	}
 }
 
-func parseOpaqueExtended(data []byte) (ExtendedCommunityInterface, error) {
-	typ := ExtendedCommunityAttrType(data[0])
-	isTransitive := false
-	switch typ {
-	case EC_TYPE_TRANSITIVE_OPAQUE:
-		isTransitive = true
-	case EC_TYPE_NON_TRANSITIVE_OPAQUE:
-		// isTransitive = false
-	default:
-		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("invalid opaque extended community type: %d", data[0]))
-	}
+func parseOpaqueExtended(isTransitive bool, data []byte) (ExtendedCommunityInterface, error) {
 	subType := ExtendedCommunityAttrSubType(data[1])
-
 	if isTransitive {
 		switch subType {
 		case EC_SUBTYPE_COLOR:
@@ -13527,7 +13516,7 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_OPAQUE:
-		return parseOpaqueExtended(data)
+		return parseOpaqueExtended(transitive, data)
 	case EC_TYPE_EVPN:
 		return parseEvpnExtended(data)
 	case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
