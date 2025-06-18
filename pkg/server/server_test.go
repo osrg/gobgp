@@ -21,7 +21,6 @@ import (
 	"net"
 	"runtime"
 	"slices"
-	"sort"
 	"strconv"
 	"testing"
 	"time"
