@@ -118,17 +118,18 @@ func Test_RTRErrorReport(t *testing.T) {
 
 func FuzzParseRTR(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		ParseRTR(data)
+		_, err := ParseRTR(data)
+		require.NoError(t, err)
 	})
 }
 
 // grep -r DecodeFromBytes pkg/packet/rtr/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		(&RTRCommon{}).DecodeFromBytes(data)
-		(&RTRReset{}).DecodeFromBytes(data)
-		(&RTRCacheResponse{}).DecodeFromBytes(data)
-		(&RTRIPPrefix{}).DecodeFromBytes(data)
-		(&RTRErrorReport{}).DecodeFromBytes(data)
+		require.NoError(t, (&RTRCommon{}).DecodeFromBytes(data))
+		require.NoError(t, (&RTRReset{}).DecodeFromBytes(data))
+		require.NoError(t, (&RTRCacheResponse{}).DecodeFromBytes(data))
+		require.NoError(t, (&RTRIPPrefix{}).DecodeFromBytes(data))
+		require.NoError(t, (&RTRErrorReport{}).DecodeFromBytes(data))
 	})
 }
