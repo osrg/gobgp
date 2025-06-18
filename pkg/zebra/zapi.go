@@ -1491,7 +1491,13 @@ func NewClient(logger log.Logger, network, address string, typ RouteType, versio
 	c.SendRouterIDAdd()
 
 	if mplsLabelRangeSize > 0 && c.SupportMpls() {
-		c.sendLabelManagerConnect(true)
+		if err := c.sendLabelManagerConnect(true); err != nil {
+			logger.Warn("failed to send label manager connect",
+				log.Fields{
+					"Topic": "Zebra",
+					"Error": err,
+				})
+		}
 	}
 
 	// Try to receive the first message from Zebra.
@@ -1548,7 +1554,7 @@ func (c *Client) send(m *Message) {
 	c.outgoing <- m
 }
 
-func (c *Client) sendCommand(command APIType, vrfID uint32, body Body) error {
+func (c *Client) sendCommand(command APIType, vrfID uint32, body Body) {
 	m := &Message{
 		Header: Header{
 			Len:     HeaderSize(c.Version),
@@ -1560,23 +1566,21 @@ func (c *Client) sendCommand(command APIType, vrfID uint32, body Body) error {
 		Body: body,
 	}
 	c.send(m)
-	return nil
 }
 
 // SendHello sends HELLO message to zebra daemon.
-func (c *Client) SendHello() error {
+func (c *Client) SendHello() {
 	if c.redistDefault > 0 {
 		body := &HelloBody{
 			redistDefault: c.redistDefault,
 			instance:      0,
 		}
-		return c.sendCommand(Hello, DefaultVrf, body)
+		c.sendCommand(Hello, DefaultVrf, body)
 	}
-	return nil
 }
 
 // SendRouterIDAdd sends ROUTER_ID_ADD message to zebra daemon.
-func (c *Client) SendRouterIDAdd() error {
+func (c *Client) SendRouterIDAdd() {
 	bodies := make([]*routerIDUpdateBody, 0)
 	for _, afi := range []afi{afiIP, afiIP6} {
 		bodies = append(bodies, &routerIDUpdateBody{
@@ -1586,16 +1590,15 @@ func (c *Client) SendRouterIDAdd() error {
 	for _, body := range bodies {
 		c.sendCommand(routerIDAdd, DefaultVrf, body)
 	}
-	return nil
 }
 
 // SendInterfaceAdd sends INTERFACE_ADD message to zebra daemon.
-func (c *Client) SendInterfaceAdd() error {
-	return c.sendCommand(interfaceAdd, DefaultVrf, nil)
+func (c *Client) SendInterfaceAdd() {
+	c.sendCommand(interfaceAdd, DefaultVrf, nil)
 }
 
 // SendRedistribute sends REDISTRIBUTE message to zebra daemon.
-func (c *Client) SendRedistribute(t RouteType, vrfID uint32) error {
+func (c *Client) SendRedistribute(t RouteType, vrfID uint32) {
 	if c.redistDefault != t {
 		bodies := make([]*redistributeBody, 0)
 		if c.Version <= 3 {
@@ -1616,7 +1619,6 @@ func (c *Client) SendRedistribute(t RouteType, vrfID uint32) error {
 			c.sendCommand(redistributeAdd, vrfID, body)
 		}
 	}
-	return nil
 }
 
 // SendIPRoute sends ROUTE message to zebra daemon.
@@ -1635,7 +1637,8 @@ func (c *Client) SendIPRoute(vrfID uint32, body *IPRouteBody, isWithdraw bool) e
 			command = BackwardIPv6RouteDelete
 		}
 	}
-	return c.sendCommand(command, vrfID, body)
+	c.sendCommand(command, vrfID, body)
+	return nil
 }
 
 // SendNexthopRegister sends NEXTHOP_REGISTER message to zebra daemon.
@@ -1649,7 +1652,8 @@ func (c *Client) SendNexthopRegister(vrfID uint32, body *NexthopRegisterBody, is
 	if isWithdraw {
 		command = nexthopUnregister
 	}
-	return c.sendCommand(command, vrfID, body)
+	c.sendCommand(command, vrfID, body)
+	return nil
 }
 
 // SupportMpls is referred in zclient. It returns bool value.
@@ -1673,12 +1677,13 @@ func (c *Client) sendLabelManagerConnect(async bool) error {
 	if !async || c.Version == 4 || c.Version == 5 && c.Software.name == "frr" && c.Software.version < 5 {
 		command = labelManagerConnect
 	}
-	return c.sendCommand(
+	c.sendCommand(
 		command, 0,
 		&labelManagerConnectBody{
 			redistDefault: RouteBGP,
 			instance:      0,
 		})
+	return nil
 }
 
 // SendGetLabelChunk sends GET_LABEL_CHUNK message to zebra daemon.
@@ -1688,7 +1693,8 @@ func (c *Client) SendGetLabelChunk(body *GetLabelChunkBody) error {
 	}
 	body.instance = 0
 	body.proto = uint8(RouteBGP)
-	return c.sendCommand(getLabelChunk, 0, body)
+	c.sendCommand(getLabelChunk, 0, body)
+	return nil
 }
 
 // SendVrfLabel sends VRF_LABEL message to zebra daemon.
@@ -1702,7 +1708,8 @@ func (c *Client) SendVrfLabel(label uint32, vrfID uint32) error {
 		afi:       afiIP,
 		labelType: lspBGP,
 	}
-	return c.sendCommand(vrfLabel, vrfID, body)
+	c.sendCommand(vrfLabel, vrfID, body)
+	return nil
 }
 
 // for avoiding double close
