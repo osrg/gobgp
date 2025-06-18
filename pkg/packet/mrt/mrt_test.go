@@ -24,6 +24,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMrtHdr(t *testing.T) {
@@ -322,33 +323,45 @@ func FuzzMRT(f *testing.F) {
 			return
 		}
 
-		ParseMRTBody(hdr, data[MRT_COMMON_HEADER_LEN:])
+		_, err = ParseMRTBody(hdr, data[MRT_COMMON_HEADER_LEN:])
+		require.NoError(t, err)
 	})
 }
 
 // grep -r DecodeFromBytes pkg/packet/mrt/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		(&MRTHeader{}).DecodeFromBytes(data)
-		(&Peer{}).DecodeFromBytes(data)
-		(&PeerIndexTable{}).DecodeFromBytes(data)
-		(&RibEntry{}).DecodeFromBytes(data)
-		(&RibEntry{isAddPath: true}).DecodeFromBytes(data)
-		(&Rib{}).DecodeFromBytes(data)
-		(&Rib{isAddPath: true}).DecodeFromBytes(data)
-		(&GeoPeer{}).DecodeFromBytes(data)
-		(&GeoPeerTable{}).DecodeFromBytes(data)
+		require := require.New(t)
+		require.NoError((&MRTHeader{}).DecodeFromBytes(data))
+		_, err := (&Peer{}).DecodeFromBytes(data)
+		require.NoError(err)
+		require.NoError((&PeerIndexTable{}).DecodeFromBytes(data))
+		_, err = (&RibEntry{}).DecodeFromBytes(data)
+		require.NoError(err)
+		_, err = (&RibEntry{isAddPath: true}).DecodeFromBytes(data)
+		require.NoError(err)
+		require.NoError((&Rib{}).DecodeFromBytes(data))
+		require.NoError((&Rib{isAddPath: true}).DecodeFromBytes(data))
+		_, err = (&GeoPeer{}).DecodeFromBytes(data)
+		require.NoError(err)
+		require.NoError((&GeoPeerTable{}).DecodeFromBytes(data))
 		if len(data) > 12 {
 			h := &BGP4MPHeader{isAS4: true}
-			h.decodeFromBytes(data[:12])
-			(&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[12:])
-			(&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[12:])
+			_, err := h.decodeFromBytes(data[:12])
+			if err != nil {
+				return
+			}
+			require.NoError((&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[12:]))
+			require.NoError((&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[12:]))
 		}
 		if len(data) > 8 {
 			h := &BGP4MPHeader{isAS4: false}
-			h.decodeFromBytes(data[:8])
-			(&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[8:])
-			(&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[8:])
+			_, err := h.decodeFromBytes(data[:8])
+			if err != nil {
+				return
+			}
+			require.NoError((&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[8:]))
+			require.NoError((&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[8:]))
 		}
 	})
 }
