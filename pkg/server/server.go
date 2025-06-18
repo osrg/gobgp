@@ -2877,12 +2877,11 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 			if enableFiltered {
 				toUpdate = make([]*table.Path, 0)
 				for _, path := range peer.adjRibIn.PathList([]bgp.Family{family}, true) {
-					p := path
 					pathLocalKey := path.GetLocalKey()
 					options := &table.PolicyOptions{
 						Validate: s.roaTable.Validate,
 					}
-					p = s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, p, options)
+					p := s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options)
 					if p == nil {
 						filtered[pathLocalKey] = table.PolicyFiltered
 					} else {
@@ -2895,9 +2894,8 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 			pathList := []*table.Path{}
 			if enableFiltered {
 				for _, path := range s.getPossibleBest(peer, family) {
-					p := path
 					pathLocalKey := path.GetLocalKey()
-					p, options, stop := s.prePolicyFilterpath(peer, p, nil)
+					p, options, stop := s.prePolicyFilterpath(peer, path, nil)
 					if stop {
 						continue
 					}
@@ -3586,8 +3584,7 @@ func (s *BgpServer) updatePeerGroup(pg *oc.PeerGroup) (needsSoftResetIn bool, er
 	s.peerGroupMap[name].Conf = pg
 
 	for _, n := range s.peerGroupMap[name].members {
-		c := n
-		u, err := s.updateNeighbor(&c)
+		u, err := s.updateNeighbor(&n)
 		if err != nil {
 			return needsSoftResetIn, err
 		}
