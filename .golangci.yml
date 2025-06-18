@@ -1,13 +1,86 @@
-run:
-  deadline: 5m
+---
+version: "2"
+
+issues:
+  max-issues-per-linter: 0
 
 linters:
-  disable-all: true
+  # defaults: errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - misspell
+    - whitespace
+    # - unparam
+    - unconvert
+    - intrange
+    - copyloopvar
+  settings:
+    errcheck:
+      exclude-functions:
+        # local
+        - (*github.com/osrg/gobgp/v4/pkg/server.tcpListener).Close
+
+        # other packages
+        - github.com/coreos/go-systemd/v22/daemon.SdNotify
+        - github.com/kr/pretty.Printf
+        - github.com/kr/pretty.Println
+        - (*os.File).Sync
+        - (*os.File).Close
+        - (net.Conn).Close
+        - (*net.conn).Close
+        - (net.Listener).Close
+        - (*google.golang.org/grpc.ClientConn).Close
+        - (net.Conn).Write
+        - (*bufio.Writer).Flush
+    copyloopvar:
+      check-alias: true
+  exclusions:
+    rules:
+      # https://github.com/kisielk/errcheck/issues/101
+      # exclude deferred error
+      - path: .
+        linters:
+          - errcheck
+        source: "^\\s*defer\\s+"
+      # exclude goroutine error
+      - path: .
+        linters:
+          - errcheck
+        source: "^\\s*go\\s+"
+
+formatters:
   enable:
     - gofmt
+    - gofumpt
     - goimports
-    - gosimple
-    - govet
-    - misspell
-    - staticcheck
-    - typecheck
+  settings:
+    gofmt:
+      rewrite-rules:
+        # remove unnecessary parenthesis
+        - pattern: "(a)"
+          replacement: "a"
+        # use any
+        - pattern: "interface{}"
+          replacement: "any"
+        # slice simply
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
+        - pattern: "a[0:b]"
+          replacement: "a[:b]"
+
+        # assert no error
+        - pattern: "assert.Nil(err)"
+          replacement: "assert.NoError(err)"
+        - pattern: "assert.Nil(t, err)"
+          replacement: "assert.NoError(t, err)"
+        - pattern: "assert.Equal(t, nil, err)"
+          replacement: "assert.NoError(t, err)"
+
+        # assert nil/no-nil
+        - pattern: "assert.Equal(nil, a)"
+          replacement: "assert.Nil(a)"
+        - pattern: "assert.Equal(t, nil, a)"
+          replacement: "assert.Nil(t, a)"
+        - pattern: "assert.NotEqual(nil, a)"
+          replacement: "assert.NotNil(a)"
+        - pattern: "assert.NotEqual(t, nil, a)"
+          replacement: "assert.NotNil(t, a)"

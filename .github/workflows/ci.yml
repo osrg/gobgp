@@ -7,14 +7,14 @@ jobs:
     name: crossbuild
     strategy:
       matrix:
-        GOOS: ['freebsd', 'openbsd', 'darwin', 'windows']
-        GOARCH: ['amd64']
+        GOOS: ["freebsd", "openbsd", "darwin", "windows"]
+        GOARCH: ["amd64"]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - run: |
           go env
           go build ./cmd/gobgp
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - run: |
           go test -race -timeout 240s ./...
           if [ "$(go env GOARCH)" = "amd64" ]; then go test -race github.com/osrg/gobgp/v4/pkg/packet/bgp -run ^Test_RaceCondition$; else echo 'skip'; fi
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - run: |
           go env GOARCH
           go test -timeout 240s ./...
@@ -71,9 +71,9 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
 
   embedded:
     name: embedded
@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - run: |
           python test/scenario_test/ci-scripts/build_embedded_go.py docs/sources/lib.md
           python test/scenario_test/ci-scripts/build_embedded_go.py docs/sources/bgp-ls.md
@@ -107,7 +107,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - name: container image
         run: |
           sudo apt-get install python3-setuptools
@@ -540,4 +540,3 @@ jobs:
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 test/scenario_test/mup_test.py --gobgp-image gobgp -x -s
-
