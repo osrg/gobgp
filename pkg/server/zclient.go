@@ -16,6 +16,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -24,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -496,12 +498,17 @@ func (z *zebraClient) loop() {
 			case *watchEventUpdate:
 				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
 					vrfID := uint32(0)
-					for _, vrf := range z.server.listVrf() {
-						if vrf.Name == msg.Neighbor.Config.Vrf {
-							vrfID = vrf.Id
-						}
+					err := z.server.ListVrf(context.Background(), &api.ListVrfRequest{Name: msg.Neighbor.Config.Vrf}, func(v *api.Vrf) {
+						vrfID = v.Id
+					})
+					if err != nil {
+						z.server.logger.Error("failed to get vrf id",
+							log.Fields{
+								"Topic": "Zebra",
+								"Error": err,
+							})
 					}
-					err := z.client.SendNexthopRegister(vrfID, body, false)
+					err = z.client.SendNexthopRegister(vrfID, body, false)
 					if err != nil {
 						z.server.logger.Error("failed to send nexthop register",
 							log.Fields{

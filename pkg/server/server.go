@@ -2546,18 +2546,6 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 	}, false)
 }
 
-// TODO: delete this function
-func (s *BgpServer) listVrf() (l []*table.Vrf) {
-	s.mgmtOperation(func() error {
-		l = make([]*table.Vrf, 0, len(s.globalRib.Vrfs))
-		for _, vrf := range s.globalRib.Vrfs {
-			l = append(l, vrf.Clone())
-		}
-		return nil
-	}, true)
-	return l
-}
-
 func (s *BgpServer) ListVrf(ctx context.Context, r *api.ListVrfRequest, fn func(*api.Vrf)) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
