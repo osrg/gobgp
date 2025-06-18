@@ -109,7 +109,8 @@ func TestConfigErrors(t *testing.T) {
 			go bgpServer.Serve()
 
 			_, err := InitialConfig(ctx, bgpServer, tt.cfg, false)
-			bgpServer.StopBgp(ctx, &api.StopBgpRequest{})
+			require.NoError(t, err)
+			err = bgpServer.StopBgp(ctx, &api.StopBgpRequest{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedErrors, logger.configErrors)
 		})
