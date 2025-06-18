@@ -134,7 +134,7 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 
 	closeCh := make(chan struct{})
 	listenerCtx, listenerCancel := context.WithCancel(context.Background())
-	go func() error {
+	go func() {
 		for {
 			conn, err := listener.AcceptTCP()
 			if err != nil {
@@ -146,7 +146,7 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 							"Error": err,
 						})
 				}
-				return err
+				return
 			}
 
 			err = conn.SetKeepAlive(false)
@@ -159,7 +159,7 @@ func newTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 						"Key":   addr,
 						"Error": err,
 					})
-				return err
+				return
 			}
 
 			select {
@@ -273,7 +273,13 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 }
 
 func (s *BgpServer) Stop() {
-	s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	if err := s.StopBgp(context.Background(), &api.StopBgpRequest{}); err != nil {
+		s.logger.Error("failed to stop BGP server",
+			log.Fields{
+				"Topic": "BgpServer",
+				"Error": err,
+			})
+	}
 
 	if s.apiServer != nil {
 		s.apiServer.grpcServer.Stop()
@@ -427,7 +433,17 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 		peer.fsm.lock.RLock()
 		policy := peer.fsm.pConf.ApplyPolicy
 		peer.fsm.lock.RUnlock()
-		s.policy.SetPeerPolicy(peer.ID(), policy)
+		if err := s.policy.SetPeerPolicy(peer.ID(), policy); err != nil {
+			s.logger.Error("Failed to set peer policy for dynamic peer",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   remoteAddr,
+					"Error": err,
+				})
+			conn.Close()
+			return
+		}
+
 		s.neighborMap[remoteAddr] = peer
 		peer.startFSMHandler()
 		s.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
@@ -1690,7 +1706,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 
 						select {
 						case <-timer.C:
-							s.mgmtOperation(func() error {
+							err := s.mgmtOperation(func() error {
 								s.logger.Info("LLGR restart timer expired",
 									log.Fields{
 										"Topic":    "Peer",
@@ -1707,6 +1723,17 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 								}
 								return nil
 							}, false)
+							if err != nil {
+								// this would not happen, but handle the error just in case
+								// the above operation changes in the future
+								s.logger.Error("LLGR restart timer expired but failed to propagate update",
+									log.Fields{
+										"Topic":    "Peer",
+										"Key":      peer.ID(),
+										"Family":   family,
+										"Duration": t,
+									})
+							}
 						case <-endCh:
 							s.logger.Info("LLGR restart timer stopped",
 								log.Fields{
@@ -1762,10 +1789,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
 			peer.fsm.lock.Unlock()
 			deferralExpiredFunc := func(family bgp.Family) func() {
+				//nolint: errcheck // ignore error
 				return func() {
 					s.mgmtOperation(func() error {
-						s.softResetOut(neighborAddress, family, true)
-						return nil
+						return s.softResetOut(neighborAddress, family, true)
 					}, false)
 				}
 			}
@@ -2146,7 +2173,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		names := make([]string, 0, len(s.neighborMap))
 		for k := range s.neighborMap {
 			names = append(names, k)
@@ -2169,6 +2196,9 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		s.bgpConfig.Global = oc.Global{}
 		return nil
 	}, false)
+	if err != nil {
+		return err
+	}
 
 	if s.shutdownWG != nil {
 		s.shutdownWG.Wait()
@@ -2563,7 +2593,7 @@ func (s *BgpServer) ListVrf(ctx context.Context, r *api.ListVrfRequest, fn func(
 		}
 	}
 	var l []*api.Vrf
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		l = make([]*api.Vrf, 0, len(s.globalRib.Vrfs))
 		for name, vrf := range s.globalRib.Vrfs {
 			if r.Name != "" && r.Name != name {
@@ -2573,6 +2603,9 @@ func (s *BgpServer) ListVrf(ctx context.Context, r *api.ListVrfRequest, fn func(
 		}
 		return nil
 	}, true)
+	if err != nil {
+		return err
+	}
 	for _, v := range l {
 		select {
 		case <-ctx.Done():
@@ -2617,7 +2650,9 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 		}
 		if vrf, ok := s.globalRib.Vrfs[name]; ok {
 			if s.zclient != nil && s.zclient.mplsLabel.rangeSize > 0 {
-				s.zclient.assignAndSendVrfMplsLabel(vrf)
+				if err := s.zclient.assignAndSendVrfMplsLabel(vrf); err != nil {
+					return fmt.Errorf("failed to assign MPLS label for VRF %s: %w", name, err)
+				}
 			}
 		}
 		return nil
@@ -3123,12 +3158,11 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 	}, nil
 }
 
-func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetBgpResponse, error) {
+func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (rsp *api.GetBgpResponse, err error) {
 	if r == nil {
 		return nil, fmt.Errorf("nil request")
 	}
-	var rsp *api.GetBgpResponse
-	s.mgmtOperation(func() error {
+	err = s.mgmtOperation(func() error {
 		g := s.bgpConfig.Global
 		rsp = &api.GetBgpResponse{
 			Global: &api.Global{
@@ -3141,7 +3175,7 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetB
 		}
 		return nil
 	}, false)
-	return rsp, nil
+	return
 }
 
 func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicNeighborRequest, fn func(neighbor *api.DynamicNeighbor)) error {
@@ -3155,7 +3189,7 @@ func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicN
 		}
 	}
 	var l []*api.DynamicNeighbor
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		peerGroupName := r.PeerGroup
 		for k, group := range s.peerGroupMap {
 			if peerGroupName != "" && peerGroupName != k {
@@ -3167,6 +3201,9 @@ func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicN
 		}
 		return nil
 	}, false)
+	if err != nil {
+		return err
+	}
 	for _, dn := range l {
 		select {
 		case <-ctx.Done():
@@ -3183,7 +3220,7 @@ func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupReque
 		return fmt.Errorf("nil request")
 	}
 	var l []*api.PeerGroup
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		peerGroupName := r.PeerGroupName
 		l = make([]*api.PeerGroup, 0, len(s.peerGroupMap))
 		for k, group := range s.peerGroupMap {
@@ -3195,6 +3232,9 @@ func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupReque
 		}
 		return nil
 	}, false)
+	if err != nil {
+		return err
+	}
 	for _, pg := range l {
 		select {
 		case <-ctx.Done():
@@ -3211,7 +3251,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 		return fmt.Errorf("nil request")
 	}
 	var l []*api.Peer
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		address := r.Address
 		getAdvertised := r.EnableAdvertised
 		l = make([]*api.Peer, 0, len(s.neighborMap))
@@ -3254,6 +3294,9 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 		}
 		return nil
 	}, false)
+	if err != nil {
+		return err
+	}
 	for _, p := range l {
 		select {
 		case <-ctx.Done():
@@ -3351,7 +3394,9 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	}
 	peer := newPeer(&s.bgpConfig.Global, c, rib, s.policy, s.logger)
 	s.addIncoming(peer.fsm.incomingCh)
-	s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
+	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
+		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
+	}
 	s.neighborMap[addr] = peer
 	if name := c.Config.PeerGroup; name != "" {
 		s.peerGroupMap[name].AddMember(*c)
@@ -3625,7 +3670,10 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 				"Key":   addr,
 			})
 
-		s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
+		err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
+		if err != nil {
+			return false, fmt.Errorf("failed to set peer policy: %w", err)
+		}
 		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
 		needsSoftResetIn = true
 	}
@@ -3721,7 +3769,14 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 				})
 			// rollback to original state
 			peer.fsm.pConf = original
-			setPeerConnTTL(peer.fsm)
+			if err := setPeerConnTTL(peer.fsm); err != nil {
+				s.logger.Error("failed to rollback peer connection TTL",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+						"Err":   err,
+					})
+			}
 			return needsSoftResetIn, err
 		}
 	}
@@ -4026,7 +4081,7 @@ func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementReque
 		return fmt.Errorf("nil request")
 	}
 	var l []*api.Statement
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		s := s.policy.GetStatement(r.Name)
 		l = make([]*api.Statement, 0, len(s))
 		for _, st := range s {
@@ -4034,6 +4089,9 @@ func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementReque
 		}
 		return nil
 	}, false)
+	if err != nil {
+		return err
+	}
 	for _, s := range l {
 		select {
 		case <-ctx.Done():
@@ -4076,7 +4134,7 @@ func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest, fn
 		return fmt.Errorf("nil request")
 	}
 	var l []*api.Policy
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		pl := s.policy.GetPolicy(r.Name)
 		l = make([]*api.Policy, 0, len(pl))
 		for _, p := range pl {
@@ -4084,6 +4142,9 @@ func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest, fn
 		}
 		return nil
 	}, false)
+	if err != nil {
+		return err
+	}
 	for _, p := range l {
 		select {
 		case <-ctx.Done():
@@ -4324,17 +4385,18 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn fun
 		}
 		return nil
 	}, false)
-	if err == nil {
-		for _, r := range l {
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				fn(r)
-			}
+	if err != nil {
+		return err
+	}
+	for _, r := range l {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			fn(r)
 		}
 	}
-	return err
+	return nil
 }
 
 func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableRequest, fn func(*api.Roa)) error {
@@ -4348,22 +4410,24 @@ func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableReque
 			family = bgp.AfiSafiToFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 		}
 		roas, err := s.roaTable.List(family)
-		if err == nil {
-			l = append(l, newRoaListFromTableStructList(roas)...)
+		if err != nil {
+			return err
 		}
-		return err
+		l = append(l, newRoaListFromTableStructList(roas)...)
+		return nil
 	}, false)
-	if err == nil {
-		for _, roa := range l {
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				fn(roa)
-			}
+	if err != nil {
+		return err
+	}
+	for _, roa := range l {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			fn(roa)
 		}
 	}
-	return err
+	return nil
 }
 
 func (s *BgpServer) AddRpki(ctx context.Context, r *api.AddRpkiRequest) error {
@@ -4449,9 +4513,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 	}
 
 	go func() {
-		defer func() {
-			w.Stop()
-		}()
+		defer w.Stop()
 
 		for {
 			select {
@@ -4865,6 +4927,7 @@ func (w *watcher) loop() {
 	close(w.realCh)
 }
 
+//nolint:errcheck // we don't care about the error here.
 func (w *watcher) Stop() {
 	w.s.mgmtOperation(func() error {
 		for k, l := range w.s.watcherMap {
@@ -4903,7 +4966,8 @@ func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
 }
 
 func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
-	s.mgmtOperation(func() error {
+	// TODO: return error
+	_ = s.mgmtOperation(func() error {
 		w = &watcher{
 			s:       s,
 			realCh:  make(chan watchEvent, 8),
