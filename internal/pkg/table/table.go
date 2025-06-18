@@ -278,7 +278,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 
 		r := critbitgo.NewNet()
 		for _, dst := range t.GetDestinations() {
-			r.Add(nlriToIPNet(dst.nlri), dst)
+			_ = r.Add(nlriToIPNet(dst.nlri), dst)
 		}
 		p := &net.IPNet{
 			IP:   prefix.IP,
@@ -323,7 +323,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 				continue
 			}
 
-			r.Add(nlriToIPNet(dst.nlri), dst)
+			_ = r.Add(nlriToIPNet(dst.nlri), dst)
 		}
 
 		p := &net.IPNet{
@@ -601,7 +601,13 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 					ones, _ := prefix.Mask.Size()
 					for i := ones; i >= 0; i-- {
 						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
-						f(prefix.String())
+						ret, err := f(prefix.String())
+						if err != nil {
+							return nil, err
+						}
+						if ret {
+							break
+						}
 					}
 				default:
 					if host := net.ParseIP(key); host != nil {
@@ -622,8 +628,8 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 								break
 							}
 						}
-					} else {
-						f(key)
+					} else if _, err := f(key); err != nil {
+						return nil, err
 					}
 				}
 			}
