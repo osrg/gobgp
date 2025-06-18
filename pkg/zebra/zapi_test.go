@@ -1136,7 +1136,8 @@ func FuzzZapi(f *testing.F) {
 			}
 
 			software := NewSoftware(v, "")
-			parseMessage(hd, data[:ZAPIHeaderSize], software)
+			_, err = parseMessage(hd, data[:ZAPIHeaderSize], software)
+			assert.NoError(t, err)
 		}
 	})
 }
@@ -1144,27 +1145,30 @@ func FuzzZapi(f *testing.F) {
 // grep -r decodeFromBytes pkg/zebra | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.decodeFromBytes(data, version, software)|g' | awk -F ':' '{print $2}'
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte, version uint8, swName string, swVersion float64) {
+		require := require.New(t)
 		software := Software{
 			name:    swName,
 			version: swVersion,
 		}
-		(&Header{}).decodeFromBytes(data)
-		(&unknownBody{}).decodeFromBytes(data, version, software)
-		(&HelloBody{}).decodeFromBytes(data, version, software)
-		(&redistributeBody{}).decodeFromBytes(data, version, software)
-		(&interfaceUpdateBody{}).decodeFromBytes(data, version, software)
-		(&interfaceAddressUpdateBody{}).decodeFromBytes(data, version, software)
-		(&routerIDUpdateBody{}).decodeFromBytes(data, version, software)
-		(&IPRouteBody{}).decodeFromBytes(data, version, software)
-		(&lookupBody{}).decodeFromBytes(data, version, software)
-		(&RegisteredNexthop{}).decodeFromBytes(data, version, software)
-		(&NexthopRegisterBody{}).decodeFromBytes(data, version, software)
-		(&NexthopUpdateBody{}).decodeFromBytes(data, version, software)
-		(&labelManagerConnectBody{}).decodeFromBytes(data, version, software)
-		(&GetLabelChunkBody{}).decodeFromBytes(data, version, software)
-		(&releaseLabelChunkBody{}).decodeFromBytes(data, version, software)
-		(&vrfLabelBody{}).decodeFromBytes(data, version, software)
-		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, false)
-		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, true)
+		require.NoError((&Header{}).decodeFromBytes(data))
+		require.NoError((&unknownBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&HelloBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&redistributeBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&interfaceUpdateBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&interfaceAddressUpdateBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&routerIDUpdateBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&IPRouteBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&lookupBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&RegisteredNexthop{}).decodeFromBytes(data, version, software))
+		require.NoError((&NexthopRegisterBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&NexthopUpdateBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&labelManagerConnectBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&GetLabelChunkBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&releaseLabelChunkBody{}).decodeFromBytes(data, version, software))
+		require.NoError((&vrfLabelBody{}).decodeFromBytes(data, version, software))
+		_, err := (&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, false)
+		require.NoError(err)
+		_, err = (&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, true)
+		require.NoError(err)
 	})
 }
