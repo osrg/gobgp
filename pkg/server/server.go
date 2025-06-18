@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -619,12 +620,7 @@ func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMe
 }
 
 func isASLoop(peer *peer, path *table.Path) bool {
-	for _, as := range path.GetAsList() {
-		if as == peer.AS() {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(path.GetAsList(), peer.AS())
 }
 
 func filterpath(peer *peer, path, old *table.Path) *table.Path {

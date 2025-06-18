@@ -504,10 +504,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 		fsm.lock.RLock()
 		defer fsm.lock.RUnlock()
 
-		tick := int(fsm.pConf.Timers.Config.ConnectRetry)
-		if tick < minConnectRetryInterval {
-			tick = minConnectRetryInterval
-		}
+		tick := max(int(fsm.pConf.Timers.Config.ConnectRetry), minConnectRetryInterval)
 
 		addr := fsm.pConf.State.NeighborAddress
 		port := int(bgp.BGP_PORT)

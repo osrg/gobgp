@@ -21,6 +21,7 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -418,13 +419,7 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 		lp := w.([]*Prefix)
 		new := make([]*Prefix, 0, len(lp))
 		for _, lp := range lp {
-			delete := false
-			for _, rp := range rp {
-				if lp.Equal(rp) {
-					delete = true
-					break
-				}
-			}
+			delete := slices.ContainsFunc(rp, lp.Equal)
 			if !delete {
 				new = append(new, lp)
 			}
@@ -807,10 +802,8 @@ func (m *singleAsPathMatch) Match(aspath []uint32) bool {
 	}
 	switch m.mode {
 	case INCLUDE:
-		for _, asn := range aspath {
-			if m.asn == asn {
-				return true
-			}
+		if slices.Contains(aspath, m.asn) {
+			return true
 		}
 	case LEFT_MOST:
 		if m.asn == aspath[0] {
@@ -909,13 +902,7 @@ func (lhs *AsPathSet) Remove(arg DefinedSet) error {
 	lhs.list = newList
 	newSingleList := make([]*singleAsPathMatch, 0, len(lhs.singleList))
 	for _, x := range lhs.singleList {
-		found := false
-		for _, y := range arg.(*AsPathSet).singleList {
-			if x.Equal(y) {
-				found = true
-				break
-			}
-		}
+		found := slices.ContainsFunc(arg.(*AsPathSet).singleList, x.Equal)
 		if !found {
 			newSingleList = append(newSingleList, x)
 		}
@@ -2070,12 +2057,7 @@ func (c *AfiSafiInCondition) Type() ConditionType {
 }
 
 func (c *AfiSafiInCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	for _, rf := range c.routeFamilies {
-		if path.GetFamily() == rf {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.routeFamilies, path.GetFamily())
 }
 
 func (c *AfiSafiInCondition) Set() DefinedSet {

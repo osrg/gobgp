@@ -180,12 +180,7 @@ func (dd *Destination) GetAllKnownPathList() []*Path {
 
 func rsFilter(id string, as uint32, path *Path) bool {
 	isASLoop := func(as uint32, path *Path) bool {
-		for _, v := range path.GetAsList() {
-			if as == v {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(path.GetAsList(), as)
 	}
 
 	return id != GLOBAL_RIB_NAME && (path.GetSource().Address.String() == id || isASLoop(as, path))
@@ -488,12 +483,7 @@ func (u *Update) GetWithdrawnPath() []*Path {
 
 	for _, p := range u.OldKnownPathList {
 		y := func() bool {
-			for _, old := range u.KnownPathList {
-				if p == old {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(u.KnownPathList, p)
 		}()
 		if !y {
 			l = append(l, p.Clone(true))

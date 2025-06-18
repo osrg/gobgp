@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -2421,7 +2422,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 				ids = append(ids, p.Identifier)
 			}
 		}
-		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		slices.Sort(ids)
 		return ids
 	}
 

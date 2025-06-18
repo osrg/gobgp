@@ -7871,7 +7871,7 @@ func (l *LsTLVUnreservedBw) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Incorrect unreserved bandwidth length")
 	}
 
-	for i := 0; i < len(l.Bandwidth); i++ {
+	for i := range len(l.Bandwidth) {
 		l.Bandwidth[i] = math.Float32frombits(binary.BigEndian.Uint32(value[:4]))
 		value = value[4:]
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strconv"
 )
 
@@ -200,13 +201,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 	case *PathAttributeLargeCommunities:
 		uniq := make([]*LargeCommunity, 0, len(p.Values))
 		for _, x := range p.Values {
-			found := false
-			for _, y := range uniq {
-				if x.Eq(y) {
-					found = true
-					break
-				}
-			}
+			found := slices.ContainsFunc(uniq, x.Eq)
 			if !found {
 				uniq = append(uniq, x)
 			}
