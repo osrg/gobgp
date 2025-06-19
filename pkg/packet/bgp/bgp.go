@@ -1319,7 +1319,9 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 			p := &OptionParameterCapability{}
 			p.ParamType = paramtype
 			p.ParamLen = paramlen
-			p.DecodeFromBytes(data[2 : 2+paramlen])
+			if err := p.DecodeFromBytes(data[2 : 2+paramlen]); err != nil {
+				return err
+			}
 			msg.OptParams = append(msg.OptParams, p)
 		} else {
 			p := &OptionParameterUnknown{}
@@ -1574,7 +1576,8 @@ func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 		},
 		4,
 	}
-	p.decodePrefix(net.ParseIP(prefix).To4(), length, 4)
+	// TODO: pass the error to the caller
+	_ = p.decodePrefix(net.ParseIP(prefix).To4(), length, 4)
 	return p
 }
 
@@ -1607,7 +1610,8 @@ func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
 			16,
 		},
 	}
-	p.decodePrefix(net.ParseIP(prefix), length, 16)
+	// TODO: pass the error to the caller
+	_ = p.decodePrefix(net.ParseIP(prefix), length, 16)
 	return p
 }
 
@@ -2066,7 +2070,9 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	}
 	l.Length = data[0]
 	data = data[1:]
-	l.Labels.DecodeFromBytes(data, options...)
+	if err := l.Labels.DecodeFromBytes(data, options...); err != nil {
+		return err
+	}
 	if int(l.Length)-8*l.Labels.Len() < 0 {
 		l.Labels.Labels = []uint32{}
 	}
@@ -2236,7 +2242,9 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 	}
 	l.Length = data[0]
 	data = data[1:]
-	l.Labels.DecodeFromBytes(data)
+	if err := l.Labels.DecodeFromBytes(data); err != nil {
+		return err
+	}
 
 	if int(l.Length)-8*l.Labels.Len() < 0 {
 		l.Labels.Labels = []uint32{}
@@ -3101,7 +3109,9 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("invalid Ethernet Segment Route length")
 	}
 	data = data[rdLen:]
-	er.ESI.DecodeFromBytes(data)
+	if err := er.ESI.DecodeFromBytes(data); err != nil {
+		return err
+	}
 	data = data[10:]
 	er.IPAddressLength = data[0]
 	data = data[1:]
@@ -13627,7 +13637,9 @@ func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte, options ...*Marshall
 
 	for len(value) > 0 {
 		tuple := &As4PathParam{}
-		tuple.DecodeFromBytes(value)
+		if err := tuple.DecodeFromBytes(value); err != nil {
+			return err
+		}
 		p.Value = append(p.Value, tuple)
 		if len(value) < tuple.Len() {
 			return NewMessageError(eCode, eSubCode, nil, "AS4 PATH param is malformed")
@@ -15721,7 +15733,8 @@ func (e *TrafficActionExtended) Flat() map[string]string {
 func (p *PathAttributeExtendedCommunities) Flat() map[string]string {
 	flat := map[string]string{}
 	for _, ec := range p.Value {
-		FlatUpdate(flat, ec.Flat())
+		// TODO: what do we do in case of conflict?
+		_ = FlatUpdate(flat, ec.Flat())
 	}
 	return flat
 }
