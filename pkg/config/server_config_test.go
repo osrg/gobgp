@@ -80,7 +80,7 @@ func TestConfigErrors(t *testing.T) {
 		},
 		{
 			name:           "policy without a set",
-			expectedErrors: []string{"failed to create routing policy"},
+			expectedErrors: []string{"failed to create routing policy", "failed to set policies"},
 			cfg: &oc.BgpConfigSet{
 				Global: globalCfg,
 				PolicyDefinitions: []oc.PolicyDefinition{
