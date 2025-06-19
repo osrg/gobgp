@@ -130,7 +130,7 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filteredTable, _ := table.Select(
+			_, err := table.Select(
 				TableSelectOption{
 					LookupPrefixes: []*LookupPrefix{{
 						Prefix:       tt.prefix,
@@ -138,7 +138,7 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 					}},
 				},
 			)
-			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+			assert.Error(t, err)
 		})
 	}
 }
@@ -169,7 +169,7 @@ func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filteredTable, _ := table.Select(
+			_, err := table.Select(
 				TableSelectOption{
 					LookupPrefixes: []*LookupPrefix{{
 						Prefix:       tt.prefix,
@@ -177,7 +177,7 @@ func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 					}},
 				},
 			)
-			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
+			assert.Error(t, err)
 		})
 	}
 }
@@ -274,7 +274,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filteredTable, _ := table.Select(
+			filteredTable, err := table.Select(
 				TableSelectOption{
 					LookupPrefixes: []*LookupPrefix{{
 						Prefix:       tt.prefix,
@@ -283,6 +283,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 					}},
 				},
 			)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
 		})
 	}
@@ -380,7 +381,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filteredTable, _ := table.Select(
+			filteredTable, err := table.Select(
 				TableSelectOption{
 					LookupPrefixes: []*LookupPrefix{{
 						Prefix:       tt.prefix,
@@ -389,6 +390,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 					}},
 				},
 			)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
 		})
 	}

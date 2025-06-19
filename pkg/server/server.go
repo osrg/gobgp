@@ -2841,8 +2841,11 @@ func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*table.Loo
 			return fmt.Errorf("address family: %s not supported", af)
 		}
 		rib, err = tbl.Select(table.TableSelectOption{ID: id, AS: as, LookupPrefixes: prefixes})
+		if err != nil {
+			return err
+		}
 		v = s.validateTable(rib)
-		return err
+		return nil
 	}, true)
 	return
 }
