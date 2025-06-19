@@ -25,10 +25,14 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+
+	"github.com/segmentio/fasthash/fnv1a"
 )
 
 type MarshallingOption struct {
@@ -10348,7 +10352,20 @@ const (
 	BGP_ATTR_TYPE_LS                          // = 29
 	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 32
 	BGP_ATTR_TYPE_PREFIX_SID      BGPAttrType = 40
+	BGP_ATTR_TYPE_MAX             BGPAttrType = 41
 )
+
+var BGPAttrTypeIterator []BGPAttrType
+
+func init() {
+	// Initialize BGPAttrTypeIterator with all defined BGPAttrType values
+	for t := range PathAttrFlags {
+		BGPAttrTypeIterator = append(BGPAttrTypeIterator, t)
+	}
+	sort.Slice(BGPAttrTypeIterator, func(i, j int) bool {
+		return BGPAttrTypeIterator[i] < BGPAttrTypeIterator[j]
+	})
+}
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
 const (
@@ -10559,6 +10576,7 @@ type PathAttributeInterface interface {
 	DecodeFromBytes([]byte, ...*MarshallingOption) error
 	Serialize(...*MarshallingOption) ([]byte, error)
 	Len(...*MarshallingOption) int
+	Hash() uint64
 	GetFlags() BGPAttrFlag
 	GetType() BGPAttrType
 	String() string
@@ -10566,7 +10584,28 @@ type PathAttributeInterface interface {
 	Flat() map[string]string
 }
 
+func GetPathAttributeHash(o PathAttributeInterface) uint64 {
+	h := o.Hash()
+	if h == 0 {
+		o.Serialize()
+		h = o.Hash()
+	}
+	return h
+}
+
+func GetPathAttributesHash(attrs []PathAttributeInterface, exclude ...BGPAttrType) uint64 {
+	h := fnv1a.Init64
+	for t, attr := range attrs {
+		if attr == nil || slices.ContainsFunc(exclude, func(e BGPAttrType) bool { return e == BGPAttrType(t) }) {
+			continue
+		}
+		h = fnv1a.AddUint64(h, GetPathAttributeHash(attr))
+	}
+	return h
+}
+
 type PathAttribute struct {
+	hash   uint64 // hash for the whole payload, excluding the header Flags, Type, Length
 	Flags  BGPAttrFlag
 	Type   BGPAttrType
 	Length uint16 // length of Value
@@ -10577,6 +10616,10 @@ func (p *PathAttribute) Len(options ...*MarshallingOption) int {
 		return 4 + int(p.Length)
 	}
 	return 3 + int(p.Length)
+}
+
+func (p *PathAttribute) Hash() uint64 {
+	return atomic.LoadUint64(&p.hash)
 }
 
 func (p *PathAttribute) GetFlags() BGPAttrFlag {
@@ -10616,7 +10659,7 @@ func (p *PathAttribute) DecodeFromBytes(data []byte, options ...*MarshallingOpti
 	if eMsg := validatePathAttributeFlags(p.Type, p.Flags); eMsg != "" {
 		return nil, NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data, eMsg)
 	}
-
+	p.hash = fnv1a.AddBytes64(fnv1a.Init64, data[:p.Length])
 	return data[:p.Length], nil
 }
 
@@ -10628,15 +10671,19 @@ func (p *PathAttribute) Serialize(value []byte, options ...*MarshallingOption) (
 		flags |= BGP_ATTR_FLAG_EXTENDED_LENGTH
 	}
 	var buf []byte
+	var payload []byte
 	if flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		buf = append(make([]byte, 4), value...)
 		binary.BigEndian.PutUint16(buf[2:4], length)
+		payload = buf[4:]
 	} else {
 		buf = append(make([]byte, 3), value...)
 		buf[2] = byte(length)
+		payload = buf[3:]
 	}
 	buf[0] = uint8(flags)
 	buf[1] = uint8(p.Type)
+	atomic.StoreUint64(&p.hash, fnv1a.AddBytes64(fnv1a.Init64, payload))
 	return buf, nil
 }
 
@@ -11658,6 +11705,9 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	if IsAddPathEnabled(true, AfiSafiToFamily(afi, safi), options) {
 		addpathLen = 4
 	}
+
+	vplsNLRIFamily := AfiSafiToFamily(AFI_L2VPN, SAFI_VPLS)
+	requireHashUpdate := false
 	for len(value) > 0 {
 		prefix, err := NewPrefixFromFamily(afi, safi)
 		if err != nil {
@@ -11667,11 +11717,18 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 		if err != nil {
 			return err
 		}
-		if len(value) < prefix.Len(options...)+addpathLen {
+		if vplsNLRIFamily == AfiSafiToFamily(afi, safi) {
+			// workaround for VPLS NLRI, we need to update the hash, as VPLSNLRI.LabelBlockBase field contain (MPLS label on 20bits) so the last 4 bits are not used and can contain garbage that will change the hash
+			requireHashUpdate = true
+		}
+		if prefix.Len(options...)+addpathLen > len(value) {
 			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
 		}
 		value = value[prefix.Len(options...)+addpathLen:]
 		p.Value = append(p.Value, prefix)
+	}
+	if requireHashUpdate {
+		p.Serialize()
 	}
 	return nil
 }
@@ -13353,6 +13410,8 @@ func NewTrafficRemarkExtended(dscp uint8) *TrafficRemarkExtended {
 	}
 }
 
+var errNoErrorButHashUpdateRequired = errors.New("no error, but would require a hash update") // workaround : as byte protocol contains some reserved fields that could be "site preference" like VPLSExtended bytes 6 and 7
+
 func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityInterface, error) {
 	typ := ExtendedCommunityAttrType(data[0])
 	if typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 {
@@ -13401,7 +13460,7 @@ func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityI
 		case byte(LAYER2ENCAPSULATION_TYPE_VPLS):
 			controlFlags := uint8(data[3])
 			mtu := binary.BigEndian.Uint16(data[4:6])
-			return NewVPLSExtended(controlFlags, mtu), nil
+			return NewVPLSExtended(controlFlags, mtu), errNoErrorButHashUpdateRequired
 		}
 	}
 	return &UnknownExtended{
@@ -13552,13 +13611,21 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte, options 
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
 	}
+	requireHashUpdate := false
 	for len(value) >= 8 {
 		e, err := ParseExtended(value)
-		if err != nil {
+		if err != nil && err != errNoErrorButHashUpdateRequired {
 			return err
+		}
+		if err == errNoErrorButHashUpdateRequired {
+			requireHashUpdate = true
 		}
 		p.Value = append(p.Value, e)
 		value = value[8:]
+	}
+	// see ErrNoErrorButHashUpdateRequired comment
+	if requireHashUpdate {
+		p.Serialize()
 	}
 	return nil
 }
