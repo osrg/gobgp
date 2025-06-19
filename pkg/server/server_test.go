@@ -1988,6 +1988,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 func TestAddDeletePath(t *testing.T) {
 	ctx := context.Background()
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.0.0.0",
