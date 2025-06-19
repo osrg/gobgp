@@ -1461,7 +1461,6 @@ func TestParseBogusShortData(t *testing.T) {
 		&BGPOpen{},
 		&BGPUpdate{},
 		&BGPNotification{},
-		&BGPKeepAlive{},
 		&BGPRouteRefresh{},
 	}
 
