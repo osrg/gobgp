@@ -51,7 +51,7 @@ func routeTypePrettyString(s api.Conditions_RouteType) string {
 	return "unknown"
 }
 
-func prettyString(v interface{}) string {
+func prettyString(v any) string {
 	switch a := v.(type) {
 	case *api.MatchSet:
 		var typ string
@@ -131,37 +131,37 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 	}
 	format := fmt.Sprintf("%%-%ds  %%s\n", maxNameLen)
 	if head {
-		buff.WriteString(fmt.Sprintf(format, "NAME", typ))
+		fmt.Fprintf(buff, format, "NAME", typ)
 	}
 	for _, s := range list {
 		if typ == "PREFIX" {
 			l := s.GetPrefixes()
 			if len(l) == 0 {
-				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
+				fmt.Fprintf(buff, format, s.GetName(), "")
 			}
 			for i, x := range l {
 				prefix := fmt.Sprintf("%s %d..%d", x.GetIpPrefix(), x.GetMaskLengthMin(), x.GetMaskLengthMax())
 				if i == 0 {
-					buff.WriteString(fmt.Sprintf(format, s.GetName(), prefix))
+					fmt.Fprintf(buff, format, s.GetName(), prefix)
 				} else {
-					buff.WriteString(fmt.Sprint(sIndent))
-					buff.WriteString(fmt.Sprintf(format, "", prefix))
+					fmt.Fprint(buff, sIndent)
+					fmt.Fprintf(buff, format, "", prefix)
 				}
 			}
 		} else {
 			l := s.GetList()
 			if len(l) == 0 {
-				buff.WriteString(fmt.Sprintf(format, s.GetName(), ""))
+				fmt.Fprintf(buff, format, s.GetName(), "")
 			}
 			for i, x := range l {
 				if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
 					x = _regexpCommunity.ReplaceAllString(x, "$1")
 				}
 				if i == 0 {
-					buff.WriteString(fmt.Sprintf(format, s.GetName(), x))
+					fmt.Fprintf(buff, format, s.GetName(), x)
 				} else {
-					buff.WriteString(fmt.Sprint(sIndent))
-					buff.WriteString(fmt.Sprintf(format, "", x))
+					fmt.Fprint(buff, sIndent)
+					fmt.Fprintf(buff, format, "", x)
 				}
 			}
 		}

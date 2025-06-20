@@ -144,7 +144,7 @@ func TestSegmentListRoundTrip(t *testing.T) {
 							Length: 6,
 						},
 						Flags: 0,
-						Label: (21431 << 12),
+						Label: 21431 << 12,
 					},
 				},
 			},
@@ -172,7 +172,7 @@ func TestSegmentListRoundTrip(t *testing.T) {
 							Length: 6,
 						},
 						Flags: 0,
-						Label: (21431 << 12),
+						Label: 21431 << 12,
 					},
 					&SegmentTypeA{
 						TunnelEncapSubTLV: TunnelEncapSubTLV{
@@ -180,7 +180,7 @@ func TestSegmentListRoundTrip(t *testing.T) {
 							Length: 6,
 						},
 						Flags: 0,
-						Label: (100001 << 12),
+						Label: 100001 << 12,
 					},
 				},
 			},

@@ -77,7 +77,6 @@ func peerR3() *PeerInfo {
 
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	bgpMessage := update_fromR1()
@@ -122,12 +121,10 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	bgpMessage := update_fromR1_ipv6()
@@ -173,12 +170,10 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:50:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare localpref
 func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low localpref message
@@ -254,11 +249,9 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -335,12 +328,10 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare localOrigin
 func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low localpref message
@@ -375,7 +366,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
-	var peer2 *PeerInfo = &PeerInfo{
+	peer2 := &PeerInfo{
 		Address: net.ParseIP("0.0.0.0"),
 	}
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
@@ -418,11 +409,9 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "0.0.0.0"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -457,7 +446,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
-	var peer2 *PeerInfo = &PeerInfo{
+	peer2 := &PeerInfo{
 		Address: net.ParseIP("0.0.0.0"),
 	}
 
@@ -502,12 +491,10 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "::"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare AS_PATH
 func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	bgpMessage1 := update_fromR2viaR1()
@@ -558,11 +545,9 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	bgpMessage1 := update_fromR2viaR1_ipv6()
@@ -614,12 +599,10 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare Origin
 func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low origin message
@@ -695,11 +678,9 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(1)
@@ -776,12 +757,10 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare MED
 func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low origin message
@@ -857,11 +836,9 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -938,12 +915,10 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare AS_NUMBER(prefer eBGP path)
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// low origin message
@@ -1019,11 +994,9 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1100,14 +1073,12 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: compare IGP cost -> N/A
 
 // test: compare Router ID
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	SelectionOptions.ExternalCompareRouterId = true
 
@@ -1184,11 +1155,9 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1265,12 +1234,10 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // test: withdraw and mpunreach path
 func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// path1
@@ -1349,7 +1316,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
-	//withdraw path
+	// withdraw path
 	w1 := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	w := []*bgp.IPAddrPrefix{w1}
 	bgpMessage3 := bgp.NewBGPUpdateMessage(w, nil, nil)
@@ -1373,7 +1340,6 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 // TODO MP_UNREACH
 func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1477,7 +1443,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
-	//mpunreach path
+	// mpunreach path
 	mp_unreach := createMpUNReach("2001:123:123:1::", 64)
 	bgpMessage3 := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{mp_unreach}, nil)
 
@@ -1496,12 +1462,10 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop = "2001::192:168:50:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // handle bestpath lost
 func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// path1
@@ -1571,7 +1535,6 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 }
 
 func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1642,7 +1605,6 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 
 // test: implicit withdrawal case
 func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	// path1
@@ -1719,11 +1681,9 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1825,12 +1785,10 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	// check nexthop
 	expectedNexthop := "2001::192:168:50:1"
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
-
 }
 
 // check multiple paths
 func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 
 	createPathAttr := func(aspaths []uint32, nh string) []bgp.PathAttributeInterface {
@@ -1888,7 +1846,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 		bgp.NewIPAddrPrefix(24, "20.20.20.0"),
 		bgp.NewIPAddrPrefix(24, "30.30.30.0"),
 		bgp.NewIPAddrPrefix(24, "40.40.40.0"),
-		bgp.NewIPAddrPrefix(24, "50.50.50.0")}
+		bgp.NewIPAddrPrefix(24, "50.50.50.0"),
+	}
 	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
 
 	// path2
@@ -1898,7 +1857,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 		bgp.NewIPAddrPrefix(24, "22.22.22.0"),
 		bgp.NewIPAddrPrefix(24, "33.33.33.0"),
 		bgp.NewIPAddrPrefix(24, "44.44.44.0"),
-		bgp.NewIPAddrPrefix(24, "55.55.55.0")}
+		bgp.NewIPAddrPrefix(24, "55.55.55.0"),
+	}
 	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
 
 	// path3
@@ -1958,12 +1918,10 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	// check table
 	table := tm.Tables[bgp.RF_IPv4_UC]
 	assert.Equal(t, 13, len(table.GetDestinations()))
-
 }
 
 // check multiple paths
 func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
-
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
 
 	createPathAttr := func(aspaths []uint32) []bgp.PathAttributeInterface {
@@ -2104,7 +2062,6 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	// check table
 	table := tm.Tables[bgp.RF_IPv6_UC]
 	assert.Equal(t, 13, len(table.GetDestinations()))
-
 }
 
 func TestProcessBGPUpdate_multiple_nlri_ipv4_split(t *testing.T) {
@@ -2133,7 +2090,6 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4_split(t *testing.T) {
 		assert.Equal(t, []bgp.AddrPrefixInterface{mpReach.Value[i]}, attr.Value)
 	}
 	assert.NoError(t, err)
-
 }
 
 func TestProcessBGPUpdate_Timestamp(t *testing.T) {
@@ -2162,8 +2118,8 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 
 	m2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	pList2 := ProcessMessage(m2, peer, time.Now())
-	//path2 := pList2[0].(*IPv4Path)
-	//t2 = path2.timestamp
+	// path2 := pList2[0].(*IPv4Path)
+	// t2 = path2.timestamp
 	adjRib.Update(pList2)
 
 	inList := adjRib.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)
@@ -2189,7 +2145,6 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 }
 
 func update_fromR1() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -2209,7 +2164,6 @@ func update_fromR1() *bgp.BGPMessage {
 }
 
 func update_fromR1_ipv6() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -2228,7 +2182,6 @@ func update_fromR1_ipv6() *bgp.BGPMessage {
 }
 
 func update_fromR2() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -2247,7 +2200,6 @@ func update_fromR2() *bgp.BGPMessage {
 }
 
 func update_fromR2_ipv6() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspath := createAsPathAttribute([]uint32{65100})
 	mp_reach := createMpReach("2001::192:168:100:1",
@@ -2281,7 +2233,6 @@ func createMpUNReach(nlri string, len uint8) *bgp.PathAttributeMpUnreachNLRI {
 }
 
 func update_fromR2viaR1() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000, 65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -2298,7 +2249,6 @@ func update_fromR2viaR1() *bgp.BGPMessage {
 }
 
 func update_fromR2viaR1_ipv6() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspath := createAsPathAttribute([]uint32{65000, 65100})
 	mp_reach := createMpReach("2001::192:168:50:1",
@@ -2312,5 +2262,4 @@ func update_fromR2viaR1_ipv6() *bgp.BGPMessage {
 		med,
 	}
 	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
-
 }

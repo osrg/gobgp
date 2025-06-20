@@ -147,13 +147,14 @@ func (rt *ROATable) Delete(roa *ROA) {
 			"Topic":      "rpki",
 			"Network":    roa.Network.String(),
 			"AS":         roa.AS,
-			"Max Length": roa.MaxLen})
+			"Max Length": roa.MaxLen,
+		})
 }
 
 func (rt *ROATable) DeleteAll(network string) {
 	for _, tree := range rt.trees {
 		deleteNetworks := make([]*net.IPNet, 0, tree.Size())
-		tree.Walk(nil, func(n *net.IPNet, v interface{}) bool {
+		tree.Walk(nil, func(n *net.IPNet, v any) bool {
 			b, _ := v.(*roaBucket)
 			newEntries := make([]*ROA, 0, len(b.entries))
 			for _, r := range b.entries {
@@ -218,7 +219,7 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 	r := nlriToIPNet(path.GetNlri())
 	prefixLen, _ := r.Mask.Size()
 	var bucket *roaBucket
-	tree.WalkMatch(r, func(r *net.IPNet, v interface{}) bool {
+	tree.WalkMatch(r, func(r *net.IPNet, v any) bool {
 		bucket, _ = v.(*roaBucket)
 		for _, r := range bucket.entries {
 			if prefixLen <= int(r.MaxLen) {
@@ -256,7 +257,7 @@ func (rt *ROATable) Info(family bgp.Family) (map[string]uint32, map[string]uint3
 	prefixes := make(map[string]uint32)
 
 	if tree, ok := rt.trees[family]; ok {
-		tree.Walk(nil, func(_ *net.IPNet, v interface{}) bool {
+		tree.Walk(nil, func(_ *net.IPNet, v any) bool {
 			b, _ := v.(*roaBucket)
 			tmpRecords := make(map[string]uint32)
 			for _, roa := range b.entries {
@@ -288,7 +289,7 @@ func (rt *ROATable) List(family bgp.Family) ([]*ROA, error) {
 	l := make([]*ROA, 0)
 	for _, rf := range rfList {
 		if tree, ok := rt.trees[rf]; ok {
-			tree.Walk(nil, func(_ *net.IPNet, v interface{}) bool {
+			tree.Walk(nil, func(_ *net.IPNet, v any) bool {
 				b, _ := v.(*roaBucket)
 				l = append(l, b.entries...)
 				return true

@@ -30,7 +30,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[Family]BGPAddPathMode, isEBGP bool,
 		if _, ok := seen[a.GetType()]; !ok {
 			seen[a.GetType()] = a
 			newAttrs = append(newAttrs, a)
-			//check specific path attribute
+			// check specific path attribute
 			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed, loopbackNextHopAllowed)
 			if !ok {
 				msgErr := err.(*MessageError)
@@ -168,8 +168,8 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			return res == 0xe0
 		}
 
-		//check IP address represents host address
-		if (!loopbackNextHopAllowed && p.Value.IsLoopback()) || isZero(p.Value) || isClassDorE(p.Value) {
+		// check IP address represents host address
+		if !loopbackNextHopAllowed && p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
 			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadNextHop, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
@@ -226,7 +226,6 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 
 // validator for PathAttribute
 func validatePathAttributeFlags(t BGPAttrType, flags BGPAttrFlag) string {
-
 	/*
 	 * RFC 4271 P.17 For well-known attributes, the Transitive bit MUST be set to 1.
 	 */

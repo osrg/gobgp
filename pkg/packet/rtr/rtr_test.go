@@ -117,7 +117,6 @@ func Test_RTRErrorReport(t *testing.T) {
 }
 
 func FuzzParseRTR(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, data []byte) {
 		ParseRTR(data)
 	})

@@ -299,7 +299,7 @@ func NewPeer(bgpid string, ipaddr string, asn uint32, isAS4 bool) *Peer {
 		addr = net.ParseIP(ipaddr).To16()
 	}
 	if isAS4 {
-		t |= (1 << 1)
+		t |= 1 << 1
 	}
 	return &Peer{
 		Type:      uint8(t),
@@ -341,7 +341,7 @@ func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 	data = data[2:]
 	t.Peers = make([]*Peer, 0, peerNum)
 	var err error
-	for i := 0; i < int(peerNum); i++ {
+	for range peerNum {
 		p := &Peer{}
 		data, err = p.DecodeFromBytes(data)
 		if err != nil {
@@ -531,7 +531,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	entryNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
 	u.Entries = make([]*RibEntry, 0, entryNum)
-	for i := 0; i < int(entryNum); i++ {
+	for range entryNum {
 		e := &RibEntry{
 			isAddPath: u.isAddPath,
 		}
@@ -650,14 +650,14 @@ func (t *GeoPeerTable) DecodeFromBytes(data []byte) error {
 	if len(data) < 14 {
 		return fmt.Errorf("not all GeoPeerTable bytes are available")
 	}
-	t.CollectorBgpId = net.IP(data[0:4])
+	t.CollectorBgpId = net.IP(data[:4])
 	t.CollectorLatitude = math.Float32frombits(binary.BigEndian.Uint32(data[4:8]))
 	t.CollectorLongitude = math.Float32frombits(binary.BigEndian.Uint32(data[8:12]))
 	peerCount := binary.BigEndian.Uint16(data[12:14])
 	data = data[14:]
 	t.Peers = make([]*GeoPeer, 0, peerCount)
 	var err error
-	for i := 0; i < int(peerCount); i++ {
+	for range peerCount {
 		p := &GeoPeer{}
 		if data, err = p.DecodeFromBytes(data); err != nil {
 			return err
@@ -673,7 +673,7 @@ func (t *GeoPeerTable) Serialize() ([]byte, error) {
 	if collectorBgpId == nil {
 		return nil, fmt.Errorf("invalid CollectorBgpId: %s", t.CollectorBgpId)
 	}
-	copy(buf[0:4], collectorBgpId)
+	copy(buf[:4], collectorBgpId)
 	binary.BigEndian.PutUint32(buf[4:8], math.Float32bits(t.CollectorLatitude))
 	binary.BigEndian.PutUint32(buf[8:12], math.Float32bits(t.CollectorLongitude))
 	binary.BigEndian.PutUint16(buf[12:14], uint16(len(t.Peers)))
@@ -951,7 +951,7 @@ func SplitMrt(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if len(data) < totlen { // need to read more
 		return 0, nil, nil
 	}
-	return totlen, data[0:totlen], nil
+	return totlen, data[:totlen], nil
 }
 
 func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {

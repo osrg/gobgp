@@ -22,7 +22,6 @@ func ExampleInitialConfig() {
 
 	isGracefulRestart := true
 	_, err = InitialConfig(context.Background(), bgpServer, initialConfig, isGracefulRestart)
-
 	if err != nil {
 		// Handle error
 		return
@@ -43,7 +42,6 @@ func ExampleUpdateConfig() {
 
 	isGracefulRestart := true
 	currentConfig, err := InitialConfig(context.Background(), bgpServer, initialConfig, isGracefulRestart)
-
 	if err != nil {
 		// Handle error
 		return

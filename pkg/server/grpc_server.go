@@ -77,7 +77,8 @@ func (s *server) serve() error {
 				log.Fields{
 					"Topic": "grpc",
 					"Key":   host,
-					"Error": err})
+					"Error": err,
+				})
 			break
 		}
 		l = append(l, lis)
@@ -98,7 +99,8 @@ func (s *server) serve() error {
 				log.Fields{
 					"Topic": "grpc",
 					"Key":   lis.Addr().String(),
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 
@@ -424,7 +426,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 	}
 
-	doWithdraw := (isWithdraw || path.IsWithdraw)
+	doWithdraw := isWithdraw || path.IsWithdraw
 	newPath := table.NewPath(pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
 	if !doWithdraw {
 		total := bytes.NewBuffer(make([]byte, 0))
@@ -608,9 +610,10 @@ func readApplyPolicyFromAPIStruct(c *oc.ApplyPolicy, a *api.ApplyPolicy) {
 		return
 	}
 	f := func(a api.RouteAction) oc.DefaultPolicyType {
-		if a == api.RouteAction_ROUTE_ACTION_ACCEPT {
+		switch a {
+		case api.RouteAction_ROUTE_ACTION_ACCEPT:
 			return oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-		} else if a == api.RouteAction_ROUTE_ACTION_REJECT {
+		case api.RouteAction_ROUTE_ACTION_REJECT:
 			return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 		}
 		return ""
@@ -1288,7 +1291,8 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			}
 			return &api.CommunityAction{
 				Type:        action,
-				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
+				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList,
+			}
 		}(),
 		Med: func() *api.MedAction {
 			medStr := strings.TrimSpace(string(s.Actions.BgpActions.SetMed))
@@ -1496,7 +1500,6 @@ func newAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, e
 }
 
 func newRpkiValidationConditionFromApiStruct(a api.ValidationState) (*table.RpkiValidationCondition, error) {
-
 	c := oc.RpkiValidationResultType("")
 	switch a {
 	case api.ValidationState_VALIDATION_STATE_NONE:
@@ -1615,10 +1618,8 @@ func newRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, err
 	if a == api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
 		return nil, nil
 	}
-	accept := false
-	if a == api.RouteAction_ROUTE_ACTION_ACCEPT {
-		accept = true
-	}
+	accept := a == api.RouteAction_ROUTE_ACTION_ACCEPT
+
 	return &table.RoutingAction{
 		AcceptRoute: accept,
 	}, nil

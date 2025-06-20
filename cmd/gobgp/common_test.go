@@ -30,7 +30,8 @@ func Test_ExtractReserved(t *testing.T) {
 		"med":        paramSingle,
 		"nexthop":    paramSingle,
 		"aigp":       paramList,
-		"local-pref": paramSingle}
+		"local-pref": paramSingle,
+	}
 	m, _ := extractReserved(args, keys)
 	assert.True(len(m["rt"]) == 1)
 	assert.True(len(m["med"]) == 1)

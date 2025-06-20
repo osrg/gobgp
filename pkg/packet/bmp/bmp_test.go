@@ -160,7 +160,6 @@ func Test_RouteMonitoringUnknownType(t *testing.T) {
 }
 
 func FuzzParseBMPMessage(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, data []byte) {
 		ParseBMPMessage(data)
 	})

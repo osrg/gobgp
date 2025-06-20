@@ -70,7 +70,6 @@ func Test_Validate_OK(t *testing.T) {
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
 	assert.Equal(true, res)
 	assert.NoError(err)
-
 }
 
 // func Test_Validate_wellknown_but_nontransitive(t *testing.T) {
@@ -297,11 +296,9 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
 	assert.Equal(nexthopBytes, e.Data)
-
 }
 
 func Test_Validate_unrecognized_well_known(t *testing.T) {
-
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	f := BGP_ATTR_FLAG_TRANSITIVE
@@ -417,7 +414,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
 	m := map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}
 	_, err := ValidateAttribute(a, m, false, false, false)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	cmp = make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
@@ -433,20 +430,19 @@ func Test_Validate_flowspec(t *testing.T) {
 func TestValidateLargeCommunities(t *testing.T) {
 	assert := assert.New(t)
 	c1, err := ParseLargeCommunity("10:10:10")
-	assert.Nil(err)
+	assert.NoError(err)
 	c2, err := ParseLargeCommunity("10:10:10")
-	assert.Nil(err)
+	assert.NoError(err)
 	c3, err := ParseLargeCommunity("10:10:20")
-	assert.Nil(err)
+	assert.NoError(err)
 	a := NewPathAttributeLargeCommunities([]*LargeCommunity{c1, c2, c3})
 	assert.True(len(a.Values) == 3)
 	_, err = ValidateAttribute(a, nil, false, false, false)
-	assert.Nil(err)
+	assert.NoError(err)
 	assert.True(len(a.Values) == 2)
 }
 
 func FuzzParseLargeCommunity(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, data string) {
 		ParseLargeCommunity(data)
 	})

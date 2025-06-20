@@ -68,7 +68,6 @@ func injectMrt() error {
 
 	ch := make(chan []*api.Path, mrtOpts.QueueSize)
 	go func() {
-
 		var peers []*mrt.Peer
 		for {
 			buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
@@ -134,7 +133,7 @@ func injectMrt() error {
 					if len(peers) <= int(e.PeerIndex) {
 						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)", e.PeerIndex, len(peers)))
 					}
-					//t := time.Unix(int64(e.OriginatedTime), 0)
+					// t := time.Unix(int64(e.OriginatedTime), 0)
 
 					if mrtOpts.PeerASN != 0 && peers[e.PeerIndex].AS != mrtOpts.PeerASN {
 						continue

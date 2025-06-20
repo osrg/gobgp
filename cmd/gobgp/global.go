@@ -426,7 +426,7 @@ func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 		f := extCommParserMap[idx.t]
 		if i < len(idxs)-1 {
 			a = args[:idxs[i+1].i-idx.i]
-			args = args[(idxs[i+1].i - idx.i):]
+			args = args[idxs[i+1].i-idx.i:]
 		} else {
 			a = args
 			args = nil
@@ -464,7 +464,8 @@ func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *
 		"prefix":              paramSingle,
 		"locator-node-length": paramSingle,
 		"function-length":     paramSingle,
-		"behavior":            paramSingle})
+		"behavior":            paramSingle,
+	})
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -585,7 +586,8 @@ func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 		"rd":        paramSingle,
 		"rt":        paramList,
 		"encap":     paramSingle,
-		"esi-label": paramList})
+		"esi-label": paramList,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -658,7 +660,8 @@ func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		"rt":              paramList,
 		"encap":           paramSingle,
 		"router-mac":      paramSingle,
-		"default-gateway": paramFlag})
+		"default-gateway": paramFlag,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -777,7 +780,8 @@ func parseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 		"etag":  paramSingle,
 		"rd":    paramSingle,
 		"rt":    paramList,
-		"encap": paramSingle})
+		"encap": paramSingle,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -849,7 +853,8 @@ func parseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 		"esi":   paramList,
 		"rd":    paramSingle,
 		"rt":    paramList,
-		"encap": paramSingle})
+		"encap": paramSingle,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -917,7 +922,8 @@ func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		"rd":         paramSingle,
 		"rt":         paramList,
 		"encap":      paramSingle,
-		"router-mac": paramSingle})
+		"router-mac": paramSingle,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1001,7 +1007,8 @@ func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error
 		"etag":  paramSingle,
 		"rd":    paramSingle,
 		"rt":    paramSingle,
-		"encap": paramSingle})
+		"encap": paramSingle,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1124,7 +1131,7 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexth
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("unknown behavior: %s", m["behavior"][0])
 	}
-	if !((afi == bgp.AFI_IP && behavior == int32(bgp.ENDM_GTP4E)) || (afi == bgp.AFI_IP6 && behavior == int32(bgp.ENDM_GTP6E))) {
+	if (afi != bgp.AFI_IP || behavior != int32(bgp.ENDM_GTP4E)) && (afi != bgp.AFI_IP6 || behavior != int32(bgp.ENDM_GTP6E)) {
 		return nil, nil, nil, fmt.Errorf("invalid behavior: %s. behavior must be ENDM_GTP4E or ENDM_GTP6E", m["behavior"][0])
 	}
 	psid := bgp.NewPathAttributePrefixSID(
@@ -1373,7 +1380,7 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if (ea.Is4() && eaLen > 64) || (ea.Is6() && eaLen > 160) {
+	if ea.Is4() && eaLen > 64 || ea.Is6() && eaLen > 160 {
 		return nil, nil, nil, fmt.Errorf("endpoint-address-length too large: %d", eaLen)
 	}
 	teid, err := parseTeid(m["teid"][0])
@@ -1459,17 +1466,14 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	localAsn, err := strconv.ParseUint(m["local-asn"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	localBgpLsId, err := strconv.ParseUint(m["local-bgp-ls-id"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	localBgpConfederationMember, err := strconv.ParseUint(m["local-bgp-confederation-member"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	lnd := &bgp.LsNodeDescriptor{
 		Asn:                    uint32(localAsn),
@@ -1483,17 +1487,14 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	RemoteAsn, err := strconv.ParseUint(m["remote-asn"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	RemoteBgpLsId, err := strconv.ParseUint(m["remote-bgp-ls-id"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	RemoteBgpConfederationMember, err := strconv.ParseUint(m["remote-bgp-confederation-member"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	rnd := &bgp.LsNodeDescriptor{
 		Asn:                    uint32(RemoteAsn),
@@ -1609,7 +1610,7 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	}
 	len := len(ldTLV)
 	var sum int
-	for i := 0; i < len; i++ {
+	for i := range len {
 		sum += ldTLV[i].Len()
 	}
 
@@ -1664,17 +1665,14 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAt
 	localAsn, err := strconv.ParseUint(m["local-asn"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	localBgpLsId, err := strconv.ParseUint(m["local-bgp-ls-id"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	localBgpConfederationMember, err := strconv.ParseUint(m["local-bgp-confederation-member"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
-
 	}
 	lnd := &bgp.LsNodeDescriptor{
 		Asn:                    uint32(localAsn),
@@ -1804,7 +1802,7 @@ func parseRtcArgs(args []string) (bgp.AddrPrefixInterface, error) {
 func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	typ := bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	for idx, arg := range args {
-		if arg == "origin" && len(args) > (idx+1) {
+		if arg == "origin" && len(args) > idx+1 {
 			switch args[idx+1] {
 			case "igp":
 				typ = bgp.BGP_ORIGIN_ATTR_TYPE_IGP
@@ -1881,7 +1879,7 @@ func newAsPath(aspath string) (bgp.PathAttributeInterface, error) {
 
 func extractAsPath(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
-		if arg == "aspath" && len(args) > (idx+1) {
+		if arg == "aspath" && len(args) > idx+1 {
 			attr, err := newAsPath(args[idx+1])
 			if err != nil {
 				return nil, nil, err
@@ -1900,7 +1898,7 @@ func extractNexthop(rf bgp.Family, args []string) ([]string, string, error) {
 		nexthop = "::"
 	}
 	for idx, arg := range args {
-		if arg == "nexthop" && len(args) > (idx+1) {
+		if arg == "nexthop" && len(args) > idx+1 {
 			if net.ParseIP(args[idx+1]) == nil {
 				return nil, "", fmt.Errorf("invalid nexthop address")
 			}
@@ -1914,7 +1912,7 @@ func extractNexthop(rf bgp.Family, args []string) ([]string, string, error) {
 
 func extractLocalPref(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
-		if arg == "local-pref" && len(args) > (idx+1) {
+		if arg == "local-pref" && len(args) > idx+1 {
 			metric, err := strconv.ParseUint(args[idx+1], 10, 32)
 			if err != nil {
 				return nil, nil, err
@@ -1928,7 +1926,7 @@ func extractLocalPref(args []string) ([]string, bgp.PathAttributeInterface, erro
 
 func extractMed(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
-		if arg == "med" && len(args) > (idx+1) {
+		if arg == "med" && len(args) > idx+1 {
 			med, err := strconv.ParseUint(args[idx+1], 10, 32)
 			if err != nil {
 				return nil, nil, err
@@ -1942,7 +1940,7 @@ func extractMed(args []string) ([]string, bgp.PathAttributeInterface, error) {
 
 func extractCommunity(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
-		if arg == "community" && len(args) > (idx+1) {
+		if arg == "community" && len(args) > idx+1 {
 			elems := strings.Split(args[idx+1], ",")
 			comms := make([]uint32, 0, 1)
 			for _, elem := range elems {
@@ -1961,7 +1959,7 @@ func extractCommunity(args []string) ([]string, bgp.PathAttributeInterface, erro
 
 func extractLargeCommunity(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
-		if arg == "large-community" && len(args) > (idx+1) {
+		if arg == "large-community" && len(args) > idx+1 {
 			elems := strings.Split(args[idx+1], ",")
 			comms := make([]*bgp.LargeCommunity, 0, 1)
 			for _, elem := range elems {
@@ -1997,7 +1995,7 @@ func extractPmsiTunnel(args []string) ([]string, bgp.PathAttributeInterface, err
 func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "aigp" {
-			if len(args) < (idx + 3) {
+			if len(args) < idx+3 {
 				return nil, nil, fmt.Errorf("invalid aigp format")
 			}
 			typ := args[idx+1]
@@ -2020,7 +2018,7 @@ func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "aggregator" {
-			if len(args) < (idx + 1) {
+			if len(args) < idx+1 {
 				return nil, nil, fmt.Errorf("invalid aggregator format")
 			}
 			v := strings.SplitN(args[idx+1], ":", 2)
@@ -2188,7 +2186,8 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 	case bgp.RF_OPAQUE:
 		m, err := extractReserved(args, map[string]int{
 			"key":   paramSingle,
-			"value": paramSingle})
+			"value": paramSingle,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -2518,7 +2517,8 @@ func modGlobalConfig(args []string) error {
 		"router-id":        paramSingle,
 		"listen-port":      paramSingle,
 		"listen-addresses": paramList,
-		"use-multipath":    paramFlag})
+		"use-multipath":    paramFlag,
+	})
 	if err != nil || len(m["as"]) != 1 || len(m["router-id"]) != 1 {
 		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
 	}

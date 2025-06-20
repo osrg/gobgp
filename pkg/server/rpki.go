@@ -163,7 +163,8 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		m.logger.Error("Can't find ROA server configuration",
 			log.Fields{
 				"Topic": "rpki",
-				"Key":   ev.Src})
+				"Key":   ev.Src,
+			})
 		return
 	}
 	switch ev.EventType {
@@ -171,7 +172,8 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		m.logger.Info("ROA server is disconnected",
 			log.Fields{
 				"Topic": "rpki",
-				"Key":   ev.Src})
+				"Key":   ev.Src,
+			})
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.endOfData = false
@@ -185,7 +187,8 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		m.logger.Info("ROA server is connected",
 			log.Fields{
 				"Topic": "rpki",
-				"Key":   ev.Src})
+				"Key":   ev.Src,
+			})
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		go client.established()
@@ -203,12 +206,14 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 			m.logger.Info("Reconnected, ignore timeout",
 				log.Fields{
 					"Topic": "rpki",
-					"Key":   client.host})
+					"Key":   client.host,
+				})
 		} else {
 			m.logger.Info("Deleting all ROAs due to timeout",
 				log.Fields{
 					"Topic": "rpki",
-					"Key":   client.host})
+					"Key":   client.host,
+				})
 			m.table.DeleteAll(client.host)
 		}
 	}
@@ -221,9 +226,9 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *oc.RpkiServerState, 
 	if err == nil {
 		switch msg := m1.(type) {
 		case *rtr.RTRSerialNotify:
-			if before(client.serialNumber, msg.RTRCommon.SerialNumber) {
+			if before(client.serialNumber, msg.SerialNumber) {
 				client.enable(client.serialNumber)
-			} else if client.serialNumber == msg.RTRCommon.SerialNumber {
+			} else if client.serialNumber == msg.SerialNumber {
 				// nothing
 			} else {
 				// should not happen. try to get the whole ROAs.
@@ -244,7 +249,7 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *oc.RpkiServerState, 
 				received.Ipv6Prefix++
 			}
 			roa := table.NewROA(family, msg.Prefix, msg.PrefixLen, msg.MaxLen, msg.AS, client.host)
-			if (msg.Flags & 1) == 1 {
+			if msg.Flags&1 == 1 {
 				if client.endOfData {
 					m.table.Add(roa)
 				} else {
@@ -255,13 +260,13 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *oc.RpkiServerState, 
 			}
 		case *rtr.RTREndOfData:
 			received.EndOfData++
-			if client.sessionID != msg.RTRCommon.SessionID {
+			if client.sessionID != msg.SessionID {
 				// remove all ROAs related with the
 				// previous session
 				m.table.DeleteAll(client.host)
 			}
-			client.sessionID = msg.RTRCommon.SessionID
-			client.serialNumber = msg.RTRCommon.SerialNumber
+			client.sessionID = msg.SessionID
+			client.serialNumber = msg.SerialNumber
 			client.endOfData = true
 			if client.timer != nil {
 				client.timer.Stop()
@@ -282,7 +287,8 @@ func (m *roaManager) handleRTRMsg(client *roaClient, state *oc.RpkiServerState, 
 			log.Fields{
 				"Topic": "rpki",
 				"Host":  client.host,
-				"Error": err})
+				"Error": err,
+			})
 	}
 }
 

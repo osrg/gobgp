@@ -76,6 +76,7 @@ func TestTableSetDestinations(t *testing.T) {
 	ds := ipv4t.GetDestinations()
 	assert.Equal(t, ds, destinations)
 }
+
 func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
@@ -417,7 +418,6 @@ func TableCreatePath(peerT []*PeerInfo) []*Path {
 }
 
 func updateMsgT1() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -436,7 +436,6 @@ func updateMsgT1() *bgp.BGPMessage {
 }
 
 func updateMsgT2() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)

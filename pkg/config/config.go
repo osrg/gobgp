@@ -82,7 +82,6 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 			Default:  def,
 		}),
 	})
-
 }
 
 func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []oc.PeerGroup) {
@@ -102,7 +101,8 @@ func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []o
 
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -112,7 +112,8 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 		bgpServer.Log().Info("delete PeerGroup",
 			log.Fields{
 				"Topic": "config",
-				"Key":   pg.Config.PeerGroupName})
+				"Key":   pg.Config.PeerGroupName,
+			})
 		if err := bgpServer.DeletePeerGroup(ctx, &api.DeletePeerGroupRequest{
 			Name: pg.Config.PeerGroupName,
 		}); err != nil {
@@ -122,7 +123,8 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -132,7 +134,8 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 		bgpServer.Log().Info("update PeerGroup",
 			log.Fields{
 				"Topic": "config",
-				"Key":   pg.Config.PeerGroupName})
+				"Key":   pg.Config.PeerGroupName,
+			})
 		if u, err := bgpServer.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{
 			PeerGroup: oc.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
@@ -142,7 +145,8 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
-					"Error": err})
+					"Error": err,
+				})
 		} else {
 			return u.NeedsSoftResetIn
 		}
@@ -156,7 +160,8 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 			log.Fields{
 				"Topic":  "config",
 				"Key":    dn.Config.PeerGroup,
-				"Prefix": dn.Config.Prefix})
+				"Prefix": dn.Config.Prefix,
+			})
 		if err := bgpServer.AddDynamicNeighbor(ctx, &api.AddDynamicNeighborRequest{
 			DynamicNeighbor: &api.DynamicNeighbor{
 				Prefix:    dn.Config.Prefix,
@@ -170,7 +175,8 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 					"Topic":  "config",
 					"Key":    dn.Config.PeerGroup,
 					"Prefix": dn.Config.Prefix,
-					"Error":  err})
+					"Error":  err,
+				})
 		}
 	}
 }
@@ -180,7 +186,8 @@ func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []oc.N
 		bgpServer.Log().Info("Add Peer",
 			log.Fields{
 				"Topic": "config",
-				"Key":   p.State.NeighborAddress})
+				"Key":   p.State.NeighborAddress,
+			})
 		if err := bgpServer.AddPeer(ctx, &api.AddPeerRequest{
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		}); err != nil {
@@ -190,7 +197,8 @@ func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []oc.N
 
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -200,7 +208,8 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 		bgpServer.Log().Info("Delete Peer",
 			log.Fields{
 				"Topic": "config",
-				"Key":   p.State.NeighborAddress})
+				"Key":   p.State.NeighborAddress,
+			})
 		if err := bgpServer.DeletePeer(ctx, &api.DeletePeerRequest{
 			Address: p.State.NeighborAddress,
 		}); err != nil {
@@ -210,7 +219,8 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -220,7 +230,8 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 		bgpServer.Log().Info("Update Peer",
 			log.Fields{
 				"Topic": "config",
-				"Key":   p.State.NeighborAddress})
+				"Key":   p.State.NeighborAddress,
+			})
 		if u, err := bgpServer.UpdatePeer(ctx, &api.UpdatePeerRequest{
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		}); err != nil {
@@ -230,7 +241,8 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
-					"Error": err})
+					"Error": err,
+				})
 		} else {
 			return u.NeedsSoftResetIn
 		}
@@ -423,7 +435,8 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 					log.FieldFacility: log.FacilityConfig,
 
 					"Topic": "config",
-					"Error": err})
+					"Error": err,
+				})
 		} else {
 			bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
 				DefinedSets: rp.DefinedSets,

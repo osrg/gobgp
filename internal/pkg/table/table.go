@@ -166,7 +166,8 @@ func (t *Table) validatePath(path *Path) {
 		t.logger.Error("path is nil",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   t.Family})
+				"Key":   t.Family,
+			})
 	}
 	if path.GetFamily() != t.Family {
 		t.logger.Error("Invalid path. Family mismatch",
@@ -174,7 +175,8 @@ func (t *Table) validatePath(path *Path) {
 				"Topic":      "Table",
 				"Key":        t.Family,
 				"Prefix":     path.GetPrefix(),
-				"ReceivedRf": path.GetFamily().String()})
+				"ReceivedRf": path.GetFamily().String(),
+			})
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
@@ -185,7 +187,8 @@ func (t *Table) validatePath(path *Path) {
 					log.Fields{
 						"Topic": "Table",
 						"Key":   t.Family,
-						"As":    as})
+						"As":    as,
+					})
 			}
 		}
 	}
@@ -193,13 +196,15 @@ func (t *Table) validatePath(path *Path) {
 		t.logger.Fatal("AS4_PATH must be converted to AS_PATH",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   t.Family})
+				"Key":   t.Family,
+			})
 	}
 	if path.GetNlri() == nil {
 		t.logger.Fatal("path's nlri is nil",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   t.Family})
+				"Key":   t.Family,
+			})
 	}
 }
 
@@ -210,7 +215,8 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface, size int) *Destina
 		t.logger.Debug("create Destination",
 			log.Fields{
 				"Topic": "Table",
-				"Nlri":  nlri})
+				"Nlri":  nlri,
+			})
 		dest = NewDestination(nlri, size)
 		t.setDestination(dest)
 	}
@@ -246,9 +252,11 @@ func (t *Table) update(newPath *Path) *Update {
 func (t *Table) GetDestinations() map[string]*Destination {
 	return t.destinations
 }
+
 func (t *Table) setDestinations(destinations map[string]*Destination) {
 	t.destinations = destinations
 }
+
 func (t *Table) GetDestination(nlri bgp.AddrPrefixInterface) *Destination {
 	dest, ok := t.destinations[t.tableKey(nlri)]
 	if ok {
@@ -274,7 +282,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		}
 		p := &net.IPNet{
 			IP:   prefix.IP,
-			Mask: net.CIDRMask((ones>>3)<<3, bits),
+			Mask: net.CIDRMask(ones>>3<<3, bits),
 		}
 		mask := 0
 		div := 0
@@ -282,7 +290,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 			mask = 8 - ones&0x7
 			div = ones >> 3
 		}
-		r.WalkPrefix(p, func(n *net.IPNet, v interface{}) bool {
+		r.WalkPrefix(p, func(n *net.IPNet, v any) bool {
 			if mask != 0 && n.IP[div]>>mask != p.IP[div]>>mask {
 				return true
 			}
@@ -320,7 +328,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 
 		p := &net.IPNet{
 			IP:   network.IP,
-			Mask: net.CIDRMask((ones>>3)<<3, bits),
+			Mask: net.CIDRMask(ones>>3<<3, bits),
 		}
 
 		mask := 0
@@ -330,7 +338,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 			div = ones >> 3
 		}
 
-		r.WalkPrefix(p, func(n *net.IPNet, v interface{}) bool {
+		r.WalkPrefix(p, func(n *net.IPNet, v any) bool {
 			if mask != 0 && n.IP[div]>>mask != p.IP[div]>>mask {
 				return true
 			}

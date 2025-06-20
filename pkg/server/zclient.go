@@ -149,13 +149,13 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	msgFlags := zebra.MessageNexthop
 	switch path.GetFamily() {
 	case bgp.RF_IPv4_UC:
-		prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+		prefix = path.GetNlri().(*bgp.IPAddrPrefix).Prefix.To4()
 	case bgp.RF_IPv4_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.To4()
 	case bgp.RF_IPv6_UC:
-		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix.To16()
 	case bgp.RF_IPv6_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Prefix.To16()
 	default:
 		return nil, false
 	}
@@ -274,7 +274,8 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 			"Metric":       body.Metric,
 			"Distance":     body.Distance,
 			"Mtu":          body.Mtu,
-			"api":          header.Command.String()})
+			"api":          header.Command.String(),
+		})
 
 	switch family {
 	case bgp.RF_IPv4_UC:
@@ -293,7 +294,8 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 		logger.Error("unsupport address family",
 			log.Fields{
 				"Topic":  "Zebra",
-				"Family": family})
+				"Family": family,
+			})
 		return nil
 	}
 
@@ -308,14 +310,14 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 type mplsLabelParameter struct {
 	rangeSize     uint32
 	maps          map[uint64]*table.Bitmap
-	unassignedVrf []*table.Vrf //Vrfs which are not assigned MPLS label
+	unassignedVrf []*table.Vrf // Vrfs which are not assigned MPLS label
 }
 
 type zebraClient struct {
 	client       *zebra.Client
 	server       *BgpServer
 	nexthopCache nexthopStateCache
-	pathVrfMap   map[*table.Path]uint32 //vpn paths and nexthop vpn id
+	pathVrfMap   map[*table.Path]uint32 // vpn paths and nexthop vpn id
 	mplsLabel    mplsLabelParameter
 	dead         chan struct{}
 }
@@ -340,7 +342,8 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 				log.Fields{
 					"Topic":  "Zebra",
 					"Family": rf.String(),
-					"Error":  err})
+					"Error":  err,
+				})
 			continue
 		}
 		rib.Tables[rf] = tbl
@@ -356,7 +359,8 @@ func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
 			z.server.logger.Error("failed to update nexthop reachability",
 				log.Fields{
 					"Topic":    "Zebra",
-					"PathList": paths})
+					"PathList": paths,
+				})
 		}
 	}
 }
@@ -384,7 +388,8 @@ func (z *zebraClient) loop() {
 							log.Fields{
 								"Topic": "Zebra",
 								"Path":  path,
-								"Error": err})
+								"Error": err,
+							})
 					}
 				}
 			case *zebra.NexthopUpdateBody:
@@ -404,7 +409,8 @@ func (z *zebraClient) loop() {
 					log.Fields{
 						"Topic": "Zebra",
 						"Start": body.Start,
-						"End":   body.End})
+						"End":   body.End,
+					})
 				startEnd := uint64(body.Start)<<32 | uint64(body.End)
 				z.mplsLabel.maps[startEnd] = table.NewBitmap(int(body.End - body.Start + 1))
 				for _, vrf := range z.mplsLabel.unassignedVrf {
@@ -412,7 +418,8 @@ func (z *zebraClient) loop() {
 						z.server.logger.Error("zebra failed to assign and send vrf mpls label",
 							log.Fields{
 								"Topic": "Zebra",
-								"Error": err})
+								"Error": err,
+							})
 					}
 				}
 				z.mplsLabel.unassignedVrf = nil
@@ -490,12 +497,14 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		s.logger.Warn("cannot connect to Zebra with message version",
 			log.Fields{
 				"Topic":   "Zebra",
-				"Version": ver})
+				"Version": ver,
+			})
 		if elem < len(zapivers)-1 {
 			s.logger.Warn("going to retry another version",
 				log.Fields{
 					"Topic":   "Zebra",
-					"Version": zapivers[elem+1]})
+					"Version": zapivers[elem+1],
+				})
 		}
 	}
 	if cli == nil || err != nil {
@@ -504,7 +513,8 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 	s.logger.Info("success to connect to Zebra",
 		log.Fields{
 			"Topic":   "Zebra",
-			"Version": usingVersion})
+			"Version": usingVersion,
+		})
 
 	// Note: HELLO/ROUTER_ID_ADD messages are automatically sent to negotiate
 	// the Zebra message version in zebra.NewClient().

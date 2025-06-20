@@ -251,7 +251,7 @@ func (s *BMPStatsTLV32) ParseValue(data []byte) error {
 
 func (s *BMPStatsTLV32) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], 4)
 	binary.BigEndian.PutUint32(buf[4:8], s.Value)
 	return buf, nil
@@ -282,7 +282,7 @@ func (s *BMPStatsTLV64) ParseValue(data []byte) error {
 
 func (s *BMPStatsTLV64) Serialize() ([]byte, error) {
 	buf := make([]byte, 12)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], 8)
 	binary.BigEndian.PutUint64(buf[4:12], s.Value)
 	return buf, nil
@@ -311,7 +311,7 @@ func (s *BMPStatsTLVPerAfiSafi64) ParseValue(data []byte) error {
 	if s.Length != 11 {
 		return fmt.Errorf("invalid length: %d bytes (%d bytes expected)", s.Length, 11)
 	}
-	s.AFI = binary.BigEndian.Uint16(data[0:2])
+	s.AFI = binary.BigEndian.Uint16(data[:2])
 	s.SAFI = data[2]
 	s.Value = binary.BigEndian.Uint64(data[3:11])
 	return nil
@@ -319,7 +319,7 @@ func (s *BMPStatsTLVPerAfiSafi64) ParseValue(data []byte) error {
 
 func (s *BMPStatsTLVPerAfiSafi64) Serialize() ([]byte, error) {
 	buf := make([]byte, 15)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], 11)
 	binary.BigEndian.PutUint16(buf[4:6], s.AFI)
 	buf[6] = s.SAFI
@@ -347,11 +347,11 @@ func NewBMPStatisticsReport(p BMPPeerHeader, stats []BMPStatsTLVInterface) *BMPM
 }
 
 func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
-	body.Count = binary.BigEndian.Uint32(data[0:4])
+	body.Count = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
 	for len(data) >= 4 {
 		tl := BMPStatsTLV{
-			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Type:   binary.BigEndian.Uint16(data[:2]),
 			Length: binary.BigEndian.Uint16(data[2:4]),
 		}
 		data = data[4:]
@@ -394,7 +394,7 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte, options
 func (body *BMPStatisticsReport) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
 	buf := make([]byte, 4)
 	body.Count = uint32(len(body.Stats))
-	binary.BigEndian.PutUint32(buf[0:4], body.Count)
+	binary.BigEndian.PutUint32(buf[:4], body.Count)
 	for _, tlv := range body.Stats {
 		tlvBuf, err := tlv.Serialize()
 		if err != nil {
@@ -586,7 +586,7 @@ func (s *BMPInfoTLVString) ParseValue(data []byte) error {
 func (s *BMPInfoTLVString) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	buf = append(buf, []byte(s.Value)...)
 	return buf, nil
@@ -612,7 +612,7 @@ func (s *BMPInfoTLVUnknown) ParseValue(data []byte) error {
 func (s *BMPInfoTLVUnknown) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	buf = append(buf, s.Value...)
 	return buf, nil
@@ -637,7 +637,7 @@ func NewBMPInitiation(info []BMPInfoTLVInterface) *BMPMessage {
 func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
 	for len(data) >= 4 {
 		tl := BMPInfoTLV{
-			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Type:   binary.BigEndian.Uint16(data[:2]),
 			Length: binary.BigEndian.Uint16(data[2:4]),
 		}
 		data = data[4:]
@@ -715,7 +715,7 @@ func (s *BMPTermTLVString) ParseValue(data []byte) error {
 func (s *BMPTermTLVString) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	buf = append(buf, []byte(s.Value)...)
 	return buf, nil
@@ -741,7 +741,7 @@ func (s *BMPTermTLV16) ParseValue(data []byte) error {
 func (s *BMPTermTLV16) Serialize() ([]byte, error) {
 	s.Length = 2
 	buf := make([]byte, 6)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	binary.BigEndian.PutUint16(buf[4:6], s.Value)
 	return buf, nil
@@ -767,7 +767,7 @@ func (s *BMPTermTLVUnknown) ParseValue(data []byte) error {
 func (s *BMPTermTLVUnknown) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	buf = append(buf, s.Value...)
 	return buf, nil
@@ -792,7 +792,7 @@ func NewBMPTermination(info []BMPTermTLVInterface) *BMPMessage {
 func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
 	for len(data) >= 4 {
 		tl := BMPTermTLV{
-			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Type:   binary.BigEndian.Uint16(data[:2]),
 			Length: binary.BigEndian.Uint16(data[2:4]),
 		}
 		data = data[4:]
@@ -877,7 +877,7 @@ func (s *BMPRouteMirrTLVBGPMsg) Serialize() ([]byte, error) {
 	}
 	s.Length = uint16(len(m))
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	buf = append(buf, m...)
 	return buf, nil
@@ -903,7 +903,7 @@ func (s *BMPRouteMirrTLV16) ParseValue(data []byte) error {
 func (s *BMPRouteMirrTLV16) Serialize() ([]byte, error) {
 	s.Length = 2
 	buf := make([]byte, 6)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	binary.BigEndian.PutUint16(buf[4:6], s.Value)
 	return buf, nil
@@ -929,7 +929,7 @@ func (s *BMPRouteMirrTLVUnknown) ParseValue(data []byte) error {
 func (s *BMPRouteMirrTLVUnknown) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:2], s.Type)
+	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
 	buf = append(buf, s.Value...)
 	return buf, nil
@@ -955,7 +955,7 @@ func NewBMPRouteMirroring(p BMPPeerHeader, info []BMPRouteMirrTLVInterface) *BMP
 func (body *BMPRouteMirroring) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
 	for len(data) >= 4 {
 		tl := BMPRouteMirrTLV{
-			Type:   binary.BigEndian.Uint16(data[0:2]),
+			Type:   binary.BigEndian.Uint16(data[:2]),
 			Length: binary.BigEndian.Uint16(data[2:4]),
 		}
 		data = data[4:]
@@ -1119,5 +1119,5 @@ func SplitBMP(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if len(data) < int(tmpHdr.Length) {
 		return 0, nil, nil
 	}
-	return int(tmpHdr.Length), data[0:tmpHdr.Length], nil
+	return int(tmpHdr.Length), data[:tmpHdr.Length], nil
 }

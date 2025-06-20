@@ -51,7 +51,7 @@ func (n *VPLSNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) e
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
 	}
-	length := int(binary.BigEndian.Uint16(data[0:2]))
+	length := int(binary.BigEndian.Uint16(data[:2]))
 	if len(data) < length+2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
 	}
@@ -78,7 +78,7 @@ func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := make([]byte, 16)
 	labelBaseBuf := make([]byte, 3)
 
-	binary.BigEndian.PutUint16(buf[0:2], 17)
+	binary.BigEndian.PutUint16(buf[:2], 17)
 	rdbuf, err := n.rd.Serialize()
 	if err != nil {
 		return nil, err
@@ -89,8 +89,8 @@ func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[14:16], n.VEBlockSize)
 
 	labelBlockBase := n.LabelBlockBase << 4
-	labelBaseBuf[0] = byte((labelBlockBase >> 16) & 0xff)
-	labelBaseBuf[1] = byte((labelBlockBase >> 8) & 0xff)
+	labelBaseBuf[0] = byte(labelBlockBase >> 16 & 0xff)
+	labelBaseBuf[1] = byte(labelBlockBase >> 8 & 0xff)
 	labelBaseBuf[2] = byte(labelBlockBase & 0xff)
 	return append(buf, labelBaseBuf...), nil
 }

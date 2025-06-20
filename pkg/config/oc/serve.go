@@ -74,11 +74,13 @@ func UpdatePeerGroupConfig(logger log.Logger, curC, newC *BgpConfigSet) ([]PeerG
 			logger.Debug("Current peer-group config",
 				log.Fields{
 					"Topic": "Config",
-					"Key":   curC.PeerGroups[idx]})
+					"Key":   curC.PeerGroups[idx],
+				})
 			logger.Debug("New peer-group config",
 				log.Fields{
 					"Topic": "Config",
-					"Key":   n})
+					"Key":   n,
+				})
 			updatedPg = append(updatedPg, n)
 		}
 	}
@@ -103,11 +105,13 @@ func UpdateNeighborConfig(logger log.Logger, curC, newC *BgpConfigSet) ([]Neighb
 			logger.Debug("Current neighbor config",
 				log.Fields{
 					"Topic": "Config",
-					"Key":   curC.Neighbors[idx]})
+					"Key":   curC.Neighbors[idx],
+				})
 			logger.Debug("New neighbor config",
 				log.Fields{
 					"Topic": "Config",
-					"Key":   n})
+					"Key":   n,
+				})
 			updated = append(updated, n)
 		}
 	}
@@ -124,11 +128,13 @@ func CheckPolicyDifference(logger log.Logger, currentPolicy *RoutingPolicy, newP
 	logger.Debug("Current policy",
 		log.Fields{
 			"Topic": "Config",
-			"Key":   currentPolicy})
+			"Key":   currentPolicy,
+		})
 	logger.Debug("New policy",
 		log.Fields{
 			"Topic": "Config",
-			"Key":   newPolicy})
+			"Key":   newPolicy,
+		})
 
 	var result bool
 	if currentPolicy == nil && newPolicy == nil {

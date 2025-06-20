@@ -50,7 +50,7 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 		asList := param.GetAS()
 		as2Path := make([]uint16, 0, len(asList))
 		for _, as := range asList {
-			if as > (1<<16)-1 {
+			if as > 1<<16-1 {
 				mkAs4 = true
 				as2Path = append(as2Path, bgp.AS_TRANS)
 			} else {
@@ -152,7 +152,8 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
 				}
 				logger.Warn(fmt.Sprintf("AS4_PATH contains %s segment %s. ignore", typ, p.String()),
 					log.Fields{
-						"Topic": "Table"})
+						"Topic": "Table",
+					})
 				continue
 			}
 			as4Len += p.ASLen()
@@ -163,7 +164,8 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) error {
 	if asLen+asConfedLen < as4Len {
 		logger.Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH",
 			log.Fields{
-				"Topic": "Table"})
+				"Topic": "Table",
+			})
 		return nil
 	}
 
@@ -216,7 +218,7 @@ func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {
 		switch agg := attr.(type) {
 		case *bgp.PathAttributeAggregator:
 			addr = agg.Value.Address.String()
-			if agg.Value.AS > (1<<16)-1 {
+			if agg.Value.AS > 1<<16-1 {
 				as = agg.Value.AS
 				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
 			} else {
@@ -237,10 +239,11 @@ func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
 		switch agg := attr.(type) {
 		case *bgp.PathAttributeAggregator:
 			attr := agg
-			if attr.Value.Askind == reflect.Uint16 {
+			switch attr.Value.Askind {
+			case reflect.Uint16:
 				aggAttr = attr
 				aggAttr.Value.Askind = reflect.Uint32
-			} else if attr.Value.Askind == reflect.Uint32 {
+			case reflect.Uint32:
 				aggAttr = attr
 			}
 		case *bgp.PathAttributeAs4Aggregator:
@@ -293,10 +296,10 @@ type packerMP struct {
 }
 
 func (p *packerMP) add(path *Path) {
-	p.packer.total++
+	p.total++
 
 	if path.IsEOR() {
-		p.packer.eof = true
+		p.eof = true
 		return
 	}
 
@@ -322,7 +325,7 @@ func createMPReachMessage(path *Path) *bgp.BGPMessage {
 }
 
 func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
-	msgs := make([]*bgp.BGPMessage, 0, p.packer.total)
+	msgs := make([]*bgp.BGPMessage, 0, p.total)
 
 	for _, path := range p.withdrawals {
 		nlris := []bgp.AddrPrefixInterface{path.GetNlri()}
@@ -357,10 +360,10 @@ type packerV4 struct {
 }
 
 func (p *packerV4) add(path *Path) {
-	p.packer.total++
+	p.total++
 
 	if path.IsEOR() {
-		p.packer.eof = true
+		p.eof = true
 		return
 	}
 
@@ -412,7 +415,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		return nlris, paths[i:]
 	}
 	addpathNLRILen := 0
-	if bgp.IsAddPathEnabled(false, p.packer.family, options) {
+	if bgp.IsAddPathEnabled(false, p.family, options) {
 		addpathNLRILen = 4
 	}
 	// Header + Update (WithdrawnRoutesLen +
@@ -434,7 +437,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		}
 	}
 
-	msgs := make([]*bgp.BGPMessage, 0, p.packer.total)
+	msgs := make([]*bgp.BGPMessage, 0, p.total)
 
 	loop(0, p.withdrawals, func(nlris []*bgp.IPAddrPrefix) {
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nlris, nil, nil))

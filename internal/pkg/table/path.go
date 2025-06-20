@@ -53,12 +53,12 @@ func (b *Bitmap) GetFlag(i uint) bool {
 }
 
 func (b *Bitmap) FindandSetZeroBit() (uint, error) {
-	for i := 0; i < len(b.bitmap); i++ {
+	for i := range len(b.bitmap) {
 		if b.bitmap[i] == math.MaxUint64 {
 			continue
 		}
 		// replace this with TrailingZero64() when gobgp drops go 1.8 support.
-		for j := 0; j < 64; j++ {
+		for j := range 64 {
 			v := ^b.bitmap[i]
 			if v&(1<<uint64(j)) > 0 {
 				r := i*64 + j
@@ -235,7 +235,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 		} else {
 			switch a.GetType() {
 			case bgp.BGP_ATTR_TYPE_CLUSTER_LIST, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID:
-				if !(peer.State.PeerType == oc.PEER_TYPE_INTERNAL && peer.RouteReflector.Config.RouteReflectorClient) {
+				if peer.State.PeerType != oc.PEER_TYPE_INTERNAL || !peer.RouteReflector.Config.RouteReflectorClient {
 					// send these attributes to only rr clients
 					path.delPathAttr(a.GetType())
 				}
@@ -245,7 +245,8 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 
 	localAddress := info.LocalAddress
 	nexthop := path.GetNexthop()
-	if peer.State.PeerType == oc.PEER_TYPE_EXTERNAL {
+	switch peer.State.PeerType {
+	case oc.PEER_TYPE_EXTERNAL:
 		// NEXTHOP handling
 		if !path.IsLocal() || nexthop.IsUnspecified() {
 			path.SetNexthop(localAddress)
@@ -265,8 +266,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 		if med := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC); med != nil && !path.IsLocal() {
 			path.delPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		}
-
-	} else if peer.State.PeerType == oc.PEER_TYPE_INTERNAL {
+	case oc.PEER_TYPE_INTERNAL:
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
@@ -325,13 +325,13 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 				path.setPathAttr(bgp.NewPathAttributeClusterList(append([]string{clusterID}, newClusterList...)))
 			}
 		}
-
-	} else {
+	default:
 		logger.Warn("invalid peer type",
 			log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.State.NeighborAddress,
-				"Type":  peer.State.PeerType})
+				"Type":  peer.State.PeerType,
+			})
 	}
 	return path
 }
@@ -350,7 +350,7 @@ func (path *Path) IsLocal() bool {
 
 func (path *Path) IsIBGP() bool {
 	as := path.GetSource().AS
-	return (as == path.GetSource().LocalAS) && as != 0
+	return as == path.GetSource().LocalAS && as != 0
 }
 
 // create new PathAttributes
@@ -590,12 +590,12 @@ func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
 func (path *Path) String() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
 	if path.IsEOR() {
-		s.WriteString(fmt.Sprintf("{ %s EOR | src: %s }", path.GetFamily(), path.GetSource()))
+		fmt.Fprintf(s, "{ %s EOR | src: %s }", path.GetFamily(), path.GetSource())
 		return s.String()
 	}
-	s.WriteString(fmt.Sprintf("{ %s | ", path.GetPrefix()))
-	s.WriteString(fmt.Sprintf("src: %s", path.GetSource()))
-	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
+	fmt.Fprintf(s, "{ %s | ", path.GetPrefix())
+	fmt.Fprintf(s, "src: %s", path.GetSource())
+	fmt.Fprintf(s, ", nh: %s", path.GetNexthop())
 	if path.IsNexthopInvalid {
 		s.WriteString(" (not reachable)")
 	}
@@ -636,8 +636,7 @@ func (path *Path) GetAsPath() *bgp.PathAttributeAsPath {
 
 // GetAsPathLen returns the number of AS_PATH
 func (path *Path) GetAsPathLen() int {
-
-	var length int = 0
+	length := 0
 	if aspath := path.GetAsPath(); aspath != nil {
 		for _, as := range aspath.Value {
 			length += as.ASLen()
@@ -656,7 +655,6 @@ func (path *Path) GetAsString() string {
 
 func (path *Path) GetAsList() []uint32 {
 	return path.getAsListOfSpecificType(true, true)
-
 }
 
 func (path *Path) GetAsSeqList() []uint32 {
@@ -752,7 +750,7 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 }
 
 func isPrivateAS(as uint32) bool {
-	return (64512 <= as && as <= 65534) || (4200000000 <= as && as <= 4294967294)
+	return 64512 <= as && as <= 65534 || 4200000000 <= as && as <= 4294967294
 }
 
 func (path *Path) RemovePrivateAS(localAS uint32, option oc.RemovePrivateAsOption) {
@@ -837,7 +835,6 @@ func (path *Path) GetCommunities() []uint32 {
 // SetCommunities adds or replaces communities with new ones.
 // If the length of communities is 0 and doReplace is true, it clears communities.
 func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
-
 	if len(communities) == 0 && doReplace {
 		// clear communities
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
@@ -858,14 +855,12 @@ func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
 		newList = append(newList, communities...)
 	}
 	path.setPathAttr(bgp.NewPathAttributeCommunities(newList))
-
 }
 
 // RemoveCommunities removes specific communities.
 // If the length of communities is 0, it does nothing.
 // If all communities are removed, it removes Communities path attribute itself.
 func (path *Path) RemoveCommunities(communities []uint32) int {
-
 	if len(communities) == 0 {
 		// do nothing
 		return 0
@@ -1145,7 +1140,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_FS_IPv4_UC:
 		n := nlri.(*bgp.FlowSpecIPv4Unicast)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewFlowSpecIPv4VPN(v.Rd, n.FlowSpecNLRI.Value)
+		path.OriginInfo().nlri = bgp.NewFlowSpecIPv4VPN(v.Rd, n.Value)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
@@ -1155,7 +1150,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_FS_IPv6_UC:
 		n := nlri.(*bgp.FlowSpecIPv6Unicast)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewFlowSpecIPv6VPN(v.Rd, n.FlowSpecNLRI.Value)
+		path.OriginInfo().nlri = bgp.NewFlowSpecIPv6VPN(v.Rd, n.Value)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
@@ -1264,7 +1259,7 @@ func (p *Path) ToLocal() *Path {
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_FS_IPv4_VPN:
 		n := nlri.(*bgp.FlowSpecIPv4VPN)
-		nlri = bgp.NewFlowSpecIPv4Unicast(n.FlowSpecNLRI.Value)
+		nlri = bgp.NewFlowSpecIPv4Unicast(n.Value)
 		nlri.SetPathLocalIdentifier(localPathId)
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_IPv6_VPN:
@@ -1276,7 +1271,7 @@ func (p *Path) ToLocal() *Path {
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_FS_IPv6_VPN:
 		n := nlri.(*bgp.FlowSpecIPv6VPN)
-		nlri = bgp.NewFlowSpecIPv6Unicast(n.FlowSpecNLRI.Value)
+		nlri = bgp.NewFlowSpecIPv6Unicast(n.Value)
 		nlri.SetPathLocalIdentifier(localPathId)
 		nlri.SetPathIdentifier(pathId)
 	default:

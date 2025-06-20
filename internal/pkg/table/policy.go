@@ -185,7 +185,7 @@ const (
 	ACTION_ORIGIN
 )
 
-func NewMatchOption(c interface{}) (MatchOption, error) {
+func NewMatchOption(c any) (MatchOption, error) {
 	switch t := c.(type) {
 	case oc.MatchSetOptionsType:
 		t = t.DefaultAsNeeded()
@@ -291,7 +291,7 @@ func (p *Prefix) Match(path *Path) bool {
 		return false
 	}
 
-	return (p.MasklengthRangeMin <= pMasklen && pMasklen <= p.MasklengthRangeMax) && p.Prefix.Contains(pAddr)
+	return p.MasklengthRangeMin <= pMasklen && pMasklen <= p.MasklengthRangeMax && p.Prefix.Contains(pAddr)
 }
 
 func (lhs *Prefix) Equal(rhs *Prefix) bool {
@@ -306,7 +306,7 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 
 func (p *Prefix) PrefixString() string {
 	isZeros := func(p net.IP) bool {
-		for i := 0; i < len(p); i++ {
+		for i := range p {
 			if p[i] != 0 {
 				return false
 			}
@@ -315,7 +315,7 @@ func (p *Prefix) PrefixString() string {
 	}
 
 	ip := p.Prefix.IP
-	if p.AddressFamily == bgp.RF_IPv6_UC && isZeros(ip[0:10]) && ip[10] == 0xff && ip[11] == 0xff {
+	if p.AddressFamily == bgp.RF_IPv6_UC && isZeros(ip[:10]) && ip[10] == 0xff && ip[11] == 0xff {
 		m, _ := p.Prefix.Mask.Size()
 		return fmt.Sprintf("::FFFF:%s/%d", ip.To16(), m)
 	}
@@ -387,7 +387,7 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	} else if lhs.tree.Size() != 0 && rhs.family != lhs.family {
 		return fmt.Errorf("can't append different family")
 	}
-	rhs.tree.Walk(nil, func(r *net.IPNet, v interface{}) bool {
+	rhs.tree.Walk(nil, func(r *net.IPNet, v any) bool {
 		w, ok, _ := lhs.tree.Get(r)
 		if ok {
 			rp := v.([]*Prefix)
@@ -407,7 +407,7 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	rhs.tree.Walk(nil, func(r *net.IPNet, v interface{}) bool {
+	rhs.tree.Walk(nil, func(r *net.IPNet, v any) bool {
 		w, ok, _ := lhs.tree.Get(r)
 		if !ok {
 			return true
@@ -449,7 +449,7 @@ func (lhs *PrefixSet) Replace(arg DefinedSet) error {
 
 func (s *PrefixSet) List() []string {
 	var list []string
-	s.tree.Walk(nil, func(_ *net.IPNet, v interface{}) bool {
+	s.tree.Walk(nil, func(_ *net.IPNet, v any) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
 			list = append(list, fmt.Sprintf("%s %d..%d", p.PrefixString(), p.MasklengthRangeMin, p.MasklengthRangeMax))
@@ -461,7 +461,7 @@ func (s *PrefixSet) List() []string {
 
 func (s *PrefixSet) ToConfig() *oc.PrefixSet {
 	list := make([]oc.Prefix, 0, s.tree.Size())
-	s.tree.Walk(nil, func(_ *net.IPNet, v interface{}) bool {
+	s.tree.Walk(nil, func(_ *net.IPNet, v any) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
 			list = append(list, oc.Prefix{IpPrefix: p.PrefixString(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
@@ -968,7 +968,7 @@ func NewAsPathSet(c oc.AsPathSet) (*AsPathSet, error) {
 		if s := NewSingleAsPathMatch(x); s != nil {
 			singleList = append(singleList, s)
 		} else {
-			exp, err := regexp.Compile(strings.Replace(x, "_", ASPATH_REGEXP_MAGIC, -1))
+			exp, err := regexp.Compile(strings.ReplaceAll(x, "_", ASPATH_REGEXP_MAGIC))
 			if err != nil {
 				return nil, fmt.Errorf("invalid regular expression: %s", x)
 			}
@@ -1163,7 +1163,7 @@ func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	}
 
 	for i, v := range bgp.WellKnownCommunityNameMap {
-		if strings.Replace(strings.ToLower(arg), "_", "-", -1) == v {
+		if strings.ReplaceAll(strings.ToLower(arg), "_", "-") == v {
 			return regexp.Compile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff))
 		}
 	}
@@ -2489,7 +2489,6 @@ func NewLargeCommunityAction(c oc.SetLargeCommunity) (*LargeCommunityAction, err
 		list:       list,
 		removeList: removeList,
 	}, nil
-
 }
 
 type MedAction struct {
@@ -2814,11 +2813,12 @@ func (s *Statement) Apply(logger log.Logger, path *Path, options *PolicyOptions)
 					logger.Warn("action failed",
 						log.Fields{
 							"Topic": "policy",
-							"Error": err})
+							"Error": err,
+						})
 				}
 			}
 		}
-		//Routing action
+		// Routing action
 		if s.RouteAction == nil || reflect.ValueOf(s.RouteAction).IsNil() {
 			return ROUTE_TYPE_NONE, path
 		}
@@ -3328,7 +3328,6 @@ func (r *RoutingPolicy) getDefaultPolicy(id string, dir PolicyDirection) RouteTy
 	default:
 		return ROUTE_TYPE_NONE
 	}
-
 }
 
 func (r *RoutingPolicy) setPolicy(id string, dir PolicyDirection, policies []*Policy) error {
@@ -3846,7 +3845,8 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 		r.logger.Debug("delete policy",
 			log.Fields{
 				"Topic": "Policy",
-				"Key":   name})
+				"Key":   name,
+			})
 		delete(pMap, name)
 	} else {
 		err = y.Remove(x)
@@ -3857,7 +3857,8 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 				r.logger.Debug("delete unused statement",
 					log.Fields{
 						"Topic": "Policy",
-						"Key":   st.Name})
+						"Key":   st.Name,
+					})
 				delete(sMap, st.Name)
 			}
 		}
@@ -4001,7 +4002,8 @@ func (r *RoutingPolicy) Initialize() error {
 		r.logger.Error("failed to create routing policy",
 			log.Fields{
 				"Topic": "Policy",
-				"Error": err})
+				"Error": err,
+			})
 		return err
 	}
 	return nil
@@ -4015,7 +4017,8 @@ func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) {
 				log.Fields{
 					"Topic": "Policy",
 					"Dir":   dir,
-					"Error": err})
+					"Error": err,
+				})
 			continue
 		}
 		r.setDefaultPolicy(id, dir, def)
@@ -4045,7 +4048,8 @@ func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy
 				log.FieldFacility: log.FacilityConfig,
 
 				"Topic": "Policy",
-				"Error": err})
+				"Error": err,
+			})
 		return err
 	}
 
@@ -4232,7 +4236,8 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			}
 			return &api.CommunityAction{
 				Type:        community_action(s.Actions.BgpActions.SetCommunity.Options),
-				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
+				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList,
+			}
 		}(),
 		Med: func() *api.MedAction {
 			medStr := strings.TrimSpace(string(s.Actions.BgpActions.SetMed))

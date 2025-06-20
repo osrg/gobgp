@@ -49,17 +49,17 @@ func detectConfigFileType(path, def string) string {
 // but toml is decoded as []map[string]interface{}.
 // currently, viper can't hide this difference.
 // handle the difference here.
-func extractArray(intf interface{}) ([]interface{}, error) {
+func extractArray(intf any) ([]any, error) {
 	if intf != nil {
-		list, ok := intf.([]interface{})
+		list, ok := intf.([]any)
 		if ok {
 			return list, nil
 		}
-		l, ok := intf.([]map[string]interface{})
+		l, ok := intf.([]map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("invalid configuration: neither []interface{} nor []map[string]interface{}")
 		}
-		list = make([]interface{}, 0, len(l))
+		list = make([]any, 0, len(l))
 		for _, m := range l {
 			list = append(list, m)
 		}
@@ -299,9 +299,10 @@ func newAfiSafiConfigFromConfigStruct(c *AfiSafi) *api.AfiSafiConfig {
 
 func newApplyPolicyFromConfigStruct(c *ApplyPolicy) *api.ApplyPolicy {
 	f := func(t DefaultPolicyType) api.RouteAction {
-		if t == DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+		switch t {
+		case DEFAULT_POLICY_TYPE_ACCEPT_ROUTE:
 			return api.RouteAction_ROUTE_ACTION_ACCEPT
-		} else if t == DEFAULT_POLICY_TYPE_REJECT_ROUTE {
+		case DEFAULT_POLICY_TYPE_REJECT_ROUTE:
 			return api.RouteAction_ROUTE_ACTION_REJECT
 		}
 		return api.RouteAction_ROUTE_ACTION_UNSPECIFIED

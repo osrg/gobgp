@@ -35,7 +35,7 @@ func Test_OriginAttribute(t *testing.T) {
 	}
 	a := &api.Attribute{Attr: &api.Attribute_Origin{Origin: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewOriginAttributeFromNative(n.(*bgp.PathAttributeOrigin))
 	assert.Equal(input.Origin, output.Origin)
@@ -59,7 +59,7 @@ func Test_AsPathAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewAsPathAttributeFromNative(n.(*bgp.PathAttributeAsPath))
 	assert.True(proto.Equal(input, output))
@@ -74,7 +74,7 @@ func Test_NextHopAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewNextHopAttributeFromNative(n.(*bgp.PathAttributeNextHop))
 	assert.True(proto.Equal(input, output))
@@ -89,7 +89,7 @@ func Test_MultiExitDiscAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MultiExitDisc{MultiExitDisc: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMultiExitDiscAttributeFromNative(n.(*bgp.PathAttributeMultiExitDisc))
 	assert.True(proto.Equal(input, output))
@@ -104,7 +104,7 @@ func Test_LocalPrefAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_LocalPref{LocalPref: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewLocalPrefAttributeFromNative(n.(*bgp.PathAttributeLocalPref))
 	assert.True(proto.Equal(input, output))
@@ -117,7 +117,7 @@ func Test_AtomicAggregateAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_AtomicAggregate{AtomicAggregate: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewAtomicAggregateAttributeFromNative(n.(*bgp.PathAttributeAtomicAggregate))
 	// AtomicAggregateAttribute has no value
@@ -134,7 +134,7 @@ func Test_AggregatorAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_Aggregator{Aggregator: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewAggregatorAttributeFromNative(n.(*bgp.PathAttributeAggregator))
 	assert.True(proto.Equal(input, output))
@@ -149,7 +149,7 @@ func Test_CommunitiesAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_Communities{Communities: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewCommunitiesAttributeFromNative(n.(*bgp.PathAttributeCommunities))
 	assert.True(proto.Equal(input, output))
@@ -164,7 +164,7 @@ func Test_OriginatorIdAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_OriginatorId{OriginatorId: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewOriginatorIdAttributeFromNative(n.(*bgp.PathAttributeOriginatorId))
 	assert.True(proto.Equal(input, output))
@@ -179,7 +179,7 @@ func Test_ClusterListAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_ClusterList{ClusterList: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewClusterListAttributeFromNative(n.(*bgp.PathAttributeClusterList))
 	assert.True(proto.Equal(input, output))
@@ -209,7 +209,7 @@ func Test_MpReachNLRIAttribute_IPv4_UC(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -239,7 +239,7 @@ func Test_MpReachNLRIAttribute_IPv6_UC(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -271,7 +271,7 @@ func Test_MpReachNLRIAttribute_IPv4_MPLS(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -303,7 +303,7 @@ func Test_MpReachNLRIAttribute_IPv6_MPLS(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -331,7 +331,7 @@ func Test_MpReachNLRIAttribute_IPv4_ENCAP(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -359,7 +359,7 @@ func Test_MpReachNLRIAttribute_IPv6_ENCAP(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -392,7 +392,7 @@ func Test_MpReachNLRIAttribute_VPLS(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -429,7 +429,7 @@ func Test_MpReachNLRIAttribute_EVPN_AD_Route(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -468,7 +468,7 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -501,7 +501,7 @@ func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -537,7 +537,7 @@ func Test_MpReachNLRIAttribute_EVPN_ES_Route(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -577,7 +577,7 @@ func Test_MpReachNLRIAttribute_EVPN_Prefix_Route(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -611,7 +611,7 @@ func Test_MpReachNLRIAttribute_IPv4_VPN(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -645,7 +645,7 @@ func Test_MpReachNLRIAttribute_IPv6_VPN(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -679,7 +679,7 @@ func Test_MpReachNLRIAttribute_RTC_UC(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -723,7 +723,7 @@ func Test_MpReachNLRIAttribute_FS_IPv4_UC(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -775,7 +775,7 @@ func Test_MpReachNLRIAttribute_FS_IPv4_VPN(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -820,7 +820,7 @@ func Test_MpReachNLRIAttribute_FS_IPv6_UC(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -872,7 +872,7 @@ func Test_MpReachNLRIAttribute_FS_IPv6_VPN(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -920,7 +920,7 @@ func Test_MpReachNLRIAttribute_FS_L2_VPN(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -930,8 +930,8 @@ func Test_MpReachNLRIAttribute_IPv4_Opaque(t *testing.T) {
 	assert := assert.New(t)
 
 	nlris := []*api.NLRI{{Nlri: &api.NLRI_Opaque{Opaque: &api.OpaqueNLRI{
-		Key:   []byte{0x48, 0x65, 0x6c, 0x6c, 0x6f}, //hello
-		Value: []byte{0x77, 0x6f, 0x72, 0x6c, 0x64}, //world
+		Key:   []byte{0x48, 0x65, 0x6c, 0x6c, 0x6f}, // hello
+		Value: []byte{0x77, 0x6f, 0x72, 0x6c, 0x64}, // world
 	}}}}
 
 	input := &api.MpReachNLRIAttribute{
@@ -945,7 +945,7 @@ func Test_MpReachNLRIAttribute_IPv4_Opaque(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -974,7 +974,7 @@ func Test_MpReachNLRIAttribute_MUPInterworkSegmentDiscoveryRoute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -1003,7 +1003,7 @@ func Test_MpReachNLRIAttribute_MUPDirectSegmentDiscoveryRoute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -1059,7 +1059,7 @@ func Test_MpReachNLRIAttribute_MUPType1SessionTransformedRoute(t *testing.T) {
 
 		a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 		n, err := UnmarshalAttribute(a)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 		assert.True(proto.Equal(input, output))
@@ -1091,7 +1091,7 @@ func Test_MpReachNLRIAttribute_MUPType2SessionTransformedRoute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -1121,7 +1121,7 @@ func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpUnreach{MpUnreach: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewMpUnreachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpUnreachNLRI))
 	assert.True(proto.Equal(input, output))
@@ -1234,7 +1234,7 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_ExtendedCommunities{ExtendedCommunities: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeExtendedCommunities))
 	assert.True(proto.Equal(input, output))
@@ -1258,7 +1258,7 @@ func Test_As4PathAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_As4Path{As4Path: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewAs4PathAttributeFromNative(n.(*bgp.PathAttributeAs4Path))
 	assert.True(proto.Equal(input, output))
@@ -1274,7 +1274,7 @@ func Test_As4AggregatorAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_As4Aggregator{As4Aggregator: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewAs4AggregatorAttributeFromNative(n.(*bgp.PathAttributeAs4Aggregator))
 	assert.True(proto.Equal(input, output))
@@ -1292,7 +1292,7 @@ func Test_PmsiTunnelAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_PmsiTunnel{PmsiTunnel: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewPmsiTunnelAttributeFromNative(n.(*bgp.PathAttributePmsiTunnel))
 	assert.True(proto.Equal(input, output))
@@ -1331,7 +1331,7 @@ func Test_TunnelEncapAttribute(t *testing.T) {
 	}
 	a := &api.Attribute{Attr: &api.Attribute_TunnelEncap{TunnelEncap: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewTunnelEncapAttributeFromNative(n.(*bgp.PathAttributeTunnelEncap))
 	assert.True(proto.Equal(input, output))
@@ -1363,7 +1363,7 @@ func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_Ip6ExtendedCommunities{Ip6ExtendedCommunities: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewIP6ExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeIP6ExtendedCommunities))
 	assert.True(proto.Equal(input, output))
@@ -1388,7 +1388,7 @@ func Test_AigpAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_Aigp{Aigp: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewAigpAttributeFromNative(n.(*bgp.PathAttributeAigp))
 	assert.True(proto.Equal(input, output))
@@ -1414,7 +1414,7 @@ func Test_LargeCommunitiesAttribute(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_LargeCommunities{LargeCommunities: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewLargeCommunitiesAttributeFromNative(n.(*bgp.PathAttributeLargeCommunities))
 	assert.True(proto.Equal(input, output))
@@ -1424,14 +1424,14 @@ func Test_UnknownAttribute(t *testing.T) {
 	assert := assert.New(t)
 
 	input := &api.UnknownAttribute{
-		Flags: (1 << 6) | (1 << 7), // OPTIONAL and TRANSITIVE
+		Flags: 1<<6 | 1<<7,
 		Type:  0xff,
 		Value: []byte{0x11, 0x22, 0x33, 0x44},
 	}
 
 	a := &api.Attribute{Attr: &api.Attribute_Unknown{Unknown: input}}
 	n, err := UnmarshalAttribute(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output, _ := NewUnknownAttributeFromNative(n.(*bgp.PathAttributeUnknown))
 	assert.True(proto.Equal(input, output))

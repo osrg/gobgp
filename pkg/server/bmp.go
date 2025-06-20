@@ -88,7 +88,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 		b.s.logger.Debug("Connecting to BMP server",
 			log.Fields{
 				"Topic": "bmp",
-				"Key":   b.host})
+				"Key":   b.host,
+			})
 		conn, err := net.Dial("tcp", b.host)
 		if err != nil {
 			select {
@@ -104,7 +105,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 			b.s.logger.Debug("Connected to BMP server",
 				log.Fields{
 					"Topic": "bmp",
-					"Key":   b.host})
+					"Key":   b.host,
+				})
 			return conn.(*net.TCPConn)
 		}
 	}
@@ -161,7 +163,8 @@ func (b *bmpClient) loop() {
 					b.s.logger.Warn("failed to write to bmp server",
 						log.Fields{
 							"Topic": "bmp",
-							"Key":   b.host})
+							"Key":   b.host,
+						})
 				}
 				return err
 			}

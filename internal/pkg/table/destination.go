@@ -29,8 +29,10 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-var SelectionOptions oc.RouteSelectionOptionsConfig
-var UseMultiplePaths oc.UseMultiplePathsConfig
+var (
+	SelectionOptions oc.RouteSelectionOptionsConfig
+	UseMultiplePaths oc.UseMultiplePathsConfig
+)
 
 type BestPathReason uint8
 
@@ -98,7 +100,7 @@ func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
 		return false
 	}
 
-	if (lhs.AS == rhs.AS) && lhs.ID.Equal(rhs.ID) && lhs.LocalID.Equal(rhs.LocalID) && lhs.Address.Equal(rhs.Address) {
+	if lhs.AS == rhs.AS && lhs.ID.Equal(rhs.ID) && lhs.LocalID.Equal(rhs.LocalID) && lhs.Address.Equal(rhs.Address) {
 		return true
 	}
 	return false
@@ -109,11 +111,11 @@ func (i *PeerInfo) String() string {
 		return "local"
 	}
 	s := bytes.NewBuffer(make([]byte, 0, 64))
-	s.WriteString(fmt.Sprintf("{ %s | ", i.Address))
-	s.WriteString(fmt.Sprintf("as: %d", i.AS))
-	s.WriteString(fmt.Sprintf(", id: %s", i.ID))
+	fmt.Fprintf(s, "{ %s | ", i.Address)
+	fmt.Fprintf(s, "as: %d", i.AS)
+	fmt.Fprintf(s, ", id: %s", i.ID)
 	if i.RouteReflectorClient {
-		s.WriteString(fmt.Sprintf(", cluster-id: %s", i.RouteReflectorClusterID))
+		fmt.Fprintf(s, ", cluster-id: %s", i.RouteReflectorClusterID)
 	}
 	s.WriteString(" }")
 	return s.String()
@@ -273,7 +275,8 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 		logger.Debug("Removing withdrawals",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   dest.GetNlri().String()})
+				"Key":   dest.GetNlri().String(),
+			})
 	}
 
 	// If we have some withdrawals and no know-paths, it means it is safe to
@@ -282,7 +285,8 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 		logger.Debug("Found withdrawals for path(s) that did not get installed",
 			log.Fields{
 				"Topic": "Table",
-				"Key":   dest.GetNlri().String()})
+				"Key":   dest.GetNlri().String(),
+			})
 		return nil
 	}
 
@@ -302,7 +306,8 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 			log.Fields{
 				"Topic": "Table",
 				"Key":   dest.GetNlri().String(),
-				"Path":  withdraw})
+				"Path":  withdraw,
+			})
 		return nil
 	} else {
 		p := dest.knownPathList[isFound]
@@ -331,7 +336,8 @@ func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
 					log.Fields{
 						"Topic": "Table",
 						"Key":   dest.GetNlri().String(),
-						"Path":  path})
+						"Path":  path,
+					})
 			}
 
 			found = i
@@ -459,18 +465,18 @@ func getMultiBestPath(id string, pathList []*Path) []*Path {
 	// path is that it has a reachable next hop. Technically, if the
 	// first path is unreachable, then it's assumed none of them
 	// are. Therefore, we return an empty slice.
-	if len(pathList) == 0 || (len(pathList) > 0 && pathList[0].IsNexthopInvalid) {
+	if len(pathList) == 0 || len(pathList) > 0 && pathList[0].IsNexthopInvalid {
 		// No reachable next hop found, so we return an empty slice.
 		return []*Path{}
 	}
-	var best *Path = pathList[0]
+	best := pathList[0]
 
 	// Attempt to find the first path that is both reachable and worse than the
 	// best path. Then return a slice paths from the best to that index.
 	index := sort.Search(len(pathList), func(i int) bool {
 		return pathList[i].IsNexthopInvalid || pathList[i].Compare(best) != 0
 	})
-	return pathList[0:index]
+	return pathList[:index]
 }
 
 func (u *Update) GetWithdrawnPath() []*Path {
@@ -611,7 +617,6 @@ func compareByLocalPref(path1, path2 *Path) *Path {
 }
 
 func compareByLocalOrigin(path1, path2 *Path) *Path {
-
 	// Select locally originating path as best path.
 	// Locally originating routes are network routes, redistributed routes,
 	// or aggregated routes.
@@ -738,7 +743,6 @@ func compareByMED(path1, path2 *Path) *Path {
 }
 
 func compareByASNumber(path1, path2 *Path) *Path {
-
 	//Select the path based on source (iBGP/eBGP) peer.
 	//
 	//eBGP path is preferred over iBGP. If both paths are from same kind of

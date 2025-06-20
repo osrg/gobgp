@@ -289,7 +289,7 @@ func TestMrtBgp4mpMessage(t *testing.T) {
 func TestMrtSplit(t *testing.T) {
 	var b bytes.Buffer
 	numwrite, numread := 10, 0
-	for i := 0; i < numwrite; i++ {
+	for range numwrite {
 		msg := bgp.NewBGPKeepAliveMessage()
 		m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
 		mm, _ := NewMRTMessage(time.Unix(1234, 0), BGP4MP, MESSAGE, m1)

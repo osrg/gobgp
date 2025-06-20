@@ -27,11 +27,11 @@ var forcedOverwrittenConfig = []string{
 	"neighbor.timers.config.minimum-advertisement-interval",
 }
 
-var configuredFields map[string]interface{}
+var configuredFields map[string]any
 
-func RegisterConfiguredFields(addr string, n interface{}) {
+func RegisterConfiguredFields(addr string, n any) {
 	if configuredFields == nil {
-		configuredFields = make(map[string]interface{})
+		configuredFields = make(map[string]any)
 	}
 	configuredFields[addr] = n
 }
@@ -515,7 +515,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	return nil
 }
 
-func overwriteConfig(c, pg interface{}, tagPrefix string, v *viper.Viper) {
+func overwriteConfig(c, pg any, tagPrefix string, v *viper.Viper) {
 	nValue := reflect.Indirect(reflect.ValueOf(c))
 	pgValue := reflect.Indirect(reflect.ValueOf(pg))
 	pgType := reflect.Indirect(pgValue).Type()

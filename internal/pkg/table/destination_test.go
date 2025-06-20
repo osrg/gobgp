@@ -34,6 +34,7 @@ func TestDestinationNewIPv4(t *testing.T) {
 	ipv4d := NewDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv4d)
 }
+
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
@@ -47,12 +48,14 @@ func TestDestinationSetFamily(t *testing.T) {
 	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
+
 func TestDestinationGetFamily(t *testing.T) {
 	dd := &Destination{}
 	dd.setFamily(bgp.RF_IPv6_UC)
 	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv6_UC)
 }
+
 func TestDestinationSetNlri(t *testing.T) {
 	dd := &Destination{}
 	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.1")
@@ -60,6 +63,7 @@ func TestDestinationSetNlri(t *testing.T) {
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
+
 func TestDestinationGetNlri(t *testing.T) {
 	dd := &Destination{}
 	nlri := bgp.NewIPAddrPrefix(24, "10.110.123.1")
@@ -69,7 +73,6 @@ func TestDestinationGetNlri(t *testing.T) {
 }
 
 func TestCalculate2(t *testing.T) {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -253,7 +256,6 @@ func DestCreatePath(peerD []*PeerInfo) []*Path {
 }
 
 func updateMsgD1() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -274,7 +276,6 @@ func updateMsgD1() *bgp.BGPMessage {
 }
 
 func updateMsgD2() *bgp.BGPMessage {
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -293,6 +294,7 @@ func updateMsgD2() *bgp.BGPMessage {
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
+
 func updateMsgD3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
@@ -409,7 +411,7 @@ func TestIdMap(t *testing.T) {
 		}
 	}
 	d.localIdMap.Expand()
-	for i := 0; i < 64; i++ {
+	for i := range 64 {
 		id, _ := d.localIdMap.FindandSetZeroBit()
 		assert.Equal(t, id, uint(64+i))
 	}

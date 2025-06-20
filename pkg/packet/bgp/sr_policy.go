@@ -281,10 +281,10 @@ func (t *TunnelEncapSubTLVSRCandidatePathName) DecodeFromBytes(data []byte) erro
 		return err
 	}
 	// Skip Reserved byte
-	if int(t.Length) < t.TunnelEncapSubTLV.Len() {
+	if int(t.Length) < t.Len() {
 		return malformedAttrListErr("TunnelEncapSubTLVSRCandidatePathName length is too short")
 	}
-	t.CandidatePathName = string(value[1:t.TunnelEncapSubTLV.Len()])
+	t.CandidatePathName = string(value[1:t.Len()])
 	return nil
 }
 
@@ -423,6 +423,7 @@ func (b *BSID) String() string {
 func (b *BSID) Serialize() []byte {
 	return b.Value
 }
+
 func (b *BSID) Len() int {
 	return len(b.Value)
 }
@@ -616,12 +617,14 @@ func (s *SegmentListWeight) DecodeFromBytes(data []byte) error {
 	s.Weight = binary.BigEndian.Uint32(value[2:6])
 	return nil
 }
+
 func (s *SegmentListWeight) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
 	buf[0] = s.Flags
 	binary.BigEndian.PutUint32(buf[2:6], s.Weight)
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
+
 func (s *SegmentListWeight) String() string {
 	return fmt.Sprintf("{Flags: 0x%02x, Weight: %d}", s.Flags, s.Weight)
 }
@@ -656,12 +659,14 @@ func (s *SegmentTypeA) DecodeFromBytes(data []byte) error {
 	s.Label = binary.BigEndian.Uint32(value[2:6])
 	return nil
 }
+
 func (s *SegmentTypeA) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
 	buf[0] = s.Flags
 	binary.BigEndian.PutUint32(buf[2:6], s.Label)
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
+
 func (s *SegmentTypeA) String() string {
 	return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Label: %d TC: %d S: %t TTL: %d}",
 		s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10,
@@ -708,7 +713,7 @@ func (s *SRv6EndpointBehaviorStructure) DecodeFromBytes(data []byte) error {
 	if len(data) < 8 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Malformed BGP message")
 	}
-	behavior := binary.BigEndian.Uint16(data[0:2])
+	behavior := binary.BigEndian.Uint16(data[:2])
 	s.Behavior = SRBehavior(behavior)
 	s.BlockLen = data[4]
 	s.NodeLen = data[5]
@@ -719,7 +724,7 @@ func (s *SRv6EndpointBehaviorStructure) DecodeFromBytes(data []byte) error {
 
 func (s *SRv6EndpointBehaviorStructure) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint16(buf[0:2], uint16(s.Behavior))
+	binary.BigEndian.PutUint16(buf[:2], uint16(s.Behavior))
 	buf[4] = s.BlockLen
 	buf[5] = s.NodeLen
 	buf[6] = s.FuncLen
@@ -775,6 +780,7 @@ func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
 	}
 	return nil
 }
+
 func (s *SegmentTypeB) Serialize() ([]byte, error) {
 	buf := make([]byte, 18)
 	buf[0] = s.Flags
@@ -787,6 +793,7 @@ func (s *SegmentTypeB) Serialize() ([]byte, error) {
 
 	return s.TunnelEncapSubTLV.Serialize(buf)
 }
+
 func (s *SegmentTypeB) String() string {
 	if s.SRv6EBS == nil {
 		return fmt.Sprintf("{V-flag: %t, A-flag:, %t S-flag: %t, B-flag: %t, Sid: %s}",
@@ -796,7 +803,6 @@ func (s *SegmentTypeB) String() string {
 			s.Flags&0x80 == 0x80, s.Flags&0x40 == 0x40, s.Flags&0x20 == 0x20, s.Flags&0x10 == 0x10, net.IP(s.SID).To16().String(),
 			s.SRv6EBS.String())
 	}
-
 }
 
 func (s *SegmentTypeB) MarshalJSON() ([]byte, error) {
@@ -842,7 +848,7 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 	value = value[1:]
 	var segments []TunnelEncapSubTLVInterface
 	p := 0
-	for p < t.TunnelEncapSubTLV.Len()-4 {
+	for p < t.Len()-4 {
 		var segment TunnelEncapSubTLVInterface
 		switch SegmentType(value[0]) {
 		case SegmentListSubTLVWeight:
@@ -850,8 +856,8 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 			if err := t.Weight.DecodeFromBytes(value); err != nil {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 			}
-			p += t.Weight.TunnelEncapSubTLV.Len()
-			value = value[t.Weight.TunnelEncapSubTLV.Len():]
+			p += t.Weight.Len()
+			value = value[t.Weight.Len():]
 			continue
 		case TypeA:
 			segment = &SegmentTypeA{}

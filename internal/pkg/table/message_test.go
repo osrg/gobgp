@@ -382,7 +382,7 @@ func TestASPathAs4TransMultipleParams(t *testing.T) {
 
 func TestASPathAs4TransMultipleLargeParams(t *testing.T) {
 	as1 := make([]uint16, 0, 255)
-	for i := 0; i < 255-5; i++ {
+	for i := range 255 - 5 {
 		as1 = append(as1, uint16(i+1))
 	}
 	as1 = append(as1, []uint16{17676, 2914, 174, 50607}...)
@@ -598,7 +598,7 @@ func TestMergeV4NLRIs(t *testing.T) {
 	nr := 1024
 	paths := make([]*Path, 0, nr)
 	addrs := make([]string, 0, nr)
-	for i := 0; i < nr; i++ {
+	for i := range nr {
 		addrs = append(addrs, fmt.Sprintf("1.1.%d.%d", i>>8&0xff, i&0xff))
 		nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(32, addrs[i])}
 		msg := bgp.NewBGPUpdateMessage(nil, attrs, nlri)
@@ -660,7 +660,7 @@ func TestMergeV4Withdraw(t *testing.T) {
 	nr := 1024
 	paths := make([]*Path, 0, nr)
 	addrs := make([]string, 0, nr)
-	for i := 0; i < nr; i++ {
+	for i := range nr {
 		addrs = append(addrs, fmt.Sprintf("1.1.%d.%d", i>>8&0xff, i&0xff))
 		nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(32, addrs[i])}
 		// use different attribute for each nlri

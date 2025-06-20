@@ -29,7 +29,7 @@ func Test_ParsePath(t *testing.T) {
 	buf := "10.0.0.0/24 rt 100:100 med 10 nexthop 10.0.0.1 aigp metric 10 local-pref 100"
 
 	path, err := parsePath(bgp.RF_IPv4_UC, strings.Split(buf, " "))
-	assert.Nil(err)
+	assert.NoError(err)
 	i := 0
 	attrs, _ := apiutil.GetNativePathAttributes(path)
 	for _, a := range attrs {
@@ -39,7 +39,7 @@ func Test_ParsePath(t *testing.T) {
 }
 
 func Test_ParseEvpnPath(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name string
 		path string
 	}{
@@ -55,7 +55,7 @@ func Test_ParseEvpnPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert := assert.New(t)
 			path, err := parsePath(bgp.RF_EVPN, strings.Split(tt.path, " "))
-			assert.Nil(err)
+			assert.NoError(err)
 			i := 0
 			attrs, _ := apiutil.GetNativePathAttributes(path)
 			for _, a := range attrs {
@@ -67,7 +67,7 @@ func Test_ParseEvpnPath(t *testing.T) {
 }
 
 func Test_ParseFlowSpecPath(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name        string
 		rf          bgp.Family
 		path        string
@@ -87,7 +87,7 @@ func Test_ParseFlowSpecPath(t *testing.T) {
 			if tt.expectedErr {
 				assert.NotNil(err)
 			} else {
-				assert.Nil(err)
+				assert.NoError(err)
 				i := 0
 				attrs, _ := apiutil.GetNativePathAttributes(path)
 				for _, a := range attrs {

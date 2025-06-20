@@ -37,7 +37,7 @@ func Test_MultiProtocolCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_MultiProtocol{MultiProtocol: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 	c := n.(*bgp.CapMultiProtocol)
 	assert.Equal(bgp.RF_IPv4_UC, c.CapValue)
 
@@ -52,7 +52,7 @@ func Test_RouteRefreshCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_RouteRefresh{RouteRefresh: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output := NewRouteRefreshCapability(n.(*bgp.CapRouteRefresh))
 	assert.True(proto.Equal(input, output))
@@ -65,7 +65,7 @@ func Test_CarryingLabelInfoCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_CarryingLabelInfo{CarryingLabelInfo: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output := NewCarryingLabelInfoCapability(n.(*bgp.CapCarryingLabelInfo))
 	assert.True(proto.Equal(input, output))
@@ -91,7 +91,7 @@ func Test_ExtendedNexthopCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_ExtendedNexthop{ExtendedNexthop: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 	c := n.(*bgp.CapExtendedNexthop)
 	assert.Equal(1, len(c.Tuples))
 	assert.Equal(uint16(bgp.AFI_IP), c.Tuples[0].NLRIAFI)
@@ -121,7 +121,7 @@ func Test_GracefulRestartCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_GracefulRestart{GracefulRestart: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	c := n.(*bgp.CapGracefulRestart)
 	assert.Equal(1, len(c.Tuples))
@@ -144,7 +144,7 @@ func Test_FourOctetASNumberCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_FourOctetAsn{FourOctetAsn: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	c := n.(*bgp.CapFourOctetASNumber)
 	assert.Equal(uint32(100), c.CapValue)
@@ -170,7 +170,7 @@ func Test_AddPathCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_AddPath{AddPath: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	c := n.(*bgp.CapAddPath)
 	assert.Equal(1, len(c.Tuples))
@@ -188,7 +188,7 @@ func Test_EnhancedRouteRefreshCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_EnhancedRouteRefresh{EnhancedRouteRefresh: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output := NewEnhancedRouteRefreshCapability(n.(*bgp.CapEnhancedRouteRefresh))
 	assert.True(proto.Equal(input, output))
@@ -212,7 +212,7 @@ func Test_LongLivedGracefulRestartCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_LongLivedGracefulRestart{LongLivedGracefulRestart: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	c := n.(*bgp.CapLongLivedGracefulRestart)
 	assert.Equal(1, len(c.Tuples))
@@ -232,7 +232,7 @@ func Test_RouteRefreshCiscoCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_RouteRefreshCisco{RouteRefreshCisco: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	output := NewRouteRefreshCiscoCapability(n.(*bgp.CapRouteRefreshCisco))
 	assert.True(proto.Equal(input, output))
@@ -248,7 +248,7 @@ func Test_UnknownCapability(t *testing.T) {
 
 	a := &api.Capability{Cap: &api.Capability_Unknown{Unknown: input}}
 	n, err := unmarshalCapability(a)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	c := n.(*bgp.CapUnknown)
 	assert.Equal(bgp.BGPCapabilityCode(0xff), c.CapCode)

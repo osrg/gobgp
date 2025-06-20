@@ -158,7 +158,8 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 			"Key":      name,
 			"Rd":       rd,
 			"ImportRt": importRt,
-			"ExportRt": exportRt})
+			"ExportRt": exportRt,
+		})
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
 		Id:       id,
@@ -194,7 +195,8 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 			"Rd":        vrf.Rd,
 			"ImportRt":  vrf.ImportRt,
 			"ExportRt":  vrf.ExportRt,
-			"MplsLabel": vrf.MplsLabel})
+			"MplsLabel": vrf.MplsLabel,
+		})
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]
 	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)

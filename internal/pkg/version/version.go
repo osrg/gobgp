@@ -17,16 +17,20 @@ package version
 
 import "fmt"
 
-const MAJOR uint = 3
-const MINOR uint = 37
-const PATCH uint = 0
+const (
+	MAJOR uint = 3
+	MINOR uint = 37
+	PATCH uint = 0
+)
 
-var COMMIT string = ""
-var IDENTIFIER string = ""
-var METADATA string = ""
+var (
+	COMMIT     string = ""
+	IDENTIFIER string = ""
+	METADATA   string = ""
+)
 
 func Version() string {
-	var suffix string = ""
+	suffix := ""
 	if len(IDENTIFIER) > 0 {
 		suffix = fmt.Sprintf("-%s", IDENTIFIER)
 	}
@@ -37,7 +41,6 @@ func Version() string {
 
 	if len(COMMIT) > 0 {
 		suffix = fmt.Sprintf("%s"+"commit.%s", suffix, COMMIT)
-
 	}
 
 	if len(METADATA) > 0 {

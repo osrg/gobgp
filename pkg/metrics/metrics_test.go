@@ -29,7 +29,7 @@ func TestMetrics(test *testing.T) {
 			ListenPort: 10179,
 		},
 	})
-	assert.Nil(err)
+	assert.NoError(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p1 := &api.Peer{
@@ -42,7 +42,7 @@ func TestMetrics(test *testing.T) {
 		},
 	}
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
-	assert.Nil(err)
+	assert.NoError(err)
 
 	t := server.NewBgpServer()
 	go t.Serve()
@@ -53,7 +53,7 @@ func TestMetrics(test *testing.T) {
 			ListenPort: -1,
 		},
 	})
-	assert.Nil(err)
+	assert.NoError(err)
 	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
@@ -82,7 +82,7 @@ func TestMetrics(test *testing.T) {
 	})
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
-	assert.Nil(err)
+	assert.NoError(err)
 	<-ch
 
 	family := &api.Family{
@@ -137,9 +137,9 @@ func TestMetrics(test *testing.T) {
 		}
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		metrics, err := registry.Gather()
-		assert.Nil(err)
+		assert.NoError(err)
 		assert.NotEmpty(metrics)
 		time.Sleep(10 * time.Millisecond)
 	}

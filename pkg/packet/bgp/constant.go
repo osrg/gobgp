@@ -241,7 +241,7 @@ var DECNumOpNameMap = map[DECNumOp]string{
 	DEC_NUM_OP_LT_EQ:  "<=",
 	DEC_NUM_OP_NOT_EQ: "!=",
 	DEC_NUM_OP_FALSE:  "false",
-	//DEC_NUM_OP_OR:   " ", // duplicate with DEC_NUM_OP_TRUE
+	// DEC_NUM_OP_OR:   " ", // duplicate with DEC_NUM_OP_TRUE
 	DEC_NUM_OP_AND: "&",
 	DEC_NUM_OP_END: "E",
 }

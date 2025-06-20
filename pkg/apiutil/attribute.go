@@ -204,7 +204,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 					}
 					// Get total length of Segment List Sub TLV
 					for _, seg := range s.Segments {
-						s.TunnelEncapSubTLV.Length += uint16(seg.Len() + 2) // Adding 1 byte of type and 1 byte of length for each Segment object
+						s.Length += uint16(seg.Len() + 2) // Adding 1 byte of type and 1 byte of length for each Segment object
 					}
 					subTlv = s
 				case *api.TunnelEncapTLV_TLV_Unknown:
@@ -385,7 +385,7 @@ func MarshalSRv6TLVs(tlvs []bgp.PrefixSIDTLVInterface) ([]*api.PrefixSID_TLV, er
 			}
 			mtlv.Tlv = &api.PrefixSID_TLV_L3Service{L3Service: o}
 		case *bgp.SRv6ServiceTLV:
-			switch t.TLV.Type {
+			switch t.Type {
 			case bgp.TLVTypeSRv6L3Service:
 				o := &api.SRv6L3ServiceTLV{}
 				o.SubTlvs, err = MarshalSRv6SubTLVs(t.SubTLVs)
@@ -793,7 +793,8 @@ func MarshalLsSRv6SIDNLRI(n *bgp.LsSrv6SIDNLRI) (*api.LsAddrPrefix_LsNLRI, error
 			LocalNode:          ln,
 			Srv6SidInformation: ssi,
 			MultiTopoId:        mti,
-		}}}
+		},
+	}}
 
 	return srv6sid, nil
 }
@@ -813,6 +814,7 @@ func MarshalLsBgpPeerSegmentSid(n *bgp.LsBgpPeerSegmentSID) (*api.LsBgpPeerSegme
 
 	return sid, nil
 }
+
 func UnmarshalLsBgpPeerSegmentSid(a *api.LsBgpPeerSegmentSID) (*bgp.LsBgpPeerSegmentSID, error) {
 	flags := &bgp.LsAttributeBgpPeerSegmentSIDFlags{
 		Value:      a.Flags.Value,
@@ -2920,7 +2922,7 @@ func UnmarshalSRSegments(s []*api.TunnelEncapSubTLVSRSegmentList_Segment) ([]bgp
 		return nil, nil
 	}
 	segments := make([]bgp.TunnelEncapSubTLVInterface, len(s))
-	for i := 0; i < len(s); i++ {
+	for i := range s {
 		switch v := s[i].GetSegment().(type) {
 		case *api.TunnelEncapSubTLVSRSegmentList_Segment_A:
 			seg := &bgp.SegmentTypeA{
@@ -3002,7 +3004,7 @@ func UnmarshalPrefixSID(psid *api.PrefixSID) (*bgp.PathAttributePrefixSID, error
 					Length: tlvLength,
 				},
 			}
-			s.PathAttribute.Length += tlvLength
+			s.Length += tlvLength
 			// Storing Sub TLVs in a Service TLV
 			o.SubTLVs = append(o.SubTLVs, tlvs...)
 			// Adding Service TLV to Path Attribute TLV slice.
@@ -3012,7 +3014,7 @@ func UnmarshalPrefixSID(psid *api.PrefixSID) (*bgp.PathAttributePrefixSID, error
 		}
 	}
 	// Final Path Attribute Length is 3 bytes of the Path Attribute header longer
-	s.PathAttribute.Length += 3
+	s.Length += 3
 	return s, nil
 }
 
@@ -3051,9 +3053,9 @@ func UnmarshalSubTLVs(stlvs map[uint32]*api.SRv6SubTLVs) (uint16, []bgp.PrefixSI
 				}
 				// SRv6 Information Sub TLV length consists 1 byte Resrved2, 16 bytes SID, 1 byte flags, 2 bytes Endpoint Behavior
 				// 1 byte Reserved3 and length of Sub Sub TLVs
-				info.SubTLV.Length = 1 + 16 + 1 + 2 + 1 + sstlvslength
+				info.Length = 1 + 16 + 1 + 2 + 1 + sstlvslength
 				// For total Prefix SID TLV length, adding 3 bytes of the TLV header + 1 byte of Reserved1
-				l += info.SubTLV.Length + 4
+				l += info.Length + 4
 				p = append(p, info)
 			}
 		default:
