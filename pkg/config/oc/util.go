@@ -332,7 +332,7 @@ func newPrefixLimitFromConfigStruct(c *AfiSafi) *api.PrefixLimit {
 	if c.PrefixLimit.Config.MaxPrefixes == 0 {
 		return nil
 	}
-	afi, safi := bgp.FamilyToAfiSafi(bgp.Family(c.State.Family))
+	afi, safi := bgp.FamilyToAfiSafi(c.State.Family)
 	return &api.PrefixLimit{
 		Family:               &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
 		MaxPrefixes:          c.PrefixLimit.Config.MaxPrefixes,

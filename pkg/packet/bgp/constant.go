@@ -266,14 +266,14 @@ var DECNumOpValueMap = map[string]DECNumOp{
 
 func (f DECNumOp) String() string {
 	ops := make([]string, 0)
-	logicFlag := DECNumOp(f & 0xc0) // higher 2 bits
+	logicFlag := f & 0xc0 // higher 2 bits
 	if logicFlag&DEC_NUM_OP_AND > 0 {
 		ops = append(ops, DECNumOpNameMap[DEC_NUM_OP_AND])
 	} else {
 		ops = append(ops, " ") // DEC_NUM_OP_OR
 	}
 	// Omits DEC_NUM_OP_END
-	cmpFlag := DECNumOp(f & 0x7) // lower 3 bits
+	cmpFlag := f & 0x7 // lower 3 bits
 	for v, s := range DECNumOpNameMap {
 		if cmpFlag == v {
 			ops = append(ops, s)

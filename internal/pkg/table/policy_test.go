@@ -1821,7 +1821,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 		desc: "no-communities-one-ext-community",
 		inPath: func() *Path {
 			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
-				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 				AS:           65001,
 				LocalAdmin:   200,
 				IsTransitive: true,
@@ -1851,7 +1851,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 		inPath: func() *Path {
 			communities := bgp.NewPathAttributeCommunities([]uint32{stringToCommunityValue("65001:111")})
 			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
-				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 				AS:           65001,
 				LocalAdmin:   200,
 				IsTransitive: true,
@@ -1877,7 +1877,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 				stringToCommunityValue("65001:222"),
 			})
 			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
-				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 				AS:           65001,
 				LocalAdmin:   200,
 				IsTransitive: true,
@@ -1907,7 +1907,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 				0xFFFFFF04,
 			})
 			eComAsSpecific := &bgp.TwoOctetAsSpecificExtended{
-				SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+				SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 				AS:           65001,
 				LocalAdmin:   200,
 				IsTransitive: true,
@@ -2353,55 +2353,55 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	eComAsSpecific1 := &bgp.TwoOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65001,
 		LocalAdmin:   200,
 		IsTransitive: true,
 	}
 	eComIpPrefix1 := &bgp.IPv4AddressSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		IPv4:         net.ParseIP("10.0.0.1"),
 		LocalAdmin:   300,
 		IsTransitive: true,
 	}
 	eComAs4Specific1 := &bgp.FourOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65030000,
 		LocalAdmin:   200,
 		IsTransitive: true,
 	}
 	eComAsSpecific2 := &bgp.TwoOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65002,
 		LocalAdmin:   200,
 		IsTransitive: false,
 	}
 	eComIpPrefix2 := &bgp.IPv4AddressSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		IPv4:         net.ParseIP("10.0.0.2"),
 		LocalAdmin:   300,
 		IsTransitive: false,
 	}
 	eComAs4Specific2 := &bgp.FourOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65030001,
 		LocalAdmin:   200,
 		IsTransitive: false,
 	}
 	eComAsSpecific3 := &bgp.TwoOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_ORIGIN,
 		AS:           65010,
 		LocalAdmin:   300,
 		IsTransitive: true,
 	}
 	eComIpPrefix3 := &bgp.IPv4AddressSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_ORIGIN,
 		IPv4:         net.ParseIP("10.0.10.10"),
 		LocalAdmin:   400,
 		IsTransitive: true,
 	}
 	eComAs4Specific3 := &bgp.FourOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65030002,
 		LocalAdmin:   500,
 		IsTransitive: true,
@@ -2539,55 +2539,55 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	nexthop := bgp.NewPathAttributeNextHop("10.2.1.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	eComAsSpecific1 := &bgp.TwoOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65001,
 		LocalAdmin:   200,
 		IsTransitive: true,
 	}
 	eComIpPrefix1 := &bgp.IPv4AddressSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		IPv4:         net.ParseIP("10.0.0.1"),
 		LocalAdmin:   300,
 		IsTransitive: true,
 	}
 	eComAs4Specific1 := &bgp.FourOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65030000,
 		LocalAdmin:   200,
 		IsTransitive: true,
 	}
 	eComAsSpecific2 := &bgp.TwoOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65002,
 		LocalAdmin:   200,
 		IsTransitive: false,
 	}
 	eComIpPrefix2 := &bgp.IPv4AddressSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		IPv4:         net.ParseIP("10.0.0.2"),
 		LocalAdmin:   300,
 		IsTransitive: false,
 	}
 	eComAs4Specific2 := &bgp.FourOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65030001,
 		LocalAdmin:   200,
 		IsTransitive: false,
 	}
 	eComAsSpecific3 := &bgp.TwoOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_ORIGIN,
 		AS:           65010,
 		LocalAdmin:   300,
 		IsTransitive: true,
 	}
 	eComIpPrefix3 := &bgp.IPv4AddressSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_ORIGIN,
 		IPv4:         net.ParseIP("10.0.10.10"),
 		LocalAdmin:   400,
 		IsTransitive: true,
 	}
 	eComAs4Specific3 := &bgp.FourOctetAsSpecificExtended{
-		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
 		AS:           65030002,
 		LocalAdmin:   500,
 		IsTransitive: true,
@@ -3276,7 +3276,7 @@ func stringToCommunityValue(comStr string) uint32 {
 func createPolicyDefinition(defName string, stmt ...oc.Statement) oc.PolicyDefinition {
 	pd := oc.PolicyDefinition{
 		Name:       defName,
-		Statements: []oc.Statement(stmt),
+		Statements: stmt,
 	}
 	return pd
 }
@@ -3284,7 +3284,7 @@ func createPolicyDefinition(defName string, stmt ...oc.Statement) oc.PolicyDefin
 func createRoutingPolicy(ds oc.DefinedSets, pd ...oc.PolicyDefinition) oc.RoutingPolicy {
 	pl := oc.RoutingPolicy{
 		DefinedSets:       ds,
-		PolicyDefinitions: []oc.PolicyDefinition(pd),
+		PolicyDefinitions: pd,
 	}
 	return pl
 }

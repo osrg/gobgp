@@ -1945,7 +1945,7 @@ func MarshalRT(rt bgp.ExtendedCommunityInterface) (*api.RouteTarget, error) {
 			IsTransitive: true,
 			SubType:      uint32(bgp.EC_SUBTYPE_ROUTE_TARGET),
 			Asn:          uint32(v.AS),
-			LocalAdmin:   uint32(v.LocalAdmin),
+			LocalAdmin:   v.LocalAdmin,
 		}}
 	case *bgp.IPv4AddressSpecificExtended:
 		r.Rt = &api.RouteTarget_Ipv4AddressSpecific{Ipv4AddressSpecific: &api.IPv4AddressSpecificExtended{
@@ -1958,7 +1958,7 @@ func MarshalRT(rt bgp.ExtendedCommunityInterface) (*api.RouteTarget, error) {
 		r.Rt = &api.RouteTarget_FourOctetAsSpecific{FourOctetAsSpecific: &api.FourOctetAsSpecificExtended{
 			IsTransitive: true,
 			SubType:      uint32(bgp.EC_SUBTYPE_ROUTE_TARGET),
-			Asn:          uint32(v.AS),
+			Asn:          v.AS,
 			LocalAdmin:   uint32(v.LocalAdmin),
 		}}
 	default:
@@ -2021,7 +2021,7 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 					IsTransitive: v.IsTransitive,
 					SubType:      uint32(v.SubType),
 					Asn:          uint32(v.AS),
-					LocalAdmin:   uint32(v.LocalAdmin),
+					LocalAdmin:   v.LocalAdmin,
 				},
 			}
 		case *bgp.IPv4AddressSpecificExtended:
@@ -2038,7 +2038,7 @@ func NewExtendedCommunitiesAttributeFromNative(a *bgp.PathAttributeExtendedCommu
 				FourOctetAsSpecific: &api.FourOctetAsSpecificExtended{
 					IsTransitive: v.IsTransitive,
 					SubType:      uint32(v.SubType),
-					Asn:          uint32(v.AS),
+					Asn:          v.AS,
 					LocalAdmin:   uint32(v.LocalAdmin),
 				},
 			}
@@ -2402,7 +2402,7 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) (*api.Tu
 					SrSegmentList: &api.TunnelEncapSubTLVSRSegmentList{
 						Weight: &api.SRWeight{
 							Flags:  uint32(sv.Weight.Flags),
-							Weight: uint32(sv.Weight.Weight),
+							Weight: sv.Weight.Weight,
 						},
 						Segments: s,
 					},

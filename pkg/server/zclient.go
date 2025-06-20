@@ -460,7 +460,7 @@ func (z *zebraClient) loop() {
 					vrfID := uint32(0)
 					for _, vrf := range z.server.listVrf() {
 						if vrf.Name == msg.Neighbor.Config.Vrf {
-							vrfID = uint32(vrf.Id)
+							vrfID = vrf.Id
 						}
 					}
 					z.client.SendNexthopRegister(vrfID, body, false)

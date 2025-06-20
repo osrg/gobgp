@@ -174,7 +174,7 @@ func (e *VPLSExtended) Serialize() ([]byte, error) {
 	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
 	buf[1] = byte(EC_SUBTYPE_L2_INFO)
 	buf[2] = byte(LAYER2ENCAPSULATION_TYPE_VPLS)
-	buf[3] = byte(e.ControlFlags)
+	buf[3] = e.ControlFlags
 	binary.BigEndian.PutUint16(buf[4:6], e.MTU)
 	// 6-8: reserved, but Juniper says this is "site preference"
 	return buf, nil

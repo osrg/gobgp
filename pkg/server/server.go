@@ -891,7 +891,7 @@ func (s *BgpServer) setPathVrfIdMap(paths []*table.Path, m map[uint32]bool) {
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 			for _, vrf := range s.globalRib.Vrfs {
 				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
-					m[uint32(vrf.Id)] = true
+					m[vrf.Id] = true
 				}
 			}
 		default:
@@ -2057,9 +2057,7 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 		}
 
 		protos := make([]string, 0, len(r.RouteTypes))
-		for _, p := range r.RouteTypes {
-			protos = append(protos, string(p))
-		}
+		protos = append(protos, r.RouteTypes...)
 		var err error
 		s.zclient, err = newZebraClient(s, r.Url, protos, uint8(r.Version), r.NexthopTriggerEnable, uint8(r.NexthopTriggerDelay), r.MplsLabelRangeSize, software)
 		return err
@@ -2818,7 +2816,7 @@ func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*table.Loo
 			as = peer.AS()
 			m = s.rsRib
 		}
-		af := bgp.Family(family)
+		af := family
 		tbl, ok := m.Tables[af]
 		if !ok {
 			return fmt.Errorf("address family: %s not supported", af)
@@ -3031,7 +3029,7 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.Family) (info *table.Tabl
 			m = s.rsRib
 		}
 
-		af := bgp.Family(family)
+		af := family
 		tbl, ok := m.Tables[af]
 		if !ok {
 			return fmt.Errorf("address family: %s not supported", af)
@@ -4312,7 +4310,7 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn fun
 			rpki := &api.Rpki{
 				Conf: &api.RPKIConf{
 					Address:    r.Config.Address,
-					RemotePort: uint32(r.Config.Port),
+					RemotePort: r.Config.Port,
 				},
 				State: &api.RPKIState{
 					Uptime:        oc.ProtoTimestamp(r.State.Uptime),
@@ -4585,7 +4583,7 @@ func (s *BgpServer) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) 
 				"OldLevel": oldLevel,
 			})
 	} else {
-		s.logger.SetLevel(log.LogLevel(newLevel))
+		s.logger.SetLevel(newLevel)
 		s.logger.Info("Logging level changed",
 			log.Fields{
 				"Topic":    "Config",

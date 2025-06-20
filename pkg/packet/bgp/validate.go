@@ -141,7 +141,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			return false, err
 		}
 	case *PathAttributeOrigin:
-		v := uint8(p.Value)
+		v := p.Value
 		if v != BGP_ORIGIN_ATTR_TYPE_IGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_EGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
@@ -283,7 +283,7 @@ func validateAsPathValueBytes(data []byte) (bool, error) {
 			} else {
 				segLength *= 2
 			}
-			if int(segLength) > len(data) {
+			if segLength > len(data) {
 				return false, NewMessageError(eCode, eSubCode, nil, "seg length is short")
 			}
 			data = data[segLength:]

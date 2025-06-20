@@ -610,7 +610,7 @@ func (s *BMPInfoTLVUnknown) ParseValue(data []byte) error {
 }
 
 func (s *BMPInfoTLVUnknown) Serialize() ([]byte, error) {
-	s.Length = uint16(len([]byte(s.Value)))
+	s.Length = uint16(len(s.Value))
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
@@ -765,7 +765,7 @@ func (s *BMPTermTLVUnknown) ParseValue(data []byte) error {
 }
 
 func (s *BMPTermTLVUnknown) Serialize() ([]byte, error) {
-	s.Length = uint16(len([]byte(s.Value)))
+	s.Length = uint16(len(s.Value))
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
@@ -927,7 +927,7 @@ func (s *BMPRouteMirrTLVUnknown) ParseValue(data []byte) error {
 }
 
 func (s *BMPRouteMirrTLVUnknown) Serialize() ([]byte, error) {
-	s.Length = uint16(len([]byte(s.Value)))
+	s.Length = uint16(len(s.Value))
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)

@@ -932,7 +932,7 @@ func modAction(name, op string, args []string) error {
 		if err != nil {
 			return err
 		}
-		stmt.Actions.Med.Value = int64(med)
+		stmt.Actions.Med.Value = med
 		switch strings.ToLower(args[0]) {
 		case "add":
 			stmt.Actions.Med.Type = api.MedAction_TYPE_MOD

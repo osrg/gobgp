@@ -41,15 +41,15 @@ type Bitmap struct {
 }
 
 func (b *Bitmap) Flag(i uint) {
-	b.bitmap[i/64] |= 1 << uint(i%64)
+	b.bitmap[i/64] |= 1 << (i % 64)
 }
 
 func (b *Bitmap) Unflag(i uint) {
-	b.bitmap[i/64] &^= 1 << uint(i%64)
+	b.bitmap[i/64] &^= 1 << (i % 64)
 }
 
 func (b *Bitmap) GetFlag(i uint) bool {
-	return b.bitmap[i/64]&(1<<uint(i%64)) > 0
+	return b.bitmap[i/64]&(1<<(i%64)) > 0
 }
 
 func (b *Bitmap) FindandSetZeroBit() (uint, error) {
@@ -1115,7 +1115,7 @@ func (lhs *Path) Compare(rhs *Path) int {
 	l1 := lhs.GetAsPathLen()
 	l2 := rhs.GetAsPathLen()
 	if l1 != l2 {
-		return int(l2) - int(l1)
+		return l2 - l1
 	}
 
 	o1, _ := lhs.GetOrigin()
@@ -1321,32 +1321,32 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To4()),
+			IP:   T.Prefix.To4(),
 			Mask: net.CIDRMask(int(T.Length), 32),
 		}
 	case *bgp.IPv6AddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To16()),
+			IP:   T.Prefix.To16(),
 			Mask: net.CIDRMask(int(T.Length), 128),
 		}
 	case *bgp.LabeledIPAddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To4()),
+			IP:   T.Prefix.To4(),
 			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 32),
 		}
 	case *bgp.LabeledIPv6AddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To16()),
+			IP:   T.Prefix.To16(),
 			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8, 128),
 		}
 	case *bgp.LabeledVPNIPAddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To4()),
+			IP:   T.Prefix.To4(),
 			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8-T.RD.Len()*8, 32),
 		}
 	case *bgp.LabeledVPNIPv6AddrPrefix:
 		return &net.IPNet{
-			IP:   net.IP(T.Prefix.To16()),
+			IP:   T.Prefix.To16(),
 			Mask: net.CIDRMask(int(T.Length)-T.Labels.Len()*8-T.RD.Len()*8, 128),
 		}
 	}

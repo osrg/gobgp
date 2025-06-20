@@ -1055,7 +1055,7 @@ func (c *CapFQDN) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
 	rest -= 1
-	domainNameLen := uint8(data[hostNameLen+1])
+	domainNameLen := data[hostNameLen+1]
 	if rest < int(domainNameLen) {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
@@ -1120,7 +1120,7 @@ func (c *CapSoftwareVersion) DecodeFromBytes(data []byte) error {
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilitySoftwareVersion bytes allowed")
 	}
-	softwareVersionLen := uint8(data[0])
+	softwareVersionLen := data[0]
 	if len(data[1:]) < int(softwareVersionLen) || softwareVersionLen > 64 || softwareVersionLen == 0 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of software version capablity")
 	}
@@ -2064,7 +2064,7 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	if len(data) < 1 {
 		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "LabeledVPNIPAddrPrefix not enough data")
 	}
-	l.Length = uint8(data[0])
+	l.Length = data[0]
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data, options...)
 	if int(l.Length)-8*l.Labels.Len() < 0 {
@@ -2234,7 +2234,7 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 	if len(data) < 1 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "LabeledIPAddrPrefix not enough data")
 	}
-	l.Length = uint8(data[0])
+	l.Length = data[0]
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data)
 
@@ -4531,7 +4531,7 @@ func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 	case 2:
 		binary.BigEndian.PutUint32(buf[1:], uint32(v.Value))
 	case 3:
-		binary.BigEndian.PutUint64(buf[1:], uint64(v.Value))
+		binary.BigEndian.PutUint64(buf[1:], v.Value)
 	default:
 		return nil, fmt.Errorf("invalid value size(too big): %d", v.Value)
 	}
@@ -6397,7 +6397,7 @@ func (l *LsTLV) Serialize(value []byte) ([]byte, error) {
 
 	buf := make([]byte, tlvHdrLen+len(value))
 	binary.BigEndian.PutUint16(buf[:2], uint16(l.Type))
-	binary.BigEndian.PutUint16(buf[2:4], uint16(l.Length))
+	binary.BigEndian.PutUint16(buf[2:4], l.Length)
 	copy(buf[4:], value)
 
 	return buf, nil
@@ -8180,7 +8180,7 @@ func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
 	var length uint16
 	for _, r := range l.Ranges {
 		ranges = append(ranges, LsSrLabelRange{
-			Range: uint32(r.End - r.Begin),
+			Range: r.End - r.Begin,
 			FirstLabel: LsTLVSIDLabel{
 				LsTLV: LsTLV{
 					Type:   BGP_ASPATH_ATTR_TYPE_SET,
@@ -8339,7 +8339,7 @@ func NewLsTLVSrLocalBlock(l *LsSrLocalBlock) *LsTLVSrLocalBlock {
 	var length uint16
 	for _, r := range l.Ranges {
 		ranges = append(ranges, LsSrLabelRange{
-			Range: uint32(r.End - r.Begin),
+			Range: r.End - r.Begin,
 			FirstLabel: LsTLVSIDLabel{
 				LsTLV: LsTLV{
 					Type:   BGP_ASPATH_ATTR_TYPE_SET,
@@ -10781,7 +10781,7 @@ func (a *AsPathParam) GetAS() []uint32 {
 
 func (a *AsPathParam) Serialize() ([]byte, error) {
 	buf := make([]byte, 2+len(a.AS)*2)
-	buf[0] = uint8(a.Type)
+	buf[0] = a.Type
 	buf[1] = a.Num
 	for j, as := range a.AS {
 		binary.BigEndian.PutUint16(buf[2+j*2:], as)
@@ -12385,7 +12385,7 @@ func (e *ColorExtended) Serialize() ([]byte, error) {
 	typ, subType := e.GetTypes()
 	buf[0] = byte(typ)
 	buf[1] = byte(subType)
-	binary.BigEndian.PutUint32(buf[4:8], uint32(e.Color))
+	binary.BigEndian.PutUint32(buf[4:8], e.Color)
 	return buf, nil
 }
 
@@ -13326,7 +13326,7 @@ func (e *TrafficRemarkExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
 	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
 	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK)
-	buf[7] = byte(e.DSCP)
+	buf[7] = e.DSCP
 	return buf, nil
 }
 
@@ -13399,7 +13399,7 @@ func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityI
 	case EC_SUBTYPE_L2_INFO:
 		switch data[2] {
 		case byte(LAYER2ENCAPSULATION_TYPE_VPLS):
-			controlFlags := uint8(data[3])
+			controlFlags := data[3]
 			mtu := binary.BigEndian.Uint16(data[4:6])
 			return NewVPLSExtended(controlFlags, mtu), nil
 		}

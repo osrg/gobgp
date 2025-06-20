@@ -2440,7 +2440,7 @@ func (a *LargeCommunityAction) ToConfig() *oc.SetLargeCommunity {
 	}
 	return &oc.SetLargeCommunity{
 		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{CommunitiesList: cs},
-		Options:                 oc.BgpSetCommunityOptionType(a.action),
+		Options:                 a.action,
 	}
 }
 
@@ -2661,7 +2661,7 @@ func (a *AsPathPrependAction) Apply(path *Path, option *PolicyOptions) (*Path, e
 
 func (a *AsPathPrependAction) ToConfig() *oc.SetAsPathPrepend {
 	return &oc.SetAsPathPrepend{
-		RepeatN: uint8(a.repeat),
+		RepeatN: a.repeat,
 		As: func() string {
 			if a.useLeftMost {
 				return "last-as"

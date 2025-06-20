@@ -273,7 +273,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			Version:              uint32(newConfig.Zebra.Config.Version),
 			NexthopTriggerEnable: newConfig.Zebra.Config.NexthopTriggerEnable,
 			NexthopTriggerDelay:  uint32(newConfig.Zebra.Config.NexthopTriggerDelay),
-			MplsLabelRangeSize:   uint32(newConfig.Zebra.Config.MplsLabelRangeSize),
+			MplsLabelRangeSize:   newConfig.Zebra.Config.MplsLabelRangeSize,
 			SoftwareName:         newConfig.Zebra.Config.SoftwareName,
 		}); err != nil {
 			bgpServer.Log().Fatal("failed to set zebra config",
@@ -352,7 +352,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			Vrf: &api.Vrf{
 				Name:     vrf.Config.Name,
 				Rd:       a,
-				Id:       uint32(vrf.Config.Id),
+				Id:       vrf.Config.Id,
 				ImportRt: importRtList,
 				ExportRt: exportRtList,
 			},

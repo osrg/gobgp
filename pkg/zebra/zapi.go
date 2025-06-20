@@ -1753,7 +1753,7 @@ func (h *Header) serialize() ([]byte, error) {
 		binary.BigEndian.PutUint16(buf[4:6], uint16(h.VrfID))
 		binary.BigEndian.PutUint16(buf[6:8], uint16(h.Command))
 	case 5, 6:
-		binary.BigEndian.PutUint32(buf[4:8], uint32(h.VrfID))
+		binary.BigEndian.PutUint32(buf[4:8], h.VrfID)
 		binary.BigEndian.PutUint16(buf[8:10], uint16(h.Command))
 	default:
 		return nil, fmt.Errorf("unsupported ZAPI version: %d", h.Version)
@@ -2031,7 +2031,7 @@ func (b *interfaceUpdateBody) decodeFromBytes(data []byte, version uint8, softwa
 			if len(data) < 20+4+int(b.linkParam.bwClassNum)*4 || int(b.linkParam.bwClassNum) >= len(b.linkParam.unrsvBw) {
 				return errors.New("interfaceUpdateBody: lack or wrong data")
 			}
-			for i := range uint32(b.linkParam.bwClassNum) {
+			for i := range b.linkParam.bwClassNum {
 				b.linkParam.unrsvBw[i] = math.Float32frombits(binary.BigEndian.Uint32(data[20+i*4 : 24+i*4]))
 			}
 			data = data[20+b.linkParam.bwClassNum*4:]
@@ -2239,10 +2239,10 @@ func (n Nexthop) string() string {
 		"type: %s, vrf_id: %d, ifindex: %d, flags: %d, gate: %s, blackholeType: %d, label_num: %d, weight: %d, backupNum: %d, srteColor: %d",
 		n.Type.String(), n.VrfID, n.Ifindex, n.flags, n.Gate.String(),
 		n.blackholeType, n.LabelNum, n.Weight, n.backupNum, n.srteColor))
-	for i := range uint8(n.LabelNum) {
+	for i := range n.LabelNum {
 		s = append(s, fmt.Sprintf(" label[%d]: %d", i, n.MplsLabels[i]))
 	}
-	for i := range uint8(n.backupNum) {
+	for i := range n.backupNum {
 		s = append(s, fmt.Sprintf(" backupIndex[%d]: %d", i, n.backupIndex[i]))
 	}
 	return strings.Join(s, ", ")
@@ -2322,7 +2322,7 @@ func (n Nexthop) encode(version uint8, software Software, processFlag nexthopPro
 	}
 	if nhType == nexthopTypeBlackhole.toEach(version) { // case NEXTHOP_TYPE_BLACKHOLE:
 		// frr: stream_putc(s, api_nh->bh_type);
-		buf = append(buf, uint8(n.blackholeType))
+		buf = append(buf, n.blackholeType)
 	}
 	if n.flags&zapiNexthopFlagLabel > 0 || (message&MessageLabel > 0 &&
 		version == 5 ||
@@ -2330,7 +2330,7 @@ func (n Nexthop) encode(version uint8, software Software, processFlag nexthopPro
 			software.version >= 6 && software.version < 7.3) {
 		tmpbuf := make([]byte, 1+4*n.LabelNum)
 		tmpbuf[0] = n.LabelNum // frr: stream_putc(s, api_nh->label_num);
-		for i := range uint8(n.LabelNum) {
+		for i := range n.LabelNum {
 			// frr uses stream_put for mpls label array.
 			// stream_put is unaware of byteorder coversion.
 			// Therefore LittleEndian is used instead of BigEndian.
@@ -2341,7 +2341,7 @@ func (n Nexthop) encode(version uint8, software Software, processFlag nexthopPro
 	}
 	if n.flags&zapiNexthopFlagWeight > 0 && n.Weight > 0 {
 		tmpbuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(tmpbuf, uint32(n.Weight))
+		binary.BigEndian.PutUint32(tmpbuf, n.Weight)
 		buf = append(buf, tmpbuf...) // frr: stream_putl(s, api_nh->Weight);
 	}
 	if apiFlag&flagEvpnRoute.ToEach(version, software) > 0 {
@@ -2351,14 +2351,14 @@ func (n Nexthop) encode(version uint8, software Software, processFlag nexthopPro
 	// added in frr7.5 (Color for Segment Routing TE.)
 	if message&messageSRTE > 0 && (version == 6 && software.name == "frr" && software.version >= 7.5) {
 		tmpbuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(tmpbuf, uint32(n.srteColor))
+		binary.BigEndian.PutUint32(tmpbuf, n.srteColor)
 		buf = append(buf, tmpbuf...) // frr: stream_putl(s, api_nh->srte_color);
 	}
 	// added in frr7.4 (Index of backup nexthop)
 	if n.flags&zapiNexthopFlagHasBackup > 0 {
 		tmpbuf := make([]byte, 1+1*n.backupNum)
 		tmpbuf[0] = n.backupNum // frr: stream_putc(s, api_nh->backup_num);
-		for i := range uint8(n.backupNum) {
+		for i := range n.backupNum {
 			tmpbuf[i+1] = n.backupIndex[i]
 		}
 		buf = append(buf, tmpbuf...)
@@ -2366,7 +2366,7 @@ func (n Nexthop) encode(version uint8, software Software, processFlag nexthopPro
 	// added in frr8.1
 	if n.flags&zapiNexthopFlagSeg6 > 0 {
 		tmpbuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(tmpbuf, uint32(n.seg6localAction))
+		binary.BigEndian.PutUint32(tmpbuf, n.seg6localAction)
 		buf = append(buf, tmpbuf...) // stream_putl(s, api_nh->seg6local_action);
 		// frr: stream_write(s, &api_nh->seg6local_ctx, sizeof(struct seg6local_context));
 		buf = append(buf, n.seg6localCtx.encode()...)
@@ -2405,7 +2405,7 @@ func (n *Nexthop) decode(data []byte, version uint8, software Software, family u
 		if len(data) < offset+1 {
 			return 0, errors.New("lack of bytes for nexthop flags. need 1")
 		}
-		n.flags = uint8(data[offset]) // frr: STREAM_GETC(s, api_nh->flags);
+		n.flags = data[offset] // frr: STREAM_GETC(s, api_nh->flags);
 		offset++
 	}
 
@@ -2462,14 +2462,14 @@ func (n *Nexthop) decode(data []byte, version uint8, software Software, family u
 		if len(data) < offset+1 {
 			return 0, errors.New("lack of bytes for label_num. need 1")
 		}
-		n.LabelNum = uint8(data[offset]) // frr: STREAM_GETC(s, api_nh->label_num);
+		n.LabelNum = data[offset] // frr: STREAM_GETC(s, api_nh->label_num);
 		offset++
 		if n.LabelNum > maxMplsLabel {
 			n.LabelNum = maxMplsLabel
 		}
 		if n.LabelNum > 0 {
 			n.MplsLabels = make([]uint32, n.LabelNum)
-			for i := range uint8(n.LabelNum) {
+			for i := range n.LabelNum {
 				if len(data) < offset+4 {
 					return 0, fmt.Errorf("lack of bytes for mpls label. need %d but %d", 4, len(data)-offset)
 				}
@@ -2519,7 +2519,7 @@ func (n *Nexthop) decode(data []byte, version uint8, software Software, family u
 			if len(data) < offset+int(n.backupNum) {
 				return 0, errors.New("lack of bytes for backup_num")
 			}
-			for i := range uint8(n.backupNum) {
+			for i := range n.backupNum {
 				// frr STREAM_GETC(s, api_nh->backup_idx[i]);
 				n.backupIndex[i] = data[offset]
 				offset++
@@ -2713,7 +2713,7 @@ func (b *IPRouteBody) serialize(version uint8, software Software) ([]byte, error
 		binary.BigEndian.PutUint16(buf[3:5], uint16(b.Safi))
 	} else { // version >= 4
 		// frr: stream_putw(s, api->instance);
-		binary.BigEndian.PutUint16(buf[1:3], uint16(b.instance))
+		binary.BigEndian.PutUint16(buf[1:3], b.instance)
 		// frr: stream_putl(s, api->flags);
 		binary.BigEndian.PutUint32(buf[3:7], uint32(b.Flags))
 		if version == 6 && software.name == "frr" && software.version >= 7.5 {
@@ -2913,7 +2913,7 @@ func (b *IPRouteBody) decodeFromBytes(data []byte, version uint8, software Softw
 		b.Message = MessageFlag(data[0]) // frr: STREAM_GETC(s, api->message);
 		data = data[1:]
 	}
-	b.Safi = Safi(SafiUnicast)
+	b.Safi = SafiUnicast
 	b.Prefix.Family = b.API.addressFamily(version) // return AF_UNSPEC if version > 4
 	var evpnNexthop Nexthop
 	if version > 4 {
@@ -3038,7 +3038,7 @@ func (b *IPRouteBody) decodeFromBytes(data []byte, version uint8, software Softw
 		if pos+1 > rest {
 			return fmt.Errorf("MessageIFIndex message length invalid pos:%d rest:%d", pos, rest)
 		}
-		numIfIndex := uint8(data[pos])
+		numIfIndex := data[pos]
 		pos++
 		for range numIfIndex {
 			if pos+4 > rest {
@@ -3234,10 +3234,10 @@ func (n *RegisteredNexthop) serialize(version uint8, software Software) ([]byte,
 	}
 	buf := make([]byte, bufInitSize)
 	// Connected (1 byte)
-	buf[0] = byte(n.connected) // stream_putc(s, (connected) ? 1 : 0);
+	buf[0] = n.connected // stream_putc(s, (connected) ? 1 : 0);
 	pos := 1
 	if version == 6 && software.name == "frr" && software.version >= 8.2 {
-		buf[1] = byte(n.resolveViaDef)
+		buf[1] = n.resolveViaDef
 		binary.BigEndian.PutUint16(buf[1:3], uint16(SafiUnicast)) // stream_putw(s, PREFIX_FAMILY(p));
 		pos += 3
 	}
@@ -3273,13 +3273,13 @@ func (n *RegisteredNexthop) decodeFromBytes(data []byte, version uint8, software
 		return errors.New("RegisteredNexthop data length is too short")
 	}
 	// Connected (1 byte)
-	n.connected = uint8(data[0])
+	n.connected = data[0]
 	data = data[1:]
 	if version == 6 && software.name == "frr" && software.version >= 8.2 {
 		if len(data) < 3 {
 			return errors.New("RegisteredNexthop data length is too short")
 		}
-		n.resolveViaDef = uint8(data[0])            // STREAM_GETC(s, resolve_via_default);
+		n.resolveViaDef = data[0]                   // STREAM_GETC(s, resolve_via_default);
 		n.safi = binary.BigEndian.Uint16(data[1:3]) // STREAM_GETW(s, safi);
 		data = data[3:]
 	}
@@ -3509,7 +3509,7 @@ func (b *NexthopUpdateBody) decodeFromBytes(data []byte, version uint8, software
 	// List of Nexthops
 	b.Nexthops = []Nexthop{}
 
-	processFlag := nexthopProcessFlag(nexthopHasType)
+	processFlag := nexthopHasType
 	if version == 6 && software.name == "frr" {
 		if software.version >= 7.3 {
 			processFlag |= nexthopHasVrfID | nexthopHasFlag | nexthopProcessIPToIPIFindex

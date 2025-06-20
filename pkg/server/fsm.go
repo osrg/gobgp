@@ -1427,7 +1427,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						state := &fsm.pConf.GracefulRestart.State
 						state.Enabled = true
 						cap := gr[len(gr)-1].(*bgp.CapGracefulRestart)
-						state.PeerRestartTime = uint16(cap.Time)
+						state.PeerRestartTime = cap.Time
 
 						for _, t := range cap.Tuples {
 							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToFamily(t.AFI, t.SAFI)]

@@ -1654,7 +1654,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	}
 
 	// s1 should receive this route from s2
-	t1 := time.NewTimer(time.Duration(30 * time.Second))
+	t1 := time.NewTimer(30 * time.Second)
 	for found := false; !found; {
 		select {
 		case ev := <-watcher.Event():
@@ -1698,7 +1698,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	s1Peer := s2.neighborMap["127.0.0.1"]
 	s2.propagateUpdate(s1Peer, []*table.Path{rtcPath})
 
-	t2 := time.NewTimer(time.Duration(2 * time.Second))
+	t2 := time.NewTimer(2 * time.Second)
 	for done := false; !done; {
 		select {
 		case ev := <-watcher.Event():
@@ -1760,7 +1760,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 	}
 
 	// s1 should receive this route from s2
-	t1 := time.NewTimer(time.Duration(30 * time.Second))
+	t1 := time.NewTimer(30 * time.Second)
 	for found := false; !found; {
 		select {
 		case ev := <-watcher1.Event():
@@ -1791,7 +1791,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t2 := time.NewTimer(time.Duration(10 * time.Second))
+	t2 := time.NewTimer(10 * time.Second)
 	withdrawRTC := false
 	withdrawVPN := false
 	for !withdrawRTC || !withdrawVPN {
@@ -1879,7 +1879,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	}
 
 	// s1 should receive this route from s2
-	t1 := time.NewTimer(time.Duration(30 * time.Second))
+	t1 := time.NewTimer(30 * time.Second)
 	for found := false; !found; {
 		select {
 		case ev := <-watcher1.Event():
@@ -1919,7 +1919,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	}
 
 	// s1 should not receive withdrawn route from s2
-	t1 = time.NewTimer(time.Duration(5 * time.Second))
+	t1 = time.NewTimer(5 * time.Second)
 	rtcNumber := 0
 	for graceful := false; !graceful; {
 		select {

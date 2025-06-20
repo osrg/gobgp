@@ -460,7 +460,7 @@ func TestAggregator4BytesASes(t *testing.T) {
 	assert.Equal(t, getAggr4(msg).Value.AS, as4)
 	assert.Equal(t, getAggr4(msg).Value.Address.String(), addr)
 
-	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeAggregator(uint32(as), addr)}, nil).Body.(*bgp.BGPUpdate)
+	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeAggregator(as, addr)}, nil).Body.(*bgp.BGPUpdate)
 	// 4byte capable to 4byte capable for 2 bytes AS
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)

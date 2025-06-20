@@ -231,7 +231,7 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < 5 {
 		return nil, errNotAllPeerBytesAvailable
 	}
-	p.Type = uint8(data[0])
+	p.Type = data[0]
 	p.BgpId = net.IP(data[1:5])
 	data = data[5:]
 
@@ -270,7 +270,7 @@ func (p *Peer) Serialize() ([]byte, error) {
 	var err error
 	var bbuf []byte
 	buf := make([]byte, 5)
-	buf[0] = uint8(p.Type)
+	buf[0] = p.Type
 	copy(buf[1:], p.BgpId.To4())
 	if p.Type&1 > 0 {
 		buf = append(buf, p.IpAddress.To16()...)
@@ -603,7 +603,7 @@ func (p *GeoPeer) DecodeFromBytes(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("not all GeoPeer bytes are available")
 	}
 	// Peer IP Address and Peer AS should not be included
-	p.Type = uint8(data[0])
+	p.Type = data[0]
 	if p.Type != uint8(0) {
 		return nil, fmt.Errorf("unsupported peer type for GeoPeer: %d", p.Type)
 	}
