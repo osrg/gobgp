@@ -5046,7 +5046,10 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 		if w.opts.peerState {
 			for t := range s.neighborMap.IterBuffered() {
 				p := t.Val
-				w.notify(newWatchEventPeer(p, nil, p.fsm.state, PEER_EVENT_INIT))
+				p.fsm.lock.RLock()
+				state := p.fsm.state
+				p.fsm.lock.RUnlock()
+				w.notify(newWatchEventPeer(p, nil, state, PEER_EVENT_INIT))
 			}
 			w.notify(&watchEventPeer{Type: PEER_EVENT_END_OF_INIT})
 
