@@ -324,8 +324,8 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		send(bgpReceivedOpenTotalDesc, msg.Received.Open)
 		send(bgpReceivedRefreshTotalDesc, msg.Received.Refresh)
 		send(bgpReceivedKeepaliveTotalDesc, msg.Received.Keepalive)
-		send(bgpReceivedWithdrawUpdateTotalDesc, uint64(msg.Received.WithdrawUpdate))
-		send(bgpReceivedWithdrawPrefixTotalDesc, uint64(msg.Received.WithdrawPrefix))
+		send(bgpReceivedWithdrawUpdateTotalDesc, msg.Received.WithdrawUpdate)
+		send(bgpReceivedWithdrawPrefixTotalDesc, msg.Received.WithdrawPrefix)
 		send(bgpReceivedDiscardedTotalDesc, msg.Received.Discarded)
 		send(bgpReceivedMessageTotalDesc, msg.Received.Total)
 

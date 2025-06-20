@@ -77,12 +77,12 @@ func newRootCmd() *cobra.Command {
 				}
 			}
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if globalOpts.GenCmpl {
-				cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
-			} else {
-				cmd.HelpFunc()(cmd, args)
+				return cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
 			}
+			cmd.HelpFunc()(cmd, args)
+			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			defer cleanup()

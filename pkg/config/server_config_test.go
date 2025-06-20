@@ -21,7 +21,7 @@ type configErrorLogger struct {
 func (l *configErrorLogger) Fatal(msg string, fields log.Fields) {
 	if fields.HasFacility(log.FacilityConfig) {
 		l.configErrors = append(l.configErrors, msg)
-		l.DefaultLogger.Error(msg, fields)
+		l.Error(msg, fields)
 	} else {
 		l.DefaultLogger.Fatal(msg, fields)
 	}
@@ -80,7 +80,7 @@ func TestConfigErrors(t *testing.T) {
 		},
 		{
 			name:           "policy without a set",
-			expectedErrors: []string{"failed to create routing policy"},
+			expectedErrors: []string{"failed to create routing policy", "failed to set policies"},
 			cfg: &oc.BgpConfigSet{
 				Global: globalCfg,
 				PolicyDefinitions: []oc.PolicyDefinition{
@@ -109,7 +109,8 @@ func TestConfigErrors(t *testing.T) {
 			go bgpServer.Serve()
 
 			_, err := InitialConfig(ctx, bgpServer, tt.cfg, false)
-			bgpServer.StopBgp(ctx, &api.StopBgpRequest{})
+			require.NoError(t, err)
+			err = bgpServer.StopBgp(ctx, &api.StopBgpRequest{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedErrors, logger.configErrors)
 		})

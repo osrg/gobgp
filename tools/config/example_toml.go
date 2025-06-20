@@ -36,7 +36,6 @@ func main() {
 					},
 				},
 				ApplyPolicy: oc.ApplyPolicy{
-
 					Config: oc.ApplyPolicyConfig{
 						ImportPolicyList:    []string{"pd1"},
 						DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
@@ -77,14 +76,14 @@ func main() {
 }
 
 func policy() oc.RoutingPolicy {
-
 	ps := oc.PrefixSet{
 		PrefixSetName: "ps1",
 		PrefixList: []oc.Prefix{
 			{
 				IpPrefix:        "10.3.192.0/21",
 				MasklengthRange: "21..24",
-			}},
+			},
+		},
 	}
 
 	ns := oc.NeighborSet{
@@ -127,7 +126,6 @@ func policy() oc.RoutingPolicy {
 	s := oc.Statement{
 		Name: "statement1",
 		Conditions: oc.Conditions{
-
 			MatchPrefixSet: oc.MatchPrefixSet{
 				PrefixSet:       "ps1",
 				MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,

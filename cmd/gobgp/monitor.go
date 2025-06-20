@@ -29,8 +29,8 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []interface{} {
-	pathStr := make([]interface{}, 0)
+func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []any {
+	pathStr := make([]any, 0)
 
 	// Title
 	title := "ROUTE"
@@ -74,7 +74,7 @@ func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []inte
 }
 
 func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
-	pathStrs := make([][]interface{}, len(pathList))
+	pathStrs := make([][]any, len(pathList))
 
 	for i, p := range pathList {
 		pathStrs[i] = makeMonitorRouteArgs(p, showIdentifier)
@@ -92,13 +92,13 @@ func monitorRoute(pathList []*api.Path, showIdentifier bgp.BGPAddPathMode) {
 }
 
 func newMonitorCmd() *cobra.Command {
-
 	var current bool
 	var batchSize uint32
 
 	monitor := func(recver interface {
 		Recv() (*api.WatchEventResponse, error)
-	}, showIdentifier bgp.BGPAddPathMode) {
+	}, showIdentifier bgp.BGPAddPathMode,
+	) {
 		for {
 			r, err := recver.Recv()
 			if err == io.EOF {

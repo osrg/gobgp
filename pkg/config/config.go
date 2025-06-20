@@ -63,7 +63,7 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 
 	def := toDefaultTable(a.DefaultImportPolicy)
 	ps := toPolicies(a.ImportPolicyList)
-	bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+	err := bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 			Name:     table.GLOBAL_RIB_NAME,
 			Type:     table.POLICY_DIRECTION_IMPORT,
@@ -71,10 +71,19 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 			Default:  def,
 		}),
 	})
+	if err != nil {
+		bgpServer.Log().Fatal("failed to set policy assignment",
+			log.Fields{
+				log.FieldFacility: log.FacilityConfig,
+				"Topic":           "config",
+				"Direction":       table.POLICY_DIRECTION_IMPORT,
+				"Error":           err,
+			})
+	}
 
 	def = toDefaultTable(a.DefaultExportPolicy)
 	ps = toPolicies(a.ExportPolicyList)
-	bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+	err = bgpServer.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
 		Assignment: table.NewAPIPolicyAssignmentFromTableStruct(&table.PolicyAssignment{
 			Name:     table.GLOBAL_RIB_NAME,
 			Type:     table.POLICY_DIRECTION_EXPORT,
@@ -82,7 +91,15 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 			Default:  def,
 		}),
 	})
-
+	if err != nil {
+		bgpServer.Log().Fatal("failed to set policy assignment",
+			log.Fields{
+				log.FieldFacility: log.FacilityConfig,
+				"Topic":           "config",
+				"Direction":       table.POLICY_DIRECTION_EXPORT,
+				"Error":           err,
+			})
+	}
 }
 
 func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []oc.PeerGroup) {
@@ -102,7 +119,8 @@ func addPeerGroups(ctx context.Context, bgpServer *server.BgpServer, addedPg []o
 
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -112,7 +130,8 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 		bgpServer.Log().Info("delete PeerGroup",
 			log.Fields{
 				"Topic": "config",
-				"Key":   pg.Config.PeerGroupName})
+				"Key":   pg.Config.PeerGroupName,
+			})
 		if err := bgpServer.DeletePeerGroup(ctx, &api.DeletePeerGroupRequest{
 			Name: pg.Config.PeerGroupName,
 		}); err != nil {
@@ -122,7 +141,8 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -132,7 +152,8 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 		bgpServer.Log().Info("update PeerGroup",
 			log.Fields{
 				"Topic": "config",
-				"Key":   pg.Config.PeerGroupName})
+				"Key":   pg.Config.PeerGroupName,
+			})
 		if u, err := bgpServer.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{
 			PeerGroup: oc.NewPeerGroupFromConfigStruct(&pg),
 		}); err != nil {
@@ -142,7 +163,8 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 
 					"Topic": "config",
 					"Key":   pg.Config.PeerGroupName,
-					"Error": err})
+					"Error": err,
+				})
 		} else {
 			return u.NeedsSoftResetIn
 		}
@@ -156,7 +178,8 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 			log.Fields{
 				"Topic":  "config",
 				"Key":    dn.Config.PeerGroup,
-				"Prefix": dn.Config.Prefix})
+				"Prefix": dn.Config.Prefix,
+			})
 		if err := bgpServer.AddDynamicNeighbor(ctx, &api.AddDynamicNeighborRequest{
 			DynamicNeighbor: &api.DynamicNeighbor{
 				Prefix:    dn.Config.Prefix,
@@ -170,7 +193,8 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 					"Topic":  "config",
 					"Key":    dn.Config.PeerGroup,
 					"Prefix": dn.Config.Prefix,
-					"Error":  err})
+					"Error":  err,
+				})
 		}
 	}
 }
@@ -180,7 +204,8 @@ func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []oc.N
 		bgpServer.Log().Info("Add Peer",
 			log.Fields{
 				"Topic": "config",
-				"Key":   p.State.NeighborAddress})
+				"Key":   p.State.NeighborAddress,
+			})
 		if err := bgpServer.AddPeer(ctx, &api.AddPeerRequest{
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		}); err != nil {
@@ -190,7 +215,8 @@ func addNeighbors(ctx context.Context, bgpServer *server.BgpServer, added []oc.N
 
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -200,7 +226,8 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 		bgpServer.Log().Info("Delete Peer",
 			log.Fields{
 				"Topic": "config",
-				"Key":   p.State.NeighborAddress})
+				"Key":   p.State.NeighborAddress,
+			})
 		if err := bgpServer.DeletePeer(ctx, &api.DeletePeerRequest{
 			Address: p.State.NeighborAddress,
 		}); err != nil {
@@ -210,7 +237,8 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 }
@@ -220,7 +248,8 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 		bgpServer.Log().Info("Update Peer",
 			log.Fields{
 				"Topic": "config",
-				"Key":   p.State.NeighborAddress})
+				"Key":   p.State.NeighborAddress,
+			})
 		if u, err := bgpServer.UpdatePeer(ctx, &api.UpdatePeerRequest{
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		}); err != nil {
@@ -230,7 +259,8 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 
 					"Topic": "config",
 					"Key":   p.State.NeighborAddress,
-					"Error": err})
+					"Error": err,
+				})
 		} else {
 			return u.NeedsSoftResetIn
 		}
@@ -261,7 +291,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			Version:              uint32(newConfig.Zebra.Config.Version),
 			NexthopTriggerEnable: newConfig.Zebra.Config.NexthopTriggerEnable,
 			NexthopTriggerDelay:  uint32(newConfig.Zebra.Config.NexthopTriggerDelay),
-			MplsLabelRangeSize:   uint32(newConfig.Zebra.Config.MplsLabelRangeSize),
+			MplsLabelRangeSize:   newConfig.Zebra.Config.MplsLabelRangeSize,
 			SoftwareName:         newConfig.Zebra.Config.SoftwareName,
 		}); err != nil {
 			bgpServer.Log().Fatal("failed to set zebra config",
@@ -340,7 +370,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			Vrf: &api.Vrf{
 				Name:     vrf.Config.Name,
 				Rd:       a,
-				Id:       uint32(vrf.Config.Id),
+				Id:       vrf.Config.Id,
 				ImportRt: importRtList,
 				ExportRt: exportRtList,
 			},
@@ -377,11 +407,16 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 	if err != nil {
 		bgpServer.Log().Fatal("failed to update policy config",
 			log.Fields{"Topic": "config", "Error": err})
-	} else {
-		bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
-			DefinedSets: rp.DefinedSets,
-			Policies:    rp.Policies,
-		})
+	} else if err := bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
+		DefinedSets: rp.DefinedSets,
+		Policies:    rp.Policies,
+	}); err != nil {
+		bgpServer.Log().Fatal("failed to set policies",
+			log.Fields{
+				log.FieldFacility: log.FacilityConfig,
+				"Topic":           "config",
+				"Error":           err,
+			})
 	}
 
 	assignGlobalpolicy(ctx, bgpServer, &newConfig.Global.ApplyPolicy.Config)
@@ -421,14 +456,19 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 			bgpServer.Log().Fatal("failed to update policy config",
 				log.Fields{
 					log.FieldFacility: log.FacilityConfig,
-
-					"Topic": "config",
-					"Error": err})
-		} else {
-			bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
-				DefinedSets: rp.DefinedSets,
-				Policies:    rp.Policies,
-			})
+					"Topic":           "config",
+					"Error":           err,
+				})
+		} else if err := bgpServer.SetPolicies(ctx, &api.SetPoliciesRequest{
+			DefinedSets: rp.DefinedSets,
+			Policies:    rp.Policies,
+		}); err != nil {
+			bgpServer.Log().Fatal("failed to set policies",
+				log.Fields{
+					log.FieldFacility: log.FacilityConfig,
+					"Topic":           "config",
+					"Error":           err,
+				})
 		}
 	}
 	// global policy update

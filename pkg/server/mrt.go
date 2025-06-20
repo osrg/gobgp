@@ -281,11 +281,21 @@ func (m *mrtWriter) loop() error {
 		case <-rotator.C:
 			if m.c.DumpType == oc.MRT_TYPE_UPDATES {
 				rotate()
-			} else {
-				w.Generate(watchEventTypeTable)
+			} else if err := w.Generate(watchEventTypeTable); err != nil {
+				m.s.logger.Warn("Failed to generate watch event",
+					log.Fields{
+						"Topic": "mrt",
+						"Error": err,
+					})
 			}
 		case <-dump.C:
-			w.Generate(watchEventTypeTable)
+			if err := w.Generate(watchEventTypeTable); err != nil {
+				m.s.logger.Warn("Failed to generate watch event",
+					log.Fields{
+						"Topic": "mrt",
+						"Error": err,
+					})
+			}
 		}
 	}
 }
@@ -314,7 +324,7 @@ func mrtFileOpen(logger log.Logger, filename string, rInterval uint64) (*os.File
 	}
 
 	if j > 0 {
-		if err := os.MkdirAll(realname[0:j-1], 0755); err != nil {
+		if err := os.MkdirAll(realname[:j-1], 0o755); err != nil {
 			logger.Warn("can't create MRT destination directory",
 				log.Fields{
 					"Topic": "mrt",
@@ -324,7 +334,7 @@ func mrtFileOpen(logger log.Logger, filename string, rInterval uint64) (*os.File
 		}
 	}
 
-	file, err := os.OpenFile(realname, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	file, err := os.OpenFile(realname, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		logger.Warn("can't create MRT destination file",
 			log.Fields{

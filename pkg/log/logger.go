@@ -36,13 +36,13 @@ const (
 )
 
 var (
-	FacilityUnspecified interface{} = "unspecified"
-	FacilityConfig      interface{} = "config"
+	FacilityUnspecified any = "unspecified"
+	FacilityConfig      any = "config"
 )
 
-type Fields map[string]interface{}
+type Fields map[string]any
 
-func (fields Fields) HasFacility(facility interface{}) bool {
+func (fields Fields) HasFacility(facility any) bool {
 	if fieldsFacility, hasFacility := fields[FieldFacility]; hasFacility && fieldsFacility == facility {
 		return true
 	}

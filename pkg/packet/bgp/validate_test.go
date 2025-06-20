@@ -70,7 +70,6 @@ func Test_Validate_OK(t *testing.T) {
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
 	assert.Equal(true, res)
 	assert.NoError(err)
-
 }
 
 // func Test_Validate_wellknown_but_nontransitive(t *testing.T) {
@@ -152,7 +151,7 @@ func Test_Validate_duplicate_attribute(t *testing.T) {
 	// duplicate origin path attribute
 	originBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 1}
 	origin := &PathAttributeOrigin{}
-	origin.DecodeFromBytes(originBytes)
+	assert.NoError(origin.DecodeFromBytes(originBytes))
 	message.PathAttributes = append(message.PathAttributes, origin)
 
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
@@ -187,8 +186,8 @@ func Test_Validate_mandatory_missing_nocheck(t *testing.T) {
 	message.NLRI = nil
 
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
-	assert.Equal(true, res)
 	assert.NoError(err)
+	assert.Equal(true, res)
 }
 
 func Test_Validate_invalid_origin(t *testing.T) {
@@ -197,12 +196,12 @@ func Test_Validate_invalid_origin(t *testing.T) {
 	// origin needs to be well-known
 	originBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 5}
 	origin := &PathAttributeOrigin{}
-	origin.DecodeFromBytes(originBytes)
+	assert.NoError(origin.DecodeFromBytes(originBytes))
 	message.PathAttributes[0] = origin
 
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
-	assert.Equal(false, res)
 	assert.Error(err)
+	assert.Equal(false, res)
 	e := err.(*MessageError)
 	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE), e.SubTypeCode)
@@ -219,12 +218,12 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 	nexthopBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
-	nexthop.DecodeFromBytes(nexthopBytes)
+	assert.NoError(nexthop.DecodeFromBytes(nexthopBytes))
 	message.PathAttributes[2] = nexthop
 
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
-	assert.Equal(false, res)
 	assert.Error(err)
+	assert.Equal(false, res)
 	e := err.(*MessageError)
 	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
@@ -257,21 +256,21 @@ func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 			nexthopBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 			nexthopBytes = append(nexthopBytes, addr...)
 			nexthop := &PathAttributeNextHop{}
-			nexthop.DecodeFromBytes(nexthopBytes)
+			assert.NoError(nexthop.DecodeFromBytes(nexthopBytes))
 			message.PathAttributes[2] = nexthop
 
 			res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, tt.inLoopbackAllowed)
 			if tt.wantErr {
-				assert.Equal(false, res)
 				assert.Error(err)
+				assert.Equal(false, res)
 				e := err.(*MessageError)
 				assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 				assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 				assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
 				assert.Equal(nexthopBytes, e.Data)
 			} else {
-				assert.Equal(true, res)
 				assert.NoError(err)
+				assert.Equal(true, res)
 			}
 		})
 	}
@@ -286,7 +285,7 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	nexthopBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
-	nexthop.DecodeFromBytes(nexthopBytes)
+	assert.NoError(nexthop.DecodeFromBytes(nexthopBytes))
 	message.PathAttributes[2] = nexthop
 
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
@@ -297,17 +296,15 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
 	assert.Equal(nexthopBytes, e.Data)
-
 }
 
 func Test_Validate_unrecognized_well_known(t *testing.T) {
-
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	f := BGP_ATTR_FLAG_TRANSITIVE
 	unknownBytes := []byte{byte(f), 30, 1, 1}
 	unknown := &PathAttributeUnknown{}
-	unknown.DecodeFromBytes(unknownBytes)
+	assert.NoError(unknown.DecodeFromBytes(unknownBytes))
 	message.PathAttributes = append(message.PathAttributes, unknown)
 
 	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
@@ -417,7 +414,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
 	m := map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}
 	_, err := ValidateAttribute(a, m, false, false, false)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	cmp = make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
@@ -433,21 +430,21 @@ func Test_Validate_flowspec(t *testing.T) {
 func TestValidateLargeCommunities(t *testing.T) {
 	assert := assert.New(t)
 	c1, err := ParseLargeCommunity("10:10:10")
-	assert.Nil(err)
+	assert.NoError(err)
 	c2, err := ParseLargeCommunity("10:10:10")
-	assert.Nil(err)
+	assert.NoError(err)
 	c3, err := ParseLargeCommunity("10:10:20")
-	assert.Nil(err)
+	assert.NoError(err)
 	a := NewPathAttributeLargeCommunities([]*LargeCommunity{c1, c2, c3})
 	assert.True(len(a.Values) == 3)
 	_, err = ValidateAttribute(a, nil, false, false, false)
-	assert.Nil(err)
+	assert.NoError(err)
 	assert.True(len(a.Values) == 2)
 }
 
 func FuzzParseLargeCommunity(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, data string) {
-		ParseLargeCommunity(data)
+		_, err := ParseLargeCommunity(data)
+		require.NoError(t, err)
 	})
 }

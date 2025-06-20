@@ -57,10 +57,7 @@ func decodeAdministrativeCommunication(data []byte) (string, []byte) {
 	if len(data) == 0 {
 		return "", data
 	}
-	communicationLen := int(data[0])
-	if communicationLen > bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX {
-		communicationLen = bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX
-	}
+	communicationLen := min(int(data[0]), bgp.BGP_ERROR_ADMINISTRATIVE_COMMUNICATION_MAX)
 	if communicationLen > len(data)-1 {
 		communicationLen = len(data) - 1
 	}

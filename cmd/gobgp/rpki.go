@@ -139,8 +139,10 @@ func newRPKICmd() *cobra.Command {
 		Use: cmdRPKIServer,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 || len(args) == 1 {
-				showRPKIServer(args)
-				return
+				err := showRPKIServer(args)
+				if err != nil {
+					exitWithError(err)
+				}
 			} else if len(args) != 2 {
 				exitWithError(fmt.Errorf("usage: gobgp rpki server <ip address> [reset|softreset|enable]"))
 			}
@@ -187,8 +189,8 @@ func newRPKICmd() *cobra.Command {
 
 	tableCmd := &cobra.Command{
 		Use: cmdRPKITable,
-		Run: func(cmd *cobra.Command, args []string) {
-			showRPKITable(args)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return showRPKITable(args)
 		},
 	}
 	tableCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")

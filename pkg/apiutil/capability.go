@@ -93,7 +93,7 @@ func NewLongLivedGracefulRestartCapability(a *bgp.CapLongLivedGracefulRestart) *
 	tuples := make([]*api.LongLivedGracefulRestartCapabilityTuple, 0, len(a.Tuples))
 	for _, t := range a.Tuples {
 		tuples = append(tuples, &api.LongLivedGracefulRestartCapabilityTuple{
-			Family: ToApiFamily(t.AFI, uint8(t.SAFI)),
+			Family: ToApiFamily(t.AFI, t.SAFI),
 			Flags:  uint32(t.Flags),
 			Time:   t.RestartTime,
 		})

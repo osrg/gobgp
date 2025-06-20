@@ -42,10 +42,10 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 			Command: zebra.RouteAdd.ToEach(v, software),
 		}
 		b := &zebra.IPRouteBody{
-			Type:    zebra.RouteType(zebra.RouteStatic),
+			Type:    zebra.RouteStatic,
 			Flags:   flag,
 			Message: message,
-			Safi:    zebra.Safi(zebra.SafiUnicast), // 1, FRR_ZAPI5_SAFI_UNICAST is same
+			Safi:    zebra.SafiUnicast, // 1, FRR_ZAPI5_SAFI_UNICAST is same
 			Prefix: zebra.Prefix{
 				Prefix:    net.ParseIP("192.168.100.0"),
 				PrefixLen: uint8(24),
@@ -61,7 +61,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 			Distance: uint8(0),
 			Metric:   uint32(100),
 			Mtu:      uint32(0),
-			API:      zebra.APIType(zebra.RouteAdd.ToEach(v, software)),
+			API:      zebra.RouteAdd.ToEach(v, software),
 		}
 		m.Header = *h
 		m.Body = b

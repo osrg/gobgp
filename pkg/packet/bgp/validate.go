@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strconv"
 )
 
@@ -30,7 +31,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[Family]BGPAddPathMode, isEBGP bool,
 		if _, ok := seen[a.GetType()]; !ok {
 			seen[a.GetType()] = a
 			newAttrs = append(newAttrs, a)
-			//check specific path attribute
+			// check specific path attribute
 			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed, loopbackNextHopAllowed)
 			if !ok {
 				msgErr := err.(*MessageError)
@@ -141,7 +142,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			return false, err
 		}
 	case *PathAttributeOrigin:
-		v := uint8(p.Value)
+		v := p.Value
 		if v != BGP_ORIGIN_ATTR_TYPE_IGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_EGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
@@ -168,8 +169,8 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			return res == 0xe0
 		}
 
-		//check IP address represents host address
-		if (!loopbackNextHopAllowed && p.Value.IsLoopback()) || isZero(p.Value) || isClassDorE(p.Value) {
+		// check IP address represents host address
+		if !loopbackNextHopAllowed && p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
 			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadNextHop, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
@@ -200,13 +201,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 	case *PathAttributeLargeCommunities:
 		uniq := make([]*LargeCommunity, 0, len(p.Values))
 		for _, x := range p.Values {
-			found := false
-			for _, y := range uniq {
-				if x.Eq(y) {
-					found = true
-					break
-				}
-			}
+			found := slices.ContainsFunc(uniq, x.Eq)
 			if !found {
 				uniq = append(uniq, x)
 			}
@@ -226,7 +221,6 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 
 // validator for PathAttribute
 func validatePathAttributeFlags(t BGPAttrType, flags BGPAttrFlag) string {
-
 	/*
 	 * RFC 4271 P.17 For well-known attributes, the Transitive bit MUST be set to 1.
 	 */
@@ -284,7 +278,7 @@ func validateAsPathValueBytes(data []byte) (bool, error) {
 			} else {
 				segLength *= 2
 			}
-			if int(segLength) > len(data) {
+			if segLength > len(data) {
 				return false, NewMessageError(eCode, eSubCode, nil, "seg length is short")
 			}
 			data = data[segLength:]

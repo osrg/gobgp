@@ -178,8 +178,10 @@ func showNeighbors(vrf string) error {
 		if p1Isv4 {
 			addrlen = 32
 		}
-		strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", p1, addrlen)),
-			cidr2prefix(fmt.Sprintf("%s/%d", p2, addrlen))}
+		strings := sort.StringSlice{
+			cidr2prefix(fmt.Sprintf("%s/%d", p1, addrlen)),
+			cidr2prefix(fmt.Sprintf("%s/%d", p2, addrlen)),
+		}
 		return strings.Less(0, 1)
 	})
 
@@ -548,7 +550,6 @@ func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 		case api.ValidationState_VALIDATION_STATE_INVALID:
 			symbols += "I"
 		}
-
 	}
 	if showBest {
 		if p.Best && !p.IsNexthopInvalid {
@@ -586,11 +587,11 @@ func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttrib
 	return fmt.Sprint(s)
 }
 
-func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP, showSendMaxFiltered bool, showIdentifier bgp.BGPAddPathMode) []interface{} {
+func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP, showSendMaxFiltered bool, showIdentifier bgp.BGPAddPathMode) []any {
 	nlri, _ := apiutil.GetNativeNlri(p)
 
 	// Path Symbols (e.g. "*>")
-	args := []interface{}{getPathSymbolString(p, idx, showBest)}
+	args := []any{getPathSymbolString(p, idx, showBest)}
 
 	// Path Identifier
 	switch showIdentifier {
@@ -666,7 +667,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 }
 
 func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP, showSendMaxFiltered bool, showIdentifier bgp.BGPAddPathMode) {
-	pathStrs := make([][]interface{}, 0, len(dsts))
+	pathStrs := make([][]any, 0, len(dsts))
 	now := time.Now()
 	for _, dst := range dsts {
 		for idx, p := range dst.Paths {
@@ -674,7 +675,7 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP, s
 		}
 	}
 
-	headers := make([]interface{}, 0)
+	headers := make([]any, 0)
 	var format string
 	headers = append(headers, "") // Symbols
 	format = fmt.Sprintf("%%-3s")
@@ -823,7 +824,6 @@ func showRibInfo(r, name string) error {
 		Family:    family,
 		Name:      name,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -904,11 +904,12 @@ func showNeighborRib(r string, name string, args []string) error {
 		var option api.TableLookupPrefix_Type
 		args = args[1:]
 		for len(args) != 0 {
-			if args[0] == "longer-prefixes" {
+			switch args[0] {
+			case "longer-prefixes":
 				option = api.TableLookupPrefix_TYPE_LONGER
-			} else if args[0] == "shorter-prefixes" {
+			case "shorter-prefixes":
 				option = api.TableLookupPrefix_TYPE_SHORTER
-			} else if args[0] == "rd" {
+			case "rd":
 				switch rf {
 				case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 				case bgp.RF_EVPN:
@@ -927,21 +928,22 @@ func showNeighborRib(r string, name string, args []string) error {
 				if err != nil {
 					return err
 				}
-			} else if args[0] == "validation" {
+			case "validation":
 				if r != cmdAdjIn {
 					return fmt.Errorf("RPKI information is supported for only adj-in")
 				}
 				validationTarget = target
-			} else {
+			default:
 				return fmt.Errorf("invalid format for route filtering")
 			}
 			args = args[1:]
 		}
-		filter = []*api.TableLookupPrefix{{
-			Prefix: target,
-			Rd:     rd,
-			Type:   option,
-		},
+		filter = []*api.TableLookupPrefix{
+			{
+				Prefix: target,
+				Rd:     rd,
+				Type:   option,
+			},
 		}
 	}
 
@@ -1188,7 +1190,7 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 	for idx, arg := range args {
 		if arg == "default" {
-			if len(args) < (idx + 2) {
+			if len(args) < idx+2 {
 				return nil, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, fmt.Errorf("specify default action [accept|reject]")
 			}
 			typ := args[idx+1]
@@ -1272,9 +1274,10 @@ func modNeighbor(cmdType string, args []string) error {
 		"interface": paramSingle,
 	}
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [ <neighbor-address> | interface <neighbor-interface> ]", cmdType)
-	if cmdType == cmdAdd {
+	switch cmdType {
+	case cmdAdd:
 		usage += " as <VALUE>"
-	} else if cmdType == cmdUpdate {
+	case cmdUpdate:
 		usage += " [ as <VALUE> ]"
 	}
 	if cmdType == cmdAdd || cmdType == cmdUpdate {
@@ -1292,7 +1295,7 @@ func modNeighbor(cmdType string, args []string) error {
 	}
 
 	m, err := extractReserved(args, params)
-	if err != nil || (len(m[""]) != 1 && len(m["interface"]) != 1) {
+	if err != nil || len(m[""]) != 1 && len(m["interface"]) != 1 {
 		return fmt.Errorf("%s", usage)
 	}
 
@@ -1444,7 +1447,6 @@ func modNeighbor(cmdType string, args []string) error {
 }
 
 func newNeighborCmd() *cobra.Command {
-
 	neighborCmdImpl := &cobra.Command{}
 
 	type cmds struct {
@@ -1550,7 +1552,6 @@ func newNeighborCmd() *cobra.Command {
 		}
 
 		policyCmd.AddCommand(cmd)
-
 	}
 
 	neighborCmdImpl.AddCommand(policyCmd)

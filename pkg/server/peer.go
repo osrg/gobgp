@@ -18,6 +18,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -79,7 +80,8 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 			log.Fields{
 				"Topic": "Peer",
 				"Key":   neighborAddress,
-				"Error": err})
+				"Error": err,
+			})
 		return nil
 	}
 	if err := oc.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
@@ -87,7 +89,8 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 			log.Fields{
 				"Topic": "Peer",
 				"Key":   neighborAddress,
-				"Error": err})
+				"Error": err,
+			})
 		return nil
 	}
 	peer := newPeer(g, &conf, loc, policy, logger)
@@ -204,11 +207,11 @@ func (peer *peer) getAddPathMode(family bgp.Family) bgp.BGPAddPathMode {
 }
 
 func (peer *peer) isAddPathReceiveEnabled(family bgp.Family) bool {
-	return (peer.getAddPathMode(family) & bgp.BGP_ADD_PATH_RECEIVE) > 0
+	return peer.getAddPathMode(family)&bgp.BGP_ADD_PATH_RECEIVE > 0
 }
 
 func (peer *peer) isAddPathSendEnabled(family bgp.Family) bool {
-	return (peer.getAddPathMode(family) & bgp.BGP_ADD_PATH_SEND) > 0
+	return peer.getAddPathMode(family)&bgp.BGP_ADD_PATH_SEND > 0
 }
 
 func (peer *peer) getAddPathSendMax(family bgp.Family) uint8 {
@@ -344,7 +347,8 @@ func (peer *peer) toGlobalFamilies(families []bgp.Family) []bgp.Family {
 						"Topic":  "Peer",
 						"Key":    id,
 						"Family": f,
-						"VRF":    peer.fsm.pConf.Config.Vrf})
+						"VRF":    peer.fsm.pConf.Config.Vrf,
+					})
 			}
 		}
 		families = fs
@@ -357,12 +361,9 @@ func classifyFamilies(all, part []bgp.Family) ([]bgp.Family, []bgp.Family) {
 	b := []bgp.Family{}
 	for _, f := range all {
 		p := true
-		for _, g := range part {
-			if f == g {
-				p = false
-				a = append(a, f)
-				break
-			}
+		if slices.Contains(part, f) {
+			p = false
+			a = append(a, f)
 		}
 		if p {
 			b = append(b, f)
@@ -403,12 +404,7 @@ func (peer *peer) isLLGREnabledFamily(family bgp.Family) bool {
 		return false
 	}
 	fs, _ := peer.llgrFamilies()
-	for _, f := range fs {
-		if f == family {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(fs, family)
 }
 
 func (peer *peer) llgrRestartTime(family bgp.Family) uint32 {
@@ -451,6 +447,17 @@ func (peer *peer) stopPeerRestarting() {
 	}
 	peer.llgrEndChs = make([]chan struct{}, 0)
 	peer.fsm.longLivedRunning = false
+}
+
+func (peer *peer) stopStateProcessing() {
+	peer.fsm.processingStateCancel()
+	peer.fsm.lock.RLock()
+	if peer.fsm.h != nil {
+		peer.fsm.h.wg.Wait()
+	}
+	peer.fsm.lock.RUnlock()
+	peer.fsm.processingStateWG.Wait()
+	close(peer.fsm.stateCh)
 }
 
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
@@ -500,7 +507,8 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 			log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.ID(),
-				"Data":  path})
+				"Data":  path,
+			})
 	}
 	return nil
 }
@@ -509,21 +517,23 @@ func (peer *peer) doPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) *bgp.BGPM
 	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
 		count := peer.adjRibIn.Count([]bgp.Family{k})
 		pct := int(c.ShutdownThresholdPct)
-		if pct > 0 && !peer.prefixLimitWarned[k] && count > (maxPrefixes*pct/100) {
+		if pct > 0 && !peer.prefixLimitWarned[k] && count > maxPrefixes*pct/100 {
 			peer.prefixLimitWarned[k] = true
 			peer.fsm.logger.Warn("prefix limit reached",
 				log.Fields{
 					"Topic":  "Peer",
 					"Key":    peer.ID(),
 					"Family": k.String(),
-					"Pct":    pct})
+					"Pct":    pct,
+				})
 		}
 		if count > maxPrefixes {
 			peer.fsm.logger.Warn("prefix limit reached",
 				log.Fields{
 					"Topic":  "Peer",
 					"Key":    peer.ID(),
-					"Family": k.String()})
+					"Family": k.String(),
+				})
 			return bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
 		}
 	}
@@ -554,7 +564,8 @@ func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) error {
 					"OldMaxPrefixes":          p.MaxPrefixes,
 					"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
 					"OldShutdownThresholdPct": p.ShutdownThresholdPct,
-					"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct})
+					"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct,
+				})
 			peer.prefixLimitWarned[e.State.Family] = false
 			if msg := peer.doPrefixLimit(e.State.Family, &e.PrefixLimit.Config); msg != nil {
 				sendfsmOutgoingMsg(peer, nil, msg, true)
@@ -578,7 +589,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 				"Key":         peer.fsm.pConf.State.NeighborAddress,
 				"nlri":        update.NLRI,
 				"withdrawals": update.WithdrawnRoutes,
-				"attributes":  update.PathAttributes})
+				"attributes":  update.PathAttributes,
+			})
 	}
 
 	peer.fsm.lock.Lock()
@@ -594,7 +606,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 					log.Fields{
 						"Topic":         "Peer",
 						"Key":           peer.ID(),
-						"AddressFamily": family})
+						"AddressFamily": family,
+					})
 				eor = append(eor, family)
 				continue
 			}
@@ -626,7 +639,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 							"Topic":        "Peer",
 							"Key":          peer.ID(),
 							"OriginatorID": id,
-							"Data":         path})
+							"Data":         path,
+						})
 					path.SetRejected(true)
 					continue
 				}
@@ -666,7 +680,8 @@ func (peer *peer) PassConn(conn *net.TCPConn) {
 		peer.fsm.logger.Warn("accepted conn is closed to avoid be blocked",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.ID()})
+				"Key":   peer.ID(),
+			})
 	}
 }
 

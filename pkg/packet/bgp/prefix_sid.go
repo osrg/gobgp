@@ -37,13 +37,13 @@ func (t *TLV) Len() int {
 }
 
 func (t *TLV) Serialize(value []byte) ([]byte, error) {
-	if len(value) != int(t.Len()) {
+	if len(value) != t.Len() {
 		return nil, malformedAttrListErr("serialization failed: Prefix SID TLV malformed")
 	}
 	p := 0
 	value[p] = byte(t.Type)
 	p++
-	binary.BigEndian.PutUint16(value[p:p+2], uint16(t.Length))
+	binary.BigEndian.PutUint16(value[p:p+2], t.Length)
 	return value, nil
 }
 
@@ -300,7 +300,7 @@ func (s *SubTLV) Serialize(value []byte) ([]byte, error) {
 	// Extra byte is reserved
 	buf := make([]byte, subTLVHdrLen+len(value))
 	buf[0] = byte(s.Type)
-	binary.BigEndian.PutUint16(buf[1:4], uint16(s.Length))
+	binary.BigEndian.PutUint16(buf[1:4], s.Length)
 	// 4th reserved byte
 	copy(buf[4:], value)
 
@@ -364,9 +364,9 @@ func (s *SRv6InformationSubTLV) Serialize() ([]byte, error) {
 	p := 0
 	copy(buf[p:], s.SID)
 	p += len(s.SID)
-	buf[p] = byte(s.Flags)
+	buf[p] = s.Flags
 	p++
-	binary.BigEndian.PutUint16(buf[p:p+2], uint16(s.EndpointBehavior))
+	binary.BigEndian.PutUint16(buf[p:p+2], s.EndpointBehavior)
 	p += 2
 	// Reserved byte
 	buf[p] = 0x0
@@ -397,7 +397,7 @@ func (s *SRv6InformationSubTLV) DecodeFromBytes(data []byte) error {
 	}
 	copy(s.SID, data[p:p+16])
 	p += 16
-	s.Flags = uint8(data[p])
+	s.Flags = data[p]
 	p++
 	s.EndpointBehavior = binary.BigEndian.Uint16(data[p : p+2])
 	p += 2
@@ -493,7 +493,7 @@ func (s *SubSubTLV) Serialize(value []byte) ([]byte, error) {
 	p := 0
 	buf[p] = byte(s.Type)
 	p++
-	binary.BigEndian.PutUint16(buf[p:p+2], uint16(s.Length))
+	binary.BigEndian.PutUint16(buf[p:p+2], s.Length)
 	p += 2
 	copy(buf[p:], value)
 

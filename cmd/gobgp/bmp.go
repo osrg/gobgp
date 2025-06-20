@@ -128,8 +128,8 @@ func modBmpServer(cmdType string, args []string) error {
 func newBmpCmd() *cobra.Command {
 	bmpCmd := &cobra.Command{
 		Use: cmdBMP,
-		Run: func(cmd *cobra.Command, args []string) {
-			showStations()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return showStations()
 		},
 	}
 

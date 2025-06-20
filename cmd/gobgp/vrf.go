@@ -104,7 +104,6 @@ func showVrfs() error {
 				maxLens[i] = v + 4
 			}
 		}
-
 	}
 	format := fmt.Sprintf("  %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", maxLens[0], maxLens[1], maxLens[2], maxLens[3], maxLens[4])
 	fmt.Printf(format, "Name", "RD", "Import RT", "Export RT", "ID")
@@ -124,9 +123,10 @@ func modVrf(typ string, args []string) error {
 		a, err := extractReserved(args, map[string]int{
 			"rd": paramSingle,
 			"rt": paramList,
-			"id": paramSingle})
+			"id": paramSingle,
+		})
 		if err != nil || len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 {
-			//lint:ignore ST1005 cli example
+			//nolint:staticcheck // cli example
 			return fmt.Errorf("usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 		}
 		name := a[""][0]
@@ -156,7 +156,7 @@ func modVrf(typ string, args []string) error {
 				importRt = append(importRt, rt)
 				exportRt = append(exportRt, rt)
 			default:
-				//lint:ignore ST1005 cli example
+				//nolint:staticcheck // cli example
 				return fmt.Errorf("usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 			}
 		}

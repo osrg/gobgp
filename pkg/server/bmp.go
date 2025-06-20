@@ -88,7 +88,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 		b.s.logger.Debug("Connecting to BMP server",
 			log.Fields{
 				"Topic": "bmp",
-				"Key":   b.host})
+				"Key":   b.host,
+			})
 		conn, err := net.Dial("tcp", b.host)
 		if err != nil {
 			select {
@@ -104,7 +105,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 			b.s.logger.Debug("Connected to BMP server",
 				log.Fields{
 					"Topic": "bmp",
-					"Key":   b.host})
+					"Key":   b.host,
+				})
 			return conn.(*net.TCPConn)
 		}
 	}
@@ -161,7 +163,8 @@ func (b *bmpClient) loop() {
 					b.s.logger.Warn("failed to write to bmp server",
 						log.Fields{
 							"Topic": "bmp",
-							"Key":   b.host})
+							"Key":   b.host,
+						})
 				}
 				return err
 			}
@@ -245,13 +248,13 @@ func (b *bmpClient) loop() {
 					}
 				case <-tickerCh:
 					var err error
-					b.s.ListPeer(context.Background(), &api.ListPeerRequest{EnableAdvertised: true},
+					listErr := b.s.ListPeer(context.Background(), &api.ListPeerRequest{EnableAdvertised: true},
 						func(peer *api.Peer) {
 							if err == nil && peer.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
 								err = write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, time.Now().Unix(), peer))
 							}
 						})
-					if err != nil {
+					if listErr != nil && err != nil {
 						return false
 					}
 				case <-b.dead:

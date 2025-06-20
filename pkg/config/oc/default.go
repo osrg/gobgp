@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
@@ -27,11 +28,11 @@ var forcedOverwrittenConfig = []string{
 	"neighbor.timers.config.minimum-advertisement-interval",
 }
 
-var configuredFields map[string]interface{}
+var configuredFields map[string]any
 
-func RegisterConfiguredFields(addr string, n interface{}) {
+func RegisterConfiguredFields(addr string, n any) {
 	if configuredFields == nil {
-		configuredFields = make(map[string]interface{})
+		configuredFields = make(map[string]any)
 	}
 	configuredFields[addr] = n
 }
@@ -515,21 +516,16 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	return nil
 }
 
-func overwriteConfig(c, pg interface{}, tagPrefix string, v *viper.Viper) {
+func overwriteConfig(c, pg any, tagPrefix string, v *viper.Viper) {
 	nValue := reflect.Indirect(reflect.ValueOf(c))
 	pgValue := reflect.Indirect(reflect.ValueOf(pg))
 	pgType := reflect.Indirect(pgValue).Type()
 
-	for i := 0; i < pgType.NumField(); i++ {
+	for i := range pgType.NumField() {
 		field := pgType.Field(i).Name
 		tag := tagPrefix + "." + pgType.Field(i).Tag.Get("mapstructure")
 		if func() bool {
-			for _, t := range forcedOverwrittenConfig {
-				if t == tag {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(forcedOverwrittenConfig, tag)
 		}() || !v.IsSet(tag) {
 			if nField := nValue.FieldByName(field); nField.IsValid() {
 				nField.Set(pgValue.FieldByName(field))

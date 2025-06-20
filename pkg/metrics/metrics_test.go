@@ -29,7 +29,7 @@ func TestMetrics(test *testing.T) {
 			ListenPort: 10179,
 		},
 	})
-	assert.Nil(err)
+	assert.NoError(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p1 := &api.Peer{
@@ -42,7 +42,7 @@ func TestMetrics(test *testing.T) {
 		},
 	}
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
-	assert.Nil(err)
+	assert.NoError(err)
 
 	t := server.NewBgpServer()
 	go t.Serve()
@@ -53,7 +53,7 @@ func TestMetrics(test *testing.T) {
 			ListenPort: -1,
 		},
 	})
-	assert.Nil(err)
+	assert.NoError(err)
 	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
@@ -73,16 +73,17 @@ func TestMetrics(test *testing.T) {
 	}
 
 	ch := make(chan struct{})
-	s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
+	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
 		if peer := r.GetPeer(); peer != nil {
 			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
 				close(ch)
 			}
 		}
 	})
+	assert.NoError(err)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
-	assert.Nil(err)
+	assert.NoError(err)
 	<-ch
 
 	family := &api.Family{
@@ -117,7 +118,7 @@ func TestMetrics(test *testing.T) {
 					},
 				}
 
-				t.AddPath(context.Background(), &api.AddPathRequest{
+				_, err := t.AddPath(context.Background(), &api.AddPathRequest{
 					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
 						Family: family,
@@ -125,7 +126,8 @@ func TestMetrics(test *testing.T) {
 						Pattrs: attrs,
 					},
 				})
-				t.DeletePath(context.Background(), &api.DeletePathRequest{
+				assert.NoError(err)
+				err = t.DeletePath(context.Background(), &api.DeletePathRequest{
 					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
 						Family: family,
@@ -133,13 +135,14 @@ func TestMetrics(test *testing.T) {
 						Pattrs: attrs,
 					},
 				})
+				assert.NoError(err)
 			}
 		}
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		metrics, err := registry.Gather()
-		assert.Nil(err)
+		assert.NoError(err)
 		assert.NotEmpty(metrics)
 		time.Sleep(10 * time.Millisecond)
 	}

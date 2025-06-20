@@ -299,7 +299,7 @@ func (r *MUPInterworkSegmentDiscoveryRoute) DecodeFromBytes(data []byte, afi uin
 	if len(data) < p+byteLen {
 		return malformedAttrListErr("invalid Interwork Segment Discovery Route length")
 	}
-	copy(b[0:byteLen], data[p:p+byteLen])
+	copy(b[:byteLen], data[p:p+byteLen])
 	addr, ok := netip.AddrFromSlice(b)
 	if !ok {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid Prefix: %x", data[p:]))
@@ -516,7 +516,7 @@ func (r *MUPType1SessionTransformedRoute) DecodeFromBytes(data []byte, afi uint1
 	if len(data) < p+byteLen {
 		return malformedAttrListErr("invalid 3GPP 5G specific Type 1 Session Transformed Route length")
 	}
-	copy(b[0:byteLen], data[p:p+byteLen])
+	copy(b[:byteLen], data[p:p+byteLen])
 	addr, ok := netip.AddrFromSlice(b)
 	if !ok {
 		return malformedAttrListErr(fmt.Sprintf("Invalid Prefix: %x", b))
@@ -672,7 +672,7 @@ func (r *MUPType2SessionTransformedRoute) DecodeFromBytes(data []byte, afi uint1
 		return malformedAttrListErr("invalid 3GPP 5G specific Type 2 Session Transformed Route length")
 	}
 	r.EndpointAddressLength = data[p]
-	if (afi == AFI_IP && r.EndpointAddressLength > 64) || (afi == AFI_IP6 && r.EndpointAddressLength > 160) {
+	if afi == AFI_IP && r.EndpointAddressLength > 64 || afi == AFI_IP6 && r.EndpointAddressLength > 160 {
 		return malformedAttrListErr(fmt.Sprintf("Invalid Endpoint Address Length: %d", r.EndpointAddressLength))
 	}
 	p += 1

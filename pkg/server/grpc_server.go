@@ -77,7 +77,8 @@ func (s *server) serve() error {
 				log.Fields{
 					"Topic": "grpc",
 					"Key":   host,
-					"Error": err})
+					"Error": err,
+				})
 			break
 		}
 		l = append(l, lis)
@@ -98,7 +99,8 @@ func (s *server) serve() error {
 				log.Fields{
 					"Topic": "grpc",
 					"Key":   lis.Addr().String(),
-					"Error": err})
+					"Error": err,
+				})
 		}
 	}
 
@@ -310,12 +312,15 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 
 func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GoBgpService_WatchEventServer) error {
 	ctx, cancel := context.WithCancel(stream.Context())
-	s.bgpServer.WatchEvent(ctx, r, func(rsp *api.WatchEventResponse) {
+	err := s.bgpServer.WatchEvent(ctx, r, func(rsp *api.WatchEventResponse, _ time.Time) {
 		if err := stream.Send(rsp); err != nil {
 			cancel()
 			return
 		}
 	})
+	if err != nil {
+		return err
+	}
 	<-ctx.Done()
 	return nil
 }
@@ -424,7 +429,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 	}
 
-	doWithdraw := (isWithdraw || path.IsWithdraw)
+	doWithdraw := isWithdraw || path.IsWithdraw
 	newPath := table.NewPath(pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
 	if !doWithdraw {
 		total := bytes.NewBuffer(make([]byte, 0))
@@ -608,9 +613,10 @@ func readApplyPolicyFromAPIStruct(c *oc.ApplyPolicy, a *api.ApplyPolicy) {
 		return
 	}
 	f := func(a api.RouteAction) oc.DefaultPolicyType {
-		if a == api.RouteAction_ROUTE_ACTION_ACCEPT {
+		switch a {
+		case api.RouteAction_ROUTE_ACTION_ACCEPT:
 			return oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-		} else if a == api.RouteAction_ROUTE_ACTION_REJECT {
+		case api.RouteAction_ROUTE_ACTION_REJECT:
 			return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 		}
 		return ""
@@ -1288,7 +1294,8 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			}
 			return &api.CommunityAction{
 				Type:        action,
-				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
+				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList,
+			}
 		}(),
 		Med: func() *api.MedAction {
 			medStr := strings.TrimSpace(string(s.Actions.BgpActions.SetMed))
@@ -1344,7 +1351,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetLargeCommunity.Options)]),
+				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[s.Actions.BgpActions.SetLargeCommunity.Options]),
 				Communities: s.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -1496,7 +1503,6 @@ func newAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, e
 }
 
 func newRpkiValidationConditionFromApiStruct(a api.ValidationState) (*table.RpkiValidationCondition, error) {
-
 	c := oc.RpkiValidationResultType("")
 	switch a {
 	case api.ValidationState_VALIDATION_STATE_NONE:
@@ -1602,7 +1608,7 @@ func newAfiSafiInConditionFromApiStruct(a []*api.Family) (*table.AfiSafiInCondit
 	afiSafiTypes := make([]oc.AfiSafiType, 0, len(a))
 	for _, aType := range a {
 		rf := bgp.AfiSafiToFamily(uint16(aType.Afi), uint8(aType.Safi))
-		if configType, ok := bgp.AddressFamilyNameMap[bgp.Family(rf)]; ok {
+		if configType, ok := bgp.AddressFamilyNameMap[rf]; ok {
 			afiSafiTypes = append(afiSafiTypes, oc.AfiSafiType(configType))
 		} else {
 			return nil, fmt.Errorf("unknown afi-safi-in type value: %v", aType)
@@ -1615,10 +1621,8 @@ func newRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, err
 	if a == api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
 		return nil, nil
 	}
-	accept := false
-	if a == api.RouteAction_ROUTE_ACTION_ACCEPT {
-		accept = true
-	}
+	accept := a == api.RouteAction_ROUTE_ACTION_ACCEPT
+
 	return &table.RoutingAction{
 		AcceptRoute: accept,
 	}, nil

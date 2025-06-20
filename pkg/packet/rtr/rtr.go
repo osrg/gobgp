@@ -382,7 +382,7 @@ func SplitRTR(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if len(data) < int(totalLen) {
 		return 0, nil, nil
 	}
-	return int(totalLen), data[0:totalLen], nil
+	return int(totalLen), data[:totalLen], nil
 }
 
 func ParseRTR(data []byte) (RTRMessage, error) {

@@ -80,7 +80,7 @@ func (m *MockConnection) Read(buf []byte) (int, error) {
 
 	length := 0
 	rest := len(buf)
-	for i := 0; i < rest; i++ {
+	for i := range rest {
 		if len(m.currentCh) > 0 {
 			val := <-m.currentCh
 			buf[i] = val
@@ -133,7 +133,8 @@ func (m *MockConnection) Close() error {
 func (m *MockConnection) LocalAddr() net.Addr {
 	return &net.TCPAddr{
 		IP:   net.ParseIP("10.10.10.10"),
-		Port: bgp.BGP_PORT}
+		Port: bgp.BGP_PORT,
+	}
 }
 
 func TestReadAll(t *testing.T) {
@@ -145,7 +146,7 @@ func TestReadAll(t *testing.T) {
 
 	pushBytes := func() {
 		m.Log("push 5 bytes")
-		m.setData(expected1[0:5])
+		m.setData(expected1[:5])
 		m.Log("push rest")
 		m.setData(expected1[5:])
 		m.Log("push bytes at once")
@@ -188,7 +189,6 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
-
 }
 
 func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
@@ -213,7 +213,6 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
-
 }
 
 func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
@@ -318,7 +317,6 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	assert.Equal(0, len(m.sendBuf))
-
 }
 
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
@@ -381,7 +379,6 @@ func makePeerAndHandler() (*peer, *fsmHandler) {
 	}
 
 	return p, h
-
 }
 
 func open() *bgp.BGPMessage {
