@@ -30,8 +30,10 @@ import (
 )
 
 // used internally, should not be aliassed
-type addrPrefixKey uint64
-type macKey uint64
+type (
+	addrPrefixKey uint64
+	macKey        uint64
+)
 
 type LookupOption uint8
 
@@ -537,7 +539,8 @@ func (t *Table) setDestination(dst *Destination) {
 				"Topic":     "Table",
 				"Key":       t.Family,
 				"1stPrefix": t.destinations.getDestinationList(dst.GetNlri())[0].GetNlri().String(),
-				"Prefix":    dst.GetNlri().String()})
+				"Prefix":    dst.GetNlri().String(),
+			})
 	}
 
 	if nlri, ok := dst.nlri.(*bgp.EVPNNLRI); ok {
@@ -589,7 +592,6 @@ func (t *Table) GetKnownPathListWithMac(id string, as uint32, rt bgp.ExtendedCom
 		} else {
 			paths = append(paths, dst.GetKnownPathList(id, as)...)
 		}
-
 	}
 	return paths
 }
