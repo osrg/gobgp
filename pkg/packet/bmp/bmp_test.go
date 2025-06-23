@@ -159,17 +159,19 @@ func Test_RouteMonitoringUnknownType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:errcheck
 func FuzzParseBMPMessage(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, err := ParseBMPMessage(data)
-		require.NoError(t, err)
+		ParseBMPMessage(data)
 	})
 }
 
 // grep -r DecodeFromBytes pkg/packet/bmp/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
+//
+//nolint:errcheck
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		require.NoError(t, (&BMPHeader{}).DecodeFromBytes(data))
-		require.NoError(t, (&BMPPeerHeader{}).DecodeFromBytes(data))
+		(&BMPHeader{}).DecodeFromBytes(data)
+		(&BMPPeerHeader{}).DecodeFromBytes(data)
 	})
 }

@@ -442,9 +442,9 @@ func TestValidateLargeCommunities(t *testing.T) {
 	assert.True(len(a.Values) == 2)
 }
 
+//nolint:errcheck
 func FuzzParseLargeCommunity(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data string) {
-		_, err := ParseLargeCommunity(data)
-		require.NoError(t, err)
+		ParseLargeCommunity(data)
 	})
 }
