@@ -89,6 +89,7 @@ func (l *TCPListener) acceptLoop() {
 		select {
 		case l.connChan <- conn:
 		case <-l.ctx.Done():
+			return
 		}
 	}
 }
