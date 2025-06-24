@@ -960,7 +960,7 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 	s.notifyWatcher(watchEventTypePostUpdate, ev)
 }
 
-func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEventType) *watchEventPeer {
+func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.PeerEventType) *watchEventPeer {
 	var laddr string
 	var rport, lport uint16
 
@@ -974,19 +974,15 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 		laddr, lport = peer.fsm.LocalHostPort()
 	}
 
-	remoteCaps := make([]*api.Capability, 0)
+	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
 	if peer.fsm.state >= bgp.BGP_FSM_OPENCONFIRM {
 		// Adding peer remote capabilities to the event
-		capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
 		for code, caps := range peer.fsm.capMap {
 			if code == bgp.BGP_CAP_FQDN {
 				// skip FQDN capability as it generates errors when Marshalling
 				continue
 			}
 			capList = append(capList, caps...)
-		}
-		if foundCaps, err := apiutil.MarshalCapabilities(capList); err == nil {
-			remoteCaps = foundCaps
 		}
 	}
 	recvOpen := peer.fsm.recvOpen
@@ -1006,7 +1002,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 		AdminState:    peer.fsm.adminState,
 		Timestamp:     time.Now(),
 		PeerInterface: peer.fsm.pConf.Config.NeighborInterface,
-		RemoteCap:     remoteCaps,
+		RemoteCap:     capList,
 	}
 	peer.fsm.lock.RUnlock()
 
@@ -1017,7 +1013,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t PeerEvent
 }
 
 func (s *BgpServer) broadcastPeerState(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
-	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, oldState, PEER_EVENT_STATE))
+	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, oldState, apiutil.PEER_EVENT_STATE))
 }
 
 func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, isSent bool) {
@@ -4386,6 +4382,158 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
+func toPathApiUtil(path *table.Path) *apiutil.Path {
+	// Best and SendMaxFiltered are set in ListPath API
+	p := &apiutil.Path{
+		Nlri:       path.GetNlri(),
+		Age:        path.GetTimestamp().Unix(),
+		Attrs:      path.GetPathAttrs(),
+		Stale:      path.IsStale(),
+		Withdrawal: path.IsWithdraw,
+	}
+	if path.GetSource() != nil {
+		p.SourceASN = path.GetSource().AS
+		p.SourceID = path.GetSource().ID
+		p.NeighborIP = path.GetSource().Address
+	}
+	return p
+}
+
+type WatchEventMessageCallbacks struct {
+	OnPathUpdate func([]*apiutil.Path, time.Time)
+	OnBestPath   func([]*apiutil.Path, time.Time)
+	OnPathEor    func([]*apiutil.Path, time.Time)
+	OnPeerUpdate func(*apiutil.WatchEventMessage_PeerEvent, time.Time)
+}
+
+func (s *BgpServer) WatchEventMessages(ctx context.Context, r *api.WatchEventRequest, callbacks WatchEventMessageCallbacks) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+
+	opts := make([]watchOption, 0)
+	if r.GetPeer() != nil {
+		opts = append(opts, watchPeer())
+	}
+	if t := r.GetTable(); t != nil {
+		for _, filter := range t.Filters {
+			switch filter.Type {
+			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
+				opts = append(opts, watchBestPath(filter.Init))
+			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
+				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
+				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
+				opts = append(opts, watchEor(filter.Init))
+			default:
+				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
+			}
+		}
+	}
+	if len(opts) == 0 {
+		return fmt.Errorf("no events to watch")
+	}
+	w := s.watch(opts...)
+
+	go func() {
+		defer w.Stop()
+
+		for {
+			select {
+			case ev := <-w.Event():
+				switch msg := ev.(type) {
+				case *watchEventUpdate:
+					if callbacks.OnPathUpdate != nil {
+						paths := make([]*apiutil.Path, len(msg.PathList))
+						for i, path := range msg.PathList {
+							paths[i] = toPathApiUtil(path)
+						}
+						callbacks.OnPathUpdate(paths, msg.Timestamp)
+					}
+
+				case *watchEventBestPath:
+					if callbacks.OnBestPath != nil {
+						callback := func(paths []*table.Path) {
+							p := make([]*apiutil.Path, len(paths))
+							for i, path := range paths {
+								p[i] = toPathApiUtil(path)
+							}
+							callbacks.OnBestPath(p, msg.Timestamp)
+						}
+
+						if len(msg.MultiPathList) > 0 {
+							plen := 0
+							for _, pa := range msg.MultiPathList {
+								plen += len(pa)
+							}
+							paths := make([]*table.Path, plen)
+							i := 0
+							for _, pa := range msg.MultiPathList {
+								for _, path := range pa {
+									paths[i] = path
+									i++
+								}
+							}
+							callback(paths)
+						} else {
+							callback(msg.PathList)
+						}
+					}
+
+				case *watchEventEor:
+					if callbacks.OnPathEor != nil {
+						eor := table.NewEOR(msg.Family)
+						eor.SetSource(msg.PeerInfo)
+						callbacks.OnPathEor([]*apiutil.Path{toPathApiUtil(eor)}, msg.Timestamp)
+					}
+
+				case *watchEventPeer:
+					if callbacks.OnPeerUpdate != nil {
+						var admin_state api.PeerState_AdminState
+						switch msg.AdminState {
+						case adminStateUp:
+							admin_state = api.PeerState_ADMIN_STATE_UP
+						case adminStateDown:
+							admin_state = api.PeerState_ADMIN_STATE_DOWN
+						case adminStatePfxCt:
+							admin_state = api.PeerState_ADMIN_STATE_PFX_CT
+						}
+						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
+							Type: msg.Type,
+							Peer: &apiutil.Peer{
+								Conf: apiutil.PeerConf{
+									PeerAsn:           msg.PeerAS,
+									LocalAsn:          msg.LocalAS,
+									NeighborAddress:   msg.PeerAddress,
+									NeighborInterface: msg.PeerInterface,
+								},
+								State: apiutil.PeerState{
+									PeerAsn:         msg.PeerAS,
+									LocalAsn:        msg.LocalAS,
+									NeighborAddress: msg.PeerAddress,
+									SessionState:    msg.State,
+									AdminState:      admin_state,
+									RouterId:        msg.PeerID,
+									RemoteCap:       msg.RemoteCap,
+								},
+								Transport: apiutil.Transport{
+									LocalAddress: msg.LocalAddress,
+									LocalPort:    uint32(msg.LocalPort),
+									RemotePort:   uint32(msg.PeerPort),
+								},
+							},
+						}, msg.Timestamp)
+					}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return nil
+}
+
 func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
@@ -4482,6 +4630,10 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 					case adminStatePfxCt:
 						admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 					}
+					remoteCaps, err := apiutil.MarshalCapabilities(msg.RemoteCap)
+					if err != nil {
+						remoteCaps = []*api.Capability{}
+					}
 					fn(&api.WatchEventResponse{
 						Event: &api.WatchEventResponse_Peer{
 							Peer: &api.WatchEventResponse_PeerEvent{
@@ -4500,7 +4652,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
 										AdminState:      admin_state,
 										RouterId:        msg.PeerID.String(),
-										RemoteCap:       msg.RemoteCap,
+										RemoteCap:       remoteCaps,
 									},
 									Transport: &api.Transport{
 										LocalAddress: msg.LocalAddress.String(),
@@ -4592,17 +4744,8 @@ type watchEventUpdate struct {
 	Neighbor     *oc.Neighbor
 }
 
-type PeerEventType uint32
-
-const (
-	PEER_EVENT_UNKNOWN     PeerEventType = 0
-	PEER_EVENT_INIT        PeerEventType = 1
-	PEER_EVENT_END_OF_INIT PeerEventType = 2
-	PEER_EVENT_STATE       PeerEventType = 3
-)
-
 type watchEventPeer struct {
-	Type          PeerEventType
+	Type          apiutil.PeerEventType
 	PeerAS        uint32
 	LocalAS       uint32
 	PeerAddress   net.IP
@@ -4618,7 +4761,7 @@ type watchEventPeer struct {
 	AdminState    adminState
 	Timestamp     time.Time
 	PeerInterface string
-	RemoteCap     []*api.Capability
+	RemoteCap     []bgp.ParameterCapabilityInterface
 }
 
 type watchEventAdjIn struct {
@@ -4921,9 +5064,9 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 		}
 		if w.opts.peerState {
 			for _, p := range s.neighborMap {
-				w.notify(newWatchEventPeer(p, nil, p.fsm.state, PEER_EVENT_INIT))
+				w.notify(newWatchEventPeer(p, nil, p.fsm.state, apiutil.PEER_EVENT_INIT))
 			}
-			w.notify(&watchEventPeer{Type: PEER_EVENT_END_OF_INIT})
+			w.notify(&watchEventPeer{Type: apiutil.PEER_EVENT_END_OF_INIT})
 
 			register(watchEventTypePeerState, w)
 		}

@@ -26,7 +26,22 @@ import (
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// workaround. This for the json format compatibility. Once we update senario tests, we can remove this.
+type PeerEventType uint32
+
+const (
+	PEER_EVENT_UNKNOWN     PeerEventType = 0
+	PEER_EVENT_INIT        PeerEventType = 1
+	PEER_EVENT_END_OF_INIT PeerEventType = 2
+	PEER_EVENT_STATE       PeerEventType = 3
+)
+
+// WatchEventMessages API type
+type WatchEventMessage_PeerEvent struct {
+	Type PeerEventType
+	Peer *Peer
+}
+
+// used by server.WatchEventMessages API
 type Path struct {
 	Nlri  bgp.AddrPrefixInterface      `json:"nlri"`
 	Age   int64                        `json:"age"`
@@ -36,8 +51,36 @@ type Path struct {
 	// true if the path has been filtered out due to max path count reached
 	SendMaxFiltered bool   `json:"send-max-filtered,omitempty"`
 	Withdrawal      bool   `json:"withdrawal,omitempty"`
+	SourceASN       uint32 `json:"source-asn,omitempty"`
 	SourceID        net.IP `json:"source-id,omitempty"`
 	NeighborIP      net.IP `json:"neighbor-ip,omitempty"`
+}
+
+type PeerConf struct {
+	PeerAsn           uint32
+	LocalAsn          uint32
+	NeighborAddress   net.IP
+	NeighborInterface string
+}
+type PeerState struct {
+	PeerAsn         uint32
+	LocalAsn        uint32
+	NeighborAddress net.IP
+	SessionState    bgp.FSMState
+	AdminState      api.PeerState_AdminState
+	RouterId        net.IP
+	RemoteCap       []bgp.ParameterCapabilityInterface
+}
+type Transport struct {
+	LocalAddress net.IP
+	LocalPort    uint32
+	RemotePort   uint32
+}
+
+type Peer struct {
+	Conf      PeerConf
+	State     PeerState
+	Transport Transport
 }
 
 type Destination struct {
