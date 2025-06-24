@@ -12,10 +12,11 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build openbsd
 // +build openbsd
 
-package server
+package netutils
 
 import (
 	"encoding/binary"
@@ -156,11 +157,15 @@ func b(p unsafe.Pointer, length int) []byte {
 	return buf
 }
 
-var seq uint32
-var fd int
+var (
+	seq uint32
+	fd  int
+)
 
-var spiInMap map[string]uint32 = map[string]uint32{}
-var spiOutMap map[string]uint32 = map[string]uint32{}
+var (
+	spiInMap  map[string]uint32 = map[string]uint32{}
+	spiOutMap map[string]uint32 = map[string]uint32{}
+)
 
 func pfkeyReply() (spi uint32, err error) {
 	buf := make([]byte, SADB_MSG_SIZE)
@@ -342,8 +347,8 @@ const (
 	ipv6MinHopCount = 73  // Generalized TTL Security Mechanism (RFC5082)
 )
 
-func setsockoptTcpMD5Sig(sc syscall.RawConn, address string, key string) error {
-	if err := setsockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1); err != nil {
+func SetSockOptTcpMD5Sig(sc syscall.RawConn, address string, key string) error {
+	if err := setSockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1); err != nil {
 		return err
 	}
 	if len(key) > 0 {
@@ -352,26 +357,26 @@ func setsockoptTcpMD5Sig(sc syscall.RawConn, address string, key string) error {
 	return saDelete(address)
 }
 
-func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func SetTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	sc, err := l.SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptTcpMD5Sig(sc, address, key)
+	return SetSockOptTcpMD5Sig(sc, address, key)
 }
 
-func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTCPTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptIpTtl(sc, family, ttl)
+	return setSockOptIpTtl(sc, family, ttl)
 }
 
-func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTCPMinTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
@@ -381,47 +386,50 @@ func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 		level = syscall.IPPROTO_IPV6
 		name = ipv6MinHopCount
 	}
-	return setsockOptInt(sc, level, name, ttl)
+	return setSockOptInt(sc, level, name, ttl)
 }
 
-func setTCPMSSSockopt(conn *net.TCPConn, mss uint16) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptTcpMss(sc, family, mss)
+	return setSockOptTcpMss(sc, family, mss)
 }
 
-func setBindToDevSockopt(sc syscall.RawConn, device string) error {
+func SetBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return fmt.Errorf("binding connection to a device is not supported")
 }
 
-func dialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func DialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	if ttl != 0 {
 		logger.Warn("setting ttl for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	if minTtl != 0 {
 		logger.Warn("setting min ttl for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	var sockerr error
 	if mss != 0 {
 		if err := c.Control(func(fd uintptr) {
 			level := syscall.IPPROTO_TCP
 			name := syscall.TCP_MAXSEG
-			sockerr = os.NewSyscallError("setsockopt", syscall.SetsockoptInt(int(fd), level, name, int(mss)))
+			sockerr = os.NewSyscallError("setSockOpt", syscall.SetsockoptInt(int(fd), level, name, int(mss)))
 		}); err != nil {
 			return err
 		}

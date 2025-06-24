@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -565,7 +566,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				Timeout:   time.Duration(max(retryInterval-1, minConnectRetryInterval)) * time.Second,
 				KeepAlive: -1,
 				Control: func(network, address string, c syscall.RawConn) error {
-					return dialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
+					return netutils.DialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
 				},
 			}
 
@@ -719,12 +720,12 @@ func setPeerConnTTL(fsm *fsm) error {
 	}
 
 	if ttl != 0 {
-		if err := setTCPTTLSockopt(fsm.conn.(*net.TCPConn), ttl); err != nil {
+		if err := netutils.SetTCPTTLSockopt(fsm.conn, ttl); err != nil {
 			return fmt.Errorf("failed to set TTL %d: %w", ttl, err)
 		}
 	}
 	if ttlMin != 0 {
-		if err := setTCPMinTTLSockopt(fsm.conn.(*net.TCPConn), ttlMin); err != nil {
+		if err := netutils.SetTCPMinTTLSockopt(fsm.conn, ttlMin); err != nil {
 			return fmt.Errorf("failed to set minimal TTL %d: %w", ttlMin, err)
 		}
 	}
@@ -736,7 +737,7 @@ func setPeerConnMSS(fsm *fsm) error {
 	if mss == 0 {
 		return nil
 	}
-	if err := setTCPMSSSockopt(fsm.conn.(*net.TCPConn), mss); err != nil {
+	if err := netutils.SetTCPMSSSockopt(fsm.conn, mss); err != nil {
 		return fmt.Errorf("failed to set MSS %d: %w", mss, err)
 	}
 	return nil

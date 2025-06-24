@@ -14,6 +14,7 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/k-sone/critbitgo v1.4.0
 	github.com/kr/pretty v0.3.1
+	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/sirupsen/logrus v1.9.3

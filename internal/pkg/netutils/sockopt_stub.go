@@ -12,28 +12,29 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build !linux && !dragonfly && !freebsd && !netbsd && !openbsd && !darwin && !windows
 // +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd,!darwin,!windows
 
-package server
+package netutils
 
 import (
 	"fmt"
 	"net"
 )
 
-func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return fmt.Errorf("setting md5 is not supported")
 }
 
-func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+func SetTcpTTLSockopt(conn net.Conn, ttl int) error {
 	return fmt.Errorf("setting ttl is not supported")
 }
 
-func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+func SetTcpMinTTLSockopt(conn net.Conn, ttl int) error {
 	return fmt.Errorf("setting min ttl is not supported")
 }
 
-func setTcpMSSSockopt(conn *net.TCPConn, mss uint16) error {
+func SetTcpMSSSockopt(conn net.Conn, mss uint16) error {
 	return fmt.Errorf("setting min ttl is not supported")
 }

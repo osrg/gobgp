@@ -18,7 +18,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -28,7 +27,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/eapache/channels"
@@ -38,6 +36,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
@@ -66,115 +65,6 @@ type FSMTimingHook interface {
 type nopTimingHook struct{}
 
 func (n nopTimingHook) Observe(op FSMOperation, tOp, tWait time.Duration) {}
-
-type tcpListener struct {
-	l      *net.TCPListener
-	ch     chan struct{}
-	cancel context.CancelFunc
-}
-
-func (l *tcpListener) Close() error {
-	if err := l.l.Close(); err != nil {
-		return err
-	}
-	l.cancel()
-	<-l.ch
-	return nil
-}
-
-// avoid mapped IPv6 address
-func newTCPListener(logger log.Logger, address string, port uint32, bindToDev string, ch chan *net.TCPConn) (*tcpListener, error) {
-	proto := "tcp4"
-	family := syscall.AF_INET
-	if ip := net.ParseIP(address); ip == nil {
-		return nil, fmt.Errorf("can't listen on %s", address)
-	} else if ip.To4() == nil {
-		proto = "tcp6"
-		family = syscall.AF_INET6
-	}
-	addr := net.JoinHostPort(address, strconv.Itoa(int(port)))
-
-	var lc net.ListenConfig
-	lc.Control = func(network, address string, c syscall.RawConn) error {
-		if bindToDev != "" {
-			err := setBindToDevSockopt(c, bindToDev)
-			if err != nil {
-				logger.Warn("failed to bind Listener to device ",
-					log.Fields{
-						"Topic":     "Peer",
-						"Key":       addr,
-						"BindToDev": bindToDev,
-						"Error":     err,
-					})
-				return err
-			}
-		}
-		// Note: Set TTL=255 for incoming connection listener in order to accept
-		// connection in case for the neighbor has TTL Security settings.
-		err := setsockoptIpTtl(c, family, 255)
-		if err != nil {
-			logger.Warn("cannot set TTL (255) for TCPListener",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"Err":   err,
-				})
-		}
-		return nil
-	}
-
-	l, err := lc.Listen(context.Background(), proto, addr)
-	if err != nil {
-		return nil, err
-	}
-	listener, ok := l.(*net.TCPListener)
-	if !ok {
-		err = fmt.Errorf("unexpected connection listener (not for TCP)")
-		return nil, err
-	}
-
-	closeCh := make(chan struct{})
-	listenerCtx, listenerCancel := context.WithCancel(context.Background())
-	go func() {
-		for {
-			conn, err := listener.AcceptTCP()
-			if err != nil {
-				close(closeCh)
-				if !errors.Is(err, net.ErrClosed) {
-					logger.Warn("Failed to AcceptTCP",
-						log.Fields{
-							"Topic": "Peer",
-							"Error": err,
-						})
-				}
-				return
-			}
-
-			err = conn.SetKeepAlive(false)
-			if err != nil {
-				conn.Close()
-				close(closeCh)
-				logger.Warn("Failed to SetKeepAlive",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   addr,
-						"Error": err,
-					})
-				return
-			}
-
-			select {
-			case ch <- conn:
-			case <-listenerCtx.Done():
-			}
-		}
-	}()
-	return &tcpListener{
-		l:      listener,
-		ch:     closeCh,
-		cancel: listenerCancel,
-	}, nil
-}
 
 type options struct {
 	grpcAddress string
@@ -212,11 +102,11 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 type BgpServer struct {
 	apiServer    *server
 	bgpConfig    oc.Bgp
-	acceptCh     chan *net.TCPConn
+	acceptCh     chan net.Conn
 	incomings    []*channels.InfiniteChannel
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
-	listeners    []*tcpListener
+	listeners    []*netutils.TCPListener
 	neighborMap  map[string]*peer
 	peerGroupMap map[string]*peerGroup
 	globalRib    *table.TableManager
@@ -304,10 +194,10 @@ func (s *BgpServer) listListeners(addr string) []*net.TCPListener {
 	list := make([]*net.TCPListener, 0, len(s.listeners))
 	rhs := net.ParseIP(addr).To4() != nil
 	for _, l := range s.listeners {
-		host, _, _ := net.SplitHostPort(l.l.Addr().String())
+		host, _, _ := net.SplitHostPort(l.Addr().String())
 		lhs := net.ParseIP(host).To4() != nil
 		if lhs == rhs {
-			list = append(list, l.l)
+			list = append(list, l.Listener())
 		}
 	}
 	return list
@@ -349,7 +239,7 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 	return
 }
 
-func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
+func (s *BgpServer) passConnToPeer(conn net.Conn) {
 	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 	ipaddr, _ := net.ResolveIPAddr("ip", host)
 	remoteAddr := ipaddr.String()
@@ -462,7 +352,7 @@ func (s *BgpServer) passConnToPeer(conn *net.TCPConn) {
 const firstPeerCaseIndex = 3
 
 func (s *BgpServer) Serve() {
-	s.listeners = make([]*tcpListener, 0, 2)
+	s.listeners = make([]*netutils.TCPListener, 0, 2)
 
 	handlefsmMsg := func(e *fsmMsg) {
 		fsm := e.fsm
@@ -571,7 +461,7 @@ func (s *BgpServer) Serve() {
 			// NOTE: it would be useful to use kernel metrics such as SO_TIMESTAMPING to record time we got
 			// first SYN packet in TCP connection. For now we skip tWait for accept events, message/mgmt op
 			// delays should be enough to analyze FSM loop.
-			conn := value.Interface().(*net.TCPConn)
+			conn := value.Interface().(net.Conn)
 			s.passConnToPeer(conn)
 			s.timingHook.Observe(FSMAccept, time.Since(tStart), 0)
 		case 2:
@@ -2546,9 +2436,9 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		}
 
 		if c.Config.Port > 0 {
-			acceptCh := make(chan *net.TCPConn, 32)
+			acceptCh := make(chan net.Conn, 32)
 			for _, addr := range c.Config.LocalAddressList {
-				l, err := newTCPListener(s.logger, addr, uint32(c.Config.Port), g.BindToDevice, acceptCh)
+				l, err := netutils.NewTCPListener(s.logger, addr, uint32(c.Config.Port), g.BindToDevice, acceptCh)
 				if err != nil {
 					return err
 				}
@@ -3370,7 +3260,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if s.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range s.listListeners(addr) {
 			if c.Config.AuthPassword != "" {
-				if err := setTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
+				if err := netutils.SetTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
 					s.logger.Warn("failed to set md5",
 						log.Fields{
 							"Topic": "Peer",
@@ -3449,7 +3339,7 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 			prefix := r.DynamicNeighbor.Prefix
 			addr, _, _ := net.ParseCIDR(prefix)
 			for _, l := range s.listListeners(addr.String()) {
-				if err := setTCPMD5SigSockopt(l, prefix, pConf.Config.AuthPassword); err != nil {
+				if err := netutils.SetTCPMD5SigSockopt(l, prefix, pConf.Config.AuthPassword); err != nil {
 					s.logger.Warn("failed to set md5",
 						log.Fields{
 							"Topic": "Peer",
@@ -3511,7 +3401,7 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
 	}
 	for _, l := range s.listListeners(addr) {
 		if c.Config.AuthPassword != "" {
-			if err := setTCPMD5SigSockopt(l, addr, ""); err != nil {
+			if err := netutils.SetTCPMD5SigSockopt(l, addr, ""); err != nil {
 				s.logger.Warn("failed to unset md5",
 					log.Fields{
 						"Topic": "Peer",
@@ -3581,7 +3471,7 @@ func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDyna
 				addr, _, perr := net.ParseCIDR(prefix)
 				if perr == nil {
 					for _, l := range s.listListeners(addr.String()) {
-						if err := setTCPMD5SigSockopt(l, prefix, ""); err != nil {
+						if err := netutils.SetTCPMD5SigSockopt(l, prefix, ""); err != nil {
 							s.logger.Warn("failed to clear md5",
 								log.Fields{
 									"Topic": "Peer",

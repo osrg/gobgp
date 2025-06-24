@@ -661,7 +661,7 @@ func (peer *peer) StaleAll(rfList []bgp.Family) []*table.Path {
 	return peer.adjRibIn.StaleAll(rfList)
 }
 
-func (peer *peer) PassConn(conn *net.TCPConn) {
+func (peer *peer) PassConn(conn net.Conn) {
 	select {
 	case peer.fsm.connCh <- conn:
 	default:

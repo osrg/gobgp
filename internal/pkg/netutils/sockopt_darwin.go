@@ -12,10 +12,11 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build darwin
 // +build darwin
 
-package server
+package netutils
 
 import (
 	"fmt"
@@ -24,31 +25,31 @@ import (
 	"syscall"
 )
 
-func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return fmt.Errorf("setting md5 is not supported")
 }
 
-func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+func SetTcpTTLSockopt(conn net.Conn, ttl int) error {
 	family := syscall.AF_INET
 	if strings.Contains(conn.RemoteAddr().String(), "[") {
 		family = syscall.AF_INET6
 	}
-	sc, err := conn.SyscallConn()
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptIpTtl(sc, family, ttl)
+	return setSockOptIpTtl(sc, family, ttl)
 }
 
-func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+func SetTcpMinTTLSockopt(conn net.Conn, ttl int) error {
 	return fmt.Errorf("setting min ttl is not supported")
 }
 
-func setTcpMSSSockopt(conn *net.TCPConn, mss uint16) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTcpMSSSockopt(conn net.Conn, mss uint16) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptTcpMss(sc, family, mss)
+	return setSockOptTcpMss(sc, family, mss)
 }

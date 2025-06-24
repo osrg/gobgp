@@ -12,10 +12,11 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build dragonfly || freebsd || netbsd
 // +build dragonfly freebsd netbsd
 
-package server
+package netutils
 
 import (
 	"net"
@@ -27,27 +28,27 @@ const (
 	ipv6MinHopCount = 73   // Generalized TTL Security Mechanism (RFC5082)
 )
 
-func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	sc, err := l.SyscallConn()
 	if err != nil {
 		return err
 	}
 	// always enable and assumes that the configuration is done by setkey()
-	return setsockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
+	return setSockOptInt(sc, syscall.IPPROTO_TCP, tcpMD5SIG, 1)
 }
 
-func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTcpTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptIpTtl(sc, family, ttl)
+	return setSockOptIpTtl(sc, family, ttl)
 }
 
-func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTcpMinTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
@@ -57,14 +58,14 @@ func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
 		level = syscall.IPPROTO_IPV6
 		name = ipv6MinHopCount
 	}
-	return setsockOptInt(sc, level, name, ttl)
+	return setSockOptInt(sc, level, name, ttl)
 }
 
-func setTcpMSSSockopt(conn *net.TCPConn, mss uint16) error {
-	family := extractFamilyFromTCPConn(conn)
-	sc, err := conn.SyscallConn()
+func SetTcpMSSSockopt(conn net.Conn, mss uint16) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	return setsockoptTcpMss(sc, family, mss)
+	return setSockOptTcpMss(sc, family, mss)
 }

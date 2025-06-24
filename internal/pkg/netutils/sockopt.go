@@ -12,10 +12,11 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build !linux && !openbsd && !windows
 // +build !linux,!openbsd,!windows
 
-package server
+package netutils
 
 import (
 	"fmt"
@@ -25,50 +26,54 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
-func setTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	return setTcpMD5SigSockopt(l, address, key)
+func SetTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+	return SetTcpMD5SigSockopt(l, address, key)
 }
 
-func setTCPTTLSockopt(conn *net.TCPConn, ttl int) error {
-	return setTcpTTLSockopt(conn, ttl)
+func SetTCPTTLSockopt(conn net.Conn, ttl int) error {
+	return SetTcpTTLSockopt(conn, ttl)
 }
 
-func setTCPMinTTLSockopt(conn *net.TCPConn, ttl int) error {
-	return setTcpMinTTLSockopt(conn, ttl)
+func SetTCPMinTTLSockopt(conn net.Conn, ttl int) error {
+	return SetTcpMinTTLSockopt(conn, ttl)
 }
 
-func setBindToDevSockopt(sc syscall.RawConn, device string) error {
+func SetBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return fmt.Errorf("binding connection to a device is not supported")
 }
 
-func setTCPMSSSockopt(conn *net.TCPConn, mss uint16) error {
-	return setTcpMSSSockopt(conn, mss)
+func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
+	return SetTcpMSSSockopt(conn, mss)
 }
 
-func dialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func DialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	if ttl != 0 {
 		logger.Warn("setting ttl for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	if minTtl != 0 {
 		logger.Warn("setting min ttl for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	if mss != 0 {
 		logger.Warn("setting MSS for active connection is not supported",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   address})
+				"Key":   address,
+			})
 	}
 	return nil
 }
