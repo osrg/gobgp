@@ -20,17 +20,50 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"syscall"
 
+	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
+type TCPConn struct {
+	*net.TCPConn
+	cb func(*TCPConn)
+}
+
+func (c *TCPConn) Close() error {
+	if c.cb != nil {
+		c.cb(c)
+	}
+	return c.TCPConn.Close()
+}
+
+func (c *TCPConn) Key() string {
+	if c == nil || c.TCPConn == nil {
+		return ""
+	}
+	addr := c.RemoteAddr()
+	if addr == nil {
+		return ""
+	}
+	return addr.String()
+}
+
+// Ensure TCPConn implements net.Conn/syscall.Conn interfaces
+var (
+	_ net.Conn     = (*TCPConn)(nil)
+	_ syscall.Conn = (*TCPConn)(nil)
+)
+
 type TCPListener struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	l        *net.TCPListener
-	connChan chan net.Conn
-	logger   log.Logger
+	ctx          context.Context
+	cancel       context.CancelFunc
+	l            *net.TCPListener
+	connChan     chan net.Conn
+	acceptedConn cmap.ConcurrentMap[string, *TCPConn] // key is RemoteAddr().String()
+	stopWg       *sync.WaitGroup                      // used to wait for acceptLoop to finish
+	logger       log.Logger
 }
 
 func listenControl(logger log.Logger, bindToDev string) func(network, address string, c syscall.RawConn) error {
@@ -62,7 +95,16 @@ func listenControl(logger log.Logger, bindToDev string) func(network, address st
 	}
 }
 
+func (l *TCPListener) closeConnCb(tcpConn *TCPConn) {
+	key := tcpConn.Key()
+	if key == "" {
+		return // nothing to do
+	}
+	l.acceptedConn.Remove(key)
+}
+
 func (l *TCPListener) acceptLoop() {
+	defer l.stopWg.Done()
 	for {
 		conn, err := l.l.AcceptTCP()
 		if err != nil {
@@ -75,19 +117,26 @@ func (l *TCPListener) acceptLoop() {
 			}
 			return
 		}
+		tcpConn := &TCPConn{
+			TCPConn: conn,
+			cb:      l.closeConnCb,
+		}
+		key := tcpConn.Key()
+		l.acceptedConn.Set(key, tcpConn)
+
 		err = conn.SetKeepAlive(false)
 		if err != nil {
 			l.logger.Warn("Failed to SetKeepAlive",
 				log.Fields{
 					"Topic": "Peer",
-					"Key":   conn.RemoteAddr().String(),
+					"Key":   key,
 					"Error": err,
 				})
 			return
 		}
 
 		select {
-		case l.connChan <- conn:
+		case l.connChan <- tcpConn:
 		case <-l.ctx.Done():
 			return
 		}
@@ -113,12 +162,18 @@ func NewTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 	}
 
 	listenerCtx, listenerCancel := context.WithCancel(context.Background())
+	// Create the stopWg to wait for acceptLoop to finish
+	// when Close() is called.
+	stopWg := &sync.WaitGroup{}
+	stopWg.Add(1)
 	l := &TCPListener{
-		ctx:      listenerCtx,
-		cancel:   listenerCancel,
-		l:        netListener,
-		connChan: connChan,
-		logger:   logger,
+		ctx:          listenerCtx,
+		cancel:       listenerCancel,
+		l:            netListener,
+		stopWg:       stopWg,
+		connChan:     connChan,
+		acceptedConn: cmap.New[*TCPConn](),
+		logger:       logger,
 	}
 	go l.acceptLoop()
 	return l, nil
@@ -127,6 +182,11 @@ func NewTCPListener(logger log.Logger, address string, port uint32, bindToDev st
 func (l *TCPListener) Close() {
 	l.cancel()
 	_ = l.l.Close()
+	l.stopWg.Wait()
+	for t := range l.acceptedConn.IterBuffered() {
+		_ = t.Val.TCPConn.Close()
+	}
+	l.acceptedConn.Clear()
 }
 
 func (l *TCPListener) Addr() net.Addr {

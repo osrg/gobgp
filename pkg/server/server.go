@@ -461,7 +461,7 @@ func (s *BgpServer) Serve() {
 			// NOTE: it would be useful to use kernel metrics such as SO_TIMESTAMPING to record time we got
 			// first SYN packet in TCP connection. For now we skip tWait for accept events, message/mgmt op
 			// delays should be enough to analyze FSM loop.
-			conn := value.Interface().(net.Conn)
+			conn := value.Interface().(*netutils.TCPConn)
 			s.passConnToPeer(conn)
 			s.timingHook.Observe(FSMAccept, time.Since(tStart), 0)
 		case 2:
