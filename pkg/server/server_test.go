@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -221,8 +222,11 @@ func TestListPolicyAssignment(t *testing.T) {
 }
 
 //nolint:errcheck // WatchEvent won't return an error here
-func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
+func waitState(s *BgpServer, ch chan struct{}, watcherReady chan struct{}, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
+	var syncWaitStateAPIs sync.WaitGroup
+
 	watchCtx, watchCancel := context.WithCancel(context.Background())
+	syncWaitStateAPIs.Add(1)
 	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse) {
 		if peer := r.GetPeer(); peer != nil {
 			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == state {
@@ -242,23 +246,54 @@ func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState,
 						return
 					}
 				}
-				close(ch)
-				watchCancel()
+				syncWaitStateAPIs.Done()
 			}
 		}
 	})
+
+	syncWaitStateAPIs.Add(1)
+	s.WatchEventMessages(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}},
+		WatchEventMessageCallbacks{
+			OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent) {
+				if peer != nil {
+					apiPeerSessionState := func(peer *apiutil.Peer) api.PeerState_SessionState {
+						return api.PeerState_SessionState(int(peer.State.SessionState) + 1)
+					}
+					if peer.Type == apiutil.PEER_EVENT_STATE && apiPeerSessionState(peer.Peer) == state {
+						for _, rf := range expectedFamilies {
+							found := false
+							for _, cap := range peer.Peer.State.RemoteCap {
+								if cap.Code() == bgp.BGP_CAP_MULTIPROTOCOL && cap.(*bgp.CapMultiProtocol).CapValue == rf {
+									found = true
+									break
+								}
+							}
+							if !found {
+								return
+							}
+						}
+						syncWaitStateAPIs.Done()
+					}
+				}
+			},
+		})
+
+	watcherReady <- struct{}{}
+	syncWaitStateAPIs.Wait()
+	close(ch)
+	watchCancel()
 }
 
-func waitActive(s *BgpServer, ch chan struct{}) {
-	waitState(s, ch, api.PeerState_SESSION_STATE_ACTIVE)
+func waitActive(s *BgpServer, ch chan struct{}, watcherReady chan struct{}) {
+	waitState(s, ch, watcherReady, api.PeerState_SESSION_STATE_ACTIVE)
 }
 
-func waitEstablished(s *BgpServer, ch chan struct{}) {
-	waitEstablishedWithFamilies(s, ch)
+func waitEstablished(s *BgpServer, ch chan struct{}, watcherReady chan struct{}) {
+	waitEstablishedWithFamilies(s, ch, watcherReady)
 }
 
-func waitEstablishedWithFamilies(s *BgpServer, ch chan struct{}, rfs ...bgp.Family) {
-	waitState(s, ch, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
+func waitEstablishedWithFamilies(s *BgpServer, ch chan struct{}, watcherReady chan struct{}, rfs ...bgp.Family) {
+	waitState(s, ch, watcherReady, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -317,8 +352,10 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go waitEstablished(server1, ch)
+	watcherReady := make(chan struct{})
+	go waitEstablished(server1, ch, watcherReady)
 
+	<-watcherReady
 	err = server2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
 	<-ch
@@ -768,8 +805,10 @@ func TestMonitor(test *testing.T) {
 			},
 		},
 	}
+	watcherReady := make(chan struct{})
 	ch := make(chan struct{})
-	go waitEstablished(s, ch)
+	go waitEstablished(s, ch, watcherReady)
+	<-watcherReady
 	// go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
 	// 	if peer.State.SessionState == api.PeerState_ESTABLISHED {
 	// 		close(ch)
@@ -1200,7 +1239,10 @@ func TestPeerGroup(test *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go waitEstablished(s, ch)
+	watcherReady := make(chan struct{})
+	go waitEstablished(s, ch, watcherReady)
+	<-watcherReady
+
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
 	<-ch
@@ -1269,7 +1311,10 @@ func TestDynamicNeighbor(t *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go waitEstablished(s2, ch)
+	watcherReady := make(chan struct{})
+	go waitEstablished(s2, ch, watcherReady)
+	<-watcherReady
+
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
 	<-ch
@@ -1338,7 +1383,10 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	}
 
 	ch := make(chan struct{})
-	go waitEstablished(s2, ch)
+	watcherReady := make(chan struct{})
+	go waitEstablished(s2, ch, watcherReady)
+	<-watcherReady
+
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
 	<-ch
@@ -1410,7 +1458,10 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	}
 
 	activeCh := make(chan struct{})
-	go waitActive(s1, activeCh)
+	watcherReady := make(chan struct{})
+	go waitActive(s1, activeCh, watcherReady)
+	<-watcherReady
+
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 	<-activeCh
@@ -1484,7 +1535,10 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 
 	// Check that we can establish the peering when re-adding the peer.
 	establishedCh := make(chan struct{})
-	go waitEstablished(s2, establishedCh)
+	watcherReady = make(chan struct{})
+	go waitEstablished(s2, establishedCh, watcherReady)
+	<-watcherReady
+
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 	<-establishedCh
@@ -2605,7 +2659,9 @@ func TestWatchEvent(test *testing.T) {
 		},
 	}
 	ch := make(chan struct{})
-	go waitEstablishedWithFamilies(s, ch, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+	watcherReady := make(chan struct{})
+	go waitEstablishedWithFamilies(s, ch, watcherReady, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+	<-watcherReady
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
@@ -2626,9 +2682,206 @@ func TestWatchEvent(test *testing.T) {
 	}, func(resp *api.WatchEventResponse) {
 		t := resp.Event.(*api.WatchEventResponse_Table)
 		count += len(t.Table.Paths)
-		if count == 2 {
+		if len(t.Table.Paths) > 0 && count == 2 {
 			close(done)
 		}
+	})
+	assert.NoError(err)
+	<-done
+
+	assert.Equal(2, count)
+}
+
+func TestWatchEventMessages(test *testing.T) {
+	assert := assert.New(test)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 10179,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peer1 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         2,
+		},
+		Transport: &api.Transport{
+			PassiveMode: true,
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
+	assert.NoError(err)
+
+	d1 := &api.DefinedSet{
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
+		Name:        "d1",
+		Prefixes: []*api.Prefix{
+			{
+				IpPrefix:      "10.1.0.0/24",
+				MaskLengthMax: 24,
+				MaskLengthMin: 24,
+			},
+		},
+	}
+	s1 := &api.Statement{
+		Name: "s1",
+		Conditions: &api.Conditions{
+			PrefixSet: &api.MatchSet{
+				Name: "d1",
+				Type: api.MatchSet_TYPE_ANY,
+			},
+		},
+		Actions: &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
+	assert.NoError(err)
+	p1 := &api.Policy{
+		Name:       "p1",
+		Statements: []*api.Statement{s1},
+	}
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p1})
+	assert.NoError(err)
+	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies:      []*api.Policy{p1},
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+		},
+	})
+	assert.NoError(err)
+
+	t := NewBgpServer()
+	go t.Serve()
+	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	family := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	}}}
+
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
+
+	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri1,
+			Pattrs: attrs,
+		},
+	})
+	assert.NoError(err)
+
+	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+		Prefix:    "10.2.0.0",
+		PrefixLen: 24,
+	}}}
+	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri2,
+			Pattrs: attrs,
+		},
+	})
+	assert.NoError(err)
+
+	peer2 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         1,
+		},
+		Transport: &api.Transport{
+			RemotePort: 10179,
+		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
+		AfiSafis: []*api.AfiSafi{
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP6,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+		},
+	}
+	ch := make(chan struct{})
+	watcherReady := make(chan struct{})
+	go waitEstablishedWithFamilies(s, ch, watcherReady, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+	<-watcherReady
+
+	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
+	assert.NoError(err)
+	<-ch
+
+	count := 0
+	done := make(chan struct{})
+	f := func(paths []*apiutil.Path) {
+		count += len(paths)
+		if len(paths) > 0 && count == 2 {
+			close(done)
+		}
+	}
+	err = s.WatchEventMessages(context.Background(), &api.WatchEventRequest{
+		Table: &api.WatchEventRequest_Table{
+			Filters: []*api.WatchEventRequest_Table_Filter{
+				{
+					Type:        api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
+					PeerAddress: "127.0.0.1",
+					Init:        true,
+				},
+			},
+		},
+	}, WatchEventMessageCallbacks{
+		OnPathUpdate: f,
+		OnBestPath:   f,
+		OnPathEor:    f,
 	})
 	assert.NoError(err)
 	<-done
