@@ -3165,7 +3165,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 						received := uint64(peer.adjRibIn.Count(flist))
 						accepted := uint64(peer.adjRibIn.Accepted(flist))
 						advertised := uint64(0)
-						if getAdvertised {
+						if getAdvertised && peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 							pathList, _ := s.getBestFromLocal(peer, flist)
 							advertised = uint64(len(pathList))
 						}
