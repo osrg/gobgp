@@ -31,551 +31,14 @@ func mapkey(index int, name string) string {
 	return fmt.Sprintf("%v", index)
 }
 
-// typedef for identity rpol:default-policy-type.
-// type used to specify default route disposition in
-// a policy chain.
-type DefaultPolicyType string
+// typedef for typedef openconfig-types:std-regexp.
+type StdRegexp string
 
-const (
-	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE DefaultPolicyType = "accept-route"
-	DEFAULT_POLICY_TYPE_REJECT_ROUTE DefaultPolicyType = "reject-route"
-)
+// typedef for typedef openconfig-types:percentage.
+type Percentage uint8
 
-var DefaultPolicyTypeToIntMap = map[DefaultPolicyType]int{
-	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE: 0,
-	DEFAULT_POLICY_TYPE_REJECT_ROUTE: 1,
-}
-
-var IntToDefaultPolicyTypeMap = map[int]DefaultPolicyType{
-	0: DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
-	1: DEFAULT_POLICY_TYPE_REJECT_ROUTE,
-}
-
-func (v DefaultPolicyType) Validate() error {
-	if _, ok := DefaultPolicyTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid DefaultPolicyType: %s", v)
-	}
-	return nil
-}
-
-func (v DefaultPolicyType) ToInt() int {
-	i, ok := DefaultPolicyTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity rpol:route-type.
-// Condition to check the route type in the route update.
-type RouteType string
-
-const (
-	ROUTE_TYPE_NONE     RouteType = "none"
-	ROUTE_TYPE_INTERNAL RouteType = "internal"
-	ROUTE_TYPE_EXTERNAL RouteType = "external"
-	ROUTE_TYPE_LOCAL    RouteType = "local"
-)
-
-var RouteTypeToIntMap = map[RouteType]int{
-	ROUTE_TYPE_NONE:     0,
-	ROUTE_TYPE_INTERNAL: 1,
-	ROUTE_TYPE_EXTERNAL: 2,
-	ROUTE_TYPE_LOCAL:    3,
-}
-
-var IntToRouteTypeMap = map[int]RouteType{
-	0: ROUTE_TYPE_NONE,
-	1: ROUTE_TYPE_INTERNAL,
-	2: ROUTE_TYPE_EXTERNAL,
-	3: ROUTE_TYPE_LOCAL,
-}
-
-func (v RouteType) Validate() error {
-	if _, ok := RouteTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid RouteType: %s", v)
-	}
-	return nil
-}
-
-func (v RouteType) ToInt() int {
-	i, ok := RouteTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity rpol:route-disposition.
-// Select the final disposition for the route, either
-// accept or reject.
-type RouteDisposition string
-
-const (
-	ROUTE_DISPOSITION_NONE         RouteDisposition = "none"
-	ROUTE_DISPOSITION_ACCEPT_ROUTE RouteDisposition = "accept-route"
-	ROUTE_DISPOSITION_REJECT_ROUTE RouteDisposition = "reject-route"
-)
-
-var RouteDispositionToIntMap = map[RouteDisposition]int{
-	ROUTE_DISPOSITION_NONE:         0,
-	ROUTE_DISPOSITION_ACCEPT_ROUTE: 1,
-	ROUTE_DISPOSITION_REJECT_ROUTE: 2,
-}
-
-var IntToRouteDispositionMap = map[int]RouteDisposition{
-	0: ROUTE_DISPOSITION_NONE,
-	1: ROUTE_DISPOSITION_ACCEPT_ROUTE,
-	2: ROUTE_DISPOSITION_REJECT_ROUTE,
-}
-
-func (v RouteDisposition) Validate() error {
-	if _, ok := RouteDispositionToIntMap[v]; !ok {
-		return fmt.Errorf("invalid RouteDisposition: %s", v)
-	}
-	return nil
-}
-
-func (v RouteDisposition) ToInt() int {
-	i, ok := RouteDispositionToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity ptypes:match-set-options-type.
-// Options that govern the behavior of a match statement.  The
-// default behavior is ANY, i.e., the given value matches any
-// of the members of the defined set.
-type MatchSetOptionsType string
-
-const (
-	MATCH_SET_OPTIONS_TYPE_ANY    MatchSetOptionsType = "any"
-	MATCH_SET_OPTIONS_TYPE_ALL    MatchSetOptionsType = "all"
-	MATCH_SET_OPTIONS_TYPE_INVERT MatchSetOptionsType = "invert"
-)
-
-var MatchSetOptionsTypeToIntMap = map[MatchSetOptionsType]int{
-	MATCH_SET_OPTIONS_TYPE_ANY:    0,
-	MATCH_SET_OPTIONS_TYPE_ALL:    1,
-	MATCH_SET_OPTIONS_TYPE_INVERT: 2,
-}
-
-var IntToMatchSetOptionsTypeMap = map[int]MatchSetOptionsType{
-	0: MATCH_SET_OPTIONS_TYPE_ANY,
-	1: MATCH_SET_OPTIONS_TYPE_ALL,
-	2: MATCH_SET_OPTIONS_TYPE_INVERT,
-}
-
-func (v MatchSetOptionsType) Validate() error {
-	if _, ok := MatchSetOptionsTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid MatchSetOptionsType: %s", v)
-	}
-	return nil
-}
-
-func (v MatchSetOptionsType) Default() MatchSetOptionsType {
-	return MATCH_SET_OPTIONS_TYPE_ANY
-}
-
-func (v MatchSetOptionsType) DefaultAsNeeded() MatchSetOptionsType {
-	if string(v) == "" {
-		return v.Default()
-	}
-	return v
-}
-func (v MatchSetOptionsType) ToInt() int {
-	_v := v.DefaultAsNeeded()
-	i, ok := MatchSetOptionsTypeToIntMap[_v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity ptypes:match-set-options-restricted-type.
-// Options that govern the behavior of a match statement.  The
-// default behavior is ANY, i.e., the given value matches any
-// of the members of the defined set.  Note this type is a
-// restricted version of the match-set-options-type.
-type MatchSetOptionsRestrictedType string
-
-const (
-	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY    MatchSetOptionsRestrictedType = "any"
-	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT MatchSetOptionsRestrictedType = "invert"
-)
-
-var MatchSetOptionsRestrictedTypeToIntMap = map[MatchSetOptionsRestrictedType]int{
-	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:    0,
-	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT: 1,
-}
-
-var IntToMatchSetOptionsRestrictedTypeMap = map[int]MatchSetOptionsRestrictedType{
-	0: MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
-	1: MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT,
-}
-
-func (v MatchSetOptionsRestrictedType) Validate() error {
-	if _, ok := MatchSetOptionsRestrictedTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid MatchSetOptionsRestrictedType: %s", v)
-	}
-	return nil
-}
-
-func (v MatchSetOptionsRestrictedType) Default() MatchSetOptionsRestrictedType {
-	return MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
-}
-
-func (v MatchSetOptionsRestrictedType) DefaultAsNeeded() MatchSetOptionsRestrictedType {
-	if string(v) == "" {
-		return v.Default()
-	}
-	return v
-}
-func (v MatchSetOptionsRestrictedType) ToInt() int {
-	_v := v.DefaultAsNeeded()
-	i, ok := MatchSetOptionsRestrictedTypeToIntMap[_v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for typedef ptypes:tag-type.
-type TagType string
-
-// typedef for identity ptypes:attribute-comparison.
-// base type for supported comparison operators on route
-// attributes.
-type AttributeComparison string
-
-const (
-	ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ AttributeComparison = "attribute-eq"
-	ATTRIBUTE_COMPARISON_ATTRIBUTE_GE AttributeComparison = "attribute-ge"
-	ATTRIBUTE_COMPARISON_ATTRIBUTE_LE AttributeComparison = "attribute-le"
-	ATTRIBUTE_COMPARISON_EQ           AttributeComparison = "eq"
-	ATTRIBUTE_COMPARISON_GE           AttributeComparison = "ge"
-	ATTRIBUTE_COMPARISON_LE           AttributeComparison = "le"
-)
-
-var AttributeComparisonToIntMap = map[AttributeComparison]int{
-	ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ: 0,
-	ATTRIBUTE_COMPARISON_ATTRIBUTE_GE: 1,
-	ATTRIBUTE_COMPARISON_ATTRIBUTE_LE: 2,
-	ATTRIBUTE_COMPARISON_EQ:           3,
-	ATTRIBUTE_COMPARISON_GE:           4,
-	ATTRIBUTE_COMPARISON_LE:           5,
-}
-
-var IntToAttributeComparisonMap = map[int]AttributeComparison{
-	0: ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ,
-	1: ATTRIBUTE_COMPARISON_ATTRIBUTE_GE,
-	2: ATTRIBUTE_COMPARISON_ATTRIBUTE_LE,
-	3: ATTRIBUTE_COMPARISON_EQ,
-	4: ATTRIBUTE_COMPARISON_GE,
-	5: ATTRIBUTE_COMPARISON_LE,
-}
-
-func (v AttributeComparison) Validate() error {
-	if _, ok := AttributeComparisonToIntMap[v]; !ok {
-		return fmt.Errorf("invalid AttributeComparison: %s", v)
-	}
-	return nil
-}
-
-func (v AttributeComparison) ToInt() int {
-	i, ok := AttributeComparisonToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity ptypes:install-protocol-type.
-// Base type for protocols which can install prefixes into the
-// RIB.
-type InstallProtocolType string
-
-const (
-	INSTALL_PROTOCOL_TYPE_BGP                InstallProtocolType = "bgp"
-	INSTALL_PROTOCOL_TYPE_ISIS               InstallProtocolType = "isis"
-	INSTALL_PROTOCOL_TYPE_OSPF               InstallProtocolType = "ospf"
-	INSTALL_PROTOCOL_TYPE_OSPF3              InstallProtocolType = "ospf3"
-	INSTALL_PROTOCOL_TYPE_STATIC             InstallProtocolType = "static"
-	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED InstallProtocolType = "directly-connected"
-	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE    InstallProtocolType = "local-aggregate"
-)
-
-var InstallProtocolTypeToIntMap = map[InstallProtocolType]int{
-	INSTALL_PROTOCOL_TYPE_BGP:                0,
-	INSTALL_PROTOCOL_TYPE_ISIS:               1,
-	INSTALL_PROTOCOL_TYPE_OSPF:               2,
-	INSTALL_PROTOCOL_TYPE_OSPF3:              3,
-	INSTALL_PROTOCOL_TYPE_STATIC:             4,
-	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED: 5,
-	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE:    6,
-}
-
-var IntToInstallProtocolTypeMap = map[int]InstallProtocolType{
-	0: INSTALL_PROTOCOL_TYPE_BGP,
-	1: INSTALL_PROTOCOL_TYPE_ISIS,
-	2: INSTALL_PROTOCOL_TYPE_OSPF,
-	3: INSTALL_PROTOCOL_TYPE_OSPF3,
-	4: INSTALL_PROTOCOL_TYPE_STATIC,
-	5: INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED,
-	6: INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE,
-}
-
-func (v InstallProtocolType) Validate() error {
-	if _, ok := InstallProtocolTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid InstallProtocolType: %s", v)
-	}
-	return nil
-}
-
-func (v InstallProtocolType) ToInt() int {
-	i, ok := InstallProtocolTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity bgp:session-state.
-// Operational state of the BGP peer.
-type SessionState string
-
-const (
-	SESSION_STATE_IDLE        SessionState = "idle"
-	SESSION_STATE_CONNECT     SessionState = "connect"
-	SESSION_STATE_ACTIVE      SessionState = "active"
-	SESSION_STATE_OPENSENT    SessionState = "opensent"
-	SESSION_STATE_OPENCONFIRM SessionState = "openconfirm"
-	SESSION_STATE_ESTABLISHED SessionState = "established"
-)
-
-var SessionStateToIntMap = map[SessionState]int{
-	SESSION_STATE_IDLE:        0,
-	SESSION_STATE_CONNECT:     1,
-	SESSION_STATE_ACTIVE:      2,
-	SESSION_STATE_OPENSENT:    3,
-	SESSION_STATE_OPENCONFIRM: 4,
-	SESSION_STATE_ESTABLISHED: 5,
-}
-
-var IntToSessionStateMap = map[int]SessionState{
-	0: SESSION_STATE_IDLE,
-	1: SESSION_STATE_CONNECT,
-	2: SESSION_STATE_ACTIVE,
-	3: SESSION_STATE_OPENSENT,
-	4: SESSION_STATE_OPENCONFIRM,
-	5: SESSION_STATE_ESTABLISHED,
-}
-
-func (v SessionState) Validate() error {
-	if _, ok := SessionStateToIntMap[v]; !ok {
-		return fmt.Errorf("invalid SessionState: %s", v)
-	}
-	return nil
-}
-
-func (v SessionState) ToInt() int {
-	i, ok := SessionStateToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity bgp:admin-state.
-type AdminState string
-
-const (
-	ADMIN_STATE_UP     AdminState = "up"
-	ADMIN_STATE_DOWN   AdminState = "down"
-	ADMIN_STATE_PFX_CT AdminState = "pfx_ct"
-)
-
-var AdminStateToIntMap = map[AdminState]int{
-	ADMIN_STATE_UP:     0,
-	ADMIN_STATE_DOWN:   1,
-	ADMIN_STATE_PFX_CT: 2,
-}
-
-var IntToAdminStateMap = map[int]AdminState{
-	0: ADMIN_STATE_UP,
-	1: ADMIN_STATE_DOWN,
-	2: ADMIN_STATE_PFX_CT,
-}
-
-func (v AdminState) Validate() error {
-	if _, ok := AdminStateToIntMap[v]; !ok {
-		return fmt.Errorf("invalid AdminState: %s", v)
-	}
-	return nil
-}
-
-func (v AdminState) ToInt() int {
-	i, ok := AdminStateToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity bgp:mode.
-// Ths leaf indicates the mode of operation of BGP graceful
-// restart with the peer.
-type Mode string
-
-const (
-	MODE_HELPER_ONLY   Mode = "helper-only"
-	MODE_BILATERAL     Mode = "bilateral"
-	MODE_REMOTE_HELPER Mode = "remote-helper"
-)
-
-var ModeToIntMap = map[Mode]int{
-	MODE_HELPER_ONLY:   0,
-	MODE_BILATERAL:     1,
-	MODE_REMOTE_HELPER: 2,
-}
-
-var IntToModeMap = map[int]Mode{
-	0: MODE_HELPER_ONLY,
-	1: MODE_BILATERAL,
-	2: MODE_REMOTE_HELPER,
-}
-
-func (v Mode) Validate() error {
-	if _, ok := ModeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid Mode: %s", v)
-	}
-	return nil
-}
-
-func (v Mode) ToInt() int {
-	i, ok := ModeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity bgp-types:bgp-session-direction.
-// Type to describe the direction of NLRI transmission.
-type BgpSessionDirection string
-
-const (
-	BGP_SESSION_DIRECTION_INBOUND  BgpSessionDirection = "inbound"
-	BGP_SESSION_DIRECTION_OUTBOUND BgpSessionDirection = "outbound"
-)
-
-var BgpSessionDirectionToIntMap = map[BgpSessionDirection]int{
-	BGP_SESSION_DIRECTION_INBOUND:  0,
-	BGP_SESSION_DIRECTION_OUTBOUND: 1,
-}
-
-var IntToBgpSessionDirectionMap = map[int]BgpSessionDirection{
-	0: BGP_SESSION_DIRECTION_INBOUND,
-	1: BGP_SESSION_DIRECTION_OUTBOUND,
-}
-
-func (v BgpSessionDirection) Validate() error {
-	if _, ok := BgpSessionDirectionToIntMap[v]; !ok {
-		return fmt.Errorf("invalid BgpSessionDirection: %s", v)
-	}
-	return nil
-}
-
-func (v BgpSessionDirection) ToInt() int {
-	i, ok := BgpSessionDirectionToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for typedef bgp-types:bgp-std-community-type.
-type BgpStdCommunityType string
-
-// typedef for typedef bgp-types:bgp-ext-community-type.
-type BgpExtCommunityType string
-
-// typedef for typedef bgp-types:bgp-community-regexp-type.
-type BgpCommunityRegexpType StdRegexp
-
-// typedef for identity bgp-types:bgp-origin-attr-type.
-// Type definition for standard BGP origin attribute.
-type BgpOriginAttrType string
-
-const (
-	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = "igp"
-	BGP_ORIGIN_ATTR_TYPE_EGP        BgpOriginAttrType = "egp"
-	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE BgpOriginAttrType = "incomplete"
-)
-
-var BgpOriginAttrTypeToIntMap = map[BgpOriginAttrType]int{
-	BGP_ORIGIN_ATTR_TYPE_IGP:        0,
-	BGP_ORIGIN_ATTR_TYPE_EGP:        1,
-	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE: 2,
-}
-
-var IntToBgpOriginAttrTypeMap = map[int]BgpOriginAttrType{
-	0: BGP_ORIGIN_ATTR_TYPE_IGP,
-	1: BGP_ORIGIN_ATTR_TYPE_EGP,
-	2: BGP_ORIGIN_ATTR_TYPE_INCOMPLETE,
-}
-
-func (v BgpOriginAttrType) Validate() error {
-	if _, ok := BgpOriginAttrTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid BgpOriginAttrType: %s", v)
-	}
-	return nil
-}
-
-func (v BgpOriginAttrType) ToInt() int {
-	i, ok := BgpOriginAttrTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for identity bgp-types:peer-type.
-// labels a peer or peer group as explicitly internal or
-// external.
-type PeerType string
-
-const (
-	PEER_TYPE_INTERNAL PeerType = "internal"
-	PEER_TYPE_EXTERNAL PeerType = "external"
-)
-
-var PeerTypeToIntMap = map[PeerType]int{
-	PEER_TYPE_INTERNAL: 0,
-	PEER_TYPE_EXTERNAL: 1,
-}
-
-var IntToPeerTypeMap = map[int]PeerType{
-	0: PEER_TYPE_INTERNAL,
-	1: PEER_TYPE_EXTERNAL,
-}
-
-func (v PeerType) Validate() error {
-	if _, ok := PeerTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid PeerType: %s", v)
-	}
-	return nil
-}
-
-func (v PeerType) ToInt() int {
-	i, ok := PeerTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
+// typedef for typedef bgp-types:rr-cluster-id-type.
+type RrClusterIdType string
 
 // typedef for identity bgp-types:remove-private-as-option.
 // set of options for configuring how private AS path numbers
@@ -612,11 +75,8 @@ func (v RemovePrivateAsOption) ToInt() int {
 	return i
 }
 
-// typedef for typedef bgp-types:percentage.
-type Percentage uint8
-
-// typedef for typedef bgp-types:rr-cluster-id-type.
-type RrClusterIdType string
+// typedef for typedef bgp-types:bgp-community-regexp-type.
+type BgpCommunityRegexpType StdRegexp
 
 // typedef for identity bgp-types:community-type.
 // type describing variations of community attributes:
@@ -661,43 +121,112 @@ func (v CommunityType) ToInt() int {
 	return i
 }
 
-// typedef for identity bgp-types:bgp-capability.
-// Base identity for a BGP capability.
-type BgpCapability string
+// typedef for typedef bgp-types:bgp-ext-community-type.
+type BgpExtCommunityType string
+
+// typedef for typedef bgp-types:bgp-std-community-type.
+type BgpStdCommunityType string
+
+// typedef for identity bgp-types:peer-type.
+// labels a peer or peer group as explicitly internal or
+// external.
+type PeerType string
 
 const (
-	BGP_CAPABILITY_MPBGP            BgpCapability = "mpbgp"
-	BGP_CAPABILITY_ROUTE_REFRESH    BgpCapability = "route-refresh"
-	BGP_CAPABILITY_ASN32            BgpCapability = "asn32"
-	BGP_CAPABILITY_GRACEFUL_RESTART BgpCapability = "graceful-restart"
-	BGP_CAPABILITY_ADD_PATHS        BgpCapability = "add-paths"
+	PEER_TYPE_INTERNAL PeerType = "internal"
+	PEER_TYPE_EXTERNAL PeerType = "external"
 )
 
-var BgpCapabilityToIntMap = map[BgpCapability]int{
-	BGP_CAPABILITY_MPBGP:            0,
-	BGP_CAPABILITY_ROUTE_REFRESH:    1,
-	BGP_CAPABILITY_ASN32:            2,
-	BGP_CAPABILITY_GRACEFUL_RESTART: 3,
-	BGP_CAPABILITY_ADD_PATHS:        4,
+var PeerTypeToIntMap = map[PeerType]int{
+	PEER_TYPE_INTERNAL: 0,
+	PEER_TYPE_EXTERNAL: 1,
 }
 
-var IntToBgpCapabilityMap = map[int]BgpCapability{
-	0: BGP_CAPABILITY_MPBGP,
-	1: BGP_CAPABILITY_ROUTE_REFRESH,
-	2: BGP_CAPABILITY_ASN32,
-	3: BGP_CAPABILITY_GRACEFUL_RESTART,
-	4: BGP_CAPABILITY_ADD_PATHS,
+var IntToPeerTypeMap = map[int]PeerType{
+	0: PEER_TYPE_INTERNAL,
+	1: PEER_TYPE_EXTERNAL,
 }
 
-func (v BgpCapability) Validate() error {
-	if _, ok := BgpCapabilityToIntMap[v]; !ok {
-		return fmt.Errorf("invalid BgpCapability: %s", v)
+func (v PeerType) Validate() error {
+	if _, ok := PeerTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid PeerType: %s", v)
 	}
 	return nil
 }
 
-func (v BgpCapability) ToInt() int {
-	i, ok := BgpCapabilityToIntMap[v]
+func (v PeerType) ToInt() int {
+	i, ok := PeerTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity bgp-types:bgp-session-direction.
+// Type to describe the direction of NLRI transmission.
+type BgpSessionDirection string
+
+const (
+	BGP_SESSION_DIRECTION_INBOUND  BgpSessionDirection = "inbound"
+	BGP_SESSION_DIRECTION_OUTBOUND BgpSessionDirection = "outbound"
+)
+
+var BgpSessionDirectionToIntMap = map[BgpSessionDirection]int{
+	BGP_SESSION_DIRECTION_INBOUND:  0,
+	BGP_SESSION_DIRECTION_OUTBOUND: 1,
+}
+
+var IntToBgpSessionDirectionMap = map[int]BgpSessionDirection{
+	0: BGP_SESSION_DIRECTION_INBOUND,
+	1: BGP_SESSION_DIRECTION_OUTBOUND,
+}
+
+func (v BgpSessionDirection) Validate() error {
+	if _, ok := BgpSessionDirectionToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpSessionDirection: %s", v)
+	}
+	return nil
+}
+
+func (v BgpSessionDirection) ToInt() int {
+	i, ok := BgpSessionDirectionToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity bgp-types:bgp-origin-attr-type.
+// Type definition for standard BGP origin attribute.
+type BgpOriginAttrType string
+
+const (
+	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = "igp"
+	BGP_ORIGIN_ATTR_TYPE_EGP        BgpOriginAttrType = "egp"
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE BgpOriginAttrType = "incomplete"
+)
+
+var BgpOriginAttrTypeToIntMap = map[BgpOriginAttrType]int{
+	BGP_ORIGIN_ATTR_TYPE_IGP:        0,
+	BGP_ORIGIN_ATTR_TYPE_EGP:        1,
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE: 2,
+}
+
+var IntToBgpOriginAttrTypeMap = map[int]BgpOriginAttrType{
+	0: BGP_ORIGIN_ATTR_TYPE_IGP,
+	1: BGP_ORIGIN_ATTR_TYPE_EGP,
+	2: BGP_ORIGIN_ATTR_TYPE_INCOMPLETE,
+}
+
+func (v BgpOriginAttrType) Validate() error {
+	if _, ok := BgpOriginAttrTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpOriginAttrType: %s", v)
+	}
+	return nil
+}
+
+func (v BgpOriginAttrType) ToInt() int {
+	i, ok := BgpOriginAttrTypeToIntMap[v]
 	if !ok {
 		return -1
 	}
@@ -810,6 +339,49 @@ func (v AfiSafiType) ToInt() int {
 	return i
 }
 
+// typedef for identity bgp-types:bgp-capability.
+// Base identity for a BGP capability.
+type BgpCapability string
+
+const (
+	BGP_CAPABILITY_MPBGP            BgpCapability = "mpbgp"
+	BGP_CAPABILITY_ROUTE_REFRESH    BgpCapability = "route-refresh"
+	BGP_CAPABILITY_ASN32            BgpCapability = "asn32"
+	BGP_CAPABILITY_GRACEFUL_RESTART BgpCapability = "graceful-restart"
+	BGP_CAPABILITY_ADD_PATHS        BgpCapability = "add-paths"
+)
+
+var BgpCapabilityToIntMap = map[BgpCapability]int{
+	BGP_CAPABILITY_MPBGP:            0,
+	BGP_CAPABILITY_ROUTE_REFRESH:    1,
+	BGP_CAPABILITY_ASN32:            2,
+	BGP_CAPABILITY_GRACEFUL_RESTART: 3,
+	BGP_CAPABILITY_ADD_PATHS:        4,
+}
+
+var IntToBgpCapabilityMap = map[int]BgpCapability{
+	0: BGP_CAPABILITY_MPBGP,
+	1: BGP_CAPABILITY_ROUTE_REFRESH,
+	2: BGP_CAPABILITY_ASN32,
+	3: BGP_CAPABILITY_GRACEFUL_RESTART,
+	4: BGP_CAPABILITY_ADD_PATHS,
+}
+
+func (v BgpCapability) Validate() error {
+	if _, ok := BgpCapabilityToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpCapability: %s", v)
+	}
+	return nil
+}
+
+func (v BgpCapability) ToInt() int {
+	i, ok := BgpCapabilityToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
 // typedef for identity bgp-types:bgp-well-known-std-community.
 // Reserved communities within the standard community space
 // defined by RFC1997. These communities must fall within the
@@ -852,8 +424,516 @@ func (v BgpWellKnownStdCommunity) ToInt() int {
 	return i
 }
 
-// typedef for typedef openconfig-types:std-regexp.
-type StdRegexp string
+// typedef for identity ptypes:match-set-options-restricted-type.
+// Options that govern the behavior of a match statement.  The
+// default behavior is ANY, i.e., the given value matches any
+// of the members of the defined set.  Note this type is a
+// restricted version of the match-set-options-type.
+type MatchSetOptionsRestrictedType string
+
+const (
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY    MatchSetOptionsRestrictedType = "any"
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT MatchSetOptionsRestrictedType = "invert"
+)
+
+var MatchSetOptionsRestrictedTypeToIntMap = map[MatchSetOptionsRestrictedType]int{
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:    0,
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT: 1,
+}
+
+var IntToMatchSetOptionsRestrictedTypeMap = map[int]MatchSetOptionsRestrictedType{
+	0: MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+	1: MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT,
+}
+
+func (v MatchSetOptionsRestrictedType) Validate() error {
+	if _, ok := MatchSetOptionsRestrictedTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid MatchSetOptionsRestrictedType: %s", v)
+	}
+	return nil
+}
+
+func (v MatchSetOptionsRestrictedType) Default() MatchSetOptionsRestrictedType {
+	return MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+}
+
+func (v MatchSetOptionsRestrictedType) DefaultAsNeeded() MatchSetOptionsRestrictedType {
+	if string(v) == "" {
+		return v.Default()
+	}
+	return v
+}
+func (v MatchSetOptionsRestrictedType) ToInt() int {
+	_v := v.DefaultAsNeeded()
+	i, ok := MatchSetOptionsRestrictedTypeToIntMap[_v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity ptypes:match-set-options-type.
+// Options that govern the behavior of a match statement.  The
+// default behavior is ANY, i.e., the given value matches any
+// of the members of the defined set.
+type MatchSetOptionsType string
+
+const (
+	MATCH_SET_OPTIONS_TYPE_ANY    MatchSetOptionsType = "any"
+	MATCH_SET_OPTIONS_TYPE_ALL    MatchSetOptionsType = "all"
+	MATCH_SET_OPTIONS_TYPE_INVERT MatchSetOptionsType = "invert"
+)
+
+var MatchSetOptionsTypeToIntMap = map[MatchSetOptionsType]int{
+	MATCH_SET_OPTIONS_TYPE_ANY:    0,
+	MATCH_SET_OPTIONS_TYPE_ALL:    1,
+	MATCH_SET_OPTIONS_TYPE_INVERT: 2,
+}
+
+var IntToMatchSetOptionsTypeMap = map[int]MatchSetOptionsType{
+	0: MATCH_SET_OPTIONS_TYPE_ANY,
+	1: MATCH_SET_OPTIONS_TYPE_ALL,
+	2: MATCH_SET_OPTIONS_TYPE_INVERT,
+}
+
+func (v MatchSetOptionsType) Validate() error {
+	if _, ok := MatchSetOptionsTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid MatchSetOptionsType: %s", v)
+	}
+	return nil
+}
+
+func (v MatchSetOptionsType) Default() MatchSetOptionsType {
+	return MATCH_SET_OPTIONS_TYPE_ANY
+}
+
+func (v MatchSetOptionsType) DefaultAsNeeded() MatchSetOptionsType {
+	if string(v) == "" {
+		return v.Default()
+	}
+	return v
+}
+func (v MatchSetOptionsType) ToInt() int {
+	_v := v.DefaultAsNeeded()
+	i, ok := MatchSetOptionsTypeToIntMap[_v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for typedef ptypes:tag-type.
+type TagType string
+
+// typedef for identity ptypes:install-protocol-type.
+// Base type for protocols which can install prefixes into the
+// RIB.
+type InstallProtocolType string
+
+const (
+	INSTALL_PROTOCOL_TYPE_BGP                InstallProtocolType = "bgp"
+	INSTALL_PROTOCOL_TYPE_ISIS               InstallProtocolType = "isis"
+	INSTALL_PROTOCOL_TYPE_OSPF               InstallProtocolType = "ospf"
+	INSTALL_PROTOCOL_TYPE_OSPF3              InstallProtocolType = "ospf3"
+	INSTALL_PROTOCOL_TYPE_STATIC             InstallProtocolType = "static"
+	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED InstallProtocolType = "directly-connected"
+	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE    InstallProtocolType = "local-aggregate"
+)
+
+var InstallProtocolTypeToIntMap = map[InstallProtocolType]int{
+	INSTALL_PROTOCOL_TYPE_BGP:                0,
+	INSTALL_PROTOCOL_TYPE_ISIS:               1,
+	INSTALL_PROTOCOL_TYPE_OSPF:               2,
+	INSTALL_PROTOCOL_TYPE_OSPF3:              3,
+	INSTALL_PROTOCOL_TYPE_STATIC:             4,
+	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED: 5,
+	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE:    6,
+}
+
+var IntToInstallProtocolTypeMap = map[int]InstallProtocolType{
+	0: INSTALL_PROTOCOL_TYPE_BGP,
+	1: INSTALL_PROTOCOL_TYPE_ISIS,
+	2: INSTALL_PROTOCOL_TYPE_OSPF,
+	3: INSTALL_PROTOCOL_TYPE_OSPF3,
+	4: INSTALL_PROTOCOL_TYPE_STATIC,
+	5: INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED,
+	6: INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE,
+}
+
+func (v InstallProtocolType) Validate() error {
+	if _, ok := InstallProtocolTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid InstallProtocolType: %s", v)
+	}
+	return nil
+}
+
+func (v InstallProtocolType) ToInt() int {
+	i, ok := InstallProtocolTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity ptypes:attribute-comparison.
+// base type for supported comparison operators on route
+// attributes.
+type AttributeComparison string
+
+const (
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ AttributeComparison = "attribute-eq"
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_GE AttributeComparison = "attribute-ge"
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_LE AttributeComparison = "attribute-le"
+	ATTRIBUTE_COMPARISON_EQ           AttributeComparison = "eq"
+	ATTRIBUTE_COMPARISON_GE           AttributeComparison = "ge"
+	ATTRIBUTE_COMPARISON_LE           AttributeComparison = "le"
+)
+
+var AttributeComparisonToIntMap = map[AttributeComparison]int{
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ: 0,
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_GE: 1,
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_LE: 2,
+	ATTRIBUTE_COMPARISON_EQ:           3,
+	ATTRIBUTE_COMPARISON_GE:           4,
+	ATTRIBUTE_COMPARISON_LE:           5,
+}
+
+var IntToAttributeComparisonMap = map[int]AttributeComparison{
+	0: ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ,
+	1: ATTRIBUTE_COMPARISON_ATTRIBUTE_GE,
+	2: ATTRIBUTE_COMPARISON_ATTRIBUTE_LE,
+	3: ATTRIBUTE_COMPARISON_EQ,
+	4: ATTRIBUTE_COMPARISON_GE,
+	5: ATTRIBUTE_COMPARISON_LE,
+}
+
+func (v AttributeComparison) Validate() error {
+	if _, ok := AttributeComparisonToIntMap[v]; !ok {
+		return fmt.Errorf("invalid AttributeComparison: %s", v)
+	}
+	return nil
+}
+
+func (v AttributeComparison) ToInt() int {
+	i, ok := AttributeComparisonToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity rpol:route-disposition.
+// Select the final disposition for the route, either
+// accept or reject.
+type RouteDisposition string
+
+const (
+	ROUTE_DISPOSITION_NONE         RouteDisposition = "none"
+	ROUTE_DISPOSITION_ACCEPT_ROUTE RouteDisposition = "accept-route"
+	ROUTE_DISPOSITION_REJECT_ROUTE RouteDisposition = "reject-route"
+)
+
+var RouteDispositionToIntMap = map[RouteDisposition]int{
+	ROUTE_DISPOSITION_NONE:         0,
+	ROUTE_DISPOSITION_ACCEPT_ROUTE: 1,
+	ROUTE_DISPOSITION_REJECT_ROUTE: 2,
+}
+
+var IntToRouteDispositionMap = map[int]RouteDisposition{
+	0: ROUTE_DISPOSITION_NONE,
+	1: ROUTE_DISPOSITION_ACCEPT_ROUTE,
+	2: ROUTE_DISPOSITION_REJECT_ROUTE,
+}
+
+func (v RouteDisposition) Validate() error {
+	if _, ok := RouteDispositionToIntMap[v]; !ok {
+		return fmt.Errorf("invalid RouteDisposition: %s", v)
+	}
+	return nil
+}
+
+func (v RouteDisposition) ToInt() int {
+	i, ok := RouteDispositionToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity rpol:route-type.
+// Condition to check the route type in the route update.
+type RouteType string
+
+const (
+	ROUTE_TYPE_NONE     RouteType = "none"
+	ROUTE_TYPE_INTERNAL RouteType = "internal"
+	ROUTE_TYPE_EXTERNAL RouteType = "external"
+	ROUTE_TYPE_LOCAL    RouteType = "local"
+)
+
+var RouteTypeToIntMap = map[RouteType]int{
+	ROUTE_TYPE_NONE:     0,
+	ROUTE_TYPE_INTERNAL: 1,
+	ROUTE_TYPE_EXTERNAL: 2,
+	ROUTE_TYPE_LOCAL:    3,
+}
+
+var IntToRouteTypeMap = map[int]RouteType{
+	0: ROUTE_TYPE_NONE,
+	1: ROUTE_TYPE_INTERNAL,
+	2: ROUTE_TYPE_EXTERNAL,
+	3: ROUTE_TYPE_LOCAL,
+}
+
+func (v RouteType) Validate() error {
+	if _, ok := RouteTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid RouteType: %s", v)
+	}
+	return nil
+}
+
+func (v RouteType) ToInt() int {
+	i, ok := RouteTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity rpol:default-policy-type.
+// type used to specify default route disposition in
+// a policy chain.
+type DefaultPolicyType string
+
+const (
+	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE DefaultPolicyType = "accept-route"
+	DEFAULT_POLICY_TYPE_REJECT_ROUTE DefaultPolicyType = "reject-route"
+)
+
+var DefaultPolicyTypeToIntMap = map[DefaultPolicyType]int{
+	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE: 0,
+	DEFAULT_POLICY_TYPE_REJECT_ROUTE: 1,
+}
+
+var IntToDefaultPolicyTypeMap = map[int]DefaultPolicyType{
+	0: DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
+	1: DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+}
+
+func (v DefaultPolicyType) Validate() error {
+	if _, ok := DefaultPolicyTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid DefaultPolicyType: %s", v)
+	}
+	return nil
+}
+
+func (v DefaultPolicyType) ToInt() int {
+	i, ok := DefaultPolicyTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity bgp:session-state.
+// Operational state of the BGP peer.
+type SessionState string
+
+const (
+	SESSION_STATE_IDLE        SessionState = "idle"
+	SESSION_STATE_CONNECT     SessionState = "connect"
+	SESSION_STATE_ACTIVE      SessionState = "active"
+	SESSION_STATE_OPENSENT    SessionState = "opensent"
+	SESSION_STATE_OPENCONFIRM SessionState = "openconfirm"
+	SESSION_STATE_ESTABLISHED SessionState = "established"
+)
+
+var SessionStateToIntMap = map[SessionState]int{
+	SESSION_STATE_IDLE:        0,
+	SESSION_STATE_CONNECT:     1,
+	SESSION_STATE_ACTIVE:      2,
+	SESSION_STATE_OPENSENT:    3,
+	SESSION_STATE_OPENCONFIRM: 4,
+	SESSION_STATE_ESTABLISHED: 5,
+}
+
+var IntToSessionStateMap = map[int]SessionState{
+	0: SESSION_STATE_IDLE,
+	1: SESSION_STATE_CONNECT,
+	2: SESSION_STATE_ACTIVE,
+	3: SESSION_STATE_OPENSENT,
+	4: SESSION_STATE_OPENCONFIRM,
+	5: SESSION_STATE_ESTABLISHED,
+}
+
+func (v SessionState) Validate() error {
+	if _, ok := SessionStateToIntMap[v]; !ok {
+		return fmt.Errorf("invalid SessionState: %s", v)
+	}
+	return nil
+}
+
+func (v SessionState) ToInt() int {
+	i, ok := SessionStateToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity bgp:channel-type.
+type ChannelType string
+
+const (
+	CHANNEL_TYPE_INFINITE ChannelType = "infinite"
+	CHANNEL_TYPE_BUFFER   ChannelType = "buffer"
+)
+
+var ChannelTypeToIntMap = map[ChannelType]int{
+	CHANNEL_TYPE_INFINITE: 0,
+	CHANNEL_TYPE_BUFFER:   1,
+}
+
+var IntToChannelTypeMap = map[int]ChannelType{
+	0: CHANNEL_TYPE_INFINITE,
+	1: CHANNEL_TYPE_BUFFER,
+}
+
+func (v ChannelType) Validate() error {
+	if _, ok := ChannelTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid ChannelType: %s", v)
+	}
+	return nil
+}
+
+func (v ChannelType) ToInt() int {
+	i, ok := ChannelTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity bgp:admin-state.
+type AdminState string
+
+const (
+	ADMIN_STATE_UP     AdminState = "up"
+	ADMIN_STATE_DOWN   AdminState = "down"
+	ADMIN_STATE_PFX_CT AdminState = "pfx_ct"
+)
+
+var AdminStateToIntMap = map[AdminState]int{
+	ADMIN_STATE_UP:     0,
+	ADMIN_STATE_DOWN:   1,
+	ADMIN_STATE_PFX_CT: 2,
+}
+
+var IntToAdminStateMap = map[int]AdminState{
+	0: ADMIN_STATE_UP,
+	1: ADMIN_STATE_DOWN,
+	2: ADMIN_STATE_PFX_CT,
+}
+
+func (v AdminState) Validate() error {
+	if _, ok := AdminStateToIntMap[v]; !ok {
+		return fmt.Errorf("invalid AdminState: %s", v)
+	}
+	return nil
+}
+
+func (v AdminState) ToInt() int {
+	i, ok := AdminStateToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity bgp:mode.
+// Ths leaf indicates the mode of operation of BGP graceful
+// restart with the peer.
+type Mode string
+
+const (
+	MODE_HELPER_ONLY   Mode = "helper-only"
+	MODE_BILATERAL     Mode = "bilateral"
+	MODE_REMOTE_HELPER Mode = "remote-helper"
+)
+
+var ModeToIntMap = map[Mode]int{
+	MODE_HELPER_ONLY:   0,
+	MODE_BILATERAL:     1,
+	MODE_REMOTE_HELPER: 2,
+}
+
+var IntToModeMap = map[int]Mode{
+	0: MODE_HELPER_ONLY,
+	1: MODE_BILATERAL,
+	2: MODE_REMOTE_HELPER,
+}
+
+func (v Mode) Validate() error {
+	if _, ok := ModeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid Mode: %s", v)
+	}
+	return nil
+}
+
+func (v Mode) ToInt() int {
+	i, ok := ModeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for typedef bgp-pol:bgp-next-hop-type.
+type BgpNextHopType string
+
+// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat.
+type BgpAsPathPrependRepeat uint8
+
+// typedef for typedef bgp-pol:bgp-set-med-type.
+type BgpSetMedType string
+
+// typedef for identity bgp-pol:bgp-set-community-option-type.
+// Type definition for options when setting the community
+// attribute in a policy action.
+type BgpSetCommunityOptionType string
+
+const (
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
+)
+
+var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
+}
+
+var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
+	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
+}
+
+func (v BgpSetCommunityOptionType) Validate() error {
+	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
+	}
+	return nil
+}
+
+func (v BgpSetCommunityOptionType) ToInt() int {
+	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
 
 // typedef for identity gobgp:bmp-route-monitoring-policy-type.
 type BmpRouteMonitoringPolicyType string
@@ -891,6 +971,39 @@ func (v BmpRouteMonitoringPolicyType) Validate() error {
 
 func (v BmpRouteMonitoringPolicyType) ToInt() int {
 	i, ok := BmpRouteMonitoringPolicyTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity gobgp:mrt-type.
+type MrtType string
+
+const (
+	MRT_TYPE_UPDATES MrtType = "updates"
+	MRT_TYPE_TABLE   MrtType = "table"
+)
+
+var MrtTypeToIntMap = map[MrtType]int{
+	MRT_TYPE_UPDATES: 0,
+	MRT_TYPE_TABLE:   1,
+}
+
+var IntToMrtTypeMap = map[int]MrtType{
+	0: MRT_TYPE_UPDATES,
+	1: MRT_TYPE_TABLE,
+}
+
+func (v MrtType) Validate() error {
+	if _, ok := MrtTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid MrtType: %s", v)
+	}
+	return nil
+}
+
+func (v MrtType) ToInt() int {
+	i, ok := MrtTypeToIntMap[v]
 	if !ok {
 		return -1
 	}
@@ -936,86 +1049,6 @@ func (v RpkiValidationResultType) ToInt() int {
 	}
 	return i
 }
-
-// typedef for identity gobgp:mrt-type.
-type MrtType string
-
-const (
-	MRT_TYPE_UPDATES MrtType = "updates"
-	MRT_TYPE_TABLE   MrtType = "table"
-)
-
-var MrtTypeToIntMap = map[MrtType]int{
-	MRT_TYPE_UPDATES: 0,
-	MRT_TYPE_TABLE:   1,
-}
-
-var IntToMrtTypeMap = map[int]MrtType{
-	0: MRT_TYPE_UPDATES,
-	1: MRT_TYPE_TABLE,
-}
-
-func (v MrtType) Validate() error {
-	if _, ok := MrtTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid MrtType: %s", v)
-	}
-	return nil
-}
-
-func (v MrtType) ToInt() int {
-	i, ok := MrtTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat.
-type BgpAsPathPrependRepeat uint8
-
-// typedef for identity bgp-pol:bgp-set-community-option-type.
-// Type definition for options when setting the community
-// attribute in a policy action.
-type BgpSetCommunityOptionType string
-
-const (
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
-)
-
-var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
-}
-
-var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
-	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
-	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
-	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
-}
-
-func (v BgpSetCommunityOptionType) Validate() error {
-	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
-	}
-	return nil
-}
-
-func (v BgpSetCommunityOptionType) ToInt() int {
-	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-// typedef for typedef bgp-pol:bgp-next-hop-type.
-type BgpNextHopType string
-
-// typedef for typedef bgp-pol:bgp-set-med-type.
-type BgpSetMedType string
 
 // struct for container gobgp:state.
 type DynamicNeighborState struct {
@@ -1812,6 +1845,16 @@ type PeerGroupConfig struct {
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
+	// original -> gobgp:incoming-channel-timeout
+	// Timeout for push message to incoming channel in seconds.
+	IncomingChannelTimeout uint32 `mapstructure:"incoming-channel-timeout" json:"incoming-channel-timeout,omitempty"`
+	// original -> gobgp:incoming-channel
+	IncomingChannel IncomingChannel `mapstructure:"incoming-channel" json:"incoming-channel,omitempty"`
+	// original -> gobgp:outgoing-channel-timeout
+	// Timeout for push message to outgoing channel in seconds.
+	OutgoingChannelTimeout uint32 `mapstructure:"outgoing-channel-timeout" json:"outgoing-channel-timeout,omitempty"`
+	// original -> gobgp:outgoing-channel
+	OutgoingChannel OutgoingChannel `mapstructure:"outgoing-channel" json:"outgoing-channel,omitempty"`
 }
 
 func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
@@ -1846,6 +1889,18 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {
+		return false
+	}
+	if lhs.IncomingChannelTimeout != rhs.IncomingChannelTimeout {
+		return false
+	}
+	if !lhs.IncomingChannel.Equal(&(rhs.IncomingChannel)) {
+		return false
+	}
+	if lhs.OutgoingChannelTimeout != rhs.OutgoingChannelTimeout {
+		return false
+	}
+	if !lhs.OutgoingChannel.Equal(&(rhs.OutgoingChannel)) {
 		return false
 	}
 	return true
@@ -2816,6 +2871,37 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 	return true
 }
 
+// struct for container gobgp:outgoing-channel-state.
+type OutgoingChannelState struct {
+	// original -> gobgp:channel-state
+	// Channel's stats.
+	ChannelState ChannelState `mapstructure:"channel-state" json:"channel-state,omitempty"`
+}
+
+// struct for container gobgp:channel-state.
+// Channel's stats.
+type ChannelState struct {
+	// original -> gobgp:in
+	In uint64 `mapstructure:"in" json:"in,omitempty"`
+	// original -> gobgp:notifications
+	Notifications uint64 `mapstructure:"notifications" json:"notifications,omitempty"`
+	// original -> gobgp:collected
+	Collected uint64 `mapstructure:"collected" json:"collected,omitempty"`
+	// original -> gobgp:rewritten
+	Rewritten uint64 `mapstructure:"rewritten" json:"rewritten,omitempty"`
+	// original -> gobgp:retries
+	Retries uint64 `mapstructure:"retries" json:"retries,omitempty"`
+	// original -> gobgp:out
+	Out uint64 `mapstructure:"out" json:"out,omitempty"`
+}
+
+// struct for container gobgp:incoming-channel-state.
+type IncomingChannelState struct {
+	// original -> gobgp:channel-state
+	// Channel's stats.
+	ChannelState ChannelState `mapstructure:"channel-state" json:"channel-state,omitempty"`
+}
+
 // struct for container gobgp:adj-table.
 type AdjTable struct {
 	// original -> gobgp:ADVERTISED
@@ -3146,6 +3232,58 @@ type NeighborState struct {
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 	// original -> gobgp:remote-router-id
 	RemoteRouterId string `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
+	// original -> gobgp:incoming-channel-dropped
+	IncomingChannelDropped uint64 `mapstructure:"incoming-channel-dropped" json:"incoming-channel-dropped,omitempty"`
+	// original -> gobgp:incoming-channel-state
+	IncomingChannelState IncomingChannelState `mapstructure:"incoming-channel-state" json:"incoming-channel-state,omitempty"`
+	// original -> gobgp:outgoing-channel-dropped
+	OutgoingChannelDropped uint64 `mapstructure:"outgoing-channel-dropped" json:"outgoing-channel-dropped,omitempty"`
+	// original -> gobgp:outgoing-channel-state
+	OutgoingChannelState OutgoingChannelState `mapstructure:"outgoing-channel-state" json:"outgoing-channel-state,omitempty"`
+}
+
+// struct for container gobgp:outgoing-channel.
+type OutgoingChannel struct {
+	// original -> gobgp:channel-type
+	ChannelType ChannelType `mapstructure:"channel-type" json:"channel-type,omitempty"`
+	// original -> gobgp:size
+	// Input channel size.
+	Size uint64 `mapstructure:"size" json:"size,omitempty"`
+}
+
+func (lhs *OutgoingChannel) Equal(rhs *OutgoingChannel) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.ChannelType != rhs.ChannelType {
+		return false
+	}
+	if lhs.Size != rhs.Size {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:incoming-channel.
+type IncomingChannel struct {
+	// original -> gobgp:channel-type
+	ChannelType ChannelType `mapstructure:"channel-type" json:"channel-type,omitempty"`
+	// original -> gobgp:size
+	// Input channel size.
+	Size uint64 `mapstructure:"size" json:"size,omitempty"`
+}
+
+func (lhs *IncomingChannel) Equal(rhs *IncomingChannel) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.ChannelType != rhs.ChannelType {
+		return false
+	}
+	if lhs.Size != rhs.Size {
+		return false
+	}
+	return true
 }
 
 // struct for container bgp:config.
@@ -3205,6 +3343,16 @@ type NeighborConfig struct {
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
+	// original -> gobgp:incoming-channel-timeout
+	// Timeout for push message to incoming channel in seconds.
+	IncomingChannelTimeout uint32 `mapstructure:"incoming-channel-timeout" json:"incoming-channel-timeout,omitempty"`
+	// original -> gobgp:incoming-channel
+	IncomingChannel IncomingChannel `mapstructure:"incoming-channel" json:"incoming-channel,omitempty"`
+	// original -> gobgp:outgoing-channel-timeout
+	// Timeout for push message to outgoing channel in seconds.
+	OutgoingChannelTimeout uint32 `mapstructure:"outgoing-channel-timeout" json:"outgoing-channel-timeout,omitempty"`
+	// original -> gobgp:outgoing-channel
+	OutgoingChannel OutgoingChannel `mapstructure:"outgoing-channel" json:"outgoing-channel,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -3251,6 +3399,18 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {
+		return false
+	}
+	if lhs.IncomingChannelTimeout != rhs.IncomingChannelTimeout {
+		return false
+	}
+	if !lhs.IncomingChannel.Equal(&(rhs.IncomingChannel)) {
+		return false
+	}
+	if lhs.OutgoingChannelTimeout != rhs.OutgoingChannelTimeout {
+		return false
+	}
+	if !lhs.OutgoingChannel.Equal(&(rhs.OutgoingChannel)) {
 		return false
 	}
 	return true

@@ -16,17 +16,8 @@
 package server
 
 import (
-	"github.com/eapache/channels"
-
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
-
-func cleanInfiniteChannel(ch *channels.InfiniteChannel) {
-	ch.Close()
-	// drain all remaining items
-	for range ch.Out() {
-	}
-}
 
 // Returns the binary formatted Administrative Shutdown Communication from the
 // given string value.

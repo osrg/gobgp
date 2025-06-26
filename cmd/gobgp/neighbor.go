@@ -533,6 +533,41 @@ func showNeighbor(args []string) error {
 			}
 		}
 	}
+
+	incomingChannelType := "Infinite"
+	if p.Conf.IncomingChannel.Type == api.ChannelType_CHANNEL_TYPE_BUFFER {
+		incomingChannelType = "Buffer"
+	}
+	fmt.Printf("  IncomingChannel: %s\n", incomingChannelType)
+	if p.State != nil && p.State.IncomingChannel != nil {
+		if incomingChannelType == "Buffer" {
+			fmt.Printf("    In: %d\n", p.State.IncomingChannel.In)
+			fmt.Printf("    Notifications: %d\n", p.State.IncomingChannel.Notifications)
+			fmt.Printf("    Collected: %d\n", p.State.IncomingChannel.Collected)
+			fmt.Printf("    Rewritten: %d\n", p.State.IncomingChannel.Rewritten)
+			fmt.Printf("    Retries: %d\n", p.State.IncomingChannel.Retries)
+			fmt.Printf("    Out: %d\n", p.State.IncomingChannel.Out)
+		}
+	}
+	fmt.Printf("    Dropped: %d\n", p.State.IncomingChannelDropped)
+
+	outgoingChannelType := "Infinite"
+	if p.Conf.OutgoingChannel.Type == api.ChannelType_CHANNEL_TYPE_BUFFER {
+		outgoingChannelType = "Buffer"
+	}
+	fmt.Printf("  OutgoingChannel: %s\n", outgoingChannelType)
+	if p.State != nil && p.State.OutgoingChannel != nil {
+		if outgoingChannelType == "Buffer" {
+			fmt.Printf("    In: %d\n", p.State.OutgoingChannel.In)
+			fmt.Printf("    Notifications: %d\n", p.State.OutgoingChannel.Notifications)
+			fmt.Printf("    Collected: %d\n", p.State.OutgoingChannel.Collected)
+			fmt.Printf("    Rewritten: %d\n", p.State.OutgoingChannel.Rewritten)
+			fmt.Printf("    Retries: %d\n", p.State.OutgoingChannel.Retries)
+			fmt.Printf("    Out: %d\n", p.State.OutgoingChannel.Out)
+		}
+	}
+	fmt.Printf("    Dropped: %d\n", p.State.OutgoingChannelDropped)
+
 	return nil
 }
 

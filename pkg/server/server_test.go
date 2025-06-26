@@ -1475,7 +1475,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	assert.NoError(err)
 
 	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
+	incoming.Push(msg, 0)
 
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.

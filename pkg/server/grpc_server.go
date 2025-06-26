@@ -742,6 +742,20 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAsn
 		pconf.AsPathOptions.Config.AllowAsPathLoopLocal = a.Conf.AllowAspathLoopLocal
 		pconf.Config.SendSoftwareVersion = a.Conf.SendSoftwareVersion
+		pconf.Config.IncomingChannelTimeout = a.Conf.IncomingChannelTimeout
+		pconf.Config.OutgoingChannelTimeout = a.Conf.OutgoingChannelTimeout
+		if a.Conf.IncomingChannel != nil {
+			pconf.Config.IncomingChannel = oc.IncomingChannel{
+				ChannelType: oc.IntToChannelTypeMap[int(a.Conf.IncomingChannel.Type)],
+				Size:        a.Conf.IncomingChannel.Size,
+			}
+		}
+		if a.Conf.OutgoingChannel != nil {
+			pconf.Config.OutgoingChannel = oc.OutgoingChannel{
+				ChannelType: oc.IntToChannelTypeMap[int(a.Conf.OutgoingChannel.Type)],
+				Size:        a.Conf.OutgoingChannel.Size,
+			}
+		}
 
 		switch a.Conf.RemovePrivate {
 		case api.RemovePrivate_REMOVE_PRIVATE_ALL:
@@ -913,6 +927,20 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 			readLongLivedGracefulRestartFromAPIStruct(&afiSafi.LongLivedGracefulRestart, af.LongLivedGracefulRestart)
 			readAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
+		}
+
+		pconf.Config.IncomingChannelTimeout = a.Conf.IncomingChannelTimeout
+		if a.Conf.IncomingChannel != nil {
+			pconf.Config.IncomingChannel = oc.IncomingChannel{
+				ChannelType: oc.IntToChannelTypeMap[int(a.Conf.IncomingChannel.Type)],
+				Size:        a.Conf.IncomingChannel.Size,
+			}
+		}
+		if a.Conf.OutgoingChannel != nil {
+			pconf.Config.OutgoingChannel = oc.OutgoingChannel{
+				ChannelType: oc.IntToChannelTypeMap[int(a.Conf.OutgoingChannel.Type)],
+				Size:        a.Conf.OutgoingChannel.Size,
+			}
 		}
 	}
 
