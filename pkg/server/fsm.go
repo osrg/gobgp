@@ -178,7 +178,6 @@ type fsm struct {
 	lock                 sync.RWMutex
 	state                bgp.FSMState
 	outgoingCh           *channels.InfiniteChannel
-	incomingCh           *channels.InfiniteChannel
 	reason               *fsmStateReason
 	conn                 net.Conn
 	connCh               chan net.Conn
@@ -276,7 +275,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		pConf:                pConf,
 		state:                bgp.BGP_FSM_IDLE,
 		outgoingCh:           channels.NewInfiniteChannel(),
-		incomingCh:           channels.NewInfiniteChannel(),
 		connCh:               make(chan net.Conn, 1),
 		opensentHoldTime:     float64(holdtimeOpensent),
 		adminState:           adminState,
@@ -387,26 +385,26 @@ type fsmHandler struct {
 	conn             net.Conn
 	msgCh            *channels.InfiniteChannel
 	stateReasonCh    chan fsmStateReason
-	incoming         *channels.InfiniteChannel
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
 	sentNotification *bgp.BGPMessage
 	ctx              context.Context
 	ctxCancel        context.CancelFunc
 	wg               *sync.WaitGroup
+	callback         func(*fsmMsg)
 }
 
-func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel) *fsmHandler {
+func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel, callback func(*fsmMsg)) *fsmHandler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &fsmHandler{
 		fsm:              fsm,
 		stateReasonCh:    make(chan fsmStateReason, 2),
-		incoming:         fsm.incomingCh,
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
 		wg:               &sync.WaitGroup{},
 		ctx:              ctx,
 		ctxCancel:        cancel,
+		callback:         callback,
 	}
 	h.wg.Add(1)
 	go h.loop(ctx, h.wg)
@@ -1850,8 +1848,8 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	defer wg.Done()
 	for {
 		fmsg, err := h.recvMessageWithError()
-		if fmsg != nil {
-			h.msgCh.In() <- fmsg
+		if fmsg != nil && ctx.Err() == nil {
+			h.callback(fmsg)
 		}
 		if err != nil {
 			return nil
@@ -1870,7 +1868,6 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	wg.Add(2)
 
 	go h.sendMessageloop(ctx, &wg)
-	h.msgCh = h.incoming
 	go h.recvMessageloop(ctx, &wg)
 
 	var holdTimer *time.Timer
@@ -2049,7 +2046,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	fsm.lock.RUnlock()
 
 	fsm.lock.RLock()
-	h.incoming.In() <- &fsmMsg{
+	msg := &fsmMsg{
 		fsm:         fsm,
 		MsgType:     fsmMsgStateChange,
 		MsgSrc:      fsm.pConf.State.NeighborAddress,
@@ -2057,6 +2054,9 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 		StateReason: reason,
 	}
 	fsm.lock.RUnlock()
+
+	h.callback(msg)
+
 	return nil
 }
 

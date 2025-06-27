@@ -48,15 +48,17 @@ const defaultListPathBatchSize = math.MaxUint64
 
 type server struct {
 	bgpServer  *BgpServer
+	shared     *sharedData
 	grpcServer *grpc.Server
 	hosts      string
 	api.UnimplementedGoBgpServiceServer
 }
 
-func newAPIserver(b *BgpServer, g *grpc.Server, hosts string) *server {
+func newAPIserver(b *BgpServer, shared *sharedData, g *grpc.Server, hosts string) *server {
 	grpc.EnableTracing = false
 	s := &server{
 		bgpServer:  b,
+		shared:     shared,
 		grpcServer: g,
 		hosts:      hosts,
 	}
