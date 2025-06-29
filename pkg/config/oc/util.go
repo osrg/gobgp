@@ -18,6 +18,7 @@ package oc
 import (
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -27,6 +28,7 @@ import (
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -170,6 +172,100 @@ func (n *Neighbor) IsAddPathReceiveEnabled(family bgp.Family) bool {
 		}
 	}
 	return false
+}
+
+func (n *Neighbor) CapAddPath() bgp.ParameterCapabilityInterface {
+	tuples := make([]*bgp.CapAddPathTuple, 0, len(n.AfiSafis))
+	for _, af := range n.AfiSafis {
+		var mode bgp.BGPAddPathMode
+		if af.AddPaths.State.Receive {
+			mode |= bgp.BGP_ADD_PATH_RECEIVE
+		}
+		if af.AddPaths.State.SendMax > 0 {
+			mode |= bgp.BGP_ADD_PATH_SEND
+		}
+		if mode > 0 {
+			tuples = append(tuples, bgp.NewCapAddPathTuple(af.State.Family, mode))
+		}
+	}
+	if len(tuples) == 0 {
+		return nil
+	}
+	return bgp.NewCapAddPath(tuples)
+}
+
+func (n *Neighbor) Capabilities() []bgp.ParameterCapabilityInterface {
+	fqdn, _ := os.Hostname()
+	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
+	caps = append(caps, bgp.NewCapRouteRefresh())
+	caps = append(caps, bgp.NewCapFQDN(fqdn, ""))
+
+	if n.Config.SendSoftwareVersion || n.Config.PeerType == PEER_TYPE_INTERNAL {
+		softwareVersion := fmt.Sprintf("GoBGP/%s", version.Version())
+		caps = append(caps, bgp.NewCapSoftwareVersion(softwareVersion))
+	}
+
+	for _, af := range n.AfiSafis {
+		caps = append(caps, bgp.NewCapMultiProtocol(af.State.Family))
+	}
+	caps = append(caps, bgp.NewCapFourOctetASNumber(n.Config.LocalAs))
+
+	if c := n.GracefulRestart.Config; c.Enabled {
+		tuples := []*bgp.CapGracefulRestartTuple{}
+		ltuples := []*bgp.CapLongLivedGracefulRestartTuple{}
+
+		// RFC 4724 4.1
+		// To re-establish the session with its peer, the Restarting Speaker
+		// MUST set the "Restart State" bit in the Graceful Restart Capability
+		// of the OPEN message.
+		restarting := n.GracefulRestart.State.LocalRestarting
+
+		if !c.HelperOnly {
+			for i, rf := range n.AfiSafis {
+				if m := rf.MpGracefulRestart.Config; m.Enabled {
+					// When restarting, always flag forwaring bit.
+					// This can be a lie, depending on how gobgpd is used.
+					// For a route-server use-case, since a route-server
+					// itself doesn't forward packets, and the dataplane
+					// is a l2 switch which continues to work with no
+					// relation to bgpd, this behavior is ok.
+					// TODO consideration of other use-cases
+					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(rf.State.Family, restarting))
+					n.AfiSafis[i].MpGracefulRestart.State.Advertised = true
+				}
+				if m := rf.LongLivedGracefulRestart.Config; m.Enabled {
+					ltuples = append(ltuples, bgp.NewCapLongLivedGracefulRestartTuple(rf.State.Family, restarting, m.RestartTime))
+				}
+			}
+		}
+		restartTime := c.RestartTime
+		notification := c.NotificationEnabled
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, notification, restartTime, tuples))
+		if c.LongLivedEnabled {
+			caps = append(caps, bgp.NewCapLongLivedGracefulRestart(ltuples))
+		}
+	}
+
+	// Extended Nexthop Capability (Code 5)
+	tuples := []*bgp.CapExtendedNexthopTuple{}
+	families, _ := AfiSafis(n.AfiSafis).ToRfList()
+	for _, family := range families {
+		if family == bgp.RF_IPv6_UC {
+			continue
+		}
+		tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
+		tuples = append(tuples, tuple)
+	}
+	if len(tuples) != 0 {
+		caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
+	}
+
+	// ADD-PATH Capability
+	if c := n.CapAddPath(); c != nil {
+		caps = append(caps, c)
+	}
+
+	return caps
 }
 
 type AfiSafis []AfiSafi
