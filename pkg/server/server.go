@@ -831,7 +831,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.State.RemoteCapabilityList = remoteCap
 
 	peer.fsm.lock.Lock()
-	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
+	conf.State.LocalCapabilityList = peer.fsm.pConf.Capabilities()
 	peer.fsm.lock.Unlock()
 
 	peer.fsm.lock.RLock()

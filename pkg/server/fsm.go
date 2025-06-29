@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"syscall"
@@ -30,7 +29,6 @@ import (
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
-	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -315,7 +313,7 @@ func (fsm *fsm) StateChange(nextState bgp.FSMState) {
 			break
 		}
 		y := func() bool {
-			for _, c := range capabilitiesFromConfig(fsm.pConf) {
+			for _, c := range fsm.pConf.Capabilities() {
 				switch c.(type) {
 				case *bgp.CapFourOctetASNumber:
 					return true
@@ -729,102 +727,8 @@ func setPeerConnMSS(fsm *fsm) error {
 	return nil
 }
 
-func capAddPathFromConfig(pConf *oc.Neighbor) bgp.ParameterCapabilityInterface {
-	tuples := make([]*bgp.CapAddPathTuple, 0, len(pConf.AfiSafis))
-	for _, af := range pConf.AfiSafis {
-		var mode bgp.BGPAddPathMode
-		if af.AddPaths.State.Receive {
-			mode |= bgp.BGP_ADD_PATH_RECEIVE
-		}
-		if af.AddPaths.State.SendMax > 0 {
-			mode |= bgp.BGP_ADD_PATH_SEND
-		}
-		if mode > 0 {
-			tuples = append(tuples, bgp.NewCapAddPathTuple(af.State.Family, mode))
-		}
-	}
-	if len(tuples) == 0 {
-		return nil
-	}
-	return bgp.NewCapAddPath(tuples)
-}
-
-func capabilitiesFromConfig(pConf *oc.Neighbor) []bgp.ParameterCapabilityInterface {
-	fqdn, _ := os.Hostname()
-	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
-	caps = append(caps, bgp.NewCapRouteRefresh())
-	caps = append(caps, bgp.NewCapFQDN(fqdn, ""))
-
-	if pConf.Config.SendSoftwareVersion || pConf.Config.PeerType == oc.PEER_TYPE_INTERNAL {
-		softwareVersion := fmt.Sprintf("GoBGP/%s", version.Version())
-		caps = append(caps, bgp.NewCapSoftwareVersion(softwareVersion))
-	}
-
-	for _, af := range pConf.AfiSafis {
-		caps = append(caps, bgp.NewCapMultiProtocol(af.State.Family))
-	}
-	caps = append(caps, bgp.NewCapFourOctetASNumber(pConf.Config.LocalAs))
-
-	if c := pConf.GracefulRestart.Config; c.Enabled {
-		tuples := []*bgp.CapGracefulRestartTuple{}
-		ltuples := []*bgp.CapLongLivedGracefulRestartTuple{}
-
-		// RFC 4724 4.1
-		// To re-establish the session with its peer, the Restarting Speaker
-		// MUST set the "Restart State" bit in the Graceful Restart Capability
-		// of the OPEN message.
-		restarting := pConf.GracefulRestart.State.LocalRestarting
-
-		if !c.HelperOnly {
-			for i, rf := range pConf.AfiSafis {
-				if m := rf.MpGracefulRestart.Config; m.Enabled {
-					// When restarting, always flag forwaring bit.
-					// This can be a lie, depending on how gobgpd is used.
-					// For a route-server use-case, since a route-server
-					// itself doesn't forward packets, and the dataplane
-					// is a l2 switch which continues to work with no
-					// relation to bgpd, this behavior is ok.
-					// TODO consideration of other use-cases
-					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(rf.State.Family, restarting))
-					pConf.AfiSafis[i].MpGracefulRestart.State.Advertised = true
-				}
-				if m := rf.LongLivedGracefulRestart.Config; m.Enabled {
-					ltuples = append(ltuples, bgp.NewCapLongLivedGracefulRestartTuple(rf.State.Family, restarting, m.RestartTime))
-				}
-			}
-		}
-		restartTime := c.RestartTime
-		notification := c.NotificationEnabled
-		caps = append(caps, bgp.NewCapGracefulRestart(restarting, notification, restartTime, tuples))
-		if c.LongLivedEnabled {
-			caps = append(caps, bgp.NewCapLongLivedGracefulRestart(ltuples))
-		}
-	}
-
-	// Extended Nexthop Capability (Code 5)
-	tuples := []*bgp.CapExtendedNexthopTuple{}
-	families, _ := oc.AfiSafis(pConf.AfiSafis).ToRfList()
-	for _, family := range families {
-		if family == bgp.RF_IPv6_UC {
-			continue
-		}
-		tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
-		tuples = append(tuples, tuple)
-	}
-	if len(tuples) != 0 {
-		caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
-	}
-
-	// ADD-PATH Capability
-	if c := capAddPathFromConfig(pConf); c != nil {
-		caps = append(caps, capAddPathFromConfig(pConf))
-	}
-
-	return caps
-}
-
 func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
-	caps := capabilitiesFromConfig(pConf)
+	caps := pConf.Capabilities()
 	opt := bgp.NewOptionParameterCapability(caps)
 	holdTime := uint16(pConf.Timers.Config.HoldTime)
 	as := pConf.Config.LocalAs
