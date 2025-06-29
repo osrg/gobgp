@@ -46,6 +46,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
+	"github.com/osrg/gobgp/v4/pkg/utils"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
 
@@ -3771,7 +3772,7 @@ func (s *BgpServer) ShutdownPeer(ctx context.Context, r *api.ShutdownPeerRequest
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.sendNotification("Neighbor shutdown", r.Address, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, newAdministrativeCommunication(r.Communication))
+		return s.sendNotification("Neighbor shutdown", r.Address, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, utils.NewAdministrativeCommunication(r.Communication))
 	}, true)
 }
 
@@ -3801,7 +3802,7 @@ func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) erro
 			return err
 		}
 
-		err := s.sendNotification("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, newAdministrativeCommunication(comm))
+		err := s.sendNotification("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, utils.NewAdministrativeCommunication(comm))
 		if err != nil {
 			return err
 		}
@@ -3845,7 +3846,7 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 		if enable {
 			f(&adminStateOperation{adminStateUp, nil}, "adminStateUp requested")
 		} else {
-			f(&adminStateOperation{adminStateDown, newAdministrativeCommunication(communication)}, "adminStateDown requested")
+			f(&adminStateOperation{adminStateDown, utils.NewAdministrativeCommunication(communication)}, "adminStateDown requested")
 		}
 	}
 	return nil
@@ -4873,7 +4874,7 @@ func (w *watcher) Stop() {
 			}
 		}
 
-		cleanInfiniteChannel(w.ch)
+		utils.CleanInfiniteChannel(w.ch)
 		// the loop function goroutine might be blocked for
 		// writing to realCh. make sure it finishes.
 		for range w.realCh {
