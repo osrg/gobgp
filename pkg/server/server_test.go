@@ -487,7 +487,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	wantCommunitiesAfterImportPolicies := []uint32{200<<16 | 200}
 
 	// Check ADJ_OUT routes before applying export policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server2.ListPath(context.Background(), &api.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
@@ -514,7 +515,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	// Check ADJ_OUT routes after applying export policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server2.ListPath(context.Background(), &api.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
@@ -544,7 +546,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	// Check ADJ_IN routes before applying import policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server1.ListPath(context.Background(), &api.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         family,
@@ -571,7 +574,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	// Check ADJ_IN routes after applying import policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server1.ListPath(context.Background(), &api.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         family,
