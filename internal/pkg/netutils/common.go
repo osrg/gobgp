@@ -16,7 +16,10 @@
 package netutils
 
 import (
+	"context"
+	"io"
 	"net"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -43,4 +46,44 @@ func extractProtoFromAddress(address string) string {
 	}
 	// default to tcp4
 	return "tcp4"
+}
+
+func HostPort(addr net.Addr) (string, uint16) {
+	if addr != nil {
+		host, port, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			return "", 0
+		}
+		p, _ := strconv.ParseUint(port, 10, 16)
+		return host, uint16(p)
+	}
+	return "", 0
+}
+
+func ReadAll(conn net.Conn, length int) ([]byte, error) {
+	buf := make([]byte, length)
+	_, err := io.ReadFull(conn, buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf, nil
+}
+
+func ReadAllWithContext(ctx context.Context, conn net.Conn, length int) ([]byte, error) {
+	buf := make([]byte, length)
+	done := make(chan any)
+	var err error
+	go func() {
+		_, err = io.ReadFull(conn, buf)
+		close(done)
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-done:
+		if err != nil {
+			return nil, err
+		}
+		return buf, nil
+	}
 }
