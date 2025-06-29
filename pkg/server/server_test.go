@@ -2600,8 +2600,9 @@ func TestWatchEvent(test *testing.T) {
 	waitEstablished(s, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
 
 	count := 0
-	done := make(chan struct{})
-	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
+	tableCh := make(chan any)
+	ctx, cancel := context.WithCancel(context.Background())
+	err = s.WatchEvent(ctx, &api.WatchEventRequest{
 		Table: &api.WatchEventRequest_Table{
 			Filters: []*api.WatchEventRequest_Table_Filter{
 				{
@@ -2615,11 +2616,12 @@ func TestWatchEvent(test *testing.T) {
 		t := resp.Event.(*api.WatchEventResponse_Table)
 		count += len(t.Table.Paths)
 		if count == 2 {
-			close(done)
+			cancel()
+			close(tableCh)
 		}
 	})
 	assert.NoError(err)
-	<-done
+	<-tableCh
 
 	assert.Equal(2, count)
 }
