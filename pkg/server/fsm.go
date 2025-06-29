@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"os"
@@ -332,24 +331,12 @@ func (fsm *fsm) StateChange(nextState bgp.FSMState) {
 	}
 }
 
-func hostport(addr net.Addr) (string, uint16) {
-	if addr != nil {
-		host, port, err := net.SplitHostPort(addr.String())
-		if err != nil {
-			return "", 0
-		}
-		p, _ := strconv.ParseUint(port, 10, 16)
-		return host, uint16(p)
-	}
-	return "", 0
-}
-
 func (fsm *fsm) RemoteHostPort() (string, uint16) {
-	return hostport(fsm.conn.RemoteAddr())
+	return netutils.HostPort(fsm.conn.RemoteAddr())
 }
 
 func (fsm *fsm) LocalHostPort() (string, uint16) {
-	return hostport(fsm.conn.LocalAddr())
+	return netutils.HostPort(fsm.conn.LocalAddr())
 }
 
 func (fsm *fsm) sendNotificationFromErrorMsg(e *bgp.MessageError) (*bgp.BGPMessage, error) {
@@ -848,15 +835,6 @@ func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
 		[]bgp.OptionParameterInterface{opt})
 }
 
-func readAll(conn net.Conn, length int) ([]byte, error) {
-	buf := make([]byte, length)
-	_, err := io.ReadFull(conn, buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
 func getPathAttrFromBGPUpdate(m *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 	for _, a := range m.PathAttributes {
 		if a.GetType() == typ {
@@ -993,7 +971,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		}
 	}
 
-	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
+	headerBuf, err := netutils.ReadAll(h.conn, bgp.BGP_HEADER_LENGTH)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return nil, nil
 	} else if err != nil {
@@ -1023,7 +1001,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		return fmsg, err
 	}
 
-	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
+	bodyBuf, err := netutils.ReadAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return nil, nil
 	} else if err != nil {

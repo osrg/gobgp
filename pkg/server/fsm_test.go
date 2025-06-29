@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -156,11 +157,11 @@ func TestReadAll(t *testing.T) {
 	go pushBytes()
 
 	var actual1 []byte
-	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH)
+	actual1, _ = netutils.ReadAll(m, bgp.BGP_HEADER_LENGTH)
 	assert.Equal(expected1, actual1)
 
 	var actual2 []byte
-	actual2, _ = readAll(m, len(expected2))
+	actual2, _ = netutils.ReadAll(m, len(expected2))
 	assert.Equal(expected2, actual2)
 }
 
