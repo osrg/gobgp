@@ -35,6 +35,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/peering"
 )
 
 var logger = log.NewDefaultLogger()
@@ -221,7 +222,8 @@ func TestListPolicyAssignment(t *testing.T) {
 }
 
 //nolint:errcheck // WatchEvent won't return an error here
-func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
+func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
+	stateCh := make(chan any)
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
 		if peer := r.GetPeer(); peer != nil {
@@ -242,23 +244,20 @@ func waitState(s *BgpServer, ch chan struct{}, state api.PeerState_SessionState,
 						return
 					}
 				}
-				close(ch)
 				watchCancel()
+				close(stateCh)
 			}
 		}
 	})
+	<-stateCh
 }
 
-func waitActive(s *BgpServer, ch chan struct{}) {
-	waitState(s, ch, api.PeerState_SESSION_STATE_ACTIVE)
+func waitActive(s *BgpServer) {
+	waitState(s, api.PeerState_SESSION_STATE_ACTIVE)
 }
 
-func waitEstablished(s *BgpServer, ch chan struct{}) {
-	waitEstablishedWithFamilies(s, ch)
-}
-
-func waitEstablishedWithFamilies(s *BgpServer, ch chan struct{}, rfs ...bgp.Family) {
-	waitState(s, ch, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
+func waitEstablished(s *BgpServer, rfs ...bgp.Family) {
+	waitState(s, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -316,12 +315,10 @@ func TestListPathEnableFiltered(test *testing.T) {
 			},
 		},
 	}
-	ch := make(chan struct{})
-	go waitEstablished(server1, ch)
 
 	err = server2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
-	<-ch
+	waitEstablished(server1)
 
 	// Add IMPORT policy at server1 for rejecting 10.1.0.0/24
 	d1 := &api.DefinedSet{
@@ -491,7 +488,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	wantCommunitiesAfterImportPolicies := []uint32{200<<16 | 200}
 
 	// Check ADJ_OUT routes before applying export policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server2.ListPath(context.Background(), &api.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
@@ -518,7 +516,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	// Check ADJ_OUT routes after applying export policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server2.ListPath(context.Background(), &api.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    family, Name: "127.0.0.1",
@@ -548,7 +547,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	// Check ADJ_IN routes before applying import policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server1.ListPath(context.Background(), &api.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         family,
@@ -575,7 +575,8 @@ func TestListPathEnableFiltered(test *testing.T) {
 	}
 
 	// Check ADJ_IN routes after applying import policies.
-	for count := 0; count <= 2; {
+	for count := 0; count < 2; {
+		count = 0
 		err = server1.ListPath(context.Background(), &api.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         family,
@@ -768,8 +769,6 @@ func TestMonitor(test *testing.T) {
 			},
 		},
 	}
-	ch := make(chan struct{})
-	go waitEstablished(s, ch)
 	// go t.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(peer *api.Peer) {
 	// 	if peer.State.SessionState == api.PeerState_ESTABLISHED {
 	// 		close(ch)
@@ -778,8 +777,7 @@ func TestMonitor(test *testing.T) {
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
-
-	<-ch
+	waitEstablished(s)
 
 	// Test WatchBestPath.
 	w := s.watch(watchBestPath(false))
@@ -953,7 +951,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
+func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peering.Peer, *table.PeerInfo) {
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
@@ -961,15 +959,15 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 	policy := table.NewRoutingPolicy(logger)
 	err = policy.Reset(&oc.RoutingPolicy{}, nil)
 	assert.NoError(t, err)
-	p := newPeer(
+	p := peering.NewPeer(
 		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
 		rib,
 		policy,
 		logger)
-	p.fsm.peerInfo.ID = net.ParseIP(address)
+	p.FSM.PeerInfo.ID = net.ParseIP(address)
 	for _, f := range rib.GetRFlist() {
-		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
+		p.FSM.RfMap[f] = bgp.BGP_ADD_PATH_NONE
 	}
 	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address), ID: net.ParseIP(address)}
 }
@@ -1069,7 +1067,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
-	err := p2.policy.AddDefinedSet(s, false)
+	err := p2.Policy.AddDefinedSet(s, false)
 	assert.NoError(t, err)
 
 	statement := oc.Statement{
@@ -1090,7 +1088,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		Statements: []oc.Statement{statement},
 	}
 	p, _ := table.NewPolicy(policy)
-	err = p2.policy.AddPolicy(p, false)
+	err = p2.Policy.AddPolicy(p, false)
 	assert.NoError(t, err)
 
 	policies := []*oc.PolicyDefinition{
@@ -1098,7 +1096,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 			Name: "policy1",
 		},
 	}
-	err = p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
+	err = p2.Policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
 	assert.NoError(t, err)
 
 	for _, addCommunity := range []bool{false, true, false, true} {
@@ -1199,11 +1197,9 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
-	ch := make(chan struct{})
-	go waitEstablished(s, ch)
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
-	<-ch
+	waitEstablished(s)
 }
 
 func TestDynamicNeighbor(t *testing.T) {
@@ -1268,11 +1264,9 @@ func TestDynamicNeighbor(t *testing.T) {
 			},
 		},
 	}
-	ch := make(chan struct{})
-	go waitEstablished(s2, ch)
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
-	<-ch
+	waitEstablished(s2)
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
@@ -1299,7 +1293,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:     true,
-			RestartTime: minConnectRetryInterval,
+			RestartTime: peering.MinConnectRetryInterval,
 		},
 	}
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
@@ -1315,7 +1309,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1337,16 +1330,14 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	}
 
-	ch := make(chan struct{})
-	go waitEstablished(s2, ch)
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
-	<-ch
+	waitEstablished(s2)
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
 	for _, n := range s2.neighborMap {
-		n.fsm.conn.Close()
+		n.FSM.Conn.Close()
 	}
 	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	assert.NoError(err)
@@ -1365,19 +1356,20 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	done := make(chan struct{})
+	done := make(chan bool, 1)
+	defer close(done)
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
 		// ignore error, we will hit the context deadline
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
-			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
-				close(done)
-			}
+			done <- peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE
 		})
 
 		select {
-		case <-done:
-			return
+		case v := <-done:
+			if v {
+				return
+			}
 		case <-ctx.Done():
 			t.Fatalf("failed to enter IDLE state in the deadline")
 			return
@@ -1409,16 +1401,14 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 		},
 	}
 
-	activeCh := make(chan struct{})
-	go waitActive(s1, activeCh)
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
-	<-activeCh
+	waitActive(s1)
 
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
 	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
-	incoming := neighbor1.fsm.incomingCh
+	incoming := neighbor1.FSM.IncomingCh
 	err = s1.mgmtOperation(func() error {
 		s1.delIncoming(incoming)
 		return nil
@@ -1458,10 +1448,11 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 
 	// Wait for the s1 to receive the tcp connection from s2.
 	ev := <-incoming.Out()
-	msg := ev.(*fsmMsg)
-	nextState := msg.MsgData.(bgp.FSMState)
+	msg := ev.(*peering.FSMMsg)
+	transition := msg.MsgData.(*peering.FSMMessageStateTransition)
+	nextState := transition.NextState
 	assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
-	assert.NotEmpty(msg.fsm.conn)
+	assert.NotEmpty(neighbor1.FSM.Conn)
 
 	// Add the peer incoming channel back to the server
 	err = s1.mgmtOperation(func() error {
@@ -1474,20 +1465,16 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	err = s1.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: p1.Conf.NeighborAddress})
 	assert.NoError(err)
 
-	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
-
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.
-	<-neighbor1.fsm.connCh
-	assert.Empty(neighbor1.fsm.conn)
+	<-neighbor1.FSM.ConnCh
+	assert.Empty(neighbor1.FSM.Conn)
 
 	// Check that we can establish the peering when re-adding the peer.
-	establishedCh := make(chan struct{})
-	go waitEstablished(s2, establishedCh)
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
-	<-establishedCh
+
+	waitEstablished(s2)
 }
 
 func TestFamiliesForSoftreset(t *testing.T) {
@@ -1498,9 +1485,9 @@ func TestFamiliesForSoftreset(t *testing.T) {
 			},
 		}
 	}
-	peer := &peer{
-		fsm: &fsm{
-			pConf: &oc.Neighbor{
+	peer := &peering.Peer{
+		FSM: &peering.FSM{
+			PeerConf: &oc.Neighbor{
 				AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 			},
 		},
@@ -2604,16 +2591,15 @@ func TestWatchEvent(test *testing.T) {
 			},
 		},
 	}
-	ch := make(chan struct{})
-	go waitEstablishedWithFamilies(s, ch, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
-	<-ch
+	waitEstablished(s, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
 
 	count := 0
-	done := make(chan struct{})
-	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{
+	tableCh := make(chan any)
+	ctx, cancel := context.WithCancel(context.Background())
+	err = s.WatchEvent(ctx, &api.WatchEventRequest{
 		Table: &api.WatchEventRequest_Table{
 			Filters: []*api.WatchEventRequest_Table_Filter{
 				{
@@ -2627,11 +2613,12 @@ func TestWatchEvent(test *testing.T) {
 		t := resp.Event.(*api.WatchEventResponse_Table)
 		count += len(t.Table.Paths)
 		if count == 2 {
-			close(done)
+			cancel()
+			close(tableCh)
 		}
 	})
 	assert.NoError(err)
-	<-done
+	<-tableCh
 
 	assert.Equal(2, count)
 }

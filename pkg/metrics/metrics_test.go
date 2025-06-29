@@ -72,11 +72,13 @@ func TestMetrics(test *testing.T) {
 		},
 	}
 
-	ch := make(chan struct{})
-	err = s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stateCh := make(chan any)
+	err = s.WatchEvent(ctx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
 		if peer := r.GetPeer(); peer != nil {
 			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
-				close(ch)
+				cancel()
+				close(stateCh)
 			}
 		}
 	})
@@ -84,40 +86,40 @@ func TestMetrics(test *testing.T) {
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
-	<-ch
+	<-stateCh
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_UNICAST,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	ch = make(chan struct{})
+	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	}}}
+
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+	goroutineCh := make(chan any)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				ch <- struct{}{}
+				close(goroutineCh)
 				return
 			default:
-				nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-					Prefix:    "10.1.0.0",
-					PrefixLen: 24,
-				}}}
-
-				attrs := []*api.Attribute{
-					{
-						Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
-							Origin: 0,
-						}},
-					},
-					{
-						Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
-							NextHop: "10.0.0.1",
-						}},
-					},
-				}
-
 				_, err := t.AddPath(context.Background(), &api.AddPathRequest{
 					TableType: api.TableType_TABLE_TYPE_GLOBAL,
 					Path: &api.Path{
@@ -146,9 +148,10 @@ func TestMetrics(test *testing.T) {
 		assert.NotEmpty(metrics)
 		time.Sleep(10 * time.Millisecond)
 	}
-
 	cancel()
-	<-ch
+	// ensure the goroutine is stopped
+	// before stopping the server
+	<-goroutineCh
 }
 
 func TestFSMLoopMetrics(t *testing.T) {

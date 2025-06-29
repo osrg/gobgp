@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package peering
 
 import (
 	"context"
@@ -24,7 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
+	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -58,6 +59,8 @@ func (m *MockConnection) SetWriteDeadline(t time.Time) error {
 }
 
 func (m *MockConnection) setData(data []byte) int {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	dataChan := make(chan byte, 4096)
 	for _, b := range data {
 		dataChan <- b
@@ -156,12 +159,12 @@ func TestReadAll(t *testing.T) {
 	go pushBytes()
 
 	var actual1 []byte
-	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH)
+	actual1, _ = netutils.ReadAll(m, bgp.BGP_HEADER_LENGTH)
 	m.Log(actual1)
 	assert.Equal(expected1, actual1)
 
 	var actual2 []byte
-	actual2, _ = readAll(m, len(expected2))
+	actual2, _ = netutils.ReadAll(m, len(expected2))
 	m.Log(actual2)
 	assert.Equal(expected2, actual2)
 }
@@ -170,19 +173,18 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
-	p, h := makePeerAndHandler()
+	p := makePeer()
 
 	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p.FSM.Conn = m
 
 	// set keepalive ticker
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+	p.FSM.PeerConf.Timers.State.NegotiatedHoldTime = 3
 
 	// set holdtime
-	p.fsm.opensentHoldTime = 2
+	p.FSM.OpensentHoldTime = 2
 
-	state, _ := h.opensent(context.Background())
+	state, _ := p.FSM.opensent(context.Background())
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -195,18 +197,17 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
-	p, h := makePeerAndHandler()
+	p := makePeer()
 
 	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p.FSM.Conn = m
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
+	p.FSM.PeerConf.Timers.Config.KeepaliveInterval = 1
 
 	// set holdtime
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
-	state, _ := h.openconfirm(context.Background())
+	p.FSM.PeerConf.Timers.State.NegotiatedHoldTime = 2
+	state, _ := p.FSM.openconfirm(context.Background())
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -219,14 +220,13 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
-	p, h := makePeerAndHandler()
+	p := makePeer()
 
 	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p.FSM.Conn = m
 
 	// set keepalive ticker
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+	p.FSM.PeerConf.Timers.State.KeepaliveInterval = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -239,15 +239,16 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.pConf.Timers.Config.HoldTime = 2
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
+	p.FSM.PeerConf.Timers.Config.HoldTime = 2
+	p.FSM.PeerConf.Timers.State.NegotiatedHoldTime = 2
 
 	go pushPackets()
-	state, fsmStateReason := h.established(context.Background())
-	time.Sleep(time.Second * 1)
+	state, fsmStateReason := p.FSM.established(context.Background())
+	time.Sleep(time.Second * 3)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
-	assert.Equal(fsmHoldTimerExpired, fsmStateReason.Type)
+	assert.Equal(FSMHoldTimerExpired, fsmStateReason.Type)
 	m.mtx.Lock()
+	assert.NotEmpty(m.sendBuf)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	m.mtx.Unlock()
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
@@ -259,14 +260,13 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
-	p, h := makePeerAndHandler()
+	p := makePeer()
 
 	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p.FSM.Conn = m
 
 	// set keepalive ticker
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+	p.FSM.PeerConf.Timers.State.KeepaliveInterval = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -279,18 +279,19 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.pConf.Timers.Config.HoldTime = 2
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
+	p.FSM.PeerConf.Timers.Config.HoldTime = 2
+	p.FSM.PeerConf.Timers.State.NegotiatedHoldTime = 2
 
 	// Enable graceful restart
-	p.fsm.pConf.GracefulRestart.State.Enabled = true
+	p.FSM.PeerConf.GracefulRestart.State.Enabled = true
 
 	go pushPackets()
-	state, fsmStateReason := h.established(context.Background())
-	time.Sleep(time.Second * 1)
+	state, fsmStateReason := p.FSM.established(context.Background())
+	time.Sleep(time.Second * 3)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
-	assert.Equal(fsmGracefulRestart, fsmStateReason.Type)
+	assert.Equal(FSMGracefulRestart, fsmStateReason.Type)
 	m.mtx.Lock()
+	assert.NotEmpty(m.sendBuf)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	m.mtx.Unlock()
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
@@ -302,17 +303,16 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
-	p, h := makePeerAndHandler()
+	p := makePeer()
 
 	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p.FSM.Conn = m
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
+	p.FSM.PeerConf.Timers.Config.KeepaliveInterval = 1
 	// set holdtime
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
-	go h.openconfirm(context.Background())
+	p.FSM.PeerConf.Timers.State.NegotiatedHoldTime = 0
+	go p.FSM.openconfirm(context.Background())
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -323,16 +323,15 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection(t)
 
-	p, h := makePeerAndHandler()
+	p := makePeer()
 
 	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p.FSM.Conn = m
 
 	// set holdtime
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
+	p.FSM.PeerConf.Timers.State.NegotiatedHoldTime = 0
 
-	go h.established(context.Background())
+	go p.FSM.established(context.Background())
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -343,9 +342,9 @@ func TestCheckOwnASLoop(t *testing.T) {
 	assert := assert.New(t)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	assert.False(hasOwnASLoop(65100, 10, aspath))
-	assert.True(hasOwnASLoop(65100, 0, aspath))
-	assert.False(hasOwnASLoop(65200, 0, aspath))
+	assert.False(bgputils.HasOwnASLoop(65100, 10, aspath))
+	assert.True(bgputils.HasOwnASLoop(65100, 0, aspath))
+	assert.False(bgputils.HasOwnASLoop(65200, 0, aspath))
 }
 
 func TestBadBGPIdentifier(t *testing.T) {
@@ -366,19 +365,12 @@ func TestBadBGPIdentifier(t *testing.T) {
 	assert.Equal(uint8(bgp.BGP_ERROR_SUB_BAD_BGP_IDENTIFIER), err.(*bgp.MessageError).SubTypeCode)
 }
 
-func makePeerAndHandler() (*peer, *fsmHandler) {
-	p := &peer{
-		fsm: newFSM(&oc.Global{}, &oc.Neighbor{}, log.NewDefaultLogger()),
+func makePeer() *Peer {
+	logger := log.NewDefaultLogger()
+	logger.SetLevel(log.DebugLevel)
+	return &Peer{
+		FSM: newFSM(&oc.Global{}, &oc.Neighbor{}, logger),
 	}
-
-	h := &fsmHandler{
-		fsm:           p.fsm,
-		stateReasonCh: make(chan fsmStateReason, 2),
-		incoming:      channels.NewInfiniteChannel(),
-		outgoing:      channels.NewInfiniteChannel(),
-	}
-
-	return p, h
 }
 
 func open() *bgp.BGPMessage {
