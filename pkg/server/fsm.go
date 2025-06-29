@@ -32,6 +32,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
+	"github.com/osrg/gobgp/v4/pkg/utils"
 )
 
 const (
@@ -1048,7 +1049,7 @@ func (h *fsmHandler) recvMessageWithError(ctx context.Context) (*fsmMsg, error) 
 			case bgp.BGP_MSG_NOTIFICATION:
 				body := m.Body.(*bgp.BGPNotification)
 				if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-					communication, rest := decodeAdministrativeCommunication(body.Data)
+					communication, rest := utils.DecodeAdministrativeCommunication(body.Data)
 					h.fsm.lock.RLock()
 					h.fsm.logger.Warn("received notification",
 						log.Fields{
@@ -1638,7 +1639,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 		case bgp.BGP_MSG_NOTIFICATION:
 			body := m.Body.(*bgp.BGPNotification)
 			if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-				communication, rest := decodeAdministrativeCommunication(body.Data)
+				communication, rest := utils.DecodeAdministrativeCommunication(body.Data)
 				fsm.lock.RLock()
 				fsm.logger.Warn("sent notification",
 					log.Fields{

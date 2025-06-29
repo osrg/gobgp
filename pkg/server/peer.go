@@ -25,6 +25,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/utils"
 )
 
 const (
@@ -356,22 +357,6 @@ func (peer *peer) toGlobalFamilies(families []bgp.Family) []bgp.Family {
 	return families
 }
 
-func classifyFamilies(all, part []bgp.Family) ([]bgp.Family, []bgp.Family) {
-	a := []bgp.Family{}
-	b := []bgp.Family{}
-	for _, f := range all {
-		p := true
-		if slices.Contains(part, f) {
-			p = false
-			a = append(a, f)
-		}
-		if p {
-			b = append(b, f)
-		}
-	}
-	return a, b
-}
-
 func (peer *peer) forwardingPreservedFamilies() ([]bgp.Family, []bgp.Family) {
 	peer.fsm.lock.RLock()
 	list := []bgp.Family{}
@@ -381,7 +366,7 @@ func (peer *peer) forwardingPreservedFamilies() ([]bgp.Family, []bgp.Family) {
 		}
 	}
 	peer.fsm.lock.RUnlock()
-	return classifyFamilies(peer.configuredRFlist(), list)
+	return utils.Classify(peer.configuredRFlist(), list)
 }
 
 func (peer *peer) llgrFamilies() ([]bgp.Family, []bgp.Family) {
@@ -393,7 +378,7 @@ func (peer *peer) llgrFamilies() ([]bgp.Family, []bgp.Family) {
 		}
 	}
 	peer.fsm.lock.RUnlock()
-	return classifyFamilies(peer.configuredRFlist(), list)
+	return utils.Classify(peer.configuredRFlist(), list)
 }
 
 func (peer *peer) isLLGREnabledFamily(family bgp.Family) bool {
@@ -700,7 +685,7 @@ func (peer *peer) stopFSMHandler() {
 	}
 	close(fsm.connCh)
 	close(fsm.outgoingCh)
-	cleanInfiniteChannel(fsm.incomingCh)
+	utils.CleanInfiniteChannel(fsm.incomingCh)
 }
 
 func (peer *peer) StaleAll(rfList []bgp.Family) []*table.Path {
