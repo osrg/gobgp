@@ -30,6 +30,7 @@ import (
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -727,63 +728,6 @@ func setPeerConnMSS(fsm *fsm) error {
 	return nil
 }
 
-func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
-	caps := pConf.Capabilities()
-	opt := bgp.NewOptionParameterCapability(caps)
-	holdTime := uint16(pConf.Timers.Config.HoldTime)
-	as := pConf.Config.LocalAs
-	if as > 1<<16-1 {
-		as = bgp.AS_TRANS
-	}
-	return bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId,
-		[]bgp.OptionParameterInterface{opt})
-}
-
-func getPathAttrFromBGPUpdate(m *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAttributeInterface {
-	for _, a := range m.PathAttributes {
-		if a.GetType() == typ {
-			return a
-		}
-	}
-	return nil
-}
-
-func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath) bool {
-	cnt := 0
-	for _, param := range asPath.Value {
-		for _, as := range param.GetAS() {
-			if as == ownAS {
-				cnt++
-				if cnt > limit {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func extractFamily(p *bgp.PathAttributeInterface) *bgp.Family {
-	attr := *p
-
-	var afi uint16
-	var safi uint8
-
-	switch a := attr.(type) {
-	case *bgp.PathAttributeMpReachNLRI:
-		afi = a.AFI
-		safi = a.SAFI
-	case *bgp.PathAttributeMpUnreachNLRI:
-		afi = a.AFI
-		safi = a.SAFI
-	default:
-		return nil
-	}
-
-	rf := bgp.NewFamily(afi, safi)
-	return &rf
-}
-
 func (h *fsmHandler) afiSafiDisable(rf bgp.Family) string {
 	h.fsm.lock.Lock()
 	defer h.fsm.lock.Unlock()
@@ -836,7 +780,7 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 				})
 			h.fsm.lock.RUnlock()
 		case bgp.ERROR_HANDLING_AFISAFI_DISABLE:
-			rf := extractFamily(factor.ErrorAttribute)
+			rf := bgputils.ExtractFamily(factor.ErrorAttribute)
 			if rf == nil {
 				h.fsm.lock.RLock()
 				h.fsm.logger.Warn("Error occurred during AFI/SAFI disabling",
@@ -1019,7 +963,7 @@ func (h *fsmHandler) recvMessageWithError(ctx context.Context) (*fsmMsg, error) 
 				if routes := len(body.WithdrawnRoutes); routes > 0 {
 					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
 					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
-				} else if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
+				} else if attr := bgputils.GetPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
 					mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
 					if routes = len(mpUnreach.Value); routes > 0 {
 						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
@@ -1117,68 +1061,11 @@ func (h *fsmHandler) recvMessage(ctx context.Context, recvChan chan<- any, wg *s
 	return nil
 }
 
-func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.Family]bgp.BGPAddPathMode) {
-	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
-	for _, p := range open.OptParams {
-		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
-			for _, c := range paramCap.Capability {
-				m, ok := capMap[c.Code()]
-				if !ok {
-					m = make([]bgp.ParameterCapabilityInterface, 0, 1)
-				}
-				capMap[c.Code()] = append(m, c)
-			}
-		}
-	}
-
-	// squash add path cap
-	if caps, y := capMap[bgp.BGP_CAP_ADD_PATH]; y {
-		items := make([]*bgp.CapAddPathTuple, 0, len(caps))
-		for _, c := range caps {
-			items = append(items, c.(*bgp.CapAddPath).Tuples...)
-		}
-		capMap[bgp.BGP_CAP_ADD_PATH] = []bgp.ParameterCapabilityInterface{bgp.NewCapAddPath(items)}
-	}
-
-	// remote open message may not include multi-protocol capability
-	if _, y := capMap[bgp.BGP_CAP_MULTIPROTOCOL]; !y {
-		capMap[bgp.BGP_CAP_MULTIPROTOCOL] = []bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)}
-	}
-
-	local := n.CreateRfMap()
-	remote := make(map[bgp.Family]bgp.BGPAddPathMode)
-	for _, c := range capMap[bgp.BGP_CAP_MULTIPROTOCOL] {
-		family := c.(*bgp.CapMultiProtocol).CapValue
-		remote[family] = bgp.BGP_ADD_PATH_NONE
-		for _, a := range capMap[bgp.BGP_CAP_ADD_PATH] {
-			for _, i := range a.(*bgp.CapAddPath).Tuples {
-				if i.Family == family {
-					remote[family] = i.Mode
-				}
-			}
-		}
-	}
-	negotiated := make(map[bgp.Family]bgp.BGPAddPathMode)
-	for family, mode := range local {
-		if m, y := remote[family]; y {
-			n := bgp.BGP_ADD_PATH_NONE
-			if mode&bgp.BGP_ADD_PATH_SEND > 0 && m&bgp.BGP_ADD_PATH_RECEIVE > 0 {
-				n |= bgp.BGP_ADD_PATH_SEND
-			}
-			if mode&bgp.BGP_ADD_PATH_RECEIVE > 0 && m&bgp.BGP_ADD_PATH_SEND > 0 {
-				n |= bgp.BGP_ADD_PATH_RECEIVE
-			}
-			negotiated[family] = n
-		}
-	}
-	return capMap, negotiated
-}
-
 func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
 	fsm.lock.Lock()
-	m := buildopen(fsm.gConf, fsm.pConf)
+	m := bgputils.BuildOpenMessage(fsm.gConf, fsm.pConf)
 	fsm.lock.Unlock()
 
 	b, _ := m.Serialize()
@@ -1294,7 +1181,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.pConf.State.PeerAs = peerAs
 					fsm.peerInfo.AS = peerAs
 					fsm.peerInfo.ID = body.ID
-					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
+					fsm.capMap, fsm.rfMap = bgputils.Open2Cap(body, fsm.pConf)
 
 					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
 						fsm.marshallingOptions = &bgp.MarshallingOption{

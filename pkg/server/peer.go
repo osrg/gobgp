@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -595,7 +596,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 				localAS := peer.fsm.peerInfo.LocalAS
 				allowOwnAS := int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs)
 				peer.fsm.lock.RUnlock()
-				if hasOwnASLoop(localAS, allowOwnAS, aspath) {
+				if bgputils.HasOwnASLoop(localAS, allowOwnAS, aspath) {
 					path.SetRejected(true)
 					continue
 				}
