@@ -25,6 +25,7 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
+	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -344,9 +345,9 @@ func TestCheckOwnASLoop(t *testing.T) {
 	assert := assert.New(t)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	assert.False(hasOwnASLoop(65100, 10, aspath))
-	assert.True(hasOwnASLoop(65100, 0, aspath))
-	assert.False(hasOwnASLoop(65200, 0, aspath))
+	assert.False(bgputils.HasOwnASLoop(65100, 10, aspath))
+	assert.True(bgputils.HasOwnASLoop(65100, 0, aspath))
+	assert.False(bgputils.HasOwnASLoop(65200, 0, aspath))
 }
 
 func TestBadBGPIdentifier(t *testing.T) {
