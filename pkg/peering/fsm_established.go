@@ -9,27 +9,32 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	var wg sync.WaitGroup
-	fsm := h.FSM
-	fsm.Lock.Lock()
-	h.Conn = fsm.Conn
-	fsm.Lock.Unlock()
+func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
+	c, cancel := context.WithCancel(ctx)
+	loopWg := &sync.WaitGroup{}
+	loopWg.Add(2)
 
-	defer wg.Wait()
-	wg.Add(2)
+	reasonChan := make(chan *FSMStateReason, 2)
+	sendChan := fsm.OutgoingCh
+	recvChan := fsm.IncomingCh.In()
+	go fsm.sendMessageLoop(c, loopWg, sendChan, reasonChan)
+	go fsm.recvMessageLoop(c, loopWg, recvChan, reasonChan)
 
-	go h.sendMessageloop(ctx, &wg)
-	h.MsgCh = h.FSM.IncomingCh
-	go h.recvMessageloop(ctx, &wg)
+	defer func() {
+		cancel()
+		loopWg.Wait()
+		close(reasonChan)
+	}()
+
+	fsm.Lock.RLock()
+	holdTime := fsm.PeerConf.Timers.State.NegotiatedHoldTime
+	fsm.Lock.RUnlock()
 
 	var holdTimer *time.Timer
-	if fsm.PeerConf.Timers.State.NegotiatedHoldTime == 0 {
+	if holdTime == 0 {
 		holdTimer = &time.Timer{}
 	} else {
-		fsm.Lock.RLock()
-		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.PeerConf.Timers.State.NegotiatedHoldTime))
-		fsm.Lock.RUnlock()
+		holdTimer = time.NewTimer(time.Second * time.Duration(holdTime))
 	}
 
 	fsm.GracefulRestartTimer.Stop()
@@ -53,12 +58,12 @@ func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateRe
 						body.ErrorSubcode = bgp.BGP_ERROR_SUB_HARD_RESET
 					}
 				}
-				b, _ := m.Serialize(h.FSM.MarshallingOptions)
-				h.Conn.Write(b)
+				b, _ := m.Serialize(fsm.MarshallingOptions)
+				fsm.Conn.Write(b)
 			default:
 				// nothing to do
 			}
-			h.Conn.Close()
+			fsm.Conn.Close()
 			return -1, NewFSMStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
@@ -73,14 +78,14 @@ func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateRe
 					"State": fsm.State.String(),
 				})
 			fsm.Lock.RUnlock()
-		case err := <-h.StateReasonCh:
-			h.Conn.Close()
+		case err := <-reasonChan:
+			fsm.Conn.Close()
 			// if recv goroutine hit an error and sent to
 			// stateReasonCh, then tx goroutine might take
 			// long until it exits because it waits for
 			// ctx.Done() or keepalive timer. So let kill
 			// it now.
-			h.FSM.OutgoingCh <- err
+			fsm.OutgoingCh <- err
 			fsm.Lock.RLock()
 			if s := fsm.PeerConf.GracefulRestart.State; s.Enabled {
 				if s.NotificationEnabled && err.Type == FSMNotificationRecv ||
@@ -88,7 +93,7 @@ func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateRe
 						err.BGPNotification.Body.(*bgp.BGPNotification).ErrorCode == bgp.BGP_ERROR_HOLD_TIMER_EXPIRED ||
 					err.Type == FSMReadFailed ||
 					err.Type == FSMWriteFailed {
-					err = *NewFSMStateReason(FSMGracefulRestart, nil, nil)
+					err = NewFSMStateReason(FSMGracefulRestart, nil, nil)
 					fsm.Logger.Info("peer graceful restart",
 						log.Fields{
 							"Topic": "Peer",
@@ -99,7 +104,7 @@ func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateRe
 				}
 			}
 			fsm.Lock.RUnlock()
-			return bgp.BGP_FSM_IDLE, &err
+			return bgp.BGP_FSM_IDLE, err
 		case <-holdTimer.C:
 			fsm.Lock.RLock()
 			fsm.Logger.Warn("hold timer expired",
@@ -110,7 +115,7 @@ func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateRe
 				})
 			fsm.Lock.RUnlock()
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.FSM.OutgoingCh <- &FSMOutgoingMsg{Notification: m}
+			fsm.OutgoingCh <- &FSMOutgoingMsg{Notification: m}
 			fsm.Lock.RLock()
 			s := fsm.PeerConf.GracefulRestart.State
 			fsm.Lock.RUnlock()
@@ -120,19 +125,19 @@ func (h *FSMHandler) established(ctx context.Context) (bgp.FSMState, *FSMStateRe
 			if !s.Enabled {
 				return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMHoldTimerExpired, m, nil)
 			}
-		case <-h.HoldTimerResetCh:
+		case <-fsm.HoldTimerResetCh:
 			fsm.Lock.RLock()
 			if fsm.PeerConf.Timers.State.NegotiatedHoldTime != 0 {
 				holdTimer.Reset(time.Second * time.Duration(fsm.PeerConf.Timers.State.NegotiatedHoldTime))
 			}
 			fsm.Lock.RUnlock()
 		case stateOp := <-fsm.AdminStateCh:
-			err := h.changeAdminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:
 					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
-					h.FSM.OutgoingCh <- &FSMOutgoingMsg{Notification: m}
+					fsm.OutgoingCh <- &FSMOutgoingMsg{Notification: m}
 				}
 			}
 		}

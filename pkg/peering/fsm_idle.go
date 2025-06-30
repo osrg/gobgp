@@ -8,9 +8,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (h *FSMHandler) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	fsm := h.FSM
-
+func (fsm *fsm) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	fsm.Lock.RLock()
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.IdleHoldTime))
 	fsm.Lock.RUnlock()
@@ -74,7 +72,7 @@ func (h *FSMHandler) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 			}
 
 		case stateOp := <-fsm.AdminStateCh:
-			err := h.changeAdminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:

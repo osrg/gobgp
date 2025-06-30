@@ -8,23 +8,20 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (h *FSMHandler) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	c, cancel := context.WithCancel(ctx)
-
-	fsm := h.FSM
-	var wg sync.WaitGroup
-
+func (fsm *fsm) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	fsm.Lock.RLock()
 	tryConnect := !fsm.PeerConf.Transport.Config.PassiveMode
 	fsm.Lock.RUnlock()
-	if tryConnect {
-		wg.Add(1)
-		go h.connectLoop(c, &wg)
-	}
 
+	c, cancel := context.WithCancel(ctx)
+	connectWg := &sync.WaitGroup{}
+	if tryConnect {
+		connectWg.Add(1)
+		go fsm.connectLoop(c, connectWg)
+	}
 	defer func() {
 		cancel()
-		wg.Wait()
+		connectWg.Wait()
 	}()
 
 	for {
@@ -77,10 +74,8 @@ func (h *FSMHandler) active(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 				fsm.Lock.RUnlock()
 				return bgp.BGP_FSM_IDLE, NewFSMStateReason(FMSRestartTimerExpired, nil, nil)
 			}
-		case err := <-h.StateReasonCh:
-			return bgp.BGP_FSM_IDLE, &err
 		case stateOp := <-fsm.AdminStateCh:
-			err := h.changeAdminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:

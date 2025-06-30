@@ -626,17 +626,16 @@ func (peer *Peer) StartFSM() {
 	peer.FSM.Lock.Lock()
 	defer peer.FSM.Lock.Unlock()
 
-	handler := peer.FSM.Handler
 	ctx, cancel := context.WithCancel(context.Background())
-	handler.Ctx = ctx
-	handler.CtxCancel = cancel
+	peer.ctx = ctx
+	peer.cancel = cancel
 
 	go func() {
 	loop:
 		for {
-			handler.step(handler.Ctx)
+			peer.FSM.step(ctx)
 			select {
-			case <-handler.Ctx.Done():
+			case <-ctx.Done():
 				break loop
 			default:
 			}
@@ -646,8 +645,8 @@ func (peer *Peer) StartFSM() {
 		close(peer.FSM.ConnCh)
 		close(peer.FSM.OutgoingCh)
 		utils.CleanInfiniteChannel(peer.FSM.IncomingCh)
-		handler.Ctx = nil
-		handler.CtxCancel = nil
+		peer.ctx = nil
+		peer.cancel = nil
 		peer.FSM.Lock.Unlock()
 
 		peer.FSM.Logger.Info("Peer FSM loop finished",
@@ -661,13 +660,13 @@ func (peer *Peer) StartFSM() {
 func (peer *Peer) StopFSM() {
 	peer.FSM.Lock.RLock()
 	defer peer.FSM.Lock.RUnlock()
-	peer.FSM.Handler.CtxCancel()
+	peer.cancel()
 }
 
 func (peer *Peer) IsFSMRunning() bool {
 	peer.FSM.Lock.RLock()
 	defer peer.FSM.Lock.RUnlock()
-	return peer.FSM.Handler.Ctx != nil
+	return peer.ctx != nil
 }
 
 func (peer *Peer) StaleAll(rfList []bgp.Family) []*table.Path {

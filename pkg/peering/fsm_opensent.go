@@ -6,34 +6,48 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (h *FSMHandler) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	fsm := h.FSM
-
-	fsm.Lock.Lock()
+func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
+	fsm.Lock.RLock()
 	m := bgputils.BuildOpenMessage(fsm.GlobalConf, fsm.PeerConf)
-	fsm.Lock.Unlock()
+	fsm.Lock.RUnlock()
 
 	b, _ := m.Serialize()
 	fsm.Conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.MsgCh = channels.NewInfiniteChannel()
+	c, cancel := context.WithCancel(ctx)
+	recvWg := &sync.WaitGroup{}
+	recvWg.Add(1)
 
-	fsm.Lock.RLock()
-	h.Conn = fsm.Conn
-	fsm.Lock.RUnlock()
+	recvChan := make(chan any, 1)
+	reasonChan := make(chan *FSMStateReason, 1)
+	go func() {
+		err := fsm.recvMessage(c, recvWg, recvChan, reasonChan)
+		if err != nil {
+			fsm.Lock.RLock()
+			fsm.Logger.Error("failed to receive message",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.PeerConf.State.NeighborAddress,
+					"State": fsm.State.String(),
+					"Error": err,
+				})
+			fsm.Lock.RUnlock()
+		}
+	}()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	defer wg.Wait()
-	go h.recvMessage(ctx, &wg)
+	defer func() {
+		cancel()
+		recvWg.Wait()
+		close(recvChan)
+		close(reasonChan)
+	}()
 
 	// RFC 4271 P.60
 	// sets its HoldTimer to a large value
@@ -42,11 +56,10 @@ func (h *FSMHandler) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReaso
 	fsm.Lock.RLock()
 	holdTimer := time.NewTimer(time.Second * time.Duration(fsm.OpenSentHoldTime))
 	fsm.Lock.RUnlock()
-
 	for {
 		select {
 		case <-ctx.Done():
-			h.Conn.Close()
+			fsm.Conn.Close()
 			return -1, NewFSMStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
@@ -74,10 +87,10 @@ func (h *FSMHandler) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReaso
 						"State": fsm.State.String(),
 					})
 				fsm.Lock.RUnlock()
-				h.Conn.Close()
+				fsm.Conn.Close()
 				return bgp.BGP_FSM_IDLE, NewFSMStateReason(FMSRestartTimerExpired, nil, nil)
 			}
-		case i, ok := <-h.MsgCh.Out():
+		case i, ok := <-recvChan:
 			if !ok {
 				continue
 			}
@@ -236,14 +249,14 @@ func (h *FSMHandler) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReaso
 					return bgp.BGP_FSM_OPENCONFIRM, NewFSMStateReason(FSMOpenMsgReceived, nil, nil)
 				} else {
 					// send notification?
-					h.Conn.Close()
+					fsm.Conn.Close()
 					return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMInvalidMsg, nil, nil)
 				}
 			case *bgp.MessageError:
 				msg, _ := fsm.sendNotificationFromErrorMsg(m)
 				return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMInvalidMsg, msg, nil)
 			default:
-				h.FSM.Logger.Panic("unknown msg type",
+				fsm.Logger.Panic("unknown msg type",
 					log.Fields{
 						"Topic": "Peer",
 						"Key":   fsm.PeerConf.State.NeighborAddress,
@@ -251,21 +264,21 @@ func (h *FSMHandler) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReaso
 						"Data":  e.MsgData,
 					})
 			}
-		case err := <-h.StateReasonCh:
-			h.Conn.Close()
-			return bgp.BGP_FSM_IDLE, &err
+		case err := <-reasonChan:
+			fsm.Conn.Close()
+			return bgp.BGP_FSM_IDLE, err
 		case <-holdTimer.C:
 			m, _ := fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMHoldTimerExpired, m, nil)
 		case stateOp := <-fsm.AdminStateCh:
-			err := h.changeAdminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:
-					h.Conn.Close()
+					fsm.Conn.Close()
 					return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMAdminDown, m, nil)
 				case AdminStateUp:
-					h.FSM.Logger.Panic("code logic bug",
+					fsm.Logger.Panic("code logic bug",
 						log.Fields{
 							"Topic":      "Peer",
 							"Key":        fsm.PeerConf.State.NeighborAddress,

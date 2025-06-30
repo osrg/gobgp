@@ -105,7 +105,6 @@ type fsm struct {
 	OpenSentHoldTime     float64
 	AdminState           AdminState
 	AdminStateCh         chan AdminStateOperation
-	Handler              *FSMHandler
 	RFMap                map[bgp.Family]bgp.BGPAddPathMode
 	CapMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	RecvOpen             *bgp.BGPMessage
@@ -116,17 +115,8 @@ type fsm struct {
 	Notification         chan *bgp.BGPMessage
 	Logger               log.Logger
 	LongLivedRunning     bool
-}
-
-type FSMHandler struct {
-	FSM              *fsm
-	Conn             net.Conn
-	MsgCh            *channels.InfiniteChannel
-	StateReasonCh    chan FSMStateReason
-	HoldTimerResetCh chan bool
-	SentNotification *bgp.BGPMessage
-	Ctx              context.Context
-	CtxCancel        context.CancelFunc
+	HoldTimerResetCh     chan bool
+	SentNotification     *bgp.BGPMessage
 }
 
 type PeerGroup struct {
@@ -146,4 +136,8 @@ type Peer struct {
 	SentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
 	SendMaxPathFiltered map[table.PathLocalKey]struct{}
 	LLGREndChs          []chan struct{}
+
+	// running state of the peer
+	ctx    context.Context
+	cancel context.CancelFunc
 }

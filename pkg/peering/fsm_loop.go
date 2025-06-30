@@ -16,14 +16,6 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/utils"
 )
 
-func newFSMHandler(fsm *fsm) *FSMHandler {
-	return &FSMHandler{
-		FSM:              fsm,
-		StateReasonCh:    make(chan FSMStateReason, 2),
-		HoldTimerResetCh: make(chan bool, 2),
-	}
-}
-
 func newStateTransition(oldState, nextState bgp.FSMState) *FSMStateTransition {
 	return &FSMStateTransition{
 		OldState:  oldState,
@@ -31,8 +23,7 @@ func newStateTransition(oldState, nextState bgp.FSMState) *FSMStateTransition {
 	}
 }
 
-func (h *FSMHandler) step(ctx context.Context) {
-	fsm := h.FSM
+func (fsm *fsm) step(ctx context.Context) {
 	fsm.Lock.RLock()
 	oldState := fsm.State
 	neighborAddress := fsm.PeerConf.State.NeighborAddress
@@ -43,22 +34,22 @@ func (h *FSMHandler) step(ctx context.Context) {
 
 	switch oldState {
 	case bgp.BGP_FSM_IDLE:
-		nextState, reason = h.idle(ctx)
+		nextState, reason = fsm.idle(ctx)
 		// case bgp.BGP_FSM_CONNECT:
 		// 	nextState = h.connect()
 	case bgp.BGP_FSM_ACTIVE:
-		nextState, reason = h.active(ctx)
+		nextState, reason = fsm.active(ctx)
 	case bgp.BGP_FSM_OPENSENT:
-		nextState, reason = h.opensent(ctx)
+		nextState, reason = fsm.opensent(ctx)
 	case bgp.BGP_FSM_OPENCONFIRM:
-		nextState, reason = h.openconfirm(ctx)
+		nextState, reason = fsm.openconfirm(ctx)
 	case bgp.BGP_FSM_ESTABLISHED:
-		nextState, reason = h.established(ctx)
+		nextState, reason = fsm.established(ctx)
 	}
 
 	fsm.Lock.Lock()
 	fsm.Reason = reason
-	sentNotification := fsm.Handler.SentNotification
+	sentNotification := fsm.SentNotification
 	fsm.Lock.Unlock()
 
 	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
@@ -99,9 +90,8 @@ func (h *FSMHandler) step(ctx context.Context) {
 	utils.PushWithContext(ctx, fsm.IncomingCh.In(), any(fsmMsg), true)
 }
 
-func (h *FSMHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
+func (fsm *fsm) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	fsm := h.FSM
 
 	fsm.Lock.RLock()
 	retryInterval := max(int(fsm.PeerConf.Timers.Config.ConnectRetry), MinConnectRetryInterval)

@@ -161,7 +161,10 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 	}
 	pConf.State.SessionState = oc.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	pConf.Timers.State.Downtime = time.Now().Unix()
-	fsm := &fsm{
+
+	gracefulRestartTimer := time.NewTimer(time.Hour)
+	gracefulRestartTimer.Stop()
+	return &fsm{
 		GlobalConf:           gConf,
 		PeerConf:             pConf,
 		State:                bgp.BGP_FSM_IDLE,
@@ -177,11 +180,8 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		GracefulRestartTimer: time.NewTimer(time.Hour),
 		Notification:         make(chan *bgp.BGPMessage, 1),
 		Logger:               logger,
+		HoldTimerResetCh:     make(chan bool, 2),
 	}
-	handler := newFSMHandler(fsm)
-	fsm.Handler = handler
-	fsm.GracefulRestartTimer.Stop()
-	return fsm
 }
 
 func (fsm *fsm) stateChange(nextState bgp.FSMState) {
@@ -235,18 +235,18 @@ func (fsm *fsm) LocalHostPort() (string, uint16) {
 
 func (fsm *fsm) sendNotificationFromErrorMsg(e *bgp.MessageError) (*bgp.BGPMessage, error) {
 	fsm.Lock.RLock()
-	established := fsm.Handler != nil && fsm.Handler.Conn != nil
+	established := fsm.Conn != nil
 	fsm.Lock.RUnlock()
 
 	if established {
 		m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
 		b, _ := m.Serialize()
-		_, err := fsm.Handler.Conn.Write(b)
+		_, err := fsm.Conn.Write(b)
 		if err == nil {
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-			fsm.Handler.SentNotification = m
+			fsm.SentNotification = m
 		}
-		fsm.Handler.Conn.Close()
+		fsm.Conn.Close()
 		fsm.Logger.Warn("sent notification",
 			log.Fields{
 				"Topic": "Peer",
