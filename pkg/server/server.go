@@ -41,6 +41,7 @@ import (
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -872,7 +873,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 	var rport, lport uint16
 
 	peer.fsm.lock.Lock()
-	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
+	sentOpen := bgputils.BuildOpenMessage(peer.fsm.gConf, peer.fsm.pConf)
 	peer.fsm.lock.Unlock()
 
 	peer.fsm.lock.RLock()
