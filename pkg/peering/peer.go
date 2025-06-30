@@ -674,6 +674,62 @@ func (peer *Peer) StaleAll(rfList []bgp.Family) []*table.Path {
 }
 
 func (peer *Peer) PassConn(conn net.Conn) {
+	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	ipaddr, _ := net.ResolveIPAddr("ip", host)
+	remoteAddr := ipaddr.String()
+
+	peer.FSM.Lock.RLock()
+	adminState := peer.FSM.AdminState
+	localAddr := peer.FSM.PeerConf.Transport.Config.LocalAddress
+	bindInterface := peer.FSM.PeerConf.Transport.Config.BindInterface
+	peer.FSM.Lock.RUnlock()
+
+	if adminState != AdminStateUp {
+		peer.FSM.Logger.Debug("New connection for non admin-state-up peer",
+			log.Fields{
+				"Topic":       "Peer",
+				"Remote Addr": remoteAddr,
+				"Admin State": adminState,
+			})
+		conn.Close()
+		return
+	}
+	localAddrValid := func(laddr string) bool {
+		if laddr == "0.0.0.0" || laddr == "::" {
+			return true
+		}
+		l := conn.LocalAddr()
+		if l == nil {
+			// already closed
+			return false
+		}
+
+		host, _, _ := net.SplitHostPort(l.String())
+		if host != laddr && bindInterface == "" {
+			peer.FSM.Logger.Info("Mismatched local address",
+				log.Fields{
+					"Topic":           "Peer",
+					"Key":             remoteAddr,
+					"Configured addr": laddr,
+					"Addr":            host,
+					"BindInterface":   bindInterface,
+				})
+			return false
+		}
+		return true
+	}(localAddr)
+
+	if !localAddrValid {
+		conn.Close()
+		return
+	}
+
+	peer.FSM.Logger.Debug("Accepted a new passive connection",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   remoteAddr,
+		})
+
 	select {
 	case peer.FSM.ConnCh <- conn:
 	default:

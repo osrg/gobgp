@@ -256,60 +256,6 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 	remoteAddr := ipaddr.String()
 	peer, found := s.neighborMap[remoteAddr]
 	if found {
-		peer.FSM.Lock.RLock()
-		adminStateNotUp := peer.FSM.AdminState != peering.AdminStateUp
-		peer.FSM.Lock.RUnlock()
-		if adminStateNotUp {
-			peer.FSM.Lock.RLock()
-			s.logger.Debug("New connection for non admin-state-up peer",
-				log.Fields{
-					"Topic":       "Peer",
-					"Remote Addr": remoteAddr,
-					"Admin State": peer.FSM.AdminState,
-				})
-			peer.FSM.Lock.RUnlock()
-			conn.Close()
-			return
-		}
-		peer.FSM.Lock.RLock()
-		localAddr := peer.FSM.PeerConf.Transport.Config.LocalAddress
-		bindInterface := peer.FSM.PeerConf.Transport.Config.BindInterface
-		peer.FSM.Lock.RUnlock()
-		localAddrValid := func(laddr string) bool {
-			if laddr == "0.0.0.0" || laddr == "::" {
-				return true
-			}
-			l := conn.LocalAddr()
-			if l == nil {
-				// already closed
-				return false
-			}
-
-			host, _, _ := net.SplitHostPort(l.String())
-			if host != laddr && bindInterface == "" {
-				s.logger.Info("Mismatched local address",
-					log.Fields{
-						"Topic":           "Peer",
-						"Key":             remoteAddr,
-						"Configured addr": laddr,
-						"Addr":            host,
-						"BindInterface":   bindInterface,
-					})
-				return false
-			}
-			return true
-		}(localAddr)
-
-		if !localAddrValid {
-			conn.Close()
-			return
-		}
-
-		s.logger.Debug("Accepted a new passive connection",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   remoteAddr,
-			})
 		peer.PassConn(conn)
 	} else if pg := s.matchLongestDynamicNeighborPrefix(remoteAddr); pg != nil {
 		s.logger.Debug("Accepted a new dynamic neighbor",
