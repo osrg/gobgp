@@ -226,10 +226,16 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState) {
 }
 
 func (fsm *fsm) RemoteHostPort() (string, uint16) {
+	if fsm.Conn == nil {
+		return "", 0
+	}
 	return netutils.HostPort(fsm.Conn.RemoteAddr())
 }
 
 func (fsm *fsm) LocalHostPort() (string, uint16) {
+	if fsm.Conn == nil {
+		return "", 0
+	}
 	return netutils.HostPort(fsm.Conn.LocalAddr())
 }
 
