@@ -337,5 +337,4 @@ func (fsm *fsm) closeIncomingConn() {
 			c = false
 		}
 	}
-	close(fsm.ConnCh)
 }

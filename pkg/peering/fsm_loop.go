@@ -52,30 +52,38 @@ func (fsm *fsm) step(ctx context.Context) {
 	sentNotification := fsm.SentNotification
 	fsm.Lock.Unlock()
 
-	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
-		fsm.Logger.Info("Peer Up",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   neighborAddress,
-				"State": oldState.String(),
-			})
-	}
-
-	if oldState == bgp.BGP_FSM_ESTABLISHED {
-		// The main goroutine sent the notification due to
-		// deconfiguration or something.
-		reason := reason
-		if sentNotification != nil {
-			reason.Type = FSMNotificationSent
-			reason.BGPNotification = sentNotification
+	switch nextState {
+	case bgp.BGP_FSM_IDLE:
+		// If we are going to idle, we should close the connection
+		fsm.Lock.Lock()
+		fsm.closeIncomingConn()
+		fsm.Lock.Unlock()
+	case bgp.BGP_FSM_ESTABLISHED:
+		if oldState == bgp.BGP_FSM_OPENCONFIRM {
+			fsm.Logger.Info("Peer Up",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   neighborAddress,
+					"State": oldState.String(),
+				})
 		}
-		fsm.Logger.Info("Peer Down",
-			log.Fields{
-				"Topic":  "Peer",
-				"Key":    neighborAddress,
-				"State":  oldState.String(),
-				"Reason": reason.String(),
-			})
+	default:
+		if oldState == bgp.BGP_FSM_ESTABLISHED {
+			// The main goroutine sent the notification due to
+			// deconfiguration or something.
+			reason := *reason
+			if sentNotification != nil {
+				reason.Type = FSMNotificationSent
+				reason.BGPNotification = sentNotification
+			}
+			fsm.Logger.Info("Peer Down",
+				log.Fields{
+					"Topic":  "Peer",
+					"Key":    neighborAddress,
+					"State":  oldState.String(),
+					"Reason": reason.String(),
+				})
+		}
 	}
 
 	fsmMsg := &FSMMsg{

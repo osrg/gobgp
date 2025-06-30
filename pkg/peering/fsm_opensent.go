@@ -59,8 +59,7 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	for {
 		select {
 		case <-ctx.Done():
-			fsm.Conn.Close()
-			return -1, NewFSMStateReason(FSMDying, nil, nil)
+			return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
 				break
@@ -87,7 +86,6 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 						"State": fsm.State.String(),
 					})
 				fsm.Lock.RUnlock()
-				fsm.Conn.Close()
 				return bgp.BGP_FSM_IDLE, NewFSMStateReason(FMSRestartTimerExpired, nil, nil)
 			}
 		case i, ok := <-recvChan:
@@ -248,8 +246,6 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 					return bgp.BGP_FSM_OPENCONFIRM, NewFSMStateReason(FSMOpenMsgReceived, nil, nil)
 				} else {
-					// send notification?
-					fsm.Conn.Close()
 					return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMInvalidMsg, nil, nil)
 				}
 			case *bgp.MessageError:
@@ -265,7 +261,6 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 					})
 			}
 		case err := <-reasonChan:
-			fsm.Conn.Close()
 			return bgp.BGP_FSM_IDLE, err
 		case <-holdTimer.C:
 			m, _ := fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
@@ -275,7 +270,6 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:
-					fsm.Conn.Close()
 					return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMAdminDown, m, nil)
 				case AdminStateUp:
 					fsm.Logger.Panic("code logic bug",

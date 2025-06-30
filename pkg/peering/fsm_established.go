@@ -63,8 +63,7 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 			default:
 				// nothing to do
 			}
-			fsm.Conn.Close()
-			return -1, NewFSMStateReason(FSMDying, nil, nil)
+			return bgp.BGP_FSM_IDLE, NewFSMStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
 				break
@@ -79,13 +78,6 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 				})
 			fsm.Lock.RUnlock()
 		case err := <-reasonChan:
-			fsm.Conn.Close()
-			// if recv goroutine hit an error and sent to
-			// stateReasonCh, then tx goroutine might take
-			// long until it exits because it waits for
-			// ctx.Done() or keepalive timer. So let kill
-			// it now.
-			fsm.OutgoingCh <- err
 			fsm.Lock.RLock()
 			if s := fsm.PeerConf.GracefulRestart.State; s.Enabled {
 				if s.NotificationEnabled && err.Type == FSMNotificationRecv ||
