@@ -47,7 +47,7 @@ jobs:
           go-version: "stable"
       - run: |
           go env GOARCH
-          go test -timeout 240s ./...
+          go test -v -timeout 240s ./...
 
   protobuf-check:
     name: protobuf lint and format check
