@@ -177,7 +177,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	p.fsm.h = h
 
 	// set keepalive ticker
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.KeepaliveInterval = 3
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
@@ -226,7 +226,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.h = h
 
 	// set keepalive ticker
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.KeepaliveInterval = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -266,7 +266,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	p.fsm.h = h
 
 	// set keepalive ticker
-	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.KeepaliveInterval = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
