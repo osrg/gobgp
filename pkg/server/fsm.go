@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 	"syscall"
@@ -556,30 +557,28 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 			}
 
 			conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
-			select {
-			case <-ctx.Done():
-				fsm.logger.Debug("stop connect loop",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   addr,
-					})
-				return
-			default:
+			if err != nil {
+				if fsm.logger.GetLevel() >= log.DebugLevel {
+					fsm.logger.Debug("failed to connect",
+						log.Fields{
+							"Topic": "Peer",
+							"Key":   addr,
+							"Error": err,
+						})
+				}
+				continue
 			}
 
-			if err == nil {
-				select {
-				case fsm.connCh <- conn:
-					return
-				default:
-					conn.Close()
-					fsm.logger.Warn("active conn is closed to avoid being blocked",
+			pushed := utils.PushWithContext(ctx, fsm.connCh, conn, false)
+			if !pushed {
+				if ctx.Err() == context.Canceled {
+					fsm.logger.Debug("stop connect loop",
 						log.Fields{
 							"Topic": "Peer",
 							"Key":   addr,
 						})
+					return
 				}
-			} else {
 				if fsm.logger.GetLevel() >= log.DebugLevel {
 					fsm.logger.Debug("failed to connect",
 						log.Fields{
@@ -867,12 +866,18 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 	return handling
 }
 
-func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
+func (h *fsmHandler) recvMessageWithError(ctx context.Context) (*fsmMsg, error) {
 	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
-		// probably doesn't happen but be cautious
-		select {
-		case h.stateReasonCh <- *newfsmStateReason(typ, notif, nil):
-		default:
+		reason := *newfsmStateReason(typ, notif, nil)
+		pushed := utils.PushWithContext(ctx, h.stateReasonCh, reason, false)
+		if !pushed {
+			h.fsm.logger.Warn("failed to push state reason",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   h.fsm.pConf.State.NeighborAddress,
+					"State": h.fsm.state.String(),
+					"Data":  reason,
+				})
 		}
 	}
 
@@ -1105,7 +1110,7 @@ func (h *fsmHandler) recvMessage(ctx context.Context, recvChan chan<- any, wg *s
 		}
 	}()
 
-	fmsg, _ := h.recvMessageWithError()
+	fmsg, _ := h.recvMessageWithError(ctx)
 	if fmsg != nil {
 		recvChan <- fmsg
 	}
@@ -1572,10 +1577,16 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 
 func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
 	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
-		// probably doesn't happen but be cautious
-		select {
-		case h.stateReasonCh <- *newfsmStateReason(typ, notif, nil):
-		default:
+		reason := *newfsmStateReason(typ, notif, nil)
+		pushed := utils.PushWithContext(ctx, h.stateReasonCh, reason, false)
+		if !pushed {
+			h.fsm.logger.Warn("failed to push state reason",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   h.fsm.pConf.State.NeighborAddress,
+					"State": h.fsm.state.String(),
+					"Data":  reason,
+				})
 		}
 	}
 
@@ -1773,7 +1784,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	}()
 
 	for {
-		fmsg, err := h.recvMessageWithError()
+		fmsg, err := h.recvMessageWithError(ctx)
 		if fmsg != nil && ctx.Err() == nil {
 			h.callback(fmsg)
 		}
@@ -1921,7 +1932,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	}
 }
 
-func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	fsm := h.fsm
@@ -2015,7 +2026,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	}
 	close(fsm.connCh)
 	fsm.outgoingCh.Close()
-	return nil
 }
 
 func (h *fsmHandler) changeadminState(s adminState) error {
