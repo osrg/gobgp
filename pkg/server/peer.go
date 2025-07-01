@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -692,11 +693,17 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 	return nil, nil, nil
 }
 
-func (peer *peer) startFSMHandler(callback func(*fsmMsg, bool)) {
-	handler := newFSMHandler(peer.fsm, peer.fsm.outgoingCh, callback)
+func (peer *peer) startFSMHandler(wg *sync.WaitGroup, callback fsmCallback) {
+	handler := newFSMHandler(peer.fsm, peer.fsm.outgoingCh, wg, callback)
 	peer.fsm.lock.Lock()
 	peer.fsm.h = handler
 	peer.fsm.lock.Unlock()
+}
+
+func (peer *peer) stopFSMHandler() {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	peer.fsm.h.ctxCancel()
 }
 
 func (peer *peer) StaleAll(rfList []bgp.Family) []*table.Path {
