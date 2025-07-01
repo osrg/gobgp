@@ -1319,7 +1319,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1482,9 +1481,6 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	// Delete the peer from s1.
 	err = s1.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: p1.Conf.NeighborAddress})
 	assert.NoError(err)
-
-	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
 
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.
