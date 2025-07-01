@@ -1810,34 +1810,47 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 		return nil
 	}
 
+	sendFromChan := func(o any) {
+		switch m := o.(type) {
+		case *fsmOutgoingMsg:
+			h.fsm.lock.RLock()
+			options := h.fsm.marshallingOptions
+			h.fsm.lock.RUnlock()
+			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
+				if err := send(msg); err != nil {
+					return
+				}
+			}
+			if m.Notification != nil {
+				if m.StayIdle {
+					// current user is only prefix-limit
+					// fix me if this is not the case
+					_ = h.changeadminState(adminStatePfxCt)
+				}
+				if err := send(m.Notification); err != nil {
+					return
+				}
+			}
+		default:
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
-		case o := <-h.outgoing.Out():
-			switch m := o.(type) {
-			case *fsmOutgoingMsg:
-				h.fsm.lock.RLock()
-				options := h.fsm.marshallingOptions
-				h.fsm.lock.RUnlock()
-				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
-					if err := send(msg); err != nil {
-						return nil
-					}
+			// send remaining messages
+			// before closing the connection
+			// (for example, all the dropped routes)
+			for {
+				select {
+				case o := <-h.outgoing.Out():
+					sendFromChan(o)
+				default:
+					return nil
 				}
-				if m.Notification != nil {
-					if m.StayIdle {
-						// current user is only prefix-limit
-						// fix me if this is not the case
-						_ = h.changeadminState(adminStatePfxCt)
-					}
-					if err := send(m.Notification); err != nil {
-						return nil
-					}
-				}
-			default:
-				return nil
 			}
+		case o := <-h.outgoing.Out():
+			sendFromChan(o)
 		case <-ticker.C:
 			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
 				return nil
@@ -1860,18 +1873,23 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 }
 
 func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
-	var wg sync.WaitGroup
 	fsm := h.fsm
 	fsm.lock.Lock()
 	h.conn = fsm.conn
 	fsm.lock.Unlock()
 
-	defer wg.Wait()
+	c, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
 	wg.Add(2)
 
-	go h.sendMessageloop(ctx, &wg)
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
+	go h.sendMessageloop(c, &wg)
 	h.msgCh = h.incoming
-	go h.recvMessageloop(ctx, &wg)
+	go h.recvMessageloop(c, &wg)
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1995,15 +2013,13 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	fsm := h.fsm
 	fsm.lock.RLock()
 	oldState := fsm.state
+	neighborAddress := fsm.pConf.State.NeighborAddress
 	fsm.lock.RUnlock()
 
 	var reason *fsmStateReason
 	nextState := bgp.FSMState(-1)
-	fsm.lock.RLock()
-	fsmState := fsm.state
-	fsm.lock.RUnlock()
 
-	switch fsmState {
+	switch oldState {
 	case bgp.BGP_FSM_IDLE:
 		nextState, reason = h.idle(ctx)
 		// case bgp.BGP_FSM_CONNECT:
@@ -2018,22 +2034,23 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 		nextState, reason = h.established(ctx)
 	}
 
-	fsm.lock.RLock()
+	fsm.lock.Lock()
 	fsm.reason = reason
+	fsm.lock.Unlock()
 
 	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
 		fsm.logger.Info("Peer Up",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   fsm.pConf.State.NeighborAddress,
-				"State": fsm.state.String(),
+				"Key":   neighborAddress,
+				"State": oldState.String(),
 			})
 	}
 
 	if oldState == bgp.BGP_FSM_ESTABLISHED {
 		// The main goroutine sent the notification due to
 		// deconfiguration or something.
-		reason := fsm.reason
+		reason := *reason
 		if fsm.h.sentNotification != nil {
 			reason.Type = fsmNotificationSent
 			reason.BGPNotification = fsm.h.sentNotification
@@ -2041,22 +2058,19 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 		fsm.logger.Info("Peer Down",
 			log.Fields{
 				"Topic":  "Peer",
-				"Key":    fsm.pConf.State.NeighborAddress,
-				"State":  fsm.state.String(),
+				"Key":    neighborAddress,
+				"State":  oldState.String(),
 				"Reason": reason.String(),
 			})
 	}
-	fsm.lock.RUnlock()
 
-	fsm.lock.RLock()
 	h.incoming.In() <- &fsmMsg{
 		fsm:         fsm,
 		MsgType:     fsmMsgStateChange,
-		MsgSrc:      fsm.pConf.State.NeighborAddress,
+		MsgSrc:      neighborAddress,
 		MsgData:     nextState,
 		StateReason: reason,
 	}
-	fsm.lock.RUnlock()
 	return nil
 }
 
