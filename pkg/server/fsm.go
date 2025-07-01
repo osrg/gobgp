@@ -381,6 +381,8 @@ func (fsm *fsm) sendNotification(code, subType uint8, data []byte, msg string) (
 	return fsm.sendNotificationFromErrorMsg(e.(*bgp.MessageError))
 }
 
+type fsmCallback func(*fsmMsg)
+
 type fsmHandler struct {
 	fsm              *fsm
 	conn             net.Conn
@@ -391,24 +393,22 @@ type fsmHandler struct {
 	sentNotification *bgp.BGPMessage
 	ctx              context.Context
 	ctxCancel        context.CancelFunc
-	wg               *sync.WaitGroup
-	callback         func(*fsmMsg, bool)
+	callback         fsmCallback
 }
 
-func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel, callback func(*fsmMsg, bool)) *fsmHandler {
+func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel, wg *sync.WaitGroup, callback func(*fsmMsg)) *fsmHandler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &fsmHandler{
 		fsm:              fsm,
 		stateReasonCh:    make(chan fsmStateReason, 2),
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
-		wg:               &sync.WaitGroup{},
 		ctx:              ctx,
 		ctxCancel:        cancel,
 		callback:         callback,
 	}
-	h.wg.Add(1)
-	go h.loop(ctx, h.wg)
+	wg.Add(1)
+	go h.loop(ctx, wg)
 	return h
 }
 
@@ -1849,7 +1849,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	for {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
-			h.callback(fmsg, false)
+			h.callback(fmsg)
 		}
 		if err != nil {
 			return nil
@@ -1986,78 +1986,102 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	}
 }
 
-func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	fsm := h.fsm
 	fsm.lock.RLock()
 	oldState := fsm.state
+	neighborAddress := fsm.pConf.State.NeighborAddress
 	fsm.lock.RUnlock()
 
 	var reason *fsmStateReason
 	nextState := bgp.FSMState(-1)
-	fsm.lock.RLock()
-	fsmState := fsm.state
-	fsm.lock.RUnlock()
 
-	switch fsmState {
-	case bgp.BGP_FSM_IDLE:
-		nextState, reason = h.idle(ctx)
-		// case bgp.BGP_FSM_CONNECT:
-		// 	nextState = h.connect()
-	case bgp.BGP_FSM_ACTIVE:
-		nextState, reason = h.active(ctx)
-	case bgp.BGP_FSM_OPENSENT:
-		nextState, reason = h.opensent(ctx)
-	case bgp.BGP_FSM_OPENCONFIRM:
-		nextState, reason = h.openconfirm(ctx)
-	case bgp.BGP_FSM_ESTABLISHED:
-		nextState, reason = h.established(ctx)
-	}
-
-	fsm.lock.RLock()
-	fsm.reason = reason
-
-	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
-		fsm.logger.Info("Peer Up",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.pConf.State.NeighborAddress,
-				"State": fsm.state.String(),
-			})
-	}
-
-	if oldState == bgp.BGP_FSM_ESTABLISHED {
-		// The main goroutine sent the notification due to
-		// deconfiguration or something.
-		reason := fsm.reason
-		if fsm.h.sentNotification != nil {
-			reason.Type = fsmNotificationSent
-			reason.BGPNotification = fsm.h.sentNotification
+	for ctx.Err() == nil {
+		switch oldState {
+		case bgp.BGP_FSM_IDLE:
+			nextState, reason = h.idle(ctx)
+			// case bgp.BGP_FSM_CONNECT:
+			// 	nextState = h.connect()
+		case bgp.BGP_FSM_ACTIVE:
+			nextState, reason = h.active(ctx)
+		case bgp.BGP_FSM_OPENSENT:
+			nextState, reason = h.opensent(ctx)
+		case bgp.BGP_FSM_OPENCONFIRM:
+			nextState, reason = h.openconfirm(ctx)
+		case bgp.BGP_FSM_ESTABLISHED:
+			nextState, reason = h.established(ctx)
 		}
-		fsm.logger.Info("Peer Down",
-			log.Fields{
-				"Topic":  "Peer",
-				"Key":    fsm.pConf.State.NeighborAddress,
-				"State":  fsm.state.String(),
-				"Reason": reason.String(),
-			})
+
+		fsm.lock.Lock()
+		fsm.reason = reason
+		fsm.lock.Unlock()
+
+		// drain the state reason channel
+		// to avoid having stale transition.
+		drainChannel(h.stateReasonCh)
+
+		if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
+			fsm.logger.Info("Peer Up",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   neighborAddress,
+					"State": oldState.String(),
+				})
+		}
+
+		if oldState == bgp.BGP_FSM_ESTABLISHED {
+			// The main goroutine sent the notification due to
+			// deconfiguration or something.
+			reason := *reason
+			if fsm.h.sentNotification != nil {
+				reason.Type = fsmNotificationSent
+				reason.BGPNotification = fsm.h.sentNotification
+			}
+			fsm.logger.Info("Peer Down",
+				log.Fields{
+					"Topic":  "Peer",
+					"Key":    neighborAddress,
+					"State":  oldState.String(),
+					"Reason": reason.String(),
+				})
+		}
+
+		if ctx.Err() != nil {
+			break
+		}
+
+		msg := &fsmMsg{
+			fsm:         fsm,
+			MsgType:     fsmMsgStateChange,
+			MsgSrc:      neighborAddress,
+			MsgData:     nextState,
+			StateReason: reason,
+		}
+
+		h.callback(msg)
+		oldState = nextState
 	}
-	fsm.lock.RUnlock()
 
-	fsm.lock.RLock()
-	msg := &fsmMsg{
-		fsm:         fsm,
-		MsgType:     fsmMsgStateChange,
-		MsgSrc:      fsm.pConf.State.NeighborAddress,
-		MsgData:     nextState,
-		StateReason: reason,
+	select {
+	case conn := <-fsm.connCh:
+		conn.Close()
+	default:
 	}
-	fsm.lock.RUnlock()
-
-	h.callback(msg, true)
-
-	return nil
+	if fsm.conn != nil {
+		err := fsm.conn.Close()
+		if err != nil {
+			fsm.logger.Error("failed to close existing tcp connection",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   neighborAddress,
+					"State": oldState,
+				})
+		}
+	}
+	close(fsm.connCh)
+	cleanInfiniteChannel(fsm.outgoingCh)
 }
 
 func (h *fsmHandler) changeadminState(s adminState) error {
