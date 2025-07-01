@@ -51,6 +51,10 @@ func NewMockConnection() *MockConnection {
 	return m
 }
 
+func (m *MockConnection) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
 func (m *MockConnection) SetWriteDeadline(t time.Time) error {
 	return nil
 }
