@@ -376,7 +376,7 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 		fsm:           fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		outgoing:      channels.NewInfiniteChannel(),
-		callback:      func(*fsmMsg, bool) {},
+		callback:      func(*fsmMsg) {},
 	}
 
 	fsm.h = h
