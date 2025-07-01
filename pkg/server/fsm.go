@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -993,7 +994,9 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1021,7 +1024,9 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1201,16 +1206,16 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) {
 	defer func() {
 		h.msgCh.Close()
 		wg.Done()
 	}()
+
 	fmsg, _ := h.recvMessageWithError()
-	if fmsg != nil {
+	if fmsg != nil && ctx.Err() == nil {
 		h.msgCh.In() <- fmsg
 	}
-	return nil
 }
 
 func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.Family]bgp.BGPAddPathMode) {
@@ -1287,10 +1292,17 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 	h.conn = fsm.conn
 	fsm.lock.RUnlock()
 
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	defer wg.Wait()
-	go h.recvMessage(ctx, &wg)
+	go h.recvMessage(ctx, wg)
+
+	defer func() {
+		// for to stop the recv goroutine
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		// reset the read deadline
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	// RFC 4271 P.60
 	// sets its HoldTimer to a large value
@@ -1557,10 +1569,17 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go h.recvMessage(ctx, &wg)
+	go h.recvMessage(ctx, wg)
+
+	defer func() {
+		// for to stop the recv goroutine
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		// reset the read deadline
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1808,32 +1827,51 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 		return nil
 	}
 
+	sendFromChan := func(o any) bool {
+		switch m := o.(type) {
+		case *fsmOutgoingMsg:
+			h.fsm.lock.RLock()
+			options := h.fsm.marshallingOptions
+			h.fsm.lock.RUnlock()
+			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
+				if err := send(msg); err != nil {
+					return false
+				}
+			}
+			if m.Notification != nil {
+				if m.StayIdle {
+					// current user is only prefix-limit
+					// fix me if this is not the case
+					_ = h.changeadminState(adminStatePfxCt)
+				}
+				if err := send(m.Notification); err != nil {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			// send all remaining messages
+			// before returning
+			for {
+				select {
+				case o, ok := <-h.outgoing.Out():
+					if !ok {
+						return nil
+					}
+					sendFromChan(o)
+				default:
+					return nil
+				}
+			}
 		case o := <-h.outgoing.Out():
-			switch m := o.(type) {
-			case *fsmOutgoingMsg:
-				h.fsm.lock.RLock()
-				options := h.fsm.marshallingOptions
-				h.fsm.lock.RUnlock()
-				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
-					if err := send(msg); err != nil {
-						return nil
-					}
-				}
-				if m.Notification != nil {
-					if m.StayIdle {
-						// current user is only prefix-limit
-						// fix me if this is not the case
-						_ = h.changeadminState(adminStatePfxCt)
-					}
-					if err := send(m.Notification); err != nil {
-						return nil
-					}
-				}
-			default:
+			if !sendFromChan(o) {
 				return nil
 			}
 		case <-ticker.C:
@@ -1844,31 +1882,41 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	}
 }
 
-func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	for {
+
+	for ctx.Err() == nil {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
 			h.callback(fmsg, false)
 		}
 		if err != nil {
-			return nil
+			return
 		}
 	}
 }
 
 func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
-	var wg sync.WaitGroup
 	fsm := h.fsm
 	fsm.lock.Lock()
 	h.conn = fsm.conn
 	fsm.lock.Unlock()
 
-	defer wg.Wait()
+	ioCtx, cancel := context.WithCancel(ctx)
+	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
-	go h.sendMessageloop(ctx, &wg)
-	go h.recvMessageloop(ctx, &wg)
+	go h.sendMessageloop(ioCtx, wg)
+	go h.recvMessageloop(ioCtx, wg)
+
+	defer func() {
+		cancel()
+		// for to stop the recv goroutine
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		// reset the read deadline
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
