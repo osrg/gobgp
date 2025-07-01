@@ -4406,7 +4406,15 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case ev := <-w.Event():
+				// we might receive an event after the context is done
+				// so we need to check the context again
+				if ctx.Err() != nil {
+					return
+				}
+
 				switch msg := ev.(type) {
 				case *watchEventUpdate:
 					paths := make([]*api.Path, 0, r.BatchSize)
@@ -4485,8 +4493,6 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 						},
 					}, msg.Timestamp)
 				}
-			case <-ctx.Done():
-				return
 			}
 		}
 	}()
