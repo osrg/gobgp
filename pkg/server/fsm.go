@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -994,7 +995,9 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1022,7 +1025,9 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1203,10 +1208,22 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 }
 
 func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error {
+	done := make(chan any)
+
 	defer func() {
 		h.msgCh.Close()
 		wg.Done()
+		close(done)
 	}()
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			h.conn.SetReadDeadline(time.Now())
+		case <-done:
+		}
+	}()
+
 	fmsg, _ := h.recvMessageWithError()
 	if fmsg != nil {
 		h.msgCh.In() <- fmsg
@@ -1849,7 +1866,21 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 }
 
 func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
-	defer wg.Done()
+	done := make(chan any)
+
+	defer func() {
+		wg.Done()
+		close(done)
+	}()
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			h.conn.SetReadDeadline(time.Now())
+		case <-done:
+		}
+	}()
+
 	for {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
