@@ -849,13 +849,23 @@ func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
 		[]bgp.OptionParameterInterface{opt})
 }
 
-func readAll(conn net.Conn, length int) ([]byte, error) {
+func readAll(ctx context.Context, conn net.Conn, length int) ([]byte, error) {
 	buf := make([]byte, length)
-	_, err := io.ReadFull(conn, buf)
-	if err != nil {
-		return nil, err
+	done := make(chan any)
+	var err error
+	go func() {
+		_, err = io.ReadFull(conn, buf)
+		close(done)
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-done:
+		if err != nil {
+			return nil, err
+		}
+		return buf, nil
 	}
-	return buf, nil
 }
 
 func getPathAttrFromBGPUpdate(m *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAttributeInterface {
@@ -985,7 +995,7 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 	return handling
 }
 
-func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
+func (h *fsmHandler) recvMessageWithError(ctx context.Context) (*fsmMsg, error) {
 	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
 		// probably doesn't happen but be cautious
 		select {
@@ -994,8 +1004,10 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		}
 	}
 
-	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	headerBuf, err := readAll(ctx, h.conn, bgp.BGP_HEADER_LENGTH)
+	if err == context.Canceled {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1022,8 +1034,10 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		return fmsg, err
 	}
 
-	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	bodyBuf, err := readAll(ctx, h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
+	if err == context.Canceled {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1208,7 +1222,7 @@ func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error 
 		h.msgCh.Close()
 		wg.Done()
 	}()
-	fmsg, _ := h.recvMessageWithError()
+	fmsg, _ := h.recvMessageWithError(ctx)
 	if fmsg != nil {
 		h.msgCh.In() <- fmsg
 	}
@@ -1862,12 +1876,17 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	for {
-		fmsg, err := h.recvMessageWithError()
+		fmsg, err := h.recvMessageWithError(ctx)
 		if fmsg != nil {
 			h.msgCh.In() <- fmsg
 		}
-		if err != nil {
+		select {
+		case <-ctx.Done():
 			return nil
+		default:
+			if err != nil {
+				return nil
+			}
 		}
 	}
 }
