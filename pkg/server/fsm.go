@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -999,7 +1000,13 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		// we set a read deadline when we cancel the FSM handler context,
+		// so this is expected when the FSM is shutting down.
+		// We dont' send a state reason here because the FSM is already
+		// shutting down.
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1027,7 +1034,9 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
-	if err != nil {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return nil, nil
+	} else if err != nil {
 		sendToStateReasonCh(fsmReadFailed, nil)
 		return nil, err
 	}
@@ -1211,16 +1220,16 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) {
 	defer func() {
 		h.msgCh.Close()
 		wg.Done()
 	}()
+
 	fmsg, _ := h.recvMessageWithError()
-	if fmsg != nil {
+	if fmsg != nil && ctx.Err() == nil {
 		h.msgCh.In() <- fmsg
 	}
-	return nil
 }
 
 func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.Family]bgp.BGPAddPathMode) {
@@ -1297,10 +1306,17 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 	h.conn = fsm.conn
 	fsm.lock.RUnlock()
 
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	defer wg.Wait()
-	go h.recvMessage(ctx, &wg)
+	go h.recvMessage(ctx, wg)
+
+	defer func() {
+		// for to stop the recv goroutine
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		// reset the read deadline
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	// RFC 4271 P.60
 	// sets its HoldTimer to a large value
@@ -1567,10 +1583,17 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go h.recvMessage(ctx, &wg)
+	go h.recvMessage(ctx, wg)
+
+	defer func() {
+		// for to stop the recv goroutine
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		// reset the read deadline
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1731,14 +1754,6 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 			fsm.bgpMessageStateUpdate(0, false)
 			return nil
 		}
-		fsm.lock.RLock()
-		err = conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime)))
-		fsm.lock.RUnlock()
-		if err != nil {
-			sendToStateReasonCh(fsmWriteFailed, nil)
-			conn.Close()
-			return fmt.Errorf("failed to set write deadline")
-		}
 		_, err = conn.Write(b)
 		if err != nil {
 			fsm.lock.RLock()
@@ -1854,31 +1869,39 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	}
 }
 
-func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	for {
+
+	for ctx.Err() == nil {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
 			h.callback(fmsg, false)
 		}
 		if err != nil {
-			return nil
+			return
 		}
 	}
 }
 
 func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
-	var wg sync.WaitGroup
 	fsm := h.fsm
 	fsm.lock.Lock()
 	h.conn = fsm.conn
 	fsm.lock.Unlock()
 
-	defer wg.Wait()
+	ioCtx, cancel := context.WithCancel(ctx)
+	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
-	go h.sendMessageloop(ctx, &wg)
-	go h.recvMessageloop(ctx, &wg)
+	go h.sendMessageloop(ioCtx, wg)
+	go h.recvMessageloop(ioCtx, wg)
+
+	defer func() {
+		// for to stop the recv goroutine
+		h.conn.SetReadDeadline(time.Now())
+		cancel()
+		wg.Wait()
+	}()
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1911,6 +1934,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 					}
 				}
 				b, _ := m.Serialize(h.fsm.marshallingOptions)
+				h.conn.SetWriteDeadline(time.Now().Add(time.Second))
 				h.conn.Write(b)
 			default:
 				// nothing to do
@@ -1966,8 +1990,12 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 					"State": fsm.state.String(),
 				})
 			fsm.lock.RUnlock()
+
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+			b, _ := m.Serialize(h.fsm.marshallingOptions)
+			h.conn.SetWriteDeadline(time.Now().Add(time.Second))
+			_, err := h.conn.Write(b)
+
 			fsm.lock.RLock()
 			s := fsm.pConf.GracefulRestart.State
 			fsm.lock.RUnlock()
@@ -1976,7 +2004,10 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// Reference: https://github.com/osrg/gobgp/issues/2174
 			if !s.Enabled {
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, m, nil)
+			} else if err != nil {
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
+			h.stateReasonCh <- *newfsmStateReason(fsmNotificationSent, m, nil)
 		case <-h.holdTimerResetCh:
 			fsm.lock.RLock()
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
