@@ -27,6 +27,8 @@ linters:
         - (*os.File).Close
         - (net.Conn).Close
         - (*net.conn).Close
+        - (net.Conn).SetReadDeadline
+        - (net.Conn).SetWriteDeadline
         - (net.Listener).Close
         - (*google.golang.org/grpc.ClientConn).Close
         - (net.Conn).Write
