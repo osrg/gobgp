@@ -113,7 +113,10 @@ message StartBgpRequest {
 
 message StartBgpResponse {}
 
-message StopBgpRequest {}
+message StopBgpRequest {
+  // Allows the Graceful Restart procedure on the remote peers by not sending a NOTIFICATION message to GR-enabled peers.
+  bool allow_graceful_restart = 1;
+}
 
 message StopBgpResponse {}
 

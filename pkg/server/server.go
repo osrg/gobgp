@@ -2060,19 +2060,18 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		return fmt.Errorf("nil request")
 	}
 	err := s.mgmtOperation(func() error {
-		names := make([]string, 0, len(s.neighborMap))
-		for k := range s.neighborMap {
-			names = append(names, k)
-		}
-
-		if len(names) != 0 {
+		if len(s.neighborMap) > 0 {
 			s.shutdownWG = new(sync.WaitGroup)
 			s.shutdownWG.Add(1)
 		}
-		for _, name := range names {
-			if err := s.deleteNeighbor(&oc.Neighbor{Config: oc.NeighborConfig{
-				NeighborAddress: name,
-			}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED); err != nil {
+		for address, neighbor := range s.neighborMap {
+			c := &oc.Neighbor{Config: oc.NeighborConfig{
+				NeighborAddress: address,
+			}}
+			neighbor.fsm.lock.RLock()
+			sendNotification := !r.AllowGracefulRestart || !neighbor.fsm.pConf.GracefulRestart.Config.Enabled
+			neighbor.fsm.lock.RUnlock()
+			if err := s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, sendNotification); err != nil {
 				return err
 			}
 		}
@@ -3375,7 +3374,7 @@ func (s *BgpServer) deletePeerGroup(name string) error {
 	return nil
 }
 
-func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
+func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNotification bool) error {
 	if c.Config.PeerGroup != "" {
 		_, y := s.peerGroupMap[c.Config.PeerGroup]
 		if y {
@@ -3418,7 +3417,9 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8) error {
 		})
 
 	n.stopPeerRestarting()
-	n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
+	if sendNotification {
+		n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
+	}
 	n.fsm.h.ctxCancel()
 
 	delete(s.neighborMap, addr)
@@ -3453,7 +3454,7 @@ func (s *BgpServer) DeletePeer(ctx context.Context, r *api.DeletePeerRequest) er
 			NeighborAddress:   r.Address,
 			NeighborInterface: r.Interface,
 		}}
-		return s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
+		return s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, true)
 	}, true)
 }
 
@@ -3595,7 +3596,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		} else if original.Config.PeerAs != c.Config.PeerAs {
 			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
 		}
-		if err = s.deleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
+		if err = s.deleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub, true); err != nil {
 			s.logger.Error("failed to delete neighbor",
 				log.Fields{
 					"Topic": "Peer",

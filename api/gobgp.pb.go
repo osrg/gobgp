@@ -1403,9 +1403,11 @@ func (*StartBgpResponse) Descriptor() ([]byte, []int) {
 }
 
 type StopBgpRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Allows the Graceful Restart procedure on the remote peers by not sending a NOTIFICATION message to GR-enabled peers.
+	AllowGracefulRestart bool `protobuf:"varint,1,opt,name=allow_graceful_restart,json=allowGracefulRestart,proto3" json:"allow_graceful_restart,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *StopBgpRequest) Reset() {
@@ -1436,6 +1438,13 @@ func (x *StopBgpRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StopBgpRequest.ProtoReflect.Descriptor instead.
 func (*StopBgpRequest) Descriptor() ([]byte, []int) {
 	return file_api_gobgp_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *StopBgpRequest) GetAllowGracefulRestart() bool {
+	if x != nil {
+		return x.AllowGracefulRestart
+	}
+	return false
 }
 
 type StopBgpResponse struct {
@@ -12453,8 +12462,9 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fapi/gobgp.proto\x12\x03api\x1a\x13api/attribute.proto\x1a\x14api/capability.proto\x1a\x10api/common.proto\x1a\x10api/extcom.proto\x1a\x0eapi/nlri.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"6\n" +
 	"\x0fStartBgpRequest\x12#\n" +
 	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\x12\n" +
-	"\x10StartBgpResponse\"\x10\n" +
-	"\x0eStopBgpRequest\"\x11\n" +
+	"\x10StartBgpResponse\"F\n" +
+	"\x0eStopBgpRequest\x124\n" +
+	"\x16allow_graceful_restart\x18\x01 \x01(\bR\x14allowGracefulRestart\"\x11\n" +
 	"\x0fStopBgpResponse\"\x0f\n" +
 	"\rGetBgpRequest\"5\n" +
 	"\x0eGetBgpResponse\x12#\n" +
