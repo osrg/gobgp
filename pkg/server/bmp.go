@@ -25,6 +25,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -225,12 +226,12 @@ func (b *bmpClient) loop() {
 							}
 						}
 					case *watchEventPeer:
-						if msg.Type != PEER_EVENT_END_OF_INIT {
+						if msg.Type != apiutil.PEER_EVENT_END_OF_INIT {
 							if msg.State == bgp.BGP_FSM_ESTABLISHED {
 								if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 									return false
 								}
-							} else if msg.Type != PEER_EVENT_INIT && msg.OldState == bgp.BGP_FSM_ESTABLISHED {
+							} else if msg.Type != apiutil.PEER_EVENT_INIT && msg.OldState == bgp.BGP_FSM_ESTABLISHED {
 								if err := write(bmpPeerDown(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 									return false
 								}
