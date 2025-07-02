@@ -182,7 +182,10 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
 
-	state, _ := h.opensent(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	state, _ := h.opensent(ctx)
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -206,7 +209,11 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 
 	// set holdtime
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
-	state, _ := h.openconfirm(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	state, _ := h.openconfirm(ctx)
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -243,7 +250,11 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
 
 	go pushPackets()
-	state, fsmStateReason := h.established(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	state, fsmStateReason := h.established(ctx)
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	assert.Equal(fsmHoldTimerExpired, fsmStateReason.Type)
@@ -286,7 +297,11 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	p.fsm.pConf.GracefulRestart.State.Enabled = true
 
 	go pushPackets()
-	state, fsmStateReason := h.established(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	state, fsmStateReason := h.established(ctx)
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	assert.Equal(fsmGracefulRestart, fsmStateReason.Type)
@@ -312,7 +327,11 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 	// set holdtime
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
-	go h.openconfirm(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go h.openconfirm(ctx)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -332,7 +351,10 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	// set holdtime
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
 
-	go h.established(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go h.established(ctx)
 
 	time.Sleep(100 * time.Millisecond)
 
