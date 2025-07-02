@@ -264,7 +264,6 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	defer cancel()
 
 	state, fsmStateReason := h.established(ctx)
-	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	assert.Equal(fsmHoldTimerExpired, fsmStateReason.Type)
 	time.Sleep(time.Second * 1) // wait for the notification to be sent
@@ -308,7 +307,6 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	defer cancel()
 
 	state, fsmStateReason := h.established(ctx)
-	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	assert.Equal(fsmGracefulRestart, fsmStateReason.Type)
 	time.Sleep(time.Second * 1)
@@ -400,7 +398,7 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 		fsm:           p.fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		incoming:      channels.NewInfiniteChannel(),
-		outgoing:      channels.NewInfiniteChannel(),
+		outgoing:      make(chan any, 16),
 	}
 
 	fsm.h = h
@@ -408,10 +406,10 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 }
 
 func cleanPeerAndHandler(p *peer, h *fsmHandler) {
-	h.outgoing.Close()
+	close(h.outgoing)
 	h.incoming.Close()
 
-	p.fsm.outgoingCh.Close()
+	close(p.fsm.outgoingCh)
 	p.fsm.incomingCh.Close()
 
 	p.fsm.conn.Close()

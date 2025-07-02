@@ -699,7 +699,7 @@ func (peer *peer) stopFSMHandler() {
 		}
 	}
 	close(fsm.connCh)
-	cleanInfiniteChannel(fsm.outgoingCh)
+	close(fsm.outgoingCh)
 	cleanInfiniteChannel(fsm.incomingCh)
 }
 

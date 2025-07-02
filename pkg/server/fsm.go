@@ -177,7 +177,7 @@ type fsm struct {
 	pConf                *oc.Neighbor
 	lock                 sync.RWMutex
 	state                bgp.FSMState
-	outgoingCh           *channels.InfiniteChannel
+	outgoingCh           chan any
 	incomingCh           *channels.InfiniteChannel
 	reason               *fsmStateReason
 	conn                 net.Conn
@@ -275,7 +275,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		gConf:                gConf,
 		pConf:                pConf,
 		state:                bgp.BGP_FSM_IDLE,
-		outgoingCh:           channels.NewInfiniteChannel(),
+		outgoingCh:           make(chan any, 1024),
 		incomingCh:           channels.NewInfiniteChannel(),
 		connCh:               make(chan net.Conn, 1),
 		opensentHoldTime:     float64(holdtimeOpensent),
@@ -388,7 +388,7 @@ type fsmHandler struct {
 	msgCh            *channels.InfiniteChannel
 	stateReasonCh    chan fsmStateReason
 	incoming         *channels.InfiniteChannel
-	outgoing         *channels.InfiniteChannel
+	outgoing         chan any
 	holdTimerResetCh chan bool
 	sentNotification *bgp.BGPMessage
 	ctx              context.Context
@@ -396,7 +396,7 @@ type fsmHandler struct {
 	wg               *sync.WaitGroup
 }
 
-func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel) *fsmHandler {
+func newFSMHandler(fsm *fsm, outgoing chan any) *fsmHandler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &fsmHandler{
 		fsm:              fsm,
@@ -1843,13 +1843,13 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 			// (for example, all the dropped routes)
 			for {
 				select {
-				case o := <-h.outgoing.Out():
+				case o := <-h.outgoing:
 					sendFromChan(o)
 				default:
 					return nil
 				}
 			}
-		case o := <-h.outgoing.Out():
+		case o := <-h.outgoing:
 			sendFromChan(o)
 		case <-ticker.C:
 			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
@@ -1948,7 +1948,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// long until it exits because it waits for
 			// ctx.Done() or keepalive timer. So let kill
 			// it now.
-			h.outgoing.In() <- err
+			h.outgoing <- err
 			fsm.lock.RLock()
 			if s := fsm.pConf.GracefulRestart.State; s.Enabled {
 				if s.NotificationEnabled && err.Type == fsmNotificationRecv ||
@@ -1978,7 +1978,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				})
 			fsm.lock.RUnlock()
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+			h.outgoing <- &fsmOutgoingMsg{Notification: m}
 			fsm.lock.RLock()
 			s := fsm.pConf.GracefulRestart.State
 			fsm.lock.RUnlock()
@@ -2000,7 +2000,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				switch stateOp.State {
 				case adminStateDown:
 					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
-					h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+					h.outgoing <- &fsmOutgoingMsg{Notification: m}
 				}
 			}
 		}
