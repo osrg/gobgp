@@ -402,7 +402,7 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 		fsm:           fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		incoming:      channels.NewInfiniteChannel(),
-		outgoing:      channels.NewInfiniteChannel(),
+		outgoing:      make(chan any, 16),
 	}
 
 	fsm.h = h
@@ -410,10 +410,10 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 }
 
 func cleanPeerAndHandler(p *peer, h *fsmHandler) {
-	h.outgoing.Close()
+	close(h.outgoing)
 	h.incoming.Close()
 
-	p.fsm.outgoingCh.Close()
+	close(p.fsm.outgoingCh)
 	p.fsm.incomingCh.Close()
 
 	p.fsm.conn.Close()
