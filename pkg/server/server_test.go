@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -221,12 +222,14 @@ func TestListPolicyAssignment(t *testing.T) {
 }
 
 //nolint:errcheck // WatchEvent won't return an error here
-func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) {
-	stateCh := make(chan any)
+func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) *sync.WaitGroup {
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
 		if peer := r.GetPeer(); peer != nil {
-			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState >= state {
+			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == state {
 				remoteCaps, err := apiutil.UnmarshalCapabilities(peer.Peer.GetState().GetRemoteCap())
 				if err != nil {
 					return
@@ -244,19 +247,19 @@ func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies 
 					}
 				}
 				watchCancel()
-				close(stateCh)
+				wg.Done()
 			}
 		}
 	})
-	<-stateCh
+	return wg
 }
 
-func waitActive(s *BgpServer) {
-	waitState(s, api.PeerState_SESSION_STATE_ACTIVE)
+func waitActive(s *BgpServer) *sync.WaitGroup {
+	return waitState(s, api.PeerState_SESSION_STATE_ACTIVE)
 }
 
-func waitEstablished(s *BgpServer, rfs ...bgp.Family) {
-	waitState(s, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
+func waitEstablished(s *BgpServer, rfs ...bgp.Family) *sync.WaitGroup {
+	return waitState(s, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -315,9 +318,12 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	}
 
+	establishedWg := waitEstablished(server1)
+
 	err = server2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
-	waitEstablished(server1)
+
+	establishedWg.Wait()
 
 	// Add IMPORT policy at server1 for rejecting 10.1.0.0/24
 	d1 := &api.DefinedSet{
@@ -774,9 +780,12 @@ func TestMonitor(test *testing.T) {
 	// 	}
 	// })
 
+	establishedWg := waitEstablished(s)
+
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
-	waitEstablished(s)
+
+	establishedWg.Wait()
 
 	// Test WatchBestPath.
 	w := s.watch(watchBestPath(false))
@@ -1196,9 +1205,13 @@ func TestPeerGroup(test *testing.T) {
 			},
 		},
 	}
+
+	establishedWg := waitEstablished(s)
+
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
-	waitEstablished(s)
+
+	establishedWg.Wait()
 }
 
 func TestDynamicNeighbor(t *testing.T) {
@@ -1263,9 +1276,12 @@ func TestDynamicNeighbor(t *testing.T) {
 			},
 		},
 	}
+	establisedWg := waitEstablished(s2)
+
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
-	waitEstablished(s2)
+
+	establisedWg.Wait()
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
@@ -1330,9 +1346,12 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	}
 
+	establishedWg := waitEstablished(s2)
+
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
-	waitEstablished(s2)
+
+	establishedWg.Wait()
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
@@ -1400,9 +1419,12 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 		},
 	}
 
+	activeWg := waitActive(s1)
+
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
-	waitActive(s1)
+
+	activeWg.Wait()
 
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
@@ -1471,11 +1493,13 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	<-neighbor1.fsm.connCh
 	assert.Empty(neighbor1.fsm.conn)
 
+	establishedWg := waitEstablished(s2)
+
 	// Check that we can establish the peering when re-adding the peer.
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 
-	waitEstablished(s2)
+	establishedWg.Wait()
 }
 
 func TestFamiliesForSoftreset(t *testing.T) {
@@ -2593,9 +2617,12 @@ func TestWatchEvent(test *testing.T) {
 		},
 	}
 
+	establishedWg := waitEstablished(s, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
-	waitEstablished(s, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+
+	establishedWg.Wait()
 
 	count := 0
 	tableCh := make(chan any)
