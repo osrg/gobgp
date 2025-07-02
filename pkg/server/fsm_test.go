@@ -30,6 +30,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type MockConnection struct {
@@ -96,12 +97,29 @@ func (m *MockConnection) Read(buf []byte) (int, error) {
 }
 
 func (m *MockConnection) Write(buf []byte) (int, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	time.Sleep(time.Duration(m.wait) * time.Millisecond)
 	m.sendBuf = append(m.sendBuf, buf)
 	msg, _ := bgp.ParseBGPMessage(buf)
 	m.Logf("%d bytes written by gobgp  message type : %s",
 		len(buf), showMessageType(msg.Header.Type))
 	return len(buf), nil
+}
+
+func (m *MockConnection) GetLastestBuf() []byte {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	if len(m.sendBuf) == 0 {
+		return nil
+	}
+	return m.sendBuf[len(m.sendBuf)-1]
+}
+
+func (m *MockConnection) GetBufCount() int {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	return len(m.sendBuf)
 }
 
 func showMessageType(t uint8) string {
@@ -188,7 +206,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	state, _ := h.opensent(ctx)
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
-	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	lastMsg := m.GetLastestBuf()
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
@@ -216,7 +234,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	state, _ := h.openconfirm(ctx)
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
-	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	lastMsg := m.GetLastestBuf()
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
@@ -258,9 +276,9 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	assert.Equal(fsmHoldTimerExpired, fsmStateReason.Type)
-	m.mtx.Lock()
-	lastMsg := m.sendBuf[len(m.sendBuf)-1]
-	m.mtx.Unlock()
+	time.Sleep(time.Second * 1) // wait for the notification to be sent
+	lastMsg := m.GetLastestBuf()
+	require.NotNil(t, lastMsg)
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
@@ -305,9 +323,9 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	assert.Equal(fsmGracefulRestart, fsmStateReason.Type)
-	m.mtx.Lock()
-	lastMsg := m.sendBuf[len(m.sendBuf)-1]
-	m.mtx.Unlock()
+	time.Sleep(time.Second * 1)
+	lastMsg := m.GetLastestBuf()
+	require.NotNil(t, lastMsg)
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
@@ -335,7 +353,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(0, len(m.sendBuf))
+	assert.Equal(0, m.GetBufCount())
 }
 
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
@@ -358,7 +376,7 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(0, len(m.sendBuf))
+	assert.Equal(0, m.GetBufCount())
 }
 
 func TestCheckOwnASLoop(t *testing.T) {
