@@ -447,78 +447,6 @@ const firstPeerCaseIndex = 3
 func (s *BgpServer) Serve() {
 	s.listeners = make([]*netutils.TCPListener, 0, 2)
 
-	handlefsmMsg := func(e *fsmMsg) {
-		fsm := e.fsm
-		if fsm.h.ctx.Err() != nil {
-			// canceled
-			addr := fsm.pConf.State.NeighborAddress
-			state := fsm.state
-
-			fsm.h.wg.Wait()
-
-			s.logger.Debug("freed fsm.h",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"State": state,
-				})
-
-			if state == bgp.BGP_FSM_ACTIVE {
-				var conn net.Conn
-				select {
-				case conn = <-fsm.connCh:
-				default:
-					if fsm.conn != nil {
-						conn = fsm.conn
-						fsm.conn = nil
-					}
-				}
-				if conn != nil {
-					err := conn.Close()
-					if err != nil {
-						s.logger.Error("failed to close existing tcp connection",
-							log.Fields{
-								"Topic": "Peer",
-								"Key":   addr,
-								"State": state,
-							})
-					}
-				}
-			}
-			close(fsm.connCh)
-
-			if fsm.state == bgp.BGP_FSM_ESTABLISHED {
-				s.notifyWatcher(watchEventTypePeerState, &watchEventPeer{
-					PeerAS:      fsm.peerInfo.AS,
-					PeerAddress: fsm.peerInfo.Address,
-					PeerID:      fsm.peerInfo.ID,
-					State:       bgp.BGP_FSM_IDLE,
-					Timestamp:   time.Now(),
-					StateReason: &fsmStateReason{
-						Type: fsmDeConfigured,
-					},
-				})
-			}
-
-			cleanInfiniteChannel(fsm.outgoingCh)
-			if s.shutdownWG != nil && len(s.incomings) == 0 {
-				s.shutdownWG.Done()
-			}
-			return
-		}
-
-		peer, found := s.neighborMap[e.MsgSrc]
-		if !found {
-			s.logger.Warn("Can't find the neighbor",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   e.MsgSrc,
-				})
-			return
-		}
-		s.handleFSMMessage(peer, e)
-	}
-
 	for {
 		cases := make([]reflect.SelectCase, firstPeerCaseIndex+len(s.incomings))
 		cases[0] = reflect.SelectCase{
@@ -540,7 +468,7 @@ func (s *BgpServer) Serve() {
 			}
 		}
 
-		chosen, value, ok := reflect.Select(cases)
+		chosen, value, _ := reflect.Select(cases)
 		tStart := time.Now()
 		s.shared.mu.Lock()
 		switch chosen {
@@ -562,14 +490,7 @@ func (s *BgpServer) Serve() {
 			s.roaManager.HandleROAEvent(ev)
 			s.timingHook.Observe(FSMROAEvent, time.Since(tStart), tWait)
 		default:
-			// in the case of dynamic peer, handleFSMMessage closed incoming channel so
-			// nil fsmMsg can happen here.
-			if ok {
-				e := value.Interface().(*fsmMsg)
-				tWait := tStart.Sub(e.timestamp)
-				handlefsmMsg(e)
-				s.timingHook.Observe(FSMMessage, time.Since(tStart), tWait)
-			}
+			panic("unexpected select case chosen")
 		}
 		s.shared.mu.Unlock()
 	}
