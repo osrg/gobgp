@@ -657,6 +657,52 @@ func (peer *peer) startFSMHandler() {
 	peer.fsm.lock.Unlock()
 }
 
+func (peer *peer) stopFSMHandler() {
+	peer.fsm.lock.RLock()
+	fsm := peer.fsm
+	h := fsm.h
+	state := fsm.state
+	neighborAddress := fsm.pConf.State.NeighborAddress
+	peer.fsm.lock.RUnlock()
+
+	h.ctxCancel()
+	h.wg.Wait()
+
+	// canceled
+	fsm.logger.Debug("freed fsm.h",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   neighborAddress,
+			"State": state.String(),
+		})
+
+	var conn net.Conn
+	select {
+	case conn = <-fsm.connCh:
+	default:
+		fsm.lock.Lock()
+		if fsm.conn != nil {
+			conn = fsm.conn
+			fsm.conn = nil
+		}
+		fsm.lock.Unlock()
+	}
+	if conn != nil {
+		err := conn.Close()
+		if err != nil {
+			fsm.logger.Error("failed to close existing tcp connection",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   neighborAddress,
+					"State": state.String(),
+				})
+		}
+	}
+	close(fsm.connCh)
+	close(fsm.outgoingCh)
+	cleanInfiniteChannel(fsm.incomingCh)
+}
+
 func (peer *peer) StaleAll(rfList []bgp.Family) []*table.Path {
 	return peer.adjRibIn.StaleAll(rfList)
 }
