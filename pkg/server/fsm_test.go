@@ -192,13 +192,10 @@ func TestReadAll(t *testing.T) {
 
 func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
+
 	m := NewMockConnection(t)
-
-	p, h := makePeerAndHandler()
-
-	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p, h := makePeerAndHandler(m)
+	defer cleanPeerAndHandler(p, h)
 
 	// set keepalive ticker
 	p.fsm.pConf.Timers.State.KeepaliveInterval = 3
@@ -220,13 +217,10 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 
 func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
+
 	m := NewMockConnection(t)
-
-	p, h := makePeerAndHandler()
-
-	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p, h := makePeerAndHandler(m)
+	defer cleanPeerAndHandler(p, h)
 
 	// set up keepalive ticker
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
@@ -248,13 +242,10 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 
 func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
+
 	m := NewMockConnection(t)
-
-	p, h := makePeerAndHandler()
-
-	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p, h := makePeerAndHandler(m)
+	defer cleanPeerAndHandler(p, h)
 
 	// set keepalive ticker
 	p.fsm.pConf.Timers.State.KeepaliveInterval = 3
@@ -291,13 +282,10 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 
 func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	assert := assert.New(t)
+
 	m := NewMockConnection(t)
-
-	p, h := makePeerAndHandler()
-
-	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p, h := makePeerAndHandler(m)
+	defer cleanPeerAndHandler(p, h)
 
 	// set keepalive ticker
 	p.fsm.pConf.Timers.State.KeepaliveInterval = 3
@@ -337,13 +325,10 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
+
 	m := NewMockConnection(t)
-
-	p, h := makePeerAndHandler()
-
-	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p, h := makePeerAndHandler(m)
+	defer cleanPeerAndHandler(p, h)
 
 	// set up keepalive ticker
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
@@ -362,13 +347,10 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
+
 	m := NewMockConnection(t)
-
-	p, h := makePeerAndHandler()
-
-	// push mock connection
-	p.fsm.conn = m
-	p.fsm.h = h
+	p, h := makePeerAndHandler(m)
+	defer cleanPeerAndHandler(p, h)
 
 	// set holdtime
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
@@ -410,19 +392,31 @@ func TestBadBGPIdentifier(t *testing.T) {
 	assert.Equal(uint8(bgp.BGP_ERROR_SUB_BAD_BGP_IDENTIFIER), err.(*bgp.MessageError).SubTypeCode)
 }
 
-func makePeerAndHandler() (*peer, *fsmHandler) {
-	p := &peer{
-		fsm: newFSM(&oc.Global{}, &oc.Neighbor{}, log.NewDefaultLogger()),
-	}
+func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
+	fsm := newFSM(&oc.Global{}, &oc.Neighbor{}, log.NewDefaultLogger())
+	fsm.conn = m
+
+	p := &peer{fsm: fsm}
 
 	h := &fsmHandler{
-		fsm:           p.fsm,
+		fsm:           fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		incoming:      channels.NewInfiniteChannel(),
 		outgoing:      channels.NewInfiniteChannel(),
 	}
 
+	fsm.h = h
 	return p, h
+}
+
+func cleanPeerAndHandler(p *peer, h *fsmHandler) {
+	h.outgoing.Close()
+	h.incoming.Close()
+
+	p.fsm.outgoingCh.Close()
+	p.fsm.incomingCh.Close()
+
+	p.fsm.conn.Close()
 }
 
 func open() *bgp.BGPMessage {
