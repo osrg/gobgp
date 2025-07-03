@@ -29,13 +29,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/eapache/channels"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/channels"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
@@ -103,7 +103,7 @@ type BgpServer struct {
 	apiServer    *server
 	bgpConfig    oc.Bgp
 	acceptCh     chan net.Conn
-	incomings    []*channels.InfiniteChannel
+	incomings    []channels.Channel
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
 	listeners    []*netutils.TCPListener
@@ -177,11 +177,11 @@ func (s *BgpServer) Stop() {
 	}
 }
 
-func (s *BgpServer) addIncoming(ch *channels.InfiniteChannel) {
+func (s *BgpServer) addIncoming(ch channels.Channel) {
 	s.incomings = append(s.incomings, ch)
 }
 
-func (s *BgpServer) delIncoming(ch *channels.InfiniteChannel) {
+func (s *BgpServer) delIncoming(ch channels.Channel) {
 	for i, c := range s.incomings {
 		if c == ch {
 			s.incomings = append(s.incomings[:i], s.incomings[i+1:]...)
@@ -407,8 +407,8 @@ func (s *BgpServer) Serve() {
 				})
 			}
 
-			cleanInfiniteChannel(fsm.outgoingCh)
-			cleanInfiniteChannel(fsm.incomingCh)
+			fsm.outgoingCh.Clean()
+			fsm.incomingCh.Clean()
 			s.delIncoming(fsm.incomingCh)
 			if s.shutdownWG != nil && len(s.incomings) == 0 {
 				s.shutdownWG.Done()
@@ -502,10 +502,15 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 }
 
 func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
-	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
+	done := peer.fsm.outgoingCh.Push(&fsmOutgoingMsg{
 		Paths:        paths,
 		Notification: notification,
 		StayIdle:     stayIdle,
+	}, peer.outgoingTimeout)
+
+	if !done {
+		// updates dropped alert
+		peer.outgoingDropped.Add(1)
 	}
 }
 
@@ -868,6 +873,37 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
 	conf.State.Flops = peer.fsm.pConf.State.Flops
 	state := peer.fsm.state
+
+	if peer.fsm.h != nil {
+		conf.State.IncomingChannelDropped = peer.fsm.h.incomingDropped.Load()
+	}
+	if peer.fsm.incomingCh != nil {
+		stats := peer.fsm.incomingCh.Stats()
+		if stats != nil {
+			conf.State.IncomingChannelState.ChannelState = oc.ChannelState{
+				In:            stats.In,
+				Notifications: stats.Notifications,
+				Collected:     stats.Collected,
+				Rewritten:     stats.Rewritten,
+				Retries:       stats.Retries,
+				Out:           stats.Out,
+			}
+		}
+	}
+	if peer.fsm.outgoingCh != nil {
+		stats := peer.fsm.outgoingCh.Stats()
+		if stats != nil {
+			conf.State.OutgoingChannelState.ChannelState = oc.ChannelState{
+				In:            stats.In,
+				Notifications: stats.Notifications,
+				Collected:     stats.Collected,
+				Rewritten:     stats.Rewritten,
+				Retries:       stats.Retries,
+				Out:           stats.Out,
+			}
+		}
+	}
+
 	peer.fsm.lock.RUnlock()
 
 	if state == bgp.BGP_FSM_ESTABLISHED {
@@ -1486,8 +1522,8 @@ func (s *BgpServer) deleteDynamicNeighbor(peer *peer, oldState bgp.FSMState, e *
 	peer.fsm.lock.RLock()
 	delete(s.neighborMap, peer.fsm.pConf.State.NeighborAddress)
 	peer.fsm.lock.RUnlock()
-	cleanInfiniteChannel(peer.fsm.outgoingCh)
-	cleanInfiniteChannel(peer.fsm.incomingCh)
+	peer.fsm.outgoingCh.Clean()
+	peer.fsm.incomingCh.Clean()
 	s.delIncoming(peer.fsm.incomingCh)
 	s.broadcastPeerState(peer, oldState, e)
 }
@@ -1549,6 +1585,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.deleteDynamicNeighbor(peer, oldState, e)
 				return
 			}
+
+			peer.outgoingDropped.Store(0)
 		} else if nextStateIdle {
 			peer.fsm.lock.RLock()
 			longLivedEnabled := peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled
@@ -1649,8 +1687,19 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 		}
 
-		cleanInfiniteChannel(peer.fsm.outgoingCh)
-		peer.fsm.outgoingCh = channels.NewInfiniteChannel()
+		peer.fsm.outgoingCh.Clean()
+
+		peer.fsm.lock.RLock()
+		outType := peer.fsm.pConf.Config.OutgoingChannel.ChannelType
+		outSize := peer.fsm.pConf.Config.OutgoingChannel.Size
+		peer.fsm.lock.RUnlock()
+
+		if outType == oc.CHANNEL_TYPE_BUFFER {
+			peer.fsm.outgoingCh = channels.NewBufferChannel(int(outSize))
+		} else {
+			peer.fsm.outgoingCh = channels.NewInfiniteChannel()
+		}
+
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
@@ -4752,7 +4801,7 @@ func watchMessage(isSent bool) watchOption {
 type watcher struct {
 	opts   watchOptions
 	realCh chan watchEvent
-	ch     *channels.InfiniteChannel
+	ch     channels.Channel
 	s      *BgpServer
 	// filters are used for notifyWatcher by using the filter for the given watchEvent,
 	// call notify method for skipping filtering.
@@ -4813,7 +4862,7 @@ func (w *watcher) Generate(t watchEventType) error {
 }
 
 func (w *watcher) notify(v watchEvent) {
-	w.ch.In() <- v
+	w.ch.Push(v, 0)
 }
 
 func (w *watcher) loop() {
@@ -4838,7 +4887,7 @@ func (w *watcher) Stop() {
 			}
 		}
 
-		cleanInfiniteChannel(w.ch)
+		w.ch.Clean()
 		// the loop function goroutine might be blocked for
 		// writing to realCh. make sure it finishes.
 		for range w.realCh {
