@@ -650,7 +650,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 	return nil, nil, nil
 }
 
-func (peer *peer) startFSMHandler(callback func(*fsmMsg)) {
+func (peer *peer) startFSMHandler(callback func(*fsmMsg, bool)) {
 	handler := newFSMHandler(peer.fsm, peer.fsm.outgoingCh, callback)
 	peer.fsm.lock.Lock()
 	peer.fsm.h = handler

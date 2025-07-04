@@ -253,12 +253,16 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 }
 
 func (s *BgpServer) startFsmHandler(peer *peer) {
-	handler := func(e *fsmMsg) {
+	handler := func(e *fsmMsg, do_cleanup bool) {
 		s.shared.mu.Lock()
 		defer s.shared.mu.Unlock()
 
 		fsm := e.fsm
 		if fsm.h.ctx.Err() != nil {
+			// Avoid cleaning up the FSM twice via recvMessageWithError and loop.
+			if !do_cleanup {
+				return
+			}
 			// canceled
 			addr := fsm.pConf.State.NeighborAddress
 			state := fsm.state

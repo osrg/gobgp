@@ -391,10 +391,10 @@ type fsmHandler struct {
 	ctx              context.Context
 	ctxCancel        context.CancelFunc
 	wg               *sync.WaitGroup
-	callback         func(*fsmMsg)
+	callback         func(*fsmMsg, bool)
 }
 
-func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel, callback func(*fsmMsg)) *fsmHandler {
+func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel, callback func(*fsmMsg, bool)) *fsmHandler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &fsmHandler{
 		fsm:              fsm,
@@ -1849,7 +1849,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	for {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
-			h.callback(fmsg)
+			h.callback(fmsg, false)
 		}
 		if err != nil {
 			return nil
@@ -2055,7 +2055,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	}
 	fsm.lock.RUnlock()
 
-	h.callback(msg)
+	h.callback(msg, true)
 
 	return nil
 }
