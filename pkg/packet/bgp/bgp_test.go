@@ -4038,3 +4038,79 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&SRv6ServiceTLV{}).DecodeFromBytes(data)
 	})
 }
+
+func Test_RouteTargetKey(t *testing.T) {
+	assert := assert.New(t)
+
+	// TwoOctetAsSpecificExtended
+	buf := make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)                  // subtype
+	binary.BigEndian.PutUint16(buf[7:9], (uint16)(0x1314))
+	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
+	r := &RouteTargetMembershipNLRI{}
+	err := r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	key, err := r.RouteTargetKey()
+	assert.Equal(nil, err)
+	assert.Equal(uint64(0x0002131415161718), key)
+	comKey, comErr := ExtCommRouteTargetKey(r.RouteTarget)
+	assert.Equal(comErr, err)
+	assert.Equal(key, comKey)
+
+	// IPv4AddressSpecificExtended
+	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)         // subtype
+	ip := net.ParseIP("10.1.2.3").To4()
+	copy(buf[7:11], []byte(ip))
+	binary.BigEndian.PutUint16(buf[11:], (uint16)(0x1314))
+	r = &RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	key, err = r.RouteTargetKey()
+	assert.Equal(nil, err)
+	assert.Equal(uint64(0x01020a0102031314), key)
+	comKey, comErr = ExtCommRouteTargetKey(r.RouteTarget)
+	assert.Equal(comErr, err)
+	assert.Equal(key, comKey)
+
+	// FourOctetAsSpecificExtended
+	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)                   // subtype
+	binary.BigEndian.PutUint32(buf[7:], 0x15161718)
+	binary.BigEndian.PutUint16(buf[11:], (uint16)(0x1314))
+	r = &RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	key, err = r.RouteTargetKey()
+	assert.Equal(nil, err)
+	assert.Equal(uint64(0x0202151617181314), key)
+	comKey, comErr = ExtCommRouteTargetKey(r.RouteTarget)
+	assert.Equal(comErr, err)
+	assert.Equal(key, comKey)
+
+	// OpaqueExtended, wrong RouteTarget
+	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
+	binary.BigEndian.PutUint32(buf[9:], 1000000)
+	r = &RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.Equal(nil, err)
+	_, err = r.RouteTargetKey()
+	assert.NotEqual(nil, err)
+
+	r = &RouteTargetMembershipNLRI{}
+	key, err = r.RouteTargetKey()
+	assert.Equal(nil, err)
+	assert.Equal(DefaultRT, key)
+}
