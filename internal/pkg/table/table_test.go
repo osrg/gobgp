@@ -16,6 +16,13 @@
 package table
 
 import (
+	crand "crypto/rand"
+	"encoding/binary"
+	"math/rand"
+	"net/netip"
+	"runtime"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,18 +69,45 @@ func TestTableGetFamily(t *testing.T) {
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
 
+func TestTableDestinationsCollision(t *testing.T) {
+	logger.Reset()
+	assert.Len(t, logger.Messages["error"], 0)
+	peerT := TableCreatePeer()
+	pathT := TableCreatePath(peerT)
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
+
+	k := tableKey(pathT[0].GetNlri())
+	// fake an entry
+	ipv4t.destinations[k] = []*Destination{{nlri: pathT[1].GetNlri()}}
+	for _, path := range pathT {
+		dest := NewDestination(path.GetNlri(), 0)
+		ipv4t.setDestination(dest)
+	}
+	assert.Equal(t, 1, ipv4t.Info().NumCollision)
+	assert.Len(t, logger.Messages["warn"], 1)
+	assert.Equal(t, []string{"insert collision detected"}, logger.Messages["warn"])
+	logger.Reset()
+	assert.Len(t, logger.Messages["warn"], 0)
+}
+
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make(map[string]*Destination)
+	destinations := make([]*Destination, 0)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.GetNlri())
 		dest := NewDestination(path.GetNlri(), 0)
-		destinations[tableKey] = dest
+		destinations = append(destinations, dest)
+		ipv4t.setDestination(dest)
 	}
-	ipv4t.setDestinations(destinations)
+	// make them comparable
+	slices.SortFunc(destinations, func(a, b *Destination) int {
+		return bgp.AddrPrefixCompare(a.GetNlri(), b.GetNlri())
+	})
 	ds := ipv4t.GetDestinations()
+	slices.SortFunc(ds, func(a, b *Destination) int {
+		return bgp.AddrPrefixCompare(a.GetNlri(), b.GetNlri())
+	})
 	assert.Equal(t, ds, destinations)
 }
 
@@ -81,14 +115,20 @@ func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make(map[string]*Destination)
+	destinations := make([]*Destination, 0)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.GetNlri())
 		dest := NewDestination(path.GetNlri(), 0)
-		destinations[tableKey] = dest
+		destinations = append(destinations, dest)
+		ipv4t.setDestination(dest)
 	}
-	ipv4t.setDestinations(destinations)
+	// make them comparable
+	slices.SortFunc(destinations, func(a, b *Destination) int {
+		return bgp.AddrPrefixCompare(a.GetNlri(), b.GetNlri())
+	})
 	ds := ipv4t.GetDestinations()
+	slices.SortFunc(ds, func(a, b *Destination) int {
+		return bgp.AddrPrefixCompare(a.GetNlri(), b.GetNlri())
+	})
 	assert.Equal(t, ds, destinations)
 }
 
@@ -98,10 +138,41 @@ func TestTableKey(t *testing.T) {
 	d1 := NewDestination(n1, 0)
 	n2, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")
 	d2 := NewDestination(n2, 0)
-	assert.Equal(t, len(tb.tableKey(d1.GetNlri())), 5)
+
+	assert.NotEqual(t, tableKey(d1.GetNlri()), tableKey(d2.GetNlri()))
 	tb.setDestination(d1)
 	tb.setDestination(d2)
 	assert.Equal(t, len(tb.GetDestinations()), 2)
+}
+
+func BenchmarkTableKey(b *testing.B) {
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(1, 2)
+	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
+	prefix := []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(24, "192.168.1.0"),
+		bgp.NewIPv6AddrPrefix(64, "2001:db8::"),
+		bgp.NewLabeledVPNIPAddrPrefix(24, "192.168.1.0", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
+		bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8::", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
+	}
+
+	b.Run("TableKey known types", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			for _, p := range prefix {
+				_ = tableKey(p)
+			}
+		}
+	})
+
+	prefix = append(prefix, bgp.NewEVPNEthernetAutoDiscoveryRoute(rd, esi, 1, 2))
+	b.Run("TableKey with unknown type", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			for _, p := range prefix {
+				_ = tableKey(p)
+			}
+		}
+	})
 }
 
 func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
@@ -473,4 +544,108 @@ func updateMsgT3() *bgp.BGPMessage {
 	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
 	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+}
+
+//nolint:errcheck
+func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
+	label := *bgp.NewMPLSLabelStack(1, 2, 3)
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(256, 10000)
+
+	b := make([]byte, 4)
+	crand.Read(b)
+	addrv4, _ := netip.AddrFromSlice(b)
+	prefixv4 := addrv4.String()
+	lengthv4 := uint8(rand.Intn(32)) + 1
+
+	b = make([]byte, 16)
+	crand.Read(b)
+	addrv6, _ := netip.AddrFromSlice(b)
+	prefixv6 := addrv6.String()
+	lengthv6 := uint8(rand.Intn(128)) + 1
+
+	prefixes := []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(lengthv4, prefixv4),
+		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4, label, rd),
+		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4, label),
+		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
+		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
+		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
+	}
+
+	return prefixes
+}
+
+//nolint:errcheck
+func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
+	label := *bgp.NewMPLSLabelStack(1, 2, 3)
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(256, 10000)
+
+	b := []byte{192, 168, 1, 0}
+	v := binary.BigEndian.Uint32(b)
+	v += uint32(index) << 8
+	binary.BigEndian.PutUint32(b, v)
+	addrv4, _ := netip.AddrFromSlice(b)
+	prefixv4 := addrv4.String()
+	lengthv4 := uint8(28)
+
+	b = make([]byte, 16)
+	crand.Read(b)
+	v = binary.BigEndian.Uint32(b)
+	v += uint32(index) << 8
+	binary.BigEndian.PutUint32(b, v)
+	addrv6, _ := netip.AddrFromSlice(b)
+	prefixv6 := addrv6.String()
+	lengthv6 := uint8(96)
+
+	prefixes := []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(lengthv4, prefixv4),
+		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4, label, rd),
+		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4, label),
+		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
+		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
+		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
+	}
+
+	return prefixes
+}
+
+func TestTableDestinationsCollisionAttack(t *testing.T) {
+	if !strings.Contains(runtime.GOARCH, "64") {
+		t.Skip("This test is only for 64bit architecture")
+	}
+
+	logger.Reset()
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
+
+	i := 0
+	for {
+		// filled until 1GB
+		mem := SystemMemoryAvailableMiB()
+		if mem < 1024 {
+			break
+		}
+
+		for _, p := range createAddrPrefixBaseIndex(i) {
+			dest := NewDestination(p, 0)
+			ipv4t.setDestination(dest)
+		}
+
+		for _, p := range createRandomAddrPrefix() {
+			dest := NewDestination(p, 0)
+			ipv4t.setDestination(dest)
+		}
+
+		i++
+	}
+
+	assert.Equal(t, 0, ipv4t.Info().NumCollision)
+	assert.Len(t, logger.Messages["warn"], 0)
+
+	dests := ipv4t.GetDestinations()
+	rand.Shuffle(len(dests), func(i, j int) {
+		dests[i], dests[j] = dests[j], dests[i]
+	})
+	for i := range min(len(dests), 10) {
+		t.Log(dests[i].GetNlri().String())
+	}
 }

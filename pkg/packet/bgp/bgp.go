@@ -1378,6 +1378,40 @@ type AddrPrefixInterface interface {
 	SetPathLocalIdentifier(uint32)
 }
 
+func addrPrefixSerialize(nlri AddrPrefixInterface) []byte {
+	switch T := nlri.(type) {
+	case *IPAddrPrefix:
+		b := make([]byte, 5)
+		copy(b, T.Prefix.To4())
+		b[4] = T.Length
+		return b
+	case *IPv6AddrPrefix:
+		b := make([]byte, 17)
+		copy(b, T.Prefix.To16())
+		b[16] = T.Length
+		return b
+	case *LabeledVPNIPAddrPrefix:
+		b := make([]byte, 13)
+		serializedRD, _ := T.RD.Serialize()
+		copy(b, serializedRD)
+		copy(b[8:12], T.Prefix.To4())
+		b[12] = T.Length
+		return b
+	case *LabeledVPNIPv6AddrPrefix:
+		b := make([]byte, 25)
+		serializedRD, _ := T.RD.Serialize()
+		copy(b, serializedRD)
+		copy(b[8:24], T.Prefix.To16())
+		b[24] = T.Length
+		return b
+	}
+	return []byte(nlri.String())
+}
+
+func AddrPrefixCompare(a, b AddrPrefixInterface) int {
+	return bytes.Compare(addrPrefixSerialize(a), addrPrefixSerialize(b))
+}
+
 func LabelString(nlri AddrPrefixInterface) string {
 	label := ""
 	switch n := nlri.(type) {
