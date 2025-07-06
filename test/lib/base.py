@@ -15,10 +15,9 @@
 
 
 import os
+import subprocess
 import time
 import itertools
-
-from invoke import run
 
 import textwrap
 from colored import fg, attr
@@ -88,7 +87,7 @@ TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
 def local(s, capture=False):
     print('[localhost] local:', s)
     _env = {'NOSE_NOLOGCAPTURE': '1' if capture else '0'}
-    return run(s, hide=True, env=_env).stdout.strip()
+    return subprocess.check_output(s, shell=True, env=_env).decode('utf-8').strip()
 
 
 def yellow(s):
