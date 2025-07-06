@@ -57,13 +57,12 @@ const (
 )
 
 type FSMStateTransition struct {
-	oldState  bgp.FSMState
-	nextState bgp.FSMState
+	OldState  bgp.FSMState
+	NextState bgp.FSMState
 }
 
 type FSMMsg struct {
 	MsgType     FSMMsgType
-	FSM         *fsm
 	MsgSrc      string
 	MsgData     any
 	StateReason *FSMStateReason

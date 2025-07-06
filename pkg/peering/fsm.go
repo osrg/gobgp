@@ -479,7 +479,6 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 		}
 
 		msg := &FSMMsg{
-			FSM:         fsm,
 			MsgType:     FSMMsgStateChange,
 			MsgSrc:      neighborAddress,
 			MsgData:     newFSMStateTransition(oldState, nextState),
