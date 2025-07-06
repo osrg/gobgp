@@ -511,45 +511,11 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 	fsm.OutgoingCh.Close()
 }
 
-func (fsm *fsm) changeadminState(s AdminState) error {
+func (fsm *fsm) changeAdminState(s AdminState) error {
 	fsm.Lock.Lock()
 	defer fsm.Lock.Unlock()
 
-	if fsm.AdminState != s {
-		fsm.Logger.Debug("admin state changed",
-			log.Fields{
-				"Topic":      "Peer",
-				"Key":        fsm.PeerConf.State.NeighborAddress,
-				"State":      fsm.State.String(),
-				"adminState": s.String(),
-			})
-		fsm.AdminState = s
-		fsm.PeerConf.State.AdminDown = !fsm.PeerConf.State.AdminDown
-
-		switch s {
-		case AdminStateUp:
-			fsm.Logger.Info("Administrative start",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.PeerConf.State.NeighborAddress,
-					"State": fsm.State.String(),
-				})
-		case AdminStateDown:
-			fsm.Logger.Info("Administrative shutdown",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.PeerConf.State.NeighborAddress,
-					"State": fsm.State.String(),
-				})
-		case AdminStatePfxCt:
-			fsm.Logger.Info("Administrative shutdown(Prefix limit reached)",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.PeerConf.State.NeighborAddress,
-					"State": fsm.State.String(),
-				})
-		}
-	} else {
+	if fsm.AdminState == s {
 		fsm.Logger.Warn("cannot change to the same state",
 			log.Fields{
 				"Topic": "Peer",
@@ -557,6 +523,48 @@ func (fsm *fsm) changeadminState(s AdminState) error {
 				"State": fsm.State.String(),
 			})
 		return fmt.Errorf("cannot change to the same state")
+	}
+
+	fsm.Logger.Debug("admin state changed",
+		log.Fields{
+			"Topic":      "Peer",
+			"Key":        fsm.PeerConf.State.NeighborAddress,
+			"State":      fsm.State.String(),
+			"adminState": s.String(),
+		})
+	fsm.AdminState = s
+	shutdown := false
+
+	switch s {
+	case AdminStateUp:
+		fsm.Logger.Info("Administrative start",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.PeerConf.State.NeighborAddress,
+				"State": fsm.State.String(),
+			})
+	case AdminStateDown:
+		shutdown = true
+		fsm.Logger.Info("Administrative shutdown",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.PeerConf.State.NeighborAddress,
+				"State": fsm.State.String(),
+			})
+	case AdminStatePfxCt:
+		shutdown = true
+		fsm.Logger.Info("Administrative shutdown(Prefix limit reached)",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.PeerConf.State.NeighborAddress,
+				"State": fsm.State.String(),
+			})
+	}
+	fsm.PeerConf.State.AdminDown = shutdown
+	if shutdown {
+		fsm.PeerConf.State.NeighborAddress = fsm.PeerConf.Config.NeighborAddress
+		fsm.PeerConf.State.PeerAs = fsm.PeerConf.Config.PeerAs
+		fsm.PeerConf.Timers.State = oc.TimersState{}
 	}
 	return nil
 }

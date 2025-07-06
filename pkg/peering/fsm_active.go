@@ -76,7 +76,7 @@ func (fsm *fsm) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 				return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMRestartTimerExpired, nil, nil)
 			}
 		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeadminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:

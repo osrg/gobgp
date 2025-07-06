@@ -544,7 +544,7 @@ func (fsm *fsm) sendMessageloop(ctx context.Context, stateReasonCh chan<- *FSMSt
 				if m.StayIdle {
 					// current user is only prefix-limit
 					// fix me if this is not the case
-					_ = fsm.changeadminState(AdminStatePfxCt)
+					_ = fsm.changeAdminState(AdminStatePfxCt)
 				}
 				if err := send(m.Notification); err != nil {
 					return

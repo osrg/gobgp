@@ -132,7 +132,7 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 			}
 			fsm.Lock.RUnlock()
 		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeadminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:

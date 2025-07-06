@@ -1730,23 +1730,8 @@ func (s *BgpServer) handleFSMMessage(e *peering.FSMMsg) {
 					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.Family(0)))
 				}
 			}
-		} else {
-			peer.FSM.Lock.Lock()
-			peer.FSM.PeerConf.Timers.State.Downtime = time.Now().Unix()
-			peer.FSM.Lock.Unlock()
 		}
-		// clear counter
-		peer.FSM.Lock.RLock()
-		adminStateDown := peer.FSM.AdminState == peering.AdminStateDown
-		peer.FSM.Lock.RUnlock()
-		if adminStateDown {
-			peer.FSM.Lock.Lock()
-			peer.FSM.PeerConf.State = oc.NeighborState{}
-			peer.FSM.PeerConf.State.NeighborAddress = peer.FSM.PeerConf.Config.NeighborAddress
-			peer.FSM.PeerConf.State.PeerAs = peer.FSM.PeerConf.Config.PeerAs
-			peer.FSM.PeerConf.Timers.State = oc.TimersState{}
-			peer.FSM.Lock.Unlock()
-		}
+
 		s.broadcastPeerState(peer, oldState, e)
 	case peering.FSMMsgRouteRefresh:
 		peer.FSM.Lock.RLock()
