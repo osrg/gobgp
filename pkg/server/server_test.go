@@ -1473,7 +1473,6 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	transition := msg.MsgData.(*peering.FSMStateTransition)
 	nextState := transition.NextState
 	assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
-	assert.NotEmpty(msg.FSM.Conn)
 
 	// Add the peer incoming channel back to the server
 	err = s1.mgmtOperation(func() error {

@@ -167,7 +167,6 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 				"Error": err,
 			})
 		fmsg := &FSMMsg{
-			FSM:     fsm,
 			MsgType: FSMMsgBGPMessage,
 			MsgSrc:  fsm.PeerConf.State.NeighborAddress,
 			MsgData: err,
@@ -202,7 +201,6 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 	}
 	fsm.Lock.RLock()
 	fmsg := &FSMMsg{
-		FSM:       fsm,
 		MsgType:   FSMMsgBGPMessage,
 		MsgSrc:    fsm.PeerConf.State.NeighborAddress,
 		Timestamp: now,
