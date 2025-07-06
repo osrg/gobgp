@@ -3689,7 +3689,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		setTTL = true
 	}
 	if setTTL && peer.FSM.Conn != nil {
-		if err := peering.SetPeerConnTTL(peer.FSM); err != nil {
+		if err := peer.FSM.SetPeerConnTTL(); err != nil {
 			s.logger.Error("failed to set peer connection TTL",
 				log.Fields{
 					"Topic": "Peer",
@@ -3698,7 +3698,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 				})
 			// rollback to original state
 			peer.FSM.PeerConf = original
-			if err := peering.SetPeerConnTTL(peer.FSM); err != nil {
+			if err := peer.FSM.SetPeerConnTTL(); err != nil {
 				s.logger.Error("failed to rollback peer connection TTL",
 					log.Fields{
 						"Topic": "Peer",
