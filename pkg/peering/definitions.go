@@ -56,6 +56,11 @@ const (
 	FSMMsgRouteRefresh
 )
 
+type FSMStateTransition struct {
+	oldState  bgp.FSMState
+	nextState bgp.FSMState
+}
+
 type FSMMsg struct {
 	MsgType     FSMMsgType
 	FSM         *fsm

@@ -92,6 +92,13 @@ func (s AdminState) String() string {
 	}
 }
 
+func newFSMStateTransition(oldState, nextState bgp.FSMState) *FSMStateTransition {
+	return &FSMStateTransition{
+		OldState:  oldState,
+		NextState: nextState,
+	}
+}
+
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	fsm.Lock.Lock()
 	defer fsm.Lock.Unlock()
@@ -189,7 +196,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, callback FSMCallback, logger l
 	}
 }
 
-func (fsm *fsm) StateChange(nextState bgp.FSMState) {
+func (fsm *fsm) stateChange(nextState bgp.FSMState) {
 	fsm.Lock.Lock()
 	defer fsm.Lock.Unlock()
 
@@ -202,6 +209,7 @@ func (fsm *fsm) StateChange(nextState bgp.FSMState) {
 			"reason": fsm.Reason,
 		})
 	fsm.State = nextState
+	fsm.PeerConf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 	switch nextState {
 	case bgp.BGP_FSM_ESTABLISHED:
 		fsm.PeerConf.Timers.State.Uptime = time.Now().Unix()
@@ -464,6 +472,8 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 				})
 		}
 
+		fsm.stateChange(nextState)
+
 		if ctx.Err() != nil {
 			break
 		}
@@ -472,7 +482,7 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 			FSM:         fsm,
 			MsgType:     FSMMsgStateChange,
 			MsgSrc:      neighborAddress,
-			MsgData:     nextState,
+			MsgData:     newFSMStateTransition(oldState, nextState),
 			StateReason: reason,
 		}
 

@@ -1470,7 +1470,8 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	// Wait for the s1 to receive the tcp connection from s2.
 	ev := <-incoming.Out()
 	msg := ev.(*peering.FSMMsg)
-	nextState := msg.MsgData.(bgp.FSMState)
+	transition := msg.MsgData.(*peering.FSMStateTransition)
+	nextState := transition.NextState
 	assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
 	assert.NotEmpty(msg.FSM.Conn)
 

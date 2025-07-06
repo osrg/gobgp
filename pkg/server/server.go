@@ -1466,13 +1466,9 @@ func (s *BgpServer) handleFSMMessage(e *peering.FSMMsg) {
 
 	switch e.MsgType {
 	case peering.FSMMsgStateChange:
-		nextState := e.MsgData.(bgp.FSMState)
-		peer.FSM.Lock.Lock()
-		oldState := bgp.FSMState(peer.FSM.PeerConf.State.SessionState.ToInt())
-		peer.FSM.PeerConf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
-		peer.FSM.Lock.Unlock()
-
-		peer.FSM.StateChange(nextState)
+		transition := e.MsgData.(*peering.FSMStateTransition)
+		oldState := transition.OldState
+		nextState := transition.NextState
 
 		peer.FSM.Lock.RLock()
 		nextStateIdle := peer.FSM.PeerConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE
