@@ -8,9 +8,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (h *FSMHandler) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	fsm := h.FSM
-
+func (fsm *fsm) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	fsm.Lock.RLock()
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.IdleHoldTime))
 	fsm.Lock.RUnlock()

@@ -86,6 +86,8 @@ type AdminStateOperation struct {
 	Communication []byte
 }
 
+type FSMCallback func(*FSMMsg)
+
 type fsm struct {
 	Lock                 sync.RWMutex
 	GlobalConf           *oc.Global
@@ -99,7 +101,6 @@ type fsm struct {
 	OpenSentHoldTime     float64
 	AdminState           AdminState
 	AdminStateCh         chan AdminStateOperation
-	Handler              *FSMHandler
 	RFMap                map[bgp.Family]bgp.BGPAddPathMode
 	CapMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	RecvOpen             *bgp.BGPMessage
@@ -109,21 +110,11 @@ type fsm struct {
 	MarshallingOptions   *bgp.MarshallingOption
 	Notification         chan *bgp.BGPMessage
 	LongLivedRunning     bool
+	StateReasonCh        chan *FSMStateReason
+	HoldTimerResetCh     chan bool
+	SentNotification     *bgp.BGPMessage
+	Callback             FSMCallback
 	Logger               log.Logger
-}
-
-type FSMCallback func(*FSMMsg)
-
-type FSMHandler struct {
-	FSM              *fsm
-	Conn             net.Conn
-	StateReasonCh    chan FSMStateReason
-	Outgoing         *channels.InfiniteChannel
-	HoldTimerResetCh chan bool
-	SentNotification *bgp.BGPMessage
-	Ctx              context.Context
-	CtxCancel        context.CancelFunc
-	Callback         FSMCallback
 }
 
 type PeerGroup struct {
@@ -143,4 +134,6 @@ type Peer struct {
 	SentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
 	SendMaxPathFiltered map[table.PathLocalKey]struct{}
 	LLGREndChs          []chan struct{}
+	Ctx                 context.Context
+	CtxCancel           context.CancelFunc
 }

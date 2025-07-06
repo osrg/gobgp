@@ -16,6 +16,7 @@
 package peering
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"slices"
@@ -54,7 +55,7 @@ func (pg *PeerGroup) DeleteDynamicNeighbor(prefix string) {
 	delete(pg.DynamicNeighbors, prefix)
 }
 
-func NewDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *Peer {
+func NewDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, callback FSMCallback, logger log.Logger) *Peer {
 	conf := oc.Neighbor{
 		Config: oc.NeighborConfig{
 			PeerGroup: pg.Config.PeerGroupName,
@@ -86,18 +87,18 @@ func NewDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 			})
 		return nil
 	}
-	peer := NewPeer(g, &conf, loc, policy, logger)
+	peer := NewPeer(g, &conf, loc, policy, callback, logger)
 	peer.FSM.Lock.Lock()
 	peer.FSM.State = bgp.BGP_FSM_ACTIVE
 	peer.FSM.Lock.Unlock()
 	return peer
 }
 
-func NewPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *Peer {
+func NewPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, callback FSMCallback, logger log.Logger) *Peer {
 	peer := &Peer{
 		LocalRib:            loc,
 		Policy:              policy,
-		FSM:                 newFSM(g, conf, logger),
+		FSM:                 newFSM(g, conf, callback, logger),
 		PrefixLimitWarned:   make(map[bgp.Family]bool),
 		SentPaths:           make(map[table.PathDestLocalKey]map[uint32]struct{}),
 		SendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
@@ -622,17 +623,21 @@ func (peer *Peer) HandleUpdate(e *FSMMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 	return nil, nil, nil
 }
 
-func (peer *Peer) StartFSMHandler(wg *sync.WaitGroup, callback FSMCallback) {
-	handler := newFSMHandler(peer.FSM, peer.FSM.OutgoingCh, wg, callback)
+func (peer *Peer) StartFSMHandler(wg *sync.WaitGroup) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	peer.FSM.Lock.Lock()
-	peer.FSM.Handler = handler
-	peer.FSM.Lock.Unlock()
+	defer peer.FSM.Lock.Unlock()
+	peer.Ctx = ctx
+	peer.CtxCancel = cancel
+	wg.Add(1)
+	go peer.FSM.loop(ctx, wg)
 }
 
 func (peer *Peer) StopFSMHandler() {
 	peer.FSM.Lock.RLock()
 	defer peer.FSM.Lock.RUnlock()
-	peer.FSM.Handler.CtxCancel()
+	peer.CtxCancel()
 }
 
 func (peer *Peer) StaleAll(rfList []bgp.Family) []*table.Path {
