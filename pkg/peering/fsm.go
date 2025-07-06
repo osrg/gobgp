@@ -167,7 +167,9 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, callback FSMCallback, logger l
 	}
 	pConf.State.SessionState = oc.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	pConf.Timers.State.Downtime = time.Now().Unix()
-	fsm := &fsm{
+	gracefulRestartTimer := time.NewTimer(time.Hour)
+	gracefulRestartTimer.Stop()
+	return &fsm{
 		GlobalConf:           gConf,
 		PeerConf:             pConf,
 		State:                bgp.BGP_FSM_IDLE,
@@ -185,8 +187,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, callback FSMCallback, logger l
 		Callback:             callback,
 		Logger:               logger,
 	}
-	fsm.GracefulRestartTimer.Stop()
-	return fsm
 }
 
 func (fsm *fsm) StateChange(nextState bgp.FSMState) {

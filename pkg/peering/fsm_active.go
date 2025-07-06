@@ -10,15 +10,14 @@ import (
 
 func (fsm *fsm) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	c, cancel := context.WithCancel(ctx)
-
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 
 	fsm.Lock.RLock()
 	tryConnect := !fsm.PeerConf.Transport.Config.PassiveMode
 	fsm.Lock.RUnlock()
 	if tryConnect {
 		wg.Add(1)
-		go fsm.connectLoop(c, &wg)
+		go fsm.connectLoop(c, wg)
 	}
 
 	defer func() {
