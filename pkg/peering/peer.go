@@ -30,16 +30,6 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/utils"
 )
 
-const (
-	FlopThreshold = time.Second * 30
-)
-
-type PeerGroup struct {
-	Conf             *oc.PeerGroup
-	Members          map[string]oc.Neighbor
-	DynamicNeighbors map[string]*oc.DynamicNeighbor
-}
-
 func NewPeerGroup(c *oc.PeerGroup) *PeerGroup {
 	return &PeerGroup{
 		Conf:             c,
@@ -101,19 +91,6 @@ func NewDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 	peer.FSM.State = bgp.BGP_FSM_ACTIVE
 	peer.FSM.Lock.Unlock()
 	return peer
-}
-
-type Peer struct {
-	TableId           string
-	FSM               *fsm
-	AdjRibIn          *table.AdjRib
-	Policy            *table.RoutingPolicy
-	LocalRib          *table.TableManager
-	PrefixLimitWarned map[bgp.Family]bool
-	// map of path local identifiers sent for that prefix
-	SentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
-	SendMaxPathFiltered map[table.PathLocalKey]struct{}
-	LLGREndChs          []chan struct{}
 }
 
 func NewPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *Peer {
