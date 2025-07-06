@@ -12,7 +12,7 @@ import (
 func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	c, cancel := context.WithCancel(ctx)
 	stateReasonCh := make(chan *FSMStateReason, 1)
-	wg := sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
 	defer func() {
@@ -21,8 +21,8 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 		close(stateReasonCh)
 	}()
 
-	go fsm.sendMessageloop(c, stateReasonCh, &wg)
-	go fsm.recvMessageloop(c, stateReasonCh, &wg)
+	go fsm.sendMessageloop(c, stateReasonCh, wg)
+	go fsm.recvMessageloop(c, stateReasonCh, wg)
 
 	var holdTimer *time.Timer
 	if fsm.PeerConf.Timers.State.NegotiatedHoldTime == 0 {
