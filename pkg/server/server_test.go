@@ -1536,7 +1536,7 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 			ListenPort: listenPort,
 		},
 	}); err != nil {
-		t.Errorf("Failed to start server %s: %s", s.bgpConfig.Global.Config.RouterId, err)
+		t.Errorf("Failed to start server %s: %s", s.gConfig.Config.RouterId, err)
 	}
 	return s
 }
@@ -1551,12 +1551,12 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 			neighborConfig := &oc.Neighbor{
 				Config: oc.NeighborConfig{
 					NeighborAddress: "127.0.0.1",
-					PeerAs:          peer.bgpConfig.Global.Config.As,
+					PeerAs:          peer.gConfig.Config.As,
 				},
 				AfiSafis: oc.AfiSafis{},
 				Transport: oc.Transport{
 					Config: oc.TransportConfig{
-						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+						RemotePort: uint16(peer.gConfig.Config.Port),
 					},
 				},
 				Timers: oc.Timers{

@@ -215,8 +215,8 @@ func (b *bmpClient) loop() {
 					case *watchEventBestPath:
 						info := &table.PeerInfo{
 							Address: net.ParseIP("0.0.0.0").To4(),
-							AS:      b.s.bgpConfig.Global.Config.As,
-							ID:      net.ParseIP(b.s.bgpConfig.Global.Config.RouterId).To4(),
+							AS:      b.s.gConfig.Config.As,
+							ID:      net.ParseIP(b.s.gConfig.Config.RouterId).To4(),
 						}
 						for _, p := range msg.PathList {
 							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]

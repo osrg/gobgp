@@ -117,7 +117,7 @@ func newSharedData() *sharedData {
 type BgpServer struct {
 	shared       *sharedData
 	apiServer    *server
-	bgpConfig    oc.Bgp
+	gConfig      *oc.Global
 	acceptCh     chan net.Conn
 	incomings    []*channels.InfiniteChannel
 	mgmtCh       chan *mgmtOp
@@ -227,7 +227,7 @@ func (s *BgpServer) listListeners(addr string) []*net.TCPListener {
 }
 
 func (s *BgpServer) active() error {
-	if s.bgpConfig.Global.Config.As == 0 {
+	if s.gConfig == nil {
 		return fmt.Errorf("bgp server hasn't started yet")
 	}
 	return nil
@@ -337,7 +337,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		if pg.Conf.RouteServer.Config.RouteServerClient {
 			rib = s.rsRib
 		}
-		peer := peering.NewDynamicPeer(&s.bgpConfig.Global, remoteAddr, pg.Conf, rib, s.policy, s.handleFSMMessage, s.logger)
+		peer := peering.NewDynamicPeer(s.gConfig, remoteAddr, pg.Conf, rib, s.policy, s.handleFSMMessage, s.logger)
 		if peer == nil {
 			s.logger.Info("Can't create new Dynamic Peer",
 				log.Fields{
@@ -2044,7 +2044,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		for _, l := range s.listeners {
 			l.Close()
 		}
-		s.bgpConfig.Global = oc.Global{}
+		s.gConfig = nil
 		return nil
 	}, false)
 	if err != nil {
@@ -2512,7 +2512,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		if err := s.policy.Initialize(); err != nil {
 			return err
 		}
-		s.bgpConfig.Global = *c
+		s.gConfig = c
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
@@ -2583,8 +2583,8 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 		}
 
 		pi := &table.PeerInfo{
-			AS:      s.bgpConfig.Global.Config.As,
-			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
+			AS:      s.gConfig.Config.As,
+			LocalID: net.ParseIP(s.gConfig.Config.RouterId).To4(),
 		}
 
 		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
@@ -2937,7 +2937,7 @@ func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.AddrP
 						case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 							p.Best = true
 						}
-					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
+					} else if s.gConfig.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
 						p.Best = true
 					}
 				}
@@ -3088,7 +3088,7 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (rsp *api.
 		return nil, fmt.Errorf("nil request")
 	}
 	err = s.mgmtOperation(func() error {
-		g := s.bgpConfig.Global
+		g := s.gConfig
 		rsp = &api.GetBgpResponse{
 			Global: &api.Global{
 				Asn:              g.Config.As,
@@ -3275,7 +3275,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		pgConf = pg.Conf
 	}
 
-	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
+	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, s.gConfig); err != nil {
 		return err
 	}
 
@@ -3299,7 +3299,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		return fmt.Errorf("can't be both route-server-client and route-reflector-client")
 	}
 
-	if s.bgpConfig.Global.Config.Port > 0 {
+	if s.gConfig.Config.Port > 0 {
 		for _, l := range s.listListeners(addr) {
 			if c.Config.AuthPassword != "" {
 				if err := netutils.SetTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
@@ -3323,7 +3323,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if c.RouteServer.Config.RouteServerClient {
 		rib = s.rsRib
 	}
-	peer := peering.NewPeer(&s.bgpConfig.Global, c, rib, s.policy, s.handleFSMMessage, s.logger)
+	peer := peering.NewPeer(s.gConfig, c, rib, s.policy, s.handleFSMMessage, s.logger)
 	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
@@ -3578,7 +3578,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			return needsSoftResetIn, fmt.Errorf("no such peer-group: %s", c.Config.PeerGroup)
 		}
 	}
-	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
+	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, s.gConfig); err != nil {
 		return needsSoftResetIn, err
 	}
 
