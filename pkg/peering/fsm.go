@@ -181,7 +181,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, callback FSMCallback, logger l
 		PeerInfo:             table.NewPeerInfo(gConf, pConf),
 		GracefulRestartTimer: time.NewTimer(time.Hour),
 		Notification:         make(chan *bgp.BGPMessage, 1),
-		StateReasonCh:        make(chan *FSMStateReason, 1),
 		HoldTimerResetCh:     make(chan bool, 1),
 		Callback:             callback,
 		Logger:               logger,

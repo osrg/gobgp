@@ -129,10 +129,10 @@ func (fsm *fsm) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func (fsm *fsm) recvMessageWithError(ctx context.Context) (*FSMMsg, error) {
+func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *FSMStateReason) (*FSMMsg, error) {
 	sendToStateReasonCh := func(typ FSMStateReasonType, notif *bgp.BGPMessage) {
 		reason := NewfsmStateReason(typ, notif, nil)
-		pushed := utils.PushWithContext(ctx, fsm.StateReasonCh, reason, false)
+		pushed := utils.PushWithContext(ctx, stateReasonCh, reason, false)
 		if !pushed {
 			fsm.Logger.Warn("failed to push state reason",
 				log.Fields{
@@ -357,19 +357,19 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context) (*FSMMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsm) recvMessage(ctx context.Context, recvChan chan<- any, wg *sync.WaitGroup) error {
+func (h *fsm) recvMessage(ctx context.Context, recvChan chan<- any, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
 	defer wg.Done()
-	fmsg, _ := h.recvMessageWithError(ctx)
+	fmsg, _ := h.recvMessageWithError(ctx, stateReasonCh)
 	if fmsg != nil {
 		recvChan <- fmsg
 	}
 	return nil
 }
 
-func (fsm *fsm) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+func (fsm *fsm) sendMessageloop(ctx context.Context, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
 	sendToStateReasonCh := func(typ FSMStateReasonType, notif *bgp.BGPMessage) {
 		reason := NewfsmStateReason(typ, notif, nil)
-		pushed := utils.PushWithContext(ctx, fsm.StateReasonCh, reason, false)
+		pushed := utils.PushWithContext(ctx, stateReasonCh, reason, false)
 		if !pushed {
 			fsm.Logger.Warn("failed to push state reason",
 				log.Fields{
@@ -564,10 +564,10 @@ func (fsm *fsm) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
 	}
 }
 
-func (h *fsm) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsm) recvMessageloop(ctx context.Context, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	for {
-		fmsg, err := h.recvMessageWithError(ctx)
+		fmsg, err := h.recvMessageWithError(ctx, stateReasonCh)
 		select {
 		case <-ctx.Done():
 			return nil
