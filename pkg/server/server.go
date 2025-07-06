@@ -263,7 +263,7 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 }
 
 func (s *BgpServer) startFsmHandler(peer *peering.Peer) {
-	peer.StartFSMHandler(s.shutdownWG, s.handleFSMMessage)
+	peer.StartFSMHandler(s.shutdownWG)
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
@@ -337,7 +337,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		if pg.Conf.RouteServer.Config.RouteServerClient {
 			rib = s.rsRib
 		}
-		peer := peering.NewDynamicPeer(&s.bgpConfig.Global, remoteAddr, pg.Conf, rib, s.policy, s.logger)
+		peer := peering.NewDynamicPeer(&s.bgpConfig.Global, remoteAddr, pg.Conf, rib, s.policy, s.handleFSMMessage, s.logger)
 		if peer == nil {
 			s.logger.Info("Can't create new Dynamic Peer",
 				log.Fields{
@@ -3323,7 +3323,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if c.RouteServer.Config.RouteServerClient {
 		rib = s.rsRib
 	}
-	peer := peering.NewPeer(&s.bgpConfig.Global, c, rib, s.policy, s.logger)
+	peer := peering.NewPeer(&s.bgpConfig.Global, c, rib, s.policy, s.handleFSMMessage, s.logger)
 	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}

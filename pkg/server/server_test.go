@@ -969,6 +969,7 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 		nConf,
 		rib,
 		policy,
+		nil,
 		logger)
 	p.FSM.PeerInfo.ID = net.ParseIP(address)
 	for _, f := range rib.GetRFlist() {
@@ -1510,7 +1511,7 @@ func TestFamiliesForSoftreset(t *testing.T) {
 	conf := &oc.Neighbor{
 		AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 	}
-	peer := peering.NewPeer(&oc.Global{}, conf, nil, nil, nil)
+	peer := peering.NewPeer(&oc.Global{}, conf, nil, nil, nil, nil)
 
 	families := familiesForSoftreset(peer, bgp.RF_IPv4_UC)
 	assert.Equal(t, len(families), 1)
