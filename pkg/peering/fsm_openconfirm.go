@@ -106,7 +106,7 @@ func (fsm *fsm) openconfirm(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 			m, _ := fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMHoldTimerExpired, m, nil)
 		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeadminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:

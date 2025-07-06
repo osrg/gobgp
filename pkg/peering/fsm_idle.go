@@ -72,7 +72,7 @@ func (fsm *fsm) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 			}
 
 		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeadminState(stateOp.State)
+			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:
