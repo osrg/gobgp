@@ -463,7 +463,7 @@ func (h *FSMHandler) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 			}
 
 		case stateOp := <-fsm.AdminStateCh:
-			err := h.changeadminState(stateOp.State)
+			err := fsm.changeadminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case AdminStateDown:
@@ -623,7 +623,7 @@ func (h *FSMHandler) active(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 			fsm.Lock.Unlock()
 
 			fsm.Lock.RLock()
-			if err := SetPeerConnTTL(fsm); err != nil {
+			if err := fsm.SetPeerConnTTL(); err != nil {
 				fsm.Logger.Warn("cannot set TTL for peer",
 					log.Fields{
 						"Topic": "Peer",
@@ -632,7 +632,7 @@ func (h *FSMHandler) active(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 						"Error": err,
 					})
 			}
-			if err := setPeerConnMSS(fsm); err != nil {
+			if err := fsm.setPeerConnMSS(); err != nil {
 				fsm.Logger.Warn("cannot set MSS for peer",
 					log.Fields{
 						"Topic": "Peer",
@@ -682,7 +682,7 @@ func (h *FSMHandler) active(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 	}
 }
 
-func SetPeerConnTTL(fsm *fsm) error {
+func (fsm *fsm) SetPeerConnTTL() error {
 	ttl := 0
 	ttlMin := 0
 
@@ -714,7 +714,7 @@ func SetPeerConnTTL(fsm *fsm) error {
 	return nil
 }
 
-func setPeerConnMSS(fsm *fsm) error {
+func (fsm *fsm) setPeerConnMSS() error {
 	mss := fsm.PeerConf.Transport.Config.TcpMss
 	if mss == 0 {
 		return nil
@@ -1313,7 +1313,7 @@ func (h *FSMHandler) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReaso
 	}
 }
 
-func keepaliveTicker(fsm *fsm) *time.Ticker {
+func (fsm *fsm) keepAliveTicker() *time.Ticker {
 	fsm.Lock.RLock()
 	defer fsm.Lock.RUnlock()
 
@@ -1330,7 +1330,7 @@ func keepaliveTicker(fsm *fsm) *time.Ticker {
 
 func (h *FSMHandler) openconfirm(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	fsm := h.FSM
-	ticker := keepaliveTicker(fsm)
+	ticker := fsm.keepAliveTicker()
 
 	fsm.Lock.RLock()
 	h.Conn = fsm.Conn
@@ -1463,7 +1463,7 @@ func (h *FSMHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	defer wg.Done()
 	conn := h.Conn
 	fsm := h.FSM
-	ticker := keepaliveTicker(fsm)
+	ticker := fsm.keepAliveTicker()
 	send := func(m *bgp.BGPMessage) error {
 		fsm.Lock.RLock()
 		if fsm.TwoByteAsTrans && m.Header.Type == bgp.BGP_MSG_UPDATE {
@@ -1892,11 +1892,10 @@ func (h *FSMHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 	fsm.OutgoingCh.Close()
 }
 
-func (h *FSMHandler) changeadminState(s AdminState) error {
-	h.FSM.Lock.Lock()
-	defer h.FSM.Lock.Unlock()
+func (fsm *fsm) changeadminState(s AdminState) error {
+	fsm.Lock.Lock()
+	defer fsm.Lock.Unlock()
 
-	fsm := h.FSM
 	if fsm.AdminState != s {
 		fsm.Logger.Debug("admin state changed",
 			log.Fields{
