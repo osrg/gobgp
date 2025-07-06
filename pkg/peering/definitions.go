@@ -111,7 +111,6 @@ type fsm struct {
 	MarshallingOptions   *bgp.MarshallingOption
 	Notification         chan *bgp.BGPMessage
 	LongLivedRunning     bool
-	StateReasonCh        chan *FSMStateReason
 	HoldTimerResetCh     chan bool
 	SentNotification     *bgp.BGPMessage
 	Callback             FSMCallback

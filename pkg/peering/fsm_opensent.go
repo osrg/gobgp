@@ -25,11 +25,13 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	wg.Add(1)
 
 	recvChan := make(chan any, 1)
-	go fsm.recvMessage(ctx, recvChan, wg)
+	stateReasonCh := make(chan *FSMStateReason, 1)
+	go fsm.recvMessage(ctx, recvChan, stateReasonCh, wg)
 
 	defer func() {
 		wg.Wait()
 		close(recvChan)
+		close(stateReasonCh)
 	}()
 
 	// RFC 4271 P.60
@@ -248,7 +250,7 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 						"Data":  e.MsgData,
 					})
 			}
-		case err := <-fsm.StateReasonCh:
+		case err := <-stateReasonCh:
 			fsm.Conn.Close()
 			return bgp.BGP_FSM_IDLE, err
 		case <-holdTimer.C:

@@ -76,8 +76,6 @@ func (fsm *fsm) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 				fsm.Lock.RUnlock()
 				return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMRestartTimerExpired, nil, nil)
 			}
-		case err := <-fsm.StateReasonCh:
-			return bgp.BGP_FSM_IDLE, err
 		case stateOp := <-fsm.AdminStateCh:
 			err := fsm.changeadminState(stateOp.State)
 			if err == nil {

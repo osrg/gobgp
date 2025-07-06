@@ -131,10 +131,10 @@ func (fsm *fsm) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func (fsm *fsm) recvMessageWithError(ctx context.Context) (*FSMMsg, error) {
+func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *FSMStateReason) (*FSMMsg, error) {
 	sendToStateReasonCh := func(typ FSMStateReasonType, notif *bgp.BGPMessage) {
 		reason := NewfsmStateReason(typ, notif, nil)
-		pushed := utils.PushWithContext(ctx, fsm.StateReasonCh, reason, false)
+		pushed := utils.PushWithContext(ctx, stateReasonCh, reason, false)
 		if !pushed {
 			fsm.Logger.Warn("failed to push state reason",
 				log.Fields{
@@ -359,7 +359,7 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context) (*FSMMsg, error) {
 	return fmsg, nil
 }
 
-func (fsm *fsm) recvMessage(ctx context.Context, recvChan chan<- any, wg *sync.WaitGroup) error {
+func (fsm *fsm) recvMessage(ctx context.Context, recvChan chan<- any, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
 	done := make(chan any)
 
 	defer func() {
@@ -375,17 +375,17 @@ func (fsm *fsm) recvMessage(ctx context.Context, recvChan chan<- any, wg *sync.W
 		}
 	}()
 
-	fmsg, _ := fsm.recvMessageWithError(ctx)
+	fmsg, _ := fsm.recvMessageWithError(ctx, stateReasonCh)
 	if fmsg != nil {
 		recvChan <- fmsg
 	}
 	return nil
 }
 
-func (fsm *fsm) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+func (fsm *fsm) sendMessageloop(ctx context.Context, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
 	sendToStateReasonCh := func(typ FSMStateReasonType, notif *bgp.BGPMessage) {
 		reason := NewfsmStateReason(typ, notif, nil)
-		pushed := utils.PushWithContext(ctx, fsm.StateReasonCh, reason, false)
+		pushed := utils.PushWithContext(ctx, stateReasonCh, reason, false)
 		if !pushed {
 			fsm.Logger.Warn("failed to push state reason",
 				log.Fields{
@@ -580,7 +580,7 @@ func (fsm *fsm) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
 	}
 }
 
-func (fsm *fsm) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
+func (fsm *fsm) recvMessageloop(ctx context.Context, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
 	done := make(chan any)
 
 	defer func() {
@@ -597,7 +597,7 @@ func (fsm *fsm) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
 	}()
 
 	for {
-		fmsg, err := fsm.recvMessageWithError(ctx)
+		fmsg, err := fsm.recvMessageWithError(ctx, stateReasonCh)
 		if fmsg != nil && ctx.Err() == nil {
 			fsm.Callback(fmsg)
 		}

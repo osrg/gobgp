@@ -11,16 +11,18 @@ import (
 
 func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	c, cancel := context.WithCancel(ctx)
+	stateReasonCh := make(chan *FSMStateReason, 1)
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
 	defer func() {
 		cancel()
 		wg.Wait()
+		close(stateReasonCh)
 	}()
 
-	go fsm.sendMessageloop(c, &wg)
-	go fsm.recvMessageloop(c, &wg)
+	go fsm.sendMessageloop(c, stateReasonCh, &wg)
+	go fsm.recvMessageloop(c, stateReasonCh, &wg)
 
 	var holdTimer *time.Timer
 	if fsm.PeerConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -72,7 +74,7 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 					"State": fsm.State.String(),
 				})
 			fsm.Lock.RUnlock()
-		case err := <-fsm.StateReasonCh:
+		case err := <-stateReasonCh:
 			fsm.Conn.Close()
 			// if recv goroutine hit an error and sent to
 			// stateReasonCh, then tx goroutine might take
