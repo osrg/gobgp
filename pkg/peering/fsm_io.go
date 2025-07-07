@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"os"
 	"strconv"
@@ -22,113 +22,111 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/utils"
 )
 
+func (fsm *fsm) tryConnect(ctx context.Context, dialer *net.Dialer, retryInterval int, host string, port int) bool {
+	timer := time.NewTimer(time.Duration(rand.IntN(retryInterval*1000)+retryInterval*1000) * time.Millisecond)
+	defer timer.Stop()
+
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+	if err == nil {
+		pushed := utils.PushWithContext(ctx, fsm.ConnCh, conn, false)
+		if !pushed && ctx.Err() == nil {
+			err = fmt.Errorf("failed to push connection to channel")
+		} else if pushed {
+			return true // we successfully pushed the connection to the channel
+		}
+		// we will wait before trying to connect again
+	}
+
+	if err != nil {
+		if fsm.Logger.GetLevel() >= log.DebugLevel {
+			fsm.Logger.Debug("failed to connect",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   host,
+					"Error": err,
+				})
+		}
+	}
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		if fsm.Logger.GetLevel() >= log.DebugLevel {
+			fsm.Logger.Debug("try to connect failed, retrying",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   host,
+				})
+		}
+	}
+	return false
+}
+
 func (fsm *fsm) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	retryInterval, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string) {
-		fsm.Lock.RLock()
-		defer fsm.Lock.RUnlock()
+	fsm.Lock.RLock()
+	retryInterval := max(int(fsm.PeerConf.Timers.Config.ConnectRetry), MinConnectRetryInterval)
 
-		tick := max(int(fsm.PeerConf.Timers.Config.ConnectRetry), MinConnectRetryInterval)
-
-		addr := fsm.PeerConf.State.NeighborAddress
-		port := int(bgp.BGP_PORT)
-		if fsm.PeerConf.Transport.Config.RemotePort != 0 {
-			port = int(fsm.PeerConf.Transport.Config.RemotePort)
-		}
-		password := fsm.PeerConf.Config.AuthPassword
-		ttl := uint8(0)
-		ttlMin := uint8(0)
-
-		if fsm.PeerConf.TtlSecurity.Config.Enabled {
-			ttl = 255
-			ttlMin = fsm.PeerConf.TtlSecurity.Config.TtlMin
-		} else if fsm.PeerConf.Config.PeerAs != 0 && fsm.PeerConf.Config.PeerType == oc.PEER_TYPE_EXTERNAL {
-			ttl = 1
-			if fsm.PeerConf.EbgpMultihop.Config.Enabled {
-				ttl = fsm.PeerConf.EbgpMultihop.Config.MultihopTtl
-			}
-		}
-		return tick, addr, port, password, ttl, ttlMin, fsm.PeerConf.Transport.Config.TcpMss, fsm.PeerConf.Transport.Config.LocalAddress, int(fsm.PeerConf.Transport.Config.LocalPort), fsm.PeerConf.Transport.Config.BindInterface
-	}()
-
-	tick := MinConnectRetryInterval
-	for {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		timer := time.NewTimer(time.Duration(r.Intn(tick*1000)+tick*1000) * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			fsm.Logger.Debug("stop connect loop",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-				})
-			timer.Stop()
-			return
-		case <-timer.C:
-			if fsm.Logger.GetLevel() >= log.DebugLevel {
-				fsm.Logger.Debug("try to connect",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   addr,
-					})
-			}
-		}
-
-		laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
-		if err != nil {
-			fsm.Logger.Warn("failed to resolve local address",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-				})
-		}
-
-		if err == nil {
-			d := net.Dialer{
-				LocalAddr: laddr,
-				Timeout:   time.Duration(max(retryInterval-1, MinConnectRetryInterval)) * time.Second,
-				KeepAlive: -1,
-				Control: func(network, address string, c syscall.RawConn) error {
-					return netutils.DialerControl(fsm.Logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
-				},
-			}
-
-			conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
-			if err != nil {
-				if fsm.Logger.GetLevel() >= log.DebugLevel {
-					fsm.Logger.Debug("failed to connect",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   addr,
-							"Error": err,
-						})
-				}
-				continue
-			}
-
-			pushed := utils.PushWithContext(ctx, fsm.ConnCh, conn, false)
-			if !pushed {
-				if ctx.Err() == context.Canceled {
-					fsm.Logger.Debug("stop connect loop",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   addr,
-						})
-					return
-				}
-				if fsm.Logger.GetLevel() >= log.DebugLevel {
-					fsm.Logger.Debug("failed to connect",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   addr,
-							"Error": err,
-						})
-				}
-			}
-		}
-		tick = retryInterval
+	addr := fsm.PeerConf.State.NeighborAddress
+	port := int(bgp.BGP_PORT)
+	if fsm.PeerConf.Transport.Config.RemotePort != 0 {
+		port = int(fsm.PeerConf.Transport.Config.RemotePort)
 	}
+	password := fsm.PeerConf.Config.AuthPassword
+	ttl := uint8(0)
+	ttlMin := uint8(0)
+
+	if fsm.PeerConf.TtlSecurity.Config.Enabled {
+		ttl = 255
+		ttlMin = fsm.PeerConf.TtlSecurity.Config.TtlMin
+	} else if fsm.PeerConf.Config.PeerAs != 0 && fsm.PeerConf.Config.PeerType == oc.PEER_TYPE_EXTERNAL {
+		ttl = 1
+		if fsm.PeerConf.EbgpMultihop.Config.Enabled {
+			ttl = fsm.PeerConf.EbgpMultihop.Config.MultihopTtl
+		}
+	}
+	mss := fsm.PeerConf.Transport.Config.TcpMss
+	localAddress := fsm.PeerConf.Transport.Config.LocalAddress
+	localPort := int(fsm.PeerConf.Transport.Config.LocalPort)
+	bindInterface := fsm.PeerConf.Transport.Config.BindInterface
+	fsm.Lock.RUnlock()
+
+	laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
+	if err != nil {
+		fsm.Logger.Warn("failed to resolve local address",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			})
+		return
+	}
+	d := &net.Dialer{
+		LocalAddr: laddr,
+		Timeout:   time.Duration(max(retryInterval-1, MinConnectRetryInterval)) * time.Second,
+		KeepAlive: -1,
+		Control: func(network, address string, c syscall.RawConn) error {
+			return netutils.DialerControl(fsm.Logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
+		},
+	}
+
+	fsm.Logger.Debug("try to connect",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		})
+
+	accepted := false
+	for ctx.Err() == nil && !accepted {
+		accepted = fsm.tryConnect(ctx, d, retryInterval, addr, port)
+	}
+
+	fsm.Logger.Debug("stop connect loop",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		})
 }
 
 func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *FSMStateReason) (*FSMMsg, error) {
