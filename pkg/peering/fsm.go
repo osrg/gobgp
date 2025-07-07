@@ -202,41 +202,59 @@ func (fsm *fsm) stateChange(transition *FSMStateTransition) {
 	defer fsm.Lock.Unlock()
 
 	nextState := transition.NextState
+	oldState := transition.OldState
+	neighborAddress := fsm.PeerConf.State.NeighborAddress
 
 	fsm.Logger.Debug("state changed",
 		log.Fields{
 			"Topic":  "Peer",
-			"Key":    fsm.PeerConf.State.NeighborAddress,
-			"old":    transition.OldState.String(),
+			"Key":    neighborAddress,
+			"old":    oldState.String(),
 			"new":    nextState.String(),
 			"reason": transition.Reason,
 		})
 	fsm.State = nextState
 	fsm.PeerConf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
-	switch nextState {
-	case bgp.BGP_FSM_ESTABLISHED:
+
+	// peer up
+	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
+		fsm.Logger.Info("Peer Up",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   neighborAddress,
+				"State": oldState.String(),
+			})
 		fsm.PeerConf.Timers.State.Uptime = time.Now().Unix()
 		fsm.PeerConf.State.EstablishedCount++
 		// reset the state set by the previous session
 		fsm.TwoByteAsTrans = false
 		if _, y := fsm.CapMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
 			fsm.TwoByteAsTrans = true
-			break
-		}
-		y := func() bool {
+		} else {
+			fsm.TwoByteAsTrans = true
 			for _, c := range fsm.PeerConf.Capabilities() {
-				switch c.(type) {
-				case *bgp.CapFourOctetASNumber:
-					return true
+				if _, ok := c.(*bgp.CapFourOctetASNumber); ok {
+					fsm.TwoByteAsTrans = false
+					break
 				}
 			}
-			return false
-		}()
-		if !y {
-			fsm.TwoByteAsTrans = true
 		}
-	default:
-		fsm.PeerConf.Timers.State.Downtime = time.Now().Unix()
+		// peer down
+	} else if oldState == bgp.BGP_FSM_ESTABLISHED {
+		// The main goroutine sent the notification due to
+		// deconfiguration or something.
+		reason := *transition.Reason
+		if fsm.SentNotification != nil {
+			reason.Type = FSMNotificationSent
+			reason.BGPNotification = fsm.SentNotification
+		}
+		fsm.Logger.Info("Peer Down",
+			log.Fields{
+				"Topic":  "Peer",
+				"Key":    neighborAddress,
+				"State":  oldState.String(),
+				"Reason": reason.String(),
+			})
 	}
 }
 
@@ -455,35 +473,12 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 			nextState, reason = fsm.established(ctx)
 		}
 
-		if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
-			fsm.Logger.Info("Peer Up",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   neighborAddress,
-					"State": oldState.String(),
-				})
-		}
-
-		if oldState == bgp.BGP_FSM_ESTABLISHED {
-			// The main goroutine sent the notification due to
-			// deconfiguration or something.
-			reason := *reason
-			if fsm.SentNotification != nil {
-				reason.Type = FSMNotificationSent
-				reason.BGPNotification = fsm.SentNotification
-			}
-			fsm.Logger.Info("Peer Down",
-				log.Fields{
-					"Topic":  "Peer",
-					"Key":    neighborAddress,
-					"State":  oldState.String(),
-					"Reason": reason.String(),
-				})
-		}
-
 		transition := newFSMStateTransition(oldState, nextState, reason)
 		fsm.stateChange(transition)
 
+		oldState = nextState
+
+		// do not execute the callback if the context is done
 		if ctx.Err() != nil {
 			break
 		}
@@ -495,7 +490,6 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 		}
 
 		fsm.Callback(msg)
-		oldState = nextState
 	}
 
 	// context is done, so we need to close the connection
@@ -512,7 +506,7 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 				log.Fields{
 					"Topic": "Peer",
 					"Key":   neighborAddress,
-					"State": oldState,
+					"State": nextState,
 				})
 		}
 	}
