@@ -59,16 +59,16 @@ const (
 type FSMStateTransition struct {
 	OldState  bgp.FSMState
 	NextState bgp.FSMState
+	Reason    *FSMStateReason
 }
 
 type FSMMsg struct {
-	MsgType     FSMMsgType
-	MsgSrc      string
-	MsgData     any
-	StateReason *FSMStateReason
-	PathList    []*table.Path
-	Timestamp   time.Time
-	Payload     []byte
+	MsgType   FSMMsgType
+	MsgSrc    string
+	MsgData   any
+	PathList  []*table.Path
+	Timestamp time.Time
+	Payload   []byte
 }
 
 type FSMOutgoingMsg struct {

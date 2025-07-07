@@ -959,7 +959,8 @@ func newWatchEventPeer(peer *peering.Peer, m *peering.FSMMsg, oldState bgp.FSMSt
 	peer.FSM.Lock.RUnlock()
 
 	if m != nil {
-		e.StateReason = m.StateReason
+		transition := m.MsgData.(*peering.FSMStateTransition)
+		e.StateReason = transition.Reason
 	}
 	return e
 }
@@ -1481,7 +1482,7 @@ func (s *BgpServer) handleFSMMessage(e *peering.FSMMsg) {
 			if t.Sub(time.Unix(peer.FSM.PeerConf.Timers.State.Uptime, 0)) < peering.FlopThreshold {
 				peer.FSM.PeerConf.State.Flops++
 			}
-			graceful := peer.FSM.Reason.Type == peering.FSMGracefulRestart
+			graceful := transition.Reason.Type == peering.FSMGracefulRestart
 			peer.FSM.Lock.Unlock()
 			var drop []bgp.Family
 			if graceful {

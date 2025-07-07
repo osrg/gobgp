@@ -92,10 +92,11 @@ func (s AdminState) String() string {
 	}
 }
 
-func newFSMStateTransition(oldState, nextState bgp.FSMState) *FSMStateTransition {
+func newFSMStateTransition(oldState, nextState bgp.FSMState, reason *FSMStateReason) *FSMStateTransition {
 	return &FSMStateTransition{
 		OldState:  oldState,
 		NextState: nextState,
+		Reason:    reason,
 	}
 }
 
@@ -196,17 +197,19 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, callback FSMCallback, logger l
 	}
 }
 
-func (fsm *fsm) stateChange(nextState bgp.FSMState) {
+func (fsm *fsm) stateChange(transition *FSMStateTransition) {
 	fsm.Lock.Lock()
 	defer fsm.Lock.Unlock()
+
+	nextState := transition.NextState
 
 	fsm.Logger.Debug("state changed",
 		log.Fields{
 			"Topic":  "Peer",
 			"Key":    fsm.PeerConf.State.NeighborAddress,
-			"old":    fsm.State.String(),
+			"old":    transition.OldState.String(),
 			"new":    nextState.String(),
-			"reason": fsm.Reason,
+			"reason": transition.Reason,
 		})
 	fsm.State = nextState
 	fsm.PeerConf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
@@ -442,10 +445,6 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 			nextState, reason = fsm.established(ctx)
 		}
 
-		fsm.Lock.Lock()
-		fsm.Reason = reason
-		fsm.Lock.Unlock()
-
 		if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
 			fsm.Logger.Info("Peer Up",
 				log.Fields{
@@ -472,17 +471,17 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 				})
 		}
 
-		fsm.stateChange(nextState)
+		transition := newFSMStateTransition(oldState, nextState, reason)
+		fsm.stateChange(transition)
 
 		if ctx.Err() != nil {
 			break
 		}
 
 		msg := &FSMMsg{
-			MsgType:     FSMMsgStateChange,
-			MsgSrc:      neighborAddress,
-			MsgData:     newFSMStateTransition(oldState, nextState),
-			StateReason: reason,
+			MsgType: FSMMsgStateChange,
+			MsgSrc:  neighborAddress,
+			MsgData: transition,
 		}
 
 		fsm.Callback(msg)
