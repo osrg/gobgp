@@ -241,10 +241,20 @@ func (fsm *fsm) stateChange(transition *FSMStateTransition) {
 }
 
 func (fsm *fsm) RemoteHostPort() (string, uint16) {
+	fsm.Lock.RLock()
+	defer fsm.Lock.RUnlock()
+	if fsm.Conn == nil {
+		return "", 0
+	}
 	return netutils.HostPort(fsm.Conn.RemoteAddr())
 }
 
 func (fsm *fsm) LocalHostPort() (string, uint16) {
+	fsm.Lock.RLock()
+	defer fsm.Lock.RUnlock()
+	if fsm.Conn == nil {
+		return "", 0
+	}
 	return netutils.HostPort(fsm.Conn.LocalAddr())
 }
 

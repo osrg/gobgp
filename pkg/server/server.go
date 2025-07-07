@@ -837,17 +837,17 @@ func (s *BgpServer) toConfig(peer *peering.Peer, getAdvertised bool) *oc.Neighbo
 	peer.FSM.Lock.RUnlock()
 
 	if state == bgp.BGP_FSM_ESTABLISHED {
-		peer.FSM.Lock.RLock()
 		conf.Transport.State.LocalAddress, conf.Transport.State.LocalPort = peer.FSM.LocalHostPort()
 		if conf.Transport.Config.LocalAddress != netip.IPv4Unspecified().String() && conf.Transport.Config.LocalAddress != netip.IPv6Unspecified().String() {
 			conf.Transport.State.LocalAddress = conf.Transport.Config.LocalAddress
 		}
 		_, conf.Transport.State.RemotePort = peer.FSM.RemoteHostPort()
+		peer.FSM.Lock.RLock()
 		buf, _ := peer.FSM.RecvOpen.Serialize()
 		// need to copy all values here
-		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
 		conf.State.RemoteRouterId = peer.FSM.PeerInfo.ID.To4().String()
 		peer.FSM.Lock.RUnlock()
+		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
 	}
 	return &conf
 }
@@ -913,19 +913,14 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peering.Peer, pathList [
 }
 
 func newWatchEventPeer(peer *peering.Peer, m *peering.FSMMsg, oldState bgp.FSMState, t apiutil.PeerEventType) *watchEventPeer {
-	var laddr string
-	var rport, lport uint16
-
 	peer.FSM.Lock.Lock()
 	sentOpen := bgputils.BuildOpenMessage(peer.FSM.GlobalConf, peer.FSM.PeerConf)
 	peer.FSM.Lock.Unlock()
 
-	peer.FSM.Lock.RLock()
-	if peer.FSM.Conn != nil {
-		_, rport = peer.FSM.RemoteHostPort()
-		laddr, lport = peer.FSM.LocalHostPort()
-	}
+	_, rport := peer.FSM.RemoteHostPort()
+	laddr, lport := peer.FSM.LocalHostPort()
 
+	peer.FSM.Lock.RLock()
 	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.FSM.CapMap))
 	if peer.FSM.State >= bgp.BGP_FSM_OPENCONFIRM {
 		// Adding peer remote capabilities to the event
