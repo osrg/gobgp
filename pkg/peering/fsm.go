@@ -307,6 +307,9 @@ func (fsm *fsm) sendNotification(code, subType uint8, data []byte, msg string) (
 }
 
 func (fsm *fsm) SetPeerConnTTL() error {
+	fsm.Lock.RLock()
+	defer fsm.Lock.RUnlock()
+
 	ttl := 0
 	ttlMin := 0
 
@@ -338,7 +341,10 @@ func (fsm *fsm) SetPeerConnTTL() error {
 	return nil
 }
 
-func (fsm *fsm) setPeerConnMSS() error {
+func (fsm *fsm) SetPeerConnMSS() error {
+	fsm.Lock.RLock()
+	defer fsm.Lock.RUnlock()
+
 	mss := fsm.PeerConf.Transport.Config.TcpMss
 	if mss == 0 {
 		return nil
