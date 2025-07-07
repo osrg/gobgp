@@ -3205,6 +3205,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 		for k, peer := range s.neighborMap {
 			peer.fsm.lock.RLock()
 			neighborIface := peer.fsm.pConf.Config.NeighborInterface
+			llgrRunning := peer.fsm.longLivedRunning
 			peer.fsm.lock.RUnlock()
 			if address != "" && address != k && address != neighborIface {
 				continue
@@ -3243,6 +3244,10 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 					}
 				}
 			}
+			if p.GracefulRestart != nil {
+				p.GracefulRestart.LonglivedRunning = llgrRunning
+			}
+
 			l = append(l, p)
 		}
 		return nil

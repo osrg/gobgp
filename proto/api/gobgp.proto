@@ -920,6 +920,7 @@ message GracefulRestart {
   bool peer_restarting = 9;
   bool local_restarting = 10;
   string mode = 11;
+  bool longlived_running = 12;
 }
 
 message MpGracefulRestartConfig {

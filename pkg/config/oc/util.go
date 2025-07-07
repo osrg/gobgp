@@ -349,6 +349,13 @@ func newLongLivedGracefulRestartFromConfigStruct(c *LongLivedGracefulRestart) *a
 			Enabled:     c.Config.Enabled,
 			RestartTime: c.Config.RestartTime,
 		},
+		State: &api.LongLivedGracefulRestartState{
+			Enabled:                 c.State.Enabled,
+			Received:                c.State.Received,
+			Advertised:              c.State.Advertised,
+			PeerRestartTime:         c.State.PeerRestartTime,
+			PeerRestartTimerExpired: c.State.PeerRestartTimerExpired,
+		},
 	}
 }
 
