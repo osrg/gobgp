@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -34,7 +33,6 @@ import (
 )
 
 type MockConnection struct {
-	*testing.T
 	net.Conn
 	recvCh    chan chan byte
 	sendBuf   [][]byte
@@ -44,9 +42,8 @@ type MockConnection struct {
 	mtx       sync.Mutex
 }
 
-func NewMockConnection(t *testing.T) *MockConnection {
+func NewMockConnection() *MockConnection {
 	m := &MockConnection{
-		T:        t,
 		recvCh:   make(chan chan byte, 128),
 		sendBuf:  make([][]byte, 0),
 		isClosed: false,
@@ -92,11 +89,6 @@ func (m *MockConnection) Read(buf []byte) (int, error) {
 		}
 	}
 
-	m.mtx.Lock()
-	// lock to prevent concurrent access to the underlying *testing.T
-	// https://github.com/osrg/gobgp/actions/runs/16045256677/job/45274950586?pr=2997#step:4:1318
-	m.Logf("%d bytes read from peer", length)
-	m.mtx.Unlock()
 	return length, nil
 }
 
@@ -105,11 +97,7 @@ func (m *MockConnection) Write(buf []byte) (int, error) {
 	defer m.mtx.Unlock()
 	time.Sleep(time.Duration(m.wait) * time.Millisecond)
 	m.sendBuf = append(m.sendBuf, buf)
-	msg, err := bgp.ParseBGPMessage(buf)
-	if err == nil {
-		m.Logf("%d bytes written by gobgp message type: %s",
-			len(buf), showMessageType(msg.Header.Type))
-	}
+	_, err := bgp.ParseBGPMessage(buf)
 	return len(buf), err
 }
 
@@ -126,22 +114,6 @@ func (m *MockConnection) GetBufCount() int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	return len(m.sendBuf)
-}
-
-func showMessageType(t uint8) string {
-	switch t {
-	case bgp.BGP_MSG_KEEPALIVE:
-		return "BGP_MSG_KEEPALIVE"
-	case bgp.BGP_MSG_NOTIFICATION:
-		return "BGP_MSG_NOTIFICATION"
-	case bgp.BGP_MSG_OPEN:
-		return "BGP_MSG_OPEN"
-	case bgp.BGP_MSG_UPDATE:
-		return "BGP_MSG_UPDATE"
-	case bgp.BGP_MSG_ROUTE_REFRESH:
-		return "BGP_MSG_ROUTE_REFRESH"
-	}
-	return strconv.Itoa(int(t))
 }
 
 func (m *MockConnection) Close() error {
@@ -163,17 +135,17 @@ func (m *MockConnection) LocalAddr() net.Addr {
 
 func TestReadAll(t *testing.T) {
 	assert := assert.New(t)
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	msg := open()
 	expected1, _ := msg.Header.Serialize()
 	expected2, _ := msg.Body.Serialize()
 
 	pushBytes := func() {
-		m.Log("push 5 bytes")
+		t.Log("push 5 bytes")
 		m.setData(expected1[:5])
-		m.Log("push rest")
+		t.Log("push rest")
 		m.setData(expected1[5:])
-		m.Log("push bytes at once")
+		t.Log("push bytes at once")
 		m.setData(expected2)
 	}
 
@@ -181,19 +153,17 @@ func TestReadAll(t *testing.T) {
 
 	var actual1 []byte
 	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH)
-	m.Log(actual1)
 	assert.Equal(expected1, actual1)
 
 	var actual2 []byte
 	actual2, _ = readAll(m, len(expected2))
-	m.Log(actual2)
 	assert.Equal(expected2, actual2)
 }
 
 func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	p, h := makePeerAndHandler(m)
 	defer cleanPeerAndHandler(p, h)
 
@@ -218,7 +188,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	p, h := makePeerAndHandler(m)
 	defer cleanPeerAndHandler(p, h)
 
@@ -243,7 +213,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	p, h := makePeerAndHandler(m)
 	defer cleanPeerAndHandler(p, h)
 
@@ -283,7 +253,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	assert := assert.New(t)
 
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	p, h := makePeerAndHandler(m)
 	defer cleanPeerAndHandler(p, h)
 
@@ -326,7 +296,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
 
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	p, h := makePeerAndHandler(m)
 	defer cleanPeerAndHandler(p, h)
 
@@ -348,7 +318,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
 
-	m := NewMockConnection(t)
+	m := NewMockConnection()
 	p, h := makePeerAndHandler(m)
 	defer cleanPeerAndHandler(p, h)
 
