@@ -28,7 +28,7 @@ func (fsm *fsm) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	for {
 		select {
 		case <-ctx.Done():
-			return -1, NewfsmStateReason(FSMDying, nil, nil)
+			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
 				break
