@@ -370,6 +370,19 @@ func (fsm *fsm) keepAliveTicker() *time.Ticker {
 	return time.NewTicker(sec)
 }
 
+func (fsm *fsm) holdTimer() *time.Timer {
+	fsm.Lock.RLock()
+	defer fsm.Lock.RUnlock()
+
+	negotiatedTime := fsm.PeerConf.Timers.State.NegotiatedHoldTime
+	if negotiatedTime == 0 {
+		return &time.Timer{}
+	}
+	// RFC 4271 P.65
+	// sets the HoldTimer according to the negotiated value
+	return time.NewTimer(time.Second * time.Duration(negotiatedTime))
+}
+
 func (fsm *fsm) afiSafiDisable(rf bgp.Family) string {
 	fsm.Lock.Lock()
 	defer fsm.Lock.Unlock()
