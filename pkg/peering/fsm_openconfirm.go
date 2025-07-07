@@ -17,15 +17,15 @@ func (fsm *fsm) openconfirm(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 	stateReasonCh := make(chan *FSMStateReason, 1)
 	go fsm.recvMessage(ctx, recvChan, stateReasonCh, wg)
 
-	keepAliveTicker := fsm.keepAliveTicker()
-	holdTimer := fsm.holdTimer()
+	keepAliveTicker, keepAliveTickerStop := fsm.keepAliveTicker()
+	holdTimer, holdTimerStop := fsm.holdTimer()
 
 	defer func() {
 		wg.Wait()
 		close(recvChan)
 		close(stateReasonCh)
-		keepAliveTicker.Stop()
-		holdTimer.Stop()
+		keepAliveTickerStop()
+		holdTimerStop()
 	}()
 
 	fsm.Lock.RLock()

@@ -355,32 +355,34 @@ func (fsm *fsm) SetPeerConnMSS() error {
 	return nil
 }
 
-func (fsm *fsm) keepAliveTicker() *time.Ticker {
+func (fsm *fsm) keepAliveTicker() (*time.Ticker, func()) {
 	fsm.Lock.RLock()
 	defer fsm.Lock.RUnlock()
 
 	negotiatedTime := fsm.PeerConf.Timers.State.NegotiatedHoldTime
 	if negotiatedTime == 0 {
-		return &time.Ticker{}
+		return &time.Ticker{}, func() {}
 	}
 	sec := time.Second * time.Duration(fsm.PeerConf.Timers.State.KeepaliveInterval)
 	if sec == 0 {
 		sec = time.Second
 	}
-	return time.NewTicker(sec)
+	ticker := time.NewTicker(sec)
+	return ticker, ticker.Stop
 }
 
-func (fsm *fsm) holdTimer() *time.Timer {
+func (fsm *fsm) holdTimer() (*time.Timer, func()) {
 	fsm.Lock.RLock()
 	defer fsm.Lock.RUnlock()
 
 	negotiatedTime := fsm.PeerConf.Timers.State.NegotiatedHoldTime
 	if negotiatedTime == 0 {
-		return &time.Timer{}
+		return &time.Timer{}, func() {}
 	}
 	// RFC 4271 P.65
 	// sets the HoldTimer according to the negotiated value
-	return time.NewTimer(time.Second * time.Duration(negotiatedTime))
+	timer := time.NewTimer(time.Second * time.Duration(negotiatedTime))
+	return timer, func() { timer.Stop() }
 }
 
 func (fsm *fsm) afiSafiDisable(rf bgp.Family) string {

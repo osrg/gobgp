@@ -27,14 +27,14 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 	gracefulRestartTime := time.Duration(fsm.PeerConf.GracefulRestart.State.PeerRestartTime) * time.Second
 	fsm.Lock.RUnlock()
 
-	holdTimer := fsm.holdTimer()
+	holdTimer, holdTimerStop := fsm.holdTimer()
 	fsm.GracefulRestartTimer.Stop()
 
 	defer func() {
 		cancel()
 		wg.Wait()
 		close(stateReasonCh)
-		holdTimer.Stop()
+		holdTimerStop()
 	}()
 
 	for {

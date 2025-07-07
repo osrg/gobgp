@@ -387,9 +387,12 @@ func (fsm *fsm) sendMessageloop(ctx context.Context, stateReasonCh chan<- *FSMSt
 		}
 	}
 
-	defer wg.Done()
 	conn := fsm.Conn
-	ticker := fsm.keepAliveTicker()
+	ticker, tickerStop := fsm.keepAliveTicker()
+	defer func() {
+		wg.Done()
+		tickerStop()
+	}()
 	send := func(m *bgp.BGPMessage) error {
 		fsm.Lock.RLock()
 		if fsm.TwoByteAsTrans && m.Header.Type == bgp.BGP_MSG_UPDATE {
