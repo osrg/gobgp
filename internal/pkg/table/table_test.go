@@ -641,3 +641,60 @@ func TestTableDestinationsCollisionAttack(t *testing.T) {
 		t.Log(dests[i].GetNlri().String())
 	}
 }
+
+func TestTableKeyWithLabels(t *testing.T) {
+	label1 := *bgp.NewMPLSLabelStack(1, 2, 3)
+	label2 := *bgp.NewMPLSLabelStack(4, 5, 6)
+	label3 := *bgp.NewMPLSLabelStack(7, 8)
+	rd1 := bgp.NewRouteDistinguisherTwoOctetAS(256, 10000)
+	rd2 := bgp.NewRouteDistinguisherTwoOctetAS(128, 12300)
+
+	index := 125
+	b := []byte{192, 168, 1, 0}
+	v := binary.BigEndian.Uint32(b)
+	v += uint32(index) << 8
+	binary.BigEndian.PutUint32(b, v)
+	addrv4, _ := netip.AddrFromSlice(b)
+	prefixv4 := addrv4.String()
+	lengthv4 := uint8(28)
+
+	b = make([]byte, 16)
+	_, err := crand.Read(b)
+	assert.NoError(t, err)
+	v = binary.BigEndian.Uint32(b)
+	v += uint32(index) << 8
+	binary.BigEndian.PutUint32(b, v)
+	addrv6, _ := netip.AddrFromSlice(b)
+	prefixv6 := addrv6.String()
+	lengthv6 := uint8(96)
+
+	prefixes := []bgp.AddrPrefixInterface{
+		bgp.NewIPAddrPrefix(lengthv4, prefixv4),
+		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
+	}
+
+	for _, l := range []bgp.MPLSLabelStack{label1, label2, label3} {
+		for _, rd := range []bgp.RouteDistinguisherInterface{rd1, rd2} {
+			prefixes = append(prefixes, bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4, l, rd))
+			prefixes = append(prefixes, bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4, l))
+			prefixes = append(prefixes, bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, l, rd))
+			prefixes = append(prefixes, bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, l))
+		}
+	}
+
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
+	for _, p := range prefixes {
+		dest := NewDestination(p, 0)
+		ipv4t.setDestination(dest)
+	}
+
+	assert.Equal(t, 0, ipv4t.Info().NumCollision)
+	// 8 here as labels are not counted in the destination key
+	// 1 IPv4 prefix
+	// 1 IPv6 prefix
+	// 1 LabeledVPNIPv4 prefix with 3 labels, 2 RDs  (sum = 2)
+	// 1 LabeledIPv4 prefix with 3 labels            (sum = 1) the 2nd replace the 1st one (update)
+	// 1 LabeledVPNIPv6 prefix with 3 labels,2 RDs   (sum = 2)
+	// 1 LabeledIPv6 prefix with 3 labels            (sum = 1) the 2nd replace the 1st one (update)
+	assert.Equal(t, 8, len(ipv4t.GetDestinations()))
+}
