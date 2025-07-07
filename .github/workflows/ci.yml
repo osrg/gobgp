@@ -40,13 +40,16 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       GOARCH: 386
+      CGO_ENABLED: 1
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
           go-version: "stable"
       - run: |
-          go env GOARCH
+          sudo apt update
+          sudo apt install -y gcc-multilib g++-multilib
+          go env GOARCH CGO_ENABLED
           go test -v -timeout 240s ./...
 
   protobuf-check:
