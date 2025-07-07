@@ -11,7 +11,13 @@ import (
 func (fsm *fsm) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	fsm.Lock.RLock()
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.IdleHoldTime))
+	adminStateUp := !fsm.PeerConf.State.AdminDown
 	fsm.Lock.RUnlock()
+
+	// If the admin state is down, we don't start the idle hold timer.
+	if !adminStateUp {
+		idleHoldTimer.Stop()
+	}
 
 	for {
 		select {
@@ -46,31 +52,18 @@ func (fsm *fsm) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 					"State": fsm.State.String(),
 				})
 			fsm.Lock.RUnlock()
-
 		case <-idleHoldTimer.C:
-			fsm.Lock.RLock()
-			adminStateUp := fsm.AdminState == AdminStateUp
-			fsm.Lock.RUnlock()
-
-			if adminStateUp {
-				fsm.Lock.Lock()
-				fsm.Logger.Debug("IdleHoldTimer expired",
-					log.Fields{
-						"Topic":    "Peer",
-						"Key":      fsm.PeerConf.State.NeighborAddress,
-						"Duration": fsm.IdleHoldTime,
-					})
-				fsm.IdleHoldTime = HoldTimeIdle
-				fsm.Lock.Unlock()
-				return bgp.BGP_FSM_ACTIVE, NewfsmStateReason(FSMIdleTimerExpired, nil, nil)
-			} else {
-				fsm.Logger.Debug("IdleHoldTimer expired, but stay at idle because the admin state is DOWN",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   fsm.PeerConf.State.NeighborAddress,
-					})
-			}
-
+			// only occurs when the admin state is up
+			fsm.Lock.Lock()
+			fsm.Logger.Debug("IdleHoldTimer expired",
+				log.Fields{
+					"Topic":    "Peer",
+					"Key":      fsm.PeerConf.State.NeighborAddress,
+					"Duration": fsm.IdleHoldTime,
+				})
+			fsm.IdleHoldTime = HoldTimeIdle
+			fsm.Lock.Unlock()
+			return bgp.BGP_FSM_ACTIVE, NewfsmStateReason(FSMIdleTimerExpired, nil, nil)
 		case stateOp := <-fsm.AdminStateCh:
 			err := fsm.changeAdminState(stateOp.State)
 			if err == nil {
