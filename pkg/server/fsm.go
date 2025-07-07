@@ -790,6 +790,9 @@ func capabilitiesFromConfig(pConf *oc.Neighbor) []bgp.ParameterCapabilityInterfa
 
 		if !c.HelperOnly {
 			for i, rf := range pConf.AfiSafis {
+				// Update advertised flag on sending new OPEN message. Retain advertised flag on PeerDown
+				// event since remote peer might treat it as Graceful Restart and in this case, GR caps
+				// are still "advertised" to it. However, if config is changed to disabled, reset it.
 				if m := rf.MpGracefulRestart.Config; m.Enabled {
 					// When restarting, always flag forwaring bit.
 					// This can be a lie, depending on how gobgpd is used.
@@ -799,11 +802,13 @@ func capabilitiesFromConfig(pConf *oc.Neighbor) []bgp.ParameterCapabilityInterfa
 					// relation to bgpd, this behavior is ok.
 					// TODO consideration of other use-cases
 					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(rf.State.Family, restarting))
-					pConf.AfiSafis[i].MpGracefulRestart.State.Advertised = true
 				}
+				pConf.AfiSafis[i].MpGracefulRestart.State.Advertised = rf.MpGracefulRestart.Config.Enabled
+
 				if m := rf.LongLivedGracefulRestart.Config; m.Enabled {
 					ltuples = append(ltuples, bgp.NewCapLongLivedGracefulRestartTuple(rf.State.Family, restarting, m.RestartTime))
 				}
+				pConf.AfiSafis[i].LongLivedGracefulRestart.State.Advertised = rf.LongLivedGracefulRestart.Config.Enabled
 			}
 		}
 		restartTime := c.RestartTime

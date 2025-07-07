@@ -1281,7 +1281,21 @@ func TestDynamicNeighbor(t *testing.T) {
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
-	assert := assert.New(t)
+	afiSafis := []*api.AfiSafi{
+		{
+			Config: &api.AfiSafiConfig{
+				Family:  apiutil.ToApiFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
+				Enabled: true,
+			},
+			LongLivedGracefulRestart: &api.LongLivedGracefulRestart{
+				Config: &api.LongLivedGracefulRestartConfig{
+					Enabled:     true,
+					RestartTime: 10,
+				},
+			},
+		},
+	}
+
 	s1 := NewBgpServer()
 	go s1.Serve()
 	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
@@ -1291,7 +1305,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			ListenPort: 10179,
 		},
 	})
-	assert.NoError(err)
+	assert.NoError(t, err)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p1 := &api.Peer{
@@ -1303,12 +1317,14 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			PassiveMode: true,
 		},
 		GracefulRestart: &api.GracefulRestart{
-			Enabled:     true,
-			RestartTime: minConnectRetryInterval,
+			Enabled:          true,
+			RestartTime:      minConnectRetryInterval,
+			LonglivedEnabled: true,
 		},
+		AfiSafis: afiSafis,
 	}
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
-	assert.NoError(err)
+	assert.NoError(t, err)
 
 	s2 := NewBgpServer()
 	go s2.Serve()
@@ -1331,9 +1347,11 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			RemotePort: 10179,
 		},
 		GracefulRestart: &api.GracefulRestart{
-			Enabled:     true,
-			RestartTime: 1,
+			Enabled:          true,
+			RestartTime:      1,
+			LonglivedEnabled: true,
 		},
+		AfiSafis: afiSafis,
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
 				ConnectRetry:           1,
@@ -1345,7 +1363,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	establishedWg := waitEstablished(s2)
 
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
-	assert.NoError(err)
+	assert.NoError(t, err)
 
 	establishedWg.Wait()
 
@@ -1355,9 +1373,15 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		n.fsm.conn.Close()
 	}
 	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	assert.NoError(err)
+	assert.NoError(t, err)
 
-	time.Sleep(5 * time.Second)
+	timer := time.NewTimer(5 * time.Second)
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
+			assert.True(collect, peer.GracefulRestart.PeerRestarting)
+		})
+	}, time.Second, 10*time.Millisecond)
+	<-timer.C
 
 	// Create dummy session which does NOT send BGP OPEN message in order to
 	// cause Graceful Restart timer expired.
@@ -1374,9 +1398,11 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	done := make(chan struct{})
 	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
 	for {
-		// ignore error, we will hit the context deadline
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
 			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
+				// After expiration of GR timer, expect for LLGR to take place
+				assert.True(t, peer.GracefulRestart.LonglivedRunning)
+
 				close(done)
 			}
 		})
