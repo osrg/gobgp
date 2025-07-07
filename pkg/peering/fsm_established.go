@@ -60,7 +60,7 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 				// nothing to do
 			}
 			fsm.Conn.Close()
-			return -1, NewfsmStateReason(FSMDying, nil, nil)
+			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
 				break

@@ -46,7 +46,7 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 		select {
 		case <-ctx.Done():
 			fsm.Conn.Close()
-			return -1, NewfsmStateReason(FSMDying, nil, nil)
+			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMDying, nil, nil)
 		case conn, ok := <-fsm.ConnCh:
 			if !ok {
 				break

@@ -437,7 +437,7 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 	fsm.Lock.RUnlock()
 
 	var reason *FSMStateReason
-	nextState := bgp.FSMState(-1)
+	nextState := bgp.BGP_FSM_IDLE
 
 	for ctx.Err() == nil {
 		switch oldState {
@@ -498,24 +498,25 @@ func (fsm *fsm) loop(ctx context.Context, wg *sync.WaitGroup) {
 		oldState = nextState
 	}
 
-	if oldState == bgp.BGP_FSM_ACTIVE {
-		select {
-		case conn := <-fsm.ConnCh:
-			conn.Close()
-		default:
-		}
-		if fsm.Conn != nil {
-			err := fsm.Conn.Close()
-			if err != nil {
-				fsm.Logger.Error("failed to close existing tcp connection",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   neighborAddress,
-						"State": oldState,
-					})
-			}
+	// context is done, so we need to close the connection
+	select {
+	case conn := <-fsm.ConnCh:
+		conn.Close()
+	default:
+	}
+
+	if fsm.Conn != nil {
+		err := fsm.Conn.Close()
+		if err != nil {
+			fsm.Logger.Error("failed to close existing tcp connection",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   neighborAddress,
+					"State": oldState,
+				})
 		}
 	}
+
 	close(fsm.ConnCh)
 	fsm.OutgoingCh.Close()
 }
