@@ -506,7 +506,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	}
 	u.SequenceNumber = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
-	afi, safi := bgp.FamilyToAfiSafi(u.Family)
+	afi, safi := u.Family.Afi(), u.Family.Safi()
 	if afi == 0 && safi == 0 {
 		if len(data) < 3 {
 			return errors.New("not all RibIpv4Unicast message bytes available")
@@ -515,7 +515,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		safi = data[2]
 		data = data[3:]
 	}
-	prefix, err := bgp.NewPrefixFromFamily(afi, safi)
+	prefix, err := bgp.NewPrefixFromFamily(bgp.NewFamily(afi, safi))
 	if err != nil {
 		return err
 	}
@@ -547,7 +547,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 func (u *Rib) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
-	rf := bgp.AfiSafiToFamily(u.Prefix.AFI(), u.Prefix.SAFI())
+	rf := bgp.NewFamily(u.Prefix.AFI(), u.Prefix.SAFI())
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 	default:
@@ -577,7 +577,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 }
 
 func NewRib(seq uint32, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
-	rf := bgp.AfiSafiToFamily(prefix.AFI(), prefix.SAFI())
+	rf := bgp.NewFamily(prefix.AFI(), prefix.SAFI())
 	return &Rib{
 		SequenceNumber: seq,
 		Prefix:         prefix,

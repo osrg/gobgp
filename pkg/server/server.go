@@ -1184,7 +1184,7 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	m := e.MsgData.(*bgp.BGPMessage)
 	rr := m.Body.(*bgp.BGPRouteRefresh)
-	rf := bgp.AfiSafiToFamily(rr.AFI, rr.SAFI)
+	rf := bgp.NewFamily(rr.AFI, rr.SAFI)
 
 	peer.fsm.lock.RLock()
 	_, ok := peer.fsm.rfMap[rf]
@@ -2399,7 +2399,7 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 			// Delete all locally generated paths
 			families := s.globalRib.GetRFlist()
 			if r.Family != nil {
-				families = []bgp.Family{bgp.AfiSafiToFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))}
+				families = []bgp.Family{bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))}
 			}
 			for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families) {
 				if path.IsLocal() {
@@ -2870,7 +2870,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 	in := false
 	family := bgp.Family(0)
 	if r.Family != nil {
-		family = bgp.AfiSafiToFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 	}
 	var err error
 	switch r.TableType {
@@ -3027,7 +3027,7 @@ func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.
 	}
 	family := bgp.Family(0)
 	if r.Family != nil {
-		family = bgp.AfiSafiToFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 	}
 	var in bool
 	var err error
@@ -3170,9 +3170,8 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 					if !afisafi.Config.Enabled {
 						continue
 					}
-					afi, safi := bgp.FamilyToAfiSafi(family)
 					c := afisafi.Config
-					if c.Family != nil && c.Family.Afi == api.Family_Afi(afi) && c.Family.Safi == api.Family_Safi(safi) {
+					if c.Family != nil && c.Family.Afi == api.Family_Afi(family.Afi()) && c.Family.Safi == api.Family_Safi(family.Safi()) {
 						flist := []bgp.Family{family}
 						peer.fsm.lock.RLock()
 						sesstionState := peer.fsm.state
@@ -4316,7 +4315,7 @@ func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableReque
 	err := s.mgmtOperation(func() error {
 		family := bgp.Family(0)
 		if r.Family != nil {
-			family = bgp.AfiSafiToFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+			family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 		}
 		roas, err := s.roaTable.List(family)
 		if err != nil {

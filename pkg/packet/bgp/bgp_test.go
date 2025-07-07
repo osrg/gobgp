@@ -104,8 +104,7 @@ func Test_MalformedPrefixLookup(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		afi, safi := FamilyToAfiSafi(RF_IPv4_UC)
-		p, err := NewPrefixFromFamily(afi, safi, test.inPrefix)
+		p, err := NewPrefixFromFamily(RF_IPv4_UC, test.inPrefix)
 		if test.err {
 			assert.Error(err)
 		} else {
@@ -494,7 +493,7 @@ func Test_FlowSpecNlri(t *testing.T) {
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
 
-	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_IPv4_UC))
+	n2, err := NewPrefixFromFamily(RF_FS_IPv4_UC)
 	assert.NoError(err)
 
 	err = n2.DecodeFromBytes(buf1)
@@ -610,7 +609,7 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	buf1, err := n1.Serialize()
 	require.NoError(t, err)
 
-	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_IPv6_UC))
+	n2, err := NewPrefixFromFamily(RF_FS_IPv6_UC)
 	require.NoError(t, err)
 
 	err = n2.DecodeFromBytes(buf1)
@@ -648,7 +647,7 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	n1 := NewFlowSpecL2VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_L2_VPN))
+	n2, err := NewPrefixFromFamily(RF_FS_L2_VPN)
 	assert.NoError(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.NoError(err)
@@ -674,7 +673,7 @@ func Test_FlowSpecNlriVPN(t *testing.T) {
 	n1 := NewFlowSpecIPv4VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_FS_IPv4_VPN))
+	n2, err := NewPrefixFromFamily(RF_FS_IPv4_VPN)
 	assert.NoError(err)
 	err = n2.DecodeFromBytes(buf1)
 	require.NoError(t, err)
@@ -700,7 +699,7 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, r)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_EVPN))
+	n2, err := NewPrefixFromFamily(RF_EVPN)
 	assert.NoError(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.NoError(err)
@@ -895,7 +894,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.0")
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_IPv6_UC))
+	n2, err := NewPrefixFromFamily(RF_IPv6_UC)
 	assert.NoError(err)
 	err = n2.DecodeFromBytes(buf1)
 	assert.NoError(err)
@@ -907,7 +906,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.0", *label)
 	buf1, err = n3.Serialize()
 	assert.NoError(err)
-	n4, err := NewPrefixFromFamily(FamilyToAfiSafi(RF_IPv6_MPLS))
+	n4, err := NewPrefixFromFamily(RF_IPv6_MPLS)
 	assert.NoError(err)
 	err = n4.DecodeFromBytes(buf1)
 	assert.NoError(err)

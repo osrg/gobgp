@@ -88,8 +88,7 @@ func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttr
 }
 
 func getNLRI(family bgp.Family, buf []byte) (bgp.AddrPrefixInterface, error) {
-	afi, safi := bgp.FamilyToAfiSafi(family)
-	nlri, err := bgp.NewPrefixFromFamily(afi, safi)
+	nlri, err := bgp.NewPrefixFromFamily(family)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +129,7 @@ func GetNativePathAttributes(p *api.Path) ([]bgp.PathAttributeInterface, error) 
 }
 
 func ToFamily(f *api.Family) bgp.Family {
-	return bgp.AfiSafiToFamily(uint16(f.Afi), uint8(f.Safi))
+	return bgp.NewFamily(uint16(f.Afi), uint8(f.Safi))
 }
 
 func ToApiFamily(afi uint16, safi uint8) *api.Family {

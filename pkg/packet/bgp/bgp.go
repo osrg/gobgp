@@ -502,15 +502,14 @@ func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
 	if len(data) < 4 {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityMultiProtocol bytes available")
 	}
-	c.CapValue = AfiSafiToFamily(binary.BigEndian.Uint16(data[:2]), data[3])
+	c.CapValue = NewFamily(binary.BigEndian.Uint16(data[:2]), data[3])
 	return nil
 }
 
 func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
-	afi, safi := FamilyToAfiSafi(c.CapValue)
-	binary.BigEndian.PutUint16(buf[0:], afi)
-	buf[3] = safi
+	binary.BigEndian.PutUint16(buf[0:], c.CapValue.Afi())
+	buf[3] = c.CapValue.Safi()
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
 }
@@ -569,16 +568,15 @@ func (c *CapExtendedNexthopTuple) MarshalJSON() ([]byte, error) {
 		NLRIAddressFamily    Family `json:"nlri_address_family"`
 		NexthopAddressFamily uint16 `json:"nexthop_address_family"`
 	}{
-		NLRIAddressFamily:    AfiSafiToFamily(c.NLRIAFI, uint8(c.NLRISAFI)),
+		NLRIAddressFamily:    NewFamily(c.NLRIAFI, uint8(c.NLRISAFI)),
 		NexthopAddressFamily: c.NexthopAFI,
 	})
 }
 
 func NewCapExtendedNexthopTuple(af Family, nexthop uint16) *CapExtendedNexthopTuple {
-	afi, safi := FamilyToAfiSafi(af)
 	return &CapExtendedNexthopTuple{
-		NLRIAFI:    afi,
-		NLRISAFI:   uint16(safi),
+		NLRIAFI:    af.Afi(),
+		NLRISAFI:   uint16(af.Safi()),
 		NexthopAFI: nexthop,
 	}
 }
@@ -653,20 +651,19 @@ func (c *CapGracefulRestartTuple) MarshalJSON() ([]byte, error) {
 		Family Family `json:"route_family"`
 		Flags  uint8  `json:"flags"`
 	}{
-		Family: AfiSafiToFamily(c.AFI, c.SAFI),
+		Family: NewFamily(c.AFI, c.SAFI),
 		Flags:  c.Flags,
 	})
 }
 
 func NewCapGracefulRestartTuple(rf Family, forward bool) *CapGracefulRestartTuple {
-	afi, safi := FamilyToAfiSafi(rf)
 	flags := 0
 	if forward {
 		flags = 0x80
 	}
 	return &CapGracefulRestartTuple{
-		AFI:   afi,
-		SAFI:  safi,
+		AFI:   rf.Afi(),
+		SAFI:  rf.Safi(),
 		Flags: uint8(flags),
 	}
 }
@@ -861,7 +858,7 @@ func (c *CapAddPath) DecodeFromBytes(data []byte) error {
 	c.Tuples = []*CapAddPathTuple{}
 	for capLen >= 4 {
 		t := &CapAddPathTuple{
-			Family: AfiSafiToFamily(binary.BigEndian.Uint16(data[:2]), data[2]),
+			Family: NewFamily(binary.BigEndian.Uint16(data[:2]), data[2]),
 			Mode:   BGPAddPathMode(data[3]),
 		}
 		c.Tuples = append(c.Tuples, t)
@@ -874,9 +871,8 @@ func (c *CapAddPath) DecodeFromBytes(data []byte) error {
 func (c *CapAddPath) Serialize() ([]byte, error) {
 	buf := make([]byte, len(c.Tuples)*4)
 	for i, t := range c.Tuples {
-		afi, safi := FamilyToAfiSafi(t.Family)
-		binary.BigEndian.PutUint16(buf[i*4:i*4+2], afi)
-		buf[i*4+2] = safi
+		binary.BigEndian.PutUint16(buf[i*4:i*4+2], t.Family.Afi())
+		buf[i*4+2] = t.Family.Safi()
 		buf[i*4+3] = byte(t.Mode)
 	}
 	c.CapValue = buf
@@ -939,21 +935,20 @@ func (c *CapLongLivedGracefulRestartTuple) MarshalJSON() ([]byte, error) {
 		Flags       uint8  `json:"flags"`
 		RestartTime uint32 `json:"restart_time"`
 	}{
-		Family:      AfiSafiToFamily(c.AFI, c.SAFI),
+		Family:      NewFamily(c.AFI, c.SAFI),
 		Flags:       c.Flags,
 		RestartTime: c.RestartTime,
 	})
 }
 
 func NewCapLongLivedGracefulRestartTuple(rf Family, forward bool, restartTime uint32) *CapLongLivedGracefulRestartTuple {
-	afi, safi := FamilyToAfiSafi(rf)
 	flags := 0
 	if forward {
 		flags = 0x80
 	}
 	return &CapLongLivedGracefulRestartTuple{
-		AFI:         afi,
-		SAFI:        safi,
+		AFI:         rf.Afi(),
+		SAFI:        rf.Safi(),
 		Flags:       uint8(flags),
 		RestartTime: restartTime,
 	}
@@ -3928,8 +3923,7 @@ func flowSpecPrefixParser(rf Family, typ BGPFlowSpecType, args []string) (FlowSp
 	//   args := []string{"2001:db8:1::1"}
 	// - IPv6 Address with offset
 	//   args := []string{"0:db8:1::1", "16"}
-	afi, _ := FamilyToAfiSafi(rf)
-	switch afi {
+	switch rf.Afi() {
 	case AFI_IP:
 		if len(args) > 1 {
 			return nil, errors.New("cannot specify offset for ipv4 prefix")
@@ -4126,8 +4120,7 @@ func flowSpecFragmentParser(_ Family, typ BGPFlowSpecType, args []string) (FlowS
 }
 
 func flowSpecLabelParser(rf Family, typ BGPFlowSpecType, args []string) (FlowSpecComponentInterface, error) {
-	afi, _ := FamilyToAfiSafi(rf)
-	if afi == AFI_IP {
+	if rf.Afi() == AFI_IP {
 		return nil, fmt.Errorf("%s is not supported for ipv4", typ.String())
 	}
 
@@ -4303,8 +4296,7 @@ func extractFlowSpecArgs(args []string) map[BGPFlowSpecType][]string {
 }
 
 func ParseFlowSpecComponents(rf Family, arg string) ([]FlowSpecComponentInterface, error) {
-	_, safi := FamilyToAfiSafi(rf)
-	switch safi {
+	switch rf.Safi() {
 	case SAFI_FLOW_SPEC_UNICAST, SAFI_FLOW_SPEC_VPN:
 		// Valid
 	default:
@@ -4811,13 +4803,11 @@ type FlowSpecNLRI struct {
 }
 
 func (n *FlowSpecNLRI) AFI() uint16 {
-	afi, _ := FamilyToAfiSafi(n.rf)
-	return afi
+	return n.rf.Afi()
 }
 
 func (n *FlowSpecNLRI) SAFI() uint8 {
-	_, safi := FamilyToAfiSafi(n.rf)
-	return safi
+	return n.rf.Safi()
 }
 
 func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
@@ -5018,8 +5008,8 @@ func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
 //	0 when n and m have same precedence
 //	1 when n has precedence
 func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
-	family := AfiSafiToFamily(n.AFI(), n.SAFI())
-	if family != AfiSafiToFamily(m.AFI(), m.SAFI()) {
+	family := NewFamily(n.AFI(), n.SAFI())
+	if family != NewFamily(m.AFI(), m.SAFI()) {
 		return 0, errors.New("address family mismatch")
 	}
 	longer := n.Value
@@ -5136,7 +5126,7 @@ type FlowSpecIPv4Unicast struct {
 }
 
 func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(AfiSafiToFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
 }
 
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
@@ -5154,7 +5144,7 @@ type FlowSpecIPv4VPN struct {
 }
 
 func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(AfiSafiToFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
 }
 
 func NewFlowSpecIPv4VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
@@ -5173,7 +5163,7 @@ type FlowSpecIPv6Unicast struct {
 }
 
 func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(AfiSafiToFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
 }
 
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
@@ -5191,7 +5181,7 @@ type FlowSpecIPv6VPN struct {
 }
 
 func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(AfiSafiToFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
 }
 
 func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
@@ -5210,7 +5200,7 @@ type FlowSpecL2VPN struct {
 }
 
 func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(AfiSafiToFamily(n.AFI(), n.SAFI()), data)
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data)
 }
 
 func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecL2VPN {
@@ -10093,15 +10083,19 @@ func (p *PathAttributeLs) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func AfiSafiToFamily(afi uint16, safi uint8) Family {
-	return Family(int(afi)<<16 | int(safi))
-}
-
-func FamilyToAfiSafi(rf Family) (uint16, uint8) {
-	return uint16(int(rf) >> 16), uint8(int(rf) & 0xff)
-}
-
 type Family uint32
+
+func NewFamily(afi uint16, safi uint8) Family {
+	return Family(uint32(afi)<<16 | uint32(safi))
+}
+
+func (f Family) Afi() uint16 {
+	return uint16(f >> 16)
+}
+
+func (f Family) Safi() uint8 {
+	return uint8(f & 0xff)
+}
 
 func (f Family) String() string {
 	if n, y := AddressFamilyNameMap[f]; y {
@@ -10204,9 +10198,7 @@ func GetFamily(name string) (Family, error) {
 	return Family(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
-func NewPrefixFromFamily(afi uint16, safi uint8, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
-	family := AfiSafiToFamily(afi, safi)
-
+func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
 	f := func(s string) (AddrPrefixInterface, error) {
 		addr, net, err := net.ParseCIDR(s)
 		if err != nil {
@@ -10320,7 +10312,7 @@ func NewPrefixFromFamily(afi uint16, safi uint8, prefixStr ...string) (prefix Ad
 	case RF_MUP_IPv6:
 		prefix = NewMUPNLRI(AFI_IP6, 0, 0, nil)
 	default:
-		err = fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
+		err = fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", family.Afi(), family.Safi())
 	}
 	return prefix, err
 }
@@ -11656,7 +11648,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 
 	p.AFI = afi
 	p.SAFI = safi
-	_, err = NewPrefixFromFamily(afi, safi)
+	_, err = NewPrefixFromFamily(NewFamily(afi, safi))
 	if err != nil {
 		return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 	}
@@ -11700,11 +11692,11 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	}
 	value = value[1:]
 	addpathLen := 0
-	if IsAddPathEnabled(true, AfiSafiToFamily(afi, safi), options) {
+	if IsAddPathEnabled(true, NewFamily(afi, safi), options) {
 		addpathLen = 4
 	}
 	for len(value) > 0 {
-		prefix, err := NewPrefixFromFamily(afi, safi)
+		prefix, err := NewPrefixFromFamily(NewFamily(afi, safi))
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 		}
@@ -11805,7 +11797,7 @@ func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 }
 
 func (p *PathAttributeMpReachNLRI) String() string {
-	return fmt.Sprintf("{MpReach(%s): {Nexthop: %s, NLRIs: %s}}", AfiSafiToFamily(p.AFI, p.SAFI), p.Nexthop, p.Value)
+	return fmt.Sprintf("{MpReach(%s): {Nexthop: %s, NLRIs: %s}}", NewFamily(p.AFI, p.SAFI), p.Nexthop, p.Value)
 }
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
@@ -11879,7 +11871,7 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 	}
 	afi := binary.BigEndian.Uint16(value[:2])
 	safi := value[2]
-	_, err = NewPrefixFromFamily(afi, safi)
+	_, err = NewPrefixFromFamily(NewFamily(afi, safi))
 	if err != nil {
 		return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 	}
@@ -11887,11 +11879,11 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 	p.AFI = afi
 	p.SAFI = safi
 	addpathLen := 0
-	if IsAddPathEnabled(true, AfiSafiToFamily(afi, safi), options) {
+	if IsAddPathEnabled(true, NewFamily(afi, safi), options) {
 		addpathLen = 4
 	}
 	for len(value) > 0 {
-		prefix, err := NewPrefixFromFamily(afi, safi)
+		prefix, err := NewPrefixFromFamily(NewFamily(afi, safi))
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 		}
@@ -11937,9 +11929,9 @@ func (p *PathAttributeMpUnreachNLRI) MarshalJSON() ([]byte, error) {
 
 func (p *PathAttributeMpUnreachNLRI) String() string {
 	if len(p.Value) > 0 {
-		return fmt.Sprintf("{MpUnreach(%s): {NLRIs: %s}}", AfiSafiToFamily(p.AFI, p.SAFI), p.Value)
+		return fmt.Sprintf("{MpUnreach(%s): {NLRIs: %s}}", NewFamily(p.AFI, p.SAFI), p.Value)
 	}
-	return fmt.Sprintf("{MpUnreach(%s): End-of-Rib}", AfiSafiToFamily(p.AFI, p.SAFI))
+	return fmt.Sprintf("{MpUnreach(%s): End-of-Rib}", NewFamily(p.AFI, p.SAFI))
 }
 
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
@@ -15292,7 +15284,7 @@ func (msg *BGPUpdate) IsEndOfRib() (bool, Family) {
 		} else if len(msg.PathAttributes) == 1 && msg.PathAttributes[0].GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 			unreach := msg.PathAttributes[0].(*PathAttributeMpUnreachNLRI)
 			if len(unreach.Value) == 0 {
-				return true, AfiSafiToFamily(unreach.AFI, unreach.SAFI)
+				return true, NewFamily(unreach.AFI, unreach.SAFI)
 			}
 		}
 	}
@@ -15335,15 +15327,14 @@ func NewEndOfRib(family Family) *BGPMessage {
 	if family == RF_IPv4_UC {
 		return NewBGPUpdateMessage(nil, nil, nil)
 	} else {
-		afi, safi := FamilyToAfiSafi(family)
 		t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 		unreach := &PathAttributeMpUnreachNLRI{
 			PathAttribute: PathAttribute{
 				Flags: PathAttrFlags[t],
 				Type:  t,
 			},
-			AFI:  afi,
-			SAFI: safi,
+			AFI:  family.Afi(),
+			SAFI: family.Safi(),
 		}
 		return NewBGPUpdateMessage(nil, []PathAttributeInterface{unreach}, nil)
 	}

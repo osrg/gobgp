@@ -897,7 +897,7 @@ func extractFamily(p *bgp.PathAttributeInterface) *bgp.Family {
 		return nil
 	}
 
-	rf := bgp.AfiSafiToFamily(afi, safi)
+	rf := bgp.NewFamily(afi, safi)
 	return &rf
 }
 
@@ -1423,7 +1423,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						state.PeerRestartTime = cap.Time
 
 						for _, t := range cap.Tuples {
-							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToFamily(t.AFI, t.SAFI)]
+							n := bgp.AddressFamilyNameMap[bgp.NewFamily(t.AFI, t.SAFI)]
 							for i, a := range fsm.pConf.AfiSafis {
 								if string(a.Config.AfiSafiName) == n {
 									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
@@ -1473,7 +1473,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						fsm.pConf.GracefulRestart.State.LongLivedEnabled = true
 						cap := llgr[len(llgr)-1].(*bgp.CapLongLivedGracefulRestart)
 						for _, t := range cap.Tuples {
-							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToFamily(t.AFI, t.SAFI)]
+							n := bgp.AddressFamilyNameMap[bgp.NewFamily(t.AFI, t.SAFI)]
 							for i, a := range fsm.pConf.AfiSafis {
 								if string(a.Config.AfiSafiName) == n {
 									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled = true

@@ -23,9 +23,8 @@ import (
 )
 
 func NewMultiProtocolCapability(a *bgp.CapMultiProtocol) *api.MultiProtocolCapability {
-	afi, safi := bgp.FamilyToAfiSafi(a.CapValue)
 	return &api.MultiProtocolCapability{
-		Family: ToApiFamily(afi, safi),
+		Family: ToApiFamily(a.CapValue.Afi(), a.CapValue.Safi()),
 	}
 }
 
@@ -74,9 +73,8 @@ func NewFourOctetASNumberCapability(a *bgp.CapFourOctetASNumber) *api.FourOctetA
 func NewAddPathCapability(a *bgp.CapAddPath) *api.AddPathCapability {
 	tuples := make([]*api.AddPathCapabilityTuple, 0, len(a.Tuples))
 	for _, t := range a.Tuples {
-		afi, safi := bgp.FamilyToAfiSafi(t.Family)
 		tuples = append(tuples, &api.AddPathCapabilityTuple{
-			Family: ToApiFamily(afi, safi),
+			Family: ToApiFamily(t.Family.Afi(), t.Family.Safi()),
 			Mode:   api.AddPathCapabilityTuple_Mode(t.Mode),
 		})
 	}

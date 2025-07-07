@@ -80,10 +80,9 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		afi, safi := bgp.FamilyToAfiSafi(rf)
 		nexthop := "0.0.0.0"
 		var linkLocalNexthop net.IP
-		if afi == bgp.AFI_IP6 {
+		if rf.Afi() == bgp.AFI_IP6 {
 			nexthop = "::"
 			if len(a.MpReach.NextHops) > 1 {
 				linkLocalNexthop = net.ParseIP(a.MpReach.NextHops[1]).To16()
@@ -92,7 +91,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 				}
 			}
 		}
-		if safi == bgp.SAFI_FLOW_SPEC_UNICAST || safi == bgp.SAFI_FLOW_SPEC_VPN {
+		if rf.Safi() == bgp.SAFI_FLOW_SPEC_UNICAST || rf.Safi() == bgp.SAFI_FLOW_SPEC_VPN {
 			nexthop = ""
 		} else if len(a.MpReach.NextHops) > 0 {
 			nexthop = a.MpReach.NextHops[0]

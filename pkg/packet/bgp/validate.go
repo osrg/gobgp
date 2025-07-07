@@ -93,7 +93,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 
 	checkPrefix := func(l []AddrPrefixInterface) error {
 		for _, prefix := range l {
-			rf := AfiSafiToFamily(prefix.AFI(), prefix.SAFI())
+			rf := NewFamily(prefix.AFI(), prefix.SAFI())
 			if _, ok := rfs[rf]; !ok {
 				return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not available for this session", rf))
 			}
@@ -126,7 +126,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 
 	switch p := a.(type) {
 	case *PathAttributeMpUnreachNLRI:
-		rf := AfiSafiToFamily(p.AFI, p.SAFI)
+		rf := NewFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
 		}
@@ -134,7 +134,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			return false, err
 		}
 	case *PathAttributeMpReachNLRI:
-		rf := AfiSafiToFamily(p.AFI, p.SAFI)
+		rf := NewFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
 		}

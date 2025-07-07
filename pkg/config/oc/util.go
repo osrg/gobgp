@@ -286,9 +286,9 @@ func extractFamilyFromConfigAfiSafi(c *AfiSafi) uint32 {
 
 func newAfiSafiConfigFromConfigStruct(c *AfiSafi) *api.AfiSafiConfig {
 	rf := extractFamilyFromConfigAfiSafi(c)
-	afi, safi := bgp.FamilyToAfiSafi(bgp.Family(rf))
+	family := bgp.Family(rf)
 	return &api.AfiSafiConfig{
-		Family:  &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
+		Family:  &api.Family{Afi: api.Family_Afi(family.Afi()), Safi: api.Family_Safi(family.Safi())},
 		Enabled: c.Config.Enabled,
 	}
 }
@@ -328,9 +328,8 @@ func newPrefixLimitFromConfigStruct(c *AfiSafi) *api.PrefixLimit {
 	if c.PrefixLimit.Config.MaxPrefixes == 0 {
 		return nil
 	}
-	afi, safi := bgp.FamilyToAfiSafi(c.State.Family)
 	return &api.PrefixLimit{
-		Family:               &api.Family{Afi: api.Family_Afi(afi), Safi: api.Family_Safi(safi)},
+		Family:               &api.Family{Afi: api.Family_Afi(c.State.Family.Afi()), Safi: api.Family_Safi(c.State.Family.Safi())},
 		MaxPrefixes:          c.PrefixLimit.Config.MaxPrefixes,
 		ShutdownThresholdPct: uint32(c.PrefixLimit.Config.ShutdownThresholdPct),
 	}

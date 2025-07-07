@@ -84,13 +84,11 @@ func (s *SRPolicyNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 }
 
 func (s *SRPolicyNLRI) AFI() uint16 {
-	afi, _ := FamilyToAfiSafi(s.rf)
-	return afi
+	return s.rf.Afi()
 }
 
 func (s *SRPolicyNLRI) SAFI() uint8 {
-	_, safi := FamilyToAfiSafi(s.rf)
-	return safi
+	return s.rf.Safi()
 }
 
 func (s *SRPolicyNLRI) Len(options ...*MarshallingOption) int {
@@ -99,9 +97,8 @@ func (s *SRPolicyNLRI) Len(options ...*MarshallingOption) int {
 }
 
 func (s *SRPolicyNLRI) String() string {
-	afi, _ := FamilyToAfiSafi(s.rf)
 	var endp string
-	switch afi {
+	switch s.rf.Afi() {
 	case AFI_IP:
 		endp = net.IP(s.Endpoint).To4().String()
 	case AFI_IP6:

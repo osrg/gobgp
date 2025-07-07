@@ -627,9 +627,9 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				var nlri bgp.AddrPrefixInterface
 				var err error
 				if t.Family == bgp.RF_IPv4_UC {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, prefixStr)
+					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv4_UC, prefixStr)
 				} else {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST, prefixStr)
+					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv6_UC, prefixStr)
 				}
 				if err != nil {
 					return false, err
@@ -702,9 +702,9 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				var err error
 
 				if t.Family == bgp.RF_IPv4_VPN {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefixStr)
+					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv4_VPN, prefixStr)
 				} else {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefixStr)
+					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv6_VPN, prefixStr)
 				}
 				if err != nil {
 					return fmt.Errorf("failed to create prefix: %w", err)

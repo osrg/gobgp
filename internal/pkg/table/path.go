@@ -194,8 +194,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 }
 
 func NewEOR(family bgp.Family) *Path {
-	afi, safi := bgp.FamilyToAfiSafi(family)
-	nlri, _ := bgp.NewPrefixFromFamily(afi, safi)
+	nlri, _ := bgp.NewPrefixFromFamily(family)
 	return &Path{
 		info: &originInfo{
 			nlri: nlri,
@@ -389,7 +388,7 @@ func (path *Path) SetIsFromExternal(y bool) {
 }
 
 func (path *Path) GetFamily() bgp.Family {
-	return bgp.AfiSafiToFamily(path.OriginInfo().nlri.AFI(), path.OriginInfo().nlri.SAFI())
+	return bgp.NewFamily(path.OriginInfo().nlri.AFI(), path.OriginInfo().nlri.SAFI())
 }
 
 func (path *Path) GetSource() *PeerInfo {

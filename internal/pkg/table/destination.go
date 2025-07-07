@@ -146,7 +146,7 @@ type Destination struct {
 
 func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *Destination {
 	d := &Destination{
-		family:        bgp.AfiSafiToFamily(nlri.AFI(), nlri.SAFI()),
+		family:        bgp.NewFamily(nlri.AFI(), nlri.SAFI()),
 		nlri:          nlri,
 		knownPathList: known,
 		localIdMap:    NewBitmap(mapSize),

@@ -1892,9 +1892,8 @@ func extractAsPath(args []string) ([]string, bgp.PathAttributeInterface, error) 
 }
 
 func extractNexthop(rf bgp.Family, args []string) ([]string, string, error) {
-	afi, _ := bgp.FamilyToAfiSafi(rf)
 	nexthop := "0.0.0.0"
-	if afi == bgp.AFI_IP6 {
+	if rf.Afi() == bgp.AFI_IP6 {
 		nexthop = "::"
 	}
 	for idx, arg := range args {

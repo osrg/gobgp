@@ -94,7 +94,7 @@ func TestToPathApi(t *testing.T) {
 				path: eor(bgp.RF_IPv4_UC),
 			},
 			want: &api.Path{
-				Nlri: eorNlri(bgp.AFI_IP, bgp.SAFI_UNICAST),
+				Nlri: eorNlri(bgp.RF_IPv4_UC),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_UNICAST,
@@ -111,7 +111,7 @@ func TestToPathApi(t *testing.T) {
 				path: eor(bgp.RF_IPv4_VPN),
 			},
 			want: &api.Path{
-				Nlri: eorNlri(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
+				Nlri: eorNlri(bgp.RF_IPv4_VPN),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_MPLS_VPN,
@@ -145,8 +145,8 @@ func eor(f bgp.Family) *table.Path {
 	return p
 }
 
-func eorNlri(afi uint16, safi uint8) *api.NLRI {
-	n, _ := bgp.NewPrefixFromFamily(afi, safi)
+func eorNlri(family bgp.Family) *api.NLRI {
+	n, _ := bgp.NewPrefixFromFamily(family)
 	return nlri(n)
 }
 

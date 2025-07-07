@@ -128,9 +128,9 @@ func TestTableGetDestinations(t *testing.T) {
 
 func TestTableKey(t *testing.T) {
 	tb := NewTable(logger, bgp.RF_IPv4_UC)
-	n1, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/0")
+	n1, _ := bgp.NewPrefixFromFamily(bgp.RF_IPv4_UC, "0.0.0.0/0")
 	d1 := NewDestination(n1, 0)
-	n2, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_UNICAST, "0.0.0.0/1")
+	n2, _ := bgp.NewPrefixFromFamily(bgp.RF_IPv4_UC, "0.0.0.0/1")
 	d2 := NewDestination(n2, 0)
 
 	assert.NotEqual(t, tableKey(d1.GetNlri()), tableKey(d2.GetNlri()))
@@ -262,7 +262,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 
 	table := NewTable(logger, bgp.RF_IPv4_VPN)
 	for _, prefix := range prefixes {
-		nlri, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN, prefix)
+		nlri, _ := bgp.NewPrefixFromFamily(bgp.RF_IPv4_VPN, prefix)
 
 		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
@@ -369,7 +369,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 
 	table := NewTable(logger, bgp.RF_IPv6_VPN)
 	for _, prefix := range prefixes {
-		nlri, _ := bgp.NewPrefixFromFamily(bgp.AFI_IP6, bgp.SAFI_MPLS_VPN, prefix)
+		nlri, _ := bgp.NewPrefixFromFamily(bgp.RF_IPv6_VPN, prefix)
 
 		destination := NewDestination(nlri, 0, NewPath(nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
