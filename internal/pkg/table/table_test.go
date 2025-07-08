@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -177,19 +178,19 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 	tests := []struct {
 		name   string
 		prefix string
-		option LookupOption
+		option apiutil.LookupOption
 		found  int
 	}{
 		{
 			name:   "Malformed IPv4 Address",
 			prefix: "2.2.2.2.2",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match with RD and prefix that does not exist",
 			prefix: "foo",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 	}
@@ -198,7 +199,7 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := table.Select(
 				TableSelectOption{
-					LookupPrefixes: []*LookupPrefix{{
+					LookupPrefixes: []*apiutil.LookupPrefix{{
 						Prefix:       tt.prefix,
 						LookupOption: tt.option,
 					}},
@@ -216,19 +217,19 @@ func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 	tests := []struct {
 		name   string
 		prefix string
-		option LookupOption
+		option apiutil.LookupOption
 		found  int
 	}{
 		{
 			name:   "Malformed IPv6 Address: 3343:faba:3903:128::::/63",
 			prefix: "3343:faba:3903:128::::/63",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "Malformed IPv6 Address: foo",
 			prefix: "foo",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 	}
@@ -237,7 +238,7 @@ func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := table.Select(
 				TableSelectOption{
-					LookupPrefixes: []*LookupPrefix{{
+					LookupPrefixes: []*apiutil.LookupPrefix{{
 						Prefix:       tt.prefix,
 						LookupOption: tt.option,
 					}},
@@ -274,66 +275,66 @@ func TestTableSelectVPNv4(t *testing.T) {
 		name   string
 		prefix string
 		RD     string
-		option LookupOption
+		option apiutil.LookupOption
 		found  int
 	}{
 		{
 			name:   "exact match with RD that does not exist",
 			prefix: "2.2.2.2/32",
 			RD:     "500:500",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match with RD and prefix that does not exist",
 			prefix: "4.4.4.4/32",
 			RD:     "100:100",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match with RD",
 			prefix: "2.2.2.0/25",
 			RD:     "100:100",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  1,
 		},
 		{
 			name:   "longer match with RD",
 			prefix: "2.2.2.0/25",
 			RD:     "100:100",
-			option: LOOKUP_LONGER,
+			option: apiutil.LOOKUP_LONGER,
 			found:  4,
 		},
 		{
 			name:   "shorter match with RD",
 			prefix: "2.2.2.2/32",
 			RD:     "100:100",
-			option: LOOKUP_SHORTER,
+			option: apiutil.LOOKUP_SHORTER,
 			found:  2,
 		},
 		{
 			name:   "exact match without RD for prefix that does not exist",
 			prefix: "4.4.4.4/32",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match without RD",
 			prefix: "2.2.2.2/32",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  3,
 		},
 		{
 			name:   "longer match without RD",
 			prefix: "2.2.2.0/24",
-			option: LOOKUP_LONGER,
+			option: apiutil.LOOKUP_LONGER,
 			found:  8,
 		},
 		{
 			name:   "shorter match without RD",
 			prefix: "2.2.2.2/32",
-			option: LOOKUP_SHORTER,
+			option: apiutil.LOOKUP_SHORTER,
 			found:  4,
 		},
 	}
@@ -342,7 +343,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filteredTable, err := table.Select(
 				TableSelectOption{
-					LookupPrefixes: []*LookupPrefix{{
+					LookupPrefixes: []*apiutil.LookupPrefix{{
 						Prefix:       tt.prefix,
 						RD:           tt.RD,
 						LookupOption: tt.option,
@@ -381,66 +382,66 @@ func TestTableSelectVPNv6(t *testing.T) {
 		name   string
 		prefix string
 		RD     string
-		option LookupOption
+		option apiutil.LookupOption
 		found  int
 	}{
 		{
 			name:   "exact match with RD that does not exist",
 			prefix: "100::/32",
 			RD:     "500:500",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match with RD and prefix that does not exist",
 			prefix: "200::/32",
 			RD:     "100:100",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match with RD",
 			prefix: "100:2::/64",
 			RD:     "100:100",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  1,
 		},
 		{
 			name:   "longer match with RD",
 			prefix: "100::/16",
 			RD:     "100:100",
-			option: LOOKUP_LONGER,
+			option: apiutil.LOOKUP_LONGER,
 			found:  7,
 		},
 		{
 			name:   "shorter match with RD",
 			prefix: "100::/96",
 			RD:     "100:100",
-			option: LOOKUP_SHORTER,
+			option: apiutil.LOOKUP_SHORTER,
 			found:  2,
 		},
 		{
 			name:   "exact match without RD for prefix that does not exist",
 			prefix: "100:5::/64",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  0,
 		},
 		{
 			name:   "exact match without RD",
 			prefix: "100:2::/64",
-			option: LOOKUP_EXACT,
+			option: apiutil.LOOKUP_EXACT,
 			found:  3,
 		},
 		{
 			name:   "longer match without RD",
 			prefix: "100:3::/32",
-			option: LOOKUP_LONGER,
+			option: apiutil.LOOKUP_LONGER,
 			found:  2,
 		},
 		{
 			name:   "shorter match without RD",
 			prefix: "100:2::/96",
-			option: LOOKUP_SHORTER,
+			option: apiutil.LOOKUP_SHORTER,
 			found:  3,
 		},
 	}
@@ -449,7 +450,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filteredTable, err := table.Select(
 				TableSelectOption{
-					LookupPrefixes: []*LookupPrefix{{
+					LookupPrefixes: []*apiutil.LookupPrefix{{
 						Prefix:       tt.prefix,
 						RD:           tt.RD,
 						LookupOption: tt.option,

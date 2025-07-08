@@ -27,6 +27,7 @@ import (
 	"github.com/k-sone/critbitgo"
 	"github.com/segmentio/fasthash/fnv1a"
 
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -37,24 +38,10 @@ type (
 	macKey        uint64
 )
 
-type LookupOption uint8
-
-const (
-	LOOKUP_EXACT LookupOption = iota
-	LOOKUP_LONGER
-	LOOKUP_SHORTER
-)
-
-type LookupPrefix struct {
-	Prefix string
-	RD     string
-	LookupOption
-}
-
 type TableSelectOption struct {
 	ID             string
 	AS             uint32
-	LookupPrefixes []*LookupPrefix
+	LookupPrefixes []*apiutil.LookupPrefix
 	VRF            *Vrf
 	adj            bool
 	Best           bool
@@ -601,7 +588,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	id := GLOBAL_RIB_NAME
 	var vrf *Vrf
 	adj := false
-	prefixes := make([]*LookupPrefix, 0, len(option))
+	prefixes := make([]*apiutil.LookupPrefix, 0, len(option))
 	best := false
 	mp := false
 	as := uint32(0)
@@ -647,7 +634,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 			for _, p := range prefixes {
 				key := p.Prefix
 				switch p.LookupOption {
-				case LOOKUP_LONGER:
+				case apiutil.LOOKUP_LONGER:
 					ds, err := t.GetLongerPrefixDestinations(key)
 					if err != nil {
 						return nil, err
@@ -657,7 +644,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 							r.setDestination(d)
 						}
 					}
-				case LOOKUP_SHORTER:
+				case apiutil.LOOKUP_SHORTER:
 					addr, prefix, err := net.ParseCIDR(key)
 					if err != nil {
 						return nil, err
@@ -721,7 +708,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 
 			for _, p := range prefixes {
 				switch p.LookupOption {
-				case LOOKUP_LONGER:
+				case apiutil.LOOKUP_LONGER:
 					_, prefix, err := net.ParseCIDR(p.Prefix)
 					if err != nil {
 						return nil, err
@@ -749,7 +736,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 							r.setDestination(d)
 						}
 					}
-				case LOOKUP_SHORTER:
+				case apiutil.LOOKUP_SHORTER:
 					addr, prefix, err := net.ParseCIDR(p.Prefix)
 					if err != nil {
 						return nil, err
