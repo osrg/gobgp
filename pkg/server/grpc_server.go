@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/dgryski/go-farm"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -629,7 +630,48 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 }
 
 func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api.DeletePathResponse, error) {
-	return &api.DeletePathResponse{}, s.bgpServer.DeletePath(ctx, r)
+	if r == nil {
+		return &api.DeletePathResponse{}, fmt.Errorf("nil request")
+	}
+	deletePath := func(ctx context.Context, r *api.DeletePathRequest) error {
+		var pathList []*apiutil.Path
+		if len(r.Uuid) == 0 {
+			var err error
+			pathList, err = func() ([]*apiutil.Path, error) {
+				if r.Path != nil {
+					path, err := api2apiutilPath(r.Path)
+					return []*apiutil.Path{path}, err
+				}
+				return []*apiutil.Path{}, nil
+			}()
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(r.Uuid) > 0 {
+			// Delete locally generated path which has the given UUID
+			id, _ := uuid.FromBytes(r.Uuid)
+			if err := s.bgpServer.DeletePath(r.TableType, r.VrfId, []uuid.UUID{id}, false, nil); err != nil {
+				return err
+			}
+		} else if len(pathList) == 0 {
+			// Delete all locally generated paths
+			var family bgp.Family
+			if r.Family != nil {
+				family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+			}
+			if err := s.bgpServer.DeletePath(r.TableType, r.VrfId, nil, true, &family, pathList...); err != nil {
+				return err
+			}
+		} else {
+			if err := s.bgpServer.DeletePath(r.TableType, r.VrfId, nil, false, nil, pathList...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return &api.DeletePathResponse{}, deletePath(ctx, r)
 }
 
 func (s *server) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) (*api.EnableMrtResponse, error) {
