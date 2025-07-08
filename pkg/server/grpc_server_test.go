@@ -56,7 +56,6 @@ func TestParseHost(t *testing.T) {
 func TestToPathApi(t *testing.T) {
 	type args struct {
 		path            *table.Path
-		v               *table.Validation
 		onlyBinary      bool
 		nlriBinary      bool
 		attributeBinary bool
@@ -130,7 +129,7 @@ func TestToPathApi(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apiPath := toPathApi(toPathApiUtil(tt.args.path), tt.args.v, tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
+			apiPath := toPathApi(toPathApiUtil(tt.args.path), tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
 			assert.Equal(t, tt.want.Nlri, apiPath.Nlri, "not equal nlri")
 			assert.Equal(t, tt.want.Pattrs, apiPath.Pattrs, "not equal attrs")
 			assert.Equal(t, tt.want.Family, apiPath.Family, "not equal family")

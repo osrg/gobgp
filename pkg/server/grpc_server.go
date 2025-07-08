@@ -198,14 +198,14 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	}
 }
 
-func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path, v *table.Validation) *api.Path {
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path) *api.Path {
 	nlri := path.Nlri
 	p := &api.Path{
 		Nlri:               anyNlri,
 		Pattrs:             anyPattrs,
 		Age:                tspb.New(time.Unix(path.Age, 0)),
 		IsWithdraw:         path.Withdrawal,
-		Validation:         newValidationFromTableStruct(v),
+		Validation:         path.Validation,
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.Stale,
 		IsFromExternal:     path.IsFromExternal,
@@ -222,7 +222,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 	return p
 }
 
-func toPathApi(path *apiutil.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
+func toPathApi(path *apiutil.Path, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
 	var (
 		anyNlri   *api.NLRI
 		anyPattrs []*api.Attribute
@@ -247,7 +247,7 @@ func toPathApi(path *apiutil.Path, v *table.Validation, onlyBinary, nlriBinary, 
 			}
 		}
 	}
-	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path, v)
+	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path)
 }
 
 func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Validation {
@@ -256,6 +256,52 @@ func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Va
 	} else {
 		return v[p]
 	}
+}
+
+func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+
+	prefixes := func() []*apiutil.LookupPrefix {
+		l := make([]*apiutil.LookupPrefix, 0, len(r.Prefixes))
+		for _, p := range r.Prefixes {
+			l = append(l, &apiutil.LookupPrefix{
+				Prefix:       p.Prefix,
+				RD:           p.Rd,
+				LookupOption: apiutil.LookupOption(p.Type),
+			})
+		}
+		return l
+	}
+
+	family := bgp.Family(0)
+	if r.Family != nil {
+		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+	}
+	req := apiutil.ListPathRequest{
+		TableType:      r.TableType,
+		Name:           r.Name,
+		Family:         family,
+		SortType:       r.SortType,
+		EnableFiltered: r.EnableFiltered,
+	}
+	if r.TableType != api.TableType_TABLE_TYPE_UNSPECIFIED && r.TableType != api.TableType_TABLE_TYPE_VRF {
+		req.Prefixes = prefixes()
+	}
+
+	err := s.bgpServer.ListPath(ctx, req, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+		d := api.Destination{
+			Prefix: prefix.String(),
+			Paths:  make([]*api.Path, len(paths)),
+		}
+		for i, path := range paths {
+			d.Paths[i] = toPathApi(path, r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+		}
+		fn(&d)
+	})
+
+	return err
 }
 
 func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPathServer) error {
@@ -275,7 +321,7 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 		return nil
 	}
 	var sendErr error
-	err := s.bgpServer.ListPath(ctx, r, func(d *api.Destination) {
+	err := s.listPath(ctx, r, func(d *api.Destination) {
 		l = append(l, d)
 		if uint64(len(l)) <= batchSize {
 			return
@@ -330,7 +376,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
 			paths := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
-				paths = append(paths, toPathApi(path, nil, false, false, false))
+				paths = append(paths, toPathApi(path, false, false, false))
 				if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
 					simpleSend(paths, timestamp)
 					paths = make([]*api.Path, 0, r.BatchSize)
@@ -341,7 +387,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		OnBestPath: func(pathList []*apiutil.Path, timestamp time.Time) {
 			pl := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
-				pl = append(pl, toPathApi(path, nil, false, false, false))
+				pl = append(pl, toPathApi(path, false, false, false))
 				if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
 					simpleSend(pl, timestamp)
 					pl = make([]*api.Path, 0, r.BatchSize)
@@ -350,7 +396,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 			simpleSend(pl, timestamp)
 		},
 		OnPathEor: func(path *apiutil.Path, timestamp time.Time) {
-			p := toPathApi(path, nil, false, false, false)
+			p := toPathApi(path, false, false, false)
 			simpleSend([]*api.Path{p}, timestamp)
 		},
 		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, timestamp time.Time) {
