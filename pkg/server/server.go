@@ -2381,7 +2381,7 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop.String(), path.Nlri))
 	}
 
-	doWithdraw := (len(isWithdraw) > 0 && isWithdraw[0]) || path.Withdrawal
+	doWithdraw := len(isWithdraw) > 0 && isWithdraw[0] || path.Withdrawal
 	p := table.NewPath(source, path.Nlri, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
 	if p == nil {
 		return nil, fmt.Errorf("invalid path: %v", path)
@@ -2450,16 +2450,13 @@ func (s *BgpServer) AddPath(tableType api.TableType, vrfId string, paths ...*api
 	return resps, err
 }
 
-// if deleteAll is true, it will delete all locally generated paths, if paths is not empty, then families of these paths will be used
+// if deleteAll is true, it will delete all locally generated paths, if deleteFamily is set, then the whole family will be deleted
 // if uuids is not empty, it will delete paths with the given UUIDs otherwise it will delete specified paths
 // deleteAll == false and uuids is empty, paths must contain at least one path
-func (s *BgpServer) DeletePaths(tableType api.TableType, vrfId string, uuids []uuid.UUID, deleteAll bool, paths ...*apiutil.Path) error {
-	if len(uuids) > 0 && len(uuids) != len(paths) {
-		return fmt.Errorf("no enough uuid, must match the number of paths")
-	}
+func (s *BgpServer) DeletePath(tableType api.TableType, vrfId string, uuids []uuid.UUID, deleteAll bool, deleteFamily *bgp.Family, paths ...*apiutil.Path) error {
 	return s.mgmtOperation(func() error {
 		deletePathList := make([]*table.Path, 0)
-		/* delete by uuid */
+		// delete by uuid
 		if len(uuids) > 0 {
 			for k, v := range s.uuidMap {
 				if slices.Contains(uuids, v) {
@@ -2474,17 +2471,11 @@ func (s *BgpServer) DeletePaths(tableType api.TableType, vrfId string, uuids []u
 			if len(deletePathList) == 0 {
 				return fmt.Errorf("can't find a specified path(s) with the given UUID(s)")
 			}
-			return nil
-		}
-
-		// Delete all locally generated paths
-		if deleteAll {
+		} else if deleteAll {
+			// Delete all locally generated paths
 			families := s.globalRib.GetRFlist()
-			if len(paths) > 1 {
-				families = []bgp.Family{}
-				for _, p := range paths {
-					families = append(families, bgp.NewFamily(p.Nlri.AFI(), p.Nlri.SAFI()))
-				}
+			if deleteFamily != nil {
+				families = []bgp.Family{*deleteFamily}
 			}
 			for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families) {
 				if path.IsLocal() {
@@ -2498,7 +2489,7 @@ func (s *BgpServer) DeletePaths(tableType api.TableType, vrfId string, uuids []u
 				return errors.New("no path(s) to delete")
 			}
 			for _, p := range paths {
-				path, err := apiutil2Path(p, tableType == api.TableType_TABLE_TYPE_VRF)
+				path, err := apiutil2Path(p, tableType == api.TableType_TABLE_TYPE_VRF, true)
 				if err != nil {
 					return err
 				}
@@ -2507,70 +2498,6 @@ func (s *BgpServer) DeletePaths(tableType api.TableType, vrfId string, uuids []u
 				}
 				delete(s.uuidMap, pathTokey(path))
 				deletePathList = append(deletePathList, path)
-			}
-		}
-		s.propagateUpdate(nil, deletePathList)
-		return nil
-	}, true)
-}
-
-func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
-	}
-	return s.mgmtOperation(func() error {
-		deletePathList := make([]*table.Path, 0)
-
-		pathList, err := func() ([]*table.Path, error) {
-			if r.Path != nil {
-				path, err := api2Path(r.TableType, r.Path, true)
-				return []*table.Path{path}, err
-			}
-			return []*table.Path{}, nil
-		}()
-		if err != nil {
-			return err
-		}
-
-		if len(r.Uuid) > 0 {
-			// Delete locally generated path which has the given UUID
-			path := func() *table.Path {
-				id, _ := uuid.FromBytes(r.Uuid)
-				for k, v := range s.uuidMap {
-					if v == id {
-						for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
-							if path.IsLocal() && k == pathTokey(path) {
-								delete(s.uuidMap, k)
-								return path
-							}
-						}
-					}
-				}
-				return nil
-			}()
-			if path == nil {
-				return fmt.Errorf("can't find a specified path")
-			}
-			deletePathList = append(deletePathList, path.Clone(true))
-		} else if len(pathList) == 0 {
-			// Delete all locally generated paths
-			families := s.globalRib.GetRFlist()
-			if r.Family != nil {
-				families = []bgp.Family{bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))}
-			}
-			for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families) {
-				if path.IsLocal() {
-					deletePathList = append(deletePathList, path.Clone(true))
-				}
-			}
-			s.uuidMap = make(map[string]uuid.UUID)
-		} else {
-			if err := s.fixupApiPath(r.VrfId, pathList); err != nil {
-				return err
-			}
-			deletePathList = pathList
-			for _, p := range deletePathList {
-				delete(s.uuidMap, pathTokey(p))
 			}
 		}
 		s.propagateUpdate(nil, deletePathList)
