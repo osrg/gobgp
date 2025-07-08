@@ -254,7 +254,9 @@ func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies 
 
 	watchCtxMsg, watchCancelMsg := context.WithCancel(context.Background())
 	wg.Add(1)
-	s.WatchEventMessages(watchCtxMsg, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}},
+	opts := make([]WatchOption, 0)
+	opts = append(opts, WatchPeer())
+	s.WatchEventMessages(watchCtxMsg,
 		WatchEventMessageCallbacks{
 			OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
 				if peer == nil {
@@ -280,7 +282,7 @@ func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies 
 					wg.Done()
 				}
 			},
-		})
+		}, opts...)
 
 	return wg
 }
@@ -819,7 +821,7 @@ func TestMonitor(test *testing.T) {
 	establishedWg.Wait()
 
 	// Test WatchBestPath.
-	w := s.watch(watchBestPath(false))
+	w := s.watch(WatchBestPath(false))
 
 	// Advertises a route.
 	attrs := []bgp.PathAttributeInterface{
@@ -876,7 +878,7 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchUpdate with "current" flag.
-	w = s.watch(watchUpdate(true, "", ""))
+	w = s.watch(WatchUpdate(true, "", ""))
 
 	// Test the initial route.
 	ev = <-w.Event()
@@ -911,7 +913,7 @@ func TestMonitor(test *testing.T) {
 
 	// Test bestpath events with vrf and rt import
 	w.Stop()
-	w = s.watch(watchBestPath(false))
+	w = s.watch(WatchBestPath(false))
 	attrs = []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("10.0.0.1"),
@@ -1697,7 +1699,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher := s1.watch(watchUpdate(true, "", ""))
+	watcher := s1.watch(WatchUpdate(true, "", ""))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -1801,8 +1803,8 @@ func TestDelVrfWithRTC(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(watchUpdate(true, "", ""))
-	watcher2 := s2.watch(watchUpdate(true, "", ""))
+	watcher1 := s1.watch(WatchUpdate(true, "", ""))
+	watcher2 := s2.watch(WatchUpdate(true, "", ""))
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -1907,8 +1909,8 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(watchUpdate(true, "", ""))
-	watcher2 := s2.watch(watchUpdate(true, "", ""))
+	watcher1 := s1.watch(WatchUpdate(true, "", ""))
+	watcher2 := s2.watch(WatchUpdate(true, "", ""))
 
 	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 
@@ -2858,21 +2860,11 @@ func TestWatchEventMessages(test *testing.T) {
 			close(tableCh)
 		}
 	}
-	err = s.WatchEventMessages(context.Background(), &api.WatchEventRequest{
-		Table: &api.WatchEventRequest_Table{
-			Filters: []*api.WatchEventRequest_Table_Filter{
-				{
-					Type:        api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
-					PeerAddress: "127.0.0.1",
-					Init:        true,
-				},
-			},
-		},
-	}, WatchEventMessageCallbacks{
+	opts := make([]WatchOption, 0)
+	opts = append(opts, WatchUpdate(true, "127.0.0.1", ""))
+	err = s.WatchEventMessages(context.Background(), WatchEventMessageCallbacks{
 		OnPathUpdate: f,
-		OnBestPath:   f,
-		OnPathEor:    f,
-	})
+	}, opts...)
 	assert.NoError(err)
 	<-tableCh
 	assert.Equal(2, count)

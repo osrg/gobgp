@@ -129,18 +129,18 @@ func (b *bmpClient) loop() {
 			defer func() {
 				atomic.StoreInt64(&b.downtime, time.Now().Unix())
 			}()
-			ops := []watchOption{watchPeer()}
+			ops := []WatchOption{WatchPeer()}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
 				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", log.Fields{"Topic": "bmp"})
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchUpdate(true, "", ""))
+				ops = append(ops, WatchUpdate(true, "", ""))
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchPostUpdate(true, "", ""))
+				ops = append(ops, WatchPostUpdate(true, "", ""))
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
-				ops = append(ops, watchBestPath(true))
+				ops = append(ops, WatchBestPath(true))
 			}
 			if b.c.RouteMirroringEnabled {
 				ops = append(ops, watchMessage(false))

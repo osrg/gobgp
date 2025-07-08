@@ -4406,31 +4406,7 @@ type WatchEventMessageCallbacks struct {
 	OnPeerUpdate func(*apiutil.WatchEventMessage_PeerEvent, time.Time)
 }
 
-func (s *BgpServer) WatchEventMessages(ctx context.Context, r *api.WatchEventRequest, callbacks WatchEventMessageCallbacks) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
-	}
-
-	opts := make([]watchOption, 0)
-	if r.GetPeer() != nil {
-		opts = append(opts, watchPeer())
-	}
-	if t := r.GetTable(); t != nil {
-		for _, filter := range t.Filters {
-			switch filter.Type {
-			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
-				opts = append(opts, watchBestPath(filter.Init))
-			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
-				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
-			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
-				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
-			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
-				opts = append(opts, watchEor(filter.Init))
-			default:
-				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
-			}
-		}
-	}
+func (s *BgpServer) WatchEventMessages(ctx context.Context, callbacks WatchEventMessageCallbacks, opts ...WatchOption) error {
 	if len(opts) == 0 {
 		return fmt.Errorf("no events to watch")
 	}
@@ -4539,21 +4515,21 @@ func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn
 		return fmt.Errorf("nil request")
 	}
 
-	opts := make([]watchOption, 0)
+	opts := make([]WatchOption, 0)
 	if r.GetPeer() != nil {
-		opts = append(opts, watchPeer())
+		opts = append(opts, WatchPeer())
 	}
 	if t := r.GetTable(); t != nil {
 		for _, filter := range t.Filters {
 			switch filter.Type {
 			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
-				opts = append(opts, watchBestPath(filter.Init))
+				opts = append(opts, WatchBestPath(filter.Init))
 			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
-				opts = append(opts, watchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+				opts = append(opts, WatchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
-				opts = append(opts, watchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+				opts = append(opts, WatchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
-				opts = append(opts, watchEor(filter.Init))
+				opts = append(opts, WatchEor(filter.Init))
 			default:
 				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
 			}
@@ -4818,9 +4794,9 @@ type watchOptions struct {
 	eor            bool
 }
 
-type watchOption func(*watchOptions)
+type WatchOption func(*watchOptions)
 
-func watchBestPath(current bool) watchOption {
+func WatchBestPath(current bool) WatchOption {
 	return func(o *watchOptions) {
 		o.bestPath = true
 		if current {
@@ -4829,7 +4805,7 @@ func watchBestPath(current bool) watchOption {
 	}
 }
 
-func watchUpdate(current bool, peerAddress string, peerGroup string) watchOption {
+func WatchUpdate(current bool, peerAddress string, peerGroup string) WatchOption {
 	return func(o *watchOptions) {
 		o.preUpdate = true
 		if current {
@@ -4853,7 +4829,7 @@ func watchUpdate(current bool, peerAddress string, peerGroup string) watchOption
 	}
 }
 
-func watchPostUpdate(current bool, peerAddress string, peerGroup string) watchOption {
+func WatchPostUpdate(current bool, peerAddress string, peerGroup string) WatchOption {
 	return func(o *watchOptions) {
 		o.postUpdate = true
 		if current {
@@ -4877,7 +4853,7 @@ func watchPostUpdate(current bool, peerAddress string, peerGroup string) watchOp
 	}
 }
 
-func watchEor(current bool) watchOption {
+func WatchEor(current bool) WatchOption {
 	return func(o *watchOptions) {
 		o.eor = true
 		if current {
@@ -4886,19 +4862,19 @@ func watchEor(current bool) watchOption {
 	}
 }
 
-func watchPeer() watchOption {
+func WatchPeer() WatchOption {
 	return func(o *watchOptions) {
 		o.peerState = true
 	}
 }
 
-func watchTableName(name string) watchOption {
+func watchTableName(name string) WatchOption {
 	return func(o *watchOptions) {
 		o.tableName = name
 	}
 }
 
-func watchMessage(isSent bool) watchOption {
+func watchMessage(isSent bool) WatchOption {
 	return func(o *watchOptions) {
 		if isSent {
 			// log.WithFields(log.Fields{
@@ -5026,7 +5002,7 @@ func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
 	}
 }
 
-func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
+func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 	// TODO: return error
 	_ = s.mgmtOperation(func() error {
 		w = &watcher{
