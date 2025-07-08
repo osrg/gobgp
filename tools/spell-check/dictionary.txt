@@ -3,6 +3,7 @@ afisafi
 aggregator
 aigp
 aspath
+apiutil
 bgpd
 bsid
 cidr

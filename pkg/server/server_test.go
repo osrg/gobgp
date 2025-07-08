@@ -510,7 +510,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_OUT routes before applying export policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server2.ListPath(context.Background(), apiutil.ListPathRequest{
+		err = server2.ListPath(apiutil.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    bgpFamily, Name: "127.0.0.1",
 			// TODO(wenovus): This is confusing and we may want to change this.
@@ -532,7 +532,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_OUT routes after applying export policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server2.ListPath(context.Background(), apiutil.ListPathRequest{
+		err = server2.ListPath(apiutil.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
 			Family:    bgpFamily, Name: "127.0.0.1",
 			// TODO(wenovus): This is confusing and we may want to change this.
@@ -557,7 +557,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_IN routes before applying import policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server1.ListPath(context.Background(), apiutil.ListPathRequest{
+		err = server1.ListPath(apiutil.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         bgpFamily,
 			Name:           "127.0.0.1",
@@ -579,7 +579,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_IN routes after applying import policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server1.ListPath(context.Background(), apiutil.ListPathRequest{
+		err = server1.ListPath(apiutil.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
 			Family:         bgpFamily,
 			Name:           "127.0.0.1",
@@ -603,14 +603,14 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Check that 10.1.0.0/24 is filtered at the import side.
 	count := 0
-	err = server1.ListPath(context.Background(), apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		count++
 	})
 	assert.NoError(err)
 	assert.Equal(1, count)
 
 	filtered := 0
-	err = server1.ListPath(context.Background(), apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: bgpFamily, Name: "127.0.0.1", EnableFiltered: true}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: bgpFamily, Name: "127.0.0.1", EnableFiltered: true}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		if paths[0].Filtered {
 			filtered++
 		}
@@ -685,7 +685,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 	assert.NoError(err)
 
 	count = 0
-	err = server1.ListPath(context.Background(), apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		count++
 	})
 	assert.NoError(err)
@@ -693,7 +693,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	count = 0
 	filtered = 0
-	err = server1.ListPath(context.Background(), apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: bgpFamily, Name: "127.0.0.1", EnableFiltered: true}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: bgpFamily, Name: "127.0.0.1", EnableFiltered: true}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		count++
 		if paths[0].Filtered {
 			filtered++
@@ -1970,7 +1970,6 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 }
 
 func TestAddDeletePath(t *testing.T) {
-	ctx := context.Background()
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
@@ -2011,7 +2010,7 @@ func TestAddDeletePath(t *testing.T) {
 
 	listRib := func(f bgp.Family) []*api.Destination {
 		l := make([]*api.Destination, 0)
-		err := s.ListPath(ctx, apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+		err := s.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 			d := api.Destination{
 				Prefix: prefix.String(),
 				Paths:  make([]*api.Path, len(paths)),
@@ -2261,8 +2260,6 @@ func TestAddBogusPath(t *testing.T) {
 // TestListPathWithIdentifiers confirms whether ListPath properly returns the
 // identifier information for paths for the Global RIB and for VRF RIBs.
 func TestListPathWithIdentifiers(t *testing.T) {
-	ctx := context.Background()
-
 	assert := assert.New(t)
 	s := NewBgpServer()
 	go s.Serve()
@@ -2317,7 +2314,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	}
 	destinationsFrom := func(name string, tableType api.TableType) []*api.Destination {
 		var destinations []*api.Destination
-		err = s.ListPath(ctx, apiutil.ListPathRequest{
+		err = s.ListPath(apiutil.ListPathRequest{
 			Name:      name,
 			TableType: tableType,
 			Family:    family,

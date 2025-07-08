@@ -206,7 +206,6 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		Pattrs:             anyPattrs,
 		Age:                tspb.New(time.Unix(path.Age, 0)),
 		IsWithdraw:         path.Withdrawal,
-		Validation:         path.Validation,
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.Stale,
 		IsFromExternal:     path.IsFromExternal,
@@ -219,6 +218,10 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		SourceAsn:          path.PeerASN,
 		SourceId:           path.PeerID.String(),
 		NeighborIp:         path.PeerAddress.String(),
+		// ListPath API fields only
+		SendMaxFiltered: path.SendMaxFiltered,
+		Filtered:        path.Filtered,
+		Validation:      path.Validation,
 	}
 	return p
 }
@@ -291,15 +294,20 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 		req.Prefixes = prefixes()
 	}
 
-	err := s.bgpServer.ListPath(ctx, req, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
-		d := api.Destination{
-			Prefix: prefix.String(),
-			Paths:  make([]*api.Path, len(paths)),
+	err := s.bgpServer.ListPath(req, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			d := api.Destination{
+				Prefix: prefix.String(),
+				Paths:  make([]*api.Path, len(paths)),
+			}
+			for i, path := range paths {
+				d.Paths[i] = toPathApi(path, r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+			}
+			fn(&d)
 		}
-		for i, path := range paths {
-			d.Paths[i] = toPathApi(path, r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
-		}
-		fn(&d)
 	})
 
 	return err
@@ -610,22 +618,20 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 	if r == nil || r.Path == nil {
 		return nil, fmt.Errorf("nil request")
 	}
+	var err error
 	var uuidBytes []byte
-	err := s.bgpServer.mgmtOperation(func() error {
-		p, err := api2apiutilPath(r.Path)
-		if err != nil {
-			return fmt.Errorf("invalid path: %w", err)
-		}
-		path, err := s.bgpServer.AddPath(r.TableType, r.VrfId, p)
-		if err != nil {
-			return err
-		}
+	p, err := api2apiutilPath(r.Path)
+	if err != nil {
+		return &api.AddPathResponse{}, fmt.Errorf("invalid path: %w", err)
+	}
+	path, err := s.bgpServer.AddPath(r.TableType, r.VrfId, p)
+	if err != nil {
+		return &api.AddPathResponse{}, err
+	}
 
-		id := path[0].Uuid
-		s.bgpServer.uuidMap[apiutilPathTokey(p)] = id
-		uuidBytes, _ = id.MarshalBinary()
-		return nil
-	}, true)
+	id := path[0].Uuid
+	s.bgpServer.uuidMap[apiutilPathTokey(p)] = id
+	uuidBytes, err = id.MarshalBinary()
 	return &api.AddPathResponse{Uuid: uuidBytes}, err
 }
 
