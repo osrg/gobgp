@@ -20,11 +20,12 @@ import (
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 func main() {
-	log	:= logrus.New()
+	log := logrus.New()
 
 	s := server.NewBgpServer(server.LoggerOption(&myLogger{logger: log}))
 	go s.Serve()
@@ -32,7 +33,7 @@ func main() {
 	// global configuration
 	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			Asn:         65003,
+			Asn:        65003,
 			RouterId:   "10.0.255.254",
 			ListenPort: -1, // gobgp won't listen on tcp:179
 		},
@@ -54,7 +55,7 @@ func main() {
 	n := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "172.17.0.2",
-			PeerAsn:          65002,
+			PeerAsn:         65002,
 		},
 	}
 
@@ -65,71 +66,48 @@ func main() {
 	}
 
 	// add routes
-	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-		Prefix:    "10.0.0.0",
-		PrefixLen: 24,
-	}}}
+	nlri := bgp.NewIPAddrPrefix(24, "10.0.0.0")
+	a1 := bgp.NewPathAttributeOrigin(0)
+	a2 := bgp.NewPathAttributeNextHop("10.0.0.1")
+	a3 := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{6762, 39919, 65000, 35753, 65000})})
+	attrs := []bgp.PathAttributeInterface{a1, a2, a3}
 
-	a1 := &api.Attribute{Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
-		Origin: 0,
-	}}}
-	a2 := &api.Attribute{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
-		NextHop: "10.0.0.1",
-	}}}
-	a3 := &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
-		Segments: []*api.AsSegment{
-			{
-				Type:    2,
-				Numbers: []uint32{6762, 39919, 65000, 35753, 65000},
-			},
-		},
-	}}}
-	attrs := []*api.Attribute{a1, a2, a3}
-
-	_, err := s.AddPath(context.Background(), &api.AddPathRequest{
-		Path: &api.Path{
-			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
-			Nlri:   nlri,
-			Pattrs: attrs,
-		},
-	})
+	_, err := s.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "",
+		&apiutil.Path{
+			Nlri:  nlri,
+			Attrs: attrs,
+		})
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	v6Family := &api.Family{
-		Afi:  api.Family_AFI_IP6,
-		Safi: api.Family_SAFI_UNICAST,
 	}
 
 	// add v6 route
-	nlri = &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-		PrefixLen: 64,
-		Prefix:    "2001:db8:1::",
-	}}}
-	v6Attrs := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: &api.MpReachNLRIAttribute{
-		Family:   v6Family,
-		NextHops: []string{"2001:db8::1"},
-		Nlris:    []*api.NLRI{nlri},
-	}}}
+	v6Nlri := bgp.NewIPv6AddrPrefix(64, "2001:db8:1::")
+	aMpr := bgp.NewPathAttributeMpReachNLRI("2001:db8::1", []bgp.AddrPrefixInterface{v6Nlri})
+	aC := bgp.NewPathAttributeCommunities([]uint32{100, 200})
+	attrs = []bgp.PathAttributeInterface{aMpr, aC}
 
-	c := &api.Attribute{Attr: &api.Attribute_Communities{Communities: &api.CommunitiesAttribute{
-		Communities: []uint32{100, 200},
-	}}}
-
-	_, err = s.AddPath(context.Background(), &api.AddPathRequest{
-		Path: &api.Path{
-			Family: v6Family,
-			Nlri:   nlri,
-			Pattrs: []*api.Attribute{a1, v6Attrs, c},
-		},
-	})
+	_, err = s.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "",
+		&apiutil.Path{
+			Nlri:  v6Nlri,
+			Attrs: attrs,
+		})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	s.ListPath(context.Background(), &api.ListPathRequest{Family: v6Family}, func(p *api.Destination) {
-		log.Info(p)
+	s.ListPath(apiutil.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+	}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+		log.Info(prefix.String())
+		for _, p := range paths {
+			log.WithFields(logrus.Fields{
+				"prefix":   p.SourceASN,
+				"neighbor": p.NeighborIP,
+				"age":      p.Age,
+				"best":     p.Best,
+			}).Info("path")
+		}
 	})
 
 	// do something useful here instead of exiting
