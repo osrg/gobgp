@@ -2897,7 +2897,7 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 			}
 			knownPathList := dst.GetAllKnownPathList()
 			for i, path := range knownPathList {
-				p := toPathApi(path, getValidation(v, path), r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+				p := toPathApi(toPathApiUtil(path), getValidation(v, path), r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
 				if !table.SelectionOptions.DisableBestPathSelection {
 					if i == 0 {
 						switch r.TableType {
@@ -4385,16 +4385,19 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 func toPathApiUtil(path *table.Path) *apiutil.Path {
 	// Best and SendMaxFiltered are set in ListPath API
 	p := &apiutil.Path{
-		Nlri:       path.GetNlri(),
-		Age:        path.GetTimestamp().Unix(),
-		Attrs:      path.GetPathAttrs(),
-		Stale:      path.IsStale(),
-		Withdrawal: path.IsWithdraw,
+		Nlri:               path.GetNlri(),
+		Age:                path.GetTimestamp().Unix(),
+		Attrs:              path.GetPathAttrs(),
+		Stale:              path.IsStale(),
+		Withdrawal:         path.IsWithdraw,
+		IsFromExternal:     path.IsFromExternal(),
+		NoImplicitWithdraw: path.NoImplicitWithdraw(),
+		IsNexthopInvalid:   path.IsNexthopInvalid,
 	}
-	if path.GetSource() != nil {
-		p.SourceASN = path.GetSource().AS
-		p.SourceID = path.GetSource().ID
-		p.NeighborIP = path.GetSource().Address
+	if s := path.GetSource(); s != nil {
+		p.SourceASN = s.AS
+		p.SourceID = s.ID
+		p.NeighborIP = s.Address
 	}
 	return p
 }
@@ -4402,11 +4405,11 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 type WatchEventMessageCallbacks struct {
 	OnPathUpdate func([]*apiutil.Path, time.Time)
 	OnBestPath   func([]*apiutil.Path, time.Time)
-	OnPathEor    func([]*apiutil.Path, time.Time)
+	OnPathEor    func(*apiutil.Path, time.Time)
 	OnPeerUpdate func(*apiutil.WatchEventMessage_PeerEvent, time.Time)
 }
 
-func (s *BgpServer) WatchEventMessages(ctx context.Context, callbacks WatchEventMessageCallbacks, opts ...WatchOption) error {
+func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageCallbacks, opts ...WatchOption) error {
 	if len(opts) == 0 {
 		return fmt.Errorf("no events to watch")
 	}
@@ -4461,7 +4464,7 @@ func (s *BgpServer) WatchEventMessages(ctx context.Context, callbacks WatchEvent
 					if callbacks.OnPathEor != nil {
 						eor := table.NewEOR(msg.Family)
 						eor.SetSource(msg.PeerInfo)
-						callbacks.OnPathEor([]*apiutil.Path{toPathApiUtil(eor)}, msg.Timestamp)
+						callbacks.OnPathEor(toPathApiUtil(eor), msg.Timestamp)
 					}
 
 				case *watchEventPeer:
@@ -4477,7 +4480,7 @@ func (s *BgpServer) WatchEventMessages(ctx context.Context, callbacks WatchEvent
 						}
 						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
-							Peer: &apiutil.Peer{
+							Peer: apiutil.Peer{
 								Conf: apiutil.PeerConf{
 									PeerAsn:           msg.PeerAS,
 									LocalAsn:          msg.LocalAS,
@@ -4504,142 +4507,6 @@ func (s *BgpServer) WatchEventMessages(ctx context.Context, callbacks WatchEvent
 				}
 			case <-ctx.Done():
 				return
-			}
-		}
-	}()
-	return nil
-}
-
-func (s *BgpServer) WatchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
-	}
-
-	opts := make([]WatchOption, 0)
-	if r.GetPeer() != nil {
-		opts = append(opts, WatchPeer())
-	}
-	if t := r.GetTable(); t != nil {
-		for _, filter := range t.Filters {
-			switch filter.Type {
-			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
-				opts = append(opts, WatchBestPath(filter.Init))
-			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
-				opts = append(opts, WatchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
-			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
-				opts = append(opts, WatchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
-			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
-				opts = append(opts, WatchEor(filter.Init))
-			default:
-				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
-			}
-		}
-	}
-	if len(opts) == 0 {
-		return fmt.Errorf("no events to watch")
-	}
-	w := s.watch(opts...)
-
-	simpleSend := func(paths []*api.Path, when time.Time) {
-		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
-	}
-
-	go func() {
-		defer w.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case ev := <-w.Event():
-				// we might receive an event after the context is done
-				// so we need to check the context again
-				if ctx.Err() != nil {
-					return
-				}
-
-				switch msg := ev.(type) {
-				case *watchEventUpdate:
-					paths := make([]*api.Path, 0, r.BatchSize)
-					for _, path := range msg.PathList {
-						paths = append(paths, toPathApi(path, nil, false, false, false))
-						if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
-							simpleSend(paths, msg.Timestamp)
-							paths = make([]*api.Path, 0, r.BatchSize)
-						}
-					}
-					simpleSend(paths, msg.Timestamp)
-
-				case *watchEventBestPath:
-					var paths []*table.Path
-					if len(msg.MultiPathList) > 0 {
-						for _, p := range msg.MultiPathList {
-							paths = append(paths, p...)
-						}
-					} else {
-						paths = msg.PathList
-					}
-
-					pl := make([]*api.Path, 0, r.BatchSize)
-					for _, path := range paths {
-						pl = append(pl, toPathApi(path, nil, false, false, false))
-						if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
-							simpleSend(pl, msg.Timestamp)
-							pl = make([]*api.Path, 0, r.BatchSize)
-						}
-					}
-					simpleSend(pl, msg.Timestamp)
-
-				case *watchEventEor:
-					eor := table.NewEOR(msg.Family)
-					eor.SetSource(msg.PeerInfo)
-					path := eorToPathAPI(eor)
-					simpleSend([]*api.Path{path}, msg.Timestamp)
-
-				case *watchEventPeer:
-					var admin_state api.PeerState_AdminState
-					switch msg.AdminState {
-					case adminStateUp:
-						admin_state = api.PeerState_ADMIN_STATE_UP
-					case adminStateDown:
-						admin_state = api.PeerState_ADMIN_STATE_DOWN
-					case adminStatePfxCt:
-						admin_state = api.PeerState_ADMIN_STATE_PFX_CT
-					}
-					remoteCaps, err := apiutil.MarshalCapabilities(msg.RemoteCap)
-					if err != nil {
-						remoteCaps = []*api.Capability{}
-					}
-					fn(&api.WatchEventResponse{
-						Event: &api.WatchEventResponse_Peer{
-							Peer: &api.WatchEventResponse_PeerEvent{
-								Type: api.WatchEventResponse_PeerEvent_Type(msg.Type),
-								Peer: &api.Peer{
-									Conf: &api.PeerConf{
-										PeerAsn:           msg.PeerAS,
-										LocalAsn:          msg.LocalAS,
-										NeighborAddress:   msg.PeerAddress.String(),
-										NeighborInterface: msg.PeerInterface,
-									},
-									State: &api.PeerState{
-										PeerAsn:         msg.PeerAS,
-										LocalAsn:        msg.LocalAS,
-										NeighborAddress: msg.PeerAddress.String(),
-										SessionState:    api.PeerState_SessionState(int(msg.State) + 1),
-										AdminState:      admin_state,
-										RouterId:        msg.PeerID.String(),
-										RemoteCap:       remoteCaps,
-									},
-									Transport: &api.Transport{
-										LocalAddress: msg.LocalAddress.String(),
-										LocalPort:    uint32(msg.LocalPort),
-										RemotePort:   uint32(msg.PeerPort),
-									},
-								},
-							},
-						},
-					}, msg.Timestamp)
-				}
 			}
 		}
 	}()

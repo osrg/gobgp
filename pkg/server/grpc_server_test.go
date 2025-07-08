@@ -1,7 +1,10 @@
 package server
 
 import (
+	"context"
 	"net"
+	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +13,8 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestParseHost(t *testing.T) {
@@ -125,7 +130,7 @@ func TestToPathApi(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apiPath := toPathApi(tt.args.path, tt.args.v, tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
+			apiPath := toPathApi(toPathApiUtil(tt.args.path), tt.args.v, tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
 			assert.Equal(t, tt.want.Nlri, apiPath.Nlri, "not equal nlri")
 			assert.Equal(t, tt.want.Pattrs, apiPath.Pattrs, "not equal attrs")
 			assert.Equal(t, tt.want.Family, apiPath.Family, "not equal family")
@@ -158,4 +163,279 @@ func nlri(nlri bgp.AddrPrefixInterface) *api.NLRI {
 func attrs(attrs []bgp.PathAttributeInterface) []*api.Attribute {
 	apiAttrs, _ := apiutil.MarshalPathAttributes(attrs)
 	return apiAttrs
+}
+
+//nolint:errcheck // WatchEvent won't return an error here
+func GRPCwaitState(t *testing.T, s api.GoBgpServiceClient, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) *sync.WaitGroup {
+	wg := &sync.WaitGroup{}
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	wg.Add(1)
+
+	resp, err := s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}})
+	assert.NoError(t, err, "failed to start watch event")
+
+	go func() {
+		for {
+			select {
+			case <-watchCtx.Done():
+				return
+			default:
+				r, err := resp.Recv()
+				assert.NoError(t, err, "failed to receive watch event response")
+
+				if peer := r.GetPeer(); peer != nil {
+					if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == state {
+						remoteCaps, err := apiutil.UnmarshalCapabilities(peer.Peer.GetState().GetRemoteCap())
+						if err != nil {
+							t.Errorf("failed to unmarshal remote capabilities: %v", err)
+						}
+						for _, rf := range expectedFamilies {
+							found := false
+							for _, cap := range remoteCaps {
+								if cap.Code() == bgp.BGP_CAP_MULTIPROTOCOL && cap.(*bgp.CapMultiProtocol).CapValue == rf {
+									found = true
+									break
+								}
+							}
+							if !found {
+								return
+							}
+						}
+						watchCancel()
+						wg.Done()
+					}
+				}
+			}
+		}
+	}()
+	return wg
+}
+
+func GRPCwaitActive(t *testing.T, s api.GoBgpServiceClient) *sync.WaitGroup {
+	return GRPCwaitState(t, s, api.PeerState_SESSION_STATE_ACTIVE)
+}
+
+func GRPCwaitEstablished(t *testing.T, s api.GoBgpServiceClient, rfs ...bgp.Family) *sync.WaitGroup {
+	return GRPCwaitState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
+}
+
+func TestGRPCWatchEvent(t *testing.T) {
+	assert := assert.New(t)
+
+	socketName, err := os.MkdirTemp("", "gobgp-grpc-test-*")
+	assert.NoError(err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(socketName)
+	})
+	socketAddr := "unix://" + socketName + "/gobgp.sock"
+
+	s := NewBgpServer(GrpcListenAddress(socketAddr))
+	go s.Serve()
+	defer s.Stop()
+
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 10179,
+		},
+	})
+	assert.NoError(err)
+
+	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	assert.NoError(err)
+	client := api.NewGoBgpServiceClient(conn)
+
+	peer1 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         2,
+		},
+		Transport: &api.Transport{
+			PassiveMode: true,
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
+	assert.NoError(err)
+
+	d1 := &api.DefinedSet{
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
+		Name:        "d1",
+		Prefixes: []*api.Prefix{
+			{
+				IpPrefix:      "10.1.0.0/24",
+				MaskLengthMax: 24,
+				MaskLengthMin: 24,
+			},
+		},
+	}
+	s1 := &api.Statement{
+		Name: "s1",
+		Conditions: &api.Conditions{
+			PrefixSet: &api.MatchSet{
+				Name: "d1",
+				Type: api.MatchSet_TYPE_ANY,
+			},
+		},
+		Actions: &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	}
+	err = s.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{DefinedSet: d1})
+	assert.NoError(err)
+	p1 := &api.Policy{
+		Name:       "p1",
+		Statements: []*api.Statement{s1},
+	}
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: p1})
+	assert.NoError(err)
+	err = s.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies:      []*api.Policy{p1},
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+		},
+	})
+	assert.NoError(err)
+
+	t2 := NewBgpServer()
+	go t2.Serve()
+	err = t2.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer t2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	family := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+
+	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	}}}
+
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
+
+	_, err = t2.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri1,
+			Pattrs: attrs,
+		},
+	})
+	assert.NoError(err)
+
+	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+		Prefix:    "10.2.0.0",
+		PrefixLen: 24,
+	}}}
+	_, err = t2.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path: &api.Path{
+			Family: family,
+			Nlri:   nlri2,
+			Pattrs: attrs,
+		},
+	})
+	assert.NoError(err)
+
+	peer2 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         1,
+		},
+		Transport: &api.Transport{
+			RemotePort: 10179,
+		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
+		AfiSafis: []*api.AfiSafi{
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP6,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+		},
+	}
+
+	t.Log("wait for peer1 to be established")
+	establishedWg := GRPCwaitEstablished(t, client, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+	t.Log("wait for peer1 to be established done")
+
+	err = t2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
+	assert.NoError(err)
+
+	establishedWg.Wait()
+
+	count := 0
+	tableCh := make(chan any)
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	resp, err := client.WatchEvent(watchCtx, &api.WatchEventRequest{
+		Table: &api.WatchEventRequest_Table{
+			Filters: []*api.WatchEventRequest_Table_Filter{
+				{
+					Type:        api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
+					PeerAddress: "127.0.0.1",
+					Init:        true,
+				},
+			},
+		},
+	})
+	assert.NoError(err, "failed to start watch event")
+
+	go func() {
+		for {
+			select {
+			case <-watchCtx.Done():
+				return
+			default:
+				r, err := resp.Recv()
+				assert.NoError(err, "failed to receive watch event response")
+				t := r.Event.(*api.WatchEventResponse_Table)
+				count += len(t.Table.Paths)
+				if count == 2 {
+					watchCancel()
+					close(tableCh)
+				}
+			}
+		}
+	}()
+	assert.NoError(err)
+	<-tableCh
+
+	assert.Equal(2, count)
 }

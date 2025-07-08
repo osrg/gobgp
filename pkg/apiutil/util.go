@@ -38,22 +38,25 @@ const (
 // WatchEventMessages API type
 type WatchEventMessage_PeerEvent struct {
 	Type PeerEventType
-	Peer *Peer
+	Peer Peer
 }
 
 // used by server.WatchEventMessages API
 type Path struct {
-	Nlri  bgp.AddrPrefixInterface      `json:"nlri"`
-	Age   int64                        `json:"age"`
-	Best  bool                         `json:"best"`
-	Attrs []bgp.PathAttributeInterface `json:"attrs"`
-	Stale bool                         `json:"stale"`
-	// true if the path has been filtered out due to max path count reached
-	SendMaxFiltered bool   `json:"send-max-filtered,omitempty"`
-	Withdrawal      bool   `json:"withdrawal,omitempty"`
-	SourceASN       uint32 `json:"source-asn,omitempty"`
-	SourceID        net.IP `json:"source-id,omitempty"`
-	NeighborIP      net.IP `json:"neighbor-ip,omitempty"`
+	Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+	Age        int64                        `json:"age"`
+	Best       bool                         `json:"best"`
+	Attrs      []bgp.PathAttributeInterface `json:"attrs"`
+	Stale      bool                         `json:"stale"`
+	Withdrawal bool                         `json:"withdrawal,omitempty"`
+	SourceASN  uint32                       `json:"source-asn,omitempty"`
+	SourceID   net.IP                       `json:"source-id,omitempty"`
+	NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
+	// true if the path has been filtered out due to max path count reached (used by ListPath API)
+	SendMaxFiltered    bool `json:"send-max-filtered,omitempty"`
+	IsFromExternal     bool `json:"is-from-external,omitempty"`
+	NoImplicitWithdraw bool `json:"no-implicit-withdraw,omitempty"`
+	IsNexthopInvalid   bool `json:"is-nexthop-invalid,omitempty"`
 }
 
 type PeerConf struct {

@@ -74,14 +74,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/osrg/gobgp/v4/api"
-	"github.com/osrg/gobgp/v4/pkg/server"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 func main() {
@@ -101,32 +102,24 @@ func main() {
 		log.Fatal(err)
 	}
 
-	marshaller := protojson.MarshalOptions{
-		Indent:   "  ",
-		UseProtoNames: true,
-	}
-
 	// the change of the peer state and path
-	if err := s.WatchEvent(context.Background(), &api.WatchEventRequest{
-		Peer: &api.WatchEventRequest_Peer{},
-		Table: &api.WatchEventRequest_Table{
-			Filters: []*api.WatchEventRequest_Table_Filter{
-				{
-					Type: api.WatchEventRequest_Table_Filter_TYPE_BEST,
-				},
-			},
-		},}, func(r *api.WatchEventResponse, when time.Time) {
-			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
-				log.Info(p)
-			} else if t := r.GetTable(); t != nil {
-				// Your application should do something useful with the BGP-LS path here.
-				for _, p := range t.Paths {
-					marshaller.Marshal(p)
+	if err := s.WatchEvent(context.Background(), server.WatchEventMessageCallbacks{
+		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+			if peer.Type == apiutil.PEER_EVENT_STATE {
+				log.Info(peer.Peer)
+			}
+		},
+		OnBestPath: func(paths []*apiutil.Path, _ time.Time) {
+			// Your application should do something useful with the BGP-LS path here.
+			for _, p := range paths {
+				_, err := json.Marshal(p)
+				if err != nil {
+					log.Fatal(err)
 				}
 			}
-		}); err != nil {
-		log.Fatal(err)
-	}
+		}}); err != nil {
+			log.Fatal(err)
+		}
 
 	// neighbor configuration
 	n := &api.Peer{

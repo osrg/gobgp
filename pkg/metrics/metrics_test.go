@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
@@ -74,14 +76,15 @@ func TestMetrics(test *testing.T) {
 
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	stateCh := make(chan struct{})
-	err = s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}}, func(r *api.WatchEventResponse, _ time.Time) {
-		if peer := r.GetPeer(); peer != nil {
-			if peer.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE && peer.Peer.State.SessionState == api.PeerState_SESSION_STATE_ESTABLISHED {
+	err = s.WatchEvent(watchCtx, server.WatchEventMessageCallbacks{
+		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+			if peer.Type == apiutil.PEER_EVENT_STATE && peer.Peer.State.SessionState == bgp.BGP_FSM_ESTABLISHED {
 				watchCancel()
 				close(stateCh)
 			}
-		}
-	})
+		},
+	}, server.WatchPeer())
+
 	assert.NoError(err)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})

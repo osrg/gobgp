@@ -198,56 +198,39 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	}
 }
 
-func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *table.Path, v *table.Validation) *api.Path {
-	nlri := path.GetNlri()
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path, v *table.Validation) *api.Path {
+	nlri := path.Nlri
 	p := &api.Path{
 		Nlri:               anyNlri,
 		Pattrs:             anyPattrs,
-		Age:                tspb.New(path.GetTimestamp()),
-		IsWithdraw:         path.IsWithdraw,
+		Age:                tspb.New(time.Unix(path.Age, 0)),
+		IsWithdraw:         path.Withdrawal,
 		Validation:         newValidationFromTableStruct(v),
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
-		Stale:              path.IsStale(),
-		IsFromExternal:     path.IsFromExternal(),
-		NoImplicitWithdraw: path.NoImplicitWithdraw(),
+		Stale:              path.Stale,
+		IsFromExternal:     path.IsFromExternal,
+		NoImplicitWithdraw: path.NoImplicitWithdraw,
 		IsNexthopInvalid:   path.IsNexthopInvalid,
 		Identifier:         nlri.PathIdentifier(),
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
-	}
-	if s := path.GetSource(); s != nil {
-		p.SourceAsn = s.AS
-		p.SourceId = s.ID.String()
-		p.NeighborIp = s.Address.String()
+		SourceAsn:          path.SourceASN,
+		SourceId:           path.SourceID.String(),
+		NeighborIp:         path.NeighborIP.String(),
 	}
 	return p
 }
 
-func eorToPathAPI(path *table.Path) *api.Path {
-	nlri := path.GetNlri()
-	p := &api.Path{
-		Age:        tspb.New(path.GetTimestamp()),
-		IsWithdraw: path.IsWithdraw,
-		Family:     &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
-	}
-	if s := path.GetSource(); s != nil {
-		p.SourceAsn = s.AS
-		p.SourceId = s.ID.String()
-		p.NeighborIp = s.Address.String()
-	}
-	return p
-}
-
-func toPathApi(path *table.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
+func toPathApi(path *apiutil.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
 	var (
 		anyNlri   *api.NLRI
 		anyPattrs []*api.Attribute
 	)
-	nlri := path.GetNlri()
+	nlri := path.Nlri
 	if !onlyBinary {
 		anyNlri, _ = apiutil.MarshalNLRI(nlri)
-		anyPattrs, _ = apiutil.MarshalPathAttributes(path.GetPathAttrs())
+		anyPattrs, _ = apiutil.MarshalPathAttributes(path.Attrs)
 	}
 	var binNlri []byte
 	if onlyBinary || nlriBinary {
@@ -255,7 +238,7 @@ func toPathApi(path *table.Path, v *table.Validation, onlyBinary, nlriBinary, at
 	}
 	var binPattrs [][]byte
 	if onlyBinary || attributeBinary {
-		pa := path.GetPathAttrs()
+		pa := path.Attrs
 		binPattrs = make([][]byte, 0, len(pa))
 		for _, a := range pa {
 			b, e := a.Serialize()
@@ -312,9 +295,110 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 	return send()
 }
 
+func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
+	if r == nil {
+		return status.Errorf(codes.InvalidArgument, "nil request")
+	}
+
+	opts := make([]WatchOption, 0)
+	if r.GetPeer() != nil {
+		opts = append(opts, WatchPeer())
+	}
+	if t := r.GetTable(); t != nil {
+		for _, filter := range t.Filters {
+			switch filter.Type {
+			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
+				opts = append(opts, WatchBestPath(filter.Init))
+			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
+				opts = append(opts, WatchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
+				opts = append(opts, WatchPostUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
+			case api.WatchEventRequest_Table_Filter_TYPE_EOR:
+				opts = append(opts, WatchEor(filter.Init))
+			default:
+				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
+			}
+		}
+	}
+	if len(opts) == 0 {
+		return status.Errorf(codes.InvalidArgument, "no events to watch")
+	}
+	simpleSend := func(paths []*api.Path, when time.Time) {
+		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
+	}
+	err := s.bgpServer.WatchEvent(ctx, WatchEventMessageCallbacks{
+		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
+			paths := make([]*api.Path, 0, r.BatchSize)
+			for _, path := range pathList {
+				paths = append(paths, toPathApi(path, nil, false, false, false))
+				if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
+					simpleSend(paths, timestamp)
+					paths = make([]*api.Path, 0, r.BatchSize)
+				}
+			}
+			simpleSend(paths, timestamp)
+		},
+		OnBestPath: func(pathList []*apiutil.Path, timestamp time.Time) {
+			pl := make([]*api.Path, 0, r.BatchSize)
+			for _, path := range pathList {
+				pl = append(pl, toPathApi(path, nil, false, false, false))
+				if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
+					simpleSend(pl, timestamp)
+					pl = make([]*api.Path, 0, r.BatchSize)
+				}
+			}
+			simpleSend(pl, timestamp)
+		},
+		OnPathEor: func(path *apiutil.Path, timestamp time.Time) {
+			p := toPathApi(path, nil, false, false, false)
+			simpleSend([]*api.Path{p}, timestamp)
+		},
+		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, timestamp time.Time) {
+			p := peer.Peer
+			remoteCaps, err := apiutil.MarshalCapabilities(p.State.RemoteCap)
+			if err != nil {
+				remoteCaps = []*api.Capability{}
+			}
+			fn(&api.WatchEventResponse{
+				Event: &api.WatchEventResponse_Peer{
+					Peer: &api.WatchEventResponse_PeerEvent{
+						Type: api.WatchEventResponse_PeerEvent_Type(peer.Type),
+						Peer: &api.Peer{
+							Conf: &api.PeerConf{
+								PeerAsn:           p.Conf.PeerAsn,
+								LocalAsn:          p.Conf.LocalAsn,
+								NeighborAddress:   p.Conf.NeighborAddress.String(),
+								NeighborInterface: p.Conf.NeighborInterface,
+							},
+							State: &api.PeerState{
+								PeerAsn:         p.State.PeerAsn,
+								LocalAsn:        p.State.LocalAsn,
+								NeighborAddress: p.State.NeighborAddress.String(),
+								SessionState:    api.PeerState_SessionState(int(p.State.SessionState) + 1),
+								AdminState:      p.State.AdminState,
+								RouterId:        p.State.RouterId.String(),
+								RemoteCap:       remoteCaps,
+							},
+							Transport: &api.Transport{
+								LocalAddress: p.Transport.LocalAddress.String(),
+								LocalPort:    p.Transport.LocalPort,
+								RemotePort:   p.Transport.RemotePort,
+							},
+						},
+					},
+				},
+			}, timestamp)
+		},
+	}, opts...)
+	if err != nil {
+		return status.Errorf(codes.Aborted, "failed to watch event: %v", err)
+	}
+	return status.Error(codes.OK, "watch event started")
+}
+
 func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GoBgpService_WatchEventServer) error {
 	ctx, cancel := context.WithCancel(stream.Context())
-	err := s.bgpServer.WatchEvent(ctx, r, func(rsp *api.WatchEventResponse, _ time.Time) {
+	err := s.watchEvent(ctx, r, func(rsp *api.WatchEventResponse, _ time.Time) {
 		if err := stream.Send(rsp); err != nil {
 			cancel()
 			return

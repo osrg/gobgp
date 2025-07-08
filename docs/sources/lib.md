@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/server"
 )
@@ -40,11 +41,12 @@ func main() {
 	}
 
 	// monitor the change of the peer state
-	if err := s.WatchEvent(context.Background(), &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{},}, func(r *api.WatchEventResponse, when time.Time) {
-			if p := r.GetPeer(); p != nil && p.Type == api.WatchEventResponse_PeerEvent_TYPE_STATE {
-				log.Info(p)
+	if err := s.WatchEvent(context.Background(), server.WatchEventMessageCallbacks{
+		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+			if peer.Type == apiutil.PEER_EVENT_STATE {
+				log.Info(peer.Peer)
 			}
-		}); err != nil {
+		}}); err != nil {
 		log.Fatal(err)
 	}
 
