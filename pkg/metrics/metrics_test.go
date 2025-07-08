@@ -141,13 +141,9 @@ func TestMetrics(test *testing.T) {
 					Attrs: pattrs,
 				})
 				assert.NoError(err)
-				err = t.DeletePath(context.Background(), &api.DeletePathRequest{
-					TableType: api.TableType_TABLE_TYPE_GLOBAL,
-					Path: &api.Path{
-						Family: family,
-						Nlri:   nlri1,
-						Pattrs: attrs,
-					},
+				err = t.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, &apiutil.Path{
+					Nlri:  nlri,
+					Attrs: pattrs,
 				})
 				assert.NoError(err)
 			}
