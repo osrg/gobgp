@@ -25,32 +25,29 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 )
 
-type HeaderContext struct {
-	Family Family
-	Prefix AddrPrefixInterface
-}
-
 type MarshallingOption struct {
-	AddPath      map[Family]BGPAddPathMode
-	Attributes   map[BGPAttrType]bool
-	HeaderPrefix *HeaderContext
+	AddPath    map[Family]BGPAddPathMode
+	Attributes map[BGPAttrType]bool
+	MRT        bool
 }
 
-// GetHeaderContext gets the header context (Family + prefix) from MarshallingOption.
-// This is used for MRT representation where AFI/SAFI/NLRI can be omitted (RFC 6396 4.3.4).
-func GetHeaderContext(options []*MarshallingOption) *HeaderContext {
+func IsMRTSerialization(options []*MarshallingOption) bool {
 	for _, opt := range options {
-		if opt != nil && opt.HeaderPrefix != nil {
-			return opt.HeaderPrefix
+		if opt == nil {
+			continue
+		}
+		if opt.MRT {
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 func IsAddPathEnabled(decode bool, f Family, options []*MarshallingOption) bool {
@@ -122,6 +119,8 @@ const (
 )
 
 const (
+	BGP_ATTR_NHLEN_VPN_RD             = 8
+	BGP_ATTR_NHLEN_IPV4               = 4
 	BGP_ATTR_NHLEN_IPV6_GLOBAL        = 16
 	BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL = 32
 )
@@ -11630,78 +11629,72 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 	eData, _ := p.PathAttribute.Serialize(value, options...)
 	if p.Length < 3 {
-		return NewMessageError(eCode, eSubCode, value, "mpreach header length is short")
+		return NewMessageError(eCode, eSubCode, eData, "mpreach header length is short")
 	}
 
-	var afi uint16
-	var safi uint8
-
+	var family Family
 	// In MRT dumps, AFI+SAFI+NLRI is implicit based on RIB Entry Header, see RFC 6396 4.3.4
-	context := GetHeaderContext(options)
-	if context == nil {
-		afi = binary.BigEndian.Uint16(value[:2])
-		safi = value[2]
+	onlyNexthop := IsMRTSerialization(options)
+	if !onlyNexthop {
+		p.AFI = binary.BigEndian.Uint16(value[:2])
+		p.SAFI = value[2]
+		family = NewFamily(p.AFI, p.SAFI)
 		value = value[3:]
-	} else {
-		afi = context.Family.Afi()
-		safi = context.Family.Safi()
-		p.Value = []AddrPrefixInterface{context.Prefix}
 	}
 
-	p.AFI = afi
-	p.SAFI = safi
-	_, err = NewPrefixFromFamily(NewFamily(afi, safi))
-	if err != nil {
-		return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
-	}
 	if len(value) < 1 {
-		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
+		return NewMessageError(eCode, eSubCode, eData, "mpreach nexthop length is short")
 	}
 	nexthoplen := int(value[0])
 	if len(value) < 1+nexthoplen {
-		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
+		return NewMessageError(eCode, eSubCode, eData, "mpreach nexthop length is short")
 	}
 	nexthopbin := value[1 : 1+nexthoplen]
-	if nexthoplen > 0 {
-		v4addrlen := 4
-		v6addrlen := 16
-		offset := 0
-		if safi == SAFI_MPLS_VPN {
-			offset = 8
-		}
-		switch nexthoplen {
-		case 2 * (offset + v6addrlen):
-			p.LinkLocalNexthop = nexthopbin[offset+v6addrlen+offset : 2*(offset+v6addrlen)]
-			fallthrough
-		case offset + v6addrlen:
-			p.Nexthop = nexthopbin[offset : offset+v6addrlen]
-		case offset + v4addrlen:
-			p.Nexthop = nexthopbin[offset : offset+v4addrlen]
-		default:
-			return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is incorrect")
-		}
+	value = value[1+nexthoplen:]
+
+	switch nexthoplen {
+	case 2*BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL: // 8 bytes RD + 16 bytes IPv6 Global + 8 bytes RD + 16 bytes IPv6 Link Local
+		nexthopbin = slices.Delete(nexthopbin, BGP_ATTR_NHLEN_VPN_RD+BGP_ATTR_NHLEN_IPV6_GLOBAL, 2*BGP_ATTR_NHLEN_VPN_RD+BGP_ATTR_NHLEN_IPV6_GLOBAL) // skip second RD
+		nexthoplen -= BGP_ATTR_NHLEN_VPN_RD
+		fallthrough
+	case BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV4, // 8 bytes RD + 4 bytes IPv4
+		BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV6_GLOBAL: // 8 bytes RD + 16 bytes IPv6 Global
+		nexthopbin = nexthopbin[BGP_ATTR_NHLEN_VPN_RD:] // skip RD
+		nexthoplen -= BGP_ATTR_NHLEN_VPN_RD
 	}
 
-	// NLRI implicit for MRT dumps
-	if context != nil {
+	switch nexthoplen {
+	case 0: // no nexthop, skip (FlowSpec)
+	case BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL: // 16 bytes IPv6 Global + 16 bytes IPv6 Link Local
+		p.LinkLocalNexthop = nexthopbin[BGP_ATTR_NHLEN_IPV6_GLOBAL:BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL]
+		fallthrough
+	case BGP_ATTR_NHLEN_IPV6_GLOBAL: // 16 bytes IPv6 Global
+		p.Nexthop = nexthopbin[:BGP_ATTR_NHLEN_IPV6_GLOBAL]
+	case BGP_ATTR_NHLEN_IPV4: // 4 bytes IPv4
+		p.Nexthop = nexthopbin[:BGP_ATTR_NHLEN_IPV4]
+	default:
+		return NewMessageError(eCode, eSubCode, eData, "mpreach nexthop length is incorrect")
+	}
+
+	if onlyNexthop {
 		return nil
 	}
 
-	value = value[1+nexthoplen:]
 	// skip reserved
 	if len(value) == 0 {
 		return NewMessageError(eCode, eSubCode, value, "no skip byte")
 	}
 	value = value[1:]
 	addpathLen := 0
-	if IsAddPathEnabled(true, NewFamily(afi, safi), options) {
+	if IsAddPathEnabled(true, family, options) {
 		addpathLen = 4
 	}
 	for len(value) > 0 {
-		prefix, err := NewPrefixFromFamily(NewFamily(afi, safi))
+		prefix, err := NewPrefixFromFamily(family)
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 		}
+
 		err = prefix.DecodeFromBytes(value, options...)
 		if err != nil {
 			return err
@@ -11718,24 +11711,34 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	afi := p.AFI
 	safi := p.SAFI
-	nexthoplen := 4
-	if afi == AFI_IP6 || p.Nexthop.To4() == nil {
+	nexthopAddrs := make([]net.IP, 0, 2)
+	nexthoplen := 0
+
+	isNexthopIPv6 := afi == AFI_IP6 || p.Nexthop != nil && p.Nexthop.To4() == nil
+	if isNexthopIPv6 {
+		nexthopAddrs = append(nexthopAddrs, p.Nexthop.To16())
 		nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL
+		if p.LinkLocalNexthop != nil && p.LinkLocalNexthop.IsLinkLocalUnicast() {
+			nexthopAddrs = append(nexthopAddrs, p.LinkLocalNexthop.To16())
+			nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL
+		}
+	} else {
+		nexthopAddrs = append(nexthopAddrs, p.Nexthop)
+		nexthoplen = BGP_ATTR_NHLEN_IPV4
 	}
+
 	offset := 0
 	switch safi {
 	case SAFI_MPLS_VPN:
-		offset = 8
-		nexthoplen += offset
+		offset = BGP_ATTR_NHLEN_VPN_RD
+		nexthoplen += len(nexthopAddrs) * offset
 	case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
 		nexthoplen = 0
 	}
-	if p.LinkLocalNexthop != nil && p.LinkLocalNexthop.IsLinkLocalUnicast() {
-		nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL
-	}
+
 	var buf []byte
-	includeNLRI := GetHeaderContext(options) == nil
-	if includeNLRI {
+	onlyNexthop := IsMRTSerialization(options)
+	if !onlyNexthop {
 		family := make([]byte, 3)
 		binary.BigEndian.PutUint16(family[0:], afi)
 		family[2] = safi
@@ -11743,22 +11746,19 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 		buf = append(buf, family...)
 	}
 	buf = append(buf, uint8(nexthoplen))
-	if nexthoplen != 0 {
+	if nexthoplen != 0 { // if nexthoplen == 0, no nexthop (FlowSpec)
 		nexthop := make([]byte, nexthoplen)
 
-		if p.Nexthop.To4() == nil {
-			copy(nexthop[offset:], p.Nexthop.To16())
-
-			if nexthoplen == BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL {
-				copy(nexthop[offset+16:], p.LinkLocalNexthop.To16())
-			}
-		} else {
-			copy(nexthop[offset:], p.Nexthop)
+		index := 0
+		for _, nh := range nexthopAddrs {
+			index += offset
+			copy(nexthop[index:], nh)
+			index += len(nh)
 		}
 
 		buf = append(buf, nexthop...)
 	}
-	if includeNLRI {
+	if !onlyNexthop {
 		buf = append(buf, 0)
 		for _, prefix := range p.Value {
 			pbuf, err := prefix.Serialize(options...)
@@ -11805,39 +11805,33 @@ func (p *PathAttributeMpReachNLRI) String() string {
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	// AFI(2) + SAFI(1) + NexthopLength(1) + Nexthop(variable)
 	// + Reserved(1) + NLRI(variable)
-	l := 5
-	var afi uint16
-	var safi uint8
+	afi := uint16(0)
+	safi := uint8(0)
 	if len(nlri) > 0 {
 		afi = nlri[0].AFI()
 		safi = nlri[0].SAFI()
 	}
+
+	l := 5
 	nh := net.ParseIP(nexthop)
+	nhlen := BGP_ATTR_NHLEN_IPV6_GLOBAL
 	if nh.To4() != nil && afi != AFI_IP6 {
 		nh = nh.To4()
-		switch safi {
-		case SAFI_MPLS_VPN:
-			l += 12
-		case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
-			// Should not have Nexthop
-		default:
-			l += 4
-		}
-	} else {
-		switch safi {
-		case SAFI_MPLS_VPN:
-			l += 24
-		case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
-			// Should not have Nexthop
-		default:
-			l += 16
-		}
+		nhlen = BGP_ATTR_NHLEN_IPV4
 	}
-	var nlriLen int
+
+	switch safi {
+	case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
+	// Should not have Nexthop
+	case SAFI_MPLS_VPN:
+		l += BGP_ATTR_NHLEN_VPN_RD
+		fallthrough
+	default:
+		l += nhlen
+	}
+
 	for _, n := range nlri {
 		l += n.Len()
-		nBuf, _ := n.Serialize()
-		nlriLen += len(nBuf)
 	}
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
 	return &PathAttributeMpReachNLRI{

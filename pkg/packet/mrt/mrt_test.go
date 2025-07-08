@@ -125,13 +125,13 @@ func TestMrtRibEntry(t *testing.T) {
 	}
 
 	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 0, p, false)
-	b1, err := e1.Serialize(bgp.RF_IPv4_UC)
+	b1, err := e1.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	e2 := &RibEntry{}
-	rest, err := e2.DecodeFromBytes(b1, bgp.RF_IPv4_UC)
+	rest, err := e2.DecodeFromBytes(b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,13 +154,13 @@ func TestMrtRibEntryWithAddPath(t *testing.T) {
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
 	e1 := NewRibEntry(1, uint32(time.Now().Unix()), 200, p, true)
-	b1, err := e1.Serialize(bgp.RF_IPv4_UC)
+	b1, err := e1.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	e2 := &RibEntry{isAddPath: true}
-	rest, err := e2.DecodeFromBytes(b1, bgp.RF_IPv4_UC)
+	rest, err := e2.DecodeFromBytes(b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,8 +335,8 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&MRTHeader{}).DecodeFromBytes(data)
 		(&Peer{}).DecodeFromBytes(data)
 		(&PeerIndexTable{}).DecodeFromBytes(data)
-		(&RibEntry{}).DecodeFromBytes(data, bgp.RF_IPv4_UC)
-		(&RibEntry{isAddPath: true}).DecodeFromBytes(data, bgp.RF_IPv4_UC)
+		(&RibEntry{}).DecodeFromBytes(data)
+		(&RibEntry{isAddPath: true}).DecodeFromBytes(data)
 		(&Rib{}).DecodeFromBytes(data)
 		(&Rib{isAddPath: true}).DecodeFromBytes(data)
 		(&GeoPeer{}).DecodeFromBytes(data)

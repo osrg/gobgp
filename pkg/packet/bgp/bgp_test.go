@@ -22,7 +22,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -68,7 +67,7 @@ func Test_Message(t *testing.T) {
 		_, err = m2.Serialize()
 		assert.NoError(t, err)
 
-		assert.True(t, reflect.DeepEqual(m1, m2))
+		assert.Equal(t, m1, m2)
 	}
 }
 
@@ -1175,26 +1174,25 @@ func Test_MpReachNLRIWithImplicitPrefix(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x01,
 	}
-	prefix := NewIPAddrPrefix(24, "192.168.10.0")
 	// Test DecodeFromBytes()
 	p := &PathAttributeMpReachNLRI{}
-	option := &MarshallingOption{HeaderPrefix: &HeaderContext{
-		Family: RF_IPv4_UC,
-		Prefix: prefix,
-	}}
-	err := p.DecodeFromBytes(bufin, option)
+	options := &MarshallingOption{MRT: true}
+	err := p.DecodeFromBytes(bufin, options)
 	assert.NoError(err)
 	// Test decoded values
 	assert.Equal(BGPAttrFlag(0x80), p.Flags)
 	assert.Equal(BGPAttrType(0xe), p.Type)
 	assert.Equal(uint16(0x11), p.Length)
-	assert.Equal(prefix.AFI(), p.AFI)
-	assert.Equal(prefix.SAFI(), p.SAFI)
 	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
-	value := []AddrPrefixInterface{prefix}
-	assert.Equal(value, p.Value)
+	// AFI/SAFI/NLRI are derived from the Rib header
+	// which we don't have here.
+	// assert.Equal(prefix.AFI(), p.AFI)
+	// assert.Equal(prefix.SAFI(), p.SAFI)
+	// prefix := NewIPAddrPrefix(24, "192.168.10.0")
+	// value := []AddrPrefixInterface{prefix}
+	// assert.Equal(value, p.Value)
 	// Test Serialize()
-	bufout, err := p.Serialize(option)
+	bufout, err := p.Serialize(options)
 	assert.NoError(err)
 	// Test serialised value
 	assert.Equal(bufin, bufout)

@@ -391,7 +391,7 @@ type RibEntry struct {
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
-func (e *RibEntry) DecodeFromBytes(data []byte, family bgp.Family, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
 	if len(data) < 8 {
 		return nil, errNotAllRibEntryBytesAvailable
 	}
@@ -408,6 +408,9 @@ func (e *RibEntry) DecodeFromBytes(data []byte, family bgp.Family, prefix ...bgp
 	}
 	totalLen := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
+	options := &bgp.MarshallingOption{
+		MRT: true,
+	}
 	for attrLen := totalLen; attrLen > 0; {
 		p, err := bgp.GetPathAttribute(data)
 		if err != nil {
@@ -415,17 +418,24 @@ func (e *RibEntry) DecodeFromBytes(data []byte, family bgp.Family, prefix ...bgp
 		}
 
 		// HACK: keeps compatibility
-		switch len(prefix) {
-		case 0:
-			err = p.DecodeFromBytes(data)
-		case 1:
-			err = p.DecodeFromBytes(data, &bgp.MarshallingOption{HeaderPrefix: &bgp.HeaderContext{Family: family, Prefix: prefix[0]}})
-		default:
+		if len(prefix) > 1 {
 			return nil, fmt.Errorf("only one prefix should be used")
 		}
+		err = p.DecodeFromBytes(data, options)
 		if err != nil {
 			return nil, err
 		}
+
+		// RFC 6396 4.3.4
+		mp, ok := p.(*bgp.PathAttributeMpReachNLRI)
+		if ok && len(prefix) == 0 {
+			return nil, fmt.Errorf("prefix is not provided for MP_REACH_NLRI")
+		} else if ok {
+			mp.AFI = prefix[0].AFI()
+			mp.SAFI = prefix[0].SAFI()
+			mp.Value = []bgp.AddrPrefixInterface{prefix[0]}
+		}
+
 		attrLen -= uint16(p.Len())
 		if len(data) < p.Len() {
 			return nil, errNotAllRibEntryBytesAvailable
@@ -436,21 +446,20 @@ func (e *RibEntry) DecodeFromBytes(data []byte, family bgp.Family, prefix ...bgp
 	return data, nil
 }
 
-func (e *RibEntry) Serialize(family bgp.Family, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) Serialize(prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
 	pbuf := make([]byte, 0)
 	totalLen := 0
+	options := &bgp.MarshallingOption{
+		MRT: true,
+	}
 	for _, pattr := range e.PathAttributes {
 		var pb []byte
 		var err error
 		// HACK: keeps compatibility
-		switch len(prefix) {
-		case 0:
-			pb, err = pattr.Serialize()
-		case 1:
-			pb, err = pattr.Serialize(&bgp.MarshallingOption{HeaderPrefix: &bgp.HeaderContext{Family: family, Prefix: prefix[0]}})
-		default:
+		if len(prefix) > 1 {
 			return nil, fmt.Errorf("only one prefix should be used")
 		}
+		pb, err = pattr.Serialize(options)
 		if err != nil {
 			return nil, err
 		}
@@ -536,7 +545,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		e := &RibEntry{
 			isAddPath: u.isAddPath,
 		}
-		data, err = e.DecodeFromBytes(data, family, prefix)
+		data, err = e.DecodeFromBytes(data, prefix)
 		if err != nil {
 			return err
 		}
@@ -568,7 +577,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, bbuf...)
 	for _, entry := range u.Entries {
-		bbuf, err = entry.Serialize(family, u.Prefix)
+		bbuf, err = entry.Serialize(u.Prefix)
 		if err != nil {
 			return nil, err
 		}
