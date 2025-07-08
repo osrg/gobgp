@@ -576,8 +576,56 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	return newPath, nil
 }
 
+func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
+	nlri, err := apiutil.GetNativeNlri(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid nlri: %w", err)
+	}
+	attrs, err := apiutil.GetNativePathAttributes(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path attributes: %w", err)
+	}
+	p := &apiutil.Path{
+		Nlri:               nlri,
+		Attrs:              attrs,
+		Age:                path.Age.GetSeconds(),
+		Best:               path.Best,
+		Stale:              path.Stale,
+		Withdrawal:         path.IsWithdraw,
+		SourceASN:          path.SourceAsn,
+		SourceID:           net.ParseIP(path.SourceId),
+		NeighborIP:         net.ParseIP(path.NeighborIp),
+		IsFromExternal:     path.IsFromExternal,
+		NoImplicitWithdraw: path.NoImplicitWithdraw,
+	}
+	if p.SourceASN != 0 && p.SourceID == nil {
+		return nil, fmt.Errorf("source ID must be set correctly %v", p.SourceID)
+	}
+	p.Nlri.SetPathIdentifier(path.Identifier)
+	return p, nil
+}
+
 func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
-	return s.bgpServer.AddPath(ctx, r)
+	if r == nil || r.Path == nil {
+		return nil, fmt.Errorf("nil request")
+	}
+	var uuidBytes []byte
+	err := s.bgpServer.mgmtOperation(func() error {
+		p, err := api2apiutilPath(r.Path)
+		if err != nil {
+			return fmt.Errorf("invalid path: %w", err)
+		}
+		path, err := s.bgpServer.AddPath(r.TableType, r.VrfId, p)
+		if err != nil {
+			return err
+		}
+
+		id := path[0].Uuid
+		s.bgpServer.uuidMap[apiutilPathTokey(p)] = id
+		uuidBytes, _ = id.MarshalBinary()
+		return nil
+	}, true)
+	return &api.AddPathResponse{Uuid: uuidBytes}, err
 }
 
 func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api.DeletePathResponse, error) {
