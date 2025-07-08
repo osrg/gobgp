@@ -113,6 +113,11 @@ func TestMetrics(test *testing.T) {
 			}},
 		},
 	}
+	apiPath := &api.Path{
+		Family: family,
+		Nlri:   nlri1,
+		Pattrs: attrs,
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	goroutineCh := make(chan any)
@@ -123,13 +128,17 @@ func TestMetrics(test *testing.T) {
 				close(goroutineCh)
 				return
 			default:
-				_, err := t.AddPath(context.Background(), &api.AddPathRequest{
-					TableType: api.TableType_TABLE_TYPE_GLOBAL,
-					Path: &api.Path{
-						Family: family,
-						Nlri:   nlri1,
-						Pattrs: attrs,
-					},
+				nlri, err := apiutil.GetNativeNlri(apiPath)
+				if err != nil {
+					test.Errorf("invalid nlri: %v", err)
+				}
+				pattrs, err := apiutil.GetNativePathAttributes(apiPath)
+				if err != nil {
+					test.Errorf("invalid path attributes: %v", err)
+				}
+				_, err = t.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "", &apiutil.Path{
+					Nlri:  nlri,
+					Attrs: pattrs,
 				})
 				assert.NoError(err)
 				err = t.DeletePath(context.Background(), &api.DeletePathRequest{
