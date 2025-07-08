@@ -391,7 +391,7 @@ type RibEntry struct {
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
-func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) DecodeFromBytes(data []byte, family bgp.Family, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
 	if len(data) < 8 {
 		return nil, errNotAllRibEntryBytesAvailable
 	}
@@ -419,7 +419,7 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterfac
 		case 0:
 			err = p.DecodeFromBytes(data)
 		case 1:
-			err = p.DecodeFromBytes(data, &bgp.MarshallingOption{ImplicitPrefix: prefix[0]})
+			err = p.DecodeFromBytes(data, &bgp.MarshallingOption{HeaderPrefix: &bgp.HeaderContext{Family: family, Prefix: prefix[0]}})
 		default:
 			return nil, fmt.Errorf("only one prefix should be used")
 		}
@@ -436,7 +436,7 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterfac
 	return data, nil
 }
 
-func (e *RibEntry) Serialize(prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) Serialize(family bgp.Family, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
 	pbuf := make([]byte, 0)
 	totalLen := 0
 	for _, pattr := range e.PathAttributes {
@@ -447,7 +447,7 @@ func (e *RibEntry) Serialize(prefix ...bgp.AddrPrefixInterface) ([]byte, error) 
 		case 0:
 			pb, err = pattr.Serialize()
 		case 1:
-			pb, err = pattr.Serialize(&bgp.MarshallingOption{ImplicitPrefix: prefix[0]})
+			pb, err = pattr.Serialize(&bgp.MarshallingOption{HeaderPrefix: &bgp.HeaderContext{Family: family, Prefix: prefix[0]}})
 		default:
 			return nil, fmt.Errorf("only one prefix should be used")
 		}
@@ -515,7 +515,8 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		safi = data[2]
 		data = data[3:]
 	}
-	prefix, err := bgp.NewPrefixFromFamily(bgp.NewFamily(afi, safi))
+	family := bgp.NewFamily(afi, safi)
+	prefix, err := bgp.NewPrefixFromFamily(family)
 	if err != nil {
 		return err
 	}
@@ -535,7 +536,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		e := &RibEntry{
 			isAddPath: u.isAddPath,
 		}
-		data, err = e.DecodeFromBytes(data, prefix)
+		data, err = e.DecodeFromBytes(data, family, prefix)
 		if err != nil {
 			return err
 		}
@@ -547,8 +548,8 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 func (u *Rib) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
-	rf := bgp.NewFamily(u.Prefix.AFI(), u.Prefix.SAFI())
-	switch rf {
+	family := bgp.NewFamily(u.Prefix.AFI(), u.Prefix.SAFI())
+	switch family {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 	default:
 		var bbuf [2]byte
@@ -567,7 +568,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, bbuf...)
 	for _, entry := range u.Entries {
-		bbuf, err = entry.Serialize(u.Prefix)
+		bbuf, err = entry.Serialize(family, u.Prefix)
 		if err != nil {
 			return nil, err
 		}

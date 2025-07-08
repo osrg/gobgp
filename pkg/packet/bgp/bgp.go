@@ -31,21 +31,25 @@ import (
 	"sync"
 )
 
-type MarshallingOption struct {
-	AddPath        map[Family]BGPAddPathMode
-	Attributes     map[BGPAttrType]bool
-	ImplicitPrefix AddrPrefixInterface
+type HeaderContext struct {
+	Family Family
+	Prefix AddrPrefixInterface
 }
 
-// GetImplicitPrefix gets the implicit prefix associated with decoding/serialisation. This is used for
-// the MRT representation of MP_REACH_NLRI (see RFC 6396 4.3.4).
-func GetImplicitPrefix(options []*MarshallingOption) AddrPrefixInterface {
+type MarshallingOption struct {
+	AddPath      map[Family]BGPAddPathMode
+	Attributes   map[BGPAttrType]bool
+	HeaderPrefix *HeaderContext
+}
+
+// GetHeaderContext gets the header context (Family + prefix) from MarshallingOption.
+// This is used for MRT representation where AFI/SAFI/NLRI can be omitted (RFC 6396 4.3.4).
+func GetHeaderContext(options []*MarshallingOption) *HeaderContext {
 	for _, opt := range options {
-		if opt != nil && opt.ImplicitPrefix != nil {
-			return opt.ImplicitPrefix
+		if opt != nil && opt.HeaderPrefix != nil {
+			return opt.HeaderPrefix
 		}
 	}
-
 	return nil
 }
 
@@ -11633,17 +11637,15 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	var safi uint8
 
 	// In MRT dumps, AFI+SAFI+NLRI is implicit based on RIB Entry Header, see RFC 6396 4.3.4
-	implicitPrefix := GetImplicitPrefix(options)
-	if implicitPrefix == nil {
+	context := GetHeaderContext(options)
+	if context == nil {
 		afi = binary.BigEndian.Uint16(value[:2])
 		safi = value[2]
-
 		value = value[3:]
 	} else {
-		afi = implicitPrefix.AFI()
-		safi = implicitPrefix.SAFI()
-
-		p.Value = []AddrPrefixInterface{implicitPrefix}
+		afi = context.Family.Afi()
+		safi = context.Family.Safi()
+		p.Value = []AddrPrefixInterface{context.Prefix}
 	}
 
 	p.AFI = afi
@@ -11681,7 +11683,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	}
 
 	// NLRI implicit for MRT dumps
-	if implicitPrefix != nil {
+	if context != nil {
 		return nil
 	}
 
@@ -11732,7 +11734,7 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 		nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL
 	}
 	var buf []byte
-	includeNLRI := GetImplicitPrefix(options) == nil
+	includeNLRI := GetHeaderContext(options) == nil
 	if includeNLRI {
 		family := make([]byte, 3)
 		binary.BigEndian.PutUint16(family[0:], afi)

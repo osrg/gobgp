@@ -1178,7 +1178,10 @@ func Test_MpReachNLRIWithImplicitPrefix(t *testing.T) {
 	prefix := NewIPAddrPrefix(24, "192.168.10.0")
 	// Test DecodeFromBytes()
 	p := &PathAttributeMpReachNLRI{}
-	option := &MarshallingOption{ImplicitPrefix: prefix}
+	option := &MarshallingOption{HeaderPrefix: &HeaderContext{
+		Family: RF_IPv4_UC,
+		Prefix: prefix,
+	}}
 	err := p.DecodeFromBytes(bufin, option)
 	assert.NoError(err)
 	// Test decoded values
