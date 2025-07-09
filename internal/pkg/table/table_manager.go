@@ -98,7 +98,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 			// path.info{nlri: nlri}
 			// Compute a new attribute array for each path with one NLRI to make serialization
 			// of path attrs faster
-			nlriAttr := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})
+			nlriAttr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlri)
 			reachAttrs := makeAttributeList(attrs, nlriAttr)
 
 			p := NewPath(peerInfo, nlri, false, reachAttrs, timestamp, false)
@@ -173,7 +173,7 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		nlri := bgp.NewRouteTargetMembershipNLRI(info.AS, target)
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
 		msgs = append(msgs, NewPath(info, nlri, false, pattr, time.Now(), false))
 	}
 	return msgs, nil

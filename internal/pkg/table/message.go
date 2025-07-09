@@ -314,7 +314,7 @@ func createMPReachMessage(path *Path) *bgp.BGPMessage {
 	attrs := make([]bgp.PathAttributeInterface, 0, len(oattrs))
 	for _, a := range oattrs {
 		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-			attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(path.GetNexthop().String(), []bgp.AddrPrefixInterface{path.GetNlri()}))
+			attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(path.GetNexthop().String(), path.GetNlri()))
 		} else {
 			attrs = append(attrs, a)
 		}
@@ -326,8 +326,8 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	msgs := make([]*bgp.BGPMessage, 0, p.total)
 
 	for _, path := range p.withdrawals {
-		nlris := []bgp.AddrPrefixInterface{path.GetNlri()}
-		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeMpUnreachNLRI(nlris)}, nil))
+		nlri := path.GetNlri()
+		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeMpUnreachNLRI(nlri)}, nil))
 	}
 
 	for _, path := range p.paths {

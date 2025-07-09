@@ -64,13 +64,13 @@ func Test_VPLSNLRI_decoding(t *testing.T) {
 		0x07, 0x00, 0x00, 0x11, 0x00, 0x00, 0xfd, 0xf9, 0x00, 0x00, 0x00,
 		0x68, 0x00, 0x01, 0x00, 0x01, 0x00, 0x08, 0xc3, 0x50, 0x01,
 	}
-	m1 := NewPathAttributeMpReachNLRI("", nil)
+	m1 := &PathAttributeMpReachNLRI{}
 	err := m1.DecodeFromBytes(buf)
 	require.NoError(t, err)
 
-	ns := make([]AddrPrefixInterface, 0)
-	ns = append(ns, NewVPLSNLRI(NewRouteDistinguisherTwoOctetAS(65017, 104), 1, 1, 8, 800000))
-	m2 := NewPathAttributeMpReachNLRI("192.0.2.7", ns)
+	rd := NewRouteDistinguisherTwoOctetAS(65017, 104)
+	nlri := NewVPLSNLRI(rd, 1, 1, 8, 800000)
+	m2 := NewPathAttributeMpReachNLRI("192.0.2.7", nlri)
 	m2.Flags |= BGP_ATTR_FLAG_EXTENDED_LENGTH
 
 	assert.Equal(m1, m2)

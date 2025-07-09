@@ -496,8 +496,8 @@ func TestBMP(t *testing.T) {
 		bgp.NewAs4PathParam(1, []uint32{1000001, 1002}),
 		bgp.NewAs4PathParam(2, []uint32{1003, 100004}),
 	}
-	mp_nlri := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(100,
-		"fe80:1234:1234:5667:8967:af12:8912:1023")}
+	mp_nlri := bgp.NewIPv6AddrPrefix(100,
+		"fe80:1234:1234:5667:8967:af12:8912:1023")
 
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
@@ -528,8 +528,8 @@ func TestMixedMPReachMPUnreach(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
 		bgp.NewAs4PathParam(2, []uint32{100}),
 	}
-	nlri1 := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(32, "2222::")}
-	nlri2 := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(32, "1111::")}
+	nlri1 := bgp.NewIPv6AddrPrefix(32, "2222::")
+	nlri2 := bgp.NewIPv6AddrPrefix(32, "1111::")
 
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
@@ -559,7 +559,7 @@ func TestMixedNLRIAndMPUnreach(t *testing.T) {
 		bgp.NewAs4PathParam(2, []uint32{100}),
 	}
 	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.0.0.0")}
-	nlri2 := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(32, "1111::")}
+	nlri2 := bgp.NewIPv6AddrPrefix(32, "1111::")
 
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
