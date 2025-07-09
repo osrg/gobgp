@@ -11802,17 +11802,15 @@ func (p *PathAttributeMpReachNLRI) String() string {
 	return fmt.Sprintf("{MpReach(%s): {Nexthop: %s, NLRIs: %s}}", NewFamily(p.AFI, p.SAFI), p.Nexthop, p.Value)
 }
 
-func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
+func NewPathAttributeMpReachNLRI(nexthop string, nlris ...AddrPrefixInterface) *PathAttributeMpReachNLRI {
+	if len(nlris) == 0 {
+		return nil
+	}
 	// AFI(2) + SAFI(1) + NexthopLength(1) + Nexthop(variable)
 	// + Reserved(1) + NLRI(variable)
-	afi := uint16(0)
-	safi := uint8(0)
-	if len(nlri) > 0 {
-		afi = nlri[0].AFI()
-		safi = nlri[0].SAFI()
-	}
-
 	l := 5
+	afi := nlris[0].AFI()
+	safi := nlris[0].SAFI()
 	nh := net.ParseIP(nexthop)
 	nhlen := BGP_ATTR_NHLEN_IPV6_GLOBAL
 	if nh.To4() != nil && afi != AFI_IP6 {
@@ -11830,7 +11828,7 @@ func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *Pa
 		l += nhlen
 	}
 
-	for _, n := range nlri {
+	for _, n := range nlris {
 		l += n.Len()
 	}
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
@@ -11843,7 +11841,7 @@ func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *Pa
 		Nexthop: nh,
 		AFI:     afi,
 		SAFI:    safi,
-		Value:   nlri,
+		Value:   nlris,
 	}
 }
 
@@ -11930,16 +11928,16 @@ func (p *PathAttributeMpUnreachNLRI) String() string {
 	return fmt.Sprintf("{MpUnreach(%s): End-of-Rib}", NewFamily(p.AFI, p.SAFI))
 }
 
-func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
+func NewPathAttributeMpUnreachNLRI(nlris ...AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
 	// AFI(2) + SAFI(1) + NLRI(variable)
 	l := 3
 	var afi uint16
 	var safi uint8
-	if len(nlri) > 0 {
-		afi = nlri[0].AFI()
-		safi = nlri[0].SAFI()
+	if len(nlris) > 0 {
+		afi = nlris[0].AFI()
+		safi = nlris[0].SAFI()
 	}
-	for _, n := range nlri {
+	for _, n := range nlris {
 		l += n.Len()
 	}
 	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
@@ -11951,7 +11949,7 @@ func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpU
 		},
 		AFI:   afi,
 		SAFI:  safi,
-		Value: nlri,
+		Value: nlris,
 	}
 }
 
@@ -15307,7 +15305,7 @@ func TreatAsWithdraw(msg *BGPUpdate) *BGPUpdate {
 		}
 	}
 	if len(unreach) != 0 {
-		withdraw.PathAttributes = append(withdraw.PathAttributes, NewPathAttributeMpUnreachNLRI(unreach))
+		withdraw.PathAttributes = append(withdraw.PathAttributes, NewPathAttributeMpUnreachNLRI(unreach...))
 	}
 	return withdraw
 }

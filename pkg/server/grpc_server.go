@@ -512,7 +512,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
-		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
 	}
 
 	doWithdraw := isWithdraw || path.IsWithdraw

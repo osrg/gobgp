@@ -1941,7 +1941,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 		bgpUpdateNexthop := bgpPathAttributes[4]
 		expectedNexthopAttr := bgp.NewPathAttributeMpReachNLRI(
 			bgpUpdateNexthop.(*bgp.PathAttributeMpReachNLRI).Nexthop.String(),
-			[]bgp.AddrPrefixInterface{actual.GetNlri()})
+			actual.GetNlri())
 		attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 		pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
@@ -2168,7 +2168,7 @@ func update_fromR1_ipv6() *bgp.BGPMessage {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 
-	mp_nlri := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")}
+	mp_nlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
 	mp_reach := bgp.NewPathAttributeMpReachNLRI("2001::192:168:50:1", mp_nlri)
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
@@ -2222,12 +2222,12 @@ func createAsPathAttribute(ases []uint32) *bgp.PathAttributeAsPath {
 }
 
 func createMpReach(nexthop string, prefix []bgp.AddrPrefixInterface) *bgp.PathAttributeMpReachNLRI {
-	mp_reach := bgp.NewPathAttributeMpReachNLRI(nexthop, prefix)
+	mp_reach := bgp.NewPathAttributeMpReachNLRI(nexthop, prefix...)
 	return mp_reach
 }
 
 func createMpUNReach(nlri string, len uint8) *bgp.PathAttributeMpUnreachNLRI {
-	mp_nlri := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(len, nlri)}
+	mp_nlri := bgp.NewIPv6AddrPrefix(len, nlri)
 	mp_unreach := bgp.NewPathAttributeMpUnreachNLRI(mp_nlri)
 	return mp_unreach
 }

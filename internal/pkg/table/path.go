@@ -458,7 +458,7 @@ func (path *Path) GetNexthop() net.IP {
 func (path *Path) SetNexthop(nexthop net.IP) {
 	if path.GetFamily() == bgp.RF_IPv4_UC && nexthop.To4() == nil {
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), []bgp.AddrPrefixInterface{path.GetNlri()})
+		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), path.GetNlri())
 		path.setPathAttr(mpreach)
 		return
 	}
@@ -469,7 +469,7 @@ func (path *Path) SetNexthop(nexthop net.IP) {
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
 		oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
-		path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nexthop.String(), oldNlri.Value))
+		path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nexthop.String(), oldNlri.Value...))
 	}
 }
 
@@ -1223,7 +1223,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
+	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), nlri))
 	return path
 }
 

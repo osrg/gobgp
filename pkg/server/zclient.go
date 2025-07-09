@@ -293,7 +293,7 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 		if len(body.Nexthops) > 0 {
 			nexthop = body.Nexthops[0].Gate.String()
 		}
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
 	default:
 		logger.Error("unsupport address family",
 			log.Fields{

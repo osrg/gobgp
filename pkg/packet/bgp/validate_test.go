@@ -35,7 +35,7 @@ func bgpupdateV6() *BGPMessage {
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(1),
 		NewPathAttributeAsPath(aspath),
-		NewPathAttributeMpReachNLRI("1023::", prefixes),
+		NewPathAttributeMpReachNLRI("1023::", prefixes...),
 	}
 	return NewBGPUpdateMessage(nil, p, nil)
 }
@@ -411,7 +411,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	item7 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
-	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
+	a := NewPathAttributeMpReachNLRI("", n1)
 	m := map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}
 	_, err := ValidateAttribute(a, m, false, false, false)
 	assert.NoError(err)
@@ -420,7 +420,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	n1 = NewFlowSpecIPv4Unicast(cmp)
-	a = NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
+	a = NewPathAttributeMpReachNLRI("", n1)
 	// Swaps components order to reproduce the rules order violation.
 	n1.Value[0], n1.Value[1] = n1.Value[1], n1.Value[0]
 	_, err = ValidateAttribute(a, m, false, false, false)

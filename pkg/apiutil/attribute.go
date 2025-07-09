@@ -99,7 +99,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 				return nil, fmt.Errorf("invalid nexthop: %s", nexthop)
 			}
 		}
-		attr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlris)
+		attr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlris...)
 		attr.LinkLocalNexthop = linkLocalNexthop
 		return attr, nil
 	case *api.Attribute_MpUnreach:
@@ -108,7 +108,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		return bgp.NewPathAttributeMpUnreachNLRI(nlris), nil
+		return bgp.NewPathAttributeMpUnreachNLRI(nlris...), nil
 	case *api.Attribute_ExtendedCommunities:
 		return unmarshalExComm(a.ExtendedCommunities)
 	case *api.Attribute_As4Path:
@@ -1893,6 +1893,9 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 }
 
 func UnmarshalNLRIs(rf bgp.Family, values []*api.NLRI) ([]bgp.AddrPrefixInterface, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("no nlri values to unmarshal for %s family", rf.String())
+	}
 	nlris := make([]bgp.AddrPrefixInterface, 0, len(values))
 	for _, an := range values {
 		nlri, err := UnmarshalNLRI(rf, an)
