@@ -2334,11 +2334,11 @@ func (s *BgpServer) addPathStream(vrfId string, pathList []*table.Path) error {
 
 func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*table.Path, error) {
 	var source *table.PeerInfo
-	if path.SourceASN != 0 {
+	if path.PeerASN != 0 {
 		source = &table.PeerInfo{
-			AS:      path.SourceASN,
-			ID:      path.SourceID,
-			Address: path.NeighborIP,
+			AS:      path.PeerASN,
+			ID:      path.PeerID,
+			Address: path.PeerAddress,
 		}
 	}
 

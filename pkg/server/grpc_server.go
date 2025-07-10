@@ -601,14 +601,14 @@ func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
 		Best:               path.Best,
 		Stale:              path.Stale,
 		Withdrawal:         path.IsWithdraw,
-		SourceASN:          path.SourceAsn,
-		SourceID:           net.ParseIP(path.SourceId),
-		NeighborIP:         net.ParseIP(path.NeighborIp),
+		PeerASN:            path.SourceAsn,
+		PeerID:             net.ParseIP(path.SourceId),
+		PeerAddress:        net.ParseIP(path.NeighborIp),
 		IsFromExternal:     path.IsFromExternal,
 		NoImplicitWithdraw: path.NoImplicitWithdraw,
 	}
-	if p.SourceASN != 0 && p.SourceID == nil {
-		return nil, fmt.Errorf("source ID must be set correctly %v", p.SourceID)
+	if p.PeerASN != 0 && p.PeerID == nil {
+		return nil, fmt.Errorf("source ID must be set correctly %v", p.PeerID)
 	}
 	p.Nlri.SetPathIdentifier(path.Identifier)
 	return p, nil
