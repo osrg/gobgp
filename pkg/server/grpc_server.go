@@ -658,7 +658,7 @@ func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api
 		if len(r.Uuid) > 0 {
 			// Delete locally generated path which has the given UUID
 			id, _ := uuid.FromBytes(r.Uuid)
-			if err := s.bgpServer.DeletePath(r.TableType, r.VrfId, []uuid.UUID{id}, false, nil); err != nil {
+			if err := s.bgpServer.deletePath(r.VrfId, []uuid.UUID{id}, false, nil); err != nil {
 				return err
 			}
 		} else if len(pathList) == 0 {
@@ -667,11 +667,11 @@ func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api
 			if r.Family != nil {
 				family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 			}
-			if err := s.bgpServer.DeletePath(r.TableType, r.VrfId, nil, true, &family, pathList...); err != nil {
+			if err := s.bgpServer.deletePath(r.VrfId, nil, true, &family, pathList...); err != nil {
 				return err
 			}
 		} else {
-			if err := s.bgpServer.DeletePath(r.TableType, r.VrfId, nil, false, nil, pathList...); err != nil {
+			if err := s.bgpServer.deletePath(r.VrfId, nil, false, nil, pathList...); err != nil {
 				return err
 			}
 		}

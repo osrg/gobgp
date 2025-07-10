@@ -142,7 +142,7 @@ func TestMetrics(test *testing.T) {
 				})
 
 				assert.NoError(err)
-				err = t.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, &apiutil.Path{
+				err = t.DeletePath(&apiutil.Path{
 					Nlri:  nlri,
 					Attrs: pattrs,
 				})
