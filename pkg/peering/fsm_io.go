@@ -144,6 +144,13 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 		}
 	}
 
+	fsm.Lock.RLock()
+	neighborAddress := fsm.PeerConf.State.NeighborAddress
+	state := fsm.State
+	useRevisedError := fsm.PeerConf.ErrorHandling.Config.TreatAsWithdraw
+	options := fsm.MarshallingOptions
+	fsm.Lock.RUnlock()
+
 	headerBuf, err := netutils.ReadAll(fsm.Conn, bgp.BGP_HEADER_LENGTH)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return nil, nil
@@ -156,20 +163,18 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 	err = hd.DecodeFromBytes(headerBuf)
 	if err != nil {
 		fsm.bgpMessageStateUpdate(0, true)
-		fsm.Lock.RLock()
 		fsm.Logger.Warn("Session will be reset due to malformed BGP Header",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   fsm.PeerConf.State.NeighborAddress,
-				"State": fsm.State.String(),
+				"Key":   neighborAddress,
+				"State": state,
 				"Error": err,
 			})
 		fmsg := &FSMMsg{
 			MsgType: FSMMsgBGPMessage,
-			MsgSrc:  fsm.PeerConf.State.NeighborAddress,
+			MsgSrc:  neighborAddress,
 			MsgData: err,
 		}
-		fsm.Lock.RUnlock()
 		return fmsg, err
 	}
 
@@ -184,168 +189,161 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 	now := time.Now()
 	handling := bgp.ERROR_HANDLING_NONE
 
-	fsm.Lock.RLock()
-	useRevisedError := fsm.PeerConf.ErrorHandling.Config.TreatAsWithdraw
-	options := fsm.MarshallingOptions
-	fsm.Lock.RUnlock()
-
 	m, err := bgp.ParseBGPBody(hd, bodyBuf, options)
 	if err != nil {
 		handling = fsm.handlingError(m, err, useRevisedError)
 	}
-	fsm.Lock.RLock()
+
+	fsm.bgpMessageStateUpdate(m.Header.Type, true)
+
 	fmsg := &FSMMsg{
 		MsgType:   FSMMsgBGPMessage,
-		MsgSrc:    fsm.PeerConf.State.NeighborAddress,
+		MsgSrc:    neighborAddress,
 		Timestamp: now,
+		MsgData:   m,
 	}
-	fsm.Lock.RUnlock()
 
 	switch handling {
 	case bgp.ERROR_HANDLING_AFISAFI_DISABLE:
-		fmsg.MsgData = m
 		return fmsg, nil
 	case bgp.ERROR_HANDLING_SESSION_RESET:
-		fsm.Lock.RLock()
 		fsm.Logger.Warn("Session will be reset due to malformed BGP message",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   fsm.PeerConf.State.NeighborAddress,
-				"State": fsm.State.String(),
+				"Key":   neighborAddress,
+				"State": state,
 				"Error": err,
 			})
-		fsm.Lock.RUnlock()
 		fmsg.MsgData = err
 		return fmsg, err
 	default:
-		fmsg.MsgData = m
+		// not established
+		if state != bgp.BGP_FSM_ESTABLISHED {
+			return fmsg, nil
+		}
 
-		fsm.Lock.RLock()
-		establishedState := fsm.State == bgp.BGP_FSM_ESTABLISHED
-		fsm.Lock.RUnlock()
+		switch m.Header.Type {
+		case bgp.BGP_MSG_ROUTE_REFRESH:
+			fmsg.MsgType = FSMMsgRouteRefresh
+		case bgp.BGP_MSG_UPDATE:
+			// if the length of h.holdTimerResetCh
+			// isn't zero, the timer will be reset
+			// soon anyway.
+			select {
+			case fsm.HoldTimerResetCh <- true:
+			default:
+			}
+			body := m.Body.(*bgp.BGPUpdate)
+			isEBGP := fsm.PeerConf.IsEBGPPeer(fsm.GlobalConf)
+			isConfed := fsm.PeerConf.IsConfederationMember(fsm.GlobalConf)
 
-		if establishedState {
-			switch m.Header.Type {
-			case bgp.BGP_MSG_ROUTE_REFRESH:
-				fmsg.MsgType = FSMMsgRouteRefresh
-			case bgp.BGP_MSG_UPDATE:
-				// if the length of h.holdTimerResetCh
-				// isn't zero, the timer will be reset
-				// soon anyway.
-				select {
-				case fsm.HoldTimerResetCh <- true:
-				default:
-				}
-				body := m.Body.(*bgp.BGPUpdate)
-				isEBGP := fsm.PeerConf.IsEBGPPeer(fsm.GlobalConf)
-				isConfed := fsm.PeerConf.IsConfederationMember(fsm.GlobalConf)
+			fmsg.Payload = make([]byte, len(headerBuf)+len(bodyBuf))
+			copy(fmsg.Payload, headerBuf)
+			copy(fmsg.Payload[len(headerBuf):], bodyBuf)
 
-				fmsg.Payload = make([]byte, len(headerBuf)+len(bodyBuf))
-				copy(fmsg.Payload, headerBuf)
-				copy(fmsg.Payload[len(headerBuf):], bodyBuf)
+			fsm.Lock.RLock()
+			rfMap := fsm.RFMap
+			fsm.Lock.RUnlock()
 
+			// Allow updates from host loopback addresses if the BGP connection
+			// with the neighbour is both dialed and received on loopback
+			// addresses.
+			var allowLoopback bool
+			if localAddr, peerAddr := fsm.PeerInfo.LocalAddress, fsm.PeerInfo.Address; localAddr.To4() != nil && peerAddr.To4() != nil {
+				allowLoopback = localAddr.IsLoopback() && peerAddr.IsLoopback()
+			}
+			ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, allowLoopback)
+			if !ok {
+				handling = fsm.handlingError(m, err, useRevisedError)
+			}
+			if handling == bgp.ERROR_HANDLING_SESSION_RESET {
 				fsm.Lock.RLock()
-				rfMap := fsm.RFMap
+				fsm.Logger.Warn("Session will be reset due to malformed BGP update message",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   neighborAddress,
+						"State": state,
+						"error": err,
+					})
 				fsm.Lock.RUnlock()
+				fmsg.MsgData = err
+				return fmsg, err
+			}
 
-				// Allow updates from host loopback addresses if the BGP connection
-				// with the neighbour is both dialed and received on loopback
-				// addresses.
-				var allowLoopback bool
-				if localAddr, peerAddr := fsm.PeerInfo.LocalAddress, fsm.PeerInfo.Address; localAddr.To4() != nil && peerAddr.To4() != nil {
-					allowLoopback = localAddr.IsLoopback() && peerAddr.IsLoopback()
-				}
-				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, allowLoopback)
-				if !ok {
-					handling = fsm.handlingError(m, err, useRevisedError)
-				}
-				if handling == bgp.ERROR_HANDLING_SESSION_RESET {
-					fsm.Lock.RLock()
-					fsm.Logger.Warn("Session will be reset due to malformed BGP update message",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   fsm.PeerConf.State.NeighborAddress,
-							"State": fsm.State.String(),
-							"error": err,
-						})
-					fsm.Lock.RUnlock()
-					fmsg.MsgData = err
-					return fmsg, err
-				}
-
-				if routes := len(body.WithdrawnRoutes); routes > 0 {
+			if routes := len(body.WithdrawnRoutes); routes > 0 {
+				fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
+				fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+			} else if attr := bgputils.GetPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
+				mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
+				if routes = len(mpUnreach.Value); routes > 0 {
 					fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
 					fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
-				} else if attr := bgputils.GetPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
-					mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
-					if routes = len(mpUnreach.Value); routes > 0 {
-						fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
-						fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
-					}
 				}
+			}
 
-				table.UpdatePathAttrs4ByteAs(fsm.Logger, body)
+			table.UpdatePathAttrs4ByteAs(fsm.Logger, body)
 
-				if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
-					fmsg.MsgData = err
-					return fmsg, err
-				}
+			if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
+				fmsg.MsgData = err
+				return fmsg, err
+			}
 
-				fsm.Lock.RLock()
-				peerInfo := fsm.PeerInfo
-				fsm.Lock.RUnlock()
-				fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.Timestamp)
-				fallthrough
-			case bgp.BGP_MSG_KEEPALIVE:
-				// if the length of h.holdTimerResetCh
-				// isn't zero, the timer will be reset
-				// soon anyway.
-				select {
-				case fsm.HoldTimerResetCh <- true:
-				default:
-				}
-				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
-					return nil, nil
-				}
-			case bgp.BGP_MSG_NOTIFICATION:
-				body := m.Body.(*bgp.BGPNotification)
-				if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-					communication, rest := utils.DecodeAdministrativeCommunication(body.Data)
-					fsm.Lock.RLock()
-					fsm.Logger.Warn("received notification",
-						log.Fields{
-							"Topic":               "Peer",
-							"Key":                 fsm.PeerConf.State.NeighborAddress,
-							"Code":                body.ErrorCode,
-							"Subcode":             body.ErrorSubcode,
-							"Communicated-Reason": communication,
-							"Data":                rest,
-						})
-					fsm.Lock.RUnlock()
-				} else {
-					fsm.Lock.RLock()
-					fsm.Logger.Warn("received notification",
-						log.Fields{
-							"Topic":   "Peer",
-							"Key":     fsm.PeerConf.State.NeighborAddress,
-							"Code":    body.ErrorCode,
-							"Subcode": body.ErrorSubcode,
-							"Data":    body.Data,
-						})
-					fsm.Lock.RUnlock()
-				}
-
-				fsm.Lock.RLock()
-				s := fsm.PeerConf.GracefulRestart.State
-				hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
-				fsm.Lock.RUnlock()
-				if hardReset {
-					sendToStateReasonCh(FSMHardReset, m)
-				} else {
-					sendToStateReasonCh(FSMNotificationRecv, m)
-				}
+			fsm.Lock.RLock()
+			peerInfo := fsm.PeerInfo
+			fsm.Lock.RUnlock()
+			fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.Timestamp)
+			fallthrough
+		case bgp.BGP_MSG_KEEPALIVE:
+			// if the length of h.holdTimerResetCh
+			// isn't zero, the timer will be reset
+			// soon anyway.
+			select {
+			case fsm.HoldTimerResetCh <- true:
+			default:
+			}
+			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 				return nil, nil
 			}
+		case bgp.BGP_MSG_NOTIFICATION:
+			body := m.Body.(*bgp.BGPNotification)
+			if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+				communication, rest := utils.DecodeAdministrativeCommunication(body.Data)
+				fsm.Lock.RLock()
+				fsm.Logger.Warn("received notification",
+					log.Fields{
+						"Topic":               "Peer",
+						"Key":                 neighborAddress,
+						"State":               state,
+						"Code":                body.ErrorCode,
+						"Subcode":             body.ErrorSubcode,
+						"Communicated-Reason": communication,
+						"Data":                rest,
+					})
+				fsm.Lock.RUnlock()
+			} else {
+				fsm.Lock.RLock()
+				fsm.Logger.Warn("received notification",
+					log.Fields{
+						"Topic":   "Peer",
+						"Key":     neighborAddress,
+						"State":   state,
+						"Code":    body.ErrorCode,
+						"Subcode": body.ErrorSubcode,
+						"Data":    body.Data,
+					})
+				fsm.Lock.RUnlock()
+			}
+
+			fsm.Lock.RLock()
+			s := fsm.PeerConf.GracefulRestart.State
+			hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
+			fsm.Lock.RUnlock()
+			if hardReset {
+				sendToStateReasonCh(FSMHardReset, m)
+			} else {
+				sendToStateReasonCh(FSMNotificationRecv, m)
+			}
+			return nil, nil
 		}
 	}
 	return fmsg, nil
