@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -2050,7 +2049,7 @@ func TestAddDeletePath(t *testing.T) {
 	_, err = s.AddPath(mustApi2apiutilPath(p1))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(listRib(family)))
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(p1))
+	err = s.DeletePath(mustApi2apiutilPath(p1))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(listRib(family)))
 
@@ -2059,7 +2058,7 @@ func TestAddDeletePath(t *testing.T) {
 	assert.NoError(t, err)
 	l := listRib(family)
 	assert.Equal(t, 1, len(l))
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(l[0].Paths[0]))
+	err = s.DeletePath(mustApi2apiutilPath(l[0].Paths[0]))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(listRib(family)))
 
@@ -2071,7 +2070,7 @@ func TestAddDeletePath(t *testing.T) {
 	_, err = s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(listRib(family)))
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(p2))
+	err = s.DeletePath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(listRib(family)))
 
@@ -2080,7 +2079,7 @@ func TestAddDeletePath(t *testing.T) {
 	assert.NoError(t, err)
 	l = listRib(family)
 	assert.Equal(t, 1, len(l))
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(l[0].Paths[0]))
+	err = s.DeletePath(mustApi2apiutilPath(l[0].Paths[0]))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(listRib(family)))
 
@@ -2113,11 +2112,11 @@ func TestAddDeletePath(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, numPaths(family6))
 
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(path1))
+	err = s.DeletePath(mustApi2apiutilPath(path1))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family6), 1)
 
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(path2))
+	err = s.DeletePath(mustApi2apiutilPath(path2))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family6), 0)
 
@@ -2150,11 +2149,11 @@ func TestAddDeletePath(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 2)
 
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(path1))
+	err = s.DeletePath(mustApi2apiutilPath(path1))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 1)
 
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(path2))
+	err = s.DeletePath(mustApi2apiutilPath(path2))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 0)
 
@@ -2165,7 +2164,7 @@ func TestAddDeletePath(t *testing.T) {
 	p3 := getPath()
 	p3.SourceAsn = 2
 	p3.SourceId = "1.1.1.2"
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, mustApi2apiutilPath(p3))
+	err = s.DeletePath(mustApi2apiutilPath(p3))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 
@@ -2173,7 +2172,7 @@ func TestAddDeletePath(t *testing.T) {
 	r, err := s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
-	err = s.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", []uuid.UUID{r[0].Uuid}, false, nil)
+	err = s.DeletePathUUID(r[0].Uuid)
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 0)
 	assert.Equal(t, len(s.uuidMap), 0)
