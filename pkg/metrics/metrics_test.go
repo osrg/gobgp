@@ -136,10 +136,11 @@ func TestMetrics(test *testing.T) {
 				if err != nil {
 					test.Errorf("invalid path attributes: %v", err)
 				}
-				_, err = t.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "", &apiutil.Path{
+				_, err = t.AddPath(&apiutil.Path{
 					Nlri:  nlri,
 					Attrs: pattrs,
 				})
+
 				assert.NoError(err)
 				err = t.DeletePath(api.TableType_TABLE_TYPE_GLOBAL, "", nil, false, nil, &apiutil.Path{
 					Nlri:  nlri,
