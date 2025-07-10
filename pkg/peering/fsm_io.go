@@ -192,10 +192,6 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 	m, err := bgp.ParseBGPBody(hd, bodyBuf, options)
 	if err != nil {
 		handling = fsm.handlingError(m, err, useRevisedError)
-		fsm.bgpMessageStateUpdate(0, true)
-	} else {
-		fsm.bgpMessageStateUpdate(m.Header.Type, true)
-		err = bgp.ValidateBGPMessage(m)
 	}
 	fsm.Lock.RLock()
 	fmsg := &FSMMsg{
