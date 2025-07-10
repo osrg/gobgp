@@ -43,15 +43,15 @@ type WatchEventMessage_PeerEvent struct {
 
 // used by server.WatchEventMessages API
 type Path struct {
-	Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
-	Age        int64                        `json:"age"`
-	Best       bool                         `json:"best"`
-	Attrs      []bgp.PathAttributeInterface `json:"attrs"`
-	Stale      bool                         `json:"stale"`
-	Withdrawal bool                         `json:"withdrawal,omitempty"`
-	SourceASN  uint32                       `json:"source-asn,omitempty"`
-	SourceID   net.IP                       `json:"source-id,omitempty"`
-	NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
+	Nlri        bgp.AddrPrefixInterface      `json:"nlri"`
+	Age         int64                        `json:"age"`
+	Best        bool                         `json:"best"`
+	Attrs       []bgp.PathAttributeInterface `json:"attrs"`
+	Stale       bool                         `json:"stale"`
+	Withdrawal  bool                         `json:"withdrawal,omitempty"`
+	PeerASN     uint32                       `json:"peer-asn,omitempty"`
+	PeerID      net.IP                       `json:"peer-id,omitempty"`
+	PeerAddress net.IP                       `json:"peer-address,omitempty"`
 	// true if the path has been filtered out due to max path count reached (used by ListPath API)
 	SendMaxFiltered    bool `json:"send-max-filtered,omitempty"`
 	IsFromExternal     bool `json:"is-from-external,omitempty"`
@@ -107,8 +107,8 @@ func NewDestination(dst *api.Destination) *Destination {
 			Stale:           p.Stale,
 			SendMaxFiltered: p.SendMaxFiltered,
 			Withdrawal:      p.IsWithdraw,
-			SourceID:        net.ParseIP(p.SourceId),
-			NeighborIP:      net.ParseIP(p.NeighborIp),
+			PeerID:          net.ParseIP(p.SourceId),
+			PeerAddress:     net.ParseIP(p.NeighborIp),
 		})
 	}
 	return &Destination{Paths: l}

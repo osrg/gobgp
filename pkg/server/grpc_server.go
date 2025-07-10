@@ -215,9 +215,9 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
-		SourceAsn:          path.SourceASN,
-		SourceId:           path.SourceID.String(),
-		NeighborIp:         path.NeighborIP.String(),
+		SourceAsn:          path.PeerASN,
+		SourceId:           path.PeerID.String(),
+		NeighborIp:         path.PeerAddress.String(),
 	}
 	return p
 }

@@ -347,10 +347,10 @@ class GoBGPTestBase(unittest.TestCase):
 
         paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
         self.assertEqual(len(paths), 1)
-        self.assertNotIn('source-id', paths[0])
+        self.assertNotIn('peer-id', paths[0])
         paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
         self.assertEqual(len(paths), 1)
-        self.assertNotIn('source-id', paths[0])
+        self.assertNotIn('peer-id', paths[0])
 
         g1.local('gobgp global rib del 30.0.0.0/24')
 
@@ -359,7 +359,7 @@ class GoBGPTestBase(unittest.TestCase):
             self.assertEqual(len(paths), 0)
             paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
             self.assertEqual(len(paths), 1)
-            self.assertEqual(paths[0]['source-id'], '192.168.0.2')
+            self.assertEqual(paths[0]['peer-id'], '192.168.0.2')
 
         assert_several_times(f)
 
@@ -461,13 +461,13 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(paths), 0)
         paths = g1.get_adj_rib_out(g4, '50.0.0.0/24')
         self.assertEqual(len(paths), 1)
-        self.assertEqual(paths[0]['source-id'], '192.168.0.8')
+        self.assertEqual(paths[0]['peer-id'], '192.168.0.8')
 
         g3.local('gobgp global rib del 50.0.0.0/24')
 
         paths = g1.get_adj_rib_out(g3, '50.0.0.0/24')
         self.assertEqual(len(paths), 1)
-        self.assertEqual(paths[0]['source-id'], '192.168.0.9')
+        self.assertEqual(paths[0]['peer-id'], '192.168.0.9')
         paths = g1.get_adj_rib_out(g4, '50.0.0.0/24')
         self.assertEqual(len(paths), 0)
 

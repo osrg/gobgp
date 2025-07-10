@@ -4395,9 +4395,9 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 		IsNexthopInvalid:   path.IsNexthopInvalid,
 	}
 	if s := path.GetSource(); s != nil {
-		p.SourceASN = s.AS
-		p.SourceID = s.ID
-		p.NeighborIP = s.Address
+		p.PeerASN = s.AS
+		p.PeerID = s.ID
+		p.PeerAddress = s.Address
 	}
 	return p
 }
