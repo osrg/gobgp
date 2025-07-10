@@ -2406,10 +2406,26 @@ type ApiAddPathsResponse struct {
 	Err  error
 }
 
-func (s *BgpServer) AddPath(tableType api.TableType, vrfId string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
+func (s *BgpServer) AddPathVRF(vrfID string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
+	return s.addPath(vrfID, paths...)
+}
+
+func (s *BgpServer) AddPath(paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
+	return s.addPath("", paths...)
+}
+
+func (s *BgpServer) addPath(vrfID string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
 	if len(paths) == 0 {
 		return []ApiAddPathsResponse{}, fmt.Errorf("no path(s) to add")
 	}
+	isVRF := false
+	if vrfID != "" {
+		if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
+			return []ApiAddPathsResponse{}, fmt.Errorf("vrf %s not found", vrfID)
+		}
+		isVRF = true
+	}
+
 	resps := make([]ApiAddPathsResponse, len(paths))
 	var lastErr error
 	err := s.mgmtOperation(func() error {
@@ -2419,14 +2435,14 @@ func (s *BgpServer) AddPath(tableType api.TableType, vrfId string, paths ...*api
 				resps[i].Err = lastErr
 				continue
 			}
-			path, err := apiutil2Path(p, tableType == api.TableType_TABLE_TYPE_VRF)
+			path, err := apiutil2Path(p, isVRF)
 			if err != nil {
 				lastErr = err
 				resps[i].Err = err
 				continue
 			}
 
-			err = s.addPathList(vrfId, []*table.Path{path})
+			err = s.addPathList(vrfID, []*table.Path{path})
 			if err != nil {
 				lastErr = err
 				resps[i].Err = err

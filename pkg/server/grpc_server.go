@@ -624,7 +624,7 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 	if err != nil {
 		return &api.AddPathResponse{}, fmt.Errorf("invalid path: %w", err)
 	}
-	path, err := s.bgpServer.AddPath(r.TableType, r.VrfId, p)
+	path, err := s.bgpServer.addPath(r.VrfId, p)
 	if err != nil {
 		return &api.AddPathResponse{}, err
 	}

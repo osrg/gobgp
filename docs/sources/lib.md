@@ -72,26 +72,24 @@ func main() {
 	a3 := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{6762, 39919, 65000, 35753, 65000})})
 	attrs := []bgp.PathAttributeInterface{a1, a2, a3}
 
-	_, err := s.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "",
-		&apiutil.Path{
-			Nlri:  nlri,
-			Attrs: attrs,
-		})
+	_, err := s.AddPath(&apiutil.Path{
+		Nlri:  nlri,
+		Attrs: attrs,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// add v6 route
 	v6Nlri := bgp.NewIPv6AddrPrefix(64, "2001:db8:1::")
-	aMpr := bgp.NewPathAttributeMpReachNLRI("2001:db8::1", []bgp.AddrPrefixInterface{v6Nlri})
+	aMpr := bgp.NewPathAttributeMpReachNLRI("2001:db8::1", v6Nlri)
 	aC := bgp.NewPathAttributeCommunities([]uint32{100, 200})
 	attrs = []bgp.PathAttributeInterface{aMpr, aC}
 
-	_, err = s.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "",
-		&apiutil.Path{
-			Nlri:  v6Nlri,
-			Attrs: attrs,
-		})
+	_, err = s.AddPath(&apiutil.Path{
+		Nlri:  v6Nlri,
+		Attrs: attrs,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,10 +100,10 @@ func main() {
 		log.Info(prefix.String())
 		for _, p := range paths {
 			log.WithFields(logrus.Fields{
-				"prefix":   p.SourceASN,
-				"neighbor": p.NeighborIP,
-				"age":      p.Age,
-				"best":     p.Best,
+				"peer_asn":     p.PeerASN,
+				"peer_address": p.PeerAddress,
+				"age":          p.Age,
+				"best":         p.Best,
 			}).Info("path")
 		}
 	})
