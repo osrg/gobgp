@@ -194,7 +194,7 @@ func pfkeyReply() (spi uint32, err error) {
 	buf = buf[SADB_MSG_SIZE:]
 
 	for len(buf) >= 4 {
-		l := binary.LittleEndian.Uint16(buf[0:2]) * 8
+		l := binary.LittleEndian.Uint16(buf[:2]) * 8
 		t := binary.LittleEndian.Uint16(buf[2:4])
 		if t == SADB_EXT_SA {
 			return binary.LittleEndian.Uint32(buf[4:8]), nil

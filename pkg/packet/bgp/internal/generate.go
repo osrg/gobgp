@@ -54,6 +54,7 @@ func generateSRBehaviour() {
 		doPanic("failed to write file %s: %w")
 	}
 }
-func doPanic(message string, args ...interface{}) {
+
+func doPanic(message string, args ...any) {
 	panic(fmt.Errorf(message+"\n", args...))
 }

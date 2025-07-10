@@ -342,24 +342,26 @@ func TestGRPCWatchEvent(t *testing.T) {
 		},
 	}
 
-	_, err = t2.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "",
+	_, err = t2.AddPath(
 		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri1,
 			Pattrs: attrs,
 		}))
+
 	assert.NoError(err)
 
 	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = t2.AddPath(api.TableType_TABLE_TYPE_GLOBAL, "",
+	_, err = t2.AddPath(
 		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri2,
 			Pattrs: attrs,
 		}))
+
 	assert.NoError(err)
 
 	peer2 := &api.Peer{
