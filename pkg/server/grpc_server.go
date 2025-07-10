@@ -365,18 +365,18 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 						Type: api.WatchEventResponse_PeerEvent_Type(peer.Type),
 						Peer: &api.Peer{
 							Conf: &api.PeerConf{
-								PeerAsn:           p.Conf.PeerAsn,
-								LocalAsn:          p.Conf.LocalAsn,
+								PeerAsn:           p.Conf.PeerASN,
+								LocalAsn:          p.Conf.LocalASN,
 								NeighborAddress:   p.Conf.NeighborAddress.String(),
 								NeighborInterface: p.Conf.NeighborInterface,
 							},
 							State: &api.PeerState{
-								PeerAsn:         p.State.PeerAsn,
-								LocalAsn:        p.State.LocalAsn,
+								PeerAsn:         p.State.PeerASN,
+								LocalAsn:        p.State.LocalASN,
 								NeighborAddress: p.State.NeighborAddress.String(),
 								SessionState:    api.PeerState_SessionState(int(p.State.SessionState) + 1),
 								AdminState:      p.State.AdminState,
-								RouterId:        p.State.RouterId.String(),
+								RouterId:        p.State.RouterID.String(),
 								RemoteCap:       remoteCaps,
 							},
 							Transport: &api.Transport{

@@ -4482,18 +4482,18 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 							Type: msg.Type,
 							Peer: apiutil.Peer{
 								Conf: apiutil.PeerConf{
-									PeerAsn:           msg.PeerAS,
-									LocalAsn:          msg.LocalAS,
+									PeerASN:           msg.PeerAS,
+									LocalASN:          msg.LocalAS,
 									NeighborAddress:   msg.PeerAddress,
 									NeighborInterface: msg.PeerInterface,
 								},
 								State: apiutil.PeerState{
-									PeerAsn:         msg.PeerAS,
-									LocalAsn:        msg.LocalAS,
+									PeerASN:         msg.PeerAS,
+									LocalASN:        msg.LocalAS,
 									NeighborAddress: msg.PeerAddress,
 									SessionState:    msg.State,
 									AdminState:      admin_state,
-									RouterId:        msg.PeerID,
+									RouterID:        msg.PeerID,
 									RemoteCap:       msg.RemoteCap,
 								},
 								Transport: apiutil.Transport{

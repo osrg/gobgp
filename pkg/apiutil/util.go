@@ -60,18 +60,18 @@ type Path struct {
 }
 
 type PeerConf struct {
-	PeerAsn           uint32
-	LocalAsn          uint32
+	PeerASN           uint32
+	LocalASN          uint32
 	NeighborAddress   net.IP
 	NeighborInterface string
 }
 type PeerState struct {
-	PeerAsn         uint32
-	LocalAsn        uint32
+	PeerASN         uint32
+	LocalASN        uint32
 	NeighborAddress net.IP
 	SessionState    bgp.FSMState
 	AdminState      api.PeerState_AdminState
-	RouterId        net.IP
+	RouterID        net.IP
 	RemoteCap       []bgp.ParameterCapabilityInterface
 }
 type Transport struct {
