@@ -2466,10 +2466,44 @@ func (s *BgpServer) addPath(vrfID string, paths ...*apiutil.Path) ([]ApiAddPaths
 	return resps, err
 }
 
+// DeletePathUUID deletes paths with the given UUIDs in the global table.
+func (s *BgpServer) DeletePathUUID(uuids ...uuid.UUID) error {
+	return s.deletePath("", uuids, false, nil)
+}
+
+// DeletePathAll deletes all locally generated paths in the global table.
+// If family is specified, it will delete all paths of that family.
+func (s *BgpServer) DeletePathAll(family ...bgp.Family) error {
+	if len(family) > 0 {
+		return s.deletePath("", nil, true, &family[0])
+	}
+	return s.deletePath("", nil, true, nil)
+}
+
+// DeletePathVRF deletes specified paths in the VRF table.
+func (s *BgpServer) DeletePathVRF(vrfID string, paths ...*apiutil.Path) error {
+	if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
+		return fmt.Errorf("vrf %s not found", vrfID)
+	}
+	return s.deletePath(vrfID, nil, false, nil, paths...)
+}
+
+// DeletePath deletes specified paths in the global table.
+func (s *BgpServer) DeletePath(paths ...*apiutil.Path) error {
+	return s.deletePath("", nil, false, nil, paths...)
+}
+
 // if deleteAll is true, it will delete all locally generated paths, if deleteFamily is set, then the whole family will be deleted
 // if uuids is not empty, it will delete paths with the given UUIDs otherwise it will delete specified paths
 // deleteAll == false and uuids is empty, paths must contain at least one path
-func (s *BgpServer) DeletePath(tableType api.TableType, vrfId string, uuids []uuid.UUID, deleteAll bool, deleteFamily *bgp.Family, paths ...*apiutil.Path) error {
+func (s *BgpServer) deletePath(vrfID string, uuids []uuid.UUID, deleteAll bool, deleteFamily *bgp.Family, paths ...*apiutil.Path) error {
+	isVRF := false
+	if vrfID != "" {
+		if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
+			return fmt.Errorf("vrf %s not found", vrfID)
+		}
+		isVRF = true
+	}
 	return s.mgmtOperation(func() error {
 		deletePathList := make([]*table.Path, 0)
 		// delete by uuid
@@ -2505,11 +2539,11 @@ func (s *BgpServer) DeletePath(tableType api.TableType, vrfId string, uuids []uu
 				return errors.New("no path(s) to delete")
 			}
 			for _, p := range paths {
-				path, err := apiutil2Path(p, tableType == api.TableType_TABLE_TYPE_VRF, true)
+				path, err := apiutil2Path(p, isVRF, true)
 				if err != nil {
 					return err
 				}
-				if err := s.fixupApiPath(vrfId, []*table.Path{path}); err != nil {
+				if err := s.fixupApiPath(vrfID, []*table.Path{path}); err != nil {
 					return err
 				}
 				delete(s.uuidMap, pathTokey(path))
