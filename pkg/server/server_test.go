@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eapache/channels"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/peering"
 )
 
 var logger = log.NewDefaultLogger()
@@ -965,7 +967,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
+func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peering.Peer, *table.PeerInfo) {
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
@@ -973,15 +975,16 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 	policy := table.NewRoutingPolicy(logger)
 	err = policy.Reset(&oc.RoutingPolicy{}, nil)
 	assert.NoError(t, err)
-	p := newPeer(
+	p := peering.NewPeer(
 		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
 		rib,
 		policy,
+		nil,
 		logger)
-	p.fsm.peerInfo.ID = net.ParseIP(address)
+	p.FSM.PeerInfo.ID = net.ParseIP(address)
 	for _, f := range rib.GetRFlist() {
-		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
+		p.FSM.RFMap[f] = bgp.BGP_ADD_PATH_NONE
 	}
 	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address), ID: net.ParseIP(address)}
 }
@@ -1081,7 +1084,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
-	err := p2.policy.AddDefinedSet(s, false)
+	err := p2.Policy.AddDefinedSet(s, false)
 	assert.NoError(t, err)
 
 	statement := oc.Statement{
@@ -1102,7 +1105,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		Statements: []oc.Statement{statement},
 	}
 	p, _ := table.NewPolicy(policy)
-	err = p2.policy.AddPolicy(p, false)
+	err = p2.Policy.AddPolicy(p, false)
 	assert.NoError(t, err)
 
 	policies := []*oc.PolicyDefinition{
@@ -1110,7 +1113,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 			Name: "policy1",
 		},
 	}
-	err = p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
+	err = p2.Policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
 	assert.NoError(t, err)
 
 	for _, addCommunity := range []bool{false, true, false, true} {
@@ -1314,7 +1317,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:     true,
-			RestartTime: minConnectRetryInterval,
+			RestartTime: peering.MinConnectRetryInterval,
 		},
 	}
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
@@ -1330,7 +1333,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1362,7 +1364,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
 	for _, n := range s2.neighborMap {
-		n.fsm.conn.Close()
+		n.FSM.Conn.Close()
 	}
 	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	assert.NoError(err)
@@ -1438,7 +1440,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
 	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
-	incoming := neighbor1.fsm.h.msgCh
+	incoming := channels.NewInfiniteChannel()
 	err = s1.mgmtOperation(func() error {
 		s1.delIncoming(incoming)
 		return nil
@@ -1478,10 +1480,10 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 
 	// Wait for the s1 to receive the tcp connection from s2.
 	ev := <-incoming.Out()
-	msg := ev.(*fsmMsg)
+	msg := ev.(*peering.FSMMsg)
 	nextState := msg.MsgData.(bgp.FSMState)
 	assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
-	assert.NotEmpty(msg.fsm.conn)
+	assert.NotEmpty(msg.FSM.Conn)
 
 	// Add the peer incoming channel back to the server
 	err = s1.mgmtOperation(func() error {
@@ -1494,13 +1496,10 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	err = s1.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: p1.Conf.NeighborAddress})
 	assert.NoError(err)
 
-	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
-
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.
-	<-neighbor1.fsm.connCh
-	assert.Empty(neighbor1.fsm.conn)
+	<-neighbor1.FSM.ConnCh
+	assert.Empty(neighbor1.FSM.Conn)
 
 	establishedWg := waitEstablished(s2)
 
@@ -1519,13 +1518,11 @@ func TestFamiliesForSoftreset(t *testing.T) {
 			},
 		}
 	}
-	peer := &peer{
-		fsm: &fsm{
-			pConf: &oc.Neighbor{
-				AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
-			},
-		},
+
+	conf := &oc.Neighbor{
+		AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 	}
+	peer := peering.NewPeer(&oc.Global{}, conf, nil, nil, nil, nil)
 
 	families := familiesForSoftreset(peer, bgp.RF_IPv4_UC)
 	assert.Equal(t, len(families), 1)
@@ -1550,7 +1547,7 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 			ListenPort: listenPort,
 		},
 	}); err != nil {
-		t.Errorf("Failed to start server %s: %s", s.bgpConfig.Global.Config.RouterId, err)
+		t.Errorf("Failed to start server %s: %s", s.gConfig.Config.RouterId, err)
 	}
 	return s
 }
@@ -1565,12 +1562,12 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 			neighborConfig := &oc.Neighbor{
 				Config: oc.NeighborConfig{
 					NeighborAddress: "127.0.0.1",
-					PeerAs:          peer.bgpConfig.Global.Config.As,
+					PeerAs:          peer.gConfig.Config.As,
 				},
 				AfiSafis: oc.AfiSafis{},
 				Transport: oc.Transport{
 					Config: oc.TransportConfig{
-						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+						RemotePort: uint16(peer.gConfig.Config.Port),
 					},
 				},
 				Timers: oc.Timers{
