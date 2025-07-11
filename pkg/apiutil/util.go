@@ -41,22 +41,48 @@ type WatchEventMessage_PeerEvent struct {
 	Peer Peer
 }
 
+// ListPathRequest is used by server.ListPath API
+type ListPathRequest struct {
+	TableType      api.TableType
+	Name           string
+	Family         bgp.Family
+	Prefixes       []*LookupPrefix
+	SortType       api.ListPathRequest_SortType
+	EnableFiltered bool
+}
+
+type LookupOption uint8
+
+const (
+	LOOKUP_EXACT LookupOption = iota
+	LOOKUP_LONGER
+	LOOKUP_SHORTER
+)
+
+type LookupPrefix struct {
+	Prefix string
+	RD     string
+	LookupOption
+}
+
 // used by server.WatchEventMessages API
 type Path struct {
-	Nlri        bgp.AddrPrefixInterface      `json:"nlri"`
-	Age         int64                        `json:"age"`
-	Best        bool                         `json:"best"`
-	Attrs       []bgp.PathAttributeInterface `json:"attrs"`
-	Stale       bool                         `json:"stale"`
-	Withdrawal  bool                         `json:"withdrawal,omitempty"`
-	PeerASN     uint32                       `json:"peer-asn,omitempty"`
-	PeerID      net.IP                       `json:"peer-id,omitempty"`
-	PeerAddress net.IP                       `json:"peer-address,omitempty"`
-	// true if the path has been filtered out due to max path count reached (used by ListPath API)
-	SendMaxFiltered    bool `json:"send-max-filtered,omitempty"`
-	IsFromExternal     bool `json:"is-from-external,omitempty"`
-	NoImplicitWithdraw bool `json:"no-implicit-withdraw,omitempty"`
-	IsNexthopInvalid   bool `json:"is-nexthop-invalid,omitempty"`
+	Nlri               bgp.AddrPrefixInterface      `json:"nlri"`
+	Age                int64                        `json:"age"`
+	Best               bool                         `json:"best"`
+	Attrs              []bgp.PathAttributeInterface `json:"attrs"`
+	Stale              bool                         `json:"stale"`
+	Withdrawal         bool                         `json:"withdrawal,omitempty"`
+	PeerASN            uint32                       `json:"peer-asn,omitempty"`
+	PeerID             net.IP                       `json:"peer-id,omitempty"`
+	PeerAddress        net.IP                       `json:"peer-address,omitempty"`
+	IsFromExternal     bool                         `json:"is-from-external,omitempty"`
+	NoImplicitWithdraw bool                         `json:"no-implicit-withdraw,omitempty"`
+	IsNexthopInvalid   bool                         `json:"is-nexthop-invalid,omitempty"`
+	// the following fields are used only repoted by GetList() API
+	SendMaxFiltered bool            `json:"send-max-filtered,omitempty"` // true if the path has been filtered out due to max path count reached
+	Filtered        bool            `json:"filtered,omitempty"`
+	Validation      *api.Validation `json:"validation,omitempty"`
 }
 
 type PeerConf struct {

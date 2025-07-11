@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -16,6 +17,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+func mustApi2apiutilPath(path *api.Path) *apiutil.Path {
+	p, err := api2apiutilPath(path)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert api.Path to apiutil.Path: %v", err))
+	}
+	return p
+}
 
 func TestParseHost(t *testing.T) {
 	tsts := []struct {
@@ -56,7 +65,6 @@ func TestParseHost(t *testing.T) {
 func TestToPathApi(t *testing.T) {
 	type args struct {
 		path            *table.Path
-		v               *table.Validation
 		onlyBinary      bool
 		nlriBinary      bool
 		attributeBinary bool
@@ -130,7 +138,7 @@ func TestToPathApi(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apiPath := toPathApi(toPathApiUtil(tt.args.path), tt.args.v, tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
+			apiPath := toPathApi(toPathApiUtil(tt.args.path), tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
 			assert.Equal(t, tt.want.Nlri, apiPath.Nlri, "not equal nlri")
 			assert.Equal(t, tt.want.Pattrs, apiPath.Pattrs, "not equal attrs")
 			assert.Equal(t, tt.want.Family, apiPath.Family, "not equal family")
@@ -334,28 +342,26 @@ func TestGRPCWatchEvent(t *testing.T) {
 		},
 	}
 
-	_, err = t2.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
+	_, err = t2.AddPath(
+		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri1,
 			Pattrs: attrs,
-		},
-	})
+		}))
+
 	assert.NoError(err)
 
 	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = t2.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
+	_, err = t2.AddPath(
+		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri2,
 			Pattrs: attrs,
-		},
-	})
+		}))
+
 	assert.NoError(err)
 
 	peer2 := &api.Peer{

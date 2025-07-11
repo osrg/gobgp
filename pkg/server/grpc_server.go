@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/dgryski/go-farm"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -198,14 +199,13 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 	}
 }
 
-func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path, v *table.Validation) *api.Path {
+func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path) *api.Path {
 	nlri := path.Nlri
 	p := &api.Path{
 		Nlri:               anyNlri,
 		Pattrs:             anyPattrs,
 		Age:                tspb.New(time.Unix(path.Age, 0)),
 		IsWithdraw:         path.Withdrawal,
-		Validation:         newValidationFromTableStruct(v),
 		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
 		Stale:              path.Stale,
 		IsFromExternal:     path.IsFromExternal,
@@ -218,11 +218,15 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		SourceAsn:          path.PeerASN,
 		SourceId:           path.PeerID.String(),
 		NeighborIp:         path.PeerAddress.String(),
+		// ListPath API fields only
+		SendMaxFiltered: path.SendMaxFiltered,
+		Filtered:        path.Filtered,
+		Validation:      path.Validation,
 	}
 	return p
 }
 
-func toPathApi(path *apiutil.Path, v *table.Validation, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
+func toPathApi(path *apiutil.Path, onlyBinary, nlriBinary, attributeBinary bool) *api.Path {
 	var (
 		anyNlri   *api.NLRI
 		anyPattrs []*api.Attribute
@@ -247,7 +251,7 @@ func toPathApi(path *apiutil.Path, v *table.Validation, onlyBinary, nlriBinary, 
 			}
 		}
 	}
-	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path, v)
+	return toPathAPI(binNlri, binPattrs, anyNlri, anyPattrs, path)
 }
 
 func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Validation {
@@ -256,6 +260,57 @@ func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Va
 	} else {
 		return v[p]
 	}
+}
+
+func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+
+	prefixes := func() []*apiutil.LookupPrefix {
+		l := make([]*apiutil.LookupPrefix, 0, len(r.Prefixes))
+		for _, p := range r.Prefixes {
+			l = append(l, &apiutil.LookupPrefix{
+				Prefix:       p.Prefix,
+				RD:           p.Rd,
+				LookupOption: apiutil.LookupOption(p.Type),
+			})
+		}
+		return l
+	}
+
+	family := bgp.Family(0)
+	if r.Family != nil {
+		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+	}
+	req := apiutil.ListPathRequest{
+		TableType:      r.TableType,
+		Name:           r.Name,
+		Family:         family,
+		SortType:       r.SortType,
+		EnableFiltered: r.EnableFiltered,
+	}
+	if r.TableType != api.TableType_TABLE_TYPE_UNSPECIFIED && r.TableType != api.TableType_TABLE_TYPE_VRF {
+		req.Prefixes = prefixes()
+	}
+
+	err := s.bgpServer.ListPath(req, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			d := api.Destination{
+				Prefix: prefix.String(),
+				Paths:  make([]*api.Path, len(paths)),
+			}
+			for i, path := range paths {
+				d.Paths[i] = toPathApi(path, r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+			}
+			fn(&d)
+		}
+	})
+
+	return err
 }
 
 func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPathServer) error {
@@ -275,7 +330,7 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 		return nil
 	}
 	var sendErr error
-	err := s.bgpServer.ListPath(ctx, r, func(d *api.Destination) {
+	err := s.listPath(ctx, r, func(d *api.Destination) {
 		l = append(l, d)
 		if uint64(len(l)) <= batchSize {
 			return
@@ -330,7 +385,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
 			paths := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
-				paths = append(paths, toPathApi(path, nil, false, false, false))
+				paths = append(paths, toPathApi(path, false, false, false))
 				if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
 					simpleSend(paths, timestamp)
 					paths = make([]*api.Path, 0, r.BatchSize)
@@ -341,7 +396,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		OnBestPath: func(pathList []*apiutil.Path, timestamp time.Time) {
 			pl := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
-				pl = append(pl, toPathApi(path, nil, false, false, false))
+				pl = append(pl, toPathApi(path, false, false, false))
 				if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
 					simpleSend(pl, timestamp)
 					pl = make([]*api.Path, 0, r.BatchSize)
@@ -350,7 +405,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 			simpleSend(pl, timestamp)
 		},
 		OnPathEor: func(path *apiutil.Path, timestamp time.Time) {
-			p := toPathApi(path, nil, false, false, false)
+			p := toPathApi(path, false, false, false)
 			simpleSend([]*api.Path{p}, timestamp)
 		},
 		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, timestamp time.Time) {
@@ -503,9 +558,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		}
 	}
 
-	if nlri == nil {
-		return nil, fmt.Errorf("nlri not found")
-	} else if !path.IsWithdraw && nexthop == "" {
+	if !path.IsWithdraw && nexthop == "" {
 		return nil, fmt.Errorf("nexthop not found")
 	}
 	rf := bgp.NewFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
@@ -532,12 +585,99 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	return newPath, nil
 }
 
+func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
+	nlri, err := apiutil.GetNativeNlri(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid nlri: %w", err)
+	}
+	attrs, err := apiutil.GetNativePathAttributes(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path attributes: %w", err)
+	}
+	p := &apiutil.Path{
+		Nlri:               nlri,
+		Attrs:              attrs,
+		Age:                path.Age.GetSeconds(),
+		Best:               path.Best,
+		Stale:              path.Stale,
+		Withdrawal:         path.IsWithdraw,
+		PeerASN:            path.SourceAsn,
+		PeerID:             net.ParseIP(path.SourceId),
+		PeerAddress:        net.ParseIP(path.NeighborIp),
+		IsFromExternal:     path.IsFromExternal,
+		NoImplicitWithdraw: path.NoImplicitWithdraw,
+	}
+	if p.PeerASN != 0 && p.PeerID == nil {
+		return nil, fmt.Errorf("source ID must be set correctly %v", p.PeerID)
+	}
+	p.Nlri.SetPathIdentifier(path.Identifier)
+	return p, nil
+}
+
 func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
-	return s.bgpServer.AddPath(ctx, r)
+	if r == nil || r.Path == nil {
+		return nil, fmt.Errorf("nil request")
+	}
+	var err error
+	var uuidBytes []byte
+	p, err := api2apiutilPath(r.Path)
+	if err != nil {
+		return &api.AddPathResponse{}, fmt.Errorf("invalid path: %w", err)
+	}
+	path, err := s.bgpServer.addPath(r.VrfId, p)
+	if err != nil {
+		return &api.AddPathResponse{}, err
+	}
+
+	id := path[0].Uuid
+	s.bgpServer.uuidMap[apiutilPathTokey(p)] = id
+	uuidBytes, err = id.MarshalBinary()
+	return &api.AddPathResponse{Uuid: uuidBytes}, err
 }
 
 func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api.DeletePathResponse, error) {
-	return &api.DeletePathResponse{}, s.bgpServer.DeletePath(ctx, r)
+	if r == nil {
+		return &api.DeletePathResponse{}, fmt.Errorf("nil request")
+	}
+	deletePath := func(ctx context.Context, r *api.DeletePathRequest) error {
+		var pathList []*apiutil.Path
+		if len(r.Uuid) == 0 {
+			var err error
+			pathList, err = func() ([]*apiutil.Path, error) {
+				if r.Path != nil {
+					path, err := api2apiutilPath(r.Path)
+					return []*apiutil.Path{path}, err
+				}
+				return []*apiutil.Path{}, nil
+			}()
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(r.Uuid) > 0 {
+			// Delete locally generated path which has the given UUID
+			id, _ := uuid.FromBytes(r.Uuid)
+			if err := s.bgpServer.deletePath(r.VrfId, []uuid.UUID{id}, false, nil); err != nil {
+				return err
+			}
+		} else if len(pathList) == 0 {
+			// Delete all locally generated paths
+			var family bgp.Family
+			if r.Family != nil {
+				family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+			}
+			if err := s.bgpServer.deletePath(r.VrfId, nil, true, &family, pathList...); err != nil {
+				return err
+			}
+		} else {
+			if err := s.bgpServer.deletePath(r.VrfId, nil, false, nil, pathList...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return &api.DeletePathResponse{}, deletePath(ctx, r)
 }
 
 func (s *server) EnableMrt(ctx context.Context, r *api.EnableMrtRequest) (*api.EnableMrtResponse, error) {

@@ -18,6 +18,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -29,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dgryski/go-farm"
 	"github.com/eapache/channels"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -2311,6 +2313,10 @@ func pathTokey(path *table.Path) string {
 	return fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.GetPrefix())
 }
 
+func apiutilPathTokey(path *apiutil.Path) string {
+	return fmt.Sprintf("%d:%s", path.Nlri.PathIdentifier(), path.Nlri.String())
+}
+
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	err := s.fixupApiPath(vrfId, pathList)
 	if err == nil {
@@ -2326,76 +2332,200 @@ func (s *BgpServer) addPathStream(vrfId string, pathList []*table.Path) error {
 	return err
 }
 
-func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
-	if r == nil || r.Path == nil {
-		return nil, fmt.Errorf("nil request")
+func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*table.Path, error) {
+	var source *table.PeerInfo
+	if path.PeerASN != 0 {
+		source = &table.PeerInfo{
+			AS:      path.PeerASN,
+			ID:      path.PeerID,
+			Address: path.PeerAddress,
+		}
 	}
-	var uuidBytes []byte
-	err := s.mgmtOperation(func() error {
-		id, err := uuid.NewRandom()
-		if err != nil {
-			return err
-		}
 
-		path, err := api2Path(r.TableType, r.Path, false)
-		if err != nil {
-			return err
+	// TODO (sbezverk) At this poinnt nlri and path attributes are converted to native mode
+	// need to check if update with SR Policy nlri comes with mandatory route distinguisher
+	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
+	// and tunnel type 15. If it is not the case ignore update and log an error.
+	var nexthop net.IP
+	isMPFlowSpec := false
+	pattrs := make([]bgp.PathAttributeInterface, 0)
+	seen := make(map[bgp.BGPAttrType]struct{})
+	for _, a := range path.Attrs {
+		aType := a.GetType()
+		if _, ok := seen[aType]; ok {
+			return nil, fmt.Errorf("duplicate path attribute %s", aType)
 		}
-		err = s.addPathList(r.VrfId, []*table.Path{path})
-		if err != nil {
-			return err
+		seen[aType] = struct{}{}
+		switch aType {
+		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
+			nexthop = a.(*bgp.PathAttributeNextHop).Value
+		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+			mp := a.(*bgp.PathAttributeMpReachNLRI)
+			if len(mp.Value) == 0 {
+				return nil, fmt.Errorf("mp reach nlri value is empty")
+			}
+			isMPFlowSpec = mp.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || mp.SAFI == bgp.SAFI_FLOW_SPEC_VPN
+			nexthop = mp.Nexthop
+		default:
+			pattrs = append(pattrs, a)
 		}
+	}
+	if !path.Withdrawal && len(nexthop) == 0 && !isMPFlowSpec {
+		return nil, fmt.Errorf("nexthop not found")
+	}
 
-		s.uuidMap[pathTokey(path)] = id
-		uuidBytes, _ = id.MarshalBinary()
-		return nil
-	}, true)
-	return &api.AddPathResponse{Uuid: uuidBytes}, err
+	rf := bgp.NewFamily(path.Nlri.AFI(), path.Nlri.SAFI())
+	if !isVRFTable && rf == bgp.RF_IPv4_UC && nexthop.To4() != nil {
+		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop.String()))
+	} else {
+		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop.String(), []bgp.AddrPrefixInterface{path.Nlri}))
+	}
+
+	doWithdraw := len(isWithdraw) > 0 && isWithdraw[0] || path.Withdrawal
+	p := table.NewPath(source, path.Nlri, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
+	if p == nil {
+		return nil, fmt.Errorf("invalid path: %v", path)
+	}
+	if !doWithdraw {
+		total := bytes.NewBuffer(make([]byte, 0))
+		for _, a := range pattrs {
+			if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+				continue
+			}
+			b, _ := a.Serialize()
+			total.Write(b)
+		}
+		p.SetHash(farm.Hash32(total.Bytes()))
+	}
+	p.SetIsFromExternal(path.IsFromExternal)
+	return p, nil
 }
 
-func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
+type ApiAddPathsResponse struct {
+	Uuid uuid.UUID
+	Err  error
+}
+
+func (s *BgpServer) AddPathVRF(vrfID string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
+	return s.addPath(vrfID, paths...)
+}
+
+func (s *BgpServer) AddPath(paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
+	return s.addPath("", paths...)
+}
+
+func (s *BgpServer) addPath(vrfID string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
+	if len(paths) == 0 {
+		return []ApiAddPathsResponse{}, fmt.Errorf("no path(s) to add")
+	}
+	isVRF := false
+	if vrfID != "" {
+		if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
+			return []ApiAddPathsResponse{}, fmt.Errorf("vrf %s not found", vrfID)
+		}
+		isVRF = true
+	}
+
+	resps := make([]ApiAddPathsResponse, len(paths))
+	var lastErr error
+	err := s.mgmtOperation(func() error {
+		for i, p := range paths {
+			if p == nil {
+				lastErr = errors.New("path is nil")
+				resps[i].Err = lastErr
+				continue
+			}
+			path, err := apiutil2Path(p, isVRF)
+			if err != nil {
+				lastErr = err
+				resps[i].Err = err
+				continue
+			}
+
+			err = s.addPathList(vrfID, []*table.Path{path})
+			if err != nil {
+				lastErr = err
+				resps[i].Err = err
+				continue
+			}
+
+			id, err := uuid.NewRandom()
+			if err != nil {
+				lastErr = err
+				resps[i].Err = err
+				continue
+			}
+			s.uuidMap[pathTokey(path)] = id
+			resps[i].Uuid = id
+		}
+		return lastErr
+	}, true)
+	if err != nil {
+		return []ApiAddPathsResponse{}, err
+	}
+	return resps, err
+}
+
+// DeletePathUUID deletes paths with the given UUIDs in the global table.
+func (s *BgpServer) DeletePathUUID(uuids ...uuid.UUID) error {
+	return s.deletePath("", uuids, false, nil)
+}
+
+// DeletePathAll deletes all locally generated paths in the global table.
+// If family is specified, it will delete all paths of that family.
+func (s *BgpServer) DeletePathAll(family ...bgp.Family) error {
+	if len(family) > 0 {
+		return s.deletePath("", nil, true, &family[0])
+	}
+	return s.deletePath("", nil, true, nil)
+}
+
+// DeletePathVRF deletes specified paths in the VRF table.
+func (s *BgpServer) DeletePathVRF(vrfID string, paths ...*apiutil.Path) error {
+	if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
+		return fmt.Errorf("vrf %s not found", vrfID)
+	}
+	return s.deletePath(vrfID, nil, false, nil, paths...)
+}
+
+// DeletePath deletes specified paths in the global table.
+func (s *BgpServer) DeletePath(paths ...*apiutil.Path) error {
+	return s.deletePath("", nil, false, nil, paths...)
+}
+
+// if deleteAll is true, it will delete all locally generated paths, if deleteFamily is set, then the whole family will be deleted
+// if uuids is not empty, it will delete paths with the given UUIDs otherwise it will delete specified paths
+// deleteAll == false and uuids is empty, paths must contain at least one path
+func (s *BgpServer) deletePath(vrfID string, uuids []uuid.UUID, deleteAll bool, deleteFamily *bgp.Family, paths ...*apiutil.Path) error {
+	isVRF := false
+	if vrfID != "" {
+		if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
+			return fmt.Errorf("vrf %s not found", vrfID)
+		}
+		isVRF = true
 	}
 	return s.mgmtOperation(func() error {
 		deletePathList := make([]*table.Path, 0)
-
-		pathList, err := func() ([]*table.Path, error) {
-			if r.Path != nil {
-				path, err := api2Path(r.TableType, r.Path, true)
-				return []*table.Path{path}, err
-			}
-			return []*table.Path{}, nil
-		}()
-		if err != nil {
-			return err
-		}
-
-		if len(r.Uuid) > 0 {
-			// Delete locally generated path which has the given UUID
-			path := func() *table.Path {
-				id, _ := uuid.FromBytes(r.Uuid)
-				for k, v := range s.uuidMap {
-					if v == id {
-						for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
-							if path.IsLocal() && k == pathTokey(path) {
-								delete(s.uuidMap, k)
-								return path
-							}
+		// delete by uuid
+		if len(uuids) > 0 {
+			for k, v := range s.uuidMap {
+				if slices.Contains(uuids, v) {
+					for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
+						if path.IsLocal() && k == pathTokey(path) {
+							delete(s.uuidMap, k)
+							deletePathList = append(deletePathList, path.Clone(true))
 						}
 					}
 				}
-				return nil
-			}()
-			if path == nil {
-				return fmt.Errorf("can't find a specified path")
 			}
-			deletePathList = append(deletePathList, path.Clone(true))
-		} else if len(pathList) == 0 {
+			if len(deletePathList) == 0 {
+				return fmt.Errorf("can't find a specified path(s) with the given UUID(s)")
+			}
+		} else if deleteAll {
 			// Delete all locally generated paths
 			families := s.globalRib.GetRFlist()
-			if r.Family != nil {
-				families = []bgp.Family{bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))}
+			if deleteFamily != nil {
+				families = []bgp.Family{*deleteFamily}
 			}
 			for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families) {
 				if path.IsLocal() {
@@ -2404,12 +2534,20 @@ func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) er
 			}
 			s.uuidMap = make(map[string]uuid.UUID)
 		} else {
-			if err := s.fixupApiPath(r.VrfId, pathList); err != nil {
-				return err
+			// Delete specified path(s)
+			if len(paths) == 0 {
+				return errors.New("no path(s) to delete")
 			}
-			deletePathList = pathList
-			for _, p := range deletePathList {
-				delete(s.uuidMap, pathTokey(p))
+			for _, p := range paths {
+				path, err := apiutil2Path(p, isVRF, true)
+				if err != nil {
+					return err
+				}
+				if err := s.fixupApiPath(vrfID, []*table.Path{path}); err != nil {
+					return err
+				}
+				delete(s.uuidMap, pathTokey(path))
+				deletePathList = append(deletePathList, path)
 			}
 		}
 		s.propagateUpdate(nil, deletePathList)
@@ -2716,7 +2854,7 @@ func (s *BgpServer) validateTable(r *table.Table) (v map[*table.Path]*table.Vali
 	return
 }
 
-func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*table.LookupPrefix) (rib *table.Table, v map[*table.Path]*table.Validation, err error) {
+func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*apiutil.LookupPrefix) (rib *table.Table, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		m := s.globalRib
 		id := table.GLOBAL_RIB_NAME
@@ -2748,7 +2886,7 @@ func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*table.Loo
 	return
 }
 
-func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
+func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*apiutil.LookupPrefix) (rib *table.Table, err error) {
 	err = s.mgmtOperation(func() error {
 		m := s.globalRib
 		vrfs := m.Vrfs
@@ -2778,7 +2916,7 @@ func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*table.
 	return
 }
 
-func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFiltered bool, prefixes []*table.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
+func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFiltered bool, prefixes []*apiutil.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		peer, ok := s.neighborMap[addr]
 		if !ok {
@@ -2843,61 +2981,44 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 	return
 }
 
-func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
-	}
-	var tbl *table.Table
-	var v map[*table.Path]*table.Validation
-	var filtered map[table.PathLocalKey]table.FilteredType
-
-	f := func() []*table.LookupPrefix {
-		l := make([]*table.LookupPrefix, 0, len(r.Prefixes))
-		for _, p := range r.Prefixes {
-			l = append(l, &table.LookupPrefix{
-				Prefix:       p.Prefix,
-				RD:           p.Rd,
-				LookupOption: table.LookupOption(p.Type),
-			})
-		}
-		return l
-	}
-
+func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path)) error {
 	in := false
-	family := bgp.Family(0)
-	if r.Family != nil {
-		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
-	}
+	family := r.Family
+
+	var filtered map[table.PathLocalKey]table.FilteredType
+	var v map[*table.Path]*table.Validation
+	var tbl *table.Table
 	var err error
 	switch r.TableType {
 	case api.TableType_TABLE_TYPE_UNSPECIFIED:
-		return status.Error(codes.InvalidArgument, "unspecified table type")
+		return errors.New("unspecified table type")
 	case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
-		tbl, v, err = s.getRib(r.Name, family, f())
+		tbl, v, err = s.getRib(r.Name, family, r.Prefixes)
 	case api.TableType_TABLE_TYPE_ADJ_IN:
 		in = true
 		fallthrough
 	case api.TableType_TABLE_TYPE_ADJ_OUT:
-		tbl, filtered, v, err = s.getAdjRib(r.Name, family, in, r.EnableFiltered, f())
+		tbl, filtered, v, err = s.getAdjRib(r.Name, family, in, r.EnableFiltered, r.Prefixes)
 	case api.TableType_TABLE_TYPE_VRF:
-		tbl, err = s.getVrfRib(r.Name, family, []*table.LookupPrefix{})
+		tbl, err = s.getVrfRib(r.Name, family, []*apiutil.LookupPrefix{})
 	default:
-		return status.Errorf(codes.InvalidArgument, "unknown table type %d", r.TableType)
+		return fmt.Errorf("unknown table type %d", r.TableType)
 	}
-
 	if err != nil {
 		return err
 	}
 
 	err = func() error {
 		for _, dst := range tbl.GetDestinations() {
-			d := api.Destination{
-				Prefix: dst.GetNlri().String(),
-				Paths:  make([]*api.Path, 0, len(dst.GetAllKnownPathList())),
-			}
+			prefix := dst.GetNlri()
 			knownPathList := dst.GetAllKnownPathList()
+			paths := make([]*apiutil.Path, len(knownPathList))
+
 			for i, path := range knownPathList {
-				p := toPathApi(toPathApiUtil(path), getValidation(v, path), r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+				p := toPathApiUtil(path)
+				if validation := getValidation(v, path); validation != nil {
+					p.Validation = newValidationFromTableStruct(validation)
+				}
 				if !table.SelectionOptions.DisableBestPathSelection {
 					if i == 0 {
 						switch r.TableType {
@@ -2908,7 +3029,6 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 						p.Best = true
 					}
 				}
-				d.Paths = append(d.Paths, p)
 				if r.EnableFiltered && filtered[path.GetLocalKey()]&table.PolicyFiltered > 0 {
 					p.Filtered = true
 				}
@@ -2917,14 +3037,10 @@ func (s *BgpServer) ListPath(ctx context.Context, r *api.ListPathRequest, fn fun
 				if filtered[path.GetLocalKey()]&table.SendMaxFiltered > 0 {
 					p.SendMaxFiltered = true
 				}
+				paths[i] = p
 			}
 
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				fn(&d)
-			}
+			fn(prefix, paths)
 		}
 		return nil
 	}()

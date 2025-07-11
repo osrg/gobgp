@@ -451,6 +451,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Afi:  api.Family_AFI_IP,
 		Safi: api.Family_SAFI_UNICAST,
 	}
+	bgpFamily := bgp.NewFamily(uint16(family.Afi), uint8(family.Safi))
 
 	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.1.0.0",
@@ -470,56 +471,59 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	}
 
-	_, err = server2.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
+	_, err = server2.AddPath(
+		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri1,
 			Pattrs: attrs,
-		},
-	})
+		}))
+
 	assert.NoError(err)
 
 	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = server2.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
+	_, err = server2.AddPath(
+		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri2,
 			Pattrs: attrs,
-		},
-	})
+		}))
+
 	assert.NoError(err)
 
 	var wantEmptyCommunities []uint32
 	wantCommunitiesAfterExportPolicies := []uint32{100<<16 | 100}
 	wantCommunitiesAfterImportPolicies := []uint32{200<<16 | 200}
 
+	getCommunities := func(path *apiutil.Path) []uint32 {
+		for _, attr := range path.Attrs {
+			switch attr.GetType() {
+			case bgp.BGP_ATTR_TYPE_COMMUNITIES:
+				m := attr.(*bgp.PathAttributeCommunities)
+				return m.Value
+			}
+		}
+		return nil
+	}
+
 	// Check ADJ_OUT routes before applying export policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server2.ListPath(context.Background(), &api.ListPathRequest{
+		err = server2.ListPath(apiutil.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
-			Family:    family, Name: "127.0.0.1",
+			Family:    bgpFamily, Name: "127.0.0.1",
 			// TODO(wenovus): This is confusing and we may want to change this.
 			EnableFiltered: true,
-		}, func(d *api.Destination) {
+		}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 			count++
-			for _, path := range d.Paths {
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
+			for _, path := range paths {
+				comms := getCommunities(path)
 				if diff := cmp.Diff(wantEmptyCommunities, comms); diff != "" {
-					test.Errorf("AdjRibOutPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+					test.Errorf("AdjRibOutPre communities for %v (-want, +got):\n%s", prefix, diff)
 				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+					test.Logf("Got expected communities for %v: %v", prefix, comms)
 				}
 			}
 		})
@@ -529,28 +533,22 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_OUT routes after applying export policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server2.ListPath(context.Background(), &api.ListPathRequest{
+		err = server2.ListPath(apiutil.ListPathRequest{
 			TableType: api.TableType_TABLE_TYPE_ADJ_OUT,
-			Family:    family, Name: "127.0.0.1",
+			Family:    bgpFamily, Name: "127.0.0.1",
 			// TODO(wenovus): This is confusing and we may want to change this.
 			EnableFiltered: false,
-		}, func(d *api.Destination) {
+		}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 			count++
-			for _, path := range d.Paths {
+			for _, path := range paths {
 				if path.Filtered {
 					continue
 				}
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
+				comms := getCommunities(path)
 				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
-					test.Errorf("AdjRibOutPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+					test.Errorf("AdjRibOutPost communities for %v (-want, +got):\n%s", prefix, diff)
 				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+					test.Logf("Got expected communities for %v: %v", prefix, comms)
 				}
 			}
 		})
@@ -560,25 +558,19 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_IN routes before applying import policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server1.ListPath(context.Background(), &api.ListPathRequest{
+		err = server1.ListPath(apiutil.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
-			Family:         family,
+			Family:         bgpFamily,
 			Name:           "127.0.0.1",
 			EnableFiltered: false,
-		}, func(d *api.Destination) {
+		}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 			count++
-			for _, path := range d.Paths {
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
+			for _, path := range paths {
+				comms := getCommunities(path)
 				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
-					test.Errorf("AdjRibInPre communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+					test.Errorf("AdjRibInPre communities for %v (-want, +got):\n%s", prefix, diff)
 				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+					test.Logf("Got expected communities for %v: %v", prefix, comms)
 				}
 			}
 		})
@@ -588,28 +580,22 @@ func TestListPathEnableFiltered(test *testing.T) {
 	// Check ADJ_IN routes after applying import policies.
 	for count := 0; count < 2; {
 		count = 0
-		err = server1.ListPath(context.Background(), &api.ListPathRequest{
+		err = server1.ListPath(apiutil.ListPathRequest{
 			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
-			Family:         family,
+			Family:         bgpFamily,
 			Name:           "127.0.0.1",
 			EnableFiltered: true,
-		}, func(d *api.Destination) {
+		}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 			count++
-			for _, path := range d.Paths {
+			for _, path := range paths {
 				if path.Filtered {
 					continue
 				}
-				var comms []uint32
-				for _, attr := range path.GetPattrs() {
-					switch m := attr.GetAttr().(type) {
-					case *api.Attribute_Communities:
-						comms = m.Communities.GetCommunities()
-					}
-				}
+				comms := getCommunities(path)
 				if diff := cmp.Diff(wantCommunitiesAfterImportPolicies, comms); diff != "" {
-					test.Errorf("AdjRibInPost communities for %v (-want, +got):\n%s", d.GetPrefix(), diff)
+					test.Errorf("AdjRibInPost communities for %v (-want, +got):\n%s", prefix, diff)
 				} else {
-					test.Logf("Got expected communities for %v: %v", d.GetPrefix(), comms)
+					test.Logf("Got expected communities for %v: %v", prefix, comms)
 				}
 			}
 		})
@@ -618,15 +604,15 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	// Check that 10.1.0.0/24 is filtered at the import side.
 	count := 0
-	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		count++
 	})
 	assert.NoError(err)
 	assert.Equal(1, count)
 
 	filtered := 0
-	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
-		if d.Paths[0].Filtered {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Family: bgpFamily, Name: "127.0.0.1", EnableFiltered: true}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+		if paths[0].Filtered {
 			filtered++
 		}
 	})
@@ -679,32 +665,30 @@ func TestListPathEnableFiltered(test *testing.T) {
 		Prefix:    "10.3.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = server1.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
+	_, err = server1.AddPath(
+		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri3,
 			Pattrs: attrs,
-		},
-	})
+		}))
+
 	assert.NoError(err)
 
 	nlri4 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.4.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = server1.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
+	_, err = server1.AddPath(
+		mustApi2apiutilPath(&api.Path{
 			Family: family,
 			Nlri:   nlri4,
 			Pattrs: attrs,
-		},
-	})
+		}))
+
 	assert.NoError(err)
 
 	count = 0
-	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: family}, func(d *api.Destination) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		count++
 	})
 	assert.NoError(err)
@@ -712,9 +696,9 @@ func TestListPathEnableFiltered(test *testing.T) {
 
 	count = 0
 	filtered = 0
-	err = server1.ListPath(context.Background(), &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: family, Name: "127.0.0.1", EnableFiltered: true}, func(d *api.Destination) {
+	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_OUT, Family: bgpFamily, Name: "127.0.0.1", EnableFiltered: true}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
 		count++
-		if d.Paths[0].Filtered {
+		if paths[0].Filtered {
 			filtered++
 		}
 	})
@@ -803,10 +787,9 @@ func TestMonitor(test *testing.T) {
 	}
 	prefix := bgp.NewIPAddrPrefix(24, "10.0.0.0")
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
-	if _, err := t.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path,
-	}); err != nil {
+	_, err = t.AddPath(
+		mustApi2apiutilPath(path))
+	if err != nil {
 		test.Fatal(err)
 	}
 
@@ -1682,11 +1665,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 
-	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_VRF,
-		VrfId:     "vrf1",
-		Path:      path,
-	}); err != nil {
+	if _, err := s2.AddPathVRF("vrf1", mustApi2apiutilPath(path)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1790,11 +1769,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 
-	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_VRF,
-		VrfId:     "vrf1",
-		Path:      path,
-	}); err != nil {
+	if _, err := s2.AddPathVRF("vrf1", mustApi2apiutilPath(path)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1898,10 +1873,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
 	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
 
-	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path,
-	}); err != nil {
+	if _, err := s2.AddPath(mustApi2apiutilPath(path)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1910,10 +1882,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 		bgp.NewPathAttributeNextHop("0.0.0.0"),
 	}
 	pathRtc0, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH0, time.Now())
-	if _, err := s1.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      pathRtc0,
-	}); err != nil {
+	if _, err := s1.AddPath(mustApi2apiutilPath(pathRtc0)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1950,10 +1919,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 		bgp.NewPathAttributeNextHop("0.0.0.0"),
 	}
 	pathRtc1, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH1, time.Now())
-	if _, err := s1.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      pathRtc1,
-	}); err != nil {
+	if _, err := s1.AddPath(mustApi2apiutilPath(pathRtc1)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2007,7 +1973,6 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 }
 
 func TestAddDeletePath(t *testing.T) {
-	ctx := context.Background()
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
@@ -2043,24 +2008,26 @@ func TestAddDeletePath(t *testing.T) {
 
 	attrs := []*api.Attribute{a1, nh3}
 
-	family := &api.Family{
-		Afi:  api.Family_AFI_IP,
-		Safi: api.Family_SAFI_UNICAST,
-	}
+	family := bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST)
+	family6 := bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST)
 
-	family6 := &api.Family{
-		Afi:  api.Family_AFI_IP6,
-		Safi: api.Family_SAFI_UNICAST,
-	}
-
-	listRib := func(f *api.Family) []*api.Destination {
+	listRib := func(f bgp.Family) []*api.Destination {
 		l := make([]*api.Destination, 0)
-		err := s.ListPath(ctx, &api.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(d *api.Destination) { l = append(l, d) })
+		err := s.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: f}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+			d := api.Destination{
+				Prefix: prefix.String(),
+				Paths:  make([]*api.Path, len(paths)),
+			}
+			for i, path := range paths {
+				d.Paths[i] = toPathApi(path, false, false, false)
+			}
+			l = append(l, &d)
+		})
 		assert.NoError(t, err)
 		return l
 	}
 
-	numPaths := func(f *api.Family) int {
+	numPaths := func(f bgp.Family) int {
 		c := 0
 		for _, d := range listRib(f) {
 			c += len(d.Paths)
@@ -2072,73 +2039,49 @@ func TestAddDeletePath(t *testing.T) {
 	// DeletePath(AddPath()) without PeerInfo
 	getPath := func() *api.Path {
 		return &api.Path{
-			Family: family,
+			Family: &api.Family{Afi: api.Family_Afi(family.Afi()), Safi: api.Family_Safi(family.Safi())},
 			Nlri:   nlri,
 			Pattrs: attrs,
 		}
 	}
 
 	p1 := getPath()
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p1,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(p1))
 	assert.NoError(t, err)
-	assert.Equal(t, len(listRib(family)), 1)
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p1,
-	})
+	assert.Equal(t, 1, len(listRib(family)))
+	err = s.DeletePath(mustApi2apiutilPath(p1))
 	assert.NoError(t, err)
-	assert.Equal(t, len(listRib(family)), 0)
+	assert.Equal(t, 0, len(listRib(family)))
 
 	// DeletePath(ListPath()) without PeerInfo
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p1,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(p1))
 	assert.NoError(t, err)
 	l := listRib(family)
-	assert.Equal(t, len(l), 1)
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      l[0].Paths[0],
-	})
+	assert.Equal(t, 1, len(l))
+	err = s.DeletePath(mustApi2apiutilPath(l[0].Paths[0]))
 	assert.NoError(t, err)
-	assert.Equal(t, len(listRib(family)), 0)
+	assert.Equal(t, 0, len(listRib(family)))
 
 	p2 := getPath()
 	p2.SourceAsn = 1
 	p2.SourceId = "1.1.1.1"
 
 	// DeletePath(AddPath()) with PeerInfo
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
-	assert.Equal(t, len(listRib(family)), 1)
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	assert.Equal(t, 1, len(listRib(family)))
+	err = s.DeletePath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
-	assert.Equal(t, len(listRib(family)), 0)
+	assert.Equal(t, 0, len(listRib(family)))
 
 	// DeletePath(ListPath()) with PeerInfo
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	l = listRib(family)
-	assert.Equal(t, len(l), 1)
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      l[0].Paths[0],
-	})
+	assert.Equal(t, 1, len(l))
+	err = s.DeletePath(mustApi2apiutilPath(l[0].Paths[0]))
 	assert.NoError(t, err)
-	assert.Equal(t, len(listRib(family)), 0)
+	assert.Equal(t, 0, len(listRib(family)))
 
 	// DeletePath(AddPath()) with different identifiers (ipv6)
 	path1 := &api.Path{
@@ -2161,31 +2104,19 @@ func TestAddDeletePath(t *testing.T) {
 		Identifier: 2,
 	}
 
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path1,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(path1))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, numPaths(family6))
+
+	_, err = s.AddPath(mustApi2apiutilPath(path2))
+	assert.NoError(t, err)
+	assert.Equal(t, 2, numPaths(family6))
+
+	err = s.DeletePath(mustApi2apiutilPath(path1))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family6), 1)
 
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path2,
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, numPaths(family6), 2)
-
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path1,
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, numPaths(family6), 1)
-
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path2,
-	})
+	err = s.DeletePath(mustApi2apiutilPath(path2))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family6), 0)
 
@@ -2210,74 +2141,47 @@ func TestAddDeletePath(t *testing.T) {
 		Identifier: 2,
 	}
 
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path1,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(path1))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 1)
 
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path2,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(path2))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 2)
 
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path1,
-	})
+	err = s.DeletePath(mustApi2apiutilPath(path1))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 1)
 
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      path2,
-	})
+	err = s.DeletePath(mustApi2apiutilPath(path2))
 	assert.NoError(t, err)
 	assert.Equal(t, numPaths(family), 0)
 
 	// DeletePath(AddPath()) with different PeerInfo
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	_, err = s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 	p3 := getPath()
 	p3.SourceAsn = 2
 	p3.SourceId = "1.1.1.2"
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p3,
-	})
+	err = s.DeletePath(mustApi2apiutilPath(p3))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 
 	// DeletePath(AddPath()) with uuid
-	r, err := s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	r, err := s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
-	err = s.DeletePath(ctx, &api.DeletePathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Uuid:      r.Uuid,
-	})
+	err = s.DeletePathUUID(r[0].Uuid)
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 0)
 	assert.Equal(t, len(s.uuidMap), 0)
 
-	r, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	r, err = s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 	assert.Equal(t, len(s.uuidMap), 1)
-	u := r.Uuid
+	u := r[0].Uuid
 
 	asPath := &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
 		Segments: []*api.AsSegment{
@@ -2289,14 +2193,11 @@ func TestAddDeletePath(t *testing.T) {
 	}}}
 
 	p2.Pattrs = append(p2.Pattrs, asPath)
-	r, err = s.AddPath(ctx, &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path:      p2,
-	})
+	r, err = s.AddPath(mustApi2apiutilPath(p2))
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
 	assert.Equal(t, len(s.uuidMap), 1)
-	assert.NotEqual(t, u, r.Uuid)
+	assert.NotEqual(t, u, r[0].Uuid)
 }
 
 func TestDeleteNonExistingVrf(t *testing.T) {
@@ -2326,7 +2227,6 @@ func TestDeleteVrf(t *testing.T) {
 }
 
 func TestAddBogusPath(t *testing.T) {
-	ctx := context.Background()
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
@@ -2334,36 +2234,38 @@ func TestAddBogusPath(t *testing.T) {
 
 	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: &api.MpReachNLRIAttribute{}}}
 
-	_, err := s.AddPath(ctx, &api.AddPathRequest{
-		Path: &api.Path{
-			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
-			Nlri:   nlri,
-			Pattrs: []*api.Attribute{a},
-		},
-	})
+	p := &api.Path{
+		Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+		Nlri:   nlri,
+		Pattrs: []*api.Attribute{a},
+	}
+	ap, err := api2apiutilPath(p)
+	assert.NotNil(t, err)
+	_, err = s.AddPath(ap)
+	assert.NotNil(t, err)
+	_, err = s.AddPathVRF("", ap)
 	assert.NotNil(t, err)
 
 	nlri = &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{}}}
-
 	a = &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: &api.MpReachNLRIAttribute{
 		Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_FLOW_SPEC_UNICAST},
 	}}}
-
-	_, err = s.AddPath(ctx, &api.AddPathRequest{
-		Path: &api.Path{
-			Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
-			Nlri:   nlri,
-			Pattrs: []*api.Attribute{a},
-		},
-	})
+	p = &api.Path{
+		Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+		Nlri:   nlri,
+		Pattrs: []*api.Attribute{a},
+	}
+	ap, err = api2apiutilPath(p)
+	assert.NoError(t, err)
+	_, err = s.AddPath(ap)
+	assert.NotNil(t, err)
+	_, err = s.AddPathVRF("45", ap)
 	assert.NotNil(t, err)
 }
 
 // TestListPathWithIdentifiers confirms whether ListPath properly returns the
 // identifier information for paths for the Global RIB and for VRF RIBs.
 func TestListPathWithIdentifiers(t *testing.T) {
-	ctx := context.Background()
-
 	assert := assert.New(t)
 	s := NewBgpServer()
 	go s.Serve()
@@ -2377,11 +2279,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	assert.NoError(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	family := &api.Family{
-		Afi:  api.Family_AFI_IP,
-		Safi: api.Family_SAFI_UNICAST,
-	}
-
+	family := bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST)
 	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.1.0.0",
 		PrefixLen: 24,
@@ -2401,13 +2299,13 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	}
 	paths := []*api.Path{
 		{
-			Family:     family,
+			Family:     &api.Family{Afi: api.Family_Afi(family.Afi()), Safi: api.Family_Safi(family.Safi())},
 			Nlri:       nlri1,
 			Pattrs:     attrs,
 			Identifier: 1,
 		},
 		{
-			Family:     family,
+			Family:     &api.Family{Afi: api.Family_Afi(family.Afi()), Safi: api.Family_Safi(family.Safi())},
 			Nlri:       nlri1,
 			Pattrs:     attrs,
 			Identifier: 2,
@@ -2416,22 +2314,25 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	wantIDs := []uint32{1, 2}
 	applyPathsTo := func(vrf string) {
 		for _, path := range paths {
-			_, err = s.AddPath(context.Background(), &api.AddPathRequest{
-				TableType: api.TableType_TABLE_TYPE_GLOBAL,
-				Path:      path,
-				VrfId:     vrf,
-			})
+			_, err = s.AddPathVRF(vrf, mustApi2apiutilPath(path))
 			assert.NoError(err)
 		}
 	}
 	destinationsFrom := func(name string, tableType api.TableType) []*api.Destination {
 		var destinations []*api.Destination
-		err = s.ListPath(ctx, &api.ListPathRequest{
+		err = s.ListPath(apiutil.ListPathRequest{
 			Name:      name,
 			TableType: tableType,
 			Family:    family,
-		}, func(d *api.Destination) {
-			destinations = append(destinations, d)
+		}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+			d := api.Destination{
+				Prefix: prefix.String(),
+				Paths:  make([]*api.Path, len(paths)),
+			}
+			for i, path := range paths {
+				d.Paths[i] = toPathApi(path, false, false, false)
+			}
+			destinations = append(destinations, &d)
 		})
 		assert.NoError(err)
 		return destinations
@@ -2568,28 +2469,24 @@ func TestWatchEvent(test *testing.T) {
 		},
 	}
 
-	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
-			Family: family,
-			Nlri:   nlri1,
-			Pattrs: attrs,
-		},
-	})
+	_, err = t.AddPath(mustApi2apiutilPath(&api.Path{
+		Family: family,
+		Nlri:   nlri1,
+		Pattrs: attrs,
+	}))
+
 	assert.NoError(err)
 
 	nlri2 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = t.AddPath(context.Background(), &api.AddPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Path: &api.Path{
-			Family: family,
-			Nlri:   nlri2,
-			Pattrs: attrs,
-		},
-	})
+	_, err = t.AddPath(mustApi2apiutilPath(&api.Path{
+		Family: family,
+		Nlri:   nlri2,
+		Pattrs: attrs,
+	}))
+
 	assert.NoError(err)
 
 	peer2 := &api.Peer{
