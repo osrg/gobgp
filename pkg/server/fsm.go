@@ -139,6 +139,7 @@ type fsmOutgoingMsg struct {
 	Paths        []*table.Path
 	Notification *bgp.BGPMessage
 	StayIdle     bool
+	sending      chan any
 }
 
 const (
@@ -1818,6 +1819,9 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 				h.fsm.lock.RLock()
 				options := h.fsm.marshallingOptions
 				h.fsm.lock.RUnlock()
+				if m.sending != nil {
+					close(m.sending)
+				}
 				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
 					if err := send(msg); err != nil {
 						return nil
@@ -1957,7 +1961,11 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				})
 			fsm.lock.RUnlock()
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+			// wait for fsmOutgoingMsg to be sent
+			// to avoid a race condition
+			sending := make(chan any)
+			h.outgoing.In() <- &fsmOutgoingMsg{Notification: m, sending: sending}
+			<-sending
 			fsm.lock.RLock()
 			s := fsm.pConf.GracefulRestart.State
 			fsm.lock.RUnlock()
