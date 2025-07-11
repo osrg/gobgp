@@ -69,7 +69,7 @@ func (n *VPLSNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) e
 	n.VEBlockSize = binary.BigEndian.Uint16(data[14:16])
 
 	labelBlockBase := uint32(data[16])<<16 | uint32(data[17])<<8 | uint32(data[18])
-	n.LabelBlockBase = labelBlockBase >> 4
+	n.LabelBlockBase = labelBlockBase >> 4 // only the first 20 bits are used (MPLS label)
 
 	return nil
 }
@@ -88,7 +88,7 @@ func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[12:14], n.VEBlockOffset)
 	binary.BigEndian.PutUint16(buf[14:16], n.VEBlockSize)
 
-	labelBlockBase := n.LabelBlockBase << 4
+	labelBlockBase := n.LabelBlockBase << 4 // only the first 20 bits are used (MPLS label)
 	labelBaseBuf[0] = byte(labelBlockBase >> 16 & 0xff)
 	labelBaseBuf[1] = byte(labelBlockBase >> 8 & 0xff)
 	labelBaseBuf[2] = byte(labelBlockBase & 0xff)
