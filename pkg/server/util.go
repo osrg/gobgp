@@ -21,11 +21,20 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
+func drainChannel[T any](ch <-chan T) {
+	// drain all remaining items
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
+}
+
 func cleanInfiniteChannel(ch *channels.InfiniteChannel) {
 	ch.Close()
-	// drain all remaining items
-	for range ch.Out() {
-	}
+	drainChannel(ch.Out())
 }
 
 // Returns the binary formatted Administrative Shutdown Communication from the
