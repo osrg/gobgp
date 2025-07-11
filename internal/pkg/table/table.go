@@ -16,6 +16,8 @@
 package table
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/bits"
 	"net"
@@ -240,13 +242,12 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 	if t.Family != bgp.RF_RTC_UC {
 		return pathList
 	}
-	for _, target := range vrf.ImportRt {
-		lhs := target.String()
+	for lhs := range vrf.ImportRt {
 		for _, dests := range t.destinations {
 			for _, dest := range dests {
 				nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
-				rhs := nlri.RouteTarget.String()
-				if lhs == rhs && isLastTargetUser(vrfs, target) {
+				rhs, _ := extCommRouteTargetKey(nlri.RouteTarget)
+				if lhs == rhs && isLastTargetUser(vrfs, lhs) {
 					for _, p := range dest.knownPathList {
 						if p.IsLocal() {
 							pathList = append(pathList, p.Clone(true))
@@ -894,4 +895,55 @@ func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 		NumPath:        numP,
 		NumCollision:   numC,
 	}
+}
+
+var (
+	ErrInvalidRouteTarget error = errors.New("ExtendedCommunity is not RouteTarget")
+	ErrNilCommunity       error = errors.New("RouteTarget could not be nil")
+)
+
+func extCommRouteTargetKey(routeTarget bgp.ExtendedCommunityInterface) (uint64, error) {
+	if routeTarget == nil {
+		return 0, ErrNilCommunity
+	}
+	switch rt := routeTarget.(type) {
+	case *bgp.TwoOctetAsSpecificExtended, *bgp.IPv4AddressSpecificExtended, *bgp.FourOctetAsSpecificExtended:
+		bytes, err := rt.Serialize()
+		if err != nil {
+			return 0, err
+		}
+		return binary.BigEndian.Uint64(bytes[:]), nil
+	default:
+		return 0, ErrInvalidRouteTarget
+	}
+}
+
+type routeTargetMap map[uint64]bgp.ExtendedCommunityInterface
+
+func (rtm routeTargetMap) ToSlice() []bgp.ExtendedCommunityInterface {
+	s := make([]bgp.ExtendedCommunityInterface, 0, len(rtm))
+	for _, rt := range rtm {
+		s = append(s, rt)
+	}
+	return s
+}
+
+func (rtm routeTargetMap) Clone() routeTargetMap {
+	rts := make(routeTargetMap, len(rtm))
+	for key, rt := range rtm {
+		rts[key] = rt
+	}
+	return rts
+}
+
+func newRouteTargetMap(s []bgp.ExtendedCommunityInterface) (routeTargetMap, error) {
+	m := make(routeTargetMap, len(s))
+	for _, rt := range s {
+		key, err := extCommRouteTargetKey(rt)
+		if err != nil {
+			return nil, err
+		}
+		m[key] = rt
+	}
+	return m, nil
 }

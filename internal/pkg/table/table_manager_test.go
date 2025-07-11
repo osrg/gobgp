@@ -2263,3 +2263,145 @@ func update_fromR2viaR1_ipv6() *bgp.BGPMessage {
 	}
 	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 }
+
+func parseRDRT(rdStr string) (bgp.RouteDistinguisherInterface, bgp.ExtendedCommunityInterface, error) {
+	rd, err := bgp.ParseRouteDistinguisher(rdStr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rt, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_ROUTE_TARGET, rdStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	return rd, rt, nil
+}
+
+func createPeerInfo(as uint32, localId string) *PeerInfo {
+	return &PeerInfo{
+		AS:      as,
+		LocalID: net.ParseIP(localId).To4(),
+	}
+}
+
+func makeVpn4Path(t *testing.T, peerInfo *PeerInfo, address string, nh string, rdStr string, importRtsStr []string) *Path {
+	rts := make([]bgp.ExtendedCommunityInterface, 0, len(importRtsStr))
+	for _, rtStr := range importRtsStr {
+		_, rt, err := parseRDRT(rtStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rts = append(rts, rt)
+	}
+
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop(nh),
+		bgp.NewPathAttributeExtendedCommunities(rts),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher(rdStr)
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, address, *labels, rd)
+	return NewPath(peerInfo, prefix, false, attrs, time.Now(), false)
+}
+
+func makeRtcPath(t *testing.T, peerInfo *PeerInfo, rtStr string, withdraw bool) *Path {
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("0.0.0.0"),
+	}
+
+	_, rt, err := parseRDRT(rtStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := bgp.NewRouteTargetMembershipNLRI(peerInfo.AS, rt)
+
+	return NewPath(peerInfo, prefix, withdraw, attrs, time.Now(), false)
+}
+
+func addVrf(t *testing.T, tm *TableManager, peerInfo *PeerInfo, vrfName, rdStr string, importRtsStr []string, exportRtsStr []string, id uint32) *Vrf {
+	rd, _, err := parseRDRT(rdStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	importRts := make([]bgp.ExtendedCommunityInterface, 0, len(importRtsStr))
+	rtPaths := make([]string, 0, len(importRtsStr))
+	for _, importRtStr := range importRtsStr {
+		_, rt, err := parseRDRT(importRtStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		importRts = append(importRts, rt)
+
+		rtPath := makeRtcPath(t, peerInfo, importRtStr, false)
+		rtPaths = append(rtPaths, rtPath.String())
+	}
+
+	exportRts := make([]bgp.ExtendedCommunityInterface, 0, len(exportRtsStr))
+	for _, exportRtStr := range exportRtsStr {
+		_, rt, err := parseRDRT(exportRtStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exportRts = append(exportRts, rt)
+	}
+
+	outputRts, err := tm.AddVrf(vrfName, id, rd, importRts, exportRts, peerInfo)
+	assert.NoError(t, err)
+	assert.Equal(t, len(importRtsStr), len(outputRts))
+	for _, outputRt := range outputRts {
+		assert.Contains(t, rtPaths, outputRt.String())
+		tm.Update(outputRt)
+	}
+
+	return tm.Vrfs[vrfName]
+}
+
+func TestVRF(t *testing.T) {
+	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_VPN, bgp.RF_IPv4_VPN, bgp.RF_RTC_UC})
+	peerInfo := createPeerInfo(64511, "127.0.0.11")
+	uniqueImportRTs := []string{"111:111", "111:222", "111:333"}
+	sharedImportRTs := []string{"111:444", "111:555"}
+	firstVrfName := "firstVrf"
+	secondVrfName := "secondVrf"
+	vrf := addVrf(t, tm, peerInfo, firstVrfName, "111:100", append(uniqueImportRTs, sharedImportRTs...), []string{"222:111", "222:222"}, 1)
+	assert.NotNil(t, vrf)
+
+	vrf2 := addVrf(t, tm, peerInfo, secondVrfName, "222:100", sharedImportRTs, []string{"222:111", "222:222"}, 1)
+	assert.NotNil(t, vrf2)
+
+	pathCanImport := makeVpn4Path(t, peerInfo, "10.20.30.0", "8.8.8.8", "111:100", []string{"555:444", "111:222", "555:555"})
+	assert.True(t, CanImportToVrf(vrf, pathCanImport))
+
+	pathCantImport := makeVpn4Path(t, peerInfo, "10.20.30.0", "8.8.8.8", "111:100", []string{"555:444", "555:555", "222:222"})
+	assert.False(t, CanImportToVrf(vrf, pathCantImport))
+
+	// firstDeletedRTs must contain unique rts only.
+	firstDeletedRTs, err := tm.DeleteVrf(firstVrfName)
+	assert.NoError(t, err)
+	assert.Equal(t, len(uniqueImportRTs), len(firstDeletedRTs))
+	deletedRTsStr := make([]string, 0, len(firstDeletedRTs))
+	for _, deletedRT := range firstDeletedRTs {
+		deletedRTsStr = append(deletedRTsStr, deletedRT.String())
+	}
+	for _, importRT := range uniqueImportRTs {
+		importRTStr := makeRtcPath(t, peerInfo, importRT, true).String()
+		assert.Contains(t, deletedRTsStr, importRTStr)
+	}
+
+	// secondDeletedRTs must contain all the remaining rts.
+	secondDeletedRTs, err := tm.DeleteVrf(secondVrfName)
+	assert.NoError(t, err)
+	assert.Equal(t, len(sharedImportRTs), len(secondDeletedRTs))
+	deletedRTsStr = make([]string, 0, len(secondDeletedRTs))
+	for _, deletedRT := range secondDeletedRTs {
+		deletedRTsStr = append(deletedRTsStr, deletedRT.String())
+	}
+	for _, importRT := range sharedImportRTs {
+		importRTStr := makeRtcPath(t, peerInfo, importRT, true).String()
+		assert.Contains(t, deletedRTsStr, importRTStr)
+	}
+}

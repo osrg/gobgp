@@ -2476,7 +2476,7 @@ func (s *BgpServer) ListVrf(ctx context.Context, r *api.ListVrfRequest, fn func(
 	}
 	toApi := func(v *table.Vrf) *api.Vrf {
 		d, _ := apiutil.MarshalRD(v.Rd)
-		irt, _ := apiutil.MarshalRTs(v.ImportRt)
+		irt, _ := apiutil.MarshalRTs(v.ImportRt.ToSlice())
 		ert, _ := apiutil.MarshalRTs(v.ExportRt)
 		return &api.Vrf{
 			Name:     v.Name,

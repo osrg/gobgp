@@ -19,6 +19,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"math/rand"
+	"net"
 	"net/netip"
 	"runtime"
 	"slices"
@@ -697,4 +698,66 @@ func TestTableKeyWithLabels(t *testing.T) {
 	// 1 LabeledVPNIPv6 prefix with 3 labels,2 RDs   (sum = 2)
 	// 1 LabeledIPv6 prefix with 3 labels            (sum = 1) the 2nd replace the 1st one (update)
 	assert.Equal(t, 8, len(ipv4t.GetDestinations()))
+}
+
+func Test_RouteTargetKey(t *testing.T) {
+	assert := assert.New(t)
+
+	// TwoOctetAsSpecificExtended
+	buf := make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(bgp.EC_SUBTYPE_ROUTE_TARGET)                  // subtype
+	binary.BigEndian.PutUint16(buf[7:9], 0x1314)
+	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
+	r := &bgp.RouteTargetMembershipNLRI{}
+	err := r.DecodeFromBytes(buf)
+	assert.NoError(err)
+	key, err := extCommRouteTargetKey(r.RouteTarget)
+	assert.NoError(err)
+	assert.Equal(uint64(0x0002131415161718), key)
+
+	// IPv4AddressSpecificExtended
+	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(bgp.EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
+	buf[6] = byte(bgp.EC_SUBTYPE_ROUTE_TARGET)         // subtype
+	ip := net.ParseIP("10.1.2.3").To4()
+	copy(buf[7:11], []byte(ip))
+	binary.BigEndian.PutUint16(buf[11:], 0x1314)
+	r = &bgp.RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.NoError(err)
+	key, err = extCommRouteTargetKey(r.RouteTarget)
+	assert.NoError(err)
+	assert.Equal(uint64(0x01020a0102031314), key)
+
+	// FourOctetAsSpecificExtended
+	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(bgp.EC_SUBTYPE_ROUTE_TARGET)                   // subtype
+	binary.BigEndian.PutUint32(buf[7:], 0x15161718)
+	binary.BigEndian.PutUint16(buf[11:], 0x1314)
+	r = &bgp.RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.NoError(err)
+	key, err = extCommRouteTargetKey(r.RouteTarget)
+	assert.NoError(err)
+	assert.Equal(uint64(0x0202151617181314), key)
+
+	// OpaqueExtended, wrong RouteTarget
+	buf = make([]byte, 13)
+	buf[0] = 96 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(bgp.EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
+	binary.BigEndian.PutUint32(buf[9:], 1000000)
+	r = &bgp.RouteTargetMembershipNLRI{}
+	err = r.DecodeFromBytes(buf)
+	assert.NoError(err)
+	_, err = extCommRouteTargetKey(r.RouteTarget)
+	assert.NotNil(err)
 }
