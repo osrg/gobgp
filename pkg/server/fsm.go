@@ -387,7 +387,6 @@ type fsmCallback func(*fsmMsg)
 type fsmHandler struct {
 	fsm              *fsm
 	conn             net.Conn
-	msgCh            *channels.InfiniteChannel
 	stateReasonCh    chan fsmStateReason
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
@@ -401,7 +400,7 @@ func newFSMHandler(fsm *fsm, outgoing *channels.InfiniteChannel, wg *sync.WaitGr
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &fsmHandler{
 		fsm:              fsm,
-		stateReasonCh:    make(chan fsmStateReason, 2),
+		stateReasonCh:    make(chan fsmStateReason, 1),
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
 		ctx:              ctx,
@@ -1207,28 +1206,13 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error {
-	done := make(chan any)
-
-	defer func() {
-		h.msgCh.Close()
-		wg.Done()
-		close(done)
-	}()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			h.conn.SetReadDeadline(time.Now())
-		case <-done:
-		}
-	}()
+func (h *fsmHandler) recvMessage(ctx context.Context, recvChan chan<- any, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	fmsg, _ := h.recvMessageWithError()
-	if fmsg != nil {
-		h.msgCh.In() <- fmsg
+	if fmsg != nil && ctx.Err() == nil {
+		recvChan <- fmsg
 	}
-	return nil
 }
 
 func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.Family]bgp.BGPAddPathMode) {
@@ -1299,16 +1283,22 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.msgCh = channels.NewInfiniteChannel()
-
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 	fsm.lock.RUnlock()
 
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	defer wg.Wait()
-	go h.recvMessage(ctx, &wg)
+
+	recvChan := make(chan any, 1)
+	go h.recvMessage(ctx, recvChan, wg)
+
+	defer func() {
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		close(recvChan)
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	// RFC 4271 P.60
 	// sets its HoldTimer to a large value
@@ -1352,7 +1342,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
-		case i, ok := <-h.msgCh.Out():
+		case i, ok := <-recvChan:
 			if !ok {
 				continue
 			}
@@ -1571,14 +1561,22 @@ func keepaliveTicker(fsm *fsm) *time.Ticker {
 func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
-	h.msgCh = channels.NewInfiniteChannel()
+
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go h.recvMessage(ctx, &wg)
+
+	recvChan := make(chan any, 1)
+	go h.recvMessage(ctx, recvChan, wg)
+
+	defer func() {
+		h.conn.SetReadDeadline(time.Now())
+		wg.Wait()
+		close(recvChan)
+		h.conn.SetReadDeadline(time.Time{})
+	}()
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1630,10 +1628,7 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-		case i, ok := <-h.msgCh.Out():
-			if !ok {
-				continue
-			}
+		case i := <-recvChan:
 			e := i.(*fsmMsg)
 			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
@@ -1868,29 +1863,16 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 	}
 }
 
-func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) error {
-	done := make(chan any)
+func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-	defer func() {
-		wg.Done()
-		close(done)
-	}()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			h.conn.SetReadDeadline(time.Now())
-		case <-done:
-		}
-	}()
-
-	for {
+	for ctx.Err() == nil {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
 			h.callback(fmsg)
 		}
 		if err != nil {
-			return nil
+			return
 		}
 	}
 }
@@ -1906,6 +1888,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	wg.Add(2)
 
 	defer func() {
+		h.conn.SetReadDeadline(time.Now())
 		cancel()
 		wg.Wait()
 	}()
@@ -2064,6 +2047,17 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 		fsm.lock.Lock()
 		fsm.reason = reason
 		fsm.lock.Unlock()
+
+		// drain the stateReasonCh to avoid
+		// to change state because of a stale reason
+	drain:
+		for {
+			select {
+			case <-h.stateReasonCh:
+			default:
+				break drain
+			}
+		}
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
 			fsm.logger.Info("Peer Up",
