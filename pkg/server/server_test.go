@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eapache/channels"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1437,7 +1438,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
 	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
-	incoming := neighbor1.fsm.h.msgCh
+	incoming := channels.NewInfiniteChannel()
 	err = s1.mgmtOperation(func() error {
 		s1.delIncoming(incoming)
 		return nil
