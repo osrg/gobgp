@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
+	"github.com/osrg/gobgp/v4/pkg/bgputils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -49,6 +51,10 @@ func NewMockConnection() *MockConnection {
 		isClosed: false,
 	}
 	return m
+}
+
+func (m *MockConnection) SetReadDeadline(t time.Time) error {
+	return nil
 }
 
 func (m *MockConnection) SetWriteDeadline(t time.Time) error {
@@ -152,11 +158,11 @@ func TestReadAll(t *testing.T) {
 	go pushBytes()
 
 	var actual1 []byte
-	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH)
+	actual1, _ = netutils.ReadAll(m, bgp.BGP_HEADER_LENGTH)
 	assert.Equal(expected1, actual1)
 
 	var actual2 []byte
-	actual2, _ = readAll(m, len(expected2))
+	actual2, _ = netutils.ReadAll(m, len(expected2))
 	assert.Equal(expected2, actual2)
 }
 
@@ -339,9 +345,9 @@ func TestCheckOwnASLoop(t *testing.T) {
 	assert := assert.New(t)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	assert.False(hasOwnASLoop(65100, 10, aspath))
-	assert.True(hasOwnASLoop(65100, 0, aspath))
-	assert.False(hasOwnASLoop(65200, 0, aspath))
+	assert.False(bgputils.HasOwnASLoop(65100, 10, aspath))
+	assert.True(bgputils.HasOwnASLoop(65100, 0, aspath))
+	assert.False(bgputils.HasOwnASLoop(65200, 0, aspath))
 }
 
 func TestBadBGPIdentifier(t *testing.T) {
@@ -372,7 +378,7 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 		fsm:           fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		outgoing:      channels.NewInfiniteChannel(),
-		callback:      func(*fsmMsg, bool) {},
+		callback:      func(*fsmMsg) {},
 	}
 
 	fsm.h = h
