@@ -23,7 +23,7 @@ type Vrf struct {
 	Name      string
 	Id        uint32
 	Rd        bgp.RouteDistinguisherInterface
-	ImportRt  []bgp.ExtendedCommunityInterface
+	ImportRt  routeTargetMap
 	ExportRt  []bgp.ExtendedCommunityInterface
 	MplsLabel uint32
 }
@@ -37,18 +37,16 @@ func (v *Vrf) Clone() *Vrf {
 		Name:      v.Name,
 		Id:        v.Id,
 		Rd:        v.Rd,
-		ImportRt:  f(v.ImportRt),
+		ImportRt:  v.ImportRt.Clone(),
 		ExportRt:  f(v.ExportRt),
 		MplsLabel: v.MplsLabel,
 	}
 }
 
-func isLastTargetUser(vrfs map[string]*Vrf, target bgp.ExtendedCommunityInterface) bool {
+func isLastTargetUser(vrfs map[string]*Vrf, target uint64) bool {
 	for _, vrf := range vrfs {
-		for _, rt := range vrf.ImportRt {
-			if target.String() == rt.String() {
-				return false
-			}
+		if _, exist := vrf.ImportRt[target]; exist {
+			return false
 		}
 	}
 	return true
