@@ -11971,7 +11971,7 @@ type TwoOctetAsSpecificExtended struct {
 }
 
 func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	buf := [8]byte{}
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
 	} else {
@@ -11980,7 +11980,7 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint16(buf[2:], e.AS)
 	binary.BigEndian.PutUint32(buf[4:], e.LocalAdmin)
-	return buf, nil
+	return buf[:], nil
 }
 
 func (e *TwoOctetAsSpecificExtended) String() string {
@@ -12025,7 +12025,7 @@ type IPv4AddressSpecificExtended struct {
 }
 
 func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	buf := [8]byte{}
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC)
 	} else {
@@ -12034,7 +12034,7 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	copy(buf[2:6], e.IPv4)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
-	return buf, nil
+	return buf[:], nil
 }
 
 func (e *IPv4AddressSpecificExtended) String() string {
@@ -12141,7 +12141,7 @@ type FourOctetAsSpecificExtended struct {
 }
 
 func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	buf := [8]byte{}
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
 	} else {
@@ -12150,7 +12150,7 @@ func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint32(buf[2:], e.AS)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
-	return buf, nil
+	return buf[:], nil
 }
 
 func (e *FourOctetAsSpecificExtended) String() string {

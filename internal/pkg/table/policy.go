@@ -1721,14 +1721,13 @@ func (c *ExtCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	result := false
 	for _, x := range es {
 		result = false
-		typ, subtype := x.GetTypes()
 		// match only with transitive community. see RFC7153
-		if typ >= 0x3f {
+		if !isTransitiveType(x) {
 			continue
 		}
 		var xStr string
 		for idx, y := range c.set.list {
-			if subtype == c.set.subtypeList[idx] {
+			if subTypeEqual(x, c.set.subtypeList[idx]) {
 				if len(xStr) == 0 {
 					// caching x.String() saves a lot of resources when matching against
 					// a lot of conditions, link hundreds of RTs.
@@ -2171,13 +2170,12 @@ func RegexpRemoveExtCommunities(path *Path, exps []*regexp.Regexp, subtypes []bg
 	newComms := make([]bgp.ExtendedCommunityInterface, 0, len(comms))
 	for _, comm := range comms {
 		match := false
-		typ, subtype := comm.GetTypes()
 		// match only with transitive community. see RFC7153
-		if typ >= 0x3f {
+		if !isTransitiveType(comm) {
 			continue
 		}
 		for idx, exp := range exps {
-			if subtype == subtypes[idx] && exp.MatchString(comm.String()) {
+			if subTypeEqual(comm, subtypes[idx]) && exp.MatchString(comm.String()) {
 				match = true
 				break
 			}
@@ -4053,24 +4051,35 @@ func NewRoutingPolicy(logger log.Logger) *RoutingPolicy {
 }
 
 func CanImportToVrf(v *Vrf, path *Path) bool {
-	f := func(arg []bgp.ExtendedCommunityInterface) []string {
-		ret := make([]string, 0, len(arg))
-		for _, a := range arg {
-			ret = append(ret, fmt.Sprintf("RT:%s", a.String()))
+	extComms := path.GetExtCommunities()
+	for _, x := range extComms {
+		// match only with transitive community. see RFC7153
+		if !isTransitiveType(x) {
+			continue
 		}
-		return ret
+		key, err := extCommRouteTargetKey(x)
+		if err != nil {
+			continue
+		}
+		if _, found := v.ImportRt[key]; found {
+			return true
+		}
 	}
-	set, _ := NewExtCommunitySet(oc.ExtCommunitySet{
-		ExtCommunitySetName: v.Name,
-		ExtCommunityList:    f(v.ImportRt),
-	})
-	matchSet := oc.MatchExtCommunitySet{
-		ExtCommunitySet: v.Name,
-		MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
+	return false
+}
+
+func isTransitiveType(ec bgp.ExtendedCommunityInterface) bool {
+	if ecType, _ := ec.GetTypes(); ecType < bgp.EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC {
+		return true
 	}
-	c, _ := NewExtCommunityCondition(matchSet)
-	c.set = set
-	return c.Evaluate(path, nil)
+	return false
+}
+
+func subTypeEqual(ec bgp.ExtendedCommunityInterface, st bgp.ExtendedCommunityAttrSubType) bool {
+	if _, ecSubType := ec.GetTypes(); ecSubType == st {
+		return true
+	}
+	return false
 }
 
 type PolicyAssignment struct {
