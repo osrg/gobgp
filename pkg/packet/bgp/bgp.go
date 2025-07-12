@@ -395,6 +395,8 @@ var CapNameMap = map[BGPCapabilityCode]string{
 	BGP_CAP_SOFT_VERSION:                "software-version",
 }
 
+const DefaultRT uint64 = 0
+
 func (c BGPCapabilityCode) String() string {
 	if n, y := CapNameMap[c]; y {
 		return n
@@ -2373,6 +2375,34 @@ type RouteTargetMembershipNLRI struct {
 	Length      uint8
 	AS          uint32
 	RouteTarget ExtendedCommunityInterface
+}
+
+var (
+	ErrInvalidRouteTarget error = errors.New("ExtendedCommunity is not RouteTarget")
+	ErrNilCommunity       error = errors.New("RouteTarget could not be nil")
+)
+
+func ExtCommRouteTargetKey(routeTarget ExtendedCommunityInterface) (uint64, error) {
+	if routeTarget == nil {
+		return 0, ErrNilCommunity
+	}
+	switch rt := routeTarget.(type) {
+	case *TwoOctetAsSpecificExtended, *IPv4AddressSpecificExtended, *FourOctetAsSpecificExtended:
+		bytes, err := rt.Serialize()
+		if err != nil {
+			return 0, err
+		}
+		return binary.BigEndian.Uint64(bytes[:]), nil
+	default:
+		return 0, ErrInvalidRouteTarget
+	}
+}
+
+func (n *RouteTargetMembershipNLRI) RouteTargetKey() (uint64, error) {
+	if n.RouteTarget == nil {
+		return DefaultRT, nil
+	}
+	return ExtCommRouteTargetKey(n.RouteTarget)
 }
 
 func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -11969,7 +11999,7 @@ type TwoOctetAsSpecificExtended struct {
 }
 
 func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	buf := [8]byte{}
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
 	} else {
@@ -11978,7 +12008,7 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint16(buf[2:], e.AS)
 	binary.BigEndian.PutUint32(buf[4:], e.LocalAdmin)
-	return buf, nil
+	return buf[:], nil
 }
 
 func (e *TwoOctetAsSpecificExtended) String() string {
@@ -12023,7 +12053,7 @@ type IPv4AddressSpecificExtended struct {
 }
 
 func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	buf := [8]byte{}
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC)
 	} else {
@@ -12032,7 +12062,7 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	copy(buf[2:6], e.IPv4)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
-	return buf, nil
+	return buf[:], nil
 }
 
 func (e *IPv4AddressSpecificExtended) String() string {
@@ -12139,7 +12169,7 @@ type FourOctetAsSpecificExtended struct {
 }
 
 func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
-	buf := make([]byte, 8)
+	buf := [8]byte{}
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
 	} else {
@@ -12148,7 +12178,7 @@ func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint32(buf[2:], e.AS)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
-	return buf, nil
+	return buf[:], nil
 }
 
 func (e *FourOctetAsSpecificExtended) String() string {
