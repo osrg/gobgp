@@ -32,6 +32,7 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 
 	defer func() {
 		cancel()
+		fsm.Conn.SetReadDeadline(time.Now())
 		wg.Wait()
 		close(stateReasonCh)
 		holdTimerStop()

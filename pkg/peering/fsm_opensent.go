@@ -40,6 +40,7 @@ func (fsm *fsm) opensent(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
 	holdTimer := time.NewTimer(openSentHoldTime)
 
 	defer func() {
+		fsm.Conn.SetReadDeadline(time.Now())
 		wg.Wait()
 		close(recvChan)
 		close(stateReasonCh)

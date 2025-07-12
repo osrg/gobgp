@@ -350,20 +350,7 @@ func (fsm *fsm) recvMessageWithError(ctx context.Context, stateReasonCh chan<- *
 }
 
 func (fsm *fsm) recvMessage(ctx context.Context, recvChan chan<- any, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
-	done := make(chan any)
-
-	defer func() {
-		wg.Done()
-		close(done)
-	}()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			fsm.Conn.SetReadDeadline(time.Now())
-		case <-done:
-		}
-	}()
+	defer wg.Done()
 
 	fmsg, _ := fsm.recvMessageWithError(ctx, stateReasonCh)
 	if fmsg != nil {
@@ -574,20 +561,7 @@ func (fsm *fsm) sendMessageloop(ctx context.Context, stateReasonCh chan<- *FSMSt
 }
 
 func (fsm *fsm) recvMessageloop(ctx context.Context, stateReasonCh chan<- *FSMStateReason, wg *sync.WaitGroup) error {
-	done := make(chan any)
-
-	defer func() {
-		wg.Done()
-		close(done)
-	}()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			fsm.Conn.SetReadDeadline(time.Now())
-		case <-done:
-		}
-	}()
+	defer wg.Done()
 
 	for {
 		fmsg, err := fsm.recvMessageWithError(ctx, stateReasonCh)

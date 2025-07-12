@@ -3,6 +3,7 @@ package peering
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
@@ -21,6 +22,7 @@ func (fsm *fsm) openconfirm(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 	holdTimer, holdTimerStop := fsm.holdTimer()
 
 	defer func() {
+		fsm.Conn.SetReadDeadline(time.Now())
 		wg.Wait()
 		close(recvChan)
 		close(stateReasonCh)
