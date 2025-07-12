@@ -6723,27 +6723,27 @@ type LsTLVNodeFlagBits struct {
 func NewLsTLVNodeFlagbits(l *LsNodeFlags) *LsTLVNodeFlagBits {
 	var flags uint8
 	if l.Overload {
-		flags = flags & (1 >> 7)
+		flags = flags | 1<<7
 	}
 	if l.Attached {
-		flags = flags & (1 >> 6)
+		flags = flags | 1<<6
 	}
 	if l.External {
-		flags = flags & (1 >> 5)
+		flags = flags | 1<<5
 	}
 	if l.ABR {
-		flags = flags & (1 >> 4)
+		flags = flags | 1<<4
 	}
 	if l.Router {
-		flags = flags & (1 >> 3)
+		flags = flags | 1<<3
 	}
 	if l.V6 {
-		flags = flags & (1 >> 2)
+		flags = flags | 1<<2
 	}
 	return &LsTLVNodeFlagBits{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
-			Length: 2,
+			Type:   LS_TLV_NODE_FLAG_BITS,
+			Length: 1,
 		},
 		Flags: flags,
 	}
@@ -6821,7 +6821,7 @@ type LsTLVNodeName struct {
 func NewLsTLVNodeName(l *string) *LsTLVNodeName {
 	return &LsTLVNodeName{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_NODE_NAME,
 			Length: uint16(len(*l)),
 		},
 		Name: *l,
@@ -6934,7 +6934,7 @@ type LsTLVLocalIPv4RouterID struct {
 func NewLsTLVLocalIPv4RouterID(l *net.IP) *LsTLVLocalIPv4RouterID {
 	return &LsTLVLocalIPv4RouterID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IPV4_LOCAL_ROUTER_ID,
 			Length: 4,
 		},
 		IP: *l,
@@ -6991,7 +6991,7 @@ type LsTLVRemoteIPv4RouterID struct {
 func NewLsTLVRemoteIPv4RouterID(l *net.IP) *LsTLVRemoteIPv4RouterID {
 	return &LsTLVRemoteIPv4RouterID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IPV4_REMOTE_ROUTER_ID,
 			Length: 4,
 		},
 		IP: *l,
@@ -7048,7 +7048,7 @@ type LsTLVLocalIPv6RouterID struct {
 func NewLsTLVLocalIPv6RouterID(l *net.IP) *LsTLVLocalIPv6RouterID {
 	return &LsTLVLocalIPv6RouterID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IPV6_LOCAL_ROUTER_ID,
 			Length: 0,
 		},
 		IP: *l,
@@ -7105,7 +7105,7 @@ type LsTLVRemoteIPv6RouterID struct {
 func NewLsTLVRemoteIPv6RouterID(l *net.IP) *LsTLVRemoteIPv6RouterID {
 	return &LsTLVRemoteIPv6RouterID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IPV6_REMOTE_ROUTER_ID,
 			Length: 4,
 		},
 		IP: *l,
@@ -8089,7 +8089,7 @@ type LsTLVLinkName struct {
 func NewLsTLVLinkName(l *string) *LsTLVLinkName {
 	return &LsTLVLinkName{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_LINK_NAME,
 			Length: uint16(len(*l)),
 		},
 		Name: *l,
