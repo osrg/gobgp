@@ -959,9 +959,19 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 
 	// For AttributeNode
 	if a.Node != nil {
-		nodeLocalRouterID := net.ParseIP(a.Node.LocalRouterId)
-		nodeLocalRouterIDv6 := net.ParseIP(a.Node.LocalRouterIdV6)
+		nodeLocalRouterID := (*net.IP)(nil)
+		if a.Node.LocalRouterId != "" {
+			localRouterID := net.ParseIP(a.Node.LocalRouterId).To4()
+			nodeLocalRouterID = &localRouterID
+		}
+		nodeLocalRouterIDv6 := (*net.IP)(nil)
+		if a.Node.LocalRouterIdV6 != "" {
+			localRouterIDv6 := net.ParseIP(a.Node.LocalRouterIdV6).To16()
+			nodeLocalRouterIDv6 = &localRouterIDv6
+		}
+
 		srCapabilitiesRanges := []bgp.LsSrRange{}
+		var srCapabilities *bgp.LsSrCapabilities
 		if a.Node.SrCapabilities != nil {
 			for _, r := range a.Node.SrCapabilities.Ranges {
 				srCapabilitiesRanges = append(srCapabilitiesRanges, bgp.LsSrRange{
@@ -969,39 +979,46 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 					End:   r.End,
 				})
 			}
+			srCapabilities = &bgp.LsSrCapabilities{
+				IPv4Supported: a.Node.SrCapabilities.Ipv4Supported,
+				IPv6Supported: a.Node.SrCapabilities.Ipv6Supported,
+				Ranges:        srCapabilitiesRanges,
+			}
 		}
-		srLocalBlockRanges := []bgp.LsSrRange{}
+		lsSrLocalBlock := (*bgp.LsSrLocalBlock)(nil)
 		if a.Node.SrLocalBlock != nil {
+			srLocalBlockRanges := []bgp.LsSrRange{}
 			for _, r := range a.Node.SrLocalBlock.Ranges {
 				srLocalBlockRanges = append(srLocalBlockRanges, bgp.LsSrRange{
 					Begin: r.Begin,
 					End:   r.End,
 				})
 			}
-			lsAttr.Node = bgp.LsAttributeNode{
-				Flags: &bgp.LsNodeFlags{
-					Overload: a.Node.Flags.Overload,
-					Attached: a.Node.Flags.Attached,
-					External: a.Node.Flags.External,
-					ABR:      a.Node.Flags.Abr,
-					Router:   a.Node.Flags.Router,
-					V6:       a.Node.Flags.V6,
-				},
-				Opaque:          &a.Node.Opaque,
-				Name:            &a.Node.Name,
-				IsisArea:        &a.Node.IsisArea,
-				LocalRouterID:   &nodeLocalRouterID,
-				LocalRouterIDv6: &nodeLocalRouterIDv6,
-				SrCapabilties: &bgp.LsSrCapabilities{
-					IPv4Supported: a.Node.SrCapabilities.Ipv4Supported,
-					IPv6Supported: a.Node.SrCapabilities.Ipv6Supported,
-					Ranges:        srCapabilitiesRanges,
-				},
-				SrAlgorithms: &a.Node.SrAlgorithms,
-				SrLocalBlock: &bgp.LsSrLocalBlock{
-					Ranges: srLocalBlockRanges,
-				},
+			lsSrLocalBlock = &bgp.LsSrLocalBlock{
+				Ranges: srLocalBlockRanges,
 			}
+		}
+		var flags *bgp.LsNodeFlags
+		if a.Node.Flags != nil {
+			flags = &bgp.LsNodeFlags{
+				Overload: a.Node.Flags.Overload,
+				Attached: a.Node.Flags.Attached,
+				External: a.Node.Flags.External,
+				ABR:      a.Node.Flags.Abr,
+				Router:   a.Node.Flags.Router,
+				V6:       a.Node.Flags.V6,
+			}
+		}
+		lsAttr.Node = bgp.LsAttributeNode{
+			Flags:           flags,
+			Opaque:          &a.Node.Opaque,
+			Name:            &a.Node.Name,
+			IsisArea:        &a.Node.IsisArea,
+			LocalRouterID:   nodeLocalRouterID,
+			LocalRouterIDv6: nodeLocalRouterIDv6,
+			SrCapabilties:   srCapabilities,
+			SrAlgorithms:    &a.Node.SrAlgorithms,
+			SrLocalBlock:    lsSrLocalBlock,
 		}
 	}
 
