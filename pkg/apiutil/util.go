@@ -21,6 +21,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
@@ -49,6 +50,18 @@ type ListPathRequest struct {
 	Prefixes       []*LookupPrefix
 	SortType       api.ListPathRequest_SortType
 	EnableFiltered bool
+}
+
+// AddPathRequest is used by server.AddPath API
+type AddPathRequest struct {
+	VRFID string
+	Paths []*Path
+}
+
+// AddPathResponse is used by server.AddPath API
+type AddPathResponse struct {
+	UUID  uuid.UUID
+	Error error
 }
 
 type LookupOption uint8

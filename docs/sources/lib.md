@@ -72,10 +72,10 @@ func main() {
 	a3 := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{6762, 39919, 65000, 35753, 65000})})
 	attrs := []bgp.PathAttributeInterface{a1, a2, a3}
 
-	_, err := s.AddPath(&apiutil.Path{
+	_, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{{
 		Nlri:  nlri,
 		Attrs: attrs,
-	})
+	}}})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,10 +86,10 @@ func main() {
 	aC := bgp.NewPathAttributeCommunities([]uint32{100, 200})
 	attrs = []bgp.PathAttributeInterface{aMpr, aC}
 
-	_, err = s.AddPath(&apiutil.Path{
+	_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{{
 		Nlri:  v6Nlri,
 		Attrs: attrs,
-	})
+	}}})
 	if err != nil {
 		log.Fatal(err)
 	}
