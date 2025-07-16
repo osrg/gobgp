@@ -618,12 +618,15 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 	if err != nil {
 		return &api.AddPathResponse{}, fmt.Errorf("invalid path: %w", err)
 	}
-	path, err := s.bgpServer.addPath(r.VrfId, p)
+	path, err := s.bgpServer.AddPath(apiutil.AddPathRequest{
+		VRFID: r.VrfId,
+		Paths: []*apiutil.Path{p},
+	})
 	if err != nil {
 		return &api.AddPathResponse{}, err
 	}
 
-	id := path[0].Uuid
+	id := path[0].UUID
 	s.bgpServer.uuidMap[apiutilPathTokey(p)] = id
 	uuidBytes, err = id.MarshalBinary()
 	return &api.AddPathResponse{Uuid: uuidBytes}, err

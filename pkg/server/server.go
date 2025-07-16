@@ -2401,67 +2401,54 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	return p, nil
 }
 
-type ApiAddPathsResponse struct {
-	Uuid uuid.UUID
-	Err  error
-}
-
-func (s *BgpServer) AddPathVRF(vrfID string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
-	return s.addPath(vrfID, paths...)
-}
-
-func (s *BgpServer) AddPath(paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
-	return s.addPath("", paths...)
-}
-
-func (s *BgpServer) addPath(vrfID string, paths ...*apiutil.Path) ([]ApiAddPathsResponse, error) {
-	if len(paths) == 0 {
-		return []ApiAddPathsResponse{}, fmt.Errorf("no path(s) to add")
+func (s *BgpServer) AddPath(req apiutil.AddPathRequest) ([]apiutil.AddPathResponse, error) {
+	if len(req.Paths) == 0 {
+		return []apiutil.AddPathResponse{}, fmt.Errorf("no path(s) to add")
 	}
 	isVRF := false
-	if vrfID != "" {
-		if vrf := s.globalRib.Vrfs[vrfID]; vrf == nil {
-			return []ApiAddPathsResponse{}, fmt.Errorf("vrf %s not found", vrfID)
+	if req.VRFID != "" {
+		if vrf := s.globalRib.Vrfs[req.VRFID]; vrf == nil {
+			return []apiutil.AddPathResponse{}, fmt.Errorf("vrf %s not found", req.VRFID)
 		}
 		isVRF = true
 	}
 
-	resps := make([]ApiAddPathsResponse, len(paths))
+	resps := make([]apiutil.AddPathResponse, len(req.Paths))
 	var lastErr error
 	err := s.mgmtOperation(func() error {
-		for i, p := range paths {
+		for i, p := range req.Paths {
 			if p == nil {
 				lastErr = errors.New("path is nil")
-				resps[i].Err = lastErr
+				resps[i].Error = lastErr
 				continue
 			}
 			path, err := apiutil2Path(p, isVRF)
 			if err != nil {
 				lastErr = err
-				resps[i].Err = err
+				resps[i].Error = err
 				continue
 			}
 
-			err = s.addPathList(vrfID, []*table.Path{path})
+			err = s.addPathList(req.VRFID, []*table.Path{path})
 			if err != nil {
 				lastErr = err
-				resps[i].Err = err
+				resps[i].Error = err
 				continue
 			}
 
 			id, err := uuid.NewRandom()
 			if err != nil {
 				lastErr = err
-				resps[i].Err = err
+				resps[i].Error = err
 				continue
 			}
 			s.uuidMap[pathTokey(path)] = id
-			resps[i].Uuid = id
+			resps[i].UUID = id
 		}
 		return lastErr
 	}, true)
 	if err != nil {
-		return []ApiAddPathsResponse{}, err
+		return []apiutil.AddPathResponse{}, err
 	}
 	return resps, err
 }

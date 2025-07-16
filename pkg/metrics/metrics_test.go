@@ -136,9 +136,13 @@ func TestMetrics(test *testing.T) {
 				if err != nil {
 					test.Errorf("invalid path attributes: %v", err)
 				}
-				_, err = t.AddPath(&apiutil.Path{
-					Nlri:  nlri,
-					Attrs: pattrs,
+				_, err = t.AddPath(apiutil.AddPathRequest{
+					Paths: []*apiutil.Path{
+						{
+							Nlri:  nlri,
+							Attrs: pattrs,
+						},
+					},
 				})
 
 				assert.NoError(err)

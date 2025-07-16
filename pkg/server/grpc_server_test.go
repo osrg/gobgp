@@ -342,12 +342,15 @@ func TestGRPCWatchEvent(t *testing.T) {
 		},
 	}
 
-	_, err = t2.AddPath(
-		mustApi2apiutilPath(&api.Path{
-			Family: family,
-			Nlri:   nlri1,
-			Pattrs: attrs,
-		}))
+	_, err = t2.AddPath(apiutil.AddPathRequest{
+		Paths: []*apiutil.Path{
+			mustApi2apiutilPath(&api.Path{
+				Family: family,
+				Nlri:   nlri1,
+				Pattrs: attrs,
+			}),
+		},
+	})
 
 	assert.NoError(err)
 
@@ -355,12 +358,15 @@ func TestGRPCWatchEvent(t *testing.T) {
 		Prefix:    "10.2.0.0",
 		PrefixLen: 24,
 	}}}
-	_, err = t2.AddPath(
-		mustApi2apiutilPath(&api.Path{
-			Family: family,
-			Nlri:   nlri2,
-			Pattrs: attrs,
-		}))
+	_, err = t2.AddPath(apiutil.AddPathRequest{
+		Paths: []*apiutil.Path{
+			mustApi2apiutilPath(&api.Path{
+				Family: family,
+				Nlri:   nlri2,
+				Pattrs: attrs,
+			}),
+		},
+	})
 
 	assert.NoError(err)
 
