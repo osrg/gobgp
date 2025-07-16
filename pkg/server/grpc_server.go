@@ -267,18 +267,6 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 		return fmt.Errorf("nil request")
 	}
 
-	prefixes := func() []*apiutil.LookupPrefix {
-		l := make([]*apiutil.LookupPrefix, 0, len(r.Prefixes))
-		for _, p := range r.Prefixes {
-			l = append(l, &apiutil.LookupPrefix{
-				Prefix:       p.Prefix,
-				RD:           p.Rd,
-				LookupOption: apiutil.LookupOption(p.Type),
-			})
-		}
-		return l
-	}
-
 	family := bgp.Family(0)
 	if r.Family != nil {
 		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
@@ -291,7 +279,13 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 		EnableFiltered: r.EnableFiltered,
 	}
 	if r.TableType != api.TableType_TABLE_TYPE_UNSPECIFIED && r.TableType != api.TableType_TABLE_TYPE_VRF {
-		req.Prefixes = prefixes()
+		for _, p := range r.Prefixes {
+			req.Prefixes = append(req.Prefixes, &apiutil.LookupPrefix{
+				Prefix:       p.Prefix,
+				RD:           p.Rd,
+				LookupOption: apiutil.LookupOption(p.Type),
+			})
+		}
 	}
 
 	err := s.bgpServer.ListPath(req, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
@@ -642,19 +636,14 @@ func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api
 	deletePath := func(ctx context.Context, r *api.DeletePathRequest) error {
 		var pathList []*apiutil.Path
 		if len(r.Uuid) == 0 {
-			var err error
-			pathList, err = func() ([]*apiutil.Path, error) {
-				if r.Path != nil {
-					path, err := api2apiutilPath(r.Path)
-					return []*apiutil.Path{path}, err
+			if r.Path != nil {
+				path, err := api2apiutilPath(r.Path)
+				if err != nil {
+					return err
 				}
-				return []*apiutil.Path{}, nil
-			}()
-			if err != nil {
-				return err
+				pathList = []*apiutil.Path{path}
 			}
 		}
-
 		if len(r.Uuid) > 0 {
 			// Delete locally generated path which has the given UUID
 			id, _ := uuid.FromBytes(r.Uuid)
