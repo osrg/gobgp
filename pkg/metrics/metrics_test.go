@@ -146,10 +146,10 @@ func TestMetrics(test *testing.T) {
 				})
 
 				assert.NoError(err)
-				err = t.DeletePath(&apiutil.Path{
+				err = t.DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{{
 					Nlri:  nlri,
 					Attrs: pattrs,
-				})
+				}}})
 				assert.NoError(err)
 			}
 		}

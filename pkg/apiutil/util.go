@@ -64,6 +64,14 @@ type AddPathResponse struct {
 	Error error
 }
 
+type DeletePathRequest struct {
+	VRFID        string
+	UUIDs        []uuid.UUID
+	DeleteAll    bool
+	DeleteFamily *bgp.Family
+	Paths        []*Path
+}
+
 type LookupOption uint8
 
 const (
