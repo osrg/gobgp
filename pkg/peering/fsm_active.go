@@ -2,98 +2,44 @@ package peering
 
 import (
 	"context"
-	"sync"
-
-	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
-	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (fsm *fsm) active(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	c, cancel := context.WithCancel(ctx)
-	wg := &sync.WaitGroup{}
+func (fsm *fsm) active(ctx context.Context) *FSMStateTransition {
+	connectRetryTime := fsm.timers.connectRetryTime
 
-	fsm.Lock.RLock()
-	tryConnect := !fsm.PeerConf.Transport.Config.PassiveMode
-	neighborAddress := fsm.PeerConf.Config.NeighborAddress
-	fsm.Lock.RUnlock()
-
-	if tryConnect {
-		wg.Add(1)
-		go fsm.connectLoop(c, wg)
+	passive := fsm.common.PeerConf.Transport.Config.PassiveMode
+	if !passive {
+		fsm.timers.connectRetryTimer.Reset(connectRetryTime)
 	}
-
-	defer func() {
-		cancel()
-		wg.Wait()
-	}()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMDying, nil, nil)
-		case conn, ok := <-fsm.ConnCh:
-			if !ok {
-				break
-			}
-			fsm.Lock.Lock()
-			fsm.Conn = conn
-			fsm.Lock.Unlock()
-
-			if err := fsm.SetPeerConnTTL(); err != nil {
-				fsm.Logger.Warn("cannot set TTL for peer",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   neighborAddress,
-						"State": oc.SESSION_STATE_ACTIVE,
-						"Error": err,
-					})
-			}
-			if err := fsm.SetPeerConnMSS(); err != nil {
-				fsm.Logger.Warn("cannot set MSS for peer",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   neighborAddress,
-						"State": oc.SESSION_STATE_ACTIVE,
-						"Error": err,
-					})
+			return TransitionDying.Copy()
+		case conn := <-fsm.tracking.connCh:
+			if err := fsm.acceptConn(conn); err != nil {
+				return TransitionConnectFailed.Copy()
 			}
 			// we don't implement delayed open timer so move to opensent right
 			// away.
-			return bgp.BGP_FSM_OPENSENT, NewfsmStateReason(FSMNewConnection, nil, nil)
-		case <-fsm.GracefulRestartTimer.C:
-			fsm.Lock.RLock()
-			restarting := fsm.PeerConf.GracefulRestart.State.PeerRestarting
-			fsm.Lock.RUnlock()
+			return TransitionNewConnection.Copy()
+		case <-fsm.timers.connectRetryTimer.C:
+			return TransitionConnectRetryExpired.Copy()
+		case <-fsm.timers.gracefulRestartTimer.C:
+			fsm.common.Lock.RLock()
+			restarting := fsm.common.PeerConf.GracefulRestart.State.PeerRestarting
+			fsm.common.Lock.RUnlock()
 
 			if !restarting {
 				continue
 			}
-
-			fsm.Logger.Warn("graceful restart timer expired",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   neighborAddress,
-					"State": oc.SESSION_STATE_ACTIVE,
-				})
-			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMRestartTimerExpired, nil, nil)
-		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeAdminState(stateOp.State)
-			if err != nil {
-				continue
-			}
-
-			switch stateOp.State {
+			return TransitionGracefulRestartTimerExpired.Copy()
+		case stateOp := <-fsm.adminStateCh:
+			fsm.changeAdminState(stateOp.state)
+			switch stateOp.state {
 			case AdminStateDown:
-				return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMAdminDown, nil, nil)
-			case AdminStateUp:
-				fsm.Logger.Panic("code logic bug",
-					log.Fields{
-						"Topic":      "Peer",
-						"Key":        neighborAddress,
-						"State":      oc.SESSION_STATE_ACTIVE,
-						"AdminState": oc.ADMIN_STATE_UP,
-					})
+				return TransitionAdminDown.Copy()
+			default:
 			}
 		}
 	}

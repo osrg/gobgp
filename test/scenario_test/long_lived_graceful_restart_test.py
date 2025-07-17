@@ -28,8 +28,8 @@ from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
-    BGP_FSM_ACTIVE,
     BGP_FSM_IDLE,
+    BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
     LONG_LIVED_GRACEFUL_RESTART_TIME,
     local,
@@ -87,7 +87,7 @@ class GoBGPTestBase(unittest.TestCase):
         g3 = self.bgpds['g3']
         g4 = self.bgpds['g4']
 
-        g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g2)
+        g1.wait_for(expected_state=BGP_FSM_IDLE, peer=g2)
 
         time.sleep(1)
 
@@ -230,7 +230,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(g2.asn in rib[0]['paths'][0]['aspath'])
 
         g2.stop_gobgp()
-        g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g2)
+        g1.wait_for(expected_state=BGP_FSM_IDLE, peer=g2)
 
         time.sleep(1)
 
@@ -265,13 +265,12 @@ class GoBGPTestBase(unittest.TestCase):
         g3.local("gobgp nei {} disable".format(g1.ip_addrs[0][1].split("/")[0]))
 
         # wait for hold timer and unblock traffic
-        g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g3)
+        g1.wait_for(expected_state=BGP_FSM_IDLE, peer=g3)
         g3.local("ip route del blackhole {}/32".format(g1.ip_addrs[0][1].split("/")[0]))
 
         # wait for a reconnect attempt of g1 to g3
         g1.wait_for(expected_state=BGP_FSM_IDLE, peer=g3)
         g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g3)
-
         self.assertEqual(len(g1.get_global_rib('10.20.0.0/24')), 1)
         r = g1.get_global_rib('10.20.0.0/24')[0]['paths'][0]
         comms = list(chain.from_iterable([attr['communities'] for attr in r['attrs'] if attr['type'] == 8]))

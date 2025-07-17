@@ -1,6 +1,9 @@
 package bgputils
 
 import (
+	"encoding/binary"
+	"net"
+
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -72,4 +75,23 @@ func Open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 		}
 	}
 	return capMap, negotiated
+}
+
+// CompareRouterID compares two router IDs and returns:
+// -1 if r1 < r2
+// 0 if r1 == r2
+// 1 if r1 > r2
+func CompareRouterID(r1, r2 net.IP) int {
+	if r1 == nil && r2 == nil {
+		return 0
+	}
+	if r1 == nil {
+		return -1
+	}
+	if r2 == nil {
+		return 1
+	}
+	rint1 := binary.BigEndian.Uint32(r1.To4())
+	rint2 := binary.BigEndian.Uint32(r2.To4())
+	return int(rint1 - rint2)
 }

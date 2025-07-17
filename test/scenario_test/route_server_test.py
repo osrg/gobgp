@@ -27,7 +27,7 @@ from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
-    BGP_FSM_ACTIVE,
+    BGP_FSM_CONNECT,
     BGP_FSM_ESTABLISHED,
     local,
 )
@@ -171,7 +171,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_07_stop_one_rs_client(self):
         q4 = self.quaggas['q4']
         q4.stop()
-        self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q4)
+        self.gobgp.wait_for(expected_state=BGP_FSM_CONNECT, peer=q4)
 
         del self.quaggas['q4']
 

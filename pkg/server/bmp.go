@@ -303,8 +303,8 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress.String(), ev.PeerAS, ev.PeerID.String(), float64(ev.Timestamp.Unix()))
 
 	reasonCode := bmp.BMP_peerDownByUnknownReason
-	switch ev.StateReason.Type {
-	case peering.FSMDying, peering.FSMInvalidMsg, peering.FSMNotificationSent, peering.FSMHoldTimerExpired, peering.FSMIdleTimerExpired, peering.FSMRestartTimerExpired:
+	switch ev.StateTransition.Reason {
+	case peering.FSMDying, peering.FSMUnexpectedMsg, peering.FSMNotificationSent, peering.FSMHoldTimerExpired, peering.FSMIdleTimerExpired, peering.FSMRestartTimerExpired:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION
 	case peering.FSMAdminDown:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
@@ -315,7 +315,16 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 	case peering.FSMDeconfigured:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
 	}
-	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.BGPNotification, ev.StateReason.Data)
+	var notif *bgp.BGPMessage
+	switch data := ev.StateTransition.Data.(type) {
+	case *bgp.BGPMessage:
+		notif = data
+	case *bgp.BGPNotification:
+		notif = bgp.NewBGPNotificationMessage(data.ErrorCode, data.ErrorSubcode, data.Data)
+	case *bgp.MessageError:
+		notif = bgp.NewBGPNotificationMessage(data.TypeCode, data.SubTypeCode, data.Data)
+	}
+	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), notif, nil)
 }
 
 func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {

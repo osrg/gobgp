@@ -245,7 +245,7 @@ func TestGRPCWatchEvent(t *testing.T) {
 		Global: &api.Global{
 			Asn:        1,
 			RouterId:   "1.1.1.1",
-			ListenPort: 10179,
+			ListenPort: 11179,
 		},
 	})
 	assert.NoError(err)
@@ -376,7 +376,7 @@ func TestGRPCWatchEvent(t *testing.T) {
 			PeerAsn:         1,
 		},
 		Transport: &api.Transport{
-			RemotePort: 10179,
+			RemotePort: 11179,
 		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
@@ -404,9 +404,7 @@ func TestGRPCWatchEvent(t *testing.T) {
 		},
 	}
 
-	t.Log("wait for peer1 to be established")
 	establishedWg := GRPCwaitEstablished(t, client, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
-	t.Log("wait for peer1 to be established done")
 
 	err = t2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)

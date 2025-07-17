@@ -10,39 +10,50 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
+func (fsm *fsm) established(ctx context.Context) *FSMStateTransition {
+	c, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
-	c, cancel := context.WithCancel(ctx)
-	stateReasonCh := make(chan *FSMStateReason, 1)
-	go fsm.sendMessageloop(c, stateReasonCh, wg)
-	go fsm.recvMessageloop(c, stateReasonCh, wg)
+	go fsm.sendMessageLoop(c, wg)
+	go fsm.recvMessageLoop(c, wg)
 
-	fsm.Lock.RLock()
-	neighborAddress := fsm.PeerConf.State.NeighborAddress
-	negotiatedHoldTime := time.Second * time.Duration(fsm.PeerConf.Timers.State.NegotiatedHoldTime)
-	gracefulEnabled := fsm.PeerConf.GracefulRestart.State.Enabled
-	notificationEnabled := fsm.PeerConf.GracefulRestart.State.NotificationEnabled
-	gracefulRestartTime := time.Duration(fsm.PeerConf.GracefulRestart.State.PeerRestartTime) * time.Second
-	fsm.Lock.RUnlock()
+	fsm.common.Lock.RLock()
+	neighborAddress := fsm.common.PeerConf.State.NeighborAddress
+	gracefulEnabled := fsm.common.PeerConf.GracefulRestart.State.Enabled
+	notificationEnabled := fsm.common.PeerConf.GracefulRestart.State.NotificationEnabled
+	fsm.common.Lock.RUnlock()
 
-	holdTimer, holdTimerStop := fsm.holdTimer()
-	fsm.GracefulRestartTimer.Stop()
+	holdTime := fsm.timers.holdTime
+	keepAliveInterval := fsm.timers.keepAliveInterval
+	gracefulRestartTime := fsm.timers.gracefulRestartTime
+	fsm.timers.holdTimer.Stop()
+	if holdTime > 0 {
+		fsm.timers.holdTimer.Reset(holdTime)
+	}
+	fsm.timers.keepAliveTimer.Stop()
+	if keepAliveInterval > 0 {
+		fsm.timers.keepAliveTimer.Reset(keepAliveInterval)
+	}
+	fsm.timers.gracefulRestartTimer.Stop()
+
+	keepAlive := bgp.NewBGPKeepAliveMessage()
+
+	conn := fsm.conn.Load()
 
 	defer func() {
+		fsm.timers.keepAliveTimer.Stop()
+		fsm.timers.holdTimer.Stop()
 		cancel()
-		fsm.Conn.SetReadDeadline(time.Now())
+		conn.SetReadDeadline(time.Now())
 		wg.Wait()
-		close(stateReasonCh)
-		holdTimerStop()
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			select {
-			case m := <-fsm.Notification:
+			case m := <-fsm.endNotificationCh:
 				// RFC8538 defines a Hard Reset notification subcode which
 				// indicates that the BGP speaker wants to reset the session
 				// without triggering graceful restart procedures. Here we map
@@ -57,90 +68,52 @@ func (fsm *fsm) established(ctx context.Context) (bgp.FSMState, *FSMStateReason)
 						body.ErrorSubcode = bgp.BGP_ERROR_SUB_HARD_RESET
 					}
 				}
-				fsm.Lock.RLock()
-				b, _ := m.Serialize(fsm.MarshallingOptions)
-				fsm.Lock.RUnlock()
-				fsm.Conn.Write(b)
+				b, _ := m.Serialize(fsm.marshallingOptions.Load())
+				conn.Write(b)
 			default:
 				// nothing to do
 			}
-			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMDying, nil, nil)
-		case conn, ok := <-fsm.ConnCh:
-			if !ok {
-				break
-			}
+			return TransitionDying.Copy()
+		case conn := <-fsm.tracking.connCh:
+			// stop accepting new connections
 			conn.Close()
-			fsm.Logger.Warn("Closed an accepted connection",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   neighborAddress,
-					"State": oc.SESSION_STATE_ESTABLISHED,
-				})
-		case err := <-stateReasonCh:
-			fsm.Conn.Close()
-			// if recv goroutine hit an error and sent to
-			// stateReasonCh, then tx goroutine might take
-			// long until it exits because it waits for
-			// ctx.Done() or keepalive timer. So let kill
-			// it now.
-			fsm.OutgoingCh.In() <- err
-
-			if gracefulEnabled && (notificationEnabled && err.Type == FSMNotificationRecv ||
-				err.Type == FSMNotificationSent &&
-					err.BGPNotification.Body.(*bgp.BGPNotification).ErrorCode == bgp.BGP_ERROR_HOLD_TIMER_EXPIRED ||
-				err.Type == FSMReadFailed ||
-				err.Type == FSMWriteFailed) {
-				fsm.Logger.Info("peer graceful restart",
+		case transition := <-fsm.transitionCh:
+			if gracefulEnabled && (notificationEnabled && transition.Reason == FSMNotificationRecv ||
+				transition.Reason == FSMReadFailed ||
+				transition.Reason == FSMWriteFailed) {
+				fsm.logger.Info("Graceful restart",
 					log.Fields{
 						"Topic": "Peer",
 						"Key":   neighborAddress,
 						"State": oc.SESSION_STATE_ESTABLISHED,
 					})
-				fsm.GracefulRestartTimer.Reset(gracefulRestartTime)
-				return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMGracefulRestart, nil, nil)
+				fsm.timers.gracefulRestartTimer.Reset(gracefulRestartTime)
+				return TransitionGracefulRestart.Copy(WithData(transition.Data))
 			}
-			return bgp.BGP_FSM_IDLE, err
-		case <-holdTimer.C:
-			fsm.Logger.Warn("hold timer expired",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   neighborAddress,
-					"State": oc.SESSION_STATE_ESTABLISHED,
-				})
-			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			// wait for fsmOutgoingMsg to be sent
-			// to avoid a race condition
-			sending := make(chan any)
-			fsm.OutgoingCh.In() <- &FSMOutgoingMsg{Notification: m, sending: sending}
-			<-sending
-
-			// Do not return hold timer expired to server if graceful restart is enabled
-			// Let it fallback to read/write error or fsmNotificationSent handled above
-			// Reference: https://github.com/osrg/gobgp/issues/2174
-			if !gracefulEnabled {
-				return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMHoldTimerExpired, m, nil)
-			}
-		case <-fsm.HoldTimerResetCh:
-			if negotiatedHoldTime != 0 {
-				holdTimer.Reset(negotiatedHoldTime)
-			}
-		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeAdminState(stateOp.State)
+			return transition
+		case <-fsm.timers.keepAliveTimer.C:
+			err := fsm.send(conn, keepAlive)
 			if err != nil {
-				continue
+				return TransitionWriteFailed.Copy(WithData(err))
 			}
-			switch stateOp.State {
+			fsm.timers.keepAliveTimer.Reset(keepAliveInterval)
+		case <-fsm.timers.holdTimer.C:
+			err := bgp.NewMessageError(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
+			if gracefulEnabled {
+				fsm.timers.gracefulRestartTimer.Reset(gracefulRestartTime)
+				return TransitionGracefulRestart.Copy(WithData(err))
+			}
+			return TransitionHoldTimerExpired.Copy(WithData(err))
+		case stateOp := <-fsm.adminStateCh:
+			fsm.changeAdminState(stateOp.state)
+			switch stateOp.state {
 			case AdminStateDown:
-				m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
-				fsm.OutgoingCh.In() <- &FSMOutgoingMsg{Notification: m}
-			case AdminStateUp:
-				fsm.Logger.Panic("code logic bug",
-					log.Fields{
-						"Topic":      "Peer",
-						"Key":        neighborAddress,
-						"State":      oc.SESSION_STATE_ESTABLISHED,
-						"AdminState": stateOp.State,
-					})
+				err := bgp.NewMessageError(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil, stateOp.communication)
+				return TransitionAdminDown.Copy(WithData(err))
+			case AdminStatePfxCt:
+				err := bgp.NewMessageError(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil, stateOp.communication)
+				return TransitionAdminPfxCt.Copy(WithData(err))
+			default:
 			}
 		}
 	}

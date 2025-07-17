@@ -6,6 +6,30 @@ import (
 	"github.com/eapache/channels"
 )
 
+type NotificationChannel struct {
+	C chan any
+}
+
+func NewNotificationChannel() *NotificationChannel {
+	return &NotificationChannel{
+		C: make(chan any, 1),
+	}
+}
+
+func (nc *NotificationChannel) Notify() {
+	select {
+	case nc.C <- struct{}{}:
+	default:
+	}
+}
+
+func (nc *NotificationChannel) Clear() {
+	select {
+	case <-nc.C:
+	default:
+	}
+}
+
 func CleanInfiniteChannel(ch *channels.InfiniteChannel) {
 	ch.Close()
 	// drain all remaining items

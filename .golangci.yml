@@ -18,6 +18,8 @@ linters:
       exclude-functions:
         # local
         - (*github.com/osrg/gobgp/v4/pkg/server.tcpListener).Close
+        - (*github.com/osrg/gobgp/v4/pkg/peering.trackedConn).Close
+        - (*github.com/osrg/gobgp/v4/pkg/peering.fsm).step
 
         # other packages
         - github.com/coreos/go-systemd/v22/daemon.SdNotify

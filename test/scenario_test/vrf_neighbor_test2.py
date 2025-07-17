@@ -27,7 +27,7 @@ from lib.noseplugin import OptionParser, parser_option
 
 from lib import base
 from lib.base import (
-    BGP_FSM_ACTIVE,
+    BGP_FSM_CONNECT,
     BGP_FSM_ESTABLISHED,
     wait_for_completion,
     local,
@@ -128,7 +128,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_06_graceful_restart(self):
         self.g1.stop_gobgp()
-        self.g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=self.g1)
+        self.g3.wait_for(expected_state=BGP_FSM_CONNECT, peer=self.g1)
 
         wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
         wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)

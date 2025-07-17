@@ -2,81 +2,53 @@ package peering
 
 import (
 	"context"
-	"time"
-
-	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
-	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func (fsm *fsm) idle(ctx context.Context) (bgp.FSMState, *FSMStateReason) {
-	fsm.Lock.RLock()
-	idleHoldTime := time.Duration(fsm.IdleHoldTime) * time.Second
-	adminStateUp := !fsm.PeerConf.State.AdminDown
-	neighborAddress := fsm.PeerConf.State.NeighborAddress
-	fsm.Lock.RUnlock()
+func (fsm *fsm) idle(ctx context.Context) *FSMStateTransition {
+	adminStateUp := fsm.adminState.Load() == AdminStateUp
+	idleHoldTime := fsm.timers.idleHoldTime
+	passive := fsm.common.PeerConf.Transport.Config.PassiveMode
 
-	idleHoldTimer := time.NewTimer(idleHoldTime)
 	// If the admin state is down, we don't start the idle hold timer.
 	if !adminStateUp {
-		idleHoldTimer.Stop()
+		fsm.timers.idleHoldTimer.Stop()
+	} else {
+		fsm.timers.idleHoldTimer.Reset(idleHoldTime)
+		// the first time we enter idle, the timer value is 0.
+		// we set the idle hold time to the default value.
+		fsm.timers.idleHoldTime = IdleHoldTime
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMDying, nil, nil)
-		case <-fsm.GracefulRestartTimer.C:
-			fsm.Lock.RLock()
-			restarting := fsm.PeerConf.GracefulRestart.State.PeerRestarting
-			fsm.Lock.RUnlock()
+			return TransitionDying.Copy()
+		case conn := <-fsm.tracking.connCh:
+			conn.Close()
+		case <-fsm.timers.gracefulRestartTimer.C:
+			fsm.common.Lock.RLock()
+			restarting := fsm.common.PeerConf.GracefulRestart.State.PeerRestarting
+			fsm.common.Lock.RUnlock()
 
 			if !restarting {
 				continue
 			}
-
-			fsm.Logger.Warn("graceful restart timer expired",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   neighborAddress,
-					"State": oc.SESSION_STATE_IDLE,
-				})
-			return bgp.BGP_FSM_IDLE, NewfsmStateReason(FSMRestartTimerExpired, nil, nil)
-		case conn, ok := <-fsm.ConnCh:
-			if !ok {
-				break
+			return TransitionGracefulRestartTimerExpired.Copy()
+		case <-fsm.timers.idleHoldTimer.C:
+			if passive {
+				return TransitionPassiveIdleHoldTimerExpired.Copy()
+			} else {
+				return TransitionIdleHoldTimerExpired.Copy()
 			}
-			conn.Close()
-			fsm.Logger.Warn("Closed an accepted connection",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   neighborAddress,
-					"State": oc.SESSION_STATE_IDLE,
-				})
-		case <-idleHoldTimer.C:
-			// only occurs when the admin state is up
-			fsm.Logger.Debug("IdleHoldTimer expired",
-				log.Fields{
-					"Topic":    "Peer",
-					"Key":      neighborAddress,
-					"Duration": idleHoldTime,
-				})
-			fsm.Lock.Lock()
-			fsm.IdleHoldTime = HoldTimeIdle
-			fsm.Lock.Unlock()
-			return bgp.BGP_FSM_ACTIVE, NewfsmStateReason(FSMIdleTimerExpired, nil, nil)
-		case stateOp := <-fsm.AdminStateCh:
-			err := fsm.changeAdminState(stateOp.State)
-			if err == nil {
-				switch stateOp.State {
-				case AdminStateDown:
-					// stop idle hold timer
-					idleHoldTimer.Stop()
-
-				case AdminStateUp:
-					// restart idle hold timer
-					idleHoldTimer.Reset(idleHoldTime)
-				}
+		case stateOp := <-fsm.adminStateCh:
+			fsm.changeAdminState(stateOp.state)
+			switch stateOp.state {
+			case AdminStateDown:
+				// stop idle hold timer
+				fsm.timers.idleHoldTimer.Stop()
+			case AdminStateUp:
+				// restart idle hold timer
+				fsm.timers.idleHoldTimer.Reset(idleHoldTime)
 			}
 		}
 	}
