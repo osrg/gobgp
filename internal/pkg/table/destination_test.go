@@ -643,6 +643,51 @@ func TestCompareByMED_AlwaysCompare(t *testing.T) {
 	assert.Equal(t, p1, result)
 }
 
+func BenchmarkMultiPath(b *testing.B) {
+	b.StopTimer()
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	// Create a 4 path setup for the given NLRI
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+
+	numPaths := 4
+	pathList := make([]*Path, numPaths)
+	for i := range numPaths {
+		// peer1 sends normal update message 10.10.0.0/24
+		update := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+		peeri := &PeerInfo{AS: uint32(i), ID: net.IP{byte(i), byte(i), byte(i), byte(i)}}
+		pathList[i] = ProcessMessage(update, peeri, time.Now())[0]
+	}
+
+	b.Run("Benchmark Calculate", func(b *testing.B) {
+		for range b.N {
+			d := NewDestination(nlri, 0)
+			b.StartTimer()
+			for j := range pathList {
+				d.Calculate(logger, pathList[j])
+			}
+			b.StopTimer()
+		}
+	})
+
+	b.Run("Benchmark GetMultiBestPath", func(b *testing.B) {
+		d := NewDestination(nlri, 0)
+		for j := range pathList {
+			d.Calculate(logger, pathList[j])
+		}
+		for range b.N {
+			b.StartTimer()
+			d.GetMultiBestPath(GLOBAL_RIB_NAME)
+			b.StopTimer()
+		}
+	})
+}
+
 func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
