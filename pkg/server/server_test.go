@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eapache/channels"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1319,7 +1320,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1427,7 +1427,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
 	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
-	incoming := neighbor1.fsm.h.msgCh
+	incoming := channels.NewInfiniteChannel()
 	err = s1.mgmtOperation(func() error {
 		s1.delIncoming(incoming)
 		return nil
@@ -1482,9 +1482,6 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	// Delete the peer from s1.
 	err = s1.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: p1.Conf.NeighborAddress})
 	assert.NoError(err)
-
-	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
 
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.
