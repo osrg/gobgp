@@ -23,7 +23,7 @@ import (
 	"math"
 	"net"
 	"slices"
-	"sort"
+	"sync"
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -72,10 +72,7 @@ func (b *Bitmap) FindandSetZeroBit() (uint, error) {
 }
 
 func (b *Bitmap) Expand() {
-	old := b.bitmap
-	new := make([]uint64, len(old)+1)
-	copy(new, old)
-	b.bitmap = new
+	b.bitmap = append(b.bitmap, uint64(0))
 }
 
 func NewBitmap(size int) *Bitmap {
@@ -132,11 +129,46 @@ type Validation struct {
 	UnmatchedLength []*ROA
 }
 
+// it's faster than using a map for the path attributes.
+// Golang will waist lots of cpu to calculate the 8 bits hash key.
+// PathAttributes is a sorted slice of bgp.PathAttributeInterface that we can access in O(logN) time.
+type PathAttributes []bgp.PathAttributeInterface
+
+var searchAttribute = sync.Pool{
+	New: func() interface{} {
+		return &bgp.PathAttributeUnknown{}
+	},
+}
+
+func (pa PathAttributes) Get(a bgp.BGPAttrType) bgp.PathAttributeInterface {
+	sattr := searchAttribute.Get().(*bgp.PathAttributeUnknown)
+	defer searchAttribute.Put(sattr)
+	sattr.Type = a
+	n, found := slices.BinarySearchFunc(pa, bgp.PathAttributeInterface(sattr), func(a, b bgp.PathAttributeInterface) int {
+		return int(a.GetType()) - int(b.GetType())
+	})
+	if !found {
+		return nil
+	}
+	return pa[n]
+}
+
+func (pa *PathAttributes) Set(a bgp.PathAttributeInterface) {
+	n, found := slices.BinarySearchFunc(*pa, a, func(a, b bgp.PathAttributeInterface) int {
+		return int(a.GetType()) - int(b.GetType())
+	})
+	if found {
+		(*pa)[n] = a
+	} else {
+		*pa = slices.Insert(*pa, n, a)
+	}
+}
+
 type Path struct {
 	info      *originInfo
 	parent    *Path
-	pathAttrs []bgp.PathAttributeInterface
-	dels      []bgp.BGPAttrType
+	pathAttrs PathAttributes
+	dels      map[bgp.BGPAttrType]struct{}
 	attrsHash uint32
 	rejected  bool
 	// doesn't exist in the adj
@@ -181,7 +213,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		return nil
 	}
 
-	return &Path{
+	p := &Path{
 		info: &originInfo{
 			nlri:               nlri,
 			source:             source,
@@ -189,8 +221,12 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			noImplicitWithdraw: noImplicitWithdraw,
 		},
 		IsWithdraw: isWithdraw,
-		pathAttrs:  pattrs,
+		dels:       make(map[bgp.BGPAttrType]struct{}),
 	}
+	for _, a := range pattrs {
+		p.setPathAttr(a)
+	}
+	return p
 }
 
 func NewEOR(family bgp.Family) *Path {
@@ -200,6 +236,7 @@ func NewEOR(family bgp.Family) *Path {
 			nlri: nlri,
 			eor:  true,
 		},
+		dels: make(map[bgp.BGPAttrType]struct{}),
 	}
 }
 
@@ -360,6 +397,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		attrsHash:        path.attrsHash,
+		dels:             make(map[bgp.BGPAttrType]struct{}),
 	}
 }
 
@@ -491,59 +529,58 @@ func (a PathAttrs) Less(i, j int) bool {
 	return a[i].GetType() < a[j].GetType()
 }
 
-func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
-	deleted := NewBitmap(math.MaxUint8)
-	modified := make(map[uint]bgp.PathAttributeInterface)
-	p := path
-	for {
-		for _, t := range p.dels {
-			deleted.Flag(uint(t))
-		}
-		if p.parent == nil {
-			list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs)))
-			// we assume that the original pathAttrs are
-			// in order, that is, other bgp speakers send
-			// attributes in order.
-			for _, a := range p.pathAttrs {
-				typ := uint(a.GetType())
-				if m, ok := modified[typ]; ok {
-					list = append(list, m)
-					delete(modified, typ)
-				} else if !deleted.GetFlag(typ) {
-					list = append(list, a)
-				}
-			}
-			if len(modified) > 0 {
-				// Huh, some attributes were newly
-				// added. So we need to sort...
-				for _, m := range modified {
-					list = append(list, m)
-				}
-				sort.Sort(list)
-			}
-			return list
-		} else {
-			for _, a := range p.pathAttrs {
-				typ := uint(a.GetType())
-				if _, ok := modified[typ]; !deleted.GetFlag(typ) && !ok {
-					modified[typ] = a
-				}
-			}
-		}
-		p = p.parent
+func (path *Path) GetTransversalPathAttrs() map[bgp.BGPAttrType]bgp.PathAttributeInterface {
+	modified := make(map[bgp.BGPAttrType]bgp.PathAttributeInterface)
+
+	revPaths := make([]*Path, 0)
+	for p := path; p != nil; p = p.parent {
+		revPaths = append(revPaths, p)
 	}
+
+	for i := len(revPaths) - 1; i >= 0; i-- {
+		p := revPaths[i]
+		//		maps.Copy(modified, p.pathAttrs)
+		for _, a := range p.pathAttrs {
+			if a != nil {
+				modified[a.GetType()] = a
+			}
+		}
+	}
+	for i := len(revPaths) - 1; i >= 0; i-- {
+		p := revPaths[i]
+		for t := range p.dels {
+			delete(modified, t)
+		}
+	}
+	return modified
+}
+
+// return an ordered list of path attributes
+func (path *Path) traversalPathAttrsToList(attrs map[bgp.BGPAttrType]bgp.PathAttributeInterface) []bgp.PathAttributeInterface {
+	list := make([]bgp.PathAttributeInterface, len(attrs))
+	i := 0
+	for t := range 256 { // we must return a ordered list of path attributes, as it's easily comparable
+		if a, ok := attrs[bgp.BGPAttrType(t)]; ok {
+			list[i] = a
+			i++
+		}
+	}
+	return list
+}
+
+func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
+	modified := path.GetTransversalPathAttrs()
+	return path.traversalPathAttrsToList(modified)
 }
 
 func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 	p := path
 	for {
-		if slices.Contains(p.dels, typ) {
+		if _, deleted := p.dels[typ]; deleted {
 			return nil
 		}
-		for _, a := range p.pathAttrs {
-			if a.GetType() == typ {
-				return a
-			}
+		if a := p.pathAttrs.Get(typ); a != nil {
+			return a
 		}
 		if p.parent == nil {
 			return nil
@@ -553,25 +590,13 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 }
 
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
-	if len(path.pathAttrs) == 0 {
-		path.pathAttrs = []bgp.PathAttributeInterface{a}
-	} else {
-		for i, b := range path.pathAttrs {
-			if a.GetType() == b.GetType() {
-				path.pathAttrs[i] = a
-				return
-			}
-		}
-		path.pathAttrs = append(path.pathAttrs, a)
-	}
+	path.pathAttrs.Set(a)
+	// we reseting the hash attributes as attributes have changed
+	path.attrsHash = 0
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
-	if len(path.dels) == 0 {
-		path.dels = []bgp.BGPAttrType{typ}
-	} else {
-		path.dels = append(path.dels, typ)
-	}
+	path.dels[typ] = struct{}{}
 }
 
 // return Path's string representation

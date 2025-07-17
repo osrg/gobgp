@@ -113,15 +113,9 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 	return pathList
 }
 
-func makeAttributeList(
-	attrs []bgp.PathAttributeInterface, reach *bgp.PathAttributeMpReachNLRI,
+func makeAttributeList(attrs []bgp.PathAttributeInterface, reach *bgp.PathAttributeMpReachNLRI,
 ) []bgp.PathAttributeInterface {
-	reachAttrs := make([]bgp.PathAttributeInterface, len(attrs)+1)
-	copy(reachAttrs, attrs)
-	// we sort attributes when creating a bgp message from paths
-	reachAttrs[len(reachAttrs)-1] = reach
-
-	return reachAttrs
+	return append(attrs, reach)
 }
 
 type TableManager struct {
