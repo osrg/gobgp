@@ -51,6 +51,10 @@ func NewMockConnection() *MockConnection {
 	return m
 }
 
+func (m *MockConnection) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
 func (m *MockConnection) SetWriteDeadline(t time.Time) error {
 	return nil
 }
@@ -372,7 +376,7 @@ func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
 		fsm:           fsm,
 		stateReasonCh: make(chan fsmStateReason, 2),
 		outgoing:      channels.NewInfiniteChannel(),
-		callback:      func(*fsmMsg, bool) {},
+		callback:      func(*fsmMsg) {},
 	}
 
 	fsm.h = h
