@@ -573,7 +573,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 			b, _ := a.Serialize()
 			total.Write(b)
 		}
-		newPath.SetHash(farm.Hash32(total.Bytes()))
+		newPath.SetHash(farm.Hash64(total.Bytes()))
 	}
 	newPath.SetIsFromExternal(path.IsFromExternal)
 	return newPath, nil

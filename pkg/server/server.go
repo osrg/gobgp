@@ -2395,7 +2395,7 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 			b, _ := a.Serialize()
 			total.Write(b)
 		}
-		p.SetHash(farm.Hash32(total.Bytes()))
+		p.SetHash(farm.Hash64(total.Bytes()))
 	}
 	p.SetIsFromExternal(path.IsFromExternal)
 	return p, nil

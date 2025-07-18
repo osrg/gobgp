@@ -692,12 +692,11 @@ func compareByMED(path1, path2 *Path) *Path {
 		firstAS := func(path *Path) uint32 {
 			if asPath := path.GetAsPath(); asPath != nil {
 				for _, v := range asPath.Value {
-					segType := v.GetType()
 					asList := v.GetAS()
 					if len(asList) == 0 {
 						continue
 					}
-					switch segType {
+					switch v.GetType() {
 					case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 						continue
 					}

@@ -21,8 +21,7 @@ import (
 	"net"
 	"time"
 
-	farm "github.com/dgryski/go-farm"
-
+	"github.com/dgryski/go-farm"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -71,14 +70,14 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 		listLen += len(reach.Value)
 	}
 
-	var hash uint32
+	var hash uint64
 	if len(adds) > 0 || reach != nil {
 		total := bytes.NewBuffer(make([]byte, 0))
 		for _, a := range attrs {
 			b, _ := a.Serialize()
 			total.Write(b)
 		}
-		hash = farm.Hash32(total.Bytes())
+		hash = farm.Hash64(total.Bytes())
 	}
 
 	pathList := make([]*Path, 0, listLen)
@@ -120,7 +119,6 @@ func makeAttributeList(
 	copy(reachAttrs, attrs)
 	// we sort attributes when creating a bgp message from paths
 	reachAttrs[len(reachAttrs)-1] = reach
-
 	return reachAttrs
 }
 
