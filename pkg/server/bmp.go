@@ -30,6 +30,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
+	"github.com/osrg/gobgp/v4/pkg/peering"
 )
 
 type ribout map[string][]*table.Path
@@ -214,8 +215,8 @@ func (b *bmpClient) loop() {
 					case *watchEventBestPath:
 						info := &table.PeerInfo{
 							Address: net.ParseIP("0.0.0.0").To4(),
-							AS:      b.s.bgpConfig.Global.Config.As,
-							ID:      net.ParseIP(b.s.bgpConfig.Global.Config.RouterId).To4(),
+							AS:      b.s.gConfig.Config.As,
+							ID:      net.ParseIP(b.s.gConfig.Config.RouterId).To4(),
 						}
 						for _, p := range msg.PathList {
 							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
@@ -303,15 +304,15 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 
 	reasonCode := bmp.BMP_peerDownByUnknownReason
 	switch ev.StateReason.Type {
-	case fsmDying, fsmInvalidMsg, fsmNotificationSent, fsmHoldTimerExpired, fsmIdleTimerExpired, fsmRestartTimerExpired:
+	case peering.FSMDying, peering.FSMInvalidMsg, peering.FSMNotificationSent, peering.FSMHoldTimerExpired, peering.FSMIdleTimerExpired, peering.FSMRestartTimerExpired:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION
-	case fsmAdminDown:
+	case peering.FSMAdminDown:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
-	case fsmNotificationRecv, fsmGracefulRestart, fsmHardReset:
+	case peering.FSMNotificationRecv, peering.FSMGracefulRestart, peering.FSMHardReset:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
-	case fsmReadFailed, fsmWriteFailed:
+	case peering.FSMReadFailed, peering.FSMWriteFailed:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
-	case fsmDeConfigured:
+	case peering.FSMDeconfigured:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
 	}
 	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.BGPNotification, ev.StateReason.Data)
