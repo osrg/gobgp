@@ -29,7 +29,7 @@ from lib.noseplugin import OptionParser, parser_option
 from lib import base
 from lib.base import (
     BGP_FSM_IDLE,
-    BGP_FSM_ACTIVE,
+    BGP_FSM_CONNECT,
     BGP_FSM_ESTABLISHED,
     BGP_ATTR_TYPE_MULTI_EXIT_DISC,
     BGP_ATTR_TYPE_LOCAL_PREF,
@@ -162,7 +162,7 @@ class GoBGPTestBase(unittest.TestCase):
         g1 = self.gobgp
         q4 = self.quaggas['q4']
         q4.stop()
-        self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q4)
+        self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q4)
 
         g1.del_peer(q4)
         del self.quaggas['q4']
@@ -321,7 +321,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         q3.stop()
 
-        self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q3)
+        self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
         def f():
             paths = q1.get_global_rib('20.0.0.0/24')
@@ -494,7 +494,7 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(10)
         state = self.gobgp.get_neighbor_state(q7)
         # should not establish
-        self.assertEqual(state, BGP_FSM_ACTIVE)
+        self.assertEqual(state, BGP_FSM_CONNECT)
 
     def test_26_dynamic_peer(self):
         gobgp_ctn_image_name = parser_option.gobgp_image

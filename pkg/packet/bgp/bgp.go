@@ -15462,12 +15462,16 @@ type BGPHeader struct {
 func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	// minimum BGP message length
 	if uint16(len(data)) < BGP_HEADER_LENGTH {
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "missing bytes for BGP header")
 	}
 
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
 	if int(msg.Len) < BGP_HEADER_LENGTH {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
+	} else if int(msg.Len) > BGP_MAX_MESSAGE_LENGTH {
+		buf := make([]byte, 2)
+		binary.BigEndian.PutUint16(buf, msg.Len)
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, buf, "too long length")
 	}
 
 	msg.Type = data[18]
@@ -15507,7 +15511,7 @@ func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMe
 	case BGP_MSG_ROUTE_REFRESH:
 		msg.Body = &BGPRouteRefresh{}
 	default:
-		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, nil, "unknown message type")
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, nil, fmt.Sprintf("unknown message type: %d", msg.Header.Type))
 	}
 	err := msg.Body.DecodeFromBytes(data, options...)
 	return msg, err

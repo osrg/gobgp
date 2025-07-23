@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eapache/channels"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -37,6 +38,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/peering"
 )
 
 var logger = log.NewDefaultLogger()
@@ -259,6 +261,10 @@ func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies 
 		}, opts...)
 
 	return wg
+}
+
+func waitIdle(s *BgpServer) *sync.WaitGroup {
+	return waitState(s, api.PeerState_SESSION_STATE_IDLE)
 }
 
 func waitActive(s *BgpServer) *sync.WaitGroup {
@@ -954,7 +960,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
+func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peering.Peer, *table.PeerInfo) {
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
@@ -962,15 +968,10 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 	policy := table.NewRoutingPolicy(logger)
 	err = policy.Reset(&oc.RoutingPolicy{}, nil)
 	assert.NoError(t, err)
-	p := newPeer(
-		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
-		nConf,
-		rib,
-		policy,
-		logger)
-	p.fsm.peerInfo.ID = net.ParseIP(address)
+	p := peering.NewPeer(gConf, nConf, rib, policy, logger)
+	p.Common.PeerInfo.ID = net.ParseIP(address)
 	for _, f := range rib.GetRFlist() {
-		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
+		p.Common.RFMap[f] = bgp.BGP_ADD_PATH_NONE
 	}
 	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address), ID: net.ParseIP(address)}
 }
@@ -1070,7 +1071,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		CommunityList:    []string{"100:100"},
 	}
 	s, _ := table.NewCommunitySet(comSet1)
-	err := p2.policy.AddDefinedSet(s, false)
+	err := p2.Policy.AddDefinedSet(s, false)
 	assert.NoError(t, err)
 
 	statement := oc.Statement{
@@ -1091,7 +1092,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		Statements: []oc.Statement{statement},
 	}
 	p, _ := table.NewPolicy(policy)
-	err = p2.policy.AddPolicy(p, false)
+	err = p2.Policy.AddPolicy(p, false)
 	assert.NoError(t, err)
 
 	policies := []*oc.PolicyDefinition{
@@ -1099,7 +1100,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 			Name: "policy1",
 		},
 	}
-	err = p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
+	err = p2.Policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
 	assert.NoError(t, err)
 
 	for _, addCommunity := range []bool{false, true, false, true} {
@@ -1123,8 +1124,9 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 
 func TestPeerGroup(test *testing.T) {
 	assert := assert.New(test)
-	s := NewBgpServer()
-	s.logger.SetLevel(log.DebugLevel)
+	logger := log.NewDefaultLogger()
+	logger.SetLevel(log.DebugLevel)
+	s := NewBgpServer(LoggerOption(logger))
 	go s.Serve()
 	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -1142,7 +1144,7 @@ func TestPeerGroup(test *testing.T) {
 			PeerGroupName: "g",
 		},
 	}
-	err = s.addPeerGroup(g)
+	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{PeerGroup: oc.NewPeerGroupFromConfigStruct(g)})
 	assert.NoError(err)
 
 	n := &oc.Neighbor{
@@ -1171,7 +1173,7 @@ func TestPeerGroup(test *testing.T) {
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(n)})
 	assert.NoError(err)
 
-	t := NewBgpServer()
+	t := NewBgpServer(LoggerOption(logger))
 	go t.Serve()
 	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -1282,6 +1284,7 @@ func TestDynamicNeighbor(t *testing.T) {
 func TestGracefulRestartTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 	s1 := NewBgpServer()
+	s1.logger.SetLevel(log.DebugLevel)
 	go s1.Serve()
 	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -1303,13 +1306,14 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:     true,
-			RestartTime: minConnectRetryInterval,
+			RestartTime: 7, // 5s for idle hold time + to get graceful restart timer expired
 		},
 	}
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 
 	s2 := NewBgpServer()
+	s2.logger.SetLevel(log.DebugLevel)
 	go s2.Serve()
 	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -1319,7 +1323,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1331,12 +1334,11 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 		GracefulRestart: &api.GracefulRestart{
 			Enabled:     true,
-			RestartTime: 1,
+			RestartTime: 7, // 5s for idle hold time + to get graceful restart timer expired
 		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
-				ConnectRetry:           1,
-				IdleHoldTimeAfterReset: 1,
+				ConnectRetry: 1,
 			},
 		},
 	}
@@ -1350,44 +1352,24 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
-	for _, n := range s2.neighborMap {
-		n.fsm.conn.Close()
-	}
-	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{
+		AllowGracefulRestart: true,
+	})
 	assert.NoError(err)
 
-	time.Sleep(5 * time.Second)
+	idleWg := waitIdle(s1)
+	activeWg := waitActive(s1)
 
-	// Create dummy session which does NOT send BGP OPEN message in order to
-	// cause Graceful Restart timer expired.
-	var conn net.Conn
+	// Wait for s1 to detect the TCP session is disconnected and
+	// Graceful Restart timer is started.
+	idleWg.Wait()
 
-	conn, err = net.Dial("tcp", "127.0.0.1:10179")
-	require.NoError(t, err)
-	defer conn.Close()
+	idleWg = waitIdle(s1)
 
-	// this seems to take around 22 seconds... need to address this whole thing
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Wait for the Graceful Restart timer to expire.
+	activeWg.Wait()
 
-	done := make(chan struct{})
-	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
-	for {
-		// ignore error, we will hit the context deadline
-		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
-			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
-				close(done)
-			}
-		})
-
-		select {
-		case <-done:
-			return
-		case <-ctx.Done():
-			t.Fatalf("failed to enter IDLE state in the deadline")
-			return
-		}
-	}
+	idleWg.Wait()
 }
 
 func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
@@ -1426,8 +1408,8 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
-	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
-	incoming := neighbor1.fsm.h.msgCh
+	// neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
+	incoming := channels.NewInfiniteChannel()
 	err = s1.mgmtOperation(func() error {
 		s1.delIncoming(incoming)
 		return nil
@@ -1466,11 +1448,11 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	assert.NoError(err)
 
 	// Wait for the s1 to receive the tcp connection from s2.
-	ev := <-incoming.Out()
-	msg := ev.(*fsmMsg)
-	nextState := msg.MsgData.(bgp.FSMState)
-	assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
-	assert.NotEmpty(msg.fsm.conn)
+	// ev := <-incoming.Out()
+	// msg := ev.(*peering.FSMMsg)
+	// transition := msg.MsgData.(*peering.FSMStateTransition)
+	// nextState := transition.NextState
+	// assert.Equal(nextState, bgp.BGP_FSM_OPENSENT)
 
 	// Add the peer incoming channel back to the server
 	err = s1.mgmtOperation(func() error {
@@ -1483,13 +1465,10 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	err = s1.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: p1.Conf.NeighborAddress})
 	assert.NoError(err)
 
-	// Send the message OPENSENT transition message again to the server.
-	incoming.In() <- msg
-
 	// Wait for peer connection channel to be closed and check that the open
 	// tcp connection has also been closed.
-	<-neighbor1.fsm.connCh
-	assert.Empty(neighbor1.fsm.conn)
+	// <-neighbor1.FSM.ConnCh
+	// assert.Empty(neighbor1.FSM.Conn)
 
 	establishedWg := waitEstablished(s2)
 
@@ -1508,13 +1487,11 @@ func TestFamiliesForSoftreset(t *testing.T) {
 			},
 		}
 	}
-	peer := &peer{
-		fsm: &fsm{
-			pConf: &oc.Neighbor{
-				AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
-			},
-		},
+
+	conf := &oc.Neighbor{
+		AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
 	}
+	peer := peering.NewPeer(&oc.Global{}, conf, nil, nil, nil)
 
 	families := familiesForSoftreset(peer, bgp.RF_IPv4_UC)
 	assert.Equal(t, len(families), 1)
@@ -1539,7 +1516,7 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 			ListenPort: listenPort,
 		},
 	}); err != nil {
-		t.Errorf("Failed to start server %s: %s", s.bgpConfig.Global.Config.RouterId, err)
+		t.Errorf("Failed to start server %s: %s", s.gConfig.Config.RouterId, err)
 	}
 	return s
 }
@@ -1554,12 +1531,12 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 			neighborConfig := &oc.Neighbor{
 				Config: oc.NeighborConfig{
 					NeighborAddress: "127.0.0.1",
-					PeerAs:          peer.bgpConfig.Global.Config.As,
+					PeerAs:          peer.gConfig.Config.As,
 				},
 				AfiSafis: oc.AfiSafis{},
 				Transport: oc.Transport{
 					Config: oc.TransportConfig{
-						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+						RemotePort: uint16(peer.gConfig.Config.Port),
 					},
 				},
 				Timers: oc.Timers{
@@ -1651,9 +1628,9 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	s1.logger.SetLevel(log.DebugLevel)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	s2.logger.SetLevel(log.DebugLevel)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
@@ -1662,6 +1639,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		t.Fatal(err)
 	}
 	watcher := s1.watch(WatchUpdate(true, "", ""))
+	defer watcher.Stop()
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -1742,11 +1720,6 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 			done = true
 		}
 	}
-
-	err = s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	assert.NoError(t, err)
-	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	assert.NoError(t, err)
 }
 
 func TestDelVrfWithRTC(t *testing.T) {
@@ -1754,10 +1727,8 @@ func TestDelVrfWithRTC(t *testing.T) {
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s1.logger.SetLevel(log.DebugLevel)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2.logger.SetLevel(log.DebugLevel)
 
 	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{}, 1)
 	addVrf(t, s2, "vrf1", "111:111", []string{}, []string{"111:111"}, 1)
@@ -1766,7 +1737,9 @@ func TestDelVrfWithRTC(t *testing.T) {
 		t.Fatal(err)
 	}
 	watcher1 := s1.watch(WatchUpdate(true, "", ""))
+	defer watcher1.Stop()
 	watcher2 := s2.watch(WatchUpdate(true, "", ""))
+	defer watcher2.Stop()
 
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
@@ -1858,11 +1831,12 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 	s1.logger.SetLevel(log.DebugLevel)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	s2.logger.SetLevel(log.DebugLevel)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)

@@ -28,7 +28,7 @@ from lib.noseplugin import OptionParser, parser_option
 from lib import base
 from lib.base import (
     BGP_FSM_IDLE,
-    BGP_FSM_ACTIVE,
+    BGP_FSM_CONNECT,
     BGP_FSM_ESTABLISHED,
     GRACEFUL_RESTART_TIME,
     local,
@@ -73,7 +73,9 @@ class GoBGPTestBase(unittest.TestCase):
         g1 = self.bgpds['g1']
         g2 = self.bgpds['g2']
         g1.stop_gobgp()
-        g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+        # as the process is killed, the connect state return imediately
+        # so we won't catch it.
+        g2.wait_for(expected_state=BGP_FSM_IDLE, peer=g1)
         self.assertEqual(len(g2.get_global_rib('10.10.20.0/24')), 1)
         self.assertEqual(len(g2.get_global_rib('10.10.10.0/24')), 1)
         for d in g2.get_global_rib():
@@ -154,7 +156,7 @@ class GoBGPTestBase(unittest.TestCase):
         g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
         g1.local("ip route add blackhole {}/32".format(g2.ip_addrs[0][1].split("/")[0]))
         g1.local("ip route add blackhole {}/32".format(g3.ip_addrs[0][1].split("/")[0]))
-        g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+        g2.wait_for(expected_state=BGP_FSM_CONNECT, peer=g1)
         self.assertEqual(len(g2.get_global_rib('10.10.20.0/24')), 1)
         self.assertEqual(len(g2.get_global_rib('10.10.30.0/24')), 1)
         for d in g2.get_global_rib():
@@ -188,7 +190,7 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = self.bgpds['g2']
         g3 = self.bgpds['g3']
         g1.stop_gobgp()
-        g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+        g2.wait_for(expected_state=BGP_FSM_IDLE, peer=g1)
         self.assertEqual(len(g2.get_global_rib('10.10.20.0/24')), 1)
         self.assertEqual(len(g2.get_global_rib('10.10.30.0/24')), 1)
         for d in g2.get_global_rib():
@@ -228,21 +230,13 @@ class GoBGPTestBase(unittest.TestCase):
         g3 = self.bgpds['g3']
 
         g1.stop_gobgp()
-        g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
-        g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+        g2.wait_for(expected_state=BGP_FSM_IDLE, peer=g1)
+        g3.wait_for(expected_state=BGP_FSM_IDLE, peer=g1)
 
         g1.start_gobgp(graceful_restart=True)
 
-        count = 0
-        while (g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED
-               or g1.get_neighbor_state(g3) != BGP_FSM_ESTABLISHED):
-            count += 1
-            # assert connections are not refused
-            self.assertTrue(g1.get_neighbor_state(g2) != BGP_FSM_IDLE)
-            self.assertTrue(g1.get_neighbor_state(g3) != BGP_FSM_IDLE)
-            if count > 120:
-                raise Exception('timeout')
-            time.sleep(1)
+        g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
 
 
 if __name__ == '__main__':

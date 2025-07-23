@@ -26,6 +26,9 @@ import toml
 import yaml
 
 from lib.base import (
+    BGP_FSM_OPENCONFIRM,
+    BGP_FSM_OPENSENT,
+    BGP_FSM_STATES,
     community_str,
     wait_for_completion,
     BGPContainer,
@@ -40,6 +43,7 @@ from lib.base import (
     LONG_LIVED_GRACEFUL_RESTART_TIME,
     BGP_FSM_IDLE,
     BGP_FSM_ACTIVE,
+    BGP_FSM_CONNECT,
     BGP_FSM_ESTABLISHED,
     yellow,
     indent,
@@ -305,14 +309,10 @@ class GoBGPContainer(BGPContainer):
         return json.loads(self.local(cmd, capture=True))
 
     def get_neighbor_state(self, peer):
-        s = self.get_neighbor(peer)['state']['session_state']
-        if s == 1:
-            return BGP_FSM_IDLE
-        elif s == 3:
-            return BGP_FSM_ACTIVE
-        elif s == 6:
-            return BGP_FSM_ESTABLISHED
-        return "unknown"
+        s = self.get_neighbor(peer)['state']['session_state'] - 1
+        if s < 0 or s >= len(BGP_FSM_STATES):
+            return "unknown"
+        return BGP_FSM_STATES[s]
 
     def clear_policy(self):
         self.policies = {}

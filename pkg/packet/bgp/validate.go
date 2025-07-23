@@ -1,7 +1,6 @@
 package bgp
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
 	"net"
@@ -295,16 +294,6 @@ func validateAsPathValueBytes(data []byte) (bool, error) {
 		return false, nil
 	}
 	return false, NewMessageError(eCode, eSubCode, nil, "can't parse AS_PATH")
-}
-
-func ValidateBGPMessage(m *BGPMessage) error {
-	if m.Header.Len > BGP_MAX_MESSAGE_LENGTH {
-		buf := make([]byte, 2)
-		binary.BigEndian.PutUint16(buf, m.Header.Len)
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, buf, "too long length")
-	}
-
-	return nil
 }
 
 func ValidateOpenMsg(m *BGPOpen, expectedAS uint32, myAS uint32, myId net.IP) (uint32, error) {

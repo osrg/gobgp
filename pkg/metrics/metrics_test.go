@@ -16,15 +16,15 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
-func TestMetrics(test *testing.T) {
-	assert := assert.New(test)
-	s := server.NewBgpServer()
+func TestMetrics(t *testing.T) {
+	assert := assert.New(t)
+	s1 := server.NewBgpServer()
 
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(NewBgpCollector(s))
+	registry.MustRegister(NewBgpCollector(s1))
 
-	go s.Serve()
-	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+	go s1.Serve()
+	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
 			Asn:        1,
 			RouterId:   "1.1.1.1",
@@ -32,7 +32,7 @@ func TestMetrics(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -43,12 +43,12 @@ func TestMetrics(test *testing.T) {
 			PassiveMode: true,
 		},
 	}
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
+	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 
-	t := server.NewBgpServer()
-	go t.Serve()
-	err = t.StartBgp(context.Background(), &api.StartBgpRequest{
+	s2 := server.NewBgpServer()
+	go s2.Serve()
+	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
 			Asn:        2,
 			RouterId:   "2.2.2.2",
@@ -56,7 +56,7 @@ func TestMetrics(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -76,7 +76,7 @@ func TestMetrics(test *testing.T) {
 
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	stateCh := make(chan struct{})
-	err = s.WatchEvent(watchCtx, server.WatchEventMessageCallbacks{
+	err = s1.WatchEvent(watchCtx, server.WatchEventMessageCallbacks{
 		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
 			if peer.Type == apiutil.PEER_EVENT_STATE && peer.Peer.State.SessionState == bgp.BGP_FSM_ESTABLISHED {
 				watchCancel()
@@ -87,7 +87,7 @@ func TestMetrics(test *testing.T) {
 
 	assert.NoError(err)
 
-	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
 	<-stateCh
 
@@ -130,13 +130,13 @@ func TestMetrics(test *testing.T) {
 			default:
 				nlri, err := apiutil.GetNativeNlri(apiPath)
 				if err != nil {
-					test.Errorf("invalid nlri: %v", err)
+					t.Errorf("invalid nlri: %v", err)
 				}
 				pattrs, err := apiutil.GetNativePathAttributes(apiPath)
 				if err != nil {
-					test.Errorf("invalid path attributes: %v", err)
+					t.Errorf("invalid path attributes: %v", err)
 				}
-				_, err = t.AddPath(apiutil.AddPathRequest{
+				_, err = s2.AddPath(apiutil.AddPathRequest{
 					Paths: []*apiutil.Path{
 						{
 							Nlri:  nlri,
@@ -146,7 +146,7 @@ func TestMetrics(test *testing.T) {
 				})
 
 				assert.NoError(err)
-				err = t.DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{{
+				err = s2.DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{{
 					Nlri:  nlri,
 					Attrs: pattrs,
 				}}})
