@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -116,7 +115,6 @@ type BgpServer struct {
 	apiServer    *server
 	bgpConfig    oc.Bgp
 	acceptCh     chan net.Conn
-	incomings    []*channels.InfiniteChannel
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
 	listeners    []*netutils.TCPListener
@@ -197,19 +195,6 @@ func (s *BgpServer) Stop() {
 	}
 }
 
-func (s *BgpServer) addIncoming(ch *channels.InfiniteChannel) {
-	s.incomings = append(s.incomings, ch)
-}
-
-func (s *BgpServer) delIncoming(ch *channels.InfiniteChannel) {
-	for i, c := range s.incomings {
-		if c == ch {
-			s.incomings = append(s.incomings[:i], s.incomings[i+1:]...)
-			return
-		}
-	}
-}
-
 func (s *BgpServer) listListeners(addr string) []*net.TCPListener {
 	list := make([]*net.TCPListener, 0, len(s.listeners))
 	rhs := net.ParseIP(addr).To4() != nil
@@ -244,6 +229,8 @@ func (s *BgpServer) handleMGMTOp(op *mgmtOp) {
 			return
 		}
 	}
+	s.shared.mu.Lock()
+	defer s.shared.mu.Unlock()
 	op.errCh <- op.f()
 }
 
@@ -264,6 +251,8 @@ func (s *BgpServer) startFsmHandler(peer *peer) {
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
+	s.shared.mu.Lock()
+	defer s.shared.mu.Unlock()
 	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 	ipaddr, _ := net.ResolveIPAddr("ip", host)
 	remoteAddr := ipaddr.String()
@@ -372,8 +361,6 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 	}
 }
 
-const firstPeerCaseIndex = 4
-
 func (s *BgpServer) Serve() {
 	if s.isServing.Swap(true) {
 		s.logger.Warn("server is already serving",
@@ -394,62 +381,26 @@ func (s *BgpServer) Serve() {
 	}()
 
 	for {
-		cases := make([]reflect.SelectCase, firstPeerCaseIndex+len(s.incomings))
-		cases[0] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.mgmtCh),
-		}
-		cases[1] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.acceptCh),
-		}
-		cases[2] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.roaManager.ReceiveROA()),
-		}
-		cases[3] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.runningCtx.Done()),
-		}
-		for i := firstPeerCaseIndex; i < len(cases); i++ {
-			cases[i] = reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(s.incomings[i-firstPeerCaseIndex].Out()),
-			}
-		}
-
-		chosen, value, _ := reflect.Select(cases)
 		tStart := time.Now()
-		s.shared.mu.Lock()
-		switch chosen {
-		case 0:
-			op := value.Interface().(*mgmtOp)
-			tWait := tStart.Sub(op.timestamp)
-			s.handleMGMTOp(op)
-			s.timingHook.Observe(FSMMgmtOp, time.Since(tStart), tWait)
-		case 1:
-			// NOTE: it would be useful to use kernel metrics such as SO_TIMESTAMPING to record time we got
-			// first SYN packet in TCP connection. For now we skip tWait for accept events, message/mgmt op
-			// delays should be enough to analyze FSM loop.
-			conn := value.Interface().(*netutils.TCPConn)
-			s.passConnToPeer(conn)
-			s.timingHook.Observe(FSMAccept, time.Since(tStart), 0)
-		case 2:
-			ev := value.Interface().(*roaEvent)
-			tWait := tStart.Sub(ev.timestamp)
-			s.roaManager.HandleROAEvent(ev)
-			s.timingHook.Observe(FSMROAEvent, time.Since(tStart), tWait)
-		case 3:
+		select {
+		case <-s.runningCtx.Done():
 			s.logger.Info("shutting down BGP server",
 				log.Fields{
 					"Topic": "BgpServer",
 				})
-			s.shared.mu.Unlock()
 			return
-		default:
-			panic("unexpected select case chosen")
+		case op := <-s.mgmtCh:
+			tWait := tStart.Sub(op.timestamp)
+			s.handleMGMTOp(op)
+			s.timingHook.Observe(FSMMgmtOp, time.Since(tStart), tWait)
+		case conn := <-s.acceptCh:
+			s.passConnToPeer(conn)
+			s.timingHook.Observe(FSMAccept, time.Since(tStart), 0)
+		case ev := <-s.roaManager.ReceiveROA():
+			tWait := tStart.Sub(ev.timestamp)
+			s.roaManager.HandleROAEvent(ev)
+			s.timingHook.Observe(FSMROAEvent, time.Since(tStart), tWait)
 		}
-		s.shared.mu.Unlock()
 	}
 }
 
