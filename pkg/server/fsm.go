@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 	"syscall"
@@ -513,6 +514,16 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress, int(fsm.pConf.Transport.Config.LocalPort), fsm.pConf.Transport.Config.BindInterface
 	}()
 
+	laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
+	if err != nil {
+		fsm.logger.Warn("failed to resolve local address",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			})
+		return
+	}
+
 	tick := minConnectRetryInterval
 	for {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -536,60 +547,48 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 			}
 		}
 
-		laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
+		d := net.Dialer{
+			LocalAddr: laddr,
+			Timeout:   time.Duration(max(retryInterval-1, minConnectRetryInterval)) * time.Second,
+			KeepAlive: -1,
+			Control: func(network, address string, c syscall.RawConn) error {
+				return netutils.DialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
+			},
+		}
+
+		conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
+		if ctx.Err() != nil {
+			fsm.logger.Debug("stop connect loop",
+				log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+				})
+			return
+		}
 		if err != nil {
-			fsm.logger.Warn("failed to resolve local address",
+			if fsm.logger.GetLevel() >= log.DebugLevel {
+				fsm.logger.Debug("failed to connect",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+						"Error": err,
+					})
+			}
+			continue
+		}
+
+		select {
+		case fsm.connCh <- conn:
+			return
+		default:
+			conn.Close()
+			fsm.logger.Warn("active conn is closed to avoid being blocked",
 				log.Fields{
 					"Topic": "Peer",
 					"Key":   addr,
 				})
 		}
 
-		if err == nil {
-			d := net.Dialer{
-				LocalAddr: laddr,
-				Timeout:   time.Duration(max(retryInterval-1, minConnectRetryInterval)) * time.Second,
-				KeepAlive: -1,
-				Control: func(network, address string, c syscall.RawConn) error {
-					return netutils.DialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
-				},
-			}
-
-			conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
-			select {
-			case <-ctx.Done():
-				fsm.logger.Debug("stop connect loop",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   addr,
-					})
-				return
-			default:
-			}
-
-			if err == nil {
-				select {
-				case fsm.connCh <- conn:
-					return
-				default:
-					conn.Close()
-					fsm.logger.Warn("active conn is closed to avoid being blocked",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   addr,
-						})
-				}
-			} else {
-				if fsm.logger.GetLevel() >= log.DebugLevel {
-					fsm.logger.Debug("failed to connect",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   addr,
-							"Error": err,
-						})
-				}
-			}
-		}
 		tick = retryInterval
 	}
 }
@@ -1899,7 +1898,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	}
 }
 
-func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
+func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	fsm := h.fsm
@@ -2004,7 +2003,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	}
 	close(fsm.connCh)
 	fsm.outgoingCh.Close()
-	return nil
 }
 
 func (h *fsmHandler) changeadminState(s adminState) error {
