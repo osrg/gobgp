@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	minConnectRetryInterval = 1
+	minConnectRetryInterval = 2
 )
 
 type fsmStateReasonType uint8
@@ -528,8 +528,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 
 	tick := minConnectRetryInterval
 	for {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		timer := time.NewTimer(time.Duration(r.Intn(tick*1000)+tick*1000) * time.Millisecond)
+		timer := time.NewTimer(time.Duration((0.75+rand.Float64()*0.25)*float64(tick)*1000) * time.Millisecond)
 		select {
 		case <-ctx.Done():
 			fsm.logger.Debug("stop connect loop",
