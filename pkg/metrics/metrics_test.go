@@ -194,6 +194,9 @@ func TestFSMLoopMetrics(t *testing.T) {
 	require.NoError(err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
+	// wait to ensure we started BGP
+	time.Sleep(1 * time.Second)
+
 	// StartBgp counts as single management operation
 	metrics, err = registry.Gather()
 	require.NoError(err)
