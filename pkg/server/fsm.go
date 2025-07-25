@@ -2080,6 +2080,10 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 		fsm.reason = reason
 		fsm.lock.Unlock()
 
+		// drain the state reason channel
+		// to avoid having stale transition.
+		drainChannel(h.stateReasonCh)
+
 		if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
 			fsm.logger.Info("Peer Up",
 				log.Fields{
