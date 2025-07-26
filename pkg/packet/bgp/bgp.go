@@ -2178,7 +2178,11 @@ func (l *LabeledVPNIPAddrPrefix) String() string {
 
 func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
 	masklen := l.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
-	return l.Prefix.String() + "/" + strconv.FormatUint(uint64(masklen), 10)
+	prefix := l.Prefix.String()
+	if isIPv4MappedIPv6(l.Prefix) {
+		prefix = "::ffff:" + prefix
+	}
+	return prefix + "/" + strconv.FormatUint(uint64(masklen), 10)
 }
 
 func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {

@@ -121,6 +121,26 @@ func Test_IPAddrDecode(t *testing.T) {
 	assert.Error(t, err, "should return an error for invalid prefix length")
 }
 
+func TestStringLabelAddrPrefix(t *testing.T) {
+	assert := assert.New(t)
+
+	labels := NewMPLSLabelStack(100, 200)
+	v4 := NewLabeledIPAddrPrefix(24, "10.10.10.0", *labels)
+	assert.Equal("10.10.10.0/24", v4.String())
+	v6 := NewLabeledIPv6AddrPrefix(64, "3343:faba:3903::", *labels)
+	assert.Equal("3343:faba:3903::/64", v6.String())
+	mapped_ipv6 := NewLabeledIPv6AddrPrefix(120, "::ffff:192.0.2.0", *labels)
+	assert.Equal("::ffff:192.0.2.0/120", mapped_ipv6.String())
+
+	rd, _ := ParseRouteDistinguisher("300:100")
+	vpnv4 := NewLabeledVPNIPAddrPrefix(24, "10.10.10.0", *labels, rd)
+	assert.Equal("300:100:10.10.10.0/24", vpnv4.String())
+	vpnv6 := NewLabeledVPNIPv6AddrPrefix(64, "3343:faba:3903::", *labels, rd)
+	assert.Equal("300:100:3343:faba:3903::/64", vpnv6.String())
+	vpnMappedIPv6 := NewLabeledVPNIPv6AddrPrefix(120, "::ffff:192.0.2.0", *labels, rd)
+	assert.Equal("300:100:::ffff:192.0.2.0/120", vpnMappedIPv6.String())
+}
+
 func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert := assert.New(t)
 
