@@ -85,6 +85,8 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	assert.Equal(t, "3343:faba:3903::/64", ipv6.String())
 	ipv6 = NewIPv6AddrPrefix(63, "3343:faba:3903:129::0")
 	assert.Equal(t, "3343:faba:3903:128::/63", ipv6.String())
+	mapped_ipv6 := NewIPv6AddrPrefix(128, "::ffff:192.0.2.128")
+	assert.Equal(t, "::ffff:192.0.2.128/128", mapped_ipv6.String())
 }
 
 func Test_MalformedPrefixLookup(t *testing.T) {
