@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -116,7 +115,6 @@ type BgpServer struct {
 	apiServer    *server
 	bgpConfig    oc.Bgp
 	acceptCh     chan net.Conn
-	incomings    []*channels.InfiniteChannel
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
 	listeners    []*netutils.TCPListener
@@ -125,7 +123,6 @@ type BgpServer struct {
 	globalRib    *table.TableManager
 	rsRib        *table.TableManager
 	roaManager   *roaManager
-	shutdownWG   *sync.WaitGroup
 	watcherMap   map[watchEventType][]*watcher
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
@@ -134,6 +131,11 @@ type BgpServer struct {
 	uuidMap      map[string]uuid.UUID
 	logger       log.Logger
 	timingHook   FSMTimingHook
+	// manage lifecycle of the server
+	isServing     atomic.Bool
+	shutdownWG    *sync.WaitGroup
+	runningCtx    context.Context
+	runningCancel context.CancelFunc
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -162,6 +164,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		roaTable:     roaTable,
 		logger:       logger,
 		timingHook:   opts.timingHook,
+		shutdownWG:   &sync.WaitGroup{},
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -189,19 +192,6 @@ func (s *BgpServer) Stop() {
 
 	if s.apiServer != nil {
 		s.apiServer.grpcServer.Stop()
-	}
-}
-
-func (s *BgpServer) addIncoming(ch *channels.InfiniteChannel) {
-	s.incomings = append(s.incomings, ch)
-}
-
-func (s *BgpServer) delIncoming(ch *channels.InfiniteChannel) {
-	for i, c := range s.incomings {
-		if c == ch {
-			s.incomings = append(s.incomings[:i], s.incomings[i+1:]...)
-			return
-		}
 	}
 }
 
@@ -239,6 +229,8 @@ func (s *BgpServer) handleMGMTOp(op *mgmtOp) {
 			return
 		}
 	}
+	s.shared.mu.Lock()
+	defer s.shared.mu.Unlock()
 	op.errCh <- op.f()
 }
 
@@ -255,87 +247,12 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 }
 
 func (s *BgpServer) startFsmHandler(peer *peer) {
-	handler := func(e *fsmMsg, do_cleanup bool) {
-		s.shared.mu.Lock()
-		defer s.shared.mu.Unlock()
-
-		fsm := e.fsm
-		if fsm.h.ctx.Err() != nil {
-			// Avoid cleaning up the FSM twice via recvMessageWithError and loop.
-			if !do_cleanup {
-				return
-			}
-			// canceled
-			addr := fsm.pConf.State.NeighborAddress
-			state := fsm.state
-
-			s.logger.Debug("freed fsm.h",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"State": state,
-				})
-
-			if state == bgp.BGP_FSM_ACTIVE {
-				var conn net.Conn
-				select {
-				case conn = <-fsm.connCh:
-				default:
-					if fsm.conn != nil {
-						conn = fsm.conn
-						fsm.conn = nil
-					}
-				}
-				if conn != nil {
-					err := conn.Close()
-					if err != nil {
-						s.logger.Error("failed to close existing tcp connection",
-							log.Fields{
-								"Topic": "Peer",
-								"Key":   addr,
-								"State": state,
-							})
-					}
-				}
-			}
-			close(fsm.connCh)
-
-			if fsm.state == bgp.BGP_FSM_ESTABLISHED {
-				s.notifyWatcher(watchEventTypePeerState, &watchEventPeer{
-					PeerAS:      fsm.peerInfo.AS,
-					PeerAddress: fsm.peerInfo.Address,
-					PeerID:      fsm.peerInfo.ID,
-					State:       bgp.BGP_FSM_IDLE,
-					Timestamp:   time.Now(),
-					StateReason: &fsmStateReason{
-						Type: fsmDeConfigured,
-					},
-				})
-			}
-
-			cleanInfiniteChannel(fsm.outgoingCh)
-			if s.shutdownWG != nil && len(s.incomings) == 0 {
-				s.shutdownWG.Done()
-			}
-			return
-		}
-
-		peer, found := s.neighborMap[e.MsgSrc]
-		if !found {
-			s.logger.Warn("Can't find the neighbor",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   e.MsgSrc,
-				})
-			return
-		}
-		s.handleFSMMessage(peer, e)
-	}
-
-	peer.startFSMHandler(handler)
+	peer.startFSMHandler(s.shutdownWG, s.handleFSMMessage)
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
+	s.shared.mu.Lock()
+	defer s.shared.mu.Unlock()
 	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 	ipaddr, _ := net.ResolveIPAddr("ip", host)
 	remoteAddr := ipaddr.String()
@@ -444,57 +361,43 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 	}
 }
 
-const firstPeerCaseIndex = 3
-
 func (s *BgpServer) Serve() {
+	if s.isServing.Swap(true) {
+		s.logger.Warn("server is already serving",
+			log.Fields{
+				"Topic": "BgpServer",
+			})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.runningCtx = ctx
+	s.runningCancel = cancel
+	s.shutdownWG.Add(1)
 	s.listeners = make([]*netutils.TCPListener, 0, 2)
 
-	for {
-		cases := make([]reflect.SelectCase, firstPeerCaseIndex+len(s.incomings))
-		cases[0] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.mgmtCh),
-		}
-		cases[1] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.acceptCh),
-		}
-		cases[2] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(s.roaManager.ReceiveROA()),
-		}
-		for i := firstPeerCaseIndex; i < len(cases); i++ {
-			cases[i] = reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(s.incomings[i-firstPeerCaseIndex].Out()),
-			}
-		}
+	defer func() {
+		s.shutdownWG.Done()
+		s.isServing.Store(false)
+	}()
 
-		chosen, value, _ := reflect.Select(cases)
+	for {
 		tStart := time.Now()
-		s.shared.mu.Lock()
-		switch chosen {
-		case 0:
-			op := value.Interface().(*mgmtOp)
+		select {
+		case op := <-s.mgmtCh:
 			tWait := tStart.Sub(op.timestamp)
 			s.handleMGMTOp(op)
 			s.timingHook.Observe(FSMMgmtOp, time.Since(tStart), tWait)
-		case 1:
+		case conn := <-s.acceptCh:
 			// NOTE: it would be useful to use kernel metrics such as SO_TIMESTAMPING to record time we got
 			// first SYN packet in TCP connection. For now we skip tWait for accept events, message/mgmt op
 			// delays should be enough to analyze FSM loop.
-			conn := value.Interface().(*netutils.TCPConn)
 			s.passConnToPeer(conn)
 			s.timingHook.Observe(FSMAccept, time.Since(tStart), 0)
-		case 2:
-			ev := value.Interface().(*roaEvent)
+		case ev := <-s.roaManager.ReceiveROA():
 			tWait := tStart.Sub(ev.timestamp)
 			s.roaManager.HandleROAEvent(ev)
 			s.timingHook.Observe(FSMROAEvent, time.Since(tStart), tWait)
-		default:
-			panic("unexpected select case chosen")
 		}
-		s.shared.mu.Unlock()
 	}
 }
 
@@ -1493,16 +1396,27 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 	}
 }
 
-func (s *BgpServer) deleteDynamicNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
+func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	peer.stopPeerRestarting()
-	peer.fsm.lock.RLock()
-	delete(s.neighborMap, peer.fsm.pConf.State.NeighborAddress)
-	peer.fsm.lock.RUnlock()
-	cleanInfiniteChannel(peer.fsm.outgoingCh)
+	delete(s.neighborMap, peer.ID())
+	peer.stopFSMHandler()
 	s.broadcastPeerState(peer, oldState, e)
 }
 
-func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
+func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
+	s.shared.mu.Lock()
+	defer s.shared.mu.Unlock()
+
+	peer, found := s.neighborMap[e.MsgSrc]
+	if !found {
+		s.logger.Warn("Can't find the neighbor",
+			log.Fields{
+				"Topic": "Peer",
+				"Key":   e.MsgSrc,
+			})
+		return
+	}
+
 	switch e.MsgType {
 	case fsmMsgStateChange:
 		nextState := e.MsgData.(bgp.FSMState)
@@ -1556,7 +1470,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.lock.Unlock()
 
 			if !graceful && peer.isDynamicNeighbor() {
-				s.deleteDynamicNeighbor(peer, oldState, e)
+				s.stopNeighbor(peer, oldState, e)
 				return
 			}
 		} else if nextStateIdle {
@@ -1653,14 +1567,14 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.propagateUpdate(peer, peer.DropAll(peer.configuredRFlist()))
 
 				if peer.isDynamicNeighbor() {
-					s.deleteDynamicNeighbor(peer, oldState, e)
+					s.stopNeighbor(peer, oldState, e)
 					return
 				}
 			}
 		}
 
-		cleanInfiniteChannel(peer.fsm.outgoingCh)
-		peer.fsm.outgoingCh = channels.NewInfiniteChannel()
+		drainChannel(peer.fsm.outgoingCh.Out())
+
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
@@ -1792,7 +1706,6 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Timers.State = oc.TimersState{}
 			peer.fsm.lock.Unlock()
 		}
-		s.startFsmHandler(peer)
 		s.broadcastPeerState(peer, oldState, e)
 	case fsmMsgRouteRefresh:
 		peer.fsm.lock.RLock()
@@ -2070,10 +1983,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		return fmt.Errorf("nil request")
 	}
 	err := s.mgmtOperation(func() error {
-		if len(s.neighborMap) > 0 {
-			s.shutdownWG = new(sync.WaitGroup)
-			s.shutdownWG.Add(len(s.neighborMap))
-		}
+		defer s.runningCancel()
 
 		for address, neighbor := range s.neighborMap {
 			c := &oc.Neighbor{Config: oc.NeighborConfig{
@@ -2096,10 +2006,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		return err
 	}
 
-	if s.shutdownWG != nil {
-		s.shutdownWG.Wait()
-		s.shutdownWG = nil
-	}
+	s.shutdownWG.Wait()
 	return nil
 }
 
@@ -3506,14 +3413,11 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 			"Key":   addr,
 		})
 
-	n.stopPeerRestarting()
 	if sendNotification {
 		n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	}
-	n.fsm.h.ctxCancel()
-
-	delete(s.neighborMap, addr)
 	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
+	s.stopNeighbor(n, -1, nil)
 	return nil
 }
 
