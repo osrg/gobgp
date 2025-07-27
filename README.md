@@ -61,7 +61,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 We have the [Slack](https://join.slack.com/t/gobgp/shared_invite/zt-g9il5j8i-3gZwnXArK0O9Mnn4Yu~IrQ) for questions, discussion, suggestions, etc.
 
 You have code or documentation for GoBGP? Awesome! Send a pull
-request. No CLA, board members, governance, or other mess. See [`BUILD.md`](BUILD.md) for info on
+request. No CLA, board members, governance, or other mess. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for info on
 code contributing.
 
 ## Licensing
