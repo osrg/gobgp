@@ -542,27 +542,27 @@ func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) ([]*api.FlowS
 		case *bgp.FlowSpecDestinationPrefix:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_DST_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPAddrPrefix).Length),
-				Prefix:    v.Prefix.(*bgp.IPAddrPrefix).Prefix.String(),
+				PrefixLen: uint32(v.Prefix.(*bgp.IPAddrPrefix).Prefix.Bits()),
+				Prefix:    v.Prefix.(*bgp.IPAddrPrefix).Prefix.Addr().String(),
 			}}
 		case *bgp.FlowSpecSourcePrefix:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_SRC_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPAddrPrefix).Length),
-				Prefix:    v.Prefix.(*bgp.IPAddrPrefix).Prefix.String(),
+				PrefixLen: uint32(v.Prefix.(*bgp.IPAddrPrefix).Prefix.Bits()),
+				Prefix:    v.Prefix.(*bgp.IPAddrPrefix).Prefix.Addr().String(),
 			}}
 		case *bgp.FlowSpecDestinationPrefix6:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_DST_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPv6AddrPrefix).Length),
-				Prefix:    v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.String(),
+				PrefixLen: uint32(v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Bits()),
+				Prefix:    v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Addr().String(),
 				Offset:    uint32(v.Offset),
 			}}
 		case *bgp.FlowSpecSourcePrefix6:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_SRC_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPv6AddrPrefix).Length),
-				Prefix:    v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.String(),
+				PrefixLen: uint32(v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Bits()),
+				Prefix:    v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Addr().String(),
 				Offset:    uint32(v.Offset),
 			}}
 		case *bgp.FlowSpecSourceMac:
@@ -1142,13 +1142,13 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 	switch v := value.(type) {
 	case *bgp.IPAddrPrefix:
 		nlri.Nlri = &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-			PrefixLen: uint32(v.Length),
-			Prefix:    v.Prefix.String(),
+			PrefixLen: uint32(v.Prefix.Bits()),
+			Prefix:    v.Prefix.Addr().String(),
 		}}
 	case *bgp.IPv6AddrPrefix:
 		nlri.Nlri = &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-			PrefixLen: uint32(v.Length),
-			Prefix:    v.Prefix.String(),
+			PrefixLen: uint32(v.Prefix.Bits()),
+			Prefix:    v.Prefix.Addr().String(),
 		}}
 	case *bgp.LabeledIPAddrPrefix:
 		nlri.Nlri = &api.NLRI_LabeledPrefix{LabeledPrefix: &api.LabeledIPAddressPrefix{

@@ -285,11 +285,11 @@ func (p *Prefix) Match(path *Path) bool {
 	var pMasklen uint8
 	switch rf {
 	case bgp.RF_IPv4_UC:
-		pAddr = path.GetNlri().(*bgp.IPAddrPrefix).Prefix
-		pMasklen = path.GetNlri().(*bgp.IPAddrPrefix).Length
+		pAddr = net.IP(path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr().AsSlice())
+		pMasklen = uint8(path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Bits())
 	case bgp.RF_IPv6_UC:
-		pAddr = path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix
-		pMasklen = path.GetNlri().(*bgp.IPv6AddrPrefix).Length
+		pAddr = net.IP(path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix.Addr().AsSlice())
+		pMasklen = uint8(path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix.Bits())
 	default:
 		return false
 	}

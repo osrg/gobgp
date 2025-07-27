@@ -3850,7 +3850,7 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 	prefixVPNv4 := bgp.NewLabeledVPNIPAddrPrefix(0, "1.1.1.0/24", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(100, 100))
 	prefixVPNv6 := bgp.NewLabeledVPNIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(200, 200))
 	prefixRTC := bgp.NewRouteTargetMembershipNLRI(100, nil)
-	prefixv4 := bgp.NewIPAddrPrefix(0, "1.1.1.0/24")
+	prefixv4 := bgp.NewIPAddrPrefix(24, "1.1.1.0")
 	prefixv6 := bgp.NewIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334")
 
 	pathVPNv4 := NewPath(nil, prefixVPNv4, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)

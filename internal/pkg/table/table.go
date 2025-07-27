@@ -52,11 +52,11 @@ func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
 	h := fnv1a.Init64
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
-		h = fnv1a.AddBytes64(h, T.Prefix.To4())
-		h = fnv1a.AddBytes64(h, []byte{T.Length})
+		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
+		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
 	case *bgp.IPv6AddrPrefix:
-		h = fnv1a.AddBytes64(h, T.Prefix.To16())
-		h = fnv1a.AddBytes64(h, []byte{T.Length})
+		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
+		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
 	case *bgp.LabeledVPNIPAddrPrefix:
 		serializedRD, _ := T.RD.Serialize()
 		h = fnv1a.AddBytes64(h, serializedRD)

@@ -1142,7 +1142,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_FS_IPv4_UC:
 		n := nlri.(*bgp.FlowSpecIPv4Unicast)
@@ -1152,7 +1152,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 	case bgp.RF_FS_IPv6_UC:
 		n := nlri.(*bgp.FlowSpecIPv6Unicast)
@@ -1193,11 +1193,11 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	switch rf := p.GetFamily(); rf {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
-		nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
+		nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_IPv6_UC:
 		n := nlri.(*bgp.IPv6AddrPrefix)
-		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
+		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
 		nlri.SetPathIdentifier(pathId)
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
@@ -1340,13 +1340,13 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
 		return &net.IPNet{
-			IP:   T.Prefix.To4(),
-			Mask: net.CIDRMask(int(T.Length), 32),
+			IP:   T.Prefix.Addr().AsSlice(),
+			Mask: net.CIDRMask(T.Prefix.Bits(), 32),
 		}
 	case *bgp.IPv6AddrPrefix:
 		return &net.IPNet{
-			IP:   T.Prefix.To16(),
-			Mask: net.CIDRMask(int(T.Length), 128),
+			IP:   T.Prefix.Addr().AsSlice(),
+			Mask: net.CIDRMask(T.Prefix.Bits(), 128),
 		}
 	case *bgp.LabeledIPAddrPrefix:
 		return &net.IPNet{
