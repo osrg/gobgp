@@ -109,6 +109,8 @@ Conditions are categorized into attributes below:
 - route type (internal/external/local)
 - large community
 - afi-safi in
+- local pref
+- med
 
 As showed in the figure above, some of the conditions point to defined sets,
 which are a container for each condition item (e.g. prefixes).

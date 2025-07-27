@@ -1430,6 +1430,12 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Type:   table.ToComparisonApi(s.Conditions.BgpConditions.AsPathLength.Operator),
 		}
 	}
+	if s.Conditions.BgpConditions.LocalPrefEq != 0 {
+		cs.LocalPrefEq = &api.LocalPrefEq{Value: s.Conditions.BgpConditions.LocalPrefEq}
+	}
+	if s.Conditions.BgpConditions.MedEq != 0 {
+		cs.MedEq = &api.MedEq{Value: s.Conditions.BgpConditions.MedEq}
+	}
 	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
 		o, _ := table.NewMatchOption(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions)
 		cs.AsPathSet = &api.MatchSet{
@@ -1702,6 +1708,20 @@ func newAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLe
 		Operator: oc.IntToAttributeComparisonMap[int(a.Type)],
 		Value:    a.Length,
 	})
+}
+
+func newLocalPrefEqConditionFromApiStruct(a *api.LocalPrefEq) (*table.LocalPreqEqCondition, error) {
+	if a == nil || a.Value == 0 {
+		return nil, nil
+	}
+	return table.NewLocalPrefEqCondition(a.Value)
+}
+
+func newMedEqConditionFromApiStruct(a *api.MedEq) (*table.MedEqCondition, error) {
+	if a == nil || a.Value == 0 {
+		return nil, nil
+	}
+	return table.NewMedEqCondition(a.Value)
 }
 
 func newAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, error) {
@@ -2025,6 +2045,12 @@ func newStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return newAfiSafiInConditionFromApiStruct(a.Conditions.AfiSafiIn)
+			},
+			func() (table.Condition, error) {
+				return newLocalPrefEqConditionFromApiStruct(a.Conditions.LocalPrefEq)
+			},
+			func() (table.Condition, error) {
+				return newMedEqConditionFromApiStruct(a.Conditions.MedEq)
 			},
 		}
 		cs = make([]table.Condition, 0, len(cfs))

@@ -170,6 +170,8 @@ const (
 	CONDITION_AFI_SAFI_IN
 	CONDITION_COMMUNITY_COUNT
 	CONDITION_ORIGIN
+	CONDITION_LOCAL_PREF_EQ
+	CONDITION_MED_EQ
 )
 
 type ActionType int
@@ -1939,6 +1941,76 @@ func NewAsPathLengthCondition(c oc.AsPathLength) (*AsPathLengthCondition, error)
 	}, nil
 }
 
+type LocalPreqEqCondition struct {
+	localPref uint32
+}
+
+func (c *LocalPreqEqCondition) Type() ConditionType {
+	return CONDITION_LOCAL_PREF_EQ
+}
+
+func (c *LocalPreqEqCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	result, err := path.GetLocalPref()
+	if err != nil {
+		return false
+	}
+	return c.localPref == result
+}
+
+func (c *LocalPreqEqCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *LocalPreqEqCondition) Name() string { return "" }
+
+func (c *LocalPreqEqCondition) String() string {
+	return fmt.Sprintf("=%d", c.localPref)
+}
+
+func NewLocalPrefEqCondition(value uint32) (*LocalPreqEqCondition, error) {
+	if value == 0 {
+		return nil, nil
+	}
+	return &LocalPreqEqCondition{
+		localPref: value,
+	}, nil
+}
+
+type MedEqCondition struct {
+	med uint32
+}
+
+func (c *MedEqCondition) Type() ConditionType {
+	return CONDITION_MED_EQ
+}
+
+func (c *MedEqCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	result, err := path.GetMed()
+	if err != nil {
+		return false
+	}
+	return c.med == result
+}
+
+func (c *MedEqCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *MedEqCondition) Name() string { return "" }
+
+func (c *MedEqCondition) String() string {
+	return fmt.Sprintf("=%d", c.med)
+}
+
+func NewMedEqCondition(value uint32) (*MedEqCondition, error) {
+	if value == 0 {
+		return nil, nil
+	}
+	return &MedEqCondition{
+		med: value,
+	}, nil
+}
+
 type RpkiValidationCondition struct {
 	result oc.RpkiValidationResultType
 }
@@ -2854,6 +2926,10 @@ func (s *Statement) ToConfig() *oc.Statement {
 						res = append(res, oc.AfiSafiType(rf.String()))
 					}
 					cond.BgpConditions.AfiSafiInList = res
+				case *LocalPreqEqCondition:
+					cond.BgpConditions.LocalPrefEq = v.localPref
+				case *MedEqCondition:
+					cond.BgpConditions.MedEq = v.med
 				}
 			}
 			return cond
@@ -3065,6 +3141,12 @@ func NewStatement(c oc.Statement) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewAfiSafiInCondition(c.Conditions.BgpConditions.AfiSafiInList)
+		},
+		func() (Condition, error) {
+			return NewLocalPrefEqCondition(c.Conditions.BgpConditions.LocalPrefEq)
+		},
+		func() (Condition, error) {
+			return NewMedEqCondition(c.Conditions.BgpConditions.MedEq)
 		},
 	}
 	cs = make([]Condition, 0, len(cfs))
@@ -3432,6 +3514,8 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 	case CONDITION_AFI_SAFI_IN:
 	case CONDITION_AS_PATH_LENGTH:
 	case CONDITION_RPKI:
+	case CONDITION_LOCAL_PREF_EQ:
+	case CONDITION_MED_EQ:
 	}
 	return nil
 }
@@ -4185,6 +4269,12 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			}
 		}
 		cs.AfiSafiIn = afiSafiIn
+	}
+	if s.Conditions.BgpConditions.LocalPrefEq != 0 {
+		cs.LocalPrefEq = &api.LocalPrefEq{Value: s.Conditions.BgpConditions.LocalPrefEq}
+	}
+	if s.Conditions.BgpConditions.MedEq != 0 {
+		cs.MedEq = &api.MedEq{Value: s.Conditions.BgpConditions.MedEq}
 	}
 	switch s.Conditions.BgpConditions.RpkiValidationResult {
 	case oc.RPKI_VALIDATION_RESULT_TYPE_NONE:

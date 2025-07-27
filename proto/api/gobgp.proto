@@ -1150,6 +1150,14 @@ enum OriginType {
   ORIGIN_TYPE_INCOMPLETE = 3;
 }
 
+message LocalPrefEq {
+  uint32 value = 1;
+}
+
+message MedEq {
+  uint32 value = 1;
+}
+
 message Conditions {
   MatchSet prefix_set = 1;
   MatchSet neighbor_set = 2;
@@ -1170,6 +1178,8 @@ message Conditions {
   repeated Family afi_safi_in = 11;
   CommunityCount community_count = 12;
   OriginType origin = 13;
+  LocalPrefEq local_pref_eq = 14;
+  MedEq med_eq = 15;
 }
 
 enum RouteAction {

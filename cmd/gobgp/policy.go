@@ -466,6 +466,12 @@ func printStatement(indent int, s *api.Statement) {
 	if c.AsPathLength != nil {
 		fmt.Printf("%sAsPathLength: %s\n", ind, prettyString(c.AsPathLength))
 	}
+	if c.LocalPrefEq != nil {
+		fmt.Printf("%sLocalPrefEq: %d\n", ind, c.LocalPrefEq.GetValue())
+	}
+	if c.MedEq != nil {
+		fmt.Printf("%sMEDEq: %d\n", ind, c.MedEq.GetValue())
+	}
 	state := "UNSPECIFIED"
 	switch c.RpkiResult {
 	case api.ValidationState_VALIDATION_STATE_NONE:
@@ -653,7 +659,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in | local-pref-eq | med-eq }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -800,6 +806,24 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
 		}
+	case "local-pref-eq":
+		if len(args) < 1 {
+			return fmt.Errorf("%s local-pref-eq <local-pref>", usage)
+		}
+		localPref, err := strconv.ParseUint(args[0], 10, 32)
+		if err != nil {
+			return err
+		}
+		stmt.Conditions.LocalPrefEq.Value = uint32(localPref)
+	case "med-eq":
+		if len(args) < 1 {
+			return fmt.Errorf("%s med-eq <med>", usage)
+		}
+		med, err := strconv.ParseUint(args[0], 10, 32)
+		if err != nil {
+			return err
+		}
+		stmt.Conditions.MedEq.Value = uint32(med)
 	case "rpki":
 		if len(args) < 1 {
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)

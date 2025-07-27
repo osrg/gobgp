@@ -520,6 +520,225 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, false, c.Evaluate(path, nil))
 }
 
+func TestLocalPrefEqConditionEvaluate(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+	t.Run("True", func(t *testing.T) {
+		// create match condition
+		expectedLocalPref := uint32(100)
+		c, _ := NewLocalPrefEqCondition(expectedLocalPref)
+
+		// test
+		assert.Equal(t, true, c.Evaluate(path, nil))
+	})
+
+	t.Run("False", func(t *testing.T) {
+		// create match condition
+		expectedLocalPref := uint32(200)
+		c, _ := NewLocalPrefEqCondition(expectedLocalPref)
+
+		// test
+		assert.Equal(t, false, c.Evaluate(path, nil))
+	})
+}
+
+func TestPolicyMatchAndAcceptLocalPrefEqCondition(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	localPref := bgp.NewPathAttributeLocalPref(100)
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+
+	// create match condition
+	localPrefEq := uint32(100)
+
+	s := createStatement("statement1", "ps1", "ns1", true)
+	s.Conditions.BgpConditions.LocalPrefEq = localPrefEq
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	// test
+	r := NewRoutingPolicy(logger)
+	err := r.reload(pl)
+	assert.NoError(t, err)
+	p := r.policyMap["pd1"]
+	pType, newPath := p.Apply(logger, path, nil)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.Equal(t, newPath, path)
+}
+
+func TestPolicyMatchAndRejectLocalPrefEqCondition(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	localPref := bgp.NewPathAttributeLocalPref(uint32(200))
+	med := bgp.NewPathAttributeMultiExitDisc(uint32(0))
+	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+
+	// create match condition
+	localPrefEq := uint32(200)
+
+	s := createStatement("statement1", "ps1", "ns1", false)
+	s.Conditions.BgpConditions.LocalPrefEq = localPrefEq
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	// test
+	r := NewRoutingPolicy(logger)
+	err := r.reload(pl)
+	assert.NoError(t, err)
+	p := r.policyMap["pd1"]
+	pType, newPath := p.Apply(logger, path, nil)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, newPath, path)
+}
+
+func TestMedEqConditionEvaluate(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65002})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
+	med := bgp.NewPathAttributeMultiExitDisc(uint32(100))
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	t.Run("True", func(t *testing.T) {
+		// create match condition
+		expectedMed := uint32(100)
+		c, _ := NewMedEqCondition(expectedMed)
+
+		// test
+		assert.Equal(t, true, c.Evaluate(path, nil))
+	})
+
+	t.Run("False", func(t *testing.T) {
+		// create match condition
+		expectedMed := uint32(200)
+		c, _ := NewMedEqCondition(expectedMed)
+
+		// test
+		assert.Equal(t, false, c.Evaluate(path, nil))
+	})
+}
+
+func TestPolicyMatchAndAcceptMedEqCondition(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65002})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
+	med := bgp.NewPathAttributeMultiExitDisc(uint32(100))
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+
+	// create match condition
+	medEq := uint32(100)
+
+	s := createStatement("statement1", "ps1", "ns1", true)
+	s.Conditions.BgpConditions.MedEq = medEq
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	// test
+	r := NewRoutingPolicy(logger)
+	err := r.reload(pl)
+	assert.NoError(t, err)
+	p := r.policyMap["pd1"]
+	pType, newPath := p.Apply(logger, path, nil)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.Equal(t, newPath, path)
+}
+
+func TestPolicyMatchAndRejectMedEqCondition(t *testing.T) {
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65002})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
+	med := bgp.NewPathAttributeMultiExitDisc(uint32(200))
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := ProcessMessage(updateMsg, peer, time.Now())[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := oc.DefinedSets{}
+	ds.PrefixSets = []oc.PrefixSet{ps}
+	ds.NeighborSets = []oc.NeighborSet{ns}
+
+	// create match condition
+	medEq := uint32(200)
+
+	s := createStatement("statement1", "ps1", "ns1", false)
+	s.Conditions.BgpConditions.MedEq = medEq
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	// test
+	r := NewRoutingPolicy(logger)
+	err := r.reload(pl)
+	assert.NoError(t, err)
+	p := r.policyMap["pd1"]
+	pType, newPath := p.Apply(logger, path, nil)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, newPath, path)
+}
+
 func TestOriginConditionEvaluate(t *testing.T) {
 	// setup
 	// create path
