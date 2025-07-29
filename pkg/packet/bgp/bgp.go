@@ -1395,15 +1395,15 @@ func addrPrefixOnlySerialize(nlri AddrPrefixInterface) []byte {
 		b := make([]byte, 13)
 		serializedRD, _ := T.RD.Serialize()
 		copy(b, serializedRD)
-		copy(b[8:12], T.Prefix.To4())
-		b[12] = T.Length - 8*uint8(T.Labels.Len())
+		copy(b[8:12], T.Prefix.Addr().AsSlice())
+		b[12] = uint8(T.Prefix.Bits())
 		return b
 	case *LabeledVPNIPv6AddrPrefix:
 		b := make([]byte, 25)
 		serializedRD, _ := T.RD.Serialize()
 		copy(b, serializedRD)
-		copy(b[8:24], T.Prefix.To16())
-		b[24] = T.Length - 8*uint8(T.Labels.Len())
+		copy(b[8:24], T.Prefix.Addr().AsSlice())
+		b[24] = uint8(T.Prefix.Bits())
 		return b
 	}
 	return []byte(nlri.String())
@@ -2134,7 +2134,7 @@ ERR:
 //
 
 type LabeledVPNIPAddrPrefix struct {
-	IPAddrPrefixDefault
+	IPAddrPrefixDefaultNetip
 	Labels  MPLSLabelStack
 	RD      RouteDistinguisherInterface
 	addrlen uint8
@@ -2155,12 +2155,12 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	if len(data) < 1 {
 		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "LabeledVPNIPAddrPrefix not enough data")
 	}
-	l.Length = data[0]
+	bits := int(data[0])
 	data = data[1:]
 	if err := l.Labels.DecodeFromBytes(data, options...); err != nil {
 		return err
 	}
-	if int(l.Length)-8*l.Labels.Len() < 0 {
+	if bits-8*l.Labels.Len() < 0 {
 		l.Labels.Labels = []uint32{}
 	}
 	if len(data) < l.Labels.Len()+8 {
@@ -2173,8 +2173,8 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "bad labeled VPN-IPv4 NLRI length")
 	}
 	data = data[l.RD.Len():]
-	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
-	return l.decodePrefix(data, uint8(restbits), l.addrlen)
+	restbits := bits - 8*(l.Labels.Len()+l.RD.Len())
+	return l.decodePrefix(data, uint8(restbits))
 }
 
 func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -2190,7 +2190,8 @@ func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byt
 			return nil, err
 		}
 	}
-	buf = append(buf, l.Length)
+	bits := 8*(l.Labels.Len()+l.RD.Len()) + l.Prefix.Bits()
+	buf = append(buf, uint8(bits))
 	lbuf, err := l.Labels.Serialize(options...)
 	if err != nil {
 		return nil, err
@@ -2201,12 +2202,7 @@ func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byt
 		return nil, err
 	}
 	buf = append(buf, rbuf...)
-	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
-	pbuf, err := l.serializePrefix(uint8(restbits))
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, pbuf...)
+	buf = append(buf, l.serializePrefix()...)
 	return buf, nil
 }
 
@@ -2219,7 +2215,7 @@ func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 }
 
 func (l *LabeledVPNIPAddrPrefix) IPPrefixLen() uint8 {
-	return l.Length - 8*uint8(l.Labels.Len()+l.RD.Len())
+	return uint8(l.Prefix.Bits())
 }
 
 func (l *LabeledVPNIPAddrPrefix) Len(options ...*MarshallingOption) int {
@@ -2231,41 +2227,31 @@ func (l *LabeledVPNIPAddrPrefix) String() string {
 }
 
 func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
-	masklen := l.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
-	prefix := l.Prefix.String()
-	if isIPv4MappedIPv6(l.Prefix) {
-		prefix = "::ffff:" + prefix
-	}
-	return prefix + "/" + strconv.FormatUint(uint64(masklen), 10)
+	return l.Prefix.String()
 }
 
 func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
-	masklen := l.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return json.Marshal(struct {
 		Prefix string                      `json:"prefix"`
 		Labels []uint32                    `json:"labels"`
 		RD     RouteDistinguisherInterface `json:"rd"`
 	}{
-		Prefix: fmt.Sprintf("%s/%d", l.Prefix, masklen),
+		Prefix: l.Prefix.String(),
 		Labels: l.Labels.Labels,
 		RD:     l.RD,
 	})
 }
 
-func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
-	rdlen := 0
-	if rd != nil {
-		rdlen = rd.Len()
-	}
-	return &LabeledVPNIPAddrPrefix{
-		IPAddrPrefixDefault{
-			Length: length + uint8(8*(label.Len()+rdlen)),
-			Prefix: net.ParseIP(prefix).To4(),
+func NewLabeledVPNIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
+	p := &LabeledVPNIPAddrPrefix{
+		IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+			addrlen: net.IPv4len,
 		},
-		label,
-		rd,
-		4,
+		Labels: label,
+		RD:     rd,
 	}
+	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits)
+	return p
 }
 
 type LabeledVPNIPv6AddrPrefix struct {
@@ -2276,22 +2262,18 @@ func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewLabeledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
-	rdlen := 0
-	if rd != nil {
-		rdlen = rd.Len()
-	}
-	return &LabeledVPNIPv6AddrPrefix{
+func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
+	p := &LabeledVPNIPv6AddrPrefix{
 		LabeledVPNIPAddrPrefix{
-			IPAddrPrefixDefault{
-				Length: length + uint8(8*(label.Len()+rdlen)),
-				Prefix: net.ParseIP(prefix),
+			IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+				addrlen: net.IPv6len,
 			},
-			label,
-			rd,
-			16,
+			Labels: label,
+			RD:     rd,
 		},
 	}
+	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits)
+	return p
 }
 
 type LabeledIPAddrPrefix struct {
@@ -15857,10 +15839,9 @@ func (p *PathAttribute) Flat() map[string]string {
 }
 
 func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
-	prefixLen := l.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return map[string]string{
-		"Prefix":    l.Prefix.String(),
-		"PrefixLen": fmt.Sprintf("%d", prefixLen),
+		"Prefix":    l.Prefix.Addr().String(),
+		"PrefixLen": fmt.Sprintf("%d", l.Prefix.Bits()),
 		"NLRI":      l.String(),
 		"Label":     l.Labels.String(),
 	}

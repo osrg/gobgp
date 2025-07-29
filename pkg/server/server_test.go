@@ -1690,7 +1690,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 				for _, path := range msg.PathList {
 					t.Logf("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
-						if vpnPath.Prefix.Equal(net.IP(prefix.Prefix.Addr().AsSlice())) {
+						if vpnPath.Prefix == prefix.Prefix {
 							t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
 							found = true
 						} else {
@@ -1794,7 +1794,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 				for _, path := range msg.PathList {
 					t.Logf("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
-						if vpnPath.Prefix.Equal(net.IP(prefix.Prefix.Addr().AsSlice())) {
+						if vpnPath.Prefix == prefix.Prefix {
 							t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
 							found = true
 						} else {
@@ -1827,7 +1827,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 				for _, path := range msg.PathList {
 					t.Logf("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
-						if vpnPath.Prefix.Equal(net.IP(prefix.Prefix.Addr().AsSlice())) && path.IsWithdraw {
+						if vpnPath.Prefix == prefix.Prefix && path.IsWithdraw {
 							t.Logf("tester found expected withdrawn prefix: %s", vpnPath.Prefix)
 							withdrawVPN = true
 						} else {
@@ -1907,7 +1907,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 				for _, path := range msg.PathList {
 					t.Logf("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
-						if vpnPath.Prefix.Equal(prefix.Prefix) {
+						if vpnPath.Prefix == prefix.Prefix {
 							t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
 							found = true
 						} else {
@@ -1945,7 +1945,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 				for _, path := range msg.PathList {
 					t.Logf("tester received path: %s", path.String())
 					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
-						if vpnPath.Prefix.Equal(prefix.Prefix) {
+						if vpnPath.Prefix == prefix.Prefix {
 							if path.IsWithdraw {
 								t.Fatalf("active path is withdrawn")
 							} else {

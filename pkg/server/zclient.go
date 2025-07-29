@@ -155,11 +155,11 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	case bgp.RF_IPv4_UC:
 		prefix = path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr().AsSlice()
 	case bgp.RF_IPv4_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.To4()
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr().AsSlice()
 	case bgp.RF_IPv6_UC:
 		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix.Addr().AsSlice()
 	case bgp.RF_IPv6_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Prefix.To16()
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Prefix.Addr().AsSlice()
 	default:
 		return nil, false
 	}

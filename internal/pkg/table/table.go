@@ -60,13 +60,13 @@ func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
 	case *bgp.LabeledVPNIPAddrPrefix:
 		serializedRD, _ := T.RD.Serialize()
 		h = fnv1a.AddBytes64(h, serializedRD)
-		h = fnv1a.AddBytes64(h, T.Prefix.To4())
-		h = fnv1a.AddBytes64(h, []byte{T.Length - 8*uint8(T.Labels.Len())})
+		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
+		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
 	case *bgp.LabeledVPNIPv6AddrPrefix:
 		serializedRD, _ := T.RD.Serialize()
 		h = fnv1a.AddBytes64(h, serializedRD)
-		h = fnv1a.AddBytes64(h, T.Prefix.To16())
-		h = fnv1a.AddBytes64(h, []byte{T.Length - 8*uint8(T.Labels.Len())})
+		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
+		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
 	default:
 		h = fnv1a.AddString64(h, nlri.String())
 	}

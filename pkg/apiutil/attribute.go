@@ -1270,7 +1270,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 			Labels:    v.Labels.Labels,
 			Rd:        rd,
 			PrefixLen: uint32(v.IPPrefixLen()),
-			Prefix:    v.Prefix.String(),
+			Prefix:    v.Prefix.Addr().String(),
 		}}
 	case *bgp.LabeledVPNIPv6AddrPrefix:
 		rd, err := MarshalRD(v.RD)
@@ -1281,7 +1281,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 			Labels:    v.Labels.Labels,
 			Rd:        rd,
 			PrefixLen: uint32(v.IPPrefixLen()),
-			Prefix:    v.Prefix.String(),
+			Prefix:    v.Prefix.Addr().String(),
 		}}
 	case *bgp.RouteTargetMembershipNLRI:
 		rt, err := func() (*api.RouteTarget, error) {
