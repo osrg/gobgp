@@ -208,6 +208,12 @@ func injectMrt() error {
 			return fmt.Errorf("failed to send: %s", err)
 		}
 	}
+
+	_, err = stream.CloseAndRecv()
+	if err != nil {
+		return fmt.Errorf("failed to close stream: %s", err)
+	}
+
 	return nil
 }
 
