@@ -1154,13 +1154,13 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 		nlri.Nlri = &api.NLRI_LabeledPrefix{LabeledPrefix: &api.LabeledIPAddressPrefix{
 			Labels:    v.Labels.Labels,
 			PrefixLen: uint32(v.IPPrefixLen()),
-			Prefix:    v.Prefix.String(),
+			Prefix:    v.Prefix.Addr().String(),
 		}}
 	case *bgp.LabeledIPv6AddrPrefix:
 		nlri.Nlri = &api.NLRI_LabeledPrefix{LabeledPrefix: &api.LabeledIPAddressPrefix{
 			Labels:    v.Labels.Labels,
 			PrefixLen: uint32(v.IPPrefixLen()),
-			Prefix:    v.Prefix.String(),
+			Prefix:    v.Prefix.Addr().String(),
 		}}
 	case *bgp.EncapNLRI:
 		nlri.Nlri = &api.NLRI_Encapsulation{Encapsulation: &api.EncapsulationNLRI{

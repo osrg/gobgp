@@ -2245,9 +2245,8 @@ func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack
 }
 
 type LabeledIPAddrPrefix struct {
-	IPAddrPrefixDefault
-	Labels  MPLSLabelStack
-	addrlen uint8
+	IPAddrPrefixDefaultNetip
+	Labels MPLSLabelStack
 }
 
 func (r *LabeledIPAddrPrefix) AFI() uint16 {
@@ -2259,7 +2258,7 @@ func (r *LabeledIPAddrPrefix) SAFI() uint8 {
 }
 
 func (l *LabeledIPAddrPrefix) IPPrefixLen() uint8 {
-	return l.Length - 8*uint8(l.Labels.Len())
+	return uint8(l.Prefix.Bits())
 }
 
 func (l *LabeledIPAddrPrefix) Len(options ...*MarshallingOption) int {
@@ -2281,21 +2280,21 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 	if len(data) < 1 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "LabeledIPAddrPrefix not enough data")
 	}
-	l.Length = data[0]
+	bits := int(data[0])
 	data = data[1:]
 	if err := l.Labels.DecodeFromBytes(data); err != nil {
 		return err
 	}
 
-	if int(l.Length)-8*l.Labels.Len() < 0 {
+	if bits-8*l.Labels.Len() < 0 {
 		l.Labels.Labels = []uint32{}
 	}
 	if len(data) < l.Labels.Len() {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "LabeledIPAddrPrefix not enough data")
 	}
 	data = data[l.Labels.Len():]
-	restbits := int(l.Length) - 8*l.Labels.Len()
-	return l.decodePrefix(data, uint8(restbits), l.addrlen)
+	restbits := bits - 8*l.Labels.Len()
+	return l.decodePrefix(data, uint8(restbits))
 }
 
 func (l *LabeledIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -2311,28 +2310,19 @@ func (l *LabeledIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, 
 			return nil, err
 		}
 	}
-	buf = append(buf, l.Length)
-	restbits := int(l.Length) - 8*l.Labels.Len()
+	bits := 8*l.Labels.Len() + l.Prefix.Bits()
+	buf = append(buf, uint8(bits))
 	lbuf, err := l.Labels.Serialize()
 	if err != nil {
 		return nil, err
 	}
 	buf = append(buf, lbuf...)
-	pbuf, err := l.serializePrefix(uint8(restbits))
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, pbuf...)
+	buf = append(buf, l.serializePrefix()...)
 	return buf, nil
 }
 
 func (l *LabeledIPAddrPrefix) String() string {
-	prefix := l.Prefix.String()
-	if isIPv4MappedIPv6(l.Prefix) {
-		prefix = "::ffff:" + prefix
-	}
-	masklen := int(l.Length) - l.Labels.Len()*8
-	return prefix + "/" + strconv.FormatUint(uint64(masklen), 10)
+	return l.Prefix.String()
 }
 
 func (l *LabeledIPAddrPrefix) MarshalJSON() ([]byte, error) {
@@ -2345,15 +2335,24 @@ func (l *LabeledIPAddrPrefix) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
-	return &LabeledIPAddrPrefix{
-		IPAddrPrefixDefault{
-			Length: length + uint8(label.Len()*8),
-			Prefix: net.ParseIP(prefix).To4(),
-		},
-		label,
-		4,
+func (l *LabeledIPAddrPrefix) Flat() map[string]string {
+	return map[string]string{
+		"Prefix":    l.Prefix.Addr().String(),
+		"PrefixLen": fmt.Sprintf("%d", l.Prefix.Bits()),
+		"NLRI":      l.String(),
+		"Label":     l.Labels.String(),
 	}
+}
+
+func NewLabeledIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
+	p := &LabeledIPAddrPrefix{
+		IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+			addrlen: net.IPv4len,
+		},
+		Labels: label,
+	}
+	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits)
+	return p
 }
 
 type LabeledIPv6AddrPrefix struct {
@@ -2364,17 +2363,17 @@ func (l *LabeledIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewLabeledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
-	return &LabeledIPv6AddrPrefix{
-		LabeledIPAddrPrefix{
-			IPAddrPrefixDefault{
-				Length: length + uint8(label.Len()*8),
-				Prefix: net.ParseIP(prefix),
+func NewLabeledIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
+	p := &LabeledIPv6AddrPrefix{
+		LabeledIPAddrPrefix: LabeledIPAddrPrefix{
+			IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+				addrlen: net.IPv6len,
 			},
-			label,
-			16,
+			Labels: label,
 		},
 	}
+	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits)
+	return p
 }
 
 type RouteTargetMembershipNLRI struct {
