@@ -21,6 +21,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"sync"
@@ -1350,7 +1351,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.lock.RLock()
 					fsmPeerAS := fsm.pConf.Config.PeerAs
 					fsm.lock.RUnlock()
-					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, fsm.peerInfo.LocalAS, net.ParseIP(fsm.gConf.Config.RouterId))
+					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, fsm.peerInfo.LocalAS, netip.MustParseAddr(fsm.gConf.Config.RouterId))
 					if err != nil {
 						m, _ := fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
@@ -1384,7 +1385,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.lock.Lock()
 					fsm.pConf.State.PeerAs = peerAs
 					fsm.peerInfo.AS = peerAs
-					fsm.peerInfo.ID = body.ID
+					fsm.peerInfo.ID = body.ID.AsSlice()
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 
 					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {

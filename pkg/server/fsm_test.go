@@ -19,6 +19,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 	"testing"
 	"time"
@@ -309,12 +310,12 @@ func TestBadBGPIdentifier(t *testing.T) {
 	body2 := msg2.Body.(*bgp.BGPOpen)
 
 	// Test if Bad BGP Identifier notification is sent if remote router-id is 0.0.0.0.
-	peerAs, err := bgp.ValidateOpenMsg(body1, 65000, 65001, net.ParseIP("192.168.1.1"))
+	peerAs, err := bgp.ValidateOpenMsg(body1, 65000, 65001, netip.MustParseAddr("192.168.1.1"))
 	assert.Equal(int(peerAs), 0)
 	assert.Equal(uint8(bgp.BGP_ERROR_SUB_BAD_BGP_IDENTIFIER), err.(*bgp.MessageError).SubTypeCode)
 
 	// Test if Bad BGP Identifier notification is sent if remote router-id is the same for iBGP.
-	peerAs, err = bgp.ValidateOpenMsg(body2, 65000, 65000, net.ParseIP("192.168.1.1"))
+	peerAs, err = bgp.ValidateOpenMsg(body2, 65000, 65000, netip.MustParseAddr("192.168.1.1"))
 	assert.Equal(int(peerAs), 0)
 	assert.Equal(uint8(bgp.BGP_ERROR_SUB_BAD_BGP_IDENTIFIER), err.(*bgp.MessageError).SubTypeCode)
 }

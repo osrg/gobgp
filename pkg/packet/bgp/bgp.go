@@ -1283,7 +1283,7 @@ type BGPOpen struct {
 	Version     uint8
 	MyAS        uint16
 	HoldTime    uint16
-	ID          net.IP
+	ID          netip.Addr
 	OptParamLen uint8
 	OptParams   []OptionParameterInterface
 }
@@ -1295,7 +1295,7 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 	msg.Version = data[0]
 	msg.MyAS = binary.BigEndian.Uint16(data[1:3])
 	msg.HoldTime = binary.BigEndian.Uint16(data[3:5])
-	msg.ID = net.IP(data[5:9]).To4()
+	msg.ID, _ = netip.AddrFromSlice(data[5:9])
 	msg.OptParamLen = data[9]
 	data = data[10:]
 	if len(data) < int(msg.OptParamLen) {
@@ -1339,7 +1339,7 @@ func (msg *BGPOpen) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf[0] = msg.Version
 	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
 	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
-	copy(buf[5:9], msg.ID.To4())
+	copy(buf[5:9], msg.ID.AsSlice())
 	pbuf := make([]byte, 0)
 	for _, p := range msg.OptParams {
 		onepbuf, err := p.Serialize()
@@ -1353,10 +1353,12 @@ func (msg *BGPOpen) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	return append(buf, pbuf...), nil
 }
 
-func NewBGPOpenMessage(myas uint16, holdtime uint16, id string, optparams []OptionParameterInterface) *BGPMessage {
+func NewBGPOpenMessage(myas uint16, holdtime uint16, idstring string, optparams []OptionParameterInterface) *BGPMessage {
+	// TODO: return an error
+	id, _ := netip.ParseAddr(idstring)
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_OPEN},
-		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), 0, optparams},
+		Body:   &BGPOpen{4, myas, holdtime, id, 0, optparams},
 	}
 }
 
