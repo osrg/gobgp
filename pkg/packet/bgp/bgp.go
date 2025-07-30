@@ -11360,7 +11360,7 @@ func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
 type PathAttributeAggregatorParam struct {
 	AS      uint32
 	Askind  reflect.Kind
-	Address net.IP
+	Address netip.Addr
 }
 
 type PathAttributeAggregator struct {
@@ -11377,11 +11377,11 @@ func (p *PathAttributeAggregator) DecodeFromBytes(data []byte, options ...*Marsh
 	case 6:
 		p.Value.Askind = reflect.Uint16
 		p.Value.AS = uint32(binary.BigEndian.Uint16(value[:2]))
-		p.Value.Address = value[2:]
+		p.Value.Address, _ = netip.AddrFromSlice(value[2:])
 	case 8:
 		p.Value.Askind = reflect.Uint32
 		p.Value.AS = binary.BigEndian.Uint32(value[:4])
-		p.Value.Address = value[4:]
+		p.Value.Address, _ = netip.AddrFromSlice(value[4:])
 	default:
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
@@ -11396,11 +11396,11 @@ func (p *PathAttributeAggregator) Serialize(options ...*MarshallingOption) ([]by
 	case reflect.Uint16:
 		buf = make([]byte, 6)
 		binary.BigEndian.PutUint16(buf, uint16(p.Value.AS))
-		copy(buf[2:], p.Value.Address)
+		copy(buf[2:], p.Value.Address.AsSlice())
 	case reflect.Uint32:
 		buf = make([]byte, 8)
 		binary.BigEndian.PutUint32(buf, p.Value.AS)
-		copy(buf[4:], p.Value.Address)
+		copy(buf[4:], p.Value.Address.AsSlice())
 	}
 	return p.PathAttribute.Serialize(buf, options...)
 }
@@ -11435,6 +11435,8 @@ func NewPathAttributeAggregator(as any, address string) *PathAttributeAggregator
 		// Invalid type
 		return nil
 	}
+	// TODO: return error
+	addr, _ := netip.ParseAddr(address)
 	t := BGP_ATTR_TYPE_AGGREGATOR
 	return &PathAttributeAggregator{
 		PathAttribute: PathAttribute{
@@ -11445,7 +11447,7 @@ func NewPathAttributeAggregator(as any, address string) *PathAttributeAggregator
 		Value: PathAttributeAggregatorParam{
 			AS:      uint32(v.Uint()),
 			Askind:  asKind,
-			Address: net.ParseIP(address).To4(),
+			Address: addr,
 		},
 	}
 }
@@ -13806,14 +13808,15 @@ func (p *PathAttributeAs4Aggregator) DecodeFromBytes(data []byte, options ...*Ma
 		return NewMessageError(eCode, eSubCode, nil, "AS4 Aggregator length is incorrect")
 	}
 	p.Value.AS = binary.BigEndian.Uint32(value[:4])
-	p.Value.Address = value[4:]
+	// The length was validated above.
+	p.Value.Address, _ = netip.AddrFromSlice(value[4:])
 	return nil
 }
 
 func (p *PathAttributeAs4Aggregator) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint32(buf[0:], p.Value.AS)
-	copy(buf[4:], p.Value.Address.To4())
+	copy(buf[4:], p.Value.Address.AsSlice())
 	return p.PathAttribute.Serialize(buf, options...)
 }
 
@@ -13836,6 +13839,8 @@ func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
 
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
+	// TODO: return error
+	addr, _ := netip.ParseAddr(address)
 	return &PathAttributeAs4Aggregator{
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[t],
@@ -13844,7 +13849,7 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      as,
-			Address: net.ParseIP(address).To4(),
+			Address: addr,
 		},
 	}
 }
