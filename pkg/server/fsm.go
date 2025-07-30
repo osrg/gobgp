@@ -1087,8 +1087,10 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				default:
 				}
 				body := m.Body.(*bgp.BGPUpdate)
+				h.fsm.lock.RLock()
 				isEBGP := h.fsm.pConf.IsEBGPPeer(h.fsm.gConf)
 				isConfed := h.fsm.pConf.IsConfederationMember(h.fsm.gConf)
+				h.fsm.lock.RUnlock()
 
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
 				copy(fmsg.payload, headerBuf)
@@ -1102,9 +1104,11 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				// with the neighbour is both dialed and received on loopback
 				// addresses.
 				var allowLoopback bool
+				h.fsm.lock.RLock()
 				if localAddr, peerAddr := h.fsm.peerInfo.LocalAddress, h.fsm.peerInfo.Address; localAddr.To4() != nil && peerAddr.To4() != nil {
 					allowLoopback = localAddr.IsLoopback() && peerAddr.IsLoopback()
 				}
+				h.fsm.lock.RUnlock()
 				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, allowLoopback)
 				if !ok {
 					handling = h.handlingError(m, err, useRevisedError)
