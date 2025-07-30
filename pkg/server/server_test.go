@@ -3066,16 +3066,18 @@ func TestWatchEvent(test *testing.T) {
 	watchers.Wait()
 
 	count := 0
+	ctx, cancel := context.WithCancel(context.Background())
 	tableCh := make(chan struct{})
 	f := func(paths []*apiutil.Path, _ time.Time) {
 		count += len(paths)
 		if len(paths) > 0 && count == 2 {
+			cancel()
 			close(tableCh)
 		}
 	}
 	opts := make([]WatchOption, 0)
 	opts = append(opts, WatchUpdate(true, "127.0.0.1", ""))
-	err = s.WatchEvent(context.Background(), WatchEventMessageCallbacks{
+	err = s.WatchEvent(ctx, WatchEventMessageCallbacks{
 		OnPathUpdate: f,
 	}, opts...)
 	assert.NoError(err)
