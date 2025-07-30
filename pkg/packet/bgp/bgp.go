@@ -1782,7 +1782,7 @@ func NewRouteDistinguisherTwoOctetAS(admin uint16, assigned uint32) *RouteDistin
 
 type RouteDistinguisherIPAddressAS struct {
 	DefaultRouteDistinguisher
-	Admin    net.IP
+	Admin    netip.Addr
 	Assigned uint16
 }
 
@@ -1790,14 +1790,14 @@ func (rd *RouteDistinguisherIPAddressAS) DecodeFromBytes(data []byte) error {
 	if len(data) < 6 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not enough RouteDistinguisherIPAddressAS bytes available")
 	}
-	rd.Admin = data[:4]
+	rd.Admin, _ = netip.AddrFromSlice(data[:4])
 	rd.Assigned = binary.BigEndian.Uint16(data[4:6])
 	return nil
 }
 
 func (rd *RouteDistinguisherIPAddressAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	copy(buf[:4], rd.Admin.To4())
+	copy(buf[:4], rd.Admin.AsSlice())
 	binary.BigEndian.PutUint16(buf[4:6], rd.Assigned)
 	return rd.serialize(buf)
 }
@@ -1819,11 +1819,13 @@ func (rd *RouteDistinguisherIPAddressAS) MarshalJSON() ([]byte, error) {
 }
 
 func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDistinguisherIPAddressAS {
+	// TODO: return error
+	addr, _ := netip.ParseAddr(admin)
 	return &RouteDistinguisherIPAddressAS{
 		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_IPV4_ADDRESS,
 		},
-		Admin:    net.ParseIP(admin).To4(),
+		Admin:    addr,
 		Assigned: assigned,
 	}
 }
