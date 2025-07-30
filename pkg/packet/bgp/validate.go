@@ -169,9 +169,9 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			res := ip[0] & 0xe0
 			return res == 0xe0
 		}
-
+		addr := net.IP(p.Value.AsSlice())
 		// check IP address represents host address
-		if !loopbackNextHopAllowed && p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
+		if !loopbackNextHopAllowed && p.Value.IsLoopback() || isZero(addr) || isClassDorE(addr) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
 			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadNextHop, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)

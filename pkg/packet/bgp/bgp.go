@@ -11154,7 +11154,7 @@ func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
 
 type PathAttributeNextHop struct {
 	PathAttribute
-	Value net.IP
+	Value netip.Addr
 }
 
 func (p *PathAttributeNextHop) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -11167,12 +11167,12 @@ func (p *PathAttributeNextHop) DecodeFromBytes(data []byte, options ...*Marshall
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "nexthop length isn't correct")
 	}
-	p.Value = value
+	p.Value, _ = netip.AddrFromSlice(value)
 	return nil
 }
 
 func (p *PathAttributeNextHop) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	return p.PathAttribute.Serialize(p.Value, options...)
+	return p.PathAttribute.Serialize(p.Value.AsSlice(), options...)
 }
 
 func (p *PathAttributeNextHop) String() string {
@@ -11181,7 +11181,7 @@ func (p *PathAttributeNextHop) String() string {
 
 func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 	value := "0.0.0.0"
-	if p.Value != nil {
+	if p.Value.IsValid() {
 		value = p.Value.String()
 	}
 	return json.Marshal(struct {
@@ -11195,12 +11195,11 @@ func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 
 func NewPathAttributeNextHop(addr string) *PathAttributeNextHop {
 	t := BGP_ATTR_TYPE_NEXT_HOP
-	ip := net.ParseIP(addr)
+	// TODO: return error.
+	ip, _ := netip.ParseAddr(addr)
 	l := net.IPv4len
-	if ip.To4() == nil {
+	if ip.Is6() {
 		l = net.IPv6len
-	} else {
-		ip = ip.To4()
 	}
 	return &PathAttributeNextHop{
 		PathAttribute: PathAttribute{

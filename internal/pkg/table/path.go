@@ -443,7 +443,7 @@ func (path *Path) GetSourceAs() uint32 {
 func (path *Path) GetNexthop() net.IP {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
-		return attr.(*bgp.PathAttributeNextHop).Value
+		return net.IP(attr.(*bgp.PathAttributeNextHop).Value.AsSlice())
 	}
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {

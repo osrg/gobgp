@@ -2319,7 +2319,7 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 		seen[aType] = struct{}{}
 		switch aType {
 		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-			nexthop = a.(*bgp.PathAttributeNextHop).Value
+			nexthop = net.IP(a.(*bgp.PathAttributeNextHop).Value.AsSlice())
 		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 			mp := a.(*bgp.PathAttributeMpReachNLRI)
 			if len(mp.Value) == 0 {
