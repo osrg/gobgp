@@ -364,7 +364,6 @@ type fsmHandler struct {
 	fsm              *fsm
 	conn             net.Conn
 	allowLoopback    bool
-	msgCh            *channels.InfiniteChannel
 	stateReasonCh    chan fsmStateReason
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
@@ -1179,15 +1178,12 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) {
-	defer func() {
-		h.msgCh.Close()
-		wg.Done()
-	}()
+func (h *fsmHandler) recvMessage(ctx context.Context, recvChan chan<- *fsmMsg, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	fmsg, _ := h.recvMessageWithError()
 	if fmsg != nil && ctx.Err() == nil {
-		h.msgCh.In() <- fmsg
+		recvChan <- fmsg
 	}
 }
 
@@ -1259,20 +1255,20 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.msgCh = channels.NewInfiniteChannel()
-
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 	fsm.lock.RUnlock()
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go h.recvMessage(ctx, wg)
+	recvChan := make(chan *fsmMsg, 1)
+	go h.recvMessage(ctx, recvChan, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
 		h.conn.SetReadDeadline(time.Now())
 		wg.Wait()
+		close(recvChan)
 		// reset the read deadline
 		h.conn.SetReadDeadline(time.Time{})
 	}()
@@ -1319,11 +1315,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
-		case i, ok := <-h.msgCh.Out():
-			if !ok {
-				continue
-			}
-			e := i.(*fsmMsg)
+		case e := <-recvChan:
 			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
@@ -1542,18 +1534,19 @@ func keepaliveTicker(fsm *fsm) *time.Ticker {
 func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
-	h.msgCh = channels.NewInfiniteChannel()
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go h.recvMessage(ctx, wg)
+	recvChan := make(chan *fsmMsg, 1)
+	go h.recvMessage(ctx, recvChan, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
 		h.conn.SetReadDeadline(time.Now())
 		wg.Wait()
+		close(recvChan)
 		// reset the read deadline
 		h.conn.SetReadDeadline(time.Time{})
 	}()
@@ -1608,11 +1601,7 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-		case i, ok := <-h.msgCh.Out():
-			if !ok {
-				continue
-			}
-			e := i.(*fsmMsg)
+		case e := <-recvChan:
 			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
