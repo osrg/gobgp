@@ -14100,7 +14100,7 @@ func NewTunnelEncapSubTLVColor(color uint32) *TunnelEncapSubTLVColor {
 
 type TunnelEncapSubTLVEgressEndpoint struct {
 	TunnelEncapSubTLV
-	Address net.IP
+	Address netip.Addr
 }
 
 // Tunnel Egress Endpoint Sub-TLV subfield positions
@@ -14134,9 +14134,9 @@ func (t *TunnelEncapSubTLVEgressEndpoint) DecodeFromBytes(data []byte) error {
 	if t.Length != EGRESS_ENDPOINT_ADDRESS_POS+addressLen {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLVEgressEndpoint address bytes available")
 	}
-	t.Address = nil
 	if addressFamily != 0 {
-		t.Address = net.IP(value[EGRESS_ENDPOINT_ADDRESS_POS : EGRESS_ENDPOINT_ADDRESS_POS+addressLen])
+		// the length was validated above.
+		t.Address, _ = netip.AddrFromSlice(value[EGRESS_ENDPOINT_ADDRESS_POS : EGRESS_ENDPOINT_ADDRESS_POS+addressLen])
 	}
 
 	return nil
@@ -14146,16 +14146,16 @@ func (t *TunnelEncapSubTLVEgressEndpoint) Serialize() ([]byte, error) {
 	var length uint32 = EGRESS_ENDPOINT_ADDRESS_POS
 	var family uint16
 	var ip net.IP
-	if t.Address == nil {
+	if !t.Address.IsValid() {
 		family = 0
-	} else if t.Address.To4() != nil {
+	} else if t.Address.Is4() {
 		length += net.IPv4len
 		family = AFI_IP
-		ip = t.Address.To4()
+		ip = t.Address.AsSlice()
 	} else {
 		length += net.IPv6len
 		family = AFI_IP6
-		ip = t.Address.To16()
+		ip = t.Address.AsSlice()
 	}
 	buf := make([]byte, length)
 	binary.BigEndian.PutUint32(buf, 0)
@@ -14168,7 +14168,7 @@ func (t *TunnelEncapSubTLVEgressEndpoint) Serialize() ([]byte, error) {
 
 func (t *TunnelEncapSubTLVEgressEndpoint) String() string {
 	address := ""
-	if t.Address != nil {
+	if t.Address.IsValid() {
 		address = t.Address.String()
 	}
 	return fmt.Sprintf("{EgressEndpoint: %s}", address)
@@ -14176,7 +14176,7 @@ func (t *TunnelEncapSubTLVEgressEndpoint) String() string {
 
 func (t *TunnelEncapSubTLVEgressEndpoint) MarshalJSON() ([]byte, error) {
 	address := ""
-	if t.Address != nil {
+	if t.Address.IsValid() {
 		address = t.Address.String()
 	}
 
@@ -14190,9 +14190,10 @@ func (t *TunnelEncapSubTLVEgressEndpoint) MarshalJSON() ([]byte, error) {
 }
 
 func NewTunnelEncapSubTLVEgressEndpoint(address string) *TunnelEncapSubTLVEgressEndpoint {
-	var ip net.IP = nil
+	var ip netip.Addr
 	if address != "" {
-		ip = net.ParseIP(address)
+		// TODO: return error
+		ip, _ = netip.ParseAddr(address)
 	}
 	return &TunnelEncapSubTLVEgressEndpoint{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
