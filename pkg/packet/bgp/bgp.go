@@ -14455,18 +14455,15 @@ func NewDefaultPmsiTunnelID(value []byte) *DefaultPmsiTunnelID {
 }
 
 type IngressReplTunnelID struct {
-	Value net.IP
+	Value netip.Addr
 }
 
 func (i *IngressReplTunnelID) Len() int {
-	return len(i.Value)
+	return i.Value.BitLen() / 8
 }
 
 func (i *IngressReplTunnelID) Serialize() ([]byte, error) {
-	if i.Value.To4() != nil {
-		return []byte(i.Value.To4()), nil
-	}
-	return []byte(i.Value), nil
+	return i.Value.AsSlice(), nil
 }
 
 func (i *IngressReplTunnelID) String() string {
@@ -14474,10 +14471,8 @@ func (i *IngressReplTunnelID) String() string {
 }
 
 func NewIngressReplTunnelID(value string) *IngressReplTunnelID {
-	ip := net.ParseIP(value)
-	if ip == nil {
-		return nil
-	}
+	// TODO: return error
+	ip, _ := netip.ParseAddr(value)
 	return &IngressReplTunnelID{
 		Value: ip,
 	}
@@ -14512,7 +14507,8 @@ func (p *PathAttributePmsiTunnel) DecodeFromBytes(data []byte, options ...*Marsh
 
 	switch p.TunnelType {
 	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
-		p.TunnelID = &IngressReplTunnelID{net.IP(value[5:])}
+		id, _ := netip.AddrFromSlice(value[5:])
+		p.TunnelID = &IngressReplTunnelID{id}
 	default:
 		p.TunnelID = &DefaultPmsiTunnelID{value[5:]}
 	}
@@ -14619,8 +14615,8 @@ func ParsePmsiTunnel(args []string) (*PathAttributePmsiTunnel, error) {
 	var id PmsiTunnelIDInterface
 	switch tunnelType {
 	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
-		ip := net.ParseIP(args[indx])
-		if ip == nil {
+		ip, ok := netip.ParseAddr(args[indx])
+		if ok != nil {
 			return nil, fmt.Errorf("invalid pmsi tunnel identifier: %s", args[indx])
 		}
 		id = &IngressReplTunnelID{Value: ip}
