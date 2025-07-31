@@ -644,7 +644,7 @@ func TestTableDestinationsCollisionAttack(t *testing.T) {
 	}
 }
 
-func TestTableKeyWithLabels(t *testing.T) {
+func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 	label1 := *bgp.NewMPLSLabelStack(1, 2, 3)
 	label2 := *bgp.NewMPLSLabelStack(4, 5, 6)
 	label3 := *bgp.NewMPLSLabelStack(7, 8)
@@ -661,8 +661,7 @@ func TestTableKeyWithLabels(t *testing.T) {
 	lengthv4 := uint8(28)
 
 	b = make([]byte, 16)
-	_, err := crand.Read(b)
-	assert.NoError(t, err)
+	_, _ = crand.Read(b)
 	v = binary.BigEndian.Uint32(b)
 	v += uint32(index) << 8
 	binary.BigEndian.PutUint32(b, v)
@@ -683,9 +682,12 @@ func TestTableKeyWithLabels(t *testing.T) {
 			prefixes = append(prefixes, bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, l))
 		}
 	}
+	return prefixes
+}
 
+func TestTableKeyWithLabels(t *testing.T) {
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	for _, p := range prefixes {
+	for _, p := range buildPrefixesWithLabels() {
 		dest := NewDestination(p, 0)
 		ipv4t.setDestination(dest)
 	}
@@ -699,6 +701,15 @@ func TestTableKeyWithLabels(t *testing.T) {
 	// 1 LabeledVPNIPv6 prefix with 3 labels,2 RDs   (sum = 2)
 	// 1 LabeledIPv6 prefix with 3 labels            (sum = 1) the 2nd replace the 1st one (update)
 	assert.Equal(t, 8, len(ipv4t.GetDestinations()))
+}
+
+func BenchmarkTableKeyWithLabels(b *testing.B) {
+	prefixes := buildPrefixesWithLabels()
+	for range b.N {
+		for _, p := range prefixes {
+			tableKey(p)
+		}
+	}
 }
 
 func Test_RouteTargetKey(t *testing.T) {
