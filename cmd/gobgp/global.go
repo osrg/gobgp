@@ -1475,13 +1475,14 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	if err != nil {
 		return nil, nil, err
 	}
+	id, _ := netip.ParseAddr(m["local-bgp-router-id"][0])
 	lnd := &bgp.LsNodeDescriptor{
 		Asn:                    uint32(localAsn),
 		BGPLsID:                uint32(localBgpLsId),
 		OspfAreaID:             0,
 		PseudoNode:             false,
 		IGPRouterID:            "",
-		BGPRouterID:            net.ParseIP(m["local-bgp-router-id"][0]).To4(),
+		BGPRouterID:            id,
 		BGPConfederationMember: uint32(localBgpConfederationMember),
 	}
 	RemoteAsn, err := strconv.ParseUint(m["remote-asn"][0], 10, 64)
@@ -1496,25 +1497,26 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	if err != nil {
 		return nil, nil, err
 	}
+	remoteId, _ := netip.ParseAddr(m["remote-bgp-router-id"][0])
 	rnd := &bgp.LsNodeDescriptor{
 		Asn:                    uint32(RemoteAsn),
 		BGPLsID:                uint32(RemoteBgpLsId),
 		OspfAreaID:             0,
 		PseudoNode:             false,
 		IGPRouterID:            "",
-		BGPRouterID:            net.ParseIP(m["remote-bgp-router-id"][0]),
+		BGPRouterID:            remoteId,
 		BGPConfederationMember: uint32(RemoteBgpConfederationMember),
 	}
 
-	var interfaceAddrIPv4 net.IP
-	var neighborAddrIPv4 net.IP
-	var interfaceAddrIPv6 net.IP
-	var neighborAddrIPv6 net.IP
+	var interfaceAddrIPv4 netip.Addr
+	var neighborAddrIPv4 netip.Addr
+	var interfaceAddrIPv6 netip.Addr
+	var neighborAddrIPv6 netip.Addr
 
-	interfaceAddrIPv4 = net.ParseIP(m["ipv4-interface-address"][0]).To4()
-	neighborAddrIPv4 = net.ParseIP(m["ipv4-neighbor-address"][0]).To4()
-	interfaceAddrIPv6 = net.ParseIP(m["ipv6-interface-address"][0]).To16()
-	neighborAddrIPv6 = net.ParseIP(m["ipv6-neighbor-address"][0]).To16()
+	interfaceAddrIPv4, _ = netip.ParseAddr(m["ipv4-interface-address"][0])
+	neighborAddrIPv4, _ = netip.ParseAddr(m["ipv4-neighbor-address"][0])
+	interfaceAddrIPv6, _ = netip.ParseAddr(m["ipv6-interface-address"][0])
+	neighborAddrIPv6, _ = netip.ParseAddr(m["ipv6-neighbor-address"][0])
 
 	ld := &bgp.LsLinkDescriptor{
 		LinkLocalID:       new(uint32),
@@ -1674,13 +1676,14 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAt
 	if err != nil {
 		return nil, nil, err
 	}
+	id, _ := netip.ParseAddr(m["local-bgp-router-id"][0])
 	lnd := &bgp.LsNodeDescriptor{
 		Asn:                    uint32(localAsn),
 		BGPLsID:                uint32(localBgpLsId),
 		OspfAreaID:             0,
 		PseudoNode:             false,
 		IGPRouterID:            "",
-		BGPRouterID:            net.ParseIP(m["local-bgp-router-id"][0]).To4(),
+		BGPRouterID:            id,
 		BGPConfederationMember: uint32(localBgpConfederationMember),
 	}
 	lndTLV := bgp.NewLsTLVNodeDescriptor(lnd, bgp.LS_TLV_LOCAL_NODE_DESC)

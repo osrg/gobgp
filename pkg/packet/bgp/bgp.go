@@ -5437,10 +5437,10 @@ func (l *LsNodeNLRI) MarshalJSON() ([]byte, error) {
 type LsLinkDescriptor struct {
 	LinkLocalID       *uint32
 	LinkRemoteID      *uint32
-	InterfaceAddrIPv4 *net.IP
-	NeighborAddrIPv4  *net.IP
-	InterfaceAddrIPv6 *net.IP
-	NeighborAddrIPv6  *net.IP
+	InterfaceAddrIPv4 *netip.Addr
+	NeighborAddrIPv4  *netip.Addr
+	InterfaceAddrIPv6 *netip.Addr
+	NeighborAddrIPv6  *netip.Addr
 }
 
 func (l *LsLinkDescriptor) ParseTLVs(tlvs []LsTLVInterface) {
@@ -6318,10 +6318,10 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	if lsAttr.Node.IsisArea != nil {
 		tlvs = append(tlvs, NewLsTLVIsisArea(lsAttr.Node.IsisArea))
 	}
-	if lsAttr.Node.LocalRouterID != (*net.IP)(nil) {
+	if lsAttr.Node.LocalRouterID != nil {
 		tlvs = append(tlvs, NewLsTLVLocalIPv4RouterID(lsAttr.Node.LocalRouterID))
 	}
-	if lsAttr.Node.LocalRouterIDv6 != (*net.IP)(nil) {
+	if lsAttr.Node.LocalRouterIDv6 != nil {
 		tlvs = append(tlvs, NewLsTLVLocalIPv6RouterID(lsAttr.Node.LocalRouterIDv6))
 	}
 	if lsAttr.Node.SrCapabilties != nil {
@@ -6337,16 +6337,16 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	if lsAttr.Link.Name != nil {
 		tlvs = append(tlvs, NewLsTLVLinkName(lsAttr.Link.Name))
 	}
-	if lsAttr.Link.LocalRouterID != (*net.IP)(nil) {
+	if lsAttr.Link.LocalRouterID != nil {
 		tlvs = append(tlvs, NewLsTLVLocalIPv4RouterID(lsAttr.Link.LocalRouterID))
 	}
-	if lsAttr.Link.LocalRouterIDv6 != (*net.IP)(nil) {
+	if lsAttr.Link.LocalRouterIDv6 != nil {
 		tlvs = append(tlvs, NewLsTLVLocalIPv6RouterID(lsAttr.Link.LocalRouterIDv6))
 	}
-	if lsAttr.Link.RemoteRouterID != (*net.IP)(nil) {
+	if lsAttr.Link.RemoteRouterID != nil {
 		tlvs = append(tlvs, NewLsTLVRemoteIPv4RouterID(lsAttr.Link.RemoteRouterID))
 	}
-	if lsAttr.Link.RemoteRouterIDv6 != (*net.IP)(nil) {
+	if lsAttr.Link.RemoteRouterIDv6 != nil {
 		tlvs = append(tlvs, NewLsTLVRemoteIPv6RouterID(lsAttr.Link.RemoteRouterIDv6))
 	}
 	if lsAttr.Link.AdminGroup != nil {
@@ -6499,7 +6499,7 @@ func (l *LsTLVLinkID) GetLsTLV() LsTLV {
 
 type LsTLVIPv4InterfaceAddr struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
 func (l *LsTLVIPv4InterfaceAddr) DecodeFromBytes(data []byte) error {
@@ -6517,13 +6517,13 @@ func (l *LsTLVIPv4InterfaceAddr) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	return nil
 }
 
 func (l *LsTLVIPv4InterfaceAddr) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVIPv4InterfaceAddr) String() string {
@@ -6546,7 +6546,7 @@ func (l *LsTLVIPv4InterfaceAddr) GetLsTLV() LsTLV {
 
 type LsTLVIPv4NeighborAddr struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
 func (l *LsTLVIPv4NeighborAddr) DecodeFromBytes(data []byte) error {
@@ -6564,13 +6564,13 @@ func (l *LsTLVIPv4NeighborAddr) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	return nil
 }
 
 func (l *LsTLVIPv4NeighborAddr) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVIPv4NeighborAddr) String() string {
@@ -6593,7 +6593,7 @@ func (l *LsTLVIPv4NeighborAddr) GetLsTLV() LsTLV {
 
 type LsTLVIPv6InterfaceAddr struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
 func (l *LsTLVIPv6InterfaceAddr) DecodeFromBytes(data []byte) error {
@@ -6611,7 +6611,7 @@ func (l *LsTLVIPv6InterfaceAddr) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	if l.IP.IsLinkLocalUnicast() {
 		return malformedAttrListErr("Unexpected link local address")
@@ -6621,7 +6621,7 @@ func (l *LsTLVIPv6InterfaceAddr) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVIPv6InterfaceAddr) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVIPv6InterfaceAddr) String() string {
@@ -6644,7 +6644,7 @@ func (l *LsTLVIPv6InterfaceAddr) GetLsTLV() LsTLV {
 
 type LsTLVIPv6NeighborAddr struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
 func (l *LsTLVIPv6NeighborAddr) DecodeFromBytes(data []byte) error {
@@ -6662,7 +6662,7 @@ func (l *LsTLVIPv6NeighborAddr) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	if l.IP.IsLinkLocalUnicast() {
 		return malformedAttrListErr("Unexpected link local address")
@@ -6672,7 +6672,7 @@ func (l *LsTLVIPv6NeighborAddr) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVIPv6NeighborAddr) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVIPv6NeighborAddr) String() string {
@@ -6916,10 +6916,10 @@ func (l *LsTLVIsisArea) GetLsTLV() LsTLV {
 
 type LsTLVLocalIPv4RouterID struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
-func NewLsTLVLocalIPv4RouterID(l *net.IP) *LsTLVLocalIPv4RouterID {
+func NewLsTLVLocalIPv4RouterID(l *netip.Addr) *LsTLVLocalIPv4RouterID {
 	return &LsTLVLocalIPv4RouterID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IPV4_LOCAL_ROUTER_ID,
@@ -6944,13 +6944,13 @@ func (l *LsTLVLocalIPv4RouterID) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	return nil
 }
 
 func (l *LsTLVLocalIPv4RouterID) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVLocalIPv4RouterID) String() string {
@@ -6973,10 +6973,10 @@ func (l *LsTLVLocalIPv4RouterID) GetLsTLV() LsTLV {
 
 type LsTLVRemoteIPv4RouterID struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
-func NewLsTLVRemoteIPv4RouterID(l *net.IP) *LsTLVRemoteIPv4RouterID {
+func NewLsTLVRemoteIPv4RouterID(l *netip.Addr) *LsTLVRemoteIPv4RouterID {
 	return &LsTLVRemoteIPv4RouterID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IPV4_REMOTE_ROUTER_ID,
@@ -7001,13 +7001,13 @@ func (l *LsTLVRemoteIPv4RouterID) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	return nil
 }
 
 func (l *LsTLVRemoteIPv4RouterID) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVRemoteIPv4RouterID) String() string {
@@ -7030,10 +7030,10 @@ func (l *LsTLVRemoteIPv4RouterID) GetLsTLV() LsTLV {
 
 type LsTLVLocalIPv6RouterID struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
-func NewLsTLVLocalIPv6RouterID(l *net.IP) *LsTLVLocalIPv6RouterID {
+func NewLsTLVLocalIPv6RouterID(l *netip.Addr) *LsTLVLocalIPv6RouterID {
 	return &LsTLVLocalIPv6RouterID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IPV6_LOCAL_ROUTER_ID,
@@ -7058,13 +7058,13 @@ func (l *LsTLVLocalIPv6RouterID) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	return nil
 }
 
 func (l *LsTLVLocalIPv6RouterID) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVLocalIPv6RouterID) String() string {
@@ -7087,10 +7087,10 @@ func (l *LsTLVLocalIPv6RouterID) GetLsTLV() LsTLV {
 
 type LsTLVRemoteIPv6RouterID struct {
 	LsTLV
-	IP net.IP
+	IP netip.Addr
 }
 
-func NewLsTLVRemoteIPv6RouterID(l *net.IP) *LsTLVRemoteIPv6RouterID {
+func NewLsTLVRemoteIPv6RouterID(l *netip.Addr) *LsTLVRemoteIPv6RouterID {
 	return &LsTLVRemoteIPv6RouterID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IPV6_REMOTE_ROUTER_ID,
@@ -7115,13 +7115,13 @@ func (l *LsTLVRemoteIPv6RouterID) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP = net.IP(value)
+	l.IP, _ = netip.AddrFromSlice(value)
 
 	return nil
 }
 
 func (l *LsTLVRemoteIPv6RouterID) Serialize() ([]byte, error) {
-	return l.LsTLV.Serialize(l.IP)
+	return l.LsTLV.Serialize(l.IP.AsSlice())
 }
 
 func (l *LsTLVRemoteIPv6RouterID) String() string {
@@ -7397,7 +7397,7 @@ func (l *LsTLVOspfAreaID) GetLsTLV() LsTLV {
 
 type LsTLVBgpRouterID struct {
 	LsTLV
-	RouterID net.IP
+	RouterID netip.Addr
 }
 
 func (l *LsTLVBgpRouterID) DecodeFromBytes(data []byte) error {
@@ -7416,20 +7416,20 @@ func (l *LsTLVBgpRouterID) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr(fmt.Sprintf("Incorrect BGP Router ID length: %d", len(value)))
 	}
 
-	l.RouterID = net.IP(value)
+	l.RouterID = netip.AddrFrom4([4]byte(value))
 
 	return nil
 }
 
 func (l *LsTLVBgpRouterID) Serialize() ([]byte, error) {
 	tmpaddr := l.RouterID
-	if tmpaddr.To4() != nil {
+	if tmpaddr.Is4() {
 		var buf [4]byte
-		copy(buf[:], l.RouterID.To4())
+		copy(buf[:], l.RouterID.AsSlice())
 		return l.LsTLV.Serialize(buf[:])
 	}
 	var buf [16]byte
-	copy(buf[:], l.RouterID.To16())
+	copy(buf[:], l.RouterID.AsSlice())
 	return l.LsTLV.Serialize(buf[:])
 }
 
@@ -9506,13 +9506,13 @@ func (l *LsTLVNodeDescriptor) String() string {
 }
 
 type LsNodeDescriptor struct {
-	Asn                    uint32 `json:"asn"`
-	BGPLsID                uint32 `json:"bgp_ls_id"`
-	OspfAreaID             uint32 `json:"ospf_area_id"`
-	PseudoNode             bool   `json:"pseudo_node"`
-	IGPRouterID            string `json:"igp_router_id"`
-	BGPRouterID            net.IP `json:"bgp_router_id"`
-	BGPConfederationMember uint32 `json:"bgp_confederation_member"`
+	Asn                    uint32     `json:"asn"`
+	BGPLsID                uint32     `json:"bgp_ls_id"`
+	OspfAreaID             uint32     `json:"ospf_area_id"`
+	PseudoNode             bool       `json:"pseudo_node"`
+	IGPRouterID            string     `json:"igp_router_id"`
+	BGPRouterID            netip.Addr `json:"bgp_router_id"`
+	BGPConfederationMember uint32     `json:"bgp_confederation_member"`
 }
 
 func (l *LsTLVNodeDescriptor) GetLsTLV() LsTLV {
@@ -9520,7 +9520,7 @@ func (l *LsTLVNodeDescriptor) GetLsTLV() LsTLV {
 }
 
 func (l *LsNodeDescriptor) String() string {
-	if l.BGPRouterID == nil {
+	if !l.BGPRouterID.IsValid() || !l.BGPRouterID.Is4() {
 		return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, OSPF AREA: %v, IGP ROUTER ID: %v}", l.Asn, l.BGPLsID, l.OspfAreaID, l.IGPRouterID)
 	}
 
@@ -9601,7 +9601,7 @@ func NewLsTLVNodeDescriptor(nd *LsNodeDescriptor, tlvType LsTLVType) LsTLVNodeDe
 
 	// For BGP
 	// TLV Code Point 516 BGP Router-ID
-	if nd.BGPRouterID != nil {
+	if nd.BGPRouterID.IsValid() && nd.BGPRouterID.Is4() {
 		subTLVs = append(subTLVs,
 			&LsTLVBgpRouterID{
 				LsTLV: LsTLV{
@@ -9767,8 +9767,8 @@ type LsAttributeNode struct {
 	Opaque          *[]byte      `json:"opaque,omitempty"`
 	Name            *string      `json:"name,omitempty"`
 	IsisArea        *[]byte      `json:"isis_area,omitempty"`
-	LocalRouterID   *net.IP      `json:"local_router_id_ipv4,omitempty"`
-	LocalRouterIDv6 *net.IP      `json:"local_router_id_ipv6,omitempty"`
+	LocalRouterID   *netip.Addr  `json:"local_router_id_ipv4,omitempty"`
+	LocalRouterIDv6 *netip.Addr  `json:"local_router_id_ipv6,omitempty"`
 
 	// Segment Routing
 	SrCapabilties *LsSrCapabilities `json:"sr_capabilities,omitempty"`
@@ -9777,15 +9777,15 @@ type LsAttributeNode struct {
 }
 
 type LsAttributeLink struct {
-	Name             *string `json:"name,omitempty"`
-	LocalRouterID    *net.IP `json:"local_router_id_ipv4,omitempty"`
-	LocalRouterIDv6  *net.IP `json:"local_router_id_ipv6,omitempty"`
-	RemoteRouterID   *net.IP `json:"remote_router_id_ipv4,omitempty"`
-	RemoteRouterIDv6 *net.IP `json:"remote_router_id_ipv6,omitempty"`
-	AdminGroup       *uint32 `json:"admin_group,omitempty"`
-	DefaultTEMetric  *uint32 `json:"default_te_metric,omitempty"`
-	IGPMetric        *uint32 `json:"igp_metric,omitempty"`
-	Opaque           *[]byte `json:"opaque,omitempty"`
+	Name             *string     `json:"name,omitempty"`
+	LocalRouterID    *netip.Addr `json:"local_router_id_ipv4,omitempty"`
+	LocalRouterIDv6  *netip.Addr `json:"local_router_id_ipv6,omitempty"`
+	RemoteRouterID   *netip.Addr `json:"remote_router_id_ipv4,omitempty"`
+	RemoteRouterIDv6 *netip.Addr `json:"remote_router_id_ipv6,omitempty"`
+	AdminGroup       *uint32     `json:"admin_group,omitempty"`
+	DefaultTEMetric  *uint32     `json:"default_te_metric,omitempty"`
+	IGPMetric        *uint32     `json:"igp_metric,omitempty"`
+	Opaque           *[]byte     `json:"opaque,omitempty"`
 
 	// Bandwidth is expressed in bytes (not bits) per second.
 	Bandwidth           *float32    `json:"bandwidth,omitempty"`

@@ -832,34 +832,35 @@ func UnmarshalLsBgpPeerSegmentSid(a *api.LsBgpPeerSegmentSID) (*bgp.LsBgpPeerSeg
 }
 
 func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor, error) {
+	bgpRouterId, _ := netip.ParseAddr(nd.BgpRouterId)
 	return &bgp.LsNodeDescriptor{
 		Asn:                    nd.Asn,
 		BGPLsID:                nd.BgpLsId,
 		OspfAreaID:             nd.OspfAreaId,
 		PseudoNode:             nd.Pseudonode,
 		IGPRouterID:            nd.IgpRouterId,
-		BGPRouterID:            net.ParseIP(nd.BgpRouterId),
+		BGPRouterID:            bgpRouterId,
 		BGPConfederationMember: nd.BgpConfederationMember,
 	}, nil
 }
 
 func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor, error) {
-	ifAddrIPv4 := net.IP{}
-	neiAddrIPv4 := net.IP{}
-	ifAddrIPv6 := net.IP{}
-	neiAddrIPv6 := net.IP{}
+	ifAddrIPv4 := netip.Addr{}
+	neiAddrIPv4 := netip.Addr{}
+	ifAddrIPv6 := netip.Addr{}
+	neiAddrIPv6 := netip.Addr{}
 
 	if ld.GetInterfaceAddrIpv4() != "" {
-		ifAddrIPv4 = net.ParseIP(ld.InterfaceAddrIpv4).To4()
+		ifAddrIPv4, _ = netip.ParseAddr(ld.InterfaceAddrIpv4)
 	}
 	if ld.GetNeighborAddrIpv4() != "" {
-		neiAddrIPv4 = net.ParseIP(ld.NeighborAddrIpv4).To4()
+		neiAddrIPv4, _ = netip.ParseAddr(ld.NeighborAddrIpv4)
 	}
 	if ld.GetInterfaceAddrIpv6() != "" {
-		ifAddrIPv6 = net.ParseIP(ld.InterfaceAddrIpv6).To16()
+		ifAddrIPv6, _ = netip.ParseAddr(ld.InterfaceAddrIpv6)
 	}
 	if ld.GetNeighborAddrIpv6() != "" {
-		neiAddrIPv6 = net.ParseIP(ld.NeighborAddrIpv6).To16()
+		neiAddrIPv6, _ = netip.ParseAddr(ld.NeighborAddrIpv6)
 	}
 
 	return &bgp.LsLinkDescriptor{
@@ -959,14 +960,14 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 
 	// For AttributeNode
 	if a.Node != nil {
-		nodeLocalRouterID := (*net.IP)(nil)
+		nodeLocalRouterID := (*netip.Addr)(nil)
 		if a.Node.LocalRouterId != "" {
-			localRouterID := net.ParseIP(a.Node.LocalRouterId).To4()
+			localRouterID, _ := netip.ParseAddr(a.Node.LocalRouterId)
 			nodeLocalRouterID = &localRouterID
 		}
-		nodeLocalRouterIDv6 := (*net.IP)(nil)
+		nodeLocalRouterIDv6 := (*netip.Addr)(nil)
 		if a.Node.LocalRouterIdV6 != "" {
-			localRouterIDv6 := net.ParseIP(a.Node.LocalRouterIdV6).To16()
+			localRouterIDv6, _ := netip.ParseAddr(a.Node.LocalRouterIdV6)
 			nodeLocalRouterIDv6 = &localRouterIDv6
 		}
 
@@ -1028,24 +1029,24 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		if a.Link.Name != "" {
 			linkName = &a.Link.Name
 		}
-		linkLocalRouterID := (*net.IP)(nil)
+		linkLocalRouterID := (*netip.Addr)(nil)
 		if a.Link.LocalRouterId != "" {
-			localRouterID := net.ParseIP(a.Link.LocalRouterId)
+			localRouterID, _ := netip.ParseAddr(a.Link.LocalRouterId)
 			linkLocalRouterID = &localRouterID
 		}
-		linkLocalRouterIDv6 := (*net.IP)(nil)
+		linkLocalRouterIDv6 := (*netip.Addr)(nil)
 		if a.Link.LocalRouterIdV6 != "" {
-			localRouterIDv6 := net.ParseIP(a.Link.LocalRouterIdV6)
+			localRouterIDv6, _ := netip.ParseAddr(a.Link.LocalRouterIdV6)
 			linkLocalRouterIDv6 = &localRouterIDv6
 		}
-		linkRemoteRouterID := (*net.IP)(nil)
+		linkRemoteRouterID := (*netip.Addr)(nil)
 		if a.Link.RemoteRouterId != "" {
-			remoteRouterID := net.ParseIP(a.Link.RemoteRouterId)
+			remoteRouterID, _ := netip.ParseAddr(a.Link.RemoteRouterId)
 			linkRemoteRouterID = &remoteRouterID
 		}
-		linkRemoteRouterIDv6 := (*net.IP)(nil)
+		linkRemoteRouterIDv6 := (*netip.Addr)(nil)
 		if a.Link.RemoteRouterIdV6 != "" {
-			remoteRouterIDv6 := net.ParseIP(a.Link.RemoteRouterIdV6)
+			remoteRouterIDv6, _ := netip.ParseAddr(a.Link.RemoteRouterIdV6)
 			linkRemoteRouterIDv6 = &remoteRouterIDv6
 		}
 		var linkAdminGroup *uint32
@@ -2524,7 +2525,7 @@ func bytesOrDefault(b *[]byte) []byte {
 	return *b
 }
 
-func ipOrDefault(ip *net.IP) string {
+func ipOrDefault(ip *netip.Addr) string {
 	if ip == nil {
 		return ""
 	}
