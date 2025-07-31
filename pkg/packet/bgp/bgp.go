@@ -12062,7 +12062,7 @@ func NewTwoOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uint
 
 type IPv4AddressSpecificExtended struct {
 	SubType      ExtendedCommunityAttrSubType
-	IPv4         net.IP
+	IPv4         netip.Addr
 	LocalAdmin   uint16
 	IsTransitive bool
 }
@@ -12075,7 +12075,7 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC)
 	}
 	buf[1] = byte(e.SubType)
-	copy(buf[2:6], e.IPv4)
+	copy(buf[2:6], e.IPv4.AsSlice())
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
 	return buf[:], nil
 }
@@ -12106,13 +12106,13 @@ func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 }
 
 func NewIPv4AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip string, localAdmin uint16, isTransitive bool) *IPv4AddressSpecificExtended {
-	ipv4 := net.ParseIP(ip)
-	if ipv4.To4() == nil {
+	ipv4, err := netip.ParseAddr(ip)
+	if err != nil || !ipv4.Is4() {
 		return nil
 	}
 	return &IPv4AddressSpecificExtended{
 		SubType:      subtype,
-		IPv4:         ipv4.To4(),
+		IPv4:         ipv4,
 		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
 	}
@@ -12120,7 +12120,7 @@ func NewIPv4AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip str
 
 type IPv6AddressSpecificExtended struct {
 	SubType      ExtendedCommunityAttrSubType
-	IPv6         net.IP
+	IPv6         netip.Addr
 	LocalAdmin   uint16
 	IsTransitive bool
 }
@@ -12133,7 +12133,7 @@ func (e *IPv6AddressSpecificExtended) Serialize() ([]byte, error) {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_IP6_SPECIFIC)
 	}
 	buf[1] = byte(e.SubType)
-	copy(buf[2:18], e.IPv6)
+	copy(buf[2:18], e.IPv6.AsSlice())
 	binary.BigEndian.PutUint16(buf[18:], e.LocalAdmin)
 	return buf, nil
 }
@@ -12164,13 +12164,13 @@ func (e *IPv6AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 }
 
 func NewIPv6AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip string, localAdmin uint16, isTransitive bool) *IPv6AddressSpecificExtended {
-	ipv6 := net.ParseIP(ip)
-	if ipv6.To16() == nil {
+	ipv6, err := netip.ParseAddr(ip)
+	if err != nil || !ipv6.Is6() {
 		return nil
 	}
 	return &IPv6AddressSpecificExtended{
 		SubType:      subtype,
-		IPv6:         ipv6.To16(),
+		IPv6:         ipv6,
 		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
 	}
