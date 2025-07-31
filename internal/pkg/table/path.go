@@ -984,11 +984,11 @@ func (path *Path) RemoveLocalPref() {
 	}
 }
 
-func (path *Path) GetOriginatorID() net.IP {
+func (path *Path) GetOriginatorID() netip.Addr {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID); attr != nil {
 		return attr.(*bgp.PathAttributeOriginatorId).Value
 	}
-	return nil
+	return netip.Addr{}
 }
 
 func (path *Path) GetClusterList() []netip.Addr {

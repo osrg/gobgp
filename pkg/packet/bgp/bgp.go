@@ -11542,7 +11542,7 @@ func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
 
 type PathAttributeOriginatorId struct {
 	PathAttribute
-	Value net.IP
+	Value netip.Addr
 }
 
 func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -11555,7 +11555,8 @@ func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte, options ...*Mar
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "originator id length isn't correct")
 	}
-	p.Value = value
+	// It will never fail because the buffer is guaranteed to be 4 bytes long by PathAttribute.DecodeFromBytes().
+	p.Value, _ = netip.AddrFromSlice(value)
 	return nil
 }
 
@@ -11575,19 +11576,21 @@ func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
 
 func (p *PathAttributeOriginatorId) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	var buf [4]byte
-	copy(buf[:], p.Value)
+	copy(buf[:], p.Value.AsSlice())
 	return p.PathAttribute.Serialize(buf[:], options...)
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
 	t := BGP_ATTR_TYPE_ORIGINATOR_ID
+	// TODO: return error and check Is4()
+	addr, _ := netip.ParseAddr(value)
 	return &PathAttributeOriginatorId{
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 4,
 		},
-		Value: net.ParseIP(value).To4(),
+		Value: addr,
 	}
 }
 
