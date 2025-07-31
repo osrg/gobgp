@@ -98,11 +98,11 @@ func TestTableSetDestinations(t *testing.T) {
 	}
 	// make them comparable
 	slices.SortFunc(destinations, func(a, b *Destination) int {
-		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	ds := ipv4t.GetDestinations()
 	slices.SortFunc(ds, func(a, b *Destination) int {
-		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	assert.Equal(t, ds, destinations)
 }
@@ -119,11 +119,11 @@ func TestTableGetDestinations(t *testing.T) {
 	}
 	// make them comparable
 	slices.SortFunc(destinations, func(a, b *Destination) int {
-		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	ds := ipv4t.GetDestinations()
 	slices.SortFunc(ds, func(a, b *Destination) int {
-		return bgp.AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
+		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	assert.Equal(t, ds, destinations)
 }
