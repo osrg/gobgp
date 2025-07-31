@@ -11593,7 +11593,7 @@ func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
 
 type PathAttributeClusterList struct {
 	PathAttribute
-	Value []net.IP
+	Value []netip.Addr
 }
 
 func (p *PathAttributeClusterList) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -11607,7 +11607,8 @@ func (p *PathAttributeClusterList) DecodeFromBytes(data []byte, options ...*Mars
 		return NewMessageError(eCode, eSubCode, nil, "clusterlist length isn't correct")
 	}
 	for len(value) >= 4 {
-		p.Value = append(p.Value, value[:4])
+		v, _ := netip.AddrFromSlice(value[:4])
+		p.Value = append(p.Value, v)
 		value = value[4:]
 	}
 	return nil
@@ -11616,7 +11617,7 @@ func (p *PathAttributeClusterList) DecodeFromBytes(data []byte, options ...*Mars
 func (p *PathAttributeClusterList) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := make([]byte, len(p.Value)*4)
 	for i, v := range p.Value {
-		copy(buf[i*4:], v)
+		copy(buf[i*4:], v.AsSlice())
 	}
 	return p.PathAttribute.Serialize(buf, options...)
 }
@@ -11641,9 +11642,10 @@ func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
 
 func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 	l := len(value) * 4
-	list := make([]net.IP, len(value))
+	list := make([]netip.Addr, len(value))
 	for i, v := range value {
-		list[i] = net.ParseIP(v).To4()
+		// TODO: return error and check Is4()
+		list[i], _ = netip.ParseAddr(v)
 	}
 	t := BGP_ATTR_TYPE_CLUSTER_LIST
 	return &PathAttributeClusterList{

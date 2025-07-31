@@ -553,7 +553,7 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					peer.fsm.lock.RLock()
 					rrClusterID := peer.fsm.peerInfo.RouteReflectorClusterID
 					peer.fsm.lock.RUnlock()
-					if clusterID.Equal(rrClusterID) {
+					if slices.Equal(clusterID.AsSlice(), rrClusterID.To4()) {
 						peer.fsm.logger.Debug("cluster list path attribute has local cluster id, ignore",
 							log.Fields{
 								"Topic":     "Peer",

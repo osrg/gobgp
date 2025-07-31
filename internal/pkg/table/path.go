@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"slices"
 	"sort"
 	"time"
@@ -990,7 +991,7 @@ func (path *Path) GetOriginatorID() net.IP {
 	return nil
 }
 
-func (path *Path) GetClusterList() []net.IP {
+func (path *Path) GetClusterList() []netip.Addr {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); attr != nil {
 		return attr.(*bgp.PathAttributeClusterList).Value
 	}
