@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"testing"
@@ -2582,7 +2583,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	}
 	eComIpPrefix1 := &bgp.IPv4AddressSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
-		IPv4:         net.ParseIP("10.0.0.1"),
+		IPv4:         netip.MustParseAddr("10.0.0.1"),
 		LocalAdmin:   300,
 		IsTransitive: true,
 	}
@@ -2600,7 +2601,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	}
 	eComIpPrefix2 := &bgp.IPv4AddressSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
-		IPv4:         net.ParseIP("10.0.0.2"),
+		IPv4:         netip.MustParseAddr("10.0.0.2"),
 		LocalAdmin:   300,
 		IsTransitive: false,
 	}
@@ -2618,7 +2619,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	}
 	eComIpPrefix3 := &bgp.IPv4AddressSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_ORIGIN,
-		IPv4:         net.ParseIP("10.0.10.10"),
+		IPv4:         netip.MustParseAddr("10.0.10.10"),
 		LocalAdmin:   400,
 		IsTransitive: true,
 	}
@@ -2768,7 +2769,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	}
 	eComIpPrefix1 := &bgp.IPv4AddressSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
-		IPv4:         net.ParseIP("10.0.0.1"),
+		IPv4:         netip.MustParseAddr("10.0.0.1"),
 		LocalAdmin:   300,
 		IsTransitive: true,
 	}
@@ -2786,7 +2787,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	}
 	eComIpPrefix2 := &bgp.IPv4AddressSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
-		IPv4:         net.ParseIP("10.0.0.2"),
+		IPv4:         netip.MustParseAddr("10.0.0.2"),
 		LocalAdmin:   300,
 		IsTransitive: false,
 	}
@@ -2804,7 +2805,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	}
 	eComIpPrefix3 := &bgp.IPv4AddressSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_ORIGIN,
-		IPv4:         net.ParseIP("10.0.10.10"),
+		IPv4:         netip.MustParseAddr("10.0.10.10"),
 		LocalAdmin:   400,
 		IsTransitive: true,
 	}
