@@ -52,21 +52,21 @@ func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
 	h := fnv1a.Init64
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
-		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
-		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
+		bin, _ := T.Prefix.MarshalBinary()
+		h = fnv1a.AddBytes64(h, bin)
 	case *bgp.IPv6AddrPrefix:
-		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
-		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
+		bin, _ := T.Prefix.MarshalBinary()
+		h = fnv1a.AddBytes64(h, bin)
 	case *bgp.LabeledVPNIPAddrPrefix:
 		serializedRD, _ := T.RD.Serialize()
 		h = fnv1a.AddBytes64(h, serializedRD)
-		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
-		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
+		bin, _ := T.Prefix.MarshalBinary()
+		h = fnv1a.AddBytes64(h, bin)
 	case *bgp.LabeledVPNIPv6AddrPrefix:
 		serializedRD, _ := T.RD.Serialize()
 		h = fnv1a.AddBytes64(h, serializedRD)
-		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
-		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
+		bin, _ := T.Prefix.MarshalBinary()
+		h = fnv1a.AddBytes64(h, bin)
 	default:
 		h = fnv1a.AddString64(h, nlri.String())
 	}
