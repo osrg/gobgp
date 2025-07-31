@@ -1379,40 +1379,6 @@ type AddrPrefixInterface interface {
 	SetPathLocalIdentifier(uint32)
 }
 
-func addrPrefixOnlySerialize(nlri AddrPrefixInterface) []byte {
-	switch T := nlri.(type) {
-	case *IPAddrPrefix:
-		b := make([]byte, 5)
-		copy(b, T.Prefix.Addr().AsSlice())
-		b[4] = uint8(T.Prefix.Bits())
-		return b
-	case *IPv6AddrPrefix:
-		b := make([]byte, 17)
-		copy(b, T.Prefix.Addr().AsSlice())
-		b[16] = uint8(T.Prefix.Bits())
-		return b
-	case *LabeledVPNIPAddrPrefix:
-		b := make([]byte, 13)
-		serializedRD, _ := T.RD.Serialize()
-		copy(b, serializedRD)
-		copy(b[8:12], T.Prefix.Addr().AsSlice())
-		b[12] = uint8(T.Prefix.Bits())
-		return b
-	case *LabeledVPNIPv6AddrPrefix:
-		b := make([]byte, 25)
-		serializedRD, _ := T.RD.Serialize()
-		copy(b, serializedRD)
-		copy(b[8:24], T.Prefix.Addr().AsSlice())
-		b[24] = uint8(T.Prefix.Bits())
-		return b
-	}
-	return []byte(nlri.String())
-}
-
-func AddrPrefixOnlyCompare(a, b AddrPrefixInterface) int {
-	return bytes.Compare(addrPrefixOnlySerialize(a), addrPrefixOnlySerialize(b))
-}
-
 func LabelString(nlri AddrPrefixInterface) string {
 	label := ""
 	switch n := nlri.(type) {
