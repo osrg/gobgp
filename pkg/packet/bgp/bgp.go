@@ -1457,57 +1457,6 @@ func (p *PrefixDefault) serializeIdentifier() ([]byte, error) {
 	return buf, nil
 }
 
-type IPAddrPrefixDefault struct {
-	PrefixDefault
-	Length uint8
-	Prefix net.IP
-}
-
-func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen uint8) error {
-	bytelen := (int(bitlen) + 7) / 8
-	if len(data) < bytelen {
-		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
-		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		return NewMessageError(eCode, eSubCode, nil, "network bytes is short")
-	}
-	if bitlen > addrlen*8 {
-		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
-		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		return NewMessageError(eCode, eSubCode, nil, "network bit length is too long")
-	}
-	b := make([]byte, addrlen)
-	copy(b, data[:bytelen])
-	// clear trailing bits in the last byte. rfc doesn't require
-	// this but some bgp implementations need this...
-	rem := bitlen % 8
-	if rem != 0 {
-		mask := 0xff00 >> rem
-		lastByte := b[bytelen-1] & byte(mask)
-		b[bytelen-1] = lastByte
-	}
-	r.Prefix = b
-	return nil
-}
-
-func (r *IPAddrPrefixDefault) serializePrefix(bitLen uint8) ([]byte, error) {
-	byteLen := (int(bitLen) + 7) / 8
-	buf := make([]byte, byteLen)
-	copy(buf, r.Prefix)
-	return buf, nil
-}
-
-func (r *IPAddrPrefixDefault) String() string {
-	return r.Prefix.String() + "/" + strconv.FormatUint(uint64(r.Length), 10)
-}
-
-func (r *IPAddrPrefixDefault) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Prefix string `json:"prefix"`
-	}{
-		Prefix: r.String(),
-	})
-}
-
 // Once we convert all the users of IPAddrPrefixDefault to use IPAddrPrefixDefaultNetip,
 // this will be renamed.
 type IPAddrPrefixDefaultNetip struct {
@@ -1641,10 +1590,6 @@ func NewIPAddrPrefix(bits uint8, prefix string) *IPAddrPrefix {
 	// TODO: pass the error to the caller
 	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits)
 	return p
-}
-
-func isIPv4MappedIPv6(ip net.IP) bool {
-	return len(ip) == net.IPv6len && ip.To4() != nil
 }
 
 type IPv6AddrPrefix struct {
@@ -15818,17 +15763,6 @@ func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
 		"NLRI":      l.String(),
 		"Label":     l.Labels.String(),
 	}
-}
-
-func (p *IPAddrPrefixDefault) Flat() map[string]string {
-	l := strings.Split(p.String(), "/")
-	if len(l) == 2 {
-		return map[string]string{
-			"Prefix":    l[0],
-			"PrefixLen": l[1],
-		}
-	}
-	return map[string]string{}
 }
 
 func (l *EVPNNLRI) Flat() map[string]string {
