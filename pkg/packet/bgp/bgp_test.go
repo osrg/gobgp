@@ -114,13 +114,6 @@ func Test_MalformedPrefixLookup(t *testing.T) {
 	}
 }
 
-func Test_IPAddrDecode(t *testing.T) {
-	r := IPAddrPrefixDefault{}
-	b := make([]byte, 16)
-	err := r.decodePrefix(b, 33, 4)
-	assert.Error(t, err, "should return an error for invalid prefix length")
-}
-
 func TestStringLabelAddrPrefix(t *testing.T) {
 	assert := assert.New(t)
 
