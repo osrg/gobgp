@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -487,14 +488,14 @@ func exitWithError(err error) {
 	os.Exit(1)
 }
 
-func getNextHopFromPathAttributes(attrs []bgp.PathAttributeInterface) net.IP {
+func getNextHopFromPathAttributes(attrs []bgp.PathAttributeInterface) netip.Addr {
 	for _, attr := range attrs {
 		switch a := attr.(type) {
 		case *bgp.PathAttributeNextHop:
-			return a.Value.AsSlice()
+			return a.Value
 		case *bgp.PathAttributeMpReachNLRI:
 			return a.Nexthop
 		}
 	}
-	return nil
+	return netip.Addr{}
 }

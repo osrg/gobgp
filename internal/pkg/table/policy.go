@@ -1394,7 +1394,7 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 		return true
 	}
 
-	nexthop := path.GetNexthop()
+	nexthop := path.GetNexthop().AsSlice()
 
 	// In cases where we advertise routes from iBGP to eBGP, we want to filter
 	// on the "original" nexthop. The current paths' nexthop has already been

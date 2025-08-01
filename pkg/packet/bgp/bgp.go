@@ -11607,8 +11607,8 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 
 type PathAttributeMpReachNLRI struct {
 	PathAttribute
-	Nexthop          net.IP
-	LinkLocalNexthop net.IP
+	Nexthop          netip.Addr
+	LinkLocalNexthop netip.Addr
 	AFI              uint16
 	SAFI             uint8
 	Value            []AddrPrefixInterface
@@ -11660,12 +11660,12 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	switch nexthoplen {
 	case 0: // no nexthop, skip (FlowSpec)
 	case BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL: // 16 bytes IPv6 Global + 16 bytes IPv6 Link Local
-		p.LinkLocalNexthop = nexthopbin[BGP_ATTR_NHLEN_IPV6_GLOBAL:BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL]
+		p.LinkLocalNexthop, _ = netip.AddrFromSlice(nexthopbin[BGP_ATTR_NHLEN_IPV6_GLOBAL:BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL])
 		fallthrough
 	case BGP_ATTR_NHLEN_IPV6_GLOBAL: // 16 bytes IPv6 Global
-		p.Nexthop = nexthopbin[:BGP_ATTR_NHLEN_IPV6_GLOBAL]
+		p.Nexthop, _ = netip.AddrFromSlice(nexthopbin[:BGP_ATTR_NHLEN_IPV6_GLOBAL])
 	case BGP_ATTR_NHLEN_IPV4: // 4 bytes IPv4
-		p.Nexthop = nexthopbin[:BGP_ATTR_NHLEN_IPV4]
+		p.Nexthop, _ = netip.AddrFromSlice(nexthopbin[:BGP_ATTR_NHLEN_IPV4])
 	default:
 		return NewMessageError(eCode, eSubCode, eData, "mpreach nexthop length is incorrect")
 	}
@@ -11708,16 +11708,19 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 	nexthopAddrs := make([]net.IP, 0, 2)
 	nexthoplen := 0
 
-	isNexthopIPv6 := afi == AFI_IP6 || p.Nexthop != nil && p.Nexthop.To4() == nil
+	isNexthopIPv6 := afi == AFI_IP6 || p.Nexthop.IsValid() && p.Nexthop.Is6()
 	if isNexthopIPv6 {
-		nexthopAddrs = append(nexthopAddrs, p.Nexthop.To16())
+		// if nexthop is v4, it needs to be serialized as IPv4-mapped IPv6 address.
+		n := p.Nexthop.As16()
+		nexthopAddrs = append(nexthopAddrs, n[:])
 		nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL
-		if p.LinkLocalNexthop != nil && p.LinkLocalNexthop.IsLinkLocalUnicast() {
-			nexthopAddrs = append(nexthopAddrs, p.LinkLocalNexthop.To16())
+		if p.LinkLocalNexthop.IsValid() && p.LinkLocalNexthop.IsLinkLocalUnicast() {
+			nexthopAddrs = append(nexthopAddrs, p.LinkLocalNexthop.AsSlice())
 			nexthoplen = BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL
 		}
-	} else {
-		nexthopAddrs = append(nexthopAddrs, p.Nexthop)
+	} else if p.Nexthop.IsValid() {
+		n := p.Nexthop.As4()
+		nexthopAddrs = append(nexthopAddrs, n[:])
 		nexthoplen = BGP_ATTR_NHLEN_IPV4
 	}
 
@@ -11767,7 +11770,7 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 
 func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 	nexthop := p.Nexthop.String()
-	if p.Nexthop == nil {
+	if !p.Nexthop.IsValid() {
 		switch p.AFI {
 		case AFI_IP:
 			nexthop = "0.0.0.0"
@@ -11805,10 +11808,10 @@ func NewPathAttributeMpReachNLRI(nexthop string, nlris ...AddrPrefixInterface) *
 	l := 5
 	afi := nlris[0].AFI()
 	safi := nlris[0].SAFI()
-	nh := net.ParseIP(nexthop)
+	// TODO: return error
+	nh, _ := netip.ParseAddr(nexthop)
 	nhlen := BGP_ATTR_NHLEN_IPV6_GLOBAL
-	if nh.To4() != nil && afi != AFI_IP6 {
-		nh = nh.To4()
+	if nh.Is4() && afi != AFI_IP6 {
 		nhlen = BGP_ATTR_NHLEN_IPV4
 	}
 

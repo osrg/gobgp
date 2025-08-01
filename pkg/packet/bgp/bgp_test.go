@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"math"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -952,14 +953,14 @@ func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
 	assert.Equal(uint16(0x1e), p.Length)
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
-	assert.Equal(net.ParseIP("::ffff:172.20.0.1"), p.Nexthop)
-	assert.Equal(net.ParseIP(""), p.LinkLocalNexthop)
+	assert.Equal(netip.MustParseAddr("::ffff:172.20.0.1"), p.Nexthop)
+	assert.False(p.LinkLocalNexthop.IsValid())
 	value := []AddrPrefixInterface{
 		NewIPv6AddrPrefix(64, "2001:db8:1:1::"),
 	}
 	assert.Equal(value, p.Value)
 	// Set NextHop as IPv4 address (because IPv4 peering)
-	p.Nexthop = net.ParseIP("172.20.0.1")
+	p.Nexthop = netip.MustParseAddr("172.20.0.1")
 	// Test Serialize()
 	bufout, err := p.Serialize()
 	assert.NoError(err)
@@ -991,7 +992,7 @@ func Test_MpReachNLRIWithIPv6(t *testing.T) {
 	assert.Equal(uint16(0x1e), p.Length)
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
-	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	value := []AddrPrefixInterface{
 		NewIPv6AddrPrefix(64, "2001:db8:53::"),
 	}
@@ -1050,8 +1051,8 @@ func Test_MpReachNLRIWithIPv6PrefixWithLinkLocalNexthop(t *testing.T) {
 	assert.Equal(uint16(0x2c), p.Length)
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
-	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
-	assert.Equal(net.ParseIP("fe80::1"), p.LinkLocalNexthop)
+	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
+	assert.Equal(netip.MustParseAddr("fe80::1"), p.LinkLocalNexthop)
 	value := []AddrPrefixInterface{
 		NewIPv6AddrPrefix(48, "2010:ab8:1::"),
 	}
@@ -1087,8 +1088,8 @@ func Test_MpReachNLRIWithVPNv4Prefix(t *testing.T) {
 	assert.Equal(uint16(0x20), p.Length)
 	assert.Equal(uint16(AFI_IP), p.AFI)
 	assert.Equal(uint8(SAFI_MPLS_VPN), p.SAFI)
-	assert.Equal(net.ParseIP("172.20.0.1").To4(), p.Nexthop)
-	assert.Equal(net.ParseIP(""), p.LinkLocalNexthop)
+	assert.Equal(netip.MustParseAddr("172.20.0.1"), p.Nexthop)
+	assert.False(p.LinkLocalNexthop.IsValid())
 	value := []AddrPrefixInterface{
 		NewLabeledVPNIPAddrPrefix(24, "10.1.1.0", *NewMPLSLabelStack(16),
 			NewRouteDistinguisherTwoOctetAS(65000, 100)),
@@ -1131,8 +1132,8 @@ func Test_MpReachNLRIWithVPNv6Prefix(t *testing.T) {
 	assert.Equal(uint16(0x39), p.Length)
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_MPLS_VPN), p.SAFI)
-	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
-	assert.Equal(net.ParseIP(""), p.LinkLocalNexthop)
+	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
+	assert.False(p.LinkLocalNexthop.IsValid())
 	value := []AddrPrefixInterface{
 		NewLabeledVPNIPv6AddrPrefix(124, "2001:1::", *NewMPLSLabelStack(16),
 			NewRouteDistinguisherTwoOctetAS(65000, 100)),
@@ -1167,7 +1168,7 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	assert.Equal(uint16(0x19), p.Length)
 	assert.Equal(uint16(AFI_IP), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
-	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	value := []AddrPrefixInterface{
 		NewIPAddrPrefix(24, "192.168.10.0"),
 	}
@@ -1198,7 +1199,7 @@ func Test_MpReachNLRIWithImplicitPrefix(t *testing.T) {
 	assert.Equal(BGPAttrFlag(0x80), p.Flags)
 	assert.Equal(BGPAttrType(0xe), p.Type)
 	assert.Equal(uint16(0x11), p.Length)
-	assert.Equal(net.ParseIP("2001:db8:1::1"), p.Nexthop)
+	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	// AFI/SAFI/NLRI are derived from the Rib header
 	// which we don't have here.
 	// assert.Equal(prefix.AFI(), p.AFI)

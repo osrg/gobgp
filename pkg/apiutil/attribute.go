@@ -81,12 +81,12 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 			return nil, err
 		}
 		nexthop := "0.0.0.0"
-		var linkLocalNexthop net.IP
+		var linkLocalNexthop netip.Addr
 		if rf.Afi() == bgp.AFI_IP6 {
 			nexthop = "::"
 			if len(a.MpReach.NextHops) > 1 {
-				linkLocalNexthop = net.ParseIP(a.MpReach.NextHops[1]).To16()
-				if linkLocalNexthop == nil {
+				linkLocalNexthop, err = netip.ParseAddr(a.MpReach.NextHops[1])
+				if err != nil || !linkLocalNexthop.Is6() {
 					return nil, fmt.Errorf("invalid nexthop: %s", a.MpReach.NextHops[1])
 				}
 			}
@@ -1930,8 +1930,9 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) (*api.Mp
 	if a.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || a.SAFI == bgp.SAFI_FLOW_SPEC_VPN {
 		nexthops = nil
 	} else {
-		nexthops = []string{a.Nexthop.String()}
-		if a.LinkLocalNexthop != nil && a.LinkLocalNexthop.IsLinkLocalUnicast() {
+		// For backward compatibility with older versions; ipv4-mapped IPv6 addresses printed as IPv4 addresses.
+		nexthops = []string{a.Nexthop.Unmap().String()}
+		if a.LinkLocalNexthop.IsValid() && a.LinkLocalNexthop.IsLinkLocalUnicast() {
 			nexthops = append(nexthops, a.LinkLocalNexthop.String())
 		}
 	}

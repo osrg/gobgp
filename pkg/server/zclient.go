@@ -173,7 +173,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 		}
 	}
 	for _, p := range paths {
-		nexthop.Gate = p.GetNexthop()
+		nexthop.Gate = p.GetNexthop().AsSlice()
 		nexthop.VrfID = nhVrfID
 		if nhVrfID != vrfID {
 			addLabelToNexthop(path, z, &msgFlags, &nexthop)
@@ -221,12 +221,12 @@ func newNexthopRegisterBody(paths []*table.Path, nexthopCache nexthopStateCache)
 		case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
 			nh = &zebra.RegisteredNexthop{
 				Family: syscall.AF_INET,
-				Prefix: nexthop.To4(),
+				Prefix: nexthop.AsSlice(),
 			}
 		case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
 			nh = &zebra.RegisteredNexthop{
 				Family: syscall.AF_INET6,
-				Prefix: nexthop.To16(),
+				Prefix: nexthop.AsSlice(),
 			}
 		default:
 			continue

@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/dgryski/go-farm"
@@ -355,7 +356,7 @@ func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Fami
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
 			for _, path := range t.GetKnownPathList(id, 0) {
-				if path.GetNexthop().Equal(nexthop) {
+				if slices.Equal(path.GetNexthop().AsSlice(), nexthop) {
 					paths = append(paths, path)
 				}
 			}
