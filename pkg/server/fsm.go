@@ -384,7 +384,6 @@ func (fsm *fsm) sendNotification(code, subType uint8, data []byte, msg string) (
 type fsmHandler struct {
 	fsm              *fsm
 	conn             net.Conn
-	msgCh            *channels.InfiniteChannel
 	stateReasonCh    chan fsmStateReason
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
@@ -1205,14 +1204,11 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsmHandler) recvMessage(ctx context.Context, wg *sync.WaitGroup) error {
-	defer func() {
-		h.msgCh.Close()
-		wg.Done()
-	}()
+func (h *fsmHandler) recvMessage(ctx context.Context, recvChan chan<- *fsmMsg, wg *sync.WaitGroup) error {
+	defer wg.Done()
 	fmsg, _ := h.recvMessageWithError()
 	if fmsg != nil {
-		h.msgCh.In() <- fmsg
+		recvChan <- fmsg
 	}
 	return nil
 }
@@ -1285,16 +1281,19 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.msgCh = channels.NewInfiniteChannel()
-
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 	fsm.lock.RUnlock()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	defer wg.Wait()
-	go h.recvMessage(ctx, &wg)
+	recvChan := make(chan *fsmMsg, 1)
+	go h.recvMessage(ctx, recvChan, &wg)
+
+	defer func() {
+		wg.Wait()
+		close(recvChan)
+	}()
 
 	// RFC 4271 P.60
 	// sets its HoldTimer to a large value
@@ -1338,11 +1337,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
-		case i, ok := <-h.msgCh.Out():
-			if !ok {
-				continue
-			}
-			e := i.(*fsmMsg)
+		case e := <-recvChan:
 			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
@@ -1557,14 +1552,19 @@ func keepaliveTicker(fsm *fsm) *time.Ticker {
 func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
-	h.msgCh = channels.NewInfiniteChannel()
 	fsm.lock.RLock()
 	h.conn = fsm.conn
 
 	var wg sync.WaitGroup
-	defer wg.Wait()
 	wg.Add(1)
-	go h.recvMessage(ctx, &wg)
+
+	recvChan := make(chan *fsmMsg, 1)
+	go h.recvMessage(ctx, recvChan, &wg)
+
+	defer func() {
+		wg.Wait()
+		close(recvChan)
+	}()
 
 	var holdTimer *time.Timer
 	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
@@ -1616,11 +1616,7 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-		case i, ok := <-h.msgCh.Out():
-			if !ok {
-				continue
-			}
-			e := i.(*fsmMsg)
+		case e := <-recvChan:
 			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
