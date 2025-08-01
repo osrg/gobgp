@@ -579,7 +579,7 @@ func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttrib
 			s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
 		case *bgp.EVPNIPPrefixRoute:
 			s = append(s, fmt.Sprintf("[ESI: %s]", route.ESI.String()))
-			if route.GWIPAddress != nil {
+			if route.GWIPAddress.IsValid() {
 				s = append(s, fmt.Sprintf("[GW: %s]", route.GWIPAddress.String()))
 			}
 		}

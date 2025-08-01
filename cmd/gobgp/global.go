@@ -697,13 +697,13 @@ func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		return nil, nil, fmt.Errorf("invalid mac address: %s", macStr)
 	}
 
-	ip := net.ParseIP(ipStr)
+	ip, err := netip.ParseAddr(ipStr)
 	ipLen := 0
-	if ip == nil {
+	if err != nil {
 		return nil, nil, fmt.Errorf("invalid ip address: %s", ipStr)
 	} else if ip.IsUnspecified() {
-		ip = nil
-	} else if ip.To4() != nil {
+		ip = netip.Addr{}
+	} else if ip.Is4() {
 		ipLen = net.IPv4len * 8
 	} else {
 		ipLen = net.IPv6len * 8
@@ -802,16 +802,14 @@ func parseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 		return nil, nil, fmt.Errorf("specify rd")
 	}
 
-	ip := net.ParseIP(ipStr)
+	ip, err := netip.ParseAddr(ipStr)
 	ipLen := 0
-	if ip == nil {
+	if err != nil {
 		return nil, nil, fmt.Errorf("invalid ip address: %s", ipStr)
 	} else if ip.IsUnspecified() {
-		ip = nil
-	} else if ip.To4() != nil {
-		ipLen = net.IPv4len * 8
+		ip = netip.Addr{}
 	} else {
-		ipLen = net.IPv6len * 8
+		ipLen = ip.BitLen()
 	}
 
 	eTag, err := strconv.ParseUint(eTagStr, 10, 32)
@@ -867,16 +865,14 @@ func parseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 		}
 	}
 
-	ip := net.ParseIP(m[""][0])
+	ip, err := netip.ParseAddr(m[""][0])
 	ipLen := 0
-	if ip == nil {
+	if err != nil {
 		return nil, nil, fmt.Errorf("invalid ip address: %s", m[""][0])
 	} else if ip.IsUnspecified() {
-		ip = nil
-	} else if ip.To4() != nil {
-		ipLen = net.IPv4len * 8
+		ip = netip.Addr{}
 	} else {
-		ipLen = net.IPv6len * 8
+		ipLen = ip.BitLen()
 	}
 
 	esi, err := bgp.ParseEthernetSegmentIdentifier(m["esi"])
@@ -936,15 +932,15 @@ func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		}
 	}
 
-	_, nw, err := net.ParseCIDR(m[""][0])
+	prefix, err := netip.ParsePrefix(m[""][0])
 	if err != nil {
 		return nil, nil, err
 	}
-	ones, _ := nw.Mask.Size()
+	ones := prefix.Bits()
 
-	var gw net.IP
+	var gw netip.Addr
 	if len(m["gw"]) > 0 {
-		gw = net.ParseIP(m["gw"][0])
+		gw, _ = netip.ParseAddr(m["gw"][0])
 	}
 
 	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
@@ -989,7 +985,7 @@ func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 		ESI:            esi,
 		ETag:           etag,
 		IPPrefixLength: uint8(ones),
-		IPPrefix:       nw.IP,
+		IPPrefix:       prefix.Addr(),
 		GWIPAddress:    gw,
 		Label:          label,
 	}
