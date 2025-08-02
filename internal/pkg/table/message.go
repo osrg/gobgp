@@ -370,7 +370,7 @@ func (p *packerV4) add(path *Path) {
 		return
 	}
 
-	if path.GetNexthop().To4() == nil {
+	if !path.GetNexthop().Is4() {
 		// RFC 5549
 		p.mpPaths = append(p.mpPaths, path)
 		return

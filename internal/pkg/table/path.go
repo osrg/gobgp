@@ -441,16 +441,16 @@ func (path *Path) GetSourceAs() uint32 {
 	return 0
 }
 
-func (path *Path) GetNexthop() net.IP {
+func (path *Path) GetNexthop() netip.Addr {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
-		return net.IP(attr.(*bgp.PathAttributeNextHop).Value.AsSlice())
+		return attr.(*bgp.PathAttributeNextHop).Value
 	}
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
 		return attr.(*bgp.PathAttributeMpReachNLRI).Nexthop
 	}
-	return net.IP{}
+	return netip.Addr{}
 }
 
 func (path *Path) SetNexthop(nexthop net.IP) {

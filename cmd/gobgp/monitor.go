@@ -50,7 +50,7 @@ func makeMonitorRouteArgs(p *api.Path, showIdentifier bgp.BGPAddPathMode) []any 
 	attrs, _ := apiutil.GetNativePathAttributes(p)
 	// Next Hop
 	nexthop := "fictitious"
-	if n := getNextHopFromPathAttributes(attrs); n != nil {
+	if n := getNextHopFromPathAttributes(attrs); n.IsValid() {
 		nexthop = n.String()
 	}
 	pathStr = append(pathStr, nexthop)

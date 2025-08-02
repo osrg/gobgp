@@ -702,7 +702,7 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		// nexthop-unchanged is configured.
 		options.OldNextHop = peer.fsm.peerInfo.LocalAddress
 	} else {
-		options.OldNextHop = path.GetNexthop()
+		options.OldNextHop = path.GetNexthop().AsSlice()
 	}
 	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
 	peer.fsm.lock.RUnlock()
@@ -2326,7 +2326,7 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 				return nil, fmt.Errorf("mp reach nlri value is empty")
 			}
 			isMPFlowSpec = mp.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || mp.SAFI == bgp.SAFI_FLOW_SPEC_VPN
-			nexthop = mp.Nexthop
+			nexthop = mp.Nexthop.AsSlice()
 		default:
 			pattrs = append(pattrs, a)
 		}
