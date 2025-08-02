@@ -167,7 +167,7 @@ func injectMrt() error {
 						}
 					}
 
-					path, _ := apiutil.NewPath(nlri, false, attrs, time.Unix(int64(e.OriginatedTime), 0))
+					path, _ := apiutil.NewPath(rib.Family, nlri, false, attrs, time.Unix(int64(e.OriginatedTime), 0))
 					path.SourceAsn = peers[e.PeerIndex].AS
 					path.SourceId = peers[e.PeerIndex].BgpId.String()
 
