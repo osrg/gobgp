@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"math"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -713,8 +714,8 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 		},
 		ETag:           10,
 		IPPrefixLength: 24,
-		IPPrefix:       net.IP{10, 10, 10, 0},
-		GWIPAddress:    net.IP{10, 10, 10, 10},
+		IPPrefix:       netip.AddrFrom4([4]byte{10, 10, 10, 0}),
+		GWIPAddress:    netip.AddrFrom4([4]byte{10, 10, 10, 10}),
 		Label:          1000,
 	}
 	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, r)

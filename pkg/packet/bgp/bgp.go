@@ -2858,7 +2858,7 @@ type EVPNMacIPAdvertisementRoute struct {
 	MacAddressLength uint8
 	MacAddress       net.HardwareAddr
 	IPAddressLength  uint8
-	IPAddress        net.IP
+	IPAddress        netip.Addr
 	Labels           []uint32
 }
 
@@ -2893,7 +2893,8 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 		if len(data) < int(er.IPAddressLength/8) {
 			return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
 		}
-		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
+		// The length was validated above
+		er.IPAddress, _ = netip.AddrFromSlice(data[:er.IPAddressLength/8])
 	} else if er.IPAddressLength != 0 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
@@ -2949,9 +2950,11 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	case 0:
 		// IP address omitted
 	case 32:
-		buf = append(buf, []byte(er.IPAddress.To4())...)
+		addr := er.IPAddress.As4()
+		buf = append(buf, addr[:]...)
 	case 128:
-		buf = append(buf, []byte(er.IPAddress.To16())...)
+		addr := er.IPAddress.As16()
+		buf = append(buf, addr[:]...)
 	default:
 		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
@@ -3003,13 +3006,13 @@ func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
 func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, macAddress string, ipAddress string, labels []uint32) *EVPNNLRI {
 	mac, _ := net.ParseMAC(macAddress)
 	var ipLen uint8
-	ip := net.ParseIP(ipAddress)
-	if ip != nil {
-		if ipv4 := ip.To4(); ipv4 != nil {
-			ipLen = 32
-			ip = ipv4
+	// TODO: return error
+	ip, err := netip.ParseAddr(ipAddress)
+	if err == nil {
+		if ip.Is4() {
+			ipLen = net.IPv4len * 8
 		} else {
-			ipLen = 128
+			ipLen = net.IPv6len * 8
 		}
 	}
 	return NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, &EVPNMacIPAdvertisementRoute{
@@ -3028,7 +3031,7 @@ type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
 	IPAddressLength uint8
-	IPAddress       net.IP
+	IPAddress       netip.Addr
 }
 
 func (er *EVPNMulticastEthernetTagRoute) Len() int {
@@ -3053,7 +3056,7 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 		if len(data) < int(er.IPAddressLength/8) {
 			return malformedAttrListErr("invalid length of multicast ethernet tag route")
 		}
-		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
+		er.IPAddress, _ = netip.AddrFromSlice(data[:er.IPAddressLength/8])
 	} else {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
@@ -3077,9 +3080,11 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	buf = append(buf, er.IPAddressLength)
 	switch er.IPAddressLength {
 	case 32:
-		buf = append(buf, []byte(er.IPAddress.To4())...)
+		addr := er.IPAddress.As4()
+		buf = append(buf, addr[:]...)
 	case 128:
-		buf = append(buf, []byte(er.IPAddress.To16())...)
+		addr := er.IPAddress.As16()
+		buf = append(buf, addr[:]...)
 	default:
 		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
@@ -3113,12 +3118,11 @@ func (er *EVPNMulticastEthernetTagRoute) rd() RouteDistinguisherInterface {
 }
 
 func NewEVPNMulticastEthernetTagRoute(rd RouteDistinguisherInterface, etag uint32, ipAddress string) *EVPNNLRI {
-	ipLen := uint8(32)
-	ip := net.ParseIP(ipAddress)
-	if ipv4 := ip.To4(); ipv4 != nil {
-		ip = ipv4
-	} else {
-		ipLen = 128
+	ipLen := uint8(net.IPv4len * 8)
+	// TODO: return error
+	ip, _ := netip.ParseAddr(ipAddress)
+	if ip.Is6() {
+		ipLen = uint8(net.IPv6len * 8)
 	}
 	return NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, &EVPNMulticastEthernetTagRoute{
 		RD:              rd,
@@ -3132,7 +3136,7 @@ type EVPNEthernetSegmentRoute struct {
 	RD              RouteDistinguisherInterface
 	ESI             EthernetSegmentIdentifier
 	IPAddressLength uint8
-	IPAddress       net.IP
+	IPAddress       netip.Addr
 }
 
 func (er *EVPNEthernetSegmentRoute) Len() int {
@@ -3160,7 +3164,7 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 		if len(data) < int(er.IPAddressLength/8) {
 			return malformedAttrListErr("invalid Ethernet Segment Route length")
 		}
-		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
+		er.IPAddress, _ = netip.AddrFromSlice(data[:er.IPAddressLength/8])
 	} else {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
@@ -3186,9 +3190,11 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	buf = append(buf, er.IPAddressLength)
 	switch er.IPAddressLength {
 	case 32:
-		buf = append(buf, []byte(er.IPAddress.To4())...)
+		addr := er.IPAddress.As4()
+		buf = append(buf, addr[:]...)
 	case 128:
-		buf = append(buf, []byte(er.IPAddress.To16())...)
+		addr := er.IPAddress.As16()
+		buf = append(buf, addr[:]...)
 	default:
 		return nil, fmt.Errorf("invalid IP address length: %d", er.IPAddressLength)
 	}
@@ -3222,10 +3228,9 @@ func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
 
 func NewEVPNEthernetSegmentRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, ipAddress string) *EVPNNLRI {
 	ipLen := uint8(32)
-	ip := net.ParseIP(ipAddress)
-	if ipv4 := ip.To4(); ipv4 != nil {
-		ip = ipv4
-	} else {
+	// TODO: return error
+	ip, _ := netip.ParseAddr(ipAddress)
+	if ip.Is6() {
 		ipLen = 128
 	}
 	return NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE, &EVPNEthernetSegmentRoute{
@@ -3241,13 +3246,13 @@ type EVPNIPPrefixRoute struct {
 	ESI            EthernetSegmentIdentifier
 	ETag           uint32
 	IPPrefixLength uint8
-	IPPrefix       net.IP
-	GWIPAddress    net.IP
+	IPPrefix       netip.Addr
+	GWIPAddress    netip.Addr
 	Label          uint32
 }
 
 func (er *EVPNIPPrefixRoute) Len() int {
-	if er.IPPrefix.To4() != nil {
+	if er.IPPrefix.Is4() {
 		return 34
 	}
 	return 58
@@ -3277,10 +3282,10 @@ func (er *EVPNIPPrefixRoute) DecodeFromBytes(data []byte) error {
 	er.IPPrefixLength = data[22]
 
 	offset := 23 // RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1)
-	er.IPPrefix = data[offset : offset+addrLen]
+	er.IPPrefix, _ = netip.AddrFromSlice(data[offset : offset+addrLen])
 	offset += addrLen
 
-	er.GWIPAddress = data[offset : offset+addrLen]
+	er.GWIPAddress, _ = netip.AddrFromSlice(data[offset : offset+addrLen])
 	offset += addrLen
 
 	if er.Label, err = labelDecode(data[offset : offset+3]); err != nil {
@@ -3312,22 +3317,22 @@ func (er *EVPNIPPrefixRoute) Serialize() ([]byte, error) {
 
 	buf[22] = er.IPPrefixLength
 
-	if er.IPPrefix == nil {
+	if !er.IPPrefix.IsValid() {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "IP Prefix is nil")
-	} else if er.IPPrefix.To4() != nil {
-		buf = append(buf, er.IPPrefix.To4()...)
-		if er.GWIPAddress == nil {
+	} else if er.IPPrefix.Is4() {
+		buf = append(buf, er.IPPrefix.AsSlice()...)
+		if !er.GWIPAddress.IsValid() {
 			// draft-ietf-bess-evpn-prefix-advertisement: IP Prefix Advertisement in EVPN
 			// The GW IP field SHOULD be zero if it is not used as an Overlay Index.
-			er.GWIPAddress = net.IPv4zero
+			er.GWIPAddress, _ = netip.AddrFromSlice(net.IPv4zero.To4())
 		}
-		buf = append(buf, er.GWIPAddress.To4()...)
+		buf = append(buf, er.GWIPAddress.AsSlice()...)
 	} else {
-		buf = append(buf, er.IPPrefix.To16()...)
-		if er.GWIPAddress == nil {
-			er.GWIPAddress = net.IPv6zero
+		buf = append(buf, er.IPPrefix.AsSlice()...)
+		if !er.GWIPAddress.IsValid() {
+			er.GWIPAddress, _ = netip.AddrFromSlice(net.IPv6zero)
 		}
-		buf = append(buf, er.GWIPAddress.To16()...)
+		buf = append(buf, er.GWIPAddress.AsSlice()...)
 	}
 
 	tbuf, err = labelSerialize(er.Label)
@@ -3371,12 +3376,8 @@ func (er *EVPNIPPrefixRoute) rd() RouteDistinguisherInterface {
 }
 
 func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, ipPrefixLength uint8, ipPrefix string, gateway string, label uint32) *EVPNNLRI {
-	ip := net.ParseIP(ipPrefix)
-	gw := net.ParseIP(gateway)
-	if ipv4 := ip.To4(); ipv4 != nil {
-		ip = ipv4
-		gw = gw.To4()
-	}
+	ip, _ := netip.ParseAddr(ipPrefix)
+	gw, _ := netip.ParseAddr(gateway)
 	return NewEVPNNLRI(EVPN_IP_PREFIX, &EVPNIPPrefixRoute{
 		RD:             rd,
 		ESI:            esi,
