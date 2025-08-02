@@ -187,7 +187,7 @@ func TestMrtRib(t *testing.T) {
 	e2 := NewRibEntry(2, uint32(time.Now().Unix()), 0, p, false)
 	e3 := NewRibEntry(3, uint32(time.Now().Unix()), 0, p, false)
 
-	r1 := NewRib(1, bgp.NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
+	r1 := NewRib(1, bgp.RF_IPv4_UC, bgp.NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
 	b1, err := r1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -221,7 +221,7 @@ func TestMrtRibWithAddPath(t *testing.T) {
 	e2 := NewRibEntry(2, uint32(time.Now().Unix()), 200, p, true)
 	e3 := NewRibEntry(3, uint32(time.Now().Unix()), 300, p, true)
 
-	r1 := NewRib(1, bgp.NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
+	r1 := NewRib(1, bgp.RF_IPv4_UC, bgp.NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
 	b1, err := r1.Serialize()
 	if err != nil {
 		t.Fatal(err)
