@@ -92,17 +92,17 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 	eSubCodeUnknown := uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE)
 	eSubCodeMalformedAspath := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
 
-	checkPrefix := func(l []AddrPrefixInterface) error {
+	checkPrefix := func(family Family, l []AddrPrefixInterface) error {
+		if _, ok := rfs[family]; !ok {
+			return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not available for this session", family))
+		}
+
 		for _, prefix := range l {
-			rf := NewFamily(prefix.AFI(), prefix.SAFI())
-			if _, ok := rfs[rf]; !ok {
-				return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not available for this session", rf))
-			}
-			switch rf {
+			switch family {
 			case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
 				t := BGPFlowSpecType(0)
 				value := make([]FlowSpecComponentInterface, 0)
-				switch rf {
+				switch family {
 				case RF_FS_IPv4_UC:
 					value = prefix.(*FlowSpecIPv4Unicast).Value
 				case RF_FS_IPv6_UC:
@@ -116,7 +116,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 				}
 				for _, v := range value {
 					if v.Type() <= t {
-						return NewMessageError(0, 0, nil, fmt.Sprintf("%s nlri violate strict type ordering", rf))
+						return NewMessageError(0, 0, nil, fmt.Sprintf("%s nlri violate strict type ordering", family))
 					}
 					t = v.Type()
 				}
@@ -127,19 +127,11 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 
 	switch p := a.(type) {
 	case *PathAttributeMpUnreachNLRI:
-		rf := NewFamily(p.AFI, p.SAFI)
-		if _, ok := rfs[rf]; !ok {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
-		}
-		if err := checkPrefix(p.Value); err != nil {
+		if err := checkPrefix(NewFamily(p.AFI, p.SAFI), p.Value); err != nil {
 			return false, err
 		}
 	case *PathAttributeMpReachNLRI:
-		rf := NewFamily(p.AFI, p.SAFI)
-		if _, ok := rfs[rf]; !ok {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not available for session", rf))
-		}
-		if err := checkPrefix(p.Value); err != nil {
+		if err := checkPrefix(NewFamily(p.AFI, p.SAFI), p.Value); err != nil {
 			return false, err
 		}
 	case *PathAttributeOrigin:
