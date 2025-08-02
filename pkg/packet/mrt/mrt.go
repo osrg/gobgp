@@ -387,6 +387,7 @@ type RibEntry struct {
 	PathIdentifier uint32
 	PathAttributes []bgp.PathAttributeInterface
 	isAddPath      bool
+	family         bgp.Family
 }
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
@@ -431,8 +432,8 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterfac
 		if ok && len(prefix) == 0 {
 			return nil, fmt.Errorf("prefix is not provided for MP_REACH_NLRI")
 		} else if ok {
-			mp.AFI = prefix[0].AFI()
-			mp.SAFI = prefix[0].SAFI()
+			mp.AFI = e.family.Afi()
+			mp.SAFI = e.family.Safi()
 			mp.Value = []bgp.AddrPrefixInterface{prefix[0]}
 		}
 
@@ -544,6 +545,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	for range entryNum {
 		e := &RibEntry{
 			isAddPath: u.isAddPath,
+			family:    family,
 		}
 		data, err = e.DecodeFromBytes(data, prefix)
 		if err != nil {
