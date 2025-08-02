@@ -42,20 +42,6 @@ func TestDestinationNewIPv6(t *testing.T) {
 	assert.NotNil(t, ipv6d)
 }
 
-func TestDestinationSetFamily(t *testing.T) {
-	dd := &Destination{}
-	dd.setFamily(bgp.RF_IPv4_UC)
-	rf := dd.Family()
-	assert.Equal(t, rf, bgp.RF_IPv4_UC)
-}
-
-func TestDestinationGetFamily(t *testing.T) {
-	dd := &Destination{}
-	dd.setFamily(bgp.RF_IPv6_UC)
-	rf := dd.Family()
-	assert.Equal(t, rf, bgp.RF_IPv6_UC)
-}
-
 func TestDestinationSetNlri(t *testing.T) {
 	dd := &Destination{}
 	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.1")
