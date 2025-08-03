@@ -18,7 +18,7 @@ package rtr
 import (
 	"encoding/hex"
 	"math/rand"
-	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -82,8 +82,7 @@ var rtrIPPrefixTestCases = []rtrIPPrefixTestCase{
 func Test_RTRIPPrefix(t *testing.T) {
 	for i := range rtrIPPrefixTestCases {
 		test := &rtrIPPrefixTestCases[i]
-		addr := net.ParseIP(test.pString)
-		verifyRTRMessage(t, NewRTRIPPrefix(addr, test.pLen, test.mLen, test.asn, test.flags))
+		verifyRTRMessage(t, NewRTRIPPrefix(netip.MustParseAddr(test.pString), test.pLen, test.mLen, test.asn, test.flags))
 	}
 }
 

@@ -19,7 +19,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"net"
+	"net/netip"
 )
 
 const (
@@ -214,7 +214,7 @@ type RTRIPPrefix struct {
 	Flags     uint8
 	PrefixLen uint8
 	MaxLen    uint8
-	Prefix    net.IP
+	Prefix    netip.Addr
 	AS        uint32
 }
 
@@ -229,13 +229,13 @@ func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 	m.PrefixLen = data[9]
 	m.MaxLen = data[10]
 	if m.Type == RTR_IPV4_PREFIX {
-		m.Prefix = net.IP(data[12:16]).To4()
+		m.Prefix, _ = netip.AddrFromSlice(data[12:16])
 		m.AS = binary.BigEndian.Uint32(data[16:20])
 	} else {
 		if len(data) < RTR_IPV6_PREFIX_LEN {
 			return errors.New("data too short for RTRIPPrefix")
 		}
-		m.Prefix = net.IP(data[12:28]).To16()
+		m.Prefix, _ = netip.AddrFromSlice(data[12:28])
 		m.AS = binary.BigEndian.Uint32(data[28:32])
 	}
 	return nil
@@ -250,24 +250,27 @@ func (m *RTRIPPrefix) Serialize() ([]byte, error) {
 	data[9] = m.PrefixLen
 	data[10] = m.MaxLen
 	if m.Type == RTR_IPV4_PREFIX {
-		copy(data[12:16], m.Prefix.To4())
+		copy(data[12:16], m.Prefix.AsSlice())
 		binary.BigEndian.PutUint32(data[16:20], m.AS)
 	} else {
-		copy(data[12:28], m.Prefix.To16())
+		copy(data[12:28], m.Prefix.AsSlice())
 		binary.BigEndian.PutUint32(data[28:32], m.AS)
 	}
 	return data, nil
 }
 
-func NewRTRIPPrefix(prefix net.IP, prefixLen, maxLen uint8, as uint32, flags uint8) *RTRIPPrefix {
+func NewRTRIPPrefix(prefix netip.Addr, prefixLen, maxLen uint8, as uint32, flags uint8) *RTRIPPrefix {
 	var pduType uint8
 	var pduLen uint32
-	if prefix.To4() != nil && prefixLen <= 32 {
+	if prefix.Is4() && prefixLen <= 32 {
 		pduType = RTR_IPV4_PREFIX
 		pduLen = RTR_IPV4_PREFIX_LEN
-	} else {
+	} else if prefix.Is6() && prefixLen <= 128 {
 		pduType = RTR_IPV6_PREFIX
 		pduLen = RTR_IPV6_PREFIX_LEN
+	} else {
+		// TODO: return error; !prefix.IsValid() or invalid prefix length
+		return nil
 	}
 
 	return &RTRIPPrefix{
