@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -290,8 +291,9 @@ func bmpPeerUp(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMess
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
 	}
-	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress.String(), ev.PeerAS, ev.PeerID.String(), float64(ev.Timestamp.Unix()))
-	return bmp.NewBMPPeerUpNotification(*ph, ev.LocalAddress.String(), ev.LocalPort, ev.PeerPort, ev.SentOpen, ev.RecvOpen)
+	// TODO: use netip event strcutres. MustParseAddr is safe because they are valid IP addresses.
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, netip.MustParseAddr(ev.PeerAddress.String()), ev.PeerAS, netip.MustParseAddr(ev.PeerID.String()), float64(ev.Timestamp.Unix()))
+	return bmp.NewBMPPeerUpNotification(*ph, netip.MustParseAddr(ev.LocalAddress.String()), ev.LocalPort, ev.PeerPort, ev.SentOpen, ev.RecvOpen)
 }
 
 func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
@@ -299,7 +301,7 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
 	}
-	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress.String(), ev.PeerAS, ev.PeerID.String(), float64(ev.Timestamp.Unix()))
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, netip.MustParseAddr(ev.PeerAddress.String()), ev.PeerAS, netip.MustParseAddr(ev.PeerID.String()), float64(ev.Timestamp.Unix()))
 
 	reasonCode := bmp.BMP_peerDownByUnknownReason
 	switch ev.StateReason.Type {
@@ -325,7 +327,7 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *tabl
 	if !fourBytesAs {
 		flags |= bmp.BMP_PEER_FLAG_TWO_AS
 	}
-	ph := bmp.NewBMPPeerHeader(t, flags, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, netip.MustParseAddr(peeri.Address.String()), peeri.AS, netip.MustParseAddr(peeri.ID.String()), float64(timestamp))
 	m := bmp.NewBMPRouteMonitoring(*ph, nil)
 	body := m.Body.(*bmp.BMPRouteMonitoring)
 	body.BGPUpdatePayload = payload
@@ -334,7 +336,7 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *tabl
 
 func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, peer *api.Peer) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
-	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peer.State.NeighborAddress, peer.State.PeerAsn, peer.State.RouterId, float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, netip.MustParseAddr(peer.State.NeighborAddress), peer.State.PeerAsn, netip.MustParseAddr(peer.State.RouterId), float64(timestamp))
 	received := uint64(0)
 	accepted := uint64(0)
 	for _, a := range peer.AfiSafis {
@@ -354,7 +356,7 @@ func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, peer *api.Pe
 
 func bmpPeerRouteMirroring(peerType uint8, peerDist uint64, peerInfo *table.PeerInfo, timestamp int64, msg *bgp.BGPMessage) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
-	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peerInfo.Address.String(), peerInfo.AS, peerInfo.ID.String(), float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, netip.MustParseAddr(peerInfo.Address.String()), peerInfo.AS, netip.MustParseAddr(peerInfo.ID.String()), float64(timestamp))
 	return bmp.NewBMPRouteMirroring(
 		*ph,
 		[]bmp.BMPRouteMirrTLVInterface{

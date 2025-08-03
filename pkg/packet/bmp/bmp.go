@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
+	"net/netip"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -55,12 +55,6 @@ const (
 	BMP_PEER_FLAG_ADJ_RIB_TYP = 1 << 4
 )
 
-func makeIP(data []byte) net.IP {
-	ip := make(net.IP, len(data))
-	copy(ip, data)
-	return ip
-}
-
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
 	if len(data) < BMP_HEADER_SIZE {
 		return errors.New("invalid BMP header length")
@@ -86,26 +80,25 @@ type BMPPeerHeader struct {
 	PeerType          uint8
 	Flags             uint8
 	PeerDistinguisher uint64
-	PeerAddress       net.IP
+	PeerAddress       netip.Addr
 	PeerAS            uint32
-	PeerBGPID         net.IP
+	PeerBGPID         netip.Addr
 	Timestamp         float64
 }
 
-func NewBMPPeerHeader(t uint8, flags uint8, dist uint64, address string, as uint32, id string, stamp float64) *BMPPeerHeader {
+func NewBMPPeerHeader(t uint8, flags uint8, dist uint64, address netip.Addr, as uint32, id netip.Addr, stamp float64) *BMPPeerHeader {
+	// TODO: check id is v4
+	if address.Is6() {
+		flags |= BMP_PEER_FLAG_IPV6
+	}
 	h := &BMPPeerHeader{
 		PeerType:          t,
 		Flags:             flags,
 		PeerDistinguisher: dist,
+		PeerAddress:       address,
 		PeerAS:            as,
-		PeerBGPID:         net.ParseIP(id).To4(),
+		PeerBGPID:         id,
 		Timestamp:         stamp,
-	}
-	if net.ParseIP(address).To4() != nil {
-		h.PeerAddress = net.ParseIP(address).To4()
-	} else {
-		h.PeerAddress = net.ParseIP(address).To16()
-		h.Flags |= BMP_PEER_FLAG_IPV6
 	}
 	return h
 }
@@ -130,12 +123,12 @@ func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 	h.Flags = data[1]
 	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
 	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
-		h.PeerAddress = makeIP(data[10:26]).To16()
+		h.PeerAddress, _ = netip.AddrFromSlice(data[10:26])
 	} else {
-		h.PeerAddress = makeIP(data[22:26]).To4()
+		h.PeerAddress, _ = netip.AddrFromSlice(data[22:26])
 	}
 	h.PeerAS = binary.BigEndian.Uint32(data[26:30])
-	h.PeerBGPID = data[30:34]
+	h.PeerBGPID, _ = netip.AddrFromSlice(data[30:34])
 
 	timestamp1 := binary.BigEndian.Uint32(data[34:38])
 	timestamp2 := binary.BigEndian.Uint32(data[38:42])
@@ -149,12 +142,12 @@ func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 	buf[1] = h.Flags
 	binary.BigEndian.PutUint64(buf[2:10], h.PeerDistinguisher)
 	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
-		copy(buf[10:26], h.PeerAddress)
+		copy(buf[10:26], h.PeerAddress.AsSlice())
 	} else {
-		copy(buf[22:26], h.PeerAddress.To4())
+		copy(buf[22:26], h.PeerAddress.AsSlice())
 	}
 	binary.BigEndian.PutUint32(buf[26:30], h.PeerAS)
-	copy(buf[30:34], h.PeerBGPID)
+	copy(buf[30:34], h.PeerBGPID.AsSlice())
 	t1, t2 := math.Modf(h.Timestamp)
 	t2 = math.Ceil(t2 * math.Pow10(6))
 	binary.BigEndian.PutUint32(buf[34:38], uint32(t1))
@@ -478,25 +471,20 @@ func (body *BMPPeerDownNotification) Serialize(options ...*bgp.MarshallingOption
 }
 
 type BMPPeerUpNotification struct {
-	LocalAddress    net.IP
+	LocalAddress    netip.Addr
 	LocalPort       uint16
 	RemotePort      uint16
 	SentOpenMsg     *bgp.BGPMessage
 	ReceivedOpenMsg *bgp.BGPMessage
 }
 
-func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16, sent, recv *bgp.BGPMessage) *BMPMessage {
+func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr netip.Addr, lPort, rPort uint16, sent, recv *bgp.BGPMessage) *BMPMessage {
 	b := &BMPPeerUpNotification{
+		LocalAddress:    lAddr,
 		LocalPort:       lPort,
 		RemotePort:      rPort,
 		SentOpenMsg:     sent,
 		ReceivedOpenMsg: recv,
-	}
-	addr := net.ParseIP(lAddr)
-	if addr.To4() != nil {
-		b.LocalAddress = addr.To4()
-	} else {
-		b.LocalAddress = addr.To16()
 	}
 	return &BMPMessage{
 		Header: BMPHeader{
@@ -510,9 +498,9 @@ func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16
 
 func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
 	if msg.PeerHeader.Flags&BMP_PEER_FLAG_IPV6 != 0 {
-		body.LocalAddress = makeIP(data[:16]).To16()
+		body.LocalAddress, _ = netip.AddrFromSlice(data[:16])
 	} else {
-		body.LocalAddress = makeIP(data[12:16]).To4()
+		body.LocalAddress, _ = netip.AddrFromSlice(data[12:16])
 	}
 
 	body.LocalPort = binary.BigEndian.Uint16(data[16:18])
@@ -534,10 +522,10 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte, optio
 
 func (body *BMPPeerUpNotification) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
 	buf := make([]byte, 20)
-	if body.LocalAddress.To4() != nil {
-		copy(buf[12:16], body.LocalAddress.To4())
+	if body.LocalAddress.Is4() {
+		copy(buf[12:16], body.LocalAddress.AsSlice())
 	} else {
-		copy(buf[:16], body.LocalAddress.To16())
+		copy(buf[:16], body.LocalAddress.AsSlice())
 	}
 
 	binary.BigEndian.PutUint16(buf[16:18], body.LocalPort)
