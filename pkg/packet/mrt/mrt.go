@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -220,8 +221,8 @@ type Body interface {
 
 type Peer struct {
 	Type      uint8
-	BgpId     net.IP
-	IpAddress net.IP
+	BgpId     netip.Addr
+	IpAddress netip.Addr
 	AS        uint32
 }
 
@@ -232,20 +233,20 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 		return nil, errNotAllPeerBytesAvailable
 	}
 	p.Type = data[0]
-	p.BgpId = net.IP(data[1:5])
+	p.BgpId, _ = netip.AddrFromSlice(data[1:5])
 	data = data[5:]
 
 	if p.Type&1 > 0 {
 		if len(data) < 16 {
 			return nil, errNotAllPeerBytesAvailable
 		}
-		p.IpAddress = net.IP(data[:16])
+		p.IpAddress, _ = netip.AddrFromSlice(data[:16])
 		data = data[16:]
 	} else {
 		if len(data) < 4 {
 			return nil, errNotAllPeerBytesAvailable
 		}
-		p.IpAddress = net.IP(data[:4])
+		p.IpAddress, _ = netip.AddrFromSlice(data[:4])
 		data = data[4:]
 	}
 
@@ -271,11 +272,11 @@ func (p *Peer) Serialize() ([]byte, error) {
 	var bbuf []byte
 	buf := make([]byte, 5)
 	buf[0] = p.Type
-	copy(buf[1:], p.BgpId.To4())
+	copy(buf[1:], p.BgpId.AsSlice())
 	if p.Type&1 > 0 {
-		buf = append(buf, p.IpAddress.To16()...)
+		buf = append(buf, p.IpAddress.AsSlice()...)
 	} else {
-		buf = append(buf, p.IpAddress.To4()...)
+		buf = append(buf, p.IpAddress.AsSlice()...)
 	}
 	if p.Type&(1<<1) > 0 {
 		bbuf, err = packValues(p.AS)
@@ -291,20 +292,19 @@ func (p *Peer) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewPeer(bgpid string, ipaddr string, asn uint32, isAS4 bool) *Peer {
+func NewPeer(bgpid netip.Addr, ipaddr netip.Addr, asn uint32, isAS4 bool) *Peer {
+	// TODO: return error if bgpid is IPv6
 	t := 0
-	addr := net.ParseIP(ipaddr).To4()
-	if addr == nil {
+	if ipaddr.Is6() {
 		t |= 1
-		addr = net.ParseIP(ipaddr).To16()
 	}
 	if isAS4 {
 		t |= 1 << 1
 	}
 	return &Peer{
 		Type:      uint8(t),
-		BgpId:     net.ParseIP(bgpid).To4(),
-		IpAddress: addr,
+		BgpId:     bgpid,
+		IpAddress: ipaddr,
 		AS:        asn,
 	}
 }
@@ -314,7 +314,7 @@ func (p *Peer) String() string {
 }
 
 type PeerIndexTable struct {
-	CollectorBgpId net.IP
+	CollectorBgpId netip.Addr
 	ViewName       string
 	Peers          []*Peer
 }
@@ -325,7 +325,7 @@ func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 	if len(data) < 6 {
 		return errNnotAllPeerIndexBytesAvailable
 	}
-	t.CollectorBgpId = net.IP(data[:4])
+	t.CollectorBgpId, _ = netip.AddrFromSlice(data[:4])
 	viewLen := binary.BigEndian.Uint16(data[4:6])
 	if len(data) < 6+int(viewLen) {
 		return errNnotAllPeerIndexBytesAvailable
@@ -355,7 +355,7 @@ func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 
 func (t *PeerIndexTable) Serialize() ([]byte, error) {
 	buf := make([]byte, 8+len(t.ViewName))
-	copy(buf, t.CollectorBgpId.To4())
+	copy(buf, t.CollectorBgpId.AsSlice())
 	binary.BigEndian.PutUint16(buf[4:], uint16(len(t.ViewName)))
 	copy(buf[6:], t.ViewName)
 	binary.BigEndian.PutUint16(buf[6+len(t.ViewName):], uint16(len(t.Peers)))
@@ -369,9 +369,10 @@ func (t *PeerIndexTable) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewPeerIndexTable(bgpid string, viewname string, peers []*Peer) *PeerIndexTable {
+func NewPeerIndexTable(bgpid netip.Addr, viewname string, peers []*Peer) *PeerIndexTable {
+	// TODO: return error if bgpid is IPv6
 	return &PeerIndexTable{
-		CollectorBgpId: net.ParseIP(bgpid).To4(),
+		CollectorBgpId: bgpid,
 		ViewName:       viewname,
 		Peers:          peers,
 	}

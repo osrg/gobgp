@@ -18,6 +18,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"net/netip"
 	"os"
 	"time"
 
@@ -119,14 +120,14 @@ func (m *mrtWriter) loop() error {
 
 				peers := make([]*mrt.Peer, 1, len(e.Neighbor)+1)
 				// Adding dummy Peer record for locally generated routes
-				peers[0] = mrt.NewPeer("0.0.0.0", "0.0.0.0", 0, true)
+				peers[0] = mrt.NewPeer(netip.MustParseAddr("0.0.0.0"), netip.MustParseAddr("0.0.0.0"), 0, true)
 				neighborMap := make(map[string]*oc.Neighbor)
 				for _, pconf := range e.Neighbor {
-					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.State.NeighborAddress, pconf.Config.PeerAs, true))
+					peers = append(peers, mrt.NewPeer(netip.MustParseAddr(pconf.State.RemoteRouterId), netip.MustParseAddr(pconf.State.NeighborAddress), pconf.Config.PeerAs, true))
 					neighborMap[pconf.State.NeighborAddress] = pconf
 				}
 
-				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(e.RouterID, "", peers)); err != nil {
+				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(netip.MustParseAddr(e.RouterID), "", peers)); err != nil {
 					m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
 						log.Fields{
 							"Topic":   "mrt",
