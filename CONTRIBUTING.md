@@ -11,6 +11,22 @@ $ cd gobgp && go mod download
 
 Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
 
+## Design Considerations
+
+### Memory Usage
+
+If your new feature requires adding members to existing data structures or creating new structures that will increase memory usage, please consider how memory consumption will change in relation to increases in both route count and peer count.
+
+For instance, imagine an environment where 10 peers are connected, each carrying full routes. For the sake of simplicity in calculations, let's assume full routes consist of 1 million routes.
+
+If you add an 8-byte member to the Path structure, since the number of Path structures increases proportionally to both the number of routes and the number of peers, this would result in approximately 80MB increase in memory usage."
+
+If you add an 8-byte member to the Destination struture, since the number of Destiation structures increases proportionally to the number of routes, this would result in approximately 8MB increase in memory usage.
+
+If you add an 8-byte member to the Peer struture, since the number of Peer structures increases proportionally to the number of peers, this would result in approximately 80 bytes increase in memory usage.
+
+Please be cautious about changes that increase memory usage proportionally to the number of routes (and be even more cautious about changes that are proportional to both the number of routes and the number of peers). The benefits must justify such increases (for example, huge performance improvement).
+
 ## Getting your code into GoBGP
 
 ### Creating a commit
