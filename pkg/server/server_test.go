@@ -1320,7 +1320,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
