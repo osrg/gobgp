@@ -239,9 +239,9 @@ func TestMrtRibWithAddPath(t *testing.T) {
 }
 
 func TestMrtGeoPeerTable(t *testing.T) {
-	p1 := NewGeoPeer("192.168.0.1", 28.031157, 86.899684)
-	p2 := NewGeoPeer("192.168.0.1", 35.360556, 138.727778)
-	pt1 := NewGeoPeerTable("192.168.0.1", 12.345678, 98.765432, []*GeoPeer{p1, p2})
+	p1, _ := NewGeoPeer(netip.MustParseAddr("192.168.0.1"), 28.031157, 86.899684)
+	p2, _ := NewGeoPeer(netip.MustParseAddr("192.168.0.1"), 35.360556, 138.727778)
+	pt1, _ := NewGeoPeerTable(netip.MustParseAddr("192.168.0.1"), 12.345678, 98.765432, []*GeoPeer{p1, p2})
 	b1, err := pt1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +255,7 @@ func TestMrtGeoPeerTable(t *testing.T) {
 }
 
 func TestMrtBgp4mpStateChange(t *testing.T) {
-	c1 := NewBGP4MPStateChange(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, ACTIVE, ESTABLISHED)
+	c1, _ := NewBGP4MPStateChange(65000, 65001, 1, netip.MustParseAddr("192.168.0.1"), netip.MustParseAddr("192.168.0.2"), false, ACTIVE, ESTABLISHED)
 	b1, err := c1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -274,7 +274,7 @@ func TestMrtBgp4mpStateChange(t *testing.T) {
 
 func TestMrtBgp4mpMessage(t *testing.T) {
 	msg := bgp.NewBGPKeepAliveMessage()
-	m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
+	m1, _ := NewBGP4MPMessage(65000, 65001, 1, netip.MustParseAddr("192.168.0.1"), netip.MustParseAddr("192.168.0.2"), false, msg)
 	b1, err := m1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestMrtSplit(t *testing.T) {
 	numwrite, numread := 10, 0
 	for range numwrite {
 		msg := bgp.NewBGPKeepAliveMessage()
-		m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
+		m1, _ := NewBGP4MPMessage(65000, 65001, 1, netip.MustParseAddr("192.168.0.1"), netip.MustParseAddr("192.168.0.2"), false, msg)
 		mm, _ := NewMRTMessage(time.Unix(1234, 0), BGP4MP, MESSAGE, m1)
 		b1, err := mm.Serialize()
 		if err != nil {
