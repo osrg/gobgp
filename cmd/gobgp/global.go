@@ -1684,7 +1684,10 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAt
 	}
 	lndTLV := bgp.NewLsTLVNodeDescriptor(lnd, bgp.LS_TLV_LOCAL_NODE_DESC)
 
-	sids, ssiLen := apiutil.StringToNetIPLsTLVSrv6SIDInfo(m["sids"])
+	sids, ssiLen, err := apiutil.StringToNetIPLsTLVSrv6SIDInfo(m["sids"])
+	if err != nil {
+		return nil, nil, err
+	}
 	ssi := &bgp.LsTLVSrv6SIDInfo{
 		LsTLV: bgp.LsTLV{
 			Type:   bgp.LS_TLV_SRV6_SID_INFO,

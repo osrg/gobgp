@@ -892,18 +892,25 @@ func UnmarshalLsPrefixDescriptor(*api.LsPrefixDescriptor) (*bgp.LsPrefixDescript
 	return nil, nil
 }
 
-func StringToNetIPLsTLVSrv6SIDInfo(s []string) ([]net.IP, uint16) {
-	sids := []net.IP{}
+func StringToNetIPLsTLVSrv6SIDInfo(s []string) ([]netip.Addr, uint16, error) {
+	sids := []netip.Addr{}
 	var ssiLen uint16
 	for _, sid := range s {
-		sids = append(sids, net.ParseIP(sid))
+		addr, err := netip.ParseAddr(sid)
+		if err != nil {
+			return nil, 0, err
+		}
+		sids = append(sids, addr)
 		ssiLen += 16
 	}
-	return sids, ssiLen
+	return sids, ssiLen, nil
 }
 
 func UnmarshalLsTLVSrv6SIDInfo(ssi *api.LsSrv6SIDInformation) (*bgp.LsTLVSrv6SIDInfo, error) {
-	sids, ssiLen := StringToNetIPLsTLVSrv6SIDInfo(ssi.Sids)
+	sids, ssiLen, err := StringToNetIPLsTLVSrv6SIDInfo(ssi.Sids)
+	if err != nil {
+		return nil, err
+	}
 	return &bgp.LsTLVSrv6SIDInfo{
 		LsTLV: bgp.LsTLV{
 			Type:   bgp.LS_TLV_SRV6_SID_INFO,

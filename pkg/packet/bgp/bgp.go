@@ -5993,7 +5993,7 @@ func (l *LsPrefixV6NLRI) MarshalJSON() ([]byte, error) {
 
 type LsTLVSrv6SIDInfo struct {
 	LsTLV
-	SIDs []net.IP
+	SIDs []netip.Addr
 }
 
 func (l *LsTLVSrv6SIDInfo) DecodeFromBytes(data []byte) error {
@@ -6003,7 +6003,8 @@ func (l *LsTLVSrv6SIDInfo) DecodeFromBytes(data []byte) error {
 	}
 
 	for i := range len(sid) / 16 {
-		l.SIDs = append(l.SIDs, net.IP(sid[i*16:i*16+16]))
+		addr, _ := netip.AddrFromSlice(sid[i*16 : i*16+16])
+		l.SIDs = append(l.SIDs, addr)
 	}
 
 	return nil
@@ -6013,7 +6014,7 @@ func (l *LsTLVSrv6SIDInfo) Serialize() ([]byte, error) {
 	buf := []byte{}
 
 	for _, sid := range l.SIDs {
-		buf = append(buf, sid...)
+		buf = append(buf, sid.AsSlice()...)
 	}
 
 	return l.LsTLV.Serialize(buf)
