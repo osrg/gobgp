@@ -1457,15 +1457,13 @@ func (p *PrefixDefault) serializeIdentifier() ([]byte, error) {
 	return buf, nil
 }
 
-// Once we convert all the users of IPAddrPrefixDefault to use IPAddrPrefixDefaultNetip,
-// this will be renamed.
-type IPAddrPrefixDefaultNetip struct {
+type IPAddrPrefixDefault struct {
 	PrefixDefault
 	Prefix  netip.Prefix
 	addrlen uint8
 }
 
-func (r *IPAddrPrefixDefaultNetip) decodePrefix(data []byte, bitlen uint8) error {
+func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8) error {
 	if r.addrlen == 0 {
 		r.addrlen = net.IPv4len
 	}
@@ -1499,7 +1497,7 @@ func (r *IPAddrPrefixDefaultNetip) decodePrefix(data []byte, bitlen uint8) error
 	return nil
 }
 
-func (r *IPAddrPrefixDefaultNetip) serializePrefix() []byte {
+func (r *IPAddrPrefixDefault) serializePrefix() []byte {
 	byteLen := (r.Prefix.Bits() + 7) / 8
 	buf := make([]byte, byteLen)
 	copy(buf, r.Prefix.Addr().AsSlice()[:byteLen])
@@ -1508,7 +1506,7 @@ func (r *IPAddrPrefixDefaultNetip) serializePrefix() []byte {
 }
 
 type IPAddrPrefix struct {
-	IPAddrPrefixDefaultNetip
+	IPAddrPrefixDefault
 }
 
 func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -1583,7 +1581,7 @@ func (r *IPAddrPrefix) MarshalJSON() ([]byte, error) {
 
 func NewIPAddrPrefix(bits uint8, prefix string) *IPAddrPrefix {
 	p := &IPAddrPrefix{
-		IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
 			addrlen: net.IPv4len,
 		},
 	}
@@ -1603,7 +1601,7 @@ func (r *IPv6AddrPrefix) AFI() uint16 {
 func NewIPv6AddrPrefix(bits uint8, prefix string) *IPv6AddrPrefix {
 	p := &IPv6AddrPrefix{
 		IPAddrPrefix{
-			IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+			IPAddrPrefixDefault: IPAddrPrefixDefault{
 				addrlen: net.IPv6len,
 			},
 		},
@@ -2047,7 +2045,7 @@ ERR:
 //
 
 type LabeledVPNIPAddrPrefix struct {
-	IPAddrPrefixDefaultNetip
+	IPAddrPrefixDefault
 	Labels  MPLSLabelStack
 	RD      RouteDistinguisherInterface
 	addrlen uint8
@@ -2157,7 +2155,7 @@ func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
 
 func NewLabeledVPNIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
 	p := &LabeledVPNIPAddrPrefix{
-		IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
 			addrlen: net.IPv4len,
 		},
 		Labels: label,
@@ -2178,7 +2176,7 @@ func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
 func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
 	p := &LabeledVPNIPv6AddrPrefix{
 		LabeledVPNIPAddrPrefix{
-			IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+			IPAddrPrefixDefault: IPAddrPrefixDefault{
 				addrlen: net.IPv6len,
 			},
 			Labels: label,
@@ -2190,7 +2188,7 @@ func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack
 }
 
 type LabeledIPAddrPrefix struct {
-	IPAddrPrefixDefaultNetip
+	IPAddrPrefixDefault
 	Labels MPLSLabelStack
 }
 
@@ -2291,7 +2289,7 @@ func (l *LabeledIPAddrPrefix) Flat() map[string]string {
 
 func NewLabeledIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
 	p := &LabeledIPAddrPrefix{
-		IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
 			addrlen: net.IPv4len,
 		},
 		Labels: label,
@@ -2311,7 +2309,7 @@ func (l *LabeledIPv6AddrPrefix) AFI() uint16 {
 func NewLabeledIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
 	p := &LabeledIPv6AddrPrefix{
 		LabeledIPAddrPrefix: LabeledIPAddrPrefix{
-			IPAddrPrefixDefaultNetip: IPAddrPrefixDefaultNetip{
+			IPAddrPrefixDefault: IPAddrPrefixDefault{
 				addrlen: net.IPv6len,
 			},
 			Labels: label,
