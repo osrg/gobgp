@@ -1523,12 +1523,12 @@ type IPAddrPrefix struct {
 
 func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	addrlen := 4
-	f := RF_IPv4_UC
+	f1, f2 := RF_IPv4_UC, RF_IPv4_MC
 	if isIPv6(options) {
 		addrlen = 16
-		f = RF_IPv6_UC
+		f1, f2 = RF_IPv6_UC, RF_IPv6_MC
 	}
-	if IsAddPathEnabled(true, f, options) {
+	if IsAddPathEnabled(true, f1, options) || IsAddPathEnabled(true, f2, options) {
 		var err error
 		data, err = r.decodePathIdentifier(data)
 		if err != nil {
@@ -1546,8 +1546,17 @@ func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 
 func (r *IPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	f := RF_IPv4_UC
-	if r.Prefix.Addr().BitLen() == 128 {
+	isMulticast := r.Prefix.Addr().IsMulticast()
+	isIPv6 := r.Prefix.Addr().Is6()
+	switch {
+	case !isMulticast && !isIPv6:
+		f = RF_IPv4_UC
+	case isMulticast && !isIPv6:
+		f = RF_IPv4_MC
+	case !isMulticast && isIPv6:
 		f = RF_IPv6_UC
+	case isMulticast && isIPv6:
+		f = RF_IPv6_MC
 	}
 	var buf []byte
 	if IsAddPathEnabled(false, f, options) {
@@ -1567,6 +1576,9 @@ func (r *IPAddrPrefix) AFI() uint16 {
 }
 
 func (r *IPAddrPrefix) SAFI() uint8 {
+	if r.Prefix.Addr().IsMulticast() {
+		return SAFI_MULTICAST
+	}
 	return SAFI_UNICAST
 }
 
@@ -2057,12 +2069,12 @@ type LabeledVPNIPAddrPrefix struct {
 
 func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	addrlen := 4
-	f := RF_IPv4_VPN
+	f1, f2 := RF_IPv4_VPN, RF_IPv4_VPN_MC
 	if isIPv6(options) {
 		addrlen = 16
-		f = RF_IPv6_VPN
+		f1, f2 = RF_IPv6_VPN, RF_IPv6_VPN_MC
 	}
-	if IsAddPathEnabled(true, f, options) {
+	if IsAddPathEnabled(true, f1, options) || IsAddPathEnabled(true, f2, options) {
 		var err error
 		data, err = l.decodePathIdentifier(data)
 		if err != nil {
@@ -2096,11 +2108,20 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 
 func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	f := RF_IPv4_VPN
-	if l.Prefix.Addr().BitLen() == 128 {
+	isMulticast := l.Prefix.Addr().IsMulticast()
+	isIPv6 := l.Prefix.Addr().Is6()
+	switch {
+	case !isMulticast && !isIPv6:
+		f = RF_IPv4_VPN
+	case isMulticast && !isIPv6:
+		f = RF_IPv4_VPN_MC
+	case !isMulticast && isIPv6:
 		f = RF_IPv6_VPN
+	case isMulticast && isIPv6:
+		f = RF_IPv6_VPN_MC
 	}
 	var buf []byte
-	if IsAddPathEnabled(false, f, options) {
+	if IsAddPathEnabled(true, f, options) {
 		var err error
 		buf, err = l.serializeIdentifier()
 		if err != nil {
@@ -2128,6 +2149,9 @@ func (l *LabeledVPNIPAddrPrefix) AFI() uint16 {
 }
 
 func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
+	if l.Prefix.Addr().IsMulticast() {
+		return SAFI_MPLS_VPN_MULTICAST
+	}
 	return SAFI_MPLS_VPN
 }
 
@@ -10222,7 +10246,7 @@ func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 		} else {
 			prefix = NewIPv6AddrPrefix(0, "")
 		}
-	case RF_IPv4_VPN:
+	case RF_IPv4_VPN, RF_IPv4_VPN_MC:
 		if len(prefixStr) == 0 {
 			prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), rdEOR)
 			break
@@ -10239,7 +10263,7 @@ func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 			*NewMPLSLabelStack(),
 			rd,
 		)
-	case RF_IPv6_VPN:
+	case RF_IPv6_VPN, RF_IPv6_VPN_MC:
 		if len(prefixStr) == 0 {
 			prefix = NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), rdEOR)
 			break
