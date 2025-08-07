@@ -436,11 +436,12 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 			return true
 		})
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
-		prefixRd, _, network, err := bgp.ParseVPNPrefix(key)
+		prefixRd, prefix, err := bgp.ParseVPNPrefix(key)
 		if err != nil {
 			return nil, err
 		}
-		ones, bits := network.Mask.Size()
+		ones := prefix.Bits()
+		bits := prefix.Addr().BitLen()
 
 		r := critbitgo.NewNet()
 		for _, dst := range t.GetDestinations() {
@@ -460,7 +461,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 		}
 
 		p := &net.IPNet{
-			IP:   network.IP,
+			IP:   prefix.Addr().AsSlice(),
 			Mask: net.CIDRMask(ones>>3<<3, bits),
 		}
 

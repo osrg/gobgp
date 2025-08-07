@@ -1313,7 +1313,7 @@ func TestParseVPNPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rd, _, network, err := ParseVPNPrefix(tt.prefix)
+			rd, prefix, err := ParseVPNPrefix(tt.prefix)
 			if !tt.valid {
 				assert.NotNil(t, err)
 				return
@@ -1321,7 +1321,7 @@ func TestParseVPNPrefix(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.rd, rd)
-			assert.Equal(t, tt.ipPrefix, network.String())
+			assert.Equal(t, tt.ipPrefix, prefix.String())
 		})
 	}
 }

@@ -1868,19 +1868,22 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 }
 
 // ParseVPNPrefix parses VPNv4/VPNv6 prefix.
-func ParseVPNPrefix(prefix string) (RouteDistinguisherInterface, net.IP, *net.IPNet, error) {
+func ParseVPNPrefix(prefix string) (RouteDistinguisherInterface, netip.Prefix, error) {
 	elems := strings.SplitN(prefix, ":", 3)
 	if len(elems) < 3 {
-		return nil, nil, nil, fmt.Errorf("invalid VPN prefix format: %q", prefix)
+		return nil, netip.Prefix{}, fmt.Errorf("invalid VPN prefix format: %q", prefix)
 	}
 
 	rd, err := ParseRouteDistinguisher(elems[0] + ":" + elems[1])
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, netip.Prefix{}, err
 	}
 
-	addr, network, err := net.ParseCIDR(elems[2])
-	return rd, addr, network, err
+	p, err := netip.ParsePrefix(elems[2])
+	if err != nil {
+		return rd, netip.Prefix{}, err
+	}
+	return rd, p, err
 }
 
 // ContainsCIDR checks if one IPNet is a subnet of another.
@@ -10217,16 +10220,14 @@ func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 			break
 		}
 
-		rd, addr, network, err := ParseVPNPrefix(prefixStr[0])
+		rd, p, err := ParseVPNPrefix(prefixStr[0])
 		if err != nil {
 			return nil, err
 		}
 
-		length, _ := network.Mask.Size()
-
 		prefix = NewLabeledVPNIPAddrPrefix(
-			uint8(length),
-			addr.String(),
+			uint8(p.Bits()),
+			p.Addr().String(),
 			*NewMPLSLabelStack(),
 			rd,
 		)
@@ -10236,16 +10237,14 @@ func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 			break
 		}
 
-		rd, addr, network, err := ParseVPNPrefix(prefixStr[0])
+		rd, p, err := ParseVPNPrefix(prefixStr[0])
 		if err != nil {
 			return nil, err
 		}
 
-		length, _ := network.Mask.Size()
-
 		prefix = NewLabeledVPNIPv6AddrPrefix(
-			uint8(length),
-			addr.String(),
+			uint8(p.Bits()),
+			p.Addr().String(),
 			*NewMPLSLabelStack(),
 			rd,
 		)
