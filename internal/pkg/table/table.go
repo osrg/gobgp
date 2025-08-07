@@ -620,6 +620,13 @@ func (t *Table) GetKnownPathListWithMac(id string, as uint32, rt bgp.ExtendedCom
 	return paths
 }
 
+// ContainsCIDR checks if one IPNet is a subnet of another.
+func containsCIDR(n1, n2 *net.IPNet) bool {
+	ones1, _ := n1.Mask.Size()
+	ones2, _ := n2.Mask.Size()
+	return ones1 <= ones2 && n1.Contains(n2.IP)
+}
+
 func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	id := GLOBAL_RIB_NAME
 	var vrf *Vrf
@@ -754,7 +761,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						for _, dst := range t.GetDestinations() {
 							tablePrefix := nlriToIPNet(dst.nlri)
 
-							if bgp.ContainsCIDR(prefix, tablePrefix) {
+							if containsCIDR(prefix, tablePrefix) {
 								r.setDestination(dst)
 							}
 						}
@@ -782,7 +789,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						for _, dst := range t.GetDestinations() {
 							tablePrefix := nlriToIPNet(dst.nlri)
 
-							if bgp.ContainsCIDR(tablePrefix, prefix) {
+							if containsCIDR(tablePrefix, prefix) {
 								r.setDestination(dst)
 							}
 						}

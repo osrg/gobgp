@@ -773,3 +773,71 @@ func Test_RouteTargetKey(t *testing.T) {
 	_, err = extCommRouteTargetKey(r.RouteTarget)
 	assert.NotNil(err)
 }
+
+func TestContainsCIDR(t *testing.T) {
+	tests := []struct {
+		name    string
+		prefix1 string
+		prefix2 string
+		result  bool
+	}{
+		{
+			name:    "v4 prefix2 is a subnet of prefix1",
+			prefix1: "172.17.0.0/16",
+			prefix2: "172.17.192.0/18",
+			result:  true,
+		},
+		{
+			name:    "v4 prefix2 is a supernet of prefix1",
+			prefix1: "172.17.191.0/18",
+			prefix2: "172.17.0.0/16",
+			result:  false,
+		},
+		{
+			name:    "v4 prefix2 is not a subnet of prefix1",
+			prefix1: "10.10.20.0/30",
+			prefix2: "10.10.30.3/32",
+			result:  false,
+		},
+		{
+			name:    "v4 prefix2 is equal to prefix1",
+			prefix1: "10.10.20.0/30",
+			prefix2: "10.10.20.0/30",
+			result:  true,
+		},
+		{
+			name:    "v6 prefix2 is not a subnet of prefix1",
+			prefix1: "1::/64",
+			prefix2: "2::/72",
+			result:  false,
+		},
+		{
+			name:    "v6 prefix2 is a supernet of prefix1",
+			prefix1: "1::/64",
+			prefix2: "1::/32",
+			result:  false,
+		},
+		{
+			name:    "v6 prefix2 is a subnet of prefix1",
+			prefix1: "1::/64",
+			prefix2: "1::/112",
+			result:  true,
+		},
+		{
+			name:    "v6 prefix2 is equal to prefix1",
+			prefix1: "100:100::/64",
+			prefix2: "100:100::/64",
+			result:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, prefixNet1, _ := net.ParseCIDR(tt.prefix1)
+			_, prefixNet2, _ := net.ParseCIDR(tt.prefix2)
+
+			result := containsCIDR(prefixNet1, prefixNet2)
+			assert.Equal(t, tt.result, result)
+		})
+	}
+}

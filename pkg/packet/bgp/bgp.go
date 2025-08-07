@@ -1886,13 +1886,6 @@ func ParseVPNPrefix(prefix string) (RouteDistinguisherInterface, netip.Prefix, e
 	return rd, p, err
 }
 
-// ContainsCIDR checks if one IPNet is a subnet of another.
-func ContainsCIDR(n1, n2 *net.IPNet) bool {
-	ones1, _ := n1.Mask.Size()
-	ones2, _ := n2.Mask.Size()
-	return ones1 <= ones2 && n1.Contains(n2.IP)
-}
-
 //
 // RFC3107 Carrying Label Information in BGP-4
 //
