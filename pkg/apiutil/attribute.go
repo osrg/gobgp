@@ -874,10 +874,10 @@ func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor,
 }
 
 func UnmarshalPrefixDescriptor(pd *api.LsPrefixDescriptor) (*bgp.LsPrefixDescriptor, error) {
-	ipReachability := []net.IPNet{}
+	ipReachability := []netip.Prefix{}
 	for _, reach := range pd.IpReachability {
-		_, ipnet, _ := net.ParseCIDR(reach)
-		ipReachability = append(ipReachability, *ipnet)
+		ipnet, _ := netip.ParsePrefix(reach)
+		ipReachability = append(ipReachability, ipnet)
 	}
 
 	ospfRouteType := bgp.LsOspfRouteType(pd.OspfRouteType)
