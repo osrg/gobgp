@@ -37,6 +37,8 @@ type MarshallingOption struct {
 	AddPath    map[Family]BGPAddPathMode
 	Attributes map[BGPAttrType]bool
 	MRT        bool
+
+	isIPv6 bool
 }
 
 func IsMRTSerialization(options []*MarshallingOption) bool {
@@ -75,6 +77,18 @@ func IsAttributePresent(attr BGPAttrType, options []*MarshallingOption) bool {
 		if o := opt.Attributes; o != nil {
 			_, ok := o[attr]
 			return ok
+		}
+	}
+	return false
+}
+
+func isIPv6(options []*MarshallingOption) bool {
+	for _, opt := range options {
+		if opt == nil {
+			continue
+		}
+		if opt.isIPv6 {
+			return true
 		}
 	}
 	return false
@@ -1459,15 +1473,13 @@ func (p *PrefixDefault) serializeIdentifier() ([]byte, error) {
 
 type IPAddrPrefixDefault struct {
 	PrefixDefault
-	Prefix  netip.Prefix
-	addrlen uint8
+	Prefix netip.Prefix
 }
 
-func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8) error {
-	if r.addrlen == 0 {
-		r.addrlen = net.IPv4len
+func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen int) error {
+	if addrlen != 4 && addrlen != 16 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "invalid address length")
 	}
-
 	if len(data) < 1 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
@@ -1478,7 +1490,7 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8) error {
 	if len(data) < bytelen {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "network bytes is short")
 	}
-	if bitlen > r.addrlen*8 {
+	if int(bitlen) > addrlen*8 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "network bit length is too long")
 	}
 
@@ -1492,7 +1504,7 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8) error {
 		lastByte := b[bytelen-1] & byte(mask)
 		b[bytelen-1] = lastByte
 	}
-	addr, _ := netip.AddrFromSlice(b[:r.addrlen])
+	addr, _ := netip.AddrFromSlice(b[:addrlen])
 	r.Prefix = netip.PrefixFrom(addr, int(bitlen))
 	return nil
 }
@@ -1510,11 +1522,13 @@ type IPAddrPrefix struct {
 }
 
 func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	f := RF_IPv4_UC
-	if r.addrlen == 16 {
-		f = RF_IPv6_UC
+	addrlen := 4
+	f1, f2 := RF_IPv4_UC, RF_IPv4_MC
+	if isIPv6(options) {
+		addrlen = 16
+		f1, f2 = RF_IPv6_UC, RF_IPv6_MC
 	}
-	if IsAddPathEnabled(true, f, options) {
+	if IsAddPathEnabled(true, f1, options) || IsAddPathEnabled(true, f2, options) {
 		var err error
 		data, err = r.decodePathIdentifier(data)
 		if err != nil {
@@ -1527,13 +1541,22 @@ func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOptio
 		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
 	}
 
-	return r.decodePrefix(data[1:], data[0])
+	return r.decodePrefix(data[1:], data[0], addrlen)
 }
 
 func (r *IPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	f := RF_IPv4_UC
-	if r.addrlen == 16 {
+	isMulticast := r.Prefix.Addr().IsMulticast()
+	isIPv6 := r.Prefix.Addr().Is6()
+	switch {
+	case !isMulticast && !isIPv6:
+		f = RF_IPv4_UC
+	case isMulticast && !isIPv6:
+		f = RF_IPv4_MC
+	case !isMulticast && isIPv6:
 		f = RF_IPv6_UC
+	case isMulticast && isIPv6:
+		f = RF_IPv6_MC
 	}
 	var buf []byte
 	if IsAddPathEnabled(false, f, options) {
@@ -1553,6 +1576,9 @@ func (r *IPAddrPrefix) AFI() uint16 {
 }
 
 func (r *IPAddrPrefix) SAFI() uint8 {
+	if r.Prefix.Addr().IsMulticast() {
+		return SAFI_MULTICAST
+	}
 	return SAFI_UNICAST
 }
 
@@ -1567,7 +1593,7 @@ func (r *IPAddrPrefix) String() string {
 func (p *IPAddrPrefix) Flat() map[string]string {
 	return map[string]string{
 		"Prefix":    p.Prefix.Addr().String(),
-		"PrefixLen": fmt.Sprintf("%d", p.Prefix.Bits()),
+		"PrefixLen": strconv.Itoa(p.Prefix.Bits()),
 	}
 }
 
@@ -1580,13 +1606,9 @@ func (r *IPAddrPrefix) MarshalJSON() ([]byte, error) {
 }
 
 func NewIPAddrPrefix(bits uint8, prefix string) *IPAddrPrefix {
-	p := &IPAddrPrefix{
-		IPAddrPrefixDefault: IPAddrPrefixDefault{
-			addrlen: net.IPv4len,
-		},
-	}
+	p := &IPAddrPrefix{}
 	// TODO: pass the error to the caller
-	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits)
+	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits, 4)
 	return p
 }
 
@@ -1599,16 +1621,15 @@ func (r *IPv6AddrPrefix) AFI() uint16 {
 }
 
 func NewIPv6AddrPrefix(bits uint8, prefix string) *IPv6AddrPrefix {
-	p := &IPv6AddrPrefix{
-		IPAddrPrefix{
-			IPAddrPrefixDefault: IPAddrPrefixDefault{
-				addrlen: net.IPv6len,
-			},
-		},
-	}
+	p := &IPv6AddrPrefix{}
 	// TODO: pass the error to the caller
-	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits)
+	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits, 16)
 	return p
+}
+
+func (l *IPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	options = append(options, &MarshallingOption{isIPv6: true})
+	return l.IPAddrPrefix.DecodeFromBytes(data, options...)
 }
 
 const (
@@ -2042,17 +2063,18 @@ ERR:
 
 type LabeledVPNIPAddrPrefix struct {
 	IPAddrPrefixDefault
-	Labels  MPLSLabelStack
-	RD      RouteDistinguisherInterface
-	addrlen uint8
+	Labels MPLSLabelStack
+	RD     RouteDistinguisherInterface
 }
 
 func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	f := RF_IPv4_VPN
-	if l.addrlen == 16 {
-		f = RF_IPv6_VPN
+	addrlen := 4
+	f1, f2 := RF_IPv4_VPN, RF_IPv4_VPN_MC
+	if isIPv6(options) {
+		addrlen = 16
+		f1, f2 = RF_IPv6_VPN, RF_IPv6_VPN_MC
 	}
-	if IsAddPathEnabled(true, f, options) {
+	if IsAddPathEnabled(true, f1, options) || IsAddPathEnabled(true, f2, options) {
 		var err error
 		data, err = l.decodePathIdentifier(data)
 		if err != nil {
@@ -2081,16 +2103,25 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marsha
 	}
 	data = data[l.RD.Len():]
 	restbits := bits - 8*(l.Labels.Len()+l.RD.Len())
-	return l.decodePrefix(data, uint8(restbits))
+	return l.decodePrefix(data, uint8(restbits), addrlen)
 }
 
 func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	f := RF_IPv4_VPN
-	if l.addrlen == 16 {
+	isMulticast := l.Prefix.Addr().IsMulticast()
+	isIPv6 := l.Prefix.Addr().Is6()
+	switch {
+	case !isMulticast && !isIPv6:
+		f = RF_IPv4_VPN
+	case isMulticast && !isIPv6:
+		f = RF_IPv4_VPN_MC
+	case !isMulticast && isIPv6:
 		f = RF_IPv6_VPN
+	case isMulticast && isIPv6:
+		f = RF_IPv6_VPN_MC
 	}
 	var buf []byte
-	if IsAddPathEnabled(false, f, options) {
+	if IsAddPathEnabled(true, f, options) {
 		var err error
 		buf, err = l.serializeIdentifier()
 		if err != nil {
@@ -2118,6 +2149,9 @@ func (l *LabeledVPNIPAddrPrefix) AFI() uint16 {
 }
 
 func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
+	if l.Prefix.Addr().IsMulticast() {
+		return SAFI_MPLS_VPN_MULTICAST
+	}
 	return SAFI_MPLS_VPN
 }
 
@@ -2151,13 +2185,10 @@ func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
 
 func NewLabeledVPNIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
 	p := &LabeledVPNIPAddrPrefix{
-		IPAddrPrefixDefault: IPAddrPrefixDefault{
-			addrlen: net.IPv4len,
-		},
 		Labels: label,
 		RD:     rd,
 	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits)
+	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits, 4)
 	return p
 }
 
@@ -2172,15 +2203,17 @@ func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
 func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
 	p := &LabeledVPNIPv6AddrPrefix{
 		LabeledVPNIPAddrPrefix{
-			IPAddrPrefixDefault: IPAddrPrefixDefault{
-				addrlen: net.IPv6len,
-			},
 			Labels: label,
 			RD:     rd,
 		},
 	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits)
+	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits, 16)
 	return p
+}
+
+func (l *LabeledVPNIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	options = append(options, &MarshallingOption{isIPv6: true})
+	return l.LabeledVPNIPAddrPrefix.DecodeFromBytes(data, options...)
 }
 
 type LabeledIPAddrPrefix struct {
@@ -2206,7 +2239,9 @@ func (l *LabeledIPAddrPrefix) Len(options ...*MarshallingOption) int {
 
 func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	f := RF_IPv4_MPLS
-	if l.addrlen == 16 {
+	addrlen := 4
+	if isIPv6(options) {
+		addrlen = 16
 		f = RF_IPv6_MPLS
 	}
 	if IsAddPathEnabled(true, f, options) {
@@ -2233,12 +2268,12 @@ func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*Marshalli
 	}
 	data = data[l.Labels.Len():]
 	restbits := bits - 8*l.Labels.Len()
-	return l.decodePrefix(data, uint8(restbits))
+	return l.decodePrefix(data, uint8(restbits), addrlen)
 }
 
 func (l *LabeledIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	f := RF_IPv4_MPLS
-	if l.addrlen == 16 {
+	if l.Prefix.Addr().Is6() {
 		f = RF_IPv6_MPLS
 	}
 	var buf []byte
@@ -2285,12 +2320,9 @@ func (l *LabeledIPAddrPrefix) Flat() map[string]string {
 
 func NewLabeledIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
 	p := &LabeledIPAddrPrefix{
-		IPAddrPrefixDefault: IPAddrPrefixDefault{
-			addrlen: net.IPv4len,
-		},
 		Labels: label,
 	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits)
+	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits, 4)
 	return p
 }
 
@@ -2305,14 +2337,16 @@ func (l *LabeledIPv6AddrPrefix) AFI() uint16 {
 func NewLabeledIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
 	p := &LabeledIPv6AddrPrefix{
 		LabeledIPAddrPrefix: LabeledIPAddrPrefix{
-			IPAddrPrefixDefault: IPAddrPrefixDefault{
-				addrlen: net.IPv6len,
-			},
 			Labels: label,
 		},
 	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits)
+	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits, 16)
 	return p
+}
+
+func (l *LabeledIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	options = append(options, &MarshallingOption{isIPv6: true})
+	return l.LabeledIPAddrPrefix.DecodeFromBytes(data, options...)
 }
 
 type RouteTargetMembershipNLRI struct {
@@ -3546,15 +3580,11 @@ func NewEVPNNLRI(routeType uint8, routeTypeData EVPNRouteTypeInterface) *EVPNNLR
 type EncapNLRI struct {
 	PrefixDefault
 	Endpoint netip.Addr
-	addrlen  uint8
 }
 
 func (n *EncapNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if n.addrlen == 0 {
-		n.addrlen = 4
-	}
 	f := RF_IPv4_ENCAP
-	if n.addrlen == 16 {
+	if isIPv6(options) {
 		f = RF_IPv6_ENCAP
 	}
 	if IsAddPathEnabled(true, f, options) {
@@ -3582,7 +3612,7 @@ func (n *EncapNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 func (n *EncapNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	var buf []byte
 	f := RF_IPv4_ENCAP
-	if n.addrlen == 16 {
+	if n.Endpoint.Is6() {
 		f = RF_IPv6_ENCAP
 	}
 	if IsAddPathEnabled(false, f, options) {
@@ -3638,7 +3668,6 @@ func NewEncapNLRI(endpoint string) *EncapNLRI {
 	}
 	return &EncapNLRI{
 		Endpoint: addr,
-		addrlen:  4,
 	}
 }
 
@@ -3672,9 +3701,13 @@ func NewEncapv6NLRI(endpoint string) *Encapv6NLRI {
 	return &Encapv6NLRI{
 		EncapNLRI{
 			Endpoint: addr,
-			addrlen:  16,
 		},
 	}
+}
+
+func (n *Encapv6NLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	options = append(options, &MarshallingOption{isIPv6: true})
+	return n.EncapNLRI.DecodeFromBytes(data, options...)
 }
 
 type BGPFlowSpecType uint8
@@ -4389,6 +4422,7 @@ func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOp
 	if p.Prefix == nil {
 		return malformedAttrListErr("flowSpecPrefix6: Prefix is nil")
 	}
+	options = append(options, &MarshallingOption{isIPv6: true})
 	return p.Prefix.DecodeFromBytes(prefix, options...)
 }
 
@@ -5143,6 +5177,7 @@ type FlowSpecIPv6Unicast struct {
 }
 
 func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	options = append(options, &MarshallingOption{isIPv6: true})
 	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
 }
 
@@ -5161,6 +5196,7 @@ type FlowSpecIPv6VPN struct {
 }
 
 func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	options = append(options, &MarshallingOption{isIPv6: true})
 	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
 }
 
@@ -10208,7 +10244,7 @@ func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 		} else {
 			prefix = NewIPv6AddrPrefix(0, "")
 		}
-	case RF_IPv4_VPN:
+	case RF_IPv4_VPN, RF_IPv4_VPN_MC:
 		if len(prefixStr) == 0 {
 			prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), rdEOR)
 			break
@@ -10225,7 +10261,7 @@ func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 			*NewMPLSLabelStack(),
 			rd,
 		)
-	case RF_IPv6_VPN:
+	case RF_IPv6_VPN, RF_IPv6_VPN_MC:
 		if len(prefixStr) == 0 {
 			prefix = NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), rdEOR)
 			break
