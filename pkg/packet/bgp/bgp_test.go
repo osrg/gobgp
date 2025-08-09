@@ -2302,9 +2302,9 @@ func Test_LsTLVIPReachabilityToIPNet(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := test.tlv.ToIPNet(test.ipv6)
-		assert.Equal(test.want.IP.String(), got.IP.String())
-		assert.Equal(test.want.Mask.String(), got.Mask.String())
+		got := test.tlv.toPrefix(test.ipv6)
+		assert.Equal(test.want.IP.String(), got.Addr().String())
+		assert.Equal(test.want.Mask.String(), net.CIDRMask(got.Bits(), got.Addr().BitLen()).String())
 	}
 }
 

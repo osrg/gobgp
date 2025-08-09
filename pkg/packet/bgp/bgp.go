@@ -5676,7 +5676,7 @@ func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
 }
 
 type LsPrefixDescriptor struct {
-	IPReachability []net.IPNet
+	IPReachability []netip.Prefix
 	OSPFRouteType  LsOspfRouteType
 }
 
@@ -5684,7 +5684,7 @@ func (l *LsPrefixDescriptor) ParseTLVs(tlvs []LsTLVInterface, ipv6 bool) {
 	for _, tlv := range tlvs {
 		switch v := tlv.(type) {
 		case *LsTLVIPReachability:
-			l.IPReachability = append(l.IPReachability, v.ToIPNet(ipv6))
+			l.IPReachability = append(l.IPReachability, v.toPrefix(ipv6))
 
 		case *LsTLVOspfRouteType:
 			l.OSPFRouteType = v.RouteType
@@ -5823,30 +5823,30 @@ func (l *LsPrefixV4NLRI) MarshalJSON() ([]byte, error) {
 func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 	lsTLVs := []LsTLVInterface{}
 	for _, ipReach := range pd.IPReachability {
-		prefixSize, _ := ipReach.Mask.Size()
+		prefixSize := ipReach.Bits()
 		lenIpPrefix := (prefixSize-1)/8 + 1
 		lenIpReach := uint16(lenIpPrefix + 1)
 		var tlv *LsTLVIPReachability
 
-		if ipReach.IP.To4() != nil {
-			ip := ipReach.IP.To4()
+		if ipReach.Addr().Is4() {
+			ip := ipReach.Addr().AsSlice()
 			tlv = &LsTLVIPReachability{
 				LsTLV: LsTLV{
 					Type:   LS_TLV_IP_REACH_INFO,
 					Length: lenIpReach,
 				},
 				PrefixLength: uint8(prefixSize),
-				Prefix:       []byte(ip)[:(lenIpPrefix-1)/8+1],
+				Prefix:       ip[:(lenIpPrefix-1)/8+1],
 			}
-		} else if ipReach.IP.To16() != nil {
-			ip := ipReach.IP.To16()
+		} else if ipReach.Addr().Is6() {
+			ip := ipReach.Addr().AsSlice()
 			tlv = &LsTLVIPReachability{
 				LsTLV: LsTLV{
 					Type:   LS_TLV_IP_REACH_INFO,
 					Length: lenIpReach,
 				},
 				PrefixLength: uint8(prefixSize),
-				Prefix:       []byte(ip)[:(lenIpPrefix-1)/8+1],
+				Prefix:       ip[:(lenIpPrefix-1)/8+1],
 			}
 		}
 		lsTLVs = append(lsTLVs, tlv)
@@ -7583,7 +7583,7 @@ type LsTLVIPReachability struct {
 	Prefix       []byte
 }
 
-func (l *LsTLVIPReachability) ToIPNet(ipv6 bool) net.IPNet {
+func (l *LsTLVIPReachability) toPrefix(ipv6 bool) netip.Prefix {
 	b := make([]byte, 16)
 	for i := range (int(l.PrefixLength)-1)/8 + 1 {
 		b[i] = l.Prefix[i]
@@ -7594,12 +7594,14 @@ func (l *LsTLVIPReachability) ToIPNet(ipv6 bool) net.IPNet {
 		ip = net.IP(b).To16()
 	}
 
-	_, n, err := net.ParseCIDR(fmt.Sprintf("%v/%v", ip, l.PrefixLength))
+	p, err := netip.ParsePrefix(fmt.Sprintf("%v/%v", ip, l.PrefixLength))
 	if err != nil {
-		return net.IPNet{}
+		return netip.Prefix{}
 	}
+	// backwards compatibility
+	p = p.Masked()
 
-	return *n
+	return p
 }
 
 func (l *LsTLVIPReachability) DecodeFromBytes(data []byte) error {
