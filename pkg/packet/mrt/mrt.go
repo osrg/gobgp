@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"time"
 
@@ -604,7 +603,7 @@ func (u *Rib) String() string {
 
 type GeoPeer struct {
 	Type      uint8
-	BgpId     net.IP
+	BgpId     netip.Addr
 	Latitude  float32
 	Longitude float32
 }
@@ -618,7 +617,7 @@ func (p *GeoPeer) DecodeFromBytes(data []byte) ([]byte, error) {
 	if p.Type != uint8(0) {
 		return nil, fmt.Errorf("unsupported peer type for GeoPeer: %d", p.Type)
 	}
-	p.BgpId = net.IP(data[1:5])
+	p.BgpId, _ = netip.AddrFromSlice(data[1:5])
 	p.Latitude = math.Float32frombits(binary.BigEndian.Uint32(data[5:9]))
 	p.Longitude = math.Float32frombits(binary.BigEndian.Uint32(data[9:13]))
 	return data[13:], nil
@@ -627,23 +626,26 @@ func (p *GeoPeer) DecodeFromBytes(data []byte) ([]byte, error) {
 func (p *GeoPeer) Serialize() ([]byte, error) {
 	buf := make([]byte, 13)
 	buf[0] = uint8(0) // Peer IP Address and Peer AS should not be included
-	bgpId := p.BgpId.To4()
-	if bgpId == nil {
+	if !p.BgpId.Is4() {
 		return nil, fmt.Errorf("invalid BgpId: %s", p.BgpId)
 	}
-	copy(buf[1:5], bgpId)
+	copy(buf[1:5], p.BgpId.AsSlice())
 	binary.BigEndian.PutUint32(buf[5:9], math.Float32bits(p.Latitude))
 	binary.BigEndian.PutUint32(buf[9:13], math.Float32bits(p.Longitude))
 	return buf, nil
 }
 
-func NewGeoPeer(bgpid string, latitude float32, longitude float32) *GeoPeer {
+func NewGeoPeer(bgpid netip.Addr, latitude float32, longitude float32) (*GeoPeer, error) {
+	if !bgpid.Is4() {
+		return nil, fmt.Errorf("invalid BgpId: %s", bgpid)
+	}
+
 	return &GeoPeer{
 		Type:      0, // Peer IP Address and Peer AS should not be included
-		BgpId:     net.ParseIP(bgpid).To4(),
+		BgpId:     bgpid,
 		Latitude:  latitude,
 		Longitude: longitude,
-	}
+	}, nil
 }
 
 func (p *GeoPeer) String() string {
@@ -651,7 +653,7 @@ func (p *GeoPeer) String() string {
 }
 
 type GeoPeerTable struct {
-	CollectorBgpId     net.IP
+	CollectorBgpId     netip.Addr
 	CollectorLatitude  float32
 	CollectorLongitude float32
 	Peers              []*GeoPeer
@@ -661,7 +663,7 @@ func (t *GeoPeerTable) DecodeFromBytes(data []byte) error {
 	if len(data) < 14 {
 		return fmt.Errorf("not all GeoPeerTable bytes are available")
 	}
-	t.CollectorBgpId = net.IP(data[:4])
+	t.CollectorBgpId, _ = netip.AddrFromSlice(data[:4])
 	t.CollectorLatitude = math.Float32frombits(binary.BigEndian.Uint32(data[4:8]))
 	t.CollectorLongitude = math.Float32frombits(binary.BigEndian.Uint32(data[8:12]))
 	peerCount := binary.BigEndian.Uint16(data[12:14])
@@ -680,11 +682,10 @@ func (t *GeoPeerTable) DecodeFromBytes(data []byte) error {
 
 func (t *GeoPeerTable) Serialize() ([]byte, error) {
 	buf := make([]byte, 14)
-	collectorBgpId := t.CollectorBgpId.To4()
-	if collectorBgpId == nil {
+	if !t.CollectorBgpId.Is4() {
 		return nil, fmt.Errorf("invalid CollectorBgpId: %s", t.CollectorBgpId)
 	}
-	copy(buf[:4], collectorBgpId)
+	copy(buf[:4], t.CollectorBgpId.AsSlice())
 	binary.BigEndian.PutUint32(buf[4:8], math.Float32bits(t.CollectorLatitude))
 	binary.BigEndian.PutUint32(buf[8:12], math.Float32bits(t.CollectorLongitude))
 	binary.BigEndian.PutUint16(buf[12:14], uint16(len(t.Peers)))
@@ -698,13 +699,16 @@ func (t *GeoPeerTable) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewGeoPeerTable(bgpid string, latitude float32, longitude float32, peers []*GeoPeer) *GeoPeerTable {
+func NewGeoPeerTable(bgpid netip.Addr, latitude float32, longitude float32, peers []*GeoPeer) (*GeoPeerTable, error) {
+	if !bgpid.Is4() {
+		return nil, fmt.Errorf("invalid BgpId: %s", bgpid)
+	}
 	return &GeoPeerTable{
-		CollectorBgpId:     net.ParseIP(bgpid).To4(),
+		CollectorBgpId:     bgpid,
 		CollectorLatitude:  latitude,
 		CollectorLongitude: longitude,
 		Peers:              peers,
-	}
+	}, nil
 }
 
 func (t *GeoPeerTable) String() string {
@@ -716,8 +720,8 @@ type BGP4MPHeader struct {
 	LocalAS        uint32
 	InterfaceIndex uint16
 	AddressFamily  uint16
-	PeerIpAddress  net.IP
-	LocalIpAddress net.IP
+	PeerIpAddress  netip.Addr
+	LocalIpAddress netip.Addr
 	isAS4          bool
 }
 
@@ -744,15 +748,15 @@ func (m *BGP4MPHeader) decodeFromBytes(data []byte) ([]byte, error) {
 		if len(data) < 12 {
 			return nil, errors.New("not all IPv4 peer bytes available")
 		}
-		m.PeerIpAddress = net.IP(data[4:8]).To4()
-		m.LocalIpAddress = net.IP(data[8:12]).To4()
+		m.PeerIpAddress, _ = netip.AddrFromSlice(data[4:8])
+		m.LocalIpAddress, _ = netip.AddrFromSlice(data[8:12])
 		data = data[12:]
 	case bgp.AFI_IP6:
 		if len(data) < 36 {
 			return nil, errors.New("not all IPv6 peer bytes available")
 		}
-		m.PeerIpAddress = net.IP(data[4:20])
-		m.LocalIpAddress = net.IP(data[20:36])
+		m.PeerIpAddress, _ = netip.AddrFromSlice(data[4:20])
+		m.LocalIpAddress, _ = netip.AddrFromSlice(data[20:36])
 		data = data[36:]
 	default:
 		return nil, fmt.Errorf("unsupported address family: %d", m.AddressFamily)
@@ -775,40 +779,40 @@ func (m *BGP4MPHeader) serialize() ([]byte, error) {
 	switch m.AddressFamily {
 	case bgp.AFI_IP:
 		bbuf = make([]byte, 8)
-		copy(bbuf, m.PeerIpAddress.To4())
-		copy(bbuf[4:], m.LocalIpAddress.To4())
+		copy(bbuf, m.PeerIpAddress.AsSlice())
+		copy(bbuf[4:], m.LocalIpAddress.AsSlice())
 	case bgp.AFI_IP6:
 		bbuf = make([]byte, 32)
-		copy(bbuf, m.PeerIpAddress)
-		copy(bbuf[16:], m.LocalIpAddress)
+		copy(bbuf, m.PeerIpAddress.AsSlice())
+		copy(bbuf[16:], m.LocalIpAddress.AsSlice())
 	default:
 		return nil, fmt.Errorf("unsupported address family: %d", m.AddressFamily)
 	}
 	return append(buf, bbuf...), nil
 }
 
-func newBGP4MPHeader(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool) (*BGP4MPHeader, error) {
+func newBGP4MPHeader(peeras, localas uint32, intfindex uint16, peerip, localip netip.Addr, isAS4 bool) (*BGP4MPHeader, error) {
 	var af uint16
-	paddr := net.ParseIP(peerip).To4()
-	laddr := net.ParseIP(localip).To4()
-	if paddr != nil && laddr != nil {
-		af = bgp.AFI_IP
-	} else {
-		paddr = net.ParseIP(peerip).To16()
-		laddr = net.ParseIP(localip).To16()
-		if paddr != nil && laddr != nil {
-			af = bgp.AFI_IP6
-		} else {
-			return nil, fmt.Errorf("peer IP Address and Local IP Address must have the same address family")
-		}
+
+	if !peerip.IsValid() || !localip.IsValid() {
+		return nil, fmt.Errorf("Peer IP Address and Local IP Address must be valid")
 	}
+
+	if peerip.Is4() && localip.Is4() {
+		af = bgp.AFI_IP
+	} else if peerip.Is6() && localip.Is6() {
+		af = bgp.AFI_IP6
+	} else {
+		return nil, fmt.Errorf("peer IP Address and Local IP Address must have the same address family")
+	}
+
 	return &BGP4MPHeader{
 		PeerAS:         peeras,
 		LocalAS:        localas,
 		InterfaceIndex: intfindex,
 		AddressFamily:  af,
-		PeerIpAddress:  paddr,
-		LocalIpAddress: laddr,
+		PeerIpAddress:  peerip,
+		LocalIpAddress: localip,
 		isAS4:          isAS4,
 	}, nil
 }
@@ -844,13 +848,17 @@ func (m *BGP4MPStateChange) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, oldstate, newstate BGPState) *BGP4MPStateChange {
-	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, localip netip.Addr, isAS4 bool, oldstate, newstate BGPState) (*BGP4MPStateChange, error) {
+	header, err := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+	if err != nil {
+		return nil, err
+	}
+
 	return &BGP4MPStateChange{
 		BGP4MPHeader: header,
 		OldState:     oldstate,
 		NewState:     newstate,
-	}
+	}, nil
 }
 
 type BGP4MPMessage struct {
@@ -894,40 +902,52 @@ func (m *BGP4MPMessage) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
-	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip netip.Addr, isAS4 bool, msg *bgp.BGPMessage) (*BGP4MPMessage, error) {
+	header, err := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+	if err != nil {
+		return nil, err
+	}
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
 		BGPMessage:   msg,
-	}
+	}, nil
 }
 
-func NewBGP4MPMessageLocal(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
-	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+func NewBGP4MPMessageLocal(peeras, localas uint32, intfindex uint16, peerip, localip netip.Addr, isAS4 bool, msg *bgp.BGPMessage) (*BGP4MPMessage, error) {
+	header, err := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+	if err != nil {
+		return nil, err
+	}
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
 		BGPMessage:   msg,
 		isLocal:      true,
-	}
+	}, nil
 }
 
-func NewBGP4MPMessageAddPath(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
-	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+func NewBGP4MPMessageAddPath(peeras, localas uint32, intfindex uint16, peerip, localip netip.Addr, isAS4 bool, msg *bgp.BGPMessage) (*BGP4MPMessage, error) {
+	header, err := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+	if err != nil {
+		return nil, err
+	}
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
 		BGPMessage:   msg,
 		isAddPath:    true,
-	}
+	}, nil
 }
 
-func NewBGP4MPMessageLocalAddPath(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
-	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+func NewBGP4MPMessageLocalAddPath(peeras, localas uint32, intfindex uint16, peerip, localip netip.Addr, isAS4 bool, msg *bgp.BGPMessage) (*BGP4MPMessage, error) {
+	header, err := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
+	if err != nil {
+		return nil, err
+	}
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
 		BGPMessage:   msg,
 		isLocal:      true,
 		isAddPath:    true,
-	}
+	}, nil
 }
 
 func (m *BGP4MPMessage) String() string {

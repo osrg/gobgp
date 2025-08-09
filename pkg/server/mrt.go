@@ -92,7 +92,7 @@ func (m *mrtWriter) loop() error {
 				if e.Init {
 					return nil
 				}
-				mp := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.String(), e.LocalAddress.String(), e.FourBytesAs, nil)
+				mp, _ := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, netip.MustParseAddr(e.PeerAddress.String()), netip.MustParseAddr(e.LocalAddress.String()), e.FourBytesAs, nil)
 				mp.BGPMessagePayload = e.Payload
 				isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
 				subtype := mrt.MESSAGE
