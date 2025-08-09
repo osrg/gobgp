@@ -161,7 +161,7 @@ func NewDestination(dst *api.Destination) *Destination {
 	return &Destination{Paths: l}
 }
 
-func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, age time.Time) (*api.Path, error) {
+func NewPath(family bgp.Family, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, age time.Time) (*api.Path, error) {
 	n, err := MarshalNLRI(nlri)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttr
 		Pattrs:     a,
 		Age:        tspb.New(age),
 		IsWithdraw: isWithdraw,
-		Family:     ToApiFamily(nlri.AFI(), nlri.SAFI()),
+		Family:     ToApiFamily(family.Afi(), family.Safi()),
 		Identifier: nlri.PathIdentifier(),
 	}, nil
 }
