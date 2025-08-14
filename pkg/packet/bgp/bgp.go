@@ -41,6 +41,35 @@ type MarshallingOption struct {
 	isIPv6 bool
 }
 
+func (m *MarshallingOption) Merge(mm ...*MarshallingOption) *MarshallingOption {
+	if m == nil && len(mm) > 0 {
+		return mm[0].Merge(mm[1:]...)
+	}
+	if len(mm) == 0 {
+		return m
+	}
+	for _, m2 := range mm {
+		if m2 == nil {
+			continue
+		}
+		for k, v := range m2.AddPath {
+			if m.AddPath == nil {
+				m.AddPath = make(map[Family]BGPAddPathMode)
+			}
+			m.AddPath[k] = v
+		}
+		for k, v := range m2.Attributes {
+			if m.Attributes == nil {
+				m.Attributes = make(map[BGPAttrType]bool)
+			}
+			m.Attributes[k] = v
+		}
+		m.MRT = m.MRT || m2.MRT
+		m.isIPv6 = m.isIPv6 || m2.isIPv6
+	}
+	return m
+}
+
 func IsMRTSerialization(options []*MarshallingOption) bool {
 	for _, opt := range options {
 		if opt == nil {
@@ -1628,8 +1657,8 @@ func NewIPv6AddrPrefix(bits uint8, prefix string) *IPv6AddrPrefix {
 }
 
 func (l *IPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return l.IPAddrPrefix.DecodeFromBytes(data, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return l.IPAddrPrefix.DecodeFromBytes(data, opt.Merge(options...))
 }
 
 const (
@@ -2212,8 +2241,8 @@ func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack
 }
 
 func (l *LabeledVPNIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return l.LabeledVPNIPAddrPrefix.DecodeFromBytes(data, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return l.LabeledVPNIPAddrPrefix.DecodeFromBytes(data, opt.Merge(options...))
 }
 
 type LabeledIPAddrPrefix struct {
@@ -2345,8 +2374,8 @@ func NewLabeledIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *
 }
 
 func (l *LabeledIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return l.LabeledIPAddrPrefix.DecodeFromBytes(data, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return l.LabeledIPAddrPrefix.DecodeFromBytes(data, opt.Merge(options...))
 }
 
 type RouteTargetMembershipNLRI struct {
@@ -3706,8 +3735,8 @@ func NewEncapv6NLRI(endpoint string) *Encapv6NLRI {
 }
 
 func (n *Encapv6NLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.EncapNLRI.DecodeFromBytes(data, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return n.EncapNLRI.DecodeFromBytes(data, opt.Merge(options...))
 }
 
 type BGPFlowSpecType uint8
@@ -4422,8 +4451,8 @@ func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOp
 	if p.Prefix == nil {
 		return malformedAttrListErr("flowSpecPrefix6: Prefix is nil")
 	}
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return p.Prefix.DecodeFromBytes(prefix, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return p.Prefix.DecodeFromBytes(prefix, opt.Merge(options...))
 }
 
 func (p *flowSpecPrefix6) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -5177,8 +5206,8 @@ type FlowSpecIPv6Unicast struct {
 }
 
 func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, opt.Merge(options...))
 }
 
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
@@ -5196,8 +5225,8 @@ type FlowSpecIPv6VPN struct {
 }
 
 func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
+	opt := &MarshallingOption{isIPv6: true}
+	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, opt.Merge(options...))
 }
 
 func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
@@ -15185,7 +15214,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	o := MarshallingOption{
 		Attributes: attributes,
 	}
-	options = append(options, &o)
+	options = []*MarshallingOption{o.Merge(options...)}
 
 	msg.PathAttributes = []PathAttributeInterface{}
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
@@ -15268,7 +15297,7 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	o := MarshallingOption{
 		Attributes: attributes,
 	}
-	options = append(options, &o)
+	options = []*MarshallingOption{o.Merge(options...)}
 	pbuf := make([]byte, 2)
 	for _, p := range msg.PathAttributes {
 		onepbuf, err := p.Serialize(options...)
