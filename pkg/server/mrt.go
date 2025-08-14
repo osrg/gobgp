@@ -17,6 +17,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/netip"
 	"os"
@@ -35,7 +36,7 @@ const (
 )
 
 type mrtWriter struct {
-	dead             chan struct{}
+	cancel           context.CancelFunc
 	s                *BgpServer
 	c                *oc.MrtConfig
 	file             *os.File
@@ -44,10 +45,10 @@ type mrtWriter struct {
 }
 
 func (m *mrtWriter) Stop() {
-	close(m.dead)
+	m.cancel()
 }
 
-func (m *mrtWriter) loop() error {
+func (m *mrtWriter) loop(ctx context.Context) error {
 	ops := []WatchOption{}
 	switch m.c.DumpType {
 	case oc.MRT_TYPE_UPDATES:
@@ -84,185 +85,138 @@ func (m *mrtWriter) loop() error {
 		w.Stop()
 	}()
 
-	for {
-		serialize := func(ev watchEvent) []*mrt.MRTMessage {
-			msg := make([]*mrt.MRTMessage, 0, 1)
-			switch e := ev.(type) {
-			case *watchEventUpdate:
-				if e.Init {
-					return nil
-				}
-				mp, _ := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, netip.MustParseAddr(e.PeerAddress.String()), netip.MustParseAddr(e.LocalAddress.String()), e.FourBytesAs, nil)
-				mp.BGPMessagePayload = e.Payload
-				isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
-				subtype := mrt.MESSAGE
-				switch {
-				case isAddPath && e.FourBytesAs:
-					subtype = mrt.MESSAGE_AS4_ADDPATH
-				case isAddPath:
-					subtype = mrt.MESSAGE_ADDPATH
-				case e.FourBytesAs:
-					subtype = mrt.MESSAGE_AS4
-				}
-				if bm, err := mrt.NewMRTMessage(e.Timestamp, mrt.BGP4MP, subtype, mp); err != nil {
-					m.s.logger.Warn("Failed to create MRT BGP4MP message",
-						log.Fields{
-							"Topic":   "mrt",
-							"Data":    e,
-							"Error":   err,
-							"Subtype": subtype,
-						})
-				} else {
-					msg = append(msg, bm)
-				}
-			case *watchEventTable:
-				t := time.Now()
+	eventToMrtMsg := func(ev watchEvent) []*mrt.MRTMessage {
+		msg := make([]*mrt.MRTMessage, 0, 1)
+		switch e := ev.(type) {
+		case *watchEventUpdate:
+			if e.Init {
+				return nil
+			}
+			mp, _ := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, netip.MustParseAddr(e.PeerAddress.String()), netip.MustParseAddr(e.LocalAddress.String()), e.FourBytesAs, nil)
+			mp.BGPMessagePayload = e.Payload
+			isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
+			subtype := mrt.MESSAGE
+			switch {
+			case isAddPath && e.FourBytesAs:
+				subtype = mrt.MESSAGE_AS4_ADDPATH
+			case isAddPath:
+				subtype = mrt.MESSAGE_ADDPATH
+			case e.FourBytesAs:
+				subtype = mrt.MESSAGE_AS4
+			}
+			if bm, err := mrt.NewMRTMessage(e.Timestamp, mrt.BGP4MP, subtype, mp); err != nil {
+				m.s.logger.Warn("Failed to create MRT BGP4MP message",
+					log.Fields{
+						"Topic":   "mrt",
+						"Data":    e,
+						"Error":   err,
+						"Subtype": subtype,
+					})
+			} else {
+				msg = append(msg, bm)
+			}
+		case *watchEventTable:
+			t := time.Now()
 
-				peers := make([]*mrt.Peer, 1, len(e.Neighbor)+1)
-				// Adding dummy Peer record for locally generated routes
-				peers[0] = mrt.NewPeer(netip.MustParseAddr("0.0.0.0"), netip.MustParseAddr("0.0.0.0"), 0, true)
-				neighborMap := make(map[string]*oc.Neighbor)
-				for _, pconf := range e.Neighbor {
-					peers = append(peers, mrt.NewPeer(netip.MustParseAddr(pconf.State.RemoteRouterId), netip.MustParseAddr(pconf.State.NeighborAddress), pconf.Config.PeerAs, true))
-					neighborMap[pconf.State.NeighborAddress] = pconf
-				}
+			peers := make([]*mrt.Peer, 1, len(e.Neighbor)+1)
+			// Adding dummy Peer record for locally generated routes
+			peers[0] = mrt.NewPeer(netip.MustParseAddr("0.0.0.0"), netip.MustParseAddr("0.0.0.0"), 0, true)
+			neighborMap := make(map[string]*oc.Neighbor)
+			for _, pconf := range e.Neighbor {
+				peers = append(peers, mrt.NewPeer(netip.MustParseAddr(pconf.State.RemoteRouterId), netip.MustParseAddr(pconf.State.NeighborAddress), pconf.Config.PeerAs, true))
+				neighborMap[pconf.State.NeighborAddress] = pconf
+			}
 
-				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(netip.MustParseAddr(e.RouterID), "", peers)); err != nil {
+			if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(netip.MustParseAddr(e.RouterID), "", peers)); err != nil {
+				m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
+					log.Fields{
+						"Topic":   "mrt",
+						"Data":    e,
+						"Error":   err,
+						"Subtype": mrt.PEER_INDEX_TABLE,
+					})
+				break
+			} else {
+				msg = append(msg, bm)
+			}
+
+			idx := func(p *table.Path) uint16 {
+				for i, peer := range peers {
+					if peer.IpAddress.String() == p.GetSource().Address.String() {
+						return uint16(i)
+					}
+				}
+				return uint16(len(peers))
+			}
+
+			subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
+				t := mrt.RIB_GENERIC
+				switch p.GetFamily() {
+				case bgp.RF_IPv4_UC:
+					t = mrt.RIB_IPV4_UNICAST
+				case bgp.RF_IPv4_MC:
+					t = mrt.RIB_IPV4_MULTICAST
+				case bgp.RF_IPv6_UC:
+					t = mrt.RIB_IPV6_UNICAST
+				case bgp.RF_IPv6_MC:
+					t = mrt.RIB_IPV6_MULTICAST
+				}
+				if isAddPath {
+					// Shift non-additional-path version to *_ADDPATH
+					t += 6
+				}
+				return t
+			}
+
+			seq := uint32(0)
+			appendTableDumpMsg := func(path *table.Path, entries []*mrt.RibEntry, isAddPath bool) {
+				st := subtype(path, isAddPath)
+				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetNlri(), entries)); err != nil {
 					m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
 						log.Fields{
 							"Topic":   "mrt",
 							"Data":    e,
 							"Error":   err,
-							"Subtype": mrt.PEER_INDEX_TABLE,
+							"Subtype": st,
 						})
-					break
 				} else {
 					msg = append(msg, bm)
+					seq++
 				}
-
-				idx := func(p *table.Path) uint16 {
-					for i, peer := range peers {
-						if peer.IpAddress.String() == p.GetSource().Address.String() {
-							return uint16(i)
-						}
+			}
+			for _, pathList := range e.PathList {
+				entries := make([]*mrt.RibEntry, 0, len(pathList))
+				entriesAddPath := make([]*mrt.RibEntry, 0, len(pathList))
+				for _, path := range pathList {
+					isAddPath := false
+					if path.IsLocal() {
+						isAddPath = true
+					} else if neighbor, ok := neighborMap[path.GetSource().Address.String()]; ok {
+						isAddPath = neighbor.IsAddPathReceiveEnabled(path.GetFamily())
 					}
-					return uint16(len(peers))
-				}
-
-				subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
-					t := mrt.RIB_GENERIC
-					switch p.GetFamily() {
-					case bgp.RF_IPv4_UC:
-						t = mrt.RIB_IPV4_UNICAST
-					case bgp.RF_IPv4_MC:
-						t = mrt.RIB_IPV4_MULTICAST
-					case bgp.RF_IPv6_UC:
-						t = mrt.RIB_IPV6_UNICAST
-					case bgp.RF_IPv6_MC:
-						t = mrt.RIB_IPV6_MULTICAST
-					}
-					if isAddPath {
-						// Shift non-additional-path version to *_ADDPATH
-						t += 6
-					}
-					return t
-				}
-
-				seq := uint32(0)
-				appendTableDumpMsg := func(path *table.Path, entries []*mrt.RibEntry, isAddPath bool) {
-					st := subtype(path, isAddPath)
-					if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetNlri(), entries)); err != nil {
-						m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
-							log.Fields{
-								"Topic":   "mrt",
-								"Data":    e,
-								"Error":   err,
-								"Subtype": st,
-							})
+					if !isAddPath {
+						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs(), false))
 					} else {
-						msg = append(msg, bm)
-						seq++
+						entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetNlri().PathIdentifier(), path.GetPathAttrs(), true))
 					}
 				}
-				for _, pathList := range e.PathList {
-					entries := make([]*mrt.RibEntry, 0, len(pathList))
-					entriesAddPath := make([]*mrt.RibEntry, 0, len(pathList))
-					for _, path := range pathList {
-						isAddPath := false
-						if path.IsLocal() {
-							isAddPath = true
-						} else if neighbor, ok := neighborMap[path.GetSource().Address.String()]; ok {
-							isAddPath = neighbor.IsAddPathReceiveEnabled(path.GetFamily())
-						}
-						if !isAddPath {
-							entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs(), false))
-						} else {
-							entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetNlri().PathIdentifier(), path.GetPathAttrs(), true))
-						}
-					}
-					if len(entries) > 0 {
-						appendTableDumpMsg(pathList[0], entries, false)
-					}
-					if len(entriesAddPath) > 0 {
-						appendTableDumpMsg(pathList[0], entriesAddPath, true)
-					}
+				if len(entries) > 0 {
+					appendTableDumpMsg(pathList[0], entries, false)
 				}
-			}
-			return msg
-		}
-
-		drain := func(ev watchEvent) {
-			events := make([]watchEvent, 0, 1+len(w.Event()))
-			if ev != nil {
-				events = append(events, ev)
-			}
-
-			for len(w.Event()) > 0 {
-				events = append(events, <-w.Event())
-			}
-
-			w := func(buf []byte) {
-				if _, err := m.file.Write(buf); err == nil {
-					m.file.Sync()
-				} else {
-					m.s.logger.Warn("Can't write to destination MRT file",
-						log.Fields{
-							"Topic": "mrt",
-							"Error": err,
-						})
+				if len(entriesAddPath) > 0 {
+					appendTableDumpMsg(pathList[0], entriesAddPath, true)
 				}
-			}
-
-			var b bytes.Buffer
-			for _, e := range events {
-				for _, msg := range serialize(e) {
-					if buf, err := msg.Serialize(); err != nil {
-						m.s.logger.Warn("Failed to serialize event",
-							log.Fields{
-								"Topic": "mrt",
-								"Data":  e,
-								"Error": err,
-							})
-					} else {
-						b.Write(buf)
-						if b.Len() > 1*1000*1000 {
-							w(b.Bytes())
-							b.Reset()
-						}
-					}
-				}
-			}
-			if b.Len() > 0 {
-				w(b.Bytes())
 			}
 		}
-		rotate := func() {
-			m.file.Close()
-			file, err := mrtFileOpen(m.s.logger, m.c.FileName, m.rotationInterval)
-			if err == nil {
-				m.file = file
+		return msg
+	}
+
+	writeToFile := func(msgs []*mrt.MRTMessage) {
+		w := func(buf []byte) {
+			if _, err := m.file.Write(buf); err == nil {
+				m.file.Sync()
 			} else {
-				m.s.logger.Warn("can't rotate MRT file",
+				m.s.logger.Warn("Can't write to destination MRT file",
 					log.Fields{
 						"Topic": "mrt",
 						"Error": err,
@@ -270,18 +224,54 @@ func (m *mrtWriter) loop() error {
 			}
 		}
 
+		var b bytes.Buffer
+		for _, msg := range msgs {
+			if buf, err := msg.Serialize(); err != nil {
+				m.s.logger.Warn("Failed to serialize event",
+					log.Fields{
+						"Topic": "mrt",
+						"Error": err,
+					})
+			} else {
+				b.Write(buf)
+				if b.Len() > 1*1000*1000 {
+					w(b.Bytes())
+					b.Reset()
+				}
+			}
+		}
+		if b.Len() > 0 {
+			w(b.Bytes())
+		}
+	}
+
+	rotateFile := func() {
+		m.file.Close()
+		file, err := mrtFileOpen(m.s.logger, m.c.FileName, m.rotationInterval)
+		if err == nil {
+			m.file = file
+		} else {
+			m.s.logger.Warn("can't rotate MRT file",
+				log.Fields{
+					"Topic": "mrt",
+					"Error": err,
+				})
+		}
+	}
+
+	for {
+		msgs := make([]*mrt.MRTMessage, 0)
 		select {
-		case <-m.dead:
-			drain(nil)
-			return nil
+		case <-ctx.Done():
+			// nothing
 		case e := <-w.Event():
-			drain(e)
+			msgs = append(msgs, eventToMrtMsg(e)...)
 			if m.c.DumpType == oc.MRT_TYPE_TABLE && m.rotationInterval != 0 {
-				rotate()
+				rotateFile()
 			}
 		case <-rotator.C:
 			if m.c.DumpType == oc.MRT_TYPE_UPDATES {
-				rotate()
+				rotateFile()
 			} else if err := w.Generate(watchEventTypeTable); err != nil {
 				m.s.logger.Warn("Failed to generate watch event",
 					log.Fields{
@@ -297,6 +287,15 @@ func (m *mrtWriter) loop() error {
 						"Error": err,
 					})
 			}
+		}
+
+		for len(w.Event()) > 0 {
+			msgs = append(msgs, eventToMrtMsg(<-w.Event())...)
+		}
+		writeToFile(msgs)
+
+		if ctx.Err() != nil {
+			return nil
 		}
 	}
 }
@@ -351,14 +350,16 @@ func newMrtWriter(s *BgpServer, c *oc.MrtConfig, rInterval, dInterval uint64) (*
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	m := mrtWriter{
+		cancel:           cancel,
 		s:                s,
 		c:                c,
 		file:             file,
 		rotationInterval: rInterval,
 		dumpInterval:     dInterval,
 	}
-	go m.loop()
+	go m.loop(ctx)
 	return &m, nil
 }
 
