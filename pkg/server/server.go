@@ -4644,11 +4644,6 @@ type watchEventPeer struct {
 	RemoteCap     []bgp.ParameterCapabilityInterface
 }
 
-type watchEventAdjIn struct {
-	PathList  []*table.Path
-	Timestamp time.Time
-}
-
 type watchEventTable struct {
 	RouterID  string
 	PathList  map[string][]*table.Path
@@ -4808,12 +4803,6 @@ func (w *watcher) Event() <-chan watchEvent {
 func (w *watcher) Generate(t watchEventType) error {
 	return w.s.mgmtOperation(func() error {
 		switch t {
-		case watchEventTypePreUpdate:
-			pathList := make([]*table.Path, 0)
-			for _, peer := range w.s.neighborMap {
-				pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
-			}
-			w.notify(&watchEventAdjIn{PathList: clonePathList(pathList)})
 		case watchEventTypeTable:
 			rib := w.s.globalRib
 			as := uint32(0)
