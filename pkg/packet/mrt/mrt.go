@@ -586,13 +586,12 @@ func (u *Rib) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewRib(seq uint32, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
-	rf := bgp.NewFamily(prefix.AFI(), prefix.SAFI())
+func NewRib(seq uint32, family bgp.Family, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
 	return &Rib{
 		SequenceNumber: seq,
 		Prefix:         prefix,
 		Entries:        entries,
-		Family:         rf,
+		Family:         family,
 		isAddPath:      entries[0].isAddPath,
 	}
 }
