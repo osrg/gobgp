@@ -180,23 +180,12 @@ func NewPath(nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttr
 	}, nil
 }
 
-func getNLRI(family bgp.Family, buf []byte) (bgp.AddrPrefixInterface, error) {
-	nlri, err := bgp.NewPrefixFromFamily(family)
-	if err != nil {
-		return nil, err
-	}
-	if err := nlri.DecodeFromBytes(buf); err != nil {
-		return nil, err
-	}
-	return nlri, nil
-}
-
 func GetNativeNlri(p *api.Path) (bgp.AddrPrefixInterface, error) {
 	if p.Family == nil {
 		return nil, fmt.Errorf("family cannot be nil")
 	}
 	if len(p.NlriBinary) > 0 {
-		return getNLRI(ToFamily(p.Family), p.NlriBinary)
+		return bgp.NLRIFromSlice(ToFamily(p.Family), p.NlriBinary)
 	}
 	return UnmarshalNLRI(ToFamily(p.Family), p.Nlri)
 }

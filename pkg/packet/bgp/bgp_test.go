@@ -508,10 +508,7 @@ func Test_FlowSpecNlri(t *testing.T) {
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
 
-	n2, err := NewPrefixFromFamily(RF_FS_IPv4_UC)
-	assert.NoError(err)
-
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_FS_IPv4_UC, buf1)
 	assert.NoError(err)
 	// should be equal
 	assert.Equal(n1, n2)
@@ -624,10 +621,7 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	buf1, err := n1.Serialize()
 	require.NoError(t, err)
 
-	n2, err := NewPrefixFromFamily(RF_FS_IPv6_UC)
-	require.NoError(t, err)
-
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_FS_IPv6_UC, buf1)
 	require.NoError(t, err)
 
 	_, err = n2.Serialize()
@@ -662,9 +656,7 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	n1 := NewFlowSpecL2VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(RF_FS_L2_VPN)
-	assert.NoError(err)
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_FS_L2_VPN, buf1)
 	assert.NoError(err)
 
 	assert.Equal(n1, n2)
@@ -688,9 +680,7 @@ func Test_FlowSpecNlriVPN(t *testing.T) {
 	n1 := NewFlowSpecIPv4VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(RF_FS_IPv4_VPN)
-	assert.NoError(err)
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_FS_IPv4_VPN, buf1)
 	require.NoError(t, err)
 
 	assert.Equal(n1, n2)
@@ -714,9 +704,7 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, r)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(RF_EVPN)
-	assert.NoError(err)
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_EVPN, buf1)
 	assert.NoError(err)
 
 	assert.Equal(n1, n2)
@@ -909,9 +897,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.0")
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
-	n2, err := NewPrefixFromFamily(RF_IPv6_UC)
-	assert.NoError(err)
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_IPv6_UC, buf1)
 	assert.NoError(err)
 
 	assert.Equal(n1, n2)
@@ -921,9 +907,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.0", *label)
 	buf1, err = n3.Serialize()
 	assert.NoError(err)
-	n4, err := NewPrefixFromFamily(RF_IPv6_MPLS)
-	assert.NoError(err)
-	err = n4.DecodeFromBytes(buf1)
+	n4, err := NLRIFromSlice(RF_IPv6_MPLS, buf1)
 	assert.NoError(err)
 
 	assert.Equal(n3, n4)
