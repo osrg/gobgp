@@ -4601,7 +4601,6 @@ const (
 	watchEventTypePreUpdate  watchEventType = "preupdate"
 	watchEventTypePostUpdate watchEventType = "postupdate"
 	watchEventTypePeerState  watchEventType = "peerstate"
-	watchEventTypeTable      watchEventType = "table"
 	watchEventTypeRecvMsg    watchEventType = "receivedmessage"
 	watchEventTypeEor        watchEventType = "eor"
 )
@@ -4644,13 +4643,6 @@ type watchEventPeer struct {
 	RemoteCap     []bgp.ParameterCapabilityInterface
 }
 
-type watchEventTable struct {
-	RouterID  string
-	PathList  map[string][]*table.Path
-	Neighbor  []*oc.Neighbor
-	Timestamp time.Time
-}
-
 type watchEventBestPath struct {
 	PathList      []*table.Path
 	MultiPathList [][]*table.Path
@@ -4687,7 +4679,6 @@ type watchOptions struct {
 	initBest       bool
 	initUpdate     bool
 	initPostUpdate bool
-	tableName      string
 	recvMessage    bool
 	initEor        bool
 	eor            bool
@@ -4767,12 +4758,6 @@ func WatchPeer() WatchOption {
 	}
 }
 
-func watchTableName(name string) WatchOption {
-	return func(o *watchOptions) {
-		o.tableName = name
-	}
-}
-
 func watchMessage(isSent bool) WatchOption {
 	return func(o *watchOptions) {
 		if isSent {
@@ -4798,49 +4783,6 @@ type watcher struct {
 
 func (w *watcher) Event() <-chan watchEvent {
 	return w.realCh
-}
-
-func (w *watcher) Generate(t watchEventType) error {
-	return w.s.mgmtOperation(func() error {
-		switch t {
-		case watchEventTypeTable:
-			rib := w.s.globalRib
-			as := uint32(0)
-			id := table.GLOBAL_RIB_NAME
-			if len(w.opts.tableName) > 0 {
-				peer, ok := w.s.neighborMap[w.opts.tableName]
-				if !ok {
-					return fmt.Errorf("neighbor that has %v doesn't exist", w.opts.tableName)
-				}
-				if !peer.isRouteServerClient() {
-					return fmt.Errorf("neighbor %v doesn't have local rib", w.opts.tableName)
-				}
-				id = peer.ID()
-				as = peer.AS()
-				rib = w.s.rsRib
-			}
-
-			pathList := func() map[string][]*table.Path {
-				pathList := make(map[string][]*table.Path)
-				for _, t := range rib.Tables {
-					for _, dst := range t.GetDestinations() {
-						if paths := dst.GetKnownPathList(id, as); len(paths) > 0 {
-							pathList[dst.GetNlri().String()] = clonePathList(paths)
-						}
-					}
-				}
-				return pathList
-			}()
-			l := make([]*oc.Neighbor, 0, len(w.s.neighborMap))
-			for _, peer := range w.s.neighborMap {
-				l = append(l, w.s.toConfig(peer, false))
-			}
-			w.notify(&watchEventTable{PathList: pathList, Neighbor: l})
-		default:
-			return fmt.Errorf("unsupported type %v", t)
-		}
-		return nil
-	}, false)
 }
 
 func (w *watcher) notify(v watchEvent) {
