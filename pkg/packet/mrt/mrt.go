@@ -525,11 +525,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 		data = data[3:]
 	}
 	family := bgp.NewFamily(afi, safi)
-	prefix, err := bgp.NewPrefixFromFamily(family)
-	if err != nil {
-		return err
-	}
-	err = prefix.DecodeFromBytes(data)
+	prefix, err := bgp.NLRIFromSlice(family, data)
 	if err != nil {
 		return err
 	}
