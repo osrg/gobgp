@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/bits"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -655,16 +656,17 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		switch t.Family {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			f := func(prefixStr string) (bool, error) {
-				var nlri bgp.AddrPrefixInterface
-				var err error
-				if t.Family == bgp.RF_IPv4_UC {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv4_UC, prefixStr)
-				} else {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv6_UC, prefixStr)
-				}
+				prefix, err := netip.ParsePrefix(prefixStr)
 				if err != nil {
 					return false, err
 				}
+				var nlri bgp.AddrPrefixInterface
+				if t.Family == bgp.RF_IPv4_UC {
+					nlri = bgp.NewIPAddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+				} else {
+					nlri = bgp.NewIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+				}
+
 				if dst := t.GetDestination(nlri); dst != nil {
 					if d := dst.Select(dOption); d != nil {
 						r.setDestination(d)
@@ -729,16 +731,16 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 			}
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 			f := func(prefixStr string) error {
-				var nlri bgp.AddrPrefixInterface
-				var err error
-
-				if t.Family == bgp.RF_IPv4_VPN {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv4_VPN, prefixStr)
-				} else {
-					nlri, err = bgp.NewPrefixFromFamily(bgp.RF_IPv6_VPN, prefixStr)
-				}
+				rd, p, err := bgp.ParseVPNPrefix(prefixStr)
 				if err != nil {
-					return fmt.Errorf("failed to create prefix: %w", err)
+					return err
+				}
+
+				var nlri bgp.AddrPrefixInterface
+				if t.Family == bgp.RF_IPv4_VPN {
+					nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
+				} else {
+					nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
 				}
 
 				if dst := t.GetDestination(nlri); dst != nil {
