@@ -10181,6 +10181,19 @@ func GetFamily(name string) (Family, error) {
 	return Family(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
+func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (prefix AddrPrefixInterface, err error) {
+	nlri, err := NewPrefixFromFamily(family)
+	if err != nil {
+		return nil, err
+	}
+
+	err = nlri.DecodeFromBytes(buf, options...)
+	if err != nil {
+		return nil, err
+	}
+	return nlri, nil
+}
+
 func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
 	f := func(s string) (AddrPrefixInterface, error) {
 		addr, net, err := net.ParseCIDR(s)
@@ -11672,14 +11685,9 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 		addpathLen = 4
 	}
 	for len(value) > 0 {
-		prefix, err := NewPrefixFromFamily(family)
+		prefix, err := NLRIFromSlice(family, value, options...)
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
-		}
-
-		err = prefix.DecodeFromBytes(value, options...)
-		if err != nil {
-			return err
 		}
 		if len(value) < prefix.Len(options...)+addpathLen {
 			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
@@ -11850,10 +11858,6 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 	}
 	afi := binary.BigEndian.Uint16(value[:2])
 	safi := value[2]
-	_, err = NewPrefixFromFamily(NewFamily(afi, safi))
-	if err != nil {
-		return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
-	}
 	value = value[3:]
 	p.AFI = afi
 	p.SAFI = safi
@@ -11862,12 +11866,9 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 		addpathLen = 4
 	}
 	for len(value) > 0 {
-		prefix, err := NewPrefixFromFamily(NewFamily(afi, safi))
+		prefix, err := NLRIFromSlice(NewFamily(afi, safi), value, options...)
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
-		}
-		if err = prefix.DecodeFromBytes(value, options...); err != nil {
-			return err
 		}
 		if prefix.Len(options...)+addpathLen > len(value) {
 			return NewMessageError(eCode, eSubCode, eData, "prefix length is incorrect")
