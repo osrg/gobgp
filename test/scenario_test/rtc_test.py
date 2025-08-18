@@ -221,8 +221,15 @@ class GoBGPTestBase(unittest.TestCase):
         # Check the counts of the sent UPDATE messages in order to detect the
         # infinite RTC UPDATE loop.
         # https://github.com/osrg/gobgp/issues/1630
-        self.assert_upd_count(self.g4, self.g3, sent=1, received=2)
-        self.assert_upd_count(self.g5, self.g3, sent=1, received=2)
+        #
+        # Do not forget to add RTC EOR:
+        # RFC 4684 6
+        # As a hint that initial RT membership exchange is complete,
+        # implementations SHOULD generate an End-of-RIB marker, as defined in
+        # [8], for the Route Target membership (afi, safi), regardless of
+        # whether graceful-restart is enabled on the BGP session.
+        self.assert_upd_count(self.g4, self.g3, sent=1+1, received=2+1)
+        self.assert_upd_count(self.g5, self.g3, sent=1+1, received=2+1)
 
         def check_rtc(client):
             rib = self.g3.get_adj_rib_out(client, rf='rtc')
@@ -861,8 +868,15 @@ class GoBGPTestBase(unittest.TestCase):
 
         # Check the counts of the sent UPDATE messages in order to detect the
         # infinite RTC UPDATE loop.
-        self.assert_upd_count(self.g4, self.g3, sent=1, received=2)
-        self.assert_upd_count(self.g5, self.g3, sent=1, received=2)
+        #
+        # Do not forget to add RTC EOR:
+        # RFC 4684 6
+        # As a hint that initial RT membership exchange is complete,
+        # implementations SHOULD generate an End-of-RIB marker, as defined in
+        # [8], for the Route Target membership (afi, safi), regardless of
+        # whether graceful-restart is enabled on the BGP session.
+        self.assert_upd_count(self.g4, self.g3, sent=1+1, received=2+1)
+        self.assert_upd_count(self.g5, self.g3, sent=1+1, received=2+1)
 
         def check_rtc(client):
             rib = self.g3.get_adj_rib_out(client, rf='rtc')

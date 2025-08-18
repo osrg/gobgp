@@ -1046,8 +1046,14 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family) ([]*table.
 			}
 		}
 	}
-	if peer.isGracefulRestartEnabled() {
-		for _, family := range rfList {
+	isGREnabled := peer.isGracefulRestartEnabled()
+	for _, family := range rfList {
+		// RFC 4684 6
+		// As a hint that initial RT membership exchange is complete,
+		// implementations SHOULD generate an End-of-RIB marker, as defined in
+		// [8], for the Route Target membership (afi, safi), regardless of
+		// whether graceful-restart is enabled on the BGP session.
+		if isGREnabled || family == bgp.RF_RTC_UC {
 			pathList = append(pathList, table.NewEOR(family))
 		}
 	}
@@ -1281,10 +1287,18 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				if path.IsWithdraw {
 					// Skips filtering because the paths are already filtered
 					// and the withdrawal does not need the path attributes.
-				} else {
+					sendfsmOutgoingMsg(peer, paths, nil, false)
+				} else if !peer.getRtcEORWait() {
 					paths = s.processOutgoingPaths(peer, paths, nil)
+					sendfsmOutgoingMsg(peer, paths, nil, false)
+				} else {
+					s.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.",
+						log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.ID(),
+							"Data":  path,
+						})
 				}
-				sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
 		}
 
@@ -1673,6 +1687,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				notPeerRestarting := !peer.fsm.pConf.GracefulRestart.State.PeerRestarting
 				peer.fsm.lock.RUnlock()
 				if y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
+					peer.setRtcEORWait(true)
 					pathList, _ = s.getBestFromLocal(peer, []bgp.Family{bgp.RF_RTC_UC})
 					t := c.RouteTargetMembership.Config.DeferralTime
 					for _, f := range peer.negotiatedRFList() {
@@ -1868,7 +1883,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					}
 
 					// we don't delay non-route-target NLRIs when local-restarting
-					rtc = false
+					peer.setRtcEORWait(false)
 				}
 				peer.fsm.lock.RLock()
 				peerRestarting := peer.fsm.pConf.GracefulRestart.State.PeerRestarting
@@ -1887,17 +1902,14 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						peer.fsm.lock.RUnlock()
 						s.propagateUpdate(peer, pathList)
 					}
-
 					// we don't delay non-route-target NLRIs when peer is restarting
-					rtc = false
+					peer.setRtcEORWait(false)
 				}
 
 				// received EOR of route-target address family
 				// outbound filter is now ready, let's flash non-route-target NLRIs
-				peer.fsm.lock.RLock()
-				c := peer.fsm.pConf.GetAfiSafi(bgp.RF_RTC_UC)
-				peer.fsm.lock.RUnlock()
-				if rtc && c != nil && c.RouteTargetMembership.Config.DeferralTime > 0 {
+				if rtc && peer.getRtcEORWait() {
+					peer.setRtcEORWait(false)
 					s.logger.Debug("received route-target eor. flash non-route-target NLRIs",
 						log.Fields{
 							"Topic": "Peer",
@@ -2702,6 +2714,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 						"Families": families,
 					})
 			} else if y && !c.MpGracefulRestart.State.EndOfRibReceived {
+				peer.setRtcEORWait(false)
 				s.logger.Debug("route-target deferral timer expired",
 					log.Fields{
 						"Topic":    "Peer",

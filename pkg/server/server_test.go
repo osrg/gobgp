@@ -2378,6 +2378,235 @@ func TestListPathWithIdentifiers(t *testing.T) {
 	}
 }
 
+func makeNeighborConfig(port int32) *oc.Neighbor {
+	return &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: "127.0.0.1",
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort: uint16(port),
+			},
+		},
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
+	}
+}
+
+func TestRTCDefferalTime(test *testing.T) {
+	ctx := context.Background()
+	as := uint32(1)
+	senderPort := int32(10179)
+	sender := runNewServer(test, as, "1.1.1.1", senderPort)
+	defer sender.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	receiverPort := int32(20179)
+	receiver := runNewServer(test, as, "2.2.2.2", receiverPort)
+	defer receiver.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
+
+	attrs100 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100}),
+	}
+	attrs200 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200}),
+	}
+	attrs100200 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200, rt100}),
+	}
+	labels := bgp.NewMPLSLabelStack(100)
+
+	foundNlris := make(map[string]bool)
+
+	// Add 60 paths with one RT that should be received.
+	for i := range 60 {
+		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("100:%d", i+100))
+		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
+		path, _ := apiutil.NewPath(prefix, false, attrs100, time.Now())
+
+		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
+			test.Fatal(err)
+		}
+		foundNlris[fmt.Sprintf("100:%d:10.30.2.0/24", i+100)] = false
+	}
+
+	// Add 60 paths with two RT that should be received (for one of RT).
+	for i := range 40 {
+		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("100:%d", i+100))
+		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "20.30.2.0", *labels, rd)
+		path, _ := apiutil.NewPath(prefix, false, attrs100200, time.Now())
+
+		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
+			test.Fatal(err)
+		}
+		foundNlris[fmt.Sprintf("100:%d:20.30.2.0/24", i+100)] = false
+	}
+
+	// Add 5 paths with one RT that should not be received.
+	for i := range 5 {
+		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("100:%d", i+100))
+		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "5.30.2.0", *labels, rd)
+		path, _ := apiutil.NewPath(prefix, false, attrs200, time.Now())
+
+		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
+			test.Fatal(err)
+		}
+	}
+
+	attrsRtc := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("0.0.0.0"),
+	}
+
+	// Add 40 paths with different RTs that should be received.
+	for i := range 40 {
+		rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, uint16(10+i), 100, true)
+
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeNextHop("3.3.3.3"),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+		}
+
+		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("%d:%d", uint16(10+i), 100))
+		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "20.30.3.0", *labels, rd)
+		path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
+
+		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
+			test.Fatal(err)
+		}
+
+		pathRtc1, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(as, rt), false, attrsRtc, time.Now())
+		if _, err := receiver.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc1)}}); err != nil {
+			test.Fatal(err)
+		}
+		foundNlris[fmt.Sprintf("%d:%d:20.30.3.0/24", uint16(10+i), 100)] = false
+	}
+
+	// Add 40 paths with different RTs that should not be received.
+	for i := range 40 {
+		rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, uint16(50+i), 100, true)
+
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeNextHop("3.3.3.3"),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+		}
+
+		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("%d:%d", uint16(50+i), 100))
+		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "5.30.2.0", *labels, rd)
+		path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
+
+		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
+			test.Fatal(err)
+		}
+	}
+
+	pathRtc1, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(as, rt100), false, attrsRtc, time.Now())
+	if _, err := receiver.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc1)}}); err != nil {
+		test.Fatal(err)
+	}
+
+	// Neighbor test params:
+	neighborIsSender := makeNeighborConfig(senderPort)
+	neighborIsSender.Config.PeerAs = as
+	neighborIsSender.AfiSafis = oc.AfiSafis{}
+
+	neighborIsSender.GracefulRestart.Config.Enabled = true
+
+	neighborIsReceiver := makeNeighborConfig(receiverPort)
+	neighborIsReceiver.Config.PeerAs = as
+	neighborIsReceiver.AfiSafis = oc.AfiSafis{}
+	neighborIsReceiver.Transport.Config.PassiveMode = true
+
+	neighborIsReceiver.GracefulRestart.Config.Enabled = true
+
+	for _, family := range []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC} {
+		afiSafi := oc.AfiSafi{
+			Config: oc.AfiSafiConfig{
+				AfiSafiName: family,
+				Enabled:     true,
+			},
+		}
+		if family == oc.AFI_SAFI_TYPE_RTC {
+			afiSafi.RouteTargetMembership.Config.DeferralTime = 30
+		}
+		neighborIsSender.AfiSafis = append(neighborIsSender.AfiSafis, afiSafi)
+		neighborIsReceiver.AfiSafis = append(neighborIsReceiver.AfiSafis, afiSafi)
+	}
+
+	establishedSender := waitEstablished(sender)
+
+	if err := sender.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborIsReceiver)}); err != nil {
+		test.Fatal(err)
+	}
+	defer sender.DeletePeer(ctx, &api.DeletePeerRequest{
+		Address: "127.0.0.1",
+	})
+
+	if err := receiver.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborIsSender)}); err != nil {
+		test.Fatal(err)
+	}
+	defer receiver.DeletePeer(ctx, &api.DeletePeerRequest{
+		Address: "127.0.0.1",
+	})
+	establishedSender.Wait()
+
+	watcher := receiver.watch(WatchUpdate(true, "", ""), WatchEor(true))
+	t1 := time.NewTimer(50 * time.Second)
+	var receivedEOR bool
+	var pathsCounter int
+	for found := false; !found; {
+		select {
+		case ev := <-watcher.Event():
+			switch msg := ev.(type) {
+			case *watchEventUpdate:
+				for _, path := range msg.PathList {
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if receivedEOR {
+							test.Fatalf("some path received after eor: %s", vpnPath.String())
+						}
+						if _, ok := foundNlris[vpnPath.String()]; !ok {
+							test.Fatalf("receiver caught unexpected path: %s", vpnPath.String())
+						}
+						foundNlris[vpnPath.String()] = true
+						pathsCounter++
+					}
+				}
+			case *watchEventEor:
+				if msg.Family == bgp.RF_IPv4_VPN {
+					for nlri, exist := range foundNlris {
+						if !exist {
+							test.Fatalf("path %s wasn't received before eor", nlri)
+						}
+					}
+					if len(foundNlris) != pathsCounter {
+						test.Fatalf("number of received paths is not correct. received: %d, right number: %d",
+							pathsCounter, len(foundNlris))
+					}
+					found = true
+				}
+			}
+
+		case <-t1.C:
+			test.Fatalf("timeout while waiting for update path event")
+		}
+	}
+	t1.Stop()
+}
+
 func TestWatchEvent(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()

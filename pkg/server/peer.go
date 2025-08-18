@@ -297,6 +297,31 @@ func (peer *peer) isDynamicNeighbor() bool {
 	return peer.fsm.pConf.Config.NeighborAddress == "" && peer.fsm.pConf.Config.NeighborInterface == ""
 }
 
+func (peer *peer) getRtcEORWait() bool {
+	peer.fsm.lock.RLock()
+	defer peer.fsm.lock.RUnlock()
+	peer.fsm.logger.Debug("Get rtcEORWait",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.fsm.pConf.State.NeighborAddress,
+			"Data":  peer.fsm.rtcEORWait,
+		})
+
+	return peer.fsm.rtcEORWait
+}
+
+func (peer *peer) setRtcEORWait(waiting bool) {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	peer.fsm.rtcEORWait = waiting
+	peer.fsm.logger.Debug("Set rtcEORWait",
+		log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.fsm.pConf.State.NeighborAddress,
+			"Data":  peer.fsm.rtcEORWait,
+		})
+}
+
 func (peer *peer) recvedAllEOR() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
