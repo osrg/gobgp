@@ -216,7 +216,7 @@ func (b *bmpClient) loop() {
 						info := &table.PeerInfo{
 							Address: net.ParseIP("0.0.0.0").To4(),
 							AS:      b.s.bgpConfig.Global.Config.As,
-							ID:      net.ParseIP(b.s.bgpConfig.Global.Config.RouterId).To4(),
+							ID:      net.IP(b.s.bgpConfig.Global.Config.RouterId.AsSlice()),
 						}
 						for _, p := range msg.PathList {
 							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]

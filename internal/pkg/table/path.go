@@ -304,7 +304,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
-					path.setPathAttr(bgp.NewPathAttributeOriginatorId(global.Config.RouterId))
+					path.setPathAttr(bgp.NewPathAttributeOriginatorId(global.Config.RouterId.String()))
 				} else {
 					path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
 				}
