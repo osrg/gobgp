@@ -1665,6 +1665,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
+
+			peer.fsm.peerInfo.AS = peer.fsm.pConf.State.PeerAs
+			peer.fsm.peerInfo.ID = net.ParseIP(peer.fsm.pConf.State.RemoteRouterId).To4()
+
 			peer.fsm.lock.Unlock()
 			deferralExpiredFunc := func(family bgp.Family) func() {
 				//nolint: errcheck // ignore error

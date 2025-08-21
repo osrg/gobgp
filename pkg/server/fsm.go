@@ -1376,8 +1376,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 
 					fsm.lock.RLock()
 					fsmPeerAS := fsm.pConf.Config.PeerAs
+					localAS := fsm.pConf.Config.LocalAs
 					fsm.lock.RUnlock()
-					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, fsm.peerInfo.LocalAS, netip.MustParseAddr(fsm.gConf.Config.RouterId))
+					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, netip.MustParseAddr(fsm.gConf.Config.RouterId))
 					if err != nil {
 						m, _ := fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
@@ -1390,7 +1391,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					if asnNegotiationSkipped {
 						fsm.lock.Lock()
 						typ := oc.PEER_TYPE_EXTERNAL
-						if fsm.peerInfo.LocalAS == peerAs {
+						if localAS == peerAs {
 							typ = oc.PEER_TYPE_INTERNAL
 						}
 						fsm.pConf.State.PeerType = typ
@@ -1410,8 +1411,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					}
 					fsm.lock.Lock()
 					fsm.pConf.State.PeerAs = peerAs
-					fsm.peerInfo.AS = peerAs
-					fsm.peerInfo.ID = body.ID.AsSlice()
+					fsm.pConf.State.RemoteRouterId = body.ID.String()
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 
 					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
