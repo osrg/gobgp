@@ -147,14 +147,10 @@ func (peer *peer) ID() string {
 func (peer *peer) routerID() net.IP {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	return peer.fsm.peerInfo.ID
-}
-
-func (peer *peer) RouterID() string {
-	if id := peer.routerID(); id != nil {
-		return id.String()
+	if peer.fsm.pConf.State.RemoteRouterId != "" {
+		return net.ParseIP(peer.fsm.pConf.State.RemoteRouterId).To4()
 	}
-	return ""
+	return nil
 }
 
 func (peer *peer) TableID() string {
@@ -651,7 +647,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 			// route should be excluded from the Phase 2 decision function.
 			if aspath := path.GetAsPath(); aspath != nil {
 				peer.fsm.lock.RLock()
-				localAS := peer.fsm.peerInfo.LocalAS
+				localAS := peer.fsm.pConf.Config.LocalAs
 				allowOwnAS := int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs)
 				peer.fsm.lock.RUnlock()
 				if hasOwnASLoop(localAS, allowOwnAS, aspath) {
