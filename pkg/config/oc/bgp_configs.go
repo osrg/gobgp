@@ -3399,6 +3399,9 @@ type LongLivedGracefulRestartState struct {
 	Advertised bool `mapstructure:"advertised" json:"advertised,omitempty"`
 	// original -> gobgp:peer-restart-time
 	PeerRestartTime uint32 `mapstructure:"peer-restart-time" json:"peer-restart-time,omitempty"`
+	// original -> gobgp:running
+	// gobgp:running's original type is boolean.
+	Running bool `mapstructure:"running" json:"running,omitempty"`
 	// original -> gobgp:peer-restart-timer-expired
 	// gobgp:peer-restart-timer-expired's original type is boolean.
 	PeerRestartTimerExpired bool `mapstructure:"peer-restart-timer-expired" json:"peer-restart-timer-expired,omitempty"`
@@ -4045,6 +4048,9 @@ type MpGracefulRestartState struct {
 	// original -> gobgp:end-of-rib-sent
 	// gobgp:end-of-rib-sent's original type is boolean.
 	EndOfRibSent bool `mapstructure:"end-of-rib-sent" json:"end-of-rib-sent,omitempty"`
+	// original -> gobgp:running
+	// gobgp:running's original type is boolean.
+	Running bool `mapstructure:"running" json:"running,omitempty"`
 }
 
 // struct for container bgp-mp:config.

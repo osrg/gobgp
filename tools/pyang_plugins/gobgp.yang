@@ -782,8 +782,11 @@ module gobgp {
 	      leaf peer-restart-time {
 		  type uint32;
 	      }
+        leaf running {
+          type boolean;
+        }
 	      leaf peer-restart-timer-expired {
-		  type boolean;
+		      type boolean;
 	      }
 	  }
       }
@@ -977,6 +980,9 @@ module gobgp {
       type boolean;
     }
     leaf end-of-rib-sent {
+      type boolean;
+    }
+    leaf running {
       type boolean;
     }
   }

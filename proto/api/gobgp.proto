@@ -920,7 +920,6 @@ message GracefulRestart {
   bool peer_restarting = 9;
   bool local_restarting = 10;
   string mode = 11;
-  bool longlived_running = 12;
 }
 
 message MpGracefulRestartConfig {
@@ -933,6 +932,7 @@ message MpGracefulRestartState {
   bool advertised = 3;
   bool end_of_rib_received = 4;
   bool end_of_rib_sent = 5;
+  bool running = 6;
 }
 message MpGracefulRestart {
   MpGracefulRestartConfig config = 1;
@@ -1044,6 +1044,7 @@ message LongLivedGracefulRestartState {
   bool advertised = 3;
   uint32 peer_restart_time = 4;
   bool peer_restart_timer_expired = 5;
+  bool running = 6;
 }
 
 message LongLivedGracefulRestart {

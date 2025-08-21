@@ -443,13 +443,25 @@ func (peer *peer) llgrRestartTime(family bgp.Family) uint32 {
 	return 0
 }
 
-func (peer *peer) llgrRestartTimerExpired(family bgp.Family) bool {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-	all := true
-	for _, a := range peer.fsm.pConf.AfiSafis {
+func (peer *peer) llgrRestartTimerStarted(family bgp.Family) {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+
+	for i, a := range peer.fsm.pConf.AfiSafis {
 		if a.State.Family == family {
-			a.LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
+			peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Running = false
+			peer.fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Running = true
+		}
+	}
+}
+
+func (peer *peer) llgrRestartTimerExpired(family bgp.Family) bool {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	all := true
+	for i, a := range peer.fsm.pConf.AfiSafis {
+		if a.State.Family == family {
+			peer.fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
 		}
 		s := a.LongLivedGracefulRestart.State
 		if s.Received && !s.PeerRestartTimerExpired {
@@ -467,6 +479,11 @@ func (peer *peer) stopPeerRestarting() {
 	peer.fsm.lock.Lock()
 	defer peer.fsm.lock.Unlock()
 	peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+	for i := range peer.fsm.pConf.AfiSafis {
+		peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Running = false
+		peer.fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Running = false
+	}
+
 	for _, ch := range peer.llgrEndChs {
 		close(ch)
 	}

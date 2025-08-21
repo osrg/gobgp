@@ -1501,27 +1501,30 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 			graceful := peer.fsm.reason.Type == fsmGracefulRestart
 			peer.fsm.lock.Unlock()
-			var drop []bgp.Family
+			var dropFamilies, gracefulFamilies []bgp.Family
 			if graceful {
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
 				peer.fsm.lock.Unlock()
-				var p []bgp.Family
-				p, drop = peer.forwardingPreservedFamilies()
-				s.propagateUpdate(peer, peer.StaleAll(p))
+
+				gracefulFamilies, dropFamilies = peer.forwardingPreservedFamilies()
+				s.propagateUpdate(peer, peer.StaleAll(gracefulFamilies))
 			} else {
-				drop = peer.configuredRFlist()
+				dropFamilies = peer.configuredRFlist()
 			}
 
 			// Always clear EndOfRibReceived state on PeerDown
 			peer.fsm.lock.Lock()
-			for i := range peer.fsm.pConf.AfiSafis {
+			for i, af := range peer.fsm.pConf.AfiSafis {
+				if slices.Contains(gracefulFamilies, af.State.Family) {
+					peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Running = true
+				}
 				peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
 			}
 			peer.fsm.lock.Unlock()
 
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
-			s.propagateUpdate(peer, peer.DropAll(drop))
+			s.propagateUpdate(peer, peer.DropAll(dropFamilies))
 
 			peer.fsm.lock.Lock()
 			if peer.fsm.pConf.Config.PeerAs == 0 {
@@ -1564,6 +1567,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					endCh := make(chan struct{})
 					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
 					go func(family bgp.Family, endCh chan struct{}) {
+						peer.llgrRestartTimerStarted(family)
 						t := peer.llgrRestartTime(family)
 						timer := time.NewTimer(time.Second * time.Duration(t))
 
@@ -1623,6 +1627,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// delete all the stale routes from the peer that it is retaining.
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+				for i := range peer.fsm.pConf.AfiSafis {
+					peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Running = false
+				}
 				peer.fsm.lock.Unlock()
 
 				s.propagateUpdate(peer, peer.DropAll(peer.configuredRFlist()))
@@ -3205,7 +3212,6 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 		for k, peer := range s.neighborMap {
 			peer.fsm.lock.RLock()
 			neighborIface := peer.fsm.pConf.Config.NeighborInterface
-			llgrRunning := peer.fsm.longLivedRunning
 			peer.fsm.lock.RUnlock()
 			if address != "" && address != k && address != neighborIface {
 				continue
@@ -3244,10 +3250,6 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 					}
 				}
 			}
-			if p.GracefulRestart != nil {
-				p.GracefulRestart.LonglivedRunning = llgrRunning
-			}
-
 			l = append(l, p)
 		}
 		return nil
