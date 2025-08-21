@@ -386,6 +386,7 @@ func (fsm *fsm) sendNotification(code, subType uint8, data []byte, msg string) (
 type fsmHandler struct {
 	fsm              *fsm
 	conn             net.Conn
+	allowLoopback    bool
 	msgCh            *channels.InfiniteChannel
 	stateReasonCh    chan fsmStateReason
 	outgoing         *channels.InfiniteChannel
@@ -1115,16 +1116,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				rfMap := h.fsm.rfMap
 				h.fsm.lock.RUnlock()
 
-				// Allow updates from host loopback addresses if the BGP connection
-				// with the neighbour is both dialed and received on loopback
-				// addresses.
-				var allowLoopback bool
-				h.fsm.lock.RLock()
-				if localAddr, peerAddr := h.fsm.peerInfo.LocalAddress, h.fsm.peerInfo.Address; localAddr.To4() != nil && peerAddr.To4() != nil {
-					allowLoopback = localAddr.IsLoopback() && peerAddr.IsLoopback()
-				}
-				h.fsm.lock.RUnlock()
-				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, allowLoopback)
+				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, h.allowLoopback)
 				if !ok {
 					handling = h.handlingError(m, err, useRevisedError)
 				}
@@ -2053,6 +2045,17 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) error {
 	case bgp.BGP_FSM_OPENCONFIRM:
 		nextState, reason = h.openconfirm(ctx)
 	case bgp.BGP_FSM_ESTABLISHED:
+		// Allow updates from host loopback addresses if the BGP connection
+		// with the neighbour is both dialed and received on loopback
+		// addresses.
+		fsm.lock.RLock()
+		remoteTCP := fsm.conn.RemoteAddr().(*net.TCPAddr)
+		remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
+		localTCP := fsm.conn.LocalAddr().(*net.TCPAddr)
+		localAddr, _ := netip.AddrFromSlice(localTCP.IP)
+		h.allowLoopback = remoteAddr.Is4() && localAddr.Is4() && remoteAddr.IsLoopback() && localAddr.IsLoopback()
+		fsm.lock.RUnlock()
+
 		nextState, reason = h.established(ctx)
 	}
 
