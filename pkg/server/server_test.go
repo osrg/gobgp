@@ -1287,6 +1287,11 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 				Family:  apiutil.ToApiFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
 				Enabled: true,
 			},
+			MpGracefulRestart: &api.MpGracefulRestart{
+				Config: &api.MpGracefulRestartConfig{
+					Enabled: true,
+				},
+			},
 			LongLivedGracefulRestart: &api.LongLivedGracefulRestart{
 				Config: &api.LongLivedGracefulRestartConfig{
 					Enabled:     true,
@@ -1379,6 +1384,9 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
 			assert.True(collect, peer.GracefulRestart.PeerRestarting)
+			for _, af := range peer.AfiSafis {
+				assert.True(collect, af.MpGracefulRestart.State.Running)
+			}
 		})
 	}, time.Second, 10*time.Millisecond)
 	<-timer.C
@@ -1401,7 +1409,10 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
 			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
 				// After expiration of GR timer, expect for LLGR to take place
-				assert.True(t, peer.GracefulRestart.LonglivedRunning)
+				for _, af := range peer.AfiSafis {
+					assert.False(t, af.MpGracefulRestart.State.Running)
+					assert.True(t, af.LongLivedGracefulRestart.State.Running)
+				}
 
 				close(done)
 			}

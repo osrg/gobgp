@@ -8516,7 +8516,6 @@ type GracefulRestart struct {
 	PeerRestarting      bool                   `protobuf:"varint,9,opt,name=peer_restarting,json=peerRestarting,proto3" json:"peer_restarting,omitempty"`
 	LocalRestarting     bool                   `protobuf:"varint,10,opt,name=local_restarting,json=localRestarting,proto3" json:"local_restarting,omitempty"`
 	Mode                string                 `protobuf:"bytes,11,opt,name=mode,proto3" json:"mode,omitempty"`
-	LonglivedRunning    bool                   `protobuf:"varint,12,opt,name=longlived_running,json=longlivedRunning,proto3" json:"longlived_running,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -8628,13 +8627,6 @@ func (x *GracefulRestart) GetMode() string {
 	return ""
 }
 
-func (x *GracefulRestart) GetLonglivedRunning() bool {
-	if x != nil {
-		return x.LonglivedRunning
-	}
-	return false
-}
-
 type MpGracefulRestartConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -8686,6 +8678,7 @@ type MpGracefulRestartState struct {
 	Advertised       bool                   `protobuf:"varint,3,opt,name=advertised,proto3" json:"advertised,omitempty"`
 	EndOfRibReceived bool                   `protobuf:"varint,4,opt,name=end_of_rib_received,json=endOfRibReceived,proto3" json:"end_of_rib_received,omitempty"`
 	EndOfRibSent     bool                   `protobuf:"varint,5,opt,name=end_of_rib_sent,json=endOfRibSent,proto3" json:"end_of_rib_sent,omitempty"`
+	Running          bool                   `protobuf:"varint,6,opt,name=running,proto3" json:"running,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -8751,6 +8744,13 @@ func (x *MpGracefulRestartState) GetEndOfRibReceived() bool {
 func (x *MpGracefulRestartState) GetEndOfRibSent() bool {
 	if x != nil {
 		return x.EndOfRibSent
+	}
+	return false
+}
+
+func (x *MpGracefulRestartState) GetRunning() bool {
+	if x != nil {
+		return x.Running
 	}
 	return false
 }
@@ -9822,6 +9822,7 @@ type LongLivedGracefulRestartState struct {
 	Advertised              bool                   `protobuf:"varint,3,opt,name=advertised,proto3" json:"advertised,omitempty"`
 	PeerRestartTime         uint32                 `protobuf:"varint,4,opt,name=peer_restart_time,json=peerRestartTime,proto3" json:"peer_restart_time,omitempty"`
 	PeerRestartTimerExpired bool                   `protobuf:"varint,5,opt,name=peer_restart_timer_expired,json=peerRestartTimerExpired,proto3" json:"peer_restart_timer_expired,omitempty"`
+	Running                 bool                   `protobuf:"varint,6,opt,name=running,proto3" json:"running,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -9887,6 +9888,13 @@ func (x *LongLivedGracefulRestartState) GetPeerRestartTime() uint32 {
 func (x *LongLivedGracefulRestartState) GetPeerRestartTimerExpired() bool {
 	if x != nil {
 		return x.PeerRestartTimerExpired
+	}
+	return false
+}
+
+func (x *LongLivedGracefulRestartState) GetRunning() bool {
+	if x != nil {
+		return x.Running
 	}
 	return false
 }
@@ -13135,7 +13143,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0ebind_interface\x18\b \x01(\tR\rbindInterface\"f\n" +
 	"\vRouteServer\x12.\n" +
 	"\x13route_server_client\x18\x01 \x01(\bR\x11routeServerClient\x12'\n" +
-	"\x0fsecondary_route\x18\x02 \x01(\bR\x0esecondaryRoute\"\xe1\x03\n" +
+	"\x0fsecondary_route\x18\x02 \x01(\bR\x0esecondaryRoute\"\xb4\x03\n" +
 	"\x0fGracefulRestart\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12!\n" +
 	"\frestart_time\x18\x02 \x01(\rR\vrestartTime\x12\x1f\n" +
@@ -13149,10 +13157,9 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fpeer_restarting\x18\t \x01(\bR\x0epeerRestarting\x12)\n" +
 	"\x10local_restarting\x18\n" +
 	" \x01(\bR\x0flocalRestarting\x12\x12\n" +
-	"\x04mode\x18\v \x01(\tR\x04mode\x12+\n" +
-	"\x11longlived_running\x18\f \x01(\bR\x10longlivedRunning\"3\n" +
+	"\x04mode\x18\v \x01(\tR\x04mode\"3\n" +
 	"\x17MpGracefulRestartConfig\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\"\xc4\x01\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\"\xde\x01\n" +
 	"\x16MpGracefulRestartState\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
 	"\breceived\x18\x02 \x01(\bR\breceived\x12\x1e\n" +
@@ -13160,7 +13167,8 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"advertised\x18\x03 \x01(\bR\n" +
 	"advertised\x12-\n" +
 	"\x13end_of_rib_received\x18\x04 \x01(\bR\x10endOfRibReceived\x12%\n" +
-	"\x0fend_of_rib_sent\x18\x05 \x01(\bR\fendOfRibSent\"|\n" +
+	"\x0fend_of_rib_sent\x18\x05 \x01(\bR\fendOfRibSent\x12\x18\n" +
+	"\arunning\x18\x06 \x01(\bR\arunning\"|\n" +
 	"\x11MpGracefulRestart\x124\n" +
 	"\x06config\x18\x01 \x01(\v2\x1c.api.MpGracefulRestartConfigR\x06config\x121\n" +
 	"\x05state\x18\x02 \x01(\v2\x1b.api.MpGracefulRestartStateR\x05state\"N\n" +
@@ -13232,7 +13240,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x05state\x18\x02 \x01(\v2\x1f.api.RouteTargetMembershipStateR\x05state\"]\n" +
 	"\x1eLongLivedGracefulRestartConfig\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12!\n" +
-	"\frestart_time\x18\x02 \x01(\rR\vrestartTime\"\xde\x01\n" +
+	"\frestart_time\x18\x02 \x01(\rR\vrestartTime\"\xf8\x01\n" +
 	"\x1dLongLivedGracefulRestartState\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
 	"\breceived\x18\x02 \x01(\bR\breceived\x12\x1e\n" +
@@ -13240,7 +13248,8 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"advertised\x18\x03 \x01(\bR\n" +
 	"advertised\x12*\n" +
 	"\x11peer_restart_time\x18\x04 \x01(\rR\x0fpeerRestartTime\x12;\n" +
-	"\x1apeer_restart_timer_expired\x18\x05 \x01(\bR\x17peerRestartTimerExpired\"\x91\x01\n" +
+	"\x1apeer_restart_timer_expired\x18\x05 \x01(\bR\x17peerRestartTimerExpired\x12\x18\n" +
+	"\arunning\x18\x06 \x01(\bR\arunning\"\x91\x01\n" +
 	"\x18LongLivedGracefulRestart\x12;\n" +
 	"\x06config\x18\x01 \x01(\v2#.api.LongLivedGracefulRestartConfigR\x06config\x128\n" +
 	"\x05state\x18\x02 \x01(\v2\".api.LongLivedGracefulRestartStateR\x05state\"\x89\x05\n" +

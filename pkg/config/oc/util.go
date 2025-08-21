@@ -355,6 +355,7 @@ func newLongLivedGracefulRestartFromConfigStruct(c *LongLivedGracefulRestart) *a
 			Advertised:              c.State.Advertised,
 			PeerRestartTime:         c.State.PeerRestartTime,
 			PeerRestartTimerExpired: c.State.PeerRestartTimerExpired,
+			Running:                 c.State.Running,
 		},
 	}
 }
@@ -392,6 +393,7 @@ func newMpGracefulRestartFromConfigStruct(c *MpGracefulRestart) *api.MpGracefulR
 			Advertised:       c.State.Advertised,
 			EndOfRibReceived: c.State.EndOfRibReceived,
 			EndOfRibSent:     c.State.EndOfRibSent,
+			Running:          c.State.Running,
 		},
 	}
 }
