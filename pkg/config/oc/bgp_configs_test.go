@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
@@ -108,7 +109,7 @@ func TestConfigExample(t *testing.T) {
 	v.SetConfigFile(fileToml)
 	v.SetConfigType(format)
 	assert.NoError(v.ReadInConfig())
-	assert.NoError(v.UnmarshalExact(c))
+	assert.NoError(v.UnmarshalExact(c, viper.DecodeHook(mapstructure.StringToNetIPAddrHookFunc())))
 	assert.NoError(setDefaultConfigValuesWithViper(v, c))
 
 	// Test if we can set the parameters for a peer-group

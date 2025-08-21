@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"slices"
 	"sort"
 
@@ -86,7 +87,7 @@ type PeerInfo struct {
 	Address                 net.IP
 	LocalAddress            net.IP
 	RouteReflectorClient    bool
-	RouteReflectorClusterID net.IP
+	RouteReflectorClusterID netip.Addr
 	MultihopTtl             uint8
 	Confederation           bool
 }
@@ -122,13 +123,13 @@ func (i *PeerInfo) String() string {
 }
 
 func NewPeerInfo(g *oc.Global, p *oc.Neighbor) *PeerInfo {
-	clusterID := net.ParseIP(string(p.RouteReflector.State.RouteReflectorClusterId)).To4()
+	clusterID, _ := netip.ParseAddr(string(p.RouteReflector.State.RouteReflectorClusterId))
 	// exclude zone info
 	naddr, _ := net.ResolveIPAddr("ip", p.State.NeighborAddress)
 	return &PeerInfo{
 		AS:                      p.Config.PeerAs,
 		LocalAS:                 g.Config.As,
-		LocalID:                 net.ParseIP(g.Config.RouterId).To4(),
+		LocalID:                 net.IP(g.Config.RouterId.AsSlice()),
 		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
 		Address:                 naddr.IP,
 		RouteReflectorClusterID: clusterID,

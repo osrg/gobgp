@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"reflect"
 	"slices"
 	"strconv"
@@ -249,13 +250,16 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 
 	if n.RouteReflector.Config.RouteReflectorClient {
 		if n.RouteReflector.Config.RouteReflectorClusterId == "" {
-			n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
+			if !g.Config.RouterId.IsValid() || !g.Config.RouterId.Is4() {
+				return fmt.Errorf("global router id must be valid ipv4")
+			}
+			n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId.String())
 		} else {
-			id := string(n.RouteReflector.Config.RouteReflectorClusterId)
-			if ip := net.ParseIP(id).To4(); ip != nil {
-				n.RouteReflector.State.RouteReflectorClusterId = n.RouteReflector.Config.RouteReflectorClusterId
-			} else if num, err := strconv.ParseUint(id, 10, 32); err == nil {
-				ip = make(net.IP, 4)
+			rrcId := string(n.RouteReflector.Config.RouteReflectorClusterId)
+			if id, err := netip.ParseAddr(rrcId); err == nil {
+				n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(id.String())
+			} else if num, err := strconv.ParseUint(rrcId, 10, 32); err == nil {
+				ip := make(net.IP, 4)
 				binary.BigEndian.PutUint32(ip, uint32(num))
 				n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(ip.String())
 			} else {

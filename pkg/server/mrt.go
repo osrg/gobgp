@@ -64,7 +64,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 		peers = append(peers, mrt.NewPeer(netip.MustParseAddr(ocpeer.State.RemoteRouterId), netip.MustParseAddr(ocpeer.State.NeighborAddress), ocpeer.Config.PeerAs, true))
 	}
 
-	if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(netip.MustParseAddr(m.s.bgpConfig.Global.Config.RouterId), "", peers)); err != nil {
+	if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.s.bgpConfig.Global.Config.RouterId, "", peers)); err != nil {
 		m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
 			log.Fields{
 				"Topic":   "mrt",

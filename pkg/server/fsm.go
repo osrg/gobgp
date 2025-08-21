@@ -851,7 +851,7 @@ func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
 	if as > 1<<16-1 {
 		as = bgp.AS_TRANS
 	}
-	return bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId,
+	return bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId.String(),
 		[]bgp.OptionParameterInterface{opt})
 }
 
@@ -1370,7 +1370,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsmPeerAS := fsm.pConf.Config.PeerAs
 					localAS := fsm.pConf.Config.LocalAs
 					fsm.lock.RUnlock()
-					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, netip.MustParseAddr(fsm.gConf.Config.RouterId))
+					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, fsm.gConf.Config.RouterId)
 					if err != nil {
 						m, _ := fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)

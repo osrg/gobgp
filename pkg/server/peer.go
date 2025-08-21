@@ -664,7 +664,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 			routerId := peer.fsm.gConf.Config.RouterId
 			peer.fsm.lock.RUnlock()
 			if isIBGPPeer {
-				if id := path.GetOriginatorID(); routerId == id.String() {
+				if id := path.GetOriginatorID(); routerId == id {
 					peer.fsm.logger.Debug("Originator ID is mine, ignore",
 						log.Fields{
 							"Topic":        "Peer",
