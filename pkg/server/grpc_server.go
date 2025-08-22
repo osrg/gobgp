@@ -22,6 +22,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/netip"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -216,12 +217,16 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
 		SourceAsn:          path.PeerASN,
-		SourceId:           path.PeerID.String(),
-		NeighborIp:         path.PeerAddress.String(),
 		// ListPath API fields only
 		SendMaxFiltered: path.SendMaxFiltered,
 		Filtered:        path.Filtered,
 		Validation:      path.Validation,
+	}
+	if path.PeerID.IsValid() {
+		p.SourceId = path.PeerID.String()
+	}
+	if path.PeerAddress.IsValid() {
+		p.NeighborIp = path.PeerAddress.String()
 	}
 	return p
 }
@@ -588,6 +593,9 @@ func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid path attributes: %w", err)
 	}
+	// source is optional
+	src, _ := netip.ParseAddr(path.SourceId)
+	neighbor, _ := netip.ParseAddr(path.NeighborIp)
 	p := &apiutil.Path{
 		Nlri:               nlri,
 		Attrs:              attrs,
@@ -596,12 +604,12 @@ func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
 		Stale:              path.Stale,
 		Withdrawal:         path.IsWithdraw,
 		PeerASN:            path.SourceAsn,
-		PeerID:             net.ParseIP(path.SourceId),
-		PeerAddress:        net.ParseIP(path.NeighborIp),
+		PeerID:             src,
+		PeerAddress:        neighbor,
 		IsFromExternal:     path.IsFromExternal,
 		NoImplicitWithdraw: path.NoImplicitWithdraw,
 	}
-	if p.PeerASN != 0 && p.PeerID == nil {
+	if p.PeerASN != 0 && !p.PeerID.IsValid() {
 		return nil, fmt.Errorf("source ID must be set correctly %v", p.PeerID)
 	}
 	p.Nlri.SetPathIdentifier(path.Identifier)

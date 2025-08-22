@@ -2317,8 +2317,8 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	if path.PeerASN != 0 {
 		source = &table.PeerInfo{
 			AS:      path.PeerASN,
-			ID:      path.PeerID,
-			Address: path.PeerAddress,
+			ID:      net.IP(path.PeerID.AsSlice()),
+			Address: net.IP(path.PeerAddress.AsSlice()),
 		}
 	}
 
@@ -4453,8 +4453,8 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 	}
 	if s := path.GetSource(); s != nil {
 		p.PeerASN = s.AS
-		p.PeerID = s.ID
-		p.PeerAddress = s.Address
+		p.PeerID, _ = netip.AddrFromSlice(s.ID)
+		p.PeerAddress, _ = netip.AddrFromSlice(s.Address)
 	}
 	return p
 }
@@ -4535,26 +4535,29 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 						case adminStatePfxCt:
 							admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 						}
+						peerID, _ := netip.AddrFromSlice(msg.PeerID)
+						peerAddress, _ := netip.AddrFromSlice(msg.PeerAddress)
+						localAddress, _ := netip.AddrFromSlice(msg.LocalAddress)
 						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
 							Peer: apiutil.Peer{
 								Conf: apiutil.PeerConf{
 									PeerASN:           msg.PeerAS,
 									LocalASN:          msg.LocalAS,
-									NeighborAddress:   msg.PeerAddress,
+									NeighborAddress:   peerAddress,
 									NeighborInterface: msg.PeerInterface,
 								},
 								State: apiutil.PeerState{
 									PeerASN:         msg.PeerAS,
 									LocalASN:        msg.LocalAS,
-									NeighborAddress: msg.PeerAddress,
+									NeighborAddress: peerAddress,
 									SessionState:    msg.State,
 									AdminState:      admin_state,
-									RouterID:        msg.PeerID,
+									RouterID:        peerID,
 									RemoteCap:       msg.RemoteCap,
 								},
 								Transport: apiutil.Transport{
-									LocalAddress: msg.LocalAddress,
+									LocalAddress: localAddress,
 									LocalPort:    uint32(msg.LocalPort),
 									RemotePort:   uint32(msg.PeerPort),
 								},
