@@ -132,8 +132,8 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		var id bgp.PmsiTunnelIDInterface
 		switch typ {
 		case bgp.PMSI_TUNNEL_TYPE_INGRESS_REPL:
-			ip := net.IP(a.PmsiTunnel.Id)
-			if ip.To4() == nil && ip.To16() == nil {
+			ip, ok := netip.AddrFromSlice(a.PmsiTunnel.Id)
+			if !ok || !ip.IsValid() {
 				return nil, fmt.Errorf("invalid pmsi tunnel identifier: %s", a.PmsiTunnel.Id)
 			}
 			id = bgp.NewIngressReplTunnelID(ip.String())
