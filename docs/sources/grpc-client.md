@@ -54,8 +54,7 @@ $ PYTHONPATH=$PYTHONPATH:. python sr_policy.py
 
 ## Result of injecting the SR policy
 
-Once the sr policy is injected, gobgp will advertise it to the peers with SR Policy enabled address family. Below is the output collect
-ed from Nokia SROS router with enabled SR policy address family.
+Once the sr policy is injected, gobgp will advertise it to the peers with SR Policy enabled address family. Below is the output collected from Nokia SROS router with enabled SR policy address family.
 
 ```log
 A:R1# show router segment-routing sr-policies all color 100
