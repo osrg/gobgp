@@ -2269,7 +2269,7 @@ func (s *server) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetBgpR
 	return s.bgpServer.GetBgp(ctx, r)
 }
 
-func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
+func newGlobalFromAPIStruct(a *api.Global, routerId netip.Addr) *oc.Global {
 	families := make([]oc.AfiSafi, 0, len(a.Families))
 	for _, f := range a.Families {
 		name := oc.IntToAfiSafiTypeMap[int(f)]
@@ -2293,7 +2293,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 	global := &oc.Global{
 		Config: oc.GlobalConfig{
 			As:               a.Asn,
-			RouterId:         a.RouterId,
+			RouterId:         routerId,
 			Port:             a.ListenPort,
 			LocalAddressList: a.ListenAddresses,
 		},

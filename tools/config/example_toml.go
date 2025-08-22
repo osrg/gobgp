@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"net/netip"
 
 	"github.com/BurntSushi/toml"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -13,7 +14,7 @@ func main() {
 		Global: oc.Global{
 			Config: oc.GlobalConfig{
 				As:       12332,
-				RouterId: "10.0.0.1",
+				RouterId: netip.MustParseAddr("10.0.0.1"),
 			},
 		},
 		Neighbors: []oc.Neighbor{

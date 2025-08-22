@@ -20,6 +20,7 @@ package oc
 
 import (
 	"fmt"
+	"net/netip"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -4881,7 +4882,7 @@ type GlobalConfig struct {
 	// bgp:router-id's original type is inet:ipv4-address.
 	// Router id of the router, expressed as an
 	// 32-bit value, IPv4 address.
-	RouterId string `mapstructure:"router-id" json:"router-id,omitempty"`
+	RouterId netip.Addr `mapstructure:"router-id" json:"router-id,omitempty"`
 	// original -> gobgp:port
 	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address

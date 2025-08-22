@@ -698,7 +698,7 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 
 	return &api.Global{
 		Asn:              c.Config.As,
-		RouterId:         c.Config.RouterId,
+		RouterId:         c.Config.RouterId.String(),
 		ListenPort:       c.Config.Port,
 		ListenAddresses:  c.Config.LocalAddressList,
 		Families:         families,
