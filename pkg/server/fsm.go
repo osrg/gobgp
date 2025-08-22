@@ -132,7 +132,6 @@ type fsmMsg struct {
 	MsgSrc      string
 	MsgData     any
 	StateReason *fsmStateReason
-	PathList    []*table.Path
 	timestamp   time.Time
 	payload     []byte
 }
@@ -1151,11 +1150,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 					fmsg.MsgData = err
 					return fmsg, err
 				}
-
-				h.fsm.lock.RLock()
-				peerInfo := h.fsm.peerInfo
-				h.fsm.lock.RUnlock()
-				fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.timestamp)
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:
 				// if the length of h.holdTimerResetCh

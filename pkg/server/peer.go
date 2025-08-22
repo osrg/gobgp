@@ -626,11 +626,14 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
+	peerInfo := peer.fsm.peerInfo
 	peer.fsm.lock.Unlock()
-	if len(e.PathList) > 0 {
-		paths := make([]*table.Path, 0, len(e.PathList))
+
+	pathList := table.ProcessMessage(m, peerInfo, e.timestamp)
+	if len(pathList) > 0 {
+		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}
-		for _, path := range e.PathList {
+		for _, path := range pathList {
 			if path.IsEOR() {
 				family := path.GetFamily()
 				peer.fsm.logger.Debug("EOR received",
@@ -678,7 +681,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 			}
 			paths = append(paths, path)
 		}
-		peer.adjRibIn.Update(e.PathList)
+		peer.adjRibIn.Update(pathList)
 		peer.fsm.lock.RLock()
 		peerAfiSafis := peer.fsm.pConf.AfiSafis
 		peer.fsm.lock.RUnlock()
