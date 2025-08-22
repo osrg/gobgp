@@ -13,6 +13,20 @@ Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd
 
 ## Design Considerations
 
+### OpenConfig, gRPC, and native APIs
+
+In GoBGP, multiple structures are defined to represent the same concept, in order to support multiple APIs. For example, to represent a peer, there are three different structures: `config.Neighbor`, `api.Peer`, and `apiutil.Peer`.
+
+`config.Neighbor` is the structure used by OpenConfig and is generated from YANG files. OpenConfig is a standard that aims to make the configuration and management of vendor-neutral network devices programmable. GoBGP uses OpenConfig as its configuration file API. Since OpenConfig defines data structures in a generic, language-agnostic way, the most suitable Go data types are not always used. For instance, while netip.Addr would be the optimal type to represent a peer’s IP address in Go, OpenConfig instead uses a language-independent string type.
+
+`api.Peer` is the structure used for gRPC and is generated from .proto files. gRPC is the primary API of GoBGP; all control operations can be performed through gRPC. The CLI is also implemented using gRPC. Similar to OpenConfig, gRPC defines data structures with generic, language-independent types to ensure support across different programming languages. This means that the most optimal Go types are not always used. For example, a peer’s IP address is represented as a string rather than the more suitable netip.Addr type.
+
+`apiutil.Peer` is what we call the “native API.” While gRPC APIs have the advantage of supporting multiple programming languages, they also come with significant overhead. The native API, on the other hand, is a lightweight API designed specifically for Go. It defines data structures using the most appropriate Go types, such as netip.Addr, to achieve better efficiency and usability.
+
+Finally, although it is not exposed as a public API, the `server.peer` structure also represents a peer. This structure is used internally by GoBGP to manage peers. In order to avoid the overhead of defining a new structure from scratch, we reused the OpenConfig structure within this internal component. However, this turned out to be a major design mistake. As described above, OpenConfig structures do not necessarily use the most suitable Go data types.
+For example, GoBGP currently uses strings to represent peer addresses in many internal places. This is a direct consequence of relying on OpenConfig structures internally. Over time, these structures should be gradually replaced with more appropriate native Go types.
+Therefore, when introducing new internal structures, we should avoid using OpenConfig types and instead define new data structures that are optimized for Go.
+
 ### Memory Usage
 
 If your new feature requires adding members to existing data structures or creating new structures that will increase memory usage, please consider how memory consumption will change in relation to increases in both route count and peer count.
