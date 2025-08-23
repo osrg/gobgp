@@ -24,7 +24,6 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1643,30 +1642,23 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		cleanInfiniteChannel(peer.fsm.outgoingCh)
 		peer.fsm.outgoingCh = channels.NewInfiniteChannel()
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
-			// update for export policy
-			laddr, _ := peer.fsm.LocalHostPort()
-			// may include zone info
 			peer.fsm.lock.Lock()
-			peer.fsm.pConf.Transport.State.LocalAddress = laddr
-			// exclude zone info
-			ipaddr, _ := net.ResolveIPAddr("ip", laddr)
-			peer.fsm.peerInfo.LocalAddress = ipaddr.IP
-			if peer.fsm.pConf.Transport.Config.LocalAddress != netip.IPv4Unspecified().String() && peer.fsm.pConf.Transport.Config.LocalAddress != netip.IPv6Unspecified().String() {
-				// Exclude zone info for v6 address like "fe80::1ff:fe23:4567:890a%eth2".
-				p := peer.fsm.pConf.Transport.Config.LocalAddress
-				if i := strings.IndexByte(p, '%'); i != -1 {
-					p = p[:i]
-				}
-				laddr := net.ParseIP(p)
 
-				peer.fsm.peerInfo.LocalAddress = laddr
-				peer.fsm.pConf.Transport.State.LocalAddress = laddr.String()
-			}
+			remoteTCP := peer.fsm.conn.RemoteAddr().(*net.TCPAddr)
+			remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
+			remoteAddr = remoteAddr.WithZone("")
+
+			localTCP := peer.fsm.conn.LocalAddr().(*net.TCPAddr)
+			localAddr, _ := netip.AddrFromSlice(localTCP.IP)
+			localAddr = localAddr.WithZone("")
+
+			peer.fsm.pConf.Transport.State.LocalAddress = localAddr.String()
+			peer.fsm.peerInfo = table.NewPeerInfo(peer.fsm.gConf, peer.fsm.pConf,
+				peer.fsm.pConf.State.PeerAs, peer.fsm.pConf.Config.LocalAs,
+				netip.MustParseAddr(peer.fsm.pConf.State.RemoteRouterId),
+				netip.MustParseAddr(peer.fsm.gConf.Config.RouterId), remoteAddr, localAddr)
 
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
-
-			peer.fsm.peerInfo.AS = peer.fsm.pConf.State.PeerAs
-			peer.fsm.peerInfo.ID = net.ParseIP(peer.fsm.pConf.State.RemoteRouterId).To4()
 
 			peer.fsm.lock.Unlock()
 			deferralExpiredFunc := func(family bgp.Family) func() {
@@ -2313,8 +2305,8 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	if path.PeerASN != 0 {
 		source = &table.PeerInfo{
 			AS:      path.PeerASN,
-			ID:      net.IP(path.PeerID.AsSlice()),
-			Address: net.IP(path.PeerAddress.AsSlice()),
+			ID:      path.PeerID,
+			Address: path.PeerAddress,
 		}
 	}
 
@@ -2608,7 +2600,7 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 
 		pi := &table.PeerInfo{
 			AS:      s.bgpConfig.Global.Config.As,
-			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
+			LocalID: netip.MustParseAddr(s.bgpConfig.Global.Config.RouterId),
 		}
 
 		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
@@ -4449,8 +4441,8 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 	}
 	if s := path.GetSource(); s != nil {
 		p.PeerASN = s.AS
-		p.PeerID, _ = netip.AddrFromSlice(s.ID)
-		p.PeerAddress, _ = netip.AddrFromSlice(s.Address)
+		p.PeerID = s.ID
+		p.PeerAddress = s.Address
 	}
 	return p
 }
@@ -5007,8 +4999,8 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					}
 					ev := &watchEventUpdate{
 						PeerAS:      peerInfo.AS,
-						PeerAddress: peerInfo.Address,
-						PeerID:      peerInfo.ID,
+						PeerAddress: net.IP(peerInfo.Address.AsSlice()),
+						PeerID:      net.IP(peerInfo.ID.AsSlice()),
 						PostPolicy:  true,
 						Neighbor:    configNeighbor,
 						PathList:    paths,
@@ -5025,8 +5017,8 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					w.notify(&watchEventUpdate{
 						Message:     eor,
 						PeerAS:      peerInfo.AS,
-						PeerAddress: peerInfo.Address,
-						PeerID:      peerInfo.ID,
+						PeerAddress: net.IP(peerInfo.Address.AsSlice()),
+						PeerID:      net.IP(peerInfo.ID.AsSlice()),
 						Timestamp:   time.Now(),
 						Payload:     eorBuf,
 						PostPolicy:  true,

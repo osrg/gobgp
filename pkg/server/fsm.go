@@ -283,7 +283,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		adminStateCh:         make(chan adminStateOperation, 1),
 		rfMap:                make(map[bgp.Family]bgp.BGPAddPathMode),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		peerInfo:             table.NewPeerInfo(gConf, pConf),
 		gracefulRestartTimer: time.NewTimer(time.Hour),
 		notification:         make(chan *bgp.BGPMessage, 1),
 		logger:               logger,

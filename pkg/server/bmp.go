@@ -185,10 +185,12 @@ func (b *bmpClient) loop() {
 				case ev := <-w.Event():
 					switch msg := ev.(type) {
 					case *watchEventUpdate:
+						addr, _ := netip.AddrFromSlice(msg.PeerAddress)
+						id, _ := netip.AddrFromSlice(msg.PeerID)
 						info := &table.PeerInfo{
-							Address: msg.PeerAddress,
+							Address: addr,
 							AS:      msg.PeerAS,
-							ID:      msg.PeerID,
+							ID:      id,
 						}
 						if msg.Payload == nil {
 							var pathList []*table.Path
@@ -214,9 +216,9 @@ func (b *bmpClient) loop() {
 						}
 					case *watchEventBestPath:
 						info := &table.PeerInfo{
-							Address: net.ParseIP("0.0.0.0").To4(),
+							Address: netip.MustParseAddr("0.0.0.0"),
 							AS:      b.s.bgpConfig.Global.Config.As,
-							ID:      net.ParseIP(b.s.bgpConfig.Global.Config.RouterId).To4(),
+							ID:      netip.MustParseAddr(b.s.bgpConfig.Global.Config.RouterId),
 						}
 						for _, p := range msg.PathList {
 							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
@@ -239,10 +241,12 @@ func (b *bmpClient) loop() {
 							}
 						}
 					case *watchEventMessage:
+						addr, _ := netip.AddrFromSlice(msg.PeerAddress)
+						id, _ := netip.AddrFromSlice(msg.PeerID)
 						info := &table.PeerInfo{
-							Address: msg.PeerAddress,
+							Address: addr,
 							AS:      msg.PeerAS,
-							ID:      msg.PeerID,
+							ID:      id,
 						}
 						if err := write(bmpPeerRouteMirroring(bmp.BMP_PEER_TYPE_GLOBAL, 0, info, msg.Timestamp.Unix(), msg.Message)); err != nil {
 							return false
