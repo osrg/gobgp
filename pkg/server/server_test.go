@@ -956,7 +956,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 }
 
 func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
-	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
+	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}, State: oc.NeighborState{PeerAs: as, NeighborAddress: address, RemoteRouterId: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
 	assert.NoError(t, err)
