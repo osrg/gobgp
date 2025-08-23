@@ -132,7 +132,6 @@ type fsmMsg struct {
 	MsgSrc      string
 	MsgData     any
 	StateReason *fsmStateReason
-	PathList    []*table.Path
 	timestamp   time.Time
 	payload     []byte
 }
@@ -284,7 +283,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 		adminStateCh:         make(chan adminStateOperation, 1),
 		rfMap:                make(map[bgp.Family]bgp.BGPAddPathMode),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		peerInfo:             table.NewPeerInfo(gConf, pConf),
 		gracefulRestartTimer: time.NewTimer(time.Hour),
 		notification:         make(chan *bgp.BGPMessage, 1),
 		logger:               logger,
@@ -1151,11 +1149,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 					fmsg.MsgData = err
 					return fmsg, err
 				}
-
-				h.fsm.lock.RLock()
-				peerInfo := h.fsm.peerInfo
-				h.fsm.lock.RUnlock()
-				fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.timestamp)
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:
 				// if the length of h.holdTimerResetCh

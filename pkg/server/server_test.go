@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"runtime"
 	"slices"
 	"strconv"
@@ -956,7 +957,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 }
 
 func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
-	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}}
+	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}, State: oc.NeighborState{PeerAs: as, NeighborAddress: address, RemoteRouterId: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
 	assert.NoError(t, err)
@@ -969,11 +970,14 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 		rib,
 		policy,
 		logger)
-	p.fsm.peerInfo.ID = net.ParseIP(address)
 	for _, f := range rib.GetRFlist() {
 		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
 	}
-	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address), ID: net.ParseIP(address)}
+	remoteAddr := netip.MustParseAddr(address)
+	localAddr := netip.MustParseAddr("1.1.1.1")
+	info := table.NewPeerInfo(gConf, nConf, as, myAs, remoteAddr, localAddr, remoteAddr, localAddr)
+	p.fsm.peerInfo = info
+	return p, info
 }
 
 func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
@@ -1751,9 +1755,9 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	rtcNLRI := bgp.NewRouteTargetMembershipNLRI(1, rt)
 	rtcPath := table.NewPath(&table.PeerInfo{
 		AS:      1,
-		Address: net.ParseIP("127.0.0.1"),
-		LocalID: net.ParseIP("2.2.2.2"),
-		ID:      net.ParseIP("1.1.1.1"),
+		Address: netip.MustParseAddr("127.0.0.1"),
+		LocalID: netip.MustParseAddr("2.2.2.2"),
+		ID:      netip.MustParseAddr("1.1.1.1"),
 	}, rtcNLRI, false, []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("1.1.1.1"),

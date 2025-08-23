@@ -18,6 +18,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"slices"
 	"time"
 
@@ -144,17 +145,13 @@ func (peer *peer) ID() string {
 	return peer.fsm.pConf.State.NeighborAddress
 }
 
-func (peer *peer) routerID() net.IP {
+func (peer *peer) routerID() netip.Addr {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	return peer.fsm.peerInfo.ID
-}
-
-func (peer *peer) RouterID() string {
-	if id := peer.routerID(); id != nil {
-		return id.String()
+	if peer.fsm.pConf.State.RemoteRouterId != "" {
+		return netip.MustParseAddr(peer.fsm.pConf.State.RemoteRouterId)
 	}
-	return ""
+	return netip.Addr{}
 }
 
 func (peer *peer) TableID() string {
@@ -507,7 +504,7 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	// (whichever is not the new best path), we fail to send a withdraw towards
 	// B, and the route is "stuck".
 	// TODO: considerations for RFC6286
-	if !peer.routerID().Equal(path.GetSource().ID) {
+	if peer.routerID() != path.GetSource().ID {
 		return path
 	}
 
@@ -626,11 +623,14 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
+	peerInfo := peer.fsm.peerInfo
 	peer.fsm.lock.Unlock()
-	if len(e.PathList) > 0 {
-		paths := make([]*table.Path, 0, len(e.PathList))
+
+	pathList := table.ProcessMessage(m, peerInfo, e.timestamp)
+	if len(pathList) > 0 {
+		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}
-		for _, path := range e.PathList {
+		for _, path := range pathList {
 			if path.IsEOR() {
 				family := path.GetFamily()
 				peer.fsm.logger.Debug("EOR received",
@@ -648,7 +648,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 			// route should be excluded from the Phase 2 decision function.
 			if aspath := path.GetAsPath(); aspath != nil {
 				peer.fsm.lock.RLock()
-				localAS := peer.fsm.peerInfo.LocalAS
+				localAS := peer.fsm.pConf.Config.LocalAs
 				allowOwnAS := int(peer.fsm.pConf.AsPathOptions.Config.AllowOwnAs)
 				peer.fsm.lock.RUnlock()
 				if hasOwnASLoop(localAS, allowOwnAS, aspath) {
@@ -678,7 +678,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 			}
 			paths = append(paths, path)
 		}
-		peer.adjRibIn.Update(e.PathList)
+		peer.adjRibIn.Update(pathList)
 		peer.fsm.lock.RLock()
 		peerAfiSafis := peer.fsm.pConf.AfiSafis
 		peer.fsm.lock.RUnlock()
