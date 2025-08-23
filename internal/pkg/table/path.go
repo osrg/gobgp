@@ -247,7 +247,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 	case oc.PEER_TYPE_EXTERNAL:
 		// NEXTHOP handling
 		if !path.IsLocal() || nexthop.IsUnspecified() {
-			path.SetNexthop(localAddress)
+			path.SetNexthop(localAddress.AsSlice())
 		}
 
 		// remove-private-as handling
@@ -270,7 +270,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
 		if path.IsLocal() && nexthop.IsUnspecified() {
-			path.SetNexthop(localAddress)
+			path.SetNexthop(localAddress.AsSlice())
 		}
 
 		// AS_PATH handling for iBGP
@@ -300,7 +300,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 			// advertiser, and the Next-hop attribute shall be set of the local
 			// address for that session.
 			if path.GetFamily() == bgp.RF_RTC_UC {
-				path.SetNexthop(localAddress)
+				path.SetNexthop(localAddress.AsSlice())
 				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
@@ -343,7 +343,7 @@ func (path *Path) setTimestamp(t time.Time) {
 }
 
 func (path *Path) IsLocal() bool {
-	return path.GetSource().Address == nil
+	return !path.GetSource().Address.IsValid()
 }
 
 func (path *Path) IsIBGP() bool {
@@ -1091,8 +1091,8 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		PathAttrs:  path.GetPathAttrs(),
 		Age:        path.GetTimestamp().Unix(),
 		Withdrawal: path.IsWithdraw,
-		SourceID:   path.GetSource().ID,
-		NeighborIP: path.GetSource().Address,
+		SourceID:   path.GetSource().ID.AsSlice(),
+		NeighborIP: path.GetSource().Address.AsSlice(),
 		Stale:      path.IsStale(),
 		ID:         path.GetNlri().PathIdentifier(),
 	})

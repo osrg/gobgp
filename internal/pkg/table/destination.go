@@ -20,7 +20,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"net"
+	"net/netip"
 	"slices"
 	"sort"
 
@@ -80,13 +80,13 @@ func (r *BestPathReason) String() string {
 
 type PeerInfo struct {
 	AS                      uint32
-	ID                      net.IP
 	LocalAS                 uint32
-	LocalID                 net.IP
-	Address                 net.IP
-	LocalAddress            net.IP
+	ID                      netip.Addr
+	LocalID                 netip.Addr
+	Address                 netip.Addr
+	LocalAddress            netip.Addr
+	RouteReflectorClusterID netip.Addr
 	RouteReflectorClient    bool
-	RouteReflectorClusterID net.IP
 	MultihopTtl             uint8
 	Confederation           bool
 }
@@ -100,14 +100,14 @@ func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
 		return false
 	}
 
-	if lhs.AS == rhs.AS && lhs.ID.Equal(rhs.ID) && lhs.LocalID.Equal(rhs.LocalID) && lhs.Address.Equal(rhs.Address) {
+	if lhs.AS == rhs.AS && lhs.ID == rhs.ID && lhs.LocalID == rhs.LocalID && lhs.Address == rhs.Address {
 		return true
 	}
 	return false
 }
 
 func (i *PeerInfo) String() string {
-	if i.Address == nil {
+	if !i.Address.IsValid() {
 		return "local"
 	}
 	s := bytes.NewBuffer(make([]byte, 0, 64))
@@ -121,17 +121,17 @@ func (i *PeerInfo) String() string {
 	return s.String()
 }
 
-func NewPeerInfo(g *oc.Global, p *oc.Neighbor) *PeerInfo {
-	clusterID := net.ParseIP(string(p.RouteReflector.State.RouteReflectorClusterId)).To4()
-	// exclude zone info
-	naddr, _ := net.ResolveIPAddr("ip", p.State.NeighborAddress)
+func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID netip.Addr, addr, localAddr netip.Addr) *PeerInfo {
+	clusterID, _ := netip.ParseAddr(string(p.RouteReflector.State.RouteReflectorClusterId))
 	return &PeerInfo{
-		AS:                      p.Config.PeerAs,
-		LocalAS:                 g.Config.As,
-		LocalID:                 net.ParseIP(g.Config.RouterId).To4(),
-		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
-		Address:                 naddr.IP,
+		AS:                      AS,
+		LocalAS:                 localAS,
+		ID:                      ID,
+		LocalID:                 localID,
+		Address:                 addr,
+		LocalAddress:            localAddr,
 		RouteReflectorClusterID: clusterID,
+		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
 		MultihopTtl:             p.EbgpMultihop.Config.MultihopTtl,
 		Confederation:           p.IsConfederationMember(g),
 	}
@@ -766,8 +766,8 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	}
 
 	// At least one path is not coming from NC, so we get local bgp id.
-	id1 := binary.BigEndian.Uint32(path1.GetSource().ID)
-	id2 := binary.BigEndian.Uint32(path2.GetSource().ID)
+	id1 := binary.BigEndian.Uint32(path1.GetSource().ID.AsSlice())
+	id2 := binary.BigEndian.Uint32(path2.GetSource().ID.AsSlice())
 
 	// If both router ids are same/equal we cannot decide.
 	// This case is possible since router ids are arbitrary.
@@ -785,15 +785,15 @@ func compareByNeighborAddress(path1, path2 *Path) *Path {
 	// per RFC 4271 9.1.2.2. g
 
 	p1 := path1.GetSource().Address
-	if p1 == nil {
+	if !p1.IsValid() {
 		return path1
 	}
 	p2 := path2.GetSource().Address
-	if p2 == nil {
+	if !p2.IsValid() {
 		return path2
 	}
 
-	cmp := bytes.Compare(p1, p2)
+	cmp := p1.Compare(p2)
 	if cmp < 0 {
 		return path1
 	} else if cmp > 0 {

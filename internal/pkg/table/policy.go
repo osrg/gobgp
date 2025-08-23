@@ -1528,16 +1528,16 @@ func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	}
 
 	neighbor := path.GetSource().Address
-	if options != nil && options.Info != nil && options.Info.Address != nil {
+	if options != nil && options.Info != nil && options.Info.Address.IsValid() {
 		neighbor = options.Info.Address
 	}
 
-	if neighbor == nil {
+	if !neighbor.IsValid() {
 		return false
 	}
 	result := false
 	for _, n := range c.set.list {
-		if n.Contains(neighbor) {
+		if n.Contains(neighbor.AsSlice()) {
 			result = true
 			break
 		}
@@ -2776,13 +2776,13 @@ func (a *NexthopAction) Type() ActionType {
 func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error) {
 	switch {
 	case a.self:
-		if options != nil && options.Info != nil && options.Info.LocalAddress != nil {
-			path.SetNexthop(options.Info.LocalAddress)
+		if options != nil && options.Info != nil && options.Info.LocalAddress.IsValid() {
+			path.SetNexthop(options.Info.LocalAddress.AsSlice())
 		}
 		return path, nil
 	case a.peerAddress:
-		if options != nil && options.Info != nil && options.Info.Address != nil {
-			path.SetNexthop(options.Info.Address)
+		if options != nil && options.Info != nil && options.Info.Address.IsValid() {
+			path.SetNexthop(options.Info.Address.AsSlice())
 		}
 		return path, nil
 	case a.unchanged:

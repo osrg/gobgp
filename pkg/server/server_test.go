@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"runtime"
 	"slices"
 	"strconv"
@@ -955,7 +956,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) (*peer, *table.PeerInfo) {
+func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) *peer {
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}, State: oc.NeighborState{PeerAs: as, NeighborAddress: address, RemoteRouterId: address}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
@@ -969,11 +970,14 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 		rib,
 		policy,
 		logger)
-	p.fsm.peerInfo.ID = net.ParseIP(address)
 	for _, f := range rib.GetRFlist() {
 		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
 	}
-	return p, &table.PeerInfo{AS: as, Address: net.ParseIP(address), ID: net.ParseIP(address)}
+	remoteAddr := netip.MustParseAddr(address)
+	localAddr := netip.MustParseAddr("1.1.1.1")
+	info := table.NewPeerInfo(gConf, nConf, as, myAs, remoteAddr, localAddr, remoteAddr, localAddr)
+	p.fsm.peerInfo = info
+	return p
 }
 
 func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path) {
@@ -994,15 +998,15 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	p1As := uint32(65001)
 	p2As := uint32(65002)
 	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	p1, pi1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
-	p2, pi2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
+	p1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
+	p2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
 
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
 	pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p2As})})}
 
-	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
-	path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
+	path1 := table.NewPath(p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
+	path2 := table.NewPath(p2.fsm.peerInfo, nlri, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
 	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
@@ -1035,15 +1039,15 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 
 	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	p1, pi1 := newPeerandInfo(t, as, as, "192.168.0.1", rib)
+	p1 := newPeerandInfo(t, as, as, "192.168.0.1", rib)
 	// p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
-	p2, _ := newPeerandInfo(t, as, as, "192.168.0.2", rib)
+	p2 := newPeerandInfo(t, as, as, "192.168.0.2", rib)
 
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}), bgp.NewPathAttributeLocalPref(200)}
 	// pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})})}
 
-	path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
+	path1 := table.NewPath(p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
 	// path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
 
 	new, old := process(rib, []*table.Path{path1})
@@ -1062,9 +1066,9 @@ func TestFilterpathWithiBGP(t *testing.T) {
 
 func TestFilterpathWithRejectPolicy(t *testing.T) {
 	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	_, pi1 := newPeerandInfo(t, 1, 2, "192.168.0.1", rib1)
+	p1 := newPeerandInfo(t, 1, 2, "192.168.0.1", rib1)
 	rib2 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
-	p2, _ := newPeerandInfo(t, 1, 3, "192.168.0.2", rib2)
+	p2 := newPeerandInfo(t, 1, 3, "192.168.0.2", rib2)
 
 	comSet1 := oc.CommunitySet{
 		CommunitySetName: "comset1",
@@ -1109,7 +1113,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		if addCommunity {
 			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
 		}
-		path1 := table.NewPath(pi1, nlri, false, pa1, time.Now(), false)
+		path1 := table.NewPath(p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
 		new, old := process(rib2, []*table.Path{path1})
 		assert.Equal(t, new, path1)
 		s := NewBgpServer()
@@ -1751,9 +1755,9 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	rtcNLRI := bgp.NewRouteTargetMembershipNLRI(1, rt)
 	rtcPath := table.NewPath(&table.PeerInfo{
 		AS:      1,
-		Address: net.ParseIP("127.0.0.1"),
-		LocalID: net.ParseIP("2.2.2.2"),
-		ID:      net.ParseIP("1.1.1.1"),
+		Address: netip.MustParseAddr("127.0.0.1"),
+		LocalID: netip.MustParseAddr("2.2.2.2"),
+		ID:      netip.MustParseAddr("1.1.1.1"),
 	}, rtcNLRI, false, []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("1.1.1.1"),

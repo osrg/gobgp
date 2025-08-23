@@ -514,7 +514,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	if path.SourceAsn != 0 {
 		pi = &table.PeerInfo{
 			AS: path.SourceAsn,
-			ID: net.ParseIP(path.SourceId),
+			ID: netip.MustParseAddr(path.SourceId),
 		}
 	}
 
