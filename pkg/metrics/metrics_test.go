@@ -128,6 +128,7 @@ func TestMetrics(test *testing.T) {
 				close(goroutineCh)
 				return
 			default:
+				family := bgp.NewFamily(uint16(apiPath.Family.Afi), uint8(apiPath.Family.Safi))
 				nlri, err := apiutil.GetNativeNlri(apiPath)
 				if err != nil {
 					test.Errorf("invalid nlri: %v", err)
@@ -139,16 +140,18 @@ func TestMetrics(test *testing.T) {
 				_, err = t.AddPath(apiutil.AddPathRequest{
 					Paths: []*apiutil.Path{
 						{
-							Nlri:  nlri,
-							Attrs: pattrs,
+							Family: family,
+							Nlri:   nlri,
+							Attrs:  pattrs,
 						},
 					},
 				})
 
 				assert.NoError(err)
 				err = t.DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{{
-					Nlri:  nlri,
-					Attrs: pattrs,
+					Family: family,
+					Nlri:   nlri,
+					Attrs:  pattrs,
 				}}})
 				assert.NoError(err)
 			}

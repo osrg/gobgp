@@ -568,7 +568,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	}
 
 	doWithdraw := isWithdraw || path.IsWithdraw
-	newPath := table.NewPath(pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
+	newPath := table.NewPath(rf, pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
 	if !doWithdraw {
 		total := bytes.NewBuffer(make([]byte, 0))
 		for _, a := range newPath.GetPathAttrs() {
@@ -597,6 +597,7 @@ func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
 	src, _ := netip.ParseAddr(path.SourceId)
 	neighbor, _ := netip.ParseAddr(path.NeighborIp)
 	p := &apiutil.Path{
+		Family:             bgp.NewFamily(uint16(path.Family.Afi), uint8(path.Family.Safi)),
 		Nlri:               nlri,
 		Attrs:              attrs,
 		Age:                path.Age.GetSeconds(),

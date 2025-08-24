@@ -24,6 +24,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/log"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
 
@@ -68,7 +69,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		logger := log.NewDefaultLogger()
 		zebra.BackwardIPv6RouteDelete.ToEach(v, software)
 		path := newPathFromIPRouteMessage(logger, m, v, software)
-		pp := table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp := table.NewPath(bgp.RF_IPv4_UC, nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("0.0.0.0", pp.GetNexthop().String())
 		assert.Equal("192.168.100.0/24", pp.GetNlri().String())
@@ -82,7 +83,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Body = b
 
 		path = newPathFromIPRouteMessage(logger, m, v, software)
-		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp = table.NewPath(bgp.RF_IPv4_UC, nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("0.0.0.0", pp.GetNexthop().String())
 		assert.Equal("192.168.100.0/24", pp.GetNlri().String())
@@ -107,7 +108,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Body = b
 
 		path = newPathFromIPRouteMessage(logger, m, v, software)
-		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp = table.NewPath(bgp.RF_IPv6_UC, nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("::", pp.GetNexthop().String())
 		assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
@@ -129,7 +130,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Body = b
 
 		path = newPathFromIPRouteMessage(logger, m, v, software)
-		pp = table.NewPath(nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp = table.NewPath(bgp.RF_IPv6_UC, nil, path.GetNlri(), path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("::", pp.GetNexthop().String())
 		assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())

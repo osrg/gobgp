@@ -88,6 +88,7 @@ type LookupPrefix struct {
 
 // used by server.WatchEventMessages API
 type Path struct {
+	Family             bgp.Family
 	Nlri               bgp.AddrPrefixInterface      `json:"nlri"`
 	Age                int64                        `json:"age"`
 	Best               bool                         `json:"best"`

@@ -30,10 +30,10 @@ func TestAddPath(t *testing.T) {
 
 	nlri1 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri1.SetPathIdentifier(1)
-	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, nlri1, false, attrs, time.Now(), false)
 	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri2.SetPathIdentifier(2)
-	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, nlri2, false, attrs, time.Now(), false)
 	family := p1.GetFamily()
 	families := []bgp.Family{family}
 
@@ -42,7 +42,7 @@ func TestAddPath(t *testing.T) {
 	assert.Equal(t, len(adj.table[family].GetDestinations()), 1)
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 
-	p3 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	p3 := NewPath(bgp.RF_IPv4_UC, pi, nlri2, false, attrs, time.Now(), false)
 	adj.Update([]*Path{p3})
 
 	var found *Path
@@ -68,19 +68,19 @@ func TestAddPathAdjOut(t *testing.T) {
 	nlri1 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri1.SetPathIdentifier(1)
 	nlri1.SetPathLocalIdentifier(1)
-	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, nlri1, false, attrs, time.Now(), false)
 	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri2.SetPathIdentifier(1)
 	nlri2.SetPathLocalIdentifier(2)
-	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, nlri2, false, attrs, time.Now(), false)
 	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri3.SetPathIdentifier(2)
 	nlri3.SetPathLocalIdentifier(3)
-	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
+	p3 := NewPath(bgp.RF_IPv4_UC, pi, nlri3, false, attrs, time.Now(), false)
 	nlri4 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
 	nlri4.SetPathIdentifier(3)
 	nlri4.SetPathLocalIdentifier(4)
-	p4 := NewPath(pi, nlri4, false, attrs, time.Now(), false)
+	p4 := NewPath(bgp.RF_IPv4_UC, pi, nlri4, false, attrs, time.Now(), false)
 	family := p1.GetFamily()
 	families := []bgp.Family{family}
 
@@ -95,9 +95,9 @@ func TestStale(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
 	nlri1 := bgp.NewIPAddrPrefix(24, "20.20.10.0")
-	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, nlri1, false, attrs, time.Now(), false)
 	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
-	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, nlri2, false, attrs, time.Now(), false)
 	p2.SetRejected(true)
 
 	family := p1.GetFamily()
@@ -117,7 +117,7 @@ func TestStale(t *testing.T) {
 	}
 
 	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.30.0")
-	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
+	p3 := NewPath(bgp.RF_IPv4_UC, pi, nlri3, false, attrs, time.Now(), false)
 	adj.Update([]*Path{p1, p3})
 
 	droppedPathList := adj.DropStale(families)
@@ -131,20 +131,20 @@ func TestLLGRStale(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
 	nlri1 := bgp.NewIPAddrPrefix(24, "20.20.10.0")
-	p1 := NewPath(pi, nlri1, false, attrs, time.Now(), false)
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, nlri1, false, attrs, time.Now(), false)
 
 	nlri2 := bgp.NewIPAddrPrefix(24, "20.20.20.0")
-	p2 := NewPath(pi, nlri2, false, attrs, time.Now(), false)
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, nlri2, false, attrs, time.Now(), false)
 	p2.SetRejected(true) // Not accepted
 
 	nlri3 := bgp.NewIPAddrPrefix(24, "20.20.30.0")
-	p3 := NewPath(pi, nlri3, false, attrs, time.Now(), false)
+	p3 := NewPath(bgp.RF_IPv4_UC, pi, nlri3, false, attrs, time.Now(), false)
 	p3.SetRejected(true)
 	// Not accepted and then dropped on MarkLLGRStaleOrDrop
 	p3.SetCommunities([]uint32{uint32(bgp.COMMUNITY_NO_LLGR)}, false)
 
 	nlri4 := bgp.NewIPAddrPrefix(24, "20.20.40.0")
-	p4 := NewPath(pi, nlri4, false, attrs, time.Now(), false)
+	p4 := NewPath(bgp.RF_IPv4_UC, pi, nlri4, false, attrs, time.Now(), false)
 	// dropped on MarkLLGRStaleOrDrop
 	p4.SetCommunities([]uint32{uint32(bgp.COMMUNITY_NO_LLGR)}, false)
 

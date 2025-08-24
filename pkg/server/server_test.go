@@ -811,7 +811,7 @@ func TestMonitor(test *testing.T) {
 
 	// Withdraws the previous route.
 	// NOTE: Withdraw should not require any path attribute.
-	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, nil, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, nil, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -826,7 +826,7 @@ func TestMonitor(test *testing.T) {
 	w.Stop()
 
 	// Prepares an initial route to test WatchUpdate with "current" flag.
-	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.1.0.0"), false, attrs, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.1.0.0"), false, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	for {
@@ -855,7 +855,7 @@ func TestMonitor(test *testing.T) {
 	assert.Equal(len(u.PathList), 0) // End of RIB
 
 	// Advertises an additional route.
-	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), false, attrs, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), false, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -866,7 +866,7 @@ func TestMonitor(test *testing.T) {
 
 	// Withdraws the previous route.
 	// NOTE: Withdraw should not require any path attribute.
-	if err := t.addPathList("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), true, nil, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), true, nil, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -883,7 +883,7 @@ func TestMonitor(test *testing.T) {
 		bgp.NewPathAttributeNextHop("10.0.0.1"),
 	}
 
-	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), false, attrs, time.Now(), false)}); err != nil {
+	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), false, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -896,7 +896,7 @@ func TestMonitor(test *testing.T) {
 	assert.True(b.Vrf[2])
 
 	// Withdraw the route
-	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, attrs, time.Now(), false)}); err != nil {
+	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -1005,8 +1005,8 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
 	pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p2As})})}
 
-	path1 := table.NewPath(p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
-	path2 := table.NewPath(p2.fsm.peerInfo, nlri, false, pa2, time.Now(), false)
+	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
+	path2 := table.NewPath(bgp.RF_IPv4_UC, p2.fsm.peerInfo, nlri, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
 	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
@@ -1047,8 +1047,8 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}), bgp.NewPathAttributeLocalPref(200)}
 	// pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})})}
 
-	path1 := table.NewPath(p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
-	// path2 := table.NewPath(pi2, nlri, false, pa2, time.Now(), false)
+	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
+	// path2 := table.NewPath(bgp.RF_IPv4_UC, pi2, nlri, false, pa2, time.Now(), false)
 
 	new, old := process(rib, []*table.Path{path1})
 	assert.Equal(t, new, path1)
@@ -1113,7 +1113,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		if addCommunity {
 			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
 		}
-		path1 := table.NewPath(p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
+		path1 := table.NewPath(bgp.RF_IPv4_UC, p1.fsm.peerInfo, nlri, false, pa1, time.Now(), false)
 		new, old := process(rib2, []*table.Path{path1})
 		assert.Equal(t, new, path1)
 		s := NewBgpServer()
@@ -1753,7 +1753,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		t.Fatal(err)
 	}
 	rtcNLRI := bgp.NewRouteTargetMembershipNLRI(1, rt)
-	rtcPath := table.NewPath(&table.PeerInfo{
+	rtcPath := table.NewPath(bgp.RF_RTC_UC, &table.PeerInfo{
 		AS:      1,
 		Address: netip.MustParseAddr("127.0.0.1"),
 		LocalID: netip.MustParseAddr("2.2.2.2"),

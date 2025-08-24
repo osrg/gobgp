@@ -1344,7 +1344,7 @@ func TestAsPathCondition(t *testing.T) {
 			bgp.NewAs4PathParam(asPathAttrType, ases),
 		}
 		pathAttributes := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(aspathParam)}
-		p := NewPath(nil, nil, false, pathAttributes, time.Time{}, false)
+		p := NewPath(bgp.RF_IPv4_UC, nil, nil, false, pathAttributes, time.Time{}, false)
 		return astest{
 			path:   p,
 			result: result,
@@ -3397,7 +3397,7 @@ func TestLocalPrefAction(t *testing.T) {
 
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 
-	path := NewPath(nil, nlri, false, attrs, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)
 	p, _ := action.Apply(path, nil)
 	assert.NotNil(t, p)
 
@@ -3427,7 +3427,7 @@ func TestOriginAction(t *testing.T) {
 
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 
-	path := NewPath(nil, nlri, false, attrs, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)
 	p, _ := action.Apply(path, nil)
 	assert.NotNil(t, p)
 
@@ -3594,16 +3594,16 @@ func TestPrefixSetMatch(t *testing.T) {
 		set: ps,
 	}
 
-	path := NewPath(nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
-	path = NewPath(nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
-	path = NewPath(nil, bgp.NewIPAddrPrefix(25, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(25, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
-	path = NewPath(nil, bgp.NewIPAddrPrefix(30, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(30, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	p3 := oc.Prefix{
@@ -3618,7 +3618,7 @@ func TestPrefixSetMatch(t *testing.T) {
 	err = ps.Append(ps2)
 	assert.NoError(t, err)
 
-	path = NewPath(nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	ps3, err := NewPrefixSet(oc.PrefixSet{
@@ -3629,7 +3629,7 @@ func TestPrefixSetMatch(t *testing.T) {
 	err = ps.Remove(ps3)
 	assert.NoError(t, err)
 
-	path = NewPath(nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3647,7 +3647,7 @@ func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
 		set: ps,
 	}
 
-	path := NewPath(nil, bgp.NewIPAddrPrefix(6, "192.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(6, "192.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3667,12 +3667,12 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 
 	labels := bgp.NewMPLSLabelStack(100, 200)
 	n1 := bgp.NewLabeledIPv6AddrPrefix(48, "2806:106e:19::", *labels)
-	path := NewPath(nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv6_MPLS, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	labels = bgp.NewMPLSLabelStack(100, 200)
 	n2 := bgp.NewLabeledIPv6AddrPrefix(48, "1806:106e:19::", *labels)
-	path = NewPath(nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv6_MPLS, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3694,15 +3694,15 @@ func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 
 	n1 := bgp.NewLabeledVPNIPAddrPrefix(32, "10.10.10.10", *labels, rd)
-	path := NewPath(nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_MPLS, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	n2 := bgp.NewLabeledVPNIPAddrPrefix(32, "10.20.20.20", *labels, rd)
-	path = NewPath(nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_MPLS, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
 	n3 := bgp.NewLabeledVPNIPAddrPrefix(16, "10.10.0.0", *labels, rd)
-	path = NewPath(nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_MPLS, nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3724,15 +3724,15 @@ func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 
 	n1 := bgp.NewLabeledVPNIPv6AddrPrefix(128, "2001:123:123:1::", *labels, rd)
-	path := NewPath(nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv6_VPN, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	n2 := bgp.NewLabeledVPNIPv6AddrPrefix(128, "2001:124:123:1::", *labels, rd)
-	path = NewPath(nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv6_VPN, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
 	n3 := bgp.NewLabeledVPNIPv6AddrPrefix(48, "2001:124:123::", *labels, rd)
-	path = NewPath(nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv6_VPN, nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3741,7 +3741,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 		{ASN: 100, LocalData1: 100, LocalData2: 100},
 		{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
-	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
+	p := NewPath(bgp.RF_IPv4_UC, nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
 	c := oc.LargeCommunitySet{
 		LargeCommunitySetName: "l0",
@@ -3822,7 +3822,7 @@ func TestLargeCommunitiesMatchClearAction(t *testing.T) {
 		{ASN: 100, LocalData1: 100, LocalData2: 100},
 		{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
-	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
+	p := NewPath(bgp.RF_FS_IPv4_UC, nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
 	a, err := NewLargeCommunityAction(oc.SetLargeCommunity{
 		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
@@ -3854,11 +3854,11 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 	prefixv4 := bgp.NewIPAddrPrefix(24, "1.1.1.0")
 	prefixv6 := bgp.NewIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334")
 
-	pathVPNv4 := NewPath(nil, prefixVPNv4, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
-	pathVPNv6 := NewPath(nil, prefixVPNv6, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
-	pathv4 := NewPath(nil, prefixv4, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
-	pathv6 := NewPath(nil, prefixv6, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
-	pathRTC := NewPath(nil, prefixRTC, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathVPNv4 := NewPath(bgp.RF_IPv4_VPN, nil, prefixVPNv4, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
+	pathVPNv6 := NewPath(bgp.RF_IPv6_VPN, nil, prefixVPNv6, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
+	pathv4 := NewPath(bgp.RF_IPv4_UC, nil, prefixv4, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathv6 := NewPath(bgp.RF_IPv6_UC, nil, prefixv6, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathRTC := NewPath(bgp.RF_RTC_UC, nil, prefixRTC, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
 
 	type Entry struct {
 		path        *Path
@@ -3912,7 +3912,7 @@ func TestMultipleStatementPolicy(t *testing.T) {
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
 	pattrs := []bgp.PathAttributeInterface{origin, aspath, nexthop}
 
-	path := NewPath(nil, nlri, false, pattrs, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, pattrs, time.Now(), false)
 
 	pType, newPath := r.policyMap["p1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)

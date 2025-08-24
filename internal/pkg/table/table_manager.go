@@ -39,26 +39,15 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 		return []*Path{NewEOR(f)}
 	}
 
-	adds := make([]bgp.AddrPrefixInterface, 0, len(update.NLRI))
-	for _, nlri := range update.NLRI {
-		adds = append(adds, nlri)
-	}
-
-	dels := make([]bgp.AddrPrefixInterface, 0, len(update.WithdrawnRoutes))
-	for _, nlri := range update.WithdrawnRoutes {
-		dels = append(dels, nlri)
-	}
-
 	attrs := make([]bgp.PathAttributeInterface, 0, len(update.PathAttributes))
 	var reach *bgp.PathAttributeMpReachNLRI
+	var unreach *bgp.PathAttributeMpUnreachNLRI
 	for _, attr := range update.PathAttributes {
 		switch a := attr.(type) {
 		case *bgp.PathAttributeMpReachNLRI:
 			reach = a
 		case *bgp.PathAttributeMpUnreachNLRI:
-			l := make([]bgp.AddrPrefixInterface, 0, len(a.Value))
-			l = append(l, a.Value...)
-			dels = append(dels, l...)
+			unreach = a
 		default:
 			// update msg may not contain next_hop (type:3) in attr
 			// due to it uses MpReachNLRI and it also has empty update.NLRI
@@ -66,13 +55,8 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 		}
 	}
 
-	listLen := len(adds) + len(dels)
-	if reach != nil {
-		listLen += len(reach.Value)
-	}
-
 	var hash uint64
-	if len(adds) > 0 || reach != nil {
+	if len(update.NLRI) > 0 || reach != nil {
 		total := bytes.NewBuffer(make([]byte, 0))
 		for _, a := range attrs {
 			b, _ := a.Serialize()
@@ -81,14 +65,25 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 		hash = farm.Hash64(total.Bytes())
 	}
 
+	listLen := len(update.NLRI) + len(update.WithdrawnRoutes)
+	if reach != nil {
+		listLen += len(reach.Value)
+	}
+	if unreach != nil {
+		listLen += len(unreach.Value)
+	}
+
 	pathList := make([]*Path, 0, listLen)
-	for _, nlri := range adds {
-		p := NewPath(peerInfo, nlri, false, attrs, timestamp, false)
+
+	for _, nlri := range update.NLRI {
+		p := NewPath(bgp.RF_IPv4_UC, peerInfo, nlri, false, attrs, timestamp, false)
 		p.SetHash(hash)
 		pathList = append(pathList, p)
 	}
+
 	if reach != nil {
 		nexthop := reach.Nexthop.String()
+		family := bgp.NewFamily(reach.AFI, reach.SAFI)
 
 		for _, nlri := range reach.Value {
 			// when build path from reach
@@ -101,15 +96,26 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 			nlriAttr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlri)
 			reachAttrs := makeAttributeList(attrs, nlriAttr)
 
-			p := NewPath(peerInfo, nlri, false, reachAttrs, timestamp, false)
+			p := NewPath(family, peerInfo, nlri, false, reachAttrs, timestamp, false)
 			p.SetHash(hash)
 			pathList = append(pathList, p)
 		}
 	}
-	for _, nlri := range dels {
-		p := NewPath(peerInfo, nlri, true, []bgp.PathAttributeInterface{}, timestamp, false)
+
+	for _, nlri := range update.WithdrawnRoutes {
+		p := NewPath(bgp.RF_IPv4_UC, peerInfo, nlri, true, []bgp.PathAttributeInterface{}, timestamp, false)
 		pathList = append(pathList, p)
 	}
+
+	if unreach != nil {
+		family := bgp.NewFamily(unreach.AFI, unreach.SAFI)
+
+		for _, nlri := range unreach.Value {
+			p := NewPath(family, peerInfo, nlri, true, []bgp.PathAttributeInterface{}, timestamp, false)
+			pathList = append(pathList, p)
+		}
+	}
+
 	return pathList
 }
 
@@ -177,7 +183,7 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
-		msgs = append(msgs, NewPath(info, nlri, false, pattr, time.Now(), false))
+		msgs = append(msgs, NewPath(bgp.RF_RTC_UC, info, nlri, false, pattr, time.Now(), false))
 	}
 	return msgs, nil
 }

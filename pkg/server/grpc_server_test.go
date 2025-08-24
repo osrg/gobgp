@@ -77,7 +77,7 @@ func TestToPathApi(t *testing.T) {
 		{
 			name: "ipv4 path",
 			args: args{
-				path: table.NewPath(&table.PeerInfo{
+				path: table.NewPath(bgp.RF_IPv4_UC, &table.PeerInfo{
 					ID:           netip.MustParseAddr("10.10.10.10"),
 					LocalID:      netip.MustParseAddr("10.11.11.11"),
 					Address:      netip.MustParseAddr("10.12.12.12"),

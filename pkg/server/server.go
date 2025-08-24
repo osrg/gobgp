@@ -2342,15 +2342,14 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 		return nil, fmt.Errorf("nexthop not found")
 	}
 
-	rf := bgp.NewFamily(path.Nlri.AFI(), path.Nlri.SAFI())
-	if !isVRFTable && rf == bgp.RF_IPv4_UC && nexthop.To4() != nil {
+	if !isVRFTable && path.Family == bgp.RF_IPv4_UC && nexthop.To4() != nil {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop.String()))
 	} else {
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop.String(), path.Nlri))
 	}
 
 	doWithdraw := len(isWithdraw) > 0 && isWithdraw[0] || path.Withdrawal
-	p := table.NewPath(source, path.Nlri, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
+	p := table.NewPath(path.Family, source, path.Nlri, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
 	if p == nil {
 		return nil, fmt.Errorf("invalid path: %v", path)
 	}
@@ -4430,6 +4429,7 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 func toPathApiUtil(path *table.Path) *apiutil.Path {
 	// Best and SendMaxFiltered are set in ListPath API
 	p := &apiutil.Path{
+		Family:             path.GetFamily(),
 		Nlri:               path.GetNlri(),
 		Age:                path.GetTimestamp().Unix(),
 		Attrs:              path.GetPathAttrs(),

@@ -2294,7 +2294,7 @@ func makeVpn4Path(t *testing.T, peerInfo *PeerInfo, address string, nh string, r
 	rd, _ := bgp.ParseRouteDistinguisher(rdStr)
 	labels := bgp.NewMPLSLabelStack(100, 200)
 	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, address, *labels, rd)
-	return NewPath(peerInfo, prefix, false, attrs, time.Now(), false)
+	return NewPath(bgp.RF_IPv4_VPN, peerInfo, prefix, false, attrs, time.Now(), false)
 }
 
 func makeRtcPath(t *testing.T, peerInfo *PeerInfo, rtStr string, withdraw bool) *Path {
@@ -2310,7 +2310,7 @@ func makeRtcPath(t *testing.T, peerInfo *PeerInfo, rtStr string, withdraw bool) 
 
 	prefix := bgp.NewRouteTargetMembershipNLRI(peerInfo.AS, rt)
 
-	return NewPath(peerInfo, prefix, withdraw, attrs, time.Now(), false)
+	return NewPath(bgp.RF_RTC_UC, peerInfo, prefix, withdraw, attrs, time.Now(), false)
 }
 
 func addVrf(t *testing.T, tm *TableManager, peerInfo *PeerInfo, vrfName, rdStr string, importRtsStr []string, exportRtsStr []string, id uint32) *Vrf {
