@@ -202,18 +202,23 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 
 func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path) *api.Path {
 	nlri := path.Nlri
+	var PathID, PathLocalID uint32
+	if nlri != nil {
+		PathID = nlri.PathIdentifier()
+		PathLocalID = nlri.PathLocalIdentifier()
+	}
 	p := &api.Path{
 		Nlri:               anyNlri,
 		Pattrs:             anyPattrs,
 		Age:                tspb.New(time.Unix(path.Age, 0)),
 		IsWithdraw:         path.Withdrawal,
-		Family:             &api.Family{Afi: api.Family_Afi(nlri.AFI()), Safi: api.Family_Safi(nlri.SAFI())},
+		Family:             &api.Family{Afi: api.Family_Afi(path.Family.Afi()), Safi: api.Family_Safi(path.Family.Safi())},
 		Stale:              path.Stale,
 		IsFromExternal:     path.IsFromExternal,
 		NoImplicitWithdraw: path.NoImplicitWithdraw,
 		IsNexthopInvalid:   path.IsNexthopInvalid,
-		Identifier:         nlri.PathIdentifier(),
-		LocalIdentifier:    nlri.PathLocalIdentifier(),
+		Identifier:         PathID,
+		LocalIdentifier:    PathLocalID,
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
 		SourceAsn:          path.PeerASN,
@@ -238,11 +243,13 @@ func toPathApi(path *apiutil.Path, onlyBinary, nlriBinary, attributeBinary bool)
 	)
 	nlri := path.Nlri
 	if !onlyBinary {
-		anyNlri, _ = apiutil.MarshalNLRI(nlri)
+		if nlri != nil {
+			anyNlri, _ = apiutil.MarshalNLRI(nlri)
+		}
 		anyPattrs, _ = apiutil.MarshalPathAttributes(path.Attrs)
 	}
 	var binNlri []byte
-	if onlyBinary || nlriBinary {
+	if nlri != nil && (onlyBinary || nlriBinary) {
 		binNlri, _ = nlri.Serialize()
 	}
 	var binPattrs [][]byte

@@ -10194,7 +10194,7 @@ func GetFamily(name string) (Family, error) {
 }
 
 func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (prefix AddrPrefixInterface, err error) {
-	nlri, err := NewPrefixFromFamily(family)
+	nlri, err := newPrefixFromFamily(family)
 	if err != nil {
 		return nil, err
 	}
@@ -10206,7 +10206,7 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (pr
 	return nlri, nil
 }
 
-func NewPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
+func newPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
 	f := func(s string) (AddrPrefixInterface, error) {
 		addr, net, err := net.ParseCIDR(s)
 		if err != nil {

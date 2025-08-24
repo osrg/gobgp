@@ -2894,6 +2894,9 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 			}
 			toUpdate = make([]*table.Path, 0, len(pathList))
 			for _, path := range pathList {
+				if path.IsEOR() {
+					continue
+				}
 				pathLocalKey := path.GetLocalKey()
 				if peer.isPathSendMaxFiltered(path) {
 					filtered[pathLocalKey] = filtered[pathLocalKey] | table.SendMaxFiltered

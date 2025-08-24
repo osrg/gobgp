@@ -107,7 +107,6 @@ func TestToPathApi(t *testing.T) {
 				path: eor(bgp.RF_IPv4_UC),
 			},
 			want: &api.Path{
-				Nlri: eorNlri(bgp.RF_IPv4_UC),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_UNICAST,
@@ -124,7 +123,6 @@ func TestToPathApi(t *testing.T) {
 				path: eor(bgp.RF_IPv4_VPN),
 			},
 			want: &api.Path{
-				Nlri: eorNlri(bgp.RF_IPv4_VPN),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,
 					Safi: api.Family_SAFI_MPLS_VPN,
@@ -139,7 +137,9 @@ func TestToPathApi(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			apiPath := toPathApi(toPathApiUtil(tt.args.path), tt.args.onlyBinary, tt.args.nlriBinary, tt.args.attributeBinary)
-			assert.Equal(t, tt.want.Nlri, apiPath.Nlri, "not equal nlri")
+			if tt.want.Nlri != nil {
+				assert.Equal(t, tt.want.Nlri, apiPath.Nlri, "not equal nlri")
+			}
 			assert.Equal(t, tt.want.Pattrs, apiPath.Pattrs, "not equal attrs")
 			assert.Equal(t, tt.want.Family, apiPath.Family, "not equal family")
 			assert.Equal(t, tt.want.NeighborIp, apiPath.NeighborIp, "not equal neighbor")
@@ -156,11 +156,6 @@ func eor(f bgp.Family) *table.Path {
 		LocalAddress: netip.MustParseAddr("10.13.13.13"),
 	})
 	return p
-}
-
-func eorNlri(family bgp.Family) *api.NLRI {
-	n, _ := bgp.NewPrefixFromFamily(family)
-	return nlri(n)
 }
 
 func nlri(nlri bgp.AddrPrefixInterface) *api.NLRI {

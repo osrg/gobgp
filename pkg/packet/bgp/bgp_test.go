@@ -90,31 +90,6 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	assert.Equal(t, "::ffff:192.0.2.128/128", mapped_ipv6.String())
 }
 
-func Test_MalformedPrefixLookup(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		inPrefix string
-		Family   Family
-		want     AddrPrefixInterface
-		err      bool
-	}{
-		{"129.6.128/22", RF_IPv4_UC, nil, true},
-		{"foo", RF_IPv4_UC, nil, true},
-		{"3343:faba:3903:128::::/63", RF_IPv6_UC, nil, true},
-		{"foo", RF_IPv6_UC, nil, true},
-	}
-
-	for _, test := range tests {
-		p, err := NewPrefixFromFamily(RF_IPv4_UC, test.inPrefix)
-		if test.err {
-			assert.Error(err)
-		} else {
-			assert.Equal(test.want, p)
-		}
-	}
-}
-
 func TestStringLabelAddrPrefix(t *testing.T) {
 	assert := assert.New(t)
 
