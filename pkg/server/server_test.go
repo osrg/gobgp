@@ -1787,6 +1787,158 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestRouteWithDoubleRTinRTC(t *testing.T) {
+	ctx := context.Background()
+
+	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s1.logger.SetLevel(log.DebugLevel)
+	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2.logger.SetLevel(log.DebugLevel)
+
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	watcher := s1.watch(WatchUpdate(true, "", ""))
+
+	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
+
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100, rt200}),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
+	path, _ := apiutil.NewPath(prefix, false, attrs, time.Now())
+
+	if _, err := s2.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path:      path,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	attrsRtc := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("1.1.1.1"),
+	}
+	pathRtc1, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt100), false, attrsRtc, time.Now())
+	if _, err := s1.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path:      pathRtc1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pathRtc2, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt200), false, attrsRtc, time.Now())
+	if _, err := s1.AddPath(ctx, &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path:      pathRtc2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// s1 should receive this route from s2
+	t1 := time.NewTimer(30 * time.Second)
+	for found := false; !found; {
+		select {
+		case ev := <-watcher.Event():
+			switch msg := ev.(type) {
+			case *watchEventUpdate:
+				for _, path := range msg.PathList {
+					t.Logf("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if vpnPath.Prefix.Equal(prefix.Prefix) {
+							t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
+							found = true
+						} else {
+							t.Logf("unknown prefix %s != %s", vpnPath.Prefix, prefix.Prefix)
+						}
+					}
+				}
+			}
+		case <-t1.C:
+			t.Fatalf("timeout while waiting for update path event")
+		}
+	}
+	t1.Stop()
+
+	if err := s1.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path:      pathRtc2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// s1 should not receive withdrawn route from s2
+	t1 = time.NewTimer(30 * time.Second)
+	for found := false; !found; {
+		select {
+		case ev := <-watcher.Event():
+			switch msg := ev.(type) {
+			case *watchEventUpdate:
+				for _, path := range msg.PathList {
+					t.Logf("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if vpnPath.Prefix.Equal(prefix.Prefix) {
+							if path.IsWithdraw {
+								t.Fatalf("active path is withdrawn")
+							} else {
+								t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
+								found = true
+							}
+						} else {
+							t.Logf("unknown prefix %s != %s", vpnPath.Prefix, prefix.Prefix)
+						}
+					}
+				}
+			}
+		case <-t1.C:
+			t.Logf("no paths have been withdrawn")
+		}
+	}
+	t1.Stop()
+
+	if err := s1.DeletePath(ctx, &api.DeletePathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path:      pathRtc1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// s1 should receive withdrawn route from s2
+	t1 = time.NewTimer(30 * time.Second)
+	for found := false; !found; {
+		select {
+		case ev := <-watcher.Event():
+			switch msg := ev.(type) {
+			case *watchEventUpdate:
+				for _, path := range msg.PathList {
+					t.Logf("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if vpnPath.Prefix.Equal(prefix.Prefix) {
+							if path.IsWithdraw {
+								t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
+								found = true
+							} else {
+								t.Fatalf("this path should be withdrawn: %s", vpnPath.Prefix)
+							}
+						} else {
+							t.Logf("unknown prefix %s != %s", vpnPath.Prefix, prefix.Prefix)
+						}
+					}
+				}
+			}
+		case <-t1.C:
+			t.Fatalf("timeout while waiting for update path event")
+		}
+	}
+	t1.Stop()
+}
+
 func TestDelVrfWithRTC(t *testing.T) {
 	ctx := context.Background()
 
