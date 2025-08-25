@@ -5847,6 +5847,7 @@ const (
 	LS_TLV_PEER_SET_SID             = 1103 // RFC9086
 
 	LS_TLV_RTM_CAPABILITY = 1105 // RFC8169, TODO
+	LS_TLV_SRV6_END_X_SID = 1106 // RFC9514
 
 	LS_TLV_IGP_FLAGS              = 1152
 	LS_TLV_IGP_ROUTE_TAG          = 1153 // TODO
@@ -5860,6 +5861,10 @@ const (
 	LS_TLV_PREFIX_ATTRIBUTE_FLAGS = 1170 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_SOURCE_ROUTER_ID       = 1171 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_L2_BUNDLE_MEMBER_TLV   = 1172 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+
+	LS_TLV_SRV6_ENDPOINT_BEHAVIOR = 1250 // RFC9514
+	LS_TLV_SRV6_BGP_PEER_NODE_SID = 1251 // RFC9514
+	LS_TLV_SRV6_SID_STRUCTURE     = 1252 // RFC9514
 )
 
 type LsTLVInterface interface {
@@ -5944,6 +5949,9 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	if lsAttr.Link.SrAdjacencySID != nil {
 		tlvs = append(tlvs, NewLsTLVAdjacencySID(lsAttr.Link.SrAdjacencySID))
 	}
+	if lsAttr.Link.Srv6EndXSID != nil && len(lsAttr.Link.Srv6EndXSID.SIDs) > 0 {
+		tlvs = append(tlvs, NewLsTLVSrv6EndXSID(lsAttr.Link.Srv6EndXSID))
+	}
 
 	if lsAttr.Prefix.IGPFlags != nil {
 		tlvs = append(tlvs, NewLsTLVIGPFlags(lsAttr.Prefix.IGPFlags))
@@ -5963,6 +5971,18 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 	if lsAttr.BgpPeerSegment.BgpPeerSetSid != nil {
 		tlvs = append(tlvs, NewLsTLVPeerSetSID(lsAttr.BgpPeerSegment.BgpPeerSetSid))
+	}
+
+	if lsAttr.Srv6SID.Srv6SIDStructure != nil {
+		tlvs = append(tlvs, NewLsTLVSrv6SIDStructure(lsAttr.Srv6SID.Srv6SIDStructure))
+	}
+
+	if lsAttr.Srv6SID.Srv6BgpPeerNodeSID != nil {
+		tlvs = append(tlvs, NewLsTLVSrv6BgpPeerNodeSID(lsAttr.Srv6SID.Srv6BgpPeerNodeSID))
+	}
+
+	if lsAttr.Srv6SID.Srv6EndpointBehavior != nil {
+		tlvs = append(tlvs, NewLsTLVSrv6EndpointBehavior(lsAttr.Srv6SID.Srv6EndpointBehavior))
 	}
 
 	return tlvs
@@ -8295,6 +8315,512 @@ func (l *LsTLVPeerNodeSID) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+type LsTLVSrv6EndXSID struct {
+	LsTLV
+	EndpointBehavior uint16
+	Flags            uint8
+	Algorithm        uint8
+	Weight           uint8
+	Reserved         uint8
+	SIDs             []netip.Addr
+	Srv6SIDStructure LsTLVSrv6SIDStructure
+}
+
+func NewLsTLVSrv6EndXSID(l *LsSrv6EndXSID) *LsTLVSrv6EndXSID {
+	var length uint16 = 6
+
+	sids := []netip.Addr{}
+	for _, sid := range l.SIDs {
+		sids = append(sids, sid)
+		length += 16 // each SID is 16 bytes
+	}
+
+	srv6SIDStructure := LsTLVSrv6SIDStructure{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_SID_STRUCTURE,
+			Length: 4,
+		},
+		LocalBlock: l.Srv6SIDStructure.LocalBlock,
+		LocalNode:  l.Srv6SIDStructure.LocalNode,
+		LocalFunc:  l.Srv6SIDStructure.LocalFunc,
+		LocalArg:   l.Srv6SIDStructure.LocalArg,
+	}
+
+	if l.Srv6SIDStructure.LocalBlock != 0 || l.Srv6SIDStructure.LocalNode != 0 ||
+		l.Srv6SIDStructure.LocalFunc != 0 || l.Srv6SIDStructure.LocalArg != 0 {
+		length += 8 // Sub-TLV header (4 bytes) + payload (4 bytes)
+	}
+
+	return &LsTLVSrv6EndXSID{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_END_X_SID,
+			Length: length,
+		},
+		EndpointBehavior: l.EndpointBehavior,
+		Flags:            l.Flags,
+		Algorithm:        l.Algorithm,
+		Weight:           l.Weight,
+		Reserved:         l.Reserved,
+		SIDs:             sids,
+		Srv6SIDStructure: srv6SIDStructure,
+	}
+}
+
+func (l *LsTLVSrv6EndXSID) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+type LsSrv6EndXSID struct {
+	EndpointBehavior uint16             `json:"endpoint_behavior"`
+	Flags            uint8              `json:"flags"`
+	Algorithm        uint8              `json:"algorithm"`
+	Weight           uint8              `json:"weight"`
+	Reserved         uint8              `json:"reserved"`
+	SIDs             []netip.Addr       `json:"sids"`
+	Srv6SIDStructure LsSrv6SIDStructure `json:"sid_structure"`
+}
+
+func (l *LsTLVSrv6EndXSID) Extract() *LsSrv6EndXSID {
+	les := &LsSrv6EndXSID{
+		EndpointBehavior: l.EndpointBehavior,
+		Flags:            l.Flags,
+		Algorithm:        l.Algorithm,
+		Weight:           l.Weight,
+		Reserved:         l.Reserved,
+		SIDs:             l.SIDs,
+		Srv6SIDStructure: *l.Srv6SIDStructure.Extract(),
+	}
+
+	return les
+}
+
+func (l *LsTLVSrv6EndXSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_END_X_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// RFC 9514: minimum length = 6 bytes header + 16 bytes SID = 22 bytes
+	if len(value) < 22 {
+		return malformedAttrListErr("Incorrect SRv6 End.X SID length")
+	}
+
+	l.EndpointBehavior = binary.BigEndian.Uint16(value[:2])
+	l.Flags = value[2]
+	l.Algorithm = value[3]
+	l.Weight = value[4]
+	l.Reserved = value[5]
+
+	value = value[6:]
+
+	// parse variable data: SIDs followed by Sub-TLVs
+	return l.parseVariableData(value)
+}
+
+func (l *LsTLVSrv6EndXSID) parseVariableData(data []byte) error {
+	pos := 0
+
+	// if data length is not multiple of 16, there must be Sub-TLVs at the end
+	dataLen := len(data)
+	sidDataLen := dataLen / 16 * 16
+
+	for pos < sidDataLen {
+		sid := make([]byte, 16)
+		copy(sid, data[pos:pos+16])
+		addr, _ := netip.AddrFromSlice(sid)
+		l.SIDs = append(l.SIDs, addr)
+		pos += 16
+	}
+
+	if pos < dataLen {
+		return l.parseSubTLVs(data[pos:])
+	}
+
+	return nil
+}
+
+func (l *LsTLVSrv6EndXSID) parseSubTLVs(data []byte) error {
+	for len(data) >= 4 {
+		tlvType := binary.BigEndian.Uint16(data[:2])
+		tlvLen := binary.BigEndian.Uint16(data[2:4])
+
+		if len(data) < int(4+tlvLen) {
+			return nil
+		}
+
+		switch tlvType {
+		case LS_TLV_SRV6_SID_STRUCTURE:
+			if tlvLen != 4 {
+				data = data[4+tlvLen:]
+				continue
+			}
+			l.Srv6SIDStructure.LocalBlock = data[4]
+			l.Srv6SIDStructure.LocalNode = data[5]
+			l.Srv6SIDStructure.LocalFunc = data[6]
+			l.Srv6SIDStructure.LocalArg = data[7]
+		default:
+			// TODO: handle unknown Sub-TLVs
+		}
+
+		data = data[4+tlvLen:]
+	}
+
+	return nil
+}
+
+func (l *LsTLVSrv6EndXSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+
+	temp := make([]byte, 2)
+	binary.BigEndian.PutUint16(temp, l.EndpointBehavior)
+	buf = append(buf, temp...)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Algorithm)
+	buf = append(buf, l.Weight)
+	buf = append(buf, l.Reserved)
+
+	for _, sid := range l.SIDs {
+		buf = append(buf, sid.AsSlice()...)
+	}
+
+	return l.serializeSubTLVs(buf)
+}
+
+func (l *LsTLVSrv6EndXSID) serializeSubTLVs(buf []byte) ([]byte, error) {
+	if l.Srv6SIDStructure.LocalBlock != 0 || l.Srv6SIDStructure.LocalNode != 0 ||
+		l.Srv6SIDStructure.LocalFunc != 0 || l.Srv6SIDStructure.LocalArg != 0 {
+		subTLVHeader := make([]byte, 4)
+		binary.BigEndian.PutUint16(subTLVHeader[:2], LS_TLV_SRV6_SID_STRUCTURE)
+		binary.BigEndian.PutUint16(subTLVHeader[2:4], 4) // Length = 4 bytes
+		buf = append(buf, subTLVHeader...)
+
+		buf = append(buf, l.Srv6SIDStructure.LocalBlock)
+		buf = append(buf, l.Srv6SIDStructure.LocalNode)
+		buf = append(buf, l.Srv6SIDStructure.LocalFunc)
+		buf = append(buf, l.Srv6SIDStructure.LocalArg)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrv6EndXSID) String() string {
+	var buf bytes.Buffer
+	for _, sid := range l.SIDs {
+		buf.WriteString(fmt.Sprintf("%s ", sid.String()))
+	}
+	return fmt.Sprintf("{SRv6 End.X SID: EndpointBehavior:%d SIDs: %s LocalBlock:%d LocalNode:%d LocalFunc:%d LocalArg:%d}", l.EndpointBehavior, buf.String(), l.Srv6SIDStructure.LocalBlock, l.Srv6SIDStructure.LocalNode, l.Srv6SIDStructure.LocalFunc, l.Srv6SIDStructure.LocalArg)
+}
+
+func (l *LsTLVSrv6EndXSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type             LsTLVType             `json:"type"`
+		EndpointBehavior uint16                `json:"endpoint_behavior"`
+		SIDs             []netip.Addr          `json:"sids"`
+		Srv6SIDStructure LsTLVSrv6SIDStructure `json:"sid_structure"`
+	}{
+		Type:             l.Type,
+		EndpointBehavior: l.EndpointBehavior,
+		SIDs:             l.SIDs,
+		Srv6SIDStructure: l.Srv6SIDStructure,
+	})
+}
+
+type LsTLVSrv6SIDStructure struct {
+	LsTLV
+	LocalBlock uint8
+	LocalNode  uint8
+	LocalFunc  uint8
+	LocalArg   uint8
+}
+
+func NewLsTLVSrv6SIDStructure(l *LsSrv6SIDStructure) *LsTLVSrv6SIDStructure {
+	return &LsTLVSrv6SIDStructure{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_SID_STRUCTURE,
+			Length: 4,
+		},
+		LocalBlock: l.LocalBlock,
+		LocalNode:  l.LocalNode,
+		LocalFunc:  l.LocalFunc,
+		LocalArg:   l.LocalArg,
+	}
+}
+
+func (l *LsTLVSrv6SIDStructure) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+type LsSrv6SIDStructure struct {
+	LocalBlock uint8 `json:"local_block"`
+	LocalNode  uint8 `json:"local_node"`
+	LocalFunc  uint8 `json:"local_func"`
+	LocalArg   uint8 `json:"local_arg"`
+}
+
+func (l *LsTLVSrv6SIDStructure) Extract() *LsSrv6SIDStructure {
+	lsss := &LsSrv6SIDStructure{
+		LocalBlock: l.LocalBlock,
+		LocalNode:  l.LocalNode,
+		LocalFunc:  l.LocalFunc,
+		LocalArg:   l.LocalArg,
+	}
+	return lsss
+}
+
+func (l *LsTLVSrv6SIDStructure) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_SID_STRUCTURE {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect SRv6 SID Structure length")
+	}
+
+	l.LocalBlock = value[0]
+	l.LocalNode = value[1]
+	l.LocalFunc = value[2]
+	l.LocalArg = value[3]
+
+	sum := uint16(l.LocalBlock) + uint16(l.LocalNode) + uint16(l.LocalFunc) + uint16(l.LocalArg)
+	if sum > 128 {
+		return malformedAttrListErr("SRv6 SID Structure length sum exceeds 128 bits")
+	}
+
+	return nil
+}
+
+func (l *LsTLVSrv6SIDStructure) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	buf = append(buf, l.LocalBlock)
+	buf = append(buf, l.LocalNode)
+	buf = append(buf, l.LocalFunc)
+	buf = append(buf, l.LocalArg)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrv6SIDStructure) String() string {
+	return fmt.Sprintf("{SRv6 SID Structure: LocalBlock:%v LocalNode:%v LocalFunc:%v LocalArg:%v}", l.LocalBlock, l.LocalNode, l.LocalFunc, l.LocalArg)
+}
+
+func (l *LsTLVSrv6SIDStructure) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type       LsTLVType `json:"type"`
+		LocalBlock uint8     `json:"local_block"`
+		LocalNode  uint8     `json:"local_node"`
+		LocalFunc  uint8     `json:"local_func"`
+		LocalArg   uint8     `json:"local_arg"`
+	}{
+		Type:       l.Type,
+		LocalBlock: l.LocalBlock,
+		LocalNode:  l.LocalNode,
+		LocalFunc:  l.LocalFunc,
+		LocalArg:   l.LocalArg,
+	})
+}
+
+type LsTLVSrv6BgpPeerNodeSID struct {
+	LsTLV
+	Flags        uint8
+	Weight       uint8
+	Reserved     uint16
+	PeerASNumber uint32
+	PeerBgpID    uint32
+}
+
+type LsSrv6BgpPeerNodeSID struct {
+	Flags     uint8  `json:"flags"`
+	Weight    uint8  `json:"weight"`
+	PeerAS    uint32 `json:"peer_as"`
+	PeerBgpID string `json:"peer_bgp_id"`
+}
+
+func NewLsTLVSrv6BgpPeerNodeSID(l *LsSrv6BgpPeerNodeSID) *LsTLVSrv6BgpPeerNodeSID {
+	addr, err := netip.ParseAddr(l.PeerBgpID)
+	if err != nil || !addr.Is4() {
+		return nil
+	}
+	peerBgpID := addr.As4()
+
+	return &LsTLVSrv6BgpPeerNodeSID{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_BGP_PEER_NODE_SID,
+			Length: 12,
+		},
+		Flags:        l.Flags,
+		Weight:       l.Weight,
+		Reserved:     0,
+		PeerASNumber: l.PeerAS,
+		PeerBgpID:    binary.BigEndian.Uint32(peerBgpID[:]),
+	}
+}
+
+func (l *LsTLVSrv6BgpPeerNodeSID) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+func (l *LsTLVSrv6BgpPeerNodeSID) Extract() *LsSrv6BgpPeerNodeSID {
+	peerBgpIP := make(net.IP, 4)
+	binary.BigEndian.PutUint32(peerBgpIP, l.PeerBgpID)
+
+	return &LsSrv6BgpPeerNodeSID{
+		Flags:     l.Flags,
+		Weight:    l.Weight,
+		PeerAS:    l.PeerASNumber,
+		PeerBgpID: peerBgpIP.String(),
+	}
+}
+
+func (l *LsTLVSrv6BgpPeerNodeSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_BGP_PEER_NODE_SID {
+		return malformedAttrListErr("Incorrect SRv6 BGP PeerNode SID TLV type")
+	}
+
+	if l.Length != 12 {
+		return malformedAttrListErr("Incorrect SRv6 BGP PeerNode SID TLV length")
+	}
+	l.Flags = value[0]
+	l.Weight = value[1]
+	l.Reserved = binary.BigEndian.Uint16(value[2:4])
+	l.PeerASNumber = binary.BigEndian.Uint32(value[4:8])
+	l.PeerBgpID = binary.BigEndian.Uint32(value[8:12])
+
+	return nil
+}
+
+func (l *LsTLVSrv6BgpPeerNodeSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 12)
+	buf[0] = l.Flags
+	buf[1] = l.Weight
+	binary.BigEndian.PutUint16(buf[2:4], l.Reserved)
+	binary.BigEndian.PutUint32(buf[4:8], l.PeerASNumber)
+	binary.BigEndian.PutUint32(buf[8:12], l.PeerBgpID)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrv6BgpPeerNodeSID) String() string {
+	peerBgpIP := make(net.IP, 4)
+	binary.BigEndian.PutUint32(peerBgpIP, l.PeerBgpID)
+	return fmt.Sprintf("{SRv6 BGP PeerNode SID: Flags:%d Weight:%d PeerAS:%d PeerBgpID:%s}",
+		l.Flags, l.Weight, l.PeerASNumber, peerBgpIP.String())
+}
+
+func (l *LsTLVSrv6BgpPeerNodeSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType `json:"type"`
+		Flags     uint8     `json:"flags"`
+		Weight    uint8     `json:"weight"`
+		PeerAS    uint32    `json:"peer_as"`
+		PeerBgpID string    `json:"peer_bgp_id"`
+	}{
+		Type:      l.Type,
+		Flags:     l.Flags,
+		Weight:    l.Weight,
+		PeerAS:    l.PeerASNumber,
+		PeerBgpID: l.Extract().PeerBgpID,
+	})
+}
+
+type LsTLVSrv6EndpointBehavior struct {
+	LsTLV
+	EndpointBehavior uint16
+	Flags            uint8
+	Algorithm        uint8
+}
+
+func NewLsTLVSrv6EndpointBehavior(l *LsSrv6EndpointBehavior) *LsTLVSrv6EndpointBehavior {
+	return &LsTLVSrv6EndpointBehavior{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_ENDPOINT_BEHAVIOR,
+			Length: 4,
+		},
+		EndpointBehavior: l.EndpointBehavior,
+		Flags:            l.Flags,
+		Algorithm:        l.Algorithm,
+	}
+}
+
+func (l *LsTLVSrv6EndpointBehavior) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+type LsSrv6EndpointBehavior struct {
+	EndpointBehavior uint16 `json:"endpoint_behavior"`
+	Flags            uint8  `json:"flags"`
+	Algorithm        uint8  `json:"algorithm"`
+}
+
+func (l *LsTLVSrv6EndpointBehavior) Extract() *LsSrv6EndpointBehavior {
+	lseb := &LsSrv6EndpointBehavior{
+		EndpointBehavior: l.EndpointBehavior,
+		Flags:            l.Flags,
+		Algorithm:        l.Algorithm,
+	}
+	return lseb
+}
+
+func (l *LsTLVSrv6EndpointBehavior) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_ENDPOINT_BEHAVIOR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect SRv6 Endpoint Behavior length")
+	}
+
+	l.EndpointBehavior = binary.BigEndian.Uint16(value[:2])
+	l.Flags = value[2]
+	l.Algorithm = value[3]
+
+	return nil
+}
+
+func (l *LsTLVSrv6EndpointBehavior) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, l.EndpointBehavior)
+	buf = append(buf, l.Flags)
+	buf = append(buf, l.Algorithm)
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrv6EndpointBehavior) String() string {
+	return fmt.Sprintf("{SRv6 Endpoint Behavior: EndpointBehavior:%v Flags:%v Algorithm:%v}", l.EndpointBehavior, l.Flags, l.Algorithm)
+}
+
+func (l *LsTLVSrv6EndpointBehavior) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type             LsTLVType `json:"type"`
+		EndpointBehavior uint16    `json:"endpoint_behavior"`
+		Flags            uint8     `json:"flags"`
+		Algorithm        uint8     `json:"algorithm"`
+	}{
+		Type:             l.Type,
+		EndpointBehavior: l.EndpointBehavior,
+		Flags:            l.Flags,
+		Algorithm:        l.Algorithm,
+	})
+}
+
 type LsTLVPeerAdjacencySID struct {
 	LsTLV
 	Flags  uint8
@@ -9356,6 +9882,8 @@ type LsAttributeLink struct {
 
 	// TODO flag
 	SrAdjacencySID *uint32 `json:"adjacency_sid,omitempty"`
+
+	Srv6EndXSID *LsSrv6EndXSID `json:"srv6_end_x_sid,omitempty"`
 }
 
 type LsAttributePrefix struct {
@@ -9371,11 +9899,18 @@ type LsAttributeBgpPeerSegment struct {
 	BgpPeerSetSid       *LsBgpPeerSegmentSID `json:"bgp_peer_set_sid,omitempty"`
 }
 
+type LsAttributeSrv6SID struct {
+	Srv6SIDStructure     *LsSrv6SIDStructure     `json:"srv6_sid_structure,omitempty"`
+	Srv6BgpPeerNodeSID   *LsSrv6BgpPeerNodeSID   `json:"srv6_bgp_peer_node_sid,omitempty"`
+	Srv6EndpointBehavior *LsSrv6EndpointBehavior `json:"srv6_endpoint_behavior,omitempty"`
+}
+
 type LsAttribute struct {
 	Node           LsAttributeNode           `json:"node"`
 	Link           LsAttributeLink           `json:"link"`
 	Prefix         LsAttributePrefix         `json:"prefix"`
 	BgpPeerSegment LsAttributeBgpPeerSegment `json:"bgp_peer_segment"`
+	Srv6SID        LsAttributeSrv6SID        `json:"srv6_sid"`
 }
 
 type PathAttributeLs struct {
@@ -9453,6 +9988,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 		case *LsTLVAdjacencySID:
 			l.Link.SrAdjacencySID = &v.SID
 
+		case *LsTLVSrv6EndXSID:
+			l.Link.Srv6EndXSID = v.Extract()
+
 		case *LsTLVIGPFlags:
 			l.Prefix.IGPFlags = v.Extract()
 
@@ -9470,6 +10008,15 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVPeerSetSID:
 			l.BgpPeerSegment.BgpPeerSetSid = v.Extract()
+
+		case *LsTLVSrv6SIDStructure:
+			l.Srv6SID.Srv6SIDStructure = v.Extract()
+
+		case *LsTLVSrv6BgpPeerNodeSID:
+			l.Srv6SID.Srv6BgpPeerNodeSID = v.Extract()
+
+		case *LsTLVSrv6EndpointBehavior:
+			l.Srv6SID.Srv6EndpointBehavior = v.Extract()
 		}
 	}
 
@@ -9580,6 +10127,18 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_PEER_SET_SID:
 			tlv = &LsTLVPeerSetSID{}
+
+		case LS_TLV_SRV6_END_X_SID:
+			tlv = &LsTLVSrv6EndXSID{}
+
+		case LS_TLV_SRV6_SID_STRUCTURE:
+			tlv = &LsTLVSrv6SIDStructure{}
+
+		case LS_TLV_SRV6_BGP_PEER_NODE_SID:
+			tlv = &LsTLVSrv6BgpPeerNodeSID{}
+
+		case LS_TLV_SRV6_ENDPOINT_BEHAVIOR:
+			tlv = &LsTLVSrv6EndpointBehavior{}
 
 		default:
 			tlvs = tlvs[t.Len():]
