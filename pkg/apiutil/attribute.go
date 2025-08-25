@@ -812,7 +812,11 @@ func MarshalLsSRv6SIDNLRI(n *bgp.LsSrv6SIDNLRI) (*api.LsAddrPrefix_LsNLRI, error
 	if err != nil {
 		return nil, err
 	}
-	mti, err := MarshalLsTLVMultiTopoID(n.MultiTopoID.(*bgp.LsTLVMultiTopoID))
+	var multiTopoID *bgp.LsTLVMultiTopoID
+	if n.MultiTopoID != nil {
+		multiTopoID = n.MultiTopoID.(*bgp.LsTLVMultiTopoID)
+	}
+	mti, err := MarshalLsTLVMultiTopoID(multiTopoID)
 	if err != nil {
 		return nil, err
 	}
@@ -978,6 +982,11 @@ func UnmarshalLsTLVMultiTopoID(mti *api.LsMultiTopologyIdentifier) (*bgp.LsTLVMu
 }
 
 func MarshalLsTLVMultiTopoID(mti *bgp.LsTLVMultiTopoID) (*api.LsMultiTopologyIdentifier, error) {
+	if mti == nil {
+		return &api.LsMultiTopologyIdentifier{
+			MultiTopoIds: []uint32{},
+		}, nil
+	}
 	multiTopoIds := make([]uint32, len(mti.MultiTopoIDs))
 	for i, v := range mti.MultiTopoIDs {
 		multiTopoIds[i] = uint32(v)
@@ -993,6 +1002,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		Link:           bgp.LsAttributeLink{},
 		Prefix:         bgp.LsAttributePrefix{},
 		BgpPeerSegment: bgp.LsAttributeBgpPeerSegment{},
+		Srv6SID:        bgp.LsAttributeSrv6SID{},
 	}
 
 	// For AttributeNode
@@ -1122,6 +1132,32 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		if a.Link.SrAdjacencySid != 0 {
 			linkSrAdjacencySid = &a.Link.SrAdjacencySid
 		}
+		var srv6EndXSID *bgp.LsSrv6EndXSID
+		if a.Link.Srv6EndXSid != nil {
+			sids := make([]netip.Addr, 0, len(a.Link.Srv6EndXSid.Sids))
+			for _, s := range a.Link.Srv6EndXSid.Sids {
+				addr, _ := netip.ParseAddr(s)
+				sids = append(sids, addr)
+			}
+			var srv6SIDStructure bgp.LsSrv6SIDStructure
+			if a.Link.Srv6EndXSid.Srv6SidStructure != nil {
+				srv6SIDStructure = bgp.LsSrv6SIDStructure{
+					LocalBlock: uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalBlock),
+					LocalNode:  uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalNode),
+					LocalFunc:  uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalFunc),
+					LocalArg:   uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalArg),
+				}
+			}
+			srv6EndXSID = &bgp.LsSrv6EndXSID{
+				EndpointBehavior: uint16(a.Link.Srv6EndXSid.EndpointBehavior),
+				Flags:            uint8(a.Link.Srv6EndXSid.Flags),
+				Algorithm:        uint8(a.Link.Srv6EndXSid.Algorithm),
+				Weight:           uint8(a.Link.Srv6EndXSid.Weight),
+				Reserved:         uint8(a.Link.Srv6EndXSid.Reserved),
+				SIDs:             sids,
+				Srv6SIDStructure: srv6SIDStructure,
+			}
+		}
 		lsAttr.Link = bgp.LsAttributeLink{
 			Name:                linkName,
 			LocalRouterID:       linkLocalRouterID,
@@ -1137,6 +1173,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			UnreservedBandwidth: &unreservedBandwidth,
 			Srlgs:               linkSrlgs,
 			SrAdjacencySID:      linkSrAdjacencySid,
+			Srv6EndXSID:         srv6EndXSID,
 		}
 	}
 
@@ -1169,6 +1206,35 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			lsAttributeBgpPeerSegment.BgpPeerSetSid, _ = UnmarshalLsBgpPeerSegmentSid(a.BgpPeerSegment.BgpPeerSetSid)
 		}
 		lsAttr.BgpPeerSegment = lsAttributeBgpPeerSegment
+	}
+
+	// For AttributeSrv6SID
+	if a.Srv6Sid != nil {
+		lsSrv6SID := bgp.LsAttributeSrv6SID{}
+		if a.Srv6Sid.Srv6SidStructure != nil {
+			lsSrv6SID.Srv6SIDStructure = &bgp.LsSrv6SIDStructure{
+				LocalBlock: uint8(a.Srv6Sid.Srv6SidStructure.LocalBlock),
+				LocalNode:  uint8(a.Srv6Sid.Srv6SidStructure.LocalNode),
+				LocalFunc:  uint8(a.Srv6Sid.Srv6SidStructure.LocalFunc),
+				LocalArg:   uint8(a.Srv6Sid.Srv6SidStructure.LocalArg),
+			}
+		}
+		if a.Srv6Sid.Srv6BgpPeerNodeSid != nil {
+			lsSrv6SID.Srv6BgpPeerNodeSID = &bgp.LsSrv6BgpPeerNodeSID{
+				Flags:     uint8(a.Srv6Sid.Srv6BgpPeerNodeSid.Flags),
+				Weight:    uint8(a.Srv6Sid.Srv6BgpPeerNodeSid.Weight),
+				PeerAS:    a.Srv6Sid.Srv6BgpPeerNodeSid.PeerAs,
+				PeerBgpID: a.Srv6Sid.Srv6BgpPeerNodeSid.PeerBgpId,
+			}
+		}
+		if a.Srv6Sid.Srv6EndpointBehavior != nil {
+			lsSrv6SID.Srv6EndpointBehavior = &bgp.LsSrv6EndpointBehavior{
+				EndpointBehavior: uint16(a.Srv6Sid.Srv6EndpointBehavior.EndpointBehavior),
+				Flags:            uint8(a.Srv6Sid.Srv6EndpointBehavior.Flags),
+				Algorithm:        uint8(a.Srv6Sid.Srv6EndpointBehavior.Algorithm),
+			}
+		}
+		lsAttr.Srv6SID = lsSrv6SID
 	}
 
 	return lsAttr, nil
@@ -2551,6 +2617,52 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 		bgpPeerSegment.BgpPeerSetSid, _ = MarshalLsBgpPeerSegmentSid(attr.BgpPeerSegment.BgpPeerSetSid)
 	}
 
+	srv6SID := &api.LsAttributeSrv6SID{}
+	if attr.Srv6SID.Srv6SIDStructure != nil {
+		srv6SID.Srv6SidStructure = &api.LsSrv6SIDStructure{
+			LocalBlock: uint32(attr.Srv6SID.Srv6SIDStructure.LocalBlock),
+			LocalNode:  uint32(attr.Srv6SID.Srv6SIDStructure.LocalNode),
+			LocalFunc:  uint32(attr.Srv6SID.Srv6SIDStructure.LocalFunc),
+			LocalArg:   uint32(attr.Srv6SID.Srv6SIDStructure.LocalArg),
+		}
+	}
+	if attr.Srv6SID.Srv6BgpPeerNodeSID != nil {
+		srv6SID.Srv6BgpPeerNodeSid = &api.LsSrv6BgpPeerNodeSID{
+			Flags:     uint32(attr.Srv6SID.Srv6BgpPeerNodeSID.Flags),
+			Weight:    uint32(attr.Srv6SID.Srv6BgpPeerNodeSID.Weight),
+			PeerAs:    attr.Srv6SID.Srv6BgpPeerNodeSID.PeerAS,
+			PeerBgpId: attr.Srv6SID.Srv6BgpPeerNodeSID.PeerBgpID,
+		}
+	}
+	if attr.Srv6SID.Srv6EndpointBehavior != nil {
+		srv6SID.Srv6EndpointBehavior = &api.LsSrv6EndpointBehavior{
+			EndpointBehavior: uint32(attr.Srv6SID.Srv6EndpointBehavior.EndpointBehavior),
+			Flags:            uint32(attr.Srv6SID.Srv6EndpointBehavior.Flags),
+			Algorithm:        uint32(attr.Srv6SID.Srv6EndpointBehavior.Algorithm),
+		}
+	}
+
+	var srv6EndXSID *api.LsSrv6EndXSID
+	if attr.Link.Srv6EndXSID != nil {
+		srv6EndXSID = &api.LsSrv6EndXSID{
+			EndpointBehavior: uint32(attr.Link.Srv6EndXSID.EndpointBehavior),
+			Flags:            uint32(attr.Link.Srv6EndXSID.Flags),
+			Algorithm:        uint32(attr.Link.Srv6EndXSID.Algorithm),
+			Weight:           uint32(attr.Link.Srv6EndXSID.Weight),
+			Reserved:         uint32(attr.Link.Srv6EndXSID.Reserved),
+			Sids:             make([]string, 0, len(attr.Link.Srv6EndXSID.SIDs)),
+		}
+		for _, sid := range attr.Link.Srv6EndXSID.SIDs {
+			srv6EndXSID.Sids = append(srv6EndXSID.Sids, sid.String())
+		}
+		srv6EndXSID.Srv6SidStructure = &api.LsSrv6SIDStructure{
+			LocalBlock: uint32(attr.Link.Srv6EndXSID.Srv6SIDStructure.LocalBlock),
+			LocalNode:  uint32(attr.Link.Srv6EndXSID.Srv6SIDStructure.LocalNode),
+			LocalFunc:  uint32(attr.Link.Srv6EndXSID.Srv6SIDStructure.LocalFunc),
+			LocalArg:   uint32(attr.Link.Srv6EndXSID.Srv6SIDStructure.LocalArg),
+		}
+	}
+
 	apiAttr := &api.LsAttribute{
 		Node: &api.LsAttributeNode{
 			Name:            stringOrDefault(attr.Node.Name),
@@ -2575,6 +2687,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			Bandwidth:           float32OrDefault(attr.Link.Bandwidth),
 			ReservableBandwidth: float32OrDefault(attr.Link.ReservableBandwidth),
 			SrAdjacencySid:      uint32OrDefault(attr.Link.SrAdjacencySID),
+			Srv6EndXSid:         srv6EndXSID,
 		},
 		Prefix: &api.LsAttributePrefix{
 			Opaque: bytesOrDefault(attr.Prefix.Opaque),
@@ -2582,6 +2695,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			SrPrefixSid: uint32OrDefault(attr.Prefix.SrPrefixSID),
 		},
 		BgpPeerSegment: bgpPeerSegment,
+		Srv6Sid:        srv6SID,
 	}
 
 	if attr.Node.Flags != nil {
