@@ -437,6 +437,7 @@ message LsAttributeLink {
 
   uint32 sr_adjacency_sid = 13;
   repeated uint32 srlgs = 14;
+  LsSrv6EndXSID srv6_end_x_sid = 15;
 }
 
 message LsAttributePrefix {
@@ -465,11 +466,48 @@ message LsAttributeBgpPeerSegment {
   LsBgpPeerSegmentSID bgp_peer_set_sid = 3;
 }
 
+message LsSrv6EndXSID {
+  uint32 endpoint_behavior = 1;
+  uint32 flags = 2;
+  uint32 algorithm = 3;
+  uint32 weight = 4;
+  uint32 reserved = 5;
+  repeated string sids = 6;
+  LsSrv6SIDStructure srv6_sid_structure = 7;
+}
+
+message LsSrv6SIDStructure {
+  uint32 local_block = 1;
+  uint32 local_node = 2;
+  uint32 local_func = 3;
+  uint32 local_arg = 4;
+}
+
+message LsSrv6EndpointBehavior {
+  uint32 endpoint_behavior = 1;
+  uint32 flags = 2;
+  uint32 algorithm = 3;
+}
+
+message LsSrv6BgpPeerNodeSID {
+  uint32 flags = 1;
+  uint32 weight = 2;
+  uint32 peer_as = 3;
+  string peer_bgp_id = 4;
+}
+
+message LsAttributeSrv6SID {
+  LsSrv6SIDStructure srv6_sid_structure = 1;
+  LsSrv6EndpointBehavior srv6_endpoint_behavior = 2;
+  LsSrv6BgpPeerNodeSID srv6_bgp_peer_node_sid = 3;
+}
+
 message LsAttribute {
   LsAttributeNode node = 1;
   LsAttributeLink link = 2;
   LsAttributePrefix prefix = 3;
   LsAttributeBgpPeerSegment bgp_peer_segment = 4;
+  LsAttributeSrv6SID srv6_sid = 5;
 }
 
 message UnknownAttribute {
