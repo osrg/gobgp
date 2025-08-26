@@ -107,6 +107,7 @@ type peer struct {
 	adjRibIn          *table.AdjRib
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
+	peerInfo          *table.PeerInfo
 	prefixLimitWarned map[bgp.Family]bool
 	// map of path local identifiers sent for that prefix
 	sentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
@@ -623,10 +624,9 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
-	peerInfo := peer.fsm.peerInfo
 	peer.fsm.lock.Unlock()
 
-	pathList := table.ProcessMessage(m, peerInfo, e.timestamp)
+	pathList := table.ProcessMessage(m, peer.peerInfo, e.timestamp)
 	if len(pathList) > 0 {
 		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}

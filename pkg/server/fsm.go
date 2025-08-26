@@ -191,7 +191,6 @@ type fsm struct {
 	rtcEORWait           bool
 	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen             *bgp.BGPMessage
-	peerInfo             *table.PeerInfo
 	gracefulRestartTimer *time.Timer
 	twoByteAsTrans       bool
 	marshallingOptions   *bgp.MarshallingOption
