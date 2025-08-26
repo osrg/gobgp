@@ -1385,3 +1385,15 @@ func nlriToIPNet(nlri bgp.NLRI) *net.IPNet {
 	}
 	return nil
 }
+
+func nlriToPrefix(nlri bgp.NLRI) netip.Prefix {
+	switch T := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledIPAddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledVPNIPAddrPrefix:
+		return T.Prefix
+	}
+	return netip.Prefix{}
+}

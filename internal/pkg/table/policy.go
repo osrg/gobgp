@@ -29,7 +29,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/k-sone/critbitgo"
+	"github.com/gaissmai/bart"
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -270,7 +270,7 @@ func (l DefinedSetList) Less(i, j int) bool {
 }
 
 type Prefix struct {
-	Prefix             *net.IPNet
+	Prefix             netip.Prefix
 	AddressFamily      bgp.Family
 	MasklengthRangeMax uint8
 	MasklengthRangeMin uint8
@@ -282,11 +282,11 @@ func (p *Prefix) Match(path *Path) bool {
 		return false
 	}
 
-	var pAddr net.IP
+	var pAddr netip.Addr
 	var pMasklen uint8
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-		pAddr = net.IP(path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr().AsSlice())
+		pAddr = path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr()
 		pMasklen = uint8(path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Bits())
 	default:
 		return false
@@ -306,30 +306,13 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 }
 
 func (p *Prefix) PrefixString() string {
-	isZeros := func(p net.IP) bool {
-		for i := range p {
-			if p[i] != 0 {
-				return false
-			}
-		}
-		return true
-	}
-
-	ip := p.Prefix.IP
-	if p.AddressFamily == bgp.RF_IPv6_UC && isZeros(ip[:10]) && ip[10] == 0xff && ip[11] == 0xff {
-		m, _ := p.Prefix.Mask.Size()
-		return fmt.Sprintf("::FFFF:%s/%d", ip.To16(), m)
-	}
 	return p.Prefix.String()
 }
 
 var _regexpPrefixRange = regexp.MustCompile(`(\d+)\.\.(\d+)`)
 
 func NewPrefix(c oc.Prefix) (*Prefix, error) {
-	_, prefix, err := net.ParseCIDR(c.IpPrefix.String())
-	if err != nil {
-		return nil, err
-	}
+	prefix := c.IpPrefix
 
 	rf := bgp.RF_IPv4_UC
 	if strings.Contains(c.IpPrefix.String(), ":") {
@@ -342,7 +325,7 @@ func NewPrefix(c oc.Prefix) (*Prefix, error) {
 	maskRange := c.MasklengthRange
 
 	if maskRange == "" {
-		l, _ := prefix.Mask.Size()
+		l := prefix.Bits()
 		maskLength := uint8(l)
 		p.MasklengthRangeMax = maskLength
 		p.MasklengthRangeMin = maskLength
@@ -364,7 +347,7 @@ func NewPrefix(c oc.Prefix) (*Prefix, error) {
 
 type PrefixSet struct {
 	name   string
-	tree   *critbitgo.Net
+	tree   *bart.Table[[]*Prefix]
 	family bgp.Family
 }
 
@@ -388,18 +371,15 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	} else if lhs.tree.Size() != 0 && rhs.family != lhs.family {
 		return fmt.Errorf("can't append different family")
 	}
-	//nolint:errcheck // tree.Add won't return an error
-	rhs.tree.Walk(nil, func(r *net.IPNet, v any) bool {
-		w, ok, _ := lhs.tree.Get(r)
-		if ok {
-			rp := v.([]*Prefix)
-			lp := w.([]*Prefix)
-			lhs.tree.Add(r, append(lp, rp...))
-		} else {
-			lhs.tree.Add(r, v)
-		}
-		return true
-	})
+
+	for r, v := range rhs.tree.All() {
+		lhs.tree.Modify(r, func(val []*Prefix, ok bool) ([]*Prefix, bool) {
+			if ok {
+				return append(val, v...), false
+			}
+			return v, false
+		})
+	}
 	lhs.family = rhs.family
 	return nil
 }
@@ -409,14 +389,11 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	//nolint:errcheck // tree.Delete/tree.Add won't return an error
-	rhs.tree.Walk(nil, func(r *net.IPNet, v any) bool {
-		w, ok, _ := lhs.tree.Get(r)
+	for r, rp := range rhs.tree.All() {
+		lp, ok := lhs.tree.Get(r)
 		if !ok {
-			return true
+			continue
 		}
-		rp := v.([]*Prefix)
-		lp := w.([]*Prefix)
 		new := make([]*Prefix, 0, len(lp))
 		for _, lp := range lp {
 			delete := slices.ContainsFunc(rp, lp.Equal)
@@ -427,10 +404,9 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 		if len(new) == 0 {
 			lhs.tree.Delete(r)
 		} else {
-			lhs.tree.Add(r, new)
+			lhs.tree.Insert(r, new)
 		}
-		return true
-	})
+	}
 	return nil
 }
 
@@ -446,25 +422,21 @@ func (lhs *PrefixSet) Replace(arg DefinedSet) error {
 
 func (s *PrefixSet) List() []string {
 	var list []string
-	s.tree.Walk(nil, func(_ *net.IPNet, v any) bool {
-		ps := v.([]*Prefix)
+	for _, ps := range s.tree.All() {
 		for _, p := range ps {
 			list = append(list, fmt.Sprintf("%s %d..%d", p.PrefixString(), p.MasklengthRangeMin, p.MasklengthRangeMax))
 		}
-		return true
-	})
+	}
 	return list
 }
 
 func (s *PrefixSet) ToConfig() *oc.PrefixSet {
 	list := make([]oc.Prefix, 0, s.tree.Size())
-	s.tree.Walk(nil, func(_ *net.IPNet, v any) bool {
-		ps := v.([]*Prefix)
+	for _, ps := range s.tree.All() {
 		for _, p := range ps {
 			list = append(list, oc.Prefix{IpPrefix: netip.MustParsePrefix(p.PrefixString()), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
 		}
-		return true
-	})
+	}
 	return &oc.PrefixSet{
 		PrefixSetName: s.name,
 		PrefixList:    list,
@@ -483,7 +455,7 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 	if name == "" {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
-	tree := critbitgo.NewNet()
+	tree := new(bart.Table[[]*Prefix])
 	var family bgp.Family
 	for i, x := range prefixes {
 		if i == 0 {
@@ -491,15 +463,12 @@ func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, err
 		} else if family != x.AddressFamily {
 			return nil, fmt.Errorf("multiple families")
 		}
-		d, ok, _ := tree.Get(x.Prefix)
-		if ok {
-			ps := d.([]*Prefix)
-			if err := tree.Add(x.Prefix, append(ps, x)); err != nil {
-				return nil, fmt.Errorf("failed to add prefix %s: %w", x.PrefixString(), err)
+		tree.Modify(x.Prefix, func(val []*Prefix, ok bool) ([]*Prefix, bool) {
+			if ok {
+				return append(val, x), false
 			}
-		} else if err := tree.Add(x.Prefix, []*Prefix{x}); err != nil {
-			return nil, fmt.Errorf("failed to add prefix %s: %w", x.PrefixString(), err)
-		}
+			return []*Prefix{x}, false
+		})
 	}
 	return &PrefixSet{
 		name:   name,
@@ -516,7 +485,7 @@ func NewPrefixSet(c oc.PrefixSet) (*PrefixSet, error) {
 		}
 		return nil, fmt.Errorf("empty prefix set name")
 	}
-	tree := critbitgo.NewNet()
+	tree := new(bart.Table[[]*Prefix])
 	var family bgp.Family
 	for i, x := range c.PrefixList {
 		y, err := NewPrefix(x)
@@ -528,14 +497,11 @@ func NewPrefixSet(c oc.PrefixSet) (*PrefixSet, error) {
 		} else if family != y.AddressFamily {
 			return nil, fmt.Errorf("multiple families")
 		}
-		d, ok, _ := tree.Get(y.Prefix)
+		ps, ok := tree.Get(y.Prefix)
 		if ok {
-			ps := d.([]*Prefix)
-			if err := tree.Add(y.Prefix, append(ps, y)); err != nil {
-				return nil, fmt.Errorf("failed to add prefix %s: %w", y.PrefixString(), err)
-			}
-		} else if err := tree.Add(y.Prefix, []*Prefix{y}); err != nil {
-			return nil, fmt.Errorf("failed to add prefix %s: %w", y.PrefixString(), err)
+			tree.Insert(y.Prefix, append(ps, y))
+		} else {
+			tree.Insert(y.Prefix, []*Prefix{y})
 		}
 	}
 	return &PrefixSet{
@@ -1452,19 +1418,23 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		return false
 	}
 
-	r := nlriToIPNet(path.GetNlri())
-	if r == nil {
+	r := nlriToPrefix(path.GetNlri())
+	if !r.IsValid() {
 		return false
 	}
-	ones, _ := r.Mask.Size()
-	masklen := uint8(ones)
+	addr := r.Masked().Addr()
+	masklen := uint8(r.Bits())
 	result := false
-	if _, ps, _ := c.set.tree.Match(r); ps != nil {
-		for _, p := range ps.([]*Prefix) {
-			if p.MasklengthRangeMin <= masklen && masklen <= p.MasklengthRangeMax {
+	// Iterate all prefixes in the set and check supernet containment with mask-length range
+	for _, ps := range c.set.tree.Supernets(r) {
+		for _, p := range ps {
+			if p.MasklengthRangeMin <= masklen && masklen <= p.MasklengthRangeMax && p.Prefix.Contains(addr) {
 				result = true
 				break
 			}
+		}
+		if result {
+			break
 		}
 	}
 
