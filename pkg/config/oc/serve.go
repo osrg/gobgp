@@ -1,7 +1,10 @@
 package oc
 
 import (
+	"fmt"
+
 	"github.com/fsnotify/fsnotify"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 
 	"github.com/osrg/gobgp/v4/pkg/log"
@@ -34,11 +37,15 @@ func ReadConfigfile(path, format string) (*BgpConfigSet, error) {
 	if err = v.ReadInConfig(); err != nil {
 		return nil, err
 	}
-	if err = v.UnmarshalExact(config); err != nil {
+	if err = v.UnmarshalExact(config, viper.DecodeHook(mapstructure.StringToNetIPAddrHookFunc())); err != nil {
 		return nil, err
 	}
 	if err = setDefaultConfigValuesWithViper(v, config); err != nil {
 		return nil, err
+	}
+	// sanity check
+	if !config.Global.Config.RouterId.IsValid() || !config.Global.Config.RouterId.Is4() {
+		return nil, fmt.Errorf("invalid router-id")
 	}
 	return config, nil
 }

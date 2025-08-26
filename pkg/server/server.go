@@ -553,7 +553,7 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					peer.fsm.lock.RLock()
 					rrClusterID := peer.fsm.peerInfo.RouteReflectorClusterID
 					peer.fsm.lock.RUnlock()
-					if slices.Equal(clusterID.AsSlice(), rrClusterID.To4()) {
+					if clusterID == rrClusterID {
 						peer.fsm.logger.Debug("cluster list path attribute has local cluster id, ignore",
 							log.Fields{
 								"Topic":     "Peer",
@@ -2516,11 +2516,12 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 	}
 	return s.mgmtOperation(func() error {
 		g := r.Global
-		if net.ParseIP(g.RouterId) == nil {
+		routerId, err := netip.ParseAddr(g.RouterId)
+		if err != nil || !routerId.IsValid() || !routerId.Is4() {
 			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
 		}
 
-		c := newGlobalFromAPIStruct(g)
+		c := newGlobalFromAPIStruct(g, routerId)
 		if err := oc.SetDefaultGlobalConfigValues(c); err != nil {
 			return err
 		}
@@ -2616,7 +2617,7 @@ func (s *BgpServer) AddVrf(ctx context.Context, r *api.AddVrfRequest) error {
 
 		pi := &table.PeerInfo{
 			AS:      s.bgpConfig.Global.Config.As,
-			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
+			LocalID: net.IP(s.bgpConfig.Global.Config.RouterId.AsSlice()),
 		}
 
 		if pathList, err := s.globalRib.AddVrf(name, id, rd, im, ex, pi); err != nil {
@@ -3125,7 +3126,7 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (rsp *api.
 		rsp = &api.GetBgpResponse{
 			Global: &api.Global{
 				Asn:              g.Config.As,
-				RouterId:         g.Config.RouterId,
+				RouterId:         g.Config.RouterId.String(),
 				ListenPort:       g.Config.Port,
 				ListenAddresses:  g.Config.LocalAddressList,
 				UseMultiplePaths: g.UseMultiplePaths.Config.Enabled,
