@@ -37,11 +37,9 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		}
 		return bgp.NewPathAttributeAsPath(params), nil
 	case *api.Attribute_NextHop:
-		nexthop := net.ParseIP(a.NextHop.NextHop).To4()
-		if nexthop == nil {
-			if nexthop = net.ParseIP(a.NextHop.NextHop).To16(); nexthop == nil {
-				return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
-			}
+		_, err := netip.ParseAddr(a.NextHop.NextHop)
+		if err != nil {
+			return nil, fmt.Errorf("invalid nexthop address: %s", a.NextHop)
 		}
 		return bgp.NewPathAttributeNextHop(a.NextHop.NextHop), nil
 	case *api.Attribute_MultiExitDisc:
@@ -51,22 +49,22 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 	case *api.Attribute_AtomicAggregate:
 		return bgp.NewPathAttributeAtomicAggregate(), nil
 	case *api.Attribute_Aggregator:
-		address := net.ParseIP(a.Aggregator.Address).To4()
-		if address.To4() == nil {
+		address, err := netip.ParseAddr(a.Aggregator.Address)
+		if err != nil || !address.Is4() {
 			return nil, fmt.Errorf("invalid aggregator address: %s", a.Aggregator.Address)
 		}
 		return bgp.NewPathAttributeAggregator(a.Aggregator.Asn, a.Aggregator.Address), nil
 	case *api.Attribute_Communities:
 		return bgp.NewPathAttributeCommunities(a.Communities.Communities), nil
 	case *api.Attribute_OriginatorId:
-		id := net.ParseIP(a.OriginatorId.Id).To4()
-		if id.To4() == nil {
+		id, err := netip.ParseAddr(a.OriginatorId.Id)
+		if err != nil || !id.Is4() {
 			return nil, fmt.Errorf("invalid originator id: %s", a.OriginatorId.Id)
 		}
 		return bgp.NewPathAttributeOriginatorId(a.OriginatorId.Id), nil
 	case *api.Attribute_ClusterList:
 		for _, id := range a.ClusterList.Ids {
-			if net.ParseIP(id).To4() == nil {
+			if i, err := netip.ParseAddr(id); err != nil || !i.Is4() {
 				return nil, fmt.Errorf("invalid cluster list: %s", a.ClusterList.Ids)
 			}
 		}
@@ -95,7 +93,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 			nexthop = ""
 		} else if len(a.MpReach.NextHops) > 0 {
 			nexthop = a.MpReach.NextHops[0]
-			if net.ParseIP(nexthop) == nil {
+			if _, err := netip.ParseAddr(nexthop); err != nil {
 				return nil, fmt.Errorf("invalid nexthop: %s", nexthop)
 			}
 		}
@@ -118,8 +116,8 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		}
 		return bgp.NewPathAttributeAs4Path(params), nil
 	case *api.Attribute_As4Aggregator:
-		address := net.ParseIP(a.As4Aggregator.Address).To4()
-		if address == nil {
+		address, err := netip.ParseAddr(a.As4Aggregator.Address)
+		if err != nil || !address.Is4() {
 			return nil, fmt.Errorf("invalid as4 aggregator address: %s", a.As4Aggregator.Address)
 		}
 		return bgp.NewPathAttributeAs4Aggregator(a.As4Aggregator.Asn, a.As4Aggregator.Address), nil
@@ -601,7 +599,11 @@ func UnmarshalFlowSpecRules(values []*api.FlowSpecRule) ([]bgp.FlowSpecComponent
 		case *api.FlowSpecRule_IpPrefix:
 			v := r.IpPrefix
 			typ := bgp.BGPFlowSpecType(v.Type)
-			isIPv4 := net.ParseIP(v.Prefix).To4() != nil
+			ip, err := netip.ParseAddr(v.Prefix)
+			if err != nil {
+				return nil, fmt.Errorf("invalid ip address for %s flow spec component: %s", typ.String(), v.Prefix)
+			}
+			isIPv4 := ip.Is4()
 			switch {
 			case typ == bgp.FLOW_SPEC_TYPE_DST_PREFIX && isIPv4:
 				rule = bgp.NewFlowSpecDestinationPrefix(bgp.NewIPAddrPrefix(uint8(v.PrefixLen), v.Prefix))

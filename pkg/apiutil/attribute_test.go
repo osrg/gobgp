@@ -17,7 +17,7 @@ package apiutil
 
 import (
 	"bytes"
-	"net"
+	"net/netip"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -1287,7 +1287,7 @@ func Test_PmsiTunnelAttribute(t *testing.T) {
 		Flags: 0x01, // IsLeafInfoRequired = true
 		Type:  6,    // INGRESS_REPL
 		Label: 100,
-		Id:    net.ParseIP("1.1.1.1").To4(), // IngressReplTunnelID with IPv4
+		Id:    netip.MustParseAddr("1.1.1.1").AsSlice(), // IngressReplTunnelID with IPv4
 	}
 
 	a := &api.Attribute{Attr: &api.Attribute_PmsiTunnel{PmsiTunnel: input}}
