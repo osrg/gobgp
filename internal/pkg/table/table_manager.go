@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"net/netip"
 	"slices"
 	"time"
 
@@ -82,7 +83,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 	}
 
 	if reach != nil {
-		nexthop := reach.Nexthop.String()
+		nexthop := reach.Nexthop
 		family := bgp.NewFamily(reach.AFI, reach.SAFI)
 
 		for _, nlri := range reach.Value {
@@ -93,7 +94,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 			// path.info{nlri: nlri}
 			// Compute a new attribute array for each path with one NLRI to make serialization
 			// of path attrs faster
-			nlriAttr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlri)
+			nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.AddrPrefixInterface{nlri}, nexthop)
 			reachAttrs := makeAttributeList(attrs, nlriAttr)
 
 			p := NewPath(family, peerInfo, nlri, false, reachAttrs, timestamp, false)
@@ -177,12 +178,13 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		ExportRt: exportRt,
 	}
 	msgs := make([]*Path, 0, len(importRt))
-	nexthop := "0.0.0.0"
+	nexthop := netip.IPv4Unspecified()
 	for _, target := range importRt {
 		nlri := bgp.NewRouteTargetMembershipNLRI(info.AS, target)
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_RTC_UC, []bgp.AddrPrefixInterface{nlri}, nexthop)
+		pattr = append(pattr, attr)
 		msgs = append(msgs, NewPath(bgp.RF_RTC_UC, info, nlri, false, pattr, time.Now(), false))
 	}
 	return msgs, nil

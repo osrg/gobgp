@@ -148,7 +148,7 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
-	mpreach := bgp.NewPathAttributeMpReachNLRI("2001::192:168:50:1", mpnlri)
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -172,7 +172,7 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
-	mpreach := bgp.NewPathAttributeMpReachNLRI("2001::192:168:50:1", mpnlri)
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -193,7 +193,7 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
-	mpreach := bgp.NewPathAttributeMpReachNLRI("2001::192:168:50:1", mpnlri)
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -214,7 +214,7 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
-	mpreach := bgp.NewPathAttributeMpReachNLRI("2001::192:168:50:1", mpnlri)
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -436,7 +436,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	aspathParamIPv6 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspathIPv6 := bgp.NewPathAttributeAsPath(aspathParamIPv6)
 	mpnlriIPv6 := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
-	mpreachIPv6 := bgp.NewPathAttributeMpReachNLRI("2001::192:168:50:1", mpnlriIPv6)
+	mpreachIPv6, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlriIPv6}, netip.MustParseAddr("2001::192:168:50:1"))
 	medIPv6 := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributesIPv6 := []bgp.PathAttributeInterface{mpreachIPv6, originIPv6, aspathIPv6, medIPv6}
 	updateMsgIPv6 := bgp.NewBGPUpdateMessage(nil, pathAttributesIPv6, nil)

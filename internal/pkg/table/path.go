@@ -458,7 +458,7 @@ func (path *Path) GetNexthop() netip.Addr {
 func (path *Path) SetNexthop(nexthop net.IP) {
 	if path.GetFamily() == bgp.RF_IPv4_UC && nexthop.To4() == nil {
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), path.GetNlri())
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.AddrPrefixInterface{path.GetNlri()}, netip.MustParseAddr(nexthop.String()))
 		path.setPathAttr(mpreach)
 		return
 	}
@@ -469,7 +469,8 @@ func (path *Path) SetNexthop(nexthop net.IP) {
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
 		oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
-		path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nexthop.String(), oldNlri.Value...))
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), oldNlri.Value, netip.MustParseAddr(nexthop.String()))
+		path.setPathAttr(mpreach)
 	}
 }
 
@@ -1141,6 +1142,8 @@ func (lhs *Path) Compare(rhs *Path) int {
 
 func (v *Vrf) ToGlobalPath(path *Path) error {
 	nlri := path.GetNlri()
+	nh := path.GetNexthop()
+
 	switch rf := path.GetFamily(); rf {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
@@ -1190,6 +1193,10 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 		return fmt.Errorf("unsupported route family for vrf: %s", rf)
 	}
 	path.SetExtCommunities(v.ExportRt, false)
+	// FIXME: we should not need to keep mp reach in Path.
+	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.family, []bgp.AddrPrefixInterface{path.OriginInfo().nlri}, nh)
+	path.setPathAttr(mpreach)
 	return nil
 }
 
@@ -1259,7 +1266,8 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path := NewPath(newFamily, p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), nlri))
+	attr, _ := bgp.NewPathAttributeMpReachNLRI(newFamily, []bgp.AddrPrefixInterface{nlri}, nh)
+	path.setPathAttr(attr)
 	return path
 }
 

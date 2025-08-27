@@ -78,10 +78,10 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		nexthop := "0.0.0.0"
+		nexthop := netip.IPv4Unspecified()
 		var linkLocalNexthop netip.Addr
 		if rf.Afi() == bgp.AFI_IP6 {
-			nexthop = "::"
+			nexthop = netip.IPv6Unspecified()
 			if len(a.MpReach.NextHops) > 1 {
 				linkLocalNexthop, err = netip.ParseAddr(a.MpReach.NextHops[1])
 				if err != nil || !linkLocalNexthop.Is6() {
@@ -90,14 +90,14 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 			}
 		}
 		if rf.Safi() == bgp.SAFI_FLOW_SPEC_UNICAST || rf.Safi() == bgp.SAFI_FLOW_SPEC_VPN {
-			nexthop = ""
+			nexthop = netip.Addr{}
 		} else if len(a.MpReach.NextHops) > 0 {
-			nexthop = a.MpReach.NextHops[0]
-			if _, err := netip.ParseAddr(nexthop); err != nil {
+			nexthop, err = netip.ParseAddr(a.MpReach.NextHops[0])
+			if err != nil {
 				return nil, fmt.Errorf("invalid nexthop: %s", nexthop)
 			}
 		}
-		attr := bgp.NewPathAttributeMpReachNLRI(nexthop, nlris...)
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(rf, nlris, nexthop)
 		attr.LinkLocalNexthop = linkLocalNexthop
 		return attr, nil
 	case *api.Attribute_MpUnreach:

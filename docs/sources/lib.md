@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"net/netip"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -82,7 +83,7 @@ func main() {
 
 	// add v6 route
 	v6Nlri := bgp.NewIPv6AddrPrefix(64, "2001:db8:1::")
-	aMpr := bgp.NewPathAttributeMpReachNLRI("2001:db8::1", v6Nlri)
+	aMpr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv4_UC, []bgp.AddrPrefixInterface{v6Nlri}, netip.MustParseAddr("2001:db8::1"))
 	aC := bgp.NewPathAttributeCommunities([]uint32{100, 200})
 	attrs = []bgp.PathAttributeInterface{aMpr, aC}
 

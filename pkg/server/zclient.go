@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"syscall"
@@ -289,11 +290,13 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 		}
 	case bgp.RF_IPv6_UC:
 		nlri = bgp.NewIPv6AddrPrefix(body.Prefix.PrefixLen, body.Prefix.Prefix.String())
-		nexthop := ""
 		if len(body.Nexthops) > 0 {
-			nexthop = body.Nexthops[0].Gate.String()
+			nexthop, err := netip.ParseAddr(body.Nexthops[0].Gate.String())
+			if err == nil {
+				attr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.AddrPrefixInterface{nlri}, nexthop)
+				pattr = append(pattr, attr)
+			}
 		}
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
 	default:
 		logger.Error("unsupport address family",
 			log.Fields{

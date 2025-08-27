@@ -516,7 +516,7 @@ func newRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*oc.RoutingPoli
 func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.Path, error) {
 	var pi *table.PeerInfo
 	var nlri bgp.AddrPrefixInterface
-	var nexthop string
+	var nexthop netip.Addr
 
 	if path.SourceAsn != 0 {
 		pi = &table.PeerInfo{
@@ -553,25 +553,26 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 
 		switch a := attr.(type) {
 		case *bgp.PathAttributeNextHop:
-			nexthop = a.Value.String()
+			nexthop = a.Value
 		case *bgp.PathAttributeMpReachNLRI:
 			if len(a.Value) == 0 {
 				return nil, fmt.Errorf("invalid mp reach attribute")
 			}
-			nexthop = a.Nexthop.String()
+			nexthop = a.Nexthop
 		default:
 			pattrs = append(pattrs, attr)
 		}
 	}
 
-	if !path.IsWithdraw && nexthop == "" {
+	if !path.IsWithdraw && !nexthop.IsValid() {
 		return nil, fmt.Errorf("nexthop not found")
 	}
 	rf := bgp.NewFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
-	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
-		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
+	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && nexthop.Is4() {
+		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop.String()))
 	} else {
-		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, nlri))
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.AddrPrefixInterface{nlri}, nexthop)
+		pattrs = append(pattrs, attr)
 	}
 
 	doWithdraw := isWithdraw || path.IsWithdraw

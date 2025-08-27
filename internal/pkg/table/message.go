@@ -314,7 +314,8 @@ func createMPReachMessage(path *Path) *bgp.BGPMessage {
 	attrs := make([]bgp.PathAttributeInterface, 0, len(oattrs))
 	for _, a := range oattrs {
 		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-			attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(path.GetNexthop().String(), path.GetNlri()))
+			attr, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.AddrPrefixInterface{path.GetNlri()}, path.GetNexthop())
+			attrs = append(attrs, attr)
 		} else {
 			attrs = append(attrs, a)
 		}

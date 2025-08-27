@@ -2314,7 +2314,7 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	// need to check if update with SR Policy nlri comes with mandatory route distinguisher
 	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
 	// and tunnel type 15. If it is not the case ignore update and log an error.
-	var nexthop net.IP
+	var nexthop netip.Addr
 	isMPFlowSpec := false
 	pattrs := make([]bgp.PathAttributeInterface, 0)
 	seen := make(map[bgp.BGPAttrType]struct{})
@@ -2326,26 +2326,27 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 		seen[aType] = struct{}{}
 		switch aType {
 		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-			nexthop = net.IP(a.(*bgp.PathAttributeNextHop).Value.AsSlice())
+			nexthop = a.(*bgp.PathAttributeNextHop).Value
 		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 			mp := a.(*bgp.PathAttributeMpReachNLRI)
 			if len(mp.Value) == 0 {
 				return nil, fmt.Errorf("mp reach nlri value is empty")
 			}
 			isMPFlowSpec = mp.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || mp.SAFI == bgp.SAFI_FLOW_SPEC_VPN
-			nexthop = mp.Nexthop.AsSlice()
+			nexthop = mp.Nexthop
 		default:
 			pattrs = append(pattrs, a)
 		}
 	}
-	if !path.Withdrawal && len(nexthop) == 0 && !isMPFlowSpec {
+	if !path.Withdrawal && !nexthop.IsValid() && !isMPFlowSpec {
 		return nil, fmt.Errorf("nexthop not found")
 	}
 
-	if !isVRFTable && path.Family == bgp.RF_IPv4_UC && nexthop.To4() != nil {
+	if !isVRFTable && path.Family == bgp.RF_IPv4_UC && nexthop.Is4() {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop.String()))
 	} else {
-		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop.String(), path.Nlri))
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(path.Family, []bgp.AddrPrefixInterface{path.Nlri}, nexthop)
+		pattrs = append(pattrs, attr)
 	}
 
 	doWithdraw := len(isWithdraw) > 0 && isWithdraw[0] || path.Withdrawal
