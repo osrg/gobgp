@@ -1983,6 +1983,108 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	t1.Stop()
 }
 
+func TestRTCWithdrawUpdatedPath(t *testing.T) {
+	ctx := context.Background()
+
+	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s1.logger.SetLevel(log.DebugLevel)
+	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2.logger.SetLevel(log.DebugLevel)
+
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	watcher1 := s1.watch(WatchUpdate(true, "", ""))
+
+	rt1 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	rt2 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
+
+	// VPN Path:
+	attrs12 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt1, rt2}),
+	}
+	attrs1 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt1}),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
+	path12, _ := apiutil.NewPath(prefix, false, attrs12, time.Now())
+	path1, _ := apiutil.NewPath(prefix, false, attrs1, time.Now())
+
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path12)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	attrsNH0 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeNextHop("0.0.0.0"),
+	}
+	pathRtc0, _ := apiutil.NewPath(bgp.NewRouteTargetMembershipNLRI(1, rt2), false, attrsNH0, time.Now())
+	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc0)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// s1 should receive this route from s2
+	t1 := time.NewTimer(30 * time.Second)
+	for found := false; !found; {
+		select {
+		case ev := <-watcher1.Event():
+			switch msg := ev.(type) {
+			case *watchEventUpdate:
+				for _, path := range msg.PathList {
+					t.Logf("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if vpnPath.Prefix == prefix.Prefix {
+							t.Logf("tester found expected prefix: %s", vpnPath.Prefix)
+							found = true
+						} else {
+							t.Logf("unknown prefix %s != %s", vpnPath.Prefix, prefix.Prefix)
+						}
+					}
+				}
+			}
+		case <-t1.C:
+			t.Fatalf("timeout while waiting for update path event")
+		}
+	}
+	t1.Stop()
+
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	t1 = time.NewTimer(30 * time.Second)
+	for found := false; !found; {
+		select {
+		case ev := <-watcher1.Event():
+			switch msg := ev.(type) {
+			case *watchEventUpdate:
+				for _, path := range msg.PathList {
+					t.Logf("tester received path: %s", path.String())
+					if vpnPath, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+						if vpnPath.Prefix == prefix.Prefix && path.IsWithdraw {
+							t.Logf("tester found expected withdrawn prefix: %s", vpnPath.Prefix)
+							found = true
+						} else {
+							t.Logf("unknown prefix %s != %s", vpnPath.Prefix, prefix.Prefix)
+						}
+					}
+				}
+			}
+		case <-t1.C:
+			t.Fatalf("timeout while waiting for update path event")
+		}
+	}
+	t1.Stop()
+}
+
 func TestAddDeletePath(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})

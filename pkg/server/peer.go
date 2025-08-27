@@ -474,6 +474,21 @@ func (peer *peer) stopPeerRestarting() {
 	peer.fsm.longLivedRunning = false
 }
 
+// Returns true if the peer is interested in this path according to BGP RTC
+// (i.e., has advertised the relevant RT).
+func (peer *peer) interestedIn(path *table.Path) bool {
+	for _, ext := range path.GetExtCommunities() {
+		for _, p := range peer.adjRibIn.PathList([]bgp.Family{bgp.RF_RTC_UC}, true) {
+			rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+			// Note: nil RT means the default route target
+			if rt == nil || ext.String() == rt.String() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	// Consider 3 peers - A, B, C and prefix P originated by C. Parallel eBGP
 	// sessions exist between A & B, and both have a single session with C.
