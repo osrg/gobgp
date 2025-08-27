@@ -506,28 +506,27 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 	_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
 	peer.fsm.lock.RUnlock()
 	if y && path.GetFamily() != bgp.RF_RTC_UC {
-		ignore := true
-		for _, ext := range path.GetExtCommunities() {
-			for _, p := range peer.adjRibIn.PathList([]bgp.Family{bgp.RF_RTC_UC}, true) {
-				rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-				// Note: nil RT means the default route target
-				if rt == nil || ext.String() == rt.String() {
-					ignore = false
-					break
-				}
-			}
-			if !ignore {
-				break
-			}
-		}
-		if ignore {
+		if !peer.interestedIn(path) {
 			peer.fsm.logger.Debug("Filtered by Route Target Constraint, ignore",
 				log.Fields{
 					"Topic": "Peer",
 					"Key":   peer.ID(),
 					"Data":  path,
 				})
-			return nil
+			if old == nil {
+				return nil
+			}
+			if !peer.interestedIn(old) {
+				peer.fsm.logger.Debug("Old path filtered by Route Target Constraint, ignore",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.ID(),
+						"Data":  old,
+					})
+				return nil
+			}
+			path = old.Clone(true)
+			old = nil
 		}
 	}
 
