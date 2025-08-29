@@ -328,7 +328,8 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 
 	for _, path := range p.withdrawals {
 		nlri := path.GetNlri()
-		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeMpUnreachNLRI(nlri)}, nil))
+		unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(path.GetFamily(), []bgp.AddrPrefixInterface{nlri})
+		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{unreach}, nil))
 	}
 
 	for _, path := range p.paths {

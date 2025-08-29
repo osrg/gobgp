@@ -1440,7 +1440,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 	// mpunreach path
-	mpUnreach := createMpUNReach("2001:123:123:1::", 64)
+	mpUnreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	bgpMessage3 := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{mpUnreach}, nil)
 
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage3)
@@ -1552,7 +1552,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	assert.NoError(t, err)
 
 	// path1 mpunreach
-	mpUnreach := createMpUNReach("2001:123:123:1::", 64)
+	mpUnreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	bgpMessage1_w := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{mpUnreach}, nil)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage1_w)
@@ -2201,12 +2201,6 @@ func createAsPathAttribute(ases []uint32) *bgp.PathAttributeAsPath {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, ases)}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	return aspath
-}
-
-func createMpUNReach(nlri string, len uint8) *bgp.PathAttributeMpUnreachNLRI {
-	mp_nlri := bgp.NewIPv6AddrPrefix(len, nlri)
-	mpUnreach := bgp.NewPathAttributeMpUnreachNLRI(mp_nlri)
-	return mpUnreach
 }
 
 func update_fromR2viaR1() *bgp.BGPMessage {

@@ -11949,15 +11949,9 @@ func (p *PathAttributeMpUnreachNLRI) String() string {
 	return fmt.Sprintf("{MpUnreach(%s): End-of-Rib}", NewFamily(p.AFI, p.SAFI))
 }
 
-func NewPathAttributeMpUnreachNLRI(nlris ...AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
+func NewPathAttributeMpUnreachNLRI(family Family, nlris []AddrPrefixInterface) (*PathAttributeMpUnreachNLRI, error) {
 	// AFI(2) + SAFI(1) + NLRI(variable)
 	l := 3
-	var afi uint16
-	var safi uint8
-	if len(nlris) > 0 {
-		afi = nlris[0].AFI()
-		safi = nlris[0].SAFI()
-	}
 	for _, n := range nlris {
 		l += n.Len()
 	}
@@ -11968,10 +11962,10 @@ func NewPathAttributeMpUnreachNLRI(nlris ...AddrPrefixInterface) *PathAttributeM
 			Type:   t,
 			Length: uint16(l),
 		},
-		AFI:   afi,
-		SAFI:  safi,
+		AFI:   family.Afi(),
+		SAFI:  family.Safi(),
 		Value: nlris,
-	}
+	}, nil
 }
 
 type ExtendedCommunityInterface interface {
@@ -15317,15 +15311,7 @@ func NewEndOfRib(family Family) *BGPMessage {
 	if family == RF_IPv4_UC {
 		return NewBGPUpdateMessage(nil, nil, nil)
 	} else {
-		t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
-		unreach := &PathAttributeMpUnreachNLRI{
-			PathAttribute: PathAttribute{
-				Flags: PathAttrFlags[t],
-				Type:  t,
-			},
-			AFI:  family.Afi(),
-			SAFI: family.Safi(),
-		}
+		unreach, _ := NewPathAttributeMpUnreachNLRI(family, []AddrPrefixInterface{})
 		return NewBGPUpdateMessage(nil, []PathAttributeInterface{unreach}, nil)
 	}
 }

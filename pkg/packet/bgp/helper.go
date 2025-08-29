@@ -15,7 +15,9 @@
 
 package bgp
 
-import "net/netip"
+import (
+	"net/netip"
+)
 
 func NewTestBGPOpenMessage() *BGPMessage {
 	p1 := NewOptionParameterCapability(
@@ -124,9 +126,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	mp4, _ := NewPathAttributeMpReachNLRI(RF_IPv4_MPLS, prefixes4, netip.MustParseAddr("129.1.1.1"))
 	mp5, _ := NewPathAttributeMpReachNLRI(RF_EVPN, prefixes5, netip.MustParseAddr("129.1.1.1"))
 	mp6, _ := NewPathAttributeMpReachNLRI(RF_VPLS, prefixes6, netip.MustParseAddr("135.1.1.1"))
-
-	p = append(p, mp1, mp2, mp3, mp4, mp5, mp6,
-		NewPathAttributeMpUnreachNLRI(prefixes1...),
+	mpUnreach1, _ := NewPathAttributeMpUnreachNLRI(RF_IPv4_VPN, prefixes1)
+	p = append(p, mp1, mp2, mp3, mp4, mp5, mp6, mpUnreach1,
 		// NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
 		// NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
 		NewPathAttributeUnknown(BGP_ATTR_FLAG_TRANSITIVE, 100, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),

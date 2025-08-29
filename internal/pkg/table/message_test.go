@@ -503,8 +503,9 @@ func TestBMP(t *testing.T) {
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
 		bgp.NewPathAttributeAsPath(aspath1),
-		bgp.NewPathAttributeMpUnreachNLRI(mp_nlri),
 	}
+	unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mp_nlri})
+	p = append(p, unreach)
 	w := []*bgp.IPAddrPrefix{}
 	n := []*bgp.IPAddrPrefix{}
 
@@ -537,7 +538,8 @@ func TestMixedMPReachMPUnreach(t *testing.T) {
 		bgp.NewPathAttributeAsPath(aspath1),
 	}
 	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{nlri1}, netip.MustParseAddr("1::1"))
-	p = append(p, mpreach, bgp.NewPathAttributeMpUnreachNLRI(nlri2))
+	mpunreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{nlri2})
+	p = append(p, mpreach, mpunreach)
 	msg := bgp.NewBGPUpdateMessage(nil, p, nil)
 	pList := ProcessMessage(msg, peerR1(), time.Now(), false)
 	assert.Equal(t, len(pList), 2)
@@ -566,8 +568,10 @@ func TestMixedNLRIAndMPUnreach(t *testing.T) {
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeAsPath(aspath1),
 		bgp.NewPathAttributeNextHop("1.1.1.1"),
-		bgp.NewPathAttributeMpUnreachNLRI(nlri2),
 	}
+	unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{nlri2})
+	p = append(p, unreach)
+
 	msg := bgp.NewBGPUpdateMessage(nil, p, nlri1)
 	pList := ProcessMessage(msg, peerR1(), time.Now(), false)
 

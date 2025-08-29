@@ -99,7 +99,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 			// Compute a new attribute array for each path with one NLRI to make serialization
 			// of path attrs faster
 			reachAttrs := []bgp.PathAttributeInterface{}
-			if treatAsWithdraw == false {
+			if !treatAsWithdraw {
 				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.AddrPrefixInterface{nlri}, nexthop)
 				reachAttrs = makeAttributeList(attrs, nlriAttr)
 			}

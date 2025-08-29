@@ -106,7 +106,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		return bgp.NewPathAttributeMpUnreachNLRI(nlris...), nil
+		return bgp.NewPathAttributeMpUnreachNLRI(rf, nlris)
 	case *api.Attribute_ExtendedCommunities:
 		return unmarshalExComm(a.ExtendedCommunities)
 	case *api.Attribute_As4Path:
