@@ -611,6 +611,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
 
+	treatAsWithdraw := e.handling == bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW
+
 	if peer.fsm.logger.GetLevel() >= log.DebugLevel {
 		peer.fsm.logger.Debug("received update",
 			log.Fields{
@@ -626,7 +628,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	peer.fsm.lock.Unlock()
 
-	pathList := table.ProcessMessage(m, peer.peerInfo, e.timestamp)
+	pathList := table.ProcessMessage(m, peer.peerInfo, e.timestamp, treatAsWithdraw)
 	if len(pathList) > 0 {
 		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}

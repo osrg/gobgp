@@ -131,6 +131,7 @@ type fsmMsg struct {
 	fsm         *fsm
 	MsgSrc      string
 	MsgData     any
+	handling    bgp.ErrorHandling
 	StateReason *fsmStateReason
 	timestamp   time.Time
 	payload     []byte
@@ -947,7 +948,6 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 				})
 			h.fsm.lock.RUnlock()
 		case bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW:
-			m.Body = bgp.TreatAsWithdraw(m.Body.(*bgp.BGPUpdate))
 			h.fsm.lock.RLock()
 			h.fsm.logger.Warn("the received Update message was treated as withdraw",
 				log.Fields{
@@ -1060,6 +1060,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		fsm:       h.fsm,
 		MsgType:   fsmMsgBGPMessage,
 		MsgSrc:    h.fsm.pConf.State.NeighborAddress,
+		handling:  handling,
 		timestamp: now,
 	}
 	h.fsm.lock.RUnlock()
@@ -1116,6 +1117,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, h.allowLoopback)
 				if !ok {
 					handling = h.handlingError(m, err, useRevisedError)
+					fmsg.handling = handling
 				}
 				if handling == bgp.ERROR_HANDLING_SESSION_RESET {
 					h.fsm.lock.RLock()

@@ -32,7 +32,7 @@ const (
 	GLOBAL_RIB_NAME = "global"
 )
 
-func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) []*Path {
+func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, treatAsWithdraw bool) []*Path {
 	update := m.Body.(*bgp.BGPUpdate)
 
 	if y, f := update.IsEndOfRib(); y {
@@ -56,8 +56,12 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 		}
 	}
 
+	if treatAsWithdraw {
+		attrs = []bgp.PathAttributeInterface{}
+	}
+
 	var hash uint64
-	if len(update.NLRI) > 0 || reach != nil {
+	if len(attrs) != 0 {
 		total := bytes.NewBuffer(make([]byte, 0))
 		for _, a := range attrs {
 			b, _ := a.Serialize()
@@ -77,7 +81,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 	pathList := make([]*Path, 0, listLen)
 
 	for _, nlri := range update.NLRI {
-		p := NewPath(bgp.RF_IPv4_UC, peerInfo, nlri, false, attrs, timestamp, false)
+		p := NewPath(bgp.RF_IPv4_UC, peerInfo, nlri, treatAsWithdraw, attrs, timestamp, false)
 		p.SetHash(hash)
 		pathList = append(pathList, p)
 	}
@@ -94,10 +98,13 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 			// path.info{nlri: nlri}
 			// Compute a new attribute array for each path with one NLRI to make serialization
 			// of path attrs faster
-			nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.AddrPrefixInterface{nlri}, nexthop)
-			reachAttrs := makeAttributeList(attrs, nlriAttr)
+			reachAttrs := []bgp.PathAttributeInterface{}
+			if treatAsWithdraw == false {
+				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.AddrPrefixInterface{nlri}, nexthop)
+				reachAttrs = makeAttributeList(attrs, nlriAttr)
+			}
 
-			p := NewPath(family, peerInfo, nlri, false, reachAttrs, timestamp, false)
+			p := NewPath(family, peerInfo, nlri, treatAsWithdraw, reachAttrs, timestamp, false)
 			p.SetHash(hash)
 			pathList = append(pathList, p)
 		}

@@ -15306,31 +15306,6 @@ func (msg *BGPUpdate) IsEndOfRib() (bool, Family) {
 	return false, Family(0)
 }
 
-func TreatAsWithdraw(msg *BGPUpdate) *BGPUpdate {
-	withdraw := &BGPUpdate{
-		WithdrawnRoutesLen:    0,
-		WithdrawnRoutes:       []*IPAddrPrefix{},
-		TotalPathAttributeLen: 0,
-		PathAttributes:        make([]PathAttributeInterface, 0, len(msg.PathAttributes)),
-		NLRI:                  []*IPAddrPrefix{},
-	}
-	withdraw.WithdrawnRoutes = append(msg.WithdrawnRoutes, msg.NLRI...)
-	var unreach []AddrPrefixInterface
-
-	for _, p := range msg.PathAttributes {
-		switch nlri := p.(type) {
-		case *PathAttributeMpReachNLRI:
-			unreach = append(unreach, nlri.Value...)
-		case *PathAttributeMpUnreachNLRI:
-			unreach = append(unreach, nlri.Value...)
-		}
-	}
-	if len(unreach) != 0 {
-		withdraw.PathAttributes = append(withdraw.PathAttributes, NewPathAttributeMpUnreachNLRI(unreach...))
-	}
-	return withdraw
-}
-
 func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},

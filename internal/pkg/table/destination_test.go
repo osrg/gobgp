@@ -71,7 +71,7 @@ func TestCalculate2(t *testing.T) {
 	// peer1 sends normal update message 10.10.0.0/24
 	update1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	peer1 := &PeerInfo{AS: 1, Address: netip.MustParseAddr("1.1.1.1")}
-	path1 := ProcessMessage(update1, peer1, time.Now())[0]
+	path1 := ProcessMessage(update1, peer1, time.Now(), false)[0]
 
 	d := NewDestination(nlri, 0)
 	d.Calculate(logger, path1)
@@ -80,7 +80,7 @@ func TestCalculate2(t *testing.T) {
 	// which has a withdrawal nlri not advertised before
 	update2 := bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{nlri}, pathAttributes, nil)
 	peer2 := &PeerInfo{AS: 2, Address: netip.MustParseAddr("2.2.2.2")}
-	path2 := ProcessMessage(update2, peer2, time.Now())[0]
+	path2 := ProcessMessage(update2, peer2, time.Now(), false)[0]
 	assert.Equal(t, path2.IsWithdraw, true)
 
 	d.Calculate(logger, path2)
@@ -90,7 +90,7 @@ func TestCalculate2(t *testing.T) {
 
 	// after that, new update with the same nlri comes from peer2
 	update3 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
-	path3 := ProcessMessage(update3, peer2, time.Now())[0]
+	path3 := ProcessMessage(update3, peer2, time.Now(), false)[0]
 	assert.Equal(t, path3.IsWithdraw, false)
 
 	d.Calculate(logger, path3)
@@ -101,7 +101,7 @@ func TestCalculate2(t *testing.T) {
 	// now peer3 sends normal update message 10.10.0.0/24
 	peer3 := &PeerInfo{AS: 3, Address: netip.MustParseAddr("3.3.3.3")}
 	update4 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
-	path4 := ProcessMessage(update4, peer3, time.Now())[0]
+	path4 := ProcessMessage(update4, peer3, time.Now(), false)[0]
 
 	d.Calculate(logger, path4)
 
@@ -197,10 +197,10 @@ func TestTimeTieBreaker(t *testing.T) {
 	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	peer1 := &PeerInfo{AS: 2, LocalAS: 1, Address: netip.MustParseAddr("1.1.1.1"), ID: netip.MustParseAddr("1.1.1.1")}
-	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	path1 := ProcessMessage(updateMsg, peer1, time.Now(), false)[0]
 
 	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: netip.MustParseAddr("2.2.2.2"), ID: netip.MustParseAddr("2.2.2.2")} // weaker router-id
-	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                                         // older than path1
+	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour), false)[0]                                  // older than path1
 
 	d := NewDestination(nlri, 0)
 	d.Calculate(logger, path1)
@@ -322,7 +322,7 @@ func TestMultipath(t *testing.T) {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer1 := &PeerInfo{AS: 1, Address: netip.MustParseAddr("1.1.1.1"), ID: netip.MustParseAddr("1.1.1.1")}
-	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	path1 := ProcessMessage(updateMsg, peer1, time.Now(), false)[0]
 	peer2 := &PeerInfo{AS: 2, Address: netip.MustParseAddr("2.2.2.2"), ID: netip.MustParseAddr("2.2.2.2")}
 
 	med = bgp.NewPathAttributeMultiExitDisc(100)
@@ -334,7 +334,7 @@ func TestMultipath(t *testing.T) {
 		med,
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
+	path2 := ProcessMessage(updateMsg, peer2, time.Now(), false)[0]
 
 	d := NewDestination(nlri[0], 0)
 	d.Calculate(logger, path2)
@@ -363,7 +363,7 @@ func TestMultipath(t *testing.T) {
 		med,
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
+	path4 := ProcessMessage(updateMsg, peer3, time.Now(), false)[0]
 	dd = d.Calculate(logger, path4)
 	best, _, multi = dd.GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
@@ -378,7 +378,7 @@ func TestMultipath(t *testing.T) {
 		med,
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
+	path5 := ProcessMessage(updateMsg, peer2, time.Now(), false)[0]
 	best, _, multi = d.Calculate(logger, path5).GetChanges(GLOBAL_RIB_NAME, 0, false)
 	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
@@ -648,7 +648,7 @@ func BenchmarkMultiPath(b *testing.B) {
 		// peer1 sends normal update message 10.10.0.0/24
 		update := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 		peeri := &PeerInfo{AS: uint32(i), ID: netip.MustParseAddr(fmt.Sprintf("%d.%d.%d.%d", byte(i), byte(i), byte(i), byte(i)))}
-		pathList[i] = ProcessMessage(update, peeri, time.Now())[0]
+		pathList[i] = ProcessMessage(update, peeri, time.Now(), false)[0]
 	}
 
 	b.Run("Benchmark Calculate", func(b *testing.B) {
