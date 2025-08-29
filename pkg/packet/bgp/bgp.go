@@ -1379,8 +1379,6 @@ func NewBGPOpenMessage(myas uint16, holdtime uint16, idstring string, optparams 
 type AddrPrefixInterface interface {
 	DecodeFromBytes([]byte, ...*MarshallingOption) error
 	Serialize(...*MarshallingOption) ([]byte, error)
-	AFI() uint16
-	SAFI() uint8
 	Len(...*MarshallingOption) int
 	String() string
 	MarshalJSON() ([]byte, error)
@@ -1562,14 +1560,6 @@ func (r *IPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	return append(buf, r.serializePrefix()...), nil
 }
 
-func (r *IPAddrPrefix) AFI() uint16 {
-	return AFI_IP
-}
-
-func (r *IPAddrPrefix) SAFI() uint8 {
-	return SAFI_UNICAST
-}
-
 func (r *IPAddrPrefix) Len(options ...*MarshallingOption) int {
 	return 1 + (r.Prefix.Bits()+7)/8
 }
@@ -1602,10 +1592,6 @@ func NewIPAddrPrefix(bits uint8, prefix string) *IPAddrPrefix {
 
 type IPv6AddrPrefix struct {
 	IPAddrPrefix
-}
-
-func (r *IPv6AddrPrefix) AFI() uint16 {
-	return AFI_IP6
 }
 
 func NewIPv6AddrPrefix(bits uint8, prefix string) *IPv6AddrPrefix {
@@ -2123,14 +2109,6 @@ func (l *LabeledVPNIPAddrPrefix) Serialize(options ...*MarshallingOption) ([]byt
 	return buf, nil
 }
 
-func (l *LabeledVPNIPAddrPrefix) AFI() uint16 {
-	return AFI_IP
-}
-
-func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
-	return SAFI_MPLS_VPN
-}
-
 func (l *LabeledVPNIPAddrPrefix) IPPrefixLen() uint8 {
 	return uint8(l.Prefix.Bits())
 }
@@ -2172,10 +2150,6 @@ type LabeledVPNIPv6AddrPrefix struct {
 	LabeledVPNIPAddrPrefix
 }
 
-func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
-	return AFI_IP6
-}
-
 func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
 	p := &LabeledVPNIPv6AddrPrefix{
 		LabeledVPNIPAddrPrefix{
@@ -2195,14 +2169,6 @@ func (l *LabeledVPNIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*Mars
 type LabeledIPAddrPrefix struct {
 	IPAddrPrefixDefault
 	Labels MPLSLabelStack
-}
-
-func (r *LabeledIPAddrPrefix) AFI() uint16 {
-	return AFI_IP
-}
-
-func (r *LabeledIPAddrPrefix) SAFI() uint8 {
-	return SAFI_MPLS_LABEL
 }
 
 func (l *LabeledIPAddrPrefix) IPPrefixLen() uint8 {
@@ -2306,10 +2272,6 @@ type LabeledIPv6AddrPrefix struct {
 	LabeledIPAddrPrefix
 }
 
-func (l *LabeledIPv6AddrPrefix) AFI() uint16 {
-	return AFI_IP6
-}
-
 func NewLabeledIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
 	p := &LabeledIPv6AddrPrefix{
 		LabeledIPAddrPrefix: LabeledIPAddrPrefix{
@@ -2391,14 +2353,6 @@ func (n *RouteTargetMembershipNLRI) Serialize(options ...*MarshallingOption) ([]
 		return nil, err
 	}
 	return append(buf, ebuf...), nil
-}
-
-func (n *RouteTargetMembershipNLRI) AFI() uint16 {
-	return AFI_IP
-}
-
-func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
-	return SAFI_ROUTE_TARGET_CONSTRAINTS
 }
 
 func (n *RouteTargetMembershipNLRI) Len(options ...*MarshallingOption) int {
@@ -3508,14 +3462,6 @@ func (n *EVPNNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	return append(buf, tbuf...), nil
 }
 
-func (n *EVPNNLRI) AFI() uint16 {
-	return AFI_L2VPN
-}
-
-func (n *EVPNNLRI) SAFI() uint8 {
-	return SAFI_EVPN
-}
-
 func (n *EVPNNLRI) Len(options ...*MarshallingOption) int {
 	return int(n.Length) + 2
 }
@@ -3611,14 +3557,6 @@ func (n *EncapNLRI) String() string {
 	return n.Endpoint.String()
 }
 
-func (n *EncapNLRI) AFI() uint16 {
-	return AFI_IP
-}
-
-func (n *EncapNLRI) SAFI() uint8 {
-	return SAFI_ENCAPSULATION
-}
-
 func (n *EncapNLRI) Len(options ...*MarshallingOption) int {
 	return 1 + len(n.Endpoint.AsSlice())
 }
@@ -3649,10 +3587,6 @@ func NewEncapNLRI(endpoint string) *EncapNLRI {
 
 type Encapv6NLRI struct {
 	EncapNLRI
-}
-
-func (n *Encapv6NLRI) AFI() uint16 {
-	return AFI_IP6
 }
 
 func (n *Encapv6NLRI) Flat() map[string]string {
@@ -5250,14 +5184,6 @@ func (n *OpaqueNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		return append(id, buf...), nil
 	}
 	return buf, nil
-}
-
-func (n *OpaqueNLRI) AFI() uint16 {
-	return AFI_OPAQUE
-}
-
-func (n *OpaqueNLRI) SAFI() uint8 {
-	return SAFI_KEY_VALUE
 }
 
 func (n *OpaqueNLRI) Len(options ...*MarshallingOption) int {
@@ -9658,14 +9584,6 @@ type LsAddrPrefix struct {
 	Type   LsNLRIType
 	Length uint16
 	NLRI   LsNLRIInterface
-}
-
-func (l *LsAddrPrefix) AFI() uint16 {
-	return AFI_LS
-}
-
-func (l *LsAddrPrefix) SAFI() uint8 {
-	return SAFI_LS
 }
 
 func (l *LsAddrPrefix) Len(...*MarshallingOption) int {

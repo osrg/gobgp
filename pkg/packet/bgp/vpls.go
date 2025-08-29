@@ -95,14 +95,6 @@ func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	return append(buf, labelBaseBuf...), nil
 }
 
-func (n *VPLSNLRI) AFI() uint16 {
-	return AFI_L2VPN
-}
-
-func (n *VPLSNLRI) SAFI() uint8 {
-	return SAFI_VPLS
-}
-
 func (n *VPLSNLRI) Len(options ...*MarshallingOption) int {
 	// Length (2) + Route Distinguisher (8) + VE ID (2) + VE Block Offset (2)
 	// + VE Block Size (2) + Label Block Base (3)
