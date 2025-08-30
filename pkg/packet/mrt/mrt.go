@@ -139,21 +139,22 @@ type MRTHeader struct {
 	ExtendedTimestampMicroseconds uint32
 }
 
-func (h *MRTHeader) DecodeFromBytes(data []byte) error {
+func ParseHeader(data []byte) (*MRTHeader, error) {
 	if len(data) < MRT_COMMON_HEADER_LEN {
-		return fmt.Errorf("not all MRTHeader bytes are available. expected: %d, actual: %d", MRT_COMMON_HEADER_LEN, len(data))
+		return nil, fmt.Errorf("not all MRTHeader bytes are available. expected: %d, actual: %d", MRT_COMMON_HEADER_LEN, len(data))
 	}
+	h := &MRTHeader{}
 	h.Timestamp = binary.BigEndian.Uint32(data[:4])
 	h.Type = MRTType(binary.BigEndian.Uint16(data[4:6]))
 	h.SubType = binary.BigEndian.Uint16(data[6:8])
 	h.Len = binary.BigEndian.Uint32(data[8:12])
 	if h.Type.HasExtendedTimestamp() {
 		if len(data) < 16 {
-			return fmt.Errorf("not all MRTHeader bytes are available. expected: %d, actual: %d", 16, len(data))
+			return nil, fmt.Errorf("not all MRTHeader bytes are available. expected: %d, actual: %d", 16, len(data))
 		}
 		h.ExtendedTimestampMicroseconds = binary.BigEndian.Uint32(data[12:16])
 	}
-	return nil
+	return h, nil
 }
 
 func (h *MRTHeader) Serialize() ([]byte, error) {
@@ -214,7 +215,6 @@ func NewMRTMessage(timestamp time.Time, t MRTType, subtype MRTSubTyper, body Bod
 }
 
 type Body interface {
-	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 }
 
@@ -227,7 +227,7 @@ type Peer struct {
 
 var errNotAllPeerBytesAvailable = errors.New("not all Peer bytes are available")
 
-func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
+func (p *Peer) decodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < 5 {
 		return nil, errNotAllPeerBytesAvailable
 	}
@@ -320,21 +320,22 @@ type PeerIndexTable struct {
 
 var errNnotAllPeerIndexBytesAvailable = errors.New("not all PeerIndexTable bytes are available")
 
-func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
+func parsePeerIndexTable(data []byte) (*PeerIndexTable, error) {
+	t := &PeerIndexTable{}
 	if len(data) < 6 {
-		return errNnotAllPeerIndexBytesAvailable
+		return nil, errNnotAllPeerIndexBytesAvailable
 	}
 	t.CollectorBgpId, _ = netip.AddrFromSlice(data[:4])
 	viewLen := binary.BigEndian.Uint16(data[4:6])
 	if len(data) < 6+int(viewLen) {
-		return errNnotAllPeerIndexBytesAvailable
+		return nil, errNnotAllPeerIndexBytesAvailable
 	}
 	t.ViewName = string(data[6 : 6+viewLen])
 
 	data = data[6+viewLen:]
 
 	if len(data) < 2 {
-		return errNnotAllPeerIndexBytesAvailable
+		return nil, errNnotAllPeerIndexBytesAvailable
 	}
 	peerNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
@@ -342,14 +343,14 @@ func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 	var err error
 	for range peerNum {
 		p := &Peer{}
-		data, err = p.DecodeFromBytes(data)
+		data, err = p.decodeFromBytes(data)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		t.Peers = append(t.Peers, p)
 	}
 
-	return nil
+	return t, nil
 }
 
 func (t *PeerIndexTable) Serialize() ([]byte, error) {
@@ -391,15 +392,18 @@ type RibEntry struct {
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
-func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
+func parseRibEntry(data []byte, family bgp.Family, isAddPath bool, prefix ...bgp.AddrPrefixInterface) (*RibEntry, []byte, error) {
 	if len(data) < 8 {
-		return nil, errNotAllRibEntryBytesAvailable
+		return nil, data, errNotAllRibEntryBytesAvailable
+	}
+	e := &RibEntry{
+		isAddPath: isAddPath,
 	}
 	e.PeerIndex = binary.BigEndian.Uint16(data[:2])
 	e.OriginatedTime = binary.BigEndian.Uint32(data[2:6])
 	if e.isAddPath {
 		if len(data) < 10+2 {
-			return nil, errNotAllRibEntryBytesAvailable
+			return nil, nil, errNotAllRibEntryBytesAvailable
 		}
 		e.PathIdentifier = binary.BigEndian.Uint32(data[6:10])
 		data = data[10:]
@@ -414,52 +418,46 @@ func (e *RibEntry) DecodeFromBytes(data []byte, prefix ...bgp.AddrPrefixInterfac
 	for attrLen := totalLen; attrLen > 0; {
 		p, err := bgp.GetPathAttribute(data)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// HACK: keeps compatibility
 		if len(prefix) > 1 {
-			return nil, fmt.Errorf("only one prefix should be used")
+			return nil, nil, fmt.Errorf("only one prefix should be used")
 		}
 		err = p.DecodeFromBytes(data, options)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// RFC 6396 4.3.4
 		mp, ok := p.(*bgp.PathAttributeMpReachNLRI)
 		if ok && len(prefix) == 0 {
-			return nil, fmt.Errorf("prefix is not provided for MP_REACH_NLRI")
+			return nil, nil, fmt.Errorf("prefix is not provided for MP_REACH_NLRI")
 		} else if ok {
-			mp.AFI = prefix[0].AFI()
-			mp.SAFI = prefix[0].SAFI()
+			mp.AFI = family.Afi()
+			mp.SAFI = family.Safi()
 			mp.Value = []bgp.AddrPrefixInterface{prefix[0]}
 		}
 
 		attrLen -= uint16(p.Len())
 		if len(data) < p.Len() {
-			return nil, errNotAllRibEntryBytesAvailable
+			return nil, nil, errNotAllRibEntryBytesAvailable
 		}
 		data = data[p.Len():]
 		e.PathAttributes = append(e.PathAttributes, p)
 	}
-	return data, nil
+	return e, data, nil
 }
 
-func (e *RibEntry) Serialize(prefix ...bgp.AddrPrefixInterface) ([]byte, error) {
+func (e *RibEntry) Serialize() ([]byte, error) {
 	pbuf := make([]byte, 0)
 	totalLen := 0
 	options := &bgp.MarshallingOption{
 		MRT: true,
 	}
 	for _, pattr := range e.PathAttributes {
-		var pb []byte
-		var err error
-		// HACK: keeps compatibility
-		if len(prefix) > 1 {
-			return nil, fmt.Errorf("only one prefix should be used")
-		}
-		pb, err = pattr.Serialize(options)
+		pb, err := pattr.Serialize(options)
 		if err != nil {
 			return nil, err
 		}
@@ -509,58 +507,59 @@ type Rib struct {
 	isAddPath      bool
 }
 
-func (u *Rib) DecodeFromBytes(data []byte) error {
+func parseRib(data []byte, family bgp.Family, isAddPath bool) (*Rib, error) {
+	u := &Rib{
+		Family:    family,
+		isAddPath: isAddPath,
+	}
 	if len(data) < 4 {
-		return errors.New("not all RibIpv4Unicast message bytes available")
+		return nil, errors.New("not all RibIpv4Unicast message bytes available")
 	}
 	u.SequenceNumber = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
 	afi, safi := u.Family.Afi(), u.Family.Safi()
 	if afi == 0 && safi == 0 {
 		if len(data) < 3 {
-			return errors.New("not all RibIpv4Unicast message bytes available")
+			return nil, errors.New("not all RibIpv4Unicast message bytes available")
 		}
 		afi = binary.BigEndian.Uint16(data[:2])
 		safi = data[2]
 		data = data[3:]
+		family = bgp.NewFamily(afi, safi)
 	}
-	family := bgp.NewFamily(afi, safi)
 	prefix, err := bgp.NLRIFromSlice(family, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	u.Prefix = prefix
 	if len(data) < prefix.Len()+2 {
-		return errors.New("not all RibIpv4Unicast message bytes available")
+		return nil, errors.New("not all RibIpv4Unicast message bytes available")
 	}
 	data = data[prefix.Len():]
 	entryNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
 	u.Entries = make([]*RibEntry, 0, entryNum)
 	for range entryNum {
-		e := &RibEntry{
-			isAddPath: u.isAddPath,
-		}
-		data, err = e.DecodeFromBytes(data, prefix)
+		var e *RibEntry
+		e, data, err = parseRibEntry(data, family, u.isAddPath, prefix)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		u.Entries = append(u.Entries, e)
 	}
-	return nil
+	return u, nil
 }
 
 func (u *Rib) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
-	family := bgp.NewFamily(u.Prefix.AFI(), u.Prefix.SAFI())
-	switch family {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
-	default:
+	switch u.Family {
+	case bgp.RF_FS_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 		var bbuf [2]byte
 		binary.BigEndian.PutUint16(bbuf[:], u.Prefix.AFI())
 		buf = append(buf, bbuf[:]...)
 		buf = append(buf, u.Prefix.SAFI())
+	default:
 	}
 	bbuf, err := u.Prefix.Serialize()
 	if err != nil {
@@ -573,7 +572,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, bbuf...)
 	for _, entry := range u.Entries {
-		bbuf, err = entry.Serialize(u.Prefix)
+		bbuf, err = entry.Serialize()
 		if err != nil {
 			return nil, err
 		}
@@ -604,7 +603,7 @@ type GeoPeer struct {
 	Longitude float32
 }
 
-func (p *GeoPeer) DecodeFromBytes(data []byte) ([]byte, error) {
+func (p *GeoPeer) decodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < 13 {
 		return nil, fmt.Errorf("not all GeoPeer bytes are available")
 	}
@@ -655,10 +654,11 @@ type GeoPeerTable struct {
 	Peers              []*GeoPeer
 }
 
-func (t *GeoPeerTable) DecodeFromBytes(data []byte) error {
+func parseGeoPeerTable(data []byte) (*GeoPeerTable, error) {
 	if len(data) < 14 {
-		return fmt.Errorf("not all GeoPeerTable bytes are available")
+		return nil, fmt.Errorf("not all GeoPeerTable bytes are available")
 	}
+	t := &GeoPeerTable{}
 	t.CollectorBgpId, _ = netip.AddrFromSlice(data[:4])
 	t.CollectorLatitude = math.Float32frombits(binary.BigEndian.Uint32(data[4:8]))
 	t.CollectorLongitude = math.Float32frombits(binary.BigEndian.Uint32(data[8:12]))
@@ -668,12 +668,12 @@ func (t *GeoPeerTable) DecodeFromBytes(data []byte) error {
 	var err error
 	for range peerCount {
 		p := &GeoPeer{}
-		if data, err = p.DecodeFromBytes(data); err != nil {
-			return err
+		if data, err = p.decodeFromBytes(data); err != nil {
+			return nil, err
 		}
 		t.Peers = append(t.Peers, p)
 	}
-	return nil
+	return t, nil
 }
 
 func (t *GeoPeerTable) Serialize() ([]byte, error) {
@@ -819,17 +819,20 @@ type BGP4MPStateChange struct {
 	NewState BGPState
 }
 
-func (m *BGP4MPStateChange) DecodeFromBytes(data []byte) error {
+func parseBGP4MPStateChange(hdr *BGP4MPHeader, data []byte) (*BGP4MPStateChange, error) {
+	m := &BGP4MPStateChange{
+		BGP4MPHeader: hdr,
+	}
 	rest, err := m.decodeFromBytes(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(rest) < 4 {
-		return fmt.Errorf("not all BGP4MPStateChange bytes available")
+		return nil, fmt.Errorf("not all BGP4MPStateChange bytes available")
 	}
 	m.OldState = BGPState(binary.BigEndian.Uint16(rest[:2]))
 	m.NewState = BGPState(binary.BigEndian.Uint16(rest[2:4]))
-	return nil
+	return m, nil
 }
 
 func (m *BGP4MPStateChange) Serialize() ([]byte, error) {
@@ -865,22 +868,27 @@ type BGP4MPMessage struct {
 	isAddPath         bool
 }
 
-func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
+func parseBGP4MPMessage(hdr *BGP4MPHeader, isLocal bool, isAddPath bool, data []byte) (*BGP4MPMessage, error) {
+	m := &BGP4MPMessage{
+		BGP4MPHeader: hdr,
+		isLocal:      isLocal,
+		isAddPath:    isAddPath,
+	}
 	rest, err := m.decodeFromBytes(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(rest) < bgp.BGP_HEADER_LENGTH {
-		return fmt.Errorf("not all BGP4MPMessageAS4 bytes available")
+		return nil, fmt.Errorf("not all BGP4MPMessageAS4 bytes available")
 	}
 
 	msg, err := bgp.ParseBGPMessage(rest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	m.BGPMessage = msg
-	return nil
+	return m, nil
 }
 
 func (m *BGP4MPMessage) Serialize() ([]byte, error) {
@@ -968,9 +976,7 @@ func SplitMrt(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if cap(data) < MRT_COMMON_HEADER_LEN { // read more
 		return 0, nil, nil
 	}
-	// this reads the data
-	hdr := &MRTHeader{}
-	errh := hdr.DecodeFromBytes(data[:MRT_COMMON_HEADER_LEN])
+	hdr, errh := ParseHeader(data[:MRT_COMMON_HEADER_LEN])
 	if errh != nil {
 		return 0, nil, errh
 	}
@@ -981,10 +987,12 @@ func SplitMrt(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	return totlen, data[:totlen], nil
 }
 
-func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
+func ParseBody(data []byte, h *MRTHeader) (*MRTMessage, error) {
 	if len(data) < int(h.Len) {
 		return nil, fmt.Errorf("not all MRT message bytes available. expected: %d, actual: %d", int(h.Len), len(data))
 	}
+	var err error
+	var body Body
 	msg := &MRTMessage{Header: *h}
 	switch h.Type {
 	case TABLE_DUMPv2:
@@ -993,7 +1001,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 		isAddPath := false
 		switch subType {
 		case PEER_INDEX_TABLE:
-			msg.Body = &PeerIndexTable{}
+			body, err = parsePeerIndexTable(data)
 		case RIB_IPV4_UNICAST:
 			rf = bgp.RF_IPv4_UC
 		case RIB_IPV4_MULTICAST:
@@ -1004,7 +1012,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 			rf = bgp.RF_IPv6_MC
 		case RIB_GENERIC:
 		case GEO_PEER_TABLE:
-			msg.Body = &GeoPeerTable{}
+			body, err = parseGeoPeerTable(data)
 		case RIB_IPV4_UNICAST_ADDPATH:
 			rf = bgp.RF_IPv4_UC
 			isAddPath = true
@@ -1023,11 +1031,8 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %v", subType)
 		}
 
-		if msg.Body == nil {
-			msg.Body = &Rib{
-				Family:    rf,
-				isAddPath: isAddPath,
-			}
+		if body == nil {
+			body, err = parseRib(data, rf, isAddPath)
 		}
 	case BGP4MP:
 		subType := MRTSubTypeBGP4MP(h.SubType)
@@ -1037,50 +1042,37 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 			isAS4 = false
 			fallthrough
 		case STATE_CHANGE_AS4:
-			msg.Body = &BGP4MPStateChange{
-				BGP4MPHeader: &BGP4MPHeader{isAS4: isAS4},
-			}
+			body, err = parseBGP4MPStateChange(&BGP4MPHeader{isAS4: isAS4}, data)
 		case MESSAGE:
 			isAS4 = false
 			fallthrough
 		case MESSAGE_AS4:
-			msg.Body = &BGP4MPMessage{
-				BGP4MPHeader: &BGP4MPHeader{isAS4: isAS4},
-			}
+			body, err = parseBGP4MPMessage(&BGP4MPHeader{isAS4: isAS4}, false, false, data)
 		case MESSAGE_LOCAL:
 			isAS4 = false
 			fallthrough
 		case MESSAGE_AS4_LOCAL:
-			msg.Body = &BGP4MPMessage{
-				BGP4MPHeader: &BGP4MPHeader{isAS4: isAS4},
-				isLocal:      true,
-			}
+			body, err = parseBGP4MPMessage(&BGP4MPHeader{isAS4: isAS4}, true, false, data)
 		case MESSAGE_ADDPATH:
 			isAS4 = false
 			fallthrough
 		case MESSAGE_AS4_ADDPATH:
-			msg.Body = &BGP4MPMessage{
-				BGP4MPHeader: &BGP4MPHeader{isAS4: isAS4},
-				isAddPath:    true,
-			}
+			body, err = parseBGP4MPMessage(&BGP4MPHeader{isAS4: isAS4}, false, true, data)
 		case MESSAGE_LOCAL_ADDPATH:
 			isAS4 = false
 			fallthrough
 		case MESSAGE_AS4_LOCAL_ADDPATH:
-			msg.Body = &BGP4MPMessage{
-				BGP4MPHeader: &BGP4MPHeader{isAS4: isAS4},
-				isLocal:      true,
-				isAddPath:    true,
-			}
+			body, err = parseBGP4MPMessage(&BGP4MPHeader{isAS4: isAS4}, true, true, data)
 		default:
 			return nil, fmt.Errorf("unsupported bgp4mp subtype: %v", subType)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported type: %v", h.Type)
 	}
-	err := msg.Body.DecodeFromBytes(data)
+
 	if err != nil {
 		return nil, err
 	}
+	msg.Body = body
 	return msg, nil
 }

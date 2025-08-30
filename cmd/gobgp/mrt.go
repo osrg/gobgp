@@ -79,10 +79,9 @@ func injectMrt() error {
 				exitWithError(fmt.Errorf("failed to read: %s", err))
 			}
 
-			h := &mrt.MRTHeader{}
-			err = h.DecodeFromBytes(buf)
+			h, err := mrt.ParseHeader(buf)
 			if err != nil {
-				exitWithError(fmt.Errorf("failed to parse"))
+				exitWithError(fmt.Errorf("failed to parse: %s", err))
 			}
 
 			buf = make([]byte, h.Len)
@@ -91,7 +90,7 @@ func injectMrt() error {
 				exitWithError(fmt.Errorf("failed to read"))
 			}
 
-			msg, err := mrt.ParseMRTBody(h, buf)
+			msg, err := mrt.ParseBody(buf, h)
 			if err != nil {
 				printError(fmt.Errorf("failed to parse: %s", err))
 				continue

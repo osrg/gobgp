@@ -36,8 +36,7 @@ func TestMrtHdr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h2 := &MRTHeader{}
-	err = h2.DecodeFromBytes(b1)
+	h2, err := ParseHeader(b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +69,7 @@ func testPeer(t *testing.T, p1 *Peer) {
 		t.Fatal(err)
 	}
 	p2 := &Peer{}
-	rest, err := p2.DecodeFromBytes(b1)
+	rest, err := p2.decodeFromBytes(b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,8 +101,7 @@ func TestMrtPeerIndexTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pt2 := &PeerIndexTable{}
-	err = pt2.DecodeFromBytes(b1)
+	pt2, err := parsePeerIndexTable(b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,8 +129,7 @@ func TestMrtRibEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e2 := &RibEntry{}
-	rest, err := e2.DecodeFromBytes(b1)
+	e2, rest, err := parseRibEntry(b1, bgp.RF_IPv4_UC, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,12 +157,11 @@ func TestMrtRibEntryWithAddPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e2 := &RibEntry{isAddPath: true}
-	rest, err := e2.DecodeFromBytes(b1)
+	e2, rest2, err := parseRibEntry(b1, bgp.RF_IPv4_UC, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, len(rest), 0)
+	assert.Equal(t, len(rest2), 0)
 	assert.Equal(t, reflect.DeepEqual(e1, e2), true)
 }
 
@@ -193,10 +189,8 @@ func TestMrtRib(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r2 := &Rib{
-		Family: bgp.RF_IPv4_UC,
-	}
-	err = r2.DecodeFromBytes(b1)
+
+	r2, err := parseRib(b1, bgp.RF_IPv4_UC, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,11 +221,8 @@ func TestMrtRibWithAddPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r2 := &Rib{
-		Family:    bgp.RF_IPv4_UC,
-		isAddPath: true,
-	}
-	err = r2.DecodeFromBytes(b1)
+
+	r2, err := parseRib(b1, bgp.RF_IPv4_UC, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,8 +237,7 @@ func TestMrtGeoPeerTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pt2 := &GeoPeerTable{}
-	err = pt2.DecodeFromBytes(b1)
+	pt2, err := parseGeoPeerTable(b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,8 +250,7 @@ func TestMrtBgp4mpStateChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c2 := &BGP4MPStateChange{BGP4MPHeader: &BGP4MPHeader{}}
-	err = c2.DecodeFromBytes(b1)
+	c2, err := parseBGP4MPStateChange(&BGP4MPHeader{}, b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,8 +268,7 @@ func TestMrtBgp4mpMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m2 := &BGP4MPMessage{BGP4MPHeader: &BGP4MPHeader{}}
-	err = m2.DecodeFromBytes(b1)
+	m2, err := parseBGP4MPMessage(&BGP4MPHeader{}, false, false, b1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,38 +306,38 @@ func FuzzMRT(f *testing.F) {
 			return
 		}
 
-		hdr := &MRTHeader{}
-		err := hdr.DecodeFromBytes(data[:MRT_COMMON_HEADER_LEN])
+		hdr, err := ParseHeader(data[:MRT_COMMON_HEADER_LEN])
 		if err != nil {
 			return
 		}
 
-		ParseMRTBody(hdr, data[MRT_COMMON_HEADER_LEN:])
+		ParseBody(data[MRT_COMMON_HEADER_LEN:], hdr)
 	})
 }
 
-// grep -r DecodeFromBytes pkg/packet/mrt/ | grep -e ":func " | perl -pe 's|func \(.* \*(.*?)\).*|(&\1\{\})\.DecodeFromBytes(data)|g' | awk -F ':' '{print $2}'
-//
 //nolint:errcheck
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		(&MRTHeader{}).DecodeFromBytes(data)
-		(&Peer{}).DecodeFromBytes(data)
-		(&PeerIndexTable{}).DecodeFromBytes(data)
-		(&RibEntry{}).DecodeFromBytes(data)
-		(&RibEntry{isAddPath: true}).DecodeFromBytes(data)
-		(&Rib{}).DecodeFromBytes(data)
-		(&Rib{isAddPath: true}).DecodeFromBytes(data)
-		(&GeoPeer{}).DecodeFromBytes(data)
-		(&GeoPeerTable{}).DecodeFromBytes(data)
+		ParseHeader(data)
+		parsePeerIndexTable(data)
+		parseRibEntry(data, bgp.RF_IPv4_UC, false)
+		parseRibEntry(data, bgp.RF_IPv4_UC, true)
+		parseRib(data, bgp.RF_IPv4_UC, false)
+		parseRib(data, bgp.RF_IPv4_UC, true)
+		parseGeoPeerTable(data)
+		(&GeoPeer{}).decodeFromBytes(data)
+		(&Peer{}).decodeFromBytes(data)
 		if len(data) > 12 {
 			h := &BGP4MPHeader{isAS4: true}
 			_, err := h.decodeFromBytes(data[:12])
 			if err != nil {
 				return
 			}
-			(&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[12:])
-			(&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[12:])
+			parseBGP4MPStateChange(h, data[12:])
+			parseBGP4MPMessage(h, true, true, data[12:])
+			parseBGP4MPMessage(h, true, false, data[12:])
+			parseBGP4MPMessage(h, false, true, data[12:])
+			parseBGP4MPMessage(h, false, false, data[12:])
 		}
 		if len(data) > 8 {
 			h := &BGP4MPHeader{isAS4: false}
@@ -357,8 +345,11 @@ func FuzzDecodeFromBytes(f *testing.F) {
 			if err != nil {
 				return
 			}
-			(&BGP4MPStateChange{BGP4MPHeader: h}).DecodeFromBytes(data[8:])
-			(&BGP4MPMessage{BGP4MPHeader: h}).DecodeFromBytes(data[8:])
+			parseBGP4MPStateChange(h, data[8:])
+			parseBGP4MPMessage(h, true, true, data[8:])
+			parseBGP4MPMessage(h, true, false, data[8:])
+			parseBGP4MPMessage(h, false, true, data[8:])
+			parseBGP4MPMessage(h, false, false, data[8:])
 		}
 	})
 }
