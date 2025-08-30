@@ -107,7 +107,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 	seq := uint32(0)
 	appendTableDumpMsg := func(path *table.Path, entries []*mrt.RibEntry, isAddPath bool) {
 		st := subtype(path, isAddPath)
-		if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetNlri(), entries)); err != nil {
+		if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetFamily(), path.GetNlri(), entries)); err != nil {
 			m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
 				log.Fields{
 					"Topic":   "mrt",

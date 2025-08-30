@@ -160,14 +160,6 @@ func (n *MUPNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	return append(buf, tbuf...), nil
 }
 
-func (n *MUPNLRI) AFI() uint16 {
-	return n.Afi
-}
-
-func (n *MUPNLRI) SAFI() uint8 {
-	return SAFI_MUP
-}
-
 func (n *MUPNLRI) Len(options ...*MarshallingOption) int {
 	return int(n.Length) + 4
 }

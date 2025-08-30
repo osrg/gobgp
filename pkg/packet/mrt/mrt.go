@@ -556,9 +556,9 @@ func (u *Rib) Serialize() ([]byte, error) {
 	switch u.Family {
 	case bgp.RF_FS_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 		var bbuf [2]byte
-		binary.BigEndian.PutUint16(bbuf[:], u.Prefix.AFI())
+		binary.BigEndian.PutUint16(bbuf[:], u.Family.Afi())
 		buf = append(buf, bbuf[:]...)
-		buf = append(buf, u.Prefix.SAFI())
+		buf = append(buf, u.Family.Safi())
 	default:
 	}
 	bbuf, err := u.Prefix.Serialize()
@@ -581,13 +581,12 @@ func (u *Rib) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewRib(seq uint32, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
-	rf := bgp.NewFamily(prefix.AFI(), prefix.SAFI())
+func NewRib(seq uint32, family bgp.Family, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
 	return &Rib{
 		SequenceNumber: seq,
+		Family:         family,
 		Prefix:         prefix,
 		Entries:        entries,
-		Family:         rf,
 		isAddPath:      entries[0].isAddPath,
 	}
 }

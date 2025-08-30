@@ -83,14 +83,6 @@ func (s *SRPolicyNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	return buf, nil
 }
 
-func (s *SRPolicyNLRI) AFI() uint16 {
-	return s.rf.Afi()
-}
-
-func (s *SRPolicyNLRI) SAFI() uint8 {
-	return s.rf.Safi()
-}
-
 func (s *SRPolicyNLRI) Len(options ...*MarshallingOption) int {
 	buf, _ := s.Serialize(options...)
 	return len(buf)
