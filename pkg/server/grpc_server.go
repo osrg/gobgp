@@ -1242,7 +1242,7 @@ func (s *server) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDynamic
 }
 
 func newPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
-	_, prefix, err := net.ParseCIDR(a.IpPrefix)
+	prefix, err := netip.ParsePrefix(a.IpPrefix)
 	if err != nil {
 		return nil, err
 	}

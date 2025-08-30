@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/k-sone/critbitgo"
+	"github.com/gaissmai/bart"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
@@ -404,47 +404,25 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 	results := make([]*Destination, 0, len(t.GetDestinations()))
 	switch t.Family {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
-		_, prefix, err := net.ParseCIDR(key)
+		prefix, err := netip.ParsePrefix(key)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing cidr %s: %v", key, err)
 		}
-		ones, bits := prefix.Mask.Size()
 
-		r := critbitgo.NewNet()
+		r := new(bart.Table[*Destination])
 		for _, dst := range t.GetDestinations() {
-			_ = r.Add(nlriToIPNet(dst.nlri), dst)
+			r.Insert(nlriToPrefix(dst.nlri), dst)
 		}
-		p := &net.IPNet{
-			IP:   prefix.IP,
-			Mask: net.CIDRMask(ones>>3<<3, bits),
+		for _, d := range r.Subnets(prefix) {
+			results = append(results, d)
 		}
-		mask := 0
-		div := 0
-		if ones%8 != 0 {
-			mask = 8 - ones&0x7
-			div = ones >> 3
-		}
-		r.WalkPrefix(p, func(n *net.IPNet, v any) bool {
-			if mask != 0 && n.IP[div]>>mask != p.IP[div]>>mask {
-				return true
-			}
-			l, _ := n.Mask.Size()
-
-			if ones > l {
-				return true
-			}
-			results = append(results, v.(*Destination))
-			return true
-		})
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 		prefixRd, prefix, err := bgp.ParseVPNPrefix(key)
 		if err != nil {
 			return nil, err
 		}
-		ones := prefix.Bits()
-		bits := prefix.Addr().BitLen()
 
-		r := critbitgo.NewNet()
+		r := new(bart.Table[*Destination])
 		for _, dst := range t.GetDestinations() {
 			var dstRD bgp.RouteDistinguisherInterface
 			switch t.Family {
@@ -458,33 +436,11 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 				continue
 			}
 
-			_ = r.Add(nlriToIPNet(dst.nlri), dst)
+			r.Insert(nlriToPrefix(dst.nlri), dst)
 		}
-
-		p := &net.IPNet{
-			IP:   prefix.Addr().AsSlice(),
-			Mask: net.CIDRMask(ones>>3<<3, bits),
+		for _, d := range r.Subnets(prefix) {
+			results = append(results, d)
 		}
-
-		mask := 0
-		div := 0
-		if ones%8 != 0 {
-			mask = 8 - ones&0x7
-			div = ones >> 3
-		}
-
-		r.WalkPrefix(p, func(n *net.IPNet, v any) bool {
-			if mask != 0 && n.IP[div]>>mask != p.IP[div]>>mask {
-				return true
-			}
-			l, _ := n.Mask.Size()
-
-			if ones > l {
-				return true
-			}
-			results = append(results, v.(*Destination))
-			return true
-		})
 	default:
 		results = append(results, t.GetDestinations()...)
 	}
