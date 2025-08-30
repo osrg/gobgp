@@ -662,7 +662,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				}
 				var nlri bgp.AddrPrefixInterface
 				if t.Family == bgp.RF_IPv4_UC {
-					nlri = bgp.NewIPAddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+					nlri, _ = bgp.NewIPAddrPrefix(prefix)
 				} else {
 					nlri = bgp.NewIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
 				}

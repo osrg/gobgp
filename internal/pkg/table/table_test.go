@@ -36,13 +36,20 @@ import (
 func TestLookupLonger(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(23, "11.0.0.0"), 0))
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(24, "11.0.0.0"), 0))
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(32, "11.0.0.4"), 0))
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(32, "11.0.0.129"), 0))
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(28, "11.0.0.144"), 0))
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(29, "11.0.0.144"), 0))
-	tbl.setDestination(NewDestination(bgp.NewIPAddrPrefix(32, "11.0.0.145"), 0))
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.0/23"))
+	tbl.setDestination(NewDestination(nlri, 0))
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.0/24"))
+	tbl.setDestination(NewDestination(nlri, 0))
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.4/32"))
+	tbl.setDestination(NewDestination(nlri, 0))
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.129/32"))
+	tbl.setDestination(NewDestination(nlri, 0))
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.144/28"))
+	tbl.setDestination(NewDestination(nlri, 0))
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.144/29"))
+	tbl.setDestination(NewDestination(nlri, 0))
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.145/32"))
+	tbl.setDestination(NewDestination(nlri, 0))
 
 	r, _ := tbl.GetLongerPrefixDestinations("11.0.0.128/25")
 	assert.Equal(t, len(r), 4)
@@ -130,11 +137,9 @@ func TestTableGetDestinations(t *testing.T) {
 
 func TestTableKey(t *testing.T) {
 	tb := NewTable(logger, bgp.RF_IPv4_UC)
-	prefix := netip.MustParsePrefix("0.0.0.0/0")
-	n1 := bgp.NewIPAddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+	n1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
 	d1 := NewDestination(n1, 0)
-	prefix = netip.MustParsePrefix("0.0.0.0/1")
-	n2 := bgp.NewIPAddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+	n2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/1"))
 	d2 := NewDestination(n2, 0)
 
 	assert.NotEqual(t, tableKey(d1.GetNlri()), tableKey(d2.GetNlri()))
@@ -146,8 +151,9 @@ func TestTableKey(t *testing.T) {
 func BenchmarkTableKey(b *testing.B) {
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(1, 2)
 	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"))
 	prefix := []bgp.AddrPrefixInterface{
-		bgp.NewIPAddrPrefix(24, "192.168.1.0"),
+		nlri1,
 		bgp.NewIPv6AddrPrefix(64, "2001:db8::"),
 		bgp.NewLabeledVPNIPAddrPrefix(24, "192.168.1.0", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
 		bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8::", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
@@ -504,8 +510,8 @@ func updateMsgT1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 }
 
 func updateMsgT2() *bgp.BGPMessage {
@@ -522,8 +528,8 @@ func updateMsgT2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
-	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 }
 
 func updateMsgT3() *bgp.BGPMessage {
@@ -540,10 +546,10 @@ func updateMsgT3() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.30.30.0")}
-	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"))
+	w1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("40.40.40.0/23"))
 	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
-	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 }
 
 //nolint:errcheck
@@ -554,8 +560,8 @@ func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
 	b := make([]byte, 4)
 	crand.Read(b)
 	addrv4, _ := netip.AddrFromSlice(b)
-	prefixv4 := addrv4.String()
 	lengthv4 := uint8(rand.Intn(32)) + 1
+	prefixv4 := netip.PrefixFrom(addrv4, int(lengthv4))
 
 	b = make([]byte, 16)
 	crand.Read(b)
@@ -563,10 +569,11 @@ func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
 	prefixv6 := addrv6.String()
 	lengthv6 := uint8(rand.Intn(128)) + 1
 
+	nlri1, _ := bgp.NewIPAddrPrefix(prefixv4)
 	prefixes := []bgp.AddrPrefixInterface{
-		bgp.NewIPAddrPrefix(lengthv4, prefixv4),
-		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4, label, rd),
-		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4, label),
+		nlri1,
+		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), label, rd),
+		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
 		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
 		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
 		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
@@ -585,7 +592,7 @@ func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
 	v += uint32(index) << 8
 	binary.BigEndian.PutUint32(b, v)
 	addrv4, _ := netip.AddrFromSlice(b)
-	prefixv4 := addrv4.String()
+	prefixv4 := addrv4
 	lengthv4 := uint8(28)
 
 	b = make([]byte, 16)
@@ -597,10 +604,11 @@ func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
 	prefixv6 := addrv6.String()
 	lengthv6 := uint8(96)
 
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
 	prefixes := []bgp.AddrPrefixInterface{
-		bgp.NewIPAddrPrefix(lengthv4, prefixv4),
-		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4, label, rd),
-		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4, label),
+		nlri1,
+		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), label, rd),
+		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
 		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
 		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
 		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
@@ -661,7 +669,7 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 	v += uint32(index) << 8
 	binary.BigEndian.PutUint32(b, v)
 	addrv4, _ := netip.AddrFromSlice(b)
-	prefixv4 := addrv4.String()
+	prefixv4 := addrv4
 	lengthv4 := uint8(28)
 
 	b = make([]byte, 16)
@@ -673,15 +681,16 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 	prefixv6 := addrv6.String()
 	lengthv6 := uint8(96)
 
+	nlri, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
 	prefixes := []bgp.AddrPrefixInterface{
-		bgp.NewIPAddrPrefix(lengthv4, prefixv4),
+		nlri,
 		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
 	}
 
 	for _, l := range []bgp.MPLSLabelStack{label1, label2, label3} {
 		for _, rd := range []bgp.RouteDistinguisherInterface{rd1, rd2} {
-			prefixes = append(prefixes, bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4, l, rd))
-			prefixes = append(prefixes, bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4, l))
+			prefixes = append(prefixes, bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), l, rd))
+			prefixes = append(prefixes, bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), l))
 			prefixes = append(prefixes, bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, l, rd))
 			prefixes = append(prefixes, bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, l))
 		}

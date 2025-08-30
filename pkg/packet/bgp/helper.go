@@ -37,8 +37,8 @@ func NewTestBGPOpenMessage() *BGPMessage {
 }
 
 func NewTestBGPUpdateMessage() *BGPMessage {
-	w1 := NewIPAddrPrefix(23, "121.1.3.2")
-	w2 := NewIPAddrPrefix(17, "100.33.3.0")
+	w1, _ := NewIPAddrPrefix(netip.MustParsePrefix("121.1.3.2/23"))
+	w2, _ := NewIPAddrPrefix(netip.MustParsePrefix("100.33.3.0/17"))
 	w := []*IPAddrPrefix{w1, w2}
 
 	aspath1 := []AsPathParamInterface{
@@ -132,6 +132,7 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		// NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
 		NewPathAttributeUnknown(BGP_ATTR_FLAG_TRANSITIVE, 100, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),
 	)
-	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "13.2.3.1")}
+	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("13.2.3.1/24"))
+	n := []*IPAddrPrefix{prefix}
 	return NewBGPUpdateMessage(w, p, n)
 }

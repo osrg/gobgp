@@ -69,6 +69,7 @@ func TestToPathApi(t *testing.T) {
 		nlriBinary      bool
 		attributeBinary bool
 	}
+	n, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/8"))
 	tests := []struct {
 		name string
 		args args
@@ -83,14 +84,14 @@ func TestToPathApi(t *testing.T) {
 					Address:      netip.MustParseAddr("10.12.12.12"),
 					LocalAddress: netip.MustParseAddr("10.13.13.13"),
 				},
-					bgp.NewIPAddrPrefix(8, "10.0.0.0"),
+					n,
 					false,
 					[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)},
 					time.Time{},
 					false),
 			},
 			want: &api.Path{
-				Nlri:   nlri(bgp.NewIPAddrPrefix(8, "10.0.0.0")),
+				Nlri:   nlri(n),
 				Pattrs: attrs([]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}),
 				Family: &api.Family{
 					Afi:  api.Family_AFI_IP,

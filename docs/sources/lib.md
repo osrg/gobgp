@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// add routes
-	nlri := bgp.NewIPAddrPrefix(24, "10.0.0.0")
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	a1 := bgp.NewPathAttributeOrigin(0)
 	a2 := bgp.NewPathAttributeNextHop("10.0.0.1")
 	a3 := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{6762, 39919, 65000, 35753, 65000})})

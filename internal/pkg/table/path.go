@@ -1280,9 +1280,7 @@ func (p *Path) ToLocal() *Path {
 	switch f {
 	case bgp.RF_IPv4_VPN:
 		n := nlri.(*bgp.LabeledVPNIPAddrPrefix)
-		_, c, _ := net.ParseCIDR(n.IPPrefix())
-		ones, _ := c.Mask.Size()
-		nlri = bgp.NewIPAddrPrefix(uint8(ones), c.IP.String())
+		nlri, _ = bgp.NewIPAddrPrefix(n.Prefix)
 		nlri.SetPathLocalIdentifier(localPathId)
 		nlri.SetPathIdentifier(pathId)
 		newFamily = bgp.RF_IPv4_UC

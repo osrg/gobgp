@@ -77,7 +77,8 @@ func peerR3() *PeerInfo {
 
 func TestTreatAsWithdraw(t *testing.T) {
 	msg := update_fromR2_ipv6()
-	msg.Body.(*bgp.BGPUpdate).NLRI = append(msg.Body.(*bgp.BGPUpdate).NLRI, bgp.NewIPAddrPrefix(24, "1.1.1.0"))
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("1.1.1.0/24"))
+	msg.Body.(*bgp.BGPUpdate).NLRI = append(msg.Body.(*bgp.BGPUpdate).NLRI, nlri)
 
 	paths := ProcessMessage(msg, peerR2(), time.Now(), true)
 
@@ -196,8 +197,8 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// high localpref message
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -209,8 +210,8 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -352,8 +353,8 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// high localpref message
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -365,8 +366,8 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -621,8 +622,8 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -634,8 +635,8 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -777,8 +778,8 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -790,8 +791,8 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -933,8 +934,8 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -946,8 +947,8 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -1092,8 +1093,8 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -1105,8 +1106,8 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -1248,8 +1249,8 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// path 2
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -1261,8 +1262,8 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -1315,7 +1316,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 	// withdraw path
-	w1 := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	w1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	w := []*bgp.IPAddrPrefix{w1}
 	bgpMessage3 := bgp.NewBGPUpdateMessage(w, nil, nil)
 
@@ -1474,11 +1475,11 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// path 1 withdraw
-	w1 := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	w1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	w := []*bgp.IPAddrPrefix{w1}
 	bgpMessage1_w := bgp.NewBGPUpdateMessage(w, nil, nil)
 
@@ -1612,8 +1613,8 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	pathAttributes1 := []bgp.PathAttributeInterface{
 		origin1, aspath1, nexthop1, med1, localpref1,
 	}
-	nlri1 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, []*bgp.IPAddrPrefix{nlri1})
 
 	// path 1 from same peer but short AS_PATH
 	origin2 := bgp.NewPathAttributeOrigin(0)
@@ -1625,8 +1626,8 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	pathAttributes2 := []bgp.PathAttributeInterface{
 		origin2, aspath2, nexthop2, med2, localpref2,
 	}
-	nlri2 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri2})
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -1834,40 +1835,36 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 
 	// path1
 	pathAttributes1 := createPathAttr([]uint32{65000, 65100, 65200}, "192.168.50.1")
-	nlri1 := []*bgp.IPAddrPrefix{
-		bgp.NewIPAddrPrefix(24, "10.10.10.0"),
-		bgp.NewIPAddrPrefix(24, "20.20.20.0"),
-		bgp.NewIPAddrPrefix(24, "30.30.30.0"),
-		bgp.NewIPAddrPrefix(24, "40.40.40.0"),
-		bgp.NewIPAddrPrefix(24, "50.50.50.0"),
-	}
-	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri1)
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	nlri3, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"))
+	nlri4, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("40.40.40.0/24"))
+	nlri5, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("50.50.50.0/24"))
+	nlri := []*bgp.IPAddrPrefix{nlri1, nlri2, nlri3, nlri4, nlri5}
+	bgpMessage1 := bgp.NewBGPUpdateMessage(nil, pathAttributes1, nlri)
 
 	// path2
 	pathAttributes2 := createPathAttr([]uint32{65000, 65100, 65300}, "192.168.50.1")
-	nlri2 := []*bgp.IPAddrPrefix{
-		bgp.NewIPAddrPrefix(24, "11.11.11.0"),
-		bgp.NewIPAddrPrefix(24, "22.22.22.0"),
-		bgp.NewIPAddrPrefix(24, "33.33.33.0"),
-		bgp.NewIPAddrPrefix(24, "44.44.44.0"),
-		bgp.NewIPAddrPrefix(24, "55.55.55.0"),
-	}
-	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri2)
+	nlri1, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.11.11.0/24"))
+	nlri2, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("22.22.22.0/24"))
+	nlri3, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("33.33.33.0/24"))
+	nlri4, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("44.44.44.0/24"))
+	nlri5, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("55.55.55.0/24"))
+	nlri = []*bgp.IPAddrPrefix{nlri1, nlri2, nlri3, nlri4, nlri5}
+	bgpMessage2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri)
 
 	// path3
 	pathAttributes3 := createPathAttr([]uint32{65000, 65100, 65400}, "192.168.50.1")
-	nlri3 := []*bgp.IPAddrPrefix{
-		bgp.NewIPAddrPrefix(24, "77.77.77.0"),
-		bgp.NewIPAddrPrefix(24, "88.88.88.0"),
-	}
-	bgpMessage3 := bgp.NewBGPUpdateMessage(nil, pathAttributes3, nlri3)
+	nlri1, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("77.77.77.0/24"))
+	nlri2, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("88.88.88.0/24"))
+	nlri = []*bgp.IPAddrPrefix{nlri1, nlri2}
+	bgpMessage3 := bgp.NewBGPUpdateMessage(nil, pathAttributes3, nlri)
 
 	// path4
 	pathAttributes4 := createPathAttr([]uint32{65000, 65100, 65500}, "192.168.50.1")
-	nlri4 := []*bgp.IPAddrPrefix{
-		bgp.NewIPAddrPrefix(24, "99.99.99.0"),
-	}
-	bgpMessage4 := bgp.NewBGPUpdateMessage(nil, pathAttributes4, nlri4)
+	nlri1, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("99.99.99.0/24"))
+	nlri = []*bgp.IPAddrPrefix{nlri1}
+	bgpMessage4 := bgp.NewBGPUpdateMessage(nil, pathAttributes4, nlri)
 
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
@@ -2054,8 +2051,11 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4_split(t *testing.T) {
 
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspath := createAsPathAttribute([]uint32{65000, 65100, 65200})
+	n1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.1/32"))
+	n2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.2/32"))
+	n3, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.3/32"))
 	mpReach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv4_UC,
-		[]bgp.AddrPrefixInterface{bgp.NewIPAddrPrefix(32, "10.0.0.1"), bgp.NewIPAddrPrefix(32, "10.0.0.2"), bgp.NewIPAddrPrefix(32, "10.0.0.3")},
+		[]bgp.AddrPrefixInterface{n1, n2, n3},
 		netip.MustParseAddr("10.50.60.70"))
 	med := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref := bgp.NewPathAttributeLocalPref(200)
@@ -2089,17 +2089,17 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 		med,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 
 	adjRib := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
-	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now(), false)
 	path1 := pList1[0]
 	t1 := path1.GetTimestamp()
 	adjRib.Update(pList1)
 
-	m2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	m2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	pList2 := ProcessMessage(m2, peer, time.Now(), false)
 	// path2 := pList2[0].(*IPv4Path)
 	// t2 = path2.timestamp
@@ -2117,7 +2117,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 		med2,
 	}
 
-	m3 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri)
+	m3 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri})
 	pList3 := ProcessMessage(m3, peer, time.Now(), false)
 	t3 := pList3[0].GetTimestamp()
 	adjRib.Update(pList3)
@@ -2141,9 +2141,9 @@ func update_fromR1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 
-	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 }
 
 func update_fromR1_ipv6() *bgp.BGPMessage {
@@ -2178,8 +2178,8 @@ func update_fromR2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
-	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 }
 
 func update_fromR2_ipv6() *bgp.BGPMessage {
@@ -2215,8 +2215,8 @@ func update_fromR2viaR1() *bgp.BGPMessage {
 		nexthop,
 	}
 
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
-	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 }
 
 func update_fromR2viaR1_ipv6() *bgp.BGPMessage {

@@ -2078,21 +2078,20 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		if len(args) < 1 {
 			return nil, fmt.Errorf("invalid format")
 		}
-		ip, nw, err := net.ParseCIDR(args[0])
+		prefix, err := netip.ParsePrefix(args[0])
 		if err != nil {
 			return nil, err
 		}
-		ones, _ := nw.Mask.Size()
 		if rf == bgp.RF_IPv4_UC {
-			if ip.To4() == nil {
-				return nil, fmt.Errorf("invalid ipv4 prefix")
+			if !prefix.Addr().Is4() {
+				return nil, fmt.Errorf("not ipv4 prefix")
 			}
-			nlri = bgp.NewIPAddrPrefix(uint8(ones), ip.String())
+			nlri, _ = bgp.NewIPAddrPrefix(prefix)
 		} else {
-			if ip.To16() == nil {
-				return nil, fmt.Errorf("invalid ipv6 prefix")
+			if !prefix.Addr().Is6() {
+				return nil, fmt.Errorf("not ipv6 prefix")
 			}
-			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
+			nlri = bgp.NewIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
 		}
 
 		if len(args) > 2 && args[1] == "identifier" {

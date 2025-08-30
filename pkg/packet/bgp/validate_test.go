@@ -21,7 +21,8 @@ func bgpupdate() *BGPMessage {
 		NewPathAttributeNextHop("192.168.1.1"),
 	}
 
-	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "10.10.10.0")}
+	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	n := []*IPAddrPrefix{prefix}
 	return NewBGPUpdateMessage(nil, p, n)
 }
 
@@ -392,8 +393,10 @@ func Test_Validate_aspath(t *testing.T) {
 func Test_Validate_flowspec(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	destPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(destPrefix))
+	srcPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(srcPrefix))
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
 	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
@@ -419,8 +422,10 @@ func Test_Validate_flowspec(t *testing.T) {
 	assert.NoError(err)
 
 	cmp = make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	srcPrefix2, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(srcPrefix2))
+	destPrefix2, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(destPrefix2))
 	n1 = NewFlowSpecIPv4Unicast(cmp)
 	a, _ = NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []AddrPrefixInterface{n1}, netip.IPv4Unspecified())
 	// Swaps components order to reproduce the rules order violation.

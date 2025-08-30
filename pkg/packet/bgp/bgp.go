@@ -1583,11 +1583,15 @@ func (r *IPAddrPrefix) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewIPAddrPrefix(bits uint8, prefix string) *IPAddrPrefix {
-	p := &IPAddrPrefix{}
-	// TODO: pass the error to the caller
-	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits, 4)
-	return p
+func NewIPAddrPrefix(prefix netip.Prefix) (*IPAddrPrefix, error) {
+	if !prefix.IsValid() {
+		return nil, fmt.Errorf("invalid prefix")
+	}
+	return &IPAddrPrefix{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
+			Prefix: prefix.Masked(),
+		},
+	}, nil
 }
 
 type IPv6AddrPrefix struct {
@@ -3870,9 +3874,11 @@ func flowSpecPrefixParser(rf Family, typ BGPFlowSpecType, args []string) (FlowSp
 		}
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(prefixLen), prefix.String())), nil
+			ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", prefix.String(), prefixLen)))
+			return NewFlowSpecDestinationPrefix(ipPrefix), nil
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(prefixLen), prefix.String())), nil
+			ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", prefix.String(), prefixLen)))
+			return NewFlowSpecSourcePrefix(ipPrefix), nil
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	case AFI_IP6:
@@ -4776,7 +4782,8 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 		case FLOW_SPEC_TYPE_DST_PREFIX:
 			switch rf >> 16 {
 			case AFI_IP:
-				i = NewFlowSpecDestinationPrefix(NewIPAddrPrefix(0, ""))
+				ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
+				i = NewFlowSpecDestinationPrefix(ipPrefix)
 			case AFI_IP6:
 				i = NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(0, ""), 0)
 			default:
@@ -4785,7 +4792,8 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
 			switch rf >> 16 {
 			case AFI_IP:
-				i = NewFlowSpecSourcePrefix(NewIPAddrPrefix(0, ""))
+				ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
+				i = NewFlowSpecSourcePrefix(ipPrefix)
 			case AFI_IP6:
 				i = NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(0, ""), 0)
 			default:
@@ -10124,7 +10132,7 @@ func newPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 		len, _ := net.Mask.Size()
 		switch family {
 		case RF_IPv4_UC, RF_IPv4_MC:
-			return NewIPAddrPrefix(uint8(len), addr.String()), nil
+			return NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", addr.String(), len)))
 		}
 		return NewIPv6AddrPrefix(uint8(len), addr.String()), nil
 	}
@@ -10136,7 +10144,7 @@ func newPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixI
 		if len(prefixStr) > 0 {
 			prefix, err = f(prefixStr[0])
 		} else {
-			prefix = NewIPAddrPrefix(0, "")
+			prefix, _ = NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
 		}
 	case RF_IPv6_UC, RF_IPv6_MC:
 		if len(prefixStr) > 0 {

@@ -73,11 +73,11 @@ func Test_Message(t *testing.T) {
 }
 
 func Test_IPAddrPrefixString(t *testing.T) {
-	ipv4 := NewIPAddrPrefix(24, "129.6.10.0")
+	ipv4, _ := NewIPAddrPrefix(netip.MustParsePrefix("129.6.10.0/24"))
 	assert.Equal(t, "129.6.10.0/24", ipv4.String())
-	ipv4 = NewIPAddrPrefix(24, "129.6.10.1")
+	ipv4, _ = NewIPAddrPrefix(netip.MustParsePrefix("129.6.10.1/24"))
 	assert.Equal(t, "129.6.10.0/24", ipv4.String())
-	ipv4 = NewIPAddrPrefix(22, "129.6.129.0")
+	ipv4, _ = NewIPAddrPrefix(netip.MustParsePrefix("129.6.129.0/22"))
 	assert.Equal(t, "129.6.128.0/22", ipv4.String())
 
 	ipv6 := NewIPv6AddrPrefix(64, "3343:faba:3903::0")
@@ -454,8 +454,10 @@ func Test_MPLSLabelStack(t *testing.T) {
 func Test_FlowSpecNlri(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	destPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(destPrefix))
+	srcPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(srcPrefix))
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
 	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
@@ -649,8 +651,10 @@ func Test_NotificationErrorCode(t *testing.T) {
 func Test_FlowSpecNlriVPN(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
-	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	destPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(destPrefix))
+	srcPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(srcPrefix))
 	rd, _ := ParseRouteDistinguisher("100:100")
 	n1 := NewFlowSpecIPv4VPN(rd, cmp)
 	buf1, err := n1.Serialize()
@@ -701,7 +705,7 @@ func Test_AddPath(t *testing.T) {
 	assert := assert.New(t)
 	opt := &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
-		n1 := NewIPAddrPrefix(24, "10.10.10.0")
+		n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 		assert.Equal(n1.PathIdentifier(), uint32(0))
 		n1.SetPathLocalIdentifier(10)
 		assert.Equal(n1.PathLocalIdentifier(), uint32(10))
@@ -822,7 +826,8 @@ func Test_AddPath(t *testing.T) {
 	}
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
-		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0"))})
+		prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(prefix)})
 		n1.SetPathLocalIdentifier(60)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
@@ -1125,11 +1130,12 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	assert.Equal(BGPAttrFlag(0x80), p.Flags)
 	assert.Equal(BGPAttrType(0xe), p.Type)
 	assert.Equal(uint16(0x19), p.Length)
-	assert.Equal(uint16(AFI_IP), p.AFI)
+	assert.Equal(uint8(AFI_IP), p.SAFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
+	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("192.168.10.0/24"))
 	value := []AddrPrefixInterface{
-		NewIPAddrPrefix(24, "192.168.10.0"),
+		prefix,
 	}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
@@ -1163,7 +1169,7 @@ func Test_MpReachNLRIWithImplicitPrefix(t *testing.T) {
 	// which we don't have here.
 	// assert.Equal(prefix.AFI(), p.AFI)
 	// assert.Equal(prefix.SAFI(), p.SAFI)
-	// prefix := NewIPAddrPrefix(24, "192.168.10.0")
+	// prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("192.168.10.0/24"))
 	// value := []AddrPrefixInterface{prefix}
 	// assert.Equal(value, p.Value)
 	// Test Serialize()

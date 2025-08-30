@@ -1,7 +1,9 @@
 package table
 
 import (
+	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,7 +49,7 @@ func validateOne(rt *ROATable, cidr, aspathStr string) oc.RpkiValidationResultTy
 		nlri = bgp.NewIPv6AddrPrefix(uint8(length), ip.String())
 		family = bgp.RF_IPv6_UC
 	} else {
-		nlri = bgp.NewIPAddrPrefix(uint8(length), ip.String())
+		nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", ip.String(), length)))
 		family = bgp.RF_IPv4_UC
 	}
 	attrs := []bgp.PathAttributeInterface{strToASParam(aspathStr)}

@@ -83,7 +83,7 @@ func Test_RouteMonitoringAddPath(t *testing.T) {
 	opt := &bgp.MarshallingOption{
 		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
 	}
-	p1 := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	p1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	p1.SetPathLocalIdentifier(10)
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),

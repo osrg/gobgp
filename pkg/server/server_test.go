@@ -792,7 +792,7 @@ func TestMonitor(test *testing.T) {
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("10.0.0.1"),
 	}
-	prefix := bgp.NewIPAddrPrefix(24, "10.0.0.0")
+	prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, prefix, false, attrs, time.Now())
 	_, err = t.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{
 		mustApi2apiutilPath(path),
@@ -811,7 +811,8 @@ func TestMonitor(test *testing.T) {
 
 	// Withdraws the previous route.
 	// NOTE: Withdraw should not require any path attribute.
-	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, nil, time.Now(), false)}); err != nil {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, nlri, true, nil, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -825,8 +826,9 @@ func TestMonitor(test *testing.T) {
 	// Stops the watcher still having an item.
 	w.Stop()
 
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.1.0.0/24"))
 	// Prepares an initial route to test WatchUpdate with "current" flag.
-	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.1.0.0"), false, attrs, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	for {
@@ -854,8 +856,9 @@ func TestMonitor(test *testing.T) {
 	u = ev.(*watchEventUpdate)
 	assert.Equal(len(u.PathList), 0) // End of RIB
 
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.2.0.0/24"))
 	// Advertises an additional route.
-	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), false, attrs, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -864,9 +867,10 @@ func TestMonitor(test *testing.T) {
 	assert.Equal("10.2.0.0/24", u.PathList[0].GetNlri().String())
 	assert.False(u.PathList[0].IsWithdraw)
 
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.2.0.0/24"))
 	// Withdraws the previous route.
 	// NOTE: Withdraw should not require any path attribute.
-	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.2.0.0"), true, nil, time.Now(), false)}); err != nil {
+	if err := t.addPathList("", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, nlri, true, nil, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -883,7 +887,8 @@ func TestMonitor(test *testing.T) {
 		bgp.NewPathAttributeNextHop("10.0.0.1"),
 	}
 
-	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), false, attrs, time.Now(), false)}); err != nil {
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -895,8 +900,9 @@ func TestMonitor(test *testing.T) {
 	assert.True(b.Vrf[1])
 	assert.True(b.Vrf[2])
 
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	// Withdraw the route
-	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, bgp.NewIPAddrPrefix(24, "10.0.0.0"), true, attrs, time.Now(), false)}); err != nil {
+	if err := s.addPathList("vrf1", []*table.Path{table.NewPath(bgp.RF_IPv4_UC, nil, nlri, true, attrs, time.Now(), false)}); err != nil {
 		test.Error(err)
 	}
 	ev = <-w.Event()
@@ -1001,7 +1007,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	p1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
 	p2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
 
-	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
 	pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p2As})})}
 
@@ -1043,7 +1049,7 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	// p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
 	p2 := newPeerandInfo(t, as, as, "192.168.0.2", rib)
 
-	nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}), bgp.NewPathAttributeLocalPref(200)}
 	// pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})})}
 
@@ -1108,7 +1114,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, addCommunity := range []bool{false, true, false, true} {
-		nlri := bgp.NewIPAddrPrefix(24, "10.10.10.0")
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 		pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{1})}), bgp.NewPathAttributeLocalPref(200)}
 		if addCommunity {
 			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
@@ -1710,7 +1716,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("2.2.2.2"),
 	}
-	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
+	prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"))
 	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(
@@ -1818,7 +1824,7 @@ func TestDelVrfWithRTC(t *testing.T) {
 			bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true),
 		}),
 	}
-	prefix := bgp.NewIPAddrPrefix(24, "10.30.2.0")
+	prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"))
 	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(apiutil.AddPathRequest{VRFID: "vrf1", Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
