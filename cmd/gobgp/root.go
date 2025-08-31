@@ -20,7 +20,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"strconv"
-	"time"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/spf13/cobra"
@@ -69,7 +68,7 @@ func newRootCmd() *cobra.Command {
 					exitWithError(err)
 				}
 				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(context.Background(), time.Second*10)
+				ctx, cancel = context.WithCancel(context.Background())
 				client = api.NewGoBgpServiceClient(conn)
 				cleanup = func() {
 					conn.Close()
