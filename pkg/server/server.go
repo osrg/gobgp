@@ -287,8 +287,8 @@ func (s *BgpServer) startFsmHandler(peer *peer) {
 			if fsm.state == bgp.BGP_FSM_ESTABLISHED {
 				s.notifyWatcher(watchEventTypePeerState, &watchEventPeer{
 					PeerAS:      fsm.pConf.State.PeerAs,
-					PeerAddress: net.ParseIP(fsm.pConf.State.NeighborAddress),
-					PeerID:      net.ParseIP(fsm.pConf.State.RemoteRouterId).To4(),
+					PeerAddress: netip.MustParseAddr(fsm.pConf.State.NeighborAddress),
+					PeerID:      netip.MustParseAddr(fsm.pConf.State.RemoteRouterId),
 					State:       bgp.BGP_FSM_IDLE,
 					Timestamp:   time.Now(),
 					StateReason: &fsmStateReason{
@@ -947,16 +947,25 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 			capList = append(capList, caps...)
 		}
 	}
+	peerID, err := netip.ParseAddr(peer.fsm.pConf.State.RemoteRouterId)
+	if err != nil {
+		peerID = netip.IPv4Unspecified()
+	}
+	localAddr, err := netip.ParseAddr(laddr)
+	if err != nil {
+		localAddr = netip.IPv4Unspecified()
+	}
+
 	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
 		Type:          t,
 		PeerAS:        peer.fsm.pConf.State.PeerAs,
 		LocalAS:       peer.fsm.pConf.Config.LocalAs,
-		PeerAddress:   net.ParseIP(peer.fsm.pConf.State.NeighborAddress),
-		LocalAddress:  net.ParseIP(laddr),
+		PeerAddress:   netip.MustParseAddr(peer.fsm.pConf.State.NeighborAddress),
+		LocalAddress:  localAddr,
 		PeerPort:      rport,
 		LocalPort:     lport,
-		PeerID:        net.ParseIP(peer.fsm.pConf.State.RemoteRouterId).To4(),
+		PeerID:        peerID,
 		SentOpen:      sentOpen,
 		RecvOpen:      recvOpen,
 		State:         peer.fsm.state,
@@ -4523,29 +4532,26 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 						case adminStatePfxCt:
 							admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 						}
-						peerID, _ := netip.AddrFromSlice(msg.PeerID)
-						peerAddress, _ := netip.AddrFromSlice(msg.PeerAddress)
-						localAddress, _ := netip.AddrFromSlice(msg.LocalAddress)
 						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
 							Peer: apiutil.Peer{
 								Conf: apiutil.PeerConf{
 									PeerASN:           msg.PeerAS,
 									LocalASN:          msg.LocalAS,
-									NeighborAddress:   peerAddress,
+									NeighborAddress:   msg.PeerAddress,
 									NeighborInterface: msg.PeerInterface,
 								},
 								State: apiutil.PeerState{
 									PeerASN:         msg.PeerAS,
 									LocalASN:        msg.LocalAS,
-									NeighborAddress: peerAddress,
+									NeighborAddress: msg.PeerAddress,
 									SessionState:    msg.State,
 									AdminState:      admin_state,
-									RouterID:        peerID,
+									RouterID:        msg.PeerID,
 									RemoteCap:       msg.RemoteCap,
 								},
 								Transport: apiutil.Transport{
-									LocalAddress: localAddress,
+									LocalAddress: msg.LocalAddress,
 									LocalPort:    uint32(msg.LocalPort),
 									RemotePort:   uint32(msg.PeerPort),
 								},
@@ -4638,11 +4644,11 @@ type watchEventPeer struct {
 	Type          apiutil.PeerEventType
 	PeerAS        uint32
 	LocalAS       uint32
-	PeerAddress   net.IP
-	LocalAddress  net.IP
+	PeerAddress   netip.Addr
+	LocalAddress  netip.Addr
 	PeerPort      uint16
 	LocalPort     uint16
-	PeerID        net.IP
+	PeerID        netip.Addr
 	SentOpen      *bgp.BGPMessage
 	RecvOpen      *bgp.BGPMessage
 	State         bgp.FSMState
