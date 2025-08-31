@@ -4726,14 +4726,6 @@ type FlowSpecNLRI struct {
 	rd    RouteDistinguisherInterface
 }
 
-func (n *FlowSpecNLRI) AFI() uint16 {
-	return n.rf.Afi()
-}
-
-func (n *FlowSpecNLRI) SAFI() uint8 {
-	return n.rf.Safi()
-}
-
 func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
 	return n.rd
 }
@@ -4765,7 +4757,7 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 
 	n.rf = rf
 
-	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+	if n.rf.Safi() == SAFI_FLOW_SPEC_VPN {
 		if length < 8 {
 			return malformedAttrListErr("not all flowspec component bytes available")
 		}
@@ -4841,7 +4833,7 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 
 func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := make([]byte, 0, 32)
-	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+	if n.rf.Safi() == SAFI_FLOW_SPEC_VPN {
 		if n.rd == nil {
 			return nil, errors.New("RD is nil")
 		}
@@ -4883,7 +4875,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 
 func (n *FlowSpecNLRI) Len(options ...*MarshallingOption) int {
 	l := 0
-	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+	if n.rf.Safi() == SAFI_FLOW_SPEC_VPN {
 		l += n.RD().Len()
 	}
 	for _, v := range n.Value {
@@ -4898,7 +4890,7 @@ func (n *FlowSpecNLRI) Len(options ...*MarshallingOption) int {
 
 func (n *FlowSpecNLRI) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
-	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+	if n.rf.Safi() == SAFI_FLOW_SPEC_VPN {
 		buf.WriteString("[rd: ")
 		buf.WriteString(n.rd.String())
 		buf.WriteString("]")
@@ -4932,14 +4924,13 @@ func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
 //	0 when n and m have same precedence
 //	1 when n has precedence
 func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
-	family := NewFamily(n.AFI(), n.SAFI())
-	if family != NewFamily(m.AFI(), m.SAFI()) {
+	if n.rf != m.rf {
 		return 0, errors.New("address family mismatch")
 	}
 	longer := n.Value
 	shorter := m.Value
 	invert := 1
-	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+	if n.rf.Safi() == SAFI_FLOW_SPEC_VPN {
 		k, _ := n.Serialize()
 		l, _ := m.Serialize()
 		if result := bytes.Compare(k, l); result != 0 {
@@ -4968,7 +4959,7 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 			// common prefix is equal, then the most specific prefix has precedence.
 			var p, q *netip.Prefix
 			var pCommon, qCommon uint64
-			if n.AFI() == AFI_IP {
+			if n.rf.Afi() == AFI_IP {
 				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
 					p = &v.(*FlowSpecDestinationPrefix).Prefix.Prefix
 					q = &w.(*FlowSpecDestinationPrefix).Prefix.Prefix
@@ -4982,7 +4973,7 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 				}
 				pCommon = uint64(binary.BigEndian.Uint32(p.Addr().AsSlice()) >> (32 - min))
 				qCommon = uint64(binary.BigEndian.Uint32(q.Addr().AsSlice()) >> (32 - min))
-			} else if n.AFI() == AFI_IP6 {
+			} else if n.rf.Afi() == AFI_IP6 {
 				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
 					p = &v.(*FlowSpecDestinationPrefix6).Prefix.Prefix
 					q = &w.(*FlowSpecDestinationPrefix6).Prefix.Prefix
@@ -5050,7 +5041,7 @@ type FlowSpecIPv4Unicast struct {
 }
 
 func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(n.rf, data, options...)
 }
 
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
@@ -5068,7 +5059,7 @@ type FlowSpecIPv4VPN struct {
 }
 
 func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(n.rf, data, options...)
 }
 
 func NewFlowSpecIPv4VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
@@ -5088,7 +5079,7 @@ type FlowSpecIPv6Unicast struct {
 
 func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(n.rf, data, options...)
 }
 
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
@@ -5107,7 +5098,7 @@ type FlowSpecIPv6VPN struct {
 
 func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data, options...)
+	return n.decodeFromBytes(n.rf, data, options...)
 }
 
 func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
@@ -5126,7 +5117,7 @@ type FlowSpecL2VPN struct {
 }
 
 func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(NewFamily(n.AFI(), n.SAFI()), data)
+	return n.decodeFromBytes(n.rf, data)
 }
 
 func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecL2VPN {
