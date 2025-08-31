@@ -1377,7 +1377,6 @@ func NewBGPOpenMessage(myas uint16, holdtime uint16, idstring string, optparams 
 }
 
 type AddrPrefixInterface interface {
-	DecodeFromBytes([]byte, ...*MarshallingOption) error
 	Serialize(...*MarshallingOption) ([]byte, error)
 	Len(...*MarshallingOption) int
 	String() string
@@ -10110,132 +10109,178 @@ func GetFamily(name string) (Family, error) {
 	return Family(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
-func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (prefix AddrPrefixInterface, err error) {
-	nlri, err := newPrefixFromFamily(family)
-	if err != nil {
-		return nil, err
-	}
-
-	err = nlri.DecodeFromBytes(buf, options...)
-	if err != nil {
-		return nil, err
-	}
-	return nlri, nil
-}
-
-func newPrefixFromFamily(family Family, prefixStr ...string) (prefix AddrPrefixInterface, err error) {
-	f := func(s string) (AddrPrefixInterface, error) {
-		addr, net, err := net.ParseCIDR(s)
-		if err != nil {
-			return nil, err
-		}
-		len, _ := net.Mask.Size()
-		switch family {
-		case RF_IPv4_UC, RF_IPv4_MC:
-			return NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", addr.String(), len)))
-		}
-		return NewIPv6AddrPrefix(uint8(len), addr.String()), nil
-	}
-
-	rdEOR := &RouteDistinguisherUnknown{DefaultRouteDistinguisher{Type: BGP_RD_EOR}, []byte("EOR")}
-
+func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nlri AddrPrefixInterface, err error) {
 	switch family {
 	case RF_IPv4_UC, RF_IPv4_MC:
-		if len(prefixStr) > 0 {
-			prefix, err = f(prefixStr[0])
-		} else {
-			prefix, _ = NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
+		nlri := &IPAddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
 		}
+		return nlri, nil
 	case RF_IPv6_UC, RF_IPv6_MC:
-		if len(prefixStr) > 0 {
-			prefix, err = f(prefixStr[0])
-		} else {
-			prefix = NewIPv6AddrPrefix(0, "")
+		nlri := &IPv6AddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
 		}
+		return nlri, nil
 	case RF_IPv4_VPN:
-		if len(prefixStr) == 0 {
-			prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), rdEOR)
-			break
-		}
-
-		rd, p, err := ParseVPNPrefix(prefixStr[0])
+		nlri := &LabeledVPNIPAddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
-
-		prefix = NewLabeledVPNIPAddrPrefix(
-			uint8(p.Bits()),
-			p.Addr().String(),
-			*NewMPLSLabelStack(),
-			rd,
-		)
+		return nlri, nil
 	case RF_IPv6_VPN:
-		if len(prefixStr) == 0 {
-			prefix = NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), rdEOR)
-			break
-		}
-
-		rd, p, err := ParseVPNPrefix(prefixStr[0])
+		nlri := &LabeledVPNIPv6AddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
-
-		prefix = NewLabeledVPNIPv6AddrPrefix(
-			uint8(p.Bits()),
-			p.Addr().String(),
-			*NewMPLSLabelStack(),
-			rd,
-		)
+		return nlri, nil
 	case RF_IPv4_MPLS:
-		prefix = NewLabeledIPAddrPrefix(0, "", *NewMPLSLabelStack())
+		nlri := &LabeledIPAddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_IPv6_MPLS:
-		prefix = NewLabeledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
+		nlri := &LabeledIPv6AddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_EVPN:
-		prefix = NewEVPNNLRI(0, nil)
+		nlri := &EVPNNLRI{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_VPLS:
-		prefix = &VPLSNLRI{}
-
-	// TODO (sbezverk) Add processing SR Policy NLRI
+		nlri := &VPLSNLRI{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_SR_POLICY_IPv4:
-		prefix = &SRPolicyIPv4{
+		// TODO (sbezverk) Add processing SR Policy NLRI
+		nlri := &SRPolicyIPv4{
 			SRPolicyNLRI: SRPolicyNLRI{
 				rf: RF_SR_POLICY_IPv4,
 			},
 		}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_SR_POLICY_IPv6:
-		prefix = &SRPolicyIPv6{
+		nlri := &SRPolicyIPv6{
 			SRPolicyNLRI: SRPolicyNLRI{
 				rf: RF_SR_POLICY_IPv6,
 			},
 		}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
 	case RF_RTC_UC:
-		prefix = &RouteTargetMembershipNLRI{}
+		nlri := &RouteTargetMembershipNLRI{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_IPv4_ENCAP:
-		prefix = NewEncapNLRI("")
+		nlri := &EncapNLRI{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_IPv6_ENCAP:
-		prefix = NewEncapv6NLRI("")
+		nlri := &Encapv6NLRI{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_FS_IPv4_UC:
-		prefix = &FlowSpecIPv4Unicast{FlowSpecNLRI{rf: RF_FS_IPv4_UC}}
+		nlri := &FlowSpecIPv4Unicast{FlowSpecNLRI{rf: RF_FS_IPv4_UC}}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_FS_IPv4_VPN:
-		prefix = &FlowSpecIPv4VPN{FlowSpecNLRI{rf: RF_FS_IPv4_VPN}}
+		nlri := &FlowSpecIPv4VPN{FlowSpecNLRI{rf: RF_FS_IPv4_VPN}}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_FS_IPv6_UC:
-		prefix = &FlowSpecIPv6Unicast{FlowSpecNLRI{rf: RF_FS_IPv6_UC}}
+		nlri := &FlowSpecIPv6Unicast{FlowSpecNLRI{rf: RF_FS_IPv6_UC}}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_FS_IPv6_VPN:
-		prefix = &FlowSpecIPv6VPN{FlowSpecNLRI{rf: RF_FS_IPv6_VPN}}
+		nlri := &FlowSpecIPv6VPN{FlowSpecNLRI{rf: RF_FS_IPv6_VPN}}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_FS_L2_VPN:
-		prefix = &FlowSpecL2VPN{FlowSpecNLRI{rf: RF_FS_L2_VPN}}
+		nlri := &FlowSpecL2VPN{FlowSpecNLRI{rf: RF_FS_L2_VPN}}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_OPAQUE:
-		prefix = &OpaqueNLRI{}
+		nlri := &OpaqueNLRI{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_LS:
-		prefix = &LsAddrPrefix{}
+		nlri := &LsAddrPrefix{}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_MUP_IPv4:
-		prefix = NewMUPNLRI(AFI_IP, 0, 0, nil)
+		nlri := &MUPNLRI{
+			Afi: AFI_IP,
+		}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	case RF_MUP_IPv6:
-		prefix = NewMUPNLRI(AFI_IP6, 0, 0, nil)
+		nlri := &MUPNLRI{
+			Afi: AFI_IP6,
+		}
+		err := nlri.DecodeFromBytes(buf, options...)
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
 	default:
 		err = fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", family.Afi(), family.Safi())
 	}
-	return prefix, err
+	return nlri, err
 }
 
 type BGPAttrFlag uint8
