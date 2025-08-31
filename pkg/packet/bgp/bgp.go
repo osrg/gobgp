@@ -4262,7 +4262,7 @@ type FlowSpecComponentInterface interface {
 }
 
 type flowSpecPrefix struct {
-	Prefix AddrPrefixInterface
+	Prefix *IPAddrPrefix
 	typ    BGPFlowSpecType
 }
 
@@ -4306,8 +4306,8 @@ func (p *flowSpecPrefix) String() string {
 
 func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type  BGPFlowSpecType     `json:"type"`
-		Value AddrPrefixInterface `json:"value"`
+		Type  BGPFlowSpecType `json:"type"`
+		Value *IPAddrPrefix   `json:"value"`
 	}{
 		Type:  p.Type(),
 		Value: p.Prefix,
@@ -4315,7 +4315,7 @@ func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
 }
 
 type flowSpecPrefix6 struct {
-	Prefix AddrPrefixInterface
+	Prefix *IPv6AddrPrefix
 	Offset uint8
 	typ    BGPFlowSpecType
 }
@@ -4365,9 +4365,9 @@ func (p *flowSpecPrefix6) String() string {
 
 func (p *flowSpecPrefix6) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type   BGPFlowSpecType     `json:"type"`
-		Value  AddrPrefixInterface `json:"value"`
-		Offset uint8               `json:"offset"`
+		Type   BGPFlowSpecType `json:"type"`
+		Value  *IPv6AddrPrefix `json:"value"`
+		Offset uint8           `json:"offset"`
 	}{
 		Type:   p.Type(),
 		Value:  p.Prefix,
@@ -4379,7 +4379,7 @@ type FlowSpecDestinationPrefix struct {
 	flowSpecPrefix
 }
 
-func NewFlowSpecDestinationPrefix(prefix AddrPrefixInterface) *FlowSpecDestinationPrefix {
+func NewFlowSpecDestinationPrefix(prefix *IPAddrPrefix) *FlowSpecDestinationPrefix {
 	return &FlowSpecDestinationPrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_DST_PREFIX}}
 }
 
@@ -4387,7 +4387,7 @@ type FlowSpecSourcePrefix struct {
 	flowSpecPrefix
 }
 
-func NewFlowSpecSourcePrefix(prefix AddrPrefixInterface) *FlowSpecSourcePrefix {
+func NewFlowSpecSourcePrefix(prefix *IPAddrPrefix) *FlowSpecSourcePrefix {
 	return &FlowSpecSourcePrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_SRC_PREFIX}}
 }
 
@@ -4395,7 +4395,7 @@ type FlowSpecDestinationPrefix6 struct {
 	flowSpecPrefix6
 }
 
-func NewFlowSpecDestinationPrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecDestinationPrefix6 {
+func NewFlowSpecDestinationPrefix6(prefix *IPv6AddrPrefix, offset uint8) *FlowSpecDestinationPrefix6 {
 	return &FlowSpecDestinationPrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_DST_PREFIX}}
 }
 
@@ -4403,7 +4403,7 @@ type FlowSpecSourcePrefix6 struct {
 	flowSpecPrefix6
 }
 
-func NewFlowSpecSourcePrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecSourcePrefix6 {
+func NewFlowSpecSourcePrefix6(prefix *IPv6AddrPrefix, offset uint8) *FlowSpecSourcePrefix6 {
 	return &FlowSpecSourcePrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_SRC_PREFIX}}
 }
 
@@ -4970,11 +4970,11 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 			var pCommon, qCommon uint64
 			if n.AFI() == AFI_IP {
 				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-					p = &v.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).Prefix
-					q = &w.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).Prefix
+					p = &v.(*FlowSpecDestinationPrefix).Prefix.Prefix
+					q = &w.(*FlowSpecDestinationPrefix).Prefix.Prefix
 				} else {
-					p = &v.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).Prefix
-					q = &w.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).Prefix
+					p = &v.(*FlowSpecSourcePrefix).Prefix.Prefix
+					q = &w.(*FlowSpecSourcePrefix).Prefix.Prefix
 				}
 				min := p.Bits()
 				if q.Bits() < p.Bits() {
@@ -4984,11 +4984,11 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 				qCommon = uint64(binary.BigEndian.Uint32(q.Addr().AsSlice()) >> (32 - min))
 			} else if n.AFI() == AFI_IP6 {
 				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-					p = &v.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).Prefix
-					q = &w.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).Prefix
+					p = &v.(*FlowSpecDestinationPrefix6).Prefix.Prefix
+					q = &w.(*FlowSpecDestinationPrefix6).Prefix.Prefix
 				} else {
-					p = &v.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).Prefix
-					q = &w.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).Prefix
+					p = &v.(*FlowSpecSourcePrefix6).Prefix.Prefix
+					q = &w.(*FlowSpecSourcePrefix6).Prefix.Prefix
 				}
 				min := uint(p.Bits())
 				if q.Bits() < p.Bits() {

@@ -540,27 +540,27 @@ func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) ([]*api.FlowS
 		case *bgp.FlowSpecDestinationPrefix:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_DST_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPAddrPrefix).Prefix.Bits()),
-				Prefix:    v.Prefix.(*bgp.IPAddrPrefix).Prefix.Addr().String(),
+				PrefixLen: uint32(v.Prefix.Prefix.Bits()),
+				Prefix:    v.Prefix.Prefix.Addr().String(),
 			}}
 		case *bgp.FlowSpecSourcePrefix:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_SRC_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPAddrPrefix).Prefix.Bits()),
-				Prefix:    v.Prefix.(*bgp.IPAddrPrefix).Prefix.Addr().String(),
+				PrefixLen: uint32(v.Prefix.Prefix.Bits()),
+				Prefix:    v.Prefix.Prefix.Addr().String(),
 			}}
 		case *bgp.FlowSpecDestinationPrefix6:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_DST_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Bits()),
-				Prefix:    v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Addr().String(),
+				PrefixLen: uint32(v.Prefix.Prefix.Bits()),
+				Prefix:    v.Prefix.Prefix.Addr().String(),
 				Offset:    uint32(v.Offset),
 			}}
 		case *bgp.FlowSpecSourcePrefix6:
 			rule.Rule = &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
 				Type:      uint32(bgp.FLOW_SPEC_TYPE_SRC_PREFIX),
-				PrefixLen: uint32(v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Bits()),
-				Prefix:    v.Prefix.(*bgp.IPv6AddrPrefix).Prefix.Addr().String(),
+				PrefixLen: uint32(v.Prefix.Prefix.Bits()),
+				Prefix:    v.Prefix.Prefix.Addr().String(),
 				Offset:    uint32(v.Offset),
 			}}
 		case *bgp.FlowSpecSourceMac:
