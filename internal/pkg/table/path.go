@@ -1158,7 +1158,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 		path.family = bgp.RF_FS_IPv4_VPN
 	case bgp.RF_IPv6_UC:
-		n := nlri.(*bgp.IPv6AddrPrefix)
+		n := nlri.(*bgp.IPAddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
 		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
@@ -1212,7 +1212,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 		nlri.SetPathIdentifier(pathId)
 		newFamily = bgp.RF_IPv4_VPN
 	case bgp.RF_IPv6_UC:
-		n := nlri.(*bgp.IPv6AddrPrefix)
+		n := nlri.(*bgp.IPAddrPrefix)
 		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
 		nlri.SetPathIdentifier(pathId)
 		newFamily = bgp.RF_IPv6_VPN
@@ -1292,9 +1292,7 @@ func (p *Path) ToLocal() *Path {
 		newFamily = bgp.RF_FS_IPv4_UC
 	case bgp.RF_IPv6_VPN:
 		n := nlri.(*bgp.LabeledVPNIPv6AddrPrefix)
-		_, c, _ := net.ParseCIDR(n.IPPrefix())
-		ones, _ := c.Mask.Size()
-		nlri = bgp.NewIPv6AddrPrefix(uint8(ones), c.IP.String())
+		nlri, _ = bgp.NewIPAddrPrefix(n.Prefix)
 		nlri.SetPathLocalIdentifier(localPathId)
 		nlri.SetPathIdentifier(pathId)
 		newFamily = bgp.RF_IPv6_UC
@@ -1364,12 +1362,7 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 	case *bgp.IPAddrPrefix:
 		return &net.IPNet{
 			IP:   T.Prefix.Addr().AsSlice(),
-			Mask: net.CIDRMask(T.Prefix.Bits(), 32),
-		}
-	case *bgp.IPv6AddrPrefix:
-		return &net.IPNet{
-			IP:   T.Prefix.Addr().AsSlice(),
-			Mask: net.CIDRMask(T.Prefix.Bits(), 128),
+			Mask: net.CIDRMask(T.Prefix.Bits(), T.Prefix.Addr().BitLen()),
 		}
 	case *bgp.LabeledIPAddrPrefix:
 		return &net.IPNet{

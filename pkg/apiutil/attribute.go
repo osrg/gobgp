@@ -612,9 +612,11 @@ func UnmarshalFlowSpecRules(values []*api.FlowSpecRule) ([]bgp.FlowSpecComponent
 				prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen)))
 				rule = bgp.NewFlowSpecSourcePrefix(prefix)
 			case typ == bgp.FLOW_SPEC_TYPE_DST_PREFIX && !isIPv4:
-				rule = bgp.NewFlowSpecDestinationPrefix6(bgp.NewIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix), uint8(v.Offset))
+				prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen)))
+				rule = bgp.NewFlowSpecDestinationPrefix6(prefix, uint8(v.Offset))
 			case typ == bgp.FLOW_SPEC_TYPE_SRC_PREFIX && !isIPv4:
-				rule = bgp.NewFlowSpecSourcePrefix6(bgp.NewIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix), uint8(v.Offset))
+				prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen)))
+				rule = bgp.NewFlowSpecSourcePrefix6(prefix, uint8(v.Offset))
 			}
 		case *api.FlowSpecRule_Mac:
 			v := r.Mac
@@ -1157,11 +1159,6 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 			PrefixLen: uint32(v.Prefix.Bits()),
 			Prefix:    v.Prefix.Addr().String(),
 		}}
-	case *bgp.IPv6AddrPrefix:
-		nlri.Nlri = &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
-			PrefixLen: uint32(v.Prefix.Bits()),
-			Prefix:    v.Prefix.Addr().String(),
-		}}
 	case *bgp.LabeledIPAddrPrefix:
 		nlri.Nlri = &api.NLRI_LabeledPrefix{LabeledPrefix: &api.LabeledIPAddressPrefix{
 			Labels:    v.Labels.Labels,
@@ -1532,15 +1529,13 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 	switch n := an.GetNlri().(type) {
 	case *api.NLRI_Prefix:
 		v := n.Prefix
-		switch rf {
-		case bgp.RF_IPv4_UC:
-			prefix, err := netip.ParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen))
-			if err != nil {
-				return nil, err
-			}
-			nlri, _ = bgp.NewIPAddrPrefix(prefix)
-		case bgp.RF_IPv6_UC:
-			nlri = bgp.NewIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix)
+		prefix, err := netip.ParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen))
+		if err != nil {
+			return nil, err
+		}
+		nlri, err = bgp.NewIPAddrPrefix(prefix)
+		if err != nil {
+			return nil, err
 		}
 	case *api.NLRI_LabeledPrefix:
 		v := n.LabeledPrefix

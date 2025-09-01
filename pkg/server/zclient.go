@@ -153,12 +153,10 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	nexthops := make([]zebra.Nexthop, 0, len(paths))
 	msgFlags := zebra.MessageNexthop
 	switch path.GetFamily() {
-	case bgp.RF_IPv4_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		prefix = path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr().AsSlice()
 	case bgp.RF_IPv4_VPN:
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr().AsSlice()
-	case bgp.RF_IPv6_UC:
-		prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix.Addr().AsSlice()
 	case bgp.RF_IPv6_VPN:
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Prefix.Addr().AsSlice()
 	default:
@@ -282,14 +280,13 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 			"api":          header.Command.String(),
 		})
 
+	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", body.Prefix.Prefix.String(), body.Prefix.PrefixLen)))
 	switch family {
 	case bgp.RF_IPv4_UC:
-		nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", body.Prefix.Prefix.String(), body.Prefix.PrefixLen)))
 		if len(body.Nexthops) > 0 {
 			pattr = append(pattr, bgp.NewPathAttributeNextHop(body.Nexthops[0].Gate.String()))
 		}
 	case bgp.RF_IPv6_UC:
-		nlri = bgp.NewIPv6AddrPrefix(body.Prefix.PrefixLen, body.Prefix.Prefix.String())
 		if len(body.Nexthops) > 0 {
 			nexthop, err := netip.ParseAddr(body.Nexthops[0].Gate.String())
 			if err == nil {

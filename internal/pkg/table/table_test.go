@@ -152,9 +152,10 @@ func BenchmarkTableKey(b *testing.B) {
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(1, 2)
 	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"))
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"))
 	prefix := []bgp.AddrPrefixInterface{
 		nlri1,
-		bgp.NewIPv6AddrPrefix(64, "2001:db8::"),
+		nlri2,
 		bgp.NewLabeledVPNIPAddrPrefix(24, "192.168.1.0", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
 		bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8::", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
 	}
@@ -570,11 +571,12 @@ func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
 	lengthv6 := uint8(rand.Intn(128)) + 1
 
 	nlri1, _ := bgp.NewIPAddrPrefix(prefixv4)
+	nlri4, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
 	prefixes := []bgp.AddrPrefixInterface{
 		nlri1,
 		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), label, rd),
 		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
-		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
+		nlri4,
 		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
 		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
 	}
@@ -605,11 +607,12 @@ func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
 	lengthv6 := uint8(96)
 
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
+	nlri4, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
 	prefixes := []bgp.AddrPrefixInterface{
 		nlri1,
 		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), label, rd),
 		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
-		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
+		nlri4,
 		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
 		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
 	}
@@ -681,10 +684,11 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 	prefixv6 := addrv6.String()
 	lengthv6 := uint8(96)
 
-	nlri, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
 	prefixes := []bgp.AddrPrefixInterface{
-		nlri,
-		bgp.NewIPv6AddrPrefix(lengthv6, prefixv6),
+		nlri1,
+		nlri2,
 	}
 
 	for _, l := range []bgp.MPLSLabelStack{label1, label2, label3} {

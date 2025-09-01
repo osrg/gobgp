@@ -1518,7 +1518,7 @@ type IPAddrPrefix struct {
 	IPAddrPrefixDefault
 }
 
-func (r *IPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (r *IPAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	addrlen := 4
 	f := RF_IPv4_UC
 	if isIPv6(options) {
@@ -1591,22 +1591,6 @@ func NewIPAddrPrefix(prefix netip.Prefix) (*IPAddrPrefix, error) {
 			Prefix: prefix.Masked(),
 		},
 	}, nil
-}
-
-type IPv6AddrPrefix struct {
-	IPAddrPrefix
-}
-
-func NewIPv6AddrPrefix(bits uint8, prefix string) *IPv6AddrPrefix {
-	p := &IPv6AddrPrefix{}
-	// TODO: pass the error to the caller
-	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits, 16)
-	return p
-}
-
-func (l *IPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return l.IPAddrPrefix.DecodeFromBytes(data, options...)
 }
 
 const (
@@ -3918,11 +3902,13 @@ func flowSpecPrefixParser(rf Family, typ BGPFlowSpecType, args []string) (FlowSp
 				return nil, fmt.Errorf("invalid ipv6 prefix offset: %s", args[1])
 			}
 		}
+		// validated above
+		nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", prefix.String(), prefixLen)))
 		switch typ {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
+			return NewFlowSpecDestinationPrefix6(nlri, uint8(offset)), nil
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(prefixLen), prefix.String()), uint8(offset)), nil
+			return NewFlowSpecSourcePrefix6(nlri, uint8(offset)), nil
 		}
 		return nil, fmt.Errorf("invalid traffic filtering rule type: %s", typ.String())
 	}
@@ -4279,7 +4265,7 @@ func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOpt
 	if p.Prefix == nil {
 		return malformedAttrListErr("flowSpecPrefix: Prefix is nil")
 	}
-	return p.Prefix.DecodeFromBytes(data[1:], options...)
+	return p.Prefix.decodeFromBytes(data[1:], options...)
 }
 
 func (p *flowSpecPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -4320,7 +4306,7 @@ func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
 }
 
 type flowSpecPrefix6 struct {
-	Prefix *IPv6AddrPrefix
+	Prefix *IPAddrPrefix
 	Offset uint8
 	typ    BGPFlowSpecType
 }
@@ -4338,7 +4324,7 @@ func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOp
 		return malformedAttrListErr("flowSpecPrefix6: Prefix is nil")
 	}
 	options = append(options, &MarshallingOption{isIPv6: true})
-	return p.Prefix.DecodeFromBytes(prefix, options...)
+	return p.Prefix.decodeFromBytes(prefix, options...)
 }
 
 func (p *flowSpecPrefix6) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -4371,7 +4357,7 @@ func (p *flowSpecPrefix6) String() string {
 func (p *flowSpecPrefix6) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type   BGPFlowSpecType `json:"type"`
-		Value  *IPv6AddrPrefix `json:"value"`
+		Value  *IPAddrPrefix   `json:"value"`
 		Offset uint8           `json:"offset"`
 	}{
 		Type:   p.Type(),
@@ -4400,7 +4386,7 @@ type FlowSpecDestinationPrefix6 struct {
 	flowSpecPrefix6
 }
 
-func NewFlowSpecDestinationPrefix6(prefix *IPv6AddrPrefix, offset uint8) *FlowSpecDestinationPrefix6 {
+func NewFlowSpecDestinationPrefix6(prefix *IPAddrPrefix, offset uint8) *FlowSpecDestinationPrefix6 {
 	return &FlowSpecDestinationPrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_DST_PREFIX}}
 }
 
@@ -4408,7 +4394,7 @@ type FlowSpecSourcePrefix6 struct {
 	flowSpecPrefix6
 }
 
-func NewFlowSpecSourcePrefix6(prefix *IPv6AddrPrefix, offset uint8) *FlowSpecSourcePrefix6 {
+func NewFlowSpecSourcePrefix6(prefix *IPAddrPrefix, offset uint8) *FlowSpecSourcePrefix6 {
 	return &FlowSpecSourcePrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_SRC_PREFIX}}
 }
 
@@ -4784,7 +4770,7 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 				ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
 				i = NewFlowSpecDestinationPrefix(ipPrefix)
 			case AFI_IP6:
-				i = NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(0, ""), 0)
+				i = NewFlowSpecDestinationPrefix6(&IPAddrPrefix{}, 0)
 			default:
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
@@ -4794,7 +4780,7 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 				ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
 				i = NewFlowSpecSourcePrefix(ipPrefix)
 			case AFI_IP6:
-				i = NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(0, ""), 0)
+				i = NewFlowSpecSourcePrefix6(&IPAddrPrefix{}, 0)
 			default:
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
@@ -10111,16 +10097,12 @@ func GetFamily(name string) (Family, error) {
 
 func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nlri AddrPrefixInterface, err error) {
 	switch family {
-	case RF_IPv4_UC, RF_IPv4_MC:
-		nlri := &IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
+	case RF_IPv4_UC, RF_IPv4_MC, RF_IPv6_UC, RF_IPv6_MC:
+		if family.Afi() == AFI_IP6 {
+			options = append(options, &MarshallingOption{isIPv6: true})
 		}
-		return nlri, nil
-	case RF_IPv6_UC, RF_IPv6_MC:
-		nlri := &IPv6AddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		nlri := &IPAddrPrefix{}
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
@@ -15113,7 +15095,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	msg.WithdrawnRoutes = make([]*IPAddrPrefix, 0, msg.WithdrawnRoutesLen)
 	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
 		w := &IPAddrPrefix{}
-		err := w.DecodeFromBytes(data, options...)
+		err := w.decodeFromBytes(data, options...)
 		if err != nil {
 			return err
 		}
@@ -15190,7 +15172,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	msg.NLRI = make([]*IPAddrPrefix, 0)
 	for restlen := len(data); restlen > 0; {
 		n := &IPAddrPrefix{}
-		err := n.DecodeFromBytes(data, options...)
+		err := n.decodeFromBytes(data, options...)
 		if err != nil {
 			return err
 		}

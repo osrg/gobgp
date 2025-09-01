@@ -31,8 +31,8 @@ func bgpupdateV6() *BGPMessage {
 		NewAsPathParam(2, []uint16{65001}),
 	}
 
-	prefixes := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
-		"fe80:1234:1234:5667:8967:af12:8912:1023")}
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:8912:1023/100"))
+	prefixes := []AddrPrefixInterface{nlri}
 
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(1),

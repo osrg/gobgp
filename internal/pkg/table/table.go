@@ -37,14 +37,10 @@ import (
 func addrPrefixOnlySerialize(nlri bgp.AddrPrefixInterface) []byte {
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
-		b := make([]byte, 5)
+		byteLen := T.Prefix.Addr().BitLen() / 8
+		b := make([]byte, byteLen+1)
 		copy(b, T.Prefix.Addr().AsSlice())
-		b[4] = uint8(T.Prefix.Bits())
-		return b
-	case *bgp.IPv6AddrPrefix:
-		b := make([]byte, 17)
-		copy(b, T.Prefix.Addr().AsSlice())
-		b[16] = uint8(T.Prefix.Bits())
+		b[byteLen] = uint8(T.Prefix.Bits())
 		return b
 	case *bgp.LabeledVPNIPAddrPrefix:
 		b := make([]byte, 13)
@@ -88,9 +84,6 @@ func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
 	h := fnv1a.Init64
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
-		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
-		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
-	case *bgp.IPv6AddrPrefix:
 		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
 		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
 	case *bgp.LabeledVPNIPAddrPrefix:
@@ -660,13 +653,10 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				if err != nil {
 					return false, err
 				}
-				var nlri bgp.AddrPrefixInterface
-				if t.Family == bgp.RF_IPv4_UC {
-					nlri, _ = bgp.NewIPAddrPrefix(prefix)
-				} else {
-					nlri = bgp.NewIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+				nlri, err := bgp.NewIPAddrPrefix(prefix)
+				if err != nil {
+					return false, err
 				}
-
 				if dst := t.GetDestination(nlri); dst != nil {
 					if d := dst.Select(dOption); d != nil {
 						r.setDestination(d)

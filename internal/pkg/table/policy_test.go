@@ -147,7 +147,7 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
+	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
 	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
@@ -171,7 +171,7 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
+	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
 	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
@@ -192,7 +192,7 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
+	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
 	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
@@ -213,7 +213,7 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	mpnlri := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
+	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
 	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
@@ -435,7 +435,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	originIPv6 := bgp.NewPathAttributeOrigin(0)
 	aspathParamIPv6 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspathIPv6 := bgp.NewPathAttributeAsPath(aspathParamIPv6)
-	mpnlriIPv6 := bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")
+	mpnlriIPv6, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
 	mpreachIPv6, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlriIPv6}, netip.MustParseAddr("2001::192:168:50:1"))
 	medIPv6 := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributesIPv6 := []bgp.PathAttributeInterface{mpreachIPv6, originIPv6, aspathIPv6, medIPv6}
@@ -3860,7 +3860,7 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 	prefixVPNv6 := bgp.NewLabeledVPNIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(200, 200))
 	prefixRTC := bgp.NewRouteTargetMembershipNLRI(100, nil)
 	prefixv4, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("1.1.1.0/24"))
-	prefixv6 := bgp.NewIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+	prefixv6, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:0db8:85a3:0000:0000:8a2e:0370:7334/0"))
 
 	pathVPNv4 := NewPath(bgp.RF_IPv4_VPN, nil, prefixVPNv4, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
 	pathVPNv6 := NewPath(bgp.RF_IPv6_VPN, nil, prefixVPNv6, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)

@@ -80,13 +80,13 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	ipv4, _ = NewIPAddrPrefix(netip.MustParsePrefix("129.6.129.0/22"))
 	assert.Equal(t, "129.6.128.0/22", ipv4.String())
 
-	ipv6 := NewIPv6AddrPrefix(64, "3343:faba:3903::0")
+	ipv6, _ := NewIPAddrPrefix(netip.MustParsePrefix("3343:faba:3903::0/64"))
 	assert.Equal(t, "3343:faba:3903::/64", ipv6.String())
-	ipv6 = NewIPv6AddrPrefix(64, "3343:faba:3903::1")
+	ipv6, _ = NewIPAddrPrefix(netip.MustParsePrefix("3343:faba:3903::1/64"))
 	assert.Equal(t, "3343:faba:3903::/64", ipv6.String())
-	ipv6 = NewIPv6AddrPrefix(63, "3343:faba:3903:129::0")
+	ipv6, _ = NewIPAddrPrefix(netip.MustParsePrefix("3343:faba:3903:129::0/63"))
 	assert.Equal(t, "3343:faba:3903:128::/63", ipv6.String())
-	mapped_ipv6 := NewIPv6AddrPrefix(128, "::ffff:192.0.2.128")
+	mapped_ipv6, _ := NewIPAddrPrefix(netip.MustParsePrefix("::ffff:192.0.2.128/128"))
 	assert.Equal(t, "::ffff:192.0.2.128/128", mapped_ipv6.String())
 }
 
@@ -573,8 +573,9 @@ func Test_IP6FlowSpecExtended(t *testing.T) {
 
 func Test_FlowSpecNlriv6(t *testing.T) {
 	cmp := make([]FlowSpecComponentInterface, 0)
-	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
-	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001::/64"))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix6(nlri, 12))
+	cmp = append(cmp, NewFlowSpecSourcePrefix6(nlri, 12))
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, TCP)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
 	item2 := NewFlowSpecComponentItem(DEC_NUM_OP_GT_EQ, 20)
@@ -711,29 +712,26 @@ func Test_AddPath(t *testing.T) {
 		assert.Equal(n1.PathLocalIdentifier(), uint32(10))
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := &IPAddrPrefix{}
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv4_UC, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(10))
 	}
 	{
-		n1 := NewIPv6AddrPrefix(64, "2001::")
+		n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001::/64"))
 		n1.SetPathIdentifier(10)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewIPv6AddrPrefix(0, "")
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv6_UC, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(0))
 	}
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH, RF_IPv6_UC: BGP_ADD_PATH_BOTH}}
 	{
-		n1 := NewIPv6AddrPrefix(64, "2001::")
+		n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001::/64"))
 		n1.SetPathLocalIdentifier(10)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewIPv6AddrPrefix(0, "")
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv6_UC, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(10))
 	}
@@ -874,7 +872,7 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 
 func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert := assert.New(t)
-	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.0")
+	n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("::ffff:10.0.0.0/120"))
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
 	n2, err := NLRIFromSlice(RF_IPv6_UC, buf1)
@@ -919,9 +917,8 @@ func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	assert.Equal(netip.MustParseAddr("::ffff:172.20.0.1"), p.Nexthop)
 	assert.False(p.LinkLocalNexthop.IsValid())
-	value := []AddrPrefixInterface{
-		NewIPv6AddrPrefix(64, "2001:db8:1:1::"),
-	}
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1:1::/64"))
+	value := []AddrPrefixInterface{nlri}
 	assert.Equal(value, p.Value)
 	// Set NextHop as IPv4 address (because IPv4 peering)
 	p.Nexthop = netip.MustParseAddr("172.20.0.1")
@@ -957,9 +954,8 @@ func Test_MpReachNLRIWithIPv6(t *testing.T) {
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
-	value := []AddrPrefixInterface{
-		NewIPv6AddrPrefix(64, "2001:db8:53::"),
-	}
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:53::/64"))
+	value := []AddrPrefixInterface{nlri}
 	assert.Equal(value, p.Value)
 }
 
@@ -982,9 +978,8 @@ func Test_MpUnreachNLRIWithIPv6(t *testing.T) {
 	assert.Equal(uint16(0x0c), p.Length)
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
-	value := []AddrPrefixInterface{
-		NewIPv6AddrPrefix(64, "2001:db8:53::"),
-	}
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:53::/64"))
+	value := []AddrPrefixInterface{nlri}
 	assert.Equal(value, p.Value)
 }
 
@@ -1017,9 +1012,8 @@ func Test_MpReachNLRIWithIPv6PrefixWithLinkLocalNexthop(t *testing.T) {
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	assert.Equal(netip.MustParseAddr("fe80::1"), p.LinkLocalNexthop)
-	value := []AddrPrefixInterface{
-		NewIPv6AddrPrefix(48, "2010:ab8:1::"),
-	}
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2010:ab8:1::/48"))
+	value := []AddrPrefixInterface{nlri}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()
@@ -3807,7 +3801,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&CapSoftwareVersion{}).DecodeFromBytes(data)
 		(&OptionParameterCapability{}).DecodeFromBytes(data)
 		(&BGPOpen{}).DecodeFromBytes(data)
-		(&IPAddrPrefix{}).DecodeFromBytes(data)
+		(&IPAddrPrefix{}).decodeFromBytes(data)
 		(&RouteDistinguisherTwoOctetAS{}).DecodeFromBytes(data)
 		(&RouteDistinguisherIPAddressAS{}).DecodeFromBytes(data)
 		(&RouteDistinguisherFourOctetAS{}).DecodeFromBytes(data)

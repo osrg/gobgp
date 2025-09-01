@@ -80,8 +80,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 			NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001)),
 	}
 
-	prefixes2 := []AddrPrefixInterface{NewIPv6AddrPrefix(128,
-		"fe80:1234:1234:5667:8967:af12:8912:1023")}
+	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:8912:1023/128"))
+	prefixes2 := []AddrPrefixInterface{nlri}
 
 	prefixes3 := []AddrPrefixInterface{NewLabeledVPNIPv6AddrPrefix(128,
 		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewMPLSLabelStack(5, 6),

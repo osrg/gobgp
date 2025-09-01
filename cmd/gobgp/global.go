@@ -2086,13 +2086,10 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 			if !prefix.Addr().Is4() {
 				return nil, fmt.Errorf("not ipv4 prefix")
 			}
-			nlri, _ = bgp.NewIPAddrPrefix(prefix)
-		} else {
-			if !prefix.Addr().Is6() {
-				return nil, fmt.Errorf("not ipv6 prefix")
-			}
-			nlri = bgp.NewIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String())
+		} else if !prefix.Addr().Is6() {
+			return nil, fmt.Errorf("not ipv6 prefix")
 		}
+		nlri, _ = bgp.NewIPAddrPrefix(prefix)
 
 		if len(args) > 2 && args[1] == "identifier" {
 			id, err := strconv.ParseUint(args[2], 10, 32)
