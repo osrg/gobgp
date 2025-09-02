@@ -1394,3 +1394,21 @@ func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
 	}
 	return nil
 }
+
+func nlriToPrefix(nlri bgp.AddrPrefixInterface) netip.Prefix {
+	switch T := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		return T.Prefix
+	case *bgp.IPv6AddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledIPAddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledIPv6AddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledVPNIPAddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledVPNIPv6AddrPrefix:
+		return T.Prefix
+	}
+	return netip.Prefix{}
+}
