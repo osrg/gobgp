@@ -1399,8 +1399,6 @@ func LabelString(nlri AddrPrefixInterface) string {
 		label = n.Labels.String()
 	case *LabeledVPNIPAddrPrefix:
 		label = n.Labels.String()
-	case *LabeledVPNIPv6AddrPrefix:
-		label = n.Labels.String()
 	case *EVPNNLRI:
 		switch route := n.RouteTypeData.(type) {
 		case *EVPNEthernetAutoDiscoveryRoute:
@@ -2028,7 +2026,7 @@ type LabeledVPNIPAddrPrefix struct {
 	RD     RouteDistinguisherInterface
 }
 
-func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (l *LabeledVPNIPAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	addrlen := 4
 	f := RF_IPv4_VPN
 	if isIPv6(options) {
@@ -2135,26 +2133,6 @@ func NewLabeledVPNIPAddrPrefix(prefix netip.Prefix, label MPLSLabelStack, rd Rou
 		Labels: label,
 		RD:     rd,
 	}, nil
-}
-
-type LabeledVPNIPv6AddrPrefix struct {
-	LabeledVPNIPAddrPrefix
-}
-
-func NewLabeledVPNIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
-	p := &LabeledVPNIPv6AddrPrefix{
-		LabeledVPNIPAddrPrefix{
-			Labels: label,
-			RD:     rd,
-		},
-	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits, 16)
-	return p
-}
-
-func (l *LabeledVPNIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return l.LabeledVPNIPAddrPrefix.DecodeFromBytes(data, options...)
 }
 
 type LabeledIPAddrPrefix struct {
@@ -10111,16 +10089,12 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 			return nil, err
 		}
 		return nlri, nil
-	case RF_IPv4_VPN:
-		nlri := &LabeledVPNIPAddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
+	case RF_IPv4_VPN, RF_IPv6_VPN, RF_IPv4_VPN_MC, RF_IPv6_VPN_MC:
+		if family.Afi() == AFI_IP6 {
+			options = append(options, &MarshallingOption{isIPv6: true})
 		}
-		return nlri, nil
-	case RF_IPv6_VPN:
-		nlri := &LabeledVPNIPv6AddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		nlri := &LabeledVPNIPAddrPrefix{}
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}

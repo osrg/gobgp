@@ -1281,17 +1281,6 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 			PrefixLen: uint32(v.IPPrefixLen()),
 			Prefix:    v.Prefix.Addr().String(),
 		}}
-	case *bgp.LabeledVPNIPv6AddrPrefix:
-		rd, err := MarshalRD(v.RD)
-		if err != nil {
-			return nil, err
-		}
-		nlri.Nlri = &api.NLRI_LabeledVpnIpPrefix{LabeledVpnIpPrefix: &api.LabeledVPNIPAddressPrefix{
-			Labels:    v.Labels.Labels,
-			Rd:        rd,
-			PrefixLen: uint32(v.IPPrefixLen()),
-			Prefix:    v.Prefix.Addr().String(),
-		}}
 	case *bgp.RouteTargetMembershipNLRI:
 		rt, err := func() (*api.RouteTarget, error) {
 			if v.RouteTarget == nil {
@@ -1642,16 +1631,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		switch rf {
-		case bgp.RF_IPv4_VPN:
-			prefix, err := netip.ParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen))
-			if err != nil {
-				return nil, err
-			}
-			nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...), rd)
-		case bgp.RF_IPv6_VPN:
-			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix, *bgp.NewMPLSLabelStack(v.Labels...), rd)
+		prefix, err := netip.ParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen))
+		if err != nil {
+			return nil, err
 		}
+		nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...), rd)
 	case *api.NLRI_RouteTargetMembership:
 		v := n.RouteTargetMembership
 		rt, err := func() (bgp.ExtendedCommunityInterface, error) {

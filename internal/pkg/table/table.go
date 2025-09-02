@@ -43,18 +43,13 @@ func addrPrefixOnlySerialize(nlri bgp.AddrPrefixInterface) []byte {
 		b[byteLen] = uint8(T.Prefix.Bits())
 		return b
 	case *bgp.LabeledVPNIPAddrPrefix:
-		b := make([]byte, 13)
+		byteLen := T.Prefix.Addr().BitLen() / 8
+		// RD and length
+		b := make([]byte, byteLen+9)
 		serializedRD, _ := T.RD.Serialize()
 		copy(b, serializedRD)
-		copy(b[8:12], T.Prefix.Addr().AsSlice())
-		b[12] = uint8(T.Prefix.Bits())
-		return b
-	case *bgp.LabeledVPNIPv6AddrPrefix:
-		b := make([]byte, 25)
-		serializedRD, _ := T.RD.Serialize()
-		copy(b, serializedRD)
-		copy(b[8:24], T.Prefix.Addr().AsSlice())
-		b[24] = uint8(T.Prefix.Bits())
+		copy(b[8:], T.Prefix.Addr().AsSlice())
+		b[8+byteLen] = uint8(T.Prefix.Bits())
 		return b
 	}
 	return []byte(nlri.String())
@@ -87,11 +82,6 @@ func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
 		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
 		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
 	case *bgp.LabeledVPNIPAddrPrefix:
-		serializedRD, _ := T.RD.Serialize()
-		h = fnv1a.AddBytes64(h, serializedRD)
-		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
-		h = fnv1a.AddBytes64(h, []byte{uint8(T.Prefix.Bits())})
-	case *bgp.LabeledVPNIPv6AddrPrefix:
 		serializedRD, _ := T.RD.Serialize()
 		h = fnv1a.AddBytes64(h, serializedRD)
 		h = fnv1a.AddBytes64(h, T.Prefix.Addr().AsSlice())
@@ -233,8 +223,6 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 				nlri := p.GetNlri()
 				switch v := nlri.(type) {
 				case *bgp.LabeledVPNIPAddrPrefix:
-					rd = v.RD
-				case *bgp.LabeledVPNIPv6AddrPrefix:
 					rd = v.RD
 				case *bgp.EVPNNLRI:
 					rd = v.RD()
@@ -439,14 +427,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) 
 
 		r := critbitgo.NewNet()
 		for _, dst := range t.GetDestinations() {
-			var dstRD bgp.RouteDistinguisherInterface
-			switch t.Family {
-			case bgp.RF_IPv4_VPN:
-				dstRD = dst.nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
-			case bgp.RF_IPv6_VPN:
-				dstRD = dst.nlri.(*bgp.LabeledVPNIPv6AddrPrefix).RD
-			}
-
+			dstRD := dst.nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
 			if prefixRd.String() != dstRD.String() {
 				continue
 			}
@@ -726,13 +707,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 					return err
 				}
 
-				var nlri bgp.AddrPrefixInterface
-				if t.Family == bgp.RF_IPv4_VPN {
-					nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
-				} else {
-					nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
-				}
-
+				nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
 				if dst := t.GetDestination(nlri); dst != nil {
 					if d := dst.Select(dOption); d != nil {
 						r.setDestination(d)

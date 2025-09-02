@@ -154,11 +154,12 @@ func BenchmarkTableKey(b *testing.B) {
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"))
 	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"))
 	nlri3, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"), *bgp.NewMPLSLabelStack(100, 200, 300), rd)
+	nlri4, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"), *bgp.NewMPLSLabelStack(100, 200, 300), rd)
 	prefix := []bgp.AddrPrefixInterface{
 		nlri1,
 		nlri2,
 		nlri3,
-		bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8::", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
+		nlri4,
 	}
 
 	b.Run("TableKey known types", func(b *testing.B) {
@@ -383,8 +384,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv6_VPN)
 	for _, prefix := range prefixes {
 		rd, p, _ := bgp.ParseVPNPrefix(prefix)
-		nlri := bgp.NewLabeledVPNIPv6AddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
-
+		nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
 		destination := NewDestination(nlri, 0, NewPath(bgp.RF_IPv6_VPN, nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
 	}
@@ -568,19 +568,20 @@ func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
 	b = make([]byte, 16)
 	crand.Read(b)
 	addrv6, _ := netip.AddrFromSlice(b)
-	prefixv6 := addrv6.String()
+	prefixv6 := addrv6
 	lengthv6 := uint8(rand.Intn(128)) + 1
 
 	nlri1, _ := bgp.NewIPAddrPrefix(prefixv4)
 	nlri2, _ := bgp.NewLabeledVPNIPAddrPrefix(prefixv4, label, rd)
 	nlri4, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
+	nlri5, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv6, int(lengthv6)), label, rd)
 	prefixes := []bgp.AddrPrefixInterface{
 		nlri1,
 		nlri2,
 		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
 		nlri4,
-		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
-		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
+		nlri5,
+		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6.String(), label),
 	}
 
 	return prefixes
@@ -605,19 +606,20 @@ func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
 	v += uint32(index) << 8
 	binary.BigEndian.PutUint32(b, v)
 	addrv6, _ := netip.AddrFromSlice(b)
-	prefixv6 := addrv6.String()
+	prefixv6 := addrv6
 	lengthv6 := uint8(96)
 
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
 	nlri2, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)), label, rd)
 	nlri4, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
+	nlri5, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv6, int(lengthv6)), label, rd)
 	prefixes := []bgp.AddrPrefixInterface{
 		nlri1,
 		nlri2,
 		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
 		nlri4,
-		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
-		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, label),
+		nlri5,
+		bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6.String(), label),
 	}
 
 	return prefixes
@@ -684,7 +686,7 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 	v += uint32(index) << 8
 	binary.BigEndian.PutUint32(b, v)
 	addrv6, _ := netip.AddrFromSlice(b)
-	prefixv6 := addrv6.String()
+	prefixv6 := addrv6
 	lengthv6 := uint8(96)
 
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
@@ -699,8 +701,9 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 			nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)), l, rd)
 			prefixes = append(prefixes, nlri)
 			prefixes = append(prefixes, bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), l))
-			prefixes = append(prefixes, bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, l, rd))
-			prefixes = append(prefixes, bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, l))
+			nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv6, int(lengthv6)), l, rd)
+			prefixes = append(prefixes, nlri)
+			prefixes = append(prefixes, bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6.String(), l))
 		}
 	}
 	return prefixes

@@ -82,9 +82,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:8912:1023/128"))
 	prefixes2 := []AddrPrefixInterface{nlri}
 
-	prefixes3 := []AddrPrefixInterface{NewLabeledVPNIPv6AddrPrefix(128,
-		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewMPLSLabelStack(5, 6),
-		NewRouteDistinguisherFourOctetAS(5, 6))}
+	vpn3, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:1203:33a1/128"), *NewMPLSLabelStack(5, 6), NewRouteDistinguisherFourOctetAS(5, 6))
+	prefixes3 := []AddrPrefixInterface{vpn3}
 
 	prefixes4 := []AddrPrefixInterface{NewLabeledIPAddrPrefix(25, "192.168.0.0",
 		*NewMPLSLabelStack(5, 6, 7))}

@@ -131,7 +131,7 @@ func addLabelToNexthop(path *table.Path, z *zebraClient, msgFlags *zebra.Message
 				nexthop.MplsLabels = append(nexthop.MplsLabels, label)
 			}
 		case bgp.RF_IPv6_VPN:
-			for _, label := range path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Labels.Labels {
+			for _, label := range path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Labels.Labels {
 				nexthop.LabelNum++
 				nexthop.MplsLabels = append(nexthop.MplsLabels, label)
 			}
@@ -158,7 +158,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	case bgp.RF_IPv4_VPN:
 		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr().AsSlice()
 	case bgp.RF_IPv6_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).Prefix.Addr().AsSlice()
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr().AsSlice()
 	default:
 		return nil, false
 	}
