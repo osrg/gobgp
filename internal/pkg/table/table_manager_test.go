@@ -2305,7 +2305,7 @@ func makeVpn4Path(t *testing.T, peerInfo *PeerInfo, address string, nh string, r
 	}
 	rd, _ := bgp.ParseRouteDistinguisher(rdStr)
 	labels := bgp.NewMPLSLabelStack(100, 200)
-	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, address, *labels, rd)
+	prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(address+"/24"), *labels, rd)
 	return NewPath(bgp.RF_IPv4_VPN, peerInfo, prefix, false, attrs, time.Now(), false)
 }
 

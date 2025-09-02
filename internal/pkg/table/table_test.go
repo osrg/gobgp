@@ -153,10 +153,11 @@ func BenchmarkTableKey(b *testing.B) {
 	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"))
 	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"))
+	nlri3, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"), *bgp.NewMPLSLabelStack(100, 200, 300), rd)
 	prefix := []bgp.AddrPrefixInterface{
 		nlri1,
 		nlri2,
-		bgp.NewLabeledVPNIPAddrPrefix(24, "192.168.1.0", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
+		nlri3,
 		bgp.NewLabeledVPNIPv6AddrPrefix(64, "2001:db8::", *bgp.NewMPLSLabelStack(100, 200, 300), rd),
 	}
 
@@ -274,7 +275,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv4_VPN)
 	for _, prefix := range prefixes {
 		rd, p, _ := bgp.ParseVPNPrefix(prefix)
-		nlri := bgp.NewLabeledVPNIPAddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
+		nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
 
 		destination := NewDestination(nlri, 0, NewPath(bgp.RF_IPv4_VPN, nil, nlri, false, nil, time.Now(), false))
 		table.setDestination(destination)
@@ -571,10 +572,11 @@ func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
 	lengthv6 := uint8(rand.Intn(128)) + 1
 
 	nlri1, _ := bgp.NewIPAddrPrefix(prefixv4)
+	nlri2, _ := bgp.NewLabeledVPNIPAddrPrefix(prefixv4, label, rd)
 	nlri4, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
 	prefixes := []bgp.AddrPrefixInterface{
 		nlri1,
-		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), label, rd),
+		nlri2,
 		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
 		nlri4,
 		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
@@ -607,10 +609,11 @@ func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
 	lengthv6 := uint8(96)
 
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)))
+	nlri2, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)), label, rd)
 	nlri4, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(addrv6, int(lengthv6)))
 	prefixes := []bgp.AddrPrefixInterface{
 		nlri1,
-		bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), label, rd),
+		nlri2,
 		bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), label),
 		nlri4,
 		bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, label, rd),
@@ -693,7 +696,8 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 
 	for _, l := range []bgp.MPLSLabelStack{label1, label2, label3} {
 		for _, rd := range []bgp.RouteDistinguisherInterface{rd1, rd2} {
-			prefixes = append(prefixes, bgp.NewLabeledVPNIPAddrPrefix(lengthv4, prefixv4.String(), l, rd))
+			nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.PrefixFrom(prefixv4, int(lengthv4)), l, rd)
+			prefixes = append(prefixes, nlri)
 			prefixes = append(prefixes, bgp.NewLabeledIPAddrPrefix(lengthv4, prefixv4.String(), l))
 			prefixes = append(prefixes, bgp.NewLabeledVPNIPv6AddrPrefix(lengthv6, prefixv6, l, rd))
 			prefixes = append(prefixes, bgp.NewLabeledIPv6AddrPrefix(lengthv6, prefixv6, l))

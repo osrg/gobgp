@@ -3701,15 +3701,15 @@ func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
 	labels := bgp.NewMPLSLabelStack(100, 200)
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 
-	n1 := bgp.NewLabeledVPNIPAddrPrefix(32, "10.10.10.10", *labels, rd)
+	n1, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.10/32"), *labels, rd)
 	path := NewPath(bgp.RF_IPv4_MPLS, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
-	n2 := bgp.NewLabeledVPNIPAddrPrefix(32, "10.20.20.20", *labels, rd)
+	n2, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.20.20.20/32"), *labels, rd)
 	path = NewPath(bgp.RF_IPv4_MPLS, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
-	n3 := bgp.NewLabeledVPNIPAddrPrefix(16, "10.10.0.0", *labels, rd)
+	n3, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/16"), *labels, rd)
 	path = NewPath(bgp.RF_IPv4_MPLS, nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
@@ -3856,7 +3856,7 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 	rtExtCom, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_ROUTE_TARGET, "100:100")
 	assert.NoError(t, err)
 
-	prefixVPNv4 := bgp.NewLabeledVPNIPAddrPrefix(0, "1.1.1.0/24", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(100, 100))
+	prefixVPNv4, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("1.1.1.0/24"), *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(100, 100))
 	prefixVPNv6 := bgp.NewLabeledVPNIPv6AddrPrefix(0, "2001:0db8:85a3:0000:0000:8a2e:0370:7334", *bgp.NewMPLSLabelStack(), bgp.NewRouteDistinguisherTwoOctetAS(200, 200))
 	prefixRTC := bgp.NewRouteTargetMembershipNLRI(100, nil)
 	prefixv4, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("1.1.1.0/24"))

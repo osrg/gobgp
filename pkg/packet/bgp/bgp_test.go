@@ -102,7 +102,7 @@ func TestStringLabelAddrPrefix(t *testing.T) {
 	assert.Equal("::ffff:192.0.2.0/120", mapped_ipv6.String())
 
 	rd, _ := ParseRouteDistinguisher("300:100")
-	vpnv4 := NewLabeledVPNIPAddrPrefix(24, "10.10.10.0", *labels, rd)
+	vpnv4, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels, rd)
 	assert.Equal("300:100:10.10.10.0/24", vpnv4.String())
 	vpnv6 := NewLabeledVPNIPv6AddrPrefix(64, "3343:faba:3903::", *labels, rd)
 	assert.Equal("300:100:3343:faba:3903::/64", vpnv6.String())
@@ -739,12 +739,11 @@ func Test_AddPath(t *testing.T) {
 	{
 		rd, _ := ParseRouteDistinguisher("100:100")
 		labels := NewMPLSLabelStack(100, 200)
-		n1 := NewLabeledVPNIPAddrPrefix(24, "10.10.10.0", *labels, rd)
+		n1, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels, rd)
 		n1.SetPathLocalIdentifier(20)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewLabeledVPNIPAddrPrefix(0, "", MPLSLabelStack{}, nil)
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv4_VPN, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
 	}
@@ -1048,10 +1047,9 @@ func Test_MpReachNLRIWithVPNv4Prefix(t *testing.T) {
 	assert.Equal(uint8(SAFI_MPLS_VPN), p.SAFI)
 	assert.Equal(netip.MustParseAddr("172.20.0.1"), p.Nexthop)
 	assert.False(p.LinkLocalNexthop.IsValid())
-	value := []AddrPrefixInterface{
-		NewLabeledVPNIPAddrPrefix(24, "10.1.1.0", *NewMPLSLabelStack(16),
-			NewRouteDistinguisherTwoOctetAS(65000, 100)),
-	}
+	n, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.1.1.0/24"), *NewMPLSLabelStack(16),
+		NewRouteDistinguisherTwoOctetAS(65000, 100))
+	value := []AddrPrefixInterface{n}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()

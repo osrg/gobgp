@@ -728,7 +728,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 
 				var nlri bgp.AddrPrefixInterface
 				if t.Family == bgp.RF_IPv4_VPN {
-					nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
+					nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
 				} else {
 					nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(p.Bits()), p.Addr().String(), *bgp.NewMPLSLabelStack(), rd)
 				}

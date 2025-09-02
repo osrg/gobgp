@@ -73,12 +73,11 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewMacMobilityExtended(123, false),
 	}
 
-	prefixes1 := []AddrPrefixInterface{
-		NewLabeledVPNIPAddrPrefix(24, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
-			NewRouteDistinguisherTwoOctetAS(256, 10000)),
-		NewLabeledVPNIPAddrPrefix(24, "192.10.8.0", *NewMPLSLabelStack(5, 6, 7, 8),
-			NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001)),
-	}
+	vpn1, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.0.9.0/24"), *NewMPLSLabelStack(1, 2, 3),
+		NewRouteDistinguisherTwoOctetAS(256, 10000))
+	vpn2, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.10.8.0/24"), *NewMPLSLabelStack(5, 6, 7, 8),
+		NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001))
+	prefixes1 := []AddrPrefixInterface{vpn1, vpn2}
 
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:8912:1023/128"))
 	prefixes2 := []AddrPrefixInterface{nlri}

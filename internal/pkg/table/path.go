@@ -1148,7 +1148,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
+		path.OriginInfo().nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(n.Prefix, *bgp.NewMPLSLabelStack(v.MplsLabel), v.Rd)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
 		path.family = bgp.RF_IPv4_VPN
 	case bgp.RF_FS_IPv4_UC:
@@ -1208,7 +1208,7 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	switch rf := p.GetFamily(); rf {
 	case bgp.RF_IPv4_UC:
 		n := nlri.(*bgp.IPAddrPrefix)
-		nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(n.Prefix.Bits()), n.Prefix.Addr().String(), *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
+		nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(n.Prefix, *bgp.NewMPLSLabelStack(vrf.MplsLabel), vrf.Rd)
 		nlri.SetPathIdentifier(pathId)
 		newFamily = bgp.RF_IPv4_VPN
 	case bgp.RF_IPv6_UC:

@@ -2106,11 +2106,10 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		if len(args) < 5 || args[1] != "label" || args[3] != "rd" {
 			return nil, fmt.Errorf("invalid format")
 		}
-		ip, nw, err := net.ParseCIDR(args[0])
+		prefix, err := netip.ParsePrefix(args[0])
 		if err != nil {
 			return nil, err
 		}
-		ones, _ := nw.Mask.Size()
 
 		label, err := strconv.ParseUint(args[2], 10, 32)
 		if err != nil {
@@ -2124,15 +2123,15 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		}
 
 		if rf == bgp.RF_IPv4_VPN {
-			if ip.To4() == nil {
+			if !prefix.Addr().Is4() {
 				return nil, fmt.Errorf("invalid ipv4 prefix")
 			}
-			nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(ones), ip.String(), *mpls, rd)
+			nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(prefix, *mpls, rd)
 		} else {
-			if ip.To16() == nil {
+			if !prefix.Addr().Is6() {
 				return nil, fmt.Errorf("invalid ipv6 prefix")
 			}
-			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(ones), ip.String(), *mpls, rd)
+			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String(), *mpls, rd)
 		}
 
 		args = args[5:]

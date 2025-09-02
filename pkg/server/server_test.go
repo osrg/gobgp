@@ -1927,7 +1927,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	}
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 	labels := bgp.NewMPLSLabelStack(100, 200)
-	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
+	prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
 	path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs, time.Now())
 
 	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
@@ -2060,7 +2060,7 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 	}
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 	labels := bgp.NewMPLSLabelStack(100, 200)
-	prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
+	prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
 	path12, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs12, time.Now())
 	path1, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs1, time.Now())
 
@@ -2581,7 +2581,7 @@ func TestRTCDefferalTime(test *testing.T) {
 	// Add 60 paths with one RT that should be received.
 	for i := range 60 {
 		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("100:%d", i+100))
-		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "10.30.2.0", *labels, rd)
+		prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
 		path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs100, time.Now())
 
 		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
@@ -2593,7 +2593,7 @@ func TestRTCDefferalTime(test *testing.T) {
 	// Add 60 paths with two RT that should be received (for one of RT).
 	for i := range 40 {
 		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("100:%d", i+100))
-		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "20.30.2.0", *labels, rd)
+		prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("20.30.2.0/24"), *labels, rd)
 		path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs100200, time.Now())
 
 		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
@@ -2605,7 +2605,7 @@ func TestRTCDefferalTime(test *testing.T) {
 	// Add 5 paths with one RT that should not be received.
 	for i := range 5 {
 		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("100:%d", i+100))
-		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "5.30.2.0", *labels, rd)
+		prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("5.30.2.0/24"), *labels, rd)
 		path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs200, time.Now())
 
 		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
@@ -2629,7 +2629,7 @@ func TestRTCDefferalTime(test *testing.T) {
 		}
 
 		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("%d:%d", uint16(10+i), 100))
-		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "20.30.3.0", *labels, rd)
+		prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("20.30.3.0/24"), *labels, rd)
 		path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs, time.Now())
 
 		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
@@ -2654,7 +2654,7 @@ func TestRTCDefferalTime(test *testing.T) {
 		}
 
 		rd, _ := bgp.ParseRouteDistinguisher(fmt.Sprintf("%d:%d", uint16(50+i), 100))
-		prefix := bgp.NewLabeledVPNIPAddrPrefix(24, "5.30.2.0", *labels, rd)
+		prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("5.30.2.0/24"), *labels, rd)
 		path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs, time.Now())
 
 		if _, err := sender.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {

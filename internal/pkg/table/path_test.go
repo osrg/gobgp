@@ -433,7 +433,8 @@ func TestNLRIToIPNet(t *testing.T) {
 
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 	_, n5, _ := net.ParseCIDR("40.40.40.0/24")
-	ipNet = nlriToIPNet(bgp.NewLabeledVPNIPAddrPrefix(24, "40.40.40.0", *labels, rd))
+	vpnv4, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("40.40.40.0/24"), *labels, rd)
+	ipNet = nlriToIPNet(vpnv4)
 	assert.Equal(t, n5, ipNet)
 
 	_, n6, _ := net.ParseCIDR("2001:db8:53::/64")

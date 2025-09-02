@@ -2124,13 +2124,17 @@ func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewLabeledVPNIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
-	p := &LabeledVPNIPAddrPrefix{
+func NewLabeledVPNIPAddrPrefix(prefix netip.Prefix, label MPLSLabelStack, rd RouteDistinguisherInterface) (*LabeledVPNIPAddrPrefix, error) {
+	if !prefix.IsValid() {
+		return nil, fmt.Errorf("invalid prefix")
+	}
+	return &LabeledVPNIPAddrPrefix{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
+			Prefix: prefix,
+		},
 		Labels: label,
 		RD:     rd,
-	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits, 4)
-	return p
+	}, nil
 }
 
 type LabeledVPNIPv6AddrPrefix struct {
