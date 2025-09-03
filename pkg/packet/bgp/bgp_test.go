@@ -373,12 +373,11 @@ func Test_RFC5512(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(buf1, buf2)
 
-	n1 := NewEncapNLRI("10.0.0.1")
+	n1, _ := NewEncapNLRI(netip.MustParseAddr("10.0.0.1"))
 	buf1, err = n1.Serialize()
 	assert.NoError(err)
 
-	n2 := NewEncapNLRI("")
-	err = n2.DecodeFromBytes(buf1)
+	n2, err := NLRIFromSlice(RF_IPv4_ENCAP, buf1)
 	assert.NoError(err)
 	assert.Equal("10.0.0.1", n2.String())
 
@@ -811,12 +810,11 @@ func Test_AddPath(t *testing.T) {
 	}
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_ENCAP: BGP_ADD_PATH_BOTH}}
 	{
-		n1 := NewEncapNLRI("10.10.10.0")
+		n1, _ := NewEncapNLRI(netip.MustParseAddr("10.10.10.0"))
 		n1.SetPathLocalIdentifier(50)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewEncapNLRI("")
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv4_ENCAP, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(50))
 	}

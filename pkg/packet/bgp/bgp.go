@@ -3544,14 +3544,13 @@ func (n *EncapNLRI) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewEncapNLRI(endpoint string) *EncapNLRI {
-	var addr netip.Addr
-	if endpoint != "" {
-		addr = netip.MustParseAddr(endpoint)
+func NewEncapNLRI(endpoint netip.Addr) (*EncapNLRI, error) {
+	if !endpoint.IsValid() {
+		return nil, fmt.Errorf("invalid address")
 	}
 	return &EncapNLRI{
-		Endpoint: addr,
-	}
+		Endpoint: endpoint,
+	}, nil
 }
 
 type Encapv6NLRI struct {

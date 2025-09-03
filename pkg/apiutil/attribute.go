@@ -1536,9 +1536,13 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		}
 	case *api.NLRI_Encapsulation:
 		v := n.Encapsulation
+		addr, err := netip.ParseAddr(v.Address)
+		if err != nil {
+			return nil, err
+		}
 		switch rf {
 		case bgp.RF_IPv4_ENCAP:
-			nlri = bgp.NewEncapNLRI(v.Address)
+			nlri, _ = bgp.NewEncapNLRI(addr)
 		case bgp.RF_IPv6_ENCAP:
 			nlri = bgp.NewEncapv6NLRI(v.Address)
 		}
