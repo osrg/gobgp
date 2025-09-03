@@ -1524,9 +1524,13 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		}
 	case *api.NLRI_LabeledPrefix:
 		v := n.LabeledPrefix
+		prefix, err := netip.ParsePrefix(fmt.Sprintf("%s/%d", v.Prefix, v.PrefixLen))
+		if err != nil {
+			return nil, err
+		}
 		switch rf {
 		case bgp.RF_IPv4_MPLS:
-			nlri = bgp.NewLabeledIPAddrPrefix(uint8(v.PrefixLen), v.Prefix, *bgp.NewMPLSLabelStack(v.Labels...))
+			nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...))
 		case bgp.RF_IPv6_MPLS:
 			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix, *bgp.NewMPLSLabelStack(v.Labels...))
 		}

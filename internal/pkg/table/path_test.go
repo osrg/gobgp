@@ -424,7 +424,8 @@ func TestNLRIToIPNet(t *testing.T) {
 
 	labels := bgp.NewMPLSLabelStack(100, 200)
 	_, n3, _ := net.ParseCIDR("30.30.30.0/24")
-	ipNet = nlriToIPNet(bgp.NewLabeledIPAddrPrefix(24, "30.30.30.0", *labels))
+	mpls, _ := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"), *labels)
+	ipNet = nlriToIPNet(mpls)
 	assert.Equal(t, n3, ipNet)
 
 	_, n4, _ := net.ParseCIDR("2806:106e:19::/48")

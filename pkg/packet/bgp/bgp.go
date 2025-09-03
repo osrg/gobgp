@@ -2229,12 +2229,16 @@ func (l *LabeledIPAddrPrefix) Flat() map[string]string {
 	}
 }
 
-func NewLabeledIPAddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
-	p := &LabeledIPAddrPrefix{
-		Labels: label,
+func NewLabeledIPAddrPrefix(prefix netip.Prefix, label MPLSLabelStack) (*LabeledIPAddrPrefix, error) {
+	if !prefix.IsValid() {
+		return nil, fmt.Errorf("invalid prefix")
 	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To4(), bits, 4)
-	return p
+	return &LabeledIPAddrPrefix{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
+			Prefix: prefix,
+		},
+		Labels: label,
+	}, nil
 }
 
 type LabeledIPv6AddrPrefix struct {

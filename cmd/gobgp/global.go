@@ -2148,11 +2148,10 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 			return nil, fmt.Errorf("invalid format")
 		}
 
-		ip, nw, err := net.ParseCIDR(args[0])
+		prefix, err := netip.ParsePrefix(args[0])
 		if err != nil {
 			return nil, err
 		}
-		ones, _ := nw.Mask.Size()
 
 		mpls, err := bgp.ParseMPLSLabelStack(args[1])
 		if err != nil {
@@ -2162,15 +2161,15 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		extcomms = args[2:]
 
 		if rf == bgp.RF_IPv4_MPLS {
-			if ip.To4() == nil {
+			if !prefix.Addr().Is4() {
 				return nil, fmt.Errorf("invalid ipv4 prefix")
 			}
-			nlri = bgp.NewLabeledIPAddrPrefix(uint8(ones), ip.String(), *mpls)
+			nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *mpls)
 		} else {
-			if ip.To4() != nil {
+			if !prefix.Addr().Is6() {
 				return nil, fmt.Errorf("invalid ipv6 prefix")
 			}
-			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(ones), ip.String(), *mpls)
+			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String(), *mpls)
 		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = parseEvpnArgs(args)

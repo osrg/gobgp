@@ -94,7 +94,7 @@ func TestStringLabelAddrPrefix(t *testing.T) {
 	assert := assert.New(t)
 
 	labels := NewMPLSLabelStack(100, 200)
-	v4 := NewLabeledIPAddrPrefix(24, "10.10.10.0", *labels)
+	v4, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels)
 	assert.Equal("10.10.10.0/24", v4.String())
 	v6 := NewLabeledIPv6AddrPrefix(64, "3343:faba:3903::", *labels)
 	assert.Equal("3343:faba:3903::/64", v6.String())
@@ -759,12 +759,11 @@ func Test_AddPath(t *testing.T) {
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_MPLS: BGP_ADD_PATH_BOTH, RF_IPv6_MPLS: BGP_ADD_PATH_BOTH}}
 	{
 		labels := NewMPLSLabelStack(100, 200)
-		n1 := NewLabeledIPAddrPrefix(24, "10.10.10.0", *labels)
+		n1, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels)
 		n1.SetPathLocalIdentifier(20)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewLabeledIPAddrPrefix(0, "", MPLSLabelStack{})
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv4_MPLS, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
 	}

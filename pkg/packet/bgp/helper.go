@@ -85,8 +85,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	vpn3, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:1203:33a1/128"), *NewMPLSLabelStack(5, 6), NewRouteDistinguisherFourOctetAS(5, 6))
 	prefixes3 := []AddrPrefixInterface{vpn3}
 
-	prefixes4 := []AddrPrefixInterface{NewLabeledIPAddrPrefix(25, "192.168.0.0",
-		*NewMPLSLabelStack(5, 6, 7))}
+	mpls, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("192.168.0.0/25"), *NewMPLSLabelStack(5, 6, 7))
+	prefixes4 := []AddrPrefixInterface{mpls}
 
 	prefixes5 := []AddrPrefixInterface{
 		NewEVPNEthernetAutoDiscoveryRoute(NewRouteDistinguisherFourOctetAS(5, 6), EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2),
