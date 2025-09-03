@@ -381,12 +381,11 @@ func Test_RFC5512(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal("10.0.0.1", n2.String())
 
-	n3 := NewEncapv6NLRI("2001::1")
+	n3, _ := NewEncapNLRI(netip.MustParseAddr("2001::1"))
 	buf1, err = n3.Serialize()
 	assert.NoError(err)
 
-	n4 := NewEncapv6NLRI("")
-	err = n4.DecodeFromBytes(buf1)
+	n4, err := NLRIFromSlice(RF_IPv6_ENCAP, buf1)
 	assert.NoError(err)
 	assert.Equal("2001::1", n4.String())
 }
@@ -3811,7 +3810,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&EVPNIPPrefixRoute{}).DecodeFromBytes(data)
 		(&EVPNIPMSIRoute{}).DecodeFromBytes(data)
 		(&EVPNNLRI{}).DecodeFromBytes(data)
-		(&EncapNLRI{}).DecodeFromBytes(data)
+		(&EncapNLRI{}).decodeFromBytes(data)
 		(&flowSpecPrefix{}).DecodeFromBytes(data)
 		(&flowSpecPrefix6{}).DecodeFromBytes(data)
 		(&flowSpecMac{}).DecodeFromBytes(data)

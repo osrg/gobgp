@@ -3473,7 +3473,7 @@ type EncapNLRI struct {
 	Endpoint netip.Addr
 }
 
-func (n *EncapNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (n *EncapNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	f := RF_IPv4_ENCAP
 	if isIPv6(options) {
 		f = RF_IPv6_ENCAP
@@ -3551,41 +3551,6 @@ func NewEncapNLRI(endpoint netip.Addr) (*EncapNLRI, error) {
 	return &EncapNLRI{
 		Endpoint: endpoint,
 	}, nil
-}
-
-type Encapv6NLRI struct {
-	EncapNLRI
-}
-
-func (n *Encapv6NLRI) Flat() map[string]string {
-	return map[string]string{
-		"Endpoint": n.Endpoint.String(),
-	}
-}
-
-func (n *Encapv6NLRI) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Endpoint string `json:"endpoint"`
-	}{
-		Endpoint: n.Endpoint.String(),
-	})
-}
-
-func NewEncapv6NLRI(endpoint string) *Encapv6NLRI {
-	var addr netip.Addr
-	if endpoint != "" {
-		addr = netip.MustParseAddr(endpoint)
-	}
-	return &Encapv6NLRI{
-		EncapNLRI{
-			Endpoint: addr,
-		},
-	}
-}
-
-func (n *Encapv6NLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.EncapNLRI.DecodeFromBytes(data, options...)
 }
 
 type BGPFlowSpecType uint8
@@ -10155,16 +10120,12 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 			return nil, err
 		}
 		return nlri, nil
-	case RF_IPv4_ENCAP:
-		nlri := &EncapNLRI{}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
+	case RF_IPv4_ENCAP, RF_IPv6_ENCAP:
+		if family.Afi() == AFI_IP6 {
+			options = append(options, &MarshallingOption{isIPv6: true})
 		}
-		return nlri, nil
-	case RF_IPv6_ENCAP:
-		nlri := &Encapv6NLRI{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		nlri := &EncapNLRI{}
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}

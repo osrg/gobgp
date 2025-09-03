@@ -1175,10 +1175,6 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 		nlri.Nlri = &api.NLRI_Encapsulation{Encapsulation: &api.EncapsulationNLRI{
 			Address: v.String(),
 		}}
-	case *bgp.Encapv6NLRI:
-		nlri.Nlri = &api.NLRI_Encapsulation{Encapsulation: &api.EncapsulationNLRI{
-			Address: v.String(),
-		}}
 	case *bgp.VPLSNLRI:
 		rd, err := MarshalRD(v.RD())
 		if err != nil {
@@ -1540,12 +1536,7 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		switch rf {
-		case bgp.RF_IPv4_ENCAP:
-			nlri, _ = bgp.NewEncapNLRI(addr)
-		case bgp.RF_IPv6_ENCAP:
-			nlri = bgp.NewEncapv6NLRI(v.Address)
-		}
+		nlri, _ = bgp.NewEncapNLRI(addr)
 	case *api.NLRI_Vpls:
 		v := n.Vpls
 		if rf == bgp.RF_VPLS {
