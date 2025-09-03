@@ -3674,12 +3674,12 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 	}
 
 	labels := bgp.NewMPLSLabelStack(100, 200)
-	n1 := bgp.NewLabeledIPv6AddrPrefix(48, "2806:106e:19::", *labels)
+	n1, _ := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("2806:106e:19::/48"), *labels)
 	path := NewPath(bgp.RF_IPv6_MPLS, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	labels = bgp.NewMPLSLabelStack(100, 200)
-	n2 := bgp.NewLabeledIPv6AddrPrefix(48, "1806:106e:19::", *labels)
+	n2, _ := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("1806:106e:19::/48"), *labels)
 	path = NewPath(bgp.RF_IPv6_MPLS, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }

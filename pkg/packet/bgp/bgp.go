@@ -1395,8 +1395,6 @@ func LabelString(nlri AddrPrefixInterface) string {
 	switch n := nlri.(type) {
 	case *LabeledIPAddrPrefix:
 		label = n.Labels.String()
-	case *LabeledIPv6AddrPrefix:
-		label = n.Labels.String()
 	case *LabeledVPNIPAddrPrefix:
 		label = n.Labels.String()
 	case *EVPNNLRI:
@@ -2148,7 +2146,7 @@ func (l *LabeledIPAddrPrefix) Len(options ...*MarshallingOption) int {
 	return 1 + l.Labels.Len() + int((l.IPPrefixLen()+7)/8)
 }
 
-func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (l *LabeledIPAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	f := RF_IPv4_MPLS
 	addrlen := 4
 	if isIPv6(options) {
@@ -2239,25 +2237,6 @@ func NewLabeledIPAddrPrefix(prefix netip.Prefix, label MPLSLabelStack) (*Labeled
 		},
 		Labels: label,
 	}, nil
-}
-
-type LabeledIPv6AddrPrefix struct {
-	LabeledIPAddrPrefix
-}
-
-func NewLabeledIPv6AddrPrefix(bits uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
-	p := &LabeledIPv6AddrPrefix{
-		LabeledIPAddrPrefix: LabeledIPAddrPrefix{
-			Labels: label,
-		},
-	}
-	_ = p.decodePrefix(net.ParseIP(prefix).To16(), bits, 16)
-	return p
-}
-
-func (l *LabeledIPv6AddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return l.LabeledIPAddrPrefix.DecodeFromBytes(data, options...)
 }
 
 type RouteTargetMembershipNLRI struct {
@@ -10067,16 +10046,12 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 			return nil, err
 		}
 		return nlri, nil
-	case RF_IPv4_MPLS:
-		nlri := &LabeledIPAddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
+	case RF_IPv4_MPLS, RF_IPv6_MPLS:
+		if family.Afi() == AFI_IP6 {
+			options = append(options, &MarshallingOption{isIPv6: true})
 		}
-		return nlri, nil
-	case RF_IPv6_MPLS:
-		nlri := &LabeledIPv6AddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		nlri := &LabeledIPAddrPrefix{}
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}

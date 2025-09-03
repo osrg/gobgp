@@ -1165,12 +1165,6 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 			PrefixLen: uint32(v.IPPrefixLen()),
 			Prefix:    v.Prefix.Addr().String(),
 		}}
-	case *bgp.LabeledIPv6AddrPrefix:
-		nlri.Nlri = &api.NLRI_LabeledPrefix{LabeledPrefix: &api.LabeledIPAddressPrefix{
-			Labels:    v.Labels.Labels,
-			PrefixLen: uint32(v.IPPrefixLen()),
-			Prefix:    v.Prefix.Addr().String(),
-		}}
 	case *bgp.EncapNLRI:
 		nlri.Nlri = &api.NLRI_Encapsulation{Encapsulation: &api.EncapsulationNLRI{
 			Address: v.String(),
@@ -1528,12 +1522,7 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		switch rf {
-		case bgp.RF_IPv4_MPLS:
-			nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...))
-		case bgp.RF_IPv6_MPLS:
-			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(v.PrefixLen), v.Prefix, *bgp.NewMPLSLabelStack(v.Labels...))
-		}
+		nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...))
 	case *api.NLRI_Encapsulation:
 		v := n.Encapsulation
 		addr, err := netip.ParseAddr(v.Address)

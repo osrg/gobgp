@@ -96,9 +96,9 @@ func TestStringLabelAddrPrefix(t *testing.T) {
 	labels := NewMPLSLabelStack(100, 200)
 	v4, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels)
 	assert.Equal("10.10.10.0/24", v4.String())
-	v6 := NewLabeledIPv6AddrPrefix(64, "3343:faba:3903::", *labels)
+	v6, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("3343:faba:3903::/64"), *labels)
 	assert.Equal("3343:faba:3903::/64", v6.String())
-	mapped_ipv6 := NewLabeledIPv6AddrPrefix(120, "::ffff:192.0.2.0", *labels)
+	mapped_ipv6, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("::ffff:192.0.2.0/120"), *labels)
 	assert.Equal("::ffff:192.0.2.0/120", mapped_ipv6.String())
 
 	rd, _ := ParseRouteDistinguisher("300:100")
@@ -769,12 +769,11 @@ func Test_AddPath(t *testing.T) {
 	}
 	{
 		labels := NewMPLSLabelStack(100, 200)
-		n1 := NewLabeledIPv6AddrPrefix(64, "2001::", *labels)
+		n1, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("2001::/64"), *labels)
 		n1.SetPathLocalIdentifier(20)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewLabeledIPv6AddrPrefix(0, "", MPLSLabelStack{})
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_IPv6_MPLS, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(20))
 	}
@@ -876,7 +875,7 @@ func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 
 	label := NewMPLSLabelStack(2)
 
-	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.0", *label)
+	n3, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("::ffff:10.0.0.0/120"), *label)
 	buf1, err = n3.Serialize()
 	assert.NoError(err)
 	n4, err := NLRIFromSlice(RF_IPv6_MPLS, buf1)
@@ -3799,7 +3798,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&RouteDistinguisherUnknown{}).DecodeFromBytes(data)
 		(&MPLSLabelStack{}).DecodeFromBytes(data)
 		(&LabeledVPNIPAddrPrefix{}).decodeFromBytes(data)
-		(&LabeledIPAddrPrefix{}).DecodeFromBytes(data)
+		(&LabeledIPAddrPrefix{}).decodeFromBytes(data)
 		(&RouteTargetMembershipNLRI{}).DecodeFromBytes(data)
 		(&EthernetSegmentIdentifier{}).DecodeFromBytes(data)
 		(&EVPNEthernetAutoDiscoveryRoute{}).DecodeFromBytes(data)

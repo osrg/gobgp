@@ -2164,13 +2164,10 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 			if !prefix.Addr().Is4() {
 				return nil, fmt.Errorf("invalid ipv4 prefix")
 			}
-			nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *mpls)
-		} else {
-			if !prefix.Addr().Is6() {
-				return nil, fmt.Errorf("invalid ipv6 prefix")
-			}
-			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String(), *mpls)
+		} else if !prefix.Addr().Is6() {
+			return nil, fmt.Errorf("invalid ipv6 prefix")
 		}
+		nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *mpls)
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = parseEvpnArgs(args)
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
