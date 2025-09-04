@@ -32,8 +32,9 @@ func NewTestBGPOpenMessage() *BGPMessage {
 		[]ParameterCapabilityInterface{NewCapFourOctetASNumber(100000)})
 	p5 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapAddPath([]*CapAddPathTuple{NewCapAddPathTuple(RF_IPv4_UC, BGP_ADD_PATH_BOTH)})})
-	return NewBGPOpenMessage(11033, 303, "100.4.10.3",
+	msg, _ := NewBGPOpenMessage(11033, 303, netip.MustParseAddr("100.4.10.3"),
 		[]OptionParameterInterface{p1, p2, p3, p4, p5})
+	return msg
 }
 
 func NewTestBGPUpdateMessage() *BGPMessage {

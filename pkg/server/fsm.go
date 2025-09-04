@@ -848,8 +848,9 @@ func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
 	if as > 1<<16-1 {
 		as = bgp.AS_TRANS
 	}
-	return bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId,
+	msg, _ := bgp.NewBGPOpenMessage(uint16(as), holdTime, netip.MustParseAddr(gConf.Config.RouterId),
 		[]bgp.OptionParameterInterface{opt})
+	return msg
 }
 
 func readAll(conn net.Conn, length int) ([]byte, error) {

@@ -1367,13 +1367,14 @@ func (msg *BGPOpen) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	return append(buf, pbuf...), nil
 }
 
-func NewBGPOpenMessage(myas uint16, holdtime uint16, idstring string, optparams []OptionParameterInterface) *BGPMessage {
-	// TODO: return an error
-	id, _ := netip.ParseAddr(idstring)
+func NewBGPOpenMessage(myas uint16, holdtime uint16, id netip.Addr, optparams []OptionParameterInterface) (*BGPMessage, error) {
+	if !id.Is4() {
+		return nil, fmt.Errorf("invalid address")
+	}
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_OPEN},
 		Body:   &BGPOpen{4, myas, holdtime, id, 0, optparams},
-	}
+	}, nil
 }
 
 type AddrPrefixInterface interface {

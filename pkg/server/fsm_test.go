@@ -142,6 +142,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
+	p.fsm.gConf.Config.RouterId = "1.1.1.1"
 
 	state, reason := h.opensent(t.Context())
 
@@ -356,16 +357,19 @@ func open() *bgp.BGPMessage {
 			[]*bgp.CapGracefulRestartTuple{g})})
 	p4 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(100000)})
-	return bgp.NewBGPOpenMessage(11033, 303, "100.4.10.3",
+	msg, _ := bgp.NewBGPOpenMessage(11033, 303, netip.MustParseAddr("100.4.10.3"),
 		[]bgp.OptionParameterInterface{p1, p2, p3, p4})
+	return msg
 }
 
 func openWithBadBGPIdentifierZero() *bgp.BGPMessage {
-	return bgp.NewBGPOpenMessage(65000, 303, "0.0.0.0",
+	msg, _ := bgp.NewBGPOpenMessage(65000, 303, netip.MustParseAddr("0.0.0.0"),
 		[]bgp.OptionParameterInterface{})
+	return msg
 }
 
 func openWithBadBGPIdentifierSame() *bgp.BGPMessage {
-	return bgp.NewBGPOpenMessage(65000, 303, "192.168.1.1",
+	msg, _ := bgp.NewBGPOpenMessage(65000, 303, netip.MustParseAddr("192.168.1.1"),
 		[]bgp.OptionParameterInterface{})
+	return msg
 }
