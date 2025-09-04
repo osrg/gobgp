@@ -507,8 +507,9 @@ func UnmarshalRD(rd *api.RouteDistinguisher) (bgp.RouteDistinguisherInterface, e
 	case *api.RouteDistinguisher_TwoOctetAsn:
 		return bgp.NewRouteDistinguisherTwoOctetAS(uint16(v.TwoOctetAsn.Admin), v.TwoOctetAsn.Assigned), nil
 	case *api.RouteDistinguisher_IpAddress:
-		rd := bgp.NewRouteDistinguisherIPAddressAS(v.IpAddress.Admin, uint16(v.IpAddress.Assigned))
-		if rd == nil {
+		addr, _ := netip.ParseAddr(v.IpAddress.Admin)
+		rd, err := bgp.NewRouteDistinguisherIPAddressAS(addr, uint16(v.IpAddress.Assigned))
+		if err != nil {
 			return nil, fmt.Errorf("invalid address for route distinguisher: %s", v.IpAddress.Admin)
 		}
 		return rd, nil

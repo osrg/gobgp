@@ -1706,16 +1706,17 @@ func (rd *RouteDistinguisherIPAddressAS) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDistinguisherIPAddressAS {
-	// TODO: return error
-	addr, _ := netip.ParseAddr(admin)
+func NewRouteDistinguisherIPAddressAS(admin netip.Addr, assigned uint16) (*RouteDistinguisherIPAddressAS, error) {
+	if !admin.Is4() {
+		return nil, fmt.Errorf("invalid address")
+	}
 	return &RouteDistinguisherIPAddressAS{
 		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_IPV4_ADDRESS,
 		},
-		Admin:    addr,
+		Admin:    admin,
 		Assigned: assigned,
-	}
+	}, nil
 }
 
 type RouteDistinguisherFourOctetAS struct {
@@ -1805,7 +1806,9 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	case BGP_RD_TWO_OCTET_AS:
 		return NewRouteDistinguisherTwoOctetAS(binary.BigEndian.Uint16(data[2:4]), binary.BigEndian.Uint32(data[4:8]))
 	case BGP_RD_IPV4_ADDRESS:
-		return NewRouteDistinguisherIPAddressAS(net.IP(data[2:6]).String(), binary.BigEndian.Uint16(data[6:8]))
+		addr, _ := netip.AddrFromSlice(data[2:6])
+		rd, _ := NewRouteDistinguisherIPAddressAS(addr, binary.BigEndian.Uint16(data[6:8]))
+		return rd
 	case BGP_RD_FOUR_OCTET_AS:
 		return NewRouteDistinguisherFourOctetAS(binary.BigEndian.Uint32(data[2:6]), binary.BigEndian.Uint16(data[6:8]))
 	}
@@ -1831,10 +1834,10 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 		return nil, err
 	}
 	assigned, _ := strconv.ParseUint(elems[10], 10, 32)
-	ip := net.ParseIP(elems[1])
+	ip, _ := netip.ParseAddr(elems[1])
 	switch {
-	case ip.To4() != nil:
-		return NewRouteDistinguisherIPAddressAS(elems[1], uint16(assigned)), nil
+	case ip.Is4():
+		return NewRouteDistinguisherIPAddressAS(ip, uint16(assigned))
 	case elems[6] == "" && elems[7] == "":
 		asn, _ := strconv.ParseUint(elems[8], 10, 16)
 		return NewRouteDistinguisherTwoOctetAS(uint16(asn), uint32(assigned)), nil

@@ -76,8 +76,8 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 
 	vpn1, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.0.9.0/24"), *NewMPLSLabelStack(1, 2, 3),
 		NewRouteDistinguisherTwoOctetAS(256, 10000))
-	vpn2, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.10.8.0/24"), *NewMPLSLabelStack(5, 6, 7, 8),
-		NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001))
+	rd, _ := NewRouteDistinguisherIPAddressAS(netip.MustParseAddr("10.0.1.1"), 10001)
+	vpn2, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.10.8.0/24"), *NewMPLSLabelStack(5, 6, 7, 8), rd)
 	prefixes1 := []AddrPrefixInterface{vpn1, vpn2}
 
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:8912:1023/128"))

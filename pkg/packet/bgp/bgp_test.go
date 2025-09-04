@@ -1195,6 +1195,7 @@ func Test_ParseRouteDistinguisher(t *testing.T) {
 }
 
 func TestParseVPNPrefix(t *testing.T) {
+	rdip, _ := NewRouteDistinguisherIPAddressAS(netip.MustParseAddr("1.1.1.1"), uint16(100))
 	tests := []struct {
 		name     string
 		prefix   string
@@ -1213,7 +1214,7 @@ func TestParseVPNPrefix(t *testing.T) {
 			name:     "test valid RD type 1 VPNv4 prefix",
 			prefix:   "1.1.1.1:100:10.0.0.1/32",
 			valid:    true,
-			rd:       NewRouteDistinguisherIPAddressAS("1.1.1.1", uint16(100)),
+			rd:       rdip,
 			ipPrefix: "10.0.0.1/32",
 		},
 		{
@@ -1241,7 +1242,7 @@ func TestParseVPNPrefix(t *testing.T) {
 			name:     "test valid RD type 1 VPNv6 prefix",
 			prefix:   "1.1.1.1:100:100:1::/64",
 			valid:    true,
-			rd:       NewRouteDistinguisherIPAddressAS("1.1.1.1", uint16(100)),
+			rd:       rdip,
 			ipPrefix: "100:1::/64",
 		},
 		{
