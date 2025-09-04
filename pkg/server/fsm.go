@@ -197,7 +197,6 @@ type fsm struct {
 	marshallingOptions   *bgp.MarshallingOption
 	notification         chan *bgp.BGPMessage
 	logger               log.Logger
-	longLivedRunning     bool
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {

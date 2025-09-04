@@ -114,6 +114,7 @@ type peer struct {
 	sentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
 	sendMaxPathFiltered map[table.PathLocalKey]struct{}
 	llgrEndChs          []chan struct{}
+	longLivedRunning    bool
 }
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
@@ -487,7 +488,7 @@ func (peer *peer) stopPeerRestarting() {
 		close(ch)
 	}
 	peer.llgrEndChs = make([]chan struct{}, 0)
-	peer.fsm.longLivedRunning = false
+	peer.longLivedRunning = false
 }
 
 // Returns true if the peer is interested in this path according to BGP RTC

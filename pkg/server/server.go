@@ -1505,14 +1505,14 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 		} else if nextStateIdle {
 			peer.fsm.lock.RLock()
 			longLivedEnabled := peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled
-			longLivedRunning := peer.fsm.longLivedRunning
+			longLivedRunning := peer.longLivedRunning
 			peer.fsm.lock.RUnlock()
 			// We must not restart LLGR timer until we have syncronized with
 			// the peer. Routes also need to be marked wit LLGR comm just once.
 			// https://datatracker.ietf.org/doc/html/rfc9494#session_resetsnever
 			if longLivedEnabled && !longLivedRunning {
 				peer.fsm.lock.Lock()
-				peer.fsm.longLivedRunning = true
+				peer.longLivedRunning = true
 				peer.fsm.lock.Unlock()
 				llgr, no_llgr := peer.llgrFamilies()
 
