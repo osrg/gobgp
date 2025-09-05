@@ -11213,7 +11213,7 @@ func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewPathAttributeAggregator(as any, address string) *PathAttributeAggregator {
+func NewPathAttributeAggregator(as any, address netip.Addr) (*PathAttributeAggregator, error) {
 	v := reflect.ValueOf(as)
 	asKind := v.Kind()
 	var l uint16
@@ -11224,10 +11224,11 @@ func NewPathAttributeAggregator(as any, address string) *PathAttributeAggregator
 		l = 8
 	default:
 		// Invalid type
-		return nil
+		return nil, fmt.Errorf("invalid as type: %v", asKind)
 	}
-	// TODO: return error
-	addr, _ := netip.ParseAddr(address)
+	if !address.Is4() {
+		return nil, fmt.Errorf("invalid address: %v", address)
+	}
 	t := BGP_ATTR_TYPE_AGGREGATOR
 	return &PathAttributeAggregator{
 		PathAttribute: PathAttribute{
@@ -11238,9 +11239,9 @@ func NewPathAttributeAggregator(as any, address string) *PathAttributeAggregator
 		Value: PathAttributeAggregatorParam{
 			AS:      uint32(v.Uint()),
 			Askind:  asKind,
-			Address: addr,
+			Address: address,
 		},
-	}
+	}, nil
 }
 
 type PathAttributeCommunities struct {
@@ -13643,10 +13644,11 @@ func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
+func NewPathAttributeAs4Aggregator(as uint32, address netip.Addr) (*PathAttributeAs4Aggregator, error) {
+	if !address.Is4() {
+		return nil, fmt.Errorf("invalid address: %v", address)
+	}
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
-	// TODO: return error
-	addr, _ := netip.ParseAddr(address)
 	return &PathAttributeAs4Aggregator{
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[t],
@@ -13655,9 +13657,9 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      as,
-			Address: addr,
+			Address: address,
 		},
-	}
+	}, nil
 }
 
 type TunnelEncapSubTLVInterface interface {

@@ -18,6 +18,7 @@ package table
 import (
 	"bytes"
 	"fmt"
+	"net/netip"
 	"reflect"
 
 	"github.com/osrg/gobgp/v4/pkg/log"
@@ -211,21 +212,24 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) {
 
 func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {
 	as := uint32(0)
-	var addr string
+	var addr netip.Addr
 	for i, attr := range msg.PathAttributes {
 		switch agg := attr.(type) {
 		case *bgp.PathAttributeAggregator:
-			addr = agg.Value.Address.String()
+			addr = agg.Value.Address
 			if agg.Value.AS > 1<<16-1 {
 				as = agg.Value.AS
-				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+				attr, _ := bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+				msg.PathAttributes[i] = attr
 			} else {
-				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(agg.Value.AS), addr)
+				attr, _ := bgp.NewPathAttributeAggregator(uint16(agg.Value.AS), addr)
+				msg.PathAttributes[i] = attr
 			}
 		}
 	}
 	if as != 0 {
-		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Aggregator(as, addr))
+		attr, _ := bgp.NewPathAttributeAs4Aggregator(as, addr)
+		msg.PathAttributes = append(msg.PathAttributes, attr)
 	}
 }
 

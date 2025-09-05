@@ -53,7 +53,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil || !address.Is4() {
 			return nil, fmt.Errorf("invalid aggregator address: %s", a.Aggregator.Address)
 		}
-		return bgp.NewPathAttributeAggregator(a.Aggregator.Asn, a.Aggregator.Address), nil
+		return bgp.NewPathAttributeAggregator(a.Aggregator.Asn, address)
 	case *api.Attribute_Communities:
 		return bgp.NewPathAttributeCommunities(a.Communities.Communities), nil
 	case *api.Attribute_OriginatorId:
@@ -123,7 +123,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil || !address.Is4() {
 			return nil, fmt.Errorf("invalid as4 aggregator address: %s", a.As4Aggregator.Address)
 		}
-		return bgp.NewPathAttributeAs4Aggregator(a.As4Aggregator.Asn, a.As4Aggregator.Address), nil
+		return bgp.NewPathAttributeAs4Aggregator(a.As4Aggregator.Asn, address)
 	case *api.Attribute_PmsiTunnel:
 		typ := bgp.PmsiTunnelType(a.PmsiTunnel.Type)
 		var isLeafInfoRequired bool

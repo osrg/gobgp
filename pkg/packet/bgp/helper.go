@@ -100,6 +100,10 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	prefixes6 := []AddrPrefixInterface{NewVPLSNLRI(NewRouteDistinguisherFourOctetAS(5, 6), 101, 100, 10, 1000)}
 
 	panh, _ := NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
+	paag1, _ := NewPathAttributeAggregator(uint16(30002), netip.MustParseAddr("129.0.2.99"))
+	paag2, _ := NewPathAttributeAggregator(uint32(30002), netip.MustParseAddr("129.0.2.99"))
+	paag3, _ := NewPathAttributeAggregator(uint32(300020), netip.MustParseAddr("129.0.2.99"))
+	paag4, _ := NewPathAttributeAs4Aggregator(10000, netip.MustParseAddr("112.22.2.1"))
 	pacluster, _ := NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr("10.10.0.2"), netip.MustParseAddr("10.10.0.3")})
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(3),
@@ -109,15 +113,15 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewPathAttributeMultiExitDisc(1 << 20),
 		NewPathAttributeLocalPref(1 << 22),
 		NewPathAttributeAtomicAggregate(),
-		NewPathAttributeAggregator(uint16(30002), "129.0.2.99"),
-		NewPathAttributeAggregator(uint32(30002), "129.0.2.99"),
-		NewPathAttributeAggregator(uint32(300020), "129.0.2.99"),
+		paag1,
+		paag2,
+		paag3,
 		NewPathAttributeCommunities([]uint32{1, 3}),
 		NewPathAttributeOriginatorId("10.10.0.1"),
 		pacluster,
 		NewPathAttributeExtendedCommunities(ecommunities),
 		NewPathAttributeAs4Path(aspath3),
-		NewPathAttributeAs4Aggregator(10000, "112.22.2.1"),
+		paag4,
 	}
 
 	// Create MP_REACH_NLRI attributes with error handling

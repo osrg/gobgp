@@ -426,24 +426,27 @@ func TestAggregator4BytesASes(t *testing.T) {
 		return nil
 	}
 
-	addr := "192.168.0.1"
+	addr := netip.MustParseAddr("192.168.0.1")
 	as4 := uint32(100000)
 	as := uint32(1000)
-	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeAggregator(as4, addr)}, nil).Body.(*bgp.BGPUpdate)
+	attr, _ := bgp.NewPathAttributeAggregator(as4, addr)
+	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{attr}, nil).Body.(*bgp.BGPUpdate)
 
 	// 4byte capable to 4byte capable for 4 bytes AS
 	assert.Equal(t, UpdatePathAggregator4ByteAs(msg), nil)
 	assert.Equal(t, getAggr(msg).Value.AS, as4)
-	assert.Equal(t, getAggr(msg).Value.Address.String(), addr)
+	assert.Equal(t, getAggr(msg).Value.Address, addr)
 
 	// 4byte capable to 2byte capable for 4 bytes AS
 	UpdatePathAggregator2ByteAs(msg)
 	assert.Equal(t, getAggr(msg).Value.AS, uint32(bgp.AS_TRANS))
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
 	assert.Equal(t, getAggr4(msg).Value.AS, as4)
-	assert.Equal(t, getAggr4(msg).Value.Address.String(), addr)
+	assert.Equal(t, getAggr4(msg).Value.Address, addr)
 
-	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr), bgp.NewPathAttributeAs4Aggregator(as4, addr)}, nil).Body.(*bgp.BGPUpdate)
+	attr1, _ := bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+	attr2, _ := bgp.NewPathAttributeAs4Aggregator(as4, addr)
+	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{attr1, attr2}, nil).Body.(*bgp.BGPUpdate)
 	assert.Equal(t, getAggr(msg).Value.AS, uint32(bgp.AS_TRANS))
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
 
@@ -451,7 +454,7 @@ func TestAggregator4BytesASes(t *testing.T) {
 	assert.Equal(t, UpdatePathAggregator4ByteAs(msg), nil)
 	assert.Equal(t, getAggr(msg).Value.AS, as4)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)
-	assert.Equal(t, getAggr(msg).Value.Address.String(), addr)
+	assert.Equal(t, getAggr(msg).Value.Address, addr)
 	assert.Equal(t, getAggr4(msg), (*bgp.PathAttributeAs4Aggregator)(nil))
 
 	// non 4byte capable to non 4byte capable for 4 bytes AS
@@ -459,9 +462,10 @@ func TestAggregator4BytesASes(t *testing.T) {
 	assert.Equal(t, getAggr(msg).Value.AS, uint32(bgp.AS_TRANS))
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
 	assert.Equal(t, getAggr4(msg).Value.AS, as4)
-	assert.Equal(t, getAggr4(msg).Value.Address.String(), addr)
+	assert.Equal(t, getAggr4(msg).Value.Address, addr)
 
-	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeAggregator(as, addr)}, nil).Body.(*bgp.BGPUpdate)
+	attr, _ = bgp.NewPathAttributeAggregator(as, addr)
+	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{attr}, nil).Body.(*bgp.BGPUpdate)
 	// 4byte capable to 4byte capable for 2 bytes AS
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)
@@ -475,7 +479,8 @@ func TestAggregator4BytesASes(t *testing.T) {
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 
-	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeAggregator(uint16(as), addr)}, nil).Body.(*bgp.BGPUpdate)
+	attr, _ = bgp.NewPathAttributeAggregator(uint16(as), addr)
+	msg = bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{attr}, nil).Body.(*bgp.BGPUpdate)
 	// non 4byte capable to 4byte capable for 2 bytes AS
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)

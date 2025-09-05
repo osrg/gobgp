@@ -2030,7 +2030,11 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 			if err != nil {
 				return nil, nil, fmt.Errorf("invalid aggregator format")
 			}
-			attr := bgp.NewPathAttributeAggregator(uint32(as), net.ParseIP(v[1]).String())
+			addr, err := netip.ParseAddr(v[1])
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			attr, _ := bgp.NewPathAttributeAggregator(uint32(as), addr)
 			return append(args[:idx], args[idx+2:]...), attr, nil
 		}
 	}
