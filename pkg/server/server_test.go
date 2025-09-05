@@ -787,10 +787,11 @@ func TestMonitor(test *testing.T) {
 	// Test WatchBestPath.
 	w := s.watch(WatchBestPath(false))
 
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	// Advertises a route.
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("10.0.0.1"),
+		panh,
 	}
 	prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, prefix, false, attrs, time.Now())
@@ -882,9 +883,10 @@ func TestMonitor(test *testing.T) {
 	// Test bestpath events with vrf and rt import
 	w.Stop()
 	w = s.watch(WatchBestPath(false))
+	panh, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	attrs = []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("10.0.0.1"),
+		panh,
 	}
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
@@ -1710,10 +1712,11 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	}
 	watcher := s1.watch(WatchUpdate(true, "", ""))
 
+	panh1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("2.2.2.2"))
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("2.2.2.2"),
+		panh1,
 	}
 	prefix, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"))
 	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, prefix, false, attrs, time.Now())
@@ -1757,6 +1760,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	panh2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("1.1.1.1"))
 	rtcNLRI := bgp.NewRouteTargetMembershipNLRI(1, rt)
 	rtcPath := table.NewPath(bgp.RF_RTC_UC, &table.PeerInfo{
 		AS:      1,
@@ -1765,7 +1769,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		ID:      netip.MustParseAddr("1.1.1.1"),
 	}, rtcNLRI, false, []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("1.1.1.1"),
+		panh2,
 	}, time.Now(), false)
 
 	s1Peer := s2.neighborMap["127.0.0.1"]
@@ -1815,10 +1819,11 @@ func TestDelVrfWithRTC(t *testing.T) {
 	watcher1 := s1.watch(WatchUpdate(true, "", ""))
 	watcher2 := s2.watch(WatchUpdate(true, "", ""))
 
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("2.2.2.2"))
 	// Add route to vrf1 on s2
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("2.2.2.2"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{
 			bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true),
 		}),
@@ -1919,10 +1924,11 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 
 	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
 	// VPN Path:
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
 	}
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
@@ -1934,9 +1940,10 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	panh, _ = bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
 	attrsNH0 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("0.0.0.0"),
+		panh,
 	}
 	pathRtc0, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH0, time.Now())
 	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc0)}}); err != nil {
@@ -1973,7 +1980,7 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	attrsNH1 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200}),
-		bgp.NewPathAttributeNextHop("0.0.0.0"),
+		panh,
 	}
 	pathRtc1, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt), false, attrsNH1, time.Now())
 	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc1)}}); err != nil {
@@ -2047,15 +2054,16 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 	rt1 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 	rt2 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
 
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
 	// VPN Path:
 	attrs12 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt1, rt2}),
 	}
 	attrs1 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt1}),
 	}
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
@@ -2068,9 +2076,10 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	panh, _ = bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
 	attrsNH0 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("0.0.0.0"),
+		panh,
 	}
 	pathRtc0, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt2), false, attrsNH0, time.Now())
 	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc0)}}); err != nil {
@@ -2559,19 +2568,20 @@ func TestRTCDefferalTime(test *testing.T) {
 	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
 
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
 	attrs100 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100}),
 	}
 	attrs200 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200}),
 	}
 	attrs100200 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("3.3.3.3"),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt200, rt100}),
 	}
 	labels := bgp.NewMPLSLabelStack(100)
@@ -2613,9 +2623,10 @@ func TestRTCDefferalTime(test *testing.T) {
 		}
 	}
 
+	panhrtc, _ := bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
 	attrsRtc := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("0.0.0.0"),
+		panhrtc,
 	}
 
 	// Add 40 paths with different RTs that should be received.
@@ -2624,7 +2635,7 @@ func TestRTCDefferalTime(test *testing.T) {
 
 		attrs := []bgp.PathAttributeInterface{
 			bgp.NewPathAttributeOrigin(0),
-			bgp.NewPathAttributeNextHop("3.3.3.3"),
+			panh,
 			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
 		}
 
@@ -2649,7 +2660,7 @@ func TestRTCDefferalTime(test *testing.T) {
 
 		attrs := []bgp.PathAttributeInterface{
 			bgp.NewPathAttributeOrigin(0),
-			bgp.NewPathAttributeNextHop("3.3.3.3"),
+			panh,
 			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
 		}
 

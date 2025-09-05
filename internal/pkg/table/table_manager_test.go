@@ -190,7 +190,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(0)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -203,7 +203,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	// high localpref message
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(200)
 
@@ -348,7 +348,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(0)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -361,7 +361,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	// high localpref message
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{})
-	nexthop2 := bgp.NewPathAttributeNextHop("0.0.0.0")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("0.0.0.0"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
 
@@ -619,7 +619,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(1)
 	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -632,7 +632,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
 
@@ -777,7 +777,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(500)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -790,7 +790,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
 
@@ -935,7 +935,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -948,7 +948,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1096,7 +1096,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1109,7 +1109,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65000, 65100})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1254,7 +1254,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1267,7 +1267,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	// path 2
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(200)
 
@@ -1483,7 +1483,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1623,7 +1623,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65100, 65200})
-	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1636,7 +1636,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	// path 1 from same peer but short AS_PATH
 	origin2 := bgp.NewPathAttributeOrigin(0)
 	aspath2 := createAsPathAttribute([]uint32{65000, 65100})
-	nexthop2 := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
 
@@ -1807,7 +1807,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	createPathAttr := func(aspaths []uint32, nh string) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)
 		aspath := createAsPathAttribute(aspaths)
-		nexthop := bgp.NewPathAttributeNextHop(nh)
+		nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nh))
 		med := bgp.NewPathAttributeMultiExitDisc(200)
 		localpref := bgp.NewPathAttributeLocalPref(100)
 		pathAttr := []bgp.PathAttributeInterface{
@@ -2111,7 +2111,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -2163,7 +2163,7 @@ func update_fromR1() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -2200,7 +2200,7 @@ func update_fromR2() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -2240,7 +2240,7 @@ func update_fromR2viaR1() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000, 65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 
 	pathAttributes := []bgp.PathAttributeInterface{
 		origin,
@@ -2298,9 +2298,10 @@ func makeVpn4Path(t *testing.T, peerInfo *PeerInfo, address string, nh string, r
 		rts = append(rts, rt)
 	}
 
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nh))
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop(nh),
+		panh,
 		bgp.NewPathAttributeExtendedCommunities(rts),
 	}
 	rd, _ := bgp.ParseRouteDistinguisher(rdStr)
@@ -2310,9 +2311,10 @@ func makeVpn4Path(t *testing.T, peerInfo *PeerInfo, address string, nh string, r
 }
 
 func makeRtcPath(t *testing.T, peerInfo *PeerInfo, rtStr string, withdraw bool) *Path {
+	panh, _ := bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
-		bgp.NewPathAttributeNextHop("0.0.0.0"),
+		panh,
 	}
 
 	_, rt, err := parseRDRT(rtStr)

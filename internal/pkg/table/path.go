@@ -464,7 +464,8 @@ func (path *Path) SetNexthop(nexthop net.IP) {
 	}
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
-		path.setPathAttr(bgp.NewPathAttributeNextHop(nexthop.String()))
+		pa, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop.String()))
+		path.setPathAttr(pa)
 	}
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
@@ -1320,7 +1321,8 @@ func (p *Path) ToLocal() *Path {
 	if f == bgp.RF_IPv4_VPN {
 		nh := path.GetNexthop()
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-		path.setPathAttr(bgp.NewPathAttributeNextHop(nh.String()))
+		pa, _ := bgp.NewPathAttributeNextHop(nh)
+		path.setPathAttr(pa)
 	}
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	return path

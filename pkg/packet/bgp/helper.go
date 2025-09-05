@@ -98,11 +98,12 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 
 	prefixes6 := []AddrPrefixInterface{NewVPLSNLRI(NewRouteDistinguisherFourOctetAS(5, 6), 101, 100, 10, 1000)}
 
+	panh, _ := NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(3),
 		NewPathAttributeAsPath(aspath1),
 		NewPathAttributeAsPath(aspath2),
-		NewPathAttributeNextHop("129.1.1.2"),
+		panh,
 		NewPathAttributeMultiExitDisc(1 << 20),
 		NewPathAttributeLocalPref(1 << 22),
 		NewPathAttributeAtomicAggregate(),

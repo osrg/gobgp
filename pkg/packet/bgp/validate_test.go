@@ -15,10 +15,11 @@ func bgpupdate() *BGPMessage {
 		NewAsPathParam(2, []uint16{65001}),
 	}
 
+	panh, _ := NewPathAttributeNextHop(netip.MustParseAddr("192.168.1.1"))
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(1),
 		NewPathAttributeAsPath(aspath),
-		NewPathAttributeNextHop("192.168.1.1"),
+		panh,
 	}
 
 	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))

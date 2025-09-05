@@ -57,7 +57,7 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
@@ -81,7 +81,7 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -102,7 +102,7 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -123,7 +123,7 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -237,7 +237,7 @@ func TestPolicyNotMatch(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -268,7 +268,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -299,7 +299,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -331,7 +331,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.1.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.1.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.1.101/24"))
@@ -342,7 +342,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	origin = bgp.NewPathAttributeOrigin(0)
 	aspathParam = []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65002})}
 	aspath = bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop = bgp.NewPathAttributeNextHop("10.0.2.2")
+	nexthop, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.2.2"))
 	med = bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.9.2.102/24"))
@@ -378,7 +378,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.1.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.1.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.1.101/24"))
@@ -389,7 +389,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	origin = bgp.NewPathAttributeOrigin(0)
 	aspathParam = []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65002})}
 	aspath = bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop = bgp.NewPathAttributeNextHop("10.0.2.2")
+	nexthop, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.2.2"))
 	med = bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.2.102/24"))
@@ -424,7 +424,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	originIPv4 := bgp.NewPathAttributeOrigin(0)
 	aspathParamIPv4 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspathIPv4 := bgp.NewPathAttributeAsPath(aspathParamIPv4)
-	nexthopIPv4 := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthopIPv4, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	medIPv4 := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributesIPv4 := []bgp.PathAttributeInterface{originIPv4, aspathIPv4, nexthopIPv4, medIPv4}
 	nlriIPv4, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -482,7 +482,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -525,7 +525,7 @@ func TestLocalPrefEqConditionEvaluate(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
@@ -555,7 +555,7 @@ func TestPolicyMatchAndAcceptLocalPrefEqCondition(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	localPref := bgp.NewPathAttributeLocalPref(100)
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
@@ -593,7 +593,7 @@ func TestPolicyMatchAndRejectLocalPrefEqCondition(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	localPref := bgp.NewPathAttributeLocalPref(uint32(200))
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(0))
 	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
@@ -633,7 +633,7 @@ func TestMedEqConditionEvaluate(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65002})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(100))
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
@@ -666,7 +666,7 @@ func TestPolicyMatchAndAcceptMedEqCondition(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65002})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(100))
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
@@ -706,7 +706,7 @@ func TestPolicyMatchAndRejectMedEqCondition(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65002})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	localPref := bgp.NewPathAttributeLocalPref(uint32(100))
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(200))
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
@@ -750,7 +750,7 @@ func TestOriginConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -817,7 +817,7 @@ func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -849,7 +849,7 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -881,7 +881,7 @@ func TestSetNextHop(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.5")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.5"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -966,7 +966,7 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1023,7 +1023,7 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1092,7 +1092,7 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1139,7 +1139,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65010, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1237,7 +1237,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 54000, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1424,7 +1424,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1478,7 +1478,7 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	}
 
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1596,7 +1596,7 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 	}
 
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1725,7 +1725,7 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1783,7 +1783,7 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 	}
 
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -1875,7 +1875,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue("65001:100"),
@@ -2023,7 +2023,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	tests := []struct {
@@ -2217,7 +2217,7 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue("65001:100"),
@@ -2307,7 +2307,7 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -2347,7 +2347,7 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue("65001:200"),
@@ -2392,7 +2392,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue(community1),
@@ -2436,7 +2436,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue(community1),
@@ -2481,7 +2481,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue(community1),
@@ -2525,7 +2525,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	communities := bgp.NewPathAttributeCommunities([]uint32{
 		stringToCommunityValue(community1),
@@ -2573,7 +2573,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	eComAsSpecific1 := &bgp.TwoOctetAsSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
@@ -2759,7 +2759,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.2.1.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.2.1.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	eComAsSpecific1 := &bgp.TwoOctetAsSpecificExtended{
 		SubType:      bgp.EC_SUBTYPE_ROUTE_TARGET,
@@ -2883,7 +2883,7 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -2926,7 +2926,7 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -2969,7 +2969,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(1)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3014,7 +3014,7 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3059,7 +3059,7 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3104,7 +3104,7 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
@@ -3146,7 +3146,7 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3190,7 +3190,7 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65002, 65001, 65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3240,7 +3240,7 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3297,7 +3297,7 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3392,7 +3392,7 @@ func TestLocalPrefAction(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3422,7 +3422,7 @@ func TestOriginAction(t *testing.T) {
 		}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
@@ -3917,7 +3917,7 @@ func TestMultipleStatementPolicy(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	pattrs := []bgp.PathAttributeInterface{origin, aspath, nexthop}
 
 	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, pattrs, time.Now(), false)

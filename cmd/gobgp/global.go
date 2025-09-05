@@ -2206,10 +2206,11 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		attrs = append(attrs, ls)
 	}
 
-	if rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
-		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
+	nh, _ := netip.ParseAddr(nexthop)
+	if rf == bgp.RF_IPv4_UC && nh.Is4() {
+		attr, _ := bgp.NewPathAttributeNextHop(nh)
+		attrs = append(attrs, attr)
 	} else {
-		nh, _ := netip.ParseAddr(nexthop)
 		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.AddrPrefixInterface{nlri}, nh)
 		attrs = append(attrs, mpreach)
 	}

@@ -569,7 +569,8 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	}
 	rf := bgp.NewFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
 	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && nexthop.Is4() {
-		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop.String()))
+		pa, _ := bgp.NewPathAttributeNextHop(nexthop)
+		pattrs = append(pattrs, pa)
 	} else {
 		attr, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.AddrPrefixInterface{nlri}, nexthop)
 		pattrs = append(pattrs, attr)

@@ -63,7 +63,7 @@ func TestCalculate2(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
@@ -191,7 +191,7 @@ func TestTimeTieBreaker(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
@@ -246,7 +246,7 @@ func updateMsgD1() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -265,7 +265,7 @@ func updateMsgD2() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.100.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.100.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -285,7 +285,7 @@ func updateMsgD3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.150.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.150.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -308,7 +308,7 @@ func TestMultipath(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("192.168.150.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.150.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(100)
 
 	pathAttributes := []bgp.PathAttributeInterface{
@@ -325,7 +325,7 @@ func TestMultipath(t *testing.T) {
 	peer2 := &PeerInfo{AS: 2, Address: netip.MustParseAddr("2.2.2.2"), ID: netip.MustParseAddr("2.2.2.2")}
 
 	med = bgp.NewPathAttributeMultiExitDisc(100)
-	nexthop = bgp.NewPathAttributeNextHop("192.168.150.2")
+	nexthop, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.150.2"))
 	pathAttributes = []bgp.PathAttributeInterface{
 		origin,
 		aspath,
@@ -354,7 +354,7 @@ func TestMultipath(t *testing.T) {
 
 	peer3 := &PeerInfo{AS: 3, Address: netip.MustParseAddr("3.3.3.3"), ID: netip.MustParseAddr("3.3.3.3")}
 	med = bgp.NewPathAttributeMultiExitDisc(50)
-	nexthop = bgp.NewPathAttributeNextHop("192.168.150.3")
+	nexthop, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.150.3"))
 	pathAttributes = []bgp.PathAttributeInterface{
 		origin,
 		aspath,
@@ -369,7 +369,7 @@ func TestMultipath(t *testing.T) {
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME, 0)), 2)
 
-	nexthop = bgp.NewPathAttributeNextHop("192.168.150.2")
+	nexthop, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.150.2"))
 	pathAttributes = []bgp.PathAttributeInterface{
 		origin,
 		aspath,
@@ -641,7 +641,7 @@ func BenchmarkMultiPath(b *testing.B) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 

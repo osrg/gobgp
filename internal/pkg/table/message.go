@@ -454,7 +454,8 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			// while we build the update message
 			// we do not want to modify the `path` though
 			if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
-				attrs = append(attrs, bgp.NewPathAttributeNextHop(paths[0].GetNexthop().String()))
+				pa, _ := bgp.NewPathAttributeNextHop(paths[0].GetNexthop())
+				attrs = append(attrs, pa)
 			}
 			// if we have ever reach here
 			// there is no point keeping MP_REACH_NLRI in the announcement

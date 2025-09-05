@@ -114,11 +114,11 @@ func TestMrtRibEntry(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
 		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
 	}
-
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
 		bgp.NewPathAttributeAsPath(aspath1),
-		bgp.NewPathAttributeNextHop("129.1.1.2"),
+		panh,
 		bgp.NewPathAttributeMultiExitDisc(1 << 20),
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
@@ -143,11 +143,11 @@ func TestMrtRibEntryWithAddPath(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
 		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
 	}
-
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
 		bgp.NewPathAttributeAsPath(aspath1),
-		bgp.NewPathAttributeNextHop("129.1.1.2"),
+		panh,
 		bgp.NewPathAttributeMultiExitDisc(1 << 20),
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
@@ -171,11 +171,11 @@ func TestMrtRib(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
 		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
 	}
-
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
 		bgp.NewPathAttributeAsPath(aspath1),
-		bgp.NewPathAttributeNextHop("129.1.1.2"),
+		panh,
 		bgp.NewPathAttributeMultiExitDisc(1 << 20),
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}
@@ -203,11 +203,11 @@ func TestMrtRibWithAddPath(t *testing.T) {
 		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
 		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
 	}
-
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
 		bgp.NewPathAttributeAsPath(aspath1),
-		bgp.NewPathAttributeNextHop("129.1.1.2"),
+		panh,
 		bgp.NewPathAttributeMultiExitDisc(1 << 20),
 		bgp.NewPathAttributeLocalPref(1 << 22),
 	}

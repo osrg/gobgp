@@ -2301,7 +2301,8 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	}
 
 	if !isVRFTable && path.Family == bgp.RF_IPv4_UC && nexthop.Is4() {
-		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop.String()))
+		attr, _ := bgp.NewPathAttributeNextHop(nexthop)
+		pattrs = append(pattrs, attr)
 	} else {
 		attr, _ := bgp.NewPathAttributeMpReachNLRI(path.Family, []bgp.AddrPrefixInterface{path.Nlri}, nexthop)
 		pattrs = append(pattrs, attr)

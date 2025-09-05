@@ -85,9 +85,10 @@ func Test_RouteMonitoringAddPath(t *testing.T) {
 	}
 	p1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	p1.SetPathLocalIdentifier(10)
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
-		bgp.NewPathAttributeNextHop("129.1.1.2"),
+		panh,
 	}
 	m := bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{}, p, []*bgp.IPAddrPrefix{p1})
 	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("fe80::6e40:8ff:feab:2c2a"), 70000, netip.MustParseAddr("10.0.0.2"), 1)

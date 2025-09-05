@@ -145,7 +145,7 @@ func injectMrt() error {
 						if mrtOpts.NextHop != nil {
 							for i, attr := range e.PathAttributes {
 								if attr.GetType() == bgp.BGP_ATTR_TYPE_NEXT_HOP {
-									e.PathAttributes[i] = bgp.NewPathAttributeNextHop(mrtOpts.NextHop.String())
+									e.PathAttributes[i], _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr(mrtOpts.NextHop.String()))
 									break
 								}
 							}

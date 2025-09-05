@@ -10979,12 +10979,13 @@ func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewPathAttributeNextHop(addr string) *PathAttributeNextHop {
+func NewPathAttributeNextHop(addr netip.Addr) (*PathAttributeNextHop, error) {
+	if !addr.IsValid() {
+		return nil, errors.New("invalid address")
+	}
 	t := BGP_ATTR_TYPE_NEXT_HOP
-	// TODO: return error.
-	ip, _ := netip.ParseAddr(addr)
 	l := net.IPv4len
-	if ip.Is6() {
+	if addr.Is6() {
 		l = net.IPv6len
 	}
 	return &PathAttributeNextHop{
@@ -10993,8 +10994,8 @@ func NewPathAttributeNextHop(addr string) *PathAttributeNextHop {
 			Type:   t,
 			Length: uint16(l),
 		},
-		Value: ip,
-	}
+		Value: addr,
+	}, nil
 }
 
 type PathAttributeMultiExitDisc struct {

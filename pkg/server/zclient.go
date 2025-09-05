@@ -284,7 +284,8 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 	switch family {
 	case bgp.RF_IPv4_UC:
 		if len(body.Nexthops) > 0 {
-			pattr = append(pattr, bgp.NewPathAttributeNextHop(body.Nexthops[0].Gate.String()))
+			pa, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(body.Nexthops[0].Gate.String()))
+			pattr = append(pattr, pa)
 		}
 	case bgp.RF_IPv6_UC:
 		if len(body.Nexthops) > 0 {

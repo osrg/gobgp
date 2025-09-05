@@ -1468,7 +1468,8 @@ func TestNormalizeFlowSpecOpValues(t *testing.T) {
 
 func Test_PathAttributeNextHop(t *testing.T) {
 	f := func(addr string) {
-		b, _ := NewPathAttributeNextHop(addr).Serialize()
+		attr, _ := NewPathAttributeNextHop(netip.MustParseAddr(addr))
+		b, _ := attr.Serialize()
 		p := PathAttributeNextHop{}
 		err := p.DecodeFromBytes(b)
 		assert.NoError(t, err)
