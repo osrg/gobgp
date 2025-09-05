@@ -1424,14 +1424,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 				Identifier: n.Identifier,
 			}}
 		}
-	case *bgp.SRPolicyIPv4:
-		nlri.Nlri = &api.NLRI_SrPolicy{SrPolicy: &api.SRPolicyNLRI{
-			Length:        uint32(v.Length),
-			Distinguisher: v.Distinguisher,
-			Color:         v.Color,
-			Endpoint:      v.Endpoint,
-		}}
-	case *bgp.SRPolicyIPv6:
+	case *bgp.SRPolicyNLRI:
 		nlri.Nlri = &api.NLRI_SrPolicy{SrPolicy: &api.SRPolicyNLRI{
 			Length:        uint32(v.Length),
 			Distinguisher: v.Distinguisher,
@@ -1643,12 +1636,7 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		}
 	case *api.NLRI_SrPolicy:
 		v := n.SrPolicy
-		switch rf {
-		case bgp.RF_SR_POLICY_IPv4:
-			nlri = bgp.NewSRPolicyIPv4(v.Length, v.Distinguisher, v.Color, v.Endpoint)
-		case bgp.RF_SR_POLICY_IPv6:
-			nlri = bgp.NewSRPolicyIPv6(v.Length, v.Distinguisher, v.Color, v.Endpoint)
-		}
+		nlri, _ = bgp.NewSRPolicy(rf, v.Length, v.Distinguisher, v.Color, v.Endpoint)
 	case *api.NLRI_LabeledVpnIpPrefix:
 		v := n.LabeledVpnIpPrefix
 		rd, err := UnmarshalRD(v.Rd)

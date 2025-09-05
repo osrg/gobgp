@@ -28,8 +28,8 @@ func (s *SRPolicyNLRI) Flat() map[string]string {
 	return map[string]string{}
 }
 
-func (s *SRPolicyNLRI) decodeFromBytes(rf Family, data []byte, options ...*MarshallingOption) error {
-	if IsAddPathEnabled(true, rf, options) {
+func (s *SRPolicyNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if IsAddPathEnabled(true, s.rf, options) {
 		var err error
 		data, err = s.decodePathIdentifier(data)
 		if err != nil {
@@ -115,44 +115,20 @@ func (s *SRPolicyNLRI) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type SRPolicyIPv4 struct {
-	SRPolicyNLRI
-}
-
-func (s *SRPolicyIPv4) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return s.decodeFromBytes(s.rf, data)
-}
-
-func NewSRPolicyIPv4(l uint32, d uint32, c uint32, ep []byte) *SRPolicyIPv4 {
-	return &SRPolicyIPv4{
-		SRPolicyNLRI: SRPolicyNLRI{
-			rf:            RF_SR_POLICY_IPv4,
-			Length:        uint8(l / 8),
-			Distinguisher: d,
-			Color:         c,
-			Endpoint:      ep,
-		},
+func NewSRPolicy(family Family, l uint32, d uint32, c uint32, ep []byte) (*SRPolicyNLRI, error) {
+	switch family {
+	case RF_SR_POLICY_IPv4, RF_SR_POLICY_IPv6:
+	default:
+		return nil, fmt.Errorf("invalid family: %d", family)
 	}
-}
 
-type SRPolicyIPv6 struct {
-	SRPolicyNLRI
-}
-
-func (s *SRPolicyIPv6) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return s.decodeFromBytes(s.rf, data)
-}
-
-func NewSRPolicyIPv6(l uint32, d uint32, c uint32, ep []byte) *SRPolicyIPv6 {
-	return &SRPolicyIPv6{
-		SRPolicyNLRI: SRPolicyNLRI{
-			rf:            RF_SR_POLICY_IPv6,
-			Length:        uint8(l / 8),
-			Distinguisher: d,
-			Color:         c,
-			Endpoint:      ep,
-		},
-	}
+	return &SRPolicyNLRI{
+		rf:            family,
+		Length:        uint8(l / 8),
+		Distinguisher: d,
+		Color:         c,
+		Endpoint:      ep,
+	}, nil
 }
 
 type TunnelEncapSubTLVSRPreference struct {

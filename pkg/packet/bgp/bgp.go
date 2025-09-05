@@ -10068,28 +10068,16 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 			return nil, err
 		}
 		return nlri, nil
-	case RF_SR_POLICY_IPv4:
+	case RF_SR_POLICY_IPv4, RF_SR_POLICY_IPv6:
 		// TODO (sbezverk) Add processing SR Policy NLRI
-		nlri := &SRPolicyIPv4{
-			SRPolicyNLRI: SRPolicyNLRI{
-				rf: RF_SR_POLICY_IPv4,
-			},
+		nlri := &SRPolicyNLRI{
+			rf: family,
 		}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
 		return nlri, nil
-	case RF_SR_POLICY_IPv6:
-		nlri := &SRPolicyIPv6{
-			SRPolicyNLRI: SRPolicyNLRI{
-				rf: RF_SR_POLICY_IPv6,
-			},
-		}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
-		}
 	case RF_RTC_UC:
 		nlri := &RouteTargetMembershipNLRI{}
 		err := nlri.DecodeFromBytes(buf, options...)
