@@ -129,7 +129,7 @@ type MUPNLRI struct {
 	RouteTypeData    MUPRouteTypeInterface
 }
 
-func (n *MUPNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (n *MUPNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 4 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all MUPNLRI bytes available")
 	}

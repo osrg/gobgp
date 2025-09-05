@@ -10156,20 +10156,11 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 			return nil, err
 		}
 		return nlri, nil
-	case RF_MUP_IPv4:
+	case RF_MUP_IPv4, RF_MUP_IPv6:
 		nlri := &MUPNLRI{
-			Afi: AFI_IP,
+			Afi: family.Afi(),
 		}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
-		}
-		return nlri, nil
-	case RF_MUP_IPv6:
-		nlri := &MUPNLRI{
-			Afi: AFI_IP6,
-		}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}

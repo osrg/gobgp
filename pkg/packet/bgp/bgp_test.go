@@ -3775,7 +3775,7 @@ func FuzzParseFlowSpecComponents(f *testing.F) {
 //nolint:errcheck
 func FuzzDecodeFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		(&MUPNLRI{}).DecodeFromBytes(data)
+		(&MUPNLRI{}).decodeFromBytes(data)
 		if len(data) >= 2 {
 			l := len(data)
 			afi := binary.BigEndian.Uint16(data[l-2 : l])
