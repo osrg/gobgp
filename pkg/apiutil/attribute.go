@@ -63,12 +63,15 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		}
 		return bgp.NewPathAttributeOriginatorId(a.OriginatorId.Id), nil
 	case *api.Attribute_ClusterList:
+		l := make([]netip.Addr, 0, len(a.ClusterList.Ids))
 		for _, id := range a.ClusterList.Ids {
 			if i, err := netip.ParseAddr(id); err != nil || !i.Is4() {
 				return nil, fmt.Errorf("invalid cluster list: %s", a.ClusterList.Ids)
+			} else {
+				l = append(l, i)
 			}
 		}
-		return bgp.NewPathAttributeClusterList(a.ClusterList.Ids), nil
+		return bgp.NewPathAttributeClusterList(l)
 	case *api.Attribute_MpReach:
 		if a.MpReach.Family == nil {
 			return nil, fmt.Errorf("empty family")

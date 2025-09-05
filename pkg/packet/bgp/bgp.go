@@ -11466,12 +11466,14 @@ func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
+func NewPathAttributeClusterList(value []netip.Addr) (*PathAttributeClusterList, error) {
 	l := len(value) * 4
 	list := make([]netip.Addr, len(value))
 	for i, v := range value {
-		// TODO: return error and check Is4()
-		list[i], _ = netip.ParseAddr(v)
+		if !v.Is4() {
+			return nil, fmt.Errorf("invalid address")
+		}
+		list[i] = v
 	}
 	t := BGP_ATTR_TYPE_CLUSTER_LIST
 	return &PathAttributeClusterList{
@@ -11481,7 +11483,7 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 			Length: uint16(l),
 		},
 		Value: list,
-	}
+	}, nil
 }
 
 type PathAttributeMpReachNLRI struct {

@@ -312,16 +312,15 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
-			clusterID := string(peer.RouteReflector.State.RouteReflectorClusterId)
+			// TODO: needs to validated earlier.
+			clusterID := netip.MustParseAddr(string(peer.RouteReflector.State.RouteReflectorClusterId))
 			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
-				path.setPathAttr(bgp.NewPathAttributeClusterList([]string{clusterID}))
+				pa, _ := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
+				path.setPathAttr(pa)
 			} else {
 				clusterList := p.(*bgp.PathAttributeClusterList)
-				newClusterList := make([]string, 0, len(clusterList.Value))
-				for _, ip := range clusterList.Value {
-					newClusterList = append(newClusterList, ip.String())
-				}
-				path.setPathAttr(bgp.NewPathAttributeClusterList(append([]string{clusterID}, newClusterList...)))
+				pa, _ := bgp.NewPathAttributeClusterList(append([]netip.Addr{clusterID}, clusterList.Value...))
+				path.setPathAttr(pa)
 			}
 		}
 	default:
