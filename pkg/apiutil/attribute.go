@@ -137,7 +137,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 			if !ok || !ip.IsValid() {
 				return nil, fmt.Errorf("invalid pmsi tunnel identifier: %s", a.PmsiTunnel.Id)
 			}
-			id = bgp.NewIngressReplTunnelID(ip.String())
+			id, _ = bgp.NewIngressReplTunnelID(ip)
 		default:
 			id = bgp.NewDefaultPmsiTunnelID(a.PmsiTunnel.Id)
 		}
@@ -156,7 +156,11 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 				case *api.TunnelEncapTLV_TLV_Color:
 					subTlv = bgp.NewTunnelEncapSubTLVColor(sv.Color.Color)
 				case *api.TunnelEncapTLV_TLV_EgressEndpoint:
-					subTlv = bgp.NewTunnelEncapSubTLVEgressEndpoint(sv.EgressEndpoint.Address)
+					addr, err := netip.ParseAddr(sv.EgressEndpoint.Address)
+					if err != nil {
+						return nil, fmt.Errorf("invalid egress endpoint address")
+					}
+					subTlv, _ = bgp.NewTunnelEncapSubTLVEgressEndpoint(addr)
 				case *api.TunnelEncapTLV_TLV_UdpDestPort:
 					subTlv = bgp.NewTunnelEncapSubTLVUDPDestPort(uint16(sv.UdpDestPort.Port))
 				case *api.TunnelEncapTLV_TLV_SrPreference:
@@ -1580,7 +1584,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 			if err != nil {
 				return nil, err
 			}
-			nlri = bgp.NewEVPNMacIPAdvertisementRoute(rd, *esi, v.EthernetTag, v.MacAddress, v.IpAddress, v.Labels)
+			addr, err := netip.ParseAddr(v.IpAddress)
+			if err != nil {
+				return nil, err
+			}
+			nlri, _ = bgp.NewEVPNMacIPAdvertisementRoute(rd, *esi, v.EthernetTag, v.MacAddress, addr, v.Labels)
 		}
 	case *api.NLRI_EvpnMulticast:
 		v := n.EvpnMulticast
@@ -1589,11 +1597,19 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 			if err != nil {
 				return nil, err
 			}
-			nlri = bgp.NewEVPNMulticastEthernetTagRoute(rd, v.EthernetTag, v.IpAddress)
+			addr, err := netip.ParseAddr(v.IpAddress)
+			if err != nil {
+				return nil, err
+			}
+			nlri, _ = bgp.NewEVPNMulticastEthernetTagRoute(rd, v.EthernetTag, addr)
 		}
 	case *api.NLRI_EvpnEthernetSegment:
 		v := n.EvpnEthernetSegment
 		if rf == bgp.RF_EVPN {
+			addr, err := netip.ParseAddr(v.IpAddress)
+			if err != nil {
+				return nil, err
+			}
 			rd, err := UnmarshalRD(v.Rd)
 			if err != nil {
 				return nil, err
@@ -1602,7 +1618,7 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 			if err != nil {
 				return nil, err
 			}
-			nlri = bgp.NewEVPNEthernetSegmentRoute(rd, *esi, v.IpAddress)
+			nlri, _ = bgp.NewEVPNEthernetSegmentRoute(rd, *esi, addr)
 		}
 	case *api.NLRI_EvpnIpPrefix:
 		v := n.EvpnIpPrefix
@@ -1615,7 +1631,15 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 			if err != nil {
 				return nil, err
 			}
-			nlri = bgp.NewEVPNIPPrefixRoute(rd, *esi, v.EthernetTag, uint8(v.IpPrefixLen), v.IpPrefix, v.GwAddress, v.Label)
+			gw, err := netip.ParseAddr(v.GwAddress)
+			if err != nil {
+				return nil, err
+			}
+			prefix, err := netip.ParseAddr(v.IpPrefix)
+			if err != nil {
+				return nil, err
+			}
+			nlri, _ = bgp.NewEVPNIPPrefixRoute(rd, *esi, v.EthernetTag, uint8(v.IpPrefixLen), prefix, gw, v.Label)
 		}
 	case *api.NLRI_SrPolicy:
 		v := n.SrPolicy

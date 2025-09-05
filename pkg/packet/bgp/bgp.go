@@ -2861,24 +2861,22 @@ func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
-func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, macAddress string, ipAddress string, labels []uint32) *EVPNNLRI {
+func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, macAddress string, ipAddress netip.Addr, labels []uint32) (*EVPNNLRI, error) {
 	mac, _ := net.ParseMAC(macAddress)
-	var ipLen uint8
-	// TODO: return error
-	ip, err := netip.ParseAddr(ipAddress)
-	if err == nil {
-		ipLen = uint8(ip.BitLen())
+	if !ipAddress.IsValid() {
+		return nil, fmt.Errorf("invalid IP address")
 	}
+
 	return NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, &EVPNMacIPAdvertisementRoute{
 		RD:               rd,
 		ESI:              esi,
 		ETag:             etag,
 		MacAddressLength: 48,
 		MacAddress:       mac,
-		IPAddressLength:  ipLen,
-		IPAddress:        ip,
+		IPAddressLength:  uint8(ipAddress.BitLen()),
+		IPAddress:        ipAddress,
 		Labels:           labels,
-	})
+	}), nil
 }
 
 type EVPNMulticastEthernetTagRoute struct {
@@ -2970,19 +2968,17 @@ func (er *EVPNMulticastEthernetTagRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
-func NewEVPNMulticastEthernetTagRoute(rd RouteDistinguisherInterface, etag uint32, ipAddress string) *EVPNNLRI {
-	var ipLen uint8
-	// TODO: return error
-	ip, err := netip.ParseAddr(ipAddress)
-	if err == nil {
-		ipLen = uint8(ip.BitLen())
+func NewEVPNMulticastEthernetTagRoute(rd RouteDistinguisherInterface, etag uint32, ipAddress netip.Addr) (*EVPNNLRI, error) {
+	if !ipAddress.IsValid() {
+		return nil, fmt.Errorf("invalid IP address: %v", ipAddress)
 	}
+
 	return NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, &EVPNMulticastEthernetTagRoute{
 		RD:              rd,
 		ETag:            etag,
-		IPAddressLength: ipLen,
-		IPAddress:       ip,
-	})
+		IPAddressLength: uint8(ipAddress.BitLen()),
+		IPAddress:       ipAddress,
+	}), nil
 }
 
 type EVPNEthernetSegmentRoute struct {
@@ -3078,19 +3074,16 @@ func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
-func NewEVPNEthernetSegmentRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, ipAddress string) *EVPNNLRI {
-	var ipLen uint8
-	// TODO: return error
-	ip, err := netip.ParseAddr(ipAddress)
-	if err == nil {
-		ipLen = uint8(ip.BitLen())
+func NewEVPNEthernetSegmentRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, ipAddress netip.Addr) (*EVPNNLRI, error) {
+	if !ipAddress.IsValid() {
+		return nil, fmt.Errorf("invalid IP address")
 	}
 	return NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE, &EVPNEthernetSegmentRoute{
 		RD:              rd,
 		ESI:             esi,
-		IPAddressLength: ipLen,
-		IPAddress:       ip,
-	})
+		IPAddressLength: uint8(ipAddress.BitLen()),
+		IPAddress:       ipAddress,
+	}), nil
 }
 
 type EVPNIPPrefixRoute struct {
@@ -3227,18 +3220,19 @@ func (er *EVPNIPPrefixRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
-func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, ipPrefixLength uint8, ipPrefix string, gateway string, label uint32) *EVPNNLRI {
-	ip, _ := netip.ParseAddr(ipPrefix)
-	gw, _ := netip.ParseAddr(gateway)
+func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, ipPrefixLength uint8, ipPrefix netip.Addr, gateway netip.Addr, label uint32) (*EVPNNLRI, error) {
+	if !ipPrefix.IsValid() || !gateway.IsValid() {
+		return nil, fmt.Errorf("invalid IP address")
+	}
 	return NewEVPNNLRI(EVPN_IP_PREFIX, &EVPNIPPrefixRoute{
 		RD:             rd,
 		ESI:            esi,
 		ETag:           etag,
 		IPPrefixLength: ipPrefixLength,
-		IPPrefix:       ip,
-		GWIPAddress:    gw,
+		IPPrefix:       ipPrefix,
+		GWIPAddress:    gateway,
 		Label:          label,
-	})
+	}), nil
 }
 
 type EVPNIPMSIRoute struct {
@@ -11686,7 +11680,6 @@ func NewPathAttributeMpReachNLRI(family Family, nlris []AddrPrefixInterface, nex
 	l := 5
 	afi := family.Afi()
 	safi := family.Safi()
-	// TODO: return error
 
 	nhs := []netip.Addr{}
 	nhlen := 0
@@ -13996,18 +13989,16 @@ func (t *TunnelEncapSubTLVEgressEndpoint) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewTunnelEncapSubTLVEgressEndpoint(address string) *TunnelEncapSubTLVEgressEndpoint {
-	var ip netip.Addr
-	if address != "" {
-		// TODO: return error
-		ip, _ = netip.ParseAddr(address)
+func NewTunnelEncapSubTLVEgressEndpoint(address netip.Addr) (*TunnelEncapSubTLVEgressEndpoint, error) {
+	if !address.IsValid() {
+		return nil, fmt.Errorf("invalid address: %v", address)
 	}
 	return &TunnelEncapSubTLVEgressEndpoint{
 		TunnelEncapSubTLV: TunnelEncapSubTLV{
 			Type: ENCAP_SUBTLV_TYPE_EGRESS_ENDPOINT,
 		},
-		Address: ip,
-	}
+		Address: address,
+	}, nil
 }
 
 type TunnelEncapSubTLVUDPDestPort struct {
@@ -14275,12 +14266,14 @@ func (i *IngressReplTunnelID) String() string {
 	return i.Value.String()
 }
 
-func NewIngressReplTunnelID(value string) *IngressReplTunnelID {
-	// TODO: return error
-	ip, _ := netip.ParseAddr(value)
-	return &IngressReplTunnelID{
-		Value: ip,
+func NewIngressReplTunnelID(value netip.Addr) (*IngressReplTunnelID, error) {
+	if !value.IsValid() {
+		return nil, fmt.Errorf("invalid address: %v", value)
 	}
+
+	return &IngressReplTunnelID{
+		Value: value,
+	}, nil
 }
 
 type PathAttributePmsiTunnel struct {
