@@ -302,12 +302,15 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 			// address for that session.
 			if path.GetFamily() == bgp.RF_RTC_UC {
 				path.SetNexthop(localAddress.AsSlice())
-				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
+				attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
+				path.setPathAttr(attr)
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
-					path.setPathAttr(bgp.NewPathAttributeOriginatorId(global.Config.RouterId))
+					attr, _ := bgp.NewPathAttributeOriginatorId(netip.MustParseAddr(global.Config.RouterId))
+					path.setPathAttr(attr)
 				} else {
-					path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
+					attr, _ := bgp.NewPathAttributeOriginatorId(info.ID)
+					path.setPathAttr(attr)
 				}
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.

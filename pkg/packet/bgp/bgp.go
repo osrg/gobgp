@@ -11404,10 +11404,11 @@ func (p *PathAttributeOriginatorId) Serialize(options ...*MarshallingOption) ([]
 	return p.PathAttribute.Serialize(buf[:], options...)
 }
 
-func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
+func NewPathAttributeOriginatorId(addr netip.Addr) (*PathAttributeOriginatorId, error) {
+	if !addr.Is4() {
+		return nil, errors.New("invalid address")
+	}
 	t := BGP_ATTR_TYPE_ORIGINATOR_ID
-	// TODO: return error and check Is4()
-	addr, _ := netip.ParseAddr(value)
 	return &PathAttributeOriginatorId{
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[t],
@@ -11415,7 +11416,7 @@ func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
 			Length: 4,
 		},
 		Value: addr,
-	}
+	}, nil
 }
 
 type PathAttributeClusterList struct {

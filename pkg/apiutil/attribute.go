@@ -61,7 +61,7 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 		if err != nil || !id.Is4() {
 			return nil, fmt.Errorf("invalid originator id: %s", a.OriginatorId.Id)
 		}
-		return bgp.NewPathAttributeOriginatorId(a.OriginatorId.Id), nil
+		return bgp.NewPathAttributeOriginatorId(id)
 	case *api.Attribute_ClusterList:
 		l := make([]netip.Addr, 0, len(a.ClusterList.Ids))
 		for _, id := range a.ClusterList.Ids {

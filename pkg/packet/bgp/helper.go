@@ -104,6 +104,7 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	paag2, _ := NewPathAttributeAggregator(uint32(30002), netip.MustParseAddr("129.0.2.99"))
 	paag3, _ := NewPathAttributeAggregator(uint32(300020), netip.MustParseAddr("129.0.2.99"))
 	paag4, _ := NewPathAttributeAs4Aggregator(10000, netip.MustParseAddr("112.22.2.1"))
+	paorig, _ := NewPathAttributeOriginatorId(netip.MustParseAddr("10.10.0.1"))
 	pacluster, _ := NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr("10.10.0.2"), netip.MustParseAddr("10.10.0.3")})
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(3),
@@ -117,7 +118,7 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		paag2,
 		paag3,
 		NewPathAttributeCommunities([]uint32{1, 3}),
-		NewPathAttributeOriginatorId("10.10.0.1"),
+		paorig,
 		pacluster,
 		NewPathAttributeExtendedCommunities(ecommunities),
 		NewPathAttributeAs4Path(aspath3),
