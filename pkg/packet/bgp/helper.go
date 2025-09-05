@@ -62,10 +62,11 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 
 	isTransitive := true
 
+	ex3, _ := NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, netip.MustParseAddr("192.2.1.2"), 3000, isTransitive)
 	ecommunities := []ExtendedCommunityInterface{
 		NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 10003, 3<<20, isTransitive),
 		NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 1<<20, 300, isTransitive),
-		NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, "192.2.1.2", 3000, isTransitive),
+		ex3,
 		NewOpaqueExtended(false, []byte{1, 2, 3, 4, 5, 6, 7}),
 		NewValidationExtended(VALIDATION_STATE_INVALID),
 		NewUnknownExtended(99, []byte{0, 1, 2, 3, 4, 5, 6, 7}),

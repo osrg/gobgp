@@ -142,11 +142,13 @@ func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	case *bgp.TwoOctetAsSpecificExtended:
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectTwoOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
 	case *bgp.IPv4AddressSpecificExtended:
-		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv4AddressSpecificExtended(r.IPv4.String(), r.LocalAdmin)}, nil
+		ex, _ := bgp.NewRedirectIPv4AddressSpecificExtended(r.IPv4, r.LocalAdmin)
+		return []bgp.ExtendedCommunityInterface{ex}, nil
 	case *bgp.FourOctetAsSpecificExtended:
 		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectFourOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
 	case *bgp.IPv6AddressSpecificExtended:
-		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv6AddressSpecificExtended(r.IPv6.String(), r.LocalAdmin)}, nil
+		ex, _ := bgp.NewRedirectIPv6AddressSpecificExtended(r.IPv6, r.LocalAdmin)
+		return []bgp.ExtendedCommunityInterface{ex}, nil
 	}
 	return nil, fmt.Errorf("invalid redirect")
 }

@@ -535,7 +535,8 @@ func Test_FlowSpecExtended(t *testing.T) {
 	exts = append(exts, NewTrafficRateExtended(100, 9600.0))
 	exts = append(exts, NewTrafficActionExtended(true, false))
 	exts = append(exts, NewRedirectTwoOctetAsSpecificExtended(1000, 1000))
-	exts = append(exts, NewRedirectIPv4AddressSpecificExtended("10.0.0.1", 1000))
+	ex, _ := NewRedirectIPv4AddressSpecificExtended(netip.MustParseAddr("10.0.0.1"), 1000)
+	exts = append(exts, ex)
 	exts = append(exts, NewRedirectFourOctetAsSpecificExtended(10000000, 1000))
 	exts = append(exts, NewTrafficRemarkExtended(10))
 	m1 := NewPathAttributeExtendedCommunities(exts)
@@ -554,7 +555,8 @@ func Test_FlowSpecExtended(t *testing.T) {
 
 func Test_IP6FlowSpecExtended(t *testing.T) {
 	exts := make([]ExtendedCommunityInterface, 0)
-	exts = append(exts, NewRedirectIPv6AddressSpecificExtended("2001:db8::68", 1000))
+	ex, _ := NewRedirectIPv6AddressSpecificExtended(netip.MustParseAddr("2001:db8::68"), 1000)
+	exts = append(exts, ex)
 	m1 := NewPathAttributeIP6ExtendedCommunities(exts)
 	buf1, err := m1.Serialize()
 	require.NoError(t, err)

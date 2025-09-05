@@ -224,10 +224,18 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 			switch an.GetExtcom().(type) {
 			case *api.IP6ExtendedCommunitiesAttribute_Community_Ipv6AddressSpecific:
 				v := an.GetIpv6AddressSpecific()
-				community = bgp.NewIPv6AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Address, uint16(v.LocalAdmin), v.IsTransitive)
+				addr, err := netip.ParseAddr(v.Address)
+				if err != nil {
+					return nil, fmt.Errorf("invalid ipv6 address: %s", v.Address)
+				}
+				community, _ = bgp.NewIPv6AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), addr, uint16(v.LocalAdmin), v.IsTransitive)
 			case *api.IP6ExtendedCommunitiesAttribute_Community_RedirectIpv6AddressSpecific:
 				v := an.GetRedirectIpv6AddressSpecific()
-				community = bgp.NewRedirectIPv6AddressSpecificExtended(v.Address, uint16(v.LocalAdmin))
+				addr, err := netip.ParseAddr(v.Address)
+				if err != nil {
+					return nil, fmt.Errorf("invalid ipv6 address: %s", v.Address)
+				}
+				community, _ = bgp.NewRedirectIPv6AddressSpecificExtended(addr, uint16(v.LocalAdmin))
 			}
 			if community == nil {
 				return nil, fmt.Errorf("invalid ipv6 extended community: %T", an.GetExtcom())
@@ -1997,8 +2005,12 @@ func UnmarshalRT(rt *api.RouteTarget) (bgp.ExtendedCommunityInterface, error) {
 		return bgp.NewTwoOctetAsSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), uint16(v.Asn), v.LocalAdmin, v.IsTransitive), nil
 	case *api.RouteTarget_Ipv4AddressSpecific:
 		v := rt.GetIpv4AddressSpecific()
-		rt := bgp.NewIPv4AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Address, uint16(v.LocalAdmin), v.IsTransitive)
-		if rt == nil {
+		addr, err := netip.ParseAddr(v.Address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address: %s", v.Address)
+		}
+		rt, err := bgp.NewIPv4AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), addr, uint16(v.LocalAdmin), v.IsTransitive)
+		if err != nil {
 			return nil, fmt.Errorf("invalid address for ipv4 address specific route target: %s", v.Address)
 		}
 		return rt, nil
@@ -2210,7 +2222,11 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 			community = bgp.NewTwoOctetAsSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), uint16(v.Asn), v.LocalAdmin, v.IsTransitive)
 		case *api.ExtendedCommunity_Ipv4AddressSpecific:
 			v := comm.Ipv4AddressSpecific
-			community = bgp.NewIPv4AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Address, uint16(v.LocalAdmin), v.IsTransitive)
+			addr, err := netip.ParseAddr(v.Address)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address: %s", v.Address)
+			}
+			community, _ = bgp.NewIPv4AddressSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), addr, uint16(v.LocalAdmin), v.IsTransitive)
 		case *api.ExtendedCommunity_FourOctetAsSpecific:
 			v := comm.FourOctetAsSpecific
 			community = bgp.NewFourOctetAsSpecificExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), v.Asn, uint16(v.LocalAdmin), v.IsTransitive)
@@ -2254,7 +2270,11 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 			community = bgp.NewRedirectTwoOctetAsSpecificExtended(uint16(v.Asn), v.LocalAdmin)
 		case *api.ExtendedCommunity_RedirectIpv4AddressSpecific:
 			v := comm.RedirectIpv4AddressSpecific
-			community = bgp.NewRedirectIPv4AddressSpecificExtended(v.Address, uint16(v.LocalAdmin))
+			addr, err := netip.ParseAddr(v.Address)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address: %s", v.Address)
+			}
+			community, _ = bgp.NewRedirectIPv4AddressSpecificExtended(addr, uint16(v.LocalAdmin))
 		case *api.ExtendedCommunity_RedirectFourOctetAsSpecific:
 			v := comm.RedirectFourOctetAsSpecific
 			community = bgp.NewRedirectFourOctetAsSpecificExtended(v.Asn, uint16(v.LocalAdmin))

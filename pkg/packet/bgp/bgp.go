@@ -11945,17 +11945,16 @@ func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 	return t, e.SubType
 }
 
-func NewIPv4AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip string, localAdmin uint16, isTransitive bool) *IPv4AddressSpecificExtended {
-	ipv4, err := netip.ParseAddr(ip)
-	if err != nil || !ipv4.Is4() {
-		return nil
+func NewIPv4AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip netip.Addr, localAdmin uint16, isTransitive bool) (*IPv4AddressSpecificExtended, error) {
+	if !ip.Is4() {
+		return nil, fmt.Errorf("invalid IPv4 address")
 	}
 	return &IPv4AddressSpecificExtended{
 		SubType:      subtype,
-		IPv4:         ipv4,
+		IPv4:         ip,
 		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
-	}
+	}, nil
 }
 
 type IPv6AddressSpecificExtended struct {
@@ -12003,17 +12002,16 @@ func (e *IPv6AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 	return t, e.SubType
 }
 
-func NewIPv6AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip string, localAdmin uint16, isTransitive bool) *IPv6AddressSpecificExtended {
-	ipv6, err := netip.ParseAddr(ip)
-	if err != nil || !ipv6.Is6() {
-		return nil
+func NewIPv6AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip netip.Addr, localAdmin uint16, isTransitive bool) (*IPv6AddressSpecificExtended, error) {
+	if !ip.Is6() {
+		return nil, fmt.Errorf("invalid IPv6 address")
 	}
 	return &IPv6AddressSpecificExtended{
 		SubType:      subtype,
-		IPv6:         ipv6,
+		IPv6:         ip,
 		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
-	}
+	}, nil
 }
 
 type FourOctetAsSpecificExtended struct {
@@ -12149,16 +12147,16 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 	if subtype == EC_SUBTYPE_SOURCE_AS {
 		localAdmin = 0
 	}
-	ip := net.ParseIP(elems[1])
+	addr, _ := netip.ParseAddr(elems[1])
 	isTransitive := true
 	switch {
 	case subtype == EC_SUBTYPE_LINK_BANDWIDTH:
 		asn, _ := strconv.ParseUint(elems[8], 10, 16)
 		return NewLinkBandwidthExtended(uint16(asn), float32(localAdmin)), nil
-	case ip.To4() != nil:
-		return NewIPv4AddressSpecificExtended(subtype, elems[1], uint16(localAdmin), isTransitive), nil
-	case ip.To16() != nil:
-		return NewIPv6AddressSpecificExtended(subtype, elems[1], uint16(localAdmin), isTransitive), nil
+	case addr.Is4():
+		return NewIPv4AddressSpecificExtended(subtype, addr, uint16(localAdmin), isTransitive)
+	case addr.Is6():
+		return NewIPv6AddressSpecificExtended(subtype, addr, uint16(localAdmin), isTransitive)
 	case elems[6] == "" && elems[7] == "":
 		asn, _ := strconv.ParseUint(elems[8], 10, 16)
 		return NewTwoOctetAsSpecificExtended(subtype, uint16(asn), uint32(localAdmin), isTransitive), nil
@@ -13146,12 +13144,12 @@ func (e *RedirectIPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrT
 	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_SUBTYPE_FLOWSPEC_REDIRECT
 }
 
-func NewRedirectIPv4AddressSpecificExtended(ipv4 string, localAdmin uint16) *RedirectIPv4AddressSpecificExtended {
-	e := NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv4, localAdmin, false)
-	if e == nil {
-		return nil
+func NewRedirectIPv4AddressSpecificExtended(ipv4 netip.Addr, localAdmin uint16) (*RedirectIPv4AddressSpecificExtended, error) {
+	e, err := NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv4, localAdmin, false)
+	if err != nil {
+		return nil, err
 	}
-	return &RedirectIPv4AddressSpecificExtended{*e}
+	return &RedirectIPv4AddressSpecificExtended{*e}, nil
 }
 
 type RedirectIPv6AddressSpecificExtended struct {
@@ -13182,12 +13180,12 @@ func (e *RedirectIPv6AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrT
 	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6
 }
 
-func NewRedirectIPv6AddressSpecificExtended(ipv6 string, localAdmin uint16) *RedirectIPv6AddressSpecificExtended {
-	e := NewIPv6AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv6, localAdmin, false)
-	if e == nil {
-		return nil
+func NewRedirectIPv6AddressSpecificExtended(ipv6 netip.Addr, localAdmin uint16) (*RedirectIPv6AddressSpecificExtended, error) {
+	e, err := NewIPv6AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv6, localAdmin, false)
+	if err != nil {
+		return nil, err
 	}
-	return &RedirectIPv6AddressSpecificExtended{*e}
+	return &RedirectIPv6AddressSpecificExtended{*e}, nil
 }
 
 type RedirectFourOctetAsSpecificExtended struct {
@@ -13281,9 +13279,9 @@ func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityI
 			localAdmin := binary.BigEndian.Uint32(data[4:8])
 			return NewRedirectTwoOctetAsSpecificExtended(as, localAdmin), nil
 		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2:
-			ipv4 := net.IP(data[2:6]).String()
+			ipv4, _ := netip.AddrFromSlice(data[2:6])
 			localAdmin := binary.BigEndian.Uint16(data[6:8])
-			return NewRedirectIPv4AddressSpecificExtended(ipv4, localAdmin), nil
+			return NewRedirectIPv4AddressSpecificExtended(ipv4, localAdmin)
 		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
 			as := binary.BigEndian.Uint32(data[2:6])
 			localAdmin := binary.BigEndian.Uint16(data[6:8])
@@ -13297,9 +13295,9 @@ func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityI
 			return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes for IPv6 FlowSpec are available")
 		}
 
-		ipv6 := net.IP(data[2:18]).String()
+		ipv6, _ := netip.AddrFromSlice(data[2:18])
 		localAdmin := binary.BigEndian.Uint16(data[18:20])
-		return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin), nil
+		return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin)
 	case EC_SUBTYPE_L2_INFO:
 		switch data[2] {
 		case byte(LAYER2ENCAPSULATION_TYPE_VPLS):
@@ -13325,9 +13323,9 @@ func parseIP6FlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 		// RFC7674
 		switch typ {
 		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL:
-			ipv6 := net.IP(data[2:18]).String()
+			ipv6, _ := netip.AddrFromSlice(data[2:18])
 			localAdmin := binary.BigEndian.Uint16(data[18:20])
-			return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin), nil
+			return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin)
 		}
 	}
 	return &UnknownExtended{
@@ -13417,9 +13415,9 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC:
-		ipv4 := net.IP(data[2:6]).String()
+		ipv4, _ := netip.AddrFromSlice(data[2:6])
 		localAdmin := binary.BigEndian.Uint16(data[6:8])
-		return NewIPv4AddressSpecificExtended(subtype, ipv4, localAdmin, transitive), nil
+		return NewIPv4AddressSpecificExtended(subtype, ipv4, localAdmin, transitive)
 	case EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
 		transitive = true
 		fallthrough
@@ -14451,9 +14449,9 @@ func ParseIP6Extended(data []byte) (ExtendedCommunityInterface, error) {
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_IP6_SPECIFIC:
-		ipv6 := net.IP(data[2:18]).String()
+		ipv6, _ := netip.AddrFromSlice(data[2:18])
 		localAdmin := binary.BigEndian.Uint16(data[18:20])
-		return NewIPv6AddressSpecificExtended(subtype, ipv6, localAdmin, transitive), nil
+		return NewIPv6AddressSpecificExtended(subtype, ipv6, localAdmin, transitive)
 	case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL:
 		return parseIP6FlowSpecExtended(data)
 	default:
