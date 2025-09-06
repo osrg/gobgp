@@ -101,20 +101,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			switch family {
 			case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
 				t := BGPFlowSpecType(0)
-				value := make([]FlowSpecComponentInterface, 0)
-				switch family {
-				case RF_FS_IPv4_UC:
-					value = prefix.(*FlowSpecIPv4Unicast).Value
-				case RF_FS_IPv6_UC:
-					value = prefix.(*FlowSpecIPv6Unicast).Value
-				case RF_FS_IPv4_VPN:
-					value = prefix.(*FlowSpecIPv4VPN).Value
-				case RF_FS_IPv6_VPN:
-					value = prefix.(*FlowSpecIPv6VPN).Value
-				case RF_FS_L2_VPN:
-					value = prefix.(*FlowSpecL2VPN).Value
-				}
-				for _, v := range value {
+				for _, v := range prefix.(*FlowSpecNLRI).Value {
 					if v.Type() <= t {
 						return NewMessageError(0, 0, nil, fmt.Sprintf("%s nlri violate strict type ordering", family))
 					}

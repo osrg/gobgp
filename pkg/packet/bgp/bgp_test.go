@@ -478,7 +478,7 @@ func Test_FlowSpecNlri(t *testing.T) {
 	item8 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND|BITMASK_FLAG_OP_NOT, TCP_FLAG_URGENT)
 
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item7, item8}))
-	n1 := NewFlowSpecIPv4Unicast(cmp)
+	n1, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
@@ -595,7 +595,7 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
 	item7 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_AND|BITMASK_FLAG_OP_NOT, TCP_FLAG_URGENT)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
-	n1 := NewFlowSpecIPv6Unicast(cmp)
+	n1, _ := NewFlowSpecUnicast(RF_FS_IPv6_UC, cmp)
 	buf1, err := n1.Serialize()
 	require.NoError(t, err)
 
@@ -631,7 +631,7 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	item1 := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, uint64(IPv4))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, []*FlowSpecComponentItem{item1}))
 	rd, _ := ParseRouteDistinguisher("100:100")
-	n1 := NewFlowSpecL2VPN(rd, cmp)
+	n1, _ := NewFlowSpecVPN(RF_FS_L2_VPN, rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
 	n2, err := NLRIFromSlice(RF_FS_L2_VPN, buf1)
@@ -657,7 +657,7 @@ func Test_FlowSpecNlriVPN(t *testing.T) {
 	srcPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	cmp = append(cmp, NewFlowSpecSourcePrefix(srcPrefix))
 	rd, _ := ParseRouteDistinguisher("100:100")
-	n1 := NewFlowSpecIPv4VPN(rd, cmp)
+	n1, _ := NewFlowSpecVPN(RF_FS_IPv4_VPN, rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
 	n2, err := NLRIFromSlice(RF_FS_IPv4_VPN, buf1)
@@ -820,12 +820,11 @@ func Test_AddPath(t *testing.T) {
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
 		prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
-		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(prefix)})
+		n1, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, []FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(prefix)})
 		n1.SetPathLocalIdentifier(60)
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewFlowSpecIPv4Unicast(nil)
-		err = n2.DecodeFromBytes(bits, opt)
+		n2, err := NLRIFromSlice(RF_FS_IPv4_UC, bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(60))
 	}
@@ -847,18 +846,18 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	cmp, err := ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 10.0.0.2/32 source 10.0.0.1/32 destination-port ==3128 protocol tcp")
 	assert.NoError(err)
 	// Note: Use NewFlowSpecIPv4Unicast() for the consistent ordered rules.
-	n1 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n1, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.0/24 destination-port ==3128 protocol tcp")
 	assert.NoError(err)
-	n2 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n2, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 	r, err := CompareFlowSpecNLRI(n1, n2)
 	assert.NoError(err)
 	assert.True(r > 0)
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "source 10.0.0.9/32 port ==80 ==8080 destination-port >8080&<8080 ==3128 source-port >1024 protocol ==udp ==tcp")
-	n3 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n3, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 	assert.NoError(err)
 	cmp, err = ParseFlowSpecComponents(RF_FS_IPv4_UC, "destination 192.168.0.2/32")
-	n4 := &NewFlowSpecIPv4Unicast(cmp).FlowSpecNLRI
+	n4, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 	assert.NoError(err)
 	r, err = CompareFlowSpecNLRI(n3, n4)
 	assert.NoError(err)
@@ -3818,11 +3817,11 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&flowSpecMac{}).DecodeFromBytes(data)
 		(&FlowSpecComponent{}).DecodeFromBytes(data)
 		(&FlowSpecUnknown{}).DecodeFromBytes(data)
-		(&FlowSpecIPv4Unicast{}).DecodeFromBytes(data)
-		(&FlowSpecIPv4VPN{}).DecodeFromBytes(data)
-		(&FlowSpecIPv6Unicast{}).DecodeFromBytes(data)
-		(&FlowSpecIPv6VPN{}).DecodeFromBytes(data)
-		(&FlowSpecL2VPN{}).DecodeFromBytes(data)
+		(&FlowSpecNLRI{rf: RF_FS_IPv4_UC}).decodeFromBytes(data)
+		(&FlowSpecNLRI{rf: RF_FS_IPv6_UC}).decodeFromBytes(data)
+		(&FlowSpecNLRI{rf: RF_FS_IPv4_VPN}).decodeFromBytes(data)
+		(&FlowSpecNLRI{rf: RF_FS_IPv6_VPN}).decodeFromBytes(data)
+		(&FlowSpecNLRI{rf: RF_FS_L2_VPN}).decodeFromBytes(data)
 		(&OpaqueNLRI{}).DecodeFromBytes(data)
 		(&LsNLRI{}).DecodeFromBytes(data)
 		(&LsNodeNLRI{}).DecodeFromBytes(data)

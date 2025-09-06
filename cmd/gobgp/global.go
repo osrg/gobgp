@@ -506,16 +506,10 @@ func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *
 
 	var nlri bgp.AddrPrefixInterface
 	switch rf {
-	case bgp.RF_FS_IPv4_UC:
-		nlri = bgp.NewFlowSpecIPv4Unicast(rules)
-	case bgp.RF_FS_IPv6_UC:
-		nlri = bgp.NewFlowSpecIPv6Unicast(rules)
-	case bgp.RF_FS_IPv4_VPN:
-		nlri = bgp.NewFlowSpecIPv4VPN(rd, rules)
-	case bgp.RF_FS_IPv6_VPN:
-		nlri = bgp.NewFlowSpecIPv6VPN(rd, rules)
-	case bgp.RF_FS_L2_VPN:
-		nlri = bgp.NewFlowSpecL2VPN(rd, rules)
+	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:
+		nlri, _ = bgp.NewFlowSpecUnicast(rf, rules)
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
+		nlri, _ = bgp.NewFlowSpecVPN(rf, rd, rules)
 	default:
 		return nil, nil, nil, fmt.Errorf("invalid route family")
 	}
