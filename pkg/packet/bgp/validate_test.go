@@ -416,7 +416,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	isFragment := uint64(0x02)
 	item7 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
-	n1 := NewFlowSpecIPv4Unicast(cmp)
+	n1, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 	a, _ := NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []AddrPrefixInterface{n1}, netip.IPv4Unspecified())
 	m := map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}
 	_, err := ValidateAttribute(a, m, false, false, false)
@@ -427,7 +427,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecSourcePrefix(srcPrefix2))
 	destPrefix2, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(destPrefix2))
-	n1 = NewFlowSpecIPv4Unicast(cmp)
+	n1, _ = NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
 	a, _ = NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []AddrPrefixInterface{n1}, netip.IPv4Unspecified())
 	// Swaps components order to reproduce the rules order violation.
 	n1.Value[0], n1.Value[1] = n1.Value[1], n1.Value[0]

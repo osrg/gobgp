@@ -1158,18 +1158,16 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 		} else {
 			path.family = bgp.RF_IPv6_VPN
 		}
-	case bgp.RF_FS_IPv4_UC:
-		n := nlri.(*bgp.FlowSpecIPv4Unicast)
+	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:
+		n := nlri.(*bgp.FlowSpecNLRI)
+		if rf == bgp.RF_FS_IPv4_UC {
+			path.family = bgp.RF_FS_IPv4_VPN
+		} else {
+			path.family = bgp.RF_FS_IPv6_VPN
+		}
 		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewFlowSpecIPv4VPN(v.Rd, n.Value)
+		path.OriginInfo().nlri, _ = bgp.NewFlowSpecVPN(path.family, v.Rd, n.Value)
 		path.GetNlri().SetPathIdentifier(pathIdentifier)
-		path.family = bgp.RF_FS_IPv4_VPN
-	case bgp.RF_FS_IPv6_UC:
-		n := nlri.(*bgp.FlowSpecIPv6Unicast)
-		pathIdentifier := path.GetNlri().PathIdentifier()
-		path.OriginInfo().nlri = bgp.NewFlowSpecIPv6VPN(v.Rd, n.Value)
-		path.GetNlri().SetPathIdentifier(pathIdentifier)
-		path.family = bgp.RF_FS_IPv6_VPN
 	case bgp.RF_EVPN:
 		n := nlri.(*bgp.EVPNNLRI)
 		switch n.RouteType {
@@ -1288,18 +1286,15 @@ func (p *Path) ToLocal() *Path {
 		} else {
 			newFamily = bgp.RF_IPv6_UC
 		}
-	case bgp.RF_FS_IPv4_VPN:
-		n := nlri.(*bgp.FlowSpecIPv4VPN)
-		nlri = bgp.NewFlowSpecIPv4Unicast(n.Value)
-		nlri.SetPathLocalIdentifier(localPathId)
-		nlri.SetPathIdentifier(pathId)
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+		n := nlri.(*bgp.FlowSpecNLRI)
 		newFamily = bgp.RF_FS_IPv4_UC
-	case bgp.RF_FS_IPv6_VPN:
-		n := nlri.(*bgp.FlowSpecIPv6VPN)
-		nlri = bgp.NewFlowSpecIPv6Unicast(n.Value)
+		if f == bgp.RF_FS_IPv6_VPN {
+			newFamily = bgp.RF_FS_IPv6_UC
+		}
+		nlri, _ = bgp.NewFlowSpecUnicast(newFamily, n.Value)
 		nlri.SetPathLocalIdentifier(localPathId)
 		nlri.SetPathIdentifier(pathId)
-		newFamily = bgp.RF_FS_IPv6_UC
 	default:
 		return p
 	}

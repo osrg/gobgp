@@ -1301,61 +1301,25 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 			Asn: v.AS,
 			Rt:  rt,
 		}}
-	case *bgp.FlowSpecIPv4Unicast:
+	case *bgp.FlowSpecNLRI:
 		rules, err := MarshalFlowSpecRules(v.Value)
 		if err != nil {
 			return nil, err
 		}
-		nlri.Nlri = &api.NLRI_FlowSpec{FlowSpec: &api.FlowSpecNLRI{
-			Rules: rules,
-		}}
-	case *bgp.FlowSpecIPv6Unicast:
-		rules, err := MarshalFlowSpecRules(v.Value)
-		if err != nil {
-			return nil, err
+		if v.RD() != nil {
+			rd, err := MarshalRD(v.RD())
+			if err != nil {
+				return nil, err
+			}
+			nlri.Nlri = &api.NLRI_VpnFlowSpec{VpnFlowSpec: &api.VPNFlowSpecNLRI{
+				Rd:    rd,
+				Rules: rules,
+			}}
+		} else {
+			nlri.Nlri = &api.NLRI_FlowSpec{FlowSpec: &api.FlowSpecNLRI{
+				Rules: rules,
+			}}
 		}
-		nlri.Nlri = &api.NLRI_FlowSpec{FlowSpec: &api.FlowSpecNLRI{
-			Rules: rules,
-		}}
-	case *bgp.FlowSpecIPv4VPN:
-		rd, err := MarshalRD(v.RD())
-		if err != nil {
-			return nil, err
-		}
-		rules, err := MarshalFlowSpecRules(v.Value)
-		if err != nil {
-			return nil, err
-		}
-		nlri.Nlri = &api.NLRI_VpnFlowSpec{VpnFlowSpec: &api.VPNFlowSpecNLRI{
-			Rd:    rd,
-			Rules: rules,
-		}}
-	case *bgp.FlowSpecIPv6VPN:
-		rd, err := MarshalRD(v.RD())
-		if err != nil {
-			return nil, err
-		}
-		rules, err := MarshalFlowSpecRules(v.Value)
-		if err != nil {
-			return nil, err
-		}
-		nlri.Nlri = &api.NLRI_VpnFlowSpec{VpnFlowSpec: &api.VPNFlowSpecNLRI{
-			Rd:    rd,
-			Rules: rules,
-		}}
-	case *bgp.FlowSpecL2VPN:
-		rd, err := MarshalRD(v.RD())
-		if err != nil {
-			return nil, err
-		}
-		rules, err := MarshalFlowSpecRules(v.Value)
-		if err != nil {
-			return nil, err
-		}
-		nlri.Nlri = &api.NLRI_VpnFlowSpec{VpnFlowSpec: &api.VPNFlowSpecNLRI{
-			Rd:    rd,
-			Rules: rules,
-		}}
 	case *bgp.OpaqueNLRI:
 		nlri.Nlri = &api.NLRI_Opaque{Opaque: &api.OpaqueNLRI{
 			Key:   v.Key,
@@ -1666,12 +1630,7 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		switch rf {
-		case bgp.RF_FS_IPv4_UC:
-			nlri = bgp.NewFlowSpecIPv4Unicast(rules)
-		case bgp.RF_FS_IPv6_UC:
-			nlri = bgp.NewFlowSpecIPv6Unicast(rules)
-		}
+		nlri, _ = bgp.NewFlowSpecUnicast(rf, rules)
 	case *api.NLRI_VpnFlowSpec:
 		v := n.VpnFlowSpec
 		rd, err := UnmarshalRD(v.Rd)
@@ -1682,14 +1641,7 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 		if err != nil {
 			return nil, err
 		}
-		switch rf {
-		case bgp.RF_FS_IPv4_VPN:
-			nlri = bgp.NewFlowSpecIPv4VPN(rd, rules)
-		case bgp.RF_FS_IPv6_VPN:
-			nlri = bgp.NewFlowSpecIPv6VPN(rd, rules)
-		case bgp.RF_FS_L2_VPN:
-			nlri = bgp.NewFlowSpecL2VPN(rd, rules)
-		}
+		nlri, _ = bgp.NewFlowSpecVPN(rf, rd, rules)
 	case *api.NLRI_Opaque:
 		v := n.Opaque
 		nlri = bgp.NewOpaqueNLRI(v.Key, v.Value)

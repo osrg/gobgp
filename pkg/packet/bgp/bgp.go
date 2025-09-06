@@ -4644,12 +4644,16 @@ type FlowSpecNLRI struct {
 	rd    RouteDistinguisherInterface
 }
 
+func (n *FlowSpecNLRI) Flat() map[string]string {
+	return map[string]string{}
+}
+
 func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
 	return n.rd
 }
 
-func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*MarshallingOption) error {
-	if IsAddPathEnabled(true, rf, options) {
+func (n *FlowSpecNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if IsAddPathEnabled(true, n.rf, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
 		if err != nil {
@@ -4673,8 +4677,6 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 		return malformedAttrListErr("not all flowspec component bytes available")
 	}
 
-	n.rf = rf
-
 	if n.rf.Safi() == SAFI_FLOW_SPEC_VPN {
 		if length < 8 {
 			return malformedAttrListErr("not all flowspec component bytes available")
@@ -4692,38 +4694,38 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf Family, data []byte, options ...*Marsh
 		var i FlowSpecComponentInterface
 		switch t {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			switch rf >> 16 {
+			switch n.rf >> 16 {
 			case AFI_IP:
 				ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
 				i = NewFlowSpecDestinationPrefix(ipPrefix)
 			case AFI_IP6:
 				i = NewFlowSpecDestinationPrefix6(&IPAddrPrefix{}, 0)
 			default:
-				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", n.rf))
 			}
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			switch rf >> 16 {
+			switch n.rf >> 16 {
 			case AFI_IP:
 				ipPrefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
 				i = NewFlowSpecSourcePrefix(ipPrefix)
 			case AFI_IP6:
 				i = NewFlowSpecSourcePrefix6(&IPAddrPrefix{}, 0)
 			default:
-				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", n.rf))
 			}
 		case FLOW_SPEC_TYPE_SRC_MAC:
-			switch rf {
+			switch n.rf {
 			case RF_FS_L2_VPN:
 				i = NewFlowSpecSourceMac(nil)
 			default:
-				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", n.rf))
 			}
 		case FLOW_SPEC_TYPE_DST_MAC:
-			switch rf {
+			switch n.rf {
 			case RF_FS_L2_VPN:
 				i = NewFlowSpecDestinationMac(nil)
 			default:
-				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", n.rf))
 			}
 		case FLOW_SPEC_TYPE_IP_PROTO, FLOW_SPEC_TYPE_PORT, FLOW_SPEC_TYPE_DST_PORT, FLOW_SPEC_TYPE_SRC_PORT,
 			FLOW_SPEC_TYPE_ICMP_TYPE, FLOW_SPEC_TYPE_ICMP_CODE, FLOW_SPEC_TYPE_TCP_FLAG, FLOW_SPEC_TYPE_PKT_LEN,
@@ -4956,99 +4958,33 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 	return 0, nil
 }
 
-type FlowSpecIPv4Unicast struct {
-	FlowSpecNLRI
-}
-
-func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(n.rf, data, options...)
-}
-
-func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
-	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
-	return &FlowSpecIPv4Unicast{
-		FlowSpecNLRI: FlowSpecNLRI{
-			Value: value,
-			rf:    RF_FS_IPv4_UC,
-		},
+func NewFlowSpecUnicast(family Family, value []FlowSpecComponentInterface) (*FlowSpecNLRI, error) {
+	switch family {
+	case RF_FS_IPv4_UC, RF_FS_IPv6_UC:
+		// ok
+	default:
+		return nil, fmt.Errorf("invalid family: %v", family)
 	}
-}
-
-type FlowSpecIPv4VPN struct {
-	FlowSpecNLRI
-}
-
-func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(n.rf, data, options...)
-}
-
-func NewFlowSpecIPv4VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
 	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
-	return &FlowSpecIPv4VPN{
-		FlowSpecNLRI: FlowSpecNLRI{
-			Value: value,
-			rf:    RF_FS_IPv4_VPN,
-			rd:    rd,
-		},
+	return &FlowSpecNLRI{
+		Value: value,
+		rf:    family,
+	}, nil
+}
+
+func NewFlowSpecVPN(family Family, rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) (*FlowSpecNLRI, error) {
+	switch family {
+	case RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
+		// ok
+	default:
+		return nil, fmt.Errorf("invalid family: %v", rd)
 	}
-}
-
-type FlowSpecIPv6Unicast struct {
-	FlowSpecNLRI
-}
-
-func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.decodeFromBytes(n.rf, data, options...)
-}
-
-func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
 	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
-	return &FlowSpecIPv6Unicast{
-		FlowSpecNLRI: FlowSpecNLRI{
-			Value: value,
-			rf:    RF_FS_IPv6_UC,
-		},
-	}
-}
-
-type FlowSpecIPv6VPN struct {
-	FlowSpecNLRI
-}
-
-func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return n.decodeFromBytes(n.rf, data, options...)
-}
-
-func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
-	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
-	return &FlowSpecIPv6VPN{
-		FlowSpecNLRI: FlowSpecNLRI{
-			Value: value,
-			rf:    RF_FS_IPv6_VPN,
-			rd:    rd,
-		},
-	}
-}
-
-type FlowSpecL2VPN struct {
-	FlowSpecNLRI
-}
-
-func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	return n.decodeFromBytes(n.rf, data)
-}
-
-func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecL2VPN {
-	sort.SliceStable(value, func(i, j int) bool { return value[i].Type() < value[j].Type() })
-	return &FlowSpecL2VPN{
-		FlowSpecNLRI: FlowSpecNLRI{
-			Value: value,
-			rf:    RF_FS_L2_VPN,
-			rd:    rd,
-		},
-	}
+	return &FlowSpecNLRI{
+		Value: value,
+		rf:    family,
+		rd:    rd,
+	}, nil
 }
 
 type OpaqueNLRI struct {
@@ -10095,37 +10031,9 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 			return nil, err
 		}
 		return nlri, nil
-	case RF_FS_IPv4_UC:
-		nlri := &FlowSpecIPv4Unicast{FlowSpecNLRI{rf: RF_FS_IPv4_UC}}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
-		}
-		return nlri, nil
-	case RF_FS_IPv4_VPN:
-		nlri := &FlowSpecIPv4VPN{FlowSpecNLRI{rf: RF_FS_IPv4_VPN}}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
-		}
-		return nlri, nil
-	case RF_FS_IPv6_UC:
-		nlri := &FlowSpecIPv6Unicast{FlowSpecNLRI{rf: RF_FS_IPv6_UC}}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
-		}
-		return nlri, nil
-	case RF_FS_IPv6_VPN:
-		nlri := &FlowSpecIPv6VPN{FlowSpecNLRI{rf: RF_FS_IPv6_VPN}}
-		err := nlri.DecodeFromBytes(buf, options...)
-		if err != nil {
-			return nil, err
-		}
-		return nlri, nil
-	case RF_FS_L2_VPN:
-		nlri := &FlowSpecL2VPN{FlowSpecNLRI{rf: RF_FS_L2_VPN}}
-		err := nlri.DecodeFromBytes(buf, options...)
+	case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
+		nlri := &FlowSpecNLRI{rf: family}
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
@@ -15599,26 +15507,6 @@ func (l *EVPNNLRI) Flat() map[string]string {
 }
 
 func (l *RouteTargetMembershipNLRI) Flat() map[string]string {
-	return map[string]string{}
-}
-
-func (l *FlowSpecIPv4Unicast) Flat() map[string]string {
-	return map[string]string{}
-}
-
-func (l *FlowSpecIPv4VPN) Flat() map[string]string {
-	return map[string]string{}
-}
-
-func (l *FlowSpecIPv6Unicast) Flat() map[string]string {
-	return map[string]string{}
-}
-
-func (l *FlowSpecIPv6VPN) Flat() map[string]string {
-	return map[string]string{}
-}
-
-func (l *FlowSpecL2VPN) Flat() map[string]string {
 	return map[string]string{}
 }
 
