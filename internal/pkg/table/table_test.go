@@ -731,10 +731,9 @@ func Test_RouteTargetKey(t *testing.T) {
 	buf[6] = byte(bgp.EC_SUBTYPE_ROUTE_TARGET)                  // subtype
 	binary.BigEndian.PutUint16(buf[7:9], 0x1314)
 	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
-	r := &bgp.RouteTargetMembershipNLRI{}
-	err := r.DecodeFromBytes(buf)
+	r, err := bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err := extCommRouteTargetKey(r.RouteTarget)
+	key, err := extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
 	assert.NoError(err)
 	assert.Equal(uint64(0x0002131415161718), key)
 
@@ -747,10 +746,9 @@ func Test_RouteTargetKey(t *testing.T) {
 	ip := net.ParseIP("10.1.2.3").To4()
 	copy(buf[7:11], []byte(ip))
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
-	r = &bgp.RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = extCommRouteTargetKey(r.RouteTarget)
+	key, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
 	assert.NoError(err)
 	assert.Equal(uint64(0x01020a0102031314), key)
 
@@ -762,10 +760,9 @@ func Test_RouteTargetKey(t *testing.T) {
 	buf[6] = byte(bgp.EC_SUBTYPE_ROUTE_TARGET)                   // subtype
 	binary.BigEndian.PutUint32(buf[7:], 0x15161718)
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
-	r = &bgp.RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = extCommRouteTargetKey(r.RouteTarget)
+	key, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
 	assert.NoError(err)
 	assert.Equal(uint64(0x0202151617181314), key)
 
@@ -775,10 +772,9 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(bgp.EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
-	r = &bgp.RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	_, err = extCommRouteTargetKey(r.RouteTarget)
+	_, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
 	assert.NotNil(err)
 }
 

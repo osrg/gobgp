@@ -49,7 +49,7 @@ func Test_VPLSNLRI(t *testing.T) {
 	buf1, err := n1.Serialize()
 	assert.NoError(err)
 	n2 := &VPLSNLRI{}
-	err = n2.DecodeFromBytes(buf1)
+	err = n2.decodeFromBytes(buf1)
 	assert.NoError(err)
 
 	t.Logf("%s", n1)

@@ -36,7 +36,7 @@ type VPLSNLRI struct {
 	rd RouteDistinguisherInterface
 }
 
-func (n *VPLSNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (n *VPLSNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	/*
 		RFC6074 Section 7 BGP-AD and VPLS-BGP Interoperability
 		Both BGP-AD and VPLS-BGP [RFC4761] use the same AFI/SAFI.  In order

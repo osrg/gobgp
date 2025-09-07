@@ -121,12 +121,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[7:9], 65000)
 	binary.BigEndian.PutUint32(buf[9:], 65546)
 	r := &RouteTargetMembershipNLRI{}
-	err := r.DecodeFromBytes(buf)
+	err := r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:65000:65546", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:65000:65546", r.String())
 
@@ -139,12 +139,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	copy(buf[7:11], []byte(ip))
 	binary.BigEndian.PutUint16(buf[11:], 65000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:10.0.0.1:65000", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:10.0.0.1:65000", r.String())
 
@@ -157,12 +157,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[7:], 65546)
 	binary.BigEndian.PutUint16(buf[11:], 65000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1.10:65000", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1.10:65000", r.String())
 
@@ -173,12 +173,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1000000", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1000000", r.String())
 
@@ -189,12 +189,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf[5] = 0x04 // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1000000", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1000000", r.String())
 
@@ -202,18 +202,18 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf = make([]byte, 1)
 	buf[0] = 0 // in bit length
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("default", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("default", r.String())
 	r = NewRouteTargetMembershipNLRI(0, nil)
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("default", r.String())
 
@@ -222,13 +222,13 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf[0] = 32 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:0:0", r.String())
 	r = NewRouteTargetMembershipNLRI(65546, nil)
 	buf, err = r.Serialize()
 	assert.NoError(err)
-	err = r.DecodeFromBytes(buf)
+	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:0:0", r.String())
 }
@@ -787,7 +787,7 @@ func Test_AddPath(t *testing.T) {
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
 		n2 := NewRouteTargetMembershipNLRI(0, nil)
-		err = n2.DecodeFromBytes(bits, opt)
+		err = n2.decodeFromBytes(bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(30))
 	}
@@ -803,7 +803,7 @@ func Test_AddPath(t *testing.T) {
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
 		n2 := NewEVPNNLRI(0, nil)
-		err = n2.DecodeFromBytes(bits, opt)
+		err = n2.decodeFromBytes(bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(40))
 	}
@@ -835,7 +835,7 @@ func Test_AddPath(t *testing.T) {
 		bits, err := n1.Serialize(opt)
 		assert.NoError(err)
 		n2 := &OpaqueNLRI{}
-		err = n2.DecodeFromBytes(bits, opt)
+		err = n2.decodeFromBytes(bits, opt)
 		assert.NoError(err)
 		assert.Equal(n2.PathIdentifier(), uint32(70))
 	}
@@ -3513,9 +3513,9 @@ func Test_LsAddrPrefix(t *testing.T) {
 	for _, test := range tests {
 		nlri := LsAddrPrefix{}
 		if test.err {
-			assert.Error(nlri.DecodeFromBytes(test.in))
+			assert.Error(nlri.decodeFromBytes(test.in))
 		} else {
-			assert.NoError(nlri.DecodeFromBytes(test.in))
+			assert.NoError(nlri.decodeFromBytes(test.in))
 			assert.Equal(test.str, nlri.String())
 			if test.serialize {
 				got, err := nlri.Serialize()
@@ -3802,7 +3802,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&MPLSLabelStack{}).DecodeFromBytes(data)
 		(&LabeledVPNIPAddrPrefix{}).decodeFromBytes(data)
 		(&LabeledIPAddrPrefix{}).decodeFromBytes(data)
-		(&RouteTargetMembershipNLRI{}).DecodeFromBytes(data)
+		(&RouteTargetMembershipNLRI{}).decodeFromBytes(data)
 		(&EthernetSegmentIdentifier{}).DecodeFromBytes(data)
 		(&EVPNEthernetAutoDiscoveryRoute{}).DecodeFromBytes(data)
 		(&EVPNMacIPAdvertisementRoute{}).DecodeFromBytes(data)
@@ -3810,7 +3810,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&EVPNEthernetSegmentRoute{}).DecodeFromBytes(data)
 		(&EVPNIPPrefixRoute{}).DecodeFromBytes(data)
 		(&EVPNIPMSIRoute{}).DecodeFromBytes(data)
-		(&EVPNNLRI{}).DecodeFromBytes(data)
+		(&EVPNNLRI{}).decodeFromBytes(data)
 		(&EncapNLRI{}).decodeFromBytes(data)
 		(&flowSpecPrefix{}).DecodeFromBytes(data)
 		(&flowSpecPrefix6{}).DecodeFromBytes(data)
@@ -3822,7 +3822,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&FlowSpecNLRI{rf: RF_FS_IPv4_VPN}).decodeFromBytes(data)
 		(&FlowSpecNLRI{rf: RF_FS_IPv6_VPN}).decodeFromBytes(data)
 		(&FlowSpecNLRI{rf: RF_FS_L2_VPN}).decodeFromBytes(data)
-		(&OpaqueNLRI{}).DecodeFromBytes(data)
+		(&OpaqueNLRI{}).decodeFromBytes(data)
 		(&LsNLRI{}).DecodeFromBytes(data)
 		(&LsNodeNLRI{}).DecodeFromBytes(data)
 		(&LsLinkNLRI{}).DecodeFromBytes(data)
@@ -3875,7 +3875,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&LsTLVIGPFlags{}).DecodeFromBytes(data)
 		(&LsTLVOpaquePrefixAttr{}).DecodeFromBytes(data)
 		(&LsTLVNodeDescriptor{}).DecodeFromBytes(data)
-		(&LsAddrPrefix{}).DecodeFromBytes(data)
+		(&LsAddrPrefix{}).decodeFromBytes(data)
 		(&PathAttributeLs{}).DecodeFromBytes(data)
 		(&PathAttribute{}).DecodeFromBytes(data)
 		(&PathAttributeOrigin{}).DecodeFromBytes(data)
@@ -3927,7 +3927,7 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&SRv6EndpointBehaviorStructure{}).DecodeFromBytes(data)
 		(&SegmentTypeB{}).DecodeFromBytes(data)
 		(&TunnelEncapSubTLVSRSegmentList{}).DecodeFromBytes(data)
-		(&VPLSNLRI{}).DecodeFromBytes(data)
+		(&VPLSNLRI{}).decodeFromBytes(data)
 		(&TLV{}).DecodeFromBytes(data)
 		(&PathAttributePrefixSID{}).DecodeFromBytes(data)
 		(&SRv6L3ServiceAttribute{}).DecodeFromBytes(data)

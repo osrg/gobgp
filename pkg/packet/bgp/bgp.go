@@ -2250,7 +2250,7 @@ type RouteTargetMembershipNLRI struct {
 	RouteTarget ExtendedCommunityInterface
 }
 
-func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (n *RouteTargetMembershipNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if IsAddPathEnabled(true, RF_RTC_UC, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
@@ -3367,7 +3367,7 @@ type EVPNNLRI struct {
 	RouteTypeData EVPNRouteTypeInterface
 }
 
-func (n *EVPNNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (n *EVPNNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if IsAddPathEnabled(true, RF_EVPN, options) {
 		var err error
 		data, err = n.decodePathIdentifier(data)
@@ -4994,7 +4994,7 @@ type OpaqueNLRI struct {
 	Value  []byte
 }
 
-func (n *OpaqueNLRI) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (n *OpaqueNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
 	}
@@ -9437,7 +9437,7 @@ func (l *LsAddrPrefix) Len(...*MarshallingOption) int {
 	return 4 + int(l.Length)
 }
 
-func (l *LsAddrPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+func (l *LsAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 4 {
 		return malformedAttrListErr("Malformed BGP-LS Address Prefix")
 	}
@@ -9992,14 +9992,14 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 		return nlri, nil
 	case RF_EVPN:
 		nlri := &EVPNNLRI{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
 		return nlri, nil
 	case RF_VPLS:
 		nlri := &VPLSNLRI{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
@@ -10016,7 +10016,7 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 		return nlri, nil
 	case RF_RTC_UC:
 		nlri := &RouteTargetMembershipNLRI{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
@@ -10040,14 +10040,14 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 		return nlri, nil
 	case RF_OPAQUE:
 		nlri := &OpaqueNLRI{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
 		return nlri, nil
 	case RF_LS:
 		nlri := &LsAddrPrefix{}
-		err := nlri.DecodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
 			return nil, err
 		}
