@@ -2044,6 +2044,7 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 	var ls *bgp.PathAttributeLs
 	var err error
 	attrs := make([]bgp.PathAttributeInterface, 0, 1)
+	remoteID := uint32(0)
 
 	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
 		extractOrigin,         // 1 ORIGIN
@@ -2096,7 +2097,7 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid format")
 			}
-			nlri.SetPathIdentifier(uint32(id))
+			remoteID = uint32(id)
 			extcomms = args[3:]
 		} else {
 			extcomms = args[1:]
@@ -2138,7 +2139,7 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid format")
 			}
-			nlri.SetPathIdentifier(uint32(id))
+			remoteID = uint32(id)
 			args = args[2:]
 		}
 
@@ -2211,7 +2212,7 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		attr, _ := bgp.NewPathAttributeNextHop(nh)
 		attrs = append(attrs, attr)
 	} else {
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.AddrPrefixInterface{nlri}, nh)
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.PathNLRI{{NLRI: nlri, ID: remoteID}}, nh)
 		attrs = append(attrs, mpreach)
 	}
 
@@ -2245,7 +2246,12 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 	}
 	sort.Slice(attrs, func(i, j int) bool { return attrs[i].GetType() < attrs[j].GetType() })
 
-	return apiutil.NewPath(rf, nlri, false, attrs, time.Now())
+	p, err := apiutil.NewPath(rf, nlri, false, attrs, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	p.Identifier = remoteID
+	return p, nil
 }
 
 func showGlobalRib(args []string) error {

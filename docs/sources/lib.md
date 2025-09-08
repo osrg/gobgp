@@ -83,7 +83,7 @@ func main() {
 
 	// add v6 route
 	v6Nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1::/64"))
-	aMpr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv4_UC, []bgp.AddrPrefixInterface{v6Nlri}, netip.MustParseAddr("2001:db8::1"))
+	aMpr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv4_UC, []bgp.PathNLRI{{NLRI: v6Nlri}}, netip.MustParseAddr("2001:db8::1"))
 	aC := bgp.NewPathAttributeCommunities([]uint32{100, 200})
 	attrs = []bgp.PathAttributeInterface{aMpr, aC}
 

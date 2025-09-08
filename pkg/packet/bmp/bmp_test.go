@@ -84,13 +84,12 @@ func Test_RouteMonitoringAddPath(t *testing.T) {
 		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
 	}
 	p1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
-	p1.SetPathLocalIdentifier(10)
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(3),
 		panh,
 	}
-	m := bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{}, p, []*bgp.IPAddrPrefix{p1})
+	m := bgp.NewBGPUpdateMessage([]bgp.PathNLRI{}, p, []bgp.PathNLRI{{NLRI: p1, ID: 10}})
 	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("fe80::6e40:8ff:feab:2c2a"), 70000, netip.MustParseAddr("10.0.0.2"), 1)
 
 	m1 := NewBMPRouteMonitoring(*p0, m)
@@ -102,10 +101,7 @@ func Test_RouteMonitoringAddPath(t *testing.T) {
 
 	// We need to fix tha path identifier (local/remote)
 	u2 := m2.Body.(*BMPRouteMonitoring).BGPUpdate.Body.(*bgp.BGPUpdate).NLRI[0]
-	assert.Equal(t, u2.PathIdentifier(), uint32(10))
-	assert.Equal(t, u2.PathLocalIdentifier(), uint32(0))
-	u2.SetPathIdentifier(0)
-	u2.SetPathLocalIdentifier(10)
+	assert.Equal(t, u2.ID, uint32(10))
 
 	assert.Equal(t, m1, m2)
 }

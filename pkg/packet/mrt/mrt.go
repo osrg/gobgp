@@ -437,7 +437,7 @@ func parseRibEntry(data []byte, family bgp.Family, isAddPath bool, prefix ...bgp
 		} else if ok {
 			mp.AFI = family.Afi()
 			mp.SAFI = family.Safi()
-			mp.Value = []bgp.AddrPrefixInterface{prefix[0]}
+			mp.Value = []bgp.PathNLRI{{NLRI: prefix[0], ID: e.PathIdentifier}}
 		}
 
 		attrLen -= uint16(p.Len())

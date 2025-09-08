@@ -508,12 +508,9 @@ func TestBMP(t *testing.T) {
 		bgp.NewPathAttributeOrigin(3),
 		bgp.NewPathAttributeAsPath(aspath1),
 	}
-	unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mp_nlri})
+	unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: mp_nlri}})
 	p = append(p, unreach)
-	w := []*bgp.IPAddrPrefix{}
-	n := []*bgp.IPAddrPrefix{}
-
-	msg := bgp.NewBGPUpdateMessage(w, p, n)
+	msg := bgp.NewBGPUpdateMessage(nil, p, nil)
 	pList := ProcessMessage(msg, peerR1(), time.Now(), false)
 	CreateUpdateMsgFromPaths(pList)
 }
@@ -541,8 +538,8 @@ func TestMixedMPReachMPUnreach(t *testing.T) {
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeAsPath(aspath1),
 	}
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{nlri1}, netip.MustParseAddr("1::1"))
-	mpunreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{nlri2})
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri1}}, netip.MustParseAddr("1::1"))
+	mpunreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri2}})
 	p = append(p, mpreach, mpunreach)
 	msg := bgp.NewBGPUpdateMessage(nil, p, nil)
 	pList := ProcessMessage(msg, peerR1(), time.Now(), false)
@@ -566,7 +563,7 @@ func TestMixedNLRIAndMPUnreach(t *testing.T) {
 		bgp.NewAs4PathParam(2, []uint32{100}),
 	}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
-	nlri1 := []*bgp.IPAddrPrefix{nlri}
+	nlri1 := []bgp.PathNLRI{{NLRI: nlri}}
 	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("1111::/32"))
 
 	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("1.1.1.1"))
@@ -575,7 +572,7 @@ func TestMixedNLRIAndMPUnreach(t *testing.T) {
 		bgp.NewPathAttributeAsPath(aspath1),
 		nexthop,
 	}
-	unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{nlri2})
+	unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri2}})
 	p = append(p, unreach)
 
 	msg := bgp.NewBGPUpdateMessage(nil, p, nlri1)
@@ -613,13 +610,13 @@ func TestMergeV4NLRIs(t *testing.T) {
 	for i := range nr {
 		addrs = append(addrs, fmt.Sprintf("1.1.%d.%d", i>>8&0xff, i&0xff))
 		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(addrs[i] + "/32"))
-		msg := bgp.NewBGPUpdateMessage(nil, attrs, []*bgp.IPAddrPrefix{nlri})
+		msg := bgp.NewBGPUpdateMessage(nil, attrs, []bgp.PathNLRI{{NLRI: nlri}})
 		paths = append(paths, ProcessMessage(msg, peerR1(), time.Now(), false)...)
 	}
 	msgs := CreateUpdateMsgFromPaths(paths)
 	assert.Equal(t, len(msgs), 2)
 
-	l := make([]*bgp.IPAddrPrefix, 0, nr)
+	l := make([]bgp.PathNLRI, 0, nr)
 	for _, msg := range msgs {
 		u := msg.Body.(*bgp.BGPUpdate)
 		assert.Equal(t, len(u.PathAttributes), 3)
@@ -628,7 +625,7 @@ func TestMergeV4NLRIs(t *testing.T) {
 
 	assert.Equal(t, len(l), nr)
 	for i, addr := range addrs {
-		assert.Equal(t, addr, l[i].Prefix.Addr().String())
+		assert.Equal(t, addr, l[i].NLRI.(*bgp.IPAddrPrefix).Prefix.Addr().String())
 	}
 	for _, msg := range msgs {
 		d, _ := msg.Serialize()
@@ -649,7 +646,7 @@ func TestNotMergeV4NLRIs(t *testing.T) {
 		nexthop1,
 	}
 	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("1.1.1.1/32"))
-	paths = append(paths, ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs1, []*bgp.IPAddrPrefix{nlri1}), peerR1(), time.Now(), false)...)
+	paths = append(paths, ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs1, []bgp.PathNLRI{{NLRI: nlri1}}), peerR1(), time.Now(), false)...)
 
 	nexthop2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("2.2.2.2"))
 	attrs2 := []bgp.PathAttributeInterface{
@@ -658,7 +655,7 @@ func TestNotMergeV4NLRIs(t *testing.T) {
 		nexthop2,
 	}
 	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2.2.2.2/32"))
-	paths = append(paths, ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs2, []*bgp.IPAddrPrefix{nlri2}), peerR1(), time.Now(), false)...)
+	paths = append(paths, ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs2, []bgp.PathNLRI{{NLRI: nlri2}}), peerR1(), time.Now(), false)...)
 
 	assert.NotEmpty(t, paths[0].GetHash(), paths[1].GetHash())
 
@@ -687,13 +684,13 @@ func TestMergeV4Withdraw(t *testing.T) {
 			bgp.NewPathAttributeAsPath(aspath1),
 			nexthop,
 		}
-		msg := bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{nlri}, attrs, nil)
+		msg := bgp.NewBGPUpdateMessage([]bgp.PathNLRI{{NLRI: nlri}}, attrs, nil)
 		paths = append(paths, ProcessMessage(msg, peerR1(), time.Now(), false)...)
 	}
 	msgs := CreateUpdateMsgFromPaths(paths)
 	assert.Equal(t, len(msgs), 2)
 
-	l := make([]*bgp.IPAddrPrefix, 0, nr)
+	l := make([]bgp.PathNLRI, 0, nr)
 	for _, msg := range msgs {
 		u := msg.Body.(*bgp.BGPUpdate)
 		assert.Equal(t, len(u.PathAttributes), 0)
@@ -701,7 +698,7 @@ func TestMergeV4Withdraw(t *testing.T) {
 	}
 	assert.Equal(t, len(l), nr)
 	for i, addr := range addrs {
-		assert.Equal(t, addr, l[i].Prefix.Addr().String())
+		assert.Equal(t, addr, l[i].NLRI.(*bgp.IPAddrPrefix).Prefix.Addr().String())
 	}
 
 	for _, msg := range msgs {

@@ -247,7 +247,7 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 		destLocalKey := localKey.PathDestLocalKey
 		identifiers, destExists := peer.sentPaths[destLocalKey]
 		if path.IsWithdraw && destExists {
-			delete(identifiers, path.GetNlri().PathLocalIdentifier())
+			delete(identifiers, path.LocalID())
 		} else if !path.IsWithdraw {
 			if !destExists {
 				peer.sentPaths[destLocalKey] = make(map[uint32]struct{})
@@ -287,7 +287,7 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 	if _, dstExist := peer.sentPaths[destLocalKey]; !dstExist {
 		return false
 	}
-	_, pathExist := peer.sentPaths[destLocalKey][path.GetNlri().PathLocalIdentifier()]
+	_, pathExist := peer.sentPaths[destLocalKey][path.LocalID()]
 	return pathExist
 }
 

@@ -201,12 +201,6 @@ func newValidationFromTableStruct(v *table.Validation) *api.Validation {
 }
 
 func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs []*api.Attribute, path *apiutil.Path) *api.Path {
-	nlri := path.Nlri
-	var PathID, PathLocalID uint32
-	if nlri != nil {
-		PathID = nlri.PathIdentifier()
-		PathLocalID = nlri.PathLocalIdentifier()
-	}
 	p := &api.Path{
 		Nlri:               anyNlri,
 		Pattrs:             anyPattrs,
@@ -217,8 +211,8 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		IsFromExternal:     path.IsFromExternal,
 		NoImplicitWithdraw: path.NoImplicitWithdraw,
 		IsNexthopInvalid:   path.IsNexthopInvalid,
-		Identifier:         PathID,
-		LocalIdentifier:    PathLocalID,
+		Identifier:         path.RemoteID,
+		LocalIdentifier:    path.LocalID,
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
 		SourceAsn:          path.PeerASN,
@@ -529,7 +523,6 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	if err != nil {
 		return nil, err
 	}
-	nlri.SetPathIdentifier(path.Identifier)
 
 	attrList, err := apiutil.GetNativePathAttributes(path)
 	if err != nil {
@@ -572,12 +565,12 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		pa, _ := bgp.NewPathAttributeNextHop(nexthop)
 		pattrs = append(pattrs, pa)
 	} else {
-		attr, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.AddrPrefixInterface{nlri}, nexthop)
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
 		pattrs = append(pattrs, attr)
 	}
 
 	doWithdraw := isWithdraw || path.IsWithdraw
-	newPath := table.NewPath(rf, pi, nlri, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
+	newPath := table.NewPath(rf, pi, bgp.PathNLRI{NLRI: nlri, ID: path.Identifier}, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
 	if !doWithdraw {
 		total := bytes.NewBuffer(make([]byte, 0))
 		for _, a := range newPath.GetPathAttrs() {
@@ -618,11 +611,12 @@ func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
 		PeerAddress:        neighbor,
 		IsFromExternal:     path.IsFromExternal,
 		NoImplicitWithdraw: path.NoImplicitWithdraw,
+		LocalID:            path.LocalIdentifier,
+		RemoteID:           path.Identifier,
 	}
 	if p.PeerASN != 0 && !p.PeerID.IsValid() {
 		return nil, fmt.Errorf("source ID must be set correctly %v", p.PeerID)
 	}
-	p.Nlri.SetPathIdentifier(path.Identifier)
 	return p, nil
 }
 

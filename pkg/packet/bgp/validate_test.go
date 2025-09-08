@@ -24,7 +24,7 @@ func bgpupdate() *BGPMessage {
 
 	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	n := []*IPAddrPrefix{prefix}
-	return NewBGPUpdateMessage(nil, p, n)
+	return NewBGPUpdateMessage(nil, p, []PathNLRI{{NLRI: n[0]}})
 }
 
 func bgpupdateV6() *BGPMessage {
@@ -39,7 +39,7 @@ func bgpupdateV6() *BGPMessage {
 		NewPathAttributeOrigin(1),
 		NewPathAttributeAsPath(aspath),
 	}
-	mpreach, _ := NewPathAttributeMpReachNLRI(RF_IPv6_UC, prefixes, netip.MustParseAddr("1023::"))
+	mpreach, _ := NewPathAttributeMpReachNLRI(RF_IPv6_UC, []PathNLRI{{NLRI: prefixes[0]}}, netip.MustParseAddr("1023::"))
 	p = append(p, mpreach)
 	return NewBGPUpdateMessage(nil, p, nil)
 }
@@ -417,7 +417,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	item7 := NewFlowSpecComponentItem(BITMASK_FLAG_OP_MATCH, isFragment)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
 	n1, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
-	a, _ := NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []AddrPrefixInterface{n1}, netip.IPv4Unspecified())
+	a, _ := NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []PathNLRI{{NLRI: n1}}, netip.IPv4Unspecified())
 	m := map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}
 	_, err := ValidateAttribute(a, m, false, false, false)
 	assert.NoError(err)
@@ -428,7 +428,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	destPrefix2, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(destPrefix2))
 	n1, _ = NewFlowSpecUnicast(RF_FS_IPv4_UC, cmp)
-	a, _ = NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []AddrPrefixInterface{n1}, netip.IPv4Unspecified())
+	a, _ = NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []PathNLRI{{NLRI: n1}}, netip.IPv4Unspecified())
 	// Swaps components order to reproduce the rules order violation.
 	n1.Value[0], n1.Value[1] = n1.Value[1], n1.Value[0]
 	_, err = ValidateAttribute(a, m, false, false, false)

@@ -51,7 +51,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		var old *Path
 		idx := -1
 		for i, p := range d.knownPathList {
-			if p.GetNlri().PathIdentifier() == path.GetNlri().PathIdentifier() {
+			if p.remoteID == path.remoteID {
 				idx = i
 				break
 			}

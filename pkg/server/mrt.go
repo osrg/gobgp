@@ -151,7 +151,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 					if !isAddPath {
 						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs(), false))
 					} else {
-						entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetNlri().PathIdentifier(), path.GetPathAttrs(), true))
+						entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.RemoteID(), path.GetPathAttrs(), true))
 					}
 				}
 				if len(entries) > 0 {

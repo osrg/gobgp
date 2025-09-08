@@ -81,7 +81,8 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 	pathList := make([]*Path, 0, listLen)
 
 	for _, nlri := range update.NLRI {
-		p := NewPath(bgp.RF_IPv4_UC, peerInfo, nlri, treatAsWithdraw, attrs, timestamp, false)
+		p := NewPath(bgp.RF_IPv4_UC, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, treatAsWithdraw, attrs, timestamp, false)
+		p.remoteID = nlri.ID
 		p.SetHash(hash)
 		pathList = append(pathList, p)
 	}
@@ -100,18 +101,20 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 			// of path attrs faster
 			reachAttrs := []bgp.PathAttributeInterface{}
 			if !treatAsWithdraw {
-				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.AddrPrefixInterface{nlri}, nexthop)
+				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.PathNLRI{nlri}, nexthop)
 				reachAttrs = makeAttributeList(attrs, nlriAttr)
 			}
 
-			p := NewPath(family, peerInfo, nlri, treatAsWithdraw, reachAttrs, timestamp, false)
+			p := NewPath(family, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, treatAsWithdraw, reachAttrs, timestamp, false)
+			p.remoteID = nlri.ID
 			p.SetHash(hash)
 			pathList = append(pathList, p)
 		}
 	}
 
 	for _, nlri := range update.WithdrawnRoutes {
-		p := NewPath(bgp.RF_IPv4_UC, peerInfo, nlri, true, []bgp.PathAttributeInterface{}, timestamp, false)
+		p := NewPath(bgp.RF_IPv4_UC, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, true, []bgp.PathAttributeInterface{}, timestamp, false)
+		p.remoteID = nlri.ID
 		pathList = append(pathList, p)
 	}
 
@@ -119,7 +122,8 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		family := bgp.NewFamily(unreach.AFI, unreach.SAFI)
 
 		for _, nlri := range unreach.Value {
-			p := NewPath(family, peerInfo, nlri, true, []bgp.PathAttributeInterface{}, timestamp, false)
+			p := NewPath(family, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, true, []bgp.PathAttributeInterface{}, timestamp, false)
+			p.remoteID = nlri.ID
 			pathList = append(pathList, p)
 		}
 	}
@@ -190,9 +194,9 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		nlri := bgp.NewRouteTargetMembershipNLRI(info.AS, target)
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-		attr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_RTC_UC, []bgp.AddrPrefixInterface{nlri}, nexthop)
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_RTC_UC, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
 		pattr = append(pattr, attr)
-		msgs = append(msgs, NewPath(bgp.RF_RTC_UC, info, nlri, false, pattr, time.Now(), false))
+		msgs = append(msgs, NewPath(bgp.RF_RTC_UC, info, bgp.PathNLRI{NLRI: nlri}, false, pattr, time.Now(), false))
 	}
 	return msgs, nil
 }

@@ -162,7 +162,7 @@ func injectMrt() error {
 								if mrtOpts.NextHop != nil {
 									nexthop = netip.MustParseAddr(mrtOpts.NextHop.String())
 								}
-								attr, _ := bgp.NewPathAttributeMpReachNLRI(rib.Family, []bgp.AddrPrefixInterface{nlri}, nexthop)
+								attr, _ := bgp.NewPathAttributeMpReachNLRI(rib.Family, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
 								attrs = append(attrs, attr)
 							}
 						}

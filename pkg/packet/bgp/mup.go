@@ -121,7 +121,6 @@ func getMUPRouteType(at uint8, rt uint16) (MUPRouteTypeInterface, error) {
 }
 
 type MUPNLRI struct {
-	PrefixDefault
 	Afi              uint16
 	ArchitectureType uint8
 	RouteType        uint16

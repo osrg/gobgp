@@ -92,7 +92,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 	eSubCodeUnknown := uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE)
 	eSubCodeMalformedAspath := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
 
-	checkPrefix := func(family Family, l []AddrPrefixInterface) error {
+	checkPrefix := func(family Family, l []PathNLRI) error {
 		if _, ok := rfs[family]; !ok {
 			return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not available for this session", family))
 		}
@@ -101,7 +101,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			switch family {
 			case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
 				t := BGPFlowSpecType(0)
-				for _, v := range prefix.(*FlowSpecNLRI).Value {
+				for _, v := range prefix.NLRI.(*FlowSpecNLRI).Value {
 					if v.Type() <= t {
 						return NewMessageError(0, 0, nil, fmt.Sprintf("%s nlri violate strict type ordering", family))
 					}

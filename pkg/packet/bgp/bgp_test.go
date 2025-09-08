@@ -707,90 +707,114 @@ func Test_AddPath(t *testing.T) {
 	opt := &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
 		n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
-		assert.Equal(n1.PathIdentifier(), uint32(0))
-		n1.SetPathLocalIdentifier(10)
-		assert.Equal(n1.PathLocalIdentifier(), uint32(10))
-		bits, err := n1.Serialize(opt)
+		m1 := NewBGPUpdateMessage([]PathNLRI{{NLRI: n1, ID: 10}}, []PathAttributeInterface{}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv4_UC, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(10))
+		assert.Equal(m2.WithdrawnRoutes[0].ID, uint32(10))
+
+		m1 = NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{}, []PathNLRI{{NLRI: n1, ID: 20}})
+		bits, err = m1.Body.Serialize(opt)
+		assert.NoError(err)
+		err = m2.DecodeFromBytes(bits, opt)
+		assert.NoError(err)
+		assert.Equal(m2.NLRI[0].ID, uint32(20))
 	}
+
 	{
 		n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001::/64"))
-		n1.SetPathIdentifier(10)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv6_UC, []PathNLRI{{NLRI: n1, ID: 10}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv6_UC, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(0))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(0))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH, RF_IPv6_UC: BGP_ADD_PATH_BOTH}}
 	{
 		n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001::/64"))
-		n1.SetPathLocalIdentifier(10)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv6_UC, []PathNLRI{{NLRI: n1, ID: 10}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv6_UC, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(10))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(10))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_VPN: BGP_ADD_PATH_BOTH, RF_IPv6_VPN: BGP_ADD_PATH_BOTH}}
 	{
 		rd, _ := ParseRouteDistinguisher("100:100")
 		labels := NewMPLSLabelStack(100, 200)
 		n1, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels, rd)
-		n1.SetPathLocalIdentifier(20)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv4_VPN, []PathNLRI{{NLRI: n1, ID: 10}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv4_VPN, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(20))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(10))
 	}
 	{
 		rd, _ := ParseRouteDistinguisher("100:100")
 		labels := NewMPLSLabelStack(100, 200)
 		n1, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001::/64"), *labels, rd)
-		n1.SetPathLocalIdentifier(20)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv6_VPN, []PathNLRI{{NLRI: n1, ID: 20}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv6_VPN, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(20))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(20))
 	}
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_MPLS: BGP_ADD_PATH_BOTH, RF_IPv6_MPLS: BGP_ADD_PATH_BOTH}}
 	{
 		labels := NewMPLSLabelStack(100, 200)
 		n1, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *labels)
-		n1.SetPathLocalIdentifier(20)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv4_MPLS, []PathNLRI{{NLRI: n1, ID: 20}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv4_MPLS, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(20))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(20))
 	}
 	{
 		labels := NewMPLSLabelStack(100, 200)
 		n1, _ := NewLabeledIPAddrPrefix(netip.MustParsePrefix("2001::/64"), *labels)
-		n1.SetPathLocalIdentifier(20)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv6_MPLS, []PathNLRI{{NLRI: n1, ID: 20}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv6_MPLS, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(20))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(20))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_RTC_UC: BGP_ADD_PATH_BOTH}}
 	{
 		rt, _ := ParseRouteTarget("100:100")
 		n1 := NewRouteTargetMembershipNLRI(65000, rt)
-		n1.SetPathLocalIdentifier(30)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_RTC_UC, []PathNLRI{{NLRI: n1, ID: 30}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewRouteTargetMembershipNLRI(0, nil)
-		err = n2.decodeFromBytes(bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(30))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(30))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_EVPN: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
@@ -799,45 +823,54 @@ func Test_AddPath(t *testing.T) {
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)},
 				2, 2,
 			})
-		n1.SetPathLocalIdentifier(40)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_EVPN, []PathNLRI{{NLRI: n1, ID: 40}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2 := NewEVPNNLRI(0, nil)
-		err = n2.decodeFromBytes(bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(40))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(40))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_IPv4_ENCAP: BGP_ADD_PATH_BOTH}}
 	{
 		n1, _ := NewEncapNLRI(netip.MustParseAddr("10.10.10.0"))
-		n1.SetPathLocalIdentifier(50)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_IPv4_ENCAP, []PathNLRI{{NLRI: n1, ID: 50}}, netip.MustParseAddr("::1"))
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_IPv4_ENCAP, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(50))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(50))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH}}
 	{
 		prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 		n1, _ := NewFlowSpecUnicast(RF_FS_IPv4_UC, []FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(prefix)})
-		n1.SetPathLocalIdentifier(60)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []PathNLRI{{NLRI: n1, ID: 60}})
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2, err := NLRIFromSlice(RF_FS_IPv4_UC, bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(60))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(60))
 	}
+
 	opt = &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_OPAQUE: BGP_ADD_PATH_BOTH}}
 	{
 		n1 := NewOpaqueNLRI([]byte("key"), []byte("value"))
-		n1.SetPathLocalIdentifier(70)
-		bits, err := n1.Serialize(opt)
+		mp, _ := NewPathAttributeMpReachNLRI(RF_OPAQUE, []PathNLRI{{NLRI: n1, ID: 70}})
+		m1 := NewBGPUpdateMessage([]PathNLRI{}, []PathAttributeInterface{mp}, []PathNLRI{})
+		bits, err := m1.Body.Serialize(opt)
 		assert.NoError(err)
-		n2 := &OpaqueNLRI{}
-		err = n2.decodeFromBytes(bits, opt)
+		m2 := BGPUpdate{}
+		err = m2.DecodeFromBytes(bits, opt)
 		assert.NoError(err)
-		assert.Equal(n2.PathIdentifier(), uint32(70))
+		assert.Equal(m2.PathAttributes[0].(*PathAttributeMpReachNLRI).Value[0].ID, uint32(70))
 	}
 }
 
@@ -912,7 +945,7 @@ func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
 	assert.Equal(netip.MustParseAddr("::ffff:172.20.0.1"), p.Nexthop)
 	assert.False(p.LinkLocalNexthop.IsValid())
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1:1::/64"))
-	value := []AddrPrefixInterface{nlri}
+	value := []PathNLRI{{NLRI: nlri}}
 	assert.Equal(value, p.Value)
 	// Set NextHop as IPv4 address (because IPv4 peering)
 	p.Nexthop = netip.MustParseAddr("172.20.0.1")
@@ -949,7 +982,7 @@ func Test_MpReachNLRIWithIPv6(t *testing.T) {
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:53::/64"))
-	value := []AddrPrefixInterface{nlri}
+	value := []PathNLRI{{NLRI: nlri}}
 	assert.Equal(value, p.Value)
 }
 
@@ -973,7 +1006,7 @@ func Test_MpUnreachNLRIWithIPv6(t *testing.T) {
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:53::/64"))
-	value := []AddrPrefixInterface{nlri}
+	value := []PathNLRI{{NLRI: nlri}}
 	assert.Equal(value, p.Value)
 }
 
@@ -1007,7 +1040,7 @@ func Test_MpReachNLRIWithIPv6PrefixWithLinkLocalNexthop(t *testing.T) {
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	assert.Equal(netip.MustParseAddr("fe80::1"), p.LinkLocalNexthop)
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2010:ab8:1::/48"))
-	value := []AddrPrefixInterface{nlri}
+	value := []PathNLRI{{NLRI: nlri}}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()
@@ -1044,7 +1077,7 @@ func Test_MpReachNLRIWithVPNv4Prefix(t *testing.T) {
 	assert.False(p.LinkLocalNexthop.IsValid())
 	n, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.1.1.0/24"), *NewMPLSLabelStack(16),
 		NewRouteDistinguisherTwoOctetAS(65000, 100))
-	value := []AddrPrefixInterface{n}
+	value := []PathNLRI{{NLRI: n}}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()
@@ -1086,7 +1119,7 @@ func Test_MpReachNLRIWithVPNv6Prefix(t *testing.T) {
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	assert.False(p.LinkLocalNexthop.IsValid())
 	nlri, _ := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001:1::/124"), *NewMPLSLabelStack(16), NewRouteDistinguisherTwoOctetAS(65000, 100))
-	value := []AddrPrefixInterface{nlri}
+	value := []PathNLRI{{NLRI: nlri}}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()
@@ -1119,9 +1152,7 @@ func Test_MpReachNLRIWithIPv4PrefixWithIPv6Nexthop(t *testing.T) {
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
 	assert.Equal(netip.MustParseAddr("2001:db8:1::1"), p.Nexthop)
 	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("192.168.10.0/24"))
-	value := []AddrPrefixInterface{
-		prefix,
-	}
+	value := []PathNLRI{{NLRI: prefix}}
 	assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize()

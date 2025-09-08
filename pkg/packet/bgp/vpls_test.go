@@ -71,7 +71,7 @@ func Test_VPLSNLRI_decoding(t *testing.T) {
 
 	rd := NewRouteDistinguisherTwoOctetAS(65017, 104)
 	nlri := NewVPLSNLRI(rd, 1, 1, 8, 800000)
-	m2, _ := NewPathAttributeMpReachNLRI(RF_VPLS, []AddrPrefixInterface{nlri}, netip.MustParseAddr("192.0.2.7"))
+	m2, _ := NewPathAttributeMpReachNLRI(RF_VPLS, []PathNLRI{{NLRI: nlri}}, netip.MustParseAddr("192.0.2.7"))
 	m2.Flags |= BGP_ATTR_FLAG_EXTENDED_LENGTH
 
 	assert.Equal(m1, m2)

@@ -40,7 +40,7 @@ func NewTestBGPOpenMessage() *BGPMessage {
 func NewTestBGPUpdateMessage() *BGPMessage {
 	w1, _ := NewIPAddrPrefix(netip.MustParsePrefix("121.1.3.2/23"))
 	w2, _ := NewIPAddrPrefix(netip.MustParsePrefix("100.33.3.0/17"))
-	w := []*IPAddrPrefix{w1, w2}
+	w := []AddrPrefixInterface{w1, w2}
 
 	aspath1 := []AsPathParamInterface{
 		NewAsPathParam(2, []uint16{1000}),
@@ -129,21 +129,28 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 		NewPathAttributeAs4Path(aspath3),
 		paag4,
 	}
+	toList := func(l []AddrPrefixInterface) []PathNLRI {
+		r := make([]PathNLRI, 0, len(l))
+		for _, p := range l {
+			r = append(r, PathNLRI{NLRI: p})
+		}
+		return r
+	}
 
 	// Create MP_REACH_NLRI attributes with error handling
-	mp1, _ := NewPathAttributeMpReachNLRI(RF_IPv4_VPN, prefixes1, netip.MustParseAddr("112.22.2.0"))
-	mp2, _ := NewPathAttributeMpReachNLRI(RF_IPv6_UC, prefixes2, netip.MustParseAddr("1023::"))
-	mp3, _ := NewPathAttributeMpReachNLRI(RF_IPv6_VPN, prefixes3, netip.MustParseAddr("fe80::"))
-	mp4, _ := NewPathAttributeMpReachNLRI(RF_IPv4_MPLS, prefixes4, netip.MustParseAddr("129.1.1.1"))
-	mp5, _ := NewPathAttributeMpReachNLRI(RF_EVPN, prefixes5, netip.MustParseAddr("129.1.1.1"))
-	mp6, _ := NewPathAttributeMpReachNLRI(RF_VPLS, prefixes6, netip.MustParseAddr("135.1.1.1"))
-	mpUnreach1, _ := NewPathAttributeMpUnreachNLRI(RF_IPv4_VPN, prefixes1)
+	mp1, _ := NewPathAttributeMpReachNLRI(RF_IPv4_VPN, toList(prefixes1), netip.MustParseAddr("112.22.2.0"))
+	mp2, _ := NewPathAttributeMpReachNLRI(RF_IPv6_UC, toList(prefixes2), netip.MustParseAddr("1023::"))
+	mp3, _ := NewPathAttributeMpReachNLRI(RF_IPv6_VPN, toList(prefixes3), netip.MustParseAddr("fe80::"))
+	mp4, _ := NewPathAttributeMpReachNLRI(RF_IPv4_MPLS, toList(prefixes4), netip.MustParseAddr("129.1.1.1"))
+	mp5, _ := NewPathAttributeMpReachNLRI(RF_EVPN, toList(prefixes5), netip.MustParseAddr("129.1.1.1"))
+	mp6, _ := NewPathAttributeMpReachNLRI(RF_VPLS, toList(prefixes6), netip.MustParseAddr("135.1.1.1"))
+	mpUnreach1, _ := NewPathAttributeMpUnreachNLRI(RF_IPv4_VPN, toList(prefixes1))
 	p = append(p, mp1, mp2, mp3, mp4, mp5, mp6, mpUnreach1,
 		// NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
 		// NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
 		NewPathAttributeUnknown(BGP_ATTR_FLAG_TRANSITIVE, 100, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),
 	)
 	prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("13.2.3.1/24"))
-	n := []*IPAddrPrefix{prefix}
-	return NewBGPUpdateMessage(w, p, n)
+	n := []AddrPrefixInterface{prefix}
+	return NewBGPUpdateMessage(toList(w), p, toList(n))
 }

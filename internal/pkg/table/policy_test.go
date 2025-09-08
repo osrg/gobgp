@@ -61,7 +61,7 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
 	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
@@ -85,7 +85,7 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
 	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.11.0.0/16", MasklengthRange: "21..24"})
@@ -106,7 +106,7 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
 	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.64.0/24", MasklengthRange: "21..24"})
@@ -127,7 +127,7 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
 	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..23"})
@@ -148,7 +148,7 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: mpnlri}}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -172,7 +172,7 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: mpnlri}}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -193,7 +193,7 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: mpnlri}}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -214,7 +214,7 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	mpnlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlri}, netip.MustParseAddr("2001::192:168:50:1"))
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: mpnlri}}, netip.MustParseAddr("2001::192:168:50:1"))
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
@@ -241,7 +241,7 @@ func TestPolicyNotMatch(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -272,7 +272,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -303,7 +303,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -335,7 +335,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.1.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path1 := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	peer = &PeerInfo{AS: 65002, Address: netip.MustParseAddr("10.0.2.2")}
@@ -346,7 +346,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	med = bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.9.2.102/24"))
-	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path2 := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -382,7 +382,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.1.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path1 := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	peer = &PeerInfo{AS: 65002, Address: netip.MustParseAddr("10.0.2.2")}
@@ -393,7 +393,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	med = bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.2.102/24"))
-	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path2 := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -428,7 +428,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	medIPv4 := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributesIPv4 := []bgp.PathAttributeInterface{originIPv4, aspathIPv4, nexthopIPv4, medIPv4}
 	nlriIPv4, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsgIPv4 := bgp.NewBGPUpdateMessage(nil, pathAttributesIPv4, []*bgp.IPAddrPrefix{nlriIPv4})
+	updateMsgIPv4 := bgp.NewBGPUpdateMessage(nil, pathAttributesIPv4, []bgp.PathNLRI{{NLRI: nlriIPv4}})
 	pathIPv4 := ProcessMessage(updateMsgIPv4, peerIPv4, time.Now(), false)[0]
 	// create path ipv6
 	peerIPv6 := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("2001::192:168:50:1")}
@@ -436,7 +436,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	aspathParamIPv6 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspathIPv6 := bgp.NewPathAttributeAsPath(aspathParamIPv6)
 	mpnlriIPv6, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/64"))
-	mpreachIPv6, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.AddrPrefixInterface{mpnlriIPv6}, netip.MustParseAddr("2001::192:168:50:1"))
+	mpreachIPv6, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: mpnlriIPv6}}, netip.MustParseAddr("2001::192:168:50:1"))
 	medIPv6 := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributesIPv6 := []bgp.PathAttributeInterface{mpreachIPv6, originIPv6, aspathIPv6, medIPv6}
 	updateMsgIPv6 := bgp.NewBGPUpdateMessage(nil, pathAttributesIPv6, nil)
@@ -486,7 +486,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -530,7 +530,7 @@ func TestLocalPrefEqConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	t.Run("True", func(t *testing.T) {
 		// create match condition
@@ -560,7 +560,7 @@ func TestPolicyMatchAndAcceptLocalPrefEqCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -598,7 +598,7 @@ func TestPolicyMatchAndRejectLocalPrefEqCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(0))
 	pathAttributes := []bgp.PathAttributeInterface{origin, nexthop, med, localPref}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -638,7 +638,7 @@ func TestMedEqConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(100))
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	t.Run("True", func(t *testing.T) {
@@ -671,7 +671,7 @@ func TestPolicyMatchAndAcceptMedEqCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(100))
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -711,7 +711,7 @@ func TestPolicyMatchAndRejectMedEqCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(uint32(200))
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, localPref}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -754,7 +754,7 @@ func TestOriginConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -821,7 +821,7 @@ func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -853,7 +853,7 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -885,7 +885,7 @@ func TestSetNextHop(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
 	// create policy
@@ -970,7 +970,7 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -1027,7 +1027,7 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -1096,7 +1096,7 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -1143,7 +1143,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -1152,7 +1152,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	}
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
-	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg2.Body.(*bgp.BGPUpdate))
 	path2 := ProcessMessage(updateMsg2, peer, time.Now(), false)[0]
 
@@ -1241,7 +1241,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -1344,7 +1344,7 @@ func TestAsPathCondition(t *testing.T) {
 			bgp.NewAs4PathParam(asPathAttrType, ases),
 		}
 		pathAttributes := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(aspathParam)}
-		p := NewPath(bgp.RF_IPv4_UC, nil, nil, false, pathAttributes, time.Time{}, false)
+		p := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false, pathAttributes, time.Time{}, false)
 		return astest{
 			path:   p,
 			result: result,
@@ -1428,7 +1428,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -1482,7 +1482,7 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -1493,7 +1493,7 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	}
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
-	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg2.Body.(*bgp.BGPUpdate))
 	path2 := ProcessMessage(updateMsg2, peer, time.Now(), false)[0]
 
@@ -1600,7 +1600,7 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -1729,7 +1729,7 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -1787,7 +1787,7 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -1890,7 +1890,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -1902,7 +1902,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	})
 
 	pathAttributes2 := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities2}
-	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []*bgp.IPAddrPrefix{nlri})
+	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg2.Body.(*bgp.BGPUpdate))
 	path2 := ProcessMessage(updateMsg2, peer, time.Now(), false)[0]
 
@@ -2035,7 +2035,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 		inPath: func() *Path {
 			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 			return ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 		}(),
@@ -2053,7 +2053,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 			extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
 			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 			return ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 		}(),
@@ -2064,7 +2064,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 			communities := bgp.NewPathAttributeCommunities([]uint32{stringToCommunityValue("65001:111")})
 			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 			return ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 		}(),
@@ -2087,7 +2087,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 			})
 			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities, extCommunities, largeCommunities}
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 			return ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 		}(),
@@ -2109,7 +2109,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 			extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
 			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities, extCommunities}
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 			return ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 		}(),
@@ -2143,7 +2143,7 @@ func TestCommunityCountConditionEvaluate(t *testing.T) {
 			})
 			pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities, extCommunities, largeCommunities}
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+			updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 			UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 			return ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 		}(),
@@ -2231,7 +2231,7 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	})
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -2311,7 +2311,7 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2354,7 +2354,7 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	})
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2400,7 +2400,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	})
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2445,7 +2445,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	})
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2490,7 +2490,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	})
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2533,7 +2533,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	})
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2637,7 +2637,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer, time.Now(), false)[0]
 
@@ -2823,7 +2823,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	UpdatePathAttrs4ByteAs(logger, updateMsg.Body.(*bgp.BGPUpdate))
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 
@@ -2888,7 +2888,7 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2931,7 +2931,7 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2974,7 +2974,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -3019,7 +3019,7 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -3064,7 +3064,7 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -3108,7 +3108,7 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -3151,7 +3151,7 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(logger, body)
@@ -3195,7 +3195,7 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(logger, body)
@@ -3245,7 +3245,7 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(logger, body)
@@ -3302,7 +3302,7 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(logger, body)
@@ -3397,7 +3397,7 @@ func TestLocalPrefAction(t *testing.T) {
 
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 
-	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	p, _ := action.Apply(path, nil)
 	assert.NotNil(t, p)
 
@@ -3427,7 +3427,7 @@ func TestOriginAction(t *testing.T) {
 
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 
-	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, attrs, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	p, _ := action.Apply(path, nil)
 	assert.NotNil(t, p)
 
@@ -3595,20 +3595,20 @@ func TestPrefixSetMatch(t *testing.T) {
 	}
 
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/6"))
-	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/10"))
 
-	path = NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/25"))
-	path = NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/30"))
-	path = NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	p3 := oc.Prefix{
@@ -3624,7 +3624,7 @@ func TestPrefixSetMatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/10"))
-	path = NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	ps3, err := NewPrefixSet(oc.PrefixSet{
@@ -3636,7 +3636,7 @@ func TestPrefixSetMatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/6"))
-	path = NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3655,7 +3655,7 @@ func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
 	}
 
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.0.0/6"))
-	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3675,12 +3675,12 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 
 	labels := bgp.NewMPLSLabelStack(100, 200)
 	n1, _ := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("2806:106e:19::/48"), *labels)
-	path := NewPath(bgp.RF_IPv6_MPLS, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv6_MPLS, nil, bgp.PathNLRI{NLRI: n1}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	labels = bgp.NewMPLSLabelStack(100, 200)
 	n2, _ := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("1806:106e:19::/48"), *labels)
-	path = NewPath(bgp.RF_IPv6_MPLS, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv6_MPLS, nil, bgp.PathNLRI{NLRI: n2}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3702,15 +3702,15 @@ func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 
 	n1, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.10/32"), *labels, rd)
-	path := NewPath(bgp.RF_IPv4_MPLS, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_MPLS, nil, bgp.PathNLRI{NLRI: n1}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	n2, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.20.20.20/32"), *labels, rd)
-	path = NewPath(bgp.RF_IPv4_MPLS, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_MPLS, nil, bgp.PathNLRI{NLRI: n2}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
 	n3, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/16"), *labels, rd)
-	path = NewPath(bgp.RF_IPv4_MPLS, nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv4_MPLS, nil, bgp.PathNLRI{NLRI: n3}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3732,15 +3732,15 @@ func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
 	rd, _ := bgp.ParseRouteDistinguisher("100:100")
 
 	n1, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001:123:123:1::/128"), *labels, rd)
-	path := NewPath(bgp.RF_IPv6_VPN, nil, n1, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path := NewPath(bgp.RF_IPv6_VPN, nil, bgp.PathNLRI{NLRI: n1}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.True(t, m.Evaluate(path, nil))
 
 	n2, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001:124:123:1::/128"), *labels, rd)
-	path = NewPath(bgp.RF_IPv6_VPN, nil, n2, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv6_VPN, nil, bgp.PathNLRI{NLRI: n2}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 
 	n3, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001:124:123::/48"), *labels, rd)
-	path = NewPath(bgp.RF_IPv6_VPN, nil, n3, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	path = NewPath(bgp.RF_IPv6_VPN, nil, bgp.PathNLRI{NLRI: n3}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
 	assert.False(t, m.Evaluate(path, nil))
 }
 
@@ -3749,7 +3749,7 @@ func TestLargeCommunityMatchAction(t *testing.T) {
 		{ASN: 100, LocalData1: 100, LocalData2: 100},
 		{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
-	p := NewPath(bgp.RF_IPv4_UC, nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
+	p := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
 	c := oc.LargeCommunitySet{
 		LargeCommunitySetName: "l0",
@@ -3830,7 +3830,7 @@ func TestLargeCommunitiesMatchClearAction(t *testing.T) {
 		{ASN: 100, LocalData1: 100, LocalData2: 100},
 		{ASN: 100, LocalData1: 200, LocalData2: 200},
 	}
-	p := NewPath(bgp.RF_FS_IPv4_UC, nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
+	p := NewPath(bgp.RF_FS_IPv4_UC, nil, bgp.PathNLRI{}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
 
 	a, err := NewLargeCommunityAction(oc.SetLargeCommunity{
 		SetLargeCommunityMethod: oc.SetLargeCommunityMethod{
@@ -3862,11 +3862,11 @@ func TestAfiSafiInMatchPath(t *testing.T) {
 	prefixv4, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("1.1.1.0/24"))
 	prefixv6, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:0db8:85a3:0000:0000:8a2e:0370:7334/0"))
 
-	pathVPNv4 := NewPath(bgp.RF_IPv4_VPN, nil, prefixVPNv4, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
-	pathVPNv6 := NewPath(bgp.RF_IPv6_VPN, nil, prefixVPNv6, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
-	pathv4 := NewPath(bgp.RF_IPv4_UC, nil, prefixv4, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
-	pathv6 := NewPath(bgp.RF_IPv6_UC, nil, prefixv6, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
-	pathRTC := NewPath(bgp.RF_RTC_UC, nil, prefixRTC, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathVPNv4 := NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: prefixVPNv4}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
+	pathVPNv6 := NewPath(bgp.RF_IPv6_VPN, nil, bgp.PathNLRI{NLRI: prefixVPNv6}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rtExtCom})}, time.Time{}, false)
+	pathv4 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: prefixv4}, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathv6 := NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: prefixv6}, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
+	pathRTC := NewPath(bgp.RF_RTC_UC, nil, bgp.PathNLRI{NLRI: prefixRTC}, false, []bgp.PathAttributeInterface{}, time.Time{}, false)
 
 	type Entry struct {
 		path        *Path
@@ -3920,7 +3920,7 @@ func TestMultipleStatementPolicy(t *testing.T) {
 	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	pattrs := []bgp.PathAttributeInterface{origin, aspath, nexthop}
 
-	path := NewPath(bgp.RF_IPv4_UC, nil, nlri, false, pattrs, time.Now(), false)
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, pattrs, time.Now(), false)
 
 	pType, newPath := r.policyMap["p1"].Apply(logger, path, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)

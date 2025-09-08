@@ -105,6 +105,8 @@ type Path struct {
 	SendMaxFiltered bool            `json:"send-max-filtered,omitempty"` // true if the path has been filtered out due to max path count reached
 	Filtered        bool            `json:"filtered,omitempty"`
 	Validation      *api.Validation `json:"validation,omitempty"`
+	RemoteID        uint32
+	LocalID         uint32
 }
 
 type PeerConf struct {
@@ -179,7 +181,6 @@ func NewPath(family bgp.Family, nlri bgp.AddrPrefixInterface, isWithdraw bool, a
 		Age:        tspb.New(age),
 		IsWithdraw: isWithdraw,
 		Family:     ToApiFamily(family.Afi(), family.Safi()),
-		Identifier: nlri.PathIdentifier(),
 	}, nil
 }
 

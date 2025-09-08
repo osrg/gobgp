@@ -84,7 +84,7 @@ func TestToPathApi(t *testing.T) {
 					Address:      netip.MustParseAddr("10.12.12.12"),
 					LocalAddress: netip.MustParseAddr("10.13.13.13"),
 				},
-					n,
+					bgp.PathNLRI{NLRI: n},
 					false,
 					[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)},
 					time.Time{},

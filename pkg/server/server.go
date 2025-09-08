@@ -2236,11 +2236,11 @@ func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
 }
 
 func pathTokey(path *table.Path) string {
-	return fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.GetPrefix())
+	return fmt.Sprintf("%d:%s", path.RemoteID(), path.GetPrefix())
 }
 
 func apiutilPathTokey(path *apiutil.Path) string {
-	return fmt.Sprintf("%d:%s", path.Nlri.PathIdentifier(), path.Nlri.String())
+	return fmt.Sprintf("%d:%s", path.RemoteID, path.Nlri.String())
 }
 
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
@@ -2304,12 +2304,12 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 		attr, _ := bgp.NewPathAttributeNextHop(nexthop)
 		pattrs = append(pattrs, attr)
 	} else {
-		attr, _ := bgp.NewPathAttributeMpReachNLRI(path.Family, []bgp.AddrPrefixInterface{path.Nlri}, nexthop)
+		attr, _ := bgp.NewPathAttributeMpReachNLRI(path.Family, []bgp.PathNLRI{{NLRI: path.Nlri}}, nexthop)
 		pattrs = append(pattrs, attr)
 	}
 
 	doWithdraw := len(isWithdraw) > 0 && isWithdraw[0] || path.Withdrawal
-	p := table.NewPath(path.Family, source, path.Nlri, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
+	p := table.NewPath(path.Family, source, bgp.PathNLRI{NLRI: path.Nlri, ID: path.RemoteID}, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
 	if p == nil {
 		return nil, fmt.Errorf("invalid path: %v", path)
 	}
@@ -4398,6 +4398,8 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 		IsFromExternal:     path.IsFromExternal(),
 		NoImplicitWithdraw: path.NoImplicitWithdraw(),
 		IsNexthopInvalid:   path.IsNexthopInvalid,
+		RemoteID:           path.RemoteID(),
+		LocalID:            path.LocalID(),
 	}
 	if s := path.GetSource(); s != nil {
 		p.PeerASN = s.AS

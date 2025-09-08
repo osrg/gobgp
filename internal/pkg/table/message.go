@@ -318,7 +318,7 @@ func createMPReachMessage(path *Path) *bgp.BGPMessage {
 	attrs := make([]bgp.PathAttributeInterface, 0, len(oattrs))
 	for _, a := range oattrs {
 		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-			attr, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.AddrPrefixInterface{path.GetNlri()}, path.GetNexthop())
+			attr, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: path.localID}}, path.GetNexthop())
 			attrs = append(attrs, attr)
 		} else {
 			attrs = append(attrs, a)
@@ -332,7 +332,7 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 
 	for _, path := range p.withdrawals {
 		nlri := path.GetNlri()
-		unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(path.GetFamily(), []bgp.AddrPrefixInterface{nlri})
+		unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: nlri, ID: path.localID}})
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{unreach}, nil))
 	}
 
@@ -407,14 +407,14 @@ func (p *packerV4) add(path *Path) {
 }
 
 func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
-	split := func(max int, paths []*Path) ([]*bgp.IPAddrPrefix, []*Path) {
+	split := func(max int, paths []*Path) ([]bgp.PathNLRI, []*Path) {
 		if max > len(paths) {
 			max = len(paths)
 		}
-		nlris := make([]*bgp.IPAddrPrefix, 0, max)
+		nlris := make([]bgp.PathNLRI, 0, max)
 		i := 0
 		for ; i < max; i++ {
-			nlris = append(nlris, paths[i].GetNlri().(*bgp.IPAddrPrefix))
+			nlris = append(nlris, bgp.PathNLRI{NLRI: paths[i].GetNlri().(*bgp.IPAddrPrefix), ID: paths[i].localID})
 		}
 		return nlris, paths[i:]
 	}
@@ -429,9 +429,9 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		return (bgp.BGP_MAX_MESSAGE_LENGTH - (19 + 2 + 2 + attrsLen)) / (5 + addpathNLRILen)
 	}
 
-	loop := func(attrsLen int, paths []*Path, cb func([]*bgp.IPAddrPrefix)) {
+	loop := func(attrsLen int, paths []*Path, cb func([]bgp.PathNLRI)) {
 		max := maxNLRIs(attrsLen)
-		var nlris []*bgp.IPAddrPrefix
+		var nlris []bgp.PathNLRI
 		for {
 			nlris, paths = split(max, paths)
 			if len(nlris) == 0 {
@@ -443,7 +443,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 
 	msgs := make([]*bgp.BGPMessage, 0, p.total)
 
-	loop(0, p.withdrawals, func(nlris []*bgp.IPAddrPrefix) {
+	loop(0, p.withdrawals, func(nlris []bgp.PathNLRI) {
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nlris, nil, nil))
 	})
 
@@ -474,7 +474,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 				attrsLen += a.Len()
 			}
 
-			loop(attrsLen, paths, func(nlris []*bgp.IPAddrPrefix) {
+			loop(attrsLen, paths, func(nlris []bgp.PathNLRI) {
 				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs_without_mp, nlris))
 			})
 		}

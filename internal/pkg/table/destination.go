@@ -220,7 +220,7 @@ func (dest *Destination) Calculate(logger log.Logger, newPath *Path) *Update {
 	if newPath.IsWithdraw {
 		p := dest.explicitWithdraw(logger, newPath)
 		if p != nil && newPath.IsDropped() {
-			if id := p.GetNlri().PathLocalIdentifier(); id != 0 {
+			if id := p.localID; id != 0 {
 				dest.localIdMap.Unflag(uint(id))
 			}
 		}
@@ -230,13 +230,13 @@ func (dest *Destination) Calculate(logger log.Logger, newPath *Path) *Update {
 	}
 
 	for _, path := range dest.knownPathList {
-		if path.GetNlri().PathLocalIdentifier() == 0 {
+		if path.localID == 0 {
 			id, err := dest.localIdMap.FindandSetZeroBit()
 			if err != nil {
 				dest.localIdMap.Expand()
 				id, _ = dest.localIdMap.FindandSetZeroBit()
 			}
-			path.GetNlri().SetPathLocalIdentifier(uint32(id))
+			path.localID = uint32(id)
 		}
 	}
 
@@ -281,7 +281,7 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 		// We have a match if the source and path-id are same.
 		if path.EqualBySourceAndPathID(withdraw) {
 			isFound = i
-			withdraw.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
+			withdraw.localID = path.localID
 		}
 	}
 
@@ -326,7 +326,7 @@ func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
 			}
 
 			found = i
-			newPath.GetNlri().SetPathLocalIdentifier(path.GetNlri().PathLocalIdentifier())
+			newPath.localID = path.localID
 			break
 		}
 	}

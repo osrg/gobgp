@@ -9,7 +9,6 @@ import (
 )
 
 type SRPolicyNLRI struct {
-	PrefixDefault
 	rf            Family
 	Length        uint8
 	Distinguisher uint32
@@ -29,13 +28,6 @@ func (s *SRPolicyNLRI) Flat() map[string]string {
 }
 
 func (s *SRPolicyNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if IsAddPathEnabled(true, s.rf, options) {
-		var err error
-		data, err = s.decodePathIdentifier(data)
-		if err != nil {
-			return err
-		}
-	}
 	if len(data) < 1 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Malformed SR Policy NLRI")
 	}
@@ -73,13 +65,6 @@ func (s *SRPolicyNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	binary.BigEndian.PutUint32(buf[p:p+4], s.Color)
 	p += 4
 	copy(buf[p:], s.Endpoint)
-	if IsAddPathEnabled(false, s.rf, options) {
-		id, err := s.serializeIdentifier()
-		if err != nil {
-			return nil, err
-		}
-		return append(id, buf...), nil
-	}
 	return buf, nil
 }
 

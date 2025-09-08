@@ -51,7 +51,7 @@ func validateOne(rt *ROATable, cidr, aspathStr string) oc.RpkiValidationResultTy
 		family = bgp.RF_IPv4_UC
 	}
 	attrs := []bgp.PathAttributeInterface{strToASParam(aspathStr)}
-	path := NewPath(family, &PeerInfo{LocalAS: 65500}, nlri, false, attrs, time.Now(), false)
+	path := NewPath(family, &PeerInfo{LocalAS: 65500}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	ret := rt.Validate(path)
 	return ret.Status
 }

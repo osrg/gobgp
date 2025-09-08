@@ -31,13 +31,13 @@ func Test_RaceCondition(t *testing.T) {
 
 	go func(body *BGPUpdate) {
 		for _, v := range body.WithdrawnRoutes {
-			v.Serialize()
+			v.toSlice(true)
 		}
 		for _, v := range body.PathAttributes {
 			v.Serialize()
 		}
 		for _, v := range body.NLRI {
-			v.Serialize()
+			v.toSlice(true)
 		}
 	}(updateBody)
 

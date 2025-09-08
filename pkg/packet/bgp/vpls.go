@@ -27,7 +27,6 @@ import (
 //
 // [RFC 4761, section 3.2.2]: https://www.rfc-editor.org/rfc/rfc4761.html#section-3.2.2.
 type VPLSNLRI struct {
-	PrefixDefault
 	VEID           uint16
 	VEBlockOffset  uint16
 	VEBlockSize    uint16
