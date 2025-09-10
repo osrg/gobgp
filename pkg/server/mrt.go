@@ -60,8 +60,14 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 	// Adding dummy Peer record for locally generated routes
 	peers = append(peers, mrt.NewPeer(netip.MustParseAddr("0.0.0.0"), netip.MustParseAddr("0.0.0.0"), 0, true))
 	for _, peer := range m.s.neighborMap {
+		peer.fsm.lock.RLock()
+		if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+			peer.fsm.lock.RUnlock()
+			continue
+		}
 		ocpeer := m.s.toConfig(peer, false)
 		peers = append(peers, mrt.NewPeer(netip.MustParseAddr(ocpeer.State.RemoteRouterId), netip.MustParseAddr(ocpeer.State.NeighborAddress), ocpeer.Config.PeerAs, true))
+		peer.fsm.lock.RUnlock()
 	}
 
 	if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(netip.MustParseAddr(m.s.bgpConfig.Global.Config.RouterId), "", peers)); err != nil {
