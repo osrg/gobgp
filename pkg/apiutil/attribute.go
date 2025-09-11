@@ -1174,7 +1174,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 	return lsAttr, nil
 }
 
-func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
+func MarshalNLRI(value bgp.NLRI) (*api.NLRI, error) {
 	var nlri api.NLRI
 
 	switch v := value.(type) {
@@ -1471,7 +1471,7 @@ func MarshalNLRI(value bgp.AddrPrefixInterface) (*api.NLRI, error) {
 	return &nlri, nil
 }
 
-func MarshalNLRIs(values []bgp.AddrPrefixInterface) ([]*api.NLRI, error) {
+func MarshalNLRIs(values []bgp.NLRI) ([]*api.NLRI, error) {
 	nlris := make([]*api.NLRI, 0, len(values))
 	for _, value := range values {
 		nlri, err := MarshalNLRI(value)
@@ -1483,8 +1483,8 @@ func MarshalNLRIs(values []bgp.AddrPrefixInterface) ([]*api.NLRI, error) {
 	return nlris, nil
 }
 
-func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error) {
-	var nlri bgp.AddrPrefixInterface
+func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
+	var nlri bgp.NLRI
 
 	switch n := an.GetNlri().(type) {
 	case *api.NLRI_Prefix:
@@ -1880,11 +1880,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.AddrPrefixInterface, error)
 	return nlri, nil
 }
 
-func UnmarshalNLRIs(rf bgp.Family, values []*api.NLRI) ([]bgp.AddrPrefixInterface, error) {
+func UnmarshalNLRIs(rf bgp.Family, values []*api.NLRI) ([]bgp.NLRI, error) {
 	if len(values) == 0 {
 		return nil, fmt.Errorf("no nlri values to unmarshal for %s family", rf.String())
 	}
-	nlris := make([]bgp.AddrPrefixInterface, 0, len(values))
+	nlris := make([]bgp.NLRI, 0, len(values))
 	for _, an := range values {
 		nlri, err := UnmarshalNLRI(rf, an)
 		if err != nil {
@@ -1906,7 +1906,7 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) (*api.Mp
 			nexthops = append(nexthops, a.LinkLocalNexthop.String())
 		}
 	}
-	l := make([]bgp.AddrPrefixInterface, 0, len(a.Value))
+	l := make([]bgp.NLRI, 0, len(a.Value))
 	for _, v := range a.Value {
 		l = append(l, v.NLRI)
 	}
@@ -1922,7 +1922,7 @@ func NewMpReachNLRIAttributeFromNative(a *bgp.PathAttributeMpReachNLRI) (*api.Mp
 }
 
 func NewMpUnreachNLRIAttributeFromNative(a *bgp.PathAttributeMpUnreachNLRI) (*api.MpUnreachNLRIAttribute, error) {
-	l := make([]bgp.AddrPrefixInterface, 0, len(a.Value))
+	l := make([]bgp.NLRI, 0, len(a.Value))
 	for _, v := range a.Value {
 		l = append(l, v.NLRI)
 	}

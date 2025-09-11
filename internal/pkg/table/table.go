@@ -34,7 +34,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func addrPrefixOnlySerialize(nlri bgp.AddrPrefixInterface) []byte {
+func addrPrefixOnlySerialize(nlri bgp.NLRI) []byte {
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
 		byteLen := T.Prefix.Addr().BitLen() / 8
@@ -55,7 +55,7 @@ func addrPrefixOnlySerialize(nlri bgp.AddrPrefixInterface) []byte {
 	return []byte(nlri.String())
 }
 
-func AddrPrefixOnlyCompare(a, b bgp.AddrPrefixInterface) int {
+func AddrPrefixOnlyCompare(a, b bgp.NLRI) int {
 	return bytes.Compare(addrPrefixOnlySerialize(a), addrPrefixOnlySerialize(b))
 }
 
@@ -75,7 +75,7 @@ type TableSelectOption struct {
 	MultiPath      bool
 }
 
-func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
+func tableKey(nlri bgp.NLRI) addrPrefixKey {
 	h := fnv1a.Init64
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
@@ -94,7 +94,7 @@ func tableKey(nlri bgp.AddrPrefixInterface) addrPrefixKey {
 
 type Destinations map[addrPrefixKey][]*Destination
 
-func (d Destinations) getDestinationList(nlri bgp.AddrPrefixInterface) []*Destination {
+func (d Destinations) getDestinationList(nlri bgp.NLRI) []*Destination {
 	dest, ok := d[tableKey(nlri)]
 	if !ok {
 		return nil
@@ -102,7 +102,7 @@ func (d Destinations) getDestinationList(nlri bgp.AddrPrefixInterface) []*Destin
 	return dest
 }
 
-func (d Destinations) Get(nlri bgp.AddrPrefixInterface) *Destination {
+func (d Destinations) Get(nlri bgp.NLRI) *Destination {
 	for _, d := range d.getDestinationList(nlri) {
 		if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
 			return d
@@ -133,7 +133,7 @@ func (d Destinations) InsertUpdate(dest *Destination) (collision bool) {
 	return collision
 }
 
-func (d Destinations) Remove(nlri bgp.AddrPrefixInterface) {
+func (d Destinations) Remove(nlri bgp.NLRI) {
 	key := tableKey(nlri)
 	if _, ok := d[key]; !ok {
 		return
@@ -333,7 +333,7 @@ func (t *Table) validatePath(path *Path) {
 	}
 }
 
-func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface, size int) *Destination {
+func (t *Table) getOrCreateDest(nlri bgp.NLRI, size int) *Destination {
 	dest := t.GetDestination(nlri)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
@@ -377,7 +377,7 @@ func (t *Table) GetDestinations() []*Destination {
 	return d
 }
 
-func (t *Table) GetDestination(nlri bgp.AddrPrefixInterface) *Destination {
+func (t *Table) GetDestination(nlri bgp.NLRI) *Destination {
 	return t.destinations.Get(nlri)
 }
 

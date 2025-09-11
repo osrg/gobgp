@@ -448,7 +448,7 @@ func parseExtendedCommunities(args []string) ([]bgp.ExtendedCommunityInterface, 
 	return exts, nil
 }
 
-func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.NLRI, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// match <rule>... [then <action>...] [rd <rd>] [rt <rt>...]
 	// or
@@ -504,7 +504,7 @@ func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *
 		return nil, nil, nil, err
 	}
 
-	var nlri bgp.AddrPrefixInterface
+	var nlri bgp.NLRI
 	switch rf {
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:
 		nlri, _ = bgp.NewFlowSpecUnicast(rf, rules)
@@ -568,7 +568,7 @@ func parseFlowSpecArgs(rf bgp.Family, args []string) (bgp.AddrPrefixInterface, *
 	return nlri, psid, extcomms, nil
 }
 
-func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.NLRI, []string, error) {
 	// Format:
 	// esi <esi> etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [esi-label <esi-label> [single-active | all-active]]
 	req := 8
@@ -637,7 +637,7 @@ func parseEvpnEthernetAutoDiscoveryArgs(args []string) (bgp.AddrPrefixInterface,
 	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, r), extcomms, nil
 }
 
-func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnMacAdvArgs(args []string) (bgp.NLRI, []string, error) {
 	// Format:
 	// <mac address> <ip address> [esi <esi>] etag <etag> label <label> rd <rd> [rt <rt>...] [encap <encap type>] [router-mac <mac address>] [default-gateway]
 	// or
@@ -763,7 +763,7 @@ func parseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	return bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, r), extcomms, nil
 }
 
-func parseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnMulticastArgs(args []string) (bgp.NLRI, []string, error) {
 	// Format:
 	// <ip address> etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
 	// or
@@ -836,7 +836,7 @@ func parseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 	return bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, r), extcomms, nil
 }
 
-func parseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnEthernetSegmentArgs(args []string) (bgp.NLRI, []string, error) {
 	// Format:
 	// <ip address> esi <esi> rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 5
@@ -899,7 +899,7 @@ func parseEvpnEthernetSegmentArgs(args []string) (bgp.AddrPrefixInterface, []str
 	return bgp.NewEVPNNLRI(bgp.EVPN_ETHERNET_SEGMENT_ROUTE, r), extcomms, nil
 }
 
-func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnIPPrefixArgs(args []string) (bgp.NLRI, []string, error) {
 	// Format:
 	// <ip prefix> [gw <gateway>] [esi <esi>] etag <etag> [label <label>] rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 5
@@ -988,7 +988,7 @@ func parseEvpnIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, er
 	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, r), extcomms, nil
 }
 
-func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnIPMSIArgs(args []string) (bgp.NLRI, []string, error) {
 	// Format:
 	// etag <etag> rd <rd> [rt <rt>...] [encap <encap type>]
 	req := 4
@@ -1043,7 +1043,7 @@ func parseEvpnIPMSIArgs(args []string) (bgp.AddrPrefixInterface, []string, error
 	return bgp.NewEVPNNLRI(bgp.EVPN_I_PMSI, r), extcomms, nil
 }
 
-func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func parseEvpnArgs(args []string) (bgp.NLRI, []string, error) {
 	if len(args) < 1 {
 		return nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
 	}
@@ -1066,7 +1066,7 @@ func parseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }
 
-func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop string) (bgp.NLRI, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
 	req := 13
@@ -1150,7 +1150,7 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexth
 	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_INTERWORK_SEGMENT_DISCOVERY, r), psid, extcomms, nil
 }
 
-func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop string) (bgp.NLRI, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
 	req := 15
@@ -1264,7 +1264,7 @@ func parseTeid(s string) (teid netip.Addr, err error) {
 	return teid, nil
 }
 
-func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.NLRI, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// <ip prefix> rd <rd> [rt <rt>...] teid <teid> qfi <qfi> endpoint <endpoint> [source <source>]
 	req := 5
@@ -1335,7 +1335,7 @@ func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_1_SESSION_TRANSFORMED, r), nil, extcomms, nil
 }
 
-func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.NLRI, *bgp.PathAttributePrefixSID, []string, error) {
 	// Format:
 	// <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
 	req := 6
@@ -1397,7 +1397,7 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.Ad
 	return bgp.NewMUPNLRI(afi, bgp.MUP_ARCH_TYPE_UNDEFINED, bgp.MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED, r), nil, extcomms, nil
 }
 
-func parseMUPArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInterface, *bgp.PathAttributePrefixSID, []string, error) {
+func parseMUPArgs(args []string, afi uint16, nexthop string) (bgp.NLRI, *bgp.PathAttributePrefixSID, []string, error) {
 	if len(args) < 1 {
 		return nil, nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
 	}
@@ -1416,7 +1416,7 @@ func parseMUPArgs(args []string, afi uint16, nexthop string) (bgp.AddrPrefixInte
 	return nil, nil, nil, fmt.Errorf("invalid subtype. expect [isd|dsd|t1st|t2st] but %s", subtype)
 }
 
-func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, error) {
+func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
 	// <ip prefix> identifier <identifier> asn <asn> bgp-ls-id <bgp-ls-id> ospf
 	req := 26
@@ -1630,7 +1630,7 @@ func parseLsLinkNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttri
 	return nlri, pathAttributeLs, nil
 }
 
-func parseLsSRv6SIDNLRIType(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, error) {
+func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
 	// gobgp global rib add -a ls srv6sid bgp identifier <identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...]
 	req := 11
@@ -1746,7 +1746,7 @@ func lsTLVTypeSelect(s string) bgp.LsTLVType {
 	return bgp.LS_TLV_UNKNOWN
 }
 
-func parseLsArgs(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, error) {
+func parseLsArgs(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	if len(args) < 1 {
 		return nil, nil, fmt.Errorf("lack of nlriType")
 	}
@@ -1762,7 +1762,7 @@ func parseLsArgs(args []string) (bgp.AddrPrefixInterface, *bgp.PathAttributeLs, 
 	return nil, nil, fmt.Errorf("invalid nlriType. expect [link] but %s", nlriType)
 }
 
-func parseRtcArgs(args []string) (bgp.AddrPrefixInterface, error) {
+func parseRtcArgs(args []string) (bgp.NLRI, error) {
 	// Format:
 	// asn <asn> rt <rt> | default
 	m, err := extractReserved(args, map[string]int{
@@ -2038,7 +2038,7 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 }
 
 func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
-	var nlri bgp.AddrPrefixInterface
+	var nlri bgp.NLRI
 	var extcomms []string
 	var psid *bgp.PathAttributePrefixSID
 	var ls *bgp.PathAttributeLs

@@ -392,7 +392,7 @@ type RibEntry struct {
 
 var errNotAllRibEntryBytesAvailable = errors.New("not all RibEntry bytes are available")
 
-func parseRibEntry(data []byte, family bgp.Family, isAddPath bool, prefix ...bgp.AddrPrefixInterface) (*RibEntry, []byte, error) {
+func parseRibEntry(data []byte, family bgp.Family, isAddPath bool, prefix ...bgp.NLRI) (*RibEntry, []byte, error) {
 	if len(data) < 8 {
 		return nil, data, errNotAllRibEntryBytesAvailable
 	}
@@ -501,7 +501,7 @@ func (e *RibEntry) String() string {
 
 type Rib struct {
 	SequenceNumber uint32
-	Prefix         bgp.AddrPrefixInterface
+	Prefix         bgp.NLRI
 	Entries        []*RibEntry
 	Family         bgp.Family
 	isAddPath      bool
@@ -581,7 +581,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewRib(seq uint32, family bgp.Family, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
+func NewRib(seq uint32, family bgp.Family, prefix bgp.NLRI, entries []*RibEntry) *Rib {
 	return &Rib{
 		SequenceNumber: seq,
 		Family:         family,

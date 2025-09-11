@@ -204,7 +204,7 @@ func NewMUPNLRI(afi uint16, at uint8, rt uint16, data MUPRouteTypeInterface) *MU
 	}
 }
 
-func TEIDString(nlri AddrPrefixInterface) string {
+func TEIDString(nlri NLRI) string {
 	s := ""
 	switch n := nlri.(type) {
 	case *MUPNLRI:
@@ -218,7 +218,7 @@ func TEIDString(nlri AddrPrefixInterface) string {
 	return s
 }
 
-func QFIString(nlri AddrPrefixInterface) string {
+func QFIString(nlri NLRI) string {
 	s := ""
 	switch n := nlri.(type) {
 	case *MUPNLRI:
@@ -232,7 +232,7 @@ func QFIString(nlri AddrPrefixInterface) string {
 	return s
 }
 
-func EndpointString(nlri AddrPrefixInterface) string {
+func EndpointString(nlri NLRI) string {
 	s := ""
 	switch n := nlri.(type) {
 	case *MUPNLRI:

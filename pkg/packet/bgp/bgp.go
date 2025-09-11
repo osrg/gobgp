@@ -1376,7 +1376,7 @@ func NewBGPOpenMessage(myas uint16, holdtime uint16, id netip.Addr, optparams []
 	}, nil
 }
 
-type AddrPrefixInterface interface {
+type NLRI interface {
 	Serialize(...*MarshallingOption) ([]byte, error)
 	Len(...*MarshallingOption) int
 	String() string
@@ -1386,7 +1386,7 @@ type AddrPrefixInterface interface {
 	Flat() map[string]string
 }
 
-func LabelString(nlri AddrPrefixInterface) string {
+func LabelString(nlri NLRI) string {
 	label := ""
 	switch n := nlri.(type) {
 	case *LabeledIPAddrPrefix:
@@ -9755,7 +9755,7 @@ func GetFamily(name string) (Family, error) {
 	return Family(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
-func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nlri AddrPrefixInterface, err error) {
+func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nlri NLRI, err error) {
 	switch family {
 	case RF_IPv4_UC, RF_IPv4_MC, RF_IPv6_UC, RF_IPv6_MC:
 		if family.Afi() == AFI_IP6 {
@@ -14683,7 +14683,7 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 }
 
 type PathNLRI struct {
-	NLRI AddrPrefixInterface
+	NLRI NLRI
 	ID   uint32
 }
 

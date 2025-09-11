@@ -1186,7 +1186,7 @@ func Test_MpReachNLRIWithImplicitPrefix(t *testing.T) {
 	// assert.Equal(prefix.AFI(), p.AFI)
 	// assert.Equal(prefix.SAFI(), p.SAFI)
 	// prefix, _ := NewIPAddrPrefix(netip.MustParsePrefix("192.168.10.0/24"))
-	// value := []AddrPrefixInterface{prefix}
+	// value := []NLRI{prefix}
 	// assert.Equal(value, p.Value)
 	// Test Serialize()
 	bufout, err := p.Serialize(options)

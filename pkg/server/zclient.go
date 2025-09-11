@@ -259,7 +259,7 @@ func newPathFromIPRouteMessage(logger log.Logger, m *zebra.Message, version uint
 	family := body.Family(logger, version, software)
 	isWithdraw := body.IsWithdraw(version, software)
 
-	var nlri bgp.AddrPrefixInterface
+	var nlri bgp.NLRI
 	pattr := make([]bgp.PathAttributeInterface, 0)
 	origin := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
 	pattr = append(pattr, origin)

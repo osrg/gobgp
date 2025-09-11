@@ -561,7 +561,7 @@ func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 	return symbols
 }
 
-func getPathAttributeString(nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface) string {
+func getPathAttributeString(nlri bgp.NLRI, attrs []bgp.PathAttributeInterface) string {
 	s := make([]string, 0)
 	for _, a := range attrs {
 		switch a.GetType() {

@@ -2872,7 +2872,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 	return
 }
 
-func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path)) error {
+func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI, paths []*apiutil.Path)) error {
 	in := false
 	family := r.Family
 

@@ -86,7 +86,7 @@ func NewBitmap(size int) *Bitmap {
 }
 
 type originInfo struct {
-	nlri               bgp.AddrPrefixInterface
+	nlri               bgp.NLRI
 	source             *PeerInfo
 	timestamp          int64
 	noImplicitWithdraw bool
@@ -482,7 +482,7 @@ func (path *Path) SetNexthop(nexthop net.IP) {
 	}
 }
 
-func (path *Path) GetNlri() bgp.AddrPrefixInterface {
+func (path *Path) GetNlri() bgp.NLRI {
 	return path.OriginInfo().nlri
 }
 
@@ -1087,7 +1087,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 
 func (path *Path) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+		Nlri       bgp.NLRI                     `json:"nlri"`
 		PathAttrs  []bgp.PathAttributeInterface `json:"attrs"`
 		Age        int64                        `json:"age"`
 		Withdrawal bool                         `json:"withdrawal,omitempty"`
@@ -1356,7 +1356,7 @@ func (p *Path) RemoteID() uint32 {
 	return p.remoteID
 }
 
-func nlriToIPNet(nlri bgp.AddrPrefixInterface) *net.IPNet {
+func nlriToIPNet(nlri bgp.NLRI) *net.IPNet {
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
 		return &net.IPNet{

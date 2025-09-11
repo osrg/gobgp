@@ -155,7 +155,7 @@ func BenchmarkTableKey(b *testing.B) {
 	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"))
 	nlri3, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.168.1.0/24"), *bgp.NewMPLSLabelStack(100, 200, 300), rd)
 	nlri4, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"), *bgp.NewMPLSLabelStack(100, 200, 300), rd)
-	prefix := []bgp.AddrPrefixInterface{
+	prefix := []bgp.NLRI{
 		nlri1,
 		nlri2,
 		nlri3,
@@ -555,7 +555,7 @@ func updateMsgT3() *bgp.BGPMessage {
 }
 
 //nolint:errcheck
-func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
+func createRandomAddrPrefix() []bgp.NLRI {
 	label := *bgp.NewMPLSLabelStack(1, 2, 3)
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(256, 10000)
 
@@ -576,13 +576,13 @@ func createRandomAddrPrefix() []bgp.AddrPrefixInterface {
 	nlri4, _ := bgp.NewIPAddrPrefix(prefixv6)
 	nlri5, _ := bgp.NewLabeledVPNIPAddrPrefix(prefixv6, label, rd)
 	nlri6, _ := bgp.NewLabeledIPAddrPrefix(prefixv6, label)
-	prefixes := []bgp.AddrPrefixInterface{nlri1, nlri2, nlri3, nlri4, nlri5, nlri6}
+	prefixes := []bgp.NLRI{nlri1, nlri2, nlri3, nlri4, nlri5, nlri6}
 
 	return prefixes
 }
 
 //nolint:errcheck
-func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
+func createAddrPrefixBaseIndex(index int) []bgp.NLRI {
 	label := *bgp.NewMPLSLabelStack(1, 2, 3)
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(256, 10000)
 
@@ -607,7 +607,7 @@ func createAddrPrefixBaseIndex(index int) []bgp.AddrPrefixInterface {
 	nlri4, _ := bgp.NewIPAddrPrefix(prefixv6)
 	nlri5, _ := bgp.NewLabeledVPNIPAddrPrefix(prefixv6, label, rd)
 	nlri6, _ := bgp.NewLabeledIPAddrPrefix(prefixv6, label)
-	prefixes := []bgp.AddrPrefixInterface{nlri1, nlri2, nlri3, nlri4, nlri5, nlri6}
+	prefixes := []bgp.NLRI{nlri1, nlri2, nlri3, nlri4, nlri5, nlri6}
 
 	return prefixes
 }
@@ -651,7 +651,7 @@ func TestTableDestinationsCollisionAttack(t *testing.T) {
 	}
 }
 
-func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
+func buildPrefixesWithLabels() []bgp.NLRI {
 	label1 := *bgp.NewMPLSLabelStack(1, 2, 3)
 	label2 := *bgp.NewMPLSLabelStack(4, 5, 6)
 	label3 := *bgp.NewMPLSLabelStack(7, 8)
@@ -676,7 +676,7 @@ func buildPrefixesWithLabels() []bgp.AddrPrefixInterface {
 
 	nlri1, _ := bgp.NewIPAddrPrefix(prefixv4)
 	nlri2, _ := bgp.NewIPAddrPrefix(prefixv6)
-	prefixes := []bgp.AddrPrefixInterface{nlri1, nlri2}
+	prefixes := []bgp.NLRI{nlri1, nlri2}
 
 	for _, l := range []bgp.MPLSLabelStack{label1, label2, label3} {
 		for _, rd := range []bgp.RouteDistinguisherInterface{rd1, rd2} {

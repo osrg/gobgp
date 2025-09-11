@@ -97,7 +97,7 @@ func main() {
 
 	s.ListPath(apiutil.ListPathRequest{
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-	}, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+	}, func(prefix bgp.NLRI, paths []*apiutil.Path) {
 		log.Info(prefix.String())
 		for _, p := range paths {
 			log.WithFields(logrus.Fields{

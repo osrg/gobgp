@@ -138,12 +138,12 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 }
 
 type Destination struct {
-	nlri          bgp.AddrPrefixInterface
+	nlri          bgp.NLRI
 	knownPathList []*Path
 	localIdMap    *Bitmap
 }
 
-func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *Destination {
+func NewDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *Destination {
 	d := &Destination{
 		nlri:          nlri,
 		knownPathList: known,
@@ -156,11 +156,11 @@ func NewDestination(nlri bgp.AddrPrefixInterface, mapSize int, known ...*Path) *
 	return d
 }
 
-func (dd *Destination) GetNlri() bgp.AddrPrefixInterface {
+func (dd *Destination) GetNlri() bgp.NLRI {
 	return dd.nlri
 }
 
-func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
+func (dd *Destination) setNlri(nlri bgp.NLRI) {
 	dd.nlri = nlri
 }
 

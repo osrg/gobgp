@@ -159,7 +159,7 @@ func eor(f bgp.Family) *table.Path {
 	return p
 }
 
-func nlri(nlri bgp.AddrPrefixInterface) *api.NLRI {
+func nlri(nlri bgp.NLRI) *api.NLRI {
 	apiNlri, _ := apiutil.MarshalNLRI(nlri)
 	return apiNlri
 }

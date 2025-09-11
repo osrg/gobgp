@@ -33,7 +33,7 @@ func bgpupdateV6() *BGPMessage {
 	}
 
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("fe80:1234:1234:5667:8967:af12:8912:1023/100"))
-	prefixes := []AddrPrefixInterface{nlri}
+	prefixes := []NLRI{nlri}
 
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(1),

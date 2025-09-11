@@ -89,7 +89,7 @@ type LookupPrefix struct {
 // used by server.WatchEventMessages API
 type Path struct {
 	Family             bgp.Family
-	Nlri               bgp.AddrPrefixInterface      `json:"nlri"`
+	Nlri               bgp.NLRI                     `json:"nlri"`
 	Age                int64                        `json:"age"`
 	Best               bool                         `json:"best"`
 	Attrs              []bgp.PathAttributeInterface `json:"attrs"`
@@ -166,7 +166,7 @@ func NewDestination(dst *api.Destination) *Destination {
 	return &Destination{Paths: l}
 }
 
-func NewPath(family bgp.Family, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, age time.Time) (*api.Path, error) {
+func NewPath(family bgp.Family, nlri bgp.NLRI, isWithdraw bool, attrs []bgp.PathAttributeInterface, age time.Time) (*api.Path, error) {
 	n, err := MarshalNLRI(nlri)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func NewPath(family bgp.Family, nlri bgp.AddrPrefixInterface, isWithdraw bool, a
 	}, nil
 }
 
-func GetNativeNlri(p *api.Path) (bgp.AddrPrefixInterface, error) {
+func GetNativeNlri(p *api.Path) (bgp.NLRI, error) {
 	if p.Family == nil {
 		return nil, fmt.Errorf("family cannot be nil")
 	}

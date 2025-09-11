@@ -294,7 +294,7 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 		}
 	}
 
-	err := s.bgpServer.ListPath(req, func(prefix bgp.AddrPrefixInterface, paths []*apiutil.Path) {
+	err := s.bgpServer.ListPath(req, func(prefix bgp.NLRI, paths []*apiutil.Path) {
 		select {
 		case <-ctx.Done():
 			return
@@ -509,7 +509,7 @@ func newRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*oc.RoutingPoli
 
 func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.Path, error) {
 	var pi *table.PeerInfo
-	var nlri bgp.AddrPrefixInterface
+	var nlri bgp.NLRI
 	var nexthop netip.Addr
 
 	if path.SourceAsn != 0 {
