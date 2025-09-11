@@ -965,7 +965,8 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 }
 
 func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) *peer {
-	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: address}, State: oc.NeighborState{PeerAs: as, NeighborAddress: address, RemoteRouterId: address}}
+	addr := netip.MustParseAddr(address)
+	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: addr}, State: oc.NeighborState{PeerAs: as, NeighborAddress: netip.MustParseAddr(address), RemoteRouterId: addr}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
 	err := oc.SetDefaultNeighborConfigValues(nConf, nil, gConf)
 	assert.NoError(t, err)
@@ -1160,7 +1161,7 @@ func TestPeerGroup(test *testing.T) {
 
 	n := &oc.Neighbor{
 		Config: oc.NeighborConfig{
-			NeighborAddress: "127.0.0.1",
+			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
 			PeerGroup:       "g",
 		},
 		Transport: oc.Transport{
@@ -1198,7 +1199,7 @@ func TestPeerGroup(test *testing.T) {
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
-			NeighborAddress: "127.0.0.1",
+			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
 			PeerAs:          1,
 		},
 		Transport: oc.Transport{
@@ -1269,7 +1270,7 @@ func TestDynamicNeighbor(t *testing.T) {
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
-			NeighborAddress: "127.0.0.1",
+			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
 			PeerAs:          1,
 		},
 		Transport: oc.Transport{
@@ -1602,7 +1603,7 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 
 			neighborConfig := &oc.Neighbor{
 				Config: oc.NeighborConfig{
-					NeighborAddress: "127.0.0.1",
+					NeighborAddress: netip.MustParseAddr("127.0.0.1"),
 					PeerAs:          peer.bgpConfig.Global.Config.As,
 				},
 				AfiSafis: oc.AfiSafis{},
@@ -2538,7 +2539,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 func makeNeighborConfig(port int32) *oc.Neighbor {
 	return &oc.Neighbor{
 		Config: oc.NeighborConfig{
-			NeighborAddress: "127.0.0.1",
+			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
 		},
 		Transport: oc.Transport{
 			Config: oc.TransportConfig{

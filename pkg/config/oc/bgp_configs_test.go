@@ -17,12 +17,15 @@ package oc
 
 import (
 	"bufio"
+	"fmt"
+	"net/netip"
 	"os"
 	"path"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,11 +33,11 @@ import (
 func TestEqual(t *testing.T) {
 	assert := assert.New(t)
 	p1 := Prefix{
-		IpPrefix:        "192.168.0.0",
+		IpPrefix:        netip.MustParsePrefix("192.168.0.0/24"),
 		MasklengthRange: "24..32",
 	}
 	p2 := Prefix{
-		IpPrefix:        "192.168.0.0",
+		IpPrefix:        netip.MustParsePrefix("192.168.0.0/24"),
 		MasklengthRange: "24..32",
 	}
 	assert.True(p1.Equal(&p2))
@@ -42,11 +45,11 @@ func TestEqual(t *testing.T) {
 	var p3 *Prefix
 	assert.False(p3.Equal(&p1))
 	p3 = &Prefix{
-		IpPrefix:        "192.168.0.0",
+		IpPrefix:        netip.MustParsePrefix("192.168.0.0/24"),
 		MasklengthRange: "24..32",
 	}
 	assert.True(p3.Equal(&p1))
-	p3.IpPrefix = "10.10.0.0"
+	p3.IpPrefix = netip.MustParsePrefix("10.10.0.0/24")
 	assert.False(p3.Equal(&p1))
 	ps1 := PrefixSet{
 		PrefixSetName: "ps",
@@ -102,13 +105,15 @@ func TestConfigExample(t *testing.T) {
 	assert.NoError(extractTomlFromMarkdown(fileMd, fileToml))
 	defer os.Remove(fileToml)
 
+	opts := viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(mapstructure.StringToNetIPAddrHookFunc(), mapstructure.StringToNetIPPrefixHookFunc()))
 	format := detectConfigFileType(fileToml, "")
 	c := &BgpConfigSet{}
 	v := viper.New()
 	v.SetConfigFile(fileToml)
 	v.SetConfigType(format)
 	assert.NoError(v.ReadInConfig())
-	assert.NoError(v.UnmarshalExact(c))
+	fmt.Println(v)
+	assert.NoError(v.UnmarshalExact(c, opts))
 	assert.NoError(setDefaultConfigValuesWithViper(v, c))
 
 	// Test if we can set the parameters for a peer-group

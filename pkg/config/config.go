@@ -182,7 +182,7 @@ func addDynamicNeighbors(ctx context.Context, bgpServer *server.BgpServer, dynam
 			})
 		if err := bgpServer.AddDynamicNeighbor(ctx, &api.AddDynamicNeighborRequest{
 			DynamicNeighbor: &api.DynamicNeighbor{
-				Prefix:    dn.Config.Prefix,
+				Prefix:    dn.Config.Prefix.String(),
 				PeerGroup: dn.Config.PeerGroup,
 			},
 		}); err != nil {
@@ -229,7 +229,7 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 				"Key":   p.State.NeighborAddress,
 			})
 		if err := bgpServer.DeletePeer(ctx, &api.DeletePeerRequest{
-			Address: p.State.NeighborAddress,
+			Address: p.State.NeighborAddress.String(),
 		}); err != nil {
 			bgpServer.Log().Fatal("Failed to delete Peer",
 				log.Fields{
@@ -306,7 +306,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 
 	for _, c := range newConfig.RpkiServers {
 		if err := bgpServer.AddRpki(ctx, &api.AddRpkiRequest{
-			Address:  c.Config.Address,
+			Address:  c.Config.Address.String(),
 			Port:     c.Config.Port,
 			Lifetime: c.Config.RecordLifetime,
 		}); err != nil {
@@ -332,7 +332,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 
 	for _, c := range newConfig.BmpServers {
 		if err := bgpServer.AddBmp(ctx, &api.AddBmpRequest{
-			Address:           c.Config.Address,
+			Address:           c.Config.Address.String(),
 			Port:              c.Config.Port,
 			SysName:           c.Config.SysName,
 			SysDescr:          c.Config.SysDescr,

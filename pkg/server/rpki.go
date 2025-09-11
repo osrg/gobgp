@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -339,7 +340,7 @@ func (m *roaManager) GetServers() []*oc.RpkiServer {
 		addr, port, _ := net.SplitHostPort(client.host)
 		l = append(l, &oc.RpkiServer{
 			Config: oc.RpkiServerConfig{
-				Address: addr,
+				Address: netip.MustParseAddr(addr),
 				// Note: RpkiServerConfig.Port is uint32 type, but the TCP/UDP
 				// port is 16-bit length.
 				Port: func() uint32 { p, _ := strconv.ParseUint(port, 10, 16); return uint32(p) }(),

@@ -283,7 +283,7 @@
     [[policy-definitions.statements]]
         [policy-definitions.statements.conditions.bgp-conditions]
             next-hop-in-list = [
-               "10.0.100.1/32"
+               "10.0.100.1"
             ]
         [policy-definitions.statements.actions]
             route-disposition = "accept-route"

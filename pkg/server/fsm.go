@@ -524,7 +524,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 				ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
 			}
 		}
-		return tick, addr, port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress, int(fsm.pConf.Transport.Config.LocalPort), fsm.pConf.Transport.Config.BindInterface
+		return tick, addr.String(), port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress.String(), int(fsm.pConf.Transport.Config.LocalPort), fsm.pConf.Transport.Config.BindInterface
 	}()
 
 	tick := minConnectRetryInterval
@@ -848,7 +848,7 @@ func buildopen(gConf *oc.Global, pConf *oc.Neighbor) *bgp.BGPMessage {
 	if as > 1<<16-1 {
 		as = bgp.AS_TRANS
 	}
-	msg, _ := bgp.NewBGPOpenMessage(uint16(as), holdTime, netip.MustParseAddr(gConf.Config.RouterId),
+	msg, _ := bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId,
 		[]bgp.OptionParameterInterface{opt})
 	return msg
 }
@@ -1024,7 +1024,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		fmsg := &fsmMsg{
 			fsm:     h.fsm,
 			MsgType: fsmMsgBGPMessage,
-			MsgSrc:  h.fsm.pConf.State.NeighborAddress,
+			MsgSrc:  h.fsm.pConf.State.NeighborAddress.String(),
 			MsgData: err,
 		}
 		h.fsm.lock.RUnlock()
@@ -1059,7 +1059,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	fmsg := &fsmMsg{
 		fsm:       h.fsm,
 		MsgType:   fsmMsgBGPMessage,
-		MsgSrc:    h.fsm.pConf.State.NeighborAddress,
+		MsgSrc:    h.fsm.pConf.State.NeighborAddress.String(),
 		handling:  handling,
 		timestamp: now,
 	}
@@ -1364,7 +1364,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsmPeerAS := fsm.pConf.Config.PeerAs
 					localAS := fsm.pConf.Config.LocalAs
 					fsm.lock.RUnlock()
-					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, netip.MustParseAddr(fsm.gConf.Config.RouterId))
+					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, fsm.gConf.Config.RouterId)
 					if err != nil {
 						m, _ := fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
@@ -1397,7 +1397,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					}
 					fsm.lock.Lock()
 					fsm.pConf.State.PeerAs = peerAs
-					fsm.pConf.State.RemoteRouterId = body.ID.String()
+					fsm.pConf.State.RemoteRouterId = body.ID
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 
 					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
@@ -2093,7 +2093,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		msg := &fsmMsg{
 			fsm:         fsm,
 			MsgType:     fsmMsgStateChange,
-			MsgSrc:      neighborAddress,
+			MsgSrc:      neighborAddress.String(),
 			MsgData:     nextState,
 			StateReason: reason,
 		}

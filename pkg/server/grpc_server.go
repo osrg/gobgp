@@ -964,7 +964,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		if err != nil {
 			return nil, err
 		}
-		pconf.Config.NeighborAddress = a.Conf.NeighborAddress
+		if addr, err := netip.ParseAddr(a.Conf.NeighborAddress); err == nil {
+			pconf.Config.NeighborAddress = addr
+		}
 		pconf.Config.AdminDown = a.Conf.AdminDown
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
@@ -992,7 +994,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 			pconf.State.LocalCapabilityList = localCaps
 			pconf.State.RemoteCapabilityList = remoteCaps
 
-			pconf.State.RemoteRouterId = a.State.RouterId
+			if addr, err := netip.ParseAddr(a.State.RouterId); err == nil {
+				pconf.State.RemoteRouterId = addr
+			}
 		}
 
 		for _, af := range a.AfiSafis {
@@ -1025,7 +1029,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		}
 	}
 	if a.RouteReflector != nil {
-		pconf.RouteReflector.Config.RouteReflectorClusterId = oc.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
+		if id, err := netip.ParseAddr(a.RouteReflector.RouteReflectorClusterId); err == nil {
+			pconf.RouteReflector.Config.RouteReflectorClusterId = id
+		}
 		pconf.RouteReflector.Config.RouteReflectorClient = a.RouteReflector.RouteReflectorClient
 	}
 	if a.RouteServer != nil {
@@ -1043,7 +1049,11 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 	}
 	readApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
 	if a.Transport != nil {
-		pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
+		if a.Transport.LocalAddress != "" {
+			if addr, err := netip.ParseAddr(a.Transport.LocalAddress); err == nil {
+				pconf.Transport.Config.LocalAddress = addr
+			}
+		}
 		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
 		pconf.Transport.Config.RemotePort = uint16(a.Transport.RemotePort)
 		pconf.Transport.Config.LocalPort = uint16(a.Transport.LocalPort)
@@ -1087,8 +1097,9 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		if err != nil {
 			return nil, err
 		}
-		pconf.State.NeighborAddress = a.State.NeighborAddress
-
+		if addr, err := netip.ParseAddr(a.State.NeighborAddress); err == nil {
+			pconf.State.NeighborAddress = addr
+		}
 		if a.State.Messages != nil {
 			if a.State.Messages.Sent != nil {
 				pconf.State.Messages.Sent.Update = a.State.Messages.Sent.Update
@@ -1160,7 +1171,9 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		}
 	}
 	if a.RouteReflector != nil {
-		pconf.RouteReflector.Config.RouteReflectorClusterId = oc.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
+		if id, err := netip.ParseAddr(a.RouteReflector.RouteReflectorClusterId); err == nil {
+			pconf.RouteReflector.Config.RouteReflectorClusterId = id
+		}
 		pconf.RouteReflector.Config.RouteReflectorClient = a.RouteReflector.RouteReflectorClient
 	}
 	if a.RouteServer != nil {
@@ -1178,7 +1191,11 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 	}
 	readApplyPolicyFromAPIStruct(&pconf.ApplyPolicy, a.ApplyPolicy)
 	if a.Transport != nil {
-		pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
+		if a.Transport.LocalAddress != "" {
+			if addr, err := netip.ParseAddr(a.Transport.LocalAddress); err == nil {
+				pconf.Transport.Config.LocalAddress = addr
+			}
+		}
 		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
 		pconf.Transport.Config.RemotePort = uint16(a.Transport.RemotePort)
 		pconf.Transport.Config.TcpMss = uint16(a.Transport.TcpMss)
@@ -1259,7 +1276,7 @@ func newConfigPrefixFromAPIStruct(a *api.Prefix) (*oc.Prefix, error) {
 		return nil, err
 	}
 	return &oc.Prefix{
-		IpPrefix:        prefix.String(),
+		IpPrefix:        netip.MustParsePrefix(prefix.String()),
 		MasklengthRange: fmt.Sprintf("%d..%d", a.MaskLengthMin, a.MaskLengthMax),
 	}, nil
 }
@@ -1480,7 +1497,11 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		cs.RouteType = api.Conditions_RouteType(s.Conditions.BgpConditions.RouteType.ToInt())
 	}
 	if len(s.Conditions.BgpConditions.NextHopInList) > 0 {
-		cs.NextHopInList = s.Conditions.BgpConditions.NextHopInList
+		l := make([]string, 0, len(s.Conditions.BgpConditions.NextHopInList))
+		for _, nh := range s.Conditions.BgpConditions.NextHopInList {
+			l = append(l, nh.String())
+		}
+		cs.NextHopInList = l
 	}
 	if s.Conditions.BgpConditions.AfiSafiInList != nil {
 		afiSafiIn := make([]*api.Family, 0)
@@ -2293,13 +2314,17 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 
 	applyPolicy := &oc.ApplyPolicy{}
 	readApplyPolicyFromAPIStruct(applyPolicy, a.ApplyPolicy)
+	l := make([]netip.Addr, 0, len(a.ListenAddresses))
+	for _, addr := range a.ListenAddresses {
+		l = append(l, netip.MustParseAddr(addr))
+	}
 
 	global := &oc.Global{
 		Config: oc.GlobalConfig{
 			As:               a.Asn,
-			RouterId:         a.RouterId,
+			RouterId:         netip.MustParseAddr(a.RouterId),
 			Port:             a.ListenPort,
-			LocalAddressList: a.ListenAddresses,
+			LocalAddressList: l,
 		},
 		ApplyPolicy: *applyPolicy,
 		AfiSafis:    families,

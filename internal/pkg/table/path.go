@@ -309,7 +309,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 				path.setPathAttr(attr)
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
-					attr, _ := bgp.NewPathAttributeOriginatorId(netip.MustParseAddr(global.Config.RouterId))
+					attr, _ := bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
 					path.setPathAttr(attr)
 				} else {
 					attr, _ := bgp.NewPathAttributeOriginatorId(info.ID)
@@ -319,7 +319,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
 			// TODO: needs to validated earlier.
-			clusterID := netip.MustParseAddr(string(peer.RouteReflector.State.RouteReflectorClusterId))
+			clusterID := peer.RouteReflector.State.RouteReflectorClusterId
 			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
 				pa, _ := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
 				path.setPathAttr(pa)

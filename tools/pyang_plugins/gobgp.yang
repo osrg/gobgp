@@ -938,7 +938,7 @@ module gobgp {
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     leaf remote-router-id {
-        type string;
+        type inet:ipv4-address;
     }
   }
 
@@ -1081,7 +1081,7 @@ module gobgp {
     leaf-list neighbor-info {
       description
             "neighbor ip address or prefix";
-      type inet:ip-address;
+      type string;
     }
   }
 
@@ -1350,7 +1350,7 @@ module gobgp {
         type int32;
     }
     leaf-list local-address {
-        type string;
+        type inet:ip-address;
     }
   }
 
@@ -1390,7 +1390,7 @@ module gobgp {
      This configuration structure was taken from the latest openconfig.";
 
     leaf prefix {
-      type string;
+      type inet:ip-prefix;
     }
     leaf peer-group {
       type string;

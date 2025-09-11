@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"reflect"
 	"regexp"
 	"slices"
@@ -325,13 +326,13 @@ func (p *Prefix) PrefixString() string {
 var _regexpPrefixRange = regexp.MustCompile(`(\d+)\.\.(\d+)`)
 
 func NewPrefix(c oc.Prefix) (*Prefix, error) {
-	_, prefix, err := net.ParseCIDR(c.IpPrefix)
+	_, prefix, err := net.ParseCIDR(c.IpPrefix.String())
 	if err != nil {
 		return nil, err
 	}
 
 	rf := bgp.RF_IPv4_UC
-	if strings.Contains(c.IpPrefix, ":") {
+	if strings.Contains(c.IpPrefix.String(), ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	p := &Prefix{
@@ -460,7 +461,7 @@ func (s *PrefixSet) ToConfig() *oc.PrefixSet {
 	s.tree.Walk(nil, func(_ *net.IPNet, v any) bool {
 		ps := v.([]*Prefix)
 		for _, p := range ps {
-			list = append(list, oc.Prefix{IpPrefix: p.PrefixString(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
+			list = append(list, oc.Prefix{IpPrefix: netip.MustParsePrefix(p.PrefixString()), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
 		}
 		return true
 	})
@@ -2910,7 +2911,12 @@ func (s *Statement) ToConfig() *oc.Statement {
 				case *LargeCommunityCondition:
 					cond.BgpConditions.MatchLargeCommunitySet = oc.MatchLargeCommunitySet{LargeCommunitySet: v.set.Name(), MatchSetOptions: oc.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *NextHopCondition:
-					cond.BgpConditions.NextHopInList = v.set.List()
+					l := make([]netip.Addr, 0, len(v.set.List()))
+					for _, n := range v.set.List() {
+						ip := netip.MustParseAddr(n)
+						l = append(l, ip)
+					}
+					cond.BgpConditions.NextHopInList = l
 				case *RpkiValidationCondition:
 					cond.BgpConditions.RpkiValidationResult = v.result
 				case *RouteTypeCondition:
@@ -3134,7 +3140,11 @@ func NewStatement(c oc.Statement) (*Statement, error) {
 			return NewLargeCommunityCondition(c.Conditions.BgpConditions.MatchLargeCommunitySet)
 		},
 		func() (Condition, error) {
-			return NewNextHopCondition(c.Conditions.BgpConditions.NextHopInList)
+			l := make([]string, 0, len(c.Conditions.BgpConditions.NextHopInList))
+			for _, n := range c.Conditions.BgpConditions.NextHopInList {
+				l = append(l, n.String())
+			}
+			return NewNextHopCondition(l)
 		},
 		func() (Condition, error) {
 			return NewAfiSafiInCondition(c.Conditions.BgpConditions.AfiSafiInList)
@@ -4256,7 +4266,11 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		cs.RouteType = api.Conditions_RouteType(s.Conditions.BgpConditions.RouteType.ToInt())
 	}
 	if len(s.Conditions.BgpConditions.NextHopInList) > 0 {
-		cs.NextHopInList = s.Conditions.BgpConditions.NextHopInList
+		l := make([]string, 0, len(s.Conditions.BgpConditions.NextHopInList))
+		for _, n := range s.Conditions.BgpConditions.NextHopInList {
+			l = append(l, n.String())
+		}
+		cs.NextHopInList = l
 	}
 	if s.Conditions.BgpConditions.AfiSafiInList != nil {
 		afiSafiIn := make([]*api.Family, 0)

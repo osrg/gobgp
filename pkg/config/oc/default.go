@@ -1,13 +1,12 @@
 package oc
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"reflect"
 	"slices"
-	"strconv"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -104,7 +103,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		}
 	}
 
-	if n.State.NeighborAddress == "" {
+	if !n.State.NeighborAddress.IsValid() {
 		n.State.NeighborAddress = n.Config.NeighborAddress
 	}
 
@@ -137,14 +136,14 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		if err != nil {
 			return err
 		}
-		n.State.NeighborAddress = addr
+		n.State.NeighborAddress = netip.MustParseAddr(addr)
 	}
 
-	if n.Transport.Config.LocalAddress == "" {
-		if n.State.NeighborAddress == "" {
+	if !n.Transport.Config.LocalAddress.IsValid() {
+		if !n.State.NeighborAddress.IsValid() {
 			return fmt.Errorf("no neighbor address/interface specified")
 		}
-		ipAddr, err := net.ResolveIPAddr("ip", n.State.NeighborAddress)
+		ipAddr, err := net.ResolveIPAddr("ip", n.State.NeighborAddress.String())
 		if err != nil {
 			return err
 		}
@@ -158,7 +157,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 				}
 			}
 		}
-		n.Transport.Config.LocalAddress = localAddress
+		n.Transport.Config.LocalAddress = netip.MustParseAddr(localAddress)
 	}
 
 	if len(n.AfiSafis) == 0 {
@@ -167,7 +166,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 				defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true),
 				defaultAfiSafi(AFI_SAFI_TYPE_IPV6_UNICAST, true),
 			}
-		} else if ipAddr, err := net.ResolveIPAddr("ip", n.State.NeighborAddress); err != nil {
+		} else if ipAddr, err := net.ResolveIPAddr("ip", n.State.NeighborAddress.String()); err != nil {
 			return fmt.Errorf("invalid neighbor address: %s", n.State.NeighborAddress)
 		} else if ipAddr.IP.To4() != nil {
 			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
@@ -248,22 +247,14 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	}
 
 	if n.RouteReflector.Config.RouteReflectorClient {
-		if n.RouteReflector.Config.RouteReflectorClusterId == "" {
-			n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(g.Config.RouterId)
+		if !n.RouteReflector.Config.RouteReflectorClusterId.IsValid() {
+			n.RouteReflector.State.RouteReflectorClusterId = g.Config.RouterId
 		} else {
-			id := string(n.RouteReflector.Config.RouteReflectorClusterId)
-			if ip := net.ParseIP(id).To4(); ip != nil {
-				n.RouteReflector.State.RouteReflectorClusterId = n.RouteReflector.Config.RouteReflectorClusterId
-			} else if num, err := strconv.ParseUint(id, 10, 32); err == nil {
-				ip = make(net.IP, 4)
-				binary.BigEndian.PutUint32(ip, uint32(num))
-				n.RouteReflector.State.RouteReflectorClusterId = RrClusterIdType(ip.String())
-			} else {
-				return fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address or 32-bit unsigned integer")
+			if !n.RouteReflector.Config.RouteReflectorClusterId.IsValid() || !n.RouteReflector.Config.RouteReflectorClusterId.Is4() {
+				return fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address")
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -280,7 +271,7 @@ func SetDefaultGlobalConfigValues(g *Global) error {
 	}
 
 	if len(g.Config.LocalAddressList) == 0 {
-		g.Config.LocalAddressList = []string{"0.0.0.0", "::"}
+		g.Config.LocalAddressList = []netip.Addr{netip.IPv4Unspecified(), netip.IPv6Unspecified()}
 	}
 	return nil
 }
@@ -487,7 +478,7 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	v := viper.New()
 
-	val, ok := configuredFields[c.Config.NeighborAddress]
+	val, ok := configuredFields[c.Config.NeighborAddress.String()]
 	if ok {
 		v.Set("neighbor", val)
 	} else {

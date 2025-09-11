@@ -142,7 +142,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
-	p.fsm.gConf.Config.RouterId = "1.1.1.1"
+	p.fsm.gConf.Config.RouterId = netip.MustParseAddr("1.1.1.1")
 
 	state, reason := h.opensent(t.Context())
 

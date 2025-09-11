@@ -20,6 +20,7 @@ package oc
 
 import (
 	"fmt"
+	"net/netip"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -1020,7 +1021,8 @@ type BgpSetMedType string
 // struct for container gobgp:state.
 type DynamicNeighborState struct {
 	// original -> gobgp:prefix
-	Prefix string `mapstructure:"prefix" json:"prefix,omitempty"`
+	// gobgp:prefix's original type is inet:ip-prefix.
+	Prefix netip.Prefix `mapstructure:"prefix" json:"prefix,omitempty"`
 	// original -> gobgp:peer-group
 	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
 }
@@ -1028,7 +1030,8 @@ type DynamicNeighborState struct {
 // struct for container gobgp:config.
 type DynamicNeighborConfig struct {
 	// original -> gobgp:prefix
-	Prefix string `mapstructure:"prefix" json:"prefix,omitempty"`
+	// gobgp:prefix's original type is inet:ip-prefix.
+	Prefix netip.Prefix `mapstructure:"prefix" json:"prefix,omitempty"`
 	// original -> gobgp:peer-group
 	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
 }
@@ -1401,7 +1404,7 @@ type BmpServerState struct {
 	// gobgp:address's original type is inet:ip-address.
 	// Reference to the address of the BMP server used as
 	// a key in the BMP server list.
-	Address string `mapstructure:"address" json:"address,omitempty"`
+	Address netip.Addr `mapstructure:"address" json:"address,omitempty"`
 	// original -> gobgp:port
 	// Reference to the port of the BMP server.
 	Port uint32 `mapstructure:"port" json:"port,omitempty"`
@@ -1430,7 +1433,7 @@ type BmpServerConfig struct {
 	// gobgp:address's original type is inet:ip-address.
 	// Reference to the address of the BMP server used as
 	// a key in the BMP server list.
-	Address string `mapstructure:"address" json:"address,omitempty"`
+	Address netip.Addr `mapstructure:"address" json:"address,omitempty"`
 	// original -> gobgp:port
 	// Reference to the port of the BMP server.
 	Port uint32 `mapstructure:"port" json:"port,omitempty"`
@@ -1649,7 +1652,7 @@ type RpkiServerConfig struct {
 	// gobgp:address's original type is inet:ip-address.
 	// Reference to the address of the RPKI server used as
 	// a key in the RPKI server list.
-	Address string `mapstructure:"address" json:"address,omitempty"`
+	Address netip.Addr `mapstructure:"address" json:"address,omitempty"`
 	// original -> gobgp:port
 	// Reference to the port of the RPKI server.
 	Port uint32 `mapstructure:"port" json:"port,omitempty"`
@@ -1950,17 +1953,9 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 	if len(lhs.AfiSafis) != len(rhs.AfiSafis) {
 		return false
 	}
-	{
-		lmap := make(map[string]*AfiSafi)
-		for i, l := range lhs.AfiSafis {
-			lmap[mapkey(i, string(l.Config.AfiSafiName))] = &lhs.AfiSafis[i]
-		}
-		for i, r := range rhs.AfiSafis {
-			if l, y := lmap[mapkey(i, string(r.Config.AfiSafiName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.AfiSafis {
+		if !r.Equal(&lhs.AfiSafis[i]) {
+			return false
 		}
 	}
 	if !lhs.GracefulRestart.Equal(&(rhs.GracefulRestart)) {
@@ -2290,11 +2285,12 @@ func (lhs *AsPathOptions) Equal(rhs *AsPathOptions) bool {
 // BGP neighbor or group.
 type RouteReflectorState struct {
 	// original -> bgp:route-reflector-cluster-id
+	// bgp:route-reflector-cluster-id's original type is bgp-types:rr-cluster-id-type.
 	// route-reflector cluster id to use when local router is
 	// configured as a route reflector.  Commonly set at the group
 	// level, but allows a different cluster
 	// id to be set for each neighbor.
-	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id,omitempty"`
+	RouteReflectorClusterId netip.Addr `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id,omitempty"`
 	// original -> bgp:route-reflector-client
 	// bgp:route-reflector-client's original type is boolean.
 	// Configure the neighbor as a route reflector client.
@@ -2306,11 +2302,12 @@ type RouteReflectorState struct {
 // for the BGP neighbor or group.
 type RouteReflectorConfig struct {
 	// original -> bgp:route-reflector-cluster-id
+	// bgp:route-reflector-cluster-id's original type is bgp-types:rr-cluster-id-type.
 	// route-reflector cluster id to use when local router is
 	// configured as a route reflector.  Commonly set at the group
 	// level, but allows a different cluster
 	// id to be set for each neighbor.
-	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id,omitempty"`
+	RouteReflectorClusterId netip.Addr `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id,omitempty"`
 	// original -> bgp:route-reflector-client
 	// bgp:route-reflector-client's original type is boolean.
 	// Configure the neighbor as a route reflector client.
@@ -2565,7 +2562,7 @@ type TransportState struct {
 	// for the session when sending BGP update messages.  This
 	// may be expressed as either an IP address or reference
 	// to the name of an interface.
-	LocalAddress string `mapstructure:"local-address" json:"local-address,omitempty"`
+	LocalAddress netip.Addr `mapstructure:"local-address" json:"local-address,omitempty"`
 	// original -> bgp-op:local-port
 	// bgp-op:local-port's original type is inet:port-number.
 	// Local TCP port being used for the TCP session supporting
@@ -2575,7 +2572,7 @@ type TransportState struct {
 	// bgp-op:remote-address's original type is inet:ip-address.
 	// Remote address to which the BGP session has been
 	// established.
-	RemoteAddress string `mapstructure:"remote-address" json:"remote-address,omitempty"`
+	RemoteAddress netip.Addr `mapstructure:"remote-address" json:"remote-address,omitempty"`
 	// original -> bgp-op:remote-port
 	// bgp-op:remote-port's original type is inet:port-number.
 	// Remote port being used by the peer for the TCP session
@@ -2606,7 +2603,7 @@ type TransportConfig struct {
 	// for the session when sending BGP update messages.  This
 	// may be expressed as either an IP address or reference
 	// to the name of an interface.
-	LocalAddress string `mapstructure:"local-address" json:"local-address,omitempty"`
+	LocalAddress netip.Addr `mapstructure:"local-address" json:"local-address,omitempty"`
 	// original -> gobgp:local-port
 	// gobgp:local-port's original type is inet:port-number.
 	// Set the local port (if available) to use for the session.
@@ -3102,7 +3099,7 @@ type NeighborState struct {
 	// original -> bgp:neighbor-address
 	// bgp:neighbor-address's original type is inet:ip-address.
 	// Address of the BGP peer, either in IPv4 or IPv6.
-	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
+	NeighborAddress netip.Addr `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
 	// original -> bgp-op:session-state
 	// Operational state of the BGP peer.
 	SessionState SessionState `mapstructure:"session-state" json:"session-state,omitempty"`
@@ -3145,7 +3142,8 @@ type NeighborState struct {
 	// original -> gobgp:vrf
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 	// original -> gobgp:remote-router-id
-	RemoteRouterId string `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
+	// gobgp:remote-router-id's original type is inet:ipv4-address.
+	RemoteRouterId netip.Addr `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -3193,7 +3191,7 @@ type NeighborConfig struct {
 	// original -> bgp:neighbor-address
 	// bgp:neighbor-address's original type is inet:ip-address.
 	// Address of the BGP peer, either in IPv4 or IPv6.
-	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
+	NeighborAddress netip.Addr `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
 	// original -> gobgp:admin-down
 	// gobgp:admin-down's original type is boolean.
 	// The config of administrative operation. If state, indicates the neighbor is disabled by the administrator.
@@ -3355,17 +3353,9 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	if len(lhs.AfiSafis) != len(rhs.AfiSafis) {
 		return false
 	}
-	{
-		lmap := make(map[string]*AfiSafi)
-		for i, l := range lhs.AfiSafis {
-			lmap[mapkey(i, string(l.Config.AfiSafiName))] = &lhs.AfiSafis[i]
-		}
-		for i, r := range rhs.AfiSafis {
-			if l, y := lmap[mapkey(i, string(r.Config.AfiSafiName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.AfiSafis {
+		if !r.Equal(&lhs.AfiSafis[i]) {
+			return false
 		}
 	}
 	if !lhs.GracefulRestart.Equal(&(rhs.GracefulRestart)) {
@@ -4856,7 +4846,7 @@ type GlobalState struct {
 	// bgp:router-id's original type is inet:ipv4-address.
 	// Router id of the router, expressed as an
 	// 32-bit value, IPv4 address.
-	RouterId string `mapstructure:"router-id" json:"router-id,omitempty"`
+	RouterId netip.Addr `mapstructure:"router-id" json:"router-id,omitempty"`
 	// original -> bgp-op:total-paths
 	// Total number of BGP paths within the context.
 	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths,omitempty"`
@@ -4866,7 +4856,8 @@ type GlobalState struct {
 	// original -> gobgp:port
 	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address
-	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
+	// original type is list of inet:ip-address
+	LocalAddressList []netip.Addr `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -4881,11 +4872,12 @@ type GlobalConfig struct {
 	// bgp:router-id's original type is inet:ipv4-address.
 	// Router id of the router, expressed as an
 	// 32-bit value, IPv4 address.
-	RouterId string `mapstructure:"router-id" json:"router-id,omitempty"`
+	RouterId netip.Addr `mapstructure:"router-id" json:"router-id,omitempty"`
 	// original -> gobgp:port
 	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address
-	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
+	// original type is list of inet:ip-address
+	LocalAddressList []netip.Addr `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
 }
 
 func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
@@ -4976,17 +4968,9 @@ func (lhs *Global) Equal(rhs *Global) bool {
 	if len(lhs.AfiSafis) != len(rhs.AfiSafis) {
 		return false
 	}
-	{
-		lmap := make(map[string]*AfiSafi)
-		for i, l := range lhs.AfiSafis {
-			lmap[mapkey(i, string(l.Config.AfiSafiName))] = &lhs.AfiSafis[i]
-		}
-		for i, r := range rhs.AfiSafis {
-			if l, y := lmap[mapkey(i, string(r.Config.AfiSafiName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.AfiSafis {
+		if !r.Equal(&lhs.AfiSafis[i]) {
+			return false
 		}
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
@@ -5033,97 +5017,49 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	if len(lhs.Neighbors) != len(rhs.Neighbors) {
 		return false
 	}
-	{
-		lmap := make(map[string]*Neighbor)
-		for i, l := range lhs.Neighbors {
-			lmap[mapkey(i, string(l.Config.NeighborAddress))] = &lhs.Neighbors[i]
-		}
-		for i, r := range rhs.Neighbors {
-			if l, y := lmap[mapkey(i, string(r.Config.NeighborAddress))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.Neighbors {
+		if !r.Equal(&lhs.Neighbors[i]) {
+			return false
 		}
 	}
 	if len(lhs.PeerGroups) != len(rhs.PeerGroups) {
 		return false
 	}
-	{
-		lmap := make(map[string]*PeerGroup)
-		for i, l := range lhs.PeerGroups {
-			lmap[mapkey(i, string(l.Config.PeerGroupName))] = &lhs.PeerGroups[i]
-		}
-		for i, r := range rhs.PeerGroups {
-			if l, y := lmap[mapkey(i, string(r.Config.PeerGroupName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.PeerGroups {
+		if !r.Equal(&lhs.PeerGroups[i]) {
+			return false
 		}
 	}
 	if len(lhs.RpkiServers) != len(rhs.RpkiServers) {
 		return false
 	}
-	{
-		lmap := make(map[string]*RpkiServer)
-		for i, l := range lhs.RpkiServers {
-			lmap[mapkey(i, string(l.Config.Address))] = &lhs.RpkiServers[i]
-		}
-		for i, r := range rhs.RpkiServers {
-			if l, y := lmap[mapkey(i, string(r.Config.Address))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.RpkiServers {
+		if !r.Equal(&lhs.RpkiServers[i]) {
+			return false
 		}
 	}
 	if len(lhs.BmpServers) != len(rhs.BmpServers) {
 		return false
 	}
-	{
-		lmap := make(map[string]*BmpServer)
-		for i, l := range lhs.BmpServers {
-			lmap[mapkey(i, string(l.Config.Address))] = &lhs.BmpServers[i]
-		}
-		for i, r := range rhs.BmpServers {
-			if l, y := lmap[mapkey(i, string(r.Config.Address))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.BmpServers {
+		if !r.Equal(&lhs.BmpServers[i]) {
+			return false
 		}
 	}
 	if len(lhs.Vrfs) != len(rhs.Vrfs) {
 		return false
 	}
-	{
-		lmap := make(map[string]*Vrf)
-		for i, l := range lhs.Vrfs {
-			lmap[mapkey(i, string(l.Config.Name))] = &lhs.Vrfs[i]
-		}
-		for i, r := range rhs.Vrfs {
-			if l, y := lmap[mapkey(i, string(r.Config.Name))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.Vrfs {
+		if !r.Equal(&lhs.Vrfs[i]) {
+			return false
 		}
 	}
 	if len(lhs.MrtDump) != len(rhs.MrtDump) {
 		return false
 	}
-	{
-		lmap := make(map[string]*Mrt)
-		for i, l := range lhs.MrtDump {
-			lmap[mapkey(i, string(l.Config.FileName))] = &lhs.MrtDump[i]
-		}
-		for i, r := range rhs.MrtDump {
-			if l, y := lmap[mapkey(i, string(r.Config.FileName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.MrtDump {
+		if !r.Equal(&lhs.MrtDump[i]) {
+			return false
 		}
 	}
 	if !lhs.Zebra.Equal(&(rhs.Zebra)) {
@@ -5135,17 +5071,9 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	if len(lhs.DynamicNeighbors) != len(rhs.DynamicNeighbors) {
 		return false
 	}
-	{
-		lmap := make(map[string]*DynamicNeighbor)
-		for i, l := range lhs.DynamicNeighbors {
-			lmap[mapkey(i, string(l.Config.Prefix))] = &lhs.DynamicNeighbors[i]
-		}
-		for i, r := range rhs.DynamicNeighbors {
-			if l, y := lmap[mapkey(i, string(r.Config.Prefix))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.DynamicNeighbors {
+		if !r.Equal(&lhs.DynamicNeighbors[i]) {
+			return false
 		}
 	}
 	return true
@@ -5646,7 +5574,7 @@ type BgpConditions struct {
 	// original type is list of inet:ip-address
 	// List of next hop addresses to check for in the route
 	// update.
-	NextHopInList []string `mapstructure:"next-hop-in-list" json:"next-hop-in-list,omitempty"`
+	NextHopInList []netip.Addr `mapstructure:"next-hop-in-list" json:"next-hop-in-list,omitempty"`
 	// original -> bgp-pol:afi-safi-in
 	// List of address families which the NLRI may be
 	// within.
@@ -5956,17 +5884,9 @@ func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
 	if len(lhs.Statements) != len(rhs.Statements) {
 		return false
 	}
-	{
-		lmap := make(map[string]*Statement)
-		for i, l := range lhs.Statements {
-			lmap[mapkey(i, string(l.Name))] = &lhs.Statements[i]
-		}
-		for i, r := range rhs.Statements {
-			if l, y := lmap[mapkey(i, string(r.Name))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.Statements {
+		if !r.Equal(&lhs.Statements[i]) {
+			return false
 		}
 	}
 	return true
@@ -6112,65 +6032,33 @@ func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
 	if len(lhs.CommunitySets) != len(rhs.CommunitySets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*CommunitySet)
-		for i, l := range lhs.CommunitySets {
-			lmap[mapkey(i, string(l.CommunitySetName))] = &lhs.CommunitySets[i]
-		}
-		for i, r := range rhs.CommunitySets {
-			if l, y := lmap[mapkey(i, string(r.CommunitySetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.CommunitySets {
+		if !r.Equal(&lhs.CommunitySets[i]) {
+			return false
 		}
 	}
 	if len(lhs.ExtCommunitySets) != len(rhs.ExtCommunitySets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*ExtCommunitySet)
-		for i, l := range lhs.ExtCommunitySets {
-			lmap[mapkey(i, string(l.ExtCommunitySetName))] = &lhs.ExtCommunitySets[i]
-		}
-		for i, r := range rhs.ExtCommunitySets {
-			if l, y := lmap[mapkey(i, string(r.ExtCommunitySetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.ExtCommunitySets {
+		if !r.Equal(&lhs.ExtCommunitySets[i]) {
+			return false
 		}
 	}
 	if len(lhs.AsPathSets) != len(rhs.AsPathSets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*AsPathSet)
-		for i, l := range lhs.AsPathSets {
-			lmap[mapkey(i, string(l.AsPathSetName))] = &lhs.AsPathSets[i]
-		}
-		for i, r := range rhs.AsPathSets {
-			if l, y := lmap[mapkey(i, string(r.AsPathSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.AsPathSets {
+		if !r.Equal(&lhs.AsPathSets[i]) {
+			return false
 		}
 	}
 	if len(lhs.LargeCommunitySets) != len(rhs.LargeCommunitySets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*LargeCommunitySet)
-		for i, l := range lhs.LargeCommunitySets {
-			lmap[mapkey(i, string(l.LargeCommunitySetName))] = &lhs.LargeCommunitySets[i]
-		}
-		for i, r := range rhs.LargeCommunitySets {
-			if l, y := lmap[mapkey(i, string(r.LargeCommunitySetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.LargeCommunitySets {
+		if !r.Equal(&lhs.LargeCommunitySets[i]) {
+			return false
 		}
 	}
 	return true
@@ -6216,17 +6104,9 @@ func (lhs *TagSet) Equal(rhs *TagSet) bool {
 	if len(lhs.TagList) != len(rhs.TagList) {
 		return false
 	}
-	{
-		lmap := make(map[string]*Tag)
-		for i, l := range lhs.TagList {
-			lmap[mapkey(i, string(l.Value))] = &lhs.TagList[i]
-		}
-		for i, r := range rhs.TagList {
-			if l, y := lmap[mapkey(i, string(r.Value))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.TagList {
+		if !r.Equal(&lhs.TagList[i]) {
+			return false
 		}
 	}
 	return true
@@ -6240,7 +6120,6 @@ type NeighborSet struct {
 	// reference the set in match conditions.
 	NeighborSetName string `mapstructure:"neighbor-set-name" json:"neighbor-set-name,omitempty"`
 	// original -> gobgp:neighbor-info
-	// original type is list of inet:ip-address
 	// neighbor ip address or prefix.
 	NeighborInfoList []string `mapstructure:"neighbor-info-list" json:"neighbor-info-list,omitempty"`
 }
@@ -6273,7 +6152,7 @@ type Prefix struct {
 	// implementations require all members of the prefix set
 	// to be the same address family.  Mixing address types in
 	// the same prefix set is likely to cause an error.
-	IpPrefix string `mapstructure:"ip-prefix" json:"ip-prefix,omitempty"`
+	IpPrefix netip.Prefix `mapstructure:"ip-prefix" json:"ip-prefix,omitempty"`
 	// original -> rpol:masklength-range
 	// Defines a range for the masklength, or 'exact' if
 	// the prefix has an exact length.
@@ -6323,17 +6202,9 @@ func (lhs *PrefixSet) Equal(rhs *PrefixSet) bool {
 	if len(lhs.PrefixList) != len(rhs.PrefixList) {
 		return false
 	}
-	{
-		lmap := make(map[string]*Prefix)
-		for i, l := range lhs.PrefixList {
-			lmap[mapkey(i, string(l.IpPrefix+l.MasklengthRange))] = &lhs.PrefixList[i]
-		}
-		for i, r := range rhs.PrefixList {
-			if l, y := lmap[mapkey(i, string(r.IpPrefix+r.MasklengthRange))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.PrefixList {
+		if !r.Equal(&lhs.PrefixList[i]) {
+			return false
 		}
 	}
 	return true
@@ -6364,49 +6235,25 @@ func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
 	if len(lhs.PrefixSets) != len(rhs.PrefixSets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*PrefixSet)
-		for i, l := range lhs.PrefixSets {
-			lmap[mapkey(i, string(l.PrefixSetName))] = &lhs.PrefixSets[i]
-		}
-		for i, r := range rhs.PrefixSets {
-			if l, y := lmap[mapkey(i, string(r.PrefixSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.PrefixSets {
+		if !r.Equal(&lhs.PrefixSets[i]) {
+			return false
 		}
 	}
 	if len(lhs.NeighborSets) != len(rhs.NeighborSets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*NeighborSet)
-		for i, l := range lhs.NeighborSets {
-			lmap[mapkey(i, string(l.NeighborSetName))] = &lhs.NeighborSets[i]
-		}
-		for i, r := range rhs.NeighborSets {
-			if l, y := lmap[mapkey(i, string(r.NeighborSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.NeighborSets {
+		if !r.Equal(&lhs.NeighborSets[i]) {
+			return false
 		}
 	}
 	if len(lhs.TagSets) != len(rhs.TagSets) {
 		return false
 	}
-	{
-		lmap := make(map[string]*TagSet)
-		for i, l := range lhs.TagSets {
-			lmap[mapkey(i, string(l.TagSetName))] = &lhs.TagSets[i]
-		}
-		for i, r := range rhs.TagSets {
-			if l, y := lmap[mapkey(i, string(r.TagSetName))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.TagSets {
+		if !r.Equal(&lhs.TagSets[i]) {
+			return false
 		}
 	}
 	if !lhs.BgpDefinedSets.Equal(&(rhs.BgpDefinedSets)) {
@@ -6438,17 +6285,9 @@ func (lhs *RoutingPolicy) Equal(rhs *RoutingPolicy) bool {
 	if len(lhs.PolicyDefinitions) != len(rhs.PolicyDefinitions) {
 		return false
 	}
-	{
-		lmap := make(map[string]*PolicyDefinition)
-		for i, l := range lhs.PolicyDefinitions {
-			lmap[mapkey(i, string(l.Name))] = &lhs.PolicyDefinitions[i]
-		}
-		for i, r := range rhs.PolicyDefinitions {
-			if l, y := lmap[mapkey(i, string(r.Name))]; !y {
-				return false
-			} else if !r.Equal(l) {
-				return false
-			}
+	for i, r := range rhs.PolicyDefinitions {
+		if !r.Equal(&lhs.PolicyDefinitions[i]) {
+			return false
 		}
 	}
 	return true

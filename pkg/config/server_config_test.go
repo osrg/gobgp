@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 
 	"github.com/osrg/gobgp/v4/api"
@@ -31,7 +32,7 @@ func TestConfigErrors(t *testing.T) {
 	globalCfg := oc.Global{
 		Config: oc.GlobalConfig{
 			As:       1,
-			RouterId: "1.1.1.1",
+			RouterId: netip.MustParseAddr("1.1.1.1"),
 			Port:     11179,
 		},
 	}
@@ -49,7 +50,7 @@ func TestConfigErrors(t *testing.T) {
 					{
 						Config: oc.NeighborConfig{
 							PeerGroup:       "router",
-							NeighborAddress: "1.1.1.2",
+							NeighborAddress: netip.MustParseAddr("1.1.1.2"),
 						},
 					},
 				},
@@ -72,7 +73,7 @@ func TestConfigErrors(t *testing.T) {
 					{
 						Config: oc.NeighborConfig{
 							PeerGroup:       "not-exists",
-							NeighborAddress: "1.1.1.2",
+							NeighborAddress: netip.MustParseAddr("1.1.1.2"),
 						},
 					},
 				},

@@ -218,7 +218,7 @@ func (b *bmpClient) loop() {
 						info := &table.PeerInfo{
 							Address: netip.MustParseAddr("0.0.0.0"),
 							AS:      b.s.bgpConfig.Global.Config.As,
-							ID:      netip.MustParseAddr(b.s.bgpConfig.Global.Config.RouterId),
+							ID:      b.s.bgpConfig.Global.Config.RouterId,
 						}
 						for _, p := range msg.PathList {
 							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
@@ -371,7 +371,7 @@ func bmpPeerRouteMirroring(peerType uint8, peerDist uint64, peerInfo *table.Peer
 }
 
 func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {
-	host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
+	host := net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port)))
 	if _, y := b.clientMap[host]; y {
 		return fmt.Errorf("bmp client %s is already configured", host)
 	}
@@ -387,7 +387,7 @@ func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {
 }
 
 func (b *bmpClientManager) deleteServer(c *oc.BmpServerConfig) error {
-	host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
+	host := net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port)))
 	if c, y := b.clientMap[host]; !y {
 		return fmt.Errorf("bmp client %s isn't found", host)
 	} else {

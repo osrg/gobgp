@@ -48,15 +48,15 @@ func newPeerGroup(c *oc.PeerGroup) *peerGroup {
 }
 
 func (pg *peerGroup) AddMember(c oc.Neighbor) {
-	pg.members[c.State.NeighborAddress] = c
+	pg.members[c.State.NeighborAddress.String()] = c
 }
 
 func (pg *peerGroup) DeleteMember(c oc.Neighbor) {
-	delete(pg.members, c.State.NeighborAddress)
+	delete(pg.members, c.State.NeighborAddress.String())
 }
 
 func (pg *peerGroup) AddDynamicNeighbor(c *oc.DynamicNeighbor) {
-	pg.dynamicNeighbors[c.Config.Prefix] = c
+	pg.dynamicNeighbors[c.Config.Prefix.String()] = c
 }
 
 func (pg *peerGroup) DeleteDynamicNeighbor(prefix string) {
@@ -69,7 +69,7 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 			PeerGroup: pg.Config.PeerGroupName,
 		},
 		State: oc.NeighborState{
-			NeighborAddress: neighborAddress,
+			NeighborAddress: netip.MustParseAddr(neighborAddress),
 		},
 		Transport: oc.Transport{
 			Config: oc.TransportConfig{
@@ -127,7 +127,7 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *t
 		sendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
 	}
 	if peer.isRouteServerClient() {
-		peer.tableId = conf.State.NeighborAddress
+		peer.tableId = conf.State.NeighborAddress.String()
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
@@ -145,14 +145,14 @@ func (peer *peer) AS() uint32 {
 func (peer *peer) ID() string {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	return peer.fsm.pConf.State.NeighborAddress
+	return peer.fsm.pConf.State.NeighborAddress.String()
 }
 
 func (peer *peer) routerID() netip.Addr {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	if peer.fsm.pConf.State.RemoteRouterId != "" {
-		return netip.MustParseAddr(peer.fsm.pConf.State.RemoteRouterId)
+	if peer.fsm.pConf.State.RemoteRouterId.IsValid() {
+		return peer.fsm.pConf.State.RemoteRouterId
 	}
 	return netip.Addr{}
 }
@@ -294,7 +294,7 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 func (peer *peer) isDynamicNeighbor() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	return peer.fsm.pConf.Config.NeighborAddress == "" && peer.fsm.pConf.Config.NeighborInterface == ""
+	return !peer.fsm.pConf.Config.NeighborAddress.IsValid() && peer.fsm.pConf.Config.NeighborInterface == ""
 }
 
 func (peer *peer) getRtcEORWait() bool {
@@ -683,12 +683,12 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 			routerId := peer.fsm.gConf.Config.RouterId
 			peer.fsm.lock.RUnlock()
 			if isIBGPPeer {
-				if id := path.GetOriginatorID(); routerId == id.String() {
+				if path.GetOriginatorID() == routerId {
 					peer.fsm.logger.Debug("Originator ID is mine, ignore",
 						log.Fields{
 							"Topic":        "Peer",
 							"Key":          peer.ID(),
-							"OriginatorID": id,
+							"OriginatorID": routerId,
 							"Data":         path,
 						})
 					path.SetRejected(true)

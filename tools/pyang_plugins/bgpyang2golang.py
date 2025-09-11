@@ -175,7 +175,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
                 t = dig_leafref(type_obj)
                 if is_translation_required(t):
                     print('// %s:%s\'s original type is %s.' % (child_prefix, container_or_list_name, t.arg), file=fd)
-                    emit_type_name = translate_type(t.arg)
+                    emit_type_name = translate_type(container_or_list_name, t.arg)
                 elif is_identityref(t):
                     emit_type_name = convert_to_golang(t.search_one('base').arg.split(':')[-1])
                 else:
@@ -188,7 +188,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
             # case translation required
             elif is_translation_required(type_obj):
                 print('// %s:%s\'s original type is %s.' % (child_prefix, container_or_list_name, type_name), file=fd)
-                emit_type_name = translate_type(type_name)
+                emit_type_name = translate_type(container_or_list_name, type_name)
 
             # case other primitives
             elif is_builtin_type(type_obj):
@@ -228,7 +228,7 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
             # case translation required
             elif is_translation_required(type_obj):
                 print('// original type is list of %s' % type_obj.arg, file=fd)
-                emit_type_name = '[]' + translate_type(type_name)
+                emit_type_name = '[]' + translate_type(container_or_list_name, type_name)
 
             # case other primitives
             elif is_builtin_type(type_obj):
@@ -319,17 +319,9 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
                 print('if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name), file=fd)
                 print('return false', file=fd)
                 print('}', file=fd)
-                print('{', file=fd)
-                print('lmap := make(map[string]*{0})'.format(type_name[2:]), file=fd)
-                print('for i, l := range lhs.{0} {{'.format(val_name), file=fd)
-                print('lmap[mapkey(i, string({0}))] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name), file=fd)
-                print('}', file=fd)
                 print('for i, r := range rhs.{0} {{'.format(val_name), file=fd)
-                print('if l, y := lmap[mapkey(i, string({0}))]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' '))), file=fd)
+                print('if !r.Equal(&lhs.{0}[i]) {{'.format(val_name), file=fd)
                 print('return false', file=fd)
-                print('} else if !r.Equal(l) {', file=fd)
-                print('return false', file=fd)
-                print('}', file=fd)
                 print('}', file=fd)
                 print('}', file=fd)
             else:
@@ -719,9 +711,9 @@ _type_translation_map = {
     'decimal64': 'float64',
     'boolean': 'bool',
     'empty': 'bool',
-    'inet:ip-address': 'string',
-    'inet:ip-prefix': 'string',
-    'inet:ipv4-address': 'string',
+    'inet:ip-address': 'netip.Addr',
+    'inet:ip-prefix': 'netip.Prefix',
+    'inet:ipv4-address': 'netip.Addr',
     'inet:as-number': 'uint32',
     'bgp-set-community-option-type': 'string',
     'inet:port-number': 'uint16',
@@ -731,6 +723,7 @@ _type_translation_map = {
     'route-family': 'bgp.Family',
     'bgp-capability': 'bgp.ParameterCapabilityInterface',
     'bgp-open-message': '*bgp.BGPMessage',
+    'bgp-types:rr-cluster-id-type': 'netip.Addr',
 }
 
 
@@ -765,6 +758,9 @@ _typedef_exclude = [
     "/gobgp:bgp-open-message",
 ]
 
+_union_translation_map = {
+    'local-address': 'netip.Addr',
+}
 
 def generate_header(fd):
     print(_COPYRIGHT_NOTICE, file=fd)
@@ -772,6 +768,7 @@ def generate_header(fd):
     print('', file=fd)
     print('import (', file=fd)
     print('"fmt"', file=fd)
+    print('"net/netip"', file=fd)
     print('', file=fd)
     print('"github.com/osrg/gobgp/v4/pkg/packet/bgp"', file=fd)
     print(')', file=fd)
@@ -787,7 +784,9 @@ def generate_common_functions(fd):
     print('}', file=fd)
 
 
-def translate_type(key):
+def translate_type(name, key):
+    if key == 'union' and name in _union_translation_map.keys():
+        return _union_translation_map[name]
     if key in _type_translation_map.keys():
         return _type_translation_map[key]
     else:

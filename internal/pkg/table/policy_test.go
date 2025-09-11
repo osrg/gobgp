@@ -64,13 +64,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/24"), MasklengthRange: ""})
 	match1 := pl1.Match(path)
 	assert.Equal(t, true, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/23", MasklengthRange: ""})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/23"), MasklengthRange: ""})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/16"), MasklengthRange: "21..24"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -88,10 +88,10 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.11.0.0/16", MasklengthRange: "21..24"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.11.0.0/16"), MasklengthRange: "21..24"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/16"), MasklengthRange: "21..24"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -109,10 +109,10 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.64.0/24", MasklengthRange: "21..24"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.64.0/24"), MasklengthRange: "21..24"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.64.0/16", MasklengthRange: "21..24"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.64.0/16"), MasklengthRange: "21..24"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -130,13 +130,13 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..23"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/16"), MasklengthRange: "21..23"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "25..26"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/16"), MasklengthRange: "25..26"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/16"), MasklengthRange: "21..24"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -154,13 +154,13 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: ""})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123::/48"), MasklengthRange: ""})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123:1::/64", MasklengthRange: ""})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123:1::/64"), MasklengthRange: ""})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
-	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123::/48"), MasklengthRange: "64..80"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -178,10 +178,10 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:128::/48", MasklengthRange: "64..80"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:128::/48"), MasklengthRange: "64..80"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123::/48"), MasklengthRange: "64..80"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -199,10 +199,10 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123:64::/64", MasklengthRange: "64..80"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123:64::/64"), MasklengthRange: "64..80"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123:64::/48", MasklengthRange: "64..80"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123:64::/48"), MasklengthRange: "64..80"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -220,13 +220,13 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer, time.Now(), false)[0]
 	// test
-	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "62..63"})
+	pl1, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123::/48"), MasklengthRange: "62..63"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "65..66"})
+	pl2, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123::/48"), MasklengthRange: "65..66"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "63..65"})
+	pl3, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("2001:123:123::/48"), MasklengthRange: "63..65"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -831,7 +831,7 @@ func TestPolicyMatchAndAcceptNextHop(t *testing.T) {
 	ds.PrefixSets = []oc.PrefixSet{ps}
 	ds.NeighborSets = []oc.NeighborSet{ns}
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.1/32"}
+	s.Conditions.BgpConditions.NextHopInList = []netip.Addr{netip.MustParseAddr("10.0.0.1")}
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
@@ -863,7 +863,7 @@ func TestPolicyMatchAndRejectNextHop(t *testing.T) {
 	ds.PrefixSets = []oc.PrefixSet{ps}
 	ds.NeighborSets = []oc.NeighborSet{ns}
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.12"}
+	s.Conditions.BgpConditions.NextHopInList = []netip.Addr{netip.MustParseAddr("10.0.0.12")}
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
@@ -900,7 +900,7 @@ func TestSetNextHop(t *testing.T) {
 		s1.Actions.BgpActions.SetNextHop = oc.BgpNextHopType("10.2.2.2")
 		s1.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_NONE
 		s2 := createStatement("statement2", "ps", "ns", true)
-		s2.Conditions.BgpConditions.NextHopInList = []string{"10.2.2.2"}
+		s2.Conditions.BgpConditions.NextHopInList = []netip.Addr{netip.MustParseAddr("10.2.2.2")}
 		pd := createPolicyDefinition("pd1", s1, s2)
 		pl := createRoutingPolicy(ds, pd)
 
@@ -920,7 +920,7 @@ func TestSetNextHop(t *testing.T) {
 		s1.Actions.BgpActions.SetNextHop = oc.BgpNextHopType("self")
 		s1.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_NONE
 		s2 := createStatement("statement2", "ps", "ns", true)
-		s2.Conditions.BgpConditions.NextHopInList = []string{"20.0.0.1"}
+		s2.Conditions.BgpConditions.NextHopInList = []netip.Addr{netip.MustParseAddr("20.0.0.1")}
 		pd := createPolicyDefinition("pd1", s1, s2)
 		pl := createRoutingPolicy(ds, pd)
 
@@ -940,7 +940,7 @@ func TestSetNextHop(t *testing.T) {
 		s1.Actions.BgpActions.SetNextHop = oc.BgpNextHopType("peer-address")
 		s1.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_NONE
 		s2 := createStatement("statement2", "ps", "ns", true)
-		s2.Conditions.BgpConditions.NextHopInList = []string{"10.0.0.2"}
+		s2.Conditions.BgpConditions.NextHopInList = []netip.Addr{netip.MustParseAddr("10.0.0.2")}
 		pd := createPolicyDefinition("pd1", s1, s2)
 		pl := createRoutingPolicy(ds, pd)
 
@@ -3521,7 +3521,7 @@ func createPrefixSet(name string, prefix string, maskLength string) oc.PrefixSet
 		PrefixSetName: name,
 		PrefixList: []oc.Prefix{
 			{
-				IpPrefix:        prefix,
+				IpPrefix:        netip.MustParsePrefix(prefix),
 				MasklengthRange: maskLength,
 			},
 		},
@@ -3547,11 +3547,11 @@ func createAs4Value(s string) uint32 {
 func TestPrefixSetOperation(t *testing.T) {
 	// tryp to create prefixset with multiple families
 	p1 := oc.Prefix{
-		IpPrefix:        "0.0.0.0/0",
+		IpPrefix:        netip.MustParsePrefix("0.0.0.0/0"),
 		MasklengthRange: "0..7",
 	}
 	p2 := oc.Prefix{
-		IpPrefix:        "0::/25",
+		IpPrefix:        netip.MustParsePrefix("0::/25"),
 		MasklengthRange: "25..128",
 	}
 	_, err := NewPrefixSet(oc.PrefixSet{
@@ -3570,19 +3570,19 @@ func TestPrefixSetOperation(t *testing.T) {
 	err = m2.Append(m1)
 	assert.NoError(t, err)
 	assert.Equal(t, bgp.RF_IPv4_UC, m2.family)
-	p3, _ := NewPrefix(oc.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
-	p4, _ := NewPrefix(oc.Prefix{IpPrefix: "0::/25", MasklengthRange: ""})
+	p3, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.0.0/24"), MasklengthRange: ""})
+	p4, _ := NewPrefix(oc.Prefix{IpPrefix: netip.MustParsePrefix("0::/25"), MasklengthRange: ""})
 	_, err = NewPrefixSetFromApiStruct("ps3", []*Prefix{p3, p4})
 	assert.NotNil(t, err)
 }
 
 func TestPrefixSetMatch(t *testing.T) {
 	p1 := oc.Prefix{
-		IpPrefix:        "0.0.0.0/0",
+		IpPrefix:        netip.MustParsePrefix("0.0.0.0/0"),
 		MasklengthRange: "0..7",
 	}
 	p2 := oc.Prefix{
-		IpPrefix:        "0.0.0.0/0",
+		IpPrefix:        netip.MustParsePrefix("0.0.0.0/0"),
 		MasklengthRange: "25..32",
 	}
 	ps, err := NewPrefixSet(oc.PrefixSet{
@@ -3612,7 +3612,7 @@ func TestPrefixSetMatch(t *testing.T) {
 	assert.True(t, m.Evaluate(path, nil))
 
 	p3 := oc.Prefix{
-		IpPrefix:        "0.0.0.0/0",
+		IpPrefix:        netip.MustParsePrefix("0.0.0.0/0"),
 		MasklengthRange: "9..10",
 	}
 	ps2, err := NewPrefixSet(oc.PrefixSet{
@@ -3642,7 +3642,7 @@ func TestPrefixSetMatch(t *testing.T) {
 
 func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
 	p1 := oc.Prefix{
-		IpPrefix:        "c000::/3",
+		IpPrefix:        netip.MustParsePrefix("c000::/3"),
 		MasklengthRange: "3..128",
 	}
 	ps, err := NewPrefixSet(oc.PrefixSet{
@@ -3661,7 +3661,7 @@ func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
 
 func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 	p1 := oc.Prefix{
-		IpPrefix:        "2806:106e:19::/48",
+		IpPrefix:        netip.MustParsePrefix("2806:106e:19::/48"),
 		MasklengthRange: "48..48",
 	}
 	ps, err := NewPrefixSet(oc.PrefixSet{
@@ -3686,7 +3686,7 @@ func TestPrefixSetMatchV6LabeledwithV6Prefix(t *testing.T) {
 
 func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
 	p1 := oc.Prefix{
-		IpPrefix:        "10.10.10.0/24",
+		IpPrefix:        netip.MustParsePrefix("10.10.10.0/24"),
 		MasklengthRange: "24..32",
 	}
 	ps, err := NewPrefixSet(oc.PrefixSet{
@@ -3716,7 +3716,7 @@ func TestPrefixSetMatchVPNV4Prefix(t *testing.T) {
 
 func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
 	p1 := oc.Prefix{
-		IpPrefix:        "2001:123:123:1::/64",
+		IpPrefix:        netip.MustParsePrefix("2001:123:123:1::/64"),
 		MasklengthRange: "64..128",
 	}
 	ps, err := NewPrefixSet(oc.PrefixSet{
