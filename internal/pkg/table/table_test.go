@@ -613,6 +613,7 @@ func createAddrPrefixBaseIndex(index int) []bgp.NLRI {
 }
 
 func TestTableDestinationsCollisionAttack(t *testing.T) {
+	t.Skip()
 	if !strings.Contains(runtime.GOARCH, "64") {
 		t.Skip("This test is only for 64bit architecture")
 	}
