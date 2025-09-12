@@ -1594,48 +1594,65 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 	return s
 }
 
-func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []oc.AfiSafiType) error {
+type peerOption func(peer *BgpServer, g *oc.Global, p *oc.Neighbor)
+
+func setPeerAddressOpt(peer *BgpServer, g *oc.Global, p *oc.Neighbor) {
+	p.Transport.Config.LocalAddress = g.Config.LocalAddressList[0]
+	p.Config.NeighborAddress = peer.bgpConfig.Global.Config.LocalAddressList[0]
+}
+
+func peerTwoServers(t *testing.T, ctx context.Context, server, peer *BgpServer, families []oc.AfiSafiType, isPassive bool, opts ...peerOption) error {
+	neighborConfig := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
+			PeerAs:          peer.bgpConfig.Global.Config.As,
+		},
+		AfiSafis: oc.AfiSafis{},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
+			},
+		},
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
+				ConnectRetry:           1,
+				IdleHoldTimeAfterReset: 1,
+			},
+		},
+	}
+
+	for _, opt := range opts {
+		opt(peer, &server.bgpConfig.Global, neighborConfig)
+	}
+
+	if isPassive {
+		neighborConfig.Transport.Config.PassiveMode = true
+	}
+
+	for _, family := range families {
+		neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, oc.AfiSafi{
+			Config: oc.AfiSafiConfig{
+				AfiSafiName: family,
+				Enabled:     true,
+			},
+		})
+	}
+
+	if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
+		t.Fatal(err)
+	}
+	return nil
+}
+
+func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, families []oc.AfiSafiType, opts ...peerOption) error {
 	for i, server := range servers {
 		for j, peer := range servers {
 			if i == j {
 				continue
 			}
-
-			neighborConfig := &oc.Neighbor{
-				Config: oc.NeighborConfig{
-					NeighborAddress: netip.MustParseAddr("127.0.0.1"),
-					PeerAs:          peer.bgpConfig.Global.Config.As,
-				},
-				AfiSafis: oc.AfiSafis{},
-				Transport: oc.Transport{
-					Config: oc.TransportConfig{
-						RemotePort: uint16(peer.bgpConfig.Global.Config.Port),
-					},
-				},
-				Timers: oc.Timers{
-					Config: oc.TimersConfig{
-						ConnectRetry:           1,
-						IdleHoldTimeAfterReset: 1,
-					},
-				},
-			}
-
 			// first server to get neighbor config is passive to hopefully make handshake faster
-			if j > i {
-				neighborConfig.Transport.Config.PassiveMode = true
-			}
-
-			for _, family := range families {
-				neighborConfig.AfiSafis = append(neighborConfig.AfiSafis, oc.AfiSafi{
-					Config: oc.AfiSafiConfig{
-						AfiSafiName: family,
-						Enabled:     true,
-					},
-				})
-			}
-
-			if err := server.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborConfig)}); err != nil {
-				t.Fatal(err)
+			if err := peerTwoServers(t, ctx, server, peer, families, i < j, opts...); err != nil {
+				return err
 			}
 		}
 	}
@@ -3002,4 +3019,115 @@ func TestAddDefinedSetReplace(t *testing.T) {
 	assert.Equal(1, len(ns))
 	assert.Equal("replaceme", ns[0].Name)
 	assert.Equal([]string{"203.0.113.2/32"}, ns[0].List)
+}
+
+func TestEBGPRouteStuck(test *testing.T) {
+	var peers []*BgpServer
+	for i, s := range []struct {
+		routerId string
+		asn      uint32
+	}{
+		{routerId: "1.1.1.1", asn: 1},
+		{routerId: "2.2.2.1", asn: 2},
+		{routerId: "2.2.2.2", asn: 2},
+	} {
+		peer := NewBgpServer()
+		peer.logger.SetLevel(log.InfoLevel)
+		go peer.Serve()
+
+		peers = append(peers, peer)
+
+		err := peer.StartBgp(context.Background(), &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:             s.asn,
+				RouterId:        s.routerId,
+				ListenAddresses: []string{fmt.Sprintf("127.0.0.%d", 100+i)},
+				ListenPort:      10179,
+			},
+		})
+		require.NoError(test, err)
+	}
+
+	wg := waitEstablished(peers[0])
+	wg1 := waitEstablished(peers[1])
+	wg2 := waitEstablished(peers[2])
+	// Use only eBGP
+	for i, server := range peers {
+		for j, peer := range peers {
+			if i == j || server.bgpConfig.Global.Config.As == peer.bgpConfig.Global.Config.As {
+				continue
+			}
+			ctx := context.Background()
+			if err := peerTwoServers(test, ctx, server, peer, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_IPV4_UNICAST}, i < j, setPeerAddressOpt); err != nil {
+				assert.NoError(test, err)
+			}
+		}
+	}
+
+	wg.Wait()
+	wg1.Wait()
+	wg2.Wait()
+
+	family4 := &api.Family{
+		Afi:  api.Family_AFI_IP,
+		Safi: api.Family_SAFI_UNICAST,
+	}
+	attrs := []*api.Attribute{
+		{
+			Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+				Origin: 0,
+			}},
+		},
+		{
+			Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+				NextHop: "10.0.0.1",
+			}},
+		},
+	}
+
+	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+		Prefix:    "10.1.0.0",
+		PrefixLen: 24,
+	}}}
+
+	assertPathCount := func(t assert.TestingT, peer *BgpServer, expected int) {
+		var info *table.TableInfo
+		if peer.active() == nil {
+			info, _ = peer.getRibInfo("", bgp.RF_IPv4_UC)
+		} else {
+			info = peer.globalRib.Tables[bgp.RF_IPv4_UC].Info()
+		}
+		if assert.NotNil(t, info) {
+			assert.Equal(t, expected, info.NumPath)
+		}
+	}
+
+	path := &api.Path{
+		Family: family4,
+		Nlri:   nlri,
+		Pattrs: attrs,
+	}
+	addPaths := func(peers []*BgpServer, path *api.Path) {
+		for _, peer := range peers {
+			_, err := peer.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}})
+			assert.NoError(test, err)
+		}
+	}
+
+	addPaths(peers, path)
+
+	assert.EventuallyWithT(test, func(collect *assert.CollectT) {
+		assertPathCount(collect, peers[0], 3)
+		assertPathCount(collect, peers[1], 2)
+		assertPathCount(collect, peers[2], 2)
+	}, 5*time.Second, 1*time.Millisecond)
+
+	err := peers[0].DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}})
+	assert.NoError(test, err)
+
+	assert.EventuallyWithT(test, func(collect *assert.CollectT) {
+		assertPathCount(collect, peers[0], 2)
+		assertPathCount(collect, peers[1], 1)
+		assertPathCount(collect, peers[2], 1)
+	}, 20*time.Second, 1*time.Millisecond)
 }

@@ -551,9 +551,24 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 		// Do not filter local (static) routes with as-path loop
 		// if configured to bypass these checks in the peer
 		// as-path options config.
-		if path.IsLocal() && !peer.allowAsPathLoopLocal() {
-			return nil
-		} else if !path.IsLocal() {
+		if !path.IsLocal() || !peer.allowAsPathLoopLocal() {
+			if !path.IsWithdraw && old != nil {
+				// A new best path was selected, but we cannot advertise it to this peer
+				// due to as-loop. In this case, we MUST explicitly withdraw the
+				// old path we previously advertised to prevent a stucked route
+				// on the peer, which would lead to a traffic blackhole.
+				//
+				// Example: routers from AS A: A1 and A2, AS B: B1
+				// A1 <eBGP> B1, A2 <eBGP> B1, no iBGP
+				// All of them announce prefix P
+				// Paths on A1, A2: [local, B1]
+				// Paths on B1: [local, A1, A2]
+				// When B1 receive local prefix withdraw it choose new best
+				// for example from A1. Then it send. explicit withdraw for A1
+				// and try to implicit withdraw for other peers. But we have AS-Loop for
+				// A2 and path stuck. So in this case B1 should send explicit withdraw for old path.
+				return old.Clone(true)
+			}
 			return nil
 		}
 	}
