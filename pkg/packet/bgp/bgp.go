@@ -2062,7 +2062,7 @@ func (l *LabeledIPAddrPrefix) decodeFromBytes(data []byte, options ...*Marshalli
 	}
 	bits := int(data[0])
 	data = data[1:]
-	if err := l.Labels.DecodeFromBytes(data); err != nil {
+	if err := l.Labels.DecodeFromBytes(data, options...); err != nil {
 		return err
 	}
 
