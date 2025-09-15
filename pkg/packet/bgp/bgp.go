@@ -14584,7 +14584,7 @@ type BGPUpdateAttributes struct {
 	Attribute map[BGPAttrType]bool
 }
 
-func GetBGPUpdateAttributes(data []byte) map[BGPAttrType]bool {
+func getBGPUpdateAttributes(data []byte) map[BGPAttrType]bool {
 	m := make(map[BGPAttrType]bool)
 	for p := 0; p < len(data); {
 		flag := data[p]
@@ -14618,7 +14618,7 @@ func GetBGPUpdateAttributes(data []byte) map[BGPAttrType]bool {
 	return m
 }
 
-func GetBGPUpdateAttributesFromMsg(msg *BGPUpdate) map[BGPAttrType]bool {
+func getBGPUpdateAttributesFromMsg(msg *BGPUpdate) map[BGPAttrType]bool {
 	m := make(map[BGPAttrType]bool)
 	for _, p := range msg.PathAttributes {
 		m[p.GetType()] = true
@@ -14775,7 +14775,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	if len(data) < int(msg.TotalPathAttributeLen) {
 		return NewMessageError(eCode, eSubCode, nil, "path total attribute length exceeds message length")
 	}
-	attributes := GetBGPUpdateAttributes(data)
+	attributes := getBGPUpdateAttributes(data)
 	o := MarshallingOption{
 		Attributes: attributes,
 	}
@@ -14867,7 +14867,7 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	msg.WithdrawnRoutesLen = uint16(len(wbuf) - 2)
 	binary.BigEndian.PutUint16(wbuf, msg.WithdrawnRoutesLen)
 
-	attributes := GetBGPUpdateAttributesFromMsg(msg)
+	attributes := getBGPUpdateAttributesFromMsg(msg)
 	o := MarshallingOption{
 		Attributes: attributes,
 	}
