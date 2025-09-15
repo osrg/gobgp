@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"net/netip"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRoundTripSubSubTLV(t *testing.T) {
@@ -124,4 +126,56 @@ func TestNewPathAttributePrefixSID(t *testing.T) {
 			}
 		})
 	}
+}
+
+// to make label with bottom of stack
+type prefixSidLabel struct {
+	Label uint32
+	IPAddrPrefixDefault
+}
+
+func (l *prefixSidLabel) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	bits := 8*3 + l.Prefix.Bits()
+	buf := []byte{byte(bits)}
+	label := l.Label << 4
+	lbuf := []byte{byte(label >> 16 & 0xff), byte(label >> 8 & 0xff), byte(label & 0xff)}
+	buf = append(buf, lbuf...)
+	buf = append(buf, l.serializePrefix()...)
+	return buf, nil
+}
+
+func (l *prefixSidLabel) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (l *prefixSidLabel) MarshalJSON() ([]byte, error) {
+	return []byte{}, nil
+}
+
+func (l *prefixSidLabel) Len(options ...*MarshallingOption) int {
+	return 0
+}
+
+func (l *prefixSidLabel) String() string {
+	return ""
+}
+
+func TestLabelBottomWorkaround(t *testing.T) {
+	assert := assert.New(t)
+	label := uint32(16000)
+	prefix := &prefixSidLabel{Label: label, IPAddrPrefixDefault: IPAddrPrefixDefault{Prefix: netip.MustParsePrefix("200.10.10.0/24")}}
+	mpreach, _ := NewPathAttributeMpReachNLRI(RF_IPv4_MPLS, []PathNLRI{{NLRI: prefix}}, netip.MustParseAddr("4.4.4.4"))
+
+	sid := NewPathAttributePrefixSID()
+
+	binary, err := NewBGPUpdateMessage(nil, []PathAttributeInterface{mpreach, sid}, nil).Serialize()
+	assert.NoError(err)
+
+	msg, err := ParseBGPMessage(binary)
+	assert.NoError(err)
+
+	mpreach = msg.Body.(*BGPUpdate).PathAttributes[0].(*PathAttributeMpReachNLRI)
+	assert.Equal(1, len(mpreach.Value))
+	p := mpreach.Value[0].NLRI.(*LabeledIPAddrPrefix)
+	assert.Equal(label, p.Labels.Labels[0])
 }
