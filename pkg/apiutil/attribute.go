@@ -879,32 +879,33 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 }
 
 func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor, error) {
-	ifAddrIPv4 := netip.Addr{}
-	neiAddrIPv4 := netip.Addr{}
-	ifAddrIPv6 := netip.Addr{}
-	neiAddrIPv6 := netip.Addr{}
+	desc := &bgp.LsLinkDescriptor{
+		LinkLocalID:  &ld.LinkLocalId,
+		LinkRemoteID: &ld.LinkRemoteId,
+	}
 
 	if ld.GetInterfaceAddrIpv4() != "" {
-		ifAddrIPv4, _ = netip.ParseAddr(ld.InterfaceAddrIpv4)
+		if ifAddrIPv4, err := netip.ParseAddr(ld.InterfaceAddrIpv4); err == nil {
+			desc.InterfaceAddrIPv4 = &ifAddrIPv4
+		}
 	}
 	if ld.GetNeighborAddrIpv4() != "" {
-		neiAddrIPv4, _ = netip.ParseAddr(ld.NeighborAddrIpv4)
+		if neiAddrIPv4, err := netip.ParseAddr(ld.NeighborAddrIpv4); err == nil {
+			desc.NeighborAddrIPv4 = &neiAddrIPv4
+		}
 	}
 	if ld.GetInterfaceAddrIpv6() != "" {
-		ifAddrIPv6, _ = netip.ParseAddr(ld.InterfaceAddrIpv6)
+		if ifAddrIPv6, err := netip.ParseAddr(ld.InterfaceAddrIpv6); err == nil {
+			desc.InterfaceAddrIPv6 = &ifAddrIPv6
+		}
 	}
 	if ld.GetNeighborAddrIpv6() != "" {
-		neiAddrIPv6, _ = netip.ParseAddr(ld.NeighborAddrIpv6)
+		if neiAddrIPv6, err := netip.ParseAddr(ld.NeighborAddrIpv6); err == nil {
+			desc.NeighborAddrIPv6 = &neiAddrIPv6
+		}
 	}
 
-	return &bgp.LsLinkDescriptor{
-		LinkLocalID:       &ld.LinkLocalId,
-		LinkRemoteID:      &ld.LinkRemoteId,
-		InterfaceAddrIPv4: &ifAddrIPv4,
-		NeighborAddrIPv4:  &neiAddrIPv4,
-		InterfaceAddrIPv6: &ifAddrIPv6,
-		NeighborAddrIPv6:  &neiAddrIPv6,
-	}, nil
+	return desc, nil
 }
 
 func UnmarshalPrefixDescriptor(pd *api.LsPrefixDescriptor) (*bgp.LsPrefixDescriptor, error) {
@@ -1057,15 +1058,32 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 				V6:       a.Node.Flags.V6,
 			}
 		}
+		var nodeOpaque *[]byte
+		if len(a.Node.Opaque) > 0 {
+			nodeOpaque = &a.Node.Opaque
+		}
+		var nodeName *string
+		if a.Node.Name != "" {
+			nodeName = &a.Node.Name
+		}
+		var nodeIsisArea *[]byte
+		if len(a.Node.IsisArea) > 0 {
+			nodeIsisArea = &a.Node.IsisArea
+		}
+		var nodeSrAlgorithms *[]byte
+		if len(a.Node.SrAlgorithms) > 0 {
+			nodeSrAlgorithms = &a.Node.SrAlgorithms
+		}
+
 		lsAttr.Node = bgp.LsAttributeNode{
 			Flags:           flags,
-			Opaque:          &a.Node.Opaque,
-			Name:            &a.Node.Name,
-			IsisArea:        &a.Node.IsisArea,
+			Opaque:          nodeOpaque,
+			Name:            nodeName,
+			IsisArea:        nodeIsisArea,
 			LocalRouterID:   nodeLocalRouterID,
 			LocalRouterIDv6: nodeLocalRouterIDv6,
 			SrCapabilties:   srCapabilities,
-			SrAlgorithms:    &a.Node.SrAlgorithms,
+			SrAlgorithms:    nodeSrAlgorithms,
 			SrLocalBlock:    lsSrLocalBlock,
 		}
 	}
@@ -1120,7 +1138,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		if a.Link.ReservableBandwidth != 0 {
 			linkBandwidth = &a.Link.ReservableBandwidth
 		}
-		unreservedBandwidth := [8]float32{}
+		var unreservedBandwidth *[8]float32
 		if a.Link.UnreservedBandwidth != nil {
 			copy(unreservedBandwidth[:], a.Link.UnreservedBandwidth)
 		}
@@ -1170,7 +1188,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			Opaque:              linkOpaque,
 			Bandwidth:           linkBandwidth,
 			ReservableBandwidth: linkReservableBandwidth,
-			UnreservedBandwidth: &unreservedBandwidth,
+			UnreservedBandwidth: unreservedBandwidth,
 			Srlgs:               linkSrlgs,
 			SrAdjacencySID:      linkSrAdjacencySid,
 			Srv6EndXSID:         srv6EndXSID,
