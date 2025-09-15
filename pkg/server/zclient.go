@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -148,17 +147,15 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	path := paths[0]
 
 	l := strings.SplitN(path.GetPrefix(), "/", 2)
-	var prefix net.IP
+	var prefix netip.Addr
 	var nexthop zebra.Nexthop
 	nexthops := make([]zebra.Nexthop, 0, len(paths))
 	msgFlags := zebra.MessageNexthop
 	switch path.GetFamily() {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-		prefix = path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr().AsSlice()
-	case bgp.RF_IPv4_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr().AsSlice()
-	case bgp.RF_IPv6_VPN:
-		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr().AsSlice()
+		prefix = path.GetNlri().(*bgp.IPAddrPrefix).Prefix.Addr()
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+		prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.Addr()
 	default:
 		return nil, false
 	}
@@ -172,7 +169,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 		}
 	}
 	for _, p := range paths {
-		nexthop.Gate = p.GetNexthop().AsSlice()
+		nexthop.Gate = p.GetNexthop()
 		nexthop.VrfID = nhVrfID
 		if nhVrfID != vrfID {
 			addLabelToNexthop(path, z, &msgFlags, &nexthop)
@@ -220,12 +217,12 @@ func newNexthopRegisterBody(paths []*table.Path, nexthopCache nexthopStateCache)
 		case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
 			nh = &zebra.RegisteredNexthop{
 				Family: syscall.AF_INET,
-				Prefix: nexthop.AsSlice(),
+				Prefix: nexthop,
 			}
 		case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
 			nh = &zebra.RegisteredNexthop{
 				Family: syscall.AF_INET6,
-				Prefix: nexthop.AsSlice(),
+				Prefix: nexthop,
 			}
 		default:
 			continue
@@ -244,7 +241,7 @@ func newNexthopRegisterBody(paths []*table.Path, nexthopCache nexthopStateCache)
 	}
 }
 
-func newNexthopUnregisterBody(family uint16, prefix net.IP) *zebra.NexthopRegisterBody {
+func newNexthopUnregisterBody(family uint16, prefix netip.Addr) *zebra.NexthopRegisterBody {
 	return &zebra.NexthopRegisterBody{
 		Nexthops: []*zebra.RegisteredNexthop{{
 			Family: family,

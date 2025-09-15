@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"slices"
 	"time"
 
 	"github.com/dgryski/go-farm"
@@ -370,12 +369,12 @@ func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []b
 	return paths
 }
 
-func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Family, nexthop net.IP) []*Path {
+func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Family, nexthop netip.Addr) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
 			for _, path := range t.GetKnownPathList(id, 0) {
-				if slices.Equal(path.GetNexthop().AsSlice(), nexthop) {
+				if path.GetNexthop() == nexthop {
 					paths = append(paths, path)
 				}
 			}

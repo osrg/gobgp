@@ -18,6 +18,7 @@ package zebra
 import (
 	"encoding/binary"
 	"net"
+	"net/netip"
 	"syscall"
 	"testing"
 
@@ -974,10 +975,10 @@ func Test_NexthopRegisterBody(t *testing.T) {
 		// Test decoded values
 		assert.Equal(uint8(1), b.Nexthops[0].connected)
 		assert.Equal(uint16(syscall.AF_INET), b.Nexthops[0].Family)
-		assert.Equal(net.ParseIP("192.168.1.1").To4(), b.Nexthops[0].Prefix)
+		assert.Equal(netip.MustParseAddr("192.168.1.1"), b.Nexthops[0].Prefix)
 		assert.Equal(uint8(0), b.Nexthops[1].connected)
 		assert.Equal(uint16(syscall.AF_INET6), b.Nexthops[1].Family)
-		assert.Equal(net.ParseIP("2001:db8:1:1::1").To16(), b.Nexthops[1].Prefix)
+		assert.Equal(netip.MustParseAddr("2001:db8:1:1::1"), b.Nexthops[1].Prefix)
 
 		// Test serialize()
 		bufOut, err := b.serialize(v, software)
@@ -1057,11 +1058,11 @@ func Test_NexthopUpdateBody(t *testing.T) {
 
 		// Test decoded values
 		assert.Equal(uint8(syscall.AF_INET), b.Prefix.Family)
-		assert.Equal(net.ParseIP("192.168.1.1").To4(), b.Prefix.Prefix)
+		assert.Equal(netip.MustParseAddr("192.168.1.1"), b.Prefix.Prefix)
 		assert.Equal(uint32(1), b.Metric)
 		nexthop := Nexthop{
 			Type:    nexthopType[v],
-			Gate:    net.ParseIP("192.168.1.1").To4(),
+			Gate:    netip.MustParseAddr("192.168.1.1"),
 			Ifindex: uint32(2),
 		}
 		assert.Equal(1, len(b.Nexthops))
