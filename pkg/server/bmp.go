@@ -185,12 +185,10 @@ func (b *bmpClient) loop() {
 				case ev := <-w.Event():
 					switch msg := ev.(type) {
 					case *watchEventUpdate:
-						addr, _ := netip.AddrFromSlice(msg.PeerAddress)
-						id, _ := netip.AddrFromSlice(msg.PeerID)
 						info := &table.PeerInfo{
-							Address: addr,
+							Address: msg.PeerAddress,
 							AS:      msg.PeerAS,
-							ID:      id,
+							ID:      msg.PeerID,
 						}
 						if msg.Payload == nil {
 							var pathList []*table.Path
