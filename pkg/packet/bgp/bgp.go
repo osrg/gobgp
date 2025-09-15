@@ -18,6 +18,7 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -5414,7 +5415,7 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 					Length: lenIpReach,
 				},
 				PrefixLength: uint8(prefixSize),
-				Prefix:       ip[:(lenIpPrefix-1)/8+1],
+				Prefix:       ip[:lenIpPrefix],
 			}
 		} else if ipReach.Addr().Is6() {
 			ip := ipReach.Addr().AsSlice()
@@ -5424,20 +5425,22 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 					Length: lenIpReach,
 				},
 				PrefixLength: uint8(prefixSize),
-				Prefix:       ip[:(lenIpPrefix-1)/8+1],
+				Prefix:       ip[:lenIpPrefix],
 			}
 		}
 		lsTLVs = append(lsTLVs, tlv)
 	}
 
-	lsTLVs = append(lsTLVs,
-		&LsTLVOspfRouteType{
-			LsTLV: LsTLV{
-				Type:   LS_TLV_OSPF_ROUTE_TYPE,
-				Length: 1,
-			},
-			RouteType: pd.OSPFRouteType,
-		})
+	if pd.OSPFRouteType != 0 {
+		lsTLVs = append(lsTLVs,
+			&LsTLVOspfRouteType{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_OSPF_ROUTE_TYPE,
+					Length: 1,
+				},
+				RouteType: pd.OSPFRouteType,
+			})
+	}
 	return lsTLVs
 }
 
@@ -6105,7 +6108,11 @@ func (l *LsTLVIPv4InterfaceAddr) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP, _ = netip.AddrFromSlice(value)
+	ip, ok := netip.AddrFromSlice(value)
+	if !ok {
+		return malformedAttrListErr("Failed to parse IPv4 interface address")
+	}
+	l.IP = ip
 
 	return nil
 }
@@ -6152,7 +6159,11 @@ func (l *LsTLVIPv4NeighborAddr) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected address size")
 	}
 
-	l.IP, _ = netip.AddrFromSlice(value)
+	ip, ok := netip.AddrFromSlice(value)
+	if !ok {
+		return malformedAttrListErr("Failed to parse IPv4 neighbor address")
+	}
+	l.IP = ip
 
 	return nil
 }
@@ -7183,7 +7194,11 @@ type LsTLVIPReachability struct {
 
 func (l *LsTLVIPReachability) toPrefix(ipv6 bool) netip.Prefix {
 	b := make([]byte, 16)
-	for i := range (int(l.PrefixLength)-1)/8 + 1 {
+	bytes := (int(l.PrefixLength)-1)/8 + 1
+	for i := range bytes {
+		if i >= len(l.Prefix) {
+			break
+		}
 		b[i] = l.Prefix[i]
 	}
 
@@ -7234,7 +7249,6 @@ func (l *LsTLVIPReachability) DecodeFromBytes(data []byte) error {
 
 func (l *LsTLVIPReachability) Serialize() ([]byte, error) {
 	b := []byte{l.PrefixLength}
-
 	return l.LsTLV.Serialize(append(b, l.Prefix...))
 }
 
@@ -9623,6 +9637,72 @@ func (l *LsNodeDescriptor) String() string {
 	return fmt.Sprintf("{ASN: %v, BGP LS ID: %v, BGP ROUTER ID: %v}", l.Asn, l.BGPLsID, l.BGPRouterID)
 }
 
+func igpRouterIDStringToBytes(routerID string) []byte {
+	if len(routerID) == 0 {
+		return nil
+	}
+	// ISIS non-pseudonode format: 0000.0000.0001
+	if len(routerID) == 14 && strings.Count(routerID, ".") == 2 {
+		parts := strings.Split(routerID, ".")
+		if len(parts) == 3 && len(parts[0]) == 4 && len(parts[1]) == 4 && len(parts[2]) == 4 {
+			var result []byte
+			for _, part := range parts {
+				if bytes, err := hex.DecodeString(part); err == nil {
+					result = append(result, bytes...)
+				} else {
+					return []byte(routerID)
+				}
+			}
+			if len(result) == 6 {
+				return result
+			}
+		}
+	}
+	// IPv4 format
+	if ip := net.ParseIP(routerID); ip != nil && ip.To4() != nil {
+		return ip.To4()
+	}
+	// ISIS pseudonode format: 0000.0000.0001-01
+	if strings.Contains(routerID, "-") && len(routerID) == 17 {
+		parts := strings.Split(routerID, "-")
+		if len(parts) == 2 && len(parts[1]) == 2 {
+			idParts := strings.Split(parts[0], ".")
+			if len(idParts) == 3 && len(idParts[0]) == 4 && len(idParts[1]) == 4 && len(idParts[2]) == 4 {
+				var result []byte
+				for _, part := range idParts {
+					if bytes, err := hex.DecodeString(part); err == nil {
+						result = append(result, bytes...)
+					} else {
+						return []byte(routerID)
+					}
+				}
+				if pseudoByte, err := hex.DecodeString(parts[1]); err == nil && len(pseudoByte) == 1 {
+					result = append(result, pseudoByte[0])
+				}
+				if len(result) == 7 {
+					return result
+				}
+			}
+		}
+	}
+	// OSPF pseudonode format: IP:IP
+	if strings.Contains(routerID, ":") {
+		parts := strings.Split(routerID, ":")
+		if len(parts) == 2 {
+			ip1 := net.ParseIP(parts[0])
+			ip2 := net.ParseIP(parts[1])
+			if ip1 != nil && ip2 != nil && ip1.To4() != nil && ip2.To4() != nil {
+				result := make([]byte, 8)
+				copy(result[:4], ip1.To4())
+				copy(result[4:8], ip2.To4())
+				return result
+			}
+		}
+	}
+
+	return []byte(routerID)
+}
+
 func parseIGPRouterID(id []byte) (string, bool) {
 	switch len(id) {
 	// OSPF or OSPFv3 non-pseudonode
@@ -9666,8 +9746,8 @@ func NewLsTLVNodeDescriptor(nd *LsNodeDescriptor, tlvType LsTLVType) LsTLVNodeDe
 
 	// For IGP
 	if nd.IGPRouterID != "" {
-		routerIdBytes := []byte(nd.IGPRouterID)
-		routerIdLength := len([]byte(nd.IGPRouterID))
+		routerIdBytes := igpRouterIDStringToBytes(nd.IGPRouterID)
+		routerIdLength := len(routerIdBytes)
 		isOspf := false
 		// OSPF/OSPFv3 non-pseudonode or pseudonode
 		if routerIdLength == 4 || routerIdLength == 8 {
@@ -10167,7 +10247,11 @@ func (p *PathAttributeLs) Serialize(options ...*MarshallingOption) ([]byte, erro
 		buf = append(buf, s...)
 	}
 
-	return p.PathAttribute.Serialize(buf, options...)
+	result, err := p.PathAttribute.Serialize(buf, options...)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (p *PathAttributeLs) String() string {
