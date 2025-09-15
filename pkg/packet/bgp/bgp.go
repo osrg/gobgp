@@ -6470,7 +6470,7 @@ type LsTLVIsisArea struct {
 func NewLsTLVIsisArea(l *[]byte) *LsTLVIsisArea {
 	return &LsTLVIsisArea{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_ISIS_AREA,
 			Length: uint16(len(*l)),
 		},
 		Area: *l,
@@ -7345,7 +7345,7 @@ type LsTLVMaxLinkBw struct {
 func NewLsTLVMaxLinkBw(l *float32) *LsTLVMaxLinkBw {
 	return &LsTLVMaxLinkBw{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_MAX_LINK_BANDWIDTH,
 			Length: 4,
 		},
 		Bandwidth: *l,
@@ -7409,7 +7409,7 @@ type LsTLVMaxReservableLinkBw struct {
 func NewLsTLVMaxReservableLinkBw(l *float32) *LsTLVMaxReservableLinkBw {
 	return &LsTLVMaxReservableLinkBw{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_MAX_RESERVABLE_BANDWIDTH,
 			Length: 4,
 		},
 		Bandwidth: *l,
@@ -7473,7 +7473,7 @@ type LsTLVUnreservedBw struct {
 func NewLsTLVUnreservedBw(l *[8]float32) *LsTLVUnreservedBw {
 	return &LsTLVUnreservedBw{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_UNRESERVED_BANDWIDTH,
 			Length: 32,
 		},
 		Bandwidth: *l,
@@ -7545,7 +7545,7 @@ type LsTLVTEDefaultMetric struct {
 func NewLsTLVTEDefaultMetric(l *uint32) *LsTLVTEDefaultMetric {
 	return &LsTLVTEDefaultMetric{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_TE_DEFAULT_METRIC,
 			Length: 4,
 		},
 		Metric: *l,
@@ -7605,7 +7605,7 @@ type LsTLVIGPMetric struct {
 func NewLsTLVIGPMetric(l *uint32) *LsTLVIGPMetric {
 	return &LsTLVIGPMetric{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IGP_METRIC,
 			Length: 3, // TODO: implementation for IS-IS small metrics and OSPF link metrics.
 		},
 		Metric: *l,
@@ -7743,7 +7743,7 @@ type LsTLVSrAlgorithm struct {
 func NewLsTLVSrAlgorithm(l *[]byte) *LsTLVSrAlgorithm {
 	return &LsTLVSrAlgorithm{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_SR_ALGORITHM,
 			Length: uint16(len(*l)),
 		},
 		Algorithm: *l,
