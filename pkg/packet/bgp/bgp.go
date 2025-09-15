@@ -33,11 +33,11 @@ import (
 )
 
 type MarshallingOption struct {
-	AddPath    map[Family]BGPAddPathMode
-	Attributes map[BGPAttrType]bool
-	MRT        bool
+	AddPath map[Family]BGPAddPathMode
+	MRT     bool
 
-	isIPv6 bool
+	attributes map[BGPAttrType]bool
+	isIPv6     bool
 }
 
 func IsMRTSerialization(options []*MarshallingOption) bool {
@@ -68,12 +68,12 @@ func IsAddPathEnabled(decode bool, f Family, options []*MarshallingOption) bool 
 	return false
 }
 
-func IsAttributePresent(attr BGPAttrType, options []*MarshallingOption) bool {
+func isAttributePresent(attr BGPAttrType, options []*MarshallingOption) bool {
 	for _, opt := range options {
 		if opt == nil {
 			continue
 		}
-		if o := opt.Attributes; o != nil {
+		if o := opt.attributes; o != nil {
 			_, ok := o[attr]
 			return ok
 		}
@@ -1831,7 +1831,7 @@ type MPLSLabelStack struct {
 func (l *MPLSLabelStack) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	labels := []uint32{}
 	foundBottom := false
-	bottomExpected := !IsAttributePresent(BGP_ATTR_TYPE_PREFIX_SID, options)
+	bottomExpected := !isAttributePresent(BGP_ATTR_TYPE_PREFIX_SID, options)
 
 	for len(data) >= 3 {
 		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
@@ -14777,7 +14777,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	}
 	attributes := getBGPUpdateAttributes(data)
 	o := MarshallingOption{
-		Attributes: attributes,
+		attributes: attributes,
 	}
 	options = append(options, &o)
 
@@ -14869,7 +14869,7 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 
 	attributes := getBGPUpdateAttributesFromMsg(msg)
 	o := MarshallingOption{
-		Attributes: attributes,
+		attributes: attributes,
 	}
 	options = append(options, &o)
 	pbuf := make([]byte, 2)
