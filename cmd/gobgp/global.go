@@ -2202,7 +2202,7 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 				Algorithm:        algorithm,
 				Weight:           weight,
 				EndpointBehavior: endpointBehavior,
-				SIDs:             []net.IP{sid.To16()},
+				SIDs:             []netip.Addr{netip.AddrFrom16([16]byte(sid.To16()))},
 			}
 			if srv6Structure != nil {
 				lsTLV.Srv6SIDStructure = *bgp.NewLsTLVSrv6SIDStructure(srv6Structure)
@@ -2406,7 +2406,8 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, erro
 				return nil, nil, fmt.Errorf("invalid peer-as: %v", err)
 			}
 
-			if net.ParseIP(peerBgpID[0]).To4() == nil {
+			addr, err := netip.ParseAddr(peerBgpID[0])
+			if err != nil || !addr.Is4() {
 				return nil, nil, fmt.Errorf("invalid peer-bgp-id format, must be IPv4 address: %s", peerBgpID[0])
 			}
 

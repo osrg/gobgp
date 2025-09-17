@@ -1152,12 +1152,10 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		}
 		var srv6EndXSID *bgp.LsSrv6EndXSID
 		if a.Link.Srv6EndXSid != nil {
-			sids := make([]net.IP, 0, len(a.Link.Srv6EndXSid.Sids))
+			sids := make([]netip.Addr, 0, len(a.Link.Srv6EndXSid.Sids))
 			for _, s := range a.Link.Srv6EndXSid.Sids {
-				ip := net.ParseIP(s)
-				if ip != nil {
-					sids = append(sids, ip)
-				}
+				addr, _ := netip.ParseAddr(s)
+				sids = append(sids, addr)
 			}
 			var srv6SIDStructure bgp.LsSrv6SIDStructure
 			if a.Link.Srv6EndXSid.Srv6SidStructure != nil {

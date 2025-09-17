@@ -8341,14 +8341,14 @@ type LsTLVSrv6EndXSID struct {
 	Algorithm        uint8
 	Weight           uint8
 	Reserved         uint8
-	SIDs             []net.IP
+	SIDs             []netip.Addr
 	Srv6SIDStructure LsTLVSrv6SIDStructure
 }
 
 func NewLsTLVSrv6EndXSID(l *LsSrv6EndXSID) *LsTLVSrv6EndXSID {
 	var length uint16 = 6
 
-	sids := []net.IP{}
+	sids := []netip.Addr{}
 	for _, sid := range l.SIDs {
 		sids = append(sids, sid)
 		length += 16 // each SID is 16 bytes
@@ -8395,7 +8395,7 @@ type LsSrv6EndXSID struct {
 	Algorithm        uint8              `json:"algorithm"`
 	Weight           uint8              `json:"weight"`
 	Reserved         uint8              `json:"reserved"`
-	SIDs             []net.IP           `json:"sids"`
+	SIDs             []netip.Addr       `json:"sids"`
 	Srv6SIDStructure LsSrv6SIDStructure `json:"sid_structure"`
 }
 
@@ -8450,7 +8450,8 @@ func (l *LsTLVSrv6EndXSID) parseVariableData(data []byte) error {
 	for pos < sidDataLen {
 		sid := make([]byte, 16)
 		copy(sid, data[pos:pos+16])
-		l.SIDs = append(l.SIDs, net.IP(sid))
+		addr, _ := netip.AddrFromSlice(sid)
+		l.SIDs = append(l.SIDs, addr)
 		pos += 16
 	}
 
@@ -8502,7 +8503,7 @@ func (l *LsTLVSrv6EndXSID) Serialize() ([]byte, error) {
 	buf = append(buf, l.Reserved)
 
 	for _, sid := range l.SIDs {
-		buf = append(buf, sid...)
+		buf = append(buf, sid.AsSlice()...)
 	}
 
 	return l.serializeSubTLVs(buf)
@@ -8538,7 +8539,7 @@ func (l *LsTLVSrv6EndXSID) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type             LsTLVType             `json:"type"`
 		EndpointBehavior uint16                `json:"endpoint_behavior"`
-		SIDs             []net.IP              `json:"sids"`
+		SIDs             []netip.Addr          `json:"sids"`
 		Srv6SIDStructure LsTLVSrv6SIDStructure `json:"sid_structure"`
 	}{
 		Type:             l.Type,
@@ -8664,10 +8665,11 @@ type LsSrv6BgpPeerNodeSID struct {
 }
 
 func NewLsTLVSrv6BgpPeerNodeSID(l *LsSrv6BgpPeerNodeSID) *LsTLVSrv6BgpPeerNodeSID {
-	peerBgpID := net.ParseIP(l.PeerBgpID).To4()
-	if peerBgpID == nil {
+	addr, err := netip.ParseAddr(l.PeerBgpID)
+	if err != nil || !addr.Is4() {
 		return nil
 	}
+	peerBgpID := addr.As4()
 
 	return &LsTLVSrv6BgpPeerNodeSID{
 		LsTLV: LsTLV{
@@ -8678,7 +8680,7 @@ func NewLsTLVSrv6BgpPeerNodeSID(l *LsSrv6BgpPeerNodeSID) *LsTLVSrv6BgpPeerNodeSI
 		Weight:       l.Weight,
 		Reserved:     0,
 		PeerASNumber: l.PeerAS,
-		PeerBgpID:    binary.BigEndian.Uint32(peerBgpID),
+		PeerBgpID:    binary.BigEndian.Uint32(peerBgpID[:]),
 	}
 }
 
