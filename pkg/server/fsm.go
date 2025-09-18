@@ -140,7 +140,6 @@ type fsmMsg struct {
 type fsmOutgoingMsg struct {
 	Paths        []*table.Path
 	Notification *bgp.BGPMessage
-	StayIdle     bool
 }
 
 const (
@@ -1835,11 +1834,6 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 					}
 				}
 				if m.Notification != nil {
-					if m.StayIdle {
-						// current user is only prefix-limit
-						// fix me if this is not the case
-						_ = h.changeadminState(adminStatePfxCt)
-					}
 					if err := send(m.Notification); err != nil {
 						return nil
 					}
@@ -2006,6 +2000,9 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				switch stateOp.State {
 				case adminStateDown:
 					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
+					h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+				case adminStatePfxCt:
+					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
 					h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
 				}
 			}

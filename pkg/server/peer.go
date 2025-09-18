@@ -559,7 +559,7 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	return nil
 }
 
-func (peer *peer) doPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) *bgp.BGPMessage {
+func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
 		count := peer.adjRibIn.Count([]bgp.Family{k})
 		pct := int(c.ShutdownThresholdPct)
@@ -580,27 +580,28 @@ func (peer *peer) doPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) *bgp.BGPM
 					"Key":    peer.ID(),
 					"Family": k.String(),
 				})
-			return bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
-func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) error {
+func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) (bool, error) {
 	peer.fsm.lock.RLock()
 	x := peer.fsm.pConf.AfiSafis
 	peer.fsm.lock.RUnlock()
 	y := c
 	if len(x) != len(y) {
-		return fmt.Errorf("changing supported afi-safi is not allowed")
+		return false, fmt.Errorf("changing supported afi-safi is not allowed")
 	}
 	m := make(map[bgp.Family]oc.PrefixLimitConfig)
 	for _, e := range x {
 		m[e.State.Family] = e.PrefixLimit.Config
 	}
+	reachLimit := false
 	for _, e := range y {
 		if p, ok := m[e.State.Family]; !ok {
-			return fmt.Errorf("changing supported afi-safi is not allowed")
+			return false, fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
 			peer.fsm.logger.Warn("update prefix limit configuration",
 				log.Fields{
@@ -613,18 +614,18 @@ func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) error {
 					"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct,
 				})
 			peer.prefixLimitWarned[e.State.Family] = false
-			if msg := peer.doPrefixLimit(e.State.Family, &e.PrefixLimit.Config); msg != nil {
-				sendfsmOutgoingMsg(peer, nil, msg, true)
+			if peer.isPrefixLimit(e.State.Family, &e.PrefixLimit.Config) {
+				reachLimit = true
 			}
 		}
 	}
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.AfiSafis = c
 	peer.fsm.lock.Unlock()
-	return nil
+	return reachLimit, nil
 }
 
-func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGPMessage) {
+func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
 
@@ -702,13 +703,13 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, *bgp.BGP
 		peerAfiSafis := peer.fsm.pConf.AfiSafis
 		peer.fsm.lock.RUnlock()
 		for _, af := range peerAfiSafis {
-			if msg := peer.doPrefixLimit(af.State.Family, &af.PrefixLimit.Config); msg != nil {
-				return nil, nil, msg
+			if isLimit := peer.isPrefixLimit(af.State.Family, &af.PrefixLimit.Config); isLimit {
+				return nil, nil, true
 			}
 		}
-		return paths, eor, nil
+		return paths, eor, false
 	}
-	return nil, nil, nil
+	return nil, nil, false
 }
 
 func (peer *peer) startFSMHandler(wg *sync.WaitGroup, callback fsmCallback) {

@@ -427,11 +427,10 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 	return longestPG
 }
 
-func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
+func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage) {
 	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
 		Paths:        paths,
 		Notification: notification,
-		StayIdle:     stayIdle,
 	}
 }
 
@@ -1255,10 +1254,10 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				if path.IsWithdraw {
 					// Skips filtering because the paths are already filtered
 					// and the withdrawal does not need the path attributes.
-					sendfsmOutgoingMsg(peer, paths, nil, false)
+					sendfsmOutgoingMsg(peer, paths, nil)
 				} else if !peer.getRtcEORWait() {
 					paths = s.processOutgoingPaths(peer, paths, nil)
-					sendfsmOutgoingMsg(peer, paths, nil, false)
+					sendfsmOutgoingMsg(peer, paths, nil)
 				} else {
 					s.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.",
 						log.Fields{
@@ -1411,13 +1410,13 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 				}
 			}
 			if needToAdvertise(targetPeer) && len(bestList) > 0 {
-				sendfsmOutgoingMsg(targetPeer, bestList, nil, false)
+				sendfsmOutgoingMsg(targetPeer, bestList, nil)
 			}
 		} else {
 			if targetPeer.isRouteServerClient() {
 				if targetPeer.isSecondaryRouteEnabled() {
 					if paths := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
-						sendfsmOutgoingMsg(targetPeer, paths, nil, false)
+						sendfsmOutgoingMsg(targetPeer, paths, nil)
 					}
 					continue
 				}
@@ -1430,7 +1429,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 				oldList = nil
 			}
 			if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
-				sendfsmOutgoingMsg(targetPeer, paths, nil, false)
+				sendfsmOutgoingMsg(targetPeer, paths, nil)
 			}
 		}
 	}
@@ -1682,7 +1681,7 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 				}
 
 				if len(pathList) > 0 {
-					sendfsmOutgoingMsg(peer, pathList, nil, false)
+					sendfsmOutgoingMsg(peer, pathList, nil)
 				}
 			} else {
 				// RFC 4724 4.1
@@ -1712,7 +1711,7 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 						}
 						paths, _ := s.getBestFromLocal(p, p.configuredRFlist())
 						if len(paths) > 0 {
-							sendfsmOutgoingMsg(p, paths, nil, false)
+							sendfsmOutgoingMsg(p, paths, nil)
 						}
 					}
 					s.logger.Info("sync finished",
@@ -1760,13 +1759,13 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 			return
 		}
 		if paths := s.handleRouteRefresh(peer, e); len(paths) > 0 {
-			sendfsmOutgoingMsg(peer, paths, nil, false)
+			sendfsmOutgoingMsg(peer, paths, nil)
 			return
 		}
 	case fsmMsgBGPMessage:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
-			sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
+			sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 			return
 		case *bgp.BGPMessage:
 			s.notifyRecvMessageWatcher(peer, e.timestamp, m)
@@ -1777,9 +1776,9 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
-			pathList, eor, notification := peer.handleUpdate(e)
-			if notification != nil {
-				sendfsmOutgoingMsg(peer, nil, notification, true)
+			pathList, eor, isLimit := peer.handleUpdate(e)
+			if isLimit {
+				_ = s.setAdminState(peer.ID(), "", adminStatePfxCt)
 				return
 			}
 			if m.Header.Type == bgp.BGP_MSG_UPDATE {
@@ -1845,7 +1844,7 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 							}
 							paths, _ := s.getBestFromLocal(p, p.negotiatedRFList())
 							if len(paths) > 0 {
-								sendfsmOutgoingMsg(p, paths, nil, false)
+								sendfsmOutgoingMsg(p, paths, nil)
 							}
 						}
 						s.logger.Info("sync finished",
@@ -1894,7 +1893,7 @@ func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
 						}
 					}
 					if paths, _ := s.getBestFromLocal(peer, families); len(paths) > 0 {
-						sendfsmOutgoingMsg(peer, paths, nil, false)
+						sendfsmOutgoingMsg(peer, paths, nil)
 					}
 				}
 			}
@@ -2706,7 +2705,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 					return l
 				}()
 			}
-			sendfsmOutgoingMsg(peer, pathList, nil, false)
+			sendfsmOutgoingMsg(peer, pathList, nil)
 		}
 	}
 	return nil
@@ -3667,7 +3666,10 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		peer.fsm.pConf.Timers.Config = c.Timers.Config
 	}
 
-	err = peer.updatePrefixLimitConfig(c.AfiSafis)
+	isLimit, err := peer.updatePrefixLimitConfig(c.AfiSafis)
+	if isLimit && err == nil {
+		err = s.setAdminState(addr, "", adminStatePfxCt)
+	}
 	if err != nil {
 		s.logger.Error("failed to update prefixLimit",
 			log.Fields{
@@ -3756,7 +3758,7 @@ func (s *BgpServer) sendNotification(op, addr string, subcode uint8, data []byte
 	if err == nil {
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, data)
 		for _, peer := range peers {
-			sendfsmOutgoingMsg(peer, nil, m, false)
+			sendfsmOutgoingMsg(peer, nil, m)
 		}
 	}
 	return err
@@ -3811,7 +3813,7 @@ func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) erro
 	}, true)
 }
 
-func (s *BgpServer) setAdminState(addr, communication string, enable bool) error {
+func (s *BgpServer) setAdminState(addr, communication string, state adminState) error {
 	peers, err := s.addrToPeers(addr)
 	if err != nil {
 		return err
@@ -3838,10 +3840,13 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 				peer.fsm.lock.RUnlock()
 			}
 		}
-		if enable {
+		switch state {
+		case adminStateUp:
 			f(&adminStateOperation{adminStateUp, nil}, "adminStateUp requested")
-		} else {
+		case adminStateDown:
 			f(&adminStateOperation{adminStateDown, newAdministrativeCommunication(communication)}, "adminStateDown requested")
+		case adminStatePfxCt:
+			f(&adminStateOperation{adminStatePfxCt, nil}, "adminStatePfxCt requested")
 		}
 	}
 	return nil
@@ -3852,7 +3857,7 @@ func (s *BgpServer) EnablePeer(ctx context.Context, r *api.EnablePeerRequest) er
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.setAdminState(r.Address, "", true)
+		return s.setAdminState(r.Address, "", adminStateUp)
 	}, true)
 }
 
@@ -3861,7 +3866,7 @@ func (s *BgpServer) DisablePeer(ctx context.Context, r *api.DisablePeerRequest) 
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.setAdminState(r.Address, r.Communication, false)
+		return s.setAdminState(r.Address, r.Communication, adminStateDown)
 	}, true)
 }
 
