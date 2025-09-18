@@ -1274,6 +1274,13 @@ func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 	return capMap, negotiated
 }
 
+func (h *fsmHandler) sendNotification(msg *bgp.BGPMessage) error {
+	b, _ := msg.Serialize()
+	h.conn.SetWriteDeadline(time.Now().Add(time.Second))
+	_, err := h.conn.Write(b)
+	return err
+}
+
 func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
@@ -1972,9 +1979,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			fsm.lock.RUnlock()
 
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			b, _ := m.Serialize(h.fsm.marshallingOptions)
-			h.conn.SetWriteDeadline(time.Now().Add(time.Second))
-			_, err := h.conn.Write(b)
+			err := h.sendNotification(m)
 
 			fsm.lock.RLock()
 			s := fsm.pConf.GracefulRestart.State
@@ -1999,11 +2004,9 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			if err == nil {
 				switch stateOp.State {
 				case adminStateDown:
-					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
-					h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+					_ = h.sendNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication))
 				case adminStatePfxCt:
-					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
-					h.outgoing.In() <- &fsmOutgoingMsg{Notification: m}
+					_ = h.sendNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil))
 				}
 			}
 		}
