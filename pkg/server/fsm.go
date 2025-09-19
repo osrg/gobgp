@@ -349,34 +349,15 @@ func (fsm *fsm) LocalHostPort() (string, uint16) {
 	return hostport(fsm.conn.LocalAddr())
 }
 
-func (fsm *fsm) sendNotificationFromErrorMsg(e *bgp.MessageError) (*bgp.BGPMessage, error) {
-	fsm.lock.RLock()
-	established := fsm.h != nil && fsm.h.conn != nil
-	fsm.lock.RUnlock()
-
-	if established {
-		m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-		b, _ := m.Serialize()
-		_, err := fsm.h.conn.Write(b)
-		if err == nil {
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-			fsm.h.sentNotification = m
-		}
-		fsm.h.conn.Close()
-		fsm.logger.Warn("sent notification",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.pConf.State.NeighborAddress,
-				"Data":  e,
-			})
-		return m, nil
+func (fsm *fsm) sendNotification(msg *bgp.BGPMessage) error {
+	b, _ := msg.Serialize()
+	fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
+	_, err := fsm.conn.Write(b)
+	if err == nil {
+		fsm.bgpMessageStateUpdate(bgp.BGP_MSG_NOTIFICATION, false)
 	}
-	return nil, fmt.Errorf("can't send notification to %s since TCP connection is not established", fsm.pConf.State.NeighborAddress)
-}
-
-func (fsm *fsm) sendNotification(code, subType uint8, data []byte, msg string) (*bgp.BGPMessage, error) {
-	e := bgp.NewMessageError(code, subType, data, msg)
-	return fsm.sendNotificationFromErrorMsg(e.(*bgp.MessageError))
+	fsm.conn.Close()
+	return err
 }
 
 type fsmCallback func(*fsmMsg)
@@ -1274,13 +1255,6 @@ func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 	return capMap, negotiated
 }
 
-func (h *fsmHandler) sendNotification(msg *bgp.BGPMessage) error {
-	b, _ := msg.Serialize()
-	h.conn.SetWriteDeadline(time.Now().Add(time.Second))
-	_, err := h.conn.Write(b)
-	return err
-}
-
 func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
@@ -1372,7 +1346,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.lock.RUnlock()
 					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, fsm.gConf.Config.RouterId)
 					if err != nil {
-						m, _ := fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
+						err := err.(*bgp.MessageError)
+						m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
+						_ = fsm.sendNotification(m)
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
 					}
 
@@ -1515,8 +1491,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil)
 				}
 			case *bgp.MessageError:
-				msg, _ := fsm.sendNotificationFromErrorMsg(m)
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, msg, nil)
+				n := bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+				_ = fsm.sendNotification(n)
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, n, nil)
 			default:
 				h.fsm.logger.Panic("unknown msg type",
 					log.Fields{
@@ -1530,7 +1507,8 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
-			m, _ := fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+			_ = fsm.sendNotification(m)
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, m, nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
@@ -1651,8 +1629,9 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil)
 			case *bgp.MessageError:
-				msg, _ := fsm.sendNotificationFromErrorMsg(m)
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, msg, nil)
+				n := bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+				_ = fsm.sendNotification(n)
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, n, nil)
 			default:
 				fsm.logger.Panic("unknown msg type",
 					log.Fields{
@@ -1666,7 +1645,8 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
-			m, _ := fsm.sendNotification(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+			_ = fsm.sendNotification(m)
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, m, nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
@@ -1979,7 +1959,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			fsm.lock.RUnlock()
 
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			err := h.sendNotification(m)
+			err := fsm.sendNotification(m)
 
 			fsm.lock.RLock()
 			s := fsm.pConf.GracefulRestart.State
@@ -2004,9 +1984,11 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			if err == nil {
 				switch stateOp.State {
 				case adminStateDown:
-					_ = h.sendNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication))
+					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication)
+					_ = fsm.sendNotification(m)
+					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminDown, m, nil)
 				case adminStatePfxCt:
-					_ = h.sendNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil))
+					_ = fsm.sendNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil))
 				}
 			}
 		}
