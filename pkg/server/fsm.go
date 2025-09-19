@@ -172,28 +172,28 @@ type adminStateOperation struct {
 }
 
 type fsm struct {
-	gConf                *oc.Global
-	pConf                *oc.Neighbor
-	lock                 sync.RWMutex
-	state                bgp.FSMState
-	outgoingCh           *channels.InfiniteChannel
-	reason               *fsmStateReason
-	conn                 net.Conn
-	connCh               chan net.Conn
-	idleHoldTime         float64
-	opensentHoldTime     float64
-	adminState           adminState
-	adminStateCh         chan adminStateOperation
-	h                    *fsmHandler
-	rfMap                map[bgp.Family]bgp.BGPAddPathMode
-	rtcEORWait           bool
-	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen             *bgp.BGPMessage
-	gracefulRestartTimer *time.Timer
-	twoByteAsTrans       bool
-	marshallingOptions   *bgp.MarshallingOption
-	notification         chan *bgp.BGPMessage
-	logger               log.Logger
+	gConf                    *oc.Global
+	pConf                    *oc.Neighbor
+	lock                     sync.RWMutex
+	state                    bgp.FSMState
+	outgoingCh               *channels.InfiniteChannel
+	reason                   *fsmStateReason
+	conn                     net.Conn
+	connCh                   chan net.Conn
+	idleHoldTime             float64
+	opensentHoldTime         float64
+	adminState               adminState
+	adminStateCh             chan adminStateOperation
+	h                        *fsmHandler
+	rfMap                    map[bgp.Family]bgp.BGPAddPathMode
+	rtcEORWait               bool
+	capMap                   map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen                 *bgp.BGPMessage
+	gracefulRestartTimer     *time.Timer
+	twoByteAsTrans           bool
+	marshallingOptions       *bgp.MarshallingOption
+	deconfiguredNotification chan *bgp.BGPMessage
+	logger                   log.Logger
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -269,19 +269,19 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 	pConf.State.SessionState = oc.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	pConf.Timers.State.Downtime = time.Now().Unix()
 	fsm := &fsm{
-		gConf:                gConf,
-		pConf:                pConf,
-		state:                bgp.BGP_FSM_IDLE,
-		outgoingCh:           channels.NewInfiniteChannel(),
-		connCh:               make(chan net.Conn, 1),
-		opensentHoldTime:     float64(holdtimeOpensent),
-		adminState:           adminState,
-		adminStateCh:         make(chan adminStateOperation, 1),
-		rfMap:                make(map[bgp.Family]bgp.BGPAddPathMode),
-		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		gracefulRestartTimer: time.NewTimer(time.Hour),
-		notification:         make(chan *bgp.BGPMessage, 1),
-		logger:               logger,
+		gConf:                    gConf,
+		pConf:                    pConf,
+		state:                    bgp.BGP_FSM_IDLE,
+		outgoingCh:               channels.NewInfiniteChannel(),
+		connCh:                   make(chan net.Conn, 1),
+		opensentHoldTime:         float64(holdtimeOpensent),
+		adminState:               adminState,
+		adminStateCh:             make(chan adminStateOperation, 1),
+		rfMap:                    make(map[bgp.Family]bgp.BGPAddPathMode),
+		capMap:                   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		gracefulRestartTimer:     time.NewTimer(time.Hour),
+		deconfiguredNotification: make(chan *bgp.BGPMessage, 1),
+		logger:                   logger,
 	}
 	fsm.gracefulRestartTimer.Stop()
 	return fsm
@@ -1879,7 +1879,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		select {
 		case <-ctx.Done():
 			select {
-			case m := <-fsm.notification:
+			case m := <-fsm.deconfiguredNotification:
 				// RFC8538 defines a Hard Reset notification subcode which
 				// indicates that the BGP speaker wants to reset the session
 				// without triggering graceful restart procedures. Here we map

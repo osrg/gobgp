@@ -3452,7 +3452,7 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 		})
 
 	if sendNotification {
-		n.fsm.notification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
+		n.fsm.deconfiguredNotification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	}
 	s.propagateUpdate(n, n.DropAll(n.configuredRFlist()))
 	s.stopNeighbor(n, -1, nil)
