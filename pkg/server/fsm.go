@@ -129,7 +129,6 @@ const (
 type fsmMsg struct {
 	MsgType     fsmMsgType
 	fsm         *fsm
-	MsgSrc      string
 	MsgData     any
 	handling    bgp.ErrorHandling
 	StateReason *fsmStateReason
@@ -1004,7 +1003,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		fmsg := &fsmMsg{
 			fsm:     h.fsm,
 			MsgType: fsmMsgBGPMessage,
-			MsgSrc:  h.fsm.pConf.State.NeighborAddress.String(),
 			MsgData: err,
 		}
 		h.fsm.lock.RUnlock()
@@ -1039,7 +1037,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	fmsg := &fsmMsg{
 		fsm:       h.fsm,
 		MsgType:   fsmMsgBGPMessage,
-		MsgSrc:    h.fsm.pConf.State.NeighborAddress.String(),
 		handling:  handling,
 		timestamp: now,
 	}
@@ -2075,7 +2072,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		msg := &fsmMsg{
 			fsm:         fsm,
 			MsgType:     fsmMsgStateChange,
-			MsgSrc:      neighborAddress.String(),
 			MsgData:     nextState,
 			StateReason: reason,
 		}

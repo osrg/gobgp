@@ -244,7 +244,10 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 }
 
 func (s *BgpServer) startFsmHandler(peer *peer) {
-	peer.startFSMHandler(s.shutdownWG, s.handleFSMMessage)
+	callback := func(e *fsmMsg) {
+		s.handleFSMMessage(peer, e)
+	}
+	peer.startFSMHandler(s.shutdownWG, callback)
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
@@ -1442,19 +1445,9 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	s.broadcastPeerState(peer, oldState, e)
 }
 
-func (s *BgpServer) handleFSMMessage(e *fsmMsg) {
+func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	s.shared.mu.Lock()
 	defer s.shared.mu.Unlock()
-
-	peer, found := s.neighborMap[e.MsgSrc]
-	if !found {
-		s.logger.Warn("Can't find the neighbor",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   e.MsgSrc,
-			})
-		return
-	}
 
 	switch e.MsgType {
 	case fsmMsgStateChange:
