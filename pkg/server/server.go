@@ -430,10 +430,9 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 	return longestPG
 }
 
-func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage) {
+func sendfsmOutgoingMsg(peer *peer, paths []*table.Path) {
 	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
-		Paths:        paths,
-		Notification: notification,
+		Paths: paths,
 	}
 }
 
@@ -1257,10 +1256,10 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				if path.IsWithdraw {
 					// Skips filtering because the paths are already filtered
 					// and the withdrawal does not need the path attributes.
-					sendfsmOutgoingMsg(peer, paths, nil)
+					sendfsmOutgoingMsg(peer, paths)
 				} else if !peer.getRtcEORWait() {
 					paths = s.processOutgoingPaths(peer, paths, nil)
-					sendfsmOutgoingMsg(peer, paths, nil)
+					sendfsmOutgoingMsg(peer, paths)
 				} else {
 					s.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.",
 						log.Fields{
@@ -1413,13 +1412,13 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 				}
 			}
 			if needToAdvertise(targetPeer) && len(bestList) > 0 {
-				sendfsmOutgoingMsg(targetPeer, bestList, nil)
+				sendfsmOutgoingMsg(targetPeer, bestList)
 			}
 		} else {
 			if targetPeer.isRouteServerClient() {
 				if targetPeer.isSecondaryRouteEnabled() {
 					if paths := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
-						sendfsmOutgoingMsg(targetPeer, paths, nil)
+						sendfsmOutgoingMsg(targetPeer, paths)
 					}
 					continue
 				}
@@ -1432,7 +1431,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 				oldList = nil
 			}
 			if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
-				sendfsmOutgoingMsg(targetPeer, paths, nil)
+				sendfsmOutgoingMsg(targetPeer, paths)
 			}
 		}
 	}
@@ -1674,7 +1673,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				}
 
 				if len(pathList) > 0 {
-					sendfsmOutgoingMsg(peer, pathList, nil)
+					sendfsmOutgoingMsg(peer, pathList)
 				}
 			} else {
 				// RFC 4724 4.1
@@ -1704,7 +1703,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 						paths, _ := s.getBestFromLocal(p, p.configuredRFlist())
 						if len(paths) > 0 {
-							sendfsmOutgoingMsg(p, paths, nil)
+							sendfsmOutgoingMsg(p, paths)
 						}
 					}
 					s.logger.Info("sync finished",
@@ -1752,13 +1751,13 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			return
 		}
 		if paths := s.handleRouteRefresh(peer, e); len(paths) > 0 {
-			sendfsmOutgoingMsg(peer, paths, nil)
+			sendfsmOutgoingMsg(peer, paths)
 			return
 		}
 	case fsmMsgBGPMessage:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
-			sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
+			peer.sendNotification(bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 			return
 		case *bgp.BGPMessage:
 			s.notifyRecvMessageWatcher(peer, e.timestamp, m)
@@ -1837,7 +1836,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							}
 							paths, _ := s.getBestFromLocal(p, p.negotiatedRFList())
 							if len(paths) > 0 {
-								sendfsmOutgoingMsg(p, paths, nil)
+								sendfsmOutgoingMsg(p, paths)
 							}
 						}
 						s.logger.Info("sync finished",
@@ -1886,7 +1885,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 					}
 					if paths, _ := s.getBestFromLocal(peer, families); len(paths) > 0 {
-						sendfsmOutgoingMsg(peer, paths, nil)
+						sendfsmOutgoingMsg(peer, paths)
 					}
 				}
 			}
@@ -2698,7 +2697,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 					return l
 				}()
 			}
-			sendfsmOutgoingMsg(peer, pathList, nil)
+			sendfsmOutgoingMsg(peer, pathList)
 		}
 	}
 	return nil
@@ -3751,7 +3750,7 @@ func (s *BgpServer) sendNotification(op, addr string, subcode uint8, data []byte
 	if err == nil {
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, data)
 		for _, peer := range peers {
-			sendfsmOutgoingMsg(peer, nil, m)
+			peer.sendNotification(m)
 		}
 	}
 	return err

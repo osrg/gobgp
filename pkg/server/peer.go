@@ -559,6 +559,13 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	return nil
 }
 
+func (peer *peer) sendNotification(msg *bgp.BGPMessage) {
+	select {
+	case peer.fsm.notification <- msg:
+	default:
+	}
+}
+
 func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
 		count := peer.adjRibIn.Count([]bgp.Family{k})
