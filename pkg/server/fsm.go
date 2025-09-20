@@ -176,7 +176,6 @@ type fsm struct {
 	lock                     sync.RWMutex
 	state                    bgp.FSMState
 	outgoingCh               *channels.InfiniteChannel
-	reason                   *fsmStateReason
 	conn                     net.Conn
 	connCh                   chan net.Conn
 	idleHoldTime             float64
@@ -288,7 +287,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, logger log.Logger) *fsm {
 	return fsm
 }
 
-func (fsm *fsm) StateChange(nextState bgp.FSMState) {
+func (fsm *fsm) StateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	fsm.lock.Lock()
 	defer fsm.lock.Unlock()
 
@@ -298,7 +297,7 @@ func (fsm *fsm) StateChange(nextState bgp.FSMState) {
 			"Key":    fsm.pConf.State.NeighborAddress,
 			"old":    fsm.state.String(),
 			"new":    nextState.String(),
-			"reason": fsm.reason,
+			"reason": reason,
 		})
 	fsm.state = nextState
 	switch nextState {
@@ -2030,10 +2029,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 
 			nextState, reason = h.established(ctx)
 		}
-
-		fsm.lock.Lock()
-		fsm.reason = reason
-		fsm.lock.Unlock()
 
 		// drain the state reason channel
 		// to avoid having stale transition.

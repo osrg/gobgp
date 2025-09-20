@@ -1456,7 +1456,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		peer.fsm.pConf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 		peer.fsm.lock.Unlock()
 
-		peer.fsm.StateChange(nextState)
+		peer.fsm.StateChange(nextState, e.StateReason)
 
 		peer.fsm.lock.RLock()
 		nextStateIdle := peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE
@@ -1469,7 +1469,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if t.Sub(time.Unix(peer.fsm.pConf.Timers.State.Uptime, 0)) < flopThreshold {
 				peer.fsm.pConf.State.Flops++
 			}
-			graceful := peer.fsm.reason.Type == fsmGracefulRestart
+			graceful := e.StateReason.Type == fsmGracefulRestart
 			peer.fsm.lock.Unlock()
 			var dropFamilies, gracefulFamilies []bgp.Family
 			if graceful {
