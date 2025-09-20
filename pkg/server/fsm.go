@@ -369,7 +369,6 @@ type fsmHandler struct {
 	stateReasonCh    chan fsmStateReason
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
-	sentNotification *bgp.BGPMessage
 	ctx              context.Context
 	ctxCancel        context.CancelFunc
 	callback         fsmCallback
@@ -1892,15 +1891,16 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	for {
 		select {
 		case <-ctx.Done():
+			var m *bgp.BGPMessage
 			select {
 			case m := <-fsm.deconfiguredNotification:
 				m = convertNotification(m)
 				_ = fsm.sendNotification(m)
 			default:
-				// nothing to do
+				// fsm.sendNotification closes the connection.
+				h.conn.Close()
 			}
-			h.conn.Close()
-			return -1, newfsmStateReason(fsmDying, nil, nil)
+			return -1, newfsmStateReason(fsmDeConfigured, m, nil)
 		case m := <-fsm.notification:
 			m = convertNotification(m)
 			_ = fsm.sendNotification(m)
@@ -2049,13 +2049,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		}
 
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
-			// The main goroutine sent the notification due to
-			// deconfiguration or something.
-			reason := *reason
-			if fsm.h.sentNotification != nil {
-				reason.Type = fsmNotificationSent
-				reason.BGPNotification = fsm.h.sentNotification
-			}
 			fsm.logger.Info("Peer Down",
 				log.Fields{
 					"Topic":  "Peer",
