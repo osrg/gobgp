@@ -128,7 +128,6 @@ const (
 
 type fsmMsg struct {
 	MsgType     fsmMsgType
-	fsm         *fsm
 	MsgData     any
 	handling    bgp.ErrorHandling
 	StateReason *fsmStateReason
@@ -1001,7 +1000,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				"Error": err,
 			})
 		fmsg := &fsmMsg{
-			fsm:     h.fsm,
 			MsgType: fsmMsgBGPMessage,
 			MsgData: err,
 		}
@@ -1035,7 +1033,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	}
 	h.fsm.lock.RLock()
 	fmsg := &fsmMsg{
-		fsm:       h.fsm,
 		MsgType:   fsmMsgBGPMessage,
 		handling:  handling,
 		timestamp: now,
@@ -2070,7 +2067,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		}
 
 		msg := &fsmMsg{
-			fsm:         fsm,
 			MsgType:     fsmMsgStateChange,
 			MsgData:     nextState,
 			StateReason: reason,
