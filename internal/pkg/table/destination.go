@@ -20,12 +20,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"slices"
 	"sort"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -212,7 +212,7 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(logger log.Logger, newPath *Path) *Update {
+func (dest *Destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
 
@@ -254,23 +254,17 @@ func (dest *Destination) Calculate(logger log.Logger, newPath *Path) *Update {
 // since not all paths get installed into the table due to bgp policy and
 // we can receive withdraws for such paths and withdrawals may not be
 // stopped by the same policies.
-func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Path {
-	if logger.GetLevel() >= log.DebugLevel {
-		logger.Debug("Removing withdrawals",
-			log.Fields{
-				"Topic": "Table",
-				"Key":   dest.GetNlri().String(),
-			})
-	}
+func (dest *Destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *Path {
+	logger.Debug("Removing withdrawals",
+		slog.String("Topic", "Table"),
+		slog.String("Key", dest.GetNlri().String()))
 
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.
 	if len(dest.knownPathList) == 0 {
 		logger.Debug("Found withdrawals for path(s) that did not get installed",
-			log.Fields{
-				"Topic": "Table",
-				"Key":   dest.GetNlri().String(),
-			})
+			slog.String("Topic", "Table"),
+			slog.String("Key", dest.GetNlri().String()))
 		return nil
 	}
 
@@ -287,11 +281,9 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 	// We do no have any match for this withdraw.
 	if isFound == -1 {
 		logger.Warn("No matching path for withdraw found, may be path was not installed into table",
-			log.Fields{
-				"Topic": "Table",
-				"Key":   dest.GetNlri().String(),
-				"Path":  withdraw,
-			})
+			slog.String("Topic", "Table"),
+			slog.String("Key", dest.GetNlri().String()),
+			slog.String("Path", withdraw.String()))
 		return nil
 	} else {
 		p := dest.knownPathList[isFound]
@@ -304,7 +296,7 @@ func (dest *Destination) explicitWithdraw(logger log.Logger, withdraw *Path) *Pa
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
+func (dest *Destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
 	found := -1
 	for i, path := range dest.knownPathList {
 		if path.NoImplicitWithdraw() {
@@ -315,14 +307,10 @@ func (dest *Destination) implicitWithdraw(logger log.Logger, newPath *Path) {
 		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 		// we get same paths again.
 		if newPath.EqualBySourceAndPathID(path) {
-			if logger.GetLevel() >= log.DebugLevel {
-				logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
-					log.Fields{
-						"Topic": "Table",
-						"Key":   dest.GetNlri().String(),
-						"Path":  path,
-					})
-			}
+			logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
+				slog.String("Topic", "Table"),
+				slog.String("Key", dest.GetNlri().String()),
+				slog.String("Path", path.String()))
 
 			found = i
 			newPath.localID = path.localID

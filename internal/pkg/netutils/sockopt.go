@@ -20,10 +20,9 @@ package netutils
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"syscall"
-
-	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 func SetTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
@@ -46,34 +45,30 @@ func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
 	return SetTcpMSSSockopt(conn, mss)
 }
 
-func DialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address),
+		)
 	}
 	if ttl != 0 {
 		logger.Warn("setting ttl for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address),
+		)
 	}
 	if minTtl != 0 {
 		logger.Warn("setting min ttl for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address),
+		)
 	}
 	if mss != 0 {
 		logger.Warn("setting MSS for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address),
+		)
 	}
 	return nil
 }

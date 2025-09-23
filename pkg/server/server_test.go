@@ -18,6 +18,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"runtime"
@@ -36,11 +37,10 @@ import (
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-var logger = log.NewDefaultLogger()
+var logger = slog.Default()
 
 func TestStop(t *testing.T) {
 	assert := assert.New(t)
@@ -58,7 +58,9 @@ func TestStop(t *testing.T) {
 	assert.NoError(err)
 
 	s = NewBgpServer()
-	s.logger.SetLevel(log.DebugLevel)
+	err = s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(err)
+
 	go s.Serve()
 	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
@@ -1138,9 +1140,11 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 func TestPeerGroup(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()
-	s.logger.SetLevel(log.DebugLevel)
+	err := s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(err)
+
 	go s.Serve()
-	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
 			Asn:        1,
 			RouterId:   "1.1.1.1",
@@ -1226,9 +1230,10 @@ func TestPeerGroup(test *testing.T) {
 func TestDynamicNeighbor(t *testing.T) {
 	assert := assert.New(t)
 	s1 := NewBgpServer()
-	s1.logger.SetLevel(log.DebugLevel)
+	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(err)
 	go s1.Serve()
-	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
+	err = s1.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
 			Asn:        1,
 			RouterId:   "1.1.1.1",
@@ -1718,9 +1723,11 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	s1.logger.SetLevel(log.DebugLevel)
+	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	s2.logger.SetLevel(log.DebugLevel)
+	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 
 	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	addVrf(t, s2, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
@@ -1823,10 +1830,12 @@ func TestDelVrfWithRTC(t *testing.T) {
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s1.logger.SetLevel(log.DebugLevel)
+	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2.logger.SetLevel(log.DebugLevel)
+	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 
 	addVrf(t, s1, "vrf1", "111:111", []string{"111:111"}, []string{}, 1)
 	addVrf(t, s2, "vrf1", "111:111", []string{}, []string{"111:111"}, 1)
@@ -1929,10 +1938,12 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s1.logger.SetLevel(log.DebugLevel)
+	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2.logger.SetLevel(log.DebugLevel)
+	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
@@ -2059,10 +2070,12 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s1.logger.SetLevel(log.DebugLevel)
+	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2.logger.SetLevel(log.DebugLevel)
+	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
@@ -2389,8 +2402,8 @@ func TestAddDeletePath(t *testing.T) {
 func TestDeleteNonExistingVrf(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
-
-	s.logger.SetLevel(log.DebugLevel)
+	err := s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 
 	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	req := &api.DeleteVrfRequest{Name: "Invalidvrf"}
@@ -2402,8 +2415,8 @@ func TestDeleteNonExistingVrf(t *testing.T) {
 func TestDeleteVrf(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
-
-	s.logger.SetLevel(log.DebugLevel)
+	err := s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	assert.NoError(t, err)
 
 	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	req := &api.DeleteVrfRequest{Name: "vrf1"}
@@ -3032,7 +3045,6 @@ func TestEBGPRouteStuck(test *testing.T) {
 		{routerId: "2.2.2.2", asn: 2},
 	} {
 		peer := NewBgpServer()
-		peer.logger.SetLevel(log.InfoLevel)
 		go peer.Serve()
 
 		peers = append(peers, peer)

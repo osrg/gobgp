@@ -16,12 +16,12 @@
 package table
 
 import (
+	"log/slog"
 	"net"
 	"sort"
 
 	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -70,10 +70,10 @@ func (r *roaBucket) GetEntries() []*ROA {
 
 type ROATable struct {
 	trees  map[bgp.Family]*critbitgo.Net
-	logger log.Logger
+	logger *slog.Logger
 }
 
-func NewROATable(logger log.Logger) *ROATable {
+func NewROATable(logger *slog.Logger) *ROATable {
 	m := make(map[bgp.Family]*critbitgo.Net)
 	m[bgp.RF_IPv4_UC] = critbitgo.NewNet()
 	m[bgp.RF_IPv6_UC] = critbitgo.NewNet()
@@ -101,13 +101,12 @@ func (rt *ROATable) getBucket(roa *ROA) *roaBucket {
 		}
 		if err := tree.Add(roa.Network, b); err != nil {
 			rt.logger.Error("Failed to add ROA",
-				log.Fields{
-					"Topic":   "rpki",
-					"Network": roa.Network.String(),
-					"AS":      roa.AS,
-					"MaxLen":  roa.MaxLen,
-					"Error":   err,
-				})
+				slog.String("Topic", "rpki"),
+				slog.String("Network", roa.Network.String()),
+				slog.Int("MaxLen", int(roa.MaxLen)),
+				slog.Uint64("AS", uint64(roa.AS)),
+				slog.String("Src", roa.Src),
+				slog.String("Error", err.Error()))
 		}
 		return b
 	}
@@ -152,12 +151,11 @@ func (rt *ROATable) Delete(roa *ROA) {
 		}
 	}
 	rt.logger.Info("Can't withdraw a ROA",
-		log.Fields{
-			"Topic":      "rpki",
-			"Network":    roa.Network.String(),
-			"AS":         roa.AS,
-			"Max Length": roa.MaxLen,
-		})
+		slog.String("Topic", "rpki"),
+		slog.String("Network", roa.Network.String()),
+		slog.Uint64("AS", uint64(roa.AS)),
+		slog.Int("MaxLen", int(roa.MaxLen)),
+	)
 }
 
 func (rt *ROATable) DeleteAll(network string) {
@@ -181,11 +179,9 @@ func (rt *ROATable) DeleteAll(network string) {
 		for _, key := range deleteNetworks {
 			if _, _, err := tree.Delete(key); err != nil {
 				rt.logger.Error("Failed to delete ROA",
-					log.Fields{
-						"Topic":   "rpki",
-						"Network": key.String(),
-						"Error":   err,
-					})
+					slog.String("Topic", "rpki"),
+					slog.String("Network", key.String()),
+					slog.String("Error", err.Error()))
 			}
 		}
 	}

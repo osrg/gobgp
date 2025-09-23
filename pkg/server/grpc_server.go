@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net"
 	"net/netip"
@@ -41,7 +42,6 @@ import (
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -78,11 +78,10 @@ func (s *server) serve() error {
 		lis, err = net.Listen(network, address)
 		if err != nil {
 			s.bgpServer.logger.Warn("listen failed",
-				log.Fields{
-					"Topic": "grpc",
-					"Key":   host,
-					"Error": err,
-				})
+				slog.String("Topic", "grpc"),
+				slog.String("Key", host),
+				slog.String("Error", err.Error()),
+			)
 			break
 		}
 		l = append(l, lis)
@@ -100,11 +99,10 @@ func (s *server) serve() error {
 		err := s.grpcServer.Serve(lis)
 		if err != nil {
 			s.bgpServer.logger.Warn("accept failed",
-				log.Fields{
-					"Topic": "grpc",
-					"Key":   lis.Addr().String(),
-					"Error": err,
-				})
+				slog.String("Topic", "grpc"),
+				slog.String("Key", lis.Addr().String()),
+				slog.String("Error", err.Error()),
+			)
 		}
 	}
 

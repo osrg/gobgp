@@ -16,6 +16,7 @@
 package server
 
 import (
+	"log/slog"
 	"net/netip"
 	"testing"
 	"time"
@@ -23,7 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
@@ -66,7 +66,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		}
 		m.Header = *h
 		m.Body = b
-		logger := log.NewDefaultLogger()
+		logger := slog.Default()
 		zebra.BackwardIPv6RouteDelete.ToEach(v, software)
 		path := newPathFromIPRouteMessage(logger, m, v, software)
 		pp := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)

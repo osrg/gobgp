@@ -17,17 +17,17 @@ package table
 
 import (
 	_ "fmt"
+	"log/slog"
 	"net/netip"
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var logger = log.NewDefaultLogger()
+var logger = slog.Default()
 
 // process BGPUpdate message
 // this function processes only BGPUpdate

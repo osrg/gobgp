@@ -18,6 +18,7 @@ package server
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -322,7 +322,7 @@ func TestBadBGPIdentifier(t *testing.T) {
 }
 
 func makePeerAndHandler(m net.Conn) (*peer, *fsmHandler) {
-	fsm := newFSM(&oc.Global{}, &oc.Neighbor{}, log.NewDefaultLogger())
+	fsm := newFSM(&oc.Global{}, &oc.Neighbor{}, slog.Default())
 	fsm.conn = m
 
 	p := &peer{fsm: fsm}

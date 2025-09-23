@@ -17,6 +17,7 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"slices"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -63,7 +63,7 @@ func (pg *peerGroup) DeleteDynamicNeighbor(prefix string) {
 	delete(pg.dynamicNeighbors, prefix)
 }
 
-func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
+func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
 	conf := oc.Neighbor{
 		Config: oc.NeighborConfig{
 			PeerGroup: pg.Config.PeerGroupName,
@@ -79,20 +79,16 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 	}
 	if err := oc.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
 		logger.Debug("Can't overwrite neighbor config",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   neighborAddress,
-				"Error": err,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", neighborAddress),
+			slog.String("Error", err.Error()))
 		return nil
 	}
 	if err := oc.SetDefaultNeighborConfigValues(&conf, pg, g); err != nil {
 		logger.Debug("Can't set default config",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   neighborAddress,
-				"Error": err,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", neighborAddress),
+			slog.String("Error", err.Error()))
 		return nil
 	}
 	peer := newPeer(g, &conf, loc, policy, logger)
@@ -117,7 +113,7 @@ type peer struct {
 	longLivedRunning    bool
 }
 
-func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
+func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
 	peer := &peer{
 		localRib:            loc,
 		policy:              policy,
@@ -301,11 +297,9 @@ func (peer *peer) getRtcEORWait() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	peer.fsm.logger.Debug("Get rtcEORWait",
-		log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.fsm.pConf.State.NeighborAddress,
-			"Data":  peer.fsm.rtcEORWait,
-		})
+		slog.String("Topic", "Peer"),
+		slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
+		slog.Bool("Data", peer.fsm.rtcEORWait))
 
 	return peer.fsm.rtcEORWait
 }
@@ -315,11 +309,9 @@ func (peer *peer) setRtcEORWait(waiting bool) {
 	defer peer.fsm.lock.Unlock()
 	peer.fsm.rtcEORWait = waiting
 	peer.fsm.logger.Debug("Set rtcEORWait",
-		log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.fsm.pConf.State.NeighborAddress,
-			"Data":  peer.fsm.rtcEORWait,
-		})
+		slog.String("Topic", "Peer"),
+		slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
+		slog.Bool("Data", peer.fsm.rtcEORWait))
 }
 
 func (peer *peer) recvedAllEOR() bool {
@@ -368,12 +360,10 @@ func (peer *peer) toGlobalFamilies(families []bgp.Family) []bgp.Family {
 				fs = append(fs, bgp.RF_FS_IPv6_VPN)
 			default:
 				peer.fsm.logger.Warn("invalid family configured for neighbor with vrf",
-					log.Fields{
-						"Topic":  "Peer",
-						"Key":    id,
-						"Family": f,
-						"VRF":    peer.fsm.pConf.Config.Vrf,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", id),
+					slog.String("Family", f.String()),
+					slog.String("VRF", peer.fsm.pConf.Config.Vrf))
 			}
 		}
 		families = fs
@@ -548,14 +538,10 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 			return old.Clone(true)
 		}
 	}
-	if peer.fsm.logger.GetLevel() >= log.DebugLevel {
-		peer.fsm.logger.Debug("From me, ignore",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.ID(),
-				"Data":  path,
-			})
-	}
+	peer.fsm.logger.Debug("From me, ignore",
+		slog.String("Topic", "Peer"),
+		slog.String("Key", peer.ID()),
+		slog.String("Data", path.String()))
 	return nil
 }
 
@@ -573,20 +559,16 @@ func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 		if pct > 0 && !peer.prefixLimitWarned[k] && count > maxPrefixes*pct/100 {
 			peer.prefixLimitWarned[k] = true
 			peer.fsm.logger.Warn("prefix limit reached",
-				log.Fields{
-					"Topic":  "Peer",
-					"Key":    peer.ID(),
-					"Family": k.String(),
-					"Pct":    pct,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.String("Family", k.String()),
+				slog.Int("Pct", pct))
 		}
 		if count > maxPrefixes {
 			peer.fsm.logger.Warn("prefix limit reached",
-				log.Fields{
-					"Topic":  "Peer",
-					"Key":    peer.ID(),
-					"Family": k.String(),
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.String("Family", k.String()))
 			return true
 		}
 	}
@@ -611,15 +593,14 @@ func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) (bool, error) {
 			return false, fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
 			peer.fsm.logger.Warn("update prefix limit configuration",
-				log.Fields{
-					"Topic":                   "Peer",
-					"Key":                     peer.ID(),
-					"AddressFamily":           e.Config.AfiSafiName,
-					"OldMaxPrefixes":          p.MaxPrefixes,
-					"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
-					"OldShutdownThresholdPct": p.ShutdownThresholdPct,
-					"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.String("AddressFamily", string(e.Config.AfiSafiName)),
+				slog.Uint64("OldMaxPrefixes", uint64(p.MaxPrefixes)),
+				slog.Uint64("NewMaxPrefixes", uint64(e.PrefixLimit.Config.MaxPrefixes)),
+				slog.Int("OldShutdownThresholdPct", int(p.ShutdownThresholdPct)),
+				slog.Int("NewShutdownThresholdPct", int(e.PrefixLimit.Config.ShutdownThresholdPct)))
+
 			peer.prefixLimitWarned[e.State.Family] = false
 			if peer.isPrefixLimit(e.State.Family, &e.PrefixLimit.Config) {
 				reachLimit = true
@@ -638,16 +619,13 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 
 	treatAsWithdraw := e.handling == bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW
 
-	if peer.fsm.logger.GetLevel() >= log.DebugLevel {
-		peer.fsm.logger.Debug("received update",
-			log.Fields{
-				"Topic":       "Peer",
-				"Key":         peer.fsm.pConf.State.NeighborAddress,
-				"nlri":        update.NLRI,
-				"withdrawals": update.WithdrawnRoutes,
-				"attributes":  update.PathAttributes,
-			})
-	}
+	peer.fsm.logger.Debug("received update",
+		slog.String("Topic", "Peer"),
+		slog.String("Key", peer.ID()),
+		slog.String("NeighborAddress", peer.fsm.pConf.State.NeighborAddress.String()),
+		slog.Any("nlri", update.NLRI),
+		slog.Any("withdrawals", update.WithdrawnRoutes),
+		slog.Any("path_attributes", update.PathAttributes))
 
 	peer.fsm.lock.Lock()
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
@@ -661,11 +639,9 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 			if path.IsEOR() {
 				family := path.GetFamily()
 				peer.fsm.logger.Debug("EOR received",
-					log.Fields{
-						"Topic":         "Peer",
-						"Key":           peer.ID(),
-						"AddressFamily": family,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", peer.ID()),
+					slog.String("AddressFamily", family.String()))
 				eor = append(eor, family)
 				continue
 			}
@@ -693,12 +669,11 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 			if isIBGPPeer {
 				if path.GetOriginatorID() == routerId {
 					peer.fsm.logger.Debug("Originator ID is mine, ignore",
-						log.Fields{
-							"Topic":        "Peer",
-							"Key":          peer.ID(),
-							"OriginatorID": routerId,
-							"Data":         path,
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", peer.ID()),
+						slog.String("OriginatorID", path.GetOriginatorID().String()),
+						slog.String("Data", path.String()))
+
 					path.SetRejected(true)
 					continue
 				}
@@ -742,10 +717,8 @@ func (peer *peer) PassConn(conn net.Conn) {
 	default:
 		conn.Close()
 		peer.fsm.logger.Warn("accepted conn is closed to avoid be blocked",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.ID(),
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.ID()))
 	}
 }
 

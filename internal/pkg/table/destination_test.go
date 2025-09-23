@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -442,7 +441,6 @@ func TestDestination_Calculate_ExplicitWithdraw(t *testing.T) {
 	p2 := NewPath(bgp.RF_IPv4_UC, peer2, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
 	d := NewDestination(nlri, 1, p1, p2)
-	logger := log.NewDefaultLogger()
 
 	// Test explicit withdraw
 	withdrawPath := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, true, attrs, time.Now(), false)
@@ -463,7 +461,6 @@ func TestDestination_Calculate_ImplicitWithdraw(t *testing.T) {
 	// Create initial path
 	p1 := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	d := NewDestination(nlri, 0, p1)
-	logger := log.NewDefaultLogger()
 
 	// Send new path from same peer (should trigger implicit withdraw)
 	newAttrs := []bgp.PathAttributeInterface{
@@ -690,7 +687,6 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 	p3 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	d := NewDestination(nlri, 0, p1, p2, p3)
 
-	logger := log.NewDefaultLogger()
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("13.2.6.0/24"))
 	p4 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	update := d.Calculate(logger, p4)

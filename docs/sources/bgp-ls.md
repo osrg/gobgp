@@ -75,38 +75,37 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 func main() {
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
+	log := slog.Default()
+	lvl := &slog.LevelVar{}
+	lvl.Set(slog.LevelInfo)
 
-	s := server.NewBgpServer(server.LoggerOption(&myLogger{logger: log}))
+	s := server.NewBgpServer(server.LoggerOption(slog.Default(), lvl))
 	go s.Serve()
 
 	if err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 		Global: &api.Global{
-			Asn:         64512,
+			Asn:        64512,
 			RouterId:   "10.0.255.254",
 			ListenPort: -1, // gobgp won't listen on tcp:179
 		},
 	}); err != nil {
-		log.Fatal(err)
+		log.Error("failed to start BGP", slog.String("Error", err.Error()))
 	}
 
 	// the change of the peer state and path
 	if err := s.WatchEvent(context.Background(), server.WatchEventMessageCallbacks{
 		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
 			if peer.Type == apiutil.PEER_EVENT_STATE {
-				log.Info(peer.Peer)
+				log.Info("peer state changed", slog.Any("Peer", peer.Peer))
 			}
 		},
 		OnBestPath: func(paths []*apiutil.Path, _ time.Time) {
@@ -114,18 +113,18 @@ func main() {
 			for _, p := range paths {
 				_, err := json.Marshal(p)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("failed to marshal path", slog.String("Error", err.Error()))
 				}
 			}
 		}}); err != nil {
-			log.Fatal(err)
-		}
+		log.Error("failed to watch BGP events", slog.String("Error", err.Error()))
+	}
 
 	// neighbor configuration
 	n := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: "172.17.0.2",
-			PeerAsn:          65002,
+			PeerAsn:         65002,
 		},
 		ApplyPolicy: &api.ApplyPolicy{
 			ImportPolicy: &api.PolicyAssignment{
@@ -151,47 +150,9 @@ func main() {
 	if err := s.AddPeer(context.Background(), &api.AddPeerRequest{
 		Peer: n,
 	}); err != nil {
-		log.Fatal(err)
+		log.Error("failed to add peer", slog.String("Error", err.Error()))
 	}
 
 	select {}
 }
-
-// implement github.com/osrg/gobgp/v4/pkg/log/Logger interface
-type myLogger struct {
-	logger *logrus.Logger
-}
-
-func (l *myLogger) Panic(msg string, fields log.Fields) {
-	l.logger.WithFields(logrus.Fields(fields)).Panic(msg)
-}
-
-func (l *myLogger) Fatal(msg string, fields log.Fields) {
-	l.logger.WithFields(logrus.Fields(fields)).Fatal(msg)
-}
-
-func (l *myLogger) Error(msg string, fields log.Fields) {
-	l.logger.WithFields(logrus.Fields(fields)).Error(msg)
-}
-
-func (l *myLogger) Warn(msg string, fields log.Fields) {
-	l.logger.WithFields(logrus.Fields(fields)).Warn(msg)
-}
-
-func (l *myLogger) Info(msg string, fields log.Fields) {
-	l.logger.WithFields(logrus.Fields(fields)).Info(msg)
-}
-
-func (l *myLogger) Debug(msg string, fields log.Fields) {
-	l.logger.WithFields(logrus.Fields(fields)).Debug(msg)
-}
-
-func (l *myLogger) SetLevel(level log.LogLevel) {
-	l.logger.SetLevel(logrus.Level(level))
-}
-
-func (l *myLogger) GetLevel() log.LogLevel {
-	return log.LogLevel(l.logger.GetLevel())
-}
-
 ```

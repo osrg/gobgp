@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/bits"
 	"net"
 	"net/netip"
@@ -30,7 +31,6 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -190,14 +190,14 @@ func (e EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.Hardware
 type Table struct {
 	Family       bgp.Family
 	destinations Destinations
-	logger       log.Logger
+	logger       *slog.Logger
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
 	macIndex EVPNMacNLRIs
 }
 
-func NewTable(logger log.Logger, rf bgp.Family, dsts ...*Destination) *Table {
+func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*Destination) *Table {
 	t := &Table{
 		Family:       rf,
 		destinations: make(Destinations),
@@ -289,47 +289,42 @@ func (t *Table) deleteDest(dest *Destination) {
 func (t *Table) validatePath(path *Path) {
 	if path == nil {
 		t.logger.Error("path is nil",
-			log.Fields{
-				"Topic": "Table",
-				"Key":   t.Family,
-			})
+			slog.String("Topic", "Table"),
+			slog.String("Key", t.Family.String()),
+		)
 	}
 	if path.GetFamily() != t.Family {
 		t.logger.Error("Invalid path. Family mismatch",
-			log.Fields{
-				"Topic":      "Table",
-				"Key":        t.Family,
-				"Prefix":     path.GetPrefix(),
-				"ReceivedRf": path.GetFamily().String(),
-			})
+			slog.String("Topic", "Table"),
+			slog.String("Key", t.Family.String()),
+			slog.Any("Prefix", path.GetPrefix()),
+			slog.String("ReceivedRf", path.GetFamily().String()),
+		)
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
 			if !y {
-				t.logger.Fatal("AsPathParam must be converted to As4PathParam",
-					log.Fields{
-						"Topic": "Table",
-						"Key":   t.Family,
-						"As":    as,
-					})
+				t.logger.Error("AsPathParam must be converted to As4PathParam",
+					slog.String("Topic", "Table"),
+					slog.String("Key", t.Family.String()),
+					slog.Any("As", as),
+				)
 			}
 		}
 	}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
-		t.logger.Fatal("AS4_PATH must be converted to AS_PATH",
-			log.Fields{
-				"Topic": "Table",
-				"Key":   t.Family,
-			})
+		t.logger.Error("AS4_PATH must be converted to AS_PATH",
+			slog.String("Topic", "Table"),
+			slog.String("Key", t.Family.String()),
+		)
 	}
 	if path.GetNlri() == nil {
-		t.logger.Fatal("path's nlri is nil",
-			log.Fields{
-				"Topic": "Table",
-				"Key":   t.Family,
-			})
+		t.logger.Error("path's nlri is nil",
+			slog.String("Topic", "Table"),
+			slog.String("Key", t.Family.String()),
+		)
 	}
 }
 
@@ -338,10 +333,9 @@ func (t *Table) getOrCreateDest(nlri bgp.NLRI, size int) *Destination {
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
 		t.logger.Debug("create Destination",
-			log.Fields{
-				"Topic": "Table",
-				"Nlri":  nlri,
-			})
+			slog.String("Topic", "Table"),
+			slog.Any("Nlri", nlri),
+		)
 		dest = NewDestination(nlri, size)
 		t.setDestination(dest)
 	}
@@ -534,12 +528,11 @@ func (t *Table) GetMUPDestinationsWithRouteType(p string) ([]*Destination, error
 func (t *Table) setDestination(dst *Destination) {
 	if collision := t.destinations.InsertUpdate(dst); collision {
 		t.logger.Warn("insert collision detected",
-			log.Fields{
-				"Topic":     "Table",
-				"Key":       t.Family,
-				"1stPrefix": t.destinations.getDestinationList(dst.GetNlri())[0].GetNlri().String(),
-				"Prefix":    dst.GetNlri().String(),
-			})
+			slog.String("Topic", "Table"),
+			slog.String("Key", t.Family.String()),
+			slog.String("1stPrefix", t.destinations.getDestinationList(dst.GetNlri())[0].GetNlri().String()),
+			slog.String("Prefix", dst.GetNlri().String()),
+		)
 	}
 
 	if nlri, ok := dst.nlri.(*bgp.EVPNNLRI); ok {

@@ -21,12 +21,11 @@ package netutils
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"syscall"
 	"unsafe"
-
-	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 const (
@@ -402,27 +401,21 @@ func SetBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return fmt.Errorf("binding connection to a device is not supported")
 }
 
-func DialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address))
 	}
 	if ttl != 0 {
 		logger.Warn("setting ttl for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address))
 	}
 	if minTtl != 0 {
 		logger.Warn("setting min ttl for active connection is not supported",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   address,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address))
 	}
 	var sockerr error
 	if mss != 0 {

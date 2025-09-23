@@ -18,6 +18,7 @@ package table
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"reflect"
@@ -31,7 +32,6 @@ import (
 	"github.com/k-sone/critbitgo"
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -2856,7 +2856,7 @@ func (s *Statement) Evaluate(p *Path, options *PolicyOptions) bool {
 	return true
 }
 
-func (s *Statement) Apply(logger log.Logger, path *Path, options *PolicyOptions) (RouteType, *Path) {
+func (s *Statement) Apply(logger *slog.Logger, path *Path, options *PolicyOptions) (RouteType, *Path) {
 	result := s.Evaluate(path, options)
 	if result {
 		if len(s.ModActions) != 0 {
@@ -2867,10 +2867,8 @@ func (s *Statement) Apply(logger log.Logger, path *Path, options *PolicyOptions)
 				path, err = action.Apply(path, options)
 				if err != nil {
 					logger.Warn("action failed",
-						log.Fields{
-							"Topic": "policy",
-							"Error": err,
-						})
+						slog.String("Topic", "policy"),
+						slog.String("Error", err.Error()))
 				}
 			}
 		}
@@ -3222,7 +3220,7 @@ type Policy struct {
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
-func (p *Policy) Apply(logger log.Logger, path *Path, options *PolicyOptions) (RouteType, *Path) {
+func (p *Policy) Apply(logger *slog.Logger, path *Path, options *PolicyOptions) (RouteType, *Path) {
 	for _, stmt := range p.Statements {
 		var result RouteType
 		result, path = stmt.Apply(logger, path, options)
@@ -3341,7 +3339,7 @@ type RoutingPolicy struct {
 	statementMap  map[string]*Statement
 	assignmentMap map[string]*Assignment
 	mu            sync.RWMutex
-	logger        log.Logger
+	logger        *slog.Logger
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
@@ -3918,10 +3916,8 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 			return err
 		}
 		r.logger.Debug("delete policy",
-			log.Fields{
-				"Topic": "Policy",
-				"Key":   name,
-			})
+			slog.String("Topic", "Policy"),
+			slog.String("Key", name))
 		delete(pMap, name)
 	} else {
 		err = y.Remove(x)
@@ -3930,10 +3926,8 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 		for _, st := range y.Statements {
 			if !r.statementInUse(st) {
 				r.logger.Debug("delete unused statement",
-					log.Fields{
-						"Topic": "Policy",
-						"Key":   st.Name,
-					})
+					slog.String("Topic", "Policy"),
+					slog.String("Key", st.Name))
 				delete(sMap, st.Name)
 			}
 		}
@@ -4072,10 +4066,8 @@ func (r *RoutingPolicy) Initialize() error {
 
 	if err := r.reload(oc.RoutingPolicy{}); err != nil {
 		r.logger.Error("failed to create routing policy",
-			log.Fields{
-				"Topic": "Policy",
-				"Error": err,
-			})
+			slog.String("Topic", "Policy"),
+			slog.String("Error", err.Error()))
 		return err
 	}
 	return nil
@@ -4086,11 +4078,9 @@ func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) {
 		ps, def, err := r.getAssignmentFromConfig(dir, c)
 		if err != nil {
 			r.logger.Error("failed to get policy info",
-				log.Fields{
-					"Topic": "Policy",
-					"Dir":   dir,
-					"Error": err,
-				})
+				slog.String("Topic", "Policy"),
+				slog.String("Dir", dir.String()),
+				slog.String("Error", err.Error()))
 			continue
 		}
 		r.setDefaultPolicy(id, dir, def)
@@ -4115,13 +4105,9 @@ func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy
 	defer r.mu.Unlock()
 
 	if err := r.reload(*rp); err != nil {
-		r.logger.Fatal("failed to create routing policy",
-			log.Fields{
-				log.FieldFacility: log.FacilityConfig,
-
-				"Topic": "Policy",
-				"Error": err,
-			})
+		r.logger.Error("failed to create routing policy",
+			slog.String("Topic", "Policy"),
+			slog.String("Error", err.Error()))
 		return err
 	}
 
@@ -4131,7 +4117,7 @@ func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy
 	return nil
 }
 
-func NewRoutingPolicy(logger log.Logger) *RoutingPolicy {
+func NewRoutingPolicy(logger *slog.Logger) *RoutingPolicy {
 	return &RoutingPolicy{
 		definedSetMap: make(map[DefinedType]map[string]DefinedSet),
 		policyMap:     make(map[string]*Policy),

@@ -20,14 +20,13 @@ package netutils
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 const (
@@ -128,7 +127,7 @@ func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
 	return setSockOptTcpMss(sc, family, mss)
 }
 
-func DialerControl(logger log.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
 	family := syscall.AF_INET
 	raddr, _ := net.ResolveTCPAddr("tcp", address)
 	if raddr.IP.To4() == nil {

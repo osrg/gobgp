@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"slices"
@@ -41,7 +42,6 @@ import (
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
@@ -69,7 +69,8 @@ func (n nopTimingHook) Observe(op FSMOperation, tOp, tWait time.Duration) {}
 type options struct {
 	grpcAddress string
 	grpcOption  []grpc.ServerOption
-	logger      log.Logger
+	logger      *slog.Logger
+	logLevelVar *slog.LevelVar
 	timingHook  FSMTimingHook
 }
 
@@ -87,9 +88,10 @@ func GrpcOption(opt []grpc.ServerOption) ServerOption {
 	}
 }
 
-func LoggerOption(logger log.Logger) ServerOption {
+func LoggerOption(logger *slog.Logger, levelVar *slog.LevelVar) ServerOption {
 	return func(o *options) {
 		o.logger = logger
+		o.logLevelVar = levelVar
 	}
 }
 
@@ -128,7 +130,8 @@ type BgpServer struct {
 	mrtManager   *mrtManager
 	roaTable     *table.ROATable
 	uuidMap      map[string]uuid.UUID
-	logger       log.Logger
+	logger       *slog.Logger
+	logLevelVar  *slog.LevelVar
 	timingHook   FSMTimingHook
 	// manage lifecycle of the server
 	isServing     atomic.Bool
@@ -145,8 +148,11 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		o(&opts)
 	}
 	logger := opts.logger
+	lvl := opts.logLevelVar
 	if logger == nil {
-		logger = log.NewDefaultLogger()
+		logger = slog.Default()
+		lvl = &slog.LevelVar{}
+		lvl.Set(slog.LevelInfo)
 	}
 	roaTable := table.NewROATable(logger)
 	shared := newSharedData()
@@ -162,6 +168,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		roaManager:   newROAManager(roaTable, logger),
 		roaTable:     roaTable,
 		logger:       logger,
+		logLevelVar:  lvl,
 		timingHook:   opts.timingHook,
 		shutdownWG:   &sync.WaitGroup{},
 	}
@@ -172,8 +179,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		s.apiServer = newAPIserver(s, shared, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
 		go func() {
 			if err := s.apiServer.serve(); err != nil {
-				logger.Fatal("failed to listen grpc port",
-					log.Fields{"Err": err})
+				logger.Error("failed to listen grpc port", slog.String("Error", err.Error()))
 			}
 		}()
 	}
@@ -183,10 +189,9 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 func (s *BgpServer) Stop() {
 	if err := s.StopBgp(context.Background(), &api.StopBgpRequest{}); err != nil {
 		s.logger.Error("failed to stop BGP server",
-			log.Fields{
-				"Topic": "BgpServer",
-				"Error": err,
-			})
+			slog.String("Topic", "BgpServer"),
+			slog.Any("Error", err),
+		)
 	}
 
 	if s.apiServer != nil {
@@ -262,11 +267,10 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		if adminStateNotUp {
 			peer.fsm.lock.RLock()
 			s.logger.Debug("New connection for non admin-state-up peer",
-				log.Fields{
-					"Topic":       "Peer",
-					"Remote Addr": remoteAddr,
-					"Admin State": peer.fsm.adminState,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Remote Addr", remoteAddr),
+				slog.Any("Admin State", peer.fsm.adminState),
+			)
 			peer.fsm.lock.RUnlock()
 			conn.Close()
 			return
@@ -288,13 +292,12 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 			host, _, _ := net.SplitHostPort(l.String())
 			if host != laddr && bindInterface == "" {
 				s.logger.Info("Mismatched local address",
-					log.Fields{
-						"Topic":           "Peer",
-						"Key":             remoteAddr,
-						"Configured addr": laddr,
-						"Addr":            host,
-						"BindInterface":   bindInterface,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", remoteAddr),
+					slog.String("Configured addr", laddr),
+					slog.String("Addr", host),
+					slog.String("BindInterface", bindInterface),
+				)
 				return false
 			}
 			return true
@@ -306,17 +309,15 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		}
 
 		s.logger.Debug("Accepted a new passive connection",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   remoteAddr,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", remoteAddr),
+		)
 		peer.PassConn(conn)
 	} else if pg := s.matchLongestDynamicNeighborPrefix(remoteAddr); pg != nil {
 		s.logger.Debug("Accepted a new dynamic neighbor",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   remoteAddr,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", remoteAddr),
+		)
 		rib := s.globalRib
 		if pg.Conf.RouteServer.Config.RouteServerClient {
 			rib = s.rsRib
@@ -324,10 +325,9 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		peer := newDynamicPeer(&s.bgpConfig.Global, remoteAddr, pg.Conf, rib, s.policy, s.logger)
 		if peer == nil {
 			s.logger.Info("Can't create new Dynamic Peer",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   remoteAddr,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", remoteAddr),
+			)
 			conn.Close()
 			return
 		}
@@ -336,11 +336,10 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		peer.fsm.lock.RUnlock()
 		if err := s.policy.SetPeerPolicy(peer.ID(), policy); err != nil {
 			s.logger.Error("Failed to set peer policy for dynamic peer",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   remoteAddr,
-					"Error": err,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", remoteAddr),
+				slog.Any("Error", err),
+			)
 			conn.Close()
 			return
 		}
@@ -351,10 +350,9 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		peer.PassConn(conn)
 	} else {
 		s.logger.Info("Can't find configuration for a new passive connection",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   remoteAddr,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", remoteAddr),
+		)
 		conn.Close()
 	}
 }
@@ -362,9 +360,8 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 func (s *BgpServer) Serve() {
 	if s.isServing.Swap(true) {
 		s.logger.Warn("server is already serving",
-			log.Fields{
-				"Topic": "BgpServer",
-			})
+			slog.String("Topic", "BgpServer"),
+		)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -383,9 +380,7 @@ func (s *BgpServer) Serve() {
 		select {
 		case <-s.runningCtx.Done():
 			s.logger.Info("shutting down",
-				log.Fields{
-					"Topic": "BgpServer",
-				})
+				slog.String("Topic", "BgpServer"))
 			return
 		case op := <-s.mgmtCh:
 			tWait := tStart.Sub(op.timestamp)
@@ -459,21 +454,19 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 	if y && path.GetFamily() != bgp.RF_RTC_UC {
 		if !peer.interestedIn(path) {
 			peer.fsm.logger.Debug("Filtered by Route Target Constraint, ignore",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.ID(),
-					"Data":  path,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.Any("Path", path),
+			)
 			if old == nil {
 				return nil
 			}
 			if !peer.interestedIn(old) {
 				peer.fsm.logger.Debug("Old path filtered by Route Target Constraint, ignore",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.ID(),
-						"Data":  old,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", peer.ID()),
+					slog.Any("Path", old),
+				)
 				return nil
 			}
 			path = old.Clone(true)
@@ -504,12 +497,11 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					peer.fsm.lock.RUnlock()
 					if slices.Equal(clusterID.AsSlice(), rrClusterID.To4()) {
 						peer.fsm.logger.Debug("cluster list path attribute has local cluster id, ignore",
-							log.Fields{
-								"Topic":     "Peer",
-								"Key":       peer.ID(),
-								"ClusterID": clusterID,
-								"Data":      path,
-							})
+							slog.String("Topic", "Peer"),
+							slog.String("Key", peer.ID()),
+							slog.String("ClusterID", clusterID.String()),
+							slog.Any("Path", path),
+						)
 						return nil
 					}
 				}
@@ -532,14 +524,11 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					return old.Clone(true)
 				}
 			}
-			if peer.fsm.logger.GetLevel() >= log.DebugLevel {
-				peer.fsm.logger.Debug("From same AS, ignore",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.ID(),
-						"Path":  path,
-					})
-			}
+			peer.fsm.logger.Debug("From same AS, ignore",
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.Any("Path", path),
+			)
 			return nil
 		}
 	}
@@ -585,11 +574,10 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		if path.IsLocal() && path.Equal(old) {
 			peer.fsm.lock.RLock()
 			s.logger.Debug("given rtm nlri is already sent, skipping to advertise",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.State.NeighborAddress,
-					"Path":  path,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
+				slog.Any("Path", path),
+			)
 			peer.fsm.lock.RUnlock()
 			return nil, nil, true
 		}
@@ -1042,10 +1030,9 @@ func needToAdvertise(peer *peer) bool {
 	if localRestarting {
 		peer.fsm.lock.RLock()
 		peer.fsm.logger.Debug("now syncing, suppress sending updates",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.fsm.pConf.State.NeighborAddress,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
+		)
 		peer.fsm.lock.RUnlock()
 		return false
 	}
@@ -1127,11 +1114,10 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	peer.fsm.lock.RUnlock()
 	if !ok {
 		s.logger.Warn("Route family isn't supported",
-			log.Fields{
-				"Topic":  "Peer",
-				"Key":    peer.ID(),
-				"Family": rf,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.ID()),
+			slog.String("Family", rf.String()),
+		)
 		return nil
 	}
 
@@ -1140,10 +1126,9 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	peer.fsm.lock.RUnlock()
 	if !ok {
 		s.logger.Warn("ROUTE_REFRESH received but the capability wasn't advertised",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.ID(),
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.ID()),
+		)
 		return nil
 	}
 	rfList := []bgp.Family{rf}
@@ -1262,11 +1247,10 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					sendfsmOutgoingMsg(peer, paths)
 				} else {
 					s.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   peer.ID(),
-							"Data":  path,
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", peer.ID()),
+						slog.Any("Path", path),
+					)
 				}
 			}
 		}
@@ -1404,11 +1388,10 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 					bestList = []*table.Path{}
 					targetPeer.sendMaxPathFiltered[newPath.GetLocalKey()] = struct{}{}
 					s.logger.Warn("exceeding max routes for prefix",
-						log.Fields{
-							"Topic":  "Peer",
-							"Key":    targetPeer.ID(),
-							"Prefix": newPath.GetPrefix(),
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", targetPeer.ID()),
+						slog.String("Prefix", newPath.GetPrefix()),
+					)
 				}
 			}
 			if needToAdvertise(targetPeer) && len(bestList) > 0 {
@@ -1541,23 +1524,21 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						timer := time.NewTimer(time.Second * time.Duration(t))
 
 						s.logger.Info("LLGR restart timer started",
-							log.Fields{
-								"Topic":    "Peer",
-								"Key":      peer.ID(),
-								"Family":   family,
-								"Duration": t,
-							})
+							slog.String("Topic", "Peer"),
+							slog.String("Key", peer.ID()),
+							slog.String("Family", family.String()),
+							slog.Any("Duration", t),
+						)
 
 						select {
 						case <-timer.C:
 							err := s.mgmtOperation(func() error {
 								s.logger.Info("LLGR restart timer expired",
-									log.Fields{
-										"Topic":    "Peer",
-										"Key":      peer.ID(),
-										"Family":   family,
-										"Duration": t,
-									})
+									slog.String("Topic", "Peer"),
+									slog.String("Key", peer.ID()),
+									slog.String("Family", family.String()),
+									slog.Any("Duration", t),
+								)
 
 								s.propagateUpdate(peer, peer.DropAll([]bgp.Family{family}))
 
@@ -1571,21 +1552,19 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 								// this would not happen, but handle the error just in case
 								// the above operation changes in the future
 								s.logger.Error("LLGR restart timer expired but failed to propagate update",
-									log.Fields{
-										"Topic":    "Peer",
-										"Key":      peer.ID(),
-										"Family":   family,
-										"Duration": t,
-									})
+									slog.String("Topic", "Peer"),
+									slog.String("Key", peer.ID()),
+									slog.String("Family", family.String()),
+									slog.Any("Duration", t),
+								)
 							}
 						case <-endCh:
 							s.logger.Info("LLGR restart timer stopped",
-								log.Fields{
-									"Topic":    "Peer",
-									"Key":      peer.ID(),
-									"Family":   family,
-									"Duration": t,
-								})
+								slog.String("Topic", "Peer"),
+								slog.String("Key", peer.ID()),
+								slog.String("Family", family.String()),
+								slog.Any("Duration", t),
+							)
 						}
 					}(f, endCh)
 				}
@@ -1707,20 +1686,18 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 					}
 					s.logger.Info("sync finished",
-						log.Fields{
-							"Topic": "Server",
-							"Key":   peer.ID(),
-						})
+						slog.String("Topic", "Server"),
+						slog.String("Key", peer.ID()),
+					)
 				} else {
 					peer.fsm.lock.RLock()
 					deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
 					peer.fsm.lock.RUnlock()
 					s.logger.Debug("Now syncing, suppress sending updates. start deferral timer",
-						log.Fields{
-							"Topic":    "Server",
-							"Key":      peer.ID(),
-							"Duration": deferral,
-						})
+						slog.String("Topic", "Server"),
+						slog.String("Key", peer.ID()),
+						slog.Any("Duration", deferral),
+					)
 					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.Family(0)))
 				}
 			}
@@ -1840,9 +1817,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							}
 						}
 						s.logger.Info("sync finished",
-							log.Fields{
-								"Topic": "Server",
-							})
+							slog.String("Topic", "Server"),
+						)
 					}
 
 					// we don't delay non-route-target NLRIs when local-restarting
@@ -1857,11 +1833,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
 						peer.fsm.lock.RLock()
 						s.logger.Debug("withdraw stale routes",
-							log.Fields{
-								"Topic":   "Peer",
-								"Key":     peer.fsm.pConf.State.NeighborAddress,
-								"Numbers": len(pathList),
-							})
+							slog.String("Topic", "Peer"),
+							slog.String("Key", peer.ID()),
+							slog.Int("Numbers", len(pathList)))
+
 						peer.fsm.lock.RUnlock()
 						s.propagateUpdate(peer, pathList)
 					}
@@ -1874,10 +1849,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				if rtc && peer.getRtcEORWait() {
 					peer.setRtcEORWait(false)
 					s.logger.Debug("received route-target eor. flash non-route-target NLRIs",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   peer.ID(),
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", peer.ID()))
+
 					families := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
 					for _, f := range peer.negotiatedRFList() {
 						if f != bgp.RF_RTC_UC {
@@ -1890,12 +1864,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				}
 			}
 		default:
-			s.logger.Fatal("unknown msg type",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.State.NeighborAddress,
-					"Data":  e.MsgData,
-				})
+			s.logger.Error("unknown msg type",
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.Any("Data", e.MsgData))
 		}
 	}
 }
@@ -1944,7 +1916,12 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 		if sysDescr == "" {
 			sysDescr = version.Version()
 		}
-		s.logger.Debug("add bmp server", log.Fields{"address": r.Address, "port": r.Port, "policy": r.Policy})
+		s.logger.Debug("add bmp server",
+			slog.String("Topic", "Server"),
+			slog.String("Key", r.Address),
+			slog.Int("Port", int(port)),
+			slog.String("Policy", r.Policy.String()))
+
 		return s.bmpManager.addServer(&oc.BmpServerConfig{
 			Address:               netip.MustParseAddr(r.Address),
 			Port:                  port,
@@ -2085,10 +2062,9 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		for _, peer := range s.neighborMap {
 			peer.fsm.lock.RLock()
 			s.logger.Info("call set policy",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.State.NeighborAddress,
-				})
+				slog.String("Topic", "Server"),
+				slog.String("Key", peer.ID()))
+
 			peer.fsm.lock.RUnlock()
 			a, err := getConfig(peer.ID())
 			if err != nil {
@@ -2666,19 +2642,17 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 				peer.fsm.lock.Unlock()
 				s.logger.Debug("deferral timer expired",
-					log.Fields{
-						"Topic":    "Peer",
-						"Key":      peer.ID(),
-						"Families": families,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", peer.ID()),
+					slog.Any("Families", families),
+				)
 			} else if y && !c.MpGracefulRestart.State.EndOfRibReceived {
 				peer.setRtcEORWait(false)
 				s.logger.Debug("route-target deferral timer expired",
-					log.Fields{
-						"Topic":    "Peer",
-						"Key":      peer.ID(),
-						"Families": families,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", peer.ID()),
+					slog.Any("Families", families),
+				)
 			} else {
 				continue
 			}
@@ -2705,28 +2679,22 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 
 func (s *BgpServer) sResetIn(addr string, family bgp.Family) error {
 	s.logger.Info("Neighbor soft reset in",
-		log.Fields{
-			"Topic": "Operation",
-			"Key":   addr,
-		})
+		slog.String("Topic", "Operation"),
+		slog.String("Key", addr))
 	return s.softResetIn(addr, family)
 }
 
 func (s *BgpServer) sResetOut(addr string, family bgp.Family) error {
 	s.logger.Info("Neighbor soft reset out",
-		log.Fields{
-			"Topic": "Operation",
-			"Key":   addr,
-		})
+		slog.String("Topic", "Operation"),
+		slog.String("Key", addr))
 	return s.softResetOut(addr, family, false)
 }
 
 func (s *BgpServer) sReset(addr string, family bgp.Family) error {
 	s.logger.Info("Neighbor soft reset",
-		log.Fields{
-			"Topic": "Operation",
-			"Key":   addr,
-		})
+		slog.String("Topic", "Operation"),
+		slog.String("Key", addr))
 	err := s.softResetIn(addr, family)
 	if err != nil {
 		return err
@@ -3233,10 +3201,8 @@ func (s *BgpServer) addPeerGroup(c *oc.PeerGroup) error {
 	}
 
 	s.logger.Info("Add a peer group configuration",
-		log.Fields{
-			"Topic": "Peer",
-			"Name":  name,
-		})
+		slog.String("Topic", "Peer"),
+		slog.String("Name", name))
 
 	s.peerGroupMap[c.Config.PeerGroupName] = newPeerGroup(c)
 
@@ -3291,20 +3257,16 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 			if c.Config.AuthPassword != "" {
 				if err := netutils.SetTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
 					s.logger.Warn("failed to set md5",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   addr,
-							"Err":   err,
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", addr),
+						slog.String("Err", err.Error()))
 				}
 			}
 		}
 	}
 	s.logger.Info("Add a peer configuration",
-		log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		})
+		slog.String("Topic", "Peer"),
+		slog.String("Key", addr))
 
 	rib := s.globalRib
 	if c.RouteServer.Config.RouteServerClient {
@@ -3374,17 +3336,13 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 			for _, l := range s.listListeners(addr.String()) {
 				if err := netutils.SetTCPMD5SigSockopt(l, prefix, pConf.Config.AuthPassword); err != nil {
 					s.logger.Warn("failed to set md5",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   prefix,
-							"Err":   err,
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", prefix),
+						slog.String("Err", err.Error()))
 				} else {
 					s.logger.Info("successfully set md5 for dynamic peer",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   prefix,
-						},
+						slog.String("Topic", "Peer"),
+						slog.String("Key", prefix),
 					)
 				}
 			}
@@ -3399,10 +3357,8 @@ func (s *BgpServer) deletePeerGroup(name string) error {
 	}
 
 	s.logger.Info("Delete a peer group configuration",
-		log.Fields{
-			"Topic": "Peer",
-			"Name":  name,
-		})
+		slog.String("Topic", "Peer"),
+		slog.String("Name", name))
 
 	delete(s.peerGroupMap, name)
 	return nil
@@ -3436,19 +3392,16 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 		if c.Config.AuthPassword != "" {
 			if err := netutils.SetTCPMD5SigSockopt(l, addr, ""); err != nil {
 				s.logger.Warn("failed to unset md5",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   addr,
-						"Err":   err,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", addr),
+					slog.String("Err", err.Error()))
 			}
 		}
 	}
 	s.logger.Info("Delete a peer configuration",
-		log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		})
+		slog.String("Topic", "Peer"),
+		slog.String("Key", addr),
+	)
 
 	if sendNotification {
 		n.fsm.deconfiguredNotification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
@@ -3505,20 +3458,17 @@ func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDyna
 					for _, l := range s.listListeners(addr.String()) {
 						if err := netutils.SetTCPMD5SigSockopt(l, prefix, ""); err != nil {
 							s.logger.Warn("failed to clear md5",
-								log.Fields{
-									"Topic": "Peer",
-									"Key":   prefix,
-									"Err":   err,
-								})
+								slog.String("Topic", "Peer"),
+								slog.String("Key", prefix),
+								slog.String("Err", err.Error()))
 						}
 					}
 				} else {
 					s.logger.Warn("Cannot clear up dynamic MD5, invalid prefix",
-						log.Fields{
-							"Topic": "Peer",
-							"Key":   prefix,
-							"Err":   perr,
-						})
+						slog.String("Topic", "Peer"),
+						slog.String("Key", prefix),
+						slog.String("Err", perr.Error()),
+					)
 				}
 			}
 		}
@@ -3585,11 +3535,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	}
 
 	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
-		s.logger.Info("Update ApplyPolicy",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   addr,
-			})
+		s.logger.Info("Update ApplyPolicy", slog.String("Topic", "Peer"), slog.String("Key", peer.ID()))
 
 		err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
 		if err != nil {
@@ -3601,11 +3547,8 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	original := peer.fsm.pConf
 
 	if !original.AsPathOptions.Config.Equal(&c.AsPathOptions.Config) {
-		s.logger.Info("Update aspath options",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.ID(),
-			})
+		s.logger.Info("Update aspath options", slog.String("Topic", "Peer"), slog.String("Key", peer.ID()))
+
 		needsSoftResetIn = true
 	}
 
@@ -3619,42 +3562,35 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 				state = "Admin Up"
 			}
 			s.logger.Info("Update admin-state configuration",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.ID(),
-					"State": state,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", peer.ID()),
+				slog.String("State", state))
 		} else if original.Config.PeerAs != c.Config.PeerAs {
 			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
 		}
 		if err = s.deleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub, true); err != nil {
 			s.logger.Error("failed to delete neighbor",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"Err":   err,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", addr),
+				slog.String("Err", err.Error()))
+
 			return needsSoftResetIn, err
 		}
 		err = s.addNeighbor(c)
 		if err != nil {
 			s.logger.Error("failed to add neighbor",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"Err":   err,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", addr),
+				slog.String("Err", err.Error()))
 		}
 		return needsSoftResetIn, err
 	}
 
 	if !original.Timers.Config.Equal(&c.Timers.Config) {
 		s.logger.Info("Update timer configuration",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.ID(),
-				"Err":   err,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.ID()),
+			slog.String("Err", err.Error()))
 		peer.fsm.pConf.Timers.Config = c.Timers.Config
 	}
 
@@ -3664,11 +3600,9 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	}
 	if err != nil {
 		s.logger.Error("failed to update prefixLimit",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   addr,
-				"Err":   err,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", addr),
+			slog.String("Err", err.Error()))
 		// rollback to original state
 		peer.fsm.pConf = original
 		return needsSoftResetIn, err
@@ -3686,20 +3620,16 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if setTTL && peer.fsm.conn != nil {
 		if err := setPeerConnTTL(peer.fsm); err != nil {
 			s.logger.Error("failed to set peer connection TTL",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-					"Err":   err,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", addr),
+				slog.String("Err", err.Error()))
 			// rollback to original state
 			peer.fsm.pConf = original
 			if err := setPeerConnTTL(peer.fsm); err != nil {
 				s.logger.Error("failed to rollback peer connection TTL",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   addr,
-						"Err":   err,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", addr),
+					slog.String("Err", err.Error()))
 			}
 			return needsSoftResetIn, err
 		}
@@ -3740,11 +3670,9 @@ func (s *BgpServer) addrToPeers(addr string) (l []*peer, err error) {
 
 func (s *BgpServer) sendNotification(op, addr string, subcode uint8, data []byte) error {
 	s.logger.Info("Send operation notification",
-		log.Fields{
-			"Topic": "Operation",
-			"Key":   addr,
-			"Op":    op,
-		})
+		slog.String("Topic", "Operation"),
+		slog.String("Key", addr),
+		slog.String("Op", op))
 
 	peers, err := s.addrToPeers(addr)
 	if err == nil {
@@ -3816,19 +3744,15 @@ func (s *BgpServer) setAdminState(addr, communication string, state adminState) 
 			case peer.fsm.adminStateCh <- *stateOp:
 				peer.fsm.lock.RLock()
 				s.logger.Debug("set admin state",
-					log.Fields{
-						"Topic":   "Peer",
-						"Key":     peer.fsm.pConf.State.NeighborAddress,
-						"Message": message,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
+					slog.String("Message", message))
 				peer.fsm.lock.RUnlock()
 			default:
 				peer.fsm.lock.RLock()
 				s.logger.Warn("previous setting admin state request is still remaining",
-					log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.fsm.pConf.State.NeighborAddress,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()))
 				peer.fsm.lock.RUnlock()
 			}
 		}
@@ -4540,46 +4464,40 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 }
 
 func (s *BgpServer) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) error {
-	var newLevel log.LogLevel
+	var newLevel slog.Level
 	switch r.Level {
-	case api.SetLogLevelRequest_LEVEL_PANIC:
-		newLevel = log.PanicLevel
-	case api.SetLogLevelRequest_LEVEL_FATAL:
-		newLevel = log.FatalLevel
 	case api.SetLogLevelRequest_LEVEL_ERROR:
-		newLevel = log.ErrorLevel
+		newLevel = slog.LevelError
 	case api.SetLogLevelRequest_LEVEL_WARN:
-		newLevel = log.WarnLevel
+		newLevel = slog.LevelWarn
 	case api.SetLogLevelRequest_LEVEL_INFO:
-		newLevel = log.InfoLevel
+		newLevel = slog.LevelInfo
 	case api.SetLogLevelRequest_LEVEL_DEBUG:
-		newLevel = log.DebugLevel
-	case api.SetLogLevelRequest_LEVEL_TRACE:
-		newLevel = log.TraceLevel
+		newLevel = slog.LevelDebug
 	default:
 		return status.Errorf(codes.InvalidArgument, "Unknown log level %s", r.Level)
 	}
 
-	oldLevel := s.logger.GetLevel()
-	if oldLevel == newLevel {
-		s.logger.Info("Logging level unchanged",
-			log.Fields{
-				"Topic":    "Config",
-				"OldLevel": oldLevel,
-			})
-	} else {
-		s.logger.SetLevel(newLevel)
-		s.logger.Info("Logging level changed",
-			log.Fields{
-				"Topic":    "Config",
-				"OldLevel": oldLevel,
-				"NewLevel": newLevel,
-			})
+	if s.logLevelVar != nil {
+		lvl := s.logLevelVar.Level()
+		if lvl == newLevel {
+			s.logger.Info("Logging level unchanged",
+				slog.String("Topic", "Config"),
+				slog.String("OldLevel", lvl.String()),
+				slog.String("NewLevel", newLevel.String()))
+		} else {
+			s.logLevelVar.Set(newLevel)
+			s.logger.Warn("Logging level changed",
+				slog.String("Topic", "Config"),
+				slog.String("OldLevel", lvl.String()),
+				slog.String("NewLevel", newLevel.String()))
+		}
+		return nil
 	}
 	return nil
 }
 
-func (s *BgpServer) Log() log.Logger {
+func (s *BgpServer) Log() *slog.Logger {
 	return s.logger
 }
 

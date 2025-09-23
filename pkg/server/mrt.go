@@ -19,13 +19,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"os"
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/mrt"
 )
@@ -66,11 +66,10 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 
 	if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.s.bgpConfig.Global.Config.RouterId, "", peers)); err != nil {
 		m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
-			log.Fields{
-				"Topic":   "mrt",
-				"Error":   err,
-				"Subtype": mrt.PEER_INDEX_TABLE,
-			})
+			slog.String("Topic", "mrt"),
+			slog.String("Error", err.Error()),
+			slog.Any("Subtype", mrt.PEER_INDEX_TABLE),
+		)
 		return []*mrt.MRTMessage{}
 	} else {
 		msgs = append(msgs, bm)
@@ -109,11 +108,9 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 		st := subtype(path, isAddPath)
 		if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, st, mrt.NewRib(seq, path.GetFamily(), path.GetNlri(), entries)); err != nil {
 			m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
-				log.Fields{
-					"Topic":   "mrt",
-					"Error":   err,
-					"Subtype": st,
-				})
+				slog.String("Topic", "mrt"),
+				slog.String("Error", err.Error()),
+				slog.String("Data", path.String()))
 		} else {
 			msgs = append(msgs, bm)
 			seq++
@@ -220,12 +217,11 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 			}
 			if bm, err := mrt.NewMRTMessage(e.Timestamp, mrt.BGP4MP, subtype, mp); err != nil {
 				m.s.logger.Warn("Failed to create MRT BGP4MP message",
-					log.Fields{
-						"Topic":   "mrt",
-						"Data":    e,
-						"Error":   err,
-						"Subtype": subtype,
-					})
+					slog.String("Topic", "mrt"),
+					slog.Any("Data", e),
+					slog.String("Error", err.Error()),
+					slog.Any("Subtype", subtype),
+				)
 			} else {
 				msg = append(msg, bm)
 			}
@@ -239,10 +235,9 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 				m.file.Sync()
 			} else {
 				m.s.logger.Warn("Can't write to destination MRT file",
-					log.Fields{
-						"Topic": "mrt",
-						"Error": err,
-					})
+					slog.String("Topic", "mrt"),
+					slog.String("Error", err.Error()),
+				)
 			}
 		}
 
@@ -250,10 +245,8 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 		for _, msg := range msgs {
 			if buf, err := msg.Serialize(); err != nil {
 				m.s.logger.Warn("Failed to serialize event",
-					log.Fields{
-						"Topic": "mrt",
-						"Error": err,
-					})
+					slog.String("Topic", "mrt"),
+					slog.String("Error", err.Error()))
 			} else {
 				b.Write(buf)
 				if b.Len() > 1*1000*1000 {
@@ -274,10 +267,8 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 			m.file = file
 		} else {
 			m.s.logger.Warn("can't rotate MRT file",
-				log.Fields{
-					"Topic": "mrt",
-					"Error": err,
-				})
+				slog.String("Topic", "mrt"),
+				slog.String("Error", err.Error()))
 		}
 	}
 
@@ -312,17 +303,16 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 	}
 }
 
-func mrtFileOpen(logger log.Logger, filename string, rInterval uint64) (*os.File, error) {
+func mrtFileOpen(logger *slog.Logger, filename string, rInterval uint64) (*os.File, error) {
 	realname := filename
 	if rInterval != 0 {
 		realname = time.Now().Format(filename)
 	}
 	logger.Debug("Setting new MRT destination file",
-		log.Fields{
-			"Topic":            "mrt",
-			"Filename":         realname,
-			"RotationInterval": rInterval,
-		})
+		slog.String("Topic", "mrt"),
+		slog.String("Filename", realname),
+		slog.Uint64("RotationInterval", rInterval),
+	)
 
 	i := len(realname)
 	for i > 0 && os.IsPathSeparator(realname[i-1]) {
@@ -338,10 +328,10 @@ func mrtFileOpen(logger log.Logger, filename string, rInterval uint64) (*os.File
 	if j > 0 {
 		if err := os.MkdirAll(realname[:j-1], 0o755); err != nil {
 			logger.Warn("can't create MRT destination directory",
-				log.Fields{
-					"Topic": "mrt",
-					"Error": err,
-				})
+				slog.String("Topic", "mrt"),
+				slog.String("Filename", realname),
+				slog.String("Error", err.Error()),
+			)
 			return nil, err
 		}
 	}
@@ -349,10 +339,9 @@ func mrtFileOpen(logger log.Logger, filename string, rInterval uint64) (*os.File
 	file, err := os.OpenFile(realname, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		logger.Warn("can't create MRT destination file",
-			log.Fields{
-				"Topic": "mrt",
-				"Error": err,
-			})
+			slog.String("Topic", "mrt"),
+			slog.String("Error", err.Error()),
+		)
 	}
 	return file, err
 }
@@ -391,10 +380,8 @@ func (m *mrtManager) enable(c *oc.MrtConfig) error {
 	setRotationMin := func() {
 		if rInterval < minRotationInterval {
 			m.bgpServer.logger.Info("use minimum mrt rotation interval",
-				log.Fields{
-					"Topic":    "mrt",
-					"Interval": minRotationInterval,
-				})
+				slog.String("Topic", "mrt"),
+				slog.Int("Interval", minRotationInterval))
 			rInterval = minRotationInterval
 		}
 	}
@@ -404,10 +391,8 @@ func (m *mrtManager) enable(c *oc.MrtConfig) error {
 		if rInterval == 0 {
 			if dInterval < minDumpInterval {
 				m.bgpServer.logger.Info("use minimum mrt dump interval",
-					log.Fields{
-						"Topic":    "mrt",
-						"Interval": minDumpInterval,
-					})
+					slog.String("Topic", "mrt"),
+					slog.Int("Interval", minDumpInterval))
 				dInterval = minDumpInterval
 			}
 		} else if dInterval == 0 {

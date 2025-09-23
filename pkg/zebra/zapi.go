@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net"
 	"net/netip"
@@ -28,7 +29,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -1369,17 +1369,16 @@ type Client struct {
 	conn          net.Conn
 	Version       uint8
 	Software      Software
-	logger        log.Logger
+	logger        *slog.Logger
 }
 
-func ReceiveSingleMsg(logger log.Logger, conn net.Conn, version uint8, software Software, topic string) (*Message, error) {
+func ReceiveSingleMsg(logger *slog.Logger, conn net.Conn, version uint8, software Software, topic string) (*Message, error) {
 	headerBuf, err := readAll(conn, int(HeaderSize(version)))
 	if err != nil {
 		logger.Error("failed to read header",
-			log.Fields{
-				"Topic": topic,
-				"Error": err,
-			})
+			slog.String("Topic", topic),
+			slog.String("Error", err.Error()),
+		)
 		return nil, err
 	}
 
@@ -1387,29 +1386,24 @@ func ReceiveSingleMsg(logger log.Logger, conn net.Conn, version uint8, software 
 	err = hd.decodeFromBytes(headerBuf)
 	if version != hd.Version {
 		logger.Warn(fmt.Sprintf("ZAPI version mismatch. configured version: %d, version of received message:%d", version, hd.Version),
-			log.Fields{
-				"Topic": topic,
-			})
+			slog.String("Topic", topic))
 		return nil, errors.New("ZAPI version mismatch")
 	}
 	if err != nil {
 		logger.Error("failed to decode header",
-			log.Fields{
-				"Topic": topic,
-				"Data":  headerBuf,
-				"Error": err,
-			})
+			slog.String("Topic", topic),
+			slog.String("Error", err.Error()),
+		)
 		return nil, err
 	}
 
 	bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
 	if err != nil {
 		logger.Error("failed to read body",
-			log.Fields{
-				"Topic":  topic,
-				"Header": hd,
-				"Error":  err,
-			})
+			slog.String("Topic", topic),
+			slog.Any("Header", hd),
+			slog.String("Error", err.Error()),
+		)
 		return nil, err
 	}
 
@@ -1418,25 +1412,23 @@ func ReceiveSingleMsg(logger log.Logger, conn net.Conn, version uint8, software 
 		// Just outputting warnings (not error message) and ignore this
 		// error considering the case that body parser is not implemented yet.
 		logger.Warn("failed to decode body",
-			log.Fields{
-				"Topic":  topic,
-				"Header": hd,
-				"Data":   bodyBuf,
-				"Error":  err,
-			})
+			slog.String("Topic", topic),
+			slog.Any("Header", hd),
+			slog.Any("Data", bodyBuf),
+			slog.String("Error", err.Error()),
+		)
 		return nil, nil
 	}
 	logger.Debug("read message from zebra",
-		log.Fields{
-			"Topic":   topic,
-			"Message": m,
-		})
+		slog.String("Topic", topic),
+		slog.Any("Header", m.Header),
+		slog.Any("Body", m.Body))
 
 	return m, nil
 }
 
 // NewClient returns a Client instance (Client constructor)
-func NewClient(logger log.Logger, network, address string, typ RouteType, version uint8, software Software, mplsLabelRangeSize uint32) (*Client, error) {
+func NewClient(logger *slog.Logger, network, address string, typ RouteType, version uint8, software Software, mplsLabelRangeSize uint32) (*Client, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, err
@@ -1464,26 +1456,23 @@ func NewClient(logger log.Logger, network, address string, typ RouteType, versio
 			if more {
 				b, err := m.Serialize(software)
 				if err != nil {
-					logger.Warn(fmt.Sprintf("failed to serialize: %v", m),
-						log.Fields{
-							"Topic": "Zebra",
-						})
+					logger.Warn(fmt.Sprintf("failed to serialize: %v", m), slog.String("Topic", "Zebra"))
+
 					continue
 				}
 
 				_, err = conn.Write(b)
 				if err != nil {
 					logger.Error("failed to write",
-						log.Fields{
-							"Topic": "Zebra",
-							"Error": err,
-						})
+						slog.String("Topic", "Zebra"),
+						slog.String("Error", err.Error()),
+					)
 					closeChannel(outgoing)
 					return
 				}
 			} else {
 				logger.Debug("finish outgoing loop",
-					log.Fields{"Topic": "Zebra"})
+					slog.String("Topic", "Zebra"))
 				return
 			}
 		}
@@ -1496,10 +1485,9 @@ func NewClient(logger log.Logger, network, address string, typ RouteType, versio
 	if mplsLabelRangeSize > 0 && c.SupportMpls() {
 		if err := c.sendLabelManagerConnect(true); err != nil {
 			logger.Warn("failed to send label manager connect",
-				log.Fields{
-					"Topic": "Zebra",
-					"Error": err,
-				})
+				slog.String("Topic", "Zebra"),
+				slog.String("Error", err.Error()),
+			)
 		}
 	}
 
@@ -1542,18 +1530,15 @@ func (c *Client) send(m *Message) {
 	defer func() {
 		if err := recover(); err != nil {
 			c.logger.Debug("recovered",
-				log.Fields{
-					"Topic": "Zebra",
-					"Error": err,
-				})
+				slog.String("Topic", "Zebra"),
+				slog.Any("Error", err),
+			)
 		}
 	}()
 	c.logger.Debug("send command to zebra",
-		log.Fields{
-			"Topic":  "Zebra",
-			"Header": m.Header,
-			"Body":   m.Body,
-		})
+		slog.String("Topic", "Zebra"),
+		slog.Any("Header", m.Header),
+		slog.Any("Body", m.Body))
 	c.outgoing <- m
 }
 
@@ -2620,7 +2605,7 @@ type IPRouteBody struct {
 	// vrfID        uint32    // lib/zebra.h:typedef uint32_t vrf_id_t;
 }
 
-func (b *IPRouteBody) safi(logger log.Logger, version uint8, software Software) Safi {
+func (b *IPRouteBody) safi(logger *slog.Logger, version uint8, software Software) Safi {
 	// frr 7.2 and later versions have safiUnspec, older versions don't have safiUnspec
 	if b.Safi == safiUnspec && (version < 6 ||
 		version == 6 && software.name == "frr" && software.version < 7.2) {
@@ -2638,17 +2623,16 @@ func (b *IPRouteBody) safi(logger log.Logger, version uint8, software Software) 
 		safi = safiUnspec // failed to convert
 	}
 	logger.Debug("zebra converts safi",
-		log.Fields{
-			"Topic": "Zebra",
-			"Body":  b,
-			"Old":   b.Safi.String(),
-			"New":   safi.String(),
-		})
+		slog.String("Topic", "Zebra"),
+		slog.Any("Body", b),
+		slog.String("Old", b.Safi.String()),
+		slog.String("New", safi.String()),
+	)
 	return safi // success to convert
 }
 
 // Family is referred in zclient
-func (b *IPRouteBody) Family(logger log.Logger, version uint8, software Software) bgp.Family {
+func (b *IPRouteBody) Family(logger *slog.Logger, version uint8, software Software) bgp.Family {
 	if b == nil {
 		return bgp.RF_OPAQUE // fail
 	}
@@ -2672,12 +2656,10 @@ func (b *IPRouteBody) Family(logger log.Logger, version uint8, software Software
 		return bgp.RF_OPAQUE // fail
 	}
 	logger.Debug("zebra converts safi",
-		log.Fields{
-			"Topic": "Zebra",
-			"Body":  b,
-			"Safi":  safi.String(),
-			"Rf":    rf.String(),
-		})
+		slog.String("Topic", "Zebra"),
+		slog.Any("Body", b),
+		slog.String("Safi", safi.String()),
+		slog.String("Rf", rf.String()))
 
 	return rf // success
 }

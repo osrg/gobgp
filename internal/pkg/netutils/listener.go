@@ -18,13 +18,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 	"sync"
 	"syscall"
 
 	cmap "github.com/orcaman/concurrent-map/v2"
-	"github.com/osrg/gobgp/v4/pkg/log"
 )
 
 type TCPConn struct {
@@ -63,21 +63,20 @@ type TCPListener struct {
 	connChan     chan net.Conn
 	acceptedConn cmap.ConcurrentMap[string, *TCPConn] // key is RemoteAddr().String()
 	stopWg       *sync.WaitGroup                      // used to wait for acceptLoop to finish
-	logger       log.Logger
+	logger       *slog.Logger
 }
 
-func listenControl(logger log.Logger, bindToDev string) func(network, address string, c syscall.RawConn) error {
+func listenControl(logger *slog.Logger, bindToDev string) func(network, address string, c syscall.RawConn) error {
 	return func(network, address string, c syscall.RawConn) error {
 		family := extractFamilyFromAddress(address)
 		if bindToDev != "" {
 			if err := SetBindToDevSockopt(c, bindToDev); err != nil {
 				logger.Warn("failed to bind Listener to device ",
-					log.Fields{
-						"Topic":     "Peer",
-						"Key":       address,
-						"BindToDev": bindToDev,
-						"Error":     err,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Key", address),
+					slog.String("BindToDev", bindToDev),
+					slog.String("Error", err.Error()),
+				)
 				return err
 			}
 		}
@@ -85,11 +84,9 @@ func listenControl(logger log.Logger, bindToDev string) func(network, address st
 		// connection in case for the neighbor has TTL Security settings.
 		if err := setSockOptIpTtl(c, family, 255); err != nil {
 			logger.Warn("cannot set TTL (255) for TCPListener",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   address,
-					"Err":   err,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", address),
+				slog.String("Error", err.Error()))
 		}
 		return nil
 	}
@@ -110,10 +107,8 @@ func (l *TCPListener) acceptLoop() {
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
 				l.logger.Warn("Failed to AcceptTCP",
-					log.Fields{
-						"Topic": "Peer",
-						"Error": err,
-					})
+					slog.String("Topic", "Peer"),
+					slog.String("Error", err.Error()))
 			}
 			return
 		}
@@ -127,11 +122,9 @@ func (l *TCPListener) acceptLoop() {
 		err = conn.SetKeepAlive(false)
 		if err != nil {
 			l.logger.Warn("Failed to SetKeepAlive",
-				log.Fields{
-					"Topic": "Peer",
-					"Key":   key,
-					"Error": err,
-				})
+				slog.String("Topic", "Peer"),
+				slog.String("Key", key),
+				slog.String("Error", err.Error()))
 			return
 		}
 
@@ -144,7 +137,7 @@ func (l *TCPListener) acceptLoop() {
 }
 
 // avoid mapped IPv6 address
-func NewTCPListener(logger log.Logger, address string, port uint32, bindToDev string, connChan chan net.Conn) (*TCPListener, error) {
+func NewTCPListener(logger *slog.Logger, address string, port uint32, bindToDev string, connChan chan net.Conn) (*TCPListener, error) {
 	proto := extractProtoFromAddress(address)
 	config := net.ListenConfig{
 		Control: listenControl(logger, bindToDev),

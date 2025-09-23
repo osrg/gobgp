@@ -16,6 +16,7 @@
 package table
 
 import (
+	"log/slog"
 	"net/netip"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ func TestAddPath(t *testing.T) {
 	family := p1.GetFamily()
 	families := []bgp.Family{family}
 
-	adj := NewAdjRib(logger, families)
+	adj := NewAdjRib(slog.Default(), families)
 	adj.Update([]*Path{p1, p2})
 	assert.Equal(t, len(adj.table[family].GetDestinations()), 1)
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
@@ -86,7 +87,7 @@ func TestAddPathAdjOut(t *testing.T) {
 	family := p1.GetFamily()
 	families := []bgp.Family{family}
 
-	adj := NewAdjRib(logger, families)
+	adj := NewAdjRib(slog.Default(), families)
 	adj.UpdateAdjRibOut([]*Path{p1, p2, p3, p4})
 	assert.Equal(t, len(adj.table[family].GetDestinations()), 1)
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 4)
@@ -105,7 +106,7 @@ func TestStale(t *testing.T) {
 	family := p1.GetFamily()
 	families := []bgp.Family{family}
 
-	adj := NewAdjRib(logger, families)
+	adj := NewAdjRib(slog.Default(), families)
 	adj.Update([]*Path{p1, p2})
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 1)
@@ -153,7 +154,7 @@ func TestLLGRStale(t *testing.T) {
 	family := p1.GetFamily()
 	families := []bgp.Family{family}
 
-	adj := NewAdjRib(logger, families)
+	adj := NewAdjRib(slog.Default(), families)
 	adj.Update([]*Path{p1, p2, p3, p4})
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 4)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 2)

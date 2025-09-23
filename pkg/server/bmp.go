@@ -18,6 +18,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strconv"
@@ -28,7 +29,6 @@ import (
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 )
@@ -88,10 +88,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
 		b.s.logger.Debug("Connecting to BMP server",
-			log.Fields{
-				"Topic": "bmp",
-				"Key":   b.host,
-			})
+			slog.String("Topic", "bmp"),
+			slog.String("Key", b.host))
 		conn, err := net.Dial("tcp", b.host)
 		if err != nil {
 			select {
@@ -105,10 +103,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 			}
 		} else {
 			b.s.logger.Debug("Connected to BMP server",
-				log.Fields{
-					"Topic": "bmp",
-					"Key":   b.host,
-				})
+				slog.String("Topic", "bmp"),
+				slog.String("Key", b.host))
 			return conn.(*net.TCPConn)
 		}
 	}
@@ -132,7 +128,7 @@ func (b *bmpClient) loop() {
 			}()
 			ops := []WatchOption{WatchPeer()}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
-				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", log.Fields{"Topic": "bmp"})
+				b.s.logger.Warn("both option for route-monitoring-policy is obsoleted", slog.String("Topic", "bmp"))
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchUpdate(true, "", ""))
@@ -151,7 +147,7 @@ func (b *bmpClient) loop() {
 
 			var tickerCh <-chan time.Time
 			if b.c.StatisticsTimeout == 0 {
-				b.s.logger.Debug("statistics reports disabled", log.Fields{"Topic": "bmp"})
+				b.s.logger.Debug("statistics reports disabled", slog.String("Topic", "bmp"))
 			} else {
 				t := time.NewTicker(time.Duration(b.c.StatisticsTimeout) * time.Second)
 				defer t.Stop()
@@ -163,10 +159,9 @@ func (b *bmpClient) loop() {
 				_, err := conn.Write(buf)
 				if err != nil {
 					b.s.logger.Warn("failed to write to bmp server",
-						log.Fields{
-							"Topic": "bmp",
-							"Key":   b.host,
-						})
+						slog.String("Topic", "bmp"),
+						slog.String("Key", b.host),
+						slog.String("Message", err.Error()))
 				}
 				return err
 			}

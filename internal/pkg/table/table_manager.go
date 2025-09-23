@@ -18,12 +18,12 @@ package table
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"time"
 
 	"github.com/dgryski/go-farm"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -144,10 +144,10 @@ type TableManager struct {
 	Tables map[bgp.Family]*Table
 	Vrfs   map[string]*Vrf
 	rfList []bgp.Family
-	logger log.Logger
+	logger *slog.Logger
 }
 
-func NewTableManager(logger log.Logger, rfList []bgp.Family) *TableManager {
+func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
 	t := &TableManager{
 		Tables: make(map[bgp.Family]*Table),
 		Vrfs:   make(map[string]*Vrf),
@@ -173,13 +173,12 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		return nil, err
 	}
 	manager.logger.Debug("add vrf",
-		log.Fields{
-			"Topic":    "Vrf",
-			"Key":      name,
-			"Rd":       rd,
-			"ImportRt": rtMap.ToSlice(),
-			"ExportRt": exportRt,
-		})
+		slog.String("Topic", "Vrf"),
+		slog.String("Key", name),
+		slog.String("Rd", rd.String()),
+		slog.Any("ImportRt", rtMap.ToSlice()),
+		slog.Any("ExportRt", exportRt),
+	)
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
 		Id:       id,
@@ -210,14 +209,13 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 		msgs = append(msgs, t.deletePathsByVrf(vrf)...)
 	}
 	manager.logger.Debug("delete vrf",
-		log.Fields{
-			"Topic":     "Vrf",
-			"Key":       vrf.Name,
-			"Rd":        vrf.Rd,
-			"ImportRt":  vrf.ImportRt.ToSlice(),
-			"ExportRt":  vrf.ExportRt,
-			"MplsLabel": vrf.MplsLabel,
-		})
+		slog.String("Topic", "Vrf"),
+		slog.String("Key", vrf.Name),
+		slog.String("Rd", vrf.Rd.String()),
+		slog.Any("ImportRt", vrf.ImportRt.ToSlice()),
+		slog.Any("ExportRt", vrf.ExportRt),
+		slog.Any("MplsLabel", vrf.MplsLabel),
+	)
 	delete(manager.Vrfs, name)
 	rtcTable := manager.Tables[bgp.RF_RTC_UC]
 	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)

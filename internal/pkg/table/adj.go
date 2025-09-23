@@ -17,18 +17,18 @@ package table
 
 import (
 	"fmt"
+	"log/slog"
 
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 type AdjRib struct {
 	accepted map[bgp.Family]int
 	table    map[bgp.Family]*Table
-	logger   log.Logger
+	logger   *slog.Logger
 }
 
-func NewAdjRib(logger log.Logger, rfList []bgp.Family) *AdjRib {
+func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 	m := make(map[bgp.Family]*Table)
 	for _, f := range rfList {
 		m[f] = NewTable(logger, f)

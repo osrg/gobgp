@@ -18,10 +18,10 @@ package table
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"reflect"
 
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -80,7 +80,7 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) {
 	}
 }
 
-func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) {
+func UpdatePathAttrs4ByteAs(logger *slog.Logger, msg *bgp.BGPUpdate) {
 	var asAttr *bgp.PathAttributeAsPath
 	var as4Attr *bgp.PathAttributeAs4Path
 	asAttrPos := 0
@@ -151,9 +151,7 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) {
 					typ = "CONFED_SET"
 				}
 				logger.Warn(fmt.Sprintf("AS4_PATH contains %s segment %s. ignore", typ, p.String()),
-					log.Fields{
-						"Topic": "Table",
-					})
+					slog.String("Topic", "Table"))
 				continue
 			}
 			as4Len += p.ASLen()
@@ -163,9 +161,7 @@ func UpdatePathAttrs4ByteAs(logger log.Logger, msg *bgp.BGPUpdate) {
 
 	if asLen+asConfedLen < as4Len {
 		logger.Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH",
-			log.Fields{
-				"Topic": "Table",
-			})
+			slog.String("Topic", "Table"))
 		return
 	}
 

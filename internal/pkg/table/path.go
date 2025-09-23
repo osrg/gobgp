@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net"
 	"net/netip"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
-	"github.com/osrg/gobgp/v4/pkg/log"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -223,7 +223,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, info *PeerInfo, original *Path) *Path {
+func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, info *PeerInfo, original *Path) *Path {
 	if peer.RouteServer.Config.RouteServerClient {
 		return original
 	}
@@ -331,11 +331,9 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 		}
 	default:
 		logger.Warn("invalid peer type",
-			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.State.NeighborAddress,
-				"Type":  peer.State.PeerType,
-			})
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.State.NeighborAddress.String()),
+			slog.Any("Type", peer.State.PeerType))
 	}
 	return path
 }
