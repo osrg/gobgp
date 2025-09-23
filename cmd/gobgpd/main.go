@@ -18,8 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/osrg/gobgp/v4/internal/pkg/grpcutil"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/config"
 	"github.com/osrg/gobgp/v4/pkg/metrics"
@@ -76,6 +75,7 @@ func main() {
 		TLSCertFile       string  `long:"tls-cert-file" description:"The TLS cert file"`
 		TLSKeyFile        string  `long:"tls-key-file" description:"The TLS key file"`
 		TLSClientCAFile   string  `long:"tls-client-ca-file" description:"Optional TLS client CA file to authenticate clients against"`
+		TLSReloadInterval int     `long:"tls-reload-interval" description:"Optional Time in seconds when certificates and CAs are reloaded from disk"`
 		Version           bool    `long:"version" description:"show version number"`
 		SentryDSN         string  `long:"sentry-dsn" description:"Sentry DSN" default:""`
 		SentryEnvironment string  `long:"sentry-environment" description:"Sentry environment" default:"development"`
@@ -196,27 +196,12 @@ func main() {
 	maxSize := 256 << 20
 	grpcOpts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxSize), grpc.MaxSendMsgSize(maxSize)}
 	if opts.TLS {
-		// server cert/key
-		cert, err := tls.LoadX509KeyPair(opts.TLSCertFile, opts.TLSKeyFile)
+		reloader, err := grpcutil.NewTLSReloader(opts.TLSReloadInterval, opts.TLSCertFile, opts.TLSKeyFile, opts.TLSClientCAFile)
 		if err != nil {
-			logger.Fatalf("Failed to load server certificate/key pair: %v", err)
-		}
-		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
-
-		// client CA
-		if len(opts.TLSClientCAFile) != 0 {
-			tlsConfig.ClientCAs = x509.NewCertPool()
-			pemCerts, err := os.ReadFile(opts.TLSClientCAFile)
-			if err != nil {
-				logger.Fatalf("Failed to load client CA certificates from %q: %v", opts.TLSClientCAFile, err)
-			}
-			if ok := tlsConfig.ClientCAs.AppendCertsFromPEM(pemCerts); !ok {
-				logger.Fatalf("No valid client CA certificates in %q", opts.TLSClientCAFile)
-			}
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			logger.Fatalf("Error loading initial TLS Values: %s", err)
 		}
 
-		creds := credentials.NewTLS(tlsConfig)
+		creds := credentials.NewTLS(reloader.GetMainConfig())
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
