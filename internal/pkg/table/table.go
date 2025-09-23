@@ -122,7 +122,7 @@ func (d Destinations) InsertUpdate(dest *Destination) (collision bool) {
 	for i, v := range d[key] {
 		if AddrPrefixOnlyCompare(v.nlri, nlri) == 0 {
 			d[key][i] = dest
-			return
+			return collision
 		}
 	}
 	if !new {

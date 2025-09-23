@@ -468,7 +468,7 @@ func (c *roaClient) established() (err error) {
 
 		body := make([]byte, totalLen-rtr.RTR_MIN_LEN)
 		if _, err = io.ReadFull(c.conn, body); err != nil {
-			return
+			return err
 		}
 
 		c.eventCh <- &roaEvent{

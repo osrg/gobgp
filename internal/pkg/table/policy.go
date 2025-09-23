@@ -3791,7 +3791,7 @@ func (r *RoutingPolicy) AddStatement(st *Statement) (err error) {
 
 	for _, c := range st.Conditions {
 		if err = r.validateCondition(c); err != nil {
-			return
+			return err
 		}
 	}
 	m := r.statementMap
@@ -3858,7 +3858,7 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	for _, st := range x.Statements {
 		for _, c := range st.Conditions {
 			if err = r.validateCondition(c); err != nil {
-				return
+				return err
 			}
 		}
 	}
@@ -3873,7 +3873,7 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 		for _, st := range x.Statements {
 			if _, ok := sMap[st.Name]; ok {
 				err = fmt.Errorf("statement %s already defined", st.Name)
-				return
+				return err
 			}
 			sMap[st.Name] = st
 		}
@@ -3897,7 +3897,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	y, ok := pMap[name]
 	if !ok {
 		err = fmt.Errorf("not found policy: %s", name)
-		return
+		return err
 	}
 	inUse := func(ids []string) bool {
 		for _, id := range ids {
@@ -3915,7 +3915,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	if all {
 		if inUse(activeId) {
 			err = fmt.Errorf("can't delete. policy %s is in use", name)
-			return
+			return err
 		}
 		r.logger.Debug("delete policy",
 			log.Fields{
@@ -3961,11 +3961,11 @@ func (r *RoutingPolicy) AddPolicyAssignment(id string, dir PolicyDirection, poli
 		p, ok := r.policyMap[x.Name]
 		if !ok {
 			err = fmt.Errorf("not found policy %s", x.Name)
-			return
+			return err
 		}
 		if seen[x.Name] {
 			err = fmt.Errorf("duplicated policy %s", x.Name)
-			return
+			return err
 		}
 		seen[x.Name] = true
 		ps = append(ps, p)
@@ -3979,7 +3979,7 @@ func (r *RoutingPolicy) AddPolicyAssignment(id string, dir PolicyDirection, poli
 		for _, x := range ps {
 			if seen[x.Name] {
 				err = fmt.Errorf("duplicated policy %s", x.Name)
-				return
+				return err
 			}
 			seen[x.Name] = true
 		}
@@ -4001,11 +4001,11 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 		p, ok := r.policyMap[x.Name]
 		if !ok {
 			err = fmt.Errorf("not found policy %s", x.Name)
-			return
+			return err
 		}
 		if seen[x.Name] {
 			err = fmt.Errorf("duplicated policy %s", x.Name)
-			return
+			return err
 		}
 		seen[x.Name] = true
 		ps = append(ps, p)
@@ -4049,11 +4049,11 @@ func (r *RoutingPolicy) SetPolicyAssignment(id string, dir PolicyDirection, poli
 		p, ok := r.policyMap[x.Name]
 		if !ok {
 			err = fmt.Errorf("not found policy %s", x.Name)
-			return
+			return err
 		}
 		if seen[x.Name] {
 			err = fmt.Errorf("duplicated policy %s", x.Name)
-			return
+			return err
 		}
 		seen[x.Name] = true
 		ps = append(ps, p)

@@ -240,7 +240,7 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) 
 		checkActive: checkActive,
 		timestamp:   time.Now(),
 	}
-	return
+	return err
 }
 
 func (s *BgpServer) startFsmHandler(peer *peer) {
@@ -2743,7 +2743,7 @@ func (s *BgpServer) validateTable(r *table.Table) (v map[*table.Path]*table.Vali
 			}
 		}
 	}
-	return
+	return v
 }
 
 func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*apiutil.LookupPrefix) (rib *table.Table, v map[*table.Path]*table.Validation, err error) {
@@ -2775,7 +2775,7 @@ func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*apiutil.L
 		v = s.validateTable(rib)
 		return nil
 	}, true)
-	return
+	return rib, v, err
 }
 
 func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*apiutil.LookupPrefix) (rib *table.Table, err error) {
@@ -2805,7 +2805,7 @@ func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*apiuti
 		rib, err = tbl.Select(table.TableSelectOption{VRF: vrfs[name], LookupPrefixes: prefixes})
 		return err
 	}, true)
-	return
+	return rib, err
 }
 
 func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFiltered bool, prefixes []*apiutil.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
@@ -2873,7 +2873,7 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 		v = s.validateTable(rib)
 		return err
 	}, true)
-	return
+	return rib, filtered, v, err
 }
 
 func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI, paths []*apiutil.Path)) error {
@@ -2970,7 +2970,7 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.Family) (info *table.Tabl
 
 		return err
 	}, true)
-	return
+	return info, err
 }
 
 func (s *BgpServer) getAdjRibInfo(addr string, family bgp.Family, in bool) (info *table.TableInfo, err error) {
@@ -2991,7 +2991,7 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.Family, in bool) (info
 		info, err = adjRib.TableInfo(family)
 		return err
 	}, true)
-	return
+	return info, err
 }
 
 func (s *BgpServer) getVrfRibInfo(name string, family bgp.Family) (info *table.TableInfo, err error) {
@@ -3025,7 +3025,7 @@ func (s *BgpServer) getVrfRibInfo(name string, family bgp.Family) (info *table.T
 
 		return err
 	}, true)
-	return
+	return info, err
 }
 
 func (s *BgpServer) GetTable(ctx context.Context, r *api.GetTableRequest) (*api.GetTableResponse, error) {
@@ -3087,7 +3087,7 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (rsp *api.
 		}
 		return nil
 	}, false)
-	return
+	return rsp, err
 }
 
 func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicNeighborRequest, fn func(neighbor *api.DynamicNeighbor)) error {
