@@ -1418,11 +1418,6 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen in
 	if addrlen != 4 && addrlen != 16 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "invalid address length")
 	}
-	if len(data) < 1 {
-		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
-		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
-	}
 
 	bytelen := (int(bitlen) + 7) / 8
 	if len(data) < bytelen {

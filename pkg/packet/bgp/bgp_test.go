@@ -90,6 +90,20 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	assert.Equal(t, "::ffff:192.0.2.128/128", mapped_ipv6.String())
 }
 
+func Test_ZeroIPv4Prefix(t *testing.T) {
+	buf := []byte{0}
+	nlri, err := NLRIFromSlice(RF_IPv4_UC, buf)
+	assert.NoError(t, err)
+	assert.Equal(t, "0.0.0.0/0", nlri.String())
+	ipv4 := nlri.(*IPAddrPrefix)
+	assert.Equal(t, ipv4.Prefix.Bits(), 0)
+	assert.Equal(t, ipv4.Prefix.Addr(), netip.IPv4Unspecified())
+
+	buf, err = nlri.Serialize()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte{0}, buf)
+}
+
 func TestStringLabelAddrPrefix(t *testing.T) {
 	assert := assert.New(t)
 
