@@ -3657,7 +3657,7 @@ func Test_PathAttributeLs(t *testing.T) {
 				0xde, 0xad, 0x00, 0x01, 0xFF, // Unknown TLV
 			},
 			"{LsAttributes: {Node Flags: XXVRBETO} {Opaque attribute: [1 2 3]} {Node Name: rtr} {ISIS Area ID: [114 116 114]} {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {SR Capabilities: Flags:0 SRGB Ranges: 100500:135500 } {SR Algorithms: [1 2 3]} {SR LocalBlock: Flags:0 SRGB Ranges: 100500:135500 } }",
-			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{},"bgp_peer_segment":{}}`,
+			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			false, false,
 		},
 		{
@@ -3675,7 +3675,7 @@ func Test_PathAttributeLs(t *testing.T) {
 				0x04, 0x0c, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x88, 0xb8, 0x04, 0x89, 0x00, 0x03, 0x01, 0x88, 0x94, // Local block: Range 35000, first label: 100500
 			},
 			"{LsAttributes: {Node Flags: XXVRBETO} {Opaque attribute: [1 2 3]} {Node Name: rtr} {ISIS Area ID: [114 116 114]} {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {SR Capabilities: Flags:0 SRGB Ranges: 100500:135500 } {SR Algorithms: [1 2 3]} {SR LocalBlock: Flags:0 SRGB Ranges: 100500:135500 } }",
-			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{},"bgp_peer_segment":{}}`,
+			`{"type":41,"flags":128,"node":{"flags":{"overload":true,"attached":true,"external":true,"abr":true,"router":true,"v6":true},"opaque":"AQID","name":"rtr","isis_area":"cnRy","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","sr_capabilities":{"ipv4_supported":false,"ipv6_supported":false,"ranges":[{"begin":100500,"end":135500}]},"sr_algorithms":"AQID","sr_local_block":{"ranges":[{"begin":100500,"end":135500}]}},"link":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"prefix":{},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			true, false,
 		},
 		{[]byte{
@@ -3702,7 +3702,7 @@ func Test_PathAttributeLs(t *testing.T) {
 				0x04, 0x4b, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Adjacency SID: 100500
 			},
 			"{LsAttributes: {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {Remote RouterID IPv4: 2.2.2.2} {Remote RouterID IPv6: 2001:db8::dead} {Admin Group: 07070707} {Max Link BW: 329.39062} {Max Reservable Link BW: 329.39062} {Unreserved BW: [329.39062 329.39062 329.39062 329.39062 329.39062 329.39062 329.39062 329.39062]} {TE Default metric: 117901063} {IGP metric: 1} {Opaque link attribute: [1 2 3]} {Link Name: rtr} {Adjacency SID: 100500} }",
-			`{"type":41,"flags":128,"node":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"link":{"name":"rtr","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","remote_router_id_ipv4":"2.2.2.2","remote_router_id_ipv6":"2001:db8::dead","admin_group":117901063,"default_te_metric":117901063,"igp_metric":1,"opaque":"AQID","bandwidth":329.39062,"reservable_bandwidth":329.39062,"unreserved_bandwidth":[329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062],"adjacency_sid":100500},"prefix":{},"bgp_peer_segment":{}}`,
+			`{"type":41,"flags":128,"node":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"link":{"name":"rtr","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","remote_router_id_ipv4":"2.2.2.2","remote_router_id_ipv6":"2001:db8::dead","admin_group":117901063,"default_te_metric":117901063,"igp_metric":1,"opaque":"AQID","bandwidth":329.39062,"reservable_bandwidth":329.39062,"unreserved_bandwidth":[329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062],"adjacency_sid":100500},"prefix":{},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			true, false,
 		},
 		{
@@ -3714,7 +3714,7 @@ func Test_PathAttributeLs(t *testing.T) {
 				0x04, 0x86, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Prefix SID: 100500
 			},
 			"{LsAttributes: {IGP Flags: XXXXPLND} {Prefix opaque attribute: [1 2 3]} {Prefix SID: 100500} }",
-			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sid":100500},"bgp_peer_segment":{}}`,
+			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sid":100500},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			true, false,
 		},
 	}
@@ -3982,4 +3982,159 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&SRv6SIDStructureSubSubTLV{}).DecodeFromBytes(data)
 		(&SRv6ServiceTLV{}).DecodeFromBytes(data)
 	})
+}
+
+func Test_LsTLVSrv6EndXSID(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		str       string
+		err       bool
+		serialize bool
+	}{
+		{[]byte{
+			0x04, 0x52, 0x00, 0x16, // TLV SRv6 End.X SID, length = 22 (6 + 16, no sub-TLV)
+			0x00, 0x39, // Endpoint Behavior = 57 (End.X)
+			0x00, // Flags = 0
+			0x00, // Algorithm = 0 (SPF)
+			0x64, // Weight = 100
+			0x00, // Reserved = 0
+			// SID (16 bytes)
+			0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+		}, "{SRv6 End.X SID: EndpointBehavior:57 SIDs: fd00::1  LocalBlock:0 LocalNode:0 LocalFunc:0 LocalArg:0}", false, true},
+		{[]byte{
+			0x04, 0x52, 0x00, 0x15, // Incorrect length (should be at least 22)
+		}, "", true, false},
+	}
+
+	for _, test := range tests {
+		srv6 := LsTLVSrv6EndXSID{}
+		if test.err {
+			assert.Error(srv6.DecodeFromBytes(test.in))
+		} else {
+			assert.NoError(srv6.DecodeFromBytes(test.in))
+			assert.Equal(test.str, srv6.String())
+			if test.serialize {
+				got, err := srv6.Serialize()
+				assert.NoError(err)
+				assert.Equal(test.in, got)
+			}
+		}
+	}
+}
+
+func Test_LsTLVSrv6SIDStructure(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		str       string
+		err       bool
+		serialize bool
+	}{
+		{[]byte{
+			0x04, 0xe4, 0x00, 0x04, // TLV SRv6 SID Structure, length = 4
+			0x28, // LocalBlock = 40
+			0x28, // LocalNode = 40
+			0x10, // LocalFunc = 16
+			0x00, // LocalArg = 0
+		}, "{SRv6 SID Structure: LocalBlock:40 LocalNode:40 LocalFunc:16 LocalArg:0}", false, true},
+		{[]byte{
+			0x04, 0xe4, 0x00, 0x03, // Incorrect length (should be 4)
+			0x28, 0x28, 0x10,
+		}, "", true, false},
+	}
+
+	for _, test := range tests {
+		srv6 := LsTLVSrv6SIDStructure{}
+		if test.err {
+			assert.Error(srv6.DecodeFromBytes(test.in))
+		} else {
+			assert.NoError(srv6.DecodeFromBytes(test.in))
+			assert.Equal(test.str, srv6.String())
+			if test.serialize {
+				got, err := srv6.Serialize()
+				assert.NoError(err)
+				assert.Equal(test.in, got)
+			}
+		}
+	}
+}
+
+func Test_LsTLVSrv6BgpPeerNodeSID(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		str       string
+		err       bool
+		serialize bool
+	}{
+		{[]byte{
+			0x04, 0xe3, 0x00, 0x0c, // TLV SRv6 BGP PeerNode SID, length = 12
+			0x01,       // Flags = 1
+			0x64,       // Weight = 100
+			0x00, 0x00, // Reserved = 0
+			0x00, 0x00, 0xfd, 0xe8, // Peer AS Number = 65000
+			0x01, 0x01, 0x01, 0x01, // Peer BGP ID = 1.1.1.1
+		}, "{SRv6 BGP PeerNode SID: Flags:1 Weight:100 PeerAS:65000 PeerBgpID:1.1.1.1}", false, true},
+		{[]byte{
+			0x04, 0xe3, 0x00, 0x0b, // Incorrect length (should be 12)
+			0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0xfd, 0xe8, 0x01, 0x01, 0x01,
+		}, "", true, false},
+	}
+
+	for _, test := range tests {
+		srv6 := LsTLVSrv6BgpPeerNodeSID{}
+		if test.err {
+			assert.Error(srv6.DecodeFromBytes(test.in))
+		} else {
+			assert.NoError(srv6.DecodeFromBytes(test.in))
+			assert.Equal(test.str, srv6.String())
+			if test.serialize {
+				got, err := srv6.Serialize()
+				assert.NoError(err)
+				assert.Equal(test.in, got)
+			}
+		}
+	}
+}
+
+func Test_LsTLVSrv6EndpointBehavior(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		str       string
+		err       bool
+		serialize bool
+	}{
+		{[]byte{
+			0x04, 0xe2, 0x00, 0x04, // TLV SRv6 Endpoint Behavior, length = 4
+			0x00, 0x30, // Endpoint Behavior = 48 (End)
+			0x01, // Flags = 1
+			0x00, // Algorithm = 0 (SPF)
+		}, "{SRv6 Endpoint Behavior: EndpointBehavior:48 Flags:1 Algorithm:0}", false, true},
+		{[]byte{
+			0x04, 0xe2, 0x00, 0x03, // Incorrect length (should be 4)
+			0x00, 0x01, 0x01,
+		}, "", true, false},
+	}
+
+	for _, test := range tests {
+		srv6 := LsTLVSrv6EndpointBehavior{}
+		if test.err {
+			assert.Error(srv6.DecodeFromBytes(test.in))
+		} else {
+			assert.NoError(srv6.DecodeFromBytes(test.in))
+			assert.Equal(test.str, srv6.String())
+			if test.serialize {
+				got, err := srv6.Serialize()
+				assert.NoError(err)
+				assert.Equal(test.in, got)
+			}
+		}
+	}
 }
