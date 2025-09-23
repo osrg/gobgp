@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
@@ -795,7 +796,10 @@ func showValidationInfo(p *api.Path, shownAs map[uint32]struct{}) error {
 }
 
 func showRibInfo(r, name string) error {
-	def := addr2AddressFamily(net.ParseIP(name))
+	var def *api.Family
+	if addr, err := netip.ParseAddr(name); err == nil {
+		def = addr2AddressFamily(addr)
+	}
 	if r == cmdGlobal || r == cmdVRF {
 		def = ipv4UC
 	}
@@ -860,7 +864,11 @@ func showNeighborRib(r string, name string, args []string) error {
 	validationTarget := ""
 	rd := ""
 
-	def := addr2AddressFamily(net.ParseIP(name))
+	var def *api.Family
+	if addr, err := netip.ParseAddr(name); err == nil {
+		def = addr2AddressFamily(addr)
+	}
+
 	switch r {
 	case cmdGlobal:
 		def = ipv4UC

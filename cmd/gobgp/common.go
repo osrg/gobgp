@@ -322,13 +322,13 @@ func newConn() (*grpc.ClientConn, error) {
 	return grpc.NewClient(target, grpcOpts...)
 }
 
-func addr2AddressFamily(a net.IP) *api.Family {
-	if a.To4() != nil {
+func addr2AddressFamily(a netip.Addr) *api.Family {
+	if a.Is4() {
 		return &api.Family{
 			Afi:  api.Family_AFI_IP,
 			Safi: api.Family_SAFI_UNICAST,
 		}
-	} else if a.To16() != nil {
+	} else if a.Is6() {
 		return &api.Family{
 			Afi:  api.Family_AFI_IP6,
 			Safi: api.Family_SAFI_UNICAST,
