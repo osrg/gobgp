@@ -779,6 +779,7 @@ message PeerGroupConf {
   bool route_flap_damping = 8;
   uint32 send_community = 9;
   bool send_software_version = 10;
+  bool shared_policy = 11;
 }
 
 message PeerGroupState {

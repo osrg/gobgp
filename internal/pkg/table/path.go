@@ -25,6 +25,7 @@ import (
 	"net/netip"
 	"slices"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -223,8 +224,8 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, info *PeerInfo, original *Path) *Path {
-	if peer.RouteServer.Config.RouteServerClient {
+func UpdatePathAttrs(logger log.Logger, global *oc.Global, info *PeerInfo, original *Path) *Path {
+	if info.RouteServerClient {
 		return original
 	}
 	path := original.Clone(original.IsWithdraw)
@@ -237,7 +238,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 		} else {
 			switch a.GetType() {
 			case bgp.BGP_ATTR_TYPE_CLUSTER_LIST, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID:
-				if peer.State.PeerType != oc.PEER_TYPE_INTERNAL || !peer.RouteReflector.Config.RouteReflectorClient {
+				if info.PeerType != oc.PEER_TYPE_INTERNAL || !info.RouteReflectorClient {
 					// send these attributes to only rr clients
 					path.delPathAttr(a.GetType())
 				}
@@ -247,7 +248,7 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 
 	localAddress := info.LocalAddress
 	nexthop := path.GetNexthop()
-	switch peer.State.PeerType {
+	switch info.PeerType {
 	case oc.PEER_TYPE_EXTERNAL:
 		// NEXTHOP handling
 		if !path.IsLocal() || nexthop.IsUnspecified() {
@@ -255,11 +256,11 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 		}
 
 		// remove-private-as handling
-		path.RemovePrivateAS(peer.Config.LocalAs, peer.State.RemovePrivateAs)
+		path.RemovePrivateAS(info.LocalAS, info.RemovePrivateAs)
 
 		// AS_PATH handling
-		confed := peer.IsConfederationMember(global)
-		path.PrependAsn(peer.Config.LocalAs, 1, confed)
+		confed := global.IsConfederationMember(info.AS)
+		path.PrependAsn(info.LocalAS, 1, confed)
 		if !confed {
 			path.removeConfedAs()
 		}
@@ -293,8 +294,8 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 
 		// RFC4456: BGP Route Reflection
 		// 8. Avoiding Routing Information Loops
-		info := path.GetSource()
-		if peer.RouteReflector.Config.RouteReflectorClient {
+		srcInfo := path.GetSource()
+		if info.RouteReflectorClient {
 			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
 			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
 			//
@@ -305,21 +306,21 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 			// address for that session.
 			if path.GetFamily() == bgp.RF_RTC_UC {
 				path.SetNexthop(localAddress.AsSlice())
-				attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
+				attr, _ := bgp.NewPathAttributeOriginatorId(srcInfo.LocalID)
 				path.setPathAttr(attr)
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
 					attr, _ := bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
 					path.setPathAttr(attr)
 				} else {
-					attr, _ := bgp.NewPathAttributeOriginatorId(info.ID)
+					attr, _ := bgp.NewPathAttributeOriginatorId(srcInfo.ID)
 					path.setPathAttr(attr)
 				}
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
 			// TODO: needs to validated earlier.
-			clusterID := peer.RouteReflector.State.RouteReflectorClusterId
+			clusterID := info.RouteReflectorClusterID
 			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
 				pa, _ := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
 				path.setPathAttr(pa)
@@ -332,9 +333,10 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, peer *oc.Neighbor, in
 	default:
 		logger.Warn("invalid peer type",
 			log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.State.NeighborAddress,
-				"Type":  peer.State.PeerType,
+				"Topic":     "Peer",
+				"PeerGroup": info.PeerGroup,
+				"ID":        info.ID,
+				"Type":      info.PeerType,
 			})
 	}
 	return path
@@ -1323,11 +1325,14 @@ func (p *Path) ToLocal() *Path {
 }
 
 func (p *Path) updateHash() {
-	p.attrsHash = fnv1a.Init64
+	attrsHash := fnv1a.Init64
 	for _, a := range p.GetPathAttrs() {
 		d, _ := a.Serialize()
-		p.attrsHash = fnv1a.AddBytes64(p.attrsHash, d)
+		attrsHash = fnv1a.AddBytes64(p.attrsHash, d)
 	}
+
+	//
+	atomic.StoreUint64(&p.attrsHash, attrsHash)
 }
 
 func (p *Path) SetHash(v uint64) {

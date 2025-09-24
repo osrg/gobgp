@@ -40,7 +40,11 @@ import (
 )
 
 const (
-	minConnectRetryInterval = 2
+	minConnectRetryInterval = 5
+)
+
+const (
+	logOnceAllowOwnAs = 1 << iota
 )
 
 type fsmStateReasonType uint8
@@ -193,6 +197,7 @@ type fsm struct {
 	notification             chan *bgp.BGPMessage
 	deconfiguredNotification chan *bgp.BGPMessage
 	logger                   log.Logger
+	logOnceFlags             uint32
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -1075,7 +1080,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				body := m.Body.(*bgp.BGPUpdate)
 				h.fsm.lock.RLock()
 				isEBGP := h.fsm.pConf.IsEBGPPeer(h.fsm.gConf)
-				isConfed := h.fsm.pConf.IsConfederationMember(h.fsm.gConf)
+				isConfed := h.fsm.gConf.IsConfederationMember(h.fsm.pConf.Config.PeerAs)
 				h.fsm.lock.RUnlock()
 
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
@@ -1803,6 +1808,16 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 					}
 				}
 			default:
+				// This is kinda expected that established() tries to stop us
+				fsm.lock.RLock()
+				fsm.logger.Warn("Got a message without paths, stopping send message loop",
+					log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.State.NeighborAddress,
+						"State": fsm.state.String(),
+						"data":  m,
+					})
+				fsm.lock.RUnlock()
 				return nil
 			}
 		case <-ticker.C:
@@ -2125,4 +2140,14 @@ func (h *fsmHandler) changeadminState(s adminState) error {
 		return fmt.Errorf("cannot change to the same state")
 	}
 	return nil
+}
+
+func (fsm *fsm) warnOnce(flag uint32, msg string, fields log.Fields) {
+	if fsm.logOnceFlags&flag == 0 {
+		fsm.logger.Warn(msg+" Further messages will be logged with DEBUG level.", fields)
+		fsm.logOnceFlags |= flag
+		return
+	}
+
+	fsm.logger.Debug(msg, fields)
 }

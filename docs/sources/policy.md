@@ -40,6 +40,7 @@ Assumed that you finished [Getting Started](getting-started.md).
       - [4.2. Attach policy to route-server-client](#42-attach-policy-to-route-server-client)
   - [Policy Configuration Example](#policy-configuration-example)
   - [Policy and Soft Reset](#policy-and-soft-reset)
+  - [Shared Policy in Peer Groups](#shared-policy-in-peer-groups)
 
 ## Overview
 
@@ -996,3 +997,23 @@ When you change an import policy and reset the inbound routing table (aka soft r
 The outbound routing table doesn't exist for saving memory usage, it's impossible to know whether the route was actually sent to peer or the route also was rejected by the previous export policies and not sent. GoBGP doesn't send such withdraw rather than possible unwilling leaking information.
 
 Please report if other implementations such as bird work in a different way.
+
+## Shared Policy in Peer Groups
+
+By default each policy is computed individually per each receiver peer. There still an option to select policy applicable statements by using matching based on neighbor sets, but it might be ineffective for large amount of peers route reflector or server might have as each neighbor set requires source IP matching per each path received or propagated. GoBGP offers an option to group policy computation per each group which is enabled by `shared-policy` option in peer-group config and specifying individual `apply-policy` config section for it.
+
+With `shared-policy` option enabled specified policy is computed once per peer-group with a additional small work done on per-peer basis, such as Route Target Constraint checks or Split Horizon check. Note that this option is incompatible with peers with ADD_PATH capability.
+
+If shared policy is enabled, applicable policy for a peer group can be checked using `gobgp peer-group PG_NAME policy` command:
+
+```bash
+$ gobgp peer-group control policy
+Import policy:
+    Default: ACCEPT
+    Name control-import:
+      ...
+```
+
+NOTE: shared policy changes behavior of RTC: since it requires for RTC filtering to be computed on per-peer basis,
+while policy is computed on per-peer-group basis, RTC starts to account for route targets appended or removed via export
+policies.

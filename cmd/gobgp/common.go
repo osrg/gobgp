@@ -45,6 +45,8 @@ const globalRIBName = "global"
 const (
 	cmdGlobal         = "global"
 	cmdNeighbor       = "neighbor"
+	cmdPeerGroup      = "peer-group"
+	cmdPeerGroupShort = "pg"
 	cmdPolicy         = "policy"
 	cmdRib            = "rib"
 	cmdAdd            = "add"

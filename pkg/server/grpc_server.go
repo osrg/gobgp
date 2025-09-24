@@ -1155,6 +1155,8 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 			readAddPathsFromAPIStruct(&afiSafi.AddPaths, af.AddPaths)
 			pconf.AfiSafis = append(pconf.AfiSafis, afiSafi)
 		}
+
+		pconf.Config.SharedPolicy = a.Conf.SharedPolicy
 	}
 
 	if a.Timers != nil {

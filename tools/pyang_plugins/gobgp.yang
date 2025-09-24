@@ -1057,6 +1057,22 @@ module gobgp {
 
   }
 
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group/bgp:config" {
+    description "share peer-group policy for all peers";
+    
+    leaf shared-policy {
+      type boolean;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group/bgp:state" {
+    description "share peer-group policy for all peers";
+    
+    leaf shared-policy {
+      type boolean;
+    }
+  }
+
   augment "/rpol:routing-policy/rpol:policy-definitions/" +
     "rpol:policy-definition/rpol:statements/rpol:statement/" +
     "rpol:actions/bgp-pol:bgp-actions/bgp-pol:set-as-path-prepend" {

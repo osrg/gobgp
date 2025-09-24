@@ -623,7 +623,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 		args = append(args, teid, qfi, endpoint)
 	}
 
-	attrs, _ := apiutil.GetNativePathAttributes(p)
+	attrs, attrErr := apiutil.GetNativePathAttributes(p)
 	// Next Hop
 	nexthop := "fictitious"
 	if n := getNextHopFromPathAttributes(attrs); n.IsValid() {
@@ -649,8 +649,12 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	}
 
 	// Path Attributes
-	pattrstr := getPathAttributeString(nlri, attrs)
-	args = append(args, pattrstr)
+	if attrErr == nil {
+		pattrstr := getPathAttributeString(nlri, attrs)
+		args = append(args, pattrstr)
+	} else {
+		args = append(args, fmt.Sprintf("error: %s", attrErr))
+	}
 
 	if showSendMaxFiltered {
 		if p.SendMaxFiltered {

@@ -225,10 +225,11 @@ func TestListPolicyAssignment(t *testing.T) {
 }
 
 //nolint:errcheck // WatchEvent won't return an error here
-func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) *sync.WaitGroup {
+func waitStateMultiple(s *BgpServer, state api.PeerState_SessionState, expectedCount int, expectedFamilies ...bgp.Family) *sync.WaitGroup {
+	var count int
 	wg := &sync.WaitGroup{}
 	watchCtxMsg, watchCancelMsg := context.WithCancel(context.Background())
-	wg.Add(1)
+	wg.Add(expectedCount)
 
 	opts := make([]WatchOption, 0)
 	opts = append(opts, WatchPeer())
@@ -254,7 +255,11 @@ func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies 
 							return
 						}
 					}
-					watchCancelMsg()
+
+					count++
+					if count == expectedCount {
+						watchCancelMsg()
+					}
 					wg.Done()
 				}
 			},
@@ -263,12 +268,16 @@ func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies 
 	return wg
 }
 
+func waitState(s *BgpServer, state api.PeerState_SessionState) *sync.WaitGroup {
+	return waitStateMultiple(s, state, 1)
+}
+
 func waitActive(s *BgpServer) *sync.WaitGroup {
 	return waitState(s, api.PeerState_SESSION_STATE_ACTIVE)
 }
 
 func waitEstablished(s *BgpServer, rfs ...bgp.Family) *sync.WaitGroup {
-	return waitState(s, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
+	return waitStateMultiple(s, api.PeerState_SESSION_STATE_ESTABLISHED, 1, rfs...)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -976,6 +985,7 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 	p := newPeer(
 		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
+		nil,
 		rib,
 		policy,
 		logger)
@@ -1073,6 +1083,86 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	assert.Nil(t, path)
 }
 
+func TestFilterPathsForPeer(t *testing.T) {
+	const as = uint32(65000)
+
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	p1 := newPeerandInfo(t, as, as, "192.168.0.1", rib)
+	p1.fsm.pConf.RouteReflector.Config.RouteReflectorClient = true
+	p2 := newPeerandInfo(t, as, as, "192.168.0.2", rib)
+	p2.fsm.pConf.RouteReflector.Config.RouteReflectorClient = true
+
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.20.20.0/24"))
+	pattr := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}),
+		bgp.NewPathAttributeLocalPref(200),
+	}
+
+	path1from1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo, bgp.PathNLRI{NLRI: nlri1},
+		false, pattr, time.Now(), false)
+	path2from1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo, bgp.PathNLRI{NLRI: nlri2},
+		false, pattr, time.Now(), false)
+	path1from2 := table.NewPath(bgp.RF_IPv4_UC, p2.peerInfo, bgp.PathNLRI{NLRI: nlri1},
+		false, pattr, time.Now(), false)
+
+	t.Run("SendAll", func(t *testing.T) {
+		// Send both paths as is since they originated from other peer
+		twoPaths := []*table.Path{path1from1, path2from1}
+		filtered := filterPathsForPeer(p2, twoPaths, twoPaths)
+		require.Len(t, filtered, 2)
+		assert.False(t, filtered[0].IsWithdraw)
+		assert.False(t, filtered[1].IsWithdraw)
+	})
+
+	t.Run("Filter", func(t *testing.T) {
+		// Do not send path 1 since it was originated from second peer, but send another path
+		// Test both orders
+		twoPaths := []*table.Path{path1from2, path2from1}
+		for _, reversed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("reversed=%t", reversed), func(t *testing.T) {
+				if reversed {
+					slices.Reverse(twoPaths)
+				}
+
+				filtered := filterPathsForPeer(p2, twoPaths, twoPaths)
+				require.Len(t, filtered, 1)
+				assert.Equal(t, nlri2.String(), filtered[0].GetNlri().String())
+				assert.False(t, filtered[0].IsWithdraw)
+			})
+		}
+	})
+
+	t.Run("WithdrawOld", func(t *testing.T) {
+		// If path1 was sent from peer1, but changed to peer2, we should
+		// explicitly withdraw it because it's our last chance to do so
+		// (all subsequent updates will be filtered, see above)
+		oldPaths := []*table.Path{path1from1, path2from1}
+		twoPaths := []*table.Path{path1from2, path2from1}
+		t.Run("one", func(t *testing.T) {
+			filtered := filterPathsForPeer(p2, twoPaths[:1], oldPaths[:1])
+			require.Len(t, filtered, 1)
+			assert.True(t, filtered[0].IsWithdraw)
+		})
+
+		for _, reversed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("reversed=%t", reversed), func(t *testing.T) {
+				withdrawnIndex, retainedIndex := 0, 1
+				if reversed {
+					slices.Reverse(oldPaths)
+					slices.Reverse(twoPaths)
+					withdrawnIndex, retainedIndex = 1, 0
+				}
+
+				filtered := filterPathsForPeer(p2, twoPaths, oldPaths)
+				require.Len(t, filtered, 2)
+				assert.True(t, filtered[withdrawnIndex].IsWithdraw)
+				assert.False(t, filtered[retainedIndex].IsWithdraw)
+			})
+		}
+	})
+}
+
 func TestFilterpathWithRejectPolicy(t *testing.T) {
 	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	p1 := newPeerandInfo(t, 1, 2, "192.168.0.1", rib1)
@@ -1132,6 +1222,185 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		} else {
 			assert.False(t, path2.IsWithdraw)
 		}
+	}
+}
+
+func TestBgpServerLocalASOverride(test *testing.T) {
+	// Test that per-peer local-as override is working properly when applied to path
+	// for filtering on receiver or for AS_PATH prepending on sender
+	const (
+		localAsn         = 11
+		localAsnOverride = 5
+		middleAsn        = 6
+		extAsn           = 7
+	)
+
+	remote := runNewServer(test, extAsn, "1.1.1.1", 10179)
+	defer remote.StopBgp(context.Background(), &api.StopBgpRequest{})
+	remote.logger.SetLevel(log.DebugLevel)
+
+	local := runNewServer(test, localAsn, "2.2.2.2", 20179)
+	defer local.StopBgp(context.Background(), &api.StopBgpRequest{})
+	local.logger.SetLevel(log.DebugLevel)
+
+	var peeringEstablished bool
+	servers := []*BgpServer{remote, local}
+	afiSafis := []oc.AfiSafiType{
+		oc.AFI_SAFI_TYPE_IPV4_UNICAST,
+	}
+
+	// Only used in peer-group tests
+	const pgName = "g"
+	err := local.addPeerGroup(&oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
+			PeerAs:        extAsn,
+			LocalAs:       localAsnOverride,
+			PeerGroupName: pgName,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{RemotePort: 10179},
+		},
+	})
+	assert.NoError(test, err)
+
+	// Path attributes commonly used by all tests
+	origin := bgp.NewPathAttributeOrigin(0)
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+
+	for i, tt := range []struct {
+		name             string
+		sender, receiver *BgpServer
+		asPathSent       []uint32
+		asPathAccepted   string
+		peerOption       peerOption
+	}{
+		// NOTE: tests without confOverride go first to avoid reconfiguring peers too often
+		// (they do not force reconfiguring peers, so be careful adding such a test in a middle)
+		{
+			// NOTE: for now such paths are accepted, but might be rejected in future
+			name:           "local asn override received",
+			sender:         remote,
+			receiver:       local,
+			asPathSent:     []uint32{middleAsn, localAsnOverride},
+			asPathAccepted: fmt.Sprint(extAsn, middleAsn, localAsnOverride),
+		},
+		{
+			name:       "local asn dropped",
+			sender:     remote,
+			receiver:   local,
+			asPathSent: []uint32{middleAsn, localAsn},
+		},
+		{
+			name:           "local asn override prepended",
+			sender:         local,
+			receiver:       remote,
+			asPathSent:     nil,
+			asPathAccepted: strconv.Itoa(localAsnOverride),
+		},
+		{
+			name:           "local asn override prepended peer-group",
+			sender:         local,
+			receiver:       remote,
+			asPathSent:     nil,
+			asPathAccepted: strconv.Itoa(localAsnOverride),
+			peerOption: func(peer *BgpServer, g *oc.Global, n *oc.Neighbor) {
+				if peer == remote {
+					n.Config.LocalAs = 0
+					n.Config.PeerGroup = pgName
+				}
+			},
+		},
+		{
+			name:           "local asn allow-own-as",
+			sender:         remote,
+			receiver:       local,
+			asPathSent:     []uint32{middleAsn, localAsn},
+			asPathAccepted: fmt.Sprint(extAsn, middleAsn, localAsn),
+			peerOption: func(peer *BgpServer, g *oc.Global, n *oc.Neighbor) {
+				if peer == remote {
+					n.AsPathOptions.Config.AllowOwnAs = 1
+				}
+			},
+		},
+		{
+			name:           "replace-private-as",
+			sender:         local,
+			receiver:       remote,
+			asPathSent:     []uint32{65414, 65413},
+			asPathAccepted: fmt.Sprint(localAsnOverride, localAsnOverride, localAsnOverride),
+			peerOption: func(peer *BgpServer, g *oc.Global, n *oc.Neighbor) {
+				if peer == remote {
+					n.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_REPLACE
+				}
+			},
+		},
+	} {
+		test.Run(tt.name, func(test *testing.T) {
+			if tt.peerOption != nil || !peeringEstablished {
+				if peeringEstablished {
+					resetPeers(test, context.Background(), servers)
+				}
+
+				wg := waitEstablished(remote)
+				err := peerServers(test, context.Background(), servers, afiSafis,
+					enableGROpt, func(peer *BgpServer, g *oc.Global, p *oc.Neighbor) {
+						switch peer {
+						case remote:
+							p.Config.LocalAs = localAsnOverride
+						case local:
+							p.Config.PeerAs = localAsnOverride
+						}
+
+						// For the purpose of this test, sender should send it's route even if
+						// it might lead to AS path loop (but it might be ignored by receiver)
+						p.AsPathOptions.Config.AllowAsPathLoopLocal = true
+
+						if tt.peerOption != nil {
+							tt.peerOption(peer, g, p)
+						}
+					})
+				require.NoError(test, err)
+
+				wg.Wait()
+				peeringEstablished = true
+			}
+
+			asPath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, tt.asPathSent),
+			})
+
+			prefix := fmt.Sprintf("10.5.%d.0", i)
+			prefixStr := prefix + "/24"
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefixStr))
+			paths := []*apiutil.Path{
+				{
+					Family: bgp.RF_IPv4_UC,
+					Nlri:   nlri,
+					Attrs:  []bgp.PathAttributeInterface{origin, nh, asPath},
+				},
+			}
+
+			watcher := tt.receiver.watch(WatchUpdate(false, "", ""))
+			_, err := tt.sender.AddPath(apiutil.AddPathRequest{Paths: paths})
+			require.NoError(test, err)
+
+			defer tt.sender.DeletePath(apiutil.DeletePathRequest{Paths: paths})
+
+			if tt.asPathAccepted != "" {
+				acceptedPath := waitOnePath(test, watcher)
+				assert.Equal(test, prefixStr, acceptedPath.GetNlri().String())
+				assert.Equal(test, tt.asPathAccepted, acceptedPath.GetAsString())
+			} else {
+				time.Sleep(1 * time.Second)
+				err := tt.receiver.ListPath(apiutil.ListPathRequest{
+					TableType: api.TableType_TABLE_TYPE_GLOBAL,
+					Family:    bgp.RF_IPv4_UC,
+				}, func(prefix bgp.NLRI, paths []*apiutil.Path) {
+					assert.NotEqual(test, prefixStr, prefix.String())
+				})
+				assert.NoError(test, err)
+			}
+		})
 	}
 }
 
@@ -1221,6 +1490,13 @@ func TestPeerGroup(test *testing.T) {
 	assert.NoError(err)
 
 	establishedWg.Wait()
+
+	activeWg := waitActive(s)
+	err = t.DeletePeer(context.Background(), &api.DeletePeerRequest{
+		Address: m.Config.NeighborAddress.String(),
+	})
+	assert.NoError(err)
+	activeWg.Wait()
 }
 
 func TestDynamicNeighbor(t *testing.T) {
@@ -1596,6 +1872,10 @@ func runNewServer(t *testing.T, as uint32, routerID string, listenPort int32) *B
 
 type peerOption func(peer *BgpServer, g *oc.Global, p *oc.Neighbor)
 
+func enableGROpt(peer *BgpServer, g *oc.Global, p *oc.Neighbor) {
+	p.GracefulRestart.Config.Enabled = true
+}
+
 func setPeerAddressOpt(peer *BgpServer, g *oc.Global, p *oc.Neighbor) {
 	p.Transport.Config.LocalAddress = g.Config.LocalAddressList[0]
 	p.Config.NeighborAddress = peer.bgpConfig.Global.Config.LocalAddressList[0]
@@ -1650,6 +1930,7 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 			if i == j {
 				continue
 			}
+
 			// first server to get neighbor config is passive to hopefully make handshake faster
 			if err := peerTwoServers(t, ctx, server, peer, families, i < j, opts...); err != nil {
 				return err
@@ -1658,6 +1939,23 @@ func peerServers(t *testing.T, ctx context.Context, servers []*BgpServer, famili
 	}
 
 	return nil
+}
+
+func resetPeers(t *testing.T, ctx context.Context, servers []*BgpServer) {
+	// FIXME: use peer address instead of default as in peerServers
+	for i, server := range servers {
+		for j := range servers {
+			if i == j {
+				continue
+			}
+		}
+
+		if err := server.DeletePeer(ctx, &api.DeletePeerRequest{
+			Address: "127.0.0.1",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func parseRDRT(rdStr string) (bgp.RouteDistinguisherInterface, bgp.ExtendedCommunityInterface, error) {
@@ -1712,6 +2010,15 @@ func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, importRtsStr []st
 	if err = s.AddVrf(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func waitOnePath(test *testing.T, w *watcher) *table.Path {
+	ev := <-w.Event()
+	updateEv, isUpdate := ev.(*watchEventUpdate)
+	require.True(test, isUpdate)
+	require.Len(test, updateEv.PathList, 1)
+
+	return updateEv.PathList[0]
 }
 
 func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
