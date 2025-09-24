@@ -483,7 +483,7 @@ func countReachPaths(paths []*table.Path) (count int) {
 			count++
 		}
 	}
-	return
+	return count
 }
 
 // Topology test spawns multiple servers and tests various aspects of passing route via

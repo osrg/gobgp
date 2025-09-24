@@ -614,7 +614,8 @@ func (peer *peer) needToAdvertise() bool {
 		peer.fsm.logger.Debug("now syncing, suppress sending updates",
 			log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.fsm.pConf.State.NeighborAddress})
+				"Key":   peer.fsm.pConf.State.NeighborAddress,
+			})
 		peer.fsm.lock.RUnlock()
 		return false
 	}
@@ -717,7 +718,8 @@ func toGlobalFamilies(peer receiver, families []bgp.Family) []bgp.Family {
 						"Topic":  "Peer",
 						"Key":    id,
 						"Family": f,
-						"VRF":    vrf})
+						"VRF":    vrf,
+					})
 			}
 		}
 		families = fs
@@ -1062,7 +1064,8 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 						log.Fields{
 							"Topic": "Peer",
 							"Key":   peer.fsm.pConf.State.NeighborAddress,
-							"nlri":  path.GetNlri().String()})
+							"nlri":  path.GetNlri().String(),
+						})
 				}
 			}
 			// RFC4456 8. Avoiding Routing Information Loops

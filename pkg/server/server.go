@@ -506,7 +506,7 @@ func filterpath(r receiver, path, old *table.Path) *table.Path {
 		}
 	}
 
-	//iBGP handling
+	// iBGP handling
 	if r.isIBGPPeer() {
 		ignore := false
 		if !path.IsLocal() {
@@ -616,7 +616,8 @@ func (s *BgpServer) prePolicyFilterpath(r receiver, path, old *table.Path) (*tab
 				log.Fields{
 					"Topic": "Peer",
 					"Key":   r.ID(),
-					"Path":  path})
+					"Path":  path,
+				})
 			pathExportSkipped(r, path, "rtm-already-sent")
 			return nil, nil, true
 		}
@@ -1330,8 +1331,8 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 	family := newPath.GetFamily()
 
 	for _, targetPeer := range s.receiverMap {
-		if (source == nil && targetPeer.isRouteServerClient()) ||
-			(source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient()) {
+		if source == nil && targetPeer.isRouteServerClient() ||
+			source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient() {
 			continue
 		}
 		f := func() bgp.Family {
@@ -2091,7 +2092,8 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 			s.logger.Info("call set policy",
 				log.Fields{
 					"Topic": "Peer",
-					"Key":   id})
+					"Key":   id,
+				})
 
 			a, err := getConfig(id)
 			if err != nil {
@@ -3508,7 +3510,8 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 			s.logger.Warn("Unexpected peer without an actual peer group",
 				log.Fields{
 					"Topic": "Peer",
-					"Key":   addr})
+					"Key":   addr,
+				})
 		}
 	}
 

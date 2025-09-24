@@ -336,7 +336,8 @@ func UpdatePathAttrs(logger log.Logger, global *oc.Global, info *PeerInfo, origi
 				"Topic":     "Peer",
 				"PeerGroup": info.PeerGroup,
 				"ID":        info.ID,
-				"Type":      info.PeerType})
+				"Type":      info.PeerType,
+			})
 	}
 	return path
 }
